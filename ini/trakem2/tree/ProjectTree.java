@@ -31,7 +31,6 @@ import ini.trakem2.display.*;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Render;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.display.Interactive3DSpace;
 
 import java.awt.Color;
 import java.awt.Event;
@@ -180,8 +179,6 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 					Display.showCentered(displ.getLayer(), displ);
 				}
 			} else if (command.equals("Show in 3D")) {
-				//new Interactive3DSpace(thing, thing.getProject().getRootLayerSet()); // TEMPORARY, the LayerSet may be wrong!
-				// TESTING
 				ini.trakem2.display.Display3D.show(thing);
 			} else if (command.equals("Hide")) {
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
