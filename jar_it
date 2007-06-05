@@ -1,0 +1,17 @@
+rm -f TrakEM2_.jar
+jar cf TrakEM2_.jar plugins.config jRenderer3D/*class ini/trakem2/*class ini/trakem2/tree/*class ini/trakem2/display/*class ini/trakem2/persistence/*class ini/trakem2/utils/*class ini/trakem2/imaging/*class ini/trakem2/io/*class ini/trakem2/render3d/*class ini/trakem2/vector/*class
+mv -f TrakEM2_.jar ..
+mv -f *class
+rm -f jRenderer3D/*class
+rm -f ini/trakem2/*class
+rm -f ini/trakem2/tree/*class
+rm -f ini/trakem2/display/*class
+rm -f ini/trakem2/persistence/*class
+rm -f ini/trakem2/utils/*class
+rm -f ini/trakem2/imaging/*class
+rm -f ini/trakem2/io/*class
+rm -f ini/trakem2/render3d/*class
+rm -f ini/trakem2/vector/*class
+cd ..
+rm -f TrakEM2-src.zip
+zip -r TrakEM2-src.zip TrakEM2-src/plugins.config TrakEM2-src/README TrakEM2-src/jRenderer3D/*java TrakEM2-src/ini/trakem2/*java TrakEM2-src/ini/trakem2/tree/*java TrakEM2-src/ini/trakem2/display/*java TrakEM2-src/ini/trakem2/persistence/*java TrakEM2-src/ini/trakem2/utils/*java TrakEM2-src/ini/trakem2/imaging/*java TrakEM2-src/ini/trakem2/io/*java TrakEM2-src/ini/trakem2/render3d/*java TrakEM2-src/ini/trakem2/vector/*java

@@ -1,0 +1,1407 @@
+/**
+
+TrakEM2 plugin for ImageJ(C).
+Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.txt )
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+
+You may contact Albert Cardona at acardona at ini.phys.ethz.ch
+Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
+**/
+
+package ini.trakem2.display;
+
+
+import ij.gui.GenericDialog;
+import ij.measure.Calibration;
+
+import ini.trakem2.ControlWindow;
+import ini.trakem2.Project;
+import ini.trakem2.persistence.DBObject;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.imaging.LayerStack;
+
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Map;
+
+
+/** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
+public class LayerSet extends Displayable { // Displayable is already extending DBObject
+
+	// the anchors for resizing
+	static public final int NORTH = 0;
+	static public final int NORTHEAST = 1;
+	static public final int EAST = 2;
+	static public final int SOUTHEAST = 3;
+	static public final int SOUTH = 4;
+	static public final int SOUTHWEST = 5;
+	static public final int WEST = 6;
+	static public final int NORTHWEST = 7;
+	static public final int CENTER = 8;
+
+	// the possible rotations
+	static public final int R90 = 9;
+	static public final int R270 = 10;
+	// the posible flips
+	static public final int FLIP_HORIZONTAL = 11;
+	static public final int FLIP_VERTICAL = 12;
+
+	// postions in the stack
+	static public final int TOP = 13;
+	static public final int UP = 14;
+	static public final int DOWN = 15;
+	static public final int BOTTOM = 16;
+
+
+	static public final String[] ANCHORS =  new String[]{"north", "north east", "east", "southeast", "south", "south west", "west", "north west", "center"};
+	static public final String[] ROTATIONS = new String[]{"90 right", "90 left", "Flip horizontally", "Flip vertically"};
+
+	private double layer_width; // the Displayable.width is for the representation, not for the dimensions of the LayerSet!
+	private double layer_height;
+	private double rot_x;
+	private double rot_y;
+	private double rot_z; // should be equivalent to the Displayable.rot
+	private ArrayList al_layers = new ArrayList();
+	private Layer active_layer;
+	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
+	private Layer parent = null;
+	/** A LayerSet can contain Displayables that are show in every single Layer, such as Pipe objects. */
+	private ArrayList al_zdispl = new ArrayList();
+
+	private boolean snapshots_enabled = true;
+
+	/** Store Hashtables of displayable/transformation pairs for undo. */
+	private LinkedList undo_queue = new LinkedList();
+	/** Store Hashtables of displayable/transformation pairs for redo, as they are popped out of the undo_queue list. This list will be cleared the moment a new action is stored in the undo_queue.*/
+	//private LinkedList redo_queue = new LinkedList();
+	/** The index of the current set of Transformations in the undo/redo queues. */
+	private int current = 0;
+	/** A flag to indicate that the user is undoing/redoing without adding new undo steps. Gets reset to false when a new undo step is added. */
+	private boolean cycle_flag = false;
+	private int MAX_UNDO_STEPS = 40; // should be editable.
+	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
+	private Align align = null;
+
+	/** The properties of the registration, including max_rot and max_displacement.*/
+	private Hashtable ht_regis_props = null;
+
+	/** The scaling applied to the Layers when painting them for presentation as a LayerStack. If -1, automatic mode (default) */
+	private double virtual_scale = -1;
+	/** The maximum size of either width or height when virtuzaling pixel access to the layers.*/
+	private int max_dimension = 1024;
+	private boolean virtualization_enabled = false;
+
+	private Calibration calibration = null;
+
+	/** Dummy. */
+	protected LayerSet(Project project, long id) {
+		super(project, id, null, 0, 0, false);
+	}
+
+	/** Create a new LayerSet with a 0,0,0 rotation vector and default 20,20 px Displayable width,height. */
+	public LayerSet(Project project, String title, double x, double y, Layer parent, double layer_width, double layer_height) {
+		super(project, title, x, y);
+		rot_x = rot_y = rot_z = 0.0D;
+		this.width = 20;
+		this.height = 20; // for the label that paints into the parent Layer
+		this.parent = parent;
+		this.layer_width = layer_width;
+		this.layer_height = layer_height;
+		addToDatabase();
+	}
+
+	/** Reconstruct from the database. */
+	public LayerSet(Project project, long id, String title, double x, double y, double width, double height, double rot_x, double rot_y, double rot_z, double layer_width, double layer_height, boolean locked, boolean snapshots_enabled) {
+		super(project, id, title, x, y, locked);
+		this.width = width;
+		this.height = height;
+		this.rot_x = rot_x;
+		this.rot_y = rot_y;
+		this.rot_z = rot_z;
+		this.layer_width = layer_width;
+		this.layer_height= layer_height;
+		this.snapshots_enabled = snapshots_enabled;
+		// the parent will be set by the LayerThing.setup() calling Layer.addSilently()
+		// the al_layers will be filled idem.
+	}
+
+	/** Reconstruct from an XML entry. */
+	public LayerSet(Project project, long id, Hashtable ht_attributes, Hashtable ht_links) {
+		super(project, id, ht_attributes, ht_links);
+		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
+			String key = (String)e.nextElement();
+			String data = (String)ht_attributes.get(key);
+			if (key.equals("layer_width")) {
+				this.layer_width = Double.parseDouble(data);
+			} else if (key.equals("layer_height")) {
+				this.layer_height = Double.parseDouble(data);
+			} else if (key.equals("rot_x")) {
+				this.rot_x = Double.parseDouble(data);
+			} else if (key.equals("rot_y")) {
+				this.rot_y = Double.parseDouble(data);
+			} else if (key.equals("rot_z")) {
+				this.rot_z = Double.parseDouble(data);
+			}
+			// the above would be trivial in Jython, and can be done by reflection! The problem would be in the parsing, that would need yet another if/else if/ sequence was any field to change or be added.
+		}
+	}
+
+	/** For reconstruction purposes: set the active layer to the ZDisplayable objects. Recurses through LayerSets in the children layers. */
+	public void setup() {
+		if (0 == al_zdispl.size()) return;
+		Iterator it = al_zdispl.iterator();
+		if (null == active_layer && 0 != al_layers.size()) {
+			active_layer = (Layer)al_layers.get(0);
+		}
+		while (it.hasNext()) {
+			ZDisplayable zd = (ZDisplayable)it.next();
+			zd.setLayer(active_layer);
+		}
+		it = al_layers.iterator();
+		while (it.hasNext()) {
+			Layer layer = (Layer)it.next();
+			Iterator itl = layer.getDisplayables().iterator();
+			while (itl.hasNext()) {
+				Object ob = itl.next();
+				if (ob instanceof LayerSet) {
+					((LayerSet)ob).setup();
+				}
+			}
+		}
+	}
+
+	/** Create a new LayerSet in the middle of the parent Layer. */
+	public LayerSet create(Layer parent_layer) {
+		if (null == parent_layer) return null;
+		GenericDialog gd = ControlWindow.makeGenericDialog("New Layer Set");
+		gd.addMessage("In pixels:");
+		gd.addNumericField("width: ", this.layer_width, 3);
+		gd.addNumericField("height: ", this.layer_height, 3);
+		gd.showDialog();
+		if (gd.wasCanceled()) return null;
+		try {
+			double width = gd.getNextNumber();
+			double height = gd.getNextNumber();
+			if (Double.isNaN(width) || Double.isNaN(height)) return null;
+			if (0 == width || 0 == height) {
+				Utils.showMessage("Cannot accept zero width or height for LayerSet dimensions.");
+				return null;
+			}
+			// make a new LayerSet with x,y in the middle of the parent_layer
+			return new LayerSet(project, "Layer Set", parent_layer.getParent().getLayerWidth() / 2, parent_layer.getParent().getLayerHeight() / 2, parent_layer, width/2, height/2);
+		} catch (Exception e) { Utils.log("LayerSet.create: " + e); }
+		return null;
+	}
+
+	/** Add a new Layer silently, ordering by z as well.*/
+	public void addSilently(DBObject layer) {
+		if (null == layer || al_layers.contains(layer)) return;
+		try {
+			Iterator it = al_layers.iterator();
+			double z = ((Layer)layer).getZ();
+			int i = 0;
+			while (it.hasNext()) {
+				if (! (((Layer)it.next()).getZ() < z)) {
+					al_layers.add(i, layer);
+					((Layer)layer).setParentSilently(this);
+					return;
+				}
+				i++;
+			}
+			// else, add at the end
+			al_layers.add(layer);
+			((Layer)layer).setParentSilently(this);
+		} catch (Exception e) {
+			Utils.log("LayerSet.addSilently: Not a Layer, not adding DBObject id=" + layer.getId());
+			return;
+		}
+	}
+
+	/** Add a new Layer, inserted according to its Z. */
+	public void add(Layer layer) {
+		if (-1 != al_layers.indexOf(layer)) return;
+		double z = layer.getZ();
+		/*
+		int i = 0;
+		Iterator it = al_layers.iterator();
+		while (it.hasNext()) {
+			Layer l = (Layer)it.next();
+			if (l.getZ() < z) { i++; continue; }
+			else {
+				al_layers.add(i, layer);
+				layer.setParent(this);
+				setActiveLayer(layer);
+				//debug();
+				return;
+			}
+		}
+		*/
+		int n = al_layers.size();
+		int i = 0;
+		for (; i<n; i++) {
+			Layer l = (Layer)al_layers.get(i);
+			if (l.getZ() < z) continue;
+			break;
+		}
+		if (i < n) {
+			al_layers.add(i, layer);
+		} else {
+			al_layers.add(layer);
+		}
+
+		// else, add at the end
+		layer.setParent(this);
+		/////al_layers.add(layer);
+		setActiveLayer(layer);
+		Display.updateLayerScroller(this);
+		//debug();
+	}
+
+	private void debug() {
+		Utils.log("LayerSet debug:");
+		for (int i=0; i<al_layers.size(); i++)
+			Utils.log(i + " : " + ((Layer)al_layers.get(i)).getZ());
+	}
+
+	public void setActiveLayer(Layer layer) {
+		if (null == layer || layer == active_layer || -1 == al_layers.indexOf(layer)) return;
+		active_layer = layer;
+		updateInDatabase("active_layer_id");
+	}
+
+	public Layer getParent() {
+		return parent;
+	}
+
+	/** 'update' in database or not. */
+	public void setLayer(Layer layer, boolean update) {
+		super.setLayer(layer, update);
+		if (null != layer) this.parent = layer; // repeated pointer, eliminate 'parent' !
+	}
+
+	public void setParent(Layer layer) {
+		if (null == layer || layer == parent) return;
+		this.parent = layer;
+		updateInDatabase("parent_id");
+	}
+
+	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
+		if (ProjectToolbar.SELECT != ProjectToolbar.getToolId()) return;
+		Display.setActive(me, this);
+		if (2 == me.getClickCount() && al_layers.size() > 0) {
+			if (null == active_layer) active_layer = (Layer)al_layers.get(0);
+			new Display(project, active_layer);
+		}
+	}
+
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
+		if (ProjectToolbar.SELECT != ProjectToolbar.getToolId()) return;
+		super.drag(x_d - x_d_old, y_d - y_d_old);
+		Display.repaint(layer, this, 0);
+	}
+
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
+		// nothing
+	}
+
+	public void keyPressed(KeyEvent ke) {
+		Utils.log("LayerSet.keyPressed: not yet implemented.");
+		// TODO
+	}
+
+	public String toString() {
+		return this.title;
+	}
+
+	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
+		// ignore transform for painting
+		paint(g, magnification, srcRect, clipRect, active, channels, active_layer);
+	}
+
+	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
+		if (isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
+			return;
+		}
+		Graphics2D g2d = (Graphics2D)g;
+		g2d.translate((this.x -srcRect.x) * magnification, (this.y -srcRect.y) * magnification);
+		//arrange transparency
+		Composite original_composite = null;
+		if (!active) {
+			original_composite = g2d.getComposite();
+			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.67f));
+		}
+		//set color
+		g.setColor(this.color);
+		// fill a background box
+		g.fillRect(0, 0, (int)(this.width * magnification), (int)(this.height * magnification));
+		g.setColor(new Color(255 - color.getRed(), 255 - color.getGreen(), 255 - color.getBlue()).brighter()); // the "opposite", but brighter, so it won't fail to generate contrast if the color is 127 in all channels
+		int x = (int)(this.width/5);
+		int y = (int)(this.height/5);
+		int width = (int)(this.width/5);
+		int height = (int)(this.height/5 * 3);
+		g.fillRect((int)(x * magnification), (int)(y * magnification), (int)(width * magnification), (int)(height * magnification));
+		x = (int)(this.width/5 * 2);
+		y = (int)(this.height/5 * 3);
+		width = (int)(this.width/5 * 2);
+		height = (int)(this.height/5);
+		g.fillRect((int)(x * magnification), (int)(y * magnification), (int)(width * magnification), (int)(height * magnification));
+
+		//Transparency: fix composite back to original.
+		if (!active) {
+			g2d.setComposite(original_composite);
+		}
+		// undo translation of painting pointer
+		g2d.translate(- (this.x -srcRect.x) * magnification, - (this.y -srcRect.y) * magnification);
+	}
+
+	/** Paint without considering any magnification or srcRect.*/
+	public void paint(Graphics g, Layer active_layer) {
+		if (!visible) return;
+		Graphics2D g2d = (Graphics2D)g;
+		g2d.translate(this.x, this.y);
+		//arrange transparency
+		Composite original_composite = null;
+		if (alpha != 1.0f) {
+			original_composite = g2d.getComposite();
+			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.67f));
+		}
+		//set color
+		g.setColor(this.color);
+		// fill a background box
+		g.fillRect(0, 0, (int)(this.width), (int)(this.height));
+		g.setColor(new Color(255 - color.getRed(), 255 - color.getGreen(), 255 - color.getBlue()).brighter()); // the "opposite", but brighter, so it won't fail to generate contrast if the color is 127 in all channels
+		int x = (int)(this.width/5);
+		int y = (int)(this.height/5);
+		int width = (int)(this.width/5);
+		int height = (int)(this.height/5 * 3);
+		g.fillRect(x, y, width, height);
+		x = (int)(this.width/5 * 2);
+		y = (int)(this.height/5 * 3);
+		width = (int)(this.width/5 * 2);
+		height = (int)(this.height/5);
+		g.fillRect(x, y, width, height);
+
+		//Transparency: fix composite back to original.
+		if (alpha != 1.0f) {
+			g2d.setComposite(original_composite);
+		} 
+		g2d.translate(- this.x, - this.y);
+	}
+
+	public Layer getActiveLayer() {return active_layer; } 
+	public double getLayerWidth() { return layer_width; }
+	public double getLayerHeight() { return layer_height; }
+	public double getRotX() { return rot_x; }
+	public double getRotY() { return rot_y; }
+	public double getRotZ() { return rot_z; }
+
+	public int size() {
+		return al_layers.size();
+	}
+
+	public void setRotVector(double rot_x, double rot_y, double rot_z) {
+		if (Double.isNaN(rot_x) || Double.isNaN(rot_y) || Double.isNaN(rot_z)) {
+			Utils.showMessage("LayerSet: Rotation vector contains NaNs. Not updating.");
+			return;
+		} else if (rot_x == this.rot_x && rot_y == this.rot_y && rot_z == this.rot_z) {
+			return;
+		}
+		this.rot_x = rot_x;
+		this.rot_y = rot_y;
+		this.rot_z = rot_z;
+		updateInDatabase("rot");
+	}
+
+	/** Used by the Loader after loading blindly a lot of Patches. Will crop the canvas to the minimum size possible. */
+	public boolean setMinimumDimensions(/*double layer_width, double layer_height*/) {
+		// add a big undo step, and also below translate previous undo steps
+		final Hashtable ht_undo = new Hashtable();
+		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
+			for (Iterator dit = ((Layer)it.next()).getDisplayables().iterator(); dit.hasNext(); ) {
+				Displayable d = (Displayable)dit.next();
+				ht_undo.put(d, d.getTransform());
+			}
+		}
+		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ){
+			ZDisplayable zd = (ZDisplayable)it.next();
+			ht_undo.put(zd, zd.getTransform());
+		}
+		addUndoStep(ht_undo);
+
+		// find current x,y,width,height that crops the canvas without cropping away any Displayable
+		double x = Double.NaN;
+		double y = Double.NaN;
+		double xe = 0; // lower right corner (x end)
+		double ye = 0;
+		double tx = 0;
+		double ty = 0;
+		double txe = 0;
+		double tye = 0;
+		// collect all Displayable and ZDisplayable objects
+		ArrayList al = new ArrayList();
+		for (int i=al_layers.size() -1; i>-1; i--) {
+			al.addAll(((Layer)al_layers.get(i)).getDisplayables());
+		}
+		al.addAll(al_zdispl);
+
+		// find minimum bounding box
+		Rectangle b = new Rectangle();
+		for (Iterator it = al.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			b = d.getBoundingBox(b); // considers rotation
+			tx = b.x;//d.getX();
+			ty = b.y;//d.getY();
+			// set first coordinates
+			if (Double.isNaN(x) || Double.isNaN(y)) { // Double.NaN == x fails!
+				x = tx;
+				y = ty;
+			}
+			txe = tx + b.width;//d.getWidth();
+			tye = ty + b.height;//d.getHeight();
+			if (tx < x) x = tx;
+			if (ty < y) y = ty;
+			if (txe > xe) xe = txe;
+			if (tye > ye) ye = tye;
+		}
+		// if none, then stop
+		if (Double.isNaN(x) || Double.isNaN(y)) {
+			Utils.showMessage("No displayable objects, don't know how to resize the canvas and Layerset.");
+			return false;
+		}
+
+		// translate
+		project.getLoader().startLargeUpdate();
+		try {
+			if (x != 0 || y != 0) {
+				for (Iterator it = al.iterator(); it.hasNext(); ) {
+					((Displayable)it.next()).drag(-x, -y, 0); // drag regardless of getting off current LayerSet bounds
+				}
+			}
+			// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
+			for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
+				Hashtable ht = (Hashtable)it.next();
+				for (Iterator hi = ht.values().iterator(); hi.hasNext(); ) {
+					Transform t = (Transform)hi.next();
+					t.x -= x;
+					t.y -= y;
+				}
+			}
+			project.getLoader().commitLargeUpdate();
+		} catch (Exception e) {
+			new IJError(e);
+			project.getLoader().rollback();
+			return false; //TODO no notice to the user ...
+		}
+
+		//Utils.log("x,y  xe,ye : " + x + "," + y + "  " + xe + "," + ye);
+		// finally, accept:
+		double w = xe - x;
+		double h = ye - y;
+		if (w < 0 || h < 0) {
+			Utils.log("LayerSet.setMinimumDimensions: zero width or height, NOT resizing.");
+			return false;
+		}
+		if (w != layer_width || h != layer_height) {
+			this.layer_width = Math.ceil(w); // stupid int to double conversions ... why floating point math is a non-solved problem? Well, it is for SBCL
+			this.layer_height = Math.ceil(h);
+			updateInDatabase("layer_dimensions");
+			// and notify the Displays, if any
+			Display.update(this);
+		}
+		return true;
+	}
+
+	/** Enlarges the display in the given direction, */
+	public boolean enlargeToFit(Displayable d, int anchor) {
+		// check if necessary
+		if (d.x + d.getWidth() < layer_width && d.y + d.getHeight() < layer_height) {
+			return true;
+		}
+		// else, enlarge to fit it
+		Rectangle r = new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
+		Rectangle rd = d.getBoundingBox(null);
+		r.add(rd);
+		return setDimensions(r.width, r.height, anchor);
+	}
+
+	/** Returns false if any Displayables are being partially or totally cropped away. */
+	public boolean setDimensions(double layer_width, double layer_height, int anchor) {
+		// check preconditions
+		if (Double.isNaN(layer_width) || Double.isNaN(layer_height)) { Utils.log("LayerSet.setDimensions: NaNs! Not adjusting."); return false; }
+		if (layer_width <=0 || layer_height <= 0) { Utils.showMessage("LayerSet: can't accept zero or a minus for layer width or height"); return false; }
+		if (anchor < NORTH || anchor > CENTER) {  Utils.log("LayerSet: wrong anchor, not resizing."); return false; }
+		// new coordinates:
+		double new_x = 0;// the x,y of the old 0,0
+		double new_y = 0;
+		switch (anchor) {
+			case NORTH:
+			case SOUTH:
+			case CENTER:
+				new_x = (layer_width - this.layer_width) / 2; // (this.layer_width - layer_width) / 2;
+				break;
+			case NORTHWEST:
+			case WEST:
+			case SOUTHWEST:
+				new_x = 0;
+				break;
+			case NORTHEAST:
+			case EAST:
+			case SOUTHEAST:
+				new_x = layer_width - this.layer_width; // (this.layer_width - layer_width);
+				break;
+		}
+		switch (anchor) {
+			case WEST:
+			case EAST:
+			case CENTER:
+				new_y = (layer_height - this.layer_height) / 2;
+				break;
+			case NORTHWEST:
+			case NORTH:
+			case NORTHEAST:
+				new_y = 0;
+				break;
+			case SOUTHWEST:
+			case SOUTH:
+			case SOUTHEAST:
+				new_y = (layer_height - this.layer_height);
+				break;
+		}
+
+		/*
+		Utils.log("anchor: " + anchor);
+		Utils.log("LayerSet: existing w,h = " + this.layer_width + "," + this.layer_height);
+		Utils.log("LayerSet: new      w,h = " + layer_width + "," + layer_height);
+		*/
+
+		// collect all Displayable and ZDisplayable objects
+		ArrayList al = new ArrayList();
+		for (int i=al_layers.size() -1; i>-1; i--) {
+			al.addAll(((Layer)al_layers.get(i)).getDisplayables());
+		}
+		al.addAll(al_zdispl);
+
+		// check that no displayables are being cropped away
+		if (layer_width < this.layer_width || layer_height < this.layer_height) {
+			for (Iterator it = al.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				double dw = d.getWidth();
+				double dh = d.getHeight();
+				// respect 10% margins
+				if (d.getX() + dw + new_x < 0.1 * dw || d.getX() + 0.9 * dw + new_x > layer_width || d.getY() + dh + new_y < 0.1 * dh || d.getY() + 0.9 * dh + new_y > layer_height) {
+				//if (d.getX() + dw < new_x + 0.1 * dw || d.getX() + 0.9 * dw > new_x + layer_width || d.getY() + dh < new_y + 0.1 * dh || d.getY() + 0.9 * dh > new_y + layer_height)
+					// cropping!
+					Utils.log("Cropping " + d + "\nLayerSet: not resizing.");
+					return false;
+				}
+			}
+		}
+		this.layer_width = layer_width;
+		this.layer_height = layer_height;
+		Utils.log("LayerSet.setDimensions: new_x,y: " + new_x + "," + new_y);
+		// translate all displayables
+		if (0 != new_x || 0 != new_y) {
+			for (Iterator it = al.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				Utils.log("d.x,y = " + d.x + ", " + d.y);
+				d.setLocation(d.x + new_x, d.y + new_y);
+			}
+		}
+
+		updateInDatabase("layer_dimensions");
+		// and notify the Display
+		Display.update(this);
+		return true;
+	}
+
+	public boolean remove(boolean check) {
+		if (check) {
+			if (!Utils.check("Really delete " + this.toString() + (null != al_layers && al_layers.size() > 0 ? " and all its children?" : ""))) return false;
+		}
+		// delete all layers
+		while (0 != al_layers.size()) {
+			if (!((DBObject)al_layers.get(0)).remove(false)) {
+				Utils.showMessage("LayerSet id= " + id + " : Deletion incomplete, check database.");
+				return false;
+			}
+		}
+		// delete the ZDisplayables
+		Iterator it = al_zdispl.iterator();
+		while (it.hasNext()) {
+			((ZDisplayable)it.next()).remove(false); // will call back the LayerSet.remove(ZDisplayable)
+		}
+		// remove the self
+		if (null != parent) parent.remove(this);
+		removeFromDatabase();
+		return true;
+	}
+
+	/** Remove a child. Does not destroy it or delete it from the database. */
+	public void remove(Layer layer) {
+		if (null == layer || -1 == al_layers.indexOf(layer)) return;
+		al_layers.remove(layer);
+		Display.updateLayerScroller(this);
+	}
+
+	public Layer next(Layer layer) {
+		int i = al_layers.indexOf(layer);
+		if (-1 == i) {
+			Utils.log("LayerSet.next: no such Layer " + layer);
+			return layer;
+		}
+		if (al_layers.size() -1 == i) return layer;
+		else return (Layer)al_layers.get(i+1);
+	}
+
+	public Layer previous(Layer layer) {
+		int i = al_layers.indexOf(layer);
+		if (-1 == i) {
+			Utils.log("LayerSet.previous: no such Layer " + layer);
+			return layer;
+		}
+		if (0 == i) return layer;
+		else return (Layer)al_layers.get(i-1);
+	}
+
+	public Layer nextNonEmpty(Layer layer) {
+		Layer next = layer;
+		Layer given = layer;
+		do {
+			layer = next;
+			next = next(layer);
+			if (!next.isEmpty()) return next;
+		} while (!next.equals(layer));
+		return given;
+	}
+	public Layer previousNonEmpty(Layer layer) {
+		Layer previous = layer;
+		Layer given = layer;
+		do {
+			layer = previous;
+			previous = previous(layer);
+			if (!previous.isEmpty()) return previous;
+		} while (!previous.equals(layer));
+		return given;
+	}
+
+	public int getLayerIndex(long id) {
+		for (int i=al_layers.size()-1; i>-1; i--) {
+			if (((Layer)al_layers.get(i)).getId() == id) return i;
+		}
+		return -1;
+	}
+
+	public Layer getLayer(int i) {
+		if (i >=0 && i < al_layers.size()) return (Layer)al_layers.get(i);
+		return null;
+	}
+
+	/** Find the layer with the given id. */
+	public Layer getLayer(long id) {
+		Iterator it = al_layers.iterator();
+		while (it.hasNext()) {
+			Layer layer = (Layer)it.next();
+			if (layer.getId() == id) return layer;
+		}
+		return null;
+	}
+
+	public Layer getLayer(double z) {
+		Iterator it = al_layers.iterator();
+		double error = 0.0000001; // TODO adjust to an optimal
+		while (it.hasNext()) {
+			Layer layer = (Layer)it.next();
+			if (error > Math.abs(layer.getZ() - z)) { // floating-point arithmetic is still not a solved problem!
+				return layer;
+			}
+		}
+		return null;
+	}
+
+	/** Returns null if none has the given z and thickness. If 'create' is true and no layer is found, a new one with the given Z is created and added to the LayerTree. */
+	public Layer getLayer(double z, double thickness, boolean create) {
+		Iterator it = al_layers.iterator();
+		Layer layer = null;
+		double error = 0.0000001; // TODO adjust to an optimal
+		while (it.hasNext()) {
+			Layer l = (Layer)it.next();
+			if (error > Math.abs(l.getZ() - z) && error > Math.abs(l.getThickness() - thickness)) { // floating point is still not a solved problem.
+				//Utils.log("LayerSet.getLayer: found layer with z=" + l.getZ());
+				layer = l;
+			}
+		}
+		if (create && null == layer && !Double.isNaN(z) && !Double.isNaN(thickness)) {
+			//Utils.log("LayerSet.getLayer: creating new Layer with z=" + z);
+			layer = new Layer(project, z, thickness, this);
+			add(layer);
+			project.getLayerTree().addLayer(this, layer);
+		}
+		return layer;
+	}
+
+	/** Add a Displayable to be painted in all Layers, such as a Pipe. */
+	public void add(ZDisplayable zdispl) {
+		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) {
+			Utils.log2("LayerSet: not adding zdispl");
+			return;
+		}
+		al_zdispl.add(0, zdispl); // at the top
+		zdispl.setLayerSet(this);
+		if (null == active_layer && 0 != al_layers.size()) {
+			active_layer = (Layer)al_layers.get(0);
+		} // This can fail (and in the addSilently as well) if one can add zdispl objects while no Layer has been created. But the ProjectThing.createChild prevents this situation.
+		zdispl.setLayer(active_layer);
+		zdispl.updateInDatabase("layer_set_id"); // TODO: update stack index?
+		Display.add(this, zdispl);
+	}
+
+	/** Used for reconstruction purposes. */
+	public void addSilently(ZDisplayable zdispl) {
+		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) return;
+		try {
+			if (null == active_layer && 0 != al_layers.size()) {
+				active_layer = (Layer)al_layers.get(0);
+			}
+			zdispl.setLayer(active_layer);
+			zdispl.setLayerSet(this, false);
+			//Utils.log2("setLayerSet to ZDipl id=" + zdispl.getId());
+			al_zdispl.add(zdispl);
+		} catch (Exception e) {
+			Utils.log("LayerSet.addSilently: not adding Zdisplayable with id=" + zdispl.getId());
+			new IJError(e);
+			return;
+		}
+	}
+
+	/** Remove a child. Does not destroy the child nor remove it from the database, only from the Display. */
+	public boolean remove(ZDisplayable zdispl) {
+		if (null == zdispl || null == al_zdispl || -1 == al_zdispl.indexOf(zdispl)) return false;
+		al_zdispl.remove(zdispl);
+		Display.remove(zdispl);
+		return true;
+	}
+
+	public ArrayList getZDisplayables() { return (ArrayList)al_zdispl.clone(); }
+
+	/** Returns a list of ZDisplayable of class c only.*/
+	public ArrayList getZDisplayables(final Class c) {
+		final ArrayList al = new ArrayList();
+		if (null == c) return al;
+		if (c.equals(Displayable.class) || c.equals(ZDisplayable.class)) {
+			al.addAll(al_zdispl);
+			return al;
+		}
+		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
+			Object ob = it.next();
+			if (c.equals(ob.getClass())) al.add(ob);
+		}
+		return al;
+	}
+
+	public boolean contains(Layer layer) {
+		if (null == layer) return false;
+		return -1 != al_layers.indexOf(layer);
+	}
+
+	public boolean contains(Displayable zdispl) {
+		if (null == zdispl) return false;
+		return -1 != al_zdispl.indexOf(zdispl);
+	}
+
+	public ArrayList getLayers() {
+		return al_layers;
+	}
+
+	public boolean isDeletable() {
+		return false;
+	}
+
+	/** Overiding. The alpha is used to show whether the LayerSet object is selected or not. */
+	public void setAlpha(float alpha) { return; }
+
+	/** Move the given Displayable to the next layer if possible. */
+	public void moveDown(Layer layer, Displayable d) {
+		int i = al_layers.indexOf(layer);
+		if (al_layers.size() -1 == i || -1 == i) return;
+		layer.remove(d);
+		((Layer)(al_layers.get(i +1))).add(d);
+	}
+	/** Move the given Displayable to the previous layer if possible. */
+	public void moveUp(Layer layer, Displayable d) {
+		int i = al_layers.indexOf(layer);
+		if (0 == i || -1 == i) return;
+		layer.remove(d);
+		((Layer)(al_layers.get(i -1))).add(d);
+	}
+
+	/** Move all Displayable objects in the HashSet to the given target layer. */
+	public void move(HashSet hs_d, Layer source, Layer target) {
+		if (0 == hs_d.size() || null == source || null == target || source.equals(target)) return;
+		Display.setRepaint(false); // disable repaints
+		for (Iterator it = hs_d.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			if (source.equals(d.getLayer())) {
+				source.remove(d);
+				target.add(d, false, false); // these contortions to avoid repeated DB traffic
+				d.updateInDatabase("layer_id");
+				Display.add(target, d, false); // don't activate
+			}
+		}
+		Display.setRepaint(true); // enable repaints
+		source.updateInDatabase("stack_index");
+		target.updateInDatabase("stack_index");
+		Display.repaint(source); // update graphics: true
+		Display.repaint(target);
+	}
+
+	/** Find ZDisplayable objects that contain the point x,y in the given layer. */
+	public ArrayList findZDisplayables(Layer layer, int x, int y) {
+		ArrayList al = new ArrayList();
+		Iterator it = al_zdispl.iterator();
+		while (it.hasNext()) {
+			ZDisplayable zd = (ZDisplayable)it.next();
+			if (zd.contains(layer, x, y)) al.add(zd);
+		}
+		return al;
+	}
+
+
+	public void setVisible(String type, boolean visible, boolean repaint) {
+		type = type.toLowerCase();
+		try {
+			project.getLoader().startLargeUpdate();
+			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist")) {
+				Iterator it = al_zdispl.iterator();
+				while (it.hasNext()) {
+					ZDisplayable zd = (ZDisplayable)it.next();
+					if (zd.getClass().getName().toLowerCase().endsWith(type)) { // endsWith, because DLabel is called as Label
+						zd.setVisible(visible, false); // don't repaint
+					}
+				}
+			} else {
+				if (type.equals("image")) type = "patch";
+				Iterator it = al_layers.iterator();
+				while (it.hasNext()) {
+					Layer l = (Layer)it.next();
+					l.setVisible(type, visible, false); // don't repaint
+				}
+			}
+		} catch (Exception e) {
+			new IJError(e);
+		} finally {
+			project.getLoader().commitLargeUpdate();
+		}
+		if (repaint) {
+			Display.repaint(this); // this could be optimized to repaint only the accumulated box
+		}
+	}
+	/** Returns true if any of the ZDisplayable objects are of the given class. */
+	public boolean contains(Class c) {
+		Iterator it = al_zdispl.iterator();
+		while (it.hasNext()) {
+			if (it.next().getClass().equals(c)) return true;
+		}
+		return false;
+	}
+	/** Check in all layers. */
+	public boolean containsDisplayable(Class c) {
+		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
+			Layer la = (Layer)it.next();
+			if (la.contains(c)) return true;
+		}
+		return false;
+	}
+
+	/** Returns the distance from the first layer's Z to the last layer's Z. */
+	public double getDepth() {
+		if (null == al_layers || al_layers.isEmpty()) return 0;
+		return ((Layer)al_layers.get(al_layers.size() -1)).getZ() - ((Layer)al_layers.get(0)).getZ();
+	}
+
+	/** Rotate the entire LayerSet; will check whether any objects are linked to other layers if trying to rotate a single layer. Direction can be R90, R270, FLIP_HORIZONTAL and FLIP_VERTICAL*/
+	public void rotate(int direction) {
+		if (direction < R90 || direction > FLIP_VERTICAL) return;
+		for (int i=al_layers.size() -1; i>-1; i--) {
+			((Layer)al_layers.get(i)).rotate(direction, false, false);
+		}
+		Display.repaint(this);
+	}
+
+	/** Return all the Displayable objects from all the layers of this LayerSet. */
+	protected ArrayList getDisplayables() {
+		ArrayList al = new ArrayList();
+		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
+			Layer layer = (Layer)it.next();
+			al.addAll(layer.getDisplayables());
+		}
+		return al;
+	}
+
+	public int indexOf(Layer layer) {
+		return al_layers.indexOf(layer);
+	}
+
+	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+		sb_body.append(indent).append("<t2_layer_set \n");
+		String in = indent + "\t";
+		super.exportXML(sb_body, in, any);
+		sb_body.append(in).append("layer_width=\"").append(layer_width).append("\"\n")
+		       .append(in).append("layer_height=\"").append(layer_height).append("\"\n")
+		       .append(in).append("rot_x=\"").append(rot_x).append("\"\n")
+		       .append(in).append("rot_y=\"").append(rot_y).append("\"\n")
+		       .append(in).append("rot_z=\"").append(rot_z).append("\"\n")
+		       // TODO: alpha! But I don't care.
+		;
+		sb_body.append(indent).append(">\n");
+		if (null != calibration) {
+			// TODO create a new XML type, or just add fields above?
+		}
+		// export Layer and ZDisplayable objects
+		if (null != al_zdispl) {
+			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
+				ZDisplayable zd = (ZDisplayable)it.next();
+				// don't include in the XML file if the object is empty
+				if (!zd.isDeletable()) zd.exportXML(sb_body, in, any);
+			}
+		}
+		if (null != al_layers) {
+			Utils.log("LayerSet " + id + " is saving " + al_layers.size() + " layers.");
+			for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
+				((Layer)it.next()).exportXML(sb_body, in, any);
+			}
+		}
+		sb_body.append(indent).append("</t2_layer_set>\n");
+	}
+
+	/** Includes the !ELEMENT */
+	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+		String type = "t2_layer_set";
+		if (!hs.contains(type)) {
+			sb_header.append(indent).append("<!ELEMENT t2_layer_set (t2_layer,t2_pipe,t2_ball,t2_area_list)>\n");
+			Displayable.exportDTD(type, sb_header, hs, indent);
+			sb_header.append(indent).append(TAG_ATTR1).append(type).append(" layer_width").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" layer_height").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_x").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_y").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_z").append(TAG_ATTR2)
+			;
+		}
+	}
+
+	public void setSnapshotsEnabled(boolean b) {
+		if (b == this.snapshots_enabled) return;
+		this.snapshots_enabled = b;
+		Display.repaintSnapshots(this);
+		updateInDatabase("snapshots_enabled");
+	}
+
+	public boolean areSnapshotsEnabled() {
+		return this.snapshots_enabled;
+	}
+
+	/** Creates an undo step that contains transformations for all Displayable objects of this LayerSet */
+	public void createUndoStep() {
+		final Hashtable ht_undo = new Hashtable();
+		for (Iterator lit = al_layers.iterator(); lit.hasNext(); ) {
+			Layer la = (Layer)lit.next();
+			for (Iterator dit = la.getDisplayables().iterator(); dit.hasNext(); ) {
+				Displayable d = (Displayable)dit.next();
+				Transform t = d.getTransform();
+				ht_undo.put(d, t);
+			}
+		}
+		addUndoStep(ht_undo);
+	}
+
+	/** Creates an undo step that contains transformations for all Displayable objects in the given Layer. */
+	public void createUndoStep(final Layer layer) {
+		if (null == layer) return;
+		final Hashtable ht_undo = new Hashtable();
+		for (Iterator dit = layer.getDisplayables().iterator(); dit.hasNext(); ) {
+			Displayable d = (Displayable)dit.next();
+			Transform t = d.getTransform();
+			ht_undo.put(d, t);
+		}
+		addUndoStep(ht_undo);
+	}
+
+	/** The @param ht should be a hastable of Displayable keys and Transform values, such as those obtained from selection.getTransformationsCopy() . By adding a new undo step, the redo steps are cleared. */
+	public void addUndoStep(Hashtable ht) {
+		if (ht.isEmpty()) return;
+		if (undo_queue.size() == MAX_UNDO_STEPS) {
+			undo_queue.removeFirst();
+			current--;
+		}
+		//Utils.log("addUndoStep A: current: " + current + "  total: " + undo_queue.size());
+		// clear undo_queue beyond current
+		while (undo_queue.size() > current) {
+			undo_queue.removeLast();
+		}
+		// reset
+		cycle_flag = false;
+		undo_queue.add(ht);
+		current = undo_queue.size(); // current is not stored, is beyond bounds. What was just stored was the previous to current
+		//Utils.log("current: " + current + "   total: " + undo_queue.size());
+		/*
+		// discard redo steps
+		redo_queue.clear(); */
+	}
+
+	/** Usable only when undoing the last step, to catch the current step (which is not in the undo queue).*/
+	void appendCurrent(Hashtable ht) {
+		if (ht.isEmpty() || undo_queue.size() != current || cycle_flag) return;
+		Utils.log2("appendCurrent: undo queue size: " + undo_queue.size() + " and current: " + current);
+		undo_queue.add(ht);
+		// current doesn't change, but now it exists in the undo_queue
+	}
+
+	public boolean canUndo() {
+		return current > 0; //0 != undo_queue.size();
+	}
+	public boolean canRedo() {
+		return current < undo_queue.size(); //0 != redo_queue.size();
+	}
+	public void undoOneStep() {
+		if (current < 1 || 0 == undo_queue.size()) return;
+		if (cycle_flag && undo_queue.size() == current) current--; // compensate
+		current--;
+		Hashtable step = (Hashtable)undo_queue.get(current);
+		applyStep(step);
+		cycle_flag = true;
+		Utils.log2("undoing to current=" + current);
+		/*
+		Hashtable last = (Hashtable)undo_queue.removeLast();
+		if (null != current) redo_queue.add(current);
+		current = last;
+		applyStep(last);
+		*/
+		//Utils.log2("undoing " + step);
+	}
+	public void redoOneStep() {
+		//if (/*0 == redo_queue.size()*/ 0 == undo_queue.size() || current == undo_queue.size() -2) return;
+		current += 1;
+		if (current >= undo_queue.size()) {
+			Utils.log2("prevented redoing to current=" + current);
+			current = undo_queue.size();
+			return;
+		}
+		Hashtable step = (Hashtable)undo_queue.get(current);
+		applyStep(step);
+		/*
+		Hashtable next = (Hashtable)redo_queue.removeLast();
+		if (null != current) undo_queue.add(current);
+		current = next;
+		applyStep(next);
+		if (0 == redo_queue.size()) {
+			current = null; // reset
+		}
+		*/
+		//Utils.log2("redoing " + step);
+		Utils.log2("redoing to current=" + current);
+	}
+	private void applyStep(Hashtable ht) {
+		// apply:
+		Rectangle box = null;
+		Rectangle b = new Rectangle();
+		project.getLoader().startLargeUpdate();
+		try {
+			for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = (Map.Entry)it.next(); // I hate java
+				Displayable d = (Displayable)entry.getKey();
+				if (null == box) box = d.getBoundingBox(b);
+				else box.add(d.getBoundingBox(b));
+				Transform t = (Transform)entry.getValue();
+				d.setTransform(t);
+				box.add(t.getBoundingBox(b));
+			}
+			project.getLoader().commitLargeUpdate();
+		} catch (Exception e) {
+			new IJError(e);
+			Utils.log("Rolling back");
+			project.getLoader().rollback();
+		}
+		Display.updateSelection();
+		Display.repaint(this, box);
+		Display.repaintSnapshots(this);
+	}
+	/** Find the given Displayable in the undo/redo queues and clear it. This functionality is used when an object is removed, for which there is no undo. */
+	public void removeFromUndo(Displayable d) {
+		// from the undo_queue
+		for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
+			Hashtable ht = (Hashtable)it.next();
+			for (Iterator itd = ht.keySet().iterator(); itd.hasNext(); ) {
+				if (d.equals(itd.next())) {
+					itd.remove();
+					break; // the inner loop only
+				}
+			}
+		}
+		/*
+		// from the redo_queue
+		for (Iterator it = redo_queue.iterator(); it.hasNext(); ) {
+			Hashtable ht = (Hashtable)it.next();
+			for (Iterator itd = ht.keySet().iterator(); itd.hasNext(); ) {
+				if (d.equals(itd.next())) {
+					itd.remove();
+					break; // the inner loop only
+				}
+			}
+		}
+		*/
+	}
+
+	/** Used when there has been no real transformation (for example, a mouse click and release, but no drag. */
+	void discardLastUndo() {
+		if (0 == undo_queue.size()) return;
+		Utils.log2("discarding last undo!");
+		undo_queue.removeLast();
+		current--;
+	}
+
+	public void destroy() {
+		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
+			Layer layer = (Layer)it.next();
+			layer.destroy();
+		}
+		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
+			ZDisplayable zd = (ZDisplayable)it.next();
+			zd.destroy();
+		}
+		this.al_layers.clear();
+		this.al_layers = null;
+		this.al_zdispl.clear();
+		this.al_zdispl = null;
+		this.undo_queue.clear();
+		this.undo_queue = null;
+		//this.redo_queue.clear();
+		//this.redo_queue = null;
+		if (null != align) {
+			align.destroy();
+			align = null;
+		}
+	}
+
+	public boolean isAligning() {
+		return null != align;
+	}
+
+	public void cancelAlign() {
+		if (null != align) {
+			align.cancel(); // will repaint
+			align = null;
+		}
+	}
+
+	public void applyAlign(final boolean post_register) {
+		if (null != align) align.apply(post_register);
+	}
+
+	public void applyAlign(final Layer la_start, final Layer la_end, final Selection selection) {
+		if (null != align) align.apply(la_start, la_end, selection);
+	}
+
+	public void startAlign(Display display) {
+		align = new Align(display);
+	}
+
+	public Align getAlign() {
+		return align;
+	}
+
+	/** Used by the Layer.setZ method. */
+	protected void reposition(Layer layer) {
+		if (null == layer || !al_layers.contains(layer)) return;
+		al_layers.remove(layer);
+		addSilently(layer);
+	}
+
+	/** Get up to 'n' layers before and after the given layers. */
+	public ArrayList getNeighborLayers(final Layer layer, final int n) {
+		final int i_layer = al_layers.indexOf(layer);
+		final ArrayList al = new ArrayList();
+		if (-1 == i_layer) return al;
+		int start = i_layer - n;
+		if (start < 0) start = 0;
+		int end = i_layer + n;
+		if (end > al_layers.size()) end = al_layers.size();
+		for (int i=start; i<i_layer; i++) al.add(al_layers.get(i));
+		for (int i=i_layer+1; i<= i_layer + n || i < end; i++) al.add(al_layers.get(i));
+		return al;
+	}
+
+	/** May return null if the property does not exist, and fires up a dialog for adjustRegistrationProperties() if no properties are set at all. */
+	public Double getRegistrationProperty(final String prop) {
+		if (null == this.ht_regis_props) {
+			adjustRegistrationProperties();
+		}
+		Object ob = ht_regis_props.get(prop);
+		if (ob instanceof Double) return (Double)ob;
+		return null;
+	}
+
+	public void adjustRegistrationProperties() {
+		if (null == ht_regis_props) ht_regis_props = new Hashtable();
+		double max_rot = (null == ht_regis_props.get("rg_max_rot") ? 30 : ((Double)ht_regis_props.get("rg_max_rot")).doubleValue());
+		double max_displacement = (null == ht_regis_props.get("rg_max_displacement") ? -1 : ((Double)ht_regis_props.get("rg_max_displacement")).doubleValue());
+		double scale = (null == ht_regis_props.get("rg_scale") ? 0.25 : ((Double)ht_regis_props.get("rg_scale")).doubleValue());
+		boolean ignore_square_angles = (null == ht_regis_props.get("rg_ignore_squared_angles") ? false : 0 != ((Double)ht_regis_props.get("rg_ignore_squared_angles")).doubleValue());
+		boolean enhance_edges = (null == ht_regis_props.get("rg_enhance_edges") ? false : 0 != ((Double)ht_regis_props.get("rg_enhance_edges")).doubleValue());
+		final GenericDialog gd = new GenericDialog("Registration");
+		gd.addSlider("Maximum rotation: ", 0, 180, max_rot);
+		gd.addNumericField("Maximum displacement: ", max_displacement, 2);
+		gd.addMessage("[-1 means unlimited]");
+		gd.addNumericField("Scale: ", scale, 2);
+		gd.addCheckbox("Ignore angles 0, 90, 180", ignore_square_angles);
+		gd.addCheckbox("Enhance edges", enhance_edges);
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		max_rot = ((java.awt.Scrollbar)gd.getSliders().get(0)).getValue();
+		ht_regis_props.put("rg_max_rot", new Double(max_rot));
+		max_displacement = gd.getNextNumber();
+		if (max_displacement < -1) {
+			Utils.showMessage("Invalid maximum displacement valid: must be between -1 (meaning unlimited) and any positive number");
+			adjustRegistrationProperties();
+			return;
+		}
+		ht_regis_props.put("rg_max_displacement", new Double(max_displacement));
+		scale = gd.getNextNumber();
+		if (scale < 0)  {
+		} else if (scale > 1) scale = 1;
+		ht_regis_props.put("rg_scale", new Double(scale));
+		ht_regis_props.put("rg_ignore_squared_angles", gd.getNextBoolean() ? new Double(1) : new Double(0));
+	}
+
+	public boolean isTop(ZDisplayable zd) {
+		if (null != zd && al_zdispl.size() > 0 && al_zdispl.indexOf(zd) == al_zdispl.size() -1) return true;
+		return false;
+	}
+
+	public boolean isBottom(ZDisplayable zd) {
+		if (null != zd && al_zdispl.size() > 0 && al_zdispl.indexOf(zd) == 0) return true;
+		return false;
+	}
+
+	/** Hub method: ZDisplayable or into the Displayable's Layer. */
+	protected boolean isTop(Displayable d) {
+		if (d instanceof ZDisplayable) return isTop((ZDisplayable)d);
+		else return d.getLayer().isTop(d);
+	}
+	/** Hub method: ZDisplayable or into the Displayable's Layer. */
+	protected boolean isBottom(Displayable d) {
+		if (d instanceof ZDisplayable) return isBottom((ZDisplayable)d);
+		else return d.getLayer().isBottom(d);
+	}
+
+	/** Change z position in the layered stack, which defines the painting order. */ // the BOTTOM of the stack is the first element in the al_zdispl array
+	protected void move(final int place, final Displayable d) {
+		if (d instanceof ZDisplayable) {
+			int i = al_zdispl.indexOf(d);
+			if (-1 == i) {
+				Utils.log("LayerSet.move: object does not belong here");
+				return;
+			}
+			int size = al_zdispl.size();
+			if (1 == size) return;
+			switch(place) {
+				case LayerSet.TOP:
+					al_zdispl.add(al_zdispl.remove(i));
+					break;
+				case LayerSet.UP:
+					if (size -1 == i) return;
+					al_zdispl.add(i+1, al_zdispl.remove(i));
+					break;
+				case LayerSet.DOWN:
+					if (0 == i) return;
+					al_zdispl.add(i, al_zdispl.remove(i-1)); //swap
+					break;
+				case LayerSet.BOTTOM:
+					al_zdispl.add(0, al_zdispl.remove(i));
+					break;
+			}
+			updateInDatabase("stack_index");
+			Display.updatePanelIndex(d.getLayer(), d);
+		} else {
+			switch (place) {
+				case LayerSet.TOP: d.getLayer().moveTop(d); break;
+				case LayerSet.UP: d.getLayer().moveUp(d); break;
+				case LayerSet.DOWN: d.getLayer().moveDown(d); break;
+				case LayerSet.BOTTOM: d.getLayer().moveBottom(d); break;
+			}
+		}
+	}
+
+	public int indexOf(ZDisplayable zd) {
+		int k = al_zdispl.indexOf(zd);
+		if (-1 == k) return -1;
+		return al_zdispl.size() - k -1;
+	}
+
+	public boolean isEmptyAt(Layer la) {
+		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
+			if (((ZDisplayable)it.next()).paintsAt(la)) return false;
+		}
+		return true;
+	}
+
+	/** Always returns null. */
+	public Object clone() {
+		return null;
+	}
+
+	public LayerStack makeLayerStack(Display display) {
+		return new LayerStack(this, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height), display);
+	}
+
+	/** Will return the virtual_scale value if different than -1, or else a scale value automatically computed to fit the largest dimension of the box to max_dimension.*/
+	public double getPixelsVirtualizationScale(Rectangle box) {
+		// else automatic mode: limit size to 1024 width and 1024 height, keeping aspect ratio
+		if (box.width > box.height) {
+			return max_dimension / (double)box.width;
+		} else {
+			return max_dimension / (double)box.height;
+		}
+	}
+
+	public int getPixelsDimension() { return max_dimension; }
+	public void setPixelsDimension(int d) {
+
+	}
+
+	public void setPixelsVirtualizationEnabled(boolean b) { this.virtualization_enabled = b; }
+	public boolean isPixelsVirtualizationEnabled() { return virtualization_enabled; }
+
+
+	public Rectangle get2DBounds() {
+		return new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
+	}
+
+	public void setCalibration(Calibration cal) {
+		this.calibration = (Calibration)cal.clone(); //TODO check that it's not null
+	}
+}
