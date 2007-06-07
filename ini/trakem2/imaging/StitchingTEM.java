@@ -299,8 +299,7 @@ public class StitchingTEM {
 		//
 		//
 		if (use_masks) {
-			/*
-			ij.plugin.filter.GaussianBlur.blurGaussian(ip, 2,2,0.01);
+			//ij.plugin.filter.GaussianBlur.blurGaussian(ip, 2,2,0.01);
 			// create a mask of the stripe and use it instead
 			int threshold = ip.getAutoThreshold();
 			byte[] pix = (byte[])ip.getPixels();
@@ -315,12 +314,10 @@ public class StitchingTEM {
 			plugin.run(ip);
 			ip = tmp.getProcessor(); // in case it has changed
 
-
 			// debug:
-			tmp.show();
-			*/
+			//tmp.show();
 		}
-		new ImagePlus(p.getTitle(), ip).show();
+		//new ImagePlus(p.getTitle(), ip).show();
 
 		return (ByteProcessor)ip;
 	}
