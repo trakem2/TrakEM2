@@ -300,7 +300,9 @@ public class FSLoader extends Loader {
 								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
 								pa.putMinAndMax(imp);
 								if (create_snap) {
+									lock();
 									Image awt = pa.createImage(imp); // will call cacheAWT
+									unlock();
 									snaps.put(pa.getId(), Snapshot.createSnap(pa, awt, Snapshot.SCALE));
 								}
 							}
@@ -315,10 +317,9 @@ public class FSLoader extends Loader {
 					// need to create the snapshot
 					//Utils.log2("create_snap: " + create_snap + ", " + slice);
 					if (create_snap && null == slice) {
-						Utils.log2("Creating snap");
-						//unlock();
+						unlock();
 						Image awt = p.createImage(imp);
-						//lock();
+						lock();
 						//The line below done at p.createImage() because it calls cacheAWT
 						//awts.put(p.getId(), awt);
 						snaps.put(p.getId(), Snapshot.createSnap(p, awt, Snapshot.SCALE)); //awt.getScaledInstance((int)Math.ceil(p.getWidth() * Snapshot.SCALE), (int)Math.ceil(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD));

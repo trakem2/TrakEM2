@@ -338,26 +338,35 @@ abstract public class Loader {
 	}
 
 	/** Add to the cache, or if already there, make it be the last (to be flushed the last). */
-	synchronized public void cache(Displayable d, ImagePlus imp) {
-		long id = d.getId(); // each Displayable has a unique id for each database, not for different databases, that's why the cache is NOT shared.
-		if (d instanceof Patch) {
-			Patch p = (Patch)d;
-			if (null == imps.get(id)) { // the 'get' call already puts it at the end if there.
-				imps.put(id, imp);
-			}
-			if (!massive_mode) { // don't if loading lots of images
-				if (null == awts.get(id)) {
-					awts.put(id, p.createImage());  // with adjusted channels. Will flush the Image if it existed and was different
+	public void cache(final Displayable d, final ImagePlus imp) {
+		synchronized (db_lock) {
+			lock();
+			final long id = d.getId(); // each Displayable has a unique id for each database, not for different databases, that's why the cache is NOT shared.
+			if (d instanceof Patch) {
+				Patch p = (Patch)d;
+				if (null == imps.get(id)) { // the 'get' call already puts it at the end if there.
+					imps.put(id, imp);
 				}
-				if (null == snaps.get(id)) {
-					Image image = awts.get(id);
-					snaps.put(id, Snapshot.createSnap(p, image, Snapshot.SCALE)); //image.getScaledInstance((int)(d.getWidth() * Snapshot.SCALE), (int)(d.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD));
+				if (!massive_mode) { // don't if loading lots of images
+					if (null == awts.get(id)) {
+						unlock();
+						Image awt = p.createImage();
+						lock();
+						awts.put(id, awt);  // with adjusted channels. Will flush the Image if it existed and was different
+					}
+					if (null == snaps.get(id)) {
+						final Image image = awts.get(id);
+						unlock();
+						final Image snap = Snapshot.createSnap(p, image, Snapshot.SCALE);
+						lock();
+						snaps.put(id, snap);
+					}
 				}
+			} else {
+				Utils.log("Loader.cache: don't know how to cache: " + d);
 			}
-		} else {
-			Utils.log("Loader.cache: don't know how to cache: " + d);
+			unlock();
 		}
-		notify();
 	}
 
 	synchronized public void updateCache(Patch patch) {
@@ -365,21 +374,31 @@ abstract public class Loader {
 	}
 
 	/** Update the awt, replace the imp with the new imp, and remake the snapshot from the awt*/
-	synchronized public void updateCache(Patch patch, ImagePlus imp) {
-		imps.put(patch.getId(), imp); // replace with the new imp
-		patch.createImage(); // create from the cached new imp, and cache the new awt
+	public void updateCache(Patch patch, ImagePlus imp) {
+		synchronized (db_lock) {
+			lock();
+			imps.put(patch.getId(), imp); // replace with the new imp
+			unlock();
+		}
+		patch.createImage(imp); // create from the cached new imp, and cache the new awt
+		// will lock on its own
 		patch.getSnapshot().remake(); // create from the cached new awt, and cache the new snap
-		notify(); // ??? TODO
 	}
 
-	synchronized public void cacheAWT(long id, Image image) {
-		awts.put(id, image); // will flush the image if it exists in the cache, and add the new at the end
-		notify(); // ??? TODO
+	public void cacheAWT(long id, Image image) {
+		synchronized (db_lock) {
+			lock();
+			awts.put(id, image); // will flush the image if it exists in the cache, and add the new at the end
+			unlock();
+		}
 	}
 
-	synchronized public void cacheSnapshot(long id, Image snap) {
-		snaps.put(id, snap);
-		notify(); // ??? TODO
+	public void cacheSnapshot(long id, Image snap) {
+		synchronized (db_lock) {
+			lock();
+			snaps.put(id, snap);
+			unlock();
+		}
 	}
 
 	/** Cache any ImagePlus, as long as a unique id is assigned to it there won't be problems; you can obtain a unique id from method getNextId() .*/
@@ -782,11 +801,6 @@ abstract public class Loader {
 				ImagePlus imp = imps.get(id);
 				if (null != imp) {
 					if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) { // may have been flushed by ImageJ, for example when making images from a stack
-						//Image image = imp.getProcessor().createImage(); //imp.getImage(); //imp.getProcessor().createImage();
-						/*ImageProcessor ip = imp.getProcessor();
-						ip.setInterpolate(true);
-						Image image = ip.resize((int)(imp.getWidth() * mag), (int)(imp.getHeight() * mag)).createImage();
-						*/
 						unlock();
 						Image image = p.createImage(); //considers c_alphas
 						lock();
@@ -2756,7 +2770,7 @@ abstract public class Loader {
 	/** List of jobs running on this Loader. */
 	private ArrayList al_jobs = new ArrayList();
 	private JPopupMenu popup_jobs = null;
-	private Object popup_lock = new Object();
+	private final Object popup_lock = new Object();
 	private boolean popup_locked = false;
 
 	/** Sets a Worker thread to work, and waits until it finishes, blocking all user interface input until then, except for zoom and pan. */

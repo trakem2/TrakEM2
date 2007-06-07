@@ -175,8 +175,8 @@ public class StitchingTEM {
 				}
 
 				// correlate both stripes
-				final double[] cc = Stitching.crossCorrelatePreibisch(bp1, bp2);
-				final double[] cc_top = (LEFT == prev && (i - grid_width) > -1) ?  Stitching.crossCorrelatePreibisch(bp3, bp4) : null;
+				final double[] cc = Stitching.crossCorrelate(bp1, bp2);
+				final double[] cc_top = (LEFT == prev && (i - grid_width) > -1) ?  Stitching.crossCorrelate(bp3, bp4) : null;
 				bp3 = null; // flag as releasable
 				bp4 = null;
 
