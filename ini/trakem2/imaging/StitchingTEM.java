@@ -34,7 +34,10 @@ import ini.trakem2.display.Transform;
 import ini.trakem2.display.Display;
 import ini.trakem2.ControlWindow;
 
+import mpi.fruitfly.registration.PhaseCorrelation2D;
+
 import java.awt.Rectangle;
+import java.awt.Point;
 
 import java.awt.image.BufferedImage;
 
@@ -108,10 +111,169 @@ public class StitchingTEM {
 		final StitchingTEM st = this;
 		new Thread() {
 			public void run() {
-				StitchingTEM.stitch(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap, use_masks);
+				StitchingTEM.stitchPC(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap);
 			}
 		}.start();
 	}
+
+
+	/** Use phase correlation: much faster, very accurate. */
+	static private void stitchPC(final StitchingTEM st, final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap) {
+		try {
+			final int LEFT = 0, TOP = 1;
+
+			int prev_i = 0;
+			int prev = LEFT;
+
+			final int w = (int)patch[0].getWidth(); // the ImagePlus will be resized if it has different dimensions than the enclosing Patch
+			final int h = (int)patch[0].getHeight();
+			// for phase correlation, equally sized ROIs:
+			final Roi roi_top = new Roi(0, 0, w, (int)(h * percent_overlap));
+			final Roi roi_left = new Roi(0, 0, (int)(w * percent_overlap), h);
+			final Roi roi_right = new Roi(w - (int)(w * percent_overlap), 0, (int)(w * percent_overlap), h);
+			final Roi roi_bottom = new Roi(0, h - (int)(h * percent_overlap), w, (int)(h * percent_overlap));
+
+			ImageProcessor ip1, ip2;
+			ImageProcessor ip3=null, ip4=null;
+
+
+			for (int i=1; i<patch.length; i++) {
+				if (st.quit) {
+					return;
+				}
+				// stitch with the one above if starting row
+				if (0 == i % grid_width) {
+					prev_i = i - grid_width;
+					prev = TOP;
+				} else {
+					prev_i = i -1;
+					prev = LEFT;
+				}
+				// create a stripe image for involved parties
+				if (TOP == prev) {
+					// compare with top only
+					ip1 = makeStripe(patch[prev_i], roi_bottom, scale);
+					ip2 = makeStripe(patch[i], roi_top, scale);
+				} else {
+					// the one on the left
+					ip1 = makeStripe(patch[prev_i], roi_right, scale);
+					ip2 = makeStripe(patch[i], roi_left, scale);
+					// the one above
+					if (i - grid_width > -1) {
+						ip3 = makeStripe(patch[i - grid_width], roi_bottom, scale);
+						ip4 = makeStripe(patch[i], roi_top, scale);
+					}
+				}
+
+				final int limit = 5;
+
+				PhaseCorrelation2D pc = new PhaseCorrelation2D(ip1, ip2, limit, false, false, false);
+				Point p = pc.getTranslation();
+				Point p_top = null;
+
+				if (LEFT == prev && (i - grid_width) > -1) {
+					PhaseCorrelation2D pc_top = new PhaseCorrelation2D(ip3, ip4, limit, false, false, false);
+					p_top = pc_top.getTranslation();
+				}
+				ip3 = null; // flag as releasable
+				ip4 = null;
+
+
+				final double dx = p.x / scale;
+				final double dy = p.y / scale; // python unpacking is missed
+
+				// debug:
+				Utils.log("i: " + i + " dx,dy: " + (int)dx + ", " + (int)dy);
+
+				// boundary limits: don't move by more than the small dimension of the stripe
+				int max_abs_delta; // TODO: only the dx for left (and the dy for top) should be compared and found to be smaller or equal; the other dimension should be unbounded -for example, for manually acquired, grossly out-of-grid tiles.
+
+				final Transform t = patch[i].getTransform();
+
+				// check and apply: falls back to default overlaps when getting bad results
+				if (TOP == prev) {
+					max_abs_delta = roi_bottom.getBounds().height; // the small dimension of the ROI of the base stripe
+					if (Math.abs(dx) > max_abs_delta || Math.abs(dy) > max_abs_delta) {
+						// don't move: use default overlap
+						t.x = patch[prev_i].getX();
+						t.y = patch[prev_i].getY() + patch[i - grid_width].getHeight() - default_bottom_top_overlap;
+					} else {
+						// trust top
+						t.x = patch[prev_i].getX() + dx;
+						t.y = patch[prev_i].getY() + roi_bottom.getBounds().y + dy;
+					}
+				} else { // LEFT
+					max_abs_delta = roi_right.getBounds().width; // the small dimension of the ROI of the base stripe
+
+					boolean left_trusted = true;
+					if (Math.abs(dx) > max_abs_delta || Math.abs(dy) > max_abs_delta) {
+						// ignore left
+						left_trusted = false;
+					}
+					// the one on top, if any
+					if (i - grid_width > -1) {
+						final double dx2 = p_top.x / scale;
+						final double dy2 = p_top.y / scale;
+						max_abs_delta = roi_bottom.getBounds().height; // the small dimension of the ROI of the base stripe
+						if (Math.abs(dx2) > max_abs_delta || Math.abs(dy2) > max_abs_delta) {
+							// ignore top
+							if (left_trusted) {
+								// use left alone
+								t.x = patch[prev_i].getX() + roi_right.getBounds().x + dx;
+								t.y = patch[prev_i].getY() + dy;
+							} else {
+								// left not trusted, top not trusted: use a combination of defaults for both
+								t.x = patch[prev_i].getX() + patch[prev_i].getWidth() - default_left_right_overlap;
+								t.y = patch[i - grid_width].getY() + patch[i - grid_width].getHeight() - default_bottom_top_overlap;
+							}
+						} else {
+							// top is good
+							if (left_trusted) {
+								// combine left and top
+								t.x = (patch[prev_i].getX() + roi_right.getBounds().x + dx
+								     + patch[i - grid_width].getX() + dx2) / 2;
+								t.y = (patch[prev_i].getY() + dy
+								     + patch[i - grid_width].getY() + roi_bottom.getBounds().y + dy2) / 2;
+							} else {
+								// use top alone
+								t.x = patch[i - grid_width].getX() + dx2;
+								t.y = patch[i - grid_width].getY() + roi_bottom.getBounds().y + dy2;
+							}
+							//
+							Utils.log2("\ttop: " + (int)dx + ", " + (int)dy);
+						}
+					} else if (left_trusted) {
+						// use left alone
+						t.x = patch[prev_i].getX() + roi_right.getBounds().x + dx;
+						t.y = patch[prev_i].getY() + dy;
+					} else {
+						// left not trusted, and top not applicable: use default overlap with left tile
+						t.x = patch[prev_i].getX() + patch[prev_i].getWidth() - default_left_right_overlap;
+						t.y = patch[prev_i].getY();
+					}
+				}
+
+				// apply (and repaint)
+				if (ControlWindow.isGUIEnabled()) { // in a proper design, this would happen automatically when the transform is applied to the Patch
+					Rectangle box = patch[i].getBoundingBox();
+					patch[i].setTransform(t);
+					box.add(patch[i].getBoundingBox());
+					Display.repaint(patch[i].getLayer(), box, 1);
+				} else {
+					patch[i].setTransform(t);
+				}
+
+				Utils.log2(i + ": Done patch " + patch[i]);
+			}
+
+			//
+			st.flag = DONE;
+		} catch (Exception e) {
+			new IJError(e);
+			st.flag = ERROR;
+		}
+	}
+
 
 	/** Assumes all files have the same dimensions. */
 	static private void stitch(final StitchingTEM st, final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean use_masks) {
@@ -132,7 +294,6 @@ public class StitchingTEM {
 			final Roi roi_left = new Roi(0, 0, (int)(w * percent_overlap), h);
 			final Roi roi_right = new Roi(w - (int)(w * percent_overlap2), 0, (int)(w * percent_overlap2), h);
 			final Roi roi_bottom = new Roi(0, h - (int)(h * percent_overlap2), w, (int)(h * percent_overlap2));
-
 
 			//debug:
 			/*
@@ -274,6 +435,22 @@ public class StitchingTEM {
 			new IJError(e);
 			st.flag = ERROR;
 		}
+	}
+
+	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale) {
+		final ImagePlus imp = p.getProject().getLoader().fetchImagePlus(p, false);
+		ImageProcessor ip = imp.getProcessor();
+		// compare and adjust
+		if (ip.getWidth() != (int)p.getWidth() || ip.getHeight() != (int)p.getHeight()) {
+			ip = ip.resize((int)p.getWidth(), (int)p.getHeight());
+			Utils.log2("resizing stripe for patch: " + p);
+		}
+		// cut
+		ip.setRoi(roi);
+		ip = ip.crop();
+		// scale
+		if (scale < 1) ip = ip.resize((int)(ip.getWidth() * scale)); // scale mantaining aspect ratio
+		return ip;
 	}
 
 	/** Takes into account that the Patch dimensions may differ from its image dimensions, so that the returned stripe is transformed to the Patch's transform. Rotations are NOT considered.*/

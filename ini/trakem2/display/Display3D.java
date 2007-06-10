@@ -38,6 +38,7 @@ import javax.media.j3d.View;
 import ij3d.ImageWindow3D;
 import ij3d.Image3DUniverse;
 import ij3d.Content;
+import ij3d.Image3DMenubar;
 
 
 /** One Display3D instance for each LayerSet (maximum). */
@@ -49,7 +50,8 @@ public class Display3D {
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
 	private Hashtable ht_pt_meshes = new Hashtable();
 
-	private T2Universe universe;
+	//private T2Universe universe;
+	private Image3DUniverse universe;
 
 	private Object u_lock = new Object();
 	private boolean u_locked = false;
@@ -70,13 +72,14 @@ public class Display3D {
 	/** Defaults to parallel projection. */
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
-		this.universe = new T2Universe(512, 512); // size of the initial canvas, not the universe itself
+		this.universe = new Image3DUniverse(512, 512); //new T2Universe(512, 512); // size of the initial canvas, not the universe itself
 		this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION);
 		computeScale(ls);
 		this.win = new ImageWindow3D("3D Viewer", this.universe);
 		this.win.addWindowListener(new IW3DListener(ls));
-		this.menubar = new D3DMenuBar();
-		this.win.setMenuBar(menubar);
+		//this.menubar = new D3DMenuBar();
+		//this.win.setMenuBar(menubar);
+		this.win.setMenuBar(new Image3DMenubar(universe));
 		// register
 		Display3D.ht_layer_sets.put(ls, this);
 	}
@@ -126,11 +129,12 @@ public class Display3D {
 				unlock();
 			}
 		}
-		public void addMesh(List triangles, Color3f color, String title, float scale, int a, Vector3f position, float transp) {
+		public void addMesh(List triangles, Color3f color, String title, float scale, int a, float transp) {
 			synchronized (u_lock) {
 				lock();
 				try {
-					super.addMesh(triangles, color, title, scale, a, position);
+					super.resetView();
+					super.addMesh(triangles, color, title, scale, a);
 					super.getContent(title).setTransparency(transp);
 				} catch (Exception e) {
 					new IJError(e);
@@ -341,6 +345,13 @@ public class Display3D {
 		} finally {
 			doneWaiting();
 		}
+	}
+
+	static public void show(Patch p) {
+		Display3D d3d = get(p.getLayerSet());
+		d3d.adjustResampling();
+		d3d.universe.resetView();
+		d3d.universe.addOrthoslice(p.makePatchStack(), null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
 	}
 
 	/** A Material, but avoiding name colisions. */
@@ -595,8 +606,8 @@ public class Display3D {
 		// add to 3D view
 		//Utils.log2("Universe width,height: " + width + ", " + height);
 		universe.resetView(); // OTHERWISE screws up the proper 3D relationships!
-		Vector3f position = new Vector3f((float)(-this.width/2), (float)(-this.height/2), 0f);
-		universe.addMesh(triangles, new Color3f(displ.getColor()), title, (float)(1.0 / (width*scale)), 0, position);
+		//Vector3f position = new Vector3f((float)(-this.width/2), (float)(-this.height/2), 0f);
+		universe.addMesh(triangles, new Color3f(displ.getColor()), title, (float)(1.0 / (width*scale)), 1/*, position*/);
 		Content content = universe.getContent(displ.getTitle() + " #" + displ.getId());
 		if (null != content) content.setTransparency(1 - displ.getAlpha());
 
