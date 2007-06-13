@@ -6,18 +6,23 @@ import ij.ImagePlus;
 import ij.io.Opener;
 
 import java.awt.Point;
-import java.io.PrintWriter;
-import java.awt.Color;
+/*import Jampack.Zsvd;
+import Jampack.Z;
+import Jampack.Zmat;
+import Jampack.Zdiagmat;*/
 
+//import mpi.fruitfly.fft.jfftwWrapper;
 import mpi.fruitfly.math.Quicksortable;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.fft.pffft;
 
-import static mpi.fruitfly.general.fileParsing.*;
+//import static mpi.fruitfly.general.fileParsing.*;
 import static mpi.fruitfly.general.fileAccess.*;
-import static mpi.fruitfly.general.ArrayConverter.*;
+//import static mpi.fruitfly.general.ArrayConverter.*;
 import static mpi.fruitfly.general.ImageArrayConverter.*;
+//import static mpi.fruitfly.general.configurationParser.*;
 import static mpi.fruitfly.math.General.*;
+//import static mpi.fruitfly.fft.jfftwWrapper.*;
 import static mpi.fruitfly.fft.pffft.*;
 import static mpi.fruitfly.registration.ImageFilter.*;
 
@@ -45,18 +50,20 @@ public class PhaseCorrelation2D
     ///private int imgW1, imgW2, imgH1, imgH2;
     private int heightZP, widthZP;
     private boolean kaiserBessel, normalize, showImages;
+    private int checkImages;
 
     private ImagePlus phaseCorrelationImg, orgImg1, orgImg2;
     private float[] pixels;
     private Point[] location;
     private Point bestTranslation;
+    private CrossCorrelationResult bestResult;
 
     public class CrossCorrelationResult implements Quicksortable
     {
-        public Point shift, shiftPos;
+        public Point shift;
         public int overlappingPixels;
         public double SSQ, R;
-        public ImagePlus overlapImp, errorMapImp, img1, img2;
+        public ImagePlus overlapImp, errorMapImp;
 
         public double getQuicksortValue()
         {
@@ -73,6 +80,7 @@ public class PhaseCorrelation2D
         this.kaiserBessel = kaiserBessel;
         this.normalize = normalize;
         this.showImages = showImages;
+        this.checkImages = checkImages;
 
         if (showImages)
         {
@@ -80,24 +88,22 @@ public class PhaseCorrelation2D
             img2.show();
         }
 
-        computePhaseCorrelation(img1, img2, checkImages);
+        orgImg1 = img1;
+        orgImg2 = img2;
+
+        //computePhaseCorrelation(img1, img2, checkImages);
     }
 
-/*    public PhaseCorrelation2D(double[] img1, int w1, int h1, double[] img2, int w2, int h2, boolean kaiserBessel, boolean showImages)
-    {
-        this.kaiserBessel = kaiserBessel;
-        this.showImages = showImages;
-
-        computePhaseCorrelation(Rotation2D.getImagePlus("image1", img1, w1, h1, showImages), Rotation2D.getImagePlus("image2", img2, w2, h2, showImages));
-    }
-*/
     public PhaseCorrelation2D(ImagePlus img1, ImagePlus img2, int checkImages, boolean kaiserBessel,  boolean normalize, boolean showImages)
     {
         this.kaiserBessel = kaiserBessel;
         this.showImages = showImages;
         this.normalize = normalize;
+        this.checkImages = checkImages;
 
-        computePhaseCorrelation(img1, img2, checkImages);
+        orgImg1 = img1;
+        orgImg2 = img2;
+        //computePhaseCorrelation(img1, img2, checkImages);
     }
 
     public PhaseCorrelation2D(ImageProcessor imp1, ImageProcessor imp2, int checkImages, boolean kaiserBessel,  boolean normalize, boolean showImages)
@@ -105,21 +111,20 @@ public class PhaseCorrelation2D
         this.kaiserBessel = kaiserBessel;
         this.showImages = showImages;
         this.normalize = normalize;
+        this.checkImages = checkImages;
 
-        computePhaseCorrelation(new ImagePlus("1", imp1), new ImagePlus("2", imp2), checkImages);
+        orgImg1 = new ImagePlus("1", imp1);
+        orgImg2 = new ImagePlus("2", imp2);
+        //computePhaseCorrelation(new ImagePlus("1", imp1), new ImagePlus("2", imp2), checkImages);
     }
 
-    private void computePhaseCorrelation(ImagePlus orgImg1, ImagePlus orgImg2, int checkImages)
+    public Point computePhaseCorrelation()
     {
         // get image dimensions
         int imgH1 = orgImg1.getHeight();
         int imgH2 = orgImg2.getHeight();
         int imgW1 = orgImg1.getWidth();
         int imgW2 = orgImg2.getWidth();
-
-        // save original images
-        this.orgImg1 = orgImg1;
-        this.orgImg2 = orgImg2;
 
         // get zero padding size (to square image)
         getZeroPaddingSizePrimeFast(max(imgW1, imgW2), max(imgH1, imgH2));
@@ -147,22 +152,30 @@ public class PhaseCorrelation2D
 
         // compute the phase correlation matrix
         phaseCorrelationImg = computePhaseCorrelationMatrixFloat(image1, image2);
+        if (showImages)
+            phaseCorrelationImg.show();
 
-        // find peak
+        // find peaks
         findPeak((FloatProcessor)phaseCorrelationImg.getProcessor());
 
-        CrossCorrelationResult[] result = testCrossCorrelation(checkImages, true && showImages, true && showImages);
+        // evaluate peaks by cross correlation
+        CrossCorrelationResult[] result = testCrossCorrelation(checkImages, true && showImages, false && showImages);
 
         if (showImages)
-            for (int i = 0; i < result.length; i++)
+            for (int i = 0; i < result.length/4; i++)
             {
-                result[i].overlapImp.show();
-                result[i].errorMapImp.show();
-                System.out.println(result[i].shift.x + " " + result[i].shift.y + " " +  result[i].SSQ + " " + result[i].R);
+                if (result[i].overlapImp != null)
+                    result[i].overlapImp.show();
+
+                //result[i].errorMapImp.show();
+                if (result[i].overlapImp != null)
+                    System.out.println(result[i].shift.x + " " + result[i].shift.y + " " +  result[i].SSQ + " " + result[i].R);
             }
 
         bestTranslation = result[0].shift;
+        bestResult = result[0];
 
+        return bestTranslation;
     }
 
     public CrossCorrelationResult[] testCrossCorrelation(int numBestHits, boolean createOverlappingImages, boolean createErrorMap)
@@ -231,8 +244,20 @@ public class PhaseCorrelation2D
         int sx = shift.x;
         int sy = shift.y;
 
-        int imgW = max(w1, w2) + max(0, Math.abs(sx) - Math.abs((w1 - w2)/* /2*/));
-        int imgH = max(h1, h2) + max(0, Math.abs(sy) - Math.abs((h1 - h2)/* /2*/));
+        //int imgW = max(w1, w2) + max(0, Math.abs(sx) - Math.abs((w1 - w2)/* /2*/));
+        //int imgH = max(h1, h2) + max(0, Math.abs(sy) - Math.abs((h1 - h2)/* /2*/));
+
+        int imgW, imgH;
+
+        if (sx >= 0)
+            imgW = max(w1, w2 + sx);
+        else
+            imgW = max(w1 - sx, w2); // equals max(w1 + Math.abs(sx), w2);
+
+        if (sy >= 0)
+            imgH = max(h1, h2 + sy);
+        else
+            imgH = max(h1 - sy, h2);
 
         /*int offsetImg1X = max(0, (w2 - w1)/2 - sx);// + max(0, max(0, -sx) - max(0, (w1 - w2)/2));
         int offsetImg1Y = max(0, (h2 - h1)/2 - sy);// + max(0, max(0, -sy) - max(0, (h1 - h2)/2));
@@ -249,12 +274,6 @@ public class PhaseCorrelation2D
         {
             result.overlapImp = IJ.createImage("Overlay for " + sx + " x " + sy, "32-Bit Black", imgW, imgH, 1);
             overlapFP = (FloatProcessor) result.overlapImp.getProcessor();
-
-            result.img1 = IJ.createImage("Img1 for " + sx + " x " + sy, "32-Bit Black", imgW, imgH, 1);
-            imgfp1 = (FloatProcessor) result.img1.getProcessor();
-
-            result.img2 = IJ.createImage("Img2 for " + sx + " x " + sy, "32-Bit Black", imgW, imgH, 1);
-            imgfp2 = (FloatProcessor) result.img2.getProcessor();
         }
 
         if (createErrorMap)
@@ -302,13 +321,20 @@ public class PhaseCorrelation2D
                 }
             }
 
-        if (count < 2000)
+        // if less than 1% is overlapping
+        if (count <= (min(w1, w2) * min (h1, h2)) * 0.01)
         {
             result.R = 0;
             result.SSQ = Float.MAX_VALUE;
             result.overlappingPixels = count;
-            result.shift = shift;
-            //System.out.println("Smaller 2000");
+            result.shift = new Point(0, 0);
+
+            if (createOverlappingImages)
+                overlapFP.resetMinAndMax();
+
+            if (createErrorMap)
+                errorMapFP.resetMinAndMax();
+
             return result;
         }
 
@@ -346,6 +372,7 @@ public class PhaseCorrelation2D
                     coVar += dist1 * dist2;
                     var1 += Math.pow(dist1, 2);
                     var2 += Math.pow(dist2, 2);
+
                 }
             }
 
@@ -375,6 +402,11 @@ public class PhaseCorrelation2D
     public ImagePlus getPhaseCorrelationImage()
     {
         return phaseCorrelationImg;
+    }
+
+    public CrossCorrelationResult getResult()
+    {
+        return bestResult;
     }
 
     public Point getTranslation()
@@ -437,8 +469,277 @@ public class PhaseCorrelation2D
         FloatArray2D pcm = new FloatArray2D(pffft.computePhaseCorrelationMatrix(fft1.data, fft2.data, false), fft1.width, fft1.height);
 
         //return Rotation2D.getImagePlus("Inv of PCM", pffftInv2D(pcm, width), showImages);
-	return FloatArrayToImagePlus(pffftInv2D(pcm, width), "Inv of PCM", 0, 0);
+        return FloatArrayToImagePlus(pffftInv2D(pcm, width), "Inv of PCM", 0, 0);
     }
+
+
+/*    private ImagePlus computePhaseCorrelationMatrix(FloatProcessor fp1, FloatProcessor fp2)
+    {
+        //
+        // do the fft for both images
+        //
+
+        int width = fp1.getWidth();
+        int height = fp2.getHeight();
+        int spectraWidth = jfftwWrapper.getSpectraWidth(width);
+
+        matlab code
+
+         threshold = 1E-5;
+
+         FFT3_V1 = fftn(V1);
+         FFT3_V2 = fftn(V2);
+
+         FFT3_V1  = FFT3_V1 ./abs(FFT3_V1 );
+         FFT3_V2  = FFT3_V2 ./abs(FFT3_V2 ).*(abs(FFT3_V2 ) >threshold);
+
+         Phase = FFT3_V1.*conj(FFT3_V2);
+
+         Corr = real(ifftn(Phase));
+
+
+        // do forward fft
+        double[] FFT3_V1 = null;
+        double[] FFT3_V2 = null;
+        FFT3_V1 = fftSimple(width, height, ImageToDoubleArray1D(fp1), jfftwWrapper.SCALE);
+        FFT3_V2 = fftSimple(width, height, ImageToDoubleArray1D(fp2), jfftwWrapper.SCALE);
+
+
+        // get the power spectrum
+        double[] ps1 = computePowerSpectrum(FFT3_V1);
+        double[] ps2 = computePowerSpectrum(FFT3_V2);
+
+        // divide complex numbers by power spectrum (weightening)
+        FFT3_V1 = divide(FFT3_V1, realToComplex(ps1, ps1), DONTOVERWRITE);
+        FFT3_V2 = divide(FFT3_V2, realToComplex(ps2, ps2), DONTOVERWRITE);
+
+        // divide only if power spectrum is above threshold
+        for (int pos = 0; pos < ps2.length; pos++)
+            if (ps2[pos] < 1E-5)
+                FFT3_V2[2 * pos] = FFT3_V2[2 * pos + 1] = 0;
+
+        // do complex conjugate
+        complexConjugate(FFT3_V2);
+
+        // multiply both complex arrays elementwise
+        double phaseCorrelationMatrix[] = multiply(FFT3_V1, FFT3_V2, DONTOVERWRITE);
+
+
+
+
+        // do forward fft
+        double[] complex1 = jfftwWrapper.fftSimple(width, height, ImageToDoubleArray1D(fp1), jfftwWrapper.SCALE);
+        double[] complex2 = jfftwWrapper.fftSimple(width, height, ImageToDoubleArray1D(fp2), jfftwWrapper.SCALE);
+
+        //
+        // transform the second one into its complex conjugate
+        //
+        jfftwWrapper.complexConjugate(complex2, width, height);
+
+        //
+        // now compute phase correlation matrix
+        //
+
+        // first multiply the complex images
+        //double[] complexMultiplication = jfftwWrapper.multiply(complex1, complex2, width, height, jfftwWrapper.DONTOVERWRITE);
+        double[] complexMultiplication = jfftwWrapper.multiply(complex1, complex2, jfftwWrapper.DONTOVERWRITE);
+
+        // now get the power spectrum of the multiplication
+        //double[] powerSpectrumMult = jfftwWrapper.computePowerSpectrum(width, height, complexMultiplication);
+        double[] powerSpectrumMult = jfftwWrapper.computePowerSpectrum(complexMultiplication);
+
+        // then divide mulitplied complex image by the power spectrum of the multiplicated complex image
+        //double complexPowerOfMult[] = jfftwWrapper.realToComplex(powerSpectrumMult, powerSpectrumMult, width, height);
+        //double phaseCorrelationMatrix[] = jfftwWrapper.divide(complexMultiplication, complexPowerOfMult, width, height, jfftwWrapper.DONTOVERWRITE);
+        double complexPowerOfMult[] = jfftwWrapper.realToComplex(powerSpectrumMult, powerSpectrumMult);
+        double phaseCorrelationMatrix[] = jfftwWrapper.divide(complexMultiplication, complexPowerOfMult, jfftwWrapper.DONTOVERWRITE);
+
+
+        //double[] phaseSpectrum = jfftwWrapper.computePhaseSpectrum(width, height, phaseCorrelationMatrix);
+        //double[] powerSpectrum = jfftwWrapper.computePowerSpectrum(width, height, phaseCorrelationMatrix);
+
+        double[] phaseSpectrum = jfftwWrapper.computePhaseSpectrum(phaseCorrelationMatrix);
+        double[] powerSpectrum = jfftwWrapper.computePowerSpectrum(phaseCorrelationMatrix);
+
+        gLogArray(phaseSpectrum, jfftwWrapper.getSpectraWidth(width), height, 2);
+        ImagePlus impPhase = Rotation2D.getImagePlus("complexMultiplication Phase Spectrum", phaseSpectrum, spectraWidth, height, false);
+        ImagePlus impPower = Rotation2D.getImagePlus("complexMultiplication Power Spectrum", powerSpectrum, spectraWidth, height, false);
+        logImage((FloatProcessor)impPower.getProcessor());
+
+        if (showImages)
+        {
+            impPhase.show();
+            impPower.show();
+        }
+
+        // now do SVD on the complex fourier matrix
+        try
+        {
+            // get complex number components in form usable for Jampack
+            double[][] realPart = jfftwWrapper.getRealPart2DArrayMatrix(width, height, phaseCorrelationMatrix);
+            double[][] imgPart = jfftwWrapper.getImgPart2DArrayMatrix(width, height, phaseCorrelationMatrix);
+
+            // create matrix with complex numbers
+            Zmat Q = new Zmat(realPart, imgPart);
+
+            // compute SVD with complex matrix Q
+            Zsvd svd = new Zsvd(Q);
+
+            // get results of SVD
+            Zmat U = svd.U;
+            Zdiagmat S = svd.S;
+            Zmat V = svd.V;
+
+            double[] leftSingular = new double[U.nr * U.nc];
+            for (int y = 0; y < U.nr; y++)
+                for (int x = 0; x < U.nc; x++)
+                    leftSingular[x + y * U.nc] = getPhase(U.get(y+1, x+1)); // row column
+
+            Rotation2D.getImagePlus("Left Singular Matrix", leftSingular, U.nc, U.nr, true);
+
+            double[] singular = new double[min(U.nr, V.nr) * min(U.nc, V.nc)];
+            for (int y = 0; y < min(U.nr, V.nr); y++)
+                    singular[y + y*min(U.nc, V.nc)] = S.get(y+1).re; // row column
+
+            Rotation2D.getImagePlus("Singular Matrix", singular, min(U.nc, V.nc), min(U.nr, V.nr), true);
+
+
+            double[] rightSingular = new double[V.nr * V.nc];
+            for (int y = 0; y < V.nr; y++)
+                for (int x = 0; x < V.nc; x++)
+                    rightSingular[x + y*V.nc] = getPhase(V.get(y+1, x+1)); // row column
+
+            Rotation2D.getImagePlus("Right Singular Matrix", rightSingular, V.nc, V.nr, true);
+
+
+            PrintWriter out = openFileWrite("FitLine_U.txt");
+            out.println("x" + "\t" + "wrapped" + "\t" + "unwrapped");
+
+            double[] phaseVector = getPhaseVector(U,1);
+            double[] phaseVectorUnwrapped = unwrapPhaseVector(phaseVector);
+
+            for (int row = 0; row < U.nr; row++)
+                out.println(row + "\t" +  phaseVector[row] + "\t" +  phaseVectorUnwrapped[row]);
+
+            out.close();
+
+            out = openFileWrite("FitLine_V.txt");
+            out.println("x" + "\t" + "wrapped" + "\t" + "unwrapped");
+
+            phaseVector = getPhaseVector(V,1);
+            phaseVectorUnwrapped = unwrapPhaseVector(phaseVector);
+
+            for (int row = 0; row < V.nr; row++)
+                out.println(row + "\t" +  phaseVector[row] + "\t" +  phaseVectorUnwrapped[row]);
+
+            out.close();
+
+        }
+        catch (Exception e)
+        {
+            System.err.println(e);
+            e.printStackTrace();
+        }
+
+        // now do SVD on the phase spectrum
+        Matrix Q = new Matrix(oneDimArrayToTwoDimArrayInvert(phaseSpectrum, spectraWidth, height));
+        SingularValueDecomposition svd = new SingularValueDecomposition(Q);
+
+        Matrix U = svd.getU(); //U Left Singular Matrix
+        Matrix S = svd.getS(); //W
+        Matrix V = svd.getV(); //VT Right Singular Matrix
+
+        // display left and right singular maxtrix
+
+        double[] leftSingular = new double[U.getRowDimension() * U.getColumnDimension()];
+        for (int y = 0; y < U.getRowDimension(); y++)
+            for (int x = 0; x < U.getColumnDimension(); x++)
+                leftSingular[x + y*U.getColumnDimension()] = U.get(y, x); // row column
+
+        Registration2D.getImagePlus("Left Singular Matrix", leftSingular, U.getColumnDimension(), U.getRowDimension(), true);
+
+
+        double[] singular = new double[S.getRowDimension() * S.getColumnDimension()];
+        for (int y = 0; y < S.getRowDimension(); y++)
+            for (int x = 0; x < S.getColumnDimension(); x++)
+                singular[x + y*S.getColumnDimension()] = S.get(y, x); // row column
+
+        Registration2D.getImagePlus("Singular Matrix", singular, S.getColumnDimension(), S.getRowDimension(), true);
+
+        double[] rightSingular = new double[V.getRowDimension() * V.getColumnDimension()];
+        for (int y = 0; y < V.getRowDimension(); y++)
+            for (int x = 0; x < V.getColumnDimension(); x++)
+                rightSingular[x + y*V.getColumnDimension()] = V.get(y, x); // row column
+
+        Registration2D.getImagePlus("Right Singular Matrix", rightSingular, V.getColumnDimension(), V.getRowDimension(), true);
+
+        // inverse fft
+        double[] phaseCorrelationMatrixImage = jfftwWrapper.fftInvSimple(width, height, phaseCorrelationMatrix);
+
+        return Rotation2D.getImagePlus("Phase Correlation Matrix Image", phaseCorrelationMatrixImage, width, height, showImages);
+    }*/
+
+    private double[] unwrapPhaseVector(double[] phaseVector)
+    {
+        double lastPhaseUnwrapped = phaseVector[0];
+        double thisPhase;
+
+        int offset2PI = 0;
+
+        double[] unwrappedPhaseVector = new double[phaseVector.length];
+
+        for (int pos = 0; pos < phaseVector.length; pos++)
+        {
+            thisPhase = phaseVector[pos] + (Math.PI*2D*offset2PI);
+
+            // if the difference in phase is more than pi
+            // we have to add or subtract 2 pi
+            if (Math.abs(thisPhase - lastPhaseUnwrapped) > Math.PI)
+            {
+                if (lastPhaseUnwrapped > thisPhase)
+                {
+                    // + 2pi because it should increase
+                    thisPhase += Math.PI * 2;
+
+                    // Now from all following phases subract 2*PI more
+                    offset2PI++;
+                }
+                else
+                {
+                    // - 2pi because it should decrease
+                    thisPhase -= Math.PI * 2;
+
+                    // Now from all following phases subract 2*PI more
+                    offset2PI--;
+                }
+            }
+            unwrappedPhaseVector[pos] = lastPhaseUnwrapped = thisPhase;
+        }
+        return unwrappedPhaseVector;
+    }
+
+/*    private double[] getPhaseVector(Zmat matrix, int col)
+    {
+        double[] phaseVector = new double[matrix.nr];
+
+        for (int row = 1; row <= matrix.nc; row++)
+            phaseVector[row-1] = getPhase(matrix.get(row,col));
+
+        return phaseVector;
+    }
+
+    private double getPhase(Z complexNumber)
+    {
+        double phase = 0;
+
+        if (complexNumber.re != 0.0 && complexNumber.im != 0)
+            phase = Math.atan2(complexNumber.im, complexNumber.re);
+
+        if (phase < 0)
+            phase = (Math.PI * 2) + phase;
+
+        return phase;
+    }*/
 
     private void logImage(FloatProcessor fp)
     {

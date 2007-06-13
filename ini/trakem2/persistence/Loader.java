@@ -50,6 +50,9 @@ import ij.process.StackProcessor;
 import ij.process.StackStatistics;
 import ij.process.ImageStatistics;
 import ij.measure.Calibration;
+
+import mpi.fruitfly.registration.PhaseCorrelation2D;
+
 import ini.trakem2.Project;
 import ini.trakem2.display.Ball;
 import ini.trakem2.display.DLabel;
@@ -1440,6 +1443,8 @@ abstract public class Loader {
 
 				width = img.getWidth();
 				height = img.getHeight();
+				int rw = width;
+				int rh = height;
 				if (width != first_image_width || height != first_image_height) {
 					int new_width = first_image_width;
 					int new_height = first_image_height;
@@ -1474,19 +1479,15 @@ abstract public class Loader {
 						if (ignore_all) resize = false;
 					}
 					if (resize) {
-						//resize imageplus
-						ImageProcessor ip = img.getProcessor();
-						ip.setInterpolate(true);
-						ip = ip.resize(new_width, new_height);
-						//free resources used by the opened ImagePlus
-						img.flush();
-						//create new ImagePlus from the resized ImageProcessor
-						img = new ImagePlus(img.getTitle(), ip);
+						//resize Patch dimensions
+						rw = first_image_width;
+						rh = first_image_height;
 					}
 				}
 
 				//add new Patch at base bx,by plus the x,y of the grid
 				Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
+				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
 				fetchSnapshot(patch); // make sure it is created from the Patch ImagePlus.
 				addedPatchFrom(path, patch);
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
@@ -1511,12 +1512,29 @@ abstract public class Loader {
 			y = 0; //resetting!
 		}
 
+		// build list
+		final Patch[] pa = new Patch[al.size()];
+		int f = 0;
+		// list in row-first order
+		for (int j=0; j<pall[0].length; j++) { // 'j' is row
+			for (int i=0; i<pall.length; i++) { // 'i' is column
+				pa[f++] = pall[i][j];
+			}
+		}
+		// make the first one be top, and the rest under it in left-right and top-bottom order
+		for (int j=0; j<pa.length; j++) {
+			layer.moveBottom(pa[j]);
+		}
+
+		// optimize repaints: all to background image
+		Display.clearSelection(layer);
+
 		if (homogenize_contrast) {
 			setTaskName("homogenizing contrast");
 			// 0 - check that all images are of the same type
-			int tmp_type = ((Patch)al.get(0)).getType();
-			for (int e=al.size() -1; e>0; e--) {
-				if (tmp_type != ((Patch)al.get(e)).getType()) {
+			int tmp_type = pa[0].getType();
+			for (int e=1; e<pa.length; e++) {
+				if (pa[e].getType() != tmp_type) {
 					// can't continue
 					tmp_type = Integer.MAX_VALUE;
 					Utils.log("Can't homogenize histograms: images are not all of the same type.\nFirst offending image is: " + al.get(e));
@@ -1528,8 +1546,6 @@ abstract public class Loader {
 				// 1 - fetch statistics for each image
 				final ArrayList al_st = new ArrayList();
 				final ArrayList al_p = new ArrayList(); // list of Patch ordered by stdDev ASC
-				final Patch[] pa = new Patch[al.size()];
-				al.toArray(pa);
 				int type = -1;
 				for (int i=0; i<pa.length; i++) {
 					if (this.quit) {
@@ -1650,22 +1666,9 @@ abstract public class Loader {
 			layer.getParent().createUndoStep(layer);
 			// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 			if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
-			// build list
-			final Patch[] pa = new Patch[al.size()];
-			int f = 0;
-			// list in row-first order
-			for (int j=0; j<pall[0].length; j++) { // 'j' is row
-				for (int i=0; i<pall.length; i++) { // 'i' is column
-					pa[f++] = pall[i][j];
-				}
-			}
-			// make the first one be top, and the rest under it in left-right and top-bottom order
-			for (int j=0; j<pa.length; j++) {
-				layer.moveBottom(pa[j]);
-			}
 			ControlWindow.startWaitingCursor();
 			final StitchingTEM st = new StitchingTEM();
-			st.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true);
+			Thread thread = st.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true);
 			while (StitchingTEM.WORKING == st.getStatus()) {
 				if (this.quit) {
 					st.quit();
@@ -2125,7 +2128,7 @@ abstract public class Loader {
 				return;
 			}
 			// 1 - create a directory 'z' named as the layer's Z coordinate
-			String tile_dir = dir + (layer[iz].getParent().indexOf(layer[iz]) + 1); // starting at 1, not at zero
+			String tile_dir = dir + layer[iz].getParent().indexOf(layer[iz]);
 			File fdir = new File(tile_dir);
 			int tag = 1;
 			// Ensure there is a usable directory:
@@ -2161,7 +2164,7 @@ abstract public class Loader {
 							if (tile_src.x + tile_src.width > srcRect.x + srcRect.width) tile_src.width = srcRect.x + srcRect.width - tile_src.x;
 							if (tile_src.y + tile_src.height > srcRect.x + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 							// negative tile sizes will be made into black tiles
-							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, new StringBuffer(tile_dir).append(row).append('_').append(col).append('_').append(scale_pow).append(".jpg").toString());
+							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, new StringBuffer(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains
 						}
 					}
 					scale_pow++;
@@ -2929,32 +2932,26 @@ abstract public class Loader {
 			Patch p = (Patch)it.next();
 			// skip linked images within the same layer
 			if (p.getLayer().equals(slice.getLayer())) continue;
-			crossCorrelate(slice, p, scale);
+			phaseCorrelate(slice, p, scale);
 			registerSlices(p, hs_done, scale, worker);
 		}
 	}
 
-	/** Makes a vertical stripe taking 50% of the middle width and 100% of the height, to match to the base image. */
-	private void crossCorrelate(final Patch base, final Patch moving, final float scale) {
+	private void phaseCorrelate(final Patch base, final Patch moving, final float scale) {
+		ImagePlus imp1 = fetchImagePlus(base);
+		Roi roi1 = new Roi(0, 0, (int)Math.ceil(base.getWidth()), (int)Math.ceil(base.getHeight()));
+		Roi roi2 = new Roi(0, 0, (int)Math.ceil(moving.getWidth()), (int)Math.ceil(moving.getHeight()));
+		ImageProcessor ip1 = StitchingTEM.makeStripe(base, roi1, scale);
+		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, roi2, scale);
 
-		// Fails miserably in the presence of noise, etc. Perhaps we could do:
-		// - ask for minimum overlap
-		// - within the overlap %, make several small tiles
-		// - cross-correlate all corresponding tiles, and get the two best scores (but ignoring tiles that have almost all black pixels, or are deviant in some way or another in their histogram)
-		//    Alterantively, do a median on the computed dx,dy
+		Utils.log2("roi1: " + roi1);
+		Utils.log2("roi2: " + roi2);
 
-		Utils.log2("Cross-correlate started for target " + base + "  to base " + base);
-		// full base image
-		final Roi roi1 = new Roi(0, 0, (int)base.getWidth(), (int)base.getHeight());
-		// vertical stripe of moving image, taking 50% of the middle width and 100% of the height
-		final Roi roi2 = new Roi((int)(moving.getWidth()/4), 0, (int)(moving.getWidth()/2), (int)moving.getHeight());
-		final ByteProcessor bp1 = StitchingTEM.makeStripe(base, roi1, scale, true);
-		final ByteProcessor bp2 = StitchingTEM.makeStripe(moving, roi2, scale, true);
-		final double[] cc = Stitching.crossCorrelate(bp1, bp2);
-		// displace, scaling back
+		PhaseCorrelation2D pc = new PhaseCorrelation2D(ip1, ip2, 5, false, false, false);
+		Point p = pc.getTranslation();
 		final Transform t = moving.getTransform();
-		t.x += (cc[0] / scale) - roi2.getBounds().x;
-		t.y += (cc[1] / scale) - roi2.getBounds().y; // roi2.y should be zero
+		t.x = base.getX() + p.x/scale;
+		t.y = base.getY() + p.y/scale;
 		if (ControlWindow.isGUIEnabled()) {
 			Rectangle box = moving.getBoundingBox();
 			moving.setTransform(t);
@@ -2963,7 +2960,7 @@ abstract public class Loader {
 		} else {
 			moving.setTransform(t);
 		}
-		Utils.log("Cross-correlated target " + moving + "  to base: " + base);
+		Utils.log("Phase-correlated target " + moving + "  to base: " + base);
 	}
 
 	protected final ImagePlus openImage(String path) {

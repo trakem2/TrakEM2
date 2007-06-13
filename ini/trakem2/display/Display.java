@@ -1785,7 +1785,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						item.setEnabled(false);
 					}
 					item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
-					if (0 == active.getLinked(Patch.class).size()) item.setEnabled(false); // if no Patch instances among the directly linked, then it's not a stack
+					HashSet hs = active.getLinked(Patch.class);
+					if (null == hs || 0 == hs.size()) item.setEnabled(false); // if no Patch instances among the directly linked, then it's not a stack
 					popup.addSeparator();
 				} else {
 					item = new JMenuItem("Unlink"); item.addActionListener(this); popup.add(item);
@@ -2980,6 +2981,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				d.canvas.repaint(d.selection.getLinkedBox(), Selection.PADDING);
 				d.navigator.repaint(true); // everything
 			}
+		}
+	}
+
+	static public void clearSelection(Layer layer) {
+		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
+			Display d = (Display)it.next();
+			if (d.layer.equals(layer)) d.selection.clear();
 		}
 	}
 

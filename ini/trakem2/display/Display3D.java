@@ -50,8 +50,8 @@ public class Display3D {
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
 	private Hashtable ht_pt_meshes = new Hashtable();
 
-	//private T2Universe universe;
-	private Image3DUniverse universe;
+	private T2Universe universe;
+	//private Image3DUniverse universe;
 
 	private Object u_lock = new Object();
 	private boolean u_locked = false;
@@ -72,27 +72,27 @@ public class Display3D {
 	/** Defaults to parallel projection. */
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
-		this.universe = new Image3DUniverse(512, 512); //new T2Universe(512, 512); // size of the initial canvas, not the universe itself
+		this.universe = new T2Universe(512, 512);//new Image3DUniverse(512, 512); // // size of the initial canvas, not the universe itself
 		this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION);
 		computeScale(ls);
 		this.win = new ImageWindow3D("3D Viewer", this.universe);
 		this.win.addWindowListener(new IW3DListener(ls));
-		//this.menubar = new D3DMenuBar();
-		//this.win.setMenuBar(menubar);
-		this.win.setMenuBar(new Image3DMenubar(universe));
+		this.menubar = new D3DMenuBar();
+		this.win.setMenuBar(menubar);
+		//this.win.setMenuBar(new Image3DMenubar(universe));
 		// register
 		Display3D.ht_layer_sets.put(ls, this);
 	}
 
 	private final void lock() {
-		Utils.log("entering lock");
+		//Utils.log("entering lock");
 		while (u_locked) { try { u_lock.wait(); } catch (InterruptedException ie) {} }
 		u_locked = true;
-		Utils.log("\tlocked");
+		//Utils.log("\tlocked");
 	}
 	private final void unlock() {
 		if (u_locked) {
-			Utils.log("unlocking");
+			//Utils.log("unlocking");
 			u_locked = false;
 			u_lock.notifyAll();
 		}
@@ -129,13 +129,24 @@ public class Display3D {
 				unlock();
 			}
 		}
-		public void addMesh(List triangles, Color3f color, String title, float scale, int a, float transp) {
+		public void addMesh(final ProjectThing pt, final Displayable displ, final List triangles) {
 			synchronized (u_lock) {
 				lock();
 				try {
+					// craft a unique title (id is always unique)
+					String title = displ.getTitle() + " #" + displ.getId();
+					if (ht_pt_meshes.contains(pt)) {
+						// remove content from universe
+						super.removeContent(title);
+						// no need to remove entry form table, it's overwritten below
+					}
+					// register mesh
+					ht_pt_meshes.put(pt, triangles);
+					// ensure proper default transform
 					super.resetView();
-					super.addMesh(triangles, color, title, scale, a);
-					super.getContent(title).setTransparency(transp);
+					//
+					super.addMesh(triangles, new Color3f(displ.getColor()), title, (float)(1.0 / (width*scale)), 1);
+					super.getContent(title).setTransparency(1f - displ.getAlpha());
 				} catch (Exception e) {
 					new IJError(e);
 				}
@@ -571,20 +582,31 @@ public class Display3D {
 		}
 	}
 
-	// TODO: each call should run on its own Thread, or at least, from a thread pool as large as Utils.getCPUCount. Would need the ImageJ_3D_Viewer.jar classes to be Thread safe, which may not be at the moment.
-	// One posible solution is to synchronize access to the universe.
-	private void addMesh(ProjectThing pt, Displayable displ) {
+	static private final int max_threads = Runtime.getRuntime().availableProcessors();
+	static private final Vector v_threads = new Vector(max_threads); // synchronized
+
+	/** Creates a mesh for the given Displayable in a separate Thread. */
+	private Thread addMesh(final ProjectThing pt, final Displayable displ) {
+		final double scale = this.scale;
+		Thread thread = new Thread() {
+			public void run() {
+				while (v_threads.size() >= max_threads) {
+					try { Thread.sleep(400); } catch (InterruptedException ie) {}
+				}
+				v_threads.add(this);
+				try {
+
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. 
 		List triangles = null;
 		if (displ instanceof AreaList) {
 			adjustResampling();
-			triangles = ((AreaList)displ).generateTriangles(this.scale, resample);
+			triangles = ((AreaList)displ).generateTriangles(scale, resample);
 			//triangles = removeNonManifold(triangles);
 		} else if (displ instanceof Ball) {
 			double[][][] globe = Ball.generateGlobe(12, 12);
-			triangles = ((Ball)displ).generateTriangles(this.scale, globe);
+			triangles = ((Ball)displ).generateTriangles(scale, globe);
 		} else if (displ instanceof Pipe) {
-			triangles = ((Pipe)displ).generateTriangles(this.scale, 12);
+			triangles = ((Pipe)displ).generateTriangles(scale, 12);
 		}
 		// safety checks
 		if (null == triangles) {
@@ -599,19 +621,21 @@ public class Display3D {
 			Utils.log2("Skipping non-multiple-of-3 vertices list generated for " + displ.getTitle());
 			return;
 		}
-		// register mesh
-		ht_pt_meshes.put(pt, triangles);
-		// craft a unique title (id is always unique)
-		String title = displ.getTitle() + " #" + displ.getId();
-		// add to 3D view
-		//Utils.log2("Universe width,height: " + width + ", " + height);
-		universe.resetView(); // OTHERWISE screws up the proper 3D relationships!
-		//Vector3f position = new Vector3f((float)(-this.width/2), (float)(-this.height/2), 0f);
-		universe.addMesh(triangles, new Color3f(displ.getColor()), title, (float)(1.0 / (width*scale)), 1/*, position*/);
-		Content content = universe.getContent(displ.getTitle() + " #" + displ.getId());
-		if (null != content) content.setTransparency(1 - displ.getAlpha());
+		// add to 3D view (synchronized)
+		universe.addMesh(pt, displ, triangles);
 
 		Utils.log2(displ.getTitle() + " n points: " + triangles.size());
+
+				} catch (Exception e) {
+					new IJError(e);
+				} finally {
+					v_threads.remove(this);
+				}
+
+			} // end of run
+		};
+		thread.start();
+		return thread;
 	}
 
 	private final void adjustResampling() {
@@ -640,6 +664,7 @@ public class Display3D {
 	}
 
 	/** Does not work unfortunatelly. */
+	/*
 	static private List removeNonManifold(List triangles) {
 		// count users of each edge
 		while (true) {
@@ -695,6 +720,9 @@ public class Display3D {
 			al_count.add(new Int(1));
 		}
 	}
+	*/
+
+
 
 	/*
 	static private List removeNonManifold(List triangles) {
@@ -758,6 +786,7 @@ public class Display3D {
 		return triangles;
 	}
 	*/
+	/*
 	static private class Face {
 		Edge[] edges;
 		Face(Edge[] e) {
@@ -800,5 +829,18 @@ public class Display3D {
 		public int hashCode() {
 			return hash;
 		}
+	}
+	*/
+
+	/** Remake the mesh for the Displayable in a separate Thread, if it's included in a Display3D
+	 *  (otherwise returns null).
+	 */
+	static public Thread update(Displayable d) {
+		Layer layer = d.getLayer();
+		if (null == layer) return null; // some objects have no layer, such as the parent LayerSet.
+		Object ob = ht_layer_sets.get(layer.getParent());
+		if (null == ob) return null;
+		Display3D d3d = (Display3D)ob;
+		return d3d.addMesh(d.getProject().findProjectThing(d), d);
 	}
 }

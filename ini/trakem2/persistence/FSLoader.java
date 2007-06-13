@@ -605,7 +605,7 @@ public class FSLoader extends Loader {
 			return path;
 		} else {
 			//Utils.printCaller(this, 7);
-			Utils.log2("FSLoader.exportImage: path is " + ob.toString());
+			//Utils.log2("FSLoader.exportImage: path is " + ob.toString());
 			return (String)ob; // the path of the source image file
 		}
 	}
