@@ -194,7 +194,7 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 			YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Remove type?", "Really remove type '" + tt.getType() + "'" + ((null != tt.getChildren() && 0 != tt.getChildren().size()) ? " and its children" : "") + (0 == hs.size() ? "" : " from parent " + tt.getParent().getType() + ",\nand its " + hs.size() + " existing instance" + (1 == hs.size() ? "" : "s") + " in the project tree?"));
 			if (!yn.yesPressed()) return;
 			// else, proceed to delete:
-			Utils.log("Going to delete TemplateThing: " + tt.getType() + " " + tt.getId());
+			Utils.log("Going to delete TemplateThing: " + tt.getType() + "  id: " + tt.getId());
 			// first, remove the project things
 			DNDTree project_tree = tt.getProject().getProjectTree();
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
@@ -209,19 +209,31 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 			}
 			// then, remove the template things that have the same type and parent type as the selected one
 			hs = root.collectSimilarThings(tt, new HashSet());
+			HashSet hs_same_type = root.collectThingsOfEqualType(tt, new HashSet());
+			Utils.log2("hs_same_type.size() = " + hs_same_type.size());
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				TemplateThing tet = (TemplateThing)it.next();
-				Utils.log("\tDeleting TemplateThing: " + tet + " " + tet.getId());
-				if (!tet.remove(false)) {
-					Utils.showMessage("Can't delete TemplateThing" + tet + " " + tet.getId());
+				if (1 != hs_same_type.size() && tet.equals(tet.getProject().getTemplateThing(tet.getType()))) {
+					// don't delete if this is the primary copy, stored in the project unique types (which should be clones, to avoid this problem)
+					Utils.log2("avoiding 1");
+				} else {
+					Utils.log("\tDeleting TemplateThing: " + tet + " " + tet.getId());
+					if (!tet.remove(false)) {
+						Utils.showMessage("Can't delete TemplateThing" + tet + " " + tet.getId());
+					}
 				}
+				// remove the node in any case
 				DefaultMutableTreeNode node = DNDTree.findNode(tet, this);
 				if (null != node) ((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
 				else Utils.log("Can't find a node for TT " + tet + " " + tet.getId());
-				// need to remove the nodes in the trees as well!
 			}
-			// finally, find out whether there are any TT of the deleted type in the Project unique collection of TT, and delete it. Considers nested problem: if the deleted TT was a nested one, doesn't delete it from the unique types Hashtable.
-			if (!tt.isNested()) tt.getProject().removeUniqueType(tt.getType());
+			// finally, find out whether there are any TT of the deleted type in the Project unique collection of TT, and delete it. Considers nested problem: if the deleted TT was a nested one, doesn't delete it from the unique types Hashtable. Also should not delete it if there are other instances of the same TT but under different parents.
+			if (!tt.isNested() && 1 == hs_same_type.size()) {
+				tt.getProject().removeUniqueType(tt.getType());
+				Utils.log2("removing unique type");
+			} else {
+				Utils.log2("avoiding 2");
+			}
 			// update trees
 			this.updateUI();
 			project_tree.updateUI();

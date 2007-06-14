@@ -160,7 +160,7 @@ public class Snapshot {
 		g2d.setTransform(original);
 	}
 
-	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower that the equivalent code from Graphics2D. */
+	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. */
 	static public Image createSnap(final Patch p, final Image awt, final double mag) {
 		BufferedImage bi = null;
 		Graphics2D g = null;

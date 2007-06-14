@@ -1940,7 +1940,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				al.remove(dob);
 			}
 		}
-
 		//Utils.log2("Overlaping images: " + al.size());
 		//for (Iterator it = al.iterator(); it.hasNext(); ) {
 		//	Utils.log2("going to test for: " + it.next().toString());
@@ -1949,18 +1948,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		int target_width = 100;
 		// dragged Patch
 		Patch p_dragged = (Patch)d;
-		Image x_img_i = p_dragged.getProject().getLoader().fetchImage(p_dragged, p_dragged.getWidth() / target_width);
-		if (x_img_i.getWidth(null) > target_width) {
-			x_img_i = x_img_i.getScaledInstance(target_width, (int)(p_dragged.getHeight() *  (target_width / p_dragged.getWidth())), Image.SCALE_SMOOTH); // TODO beware that this is creating an RGB image
-		}
-		BufferedImage x_img = null;
-		// convert to BufferedImage
-		if (x_img_i instanceof BufferedImage) x_img = (BufferedImage)x_img_i;
-		else {
-			x_img = new BufferedImage(x_img_i.getWidth(null), x_img_i.getHeight(null), BufferedImage.TYPE_INT_RGB);
-			x_img.getGraphics().drawImage(x_img_i, 0, 0, null);
-		}
-		//Utils.log2("dragged image resized 'x_img' w,h: " + x_img.getWidth() + "," + x_img.getHeight());
 		// check that all images are of the same size
 		double sw = p_dragged.getWidth();
 		double sh = p_dragged.getHeight();
@@ -1972,111 +1959,34 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 		}
 		// start:
-		int SNAP_WIDTH = 100;
-		int SNAP_HEIGHT = (int)(SNAP_WIDTH * sh/sw);
-		int STRIPE = 20;
-		//Utils.log("SNAP_W/H : " + SNAP_WIDTH + "," + SNAP_HEIGHT);
-		//Utils.log("SRIPE: " + STRIPE);
-		double[] bestCorr = new double[3];
+		double[] best_pc = null;
 		try {
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Patch p = (Patch)it.next();
-			Image awt = p.getProject().getLoader().fetchImage(p, target_width / p.getWidth()); // target width 100 pixels // careful with magnification: if the image is below 100 px, it will need a mag above 1.0, but the fetched image will be at 1.0 anyway. So must resize:
-			// scale to the target_width:
-			awt = awt.getScaledInstance(target_width, (int)(p.getHeight() * (target_width / p.getWidth())), Image.SCALE_SMOOTH);
-			BufferedImage y_img = null;
-			double[] currCorr = null;
-			int overlap_location = getClosestOverlapLocation(p_dragged, p);
-			// What Stephan is doing here is keeping the base image (x_img) in full but scaled,
-			// while cutting a stripe from the dragged image to snap
-			switch (overlap_location) {
-				case 0:
-					//Utils.log2("case 0");
-					y_img = new BufferedImage(STRIPE, SNAP_HEIGHT,
-							BufferedImage.TYPE_INT_RGB);
-
-					y_img.getGraphics().drawImage(
-							awt, 0, 0, SNAP_WIDTH,
-							SNAP_HEIGHT, null);
-
-					currCorr = Stitching.cross_correlate(x_img, y_img);
-					System.out.println("corr: " + currCorr[2] + ", x: "
-							+ currCorr[0] + ", y:" + currCorr[1]);
-
-					if (currCorr[2] > bestCorr[2]) bestCorr = currCorr;
-					break;
-				case 1:
-					//Utils.log2("case 1");
-					y_img = new BufferedImage(SNAP_WIDTH, STRIPE,
-							BufferedImage.TYPE_INT_RGB);
-
-					y_img.getGraphics().drawImage(
-							awt, 0, 0, SNAP_WIDTH,
-							SNAP_HEIGHT, null);
-
-					currCorr = Stitching.cross_correlate(x_img, y_img);
-					System.out.println("corr: " + currCorr[2] + ", x: "
-							+ currCorr[0] + ", y:" + currCorr[1]);
-
-					if (currCorr[2] > bestCorr[2]) bestCorr = currCorr;
-					break;
-				case 2:
-					//Utils.log2("case 2");
-					y_img = new BufferedImage(STRIPE, SNAP_HEIGHT,
-							BufferedImage.TYPE_INT_RGB);
-
-					y_img.getGraphics().drawImage(
-							awt, STRIPE - SNAP_WIDTH,
-							0, SNAP_WIDTH, SNAP_HEIGHT, null);
-
-					currCorr = Stitching.cross_correlate(x_img, y_img);
-					System.out.println("corr: " + currCorr[2] + ", x: "
-							+ currCorr[0] + ", y:" + currCorr[1]);
-
-					if (currCorr[2] > bestCorr[2]) {
-						currCorr[0] = currCorr[0] - SNAP_WIDTH + STRIPE;
-						bestCorr = currCorr;
+			for (Iterator it = al.iterator(); it.hasNext(); ) {
+				final Patch p = (Patch)it.next();
+				final double[] pc = StitchingTEM.register(p, p_dragged, 1f, 0.25f, StitchingTEM.TOP_BOTTOM, 0, 0);
+				if (null == best_pc) best_pc = pc;
+				else {
+					// compare R: choose largest
+					if (pc[3] > best_pc[3]) {
+						best_pc = pc;
 					}
-					break;
-				case 3:
-					//Utils.log2("case 3");
-					y_img = new BufferedImage(SNAP_WIDTH, STRIPE,
-							BufferedImage.TYPE_INT_RGB);
-
-					y_img.getGraphics().drawImage(
-							awt, 0,
-							STRIPE - SNAP_HEIGHT, SNAP_WIDTH, SNAP_HEIGHT,
-							null);
-
-					currCorr = Stitching.cross_correlate(x_img, y_img);
-					System.out.println("corr: " + currCorr[2] + ", x: "
-							+ currCorr[0] + ", y:" + currCorr[1]);
-
-					if (currCorr[2] > bestCorr[2]) {
-						currCorr[1] = currCorr[1] - SNAP_HEIGHT + STRIPE;
-						bestCorr = currCorr;
-					}
-					break;
-				default:
-					break;
+				}
 			}
-			bestCorr[0] = p.getX() - bestCorr[0] * p.getWidth() / (double)SNAP_WIDTH;
-			bestCorr[1] = p.getY() - bestCorr[1] * p.getHeight() / (double)SNAP_HEIGHT;
-		}
 		} catch (Exception e) {
 			new IJError(e);
 			return;
 		}
 		// now, relocate the Patch
-		//Utils.log("Moving " + p_dragged + " from x,y " + p_dragged.getX() + "," + p_dragged.getHeight() + " to x,y " + bestCorr[0] + "," + bestCorr[1]);
-		double dx = bestCorr[0] - p_dragged.getX();
-		double dy = bestCorr[1] - p_dragged.getY();
-		Rectangle box = p_dragged.drag(dx, dy, true);
+		double dx = best_pc[0] - p_dragged.getX(); // since the drag is and 'add' operation on the coords
+		double dy = best_pc[1] - p_dragged.getY();
+		Rectangle box = p_dragged.getLinkedBox(true);
+		Rectangle r = p_dragged.drag(dx, dy, true);
+		box.add(r);
 		Selection selection = display.getSelection();
 		if (selection.contains(p_dragged)) {
 			Display.updateSelection(display);//selection.update();
 		}
-		Display.repaint(p_dragged.getLayer().getParent()/*, box*/); // The whole frikking layer?
+		Display.repaint(p_dragged.getLayer().getParent(), box);
 		Utils.log2("Done snapping.");
 	}
 

@@ -136,7 +136,7 @@ abstract public class Loader {
 	/** Keep track of whether there are any unsaved changes.*/
 	protected boolean changes = false;
 
-	static protected final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_BINARY);
+	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_BINARY);
 	static {
 		Graphics2D g = NOT_FOUND.createGraphics();
 		g.setColor(Color.white);

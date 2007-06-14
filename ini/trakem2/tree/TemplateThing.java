@@ -384,6 +384,16 @@ public class TemplateThing extends DBObject implements Thing {
 		return hs;
 	}
 
+	/** Find things of the same type, eve if their parents are different, recusively into children. */
+	public HashSet collectThingsOfEqualType(TemplateThing tt, HashSet hs) {
+		if (type.equals(tt.type)) hs.add(this);
+		if (null == al_children || al_children.isEmpty()) return hs;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			hs = ((TemplateThing)it.next()).collectThingsOfEqualType(tt, hs);
+		}
+		return hs;
+	}
+
 	/** Determine whether this instance is nested inside the tree of an instance of the same type (for example, a neurite_branch inside another neurite_branch)*/
 	public boolean isNested() {
 		Thing p = this.parent;

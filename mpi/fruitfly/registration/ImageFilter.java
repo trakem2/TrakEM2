@@ -223,6 +223,49 @@ public class ImageFilter
         return gaussianKernel;
     }
 
+	/*
+	** create a normalized gaussian impulse with appropriate size and offset center
+	*/
+	static public FloatArray2D create_gaussian_kernel_2D_offset(float sigma, float offset_x, float offset_y,
+					     boolean normalize)
+	{
+	    int size = 3;
+	    FloatArray2D gaussian_kernel;
+	    if (sigma == 0)
+	    {
+		gaussian_kernel = new FloatArray2D(3 ,3);
+		gaussian_kernel.data[4] = 1;
+	    }
+	    else
+	    {
+		size = max(3, (int)(2*Math.round(3*sigma)+1));
+		float two_sq_sigma = 2*sigma*sigma;
+	//      float normalization_factor = 1.0/(float)M_PI/two_sq_sigma;
+		gaussian_kernel = new FloatArray2D(size, size);
+		for (int x = size-1; x >= 0; --x)
+		{
+		    float fx = (float)(x-size/2);
+		    for (int y = size-1; y >= 0; --y)
+		    {
+			float fy = (float)(y-size/2);
+			float val = (float)(Math.exp(-(Math.pow(fx-offset_x, 2)+Math.pow(fy-offset_y, 2))/two_sq_sigma));
+			gaussian_kernel.set(val, x, y);
+		    }
+		}
+	    }
+	    if (normalize) 
+		{
+		    float sum = 0;
+		    for (float value : gaussian_kernel.data)
+			sum += value;
+
+		    for (int i = 0; i < gaussian_kernel.data.length; i++)
+			gaussian_kernel.data[i] /= sum;
+		}
+
+	    return gaussian_kernel;
+	}
+
     public static FloatArray3D createGaussianKernel3D(float sigma, boolean normalize)
     {
         int size = 3;

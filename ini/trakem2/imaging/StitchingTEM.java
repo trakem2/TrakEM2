@@ -71,8 +71,8 @@ public class StitchingTEM {
 
 
 	static private final int SUCCESS = 3;
-	static private final int TOP_BOTTOM = 4;
-	static private final int LEFT_RIGHT = 5;
+	static public final int TOP_BOTTOM = 4;
+	static public final int LEFT_RIGHT = 5;
 
 	public StitchingTEM() {}
 
@@ -278,8 +278,10 @@ public class StitchingTEM {
 
 	/** Returns the x,y position of the moving Patch plus a third value of 1 if successful, 0 if defaults where used (when both phase-correlation and cross-correlation fail).
 	 * @param scale For optimizing the speed of phase- and cross-correlation.
-	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found. */
-	private double[] register(final Patch base, final Patch moving, final float percent_overlap, final float scale, final int direction, final double default_dx, final double default_dy) {
+	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found.
+	 * @Return a double[4] array containing dx, dy, flag and R
+	 */
+	static public double[] register(final Patch base, final Patch moving, final float percent_overlap, final float scale, final int direction, final double default_dx, final double default_dy) {
 		PhaseCorrelation2D pc = null;
 		double R = -2;
 		final int limit = 5; // number of peaks to check in the PhaseCorrelation results
@@ -336,7 +338,7 @@ public class StitchingTEM {
 						break;
 				}
 				Utils.log2("R: " + result.R + " shift: " + shift + " x2,y2: " + x2 + ", " + y2);
-				return new double[]{x2, y2, success};
+				return new double[]{x2, y2, success, result.R};
 			}
 			// increase for next iteration
 			overlap += 0.10; // increments of 10%
@@ -379,10 +381,10 @@ public class StitchingTEM {
 					break;
 			}
 			Utils.log2("CC R: " + cc_result[2] + " dx, dy: " + cc_result[0] + ", " + cc_result[1]);
-			return new double[]{x2, y2, success};
+			return new double[]{x2, y2, success, cc_result[2]};
 		}
 
 		// else both failed: return default values
-		return new double[]{default_dx, default_dy, ERROR};
+		return new double[]{default_dx, default_dy, ERROR, 0};
 	}
 }
