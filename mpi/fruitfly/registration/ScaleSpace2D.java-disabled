@@ -1,0 +1,932 @@
+package mpi.fruitfly.registration;
+
+/**
+ * <p>Title: </p>
+ *
+ * <p>Description: </p>
+ *
+ * <p>Copyright: Copyright (c) 2006</p>
+ *
+ * <p>Company: </p>
+ *
+ * @author not attributable
+ * @version 1.0
+ */
+
+import static mpi.fruitfly.registration.ImageFilter.*;
+import static mpi.fruitfly.math.General.*;
+import static mpi.fruitfly.general.ImageArrayConverter.*;;
+
+import java.util.Vector;
+
+import mpi.fruitfly.math.datastructures.*;
+
+import ij.process.FloatProcessor;
+import ij.io.Opener;
+import ij.ImagePlus;
+import ij.IJ;
+import Jama.Matrix;
+import Jama.SingularValueDecomposition;
+import Jama.EigenvalueDecomposition;
+
+public class ScaleSpace2D
+{
+    public class OctaveData
+    {
+        FloatArray2D[] gauss;
+        FloatArray2D[] laPlace;
+    }
+
+    public class ScaleSpaceData
+    {
+        int width;
+        int height;
+        FloatArray2D backup;
+
+        int OCT_STEPS;
+        int minImageSize;
+
+        float[] sigma, sigmaDiff;
+
+        float k, K_MIN1_INV;
+
+        int availableScales = -1;
+
+        Vector <OctaveData>scaleSpace = new Vector();
+
+	public float get_sigma(Int s, float offset)
+	{
+		return sigma[0] * Math.pow( 2.0, getOctave(s.i) + ( ( float )s.i + offset ) / ( float )OCT_STEPS );
+	}
+
+	public int getNumOctaves()
+	{
+		return scaleSpace.size();
+	}
+
+        public OctaveData getLastOctave()
+        {
+            return scaleSpace.lastElement();
+        }
+
+	public FloatArray2D createGradientROI(int s, int x, int y, int width) {
+	}
+
+        public double getLocation(double pos, int scale)
+        {
+            int octave = getOctave(scale);
+            //pos = Math.pow(2, octave - 1) * (1 + pos);
+
+            if (octave > 1)
+                pos = (double)pow(2, octave - 1) * pos + (double)pow(2, octave - 1) - 1.0;
+            else if (octave < 1)
+                pos = (pos - 1.0)/2.0;
+
+            return pos;
+        }
+
+        public int getOctave(int scale)
+        {
+            return scale / OCT_STEPS;
+        }
+
+        public FloatArray getLaPlace(int scale)
+        {
+            int octave = getOctave(scale);
+            int entry = scale % OCT_STEPS;
+
+            return scaleSpace.get(octave).laPlace[entry];
+        }
+
+        public FloatArray3D getEnvironment(int x, int y, int scale)
+        {
+            FloatArray3D env = new FloatArray3D(3, 3, 3);
+
+            FloatArray2D[] laPlace = new FloatArray2D[3];
+            laPlace[0] = (FloatArray2D) getLaPlace(scale - 1);
+            laPlace[1] = (FloatArray2D) getLaPlace(scale);
+            laPlace[2] = (FloatArray2D) getLaPlace(scale + 1);
+
+            boolean scaleLower = false;
+            boolean scaleHigher = false;
+            float value;
+
+            boolean debug = false;
+
+            if ( x < 0 )
+            {
+                debug = true;
+                x = -x;
+                y = -y;
+
+                System.out.println("x: " + x + " y: " + y + " scale: " + scale);
+            }
+
+            // check if laPlace step with lower sigma is bigger (other octave)
+            if (laPlace[0].width > laPlace[1].width)
+                scaleLower = true;
+
+            // check if laPlace step with higher sigma is smaller (other octave)
+            if (laPlace[2].width < laPlace[1].width)
+                scaleHigher = true;
+
+            if (debug)
+                System.out.println("ScaleLower: " + scaleLower + " ScaleHigher: " + scaleHigher);
+
+            for (int xs = x - 1; xs <= x + 1; xs++)
+                for (int ys = y - 1; ys <= y + 1; ys++)
+                {
+                    int xf = 2 - (x - xs + 1);
+                    int yf = 2 - (y - ys + 1);
+
+                    env.set(laPlace[1].getMirror(xs, ys), xf, yf, 1);
+
+                    if (scaleLower)
+                    {
+                        value = laPlace[0].getMirror(xs * 2 + 1, ys * 2 + 1);
+                        env.set(value, xf, yf, 0);
+                    }
+                    else
+                        env.set(laPlace[0].getMirror(xs, ys), xf, yf, 0);
+
+                    if (!scaleHigher)
+                    {
+                        value = laPlace[2].getMirror(xs, ys);
+                        env.set(value, xf, yf, 2);
+                    }
+                }
+
+            if (scaleHigher)
+            {
+                float[][] env2D = new float[3][3];
+                float temp;
+
+                if (y % 2 == 1)
+                {
+                    if (x % 2 == 1)
+                    {
+                        env2D[0][0] = laPlace[2].getMirror(x / 2, y / 2);
+                        env2D[2][0] = laPlace[2].getMirror(x / 2 + 1, y / 2);
+                        env2D[0][2] = laPlace[2].getMirror(x / 2, y / 2 + 1);
+                        env2D[2][2] = laPlace[2].getMirror(x / 2 + 1, y / 2 + 1);
+                        env2D[1][0] = (env2D[0][0] + env2D[2][0]) / 2;
+                        env2D[1][2] = (env2D[0][2] + env2D[2][2]) / 2;
+                    }
+                    else
+                    {
+                        env2D[1][0] = laPlace[2].getMirror(x / 2, y / 2);
+                        env2D[1][2] = laPlace[2].getMirror(x / 2, y / 2 + 1);
+                        env2D[0][0] = (env2D[1][0] + laPlace[2].getMirror(x / 2, y / 2 - 1)) / 2;
+                        env2D[2][0] = (env2D[1][0] + laPlace[2].getMirror(x / 2, y / 2 + 1)) / 2;
+                        env2D[0][2] = (env2D[1][2] + laPlace[2].getMirror(x / 2 + 1, y / 2 - 1)) / 2;
+                        env2D[2][2] = (env2D[1][2] + laPlace[2].getMirror(x / 2 + 1, y / 2 + 1)) / 2;
+                    }
+                    env2D[0][1] = (env2D[0][0] + env2D[0][2]) / 2;
+                    env2D[2][1] = (env2D[2][0] + env2D[2][2]) / 2;
+                    env2D[1][1] = (env2D[0][1] + env2D[2][1]) / 2;
+                }
+                else
+                {
+                    if (x % 2 == 1)
+                    {
+                        env2D[0][1] = laPlace[2].getMirror(x / 2, y / 2);
+                        env2D[2][1] = laPlace[2].getMirror(x / 2, y / 2 + 1);
+                        env2D[0][0] = (env2D[0][1] + laPlace[2].getMirror(x / 2 - 1, y / 2 - 1)) / 2;
+                        env2D[2][0] = (env2D[2][1] + laPlace[2].getMirror(x / 2 - 1, y / 2)) / 2;
+                        env2D[0][2] = (env2D[0][1] + laPlace[2].getMirror(x / 2 + 1, y / 2 - 1)) / 2;
+                        env2D[2][2] = (env2D[2][1] + laPlace[2].getMirror(x / 2 + 1, y / 2)) / 2;
+                        env2D[1][0] = (env2D[0][0] + env2D[2][0]) / 2;
+                        env2D[1][2] = (env2D[0][2] + env2D[2][2]) / 2;
+                        env2D[1][1] = (env2D[0][1] + env2D[2][1]) / 2;
+                    }
+                    else
+                    {
+                        env2D[1][1] = laPlace[2].getMirror(x / 2, y / 2);
+                        temp = laPlace[2].getMirror(x / 2 - 1, y / 2);
+                        env2D[1][0] = (env2D[1][1] + temp) / 2;
+                        temp = laPlace[2].getMirror(x / 2, y / 2 - 1);
+                        env2D[0][1] = (env2D[1][1] + temp) / 2;
+                        env2D[0][0] = ((temp + laPlace[2].getMirror(x / 2 - 1, y / 2 - 1)) / 2 + env2D[1][0]) / 2;
+                        temp = laPlace[2].getMirror(x / 2 + 1, y / 2);
+                        env2D[1][2] = (env2D[1][1] + temp) / 2;
+                        env2D[0][2] = ((temp + laPlace[2].getMirror(x / 2 + 1, y / 2 - 1)) / 2 + env2D[0][1]) / 2;
+                        temp = laPlace[2].getMirror(x / 2, y / 2 + 1);
+                        env2D[2][1] = (env2D[1][1] + temp) / 2;
+                        env2D[2][2] = ((temp + laPlace[2].getMirror(x / 2 + 1, y / 2 + 1)) / 2 + env2D[1][2]) / 2;
+                        env2D[2][0] = ((temp + laPlace[2].getMirror(x / 2 - 1, y / 2 + 1)) / 2 + env2D[1][0]) / 2;
+                    }
+                }
+
+                for (int xs = 0; xs < 3; xs++)
+                    for (int ys = 0; ys < 3; ys++)
+                        env.set(env2D[xs][ys], xs, ys, 2);
+
+            }
+
+            return env;
+        }
+
+    }
+
+    public class analyzedVoxel
+    {
+        public analyzedVoxel(int x, int y, int scale, int iteration)
+        {
+            this.x = x;
+            this.y = y;
+            this.scale = scale;
+            this.iteration = iteration;
+        }
+
+        public boolean hasSameLocation(analyzedVoxel voxel)
+        {
+            if (this.x == voxel.x && this.y == voxel.y && this.scale == voxel.scale)
+                return true;
+            else
+                return false;
+        }
+
+	public float[] location;
+
+        public int x, y, scale;
+        public int iteration;
+        public double[][] hessianMatrix3;
+        public double[][] hessianMatrix2;
+        public double[] derivativeVector;
+        public double[] eigenValues;
+
+        public Matrix A = null, B = null, X = null;
+        public double xD, yD, scaleD;
+
+        public double EVratio;
+
+        public double laPlaceValue, quadrFuncValue, sumValue, sigma;
+
+	public int o;
+
+        public FloatArray3D env;
+
+    }
+
+    public ScaleSpace2D(String image)
+    {
+        ImagePlus imp = new Opener().openImage(image);
+        imp.show();
+
+        FloatProcessor fp = (FloatProcessor)imp.getProcessor();
+
+        /*fp.setInterpolate(true);
+        FloatProcessor fpBig = (FloatProcessor)fp.resize(fp.getWidth() * 2, fp.getHeight() * 2);*/
+
+        //
+        // build the scale space
+        //
+        ScaleSpaceData ssd = buildScaleSpace(ImageToFloatArray2D(fp), 1F, 1.6F, 3, 16);
+
+        if (ssd == null)
+            return;
+
+        //
+        // extract points
+        //
+        Vector features = extractPoints(ssd);
+    }
+
+    private FloatArray2D createUpScaledImage(FloatArray2D normal)
+    {
+        /*
+       **  linear interpolation for every 2*n-th pixel (not every 2*n+1-th pixel!)
+       **  dest's width will be 2*src->width (height similar)
+       **  height_mod must be dest->height%2 except 0 is predefined (width similar)
+       */
+
+       FloatArray2D upscale = new FloatArray2D(normal.width * 2, normal.height * 2);
+
+       // first four pixel in dest = first pixel in src
+       float value = normal.get(0,0);
+       upscale.set(value, 0, 0);
+       upscale.set(value, 1, 0);
+       upscale.set(value, 0, 1);
+       upscale.set(value, 1, 1);
+
+       // first two rows in dest
+       for (int x = 1; x < normal.width; ++x)
+       {
+           value = (normal.get(x, 0) + normal.get(x - 1, 0))/2;
+           upscale.set(value, 2 * x, 0);
+           upscale.set(value, 2 * x, 1);
+
+           value = normal.get(x, 0);
+           upscale.set(value, 2 * x + 1, 0);
+           upscale.set(value, 2 * x + 1, 1);
+       }
+
+       // all the other rows
+       for (int y = 1; y < normal.height; ++y)
+       {
+           // first four pixel in dest's row
+           value = (normal.get(0,y) + normal.get(0,y - 1))/2;
+           upscale.set(value, 0, 2 * y);
+           upscale.set(value, 1, 2 * y);
+
+           value = normal.get(0,y);
+           upscale.set(value, 0, 2 * y + 1);
+           upscale.set(value, 1, 2 * y + 1);
+
+           for (int x = 1; x < normal.width; ++x)
+           {
+               value = normal.get(x,y);
+               upscale.set(value, 2 * x + 1, 2 * y + 1);
+
+               value = (normal.get(x,y) + normal.get(x - 1,y))/2;
+               upscale.set(value, 2 * x, 2 * y + 1);
+
+               value = (normal.get(x,y) + normal.get(x,y - 1))/2;
+               upscale.set(value, 2 * x + 1, 2 * y);
+
+               value = (upscale.get(2 * x - 1, 2 * y) + upscale.get(2 * x + 1, 2 * y))/2;
+               upscale.set(value, 2 * x, 2 * y);
+           }
+       }
+
+
+
+
+       return upscale;
+    }
+
+    private Vector<analyzedVoxel> extractPoints(ScaleSpaceData ssd)
+    {
+        // we can analyze all La Place layers exept the first and the last one (-2)
+        ssd.availableScales = ssd.scaleSpace.size() * ssd.OCT_STEPS;
+
+        //FloatArray2D roi = new FloatArray2D(ssd.backup.width, ssd.backup.height);
+
+        Vector <analyzedVoxel>features = new Vector();
+
+        for (int scale = 1; scale < ssd.availableScales - 1; scale++)
+        {
+            System.out.println(scale);
+
+            FloatArray2D[] laPlace = new FloatArray2D[3];
+            laPlace[0] = (FloatArray2D)ssd.getLaPlace(scale - 1);
+            laPlace[1] = (FloatArray2D)ssd.getLaPlace(scale);
+            laPlace[2] = (FloatArray2D)ssd.getLaPlace(scale + 1);
+
+            for (int x = 1; x < laPlace[1].width - 1; x++)
+                for (int y = 1; y < laPlace[1].height -1; y++)
+                    if (isSpecialPoint(ssd.getEnvironment(x, y, scale)))
+                    {
+                        /*roi.set(128 - scale,
+                                (int)(ssd.getLocation(x, scale)+0.5),
+                                (int)(ssd.getLocation(y, scale)+0.5));*/
+
+                        //roi.set(110 - scale,x,y);
+
+                        /*if (x == 79 && y == 82)
+                        {
+                            printEnvironment(ssd.getEnvironment(-x, -y, scale));
+                            System.out.println(isSpecialPoint(ssd.getEnvironment(x, y, scale)));
+                        }
+
+                        if (x == 79 && y == 83)
+                        {
+                            printEnvironment(ssd.getEnvironment(-x, -y, scale));
+                            System.out.println(isSpecialPoint(ssd.getEnvironment(x, y, scale)));
+                            try
+                            {
+                                do
+                                {
+                                    Thread.sleep(1000);
+                                }while(true);
+
+                            }
+                            catch (Exception e){};
+                        } */
+
+                        //System.out.println(x + " " + y);
+                        int xs = x;
+                        int ys = y;
+                        int scales = scale;
+
+                        boolean foundStableMaxima = false, pointsValid = true;
+                        int count = 0;
+
+                        analyzedVoxel resultVoxel = null;
+
+                        do
+                        {
+                            analyzedVoxel currentVoxel = new analyzedVoxel(xs, ys, scales, count);
+                            count++;
+
+                            //
+                            // get the environment of the pixel
+                            //
+                            currentVoxel.env = ssd.getEnvironment(xs, ys, scales);
+
+                            // find a fitted extremum and if the extremum is shifted more than 0.5 in one or more direction we test
+                            // wheather it is better there
+                            // this did not work out to be very stable, that's why we just take those positions which are
+                            // within a range of 0...1,5 of the found maxima in the laplcae space
+
+                            //
+                            // fill hessian matrix with second derivatives
+                            //
+                            //hessianMatrix = computeHessianMatrix4(laPlace, xs, ys, zs, is);
+                            currentVoxel.hessianMatrix3 = computeHessianMatrix(currentVoxel.env);
+
+                            //
+                            // Invert hessian Matrix
+                            //
+                            currentVoxel.A = computePseudoInverseMatrix(new Matrix(currentVoxel.hessianMatrix3), 0.001);
+
+                            // cannot inverse matrix properly
+                            if (currentVoxel.A == null)
+                            {
+                                //System.out.println("Cannot compute inverse of Hessian Matrix!");
+                                continue;
+                            }
+
+                            //
+                            // fill first derivate vector
+                            //
+
+                            currentVoxel.derivativeVector = computeDerivativeVector(currentVoxel.env);
+                            currentVoxel.B = new Matrix(currentVoxel.derivativeVector, 3);
+
+                            //
+                            // compute the extremum of the quadratic fit
+                            //
+
+                            currentVoxel.X = (currentVoxel.A.uminus()).times(currentVoxel.B);
+
+                            currentVoxel.xD = currentVoxel.X.get(0, 0);
+                            currentVoxel.yD = currentVoxel.X.get(1, 0);
+                            currentVoxel.scaleD = currentVoxel.X.get(2, 0);
+
+                            //
+                            // check all directions for changes
+                            //
+                            foundStableMaxima = true;
+
+                            if (Math.abs(currentVoxel.xD) > 0.5)
+                            {
+                                xs += sign(currentVoxel.xD);
+                                foundStableMaxima = false;
+                            }
+
+                            if (Math.abs(currentVoxel.yD) > 0.5)
+                            {
+                                ys += sign(currentVoxel.yD);
+                                foundStableMaxima = false;
+                            }
+
+                            if (Math.abs(currentVoxel.scaleD) > 0.5)
+                            {
+                                int oldOctave = ssd.getOctave(scales);
+
+                                scales += sign(currentVoxel.scaleD);
+                                foundStableMaxima = false;
+
+                                int newOctave = ssd.getOctave(scales);
+
+                                if (newOctave > oldOctave)
+                                {
+                                    xs /= 2;
+                                    ys /= 2;
+                                }
+                                else if (newOctave < oldOctave)
+                                {
+                                    xs = xs*2 + 1;
+                                    ys = ys*2 + 1;
+                                }
+                            }
+
+                            //
+                            // check validity of new point
+                            //
+                            pointsValid = true;
+
+                            if (!foundStableMaxima)
+                                if (xs == 0 || xs == laPlace[1].width - 1 || ys == 0 || ys == laPlace[1].height - 1 ||
+                                    scales == 0 || scales == ssd.availableScales - 1)
+                                    pointsValid = false;
+
+                            resultVoxel = currentVoxel;
+
+                        }
+                        while (count <= 5 && !foundStableMaxima && pointsValid);
+
+                        // could not invert hessian matrix properly
+                        if (resultVoxel == null || resultVoxel.A == null)
+                            continue;
+
+                        // did not found a stable maxima
+                        if (!foundStableMaxima)
+                            continue;
+
+                        resultVoxel.quadrFuncValue = 0;
+
+                        for (int j = 0; j < 3 /*4*/; j++)
+                            resultVoxel.quadrFuncValue += resultVoxel.X.get(j, 0) * resultVoxel.derivativeVector[j];
+                        resultVoxel.quadrFuncValue /= 2d;
+
+                        resultVoxel.laPlaceValue = resultVoxel.env.get(1, 1, 1);
+                        resultVoxel.sumValue = resultVoxel.quadrFuncValue + resultVoxel.laPlaceValue;
+
+
+                        // reject pixels with low contrast
+                        if (Math.abs(resultVoxel.sumValue) < 0.1)
+                        {
+                            resultVoxel = null;
+                            continue;
+                        }
+
+                        // now reject where curvatures are not equal enough in all directions
+                        resultVoxel.hessianMatrix2 = new double[2][2];
+                        resultVoxel.hessianMatrix2[0][0] = resultVoxel.hessianMatrix3[0][0];
+                        resultVoxel.hessianMatrix2[1][0] = resultVoxel.hessianMatrix3[1][0];
+                        resultVoxel.hessianMatrix2[0][1] = resultVoxel.hessianMatrix3[0][1];
+                        resultVoxel.hessianMatrix2[1][1] = resultVoxel.hessianMatrix3[1][1];
+                        resultVoxel.eigenValues = computeEigenValues(resultVoxel.hessianMatrix2);
+
+                        // there were imaginary numbers for the eigenvectors
+                        // -> bad!
+                        if (resultVoxel.eigenValues == null)
+                        {
+                            resultVoxel = null;
+                            continue;
+                        }
+
+                        // compute ratio of the eigenvalues
+                        if (resultVoxel.eigenValues[0] >= resultVoxel.eigenValues[1])
+                            resultVoxel.EVratio = resultVoxel.eigenValues[1] / resultVoxel.eigenValues[0];
+                        else
+                            resultVoxel.EVratio = resultVoxel.eigenValues[0] / resultVoxel.eigenValues[1];
+
+
+                        if (resultVoxel.EVratio < 0.5)
+                            continue;
+
+                        // update positions according to the scale
+
+			/*
+                        roi.set((float)Math.abs(resultVoxel.sumValue),
+                                (int)(ssd.getLocation(xs+resultVoxel.xD, scales)),
+                                (int)(ssd.getLocation(ys+resultVoxel.yD, scales)));
+
+                        if ( (float)Math.abs(resultVoxel.sumValue) > 10)
+                        {
+                            System.out.println("sumvalue: " + resultVoxel.sumValue);
+                            System.out.println("eigenvalues: " + resultVoxel.eigenValues[0] + " " + resultVoxel.eigenValues[1]);
+                            System.out.println("eigenvalue ratio: " + resultVoxel.EVratio);
+                            System.out.println("Final scaled: " + ssd.getLocation(xs + resultVoxel.xD, scales) + " " + ssd.getLocation(ys + resultVoxel.yD, scales));
+                            System.out.println("Grid Pos: " + xs + " " + ys + " " + scales);
+                            System.out.println("Double offsets: " + resultVoxel.xD + " " + resultVoxel.yD + " " + resultVoxel.scaleD);
+                            System.out.println("Final unscaled: " + (xs + resultVoxel.xD) + " " + (ys + resultVoxel.yD) + " " + (scales + resultVoxel.scaleD));
+                            System.out.println();
+                        }
+			*/
+                        // WRONG!!!!
+                        //resultVoxel.sigma = ssd.sigma[scale];
+
+			resultVoxel.location = new float[]{
+				ssd.getLocation(xs + resultVoxel.xD),
+				ssd.getLocation(ys + resultVoxel.yD),
+				ssd.get_sigma(scales, resultVoxel.scaleD) };
+			
+			resultVoxel.o = ssd.getOctave(scales); // get the index of the octave for the given scale"s"
+
+                        features.add(resultVoxel);
+
+                    }
+        }
+
+        System.out.println("done");
+        //FloatArrayToImagePlus(roi, "DGFSDG",0,0).show();
+
+        return features;
+    }
+
+    private Matrix computePseudoInverseMatrix(Matrix M, double threshold)
+    {
+        SingularValueDecomposition svd = new SingularValueDecomposition(M);
+
+        Matrix U = svd.getU(); //U Left Matrix
+        Matrix S = svd.getS(); //W
+        Matrix V = svd.getV(); //VT Right Matrix
+
+        double temp;
+
+        //invert S
+        for (int j = 0; j < S.getRowDimension(); j++)
+        {
+          temp = S.get(j,j);
+          if (temp < threshold)
+            return null;
+          else
+            temp = 1/temp;
+          S.set(j,j,temp);
+        }
+        //done
+
+        //transponse U
+        U = U.transpose();
+
+        //
+        // compute result
+        //
+        return ((V.times(S)).times(U));
+    }
+
+    private double[] computeEigenValues(double[][] matrix)
+    {
+        Matrix M = new Matrix(matrix);
+        EigenvalueDecomposition E = new EigenvalueDecomposition(M);
+
+        double[] result = E.getImagEigenvalues();
+
+        boolean found = false;
+
+        for (double im : result)
+            if (im > 0)
+                found = true;
+
+        if (found)
+            return null;
+        else
+            return E.getRealEigenvalues();
+    }
+
+    private double[] computeDerivativeVector(FloatArray3D env)
+    {
+        double[] derivativeVector = new double[3];
+
+        // x
+        derivativeVector[0] = (env.get(2, 1, 1) - env.get(0, 1, 1))/2;
+
+        // y
+        derivativeVector[1] = (env.get(1, 2, 1) - env.get(1, 0, 1))/2;
+
+        // z
+        derivativeVector[2] = (env.get(1, 1, 2) - env.get(1, 1, 0))/2;
+
+        return derivativeVector;
+
+    }
+
+    private double[][] computeHessianMatrix(FloatArray3D env)
+    {
+        double[][] hessianMatrix = new double[3][3]; // zeile, spalte
+
+        double temp = 2 * env.get(1, 1, 1);
+
+        // xx
+        hessianMatrix[0][0] = env.get(2, 1, 1) - temp + env.get(0, 1, 1);
+
+        // yy
+        hessianMatrix[1][1] = env.get(1, 2, 1) - temp + env.get(1, 0, 1);
+
+        // scale scale
+        hessianMatrix[2][2] = env.get(1, 1, 2) - temp + env.get(1, 1, 0);
+
+        // xy
+        hessianMatrix[0][1] = hessianMatrix[1][0] =
+                (
+                        (env.get(2, 2, 1) - env.get(0, 2, 1)) / 2
+                        -
+                        (env.get(2, 0, 1) - env.get(0, 0, 1)) / 2
+                ) / 2;
+
+        // x scale
+        hessianMatrix[0][2] = hessianMatrix[2][0] =
+                (
+                        (env.get(2, 1, 2) - env.get(0, 1, 2)) / 2
+                        -
+                        (env.get(2, 1, 0) - env.get(0, 1, 0)) / 2
+                ) / 2;
+
+        // y scale
+        hessianMatrix[1][2] = hessianMatrix[2][1] =
+                (
+                        (env.get(1, 2, 2) - env.get(1, 0, 2)) / 2
+                        -
+                        (env.get(1, 2, 0) - env.get(1, 0, 0)) / 2
+                ) / 2;
+
+        return hessianMatrix;
+    }
+
+    private ScaleSpaceData buildScaleSpace(FloatArray2D img, float imageSigma, float initialSigma, int laPlaceStepsPerOctave, int descriptorSize)
+    {
+        FloatArray2D scaledImg = createUpScaledImage(img);
+
+        FloatArrayToImagePlus(scaledImg, "scaled", 0, 0).show();
+
+        ScaleSpaceData ssd = computeFirstOctave(scaledImg, imageSigma, initialSigma, laPlaceStepsPerOctave, descriptorSize);
+        ssd.backup = img;
+
+        while (min(ssd.getLastOctave().gauss[0].width/2, ssd.getLastOctave().gauss[0].height/2) >= ssd.minImageSize)
+            computeNextOctave(ssd);
+
+        return ssd;
+    }
+
+    private ScaleSpaceData computeFirstOctave(FloatArray2D img, float imageSigma, float initialSigma, int laPlaceStepsPerOctave, int descriptorSize)
+    {
+        //
+        // Store everything in here
+        //
+        ScaleSpaceData ssd = new ScaleSpaceData();
+
+        //
+        // get image dimensions and save original image
+        //
+        ssd.width = img.width;
+        ssd.height = img.height;
+
+        //
+        // scale space parameters and data structure
+        //
+        ssd.OCT_STEPS = laPlaceStepsPerOctave;
+        ssd.minImageSize = descriptorSize;
+
+        ssd.sigma = new float[ssd.OCT_STEPS + 1];
+        ssd.sigmaDiff = new float[ssd.OCT_STEPS + 1];
+
+        ssd.k = (float) Math.pow(2f, 1f / ssd.OCT_STEPS);
+        ssd.K_MIN1_INV = 1.0f / (ssd.k - 1.0f);
+
+        ssd.sigma[0] = initialSigma;
+        ssd.sigmaDiff[0] = getDiffSigma(imageSigma, initialSigma);
+
+        ssd.scaleSpace = new Vector<OctaveData>();
+
+        //
+        // Compute the Sigmas for the gaussian folding
+        //
+
+        for (int i = 1; i <= ssd.OCT_STEPS; i++)
+        {
+            ssd.sigma[i] = ssd.sigma[i - 1] * ssd.k;
+            ssd.sigmaDiff[i] = getDiffSigma(ssd.sigmaDiff[0], ssd.sigma[i]);
+        }
+
+        //
+        // Now initially fold with gaussian kernel to get to sigma = 1.6
+        //
+
+        OctaveData octData = new OctaveData();
+        octData.gauss = new FloatArray2D[ssd.OCT_STEPS + 1];
+        octData.laPlace = new FloatArray2D[ssd.OCT_STEPS];
+        octData.gauss[0] = computeGaussianFastMirror(img, ssd.sigmaDiff[0]);
+
+        // compute gaussian and La Place images for actual octave
+        for (int i = 1; i <= ssd.OCT_STEPS; i++)
+        {
+            octData.gauss[i] = computeGaussianFastMirror(octData.gauss[0], ssd.sigmaDiff[i]);
+            octData.laPlace[i - 1] = subtractArrays(octData.gauss[i], octData.gauss[i - 1], ssd.K_MIN1_INV);
+            FloatArrayToImagePlus(octData.laPlace[i-1], "LaPlace "+ i, 0,0).show();
+        }
+
+        ssd.scaleSpace.add(octData);
+
+        return ssd;
+    }
+
+    private void computeNextOctave(ScaleSpaceData ssd)
+    {
+        //
+        // create new octave
+        //
+
+        OctaveData octData = new OctaveData();
+        octData.gauss = new FloatArray2D[ssd.OCT_STEPS + 1];
+        octData.laPlace = new FloatArray2D[ssd.OCT_STEPS];
+
+        //
+        // create first image by halfing the last gauss image from the previous octave
+        //
+
+        octData.gauss[0] = createHalfImage(ssd.getLastOctave().gauss[ssd.OCT_STEPS]);
+
+        //
+        // compute gaussian and La Place images for first octave
+        //
+        for (int i = 1; i <= ssd.OCT_STEPS; i++)
+        {
+            octData.gauss[i] = computeGaussianFastMirror(octData.gauss[0], ssd.sigmaDiff[i]);
+            octData.laPlace[i - 1] = subtractArrays(octData.gauss[i], octData.gauss[i - 1], ssd.K_MIN1_INV);
+            FloatArrayToImagePlus(octData.laPlace[i - 1], "LaPlace "+ i, 0,0).show();
+        }
+
+        ssd.scaleSpace.add(octData);
+    }
+
+    private static boolean isSpecialPoint(FloatArray3D env)
+    {
+        boolean isMin = true;
+        boolean isMax = true;
+
+        float value = env.get(1, 1, 1);
+        float compare1, compare2, compare3;
+
+        for (int xs = 0; xs <= 2 && (isMin || isMax); xs++)
+            for (int ys = 0; ys <= 2 && (isMin || isMax);  ys++)
+            {
+                compare1 = env.get(xs, ys, 1);
+                compare2 = env.get(xs, ys, 0);
+                compare3 = env.get(xs, ys, 2);
+
+                if (isMin)
+                {
+                    if (compare1 < value)
+                        isMin = false;
+
+                    if (compare2 < value)
+                        isMin = false;
+
+                    if (compare3 < value)
+                        isMin = false;
+                }
+
+                if (isMax)
+                {
+                    if (compare1 > value)
+                        isMax = false;
+
+                    if (compare2 > value)
+                        isMax = false;
+
+                    if (compare3 > value)
+                        isMax = false;
+
+                }
+
+                if (xs != 1 && ys != 1)
+                    if (compare1 == value || compare2 == value || compare3 == value)
+                        isMin = isMax = false;
+                else if (compare2 == value || compare3 == value)
+                    isMin = isMax = false;
+            }
+
+        return (isMin/* || isMax*/);
+    }
+
+    private FloatArray2D createHalfImage(FloatArray2D image)
+    {
+        FloatArray2D halfImage = new FloatArray2D(image.width/2, image.height/2);
+
+        for (int x = 0; x < image.width/2; x++)
+            for (int y = 0; y < image.height/2; y++)
+                halfImage.set(image.get(x*2 + 1, y*2 + 1), x, y);
+
+        return halfImage;
+    }
+
+    private void printEnvironment(FloatArray3D env)
+    {
+        for (int scale = 0; scale <= 2; scale++)
+        {
+            if (scale == 0)
+                System.out.println("\nScale-1:\n");
+            else if (scale == 1)
+                System.out.println("\nScale:\n");
+            else
+                System.out.println("\nScale + 1:\n");
+
+
+            for (int y = 0; y <= 2; y++)
+            {
+                for (int x =0; x <= 2; x++)
+                    System.out.print(env.get(x, y, scale) + "\t");
+
+                System.out.println();
+            }
+        }
+    }
+
+
+    private FloatArray2D subtractArrays(FloatArray2D a, FloatArray2D b, float norm)
+    {
+        FloatArray2D result = new FloatArray2D(a.width, a.height);
+
+        for (int i = 0; i < a.data.length; i++)
+            result.data[i] = (a.data[i] - b.data[i]) * norm;
+
+        return result;
+    }
+
+    private float getDiffSigma( float sigma_a, float sigma_b )
+    {
+        return (float) Math.sqrt(sigma_b * sigma_b - sigma_a * sigma_a ) ;
+    }
+
+	/**
+	 *  * get appropriate octave-sigma for sigma
+	 *   */
+	public float get_octave_sigma( float sigma, int octave )
+	{
+		    return sigma / Math.pow( 2.0, octave );
+	}
+}

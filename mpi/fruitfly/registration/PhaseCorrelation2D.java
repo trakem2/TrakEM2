@@ -1,5 +1,32 @@
 package mpi.fruitfly.registration;
 
+/**
+ * <p>Title: PhaseCorrelation2D</p>
+ *
+ * <p>Description: </p>
+ *
+ * <p>Copyright: Copyright (c) 2007</p>
+ *
+ * <p>Company: </p>
+ *
+ * <p>License: GPL
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License 2
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *
+ * @author Stephan Preibisch
+ * @version 1.0
+ */
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
 import ij.ImagePlus;
@@ -29,6 +56,9 @@ import static mpi.fruitfly.registration.ImageFilter.*;
 import ij.IJ;
 import edu.mines.jtk.dsp.FftComplex;
 import edu.mines.jtk.dsp.FftReal;
+import java.util.Date;
+import java.util.concurrent.atomic.AtomicInteger;
+import mpi.fruitfly.general.MultiThreading;
 
 
 
@@ -62,7 +92,7 @@ public class PhaseCorrelation2D
     {
         public Point shift;
         public int overlappingPixels;
-        public double SSQ, R;
+        public double SSQ, R, PCMValue;
         public ImagePlus overlapImp, errorMapImp;
 
         public double getQuicksortValue()
@@ -126,11 +156,16 @@ public class PhaseCorrelation2D
         int imgW1 = orgImg1.getWidth();
         int imgW2 = orgImg2.getWidth();
 
-        // get zero padding size (to square image)
-        getZeroPaddingSizePrimeFast(max(imgW1, imgW2), max(imgH1, imgH2));
+        //System.out.println(imgW1 + " " + imgH1 + " " + imgW2 + " " + imgH2 );
+
+        int extW1 = 0;
+        int extH1 = 0;
+        int extW2 = 0;
+        int extH2 = 0;
 
         FloatArray2D image1 = ImageToFloatArray2D(orgImg1.getProcessor());
         FloatArray2D image2 = ImageToFloatArray2D(orgImg2.getProcessor());
+
 
         // normalize images
         if (normalize)
@@ -142,9 +177,43 @@ public class PhaseCorrelation2D
         // kaiser bessel filtering
         if (kaiserBessel)
         {
-            filterKaiserBessel(image1, false);
-            filterKaiserBessel(image2, false);
+            extW1 = imgW1/4;
+            extH1 = imgH1/4;
+            extW2 = imgW2/4;
+            extH2 = imgH2/4;
+
+
+            // add an even number so that both sides extend equally
+            if (extW1 % 2 != 0) extW1++;
+            if (extH1 % 2 != 0) extH1++;
+            if (extW2 % 2 != 0) extW2++;
+            if (extH2 % 2 != 0) extH2++;
+
+            //System.out.println(extW1 + " " + extH1 + " " + extW2 + " " + extH2 );
+
+            // extend images
+            image1 = extendImageMirror(image1, extW1, extH1);
+            image2 = extendImageMirror(image2, extW2, extH2);
+
+            exponentialWindow(image1);
+            exponentialWindow(image2);
+            //filterKaiserBessel(image1, false);
+            //filterKaiserBessel(image2, false);
+
+            if (showImages)
+            {
+                FloatArrayToImagePlus(image1, "1", 0, 0).show();
+                FloatArrayToImagePlus(image2, "2", 0, 0).show();
+            }
+
+            imgW1 += extW1;
+            imgH1 += extH1;
+            imgW2 += extW2;
+            imgH2 += extH2;
         }
+
+        // get zero padding size
+        getZeroPaddingSizePrimeFast(max(imgW1, imgW2), max(imgH1, imgH2));
 
         // zero-pad the images
         image1 = zeroPad(image1, widthZP, heightZP);
@@ -156,7 +225,7 @@ public class PhaseCorrelation2D
             phaseCorrelationImg.show();
 
         // find peaks
-        findPeak((FloatProcessor)phaseCorrelationImg.getProcessor());
+        findPeak((FloatProcessor)phaseCorrelationImg.getProcessor(), imgW1, imgH1, imgW2, imgH2, extW1, extH1, extW2, extH2);
 
         // evaluate peaks by cross correlation
         CrossCorrelationResult[] result = testCrossCorrelation(checkImages, true && showImages, false && showImages);
@@ -178,46 +247,104 @@ public class PhaseCorrelation2D
         return bestTranslation;
     }
 
-    public CrossCorrelationResult[] testCrossCorrelation(int numBestHits, boolean createOverlappingImages, boolean createErrorMap)
+    public FloatArray2D extendImageMirror(FloatArray2D input, int extW, int extH)
     {
-        CrossCorrelationResult result[] = new CrossCorrelationResult[numBestHits*4];
+        int imgW = input.width;
+        int imgH = input.height;
+
+        // zero pad the images
+        FloatArray2D extended = zeroPad(input, imgW + extW, imgH + extH);
+
+        // fill extended areas with the mirroring information
+        for (int x = 1; x <= extW/2; x++)
+            for (int y = 1; y <= extH/2; y++)
+            {
+                // left upper corner
+                extended.set(input.getMirror(-x, -y), extW / 2 - x, extH / 2 - y);
+
+                // right upper corner
+                extended.set(input.getMirror(imgW + x - 1, -y), extended.width - extW/2 + x - 1, extH / 2 - y);
+
+                // left lower corner
+                extended.set(input.getMirror(-x, imgH + y - 1), extW / 2 - x, extended.height - extH/2 + y - 1);
+
+                // right lower corner
+                extended.set(input.getMirror(imgW + x - 1, imgH + y - 1), extended.width - extW/2 + x - 1, extended.height - extH/2 + y - 1);
+            }
+
+        for (int y = 0; y < imgH; y++)
+            for (int x = 1; x <= extW/2; x++)
+            {
+                // left lane
+                extended.set(input.getMirror(-x, -y), extW / 2 - x, y + extH / 2);
+
+                // right lane
+                extended.set(input.getMirror(imgW + x - 1, -y), extended.width - extW/2 + x - 1, y + extH / 2);
+            }
+
+        for (int x = 0; x < imgW; x++)
+            for (int y = 1; y <= extH/2; y++)
+            {
+                // upper lane
+                extended.set(input.getMirror(-x, -y), x + extW / 2, extH / 2 - y);
+
+                // lower lane
+                extended.set(input.getMirror(-x, imgH + y - 1), x + extW / 2,  extended.height - extH/2 + y - 1);
+            }
+
+        return extended;
+    }
+
+    public CrossCorrelationResult[] testCrossCorrelation(int numBestHits, final boolean createOverlappingImages, final boolean createErrorMap)
+    {
+        final CrossCorrelationResult result[] = new CrossCorrelationResult[numBestHits*4];
         int count = 0;
         int w = phaseCorrelationImg.getWidth();
         int h = phaseCorrelationImg.getHeight();
 
+        final int numCases = 4;
+        final Point[] points = new Point[numCases];
+
         for (int hit = 0; count < numBestHits*4; hit++)
         {
-            Point shift1 = location[location.length - 1 - hit];
-            if (!(shift1.x == 0 || shift1.y == 0))
+            points[0] = location[location.length - 1 - hit];
+            if (!((points[0].x == 0 || points[0].y == 0) && !this.kaiserBessel))
             {
-                Point shift2, shift3, shift4;
+                //Point shift2, shift3, shift4;
 
-                if (shift1.x < 0)
-                    shift2 = new Point(shift1.x + w, shift1.y);
+                if (points[0].x < 0)
+                    points[1] = new Point(points[0].x + w, points[0].y);
                 else
-                    shift2 = new Point(shift1.x - w, shift1.y);
+                    points[1] = new Point(points[0].x - w, points[0].y);
 
-                if (shift1.y < 0)
-                    shift3 = new Point(shift1.x, shift1.y + h);
+                if (points[0].y < 0)
+                    points[2] = new Point(points[0].x, points[0].y + h);
                 else
-                    shift3 = new Point(shift1.x, shift1.y - h);
+                    points[2] = new Point(points[0].x, points[0].y - h);
 
-                shift4 = new Point(shift2.x, shift3.y);
+                points[3] = new Point(points[1].x, points[2].y);
 
-                /*if (x >= w/2)
-                    xs = x - w;
-                else
-                    xs = x;
+                final AtomicInteger entry = new AtomicInteger(count);
+                final AtomicInteger shift = new AtomicInteger(0);
 
-                if (y >= h/2)
-                    ys = y - h;
-                else
-                    ys = y;*/
+                Runnable task = new Runnable()
+                {
+                        public void run()
+                        {
+                            int myEntry = entry.getAndIncrement();
+                            int myShift = shift.getAndIncrement();
 
-                result[count++] = testCrossCorrelation(shift1, createOverlappingImages, createErrorMap);
+                            result[myEntry] = testCrossCorrelation(points[myShift], createOverlappingImages, createErrorMap);
+                        }
+                };
+
+                MultiThreading.startTask(task, numCases);
+
+                count += numCases;
+                /*result[count++] = testCrossCorrelation(shift1, createOverlappingImages, createErrorMap);
                 result[count++] = testCrossCorrelation(shift2, createOverlappingImages, createErrorMap);
                 result[count++] = testCrossCorrelation(shift3, createOverlappingImages, createErrorMap);
-                result[count++] = testCrossCorrelation(shift4, createOverlappingImages, createErrorMap);
+                result[count++] = testCrossCorrelation(shift4, createOverlappingImages, createErrorMap);*/
             }
         }
 
@@ -239,7 +366,7 @@ public class PhaseCorrelation2D
         FloatProcessor fp1 = (FloatProcessor) orgImg1.getProcessor();
         FloatProcessor fp2 = (FloatProcessor) orgImg2.getProcessor();
 
-        FloatProcessor overlapFP = null, errorMapFP = null, imgfp1 = null, imgfp2 = null;
+        FloatProcessor overlapFP = null, errorMapFP = null;
 
         int sx = shift.x;
         int sy = shift.y;
@@ -301,9 +428,6 @@ public class PhaseCorrelation2D
                 if (createOverlappingImages)
                 {
                     overlapFP.putPixelValue(x, y, (pixel1 + pixel2) / 2D);
-
-                    imgfp1.putPixelValue(x, y, pixel1);
-                    imgfp2.putPixelValue(x, y, pixel2);
                 }
 
                 // compute errors only if the images overlap
@@ -334,6 +458,8 @@ public class PhaseCorrelation2D
 
             if (createErrorMap)
                 errorMapFP.resetMinAndMax();
+
+            //result.img1.close();
 
             return result;
         }
@@ -415,7 +541,7 @@ public class PhaseCorrelation2D
     }
 
 
-    private Point findPeak(FloatProcessor fp)
+    private Point findPeak(FloatProcessor fp, int imgW1, int imgH1, int imgW2, int imgH2, int extW1, int extH1, int extW2, int extH2)
     {
         pixels = (float[])fp.getPixelsCopy();
         location = new Point[pixels.length];
@@ -424,20 +550,25 @@ public class PhaseCorrelation2D
         int count = 0;
         int w = fp.getWidth();
         int h = fp.getHeight();
-        int xs, ys;
+        int xs, ys, xt, yt;
 
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
             {
-                if (x >= w/2)
-                    xs = x - w;
-                else
-                    xs = x;
+                // find relative to the left upper corners of both images
+                xt = x + (imgW1 - imgW2)/2 - (extW1 - extW2)/2;
 
-                if (y >= h/2)
-                    ys = y - h;
+                if (xt >= w/2)
+                    xs = xt - w;
                 else
-                    ys = y;
+                    xs = xt;
+
+                yt = y + (imgH1 - imgH2)/2 - (extH1 - extH2)/2;
+
+                if (yt >= h/2)
+                    ys = yt - h;
+                else
+                    ys = yt;
 
                 location[count++] = new Point(xs, ys);
             }
@@ -448,6 +579,7 @@ public class PhaseCorrelation2D
         //for (int i = 1; i < 5; i++)
           //  System.out.println(location[pixels.length - i].x + " x " + location[pixels.length - i].y + " = " + pixels[pixels.length - i]);
 
+        //System.out.println(location[pixels.length - 1].x + " " + location[pixels.length - 1].y);
         return location[pixels.length - 1];
     }
 
@@ -459,8 +591,8 @@ public class PhaseCorrelation2D
 
         int width = img1.width;
 
-        FloatArray2D fft1 = pffft2D(img1, false);
-        FloatArray2D fft2 = pffft2D(img2, false);
+        FloatArray2D fft1 = pffft2DMT(img1, false);
+        FloatArray2D fft2 = pffft2DMT(img2, false);
 
         //
         // Do Phase Correlation
@@ -677,7 +809,7 @@ public class PhaseCorrelation2D
         double[] phaseCorrelationMatrixImage = jfftwWrapper.fftInvSimple(width, height, phaseCorrelationMatrix);
 
         return Rotation2D.getImagePlus("Phase Correlation Matrix Image", phaseCorrelationMatrixImage, width, height, showImages);
-    }*/
+    }
 
     private double[] unwrapPhaseVector(double[] phaseVector)
     {
@@ -718,7 +850,7 @@ public class PhaseCorrelation2D
         return unwrappedPhaseVector;
     }
 
-/*    private double[] getPhaseVector(Zmat matrix, int col)
+    private double[] getPhaseVector(Zmat matrix, int col)
     {
         double[] phaseVector = new double[matrix.nr];
 
@@ -741,31 +873,6 @@ public class PhaseCorrelation2D
         return phase;
     }*/
 
-    private void logImage(FloatProcessor fp)
-    {
-        for (int x = 0; x < fp.getWidth(); x++)
-            for (int y = 0; y < fp.getHeight(); y++)
-                fp.putPixelValue(x,y, Math.log10(fp.getPixelValue(x,y)));
-
-        fp.resetMinAndMax();
-    }
-
-    private void gLogImage(FloatProcessor fp, double c)
-    {
-        for (int x = 0; x < fp.getWidth(); x++)
-            for (int y = 0; y < fp.getHeight(); y++)
-                fp.putPixelValue(x, y, gLog(fp.getPixelValue(x, y), c));
-
-        fp.resetMinAndMax();
-    }
-
-    private void gLogArray(double[] array, int width, int height, double c)
-    {
-        for (int x = 0; x < width; x++)
-            for (int y = 0; y < height; y++)
-                array[x + y*width] = gLog(array[x + y*width], c);
-    }
-
     private void getZeroPaddingSizePrimeFast(int width, int height)
     {
         width = FftReal.nfftFast(width);
@@ -783,33 +890,4 @@ public class PhaseCorrelation2D
         this.heightZP = height;
         this.widthZP = width;
     }
-
-    private void getZeroPaddingSize(int width, int height)
-    {
-        // always use the next larger number which is power of 2 for FFT
-        width += offsetToPowerOf2(width);
-        height += offsetToPowerOf2(height);
-
-        if (width > height)
-            height = width;
-        else
-            width = height;
-
-        this.heightZP = height;
-        this.widthZP = width;
-    }
-
-    private void convertToFloat(ImagePlus img)
-    {
-            // Convert to Float Processor if it is none
-            ImageProcessor ip = img.getProcessor();
-
-            if (!(ip instanceof FloatProcessor))
-            {
-                ip = ip.convertToFloat();
-                img.setProcessor(null, ip);
-                img.updateAndDraw();
-            }
-    }
-
 }

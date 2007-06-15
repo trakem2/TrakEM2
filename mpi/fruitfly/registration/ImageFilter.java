@@ -1,45 +1,39 @@
 package mpi.fruitfly.registration;
 
 /**
- * <p>Title: </p>
+ * <p>Title: ImageFilter</p>
  *
  * <p>Description: </p>
  *
- * <p>Copyright: Copyright (c) 2006</p>
+ * <p>Copyright: Copyright (c) 2007</p>
  *
  * <p>Company: </p>
  *
- * @author not attributable
+ * <p>License: GPL
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License 2
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *
+ * @author Stephan Preibisch
  * @version 1.0
  */
 
 import mpi.fruitfly.math.datastructures.*;
 import static mpi.fruitfly.math.General.*;
 import java.util.Random;
-import ij.process.FloatProcessor;
 
 public class ImageFilter
 {
-    private static Thread[] newThreads()
-    {
-      int nthread = Runtime.getRuntime().availableProcessors();
-      return new Thread[nthread];
-    }
-
-    private static void startAndJoin(Thread[] threads)
-    {
-        for (int ithread = 0; ithread < threads.length; ++ithread)
-            threads[ithread].start();
-        try
-        {
-            for (int ithread = 0; ithread < threads.length; ++ithread)
-                threads[ithread].join();
-        } catch (InterruptedException ie)
-        {
-            throw new RuntimeException(ie);
-        }
-    }
-
     /**
      * Does Kaiser-Bessel-Windowing to prevent the fourier spectra from getting infinite numbers,
      * the border will be faded to black.
@@ -95,6 +89,40 @@ public class ImageFilter
 
                 img.set(kb * val, x, y);
             }
+    }
+
+    public static void exponentialWindow(FloatArray2D img)
+    {
+        double a = 1000;
+
+        // create lookup table
+        double weightsX[] = new double[img.width];
+        double weightsY[] = new double[img.height];
+
+        for (int x = 0; x < img.width; x++)
+        {
+            double relPos = (double)x / (double)(img.width-1);
+
+            if (relPos <= 0.5)
+                weightsX[x] = 1.0-(1.0/(Math.pow(a,(relPos*2))));
+            else
+                weightsX[x] = 1.0-(1.0/(Math.pow(a,((1-relPos)*2))));
+        }
+
+        for (int y = 0; y < img.height; y++)
+        {
+            double relPos = (double)y / (double)(img.height-1);
+
+            if (relPos <= 0.5)
+                weightsY[y] = 1.0-(1.0/(Math.pow(a,(relPos*2))));
+            else
+                weightsY[y] = 1.0-(1.0/(Math.pow(a,((1-relPos)*2))));
+        }
+
+
+        for (int y = 0; y < img.height; y++)
+            for (int x = 0; x < img.width; x++)
+                img.set((float) (img.get(x, y) * weightsX[x] * weightsY[y]), x, y);
     }
 
     /**
@@ -222,49 +250,6 @@ public class ImageFilter
 
         return gaussianKernel;
     }
-
-	/*
-	** create a normalized gaussian impulse with appropriate size and offset center
-	*/
-	static public FloatArray2D create_gaussian_kernel_2D_offset(float sigma, float offset_x, float offset_y,
-					     boolean normalize)
-	{
-	    int size = 3;
-	    FloatArray2D gaussian_kernel;
-	    if (sigma == 0)
-	    {
-		gaussian_kernel = new FloatArray2D(3 ,3);
-		gaussian_kernel.data[4] = 1;
-	    }
-	    else
-	    {
-		size = max(3, (int)(2*Math.round(3*sigma)+1));
-		float two_sq_sigma = 2*sigma*sigma;
-	//      float normalization_factor = 1.0/(float)M_PI/two_sq_sigma;
-		gaussian_kernel = new FloatArray2D(size, size);
-		for (int x = size-1; x >= 0; --x)
-		{
-		    float fx = (float)(x-size/2);
-		    for (int y = size-1; y >= 0; --y)
-		    {
-			float fy = (float)(y-size/2);
-			float val = (float)(Math.exp(-(Math.pow(fx-offset_x, 2)+Math.pow(fy-offset_y, 2))/two_sq_sigma));
-			gaussian_kernel.set(val, x, y);
-		    }
-		}
-	    }
-	    if (normalize) 
-		{
-		    float sum = 0;
-		    for (float value : gaussian_kernel.data)
-			sum += value;
-
-		    for (int i = 0; i < gaussian_kernel.data.length; i++)
-			gaussian_kernel.data[i] /= sum;
-		}
-
-	    return gaussian_kernel;
-	}
 
     public static FloatArray3D createGaussianKernel3D(float sigma, boolean normalize)
     {
@@ -544,17 +529,7 @@ public class ImageFilter
                             avg += input.get(x + f, y) * kernel[f + filterSize / 2];
                     else
                         for (int f = -filterSize / 2; f <= filterSize / 2; f++)
-                        {
                             avg += input.getMirror(x + f, y) * kernel[f + filterSize / 2];
-
-                            /*if (x+f >= input.width)
-                                avg += input.get(2*input.width - x - f - 1, y) * kernel[f + filterSize / 2];
-                            else if (x + f < 0)
-                                avg += input.get(-(x + f) - 1, y) * kernel[f + filterSize / 2];
-                            else
-                                avg += input.get(x + f, y) * kernel[f + filterSize / 2];
-                             */
-                        }
 
                     output.set(avg / kernelsum, x, y);
 
@@ -574,16 +549,7 @@ public class ImageFilter
                             avg += output.get(x, y + f) * kernel[f + filterSize / 2];
                      else
                         for (int f = -filterSize / 2; f <= filterSize / 2; f++)
-                        {
                             avg += output.getMirror(x, y + f) * kernel[f + filterSize / 2];
-
-                            /*if (y+f >= input.height)
-                                avg += output.get(x, 2*input.height - y - f - 1) * kernel[f + filterSize / 2];
-                            else if (y + f < 0)
-                                avg += output.get(x, -(y + f) - 1) * kernel[f + filterSize / 2];
-                            else
-                                avg += output.get(x, y + f) * kernel[f + filterSize / 2];*/
-                        }
 
                     temp[y] = avg / kernelsum;
                 }
@@ -606,76 +572,6 @@ public class ImageFilter
      *
      * @author   Stephan Preibisch
      */
-    public static FloatProcessor computeGaussianFastMirror(FloatProcessor input, float sigma)
-    {
-        int width = input.getWidth();
-        int height = input.getHeight();
-        FloatProcessor output = new FloatProcessor(width, height);
-
-        float avg, kernelsum = 0;
-        float[] kernel = createGaussianKernel1D(sigma, true);
-        int filterSize = kernel.length;
-
-        // get kernel sum
-        for (double value : kernel)
-            kernelsum += value;
-
-        // fold in x
-        for (int x = 0; x < width; x++)
-            for (int y = 0; y <height; y++)
-                {
-                    avg = 0;
-
-                    if (x -filterSize / 2 >= 0 && x + filterSize / 2 < width)
-                        for (int f = -filterSize / 2; f <= filterSize / 2; f++)
-                            avg += input.get(x + f, y) * kernel[f + filterSize / 2];
-                    else
-                        for (int f = -filterSize / 2; f <= filterSize / 2; f++)
-                        {
-                            if (x+f >= width)
-                                avg += input.get(2*width - x - f - 1, y) * kernel[f + filterSize / 2];
-                            else if (x + f < 0)
-                                avg += input.get(-(x + f) - 1, y) * kernel[f + filterSize / 2];
-                            else
-                                avg += input.get(x + f, y) * kernel[f + filterSize / 2];
-
-                        }
-
-                    output.putPixelValue(x, y, avg / kernelsum);
-                }
-
-        // fold in y
-        for (int x = 0; x < width; x++)
-            {
-                float[] temp = new float[height];
-
-                for (int y = 0; y < height; y++)
-                {
-                    avg = 0;
-
-                    if (y -filterSize / 2 >= 0 && y + filterSize / 2 < height)
-                        for (int f = -filterSize / 2; f <= filterSize / 2; f++)
-                            avg += output.get(x, y + f) * kernel[f + filterSize / 2];
-                     else
-                        for (int f = -filterSize / 2; f <= filterSize / 2; f++)
-                        {
-                            if (y+f >= height)
-                                avg += output.get(x, 2*height - y - f - 1) * kernel[f + filterSize / 2];
-                            else if (y + f < 0)
-                                avg += output.get(x, -(y + f) - 1) * kernel[f + filterSize / 2];
-                            else
-                                avg += output.get(x, y + f) * kernel[f + filterSize / 2];
-                        }
-
-                    temp[y] = avg / kernelsum;
-                }
-
-                for (int y = 0; y < height; y++)
-                    output.putPixelValue(x, y, temp[y]);
-            }
-
-        return output;
-    }
 
     public static FloatArray3D computeGaussianFastMirror(FloatArray3D input, float sigma)
     {
@@ -701,15 +597,7 @@ public class ImageFilter
                             avg += input.get(x + f, y, z) * kernel[f + filterSize / 2];
                     else
                         for (int f = -filterSize / 2; f <= filterSize / 2; f++)
-                        {
-                            if (x+f >= input.width)
-                                avg += input.get(2*input.width - x - f - 1, y, z) * kernel[f + filterSize / 2];
-                            else if (x + f < 0)
-                                avg += input.get(-(x + f) - 1, y, z) * kernel[f + filterSize / 2];
-                            else
-                                avg += input.get(x + f, y, z) * kernel[f + filterSize / 2];
-
-                        }
+                            avg += input.getMirror(x + f, y, z) * kernel[f + filterSize / 2];
 
                     output.set(avg / kernelsum, x, y, z);
 
@@ -728,16 +616,9 @@ public class ImageFilter
                     if (y -filterSize / 2 >= 0 && y + filterSize / 2 < input.height)
                         for (int f = -filterSize / 2; f <= filterSize / 2; f++)
                             avg += output.get(x, y + f, z) * kernel[f + filterSize / 2];
-                     else
-                        for (int f = -filterSize / 2; f <= filterSize / 2; f++)
-                        {
-                            if (y+f >= input.height)
-                                avg += output.get(x, 2*input.height - y - f - 1, z) * kernel[f + filterSize / 2];
-                            else if (y + f < 0)
-                                avg += output.get(x, -(y + f) - 1,  z) * kernel[f + filterSize / 2];
-                            else
-                                avg += output.get(x, y + f, z) * kernel[f + filterSize / 2];
-                        }
+                    else
+                       for (int f = -filterSize / 2; f <= filterSize / 2; f++)
+                           avg += output.getMirror(x, y + f, z) * kernel[f + filterSize / 2];
 
                     temp[y] = avg / kernelsum;
                 }
@@ -759,16 +640,9 @@ public class ImageFilter
                     if (z -filterSize / 2 >= 0 && z + filterSize / 2 < input.depth)
                         for (int f = -filterSize / 2; f <= filterSize / 2; f++)
                             avg += output.get(x, y, z + f) * kernel[f + filterSize / 2];
-                     else
-                        for (int f = -filterSize / 2; f <= filterSize / 2; f++)
-                        {
-                            if (z+f >= input.depth)
-                                avg += output.get(x, y, 2*input.depth - z - f - 1) * kernel[f + filterSize / 2];
-                            else if (z + f < 0)
-                                avg += output.get(x, y, -(z + f) - 1) * kernel[f + filterSize / 2];
-                            else
-                                avg += output.get(x, y, z + f) * kernel[f + filterSize / 2];
-                        }
+                    else
+                       for (int f = -filterSize / 2; f <= filterSize / 2; f++)
+                           avg += output.getMirror(x, y, z + f) * kernel[f + filterSize / 2];
 
                     temp[z] = avg / kernelsum;
                 }

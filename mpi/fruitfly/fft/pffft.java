@@ -1,21 +1,40 @@
 package mpi.fruitfly.fft;
 
+/**
+ * <p>Title: pffft</p>
+ *
+ * <p>Description: </p>
+ *
+ * <p>Copyright: Copyright (c) 2007</p>
+ *
+ * <p>Company: </p>
+ *
+ * <p>License: GPL
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License 2
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *
+ * @author Stephan Preibisch
+ * @version 1.0
+ */
 import edu.mines.jtk.dsp.FftReal;
 import edu.mines.jtk.dsp.FftComplex;
 import mpi.fruitfly.math.datastructures.*;
 
-/**
- * <p>Title: </p>
- *
- * <p>Description: </p>
- *
- * <p>Copyright: Copyright (c) 2006</p>
- *
- * <p>Company: </p>
- *
- * @author not attributable
- * @version 1.0
- */
+import mpi.fruitfly.general.MultiThreading;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Date;
+
 public class pffft
 {
     public static boolean SCALE = true;
@@ -129,7 +148,7 @@ public class pffft
 
     }
 
-    public static float[] computePhaseCorrelationMatrix(float[] fft1, float[] fft2, boolean inPlace)
+    public static float[] computePhaseCorrelationMatrix(final float[] fft1, final float[] fft2, boolean inPlace)
     {
         /*matlab code
 
@@ -146,11 +165,25 @@ public class pffft
          Corr = real(ifftn(Phase));
          */
 
+        final AtomicInteger ai = new AtomicInteger(0);
+
+        Runnable task = new Runnable()
+        {
+                public void run()
+                {
+                    int i = ai.getAndIncrement();
+                    if (i == 0)
+                        normalizeComplexVectorsToUnitVectors(fft1);
+                    else
+                        normalizeComplexVectorsToUnitVectors(fft2);
+                }
+        };
+
+        MultiThreading.startTask(task,2);
+
         float[] fftTemp1 = fft1;
         float[] fftTemp2 = fft2;
 
-        normalizeComplexVectorsToUnitVectors(fftTemp1);
-        normalizeComplexVectorsToUnitVectors(fftTemp2);
 /*
         // get the power spectrum
         float[] ps = computePowerSpectrumComplex(fft1);
@@ -231,6 +264,88 @@ public class pffft
         fft.complexToReal(1, values, result);
 
         fft.scale(nfft, result);
+
+        return result;
+    }
+
+    public static FloatArray2D pffft2DMT(final FloatArray2D values, final boolean scale)
+    {
+        final int height = values.height;
+        final int width = values.width;
+        final int complexWidth = (width/2+1)*2;
+
+        final FloatArray2D result = new FloatArray2D(complexWidth, height);
+
+        //do fft's in x direction
+        final AtomicInteger ai = new AtomicInteger(0);
+        Thread[] threads = MultiThreading.newThreads();
+        final int numThreads =  threads.length;
+
+        for (int ithread = 0; ithread < threads.length; ++ithread)
+            threads[ithread] = new Thread(new Runnable()
+            {
+                public void run()
+                {
+                    int myNumber = ai.getAndIncrement();
+
+                    float[] tempIn = new float[width];
+                    float[] tempOut;
+                    FftReal fft = new FftReal(width);
+
+                    for (int y = 0; y < height; y++)
+                        if (y % numThreads == myNumber)
+                        {
+                            tempOut = new float[complexWidth];
+
+                            for (int x = 0; x < width; x++)
+                                tempIn[x] = values.get(x, y);
+
+                            fft.realToComplex( -1, tempIn, tempOut);
+
+                            if (scale)
+                                fft.scale(width, tempOut);
+
+                            for (int x = 0; x < complexWidth; x++)
+                                result.set(tempOut[x], x, y);
+                        }
+                }
+            });
+        MultiThreading.startAndJoin(threads);
+
+        //do fft's in y direction
+        ai.set(0);
+        threads = MultiThreading.newThreads();
+
+        for (int ithread = 0; ithread < threads.length; ++ithread)
+            threads[ithread] = new Thread(new Runnable()
+            {
+                public void run()
+                {
+                    float[] tempIn = new float[height*2];
+                    float[] tempOut;
+                    FftComplex fftc = new FftComplex(height);
+
+                    for (int x = ai.getAndIncrement(); x < complexWidth/2; x = ai.getAndIncrement())
+                    {
+                        tempOut = new float[height*2];
+
+                        for (int y = 0; y < height; y++)
+                        {
+                            tempIn[y*2] = result.get(x*2,y);
+                            tempIn[y*2+1] = result.get(x*2+1,y);
+                        }
+
+                        fftc.complexToComplex(-1, tempIn, tempOut);
+
+                        for (int y = 0; y < height; y++)
+                        {
+                            result.set(tempOut[y*2], x*2, y);
+                            result.set(tempOut[y*2+1], x*2+1, y);
+                        }
+                    }
+                }
+            });
+        MultiThreading.startAndJoin(threads);
 
         return result;
     }
@@ -565,6 +680,91 @@ public class pffft
                 values.set(tempOut[y*2+1], x*2+1, y);
             }
         }
+    }
+
+    public static FloatArray3D pffft3DMT(final FloatArray3D values, final boolean scale)
+    {
+        final int height = values.height;
+        final int width = values.width;
+        final int depth = values.depth;
+        final int complexWidth = (width/2+1)*2;
+
+        final FloatArray3D result = new FloatArray3D(complexWidth, height, depth);
+
+        //do fft's in x direction
+        float[] tempIn = new float[width];
+        float[] tempOut;
+
+        FftReal fft = new FftReal(width);
+
+        for (int z = 0; z < depth; z++)
+            for (int y = 0; y < height; y++)
+            {
+                tempOut = new float[complexWidth];
+
+                for (int x = 0; x < width; x++)
+                    tempIn[x] = values.get(x,y,z);
+
+                fft.realToComplex( -1, tempIn, tempOut);
+
+                if (scale)
+                    fft.scale(width, tempOut);
+
+                for (int x = 0; x < complexWidth; x++)
+                    result.set(tempOut[x], x, y, z);
+            }
+
+        // do fft's in y-direction on the complex numbers
+        tempIn = new float[height*2];
+
+        FftComplex fftc = new FftComplex(height);
+
+        for (int z = 0; z < depth; z++)
+            for (int x = 0; x < complexWidth/2; x++)
+            {
+                tempOut = new float[height*2];
+
+                for (int y = 0; y < height; y++)
+                {
+                    tempIn[y*2] = result.get(x*2,y,z);
+                    tempIn[y*2+1] = result.get(x*2+1,y,z);
+                }
+
+                fftc.complexToComplex(-1, tempIn, tempOut);
+
+                for (int y = 0; y < height; y++)
+                {
+                    result.set(tempOut[y*2], x*2, y, z);
+                    result.set(tempOut[y*2+1], x*2+1, y, z);
+                }
+            }
+
+        // do fft's in z-direction on the complex numbers
+        tempIn = new float[depth*2];
+        fftc = new FftComplex(depth);
+
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < complexWidth/2; x++)
+            {
+                //tempOut = new float[height*2];
+                tempOut = new float[depth*2];
+
+                for (int z = 0; z < depth; z++)
+                {
+                    tempIn[z*2] = result.get(x*2,y,z);
+                    tempIn[z*2+1] = result.get(x*2+1,y,z);
+                }
+
+                fftc.complexToComplex(-1, tempIn, tempOut);
+
+                for (int z = 0; z < depth; z++)
+                {
+                    result.set(tempOut[z*2], x*2, y, z);
+                    result.set(tempOut[z*2+1], x*2+1, y, z);
+                }
+            }
+
+        return result;
     }
 
     public static FloatArray3D pffft3D(FloatArray3D values, boolean scale)
