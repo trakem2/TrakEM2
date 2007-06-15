@@ -168,14 +168,14 @@ abstract public class Loader {
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void lock() {
-		Utils.printCaller(this, 7);
+		//Utils.printCaller(this, 7);
 		while (db_busy) { try { db_lock.wait(); } catch (InterruptedException ie) {} }
 		db_busy = true;
 	}
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void unlock() {
-		Utils.printCaller(this);
+		//Utils.printCaller(this);
 		if (db_busy) {
 			db_busy = false;
 			db_lock.notifyAll();
@@ -2902,7 +2902,6 @@ abstract public class Loader {
 			   .toString());
 	}
 
-
 	/** Will cross-correlate slices in a separate Thread; leaves the given slice untouched. Eventually it will also rotate them. */
 	public Loader.Bureaucrat registerStackSlices(final Patch base_slice, final float scale) {
 		// find linked images in different layers and cross-correlate them
@@ -2910,7 +2909,9 @@ abstract public class Loader {
 			public void run() {
 				startedWorking();
 				try {
-					registerSlices(base_slice, new HashSet(), scale, this);
+					correlateSlices(base_slice, new HashSet(), scale, this);
+					// ensure there are no negative numbers in the x,y
+					base_slice.getLayer().getParent().setMinimumDimensions();
 				} catch (Exception e) {
 					new IJError(e);
 				}
@@ -2923,31 +2924,40 @@ abstract public class Loader {
 		return burro;
 	}
 	/** Recursive into linked images in other layers. */
-	private void registerSlices(Patch slice, HashSet hs_done, float scale, Worker worker) {
+	private void correlateSlices(Patch slice, HashSet hs_done, float scale, Worker worker) {
 		if (hs_done.contains(slice)) return;
 		hs_done.add(slice);
 		// iterate over all Patches directly linked to the given slice
-		for (Iterator it = slice.getLinked(Patch.class).iterator(); it.hasNext(); ) {
+		HashSet hs = slice.getLinked(Patch.class);
+		Utils.log2("@@@ size: " + hs.size());
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			if (worker.quit) return;
 			Patch p = (Patch)it.next();
+			if (hs_done.contains(p)) continue;
 			// skip linked images within the same layer
 			if (p.getLayer().equals(slice.getLayer())) continue;
+			// ensure there are no negative numbers in the x,y
+			slice.getLayer().getParent().setMinimumDimensions();
 			correlate(slice, p, scale);
-			registerSlices(p, hs_done, scale, worker);
+			correlateSlices(p, hs_done, scale, worker);
 		}
 	}
 
 	private void correlate(final Patch base, final Patch moving, final float scale) {
-		Utils.log2("Correlating " + moving + " to " + base);
-		double[] pc = StitchingTEM.register(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
-		if (pc[3] < 0.5f) {
+		Utils.log2("Correlating #" + moving.getId() + " to #" + base.getId());
+		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
+		if (pc[3] < 0.25f) {
 			// R is too low to be trusted
 			Utils.log("Bad R coefficient, skipping " + moving);
-			return;
+			// set the moving to the same position as the base
+			pc[0] = base.getX();
+			pc[1] = base.getY();
 		}
 		final Transform t = moving.getTransform();
-		t.x = base.getX() + pc[0];
-		t.y = base.getY() + pc[1];
+		t.x = pc[0];
+		t.y = pc[1];
+		Utils.log2("BASE: x, y " + base.getX() + " , " + base.getY() + "\n\t pc x,y: " + pc[0] + ", " + pc[1]);
+		Utils.log2("t.x,y:  " + t.x + ", " + t.y);
 		if (ControlWindow.isGUIEnabled()) {
 			Rectangle box = moving.getBoundingBox();
 			moving.setTransform(t);
@@ -2956,7 +2966,7 @@ abstract public class Loader {
 		} else {
 			moving.setTransform(t);
 		}
-		Utils.log("Phase-correlated target " + moving + "  to base: " + base);
+		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
 	}
 
 	/** Fixes paths befor epresenting them to the file system, in an OS-dependent manner. */

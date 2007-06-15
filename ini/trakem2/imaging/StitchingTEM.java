@@ -159,14 +159,14 @@ public class StitchingTEM {
 				}
 				if (TOP == prev) {
 					// compare with top only
-					R1 = st.register(patch[prev_i], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
+					R1 = st.correlate(patch[prev_i], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
 					R2 = null;
 				} else {
 					// the one on the left
-					R2 = st.register(patch[prev_i], patch[i], percent_overlap, scale, LEFT_RIGHT, default_dx, default_dy);
+					R2 = st.correlate(patch[prev_i], patch[i], percent_overlap, scale, LEFT_RIGHT, default_dx, default_dy);
 					// the one above
 					if (i - grid_width > -1) {
-						R1 = st.register(patch[i - grid_width], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
+						R1 = st.correlate(patch[i - grid_width], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
 					} else {
 						R1 = null;
 					}
@@ -281,9 +281,13 @@ public class StitchingTEM {
 	/** Returns the x,y position of the moving Patch plus a third value of 1 if successful, 0 if defaults where used (when both phase-correlation and cross-correlation fail).
 	 * @param scale For optimizing the speed of phase- and cross-correlation.
 	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found.
-	 * @Return a double[4] array containing dx, dy, flag and R
+	 * @Return a double[4] array containing:
+	 * 	- x2: absolute X position of the second Patch
+	 * 	- y2: absolute Y position of the second Patch
+	 * 	- flag: ERROR or SUCCESS
+	 * 	- R: cross-correlation coefficient
 	 */
-	static public double[] register(final Patch base, final Patch moving, final float percent_overlap, final float scale, final int direction, final double default_dx, final double default_dy) {
+	static public double[] correlate(final Patch base, final Patch moving, final float percent_overlap, final float scale, final int direction, final double default_dx, final double default_dy) {
 		PhaseCorrelation2D pc = null;
 		double R = -2;
 		final int limit = 5; // number of peaks to check in the PhaseCorrelation results
@@ -382,7 +386,6 @@ public class StitchingTEM {
 				cc_result = cc.computeCrossCorrelationMT(0.3, 0.9, false);
 				break;
 		}
-		Utils.log2("CC R: " + cc_result[2] + " dx, dy: " + cc_result[0] + ", " + cc_result[1]);
 		if (cc_result[2] > min_R/2) { //accepting if R is above half the R accepted for Phase Correlation
 			// success
 			int success = SUCCESS;
@@ -401,6 +404,7 @@ public class StitchingTEM {
 					break;
 			}
 			Utils.log2("CC R: " + cc_result[2] + " dx, dy: " + cc_result[0] + ", " + cc_result[1]);
+			//Utils.log2("\trois: \t" + roi1 + "\n\t\t" + roi2);
 			return new double[]{x2, y2, success, cc_result[2]};
 		}
 

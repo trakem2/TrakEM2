@@ -1963,7 +1963,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		try {
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				final Patch p = (Patch)it.next();
-				final double[] pc = StitchingTEM.register(p, p_dragged, 1f, 0.25f, StitchingTEM.TOP_BOTTOM, 0, 0);
+				final double[] pc = StitchingTEM.correlate(p, p_dragged, 1f, 0.25f, StitchingTEM.TOP_BOTTOM, 0, 0);
 				if (null == best_pc) best_pc = pc;
 				else {
 					// compare R: choose largest
