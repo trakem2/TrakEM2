@@ -439,7 +439,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Used by the Loader after loading blindly a lot of Patches. Will crop the canvas to the minimum size possible. */
-	public boolean setMinimumDimensions(/*double layer_width, double layer_height*/) {
+	public boolean setMinimumDimensions() {
 		// add a big undo step, and also below translate previous undo steps
 		final Hashtable ht_undo = new Hashtable();
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {

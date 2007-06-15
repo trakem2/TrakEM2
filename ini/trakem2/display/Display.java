@@ -54,7 +54,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private Displayable active = null;
 	/** All selected Displayable objects, including the active one. */
-	private Selection selection;
+	final private Selection selection = new Selection(this);
 
 	private ImagePlus active_imp_copy = null;
 	private long active_imp_id = -1;
@@ -456,8 +456,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			mag = ((Double)props[1]).doubleValue();
 			srcRect = (Rectangle)props[2];
 		}
-
-		selection = new Selection(this);
 
 		// transparency slider
 		this.transp_slider = new JSlider(javax.swing.SwingConstants.HORIZONTAL, 0, 100, 100);
@@ -954,7 +952,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			//TEMPORARY W//WindowManager.setTempCurrentImage(null);
 			active = null;
 			if (null != selection) selection.clear();
-			selection = null;
+			Utils.log2("destroying selection");
 
 			// below, need for SetLayerThread threads to quit if any.
 			setting_layer = false;
@@ -2975,7 +2973,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display d = (Display)it.next();
 			if (hs.contains(d.layer)) continue;
 			hs.add(d.layer);
-			d.selection.update(); // recomputes box
+			if (null == d || null == d.selection) {
+				Utils.log("d is : "+ d + " d.selection is " + d.selection);
+			} else {
+				d.selection.update(); // recomputes box
+			}
 			if (!d.equals(calling)) { // TODO this is so dirty!
 				if (d.selection.getNLinked() > 1) d.canvas.setUpdateGraphics(true); // this is overkill anyway
 				d.canvas.repaint(d.selection.getLinkedBox(), Selection.PADDING);

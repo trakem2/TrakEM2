@@ -168,14 +168,14 @@ abstract public class Loader {
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void lock() {
-		//Utils.printCaller(this, 7);
+		Utils.printCaller(this, 7);
 		while (db_busy) { try { db_lock.wait(); } catch (InterruptedException ie) {} }
 		db_busy = true;
 	}
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void unlock() {
-		//Utils.printCaller(this);
+		Utils.printCaller(this);
 		if (db_busy) {
 			db_busy = false;
 			db_lock.notifyAll();
@@ -1521,13 +1521,13 @@ abstract public class Loader {
 				pa[f++] = pall[i][j];
 			}
 		}
+		// optimize repaints: all to background image
+		Display.clearSelection(layer);
+
 		// make the first one be top, and the rest under it in left-right and top-bottom order
 		for (int j=0; j<pa.length; j++) {
 			layer.moveBottom(pa[j]);
 		}
-
-		// optimize repaints: all to background image
-		Display.clearSelection(layer);
 
 		if (homogenize_contrast) {
 			setTaskName("homogenizing contrast");
@@ -2932,26 +2932,22 @@ abstract public class Loader {
 			Patch p = (Patch)it.next();
 			// skip linked images within the same layer
 			if (p.getLayer().equals(slice.getLayer())) continue;
-			phaseCorrelate(slice, p, scale);
+			correlate(slice, p, scale);
 			registerSlices(p, hs_done, scale, worker);
 		}
 	}
 
-	private void phaseCorrelate(final Patch base, final Patch moving, final float scale) {
-		ImagePlus imp1 = fetchImagePlus(base);
-		Roi roi1 = new Roi(0, 0, (int)Math.ceil(base.getWidth()), (int)Math.ceil(base.getHeight()));
-		Roi roi2 = new Roi(0, 0, (int)Math.ceil(moving.getWidth()), (int)Math.ceil(moving.getHeight()));
-		ImageProcessor ip1 = StitchingTEM.makeStripe(base, roi1, scale);
-		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, roi2, scale);
-
-		Utils.log2("roi1: " + roi1);
-		Utils.log2("roi2: " + roi2);
-
-		PhaseCorrelation2D pc = new PhaseCorrelation2D(ip1, ip2, 5, false, false, false);
-		Point p = pc.getTranslation();
+	private void correlate(final Patch base, final Patch moving, final float scale) {
+		Utils.log2("Correlating " + moving + " to " + base);
+		double[] pc = StitchingTEM.register(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
+		if (pc[3] < 0.5f) {
+			// R is too low to be trusted
+			Utils.log("Bad R coefficient, skipping " + moving);
+			return;
+		}
 		final Transform t = moving.getTransform();
-		t.x = base.getX() + p.x/scale;
-		t.y = base.getY() + p.y/scale;
+		t.x = base.getX() + pc[0];
+		t.y = base.getY() + pc[1];
 		if (ControlWindow.isGUIEnabled()) {
 			Rectangle box = moving.getBoundingBox();
 			moving.setTransform(t);
@@ -2963,6 +2959,7 @@ abstract public class Loader {
 		Utils.log("Phase-correlated target " + moving + "  to base: " + base);
 	}
 
+	/** Fixes paths befor epresenting them to the file system, in an OS-dependent manner. */
 	protected final ImagePlus openImage(String path) {
 		// supporting samba networks
 		if (IJ.isWindows() && path.startsWith("//")) {

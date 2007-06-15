@@ -31,6 +31,7 @@ import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.TemplateTree;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 
 import javax.swing.*;
 import java.awt.*;
@@ -128,7 +129,11 @@ public class ControlWindow {
 
 	static private boolean hooked = false;
 
-	static public void add(Project project, TemplateTree template_tree, ProjectTree thing_tree, LayerTree layer_tree) {
+	static public void add(final Project project, final TemplateTree template_tree, final ProjectTree thing_tree, final LayerTree layer_tree) {
+
+		final Runnable gui_thread = new Runnable() {
+			public void run() {
+
 
 		if (null == instance) {
 			instance = new ControlWindow();
@@ -215,20 +220,30 @@ public class ControlWindow {
 			frame.toFront();
 		}
 		// now set minimum size again, after showing it (stupid Java), so they are shown correctly (opened) but can be completely collapsed to the sides. This thread patches the lack of respect for the setDividerLocation method.
-		new Thread() {
-			public void run() {
+		//new Thread() {
+		//	public void run() {
 				try { Thread.sleep(500); } catch (Exception e) {}
 				scroll_template.setMinimumSize(new Dimension(0, 100));
 				scroll_things.setMinimumSize(new Dimension(0, 100));
 				scroll_layers.setMinimumSize(new Dimension(0, 100));
 				left.setDividerLocation(0.5D);
 				tab.setDividerLocation(0.66D);
-			}
-		}.run();
+		//	}
+		//}.start();
 		// select the SELECT tool if it's the first open project
 		if (1 == ht_projects.size() && gui_enabled) {
 			ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		}
+
+			}};
+		// I hate java: can't call invokeLater from the EventDispatch thread
+		new Thread() {
+			public void run() {
+				try {
+					SwingUtilities.invokeLater(gui_thread);
+				} catch (Exception e) { new IJError(e); }
+			}
+		}.start();
 	}
 
 	static public Project getActive() {

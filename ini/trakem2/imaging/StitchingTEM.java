@@ -37,6 +37,8 @@ import ini.trakem2.ControlWindow;
 
 import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.CrossCorrelation2D;
+import mpi.fruitfly.registration.ImageFilter;
+import mpi.fruitfly.math.datastructures.FloatArray2D;
 
 import java.awt.Rectangle;
 import java.awt.Point;
@@ -289,8 +291,8 @@ public class StitchingTEM {
 		// Iterate until PhaseCorrelation correlation coeficient R is over 0.5, or there's no more
 		// image overlap to feed
 		ImageProcessor ip1, ip2;
-		final int h1 = (int)base.getWidth(),
-			  w1 = (int)base.getHeight(),
+		final int w1 = (int)base.getWidth(),
+			  h1 = (int)base.getHeight(),
 			  w2 = (int)moving.getWidth(),
 			  h2 = (int)moving.getHeight();
 		Roi roi1=null,
@@ -316,7 +318,7 @@ public class StitchingTEM {
 			ip2 = makeStripe(moving, roi2, scale);
 			//new ImagePlus("roi1", ip1).show();
 			//new ImagePlus("roi2", ip2).show();
-			pc = new PhaseCorrelation2D(ip1, ip2, limit, false, false, false); // normalize
+			pc = new PhaseCorrelation2D(ip1, ip2, limit, false, false, false); // with windowing
 			final Point shift = pc.computePhaseCorrelation();
 			final PhaseCorrelation2D.CrossCorrelationResult result = pc.getResult();
 			Utils.log2("overlap: " + overlap + " R: " + result.R + " shift: " + shift + " x2,y2: " + x2 + ", " + y2);
@@ -340,11 +342,14 @@ public class StitchingTEM {
 				Utils.log2("R: " + result.R + " shift: " + shift + " x2,y2: " + x2 + ", " + y2);
 				return new double[]{x2, y2, success, result.R};
 			}
+			//new ImagePlus("roi1", ip1.duplicate()).show();
+			//new ImagePlus("roi2", ip2.duplicate()).show();
+			//try { Thread.sleep(1000000000); } catch (Exception e) {}
 			// increase for next iteration
 			overlap += 0.10; // increments of 10%
-		} while (R < 0.50 && overlap < 1.0);
+		} while (R < min_R && overlap < 1.0);
 
-		// Phase-correlation failed, fall back to cross-correlation
+		// Phase-correlation failed, fall back to cross-correlation with a safe overlap
 		overlap = percent_overlap * 2;
 		if (overlap > 1.0f) overlap = 1.0f;
 		switch(direction) {
@@ -359,11 +364,26 @@ public class StitchingTEM {
 		}
 		ip1 = makeStripe(base, roi1, scale);
 		ip2 = makeStripe(moving, roi2, scale);
+
+		// gaussian blur them befoe cross-correlation
+		ip1.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip1.getPixels(), ip1.getWidth(), ip1.getHeight()), 1f).data);
+		ip2.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip2.getPixels(), ip2.getWidth(), ip2.getHeight()), 1f).data);
+
+
 		//new ImagePlus("CC roi1", ip1).show();
 		//new ImagePlus("CC roi2", ip2).show();
 		final CrossCorrelation2D cc = new CrossCorrelation2D(ip1, ip2, false);
-		final double[] cc_result = cc.computeCrossCorrelation(false);
-		if (cc_result[2] > min_R) {
+		double[] cc_result = null;
+		switch (direction) {
+			case TOP_BOTTOM:
+				cc_result = cc.computeCrossCorrelationMT(0.9, 0.3, false);
+				break;
+			case LEFT_RIGHT:
+				cc_result = cc.computeCrossCorrelationMT(0.3, 0.9, false);
+				break;
+		}
+		Utils.log2("CC R: " + cc_result[2] + " dx, dy: " + cc_result[0] + ", " + cc_result[1]);
+		if (cc_result[2] > min_R/2) { //accepting if R is above half the R accepted for Phase Correlation
 			// success
 			int success = SUCCESS;
 			switch(direction) {
@@ -385,6 +405,7 @@ public class StitchingTEM {
 		}
 
 		// else both failed: return default values
+		Utils.log2("Using default");
 		return new double[]{default_dx, default_dy, ERROR, 0};
 	}
 }

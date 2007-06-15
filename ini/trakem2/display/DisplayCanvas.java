@@ -1978,15 +1978,18 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 		// now, relocate the Patch
 		double dx = best_pc[0] - p_dragged.getX(); // since the drag is and 'add' operation on the coords
-		double dy = best_pc[1] - p_dragged.getY();
+		double dy = best_pc[1] - p_dragged.getY(); //   and the dx,dy are relative to the matched patch
 		Rectangle box = p_dragged.getLinkedBox(true);
+		Utils.log2("box is " + box);
 		Rectangle r = p_dragged.drag(dx, dy, true);
+		Utils.log2("dragged box is " + r);
 		box.add(r);
 		Selection selection = display.getSelection();
 		if (selection.contains(p_dragged)) {
-			Display.updateSelection(display);//selection.update();
+			Utils.log2("going to update selection");
+			Display.updateSelection(display);
 		}
-		Display.repaint(p_dragged.getLayer().getParent(), box);
+		Display.repaint(p_dragged.getLayer().getParent()/*, box*/);
 		Utils.log2("Done snapping.");
 	}
 

@@ -590,6 +590,7 @@ public class Display3D {
 		final double scale = this.scale;
 		Thread thread = new Thread() {
 			public void run() {
+				setPriority(Thread.NORM_PRIORITY);
 				while (v_threads.size() >= max_threads) {
 					try { Thread.sleep(400); } catch (InterruptedException ie) {}
 				}

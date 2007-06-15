@@ -111,18 +111,21 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		new RepaintThread(new Rectangle((int)(d.x * scale), (int)(d.y * scale), (int)Math.ceil(d.width * scale), (int)Math.ceil(d.height * scale))); // accessing protected vars directly within the package, WARNING
 	}
 
-	/** Overridden to multithread. */
+	/** Overridden to multithread. TrakEM2 does not call this method directly ever. */
 	public void repaint(int x, int y, int width, int height) {
 		if (display.getCanvas().isDragging()) return;
 		new RepaintThread(new Rectangle(x, y, width, height));
 	}
 
+	/** Box is given in offscreen canvas coords. */
 	public void repaint(Rectangle box) {
 		if (display.getCanvas().isDragging()) return;
-		new RepaintThread(box);
+		// bring box to the scale
+		Rectangle b = new Rectangle((int)(box.x * scale), (int)(box.y * scale), (int)Math.ceil(box.width * scale), (int)Math.ceil(box.height * scale));
+		new RepaintThread(b);
 	}
 
-	/* // saved as unoveridden to make sure there are no infinite thread loops when calling super in buggy JVMs
+	/* // saved as unoverridden to make sure there are no infinite thread loops when calling super in buggy JVMs
 	public void repaint(long ms, int x, int y, int width, int height) {
 		new RepaintThread(new Rectangle(x, y, width, height));
 	}
@@ -139,10 +142,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		UpdateGraphicsThread() {
 			if (null != ugt) {
 				ugt.quit = true;
-				// wait until dying (the run() method returns)
-				//while (ugt.isAlive()) {
-					Thread.yield();
-				//}
+				Thread.yield();
 				synchronized (updating_ob) {
 					while (updating) {
 						try { updating_ob.wait(); } catch (InterruptedException ie) {}

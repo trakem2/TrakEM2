@@ -300,9 +300,9 @@ public class FSLoader extends Loader {
 								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
 								pa.putMinAndMax(imp);
 								if (create_snap) {
-									lock();
-									Image awt = pa.createImage(imp); // will call cacheAWT
 									unlock();
+									Image awt = pa.createImage(imp); // will call cacheAWT
+									lock();
 									snaps.put(pa.getId(), Snapshot.createSnap(pa, awt, Snapshot.SCALE));
 								}
 							}

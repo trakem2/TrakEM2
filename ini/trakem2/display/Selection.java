@@ -870,6 +870,7 @@ public class Selection {
 		if (transforming) {
 			Utils.log("Selection.update warning: shouldn't be doing this while transforming!");
 		}
+		Utils.log2("updating selection");
 		ht.clear();
 		HashSet hs = new HashSet();
 		for (Iterator it = queue.iterator(); it.hasNext(); ) {
