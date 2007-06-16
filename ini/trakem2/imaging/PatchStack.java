@@ -739,4 +739,36 @@ public class PatchStack extends ImagePlus {
 			return "Virtual Patch Stack: width=" + width + ", height=" + height + ", nSlices: " + patch.length;
 		}
 	}
+
+	public ImagePlus createGray8Copy() {
+		// compute minimum bounding box
+		ImageStack st = new ImageStack((int)Math.ceil(patch[0].getWidth()), (int)Math.ceil(patch[0].getHeight()));
+		for (int i=1; i<patch.length; i++) {
+			st.addSlice(Integer.toString(i), this.stack.getProcessor(i).convertToByte(true));
+		}
+		ImagePlus imp = new ImagePlus("byte", st);
+		imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
+		return imp;
+	}
+
+	/** Does not respect local transform of the patches, this is intended for confocal stacks. */
+	public ImagePlus createColor256Copy() {
+
+		final int width = (int)patch[0].getWidth();
+		final int height = (int)patch[0].getHeight();
+		final ColorProcessor montage = new ColorProcessor(width*patch.length, height);
+		for (int i=0; i<patch.length; i++) {
+			montage.insert(this.stack.getProcessor(i+1), i*width, 0);
+		}
+		final MedianCut mc = new MedianCut(montage);
+		ImageProcessor m2 = mc.convertToByte(256);
+		final ImageStack st = new ImageStack(width, height);
+		for (int i=0; i<patch.length; i++) {
+			m2.setRoi(i*width, 0, width, height);
+			st.addSlice(null, m2.crop());
+        	}
+		ImagePlus imp = new ImagePlus("color256", st);
+		imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
+		return imp;
+	}
 }

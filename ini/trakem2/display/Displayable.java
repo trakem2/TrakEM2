@@ -1173,4 +1173,13 @@ public abstract class Displayable extends DBObject {
 		Display3D.update(this);
 		return super.updateInDatabase(key);
 	}
+
+	static public Rectangle getMinimalBoundingBox(Displayable[] d) {
+		final Rectangle box = d[0].getBoundingBox();
+		final Rectangle tmp = new Rectangle();
+		for (int i=1; i<d.length; i++) {
+			box.add(d[i].getBoundingBox(tmp));
+		}
+		return box;
+	}
 }

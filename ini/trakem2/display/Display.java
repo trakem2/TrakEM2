@@ -1782,6 +1782,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					if (!active.isOnlyLinkedTo(Patch.class, active.getLayer())) {
 						item.setEnabled(false);
 					}
+					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
 					HashSet hs = active.getLinked(Patch.class);
 					if (null == hs || 0 == hs.size()) item.setEnabled(false); // if no Patch instances among the directly linked, then it's not a stack
@@ -2670,7 +2671,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		} else if (command.equals("View orthoslices")) {
 			if (!(active instanceof Patch)) return;
-			Display3D.show(((Patch)active));
+			Display3D.showOrthoslices(((Patch)active));
+		} else if (command.equals("View volume")) {
+			if (!(active instanceof Patch)) return;
+			Display3D.showVolume(((Patch)active));
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}

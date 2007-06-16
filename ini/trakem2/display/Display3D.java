@@ -2,6 +2,7 @@ package ini.trakem2.display;
 
 import ini.trakem2.tree.*;
 import ini.trakem2.utils.*;
+import ini.trakem2.imaging.PatchStack;
 
 import ij.ImageStack;
 import ij.ImagePlus;
@@ -306,11 +307,34 @@ public class Display3D {
 		}
 	}
 
-	static public void show(Patch p) {
+	static public void showOrthoslices(Patch p) {
 		Display3D d3d = get(p.getLayerSet());
 		d3d.adjustResampling();
 		d3d.universe.resetView();
 		d3d.universe.addOrthoslice(p.makePatchStack(), null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
+	}
+
+	static public void showVolume(Patch p) {
+		Display3D d3d = get(p.getLayerSet());
+		d3d.adjustResampling();
+		d3d.universe.resetView();
+		PatchStack ps = p.makePatchStack();
+		ImagePlus imp = null;
+		switch (ps.getType()) {
+			case ImagePlus.COLOR_RGB:
+				// convert stack to 8-bit color
+				imp = ps.createColor256Copy();
+				break;
+			case ImagePlus.GRAY16:
+			case ImagePlus.GRAY32:
+				// convert stack to 8-bit
+				imp = ps.createGray8Copy();
+				break;
+			default:
+				imp = (ImagePlus)ps;
+				break;
+		}
+		d3d.universe.addVoltex(imp, null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
 	}
 
 	/** A Material, but avoiding name colisions. */
