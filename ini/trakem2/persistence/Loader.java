@@ -2945,6 +2945,10 @@ abstract public class Loader {
 
 	private void correlate(final Patch base, final Patch moving, final float scale) {
 		Utils.log2("Correlating #" + moving.getId() + " to #" + base.getId());
+		
+		// test rotation first TODO
+
+
 		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
 		if (pc[3] < 0.25f) {
 			// R is too low to be trusted

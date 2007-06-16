@@ -50,8 +50,7 @@ public class Display3D {
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
 	private Hashtable ht_pt_meshes = new Hashtable();
 
-	private T2Universe universe;
-	//private Image3DUniverse universe;
+	private Image3DUniverse universe;
 
 	private Object u_lock = new Object();
 	private boolean u_locked = false;
@@ -67,19 +66,16 @@ public class Display3D {
 	static private final int MAX_DIMENSION = 1024;
 
 	private String selected = null;
-	private D3DMenuBar menubar;
 
 	/** Defaults to parallel projection. */
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
-		this.universe = new T2Universe(512, 512);//new Image3DUniverse(512, 512); // // size of the initial canvas, not the universe itself
+		this.universe = new Image3DUniverse(512, 512); // size of the initial canvas, not the universe itself
 		this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION);
 		computeScale(ls);
 		this.win = new ImageWindow3D("3D Viewer", this.universe);
 		this.win.addWindowListener(new IW3DListener(ls));
-		this.menubar = new D3DMenuBar();
-		this.win.setMenuBar(menubar);
-		//this.win.setMenuBar(new Image3DMenubar(universe));
+		this.win.setMenuBar(new Image3DMenubar(universe));
 		// register
 		Display3D.ht_layer_sets.put(ls, this);
 	}
@@ -95,63 +91,6 @@ public class Display3D {
 			//Utils.log("unlocking");
 			u_locked = false;
 			u_lock.notifyAll();
-		}
-	}
-
-	private class T2Universe extends Image3DUniverse {
-		public T2Universe(int w, int h) {
-			super(w, h);
-		}
-		// override to avoid activating selections (i.e. prevent rotation of selected objects), avoid report on "status bar", but catch selected name
-		public void select(Content c) {
-			if (null == c) selected = null;
-			else {
-				try {
-					// no get method ...
-					java.lang.reflect.Field f = Content.class.getDeclaredField("name");
-					f.setAccessible(true);
-					selected = (String)f.get(c);
-				} catch (Exception e) {
-					e.printStackTrace();
-					selected = null;
-				}
-			}
-			menubar.setSelected(selected);
-		}
-		public void removeContent(final String title) {
-			synchronized (u_lock) {
-				lock();
-				try {
-					super.removeContent(title);
-				} catch (Exception e) {
-					new IJError(e);
-				}
-				unlock();
-			}
-		}
-		public void addMesh(final ProjectThing pt, final Displayable displ, final List triangles) {
-			synchronized (u_lock) {
-				lock();
-				try {
-					// craft a unique title (id is always unique)
-					String title = displ.getTitle() + " #" + displ.getId();
-					if (ht_pt_meshes.contains(pt)) {
-						// remove content from universe
-						super.removeContent(title);
-						// no need to remove entry form table, it's overwritten below
-					}
-					// register mesh
-					ht_pt_meshes.put(pt, triangles);
-					// ensure proper default transform
-					super.resetView();
-					//
-					super.addMesh(triangles, new Color3f(displ.getColor()), title, (float)(1.0 / (width*scale)), 1);
-					super.getContent(title).setTransparency(1f - displ.getAlpha());
-				} catch (Exception e) {
-					new IJError(e);
-				}
-				unlock();
-			}
 		}
 	}
 
@@ -226,7 +165,16 @@ public class Display3D {
 				if (null == selected) return;
 				ProjectThing pt = find(selected);
 				if (null != pt) {
-					universe.removeContent(selected);
+					synchronized (u_lock) {
+						lock();
+						try {
+							Displayable displ = (Displayable)pt.getObject();
+							universe.removeContent(displ.getTitle() + " #" + displ.getId());
+						} catch (Exception e) {
+							new IJError(e);
+						}
+						unlock();
+					}
 					setSelected(null);
 					ht_pt_meshes.remove(pt);
 				}
@@ -623,7 +571,29 @@ public class Display3D {
 			return;
 		}
 		// add to 3D view (synchronized)
-		universe.addMesh(pt, displ, triangles);
+		//universe.addMesh(pt, displ, triangles);
+		synchronized (u_lock) {
+			lock();
+			try {
+				// craft a unique title (id is always unique)
+				String title = displ.getTitle() + " #" + displ.getId();
+				if (ht_pt_meshes.contains(pt)) {
+					// remove content from universe
+					universe.removeContent(title);
+					// no need to remove entry form table, it's overwritten below
+				}
+				// register mesh
+				ht_pt_meshes.put(pt, triangles);
+				// ensure proper default transform
+				universe.resetView();
+				//
+				universe.addMesh(triangles, new Color3f(displ.getColor()), title, (float)(1.0 / (width*scale)), 1);
+				universe.getContent(title).setTransparency(1f - displ.getAlpha());
+			} catch (Exception e) {
+				new IJError(e);
+			}
+			unlock();
+		}
 
 		Utils.log2(displ.getTitle() + " n points: " + triangles.size());
 
@@ -659,183 +629,17 @@ public class Display3D {
 	}
 
 	static public void setTransparency(Displayable d, float alpha) {
-		Display3D d3d = get(d.getLayer().getParent());
+		Layer layer = d.getLayer();
+		if (null == layer) return; // some objects have no layer, such as the parent LayerSet.
+		Object ob = ht_layer_sets.get(layer.getParent());
+		if (null == ob) return;
+		Display3D d3d = (Display3D)ob;
 		Content content = d3d.universe.getContent(d.getTitle() + " #" + d.getId());
 		if (null != content) content.setTransparency(1 - alpha);
 	}
 
-	/** Does not work unfortunatelly. */
-	/*
-	static private List removeNonManifold(List triangles) {
-		// count users of each edge
-		while (true) {
-			ArrayList al_edges = new ArrayList();
-			ArrayList al_count = new ArrayList();
-			Face[] faces = new Face[triangles.size()/3];
-			Utils.log2("n_triangles: " + triangles.size());
-			for (int i=0, j=0; i<triangles.size(); i+=3, j++) {
-				Point3f p1 = (Point3f)triangles.get(i);
-				Point3f p2 = (Point3f)triangles.get(i+1);
-				Point3f p3 = (Point3f)triangles.get(i+2);
-				Edge e1 = new Edge(p1, p2);
-				Edge e2 = new Edge(p2, p3);
-				Edge e3 = new Edge(p1, p3);
-				faces[j] = new Face(new Edge[]{e1, e2, e3});
-
-				processEdge(e1, al_edges, al_count);
-				processEdge(e2, al_edges, al_count);
-				processEdge(e3, al_edges, al_count);
-			}
-			for (Iterator it = al_count.iterator(); it.hasNext(); ) {
-				Int c = (Int)it.next();
-				if (1 == c.i) {
-					Utils.log2("1 user" + al_edges.get(al_count.indexOf(c)));
-				}
-			}
-			// remove single-user edges
-			int r = 0;
-			for (int i=faces.length -1; i>-1; i--) {
-				if (1 == ((Int)al_count.get(al_edges.indexOf(faces[i].edges[0]))).i
-				 || 1 == ((Int)al_count.get(al_edges.indexOf(faces[i].edges[1]))).i
-				 || 1 == ((Int)al_count.get(al_edges.indexOf(faces[i].edges[2]))).i) {
-					// remove face
-					triangles.remove(faces[i].edges[0].p1);
-					triangles.remove(faces[i].edges[0].p2);
-					triangles.remove(faces[i].edges[2].p2);
-					r++;
-				}
-			}
-			Utils.log2("removed faces: " + r);
-			if (0 == r) break;
-		}
-		return triangles;
-	}
-
-	static final private void processEdge(Edge e, ArrayList al_edges, ArrayList al_count) {
-		if (al_edges.contains(e)) {
-			Int count = (Int)al_count.get(al_edges.indexOf(e));
-			count.i+=1;
-			//Utils.log2("count e: " + count.i + " e: " + e);
-		} else {
-			al_edges.add(e);
-			al_count.add(new Int(1));
-		}
-	}
-	*/
-
-
-
-	/*
-	static private List removeNonManifold(List triangles) {
-		// count users of each edge
-		while (true) {
-			Hashtable ht = new Hashtable();
-			Face[] faces = new Face[triangles.size()/3];
-			Utils.log2("n_triangles: " + triangles.size());
-			for (int i=0, j=0; i<triangles.size(); i+=3, j++) {
-				Point3f p1 = (Point3f)triangles.get(i);
-				Point3f p2 = (Point3f)triangles.get(i+1);
-				Point3f p3 = (Point3f)triangles.get(i+2);
-				Edge e1 = new Edge(p1, p2);
-				Edge e2 = new Edge(p2, p3);
-				Edge e3 = new Edge(p1, p3);
-				faces[j] = new Face(new Edge[]{e1, e2, e3});
-
-				Object ob = ht.get(e1);
-				if (null != ob) {
-					Int count = (Int)ob;
-					count.i+=1;
-					Utils.log2("count e1: " + count.i + " \n\te1: " + e1 + " \n\tob: " + ob);
-				} else ht.put(e1, new Int(1));
-
-				ob = ht.get(e2);
-				if (null != ob) {
-					Int count = (Int)ob;
-					count.i+=1;
-					//Utils.log2("count e2: " + count.i);
-				} else ht.put(e2, new Int(1));
-
-				ob = ht.get(e3);
-				if (null != ob) {
-					Int count = (Int)ob;
-					count.i+=1;
-					//Utils.log2("count e3: " + count.i);
-				} else ht.put(e3, new Int(1));
-			}
-			for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next();
-				if (1 == ((Int)entry.getValue()).i) {
-					Utils.log2("1 user: " + entry.getKey() + " " + entry.getValue());
-				}
-			}
-			// remove single-user edges
-			int r = 0;
-			for (int i=faces.length -1; i>-1; i--) {
-				if (1 == ((Int)ht.get(faces[i].edges[0])).i
-				 || 1 == ((Int)ht.get(faces[i].edges[1])).i
-				 || 1 == ((Int)ht.get(faces[i].edges[2])).i) {
-					// remove face
-					triangles.remove(faces[i].edges[0]);
-					triangles.remove(faces[i].edges[1]);
-					triangles.remove(faces[i].edges[2]);
-					r++;
-				}
-			}
-			Utils.log2("removed faces: " + r);
-			if (0 == r) break;
-		}
-		return triangles;
-	}
-	*/
-	/*
-	static private class Face {
-		Edge[] edges;
-		Face(Edge[] e) {
-			this.edges = e;
-		}
-	}
-	static private class Int {
-		int i = 0;
-		Int(int i) {
-			this.i = i;
-		}
-		public String toString() {
-			return "" + i;
-		}
-	}
-	static private class Edge {
-		int n_users = 0;
-		Point3f p1, p2;
-		int hash;
-		Edge(Point3f p1, Point3f p2) {
-			this.p1 = p1;
-			this.p2 = p2;
-			this.hash = p1.hashCode() + p2.hashCode();
-		}
-		public String toString() {
-			return "[" + p1.toString() + " , " + p2.toString() + "]";
-		}
-		public boolean equals(Object ob) {
-			if (ob instanceof Edge) {
-				Edge e = (Edge)ob;
-				if ((e.p1.equals(this.p1) && e.p2.equals(this.p2))
-				 || (e.p2.equals(this.p1) && e.p1.equals(this.p2))) {
-					//Utils.log2("TRUE");
-					return true;
-				}
-			}
-			//Utils.log2("FALSE");
-			return false;
-		}
-		public int hashCode() {
-			return hash;
-		}
-	}
-	*/
-
 	/** Remake the mesh for the Displayable in a separate Thread, if it's included in a Display3D
-	 *  (otherwise returns null).
-	 */
+	 *  (otherwise returns null). */
 	static public Thread update(Displayable d) {
 		Layer layer = d.getLayer();
 		if (null == layer) return null; // some objects have no layer, such as the parent LayerSet.

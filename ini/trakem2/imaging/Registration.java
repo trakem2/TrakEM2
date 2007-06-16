@@ -85,15 +85,6 @@ public class Registration {
 				final PhaseCorrelation2D translation2 = new PhaseCorrelation2D(imp1, makeRotatedCopy(imp2, gamma -180), true, true, false);
 				///
 				//
-				//
-				//
-				//
-				//
-				//
-				//
-				//
-				//
-				//
 			}
 		}
 
