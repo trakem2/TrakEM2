@@ -300,11 +300,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 			} else if (command.equals("Import stack...")) {
 
 				DBObject dbo = (DBObject)thing.getObject();
-				if (dbo.getProject().getLoader() instanceof FSLoader) {
-					Utils.showMessage("Can't import stack.\nUse 'Import image sequence'");
-					return;
-				}
-				
+
 				if (thing.getObject() instanceof LayerSet) {
 					LayerSet set = (LayerSet)thing.getObject();
 					Layer layer = null;

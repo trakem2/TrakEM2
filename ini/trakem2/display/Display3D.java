@@ -313,6 +313,8 @@ public class Display3D {
 		d3d.universe.resetView();
 		ImagePlus imp = get8BitStack(p.makePatchStack());
 		d3d.universe.addOrthoslice(imp, null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
+		Content ct = d3d.universe.getContent(p.getTitle());
+		ct.toggleLock();
 	}
 
 	static public void showVolume(Patch p) {
@@ -321,6 +323,8 @@ public class Display3D {
 		d3d.universe.resetView();
 		ImagePlus imp = get8BitStack(p.makePatchStack());
 		d3d.universe.addVoltex(imp, null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
+		Content ct = d3d.universe.getContent(p.getTitle());
+		ct.toggleLock();
 	}
 
 	/** Returns a stack suitable for the ImageJ 3D Viewer, either 8-bit gray or 8-bit color.
@@ -599,7 +603,6 @@ public class Display3D {
 			return;
 		}
 		// add to 3D view (synchronized)
-		//universe.addMesh(pt, displ, triangles);
 		synchronized (u_lock) {
 			lock();
 			try {
@@ -616,7 +619,9 @@ public class Display3D {
 				universe.resetView();
 				//
 				universe.addMesh(triangles, new Color3f(displ.getColor()), title, (float)(1.0 / (width*scale)), 1);
-				universe.getContent(title).setTransparency(1f - displ.getAlpha());
+				Content ct = universe.getContent(title);
+				ct.setTransparency(1f - displ.getAlpha());
+				ct.toggleLock();
 			} catch (Exception e) {
 				new IJError(e);
 			}

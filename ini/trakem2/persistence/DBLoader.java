@@ -3124,7 +3124,8 @@ public class DBLoader extends Loader {
 		}
 	}
 
-	protected void importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
+	/** Returns the last Patch. */
+	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
 		int pos_x = (int)first_layer.getLayerWidth()/2 - imp_stack.getWidth()/2;
 		int pos_y = (int)first_layer.getLayerHeight()/2 - imp_stack.getHeight()/2;
 		final double thickness = first_layer.getThickness();
@@ -3138,7 +3139,7 @@ public class DBLoader extends Loader {
 			if (i > 1) layer = first_layer.getParent().getLayer(z, thickness, true); // will create new layer if not found
 			if (null == layer) {
 				Utils.log("Display.importStack: could not create new layers.");
-				return;
+				return null;
 			}
 			ImageProcessor ip = imp_stack.getStack().getProcessor(i);
 			if (as_copy) ip = ip.duplicate();
@@ -3152,5 +3153,7 @@ public class DBLoader extends Loader {
 			Utils.showProgress(i * (1.0 / n));
 		}
 		Utils.showProgress(1.0);
+		// return the last Patch
+		return previous_patch;
 	}
 }

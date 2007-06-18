@@ -1840,7 +1840,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				item = new JMenuItem("Delete..."); item.addActionListener(this); popup.add(item);
 				try {
 					if (active instanceof Patch) {
-						if (!active.isOnlyLinkedTo(active.getClass())) {
+						if (!active.isOnlyLinkedTo(Patch.class)) {
 							item.setEnabled(false);
 						}
 					} else if (!(active instanceof DLabel)) { // can't delete elements from the trees (Profile, Pipe, LayerSet)

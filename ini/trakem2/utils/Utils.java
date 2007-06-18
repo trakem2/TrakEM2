@@ -656,7 +656,18 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public boolean wrongImageJVersion() {
 		boolean b = IJ.versionLessThan("1.37g");
-		if (b) Utils.log2("TrakEM2 requires ImageJ 1.37g or above.");
+		if (b) Utils.showMessage("TrakEM2 requires ImageJ 1.37g or above.");
 		return b;
+	}
+
+	static public boolean java3d = isJava3DInstalled();
+
+	static private boolean isJava3DInstalled() {
+		try {
+			Class p3f = Class.forName("javax.vecmath.Point3f");
+		} catch (ClassNotFoundException cnfe) {
+			return false;
+		}
+		return true;
 	}
 }

@@ -53,7 +53,7 @@ public abstract class Displayable extends DBObject {
 	protected Snapshot snapshot;
 
 	////////////////////////////////////////////////////
-	protected void setLocked(boolean lock) {
+	public void setLocked(boolean lock) {
 		if (lock) this.locked = lock;
 		else {
 			// to unlock, unlock those in the linked group that are locked
@@ -1170,7 +1170,7 @@ public abstract class Displayable extends DBObject {
 
 	public boolean updateInDatabase(String key) {
 		project.getLoader().updateCache(this, key);
-		Display3D.update(this);
+		if (Utils.java3d) Display3D.update(this);
 		return super.updateInDatabase(key);
 	}
 

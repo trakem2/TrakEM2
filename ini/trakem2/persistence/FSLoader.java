@@ -686,13 +686,14 @@ public class FSLoader extends Loader {
 		item = new JMenuItem("Save as..."); item.addActionListener(listener); menu.add(item);
 	}
 
-	protected void importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
+	/** Returns the last Patch. */
+	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
 		Utils.log2("FSLoader.importStackAsPatches filepath=" + filepath);
 		String target_dir = null;
 		if (as_copy) {
 			DirectoryChooser dc = new DirectoryChooser("Folder to save images");
 			target_dir = dc.getDirectory();
-			if (null == target_dir) return; // user canceled dialog
+			if (null == target_dir) return null; // user canceled dialog
 			if (target_dir.length() -1 != target_dir.lastIndexOf(File.separatorChar)) {
 				target_dir += "/";
 			}
@@ -713,7 +714,7 @@ public class FSLoader extends Loader {
 			if (i > 1) layer = first_layer.getParent().getLayer(z, thickness, true); // will create new layer if not found
 			if (null == layer) {
 				Utils.log("Display.importStack: could not create new layers.");
-				return;
+				return null;
 			}
 			String patch_path = null;
 
@@ -758,5 +759,7 @@ public class FSLoader extends Loader {
 			Utils.showProgress(i * (1.0 / n));
 		}
 		Utils.showProgress(1.0);
+		// return the last patch
+		return previous_patch;
 	}
 }

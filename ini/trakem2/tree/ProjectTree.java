@@ -48,6 +48,10 @@ import java.io.File;
 /** A class to hold a tree of Thing nodes */
 public class ProjectTree extends DNDTree implements MouseListener, ActionListener {
 
+	static {
+		System.setProperty("j3d.noOffScreen", "true");
+	}
+
 	private DefaultMutableTreeNode selected_node = null;
 
 	public ProjectTree(Project project, ProjectThing project_thing) {
@@ -164,7 +168,6 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 					this.setSelectionPath(treePath);
 				}
 			} else if (command.equals("Unhide")) {
-				// if the Thing contains a basic type, then show it in the layer; else, show it in a Interactive3DSpace
 				thing.setVisible(true);
 				Object obd = thing.getObject();
 				if (obd instanceof Displayable) {

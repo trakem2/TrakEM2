@@ -2365,17 +2365,18 @@ abstract public class Loader {
 			double current_thickness = first_layer.getThickness();
 			double thickness = current_thickness;
 			boolean expand_layer_set = false;
+			boolean lock_stack = false;
 			int anchor = LayerSet.NORTHWEST; //default
 			if (ask_for_data) {
 				// ask for slice separation in pixels
 				GenericDialog gd = new GenericDialog("Slice separation?");
 				gd.addMessage("Please enter the slice thickness, in pixels");
 				gd.addNumericField("slice thickness: ", imp_stack.getCalibration().pixelDepth /*first_layer.getThickness()*/, 3);
-				if (layer_width < imp_stack.getWidth() || layer_height < imp_stack.getHeight()) {
-					gd.addMessage("Layer width/height are smaller than the stack's:");
-					gd.addCheckbox("Expand LayerSet dimensions", true);
+				if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
+					gd.addCheckbox("Resize canvas to fit stack", true);
 					gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
 				}
+				gd.addCheckbox("Lock stack", false);
 				gd.showDialog();
 				if (gd.wasCanceled()) {
 					if (null == imp_stacks) { // flush only if it was not open before
@@ -2387,6 +2388,7 @@ abstract public class Loader {
 					expand_layer_set = gd.getNextBoolean();
 					anchor = gd.getNextChoiceIndex();
 				}
+				lock_stack = gd.getNextBoolean();
 				thickness = gd.getNextNumber();
 				// check provided thickness with that of the first layer:
 				if (thickness != current_thickness) {
@@ -2407,26 +2409,7 @@ abstract public class Loader {
 			}
 
 			if (layer_width < imp_stack.getWidth() || layer_height < imp_stack.getHeight()) {
-				if (!expand_layer_set) {
-					GenericDialog gd = new GenericDialog("Too small!");
-					gd.addMessage("Layer width/height are different from the stack's:");
-					gd.addMessage("You must expand the LayerSet dimensions:");
-					gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
-					gd.showDialog();
-					if (gd.wasCanceled()) {
-						if (null == imp_stacks) imp_stack.flush(); // flush only if it was not open before
-						return;
-					}
-					anchor = gd.getNextChoiceIndex();
-				}
-				// resize LayerSet: keep the largest dimensions
-				double new_width = imp_stack.getWidth() > layer_width ? imp_stack.getWidth() : layer_width;
-				double new_height = imp_stack.getHeight() > layer_height ? imp_stack.getHeight() : layer_height;
-				if (! first_layer.getParent().setDimensions(new_width, new_height, anchor)) {
-					Utils.showMessage("Failed to resize the LayerSet. Wrong dimensions, or the new dimensions would crop away existing Displayable elements.");
-					if (null == imp_stacks) imp_stack.flush(); // flush only if it was not open before
-					return;
-				}
+				expand_layer_set = true;
 			}
 
 			if (null == filepath) {
@@ -2439,7 +2422,12 @@ abstract public class Loader {
 			}
 
 			// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
-			this.importStackAsPatches(first_layer.getProject(), first_layer, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
+			Patch last_patch = this.importStackAsPatches(first_layer.getProject(), first_layer, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
+			if (null != last_patch) last_patch.setLocked(lock_stack);
+
+			if (expand_layer_set) {
+				last_patch.getLayer().getParent().setMinimumDimensions();
+			}
 
 			// it is safe not to flush the imp_stack, because all its resources are being used anyway (all the ImageProcessor), and it has no awt.Image. Unless it's being shown in ImageJ, and then it will be flushed on its own when the user closes its window.
 		} catch (Exception e) {
@@ -2448,7 +2436,7 @@ abstract public class Loader {
 		}
 	}
 
-	abstract protected void importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath);
+	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath);
 
 	protected String export(Project project, File fxml) {
 		return export(project, fxml, true);

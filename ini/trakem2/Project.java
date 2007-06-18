@@ -271,19 +271,23 @@ public class Project extends DBObject {
 	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for. */
 	static public void newFSProject(String arg) {
 		if (Utils.wrongImageJVersion()) return;
-		FSLoader loader = new FSLoader();
-		if (!loader.isReady()) return;
-		Project project = createNewProject(loader, arg == null || !arg.equals("blank"));
-		// help the helpless users:
-		if (null != project && ControlWindow.isGUIEnabled()) {
-			Utils.log2("Creating automatic Display.");
-			Layer layer = new Layer(project, 0, 1, project.layer_set);
-			project.layer_set.add(layer);
-			project.layer_tree.addLayer(project.layer_set, layer);
-			Display display = new Display(project, layer);
-			Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
-			display.getCanvas().setup(0.25, srcRect);
-			display.updateTitle();
+		try {
+			FSLoader loader = new FSLoader();
+			if (!loader.isReady()) return;
+			Project project = createNewProject(loader, arg == null || !arg.equals("blank"));
+			// help the helpless users:
+			if (null != project && ControlWindow.isGUIEnabled()) {
+				Utils.log2("Creating automatic Display.");
+				Layer layer = new Layer(project, 0, 1, project.layer_set);
+				project.layer_set.add(layer);
+				project.layer_tree.addLayer(project.layer_set, layer);
+				Display display = new Display(project, layer);
+				Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
+				display.getCanvas().setup(0.25, srcRect);
+				display.updateTitle();
+			}
+		} catch (Exception e) {
+			new IJError(e);
 		}
 	}
 
