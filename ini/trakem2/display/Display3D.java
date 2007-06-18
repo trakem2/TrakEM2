@@ -311,30 +311,34 @@ public class Display3D {
 		Display3D d3d = get(p.getLayerSet());
 		d3d.adjustResampling();
 		d3d.universe.resetView();
-		d3d.universe.addOrthoslice(p.makePatchStack(), null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
+		ImagePlus imp = get8BitStack(p.makePatchStack());
+		d3d.universe.addOrthoslice(imp, null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
 	}
 
 	static public void showVolume(Patch p) {
 		Display3D d3d = get(p.getLayerSet());
 		d3d.adjustResampling();
 		d3d.universe.resetView();
-		PatchStack ps = p.makePatchStack();
-		ImagePlus imp = null;
+		ImagePlus imp = get8BitStack(p.makePatchStack());
+		d3d.universe.addVoltex(imp, null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
+	}
+
+	/** Returns a stack suitable for the ImageJ 3D Viewer, either 8-bit gray or 8-bit color.
+	 *  If the PatchStach is already of the right type, it is returned,
+	 *  otherwise a copy is made in the proper type.
+	 */
+	static private ImagePlus get8BitStack(final PatchStack ps) {
 		switch (ps.getType()) {
 			case ImagePlus.COLOR_RGB:
 				// convert stack to 8-bit color
-				imp = ps.createColor256Copy();
-				break;
+				return ps.createColor256Copy();
 			case ImagePlus.GRAY16:
 			case ImagePlus.GRAY32:
 				// convert stack to 8-bit
-				imp = ps.createGray8Copy();
-				break;
+				return ps.createGray8Copy();
 			default:
-				imp = (ImagePlus)ps;
-				break;
+				return ps;
 		}
-		d3d.universe.addVoltex(imp, null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
 	}
 
 	/** A Material, but avoiding name colisions. */

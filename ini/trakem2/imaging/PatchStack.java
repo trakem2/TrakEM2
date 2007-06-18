@@ -740,10 +740,16 @@ public class PatchStack extends ImagePlus {
 		}
 	}
 
+	// WARNING This method will failif the stack has slices of different dimensions
+	/** Does not respect local transform of the patches, this is intended for confocal stacks. */
 	public ImagePlus createGray8Copy() {
+		final int width = (int)Math.ceil(patch[0].getWidth());
+		final int height =  (int)Math.ceil(patch[0].getHeight());
 		// compute minimum bounding box
-		ImageStack st = new ImageStack((int)Math.ceil(patch[0].getWidth()), (int)Math.ceil(patch[0].getHeight()));
+		ImageStack st = new ImageStack(width, height);
+		Loader loader = patch[0].getProject().getLoader();
 		for (int i=1; i<patch.length; i++) {
+			loader.releaseToFit(width * height);
 			st.addSlice(Integer.toString(i), this.stack.getProcessor(i).convertToByte(true));
 		}
 		ImagePlus imp = new ImagePlus("byte", st);
@@ -751,20 +757,25 @@ public class PatchStack extends ImagePlus {
 		return imp;
 	}
 
+	// WARNING This method will failif the stack has slices of different dimensions
 	/** Does not respect local transform of the patches, this is intended for confocal stacks. */
 	public ImagePlus createColor256Copy() {
 
 		final int width = (int)patch[0].getWidth();
 		final int height = (int)patch[0].getHeight();
+		Loader loader = patch[0].getProject().getLoader();
+		patch[0].getProject().getLoader().releaseToFit(4 * patch.length * width * height); // the montage, in RGB
 		final ColorProcessor montage = new ColorProcessor(width*patch.length, height);
 		for (int i=0; i<patch.length; i++) {
 			montage.insert(this.stack.getProcessor(i+1), i*width, 0);
 		}
 		final MedianCut mc = new MedianCut(montage);
+		loader.releaseToFit(patch.length * width * height);
 		ImageProcessor m2 = mc.convertToByte(256);
 		final ImageStack st = new ImageStack(width, height);
 		for (int i=0; i<patch.length; i++) {
 			m2.setRoi(i*width, 0, width, height);
+			loader.releaseToFit(width * height);
 			st.addSlice(null, m2.crop());
         	}
 		ImagePlus imp = new ImagePlus("color256", st);
