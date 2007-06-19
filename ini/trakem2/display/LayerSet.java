@@ -117,7 +117,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	private int max_dimension = 1024;
 	private boolean virtualization_enabled = false;
 
-	private Calibration calibration = null;
+	private Calibration calibration = new Calibration(); // default values
 
 	/** Dummy. */
 	protected LayerSet(Project project, long id) {
@@ -980,7 +980,19 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		;
 		sb_body.append(indent).append(">\n");
 		if (null != calibration) {
-			// TODO create a new XML type, or just add fields above?
+			sb_body.append(in).append("<t2_calibration\n")
+			       .append(in).append("\tpixelWidth=\"").append(calibration.pixelWidth).append("\"\n")
+			       .append(in).append("\tpixelHeight=\"").append(calibration.pixelHeight).append("\"\n")
+			       .append(in).append("\tpixelDepth=\"").append(calibration.pixelDepth).append("\"\n")
+			       .append(in).append("\txOrigin=\"").append(calibration.xOrigin).append("\"\n")
+			       .append(in).append("\tyOrigin=\"").append(calibration.yOrigin).append("\"\n")
+			       .append(in).append("\tzOrigin=\"").append(calibration.zOrigin).append("\"\n")
+			       .append(in).append("\tinfo=\"").append(calibration.info).append("\"\n")
+			       .append(in).append("\tvalueUnit=\"").append(calibration.getValueUnit()).append("\"\n")
+			       .append(in).append("\ttimeUnit=\"").append(calibration.getTimeUnit()).append("\"\n")
+			       .append(in).append("\tunit=\"").append(calibration.getUnit()).append("\"\n")
+			       .append(in).append("/>\n")
+			;
 		}
 		// export Layer and ZDisplayable objects
 		if (null != al_zdispl) {
@@ -1003,13 +1015,25 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		String type = "t2_layer_set";
 		if (!hs.contains(type)) {
-			sb_header.append(indent).append("<!ELEMENT t2_layer_set (t2_layer,t2_pipe,t2_ball,t2_area_list)>\n");
+			sb_header.append(indent).append("<!ELEMENT t2_layer_set (t2_layer,t2_pipe,t2_ball,t2_area_list,t2_calibration)>\n");
 			Displayable.exportDTD(type, sb_header, hs, indent);
 			sb_header.append(indent).append(TAG_ATTR1).append(type).append(" layer_width").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" layer_height").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_x").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_y").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_z").append(TAG_ATTR2)
+			;
+			sb_header.append(indent).append("<!ELEMENT t2_calibration EMPTY>\n")
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration pixelWidth").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration pixelHeight").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration pixelDepth").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration xOrigin").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration yOrigin").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration zOrigin").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration info").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration valueUnit").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration timeUnit").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_calibration unit").append(TAG_ATTR2)
 			;
 		}
 	}
@@ -1402,6 +1426,55 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	public void setCalibration(Calibration cal) {
-		this.calibration = (Calibration)cal.clone(); //TODO check that it's not null
+		if (null == cal) return;
+		this.calibration = (Calibration)cal.clone();
+	}
+
+	public Calibration getCalibrationCopy() {
+		return calibration.copy();
+	}
+
+	public boolean isCalibrated() {
+		Calibration identity = new Calibration();
+		if (identity.equals(this.calibration)) return true;
+		return false;
+	}
+
+	/** Restore calibration from the given XML attributes table.*/
+	public void restoreCalibration(Hashtable ht_attributes) {
+		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String value = (String)entry.getValue();
+			// remove the prefix 't2_'
+			key.substring(3).toLowerCase(); // case-resistant
+			try {
+				if (key.equals("pixelwidth")) {
+					calibration.pixelWidth = Double.parseDouble(value);
+				} else if (key.equals("pixelheight")) {
+					calibration.pixelHeight = Double.parseDouble(value);
+				} else if (key.equals("pixeldepth")) {
+					calibration.pixelDepth = Double.parseDouble(value);
+				} else if (key.equals("xorigin")) {
+					calibration.xOrigin = Double.parseDouble(value);
+				} else if (key.equals("yorigin")) {
+					calibration.yOrigin = Double.parseDouble(value);
+				} else if (key.equals("zorigin")) {
+					calibration.zOrigin = Double.parseDouble(value);
+				} else if (key.equals("info")) {
+					calibration.info = value;
+				} else if (key.equals("valueunit")) {
+					calibration.setValueUnit(value);
+				} else if (key.equals("timeunit")) {
+					calibration.setTimeUnit(value);
+				} else if (key.equals("unit")) {
+					calibration.setUnit(value);
+				}
+			} catch (Exception e) {
+				Utils.log2("LayerSet.restoreCalibration, key/value failed:" + key + "=\"" + value +"\"");
+				new IJError(e);
+			}
+		}
+		Utils.log2("Restored LayerSet calibration: " + calibration);
 	}
 }

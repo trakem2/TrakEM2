@@ -322,7 +322,7 @@ public class StitchingTEM {
 			ip2 = makeStripe(moving, roi2, scale);
 			//new ImagePlus("roi1", ip1).show();
 			//new ImagePlus("roi2", ip2).show();
-			pc = new PhaseCorrelation2D(ip1, ip2, limit, false, false, false); // with windowing
+			pc = new PhaseCorrelation2D(ip1, ip2, limit, true, false, false); // with windowing
 			final Point shift = pc.computePhaseCorrelation();
 			final PhaseCorrelation2D.CrossCorrelationResult result = pc.getResult();
 			Utils.log2("overlap: " + overlap + " R: " + result.R + " shift: " + shift + " x2,y2: " + x2 + ", " + y2);

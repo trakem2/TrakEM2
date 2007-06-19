@@ -1791,7 +1791,7 @@ abstract public class Loader {
 	}
 
 	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
-	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final boolean force_to_file) {
+	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality) {
 		final Worker worker = new Worker("making flat images") { public void run() {
 			try {
 			//
@@ -1852,7 +1852,7 @@ abstract public class Loader {
 				// 2 - get all slices
 				ImageStack stack = null;
 				for (int i=0; i<layer.length; i++) {
-					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class);
+					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, quality);
 					if (null == slice) {
 						Utils.log("Could not retrieve flat image for " + layer[i].toString());
 						continue;
@@ -1869,7 +1869,7 @@ abstract public class Loader {
 					imp.getCalibration().pixelDepth = voxel_depth;
 				}
 			} else {
-				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class);
+				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, quality);
 				if (null != target_dir) {
 					saveToPath(imp, target_dir, layer[0].getPrintableTitle(), ".tif.zip");
 					imp = null; // to prevent showing it
@@ -1911,15 +1911,22 @@ abstract public class Loader {
 		}
 	}
 
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz) {
-		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, null);
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, final boolean quality) {
+		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, null, quality);
+	}
+
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ) {
+		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, false);
 	}
 
 	/** Returns a screenshot of the given layer for the given magnification and srcRect. Returns null if the was not enough memory to create it.
 	 * @param al_displ The Displayable objects to paint. If null, all those matching Class clazz are included. */
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
 		ImagePlus imp = null;
 		try {
+
+			double scaleP = quality ? 1.0 : scale;
+
 			if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 			// dimensions
 			int x = 0;
@@ -1939,8 +1946,9 @@ abstract public class Loader {
 			}
 			Utils.log2("Loader.getFlatImage: using rectangle " + srcRect);
 			// estimate image size
-			long bytes = (long)((w * h * scale * scale * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
-			Utils.log2("Flat image estimated bytes: " + Long.toString(bytes) + "  w,h : " + (int)Math.ceil(w * scale) + "," + (int)Math.ceil(h * scale));
+			long bytes = (long)((w * h * scaleP * scaleP * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
+			Utils.log2("Flat image estimated bytes: " + Long.toString(bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP));
+
 			//synchronized (db_lock) {
 			//	lock();
 				releaseToFit(bytes); // locks on it s own
@@ -1968,13 +1976,21 @@ abstract public class Loader {
 						g[i]=(byte)i;
 						b[i]=(byte)i;
 					}
-					bi = new BufferedImage((int)Math.ceil(w * scale), (int)Math.ceil(h * scale), BufferedImage.TYPE_BYTE_INDEXED, new IndexColorModel(8, 256, r, g, b));//INDEXED); // will show incorrect as 8-bit color, but the proper scale is preserved.
+					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, new IndexColorModel(8, 256, r, g, b));//INDEXED); // will show incorrect as 8-bit color, but the proper scale is preserved.
 					break;
 				case ImagePlus.COLOR_RGB:
-					bi = new BufferedImage((int)Math.ceil(w * scale), (int)Math.ceil(h * scale), BufferedImage.TYPE_INT_ARGB);
+					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_INT_ARGB);
 					break;
 			}
 			Graphics2D g2d = bi.createGraphics();
+
+			// fill background with black, since the getScaledInstance creates an RGB with white background
+			if (quality) {
+				g2d.setColor(Color.black);
+				g2d.fillRect(0, 0, bi.getWidth(), bi.getHeight());
+			}
+
+
 			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
 			g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -2019,12 +2035,12 @@ abstract public class Loader {
 					zd_done = true;
 					for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 						ZDisplayable zd = (ZDisplayable)itz.next();
-						zd.paint(g2d, scale, srcRect, null, false, c_alphas, layer);
+						zd.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
 						count++;
 						//Utils.log2("Painted " + count + " of " + total);
 					}
 				}
-				d.paint(g2d, scale, srcRect, null, false, c_alphas, layer);
+				d.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
 				count++;
 				//Utils.log2("Painted " + count + " of " + total);
 			}
@@ -2032,7 +2048,7 @@ abstract public class Loader {
 				zd_done = true;
 				for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 					ZDisplayable zd = (ZDisplayable)itz.next();
-					zd.paint(g2d, scale, srcRect, null, false, c_alphas, layer);
+					zd.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
 					count++;
 					//Utils.log2("Painted " + count + " of " + total);
 				}
@@ -2044,7 +2060,10 @@ abstract public class Loader {
 			//	unlock();
 			//}
 			try {
-				imp = new ImagePlus(layer.getPrintableTitle(), bi);
+				Image scaled = bi;
+				if (quality) scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
+				// else the image was made scaled down already
+				imp = new ImagePlus(layer.getPrintableTitle(), scaled);
 			} catch (OutOfMemoryError oome) {
 				if (null != imp) imp.flush();
 				imp = null;
@@ -2164,7 +2183,7 @@ abstract public class Loader {
 							if (tile_src.x + tile_src.width > srcRect.x + srcRect.width) tile_src.width = srcRect.x + srcRect.width - tile_src.x;
 							if (tile_src.y + tile_src.height > srcRect.x + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 							// negative tile sizes will be made into black tiles
-							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, new StringBuffer(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains
+							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, new StringBuffer(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I inversed it.
 						}
 					}
 					scale_pow++;
@@ -2192,7 +2211,7 @@ abstract public class Loader {
 	private void makeTile(Layer layer, Rectangle srcRect, double mag, int c_alphas, int type, Class clazz, String file_path) throws Exception {
 		ImagePlus imp = null;
 		if (srcRect.width > 0 && srcRect.height > 0) {
-			imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz);
+			imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz, null, true); // with quality
 		} else {
 			imp = new ImagePlus("", new ByteProcessor(256, 256)); // black tile
 		}
@@ -2406,6 +2425,15 @@ abstract public class Loader {
 			if (null == imp_stack.getStack()) {
 				Utils.showMessage("Not a stack.");
 				return;
+			}
+
+			// WARNING: there are fundamental issues with calibration, because the Layer thickness is disconnected from the Calibration pixelDepth
+
+			// set LayerSet calibration if there is no calibration
+			if (!first_layer.getParent().isCalibrated()) {
+				Calibration cal = imp_stack.getCalibration();
+				cal.pixelDepth = thickness;
+				first_layer.getParent().setCalibration(cal);
 			}
 
 			if (layer_width < imp_stack.getWidth() || layer_height < imp_stack.getHeight()) {

@@ -65,6 +65,8 @@ public class PatchStack extends ImagePlus {
 		this.changes = false;
 		called = new boolean[patch.length];
 		for (int i=0; i<patch.length; i++) called[i] = false;
+		//
+		super.setCalibration(patch[0].getLayer().getParent().getCalibrationCopy());
 	}
 
 	/** Assumes all patches are of the same dimensions. */
@@ -526,11 +528,11 @@ public class PatchStack extends ImagePlus {
 		if (null!=roi) {
 			saveRoi();
 			roi = null;
-			ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
-			ImageProcessor ip = imp.getProcessor();
-			ip.resetRoi();
-			//draw() // not needed
 		}
+		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
+		imp.killRoi();
+		Utils.log2("PatchStack: reseting roi");
+		//draw() // not needed
 	}
 
 	public void saveRoi() {
@@ -553,7 +555,7 @@ public class PatchStack extends ImagePlus {
 		Loader loader = patch[0].getProject().getLoader();
 		for (int i=0; i<patch.length; i++) {
 			if (null == patch[i]) continue; // when closing from the Patch.remove(boolean() if isStack() ? TODO investigate
-			ImagePlus imp = loader.fetchImagePlus(patch[i]); // will be called repeatedly if the imp is a stack serving all or most of the PatchStack slices. TODO
+			ImagePlus imp = loader.fetchImagePlus(patch[i]); // will be called repeatedly if the imp is a stack serving all or most of the PatchStack slices. But it's prevented below
 			Image awt = loader.fetchImage(patch[i]);
 			if (null == awt || null == imp || null == imp.getImage()) continue; // when closing from the Patch.remove(boolean() if isStack() ? TODO investigate
 			if (!awt.equals(imp.getImage())) imp.getImage().flush(); // omly if it's different
@@ -570,10 +572,15 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public void setCalibration(Calibration cal) {
+		// pass it to the LayerSet
+		patch[0].getLayer().getParent().setCalibration(cal);
+		// and the super of course
+		super.setCalibration(cal);
+		// set it locally to the ImagePlus'es
 		for (int i=0; i<patch.length; i++) {
 			ImagePlus imp = patch[i].getProject().getLoader().fetchImagePlus(patch[i]);
 			imp.setCalibration(cal);
-			// TODO: update in database? Is calibration saved with the ImagePlus?
+			if (imp.getStackSize() > 1) return; // done, for real stacks
 		}
 	}
 
@@ -582,11 +589,8 @@ public class PatchStack extends ImagePlus {
 		return imp.getCalibration();
 	}
 
-	// copied verbatim because I need to in
 	public void copy(boolean cut) {
 		super.copy(cut);
-		//absolutely not needed//patch[currentSlice-1].updateInDatabase("tiff_working");
-		//patch[currentSlice-1].getProject().getLoader().vacuum();
 	}
 
 	public void paste() {
@@ -596,7 +600,6 @@ public class PatchStack extends ImagePlus {
 		// TODO: make sure that the srcRect that the super method gets makes any sense to it when the Canvas is larger than this image, or viceversa.
 
 		patch[currentSlice-1].updateInDatabase("tiff_working");
-		//patch[currentSlice-1].getProject().getLoader().vacuum();
 	}
 
 	/** Remove all awts and snaps from the loader's cache, and repaint (which will remake as many as needed) */

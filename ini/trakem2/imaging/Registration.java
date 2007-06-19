@@ -133,8 +133,8 @@ public class Registration {
 			Rectangle box2 = layer2.getMinimalBoundingBox(Patch.class);
 			if (null == box2) return false;
 			// get flat grayscale images, scaled
-			ImagePlus imp1 = layer1.getProject().getLoader().getFlatImage(layer1, box1, scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class);
-			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class);
+			ImagePlus imp1 = layer1.getProject().getLoader().getFlatImage(layer1, box1, scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
 			// ready to start
 			data = register(imp1, imp2, true, true, ignore_squared_angles, enhance_edges); // WARNING relative to the box1 and box2 centers!!
 			// Grab all objects

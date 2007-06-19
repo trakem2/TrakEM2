@@ -178,12 +178,28 @@ public class FakeImagePlus extends ImagePlus {
 
 	/** Returns the super, which is a dummy 4x4 */ //Returns a virtual stack made of boxes with the dimension of the ROI or the whole layer, so that pixels are retrieved on the fly.
 	public ImageProcessor getProcessor() {
-		return super.getProcessor(); // TODO for the WAND, should return the proper processor from the last_temp PatchStack
+		return super.getProcessor();
 	}
 
 	/** Forward to LayerSet. */
 	public void setCalibration(Calibration cal) {
 		super.setCalibration(cal);
 		display.getLayer().getParent().setCalibration(cal);
+	}
+
+	public void setCalibrationSuper(Calibration cal) {
+		super.setCalibration(cal);
+	}
+
+	/** Forward kill roi to the last_temp of the associated Display. */
+	public void killRoi() {
+		if (null!=roi) {
+			saveRoi();
+			roi = null;
+			getProcessor().resetRoi();
+		}
+		ImagePlus last_temp = display.getLastTemp();
+		Utils.log2("Last temp is " + last_temp.getClass());
+		if (null != last_temp && !last_temp.equals(this)) last_temp.killRoi();
 	}
 }

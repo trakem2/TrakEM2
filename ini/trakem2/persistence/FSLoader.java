@@ -759,6 +759,8 @@ public class FSLoader extends Loader {
 			Utils.showProgress(i * (1.0 / n));
 		}
 		Utils.showProgress(1.0);
+		// update calibration
+		//if ( TODO
 		// return the last patch
 		return previous_patch;
 	}

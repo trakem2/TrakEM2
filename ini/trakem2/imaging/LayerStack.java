@@ -3,6 +3,7 @@ package ini.trakem2.imaging;
 import ij.process.*;
 import ij.*;
 import ij.gui.Roi;
+import ij.measure.Calibration;
 
 import ini.trakem2.display.*;
 import ini.trakem2.utils.Utils;
@@ -233,6 +234,7 @@ public class LayerStack extends ImageStack {
 
 		public LayerImagePlus(String title, ImageStack stack) {
 			super(title, stack);
+			super.setCalibration(layer_set.getCalibrationCopy());
 		}
 
 		/** Prevent premature calls to getPixels. */
@@ -246,5 +248,10 @@ public class LayerStack extends ImageStack {
 			ip = getProcessor(); // creates a new one for the stack
 			ip.setPixels(getPixels(currentSlice));
 		}
+
+		public void setCalibration(Calibration cal) {
+			layer_set.setCalibration(cal);
+			super.setCalibration(cal);
+		}
 	}
-} 
+}

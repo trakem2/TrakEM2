@@ -484,6 +484,15 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayer(set);
 				Object ot = ht_attributes.get("title");
 				return new LayerThing(template_layer_set_thing, project, -1, (null == ot ? null : (String)ot), set, null, null);
+			} else if (type.equals("calibration")) {
+				// find last open LayerSet if any
+				for (int i = al_layer_sets.size() -1; i>-1; i--) {
+					LayerSet set = (LayerSet)al_layer_sets.get(i);
+					set.restoreCalibration(ht_attributes);
+					return null;
+				}
+			} else {
+				Utils.log2("TMLHandler Unknown type: " + type);
 			}
 		} catch (Exception e) {
 			new IJError(e);

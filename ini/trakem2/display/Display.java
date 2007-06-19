@@ -686,6 +686,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 		updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
 
+		
+		((FakeImagePlus)canvas.getFakeImagePlus()).setCalibrationSuper(layer.getParent().getCalibrationCopy());
 
 		// create a drag and drop listener
 		dnd = new DNDInsertImage(this);
@@ -2518,6 +2520,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				Display.addLayerRangeChoices(this.layer, gd); /// $#%! where are my lisp macros
 				gd.addCheckbox("Include non-empty layers only", true);
 			}
+			gd.addCheckbox("Best quality", false);
+			gd.addMessage("");
 			gd.addCheckbox("Save to file", false);
 			gd.addCheckbox("Save for web", false);
 			gd.showDialog();
@@ -2551,11 +2555,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			} else {
 				layer_array = new Layer[]{this.layer};
 			}
+			final boolean quality = gd.getNextBoolean();
 			final boolean save_to_file = gd.getNextBoolean();
 			final boolean save_for_web = gd.getNextBoolean();
 			// in its own thread
 			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type);
-			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file);
+			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, quality);
 
 		} else if (command.equals("Lock")) {
 			selection.setLocked(true);
@@ -3036,39 +3041,35 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Sets the ImagePlus that ImageJ will see in its WindowManager while this Display is activated. */
 	private void createTempCurrentImage() {
 		ImagePlus temp = null;
-		if (selection.isEmpty()) {
-			// show the FakeImagePlus, for measuring
-			temp = canvas.getFakeImagePlus();
+		final ArrayList al = selection.getSelected();
+		if (1 == selection.getNSelected() && getActive() instanceof Patch) {
+			// present the currently selected image or stack
+			Patch patch = (Patch)al.get(0);
+			PatchStack ps = patch.makePatchStack(); // gets the LayerSet calibration on its own
+			ps.setCurrentSlice(patch);
+			temp = ps;
 		} else {
-			ArrayList al = selection.getSelected();
-			if (1 == al.size() && al.get(0) instanceof Patch) {
-				// present the currently selected image or stack
-				Patch patch = (Patch)al.get(0);
-				PatchStack ps = patch.makePatchStack();
-				ps.setCurrentSlice(patch);
-				temp = ps;
-			} else {
-				if (layer.getParent().isPixelsVirtualizationEnabled()) {
-					// show all selected in a LayerStack
-					ImageStack stack = null == temp ? null : temp.getStack();
-					if (null != stack && stack instanceof LayerStack) {
-						((LayerStack)stack).setDisplayables(al);
-					} else {
-						LayerStack lstack = layer.getParent().makeLayerStack(this);
-						lstack.setDisplayables(al);
-						stack = lstack;
-					}
-					// make new to renew the width and height
-					temp = ((LayerStack)stack).getImagePlus();
-					int i_slice = layer.getParent().indexOf(layer) +1;
-					temp.setSlice(i_slice);
+			if (layer.getParent().isPixelsVirtualizationEnabled()) {
+				// show all selected in a LayerStack
+				ImageStack stack = null == temp ? null : temp.getStack();
+				if (null != stack && stack instanceof LayerStack) {
+					((LayerStack)stack).setDisplayables(al);
 				} else {
-					temp = canvas.getFakeImagePlus();
+					LayerStack lstack = layer.getParent().makeLayerStack(this);
+					lstack.setDisplayables(al);
+					stack = lstack;
 				}
+				// make new to renew the width and height
+				temp = ((LayerStack)stack).getImagePlus(); // gets the LayerSet calibration on its own
+				int i_slice = layer.getParent().indexOf(layer) +1;
+				temp.setSlice(i_slice);
+			} else {
+				temp = canvas.getFakeImagePlus();
+				((FakeImagePlus)temp).setCalibrationSuper(layer.getParent().getCalibrationCopy());
 			}
-			//Utils.log("Setting to " + al.size() + " displ");
 		}
-		temp.getCalibration().pixelDepth = layer.getParent().getLayer(0).getThickness();
+		// Calibration is taken care of in the fake imagepluses constructors
+		//temp.getCalibration().pixelDepth = layer.getParent().getLayer(0).getThickness();
 		last_temp = temp;
 		//Utils.log2("currentSlice: " + temp.getCurrentSlice() + " for layer index " + layer.getParent().indexOf(layer));
 	}
