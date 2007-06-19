@@ -1493,7 +1493,9 @@ abstract public class Loader {
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
 				pall[i][j] = patch;
 				// TODO WARNING if the c_alphas is not 0x00ffffff, this won't generate the expected snapshot! But then, creating the awt.Image is a huge load
-				Image snap = img.getProcessor().resize((int)Math.ceil(img.getWidth() * Snapshot.SCALE), (int)Math.ceil(img.getHeight() * Snapshot.SCALE)).createImage();
+				ImageProcessor ip = img.getProcessor();
+				ip.setInterpolate(true);
+				Image snap = ip.resize((int)Math.ceil(img.getWidth() * Snapshot.SCALE), (int)Math.ceil(img.getHeight() * Snapshot.SCALE)).createImage();
 				snaps.put(patch.getId(), snap);
 
 				al.add(patch);
