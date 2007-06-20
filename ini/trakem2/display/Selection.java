@@ -108,11 +108,13 @@ public class Selection {
 	}
 
 	private void lock() {
+		Utils.printCaller(this, 7);
 		while (queue_locked) { try { queue_lock.wait(); } catch (InterruptedException ie) {} }
 		queue_locked = true;
 	}
 
 	private void unlock() {
+		Utils.printCaller(this);
 		queue_locked = false;
 		queue_lock.notifyAll();
 	}
@@ -575,14 +577,15 @@ public class Selection {
 	public boolean deleteAll() {
 		synchronized (queue_lock) {
 		try {
-			lock();
 			if (null == active) return true; // nothing to remove
 			if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
+			lock();
 			if (null != display) display.setActive(null);
 			this.active = null;
 			StringBuffer sb = new StringBuffer();
 			Displayable[] d = new Displayable[queue.size()];
 			queue.toArray(d);
+			unlock();
 			try {
 				display.getProject().getLoader().startLargeUpdate();
 				for (int i=0; i<d.length; i++) {
@@ -604,7 +607,7 @@ public class Selection {
 		} catch (Exception e) {
 			new IJError(e);
 		} finally {
-			unlock();
+			if (queue_locked) unlock();
 		}}
 		return true;
 	}

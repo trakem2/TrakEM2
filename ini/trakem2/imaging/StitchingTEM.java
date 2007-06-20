@@ -322,6 +322,9 @@ public class StitchingTEM {
 			ip2 = makeStripe(moving, roi2, scale);
 			//new ImagePlus("roi1", ip1).show();
 			//new ImagePlus("roi2", ip2).show();
+			ip1.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip1.getPixels(), ip1.getWidth(), ip1.getHeight()), 1f).data);
+			ip2.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip2.getPixels(), ip2.getWidth(), ip2.getHeight()), 1f).data);
+			//
 			pc = new PhaseCorrelation2D(ip1, ip2, limit, true, false, false); // with windowing
 			final Point shift = pc.computePhaseCorrelation();
 			final PhaseCorrelation2D.CrossCorrelationResult result = pc.getResult();
@@ -369,7 +372,7 @@ public class StitchingTEM {
 		ip1 = makeStripe(base, roi1, scale);
 		ip2 = makeStripe(moving, roi2, scale);
 
-		// gaussian blur them befoe cross-correlation
+		// gaussian blur them before cross-correlation
 		ip1.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip1.getPixels(), ip1.getWidth(), ip1.getHeight()), 1f).data);
 		ip2.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip2.getPixels(), ip2.getWidth(), ip2.getHeight()), 1f).data);
 

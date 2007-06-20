@@ -413,6 +413,7 @@ public class FSLoader extends Loader {
 				if (key.equals("tiff_working")) {
 					boolean overwrite = null != path;
 					if (overwrite) {
+						Utils.printCaller(this, 10);
 						YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "Overwrite '" + p.getTitle() + "'\nat " + path + "' ?");
 						if (yn.cancelPressed()) {
 							return false;

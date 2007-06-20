@@ -1946,8 +1946,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		//for (Iterator it = al.iterator(); it.hasNext(); ) {
 		//	Utils.log2("going to test for: " + it.next().toString());
 		//}
-		// desired small image width for snapping:
-		int target_width = 100;
 		// dragged Patch
 		Patch p_dragged = (Patch)d;
 		// check that all images are of the same size

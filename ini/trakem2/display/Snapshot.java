@@ -162,14 +162,44 @@ public class Snapshot {
 
 	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. */
 	static public Image createSnap(final Patch p, final Image awt, final double mag) {
+		final int w = (int)Math.ceil(p.getWidth() * mag);
+		final int h = (int)Math.ceil(p.getHeight() * mag);
 		if (p.getLayer().getParent().snapshotsQuality()) {
-			return awt.getScaledInstance((int)Math.ceil(p.getWidth() * mag), (int)Math.ceil(p.getHeight() * mag), Image.SCALE_AREA_AVERAGING);
+			// best, but very slow
+			return awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING);
+			//second best, much faster, should be slightly blurry but looks grainy as well
+			/*
+			int type = p.getType();
+			int wa = awt.getWidth(null);
+			int ha = awt.getHeight(null);
+			Image bim = awt;
+			do {
+				wa /= 2;
+				ha /= 2;
+				if (wa < w) wa = w;
+				if (ha < h) ha = h;
+				BufferedImage tmp = null;
+				switch (type) {
+					case ImagePlus.COLOR_RGB:
+						tmp = new BufferedImage(wa, ha, BufferedImage.TYPE_INT_RGB);
+						break;
+					default:
+						tmp = new BufferedImage(wa, ha, BufferedImage.TYPE_BYTE_INDEXED, cm);
+						break;
+				}
+				Graphics2D g2 = tmp.createGraphics();
+				g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+				g2.drawImage(bim, 0, 0, wa, ha, null);
+				g2.dispose();
+
+				bim = tmp;
+			} while (wa != w || ha != h);
+			return bim;
+			*/
 		}
 		// else, grainy images by nearest-neighbor
 		BufferedImage bi = null;
 		Graphics2D g = null;
-		int w = (int)Math.ceil(p.getWidth() * mag);
-		int h = (int)Math.ceil(p.getHeight() * mag);
 		switch (p.getType()) {
 			case ImagePlus.COLOR_RGB:
 				bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
