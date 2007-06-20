@@ -96,6 +96,9 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	private boolean snapshots_enabled = true;
 
+	/** For creating snapshots. */
+	private boolean snapshots_quality = false;
+
 	/** Store Hashtables of displayable/transformation pairs for undo. */
 	private LinkedList undo_queue = new LinkedList();
 	/** Store Hashtables of displayable/transformation pairs for redo, as they are popped out of the undo_queue list. This list will be cleared the moment a new action is stored in the undo_queue.*/
@@ -167,6 +170,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				this.rot_y = Double.parseDouble(data);
 			} else if (key.equals("rot_z")) {
 				this.rot_z = Double.parseDouble(data);
+			} else if (key.equals("snapshots_quality")) {
+				snapshots_quality = Boolean.valueOf(data.trim().toLowerCase());
+			} else if (key.equals("snapshots_enabled")) {
+				snapshots_enabled = Boolean.valueOf(data.trim().toLowerCase());
 			}
 			// the above would be trivial in Jython, and can be done by reflection! The problem would be in the parsing, that would need yet another if/else if/ sequence was any field to change or be added.
 		}
@@ -976,6 +983,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		       .append(in).append("rot_x=\"").append(rot_x).append("\"\n")
 		       .append(in).append("rot_y=\"").append(rot_y).append("\"\n")
 		       .append(in).append("rot_z=\"").append(rot_z).append("\"\n")
+		       .append(in).append("snapshots_quality=\"").append(snapshots_quality).append("\"\n")
+		       .append(in).append("snapshots_enabled=\"").append(snapshots_enabled).append("\"\n")
 		       // TODO: alpha! But I don't care.
 		;
 		sb_body.append(indent).append(">\n");
@@ -1022,6 +1031,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_x").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_y").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_z").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_quality").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_enabled").append(TAG_ATTR2)
 			;
 			sb_header.append(indent).append("<!ELEMENT t2_calibration EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_calibration pixelWidth").append(TAG_ATTR2)
@@ -1476,5 +1487,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			}
 		}
 		Utils.log2("Restored LayerSet calibration: " + calibration);
+	}
+
+	/** For creating snapshots, using a very slow but much better scaling algorithm (the Image.SCALE_AREA_AVERAGING method). */
+	public boolean snapshotsQuality() {
+		return snapshots_quality;
+	}
+
+	public void setSnapshotsQuality(boolean b) {
+		this.snapshots_quality = b;
+		updateInDatabase("snapshots_quality");
 	}
 }

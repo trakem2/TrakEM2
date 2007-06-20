@@ -27,6 +27,7 @@ import ij.ImagePlus;
 import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Graphics;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.HashSet;
 import java.util.Hashtable;
@@ -56,6 +57,8 @@ public class Selection {
 	private Display display;
 	/** Queue of all selected objects. */
 	private final LinkedList queue = new LinkedList();
+	private final Object queue_lock = new Object();
+	private boolean queue_locked = false;
 	/** Relation of all selected objects plus their links, versus their transforms. */ // because what has to be transformed is all objects linked to the selected ones.
 	private final Hashtable ht = new Hashtable();
 	private Displayable active = null;
@@ -104,14 +107,36 @@ public class Selection {
 		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, R_NW, R_NE, R_SE, R_SW, floater}; // shitty java, why no dictionaries (don't get me started with Hashtable class painful usability)
 	}
 
+	private void lock() {
+		while (queue_locked) { try { queue_lock.wait(); } catch (InterruptedException ie) {} }
+		queue_locked = true;
+	}
+
+	private void unlock() {
+		queue_locked = false;
+		queue_lock.notifyAll();
+	}
+
 	/** Paint a white frame around the selected object and a pink frame around all others. Active is painted last, so white frame is always top. */
 	public void paint(Graphics g, Rectangle srcRect, double magnification) {
 		// paint rectangle around selected Displayable elements
 		if (queue.isEmpty()) return;
 		g.setColor(Color.pink);
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			Transform t = (Transform)ht.get(d);
+		Displayable[] da = null;
+		synchronized (queue_lock) {
+			lock();
+			try {
+				da = new Displayable[queue.size()];
+				queue.toArray(da);
+			} catch (Exception e) {
+				new IJError(e);
+			} finally {
+				unlock();
+			}
+		}
+		for (int i=0; i<da.length; i++) {
+			final Displayable d = da[i];
+			final Transform t = (Transform)ht.get(d);
 			//Utils.log("d, t: " + d + ", " + t);
 			if (null == t) {
 				Utils.log2("Selection.paint warning: null t for d: " + d);
@@ -416,17 +441,26 @@ public class Selection {
 	}
 
 	public void setActive(Displayable d) {
-		if (!queue.contains(d)) {
-			Utils.log2("Selection.setActive warning: " + d + " is not part of the selection");
-			return;
-		}
-		active = d;
-		if (null != display) {
-			if (active instanceof ZDisplayable) {
-				active.setLayer(display.getLayer());
-				//no need, selection is cleared and then the ZDisplayable is added again when changing layers in the Display //ht.put(active, active.getTransform()); // update for the active Layer
+		synchronized (queue_lock) {
+			try {
+				lock();
+				if (!queue.contains(d)) {
+					Utils.log2("Selection.setActive warning: " + d + " is not part of the selection");
+					return;
+				}
+				active = d;
+				if (null != display) {
+					if (active instanceof ZDisplayable) {
+						active.setLayer(display.getLayer());
+						//no need, selection is cleared and then the ZDisplayable is added again when changing layers in the Display //ht.put(active, active.getTransform()); // update for the active Layer
+					}
+					display.setActive(d);
+				}
+			} catch (Exception e) {
+				new IJError(e);
+			} finally {
+				unlock();
 			}
-			display.setActive(d);
 		}
 	}
 
@@ -435,41 +469,50 @@ public class Selection {
 			Utils.log2("Selection.add warning: skipping null ob");
 			return;
 		}
-		this.active = d;
-		if (queue.contains(d)) {
-			if (null != display) {
-				if (d instanceof ZDisplayable) d.setLayer(display.getLayer());
-				display.setActive(d);
+		synchronized (queue_lock) {
+		try {
+			lock();
+			this.active = d;
+			if (queue.contains(d)) {
+				if (null != display) {
+					if (d instanceof ZDisplayable) d.setLayer(display.getLayer());
+					display.setActive(d);
+				}
+				Utils.log2("Selection.add warning: already have " + d + " selected.");
+				unlock();
+				return;
 			}
-			Utils.log2("Selection.add warning: already have " + d + " selected.");
-			return;
-		}
-		queue.add(d);
-		//Utils.log("box before adding: " + box);
-		// add it's box to the selection box
-		Rectangle b = d.getBoundingBox(new Rectangle());
-		if (null == box) box = b;
-		else box.add(b);
-		//Utils.log("box after adding: " + box);
-		setHandles(box);
-		// check if it was among the linked already before adding it's links and its transform
-		if (!ht.contains(d)) {
-			Transform t = d.getTransform();
-			ht.put(d, t);
-			// now, grab the linked group and add it as well to the hashtable
-			HashSet hs = d.getLinkedGroup(new HashSet());
-			if (null != hs) {
-				for (Iterator it = hs.iterator(); it.hasNext(); ) {
-					Displayable displ = (Displayable)it.next();
-					if (!ht.contains(displ)) ht.put(displ, displ.getTransform());
-					if (0 != displ.getRotation()) {
-						keep_ratio = true;
+			queue.add(d);
+			//Utils.log("box before adding: " + box);
+			// add it's box to the selection box
+			Rectangle b = d.getBoundingBox(new Rectangle());
+			if (null == box) box = b;
+			else box.add(b);
+			//Utils.log("box after adding: " + box);
+			setHandles(box);
+			// check if it was among the linked already before adding it's links and its transform
+			if (!ht.contains(d)) {
+				Transform t = d.getTransform();
+				ht.put(d, t);
+				// now, grab the linked group and add it as well to the hashtable
+				HashSet hs = d.getLinkedGroup(new HashSet());
+				if (null != hs) {
+					for (Iterator it = hs.iterator(); it.hasNext(); ) {
+						Displayable displ = (Displayable)it.next();
+						if (!ht.contains(displ)) ht.put(displ, displ.getTransform());
+						if (0 != displ.getRotation()) {
+							keep_ratio = true;
+						}
 					}
 				}
 			}
-		}
-		// finally: (so that when calling the selection, its Transform exists already here)
-		if (null != display) display.setActive(d);
+			// finally: (so that when calling the selection, its Transform exists already here)
+			if (null != display) display.setActive(d);
+		} catch (Exception e) {
+			new IJError(e);
+		} finally {
+			unlock();
+		}}
 	}
 
 	/** Select all objects in the Display's current layer, preserving the active one (if any) as active; includes all the ZDisplayables, whether visible in this layer or not. */
@@ -487,66 +530,82 @@ public class Selection {
 	}
 
 	private void selectAll(ArrayList al) {
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			if (queue.contains(d)) continue;
-			queue.add(d);
-			if (ht.contains(d)) continue;
-			Transform t = d.getTransform();
-			ht.put(d, t);
-			// now, grab the linked group and add it as well to the hashtable
-			HashSet hs = d.getLinkedGroup(new HashSet());
-			if (null != hs) {
-				for (Iterator hit = hs.iterator(); hit.hasNext(); ) {
-					Displayable displ = (Displayable)hit.next();
-					if (!ht.contains(displ)) ht.put(displ, displ.getTransform());
-					if (0 != displ.getRotation()) {
-						keep_ratio = true;
+		synchronized (queue_lock) {
+		try {
+			lock();
+			for (Iterator it = al.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				if (queue.contains(d)) continue;
+				queue.add(d);
+				if (ht.contains(d)) continue;
+				Transform t = d.getTransform();
+				ht.put(d, t);
+				// now, grab the linked group and add it as well to the hashtable
+				HashSet hs = d.getLinkedGroup(new HashSet());
+				if (null != hs) {
+					for (Iterator hit = hs.iterator(); hit.hasNext(); ) {
+						Displayable displ = (Displayable)hit.next();
+						if (!ht.contains(displ)) ht.put(displ, displ.getTransform());
+						if (0 != displ.getRotation()) {
+							keep_ratio = true;
+						}
 					}
 				}
 			}
-		}
 
-		resetBox();
+			resetBox();
 
-		if (null != display && null == this.active) {
-			display.setActive((Displayable)queue.getLast());
-			this.active = display.getActive();
-			Utils.log2("calling display.setActive");
-		} else {
-			Utils.log2("not calling display.setActive");
-		}
+			if (null != display && null == this.active) {
+				display.setActive((Displayable)queue.getLast());
+				this.active = display.getActive();
+				Utils.log2("calling display.setActive");
+			} else {
+				Utils.log2("not calling display.setActive");
+			}
+		} catch (Exception e) {
+			new IJError(e);
+		} finally {
+			unlock();
+		}}
 	}
 
 	// TODO think of a way of disabling autocommit, but setting save points and commiting the good part and rolig back tha bad part if any
 
 	/** Delete all selected objects from their Layer. */
 	public boolean deleteAll() {
-		if (null == active) return true; // nothing to remove
-		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
-		if (null != display) display.setActive(null);
-		this.active = null;
-		StringBuffer sb = new StringBuffer();
-		Displayable[] d = new Displayable[queue.size()];
-		queue.toArray(d);
+		synchronized (queue_lock) {
 		try {
-			display.getProject().getLoader().startLargeUpdate();
-			for (int i=0; i<d.length; i++) {
-				if (!d[i].remove(false)) {
-					sb.append(d[i].getTitle()).append('\n');
-					continue;
+			lock();
+			if (null == active) return true; // nothing to remove
+			if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
+			if (null != display) display.setActive(null);
+			this.active = null;
+			StringBuffer sb = new StringBuffer();
+			Displayable[] d = new Displayable[queue.size()];
+			queue.toArray(d);
+			try {
+				display.getProject().getLoader().startLargeUpdate();
+				for (int i=0; i<d.length; i++) {
+					if (!d[i].remove(false)) {
+						sb.append(d[i].getTitle()).append('\n');
+						continue;
+					}
 				}
+			} catch (Exception e) {
+				new IJError(e);
+			} finally {
+				display.getProject().getLoader().commitLargeUpdate();
 			}
+			if (sb.length() > 0) {
+				Utils.showMessage("Could NOT delete:\n" + sb.toString());
+			}
+			//Display.repaint(display.getLayer(), box, 0);
+			Display.updateSelection(); // from all displays
 		} catch (Exception e) {
 			new IJError(e);
 		} finally {
-			display.getProject().getLoader().commitLargeUpdate();
-		}
-		if (sb.length() > 0) {
-			Utils.showMessage("Could NOT delete:\n" + sb.toString());
-		}
-		//Display.repaint(display.getLayer(), box, 0);
-		Display.updateSelection(); // from all displays
+			unlock();
+		}}
 		return true;
 	}
 
@@ -556,62 +615,72 @@ public class Selection {
 			Utils.log2("Selection.remove warning: null Displayable to remove.");
 			return;
 		}
-		Object ob_t = ht.get(d);
-		if (null == ob_t) {
-			//Utils.log2("Selection.remove warning: can't find ob " + ob_t + " to remove");
-			// happens when removing a profile from the project tree that is not selected in the Display to which this Selection belongs
-			return;
-		}
-		queue.remove(d);
-		ht.remove(d);
-		if (d.equals(active)) {
+		synchronized (queue_lock) {
+		try {
+			lock();
+			Object ob_t = ht.get(d);
+			if (null == ob_t) {
+				//Utils.log2("Selection.remove warning: can't find ob " + ob_t + " to remove");
+				// happens when removing a profile from the project tree that is not selected in the Display to which this Selection belongs
+				unlock();
+				return;
+			}
+			queue.remove(d);
+			ht.remove(d);
+			if (d.equals(active)) {
+				if (0 == queue.size()) {
+					active = null;
+					box = null;
+					ht.clear();
+				} else {
+					// select last
+					active = (Displayable)queue.getLast();
+				}
+			}
+			// update
+			if (null != display) display.setActive(active);
+			// finish if none left
 			if (0 == queue.size()) {
-				active = null;
 				box = null;
 				ht.clear();
-			} else {
-				// select last
-				active = (Displayable)queue.getLast();
+				keep_ratio = false;
+				unlock();
+				return;
 			}
-		}
-		// update
-		if (null != display) display.setActive(active);
-		// finish if none left
-		if (0 == queue.size()) {
-			box = null;
-			ht.clear();
+			// now, remove linked ones from the ht
+			HashSet hs_to_remove = d.getLinkedGroup(new HashSet());
+			HashSet hs_to_keep = new HashSet();
+			for (Iterator it = queue.iterator(); it.hasNext(); ) {
+				Displayable displ = (Displayable)it.next();
+				hs_to_keep = displ.getLinkedGroup(hs_to_keep);
+			}
+			for (Iterator it = ht.keySet().iterator(); it.hasNext(); ) {
+				Object ob = it.next();
+				if (hs_to_keep.contains(ob)) continue; // avoid linked ones still in queue or linked to those in queue
+				ht.remove(ob);
+			}
+			// recompute box
+			Rectangle r = new Rectangle(); // as temp storage
+			for (Iterator it = queue.iterator(); it.hasNext(); ) {
+				Transform tr = (Transform)ht.get(it.next());
+				box.add(d.getBoundingBox(r));
+			}
+			// reposition handles
+			setHandles(box);
+			// recheck keep_ratio
 			keep_ratio = false;
-			return;
-		}
-		// now, remove linked ones from the ht
-		HashSet hs_to_remove = d.getLinkedGroup(new HashSet());
-		HashSet hs_to_keep = new HashSet();
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Displayable displ = (Displayable)it.next();
-			hs_to_keep = displ.getLinkedGroup(hs_to_keep);
-		}
-		for (Iterator it = ht.keySet().iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if (hs_to_keep.contains(ob)) continue; // avoid linked ones still in queue or linked to those in queue
-			ht.remove(ob);
-		}
-		// recompute box
-		Rectangle r = new Rectangle(); // as temp storage
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Transform tr = (Transform)ht.get(it.next());
-			box.add(d.getBoundingBox(r));
-		}
-		// reposition handles
-		setHandles(box);
-		// recheck keep_ratio
-		keep_ratio = false;
-		for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-			Transform t = (Transform)it.next();
-			if (0 != t.rot) {
-				keep_ratio = true;
-				break;
+			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
+				Transform t = (Transform)it.next();
+				if (0 != t.rot) {
+					keep_ratio = true;
+					break;
+				}
 			}
-		}
+		} catch (Exception e) {
+			new IJError(e);
+		} finally {
+			unlock();
+		}}
 	}
 
 	private void setHandles(final Rectangle b) {
@@ -635,11 +704,19 @@ public class Selection {
 
 	/** Remove all Displayables from this selection. */
 	public void clear() {
-		this.queue.clear();
-		this.ht.clear();
-		this.active = null;
-		if (null != display) display.setActive(null);
-		this.box = null;
+		synchronized (queue_lock) {
+		try {
+			lock();
+			this.queue.clear();
+			this.ht.clear();
+			this.active = null;
+			if (null != display) display.setActive(null);
+			this.box = null;
+		} catch (Exception e) {
+			new IJError(e);
+		} finally {
+			unlock();
+		}}
 	}
 
 	public void setTransforming(boolean b) {
@@ -867,26 +944,35 @@ public class Selection {
 
 	/** Update the transforms of all selected objects and their linked ones - should NEVER be called directly, but through Display.updateSelection only, to ensure all selections in all Display instances are properly updated. */ // This is rather wrong, since updates will occur for layers that do not belong to the same LayerSet without reason. Needs some redesign of the 'active' and the 'selection' pointers, perhaps moving them to the LayerSet (but I don't want to loose the ability to have a different active/selection in each Display)
 	void update() {
-		if (transforming) {
-			Utils.log("Selection.update warning: shouldn't be doing this while transforming!");
-		}
-		Utils.log2("updating selection");
-		ht.clear();
-		HashSet hs = new HashSet();
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			// collect all linked ones into the hs
-			hs = d.getLinkedGroup(hs);
-		}
-		if (0 == hs.size()) {
-			active = null;
-			if (null != display) display.setActive(null);
-			return;
-		}
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			ht.put(d, d.getTransform());
-		}
+		synchronized (queue_lock) {
+		try {
+			lock();
+			if (transforming) {
+				Utils.log("Selection.update warning: shouldn't be doing this while transforming!");
+			}
+			Utils.log2("updating selection");
+			ht.clear();
+			HashSet hs = new HashSet();
+			for (Iterator it = queue.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				// collect all linked ones into the hs
+				hs = d.getLinkedGroup(hs);
+			}
+			if (0 == hs.size()) {
+				active = null;
+				if (null != display) display.setActive(null);
+				unlock();
+				return;
+			}
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				ht.put(d, d.getTransform());
+			}
+		} catch (Exception e) {
+			new IJError(e);
+		} finally {
+			unlock();
+		}}
 	}
 
 	public boolean isDragging() {
@@ -912,12 +998,20 @@ public class Selection {
 			Utils.log2("Selection.updateTransform warning: null Displayable");
 			return;
 		}
-		if (!ht.containsKey(d)) {
-			Utils.log2("Selection.updateTransform warning: " + d + " not selected or among the linked");
-			return;
-		}
-		ht.put(d, d.getTransform());
-		resetBox();
+		synchronized (queue_lock) {
+		try {
+			lock();
+			if (!ht.containsKey(d)) {
+				Utils.log2("Selection.updateTransform warning: " + d + " not selected or among the linked");
+				return;
+			}
+			ht.put(d, d.getTransform());
+			resetBox();
+		} catch (Exception e) {
+			new IJError(e);
+		} finally {
+			unlock();
+		}}
 	}
 
 	public int getNSelected() {

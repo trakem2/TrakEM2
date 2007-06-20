@@ -162,6 +162,10 @@ public class Snapshot {
 
 	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. */
 	static public Image createSnap(final Patch p, final Image awt, final double mag) {
+		if (p.getLayer().getParent().snapshotsQuality()) {
+			return awt.getScaledInstance((int)Math.ceil(p.getWidth() * mag), (int)Math.ceil(p.getHeight() * mag), Image.SCALE_AREA_AVERAGING);
+		}
+		// else, grainy images by nearest-neighbor
 		BufferedImage bi = null;
 		Graphics2D g = null;
 		int w = (int)Math.ceil(p.getWidth() * mag);

@@ -357,7 +357,7 @@ abstract public class Loader {
 						lock();
 						awts.put(id, awt);  // with adjusted channels. Will flush the Image if it existed and was different
 					}
-					if (null == snaps.get(id)) {
+					if (null == snaps.get(id) && null != d.getLayer()) {
 						final Image image = awts.get(id);
 						unlock();
 						final Image snap = Snapshot.createSnap(p, image, Snapshot.SCALE);
@@ -1169,7 +1169,7 @@ abstract public class Loader {
 		}
 
 		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, use_cross_correlation, cc_percent_overlap, cc_scale, homogenize_contrast);
-		
+
 		} catch (Exception e) {
 			new IJError(e);
 		}
@@ -1354,6 +1354,7 @@ abstract public class Loader {
 					finishSetTempCurrentImage();
 					return;
 				}
+				finishSetTempCurrentImage();
 			} catch (Exception e) {
 				new IJError(e);
 				finishSetTempCurrentImage();
@@ -1492,11 +1493,10 @@ abstract public class Loader {
 				addedPatchFrom(path, patch);
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
 				pall[i][j] = patch;
-				// TODO WARNING if the c_alphas is not 0x00ffffff, this won't generate the expected snapshot! But then, creating the awt.Image is a huge load
-				ImageProcessor ip = img.getProcessor();
-				ip.setInterpolate(true);
-				Image snap = ip.resize((int)Math.ceil(img.getWidth() * Snapshot.SCALE), (int)Math.ceil(img.getHeight() * Snapshot.SCALE)).createImage();
-				snaps.put(patch.getId(), snap);
+				//ImageProcessor ip = img.getProcessor();
+				//ip.setInterpolate(true);
+				//Image snap = ip.resize((int)Math.ceil(img.getWidth() * Snapshot.SCALE), (int)Math.ceil(img.getHeight() * Snapshot.SCALE)).createImage();
+				//snaps.put(patch.getId(), snap);
 
 				al.add(patch);
 				layer.add(patch, true);
@@ -2676,6 +2676,7 @@ abstract public class Loader {
 
 	static public void startSetTempCurrentImage(final ImagePlus imp) {
 		synchronized (temp_current_image_lock) {
+			Utils.log2("temp in use: " + temp_in_use);
 			while (temp_in_use) { try { temp_current_image_lock.wait(); } catch (InterruptedException ie) {} }
 			temp_in_use = true;
 			previous_current_image = WindowManager.getCurrentImage();
