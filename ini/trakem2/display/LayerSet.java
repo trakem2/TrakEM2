@@ -624,7 +624,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 		this.layer_width = layer_width;
 		this.layer_height = layer_height;
-		Utils.log("LayerSet.setDimensions: new_x,y: " + new_x + "," + new_y);
+		//Utils.log("LayerSet.setDimensions: new_x,y: " + new_x + "," + new_y);
 		// translate all displayables
 		if (0 != new_x || 0 != new_y) {
 			for (Iterator it = al.iterator(); it.hasNext(); ) {

@@ -447,7 +447,7 @@ abstract public class Loader {
 		} else {
 			// remove the layer where the Displayable paints to
 			if (null == d.getLayer()) {
-				Utils.log2("null layer ??? for " + d);
+				// Top Level LayerSet has no layer
 				return;
 			}
 			decacheImagePlus(d.getLayer().getId());

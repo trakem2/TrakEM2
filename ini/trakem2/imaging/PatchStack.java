@@ -531,7 +531,6 @@ public class PatchStack extends ImagePlus {
 		}
 		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
 		imp.killRoi();
-		Utils.log2("PatchStack: reseting roi");
 		//draw() // not needed
 	}
 

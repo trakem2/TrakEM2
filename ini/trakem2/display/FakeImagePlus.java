@@ -199,7 +199,7 @@ public class FakeImagePlus extends ImagePlus {
 			getProcessor().resetRoi();
 		}
 		ImagePlus last_temp = display.getLastTemp();
-		Utils.log2("Last temp is " + last_temp.getClass());
+		//Utils.log2("Last temp is " + last_temp.getClass());
 		if (null != last_temp && !last_temp.equals(this)) last_temp.killRoi();
 	}
 }

@@ -246,9 +246,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					offscreen_locked = true;
 					offscreen1 = new BufferedImage(g_width, g_height, BufferedImage.TYPE_INT_RGB);
 					//Utils.log2(label + " ugt Creating offs " +  + System.currentTimeMillis());
-					//java 1.5+ only //offscreen1.setAccelerationPriority(1.0f);
+					offscreen1.setAccelerationPriority(1.0f);
 					g1 = (Graphics2D) offscreen1.getGraphics(); // the cast is safe in terms of: never failed in any JVM so far (macosx, linux, freebsd; 1.4.2, 1.5.0). But it may fail in GCJ !
-					setRenderingHints(g1);
+					//setRenderingHints(g1);
 
 					offscreen_locked = false;
 					offscreen_lock.notifyAll();
@@ -387,7 +387,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	// can only paint if cancel_painting is false; otherwise, it stops
 	public void paint(Graphics g) {
 		try {
-			setRenderingHints((Graphics2D)g);
+			//setRenderingHints((Graphics2D)g);
 			if (handPaintingOffscreen == null) {
 
 				display.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
