@@ -247,53 +247,77 @@ public class PhaseCorrelation2D
         return bestTranslation;
     }
 
-    public FloatArray2D extendImageMirror(FloatArray2D input, int extW, int extH)
-    {
-        int imgW = input.width;
-        int imgH = input.height;
 
-        // zero pad the images
-        FloatArray2D extended = zeroPad(input, imgW + extW, imgH + extH);
+	public static FloatArray2D extendImageMirror(FloatArray2D input, int extW, int extH)
+	    {
+		int imgW = input.width;
+		int imgH = input.height;
+	 
+		// zero pad the images
+		FloatArray2D extended = zeroPad(input, imgW + extW, imgH + extH);
+	 
+		// fill extended areas with the mirroring information
+		for (int x = 1; x <= extW/2; x++)
+		{
+		    for (int y = 1; y <= extH / 2; y++)
+		    {
+			// left upper corner
+			extended.set(input.getMirror( -x, -y), extW / 2 - x, extH / 2 - y);
+		    }
+	 
+		    for (int y = 1; y <= extH / 2 + extH%2; y++)
+		    {
+			// left lower corner
+			extended.set(input.getMirror( -x, imgH + y - 1), extW / 2 - x, extended.height - extH / 2 + y - 1 - extH%2);
+		    }
+		}
+	 
+		for (int x = 1; x <= extW/2 + extW%2; x++)
+		{
+		    for (int y = 1; y <= extH / 2; y++)
+		    {
+			// right upper corner
+			extended.set(input.getMirror(imgW + x - 1, -y), extended.width - extW / 2 + x - 1 - extW % 2, extH / 2 - y);
+		    }
+		    for (int y = 1; y <= extH / 2 + extW%2; y++)
+		    {
+	 
+			// right lower corner
+			extended.set(input.getMirror(imgW + x - 1, imgH + y - 1), extended.width - extW / 2 + x - 1 - extW % 2, extended.height - extH / 2 + y - 1 - extH%2);
+		    }
+		}
+	 
+		for (int y = 0; y < imgH; y++)
+		    for (int x = 1; x <= extW/2; x++)
+		    {
+			// left lane
+			extended.set(input.getMirror(-x, -y), extW / 2 - x, y + extH / 2);
+		    }
+	 
+		for (int y = 0; y < imgH; y++)
+		    for (int x = 1; x <= extW/2 + extW%2; x++)
+		    {
+			// right lane
+			extended.set(input.getMirror(imgW + x - 1, -y), extended.width - extW/2 + x - 1 - extW%2, y + extH / 2);
+		    }
+	 
+		for (int x = 0; x < imgW; x++)
+		    for (int y = 1; y <= extH/2; y++)
+		    {
+			// upper lane
+			extended.set(input.getMirror(-x, -y), x + extW / 2, extH / 2 - y);
+		    }
+	 
+		for (int x = 0; x < imgW; x++)
+		    for (int y = 1; y <= extH/2 + extH%2; y++)
+		    {
+			// lower lane
+			extended.set(input.getMirror(-x, imgH + y - 1), x + extW / 2,  extended.height - extH/2 + y - 1 - extH%2);
+		    }
+	 
+		return extended;
+	    }
 
-        // fill extended areas with the mirroring information
-        for (int x = 1; x <= extW/2; x++)
-            for (int y = 1; y <= extH/2; y++)
-            {
-                // left upper corner
-                extended.set(input.getMirror(-x, -y), extW / 2 - x, extH / 2 - y);
-
-                // right upper corner
-                extended.set(input.getMirror(imgW + x - 1, -y), extended.width - extW/2 + x - 1, extH / 2 - y);
-
-                // left lower corner
-                extended.set(input.getMirror(-x, imgH + y - 1), extW / 2 - x, extended.height - extH/2 + y - 1);
-
-                // right lower corner
-                extended.set(input.getMirror(imgW + x - 1, imgH + y - 1), extended.width - extW/2 + x - 1, extended.height - extH/2 + y - 1);
-            }
-
-        for (int y = 0; y < imgH; y++)
-            for (int x = 1; x <= extW/2; x++)
-            {
-                // left lane
-                extended.set(input.getMirror(-x, -y), extW / 2 - x, y + extH / 2);
-
-                // right lane
-                extended.set(input.getMirror(imgW + x - 1, -y), extended.width - extW/2 + x - 1, y + extH / 2);
-            }
-
-        for (int x = 0; x < imgW; x++)
-            for (int y = 1; y <= extH/2; y++)
-            {
-                // upper lane
-                extended.set(input.getMirror(-x, -y), x + extW / 2, extH / 2 - y);
-
-                // lower lane
-                extended.set(input.getMirror(-x, imgH + y - 1), x + extW / 2,  extended.height - extH/2 + y - 1);
-            }
-
-        return extended;
-    }
 
     public CrossCorrelationResult[] testCrossCorrelation(int numBestHits, final boolean createOverlappingImages, final boolean createErrorMap)
     {

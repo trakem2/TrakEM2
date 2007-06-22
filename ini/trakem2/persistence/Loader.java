@@ -65,6 +65,7 @@ import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.Snapshot;
 import ini.trakem2.display.Transform;
+import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.tree.*;
 import ini.trakem2.utils.*;
@@ -2337,7 +2338,7 @@ abstract public class Loader {
 		Utils.log2("Loader.importStack filepath: " + filepath);
 		if (null == first_layer) return;
 		/* On drag and drop the stack is not null! */ //Utils.log2("imp_stack_ is " + imp_stack_);
-		try {	
+		try {
 			ImagePlus[] imp_stacks = null;
 			if (null == imp_stack_) {
 				imp_stacks = Utils.findOpenStacks();
@@ -2380,6 +2381,15 @@ abstract public class Loader {
 			if (null == imp_stack) {
 				return;
 			}
+
+			final String props = (String)imp_stack.getProperty("Info");
+
+			// check if it's amira labels stack to prevent missimports
+			if (null != props && -1 != props.indexOf("Materials {")) {
+				YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Warning", "You are importing a stack of Amira labels as a regular image stack. Continue?");
+				if (!yn.yesPressed()) return;
+			}
+
 			String dir = imp_stack.getFileInfo().directory;
 			double layer_width = first_layer.getLayerWidth();
 			double layer_height= first_layer.getLayerHeight();
@@ -2457,6 +2467,23 @@ abstract public class Loader {
 
 			if (expand_layer_set) {
 				last_patch.getLayer().getParent().setMinimumDimensions();
+			}
+
+			Utils.log2("props: " + props);
+
+			// check if it's an amira stack, then ask to import labels
+			if (null != props && -1 == props.indexOf("Materials {") && -1 != props.indexOf("CoordType")) {
+				YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Amira Importer", "Import labels as well?");
+				if (yn.yesPressed()) {
+					// select labels
+					ArrayList al = AmiraImporter.importAmiraLabels(first_layer, last_patch.getX(), last_patch.getY());
+					if (null != al) {
+						// import all created AreaList as nodes in the ProjectTree under a new imported_segmentations node
+						first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), al);
+						// link them to the images
+						// TODO
+					}
+				}
 			}
 
 			// it is safe not to flush the imp_stack, because all its resources are being used anyway (all the ImageProcessor), and it has no awt.Image. Unless it's being shown in ImageJ, and then it will be flushed on its own when the user closes its window.

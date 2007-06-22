@@ -434,8 +434,9 @@ public class AreaList extends ZDisplayable {
 		Display.repaint(Display.getFrontLayer(), this);
 	}
 
-	/** Calculate box, make this x,y,with,height be that of the box, and translate all areas to fit in. This is the only road to sanity for ZDisplayable objects.*/
-	private void calculateBoundingBox() {
+	/** Calculate box, make this x,y,with,height be that of the box, and translate all areas to fit in.*/ //This is the only road to sanity for ZDisplayable objects.
+	public void calculateBoundingBox() {
+		if (0 == ht_areas.size()) return;
 		Area[] area = new Area[ht_areas.size()];
 		Map.Entry[] entry = new Map.Entry[area.length];
 		ht_areas.entrySet().toArray(entry);
@@ -447,6 +448,7 @@ public class AreaList extends ZDisplayable {
 			if (null == box) box = (Rectangle)b[i].clone();
 			else box.add(b[i]);
 		}
+		if (null == box) return; // empty AreaList
 		for (int i=0; i<area.length; i++) {
 			AffineTransform at = new AffineTransform();
 			at.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
@@ -1119,5 +1121,12 @@ public class AreaList extends ZDisplayable {
 		st.addSlice(Integer.toString(stack.getSize()+1), bp);
 
 		return st;
+	}
+
+	/** Directly place an Area for the specified layer. Does not make it local, you should call calculateBoundingBox() after setting an area. */
+	public void setArea(long layer_id, Area area) {
+		if (null == area) return;
+		ht_areas.put(new Long(layer_id), area);
+		updateInDatabase("points=" + layer_id);
 	}
 }

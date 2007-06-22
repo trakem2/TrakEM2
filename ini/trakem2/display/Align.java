@@ -301,7 +301,7 @@ public class Align {
 			double xo1=0, yo1=0;
 			double xo2=0, yo2=0;
 			// Implementing Johannes Schindelin's squared error minimization formula
-			// tan(angle) = Sum(x1*y1 + x2y2) / Sum(x1y2 - x2y1)
+			// tan(angle) = Sum(x1*y1 + x2y2) / Sum(x1*y2 - x2*y1)
 			int length = base.size();
 			// 1 - compute centers of mass, for displacement and origin of rotation
 			for (int i=0; i<length; i++) {
@@ -316,6 +316,7 @@ public class Align {
 			yo1 /= length;
 			xo2 /= length;
 			yo2 /= length;
+			//
 			double dx = xo1 - xo2; // reversed, because the second will be moved relative to the first
 			double dy = yo1 - yo2;
 			double sum1=0, sum2=0;

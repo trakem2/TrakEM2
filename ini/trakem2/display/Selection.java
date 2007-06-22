@@ -108,13 +108,13 @@ public class Selection {
 	}
 
 	private void lock() {
-		Utils.printCaller(this, 7);
+		//Utils.printCaller(this, 7);
 		while (queue_locked) { try { queue_lock.wait(); } catch (InterruptedException ie) {} }
 		queue_locked = true;
 	}
 
 	private void unlock() {
-		Utils.printCaller(this);
+		//Utils.printCaller(this);
 		queue_locked = false;
 		queue_lock.notifyAll();
 	}

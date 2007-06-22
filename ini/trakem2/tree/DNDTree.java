@@ -517,4 +517,15 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		return this.getClass().getName() + ": \n\tAbstract nodes: " + n_abstract + "\n\tBasic nodes: " + n_basic + "\n";
 	}
 	// TODO: all these non-DND methods should go into an abstract child class that would be super of the trees proper
+
+	public final DefaultMutableTreeNode getRoot() {
+		return (DefaultMutableTreeNode)this.getModel().getRoot();
+	}
+
+	/** Appends at the end of the parent_node child list. */
+	protected DefaultMutableTreeNode addChild(Thing child, DefaultMutableTreeNode parent_node) {
+		DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(child);
+		((DefaultTreeModel)getModel()).insertNodeInto(node_child, parent_node, parent_node.getChildCount());
+		return node_child;
+	}
 }

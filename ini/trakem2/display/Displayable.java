@@ -989,8 +989,8 @@ public abstract class Displayable extends DBObject {
 		// If positions don't change, the threading system will prevent a useless repaint
 		*/
 		// it's lengthy to predict the precise box for each open Display, so just repaint all in all Displays.
-		Display.repaint(getLayer()); // not this.layer, so ZDisplayables are repainted properly
 		Display.updateSelection();
+		Display.repaint(getLayer()); // not this.layer, so ZDisplayables are repainted properly
 	}
 
 	static protected final String TAG_ATTR1 = "<!ATTLIST ";
@@ -1170,7 +1170,7 @@ public abstract class Displayable extends DBObject {
 
 	public boolean updateInDatabase(String key) {
 		project.getLoader().updateCache(this, key);
-		if (Utils.java3d) Display3D.update(this);
+		//if (Utils.java3d) Display3D.update(this);
 		return super.updateInDatabase(key);
 	}
 

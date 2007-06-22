@@ -43,6 +43,7 @@ import java.awt.event.ActionListener;
 import javax.swing.tree.*;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.ArrayList;
 import java.io.File;
 
 /** A class to hold a tree of Thing nodes */
@@ -140,7 +141,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 	public void mouseClicked(MouseEvent me) { }
 
 	public void actionPerformed(ActionEvent ae) {
-		try { 
+		try {
 			if (null == selected_node) return;
 			Object ob = selected_node.getUserObject();
 			if (!(ob instanceof ProjectThing)) return;
@@ -328,4 +329,56 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		sb_body.append("\n").append(indent).append("</t2_tree>\n");
 	}
 	*/
+
+	/** Creates a new node of basic type for each AreaList, Ball, or Pipe present in the ArrayList. Other elements are ignored. */
+	public void insertSegmentations(Project project, ArrayList al) {
+		final TemplateThing tt_root = (TemplateThing)getRoot().getUserObject();
+		// create a new abstract node called "imported_segmentations", if not there
+		if (!project.typeExists("imported_segmentations")) {
+			// create it
+			TemplateThing tet = new TemplateThing("imported_segmentations", project); // yes I know I should check for the project of each Displayable in the ArrayList
+			project.addUniqueType(tet);
+			DefaultMutableTreeNode root = project.getTemplateTree().getRoot();
+			tt_root.addChild(tet);
+			addChild(tet, root);
+			// JTree is serious pain
+		}
+		TemplateThing tt_is = project.getTemplateThing("imported_segmentations"); // it's the same as 'tet' above, unless it existed
+		// create a project node from "imported_segmentations" template
+		DefaultMutableTreeNode project_node = project.getProjectTree().getRoot();
+		ProjectThing project_pt = (ProjectThing)project_node.getUserObject();
+		ProjectThing pt_is = project_pt.createChild("imported_segmentations");
+		DefaultMutableTreeNode node_pt_is = addChild(pt_is, project_node);
+		this.scrollPathToVisible(new TreePath(node_pt_is.getPath()));
+
+		// now, insert a new ProjectThing if of type AreaList, Ball and/or Pipe under node_child
+		for (Iterator it = al.iterator(); it.hasNext(); ) {
+			Object ob = it.next();
+			TemplateThing tt = null;
+			if (ob instanceof AreaList) {
+				tt = getOrCreateChildTemplateThing(tt_is, "area_list");
+			} else if (ob instanceof Pipe) {
+				tt = getOrCreateChildTemplateThing(tt_is, "pipe");
+			} else if (ob instanceof Ball) {
+				tt = getOrCreateChildTemplateThing(tt_is, "ball");
+			} else {
+				// ignore
+				continue;
+			}
+			try {
+				addChild(new ProjectThing(tt, project, ob), node_pt_is);
+			} catch (Exception e) {
+				new IJError(e);
+			}
+		}
+	}
+
+	private final TemplateThing getOrCreateChildTemplateThing(TemplateThing parent, String type) {
+		TemplateThing tt = parent.getChildTemplate(type);
+		if (null == tt) {
+			tt = new TemplateThing(type, parent.getProject());
+			parent.addChild(tt);
+		}
+		return tt;
+	}
 }

@@ -23,34 +23,49 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.io;
 
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.tree.Thing;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.AreaList;
+import ini.trakem2.display.Layer;
 
 import amira.*;
 import ij.ImagePlus;
+import ij.ImageStack;
 import ij.io.OpenDialog;
 import ij.io.FileInfo;
+import ij.gui.ShapeRoi;
+import ij.gui.Roi;
+import ij.plugin.filter.ThresholdToSelection;
+import ij.process.ImageProcessor;
+
+import java.awt.Color;
+import java.awt.Rectangle;
+import java.awt.Shape;
+import java.awt.geom.Area;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 
-/** Parses an amira labelfield and imports the labels as AreaList instances in the project tree.
- *
- *
- */
+/** Parses an amira labelfield and imports the labels as AreaList instances in the project tree.*/
 public class AmiraImporter {
 
-	static public void importAmiraFile() {
+	/** Returns the array of AreaList or null if the file dialog is canceled. The xo,yo is the pivot of reference. */
+	static public ArrayList importAmiraLabels(Layer first_layer, double xo, double yo) {
 		// open file
-		OpenDialog od = new OpenDialog("Choose Amira file", "");
+		OpenDialog od = new OpenDialog("Choose Amira Labels File", "");
 		String filename = od.getFileName();
-		if (null == filename || 0 == filename.length()) return;
+		if (null == filename || 0 == filename.length()) return null;
 		String path = od.getDirectory() + filename;
 		AmiraMeshDecoder dec = new AmiraMeshDecoder();
 		if (!dec.open(path)) {
-			Utils.log2("AmiraMeshDecoder failed with path " + path);
-			return;
+			Utils.showMessage("AmiraMeshDecoder failed with path " + path);
+			return null;
 		}
 		ImagePlus imp = null;
 		if (dec.isTable()) {
-			Utils.log2("Select the other file!");
-			return;
+			Utils.showMessage("Select the other file (the labels)!");
+			return null;
 		} else {
 			FileInfo fi = new FileInfo();
 			fi.fileName = filename;
@@ -58,13 +73,101 @@ public class AmiraImporter {
 			imp = new ImagePlus("Amira", dec.getStack());
 			dec.parameters.setParameters(imp);
 		}
-		// read its labels
-		AmiraParameters ap = dec.parameters;
+		return extractAmiraLabels(imp, dec.parameters, first_layer, xo, yo);
+	}
+
+	/** Returns an ArrayList containing all AreaList objects. The xo,yo is the pivot of reference. */
+	static public ArrayList extractAmiraLabels(ImagePlus labels, AmiraParameters ap, Layer first_layer, double xo, double yo) {
+		// adjust first layer thickness to be that of the pixelDepth
+		first_layer.setThickness(labels.getCalibration().pixelDepth);
 		String[] materials = ap.getMaterialList();
+		// extract labels as ArraList of Area
+		ArrayList al_alis = new ArrayList();
 		for (int i=0; i<materials.length; i++) {
-			int mid = ap.getMaterialID(materials[i]);
-			double[] color = ap.getMaterialColor(mid);
-			String name = ap.getMaterialName(mid);
+			AmiraLabel label = new AmiraLabel();
+			label.id = ap.getMaterialID(materials[i]);
+			label.color = ap.getMaterialColor(label.id);
+			label.name = ap.getMaterialName(label.id);
+			Utils.log2("Processing label " + label.id + " " + label.name);
+			label.al_areas = extractLabelAreas(label.id, labels.getStack());
+			if (null == label.al_areas || 0 == label.al_areas.size()) continue;
+			AreaList ali = createAreaList(label, first_layer);
+			ali.drag(xo, yo, 0);
+			al_alis.add(ali);
+		}
+		return al_alis;
+	}
+
+	static private AreaList createAreaList(final AmiraLabel label, final Layer first_layer) {
+		final AreaList ali = new AreaList(first_layer.getProject(), label.name, 0, 0);
+		first_layer.getParent().addSilently(ali);
+		ali.setColor(new Color((float)label.color[0], (float)label.color[1], (float)label.color[2]));
+		final double thickness = first_layer.getThickness();
+		int i=0;
+		for (Iterator it = label.al_areas.iterator(); it.hasNext(); ) {
+			double z = first_layer.getZ() + (i-1) * thickness;
+			Area area = (Area)it.next();
+			Layer layer = first_layer;
+			if (i > 1) layer = first_layer.getParent().getLayer(z, thickness, true); // will create new layer if not found
+			// after creating the layer, avoid adding the area if empty
+			if (area.isEmpty()) continue;
+			ali.setArea(layer.getId(), area);
+			//
+			i++;
+		}
+		// make all areas local to ali's x,y
+		ali.calculateBoundingBox();
+
+		return ali;
+	}
+
+	static private class AmiraLabel {
+		ArrayList al_areas;
+		String name;
+		double[] color;
+		int id;
+	}
+
+	/** One Area per slice, even if empty.
+	 * @param label The label id or index, within 0-255 range.
+	 * */
+	static private ArrayList extractLabelAreas(final int label, final ImageStack stack) {
+		try {
+			final int size = stack.getSize();
+			final java.lang.reflect.Field field = ShapeRoi.class.getDeclaredField("shape");
+			field.setAccessible(true);
+			final ImagePlus tmp = new ImagePlus("", stack);
+			//
+			final ArrayList al_areas = new ArrayList();
+			//
+			for (int slice=1; slice<=size; slice++) {
+				//
+				tmp.setSlice(slice);
+				final ImageProcessor ip = tmp.getProcessor();
+				ip.setThreshold(label, label+1, ImageProcessor.NO_LUT_UPDATE);
+				//
+				final ThresholdToSelection tts = new ThresholdToSelection();
+				tts.setup("", tmp);
+				tts.run(ip);
+				Roi roi = tmp.getRoi();
+				if (null == roi) {
+					al_areas.add(new Area()); // empty
+					continue;
+				}
+				Rectangle bounds = roi.getBounds();
+				if (0 == bounds.width || 0 == bounds.height) {
+					al_areas.add(new Area()); // empty
+					continue;
+				} else if (!(roi instanceof ShapeRoi)) {
+					roi = new ShapeRoi(roi);
+				}
+				final Shape shape = (Shape)field.get((ShapeRoi)roi);
+				al_areas.add(new Area(shape));
+			}
+			return al_areas;
+		} catch (Exception e) {
+			new IJError(e);
+			return null;
 		}
 	}
 }

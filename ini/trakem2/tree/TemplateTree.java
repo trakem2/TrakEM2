@@ -53,47 +53,7 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 		setEditable(false); // affects the titles only
 		addMouseListener(this);
 		expandAllNodes(this, (DefaultMutableTreeNode)getModel().getRoot());
-
-		// no longer nedded:
-		
-		/* this has been already done by calling template_root.fixNested() at the Project, so only need to actualize the replacement (which is best for it is made then 100% consistent)
-		// now scan for repeated TemplateThing instances and replace them with the first found, which is the complete one in the case of nested structures.
-		Hashtable ht = new Hashtable();
-		Enumeration e = ((DefaultMutableTreeNode)getModel().getRoot()).depthFirstEnumeration();
-		while (e.hasMoreElements()) {
-			DefaultMutableTreeNode node = (DefaultMutableTreeNode)e.nextElement();
-			TemplateThing tt = (TemplateThing)node.getUserObject();
-			if (ht.containsKey(tt.getType())) {
-				// a node with that type exists already!
-				TemplateThing tt_complete = (TemplateThing)ht.get(tt.getType());
-				// replacing the TemplateThing of the node:
-				node.setUserObject(tt_complete);
-			} else {
-				ht.put(tt.getType(), tt);
-			}
-		}
-		*/
-
 	}
-
-	/*
-	public void updateNodes() {
-		// actualizing the replacements:
-		updateChildren(root, (DefaultMutableTreeNode)getModel().getRoot());
-	}
-
-	private void updateChildren(TemplateThing parent_thing, DefaultMutableTreeNode parent_node) {
-		int size = parent_node.getChildCount();
-		ArrayList al_children = parent_thing.getChildren();
-		for (int i=0; i<size; i++) {
-			DefaultMutableTreeNode node = (DefaultMutableTreeNode)parent_node.getChildAt(i);
-			TemplateThing tt = (TemplateThing)al_children.get(i);
-			node.setUserObject(tt);
-			// recurse
-			updateChildren(tt, node);
-		}
-	}
-	*/
 
 	public void mousePressed(MouseEvent me) {
 		Object source = me.getSource();
@@ -372,4 +332,5 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 			fillChildren(copy, copy_node);
 		}
 	}
+
 }

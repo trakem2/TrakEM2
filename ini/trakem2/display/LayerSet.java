@@ -788,7 +788,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		Display.add(this, zdispl);
 	}
 
-	/** Used for reconstruction purposes. */
+	/** Used for reconstruction purposes, avoids repainting or updating. */
 	public void addSilently(ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) return;
 		try {
