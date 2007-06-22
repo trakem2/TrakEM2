@@ -101,7 +101,7 @@ public class AmiraImporter {
 
 	static private AreaList createAreaList(final AmiraLabel label, final Layer first_layer) {
 		final AreaList ali = new AreaList(first_layer.getProject(), label.name, 0, 0);
-		first_layer.getParent().add(ali);
+		first_layer.getParent().addSilently(ali);
 		ali.setColor(new Color((float)label.color[0], (float)label.color[1], (float)label.color[2]));
 		final double thickness = first_layer.getThickness();
 		int i=1;

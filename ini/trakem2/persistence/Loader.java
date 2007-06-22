@@ -3019,6 +3019,20 @@ abstract public class Loader {
 		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
 	}
 
+	private void registerWithLandmarks(final Patch base, final Patch moving, final float scale) {
+
+		Roi r1 = new Roi((int)base.getX(), (int)base.getY(), (int)base.getWidth(), (int)base.getHeight());
+		ImageProcessor ip1 = StitchingTEM.makeStripe(base, r1, scale);
+		Roi r2 = new Roi((int)moving.getX(), (int)moving.getY(), (int)moving.getWidth(), (int)moving.getHeight());
+		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, r2, scale);
+
+		final double[] lc = SIFT_Matcher.align(ip1, ip2);
+
+		// failed, fall back to phase-correlation
+		Utils.log2("Automatic landmark detection failed, falling back to phase-correlation.");
+		correlate(base, moving, scale);
+	}
+
 	/** Fixes paths befor epresenting them to the file system, in an OS-dependent manner. */
 	protected final ImagePlus openImage(String path) {
 		// supporting samba networks

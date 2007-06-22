@@ -1784,6 +1784,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					if (!active.isOnlyLinkedTo(Patch.class, active.getLayer())) {
 						item.setEnabled(false);
 					}
+					item = new JMenuItem("Snap"); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
 					HashSet hs = active.getLinked(Patch.class);
@@ -2682,6 +2683,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("View volume")) {
 			if (!(active instanceof Patch)) return;
 			Display3D.showVolume(((Patch)active));
+		} else if (command.equals("Snap")) {
+			if (!(active instanceof Patch)) return;
+			canvas.snap(getActive());
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
