@@ -2476,7 +2476,7 @@ abstract public class Loader {
 				YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Amira Importer", "Import labels as well?");
 				if (yn.yesPressed()) {
 					// select labels
-					ArrayList al = AmiraImporter.importAmiraLabels(first_layer, last_patch.getX(), last_patch.getY());
+					ArrayList al = AmiraImporter.importAmiraLabels(first_layer, last_patch.getX(), last_patch.getY(), imp_stack.getOriginalFileInfo().directory);
 					if (null != al) {
 						// import all created AreaList as nodes in the ProjectTree under a new imported_segmentations node
 						first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), al);

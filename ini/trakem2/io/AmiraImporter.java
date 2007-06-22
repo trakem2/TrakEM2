@@ -43,6 +43,7 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.geom.Area;
+import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -51,9 +52,9 @@ import java.util.Iterator;
 public class AmiraImporter {
 
 	/** Returns the array of AreaList or null if the file dialog is canceled. The xo,yo is the pivot of reference. */
-	static public ArrayList importAmiraLabels(Layer first_layer, double xo, double yo) {
+	static public ArrayList importAmiraLabels(Layer first_layer, double xo, double yo, final String default_dir) {
 		// open file
-		OpenDialog od = new OpenDialog("Choose Amira Labels File", "");
+		OpenDialog od = new OpenDialog("Choose Amira Labels File", default_dir, "");
 		String filename = od.getFileName();
 		if (null == filename || 0 == filename.length()) return null;
 		String path = od.getDirectory() + filename;
@@ -100,10 +101,10 @@ public class AmiraImporter {
 
 	static private AreaList createAreaList(final AmiraLabel label, final Layer first_layer) {
 		final AreaList ali = new AreaList(first_layer.getProject(), label.name, 0, 0);
-		first_layer.getParent().addSilently(ali);
+		first_layer.getParent().add(ali);
 		ali.setColor(new Color((float)label.color[0], (float)label.color[1], (float)label.color[2]));
 		final double thickness = first_layer.getThickness();
-		int i=0;
+		int i=1;
 		for (Iterator it = label.al_areas.iterator(); it.hasNext(); ) {
 			double z = first_layer.getZ() + (i-1) * thickness;
 			Area area = (Area)it.next();
@@ -162,7 +163,11 @@ public class AmiraImporter {
 					roi = new ShapeRoi(roi);
 				}
 				final Shape shape = (Shape)field.get((ShapeRoi)roi);
-				al_areas.add(new Area(shape));
+				Area area = new Area(shape);
+				AffineTransform at = new AffineTransform();
+				at.translate(bounds.x, bounds.y);
+				area = area.createTransformedArea(at);
+				al_areas.add(area);
 			}
 			return al_areas;
 		} catch (Exception e) {

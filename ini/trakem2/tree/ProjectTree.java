@@ -332,7 +332,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 
 	/** Creates a new node of basic type for each AreaList, Ball, or Pipe present in the ArrayList. Other elements are ignored. */
 	public void insertSegmentations(Project project, ArrayList al) {
-		final TemplateThing tt_root = (TemplateThing)getRoot().getUserObject();
+		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there
 		if (!project.typeExists("imported_segmentations")) {
 			// create it
@@ -344,11 +344,13 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			// JTree is serious pain
 		}
 		TemplateThing tt_is = project.getTemplateThing("imported_segmentations"); // it's the same as 'tet' above, unless it existed
-		// create a project node from "imported_segmentations" template
+		// create a project node from "imported_segmentations" template under a new top node
 		DefaultMutableTreeNode project_node = project.getProjectTree().getRoot();
 		ProjectThing project_pt = (ProjectThing)project_node.getUserObject();
-		ProjectThing pt_is = project_pt.createChild("imported_segmentations");
-		DefaultMutableTreeNode node_pt_is = addChild(pt_is, project_node);
+		ProjectThing ct = project_pt.createChild(tt_root.getType());
+		DefaultMutableTreeNode ctn = addChild(ct, project_node);
+		ProjectThing pt_is = ct.createChild("imported_segmentations");
+		DefaultMutableTreeNode node_pt_is = addChild(pt_is, ctn);
 		this.scrollPathToVisible(new TreePath(node_pt_is.getPath()));
 
 		// now, insert a new ProjectThing if of type AreaList, Ball and/or Pipe under node_child
@@ -365,8 +367,11 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				// ignore
 				continue;
 			}
+			Utils.log2("tt is " + tt);
 			try {
-				addChild(new ProjectThing(tt, project, ob), node_pt_is);
+				ProjectThing one = new ProjectThing(tt, project, ob);
+				addChild(one, node_pt_is);
+				Utils.log2("one parent : " + one.getParent());
 			} catch (Exception e) {
 				new IJError(e);
 			}
@@ -377,6 +382,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		TemplateThing tt = parent.getChildTemplate(type);
 		if (null == tt) {
 			tt = new TemplateThing(type, parent.getProject());
+			tt.getProject().addUniqueType(tt);
 			parent.addChild(tt);
 		}
 		return tt;

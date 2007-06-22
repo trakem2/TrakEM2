@@ -630,6 +630,7 @@ public class Project extends DBObject {
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */
 	public String getMeaningfulTitle(Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+		if (null == thing) return d.getTitle(); // happens if there is no associated node
 		ProjectThing parent = (ProjectThing)thing.getParent();
 		String title = thing.getType() + " #" + d.getId();
 		while (null != parent) {
