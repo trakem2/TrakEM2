@@ -145,7 +145,7 @@ public class AmiraImporter {
 				//
 				tmp.setSlice(slice);
 				final ImageProcessor ip = tmp.getProcessor();
-				ip.setThreshold(label, label+1, ImageProcessor.NO_LUT_UPDATE);
+				ip.setThreshold(label, label, ImageProcessor.NO_LUT_UPDATE);
 				//
 				final ThresholdToSelection tts = new ThresholdToSelection();
 				tts.setup("", tmp);

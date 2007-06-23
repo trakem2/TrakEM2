@@ -1924,8 +1924,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		display.updateInDatabase("srcRect"); // includes magnification
 	}
 
-	/** Works only for Patch instances at the moment. Implements Stephan Nufer's stitching functionality for semiautomated snap. */
-	private void snap(Displayable d) {
+	/** Works only for Patch instances at the moment. Implements Stephan Nufer's stitching functionality for semiautomated snap. */ // This method should be moved elsewhere
+	public void snap(Displayable d) {
 		Utils.log2("snapping...");
 		// snap patches only
 		if (null == d || !(d instanceof Patch)) return;

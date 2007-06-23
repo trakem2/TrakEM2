@@ -5,15 +5,31 @@ package mpi.fruitfly.math;
  *
  * <p>Description: </p>
  *
- * <p>Copyright: Copyright (c) 2006</p>
+ * <p>Copyright: Copyright (c) 2007</p>
  *
  * <p>Company: </p>
  *
- * @author not attributable
+ * <p>License: GPL
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License 2
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *
+ * @author Stephan Preibisch
  * @version 1.0
  */
 
 import java.awt.Point;
+import java.util.Vector;
 
 public class General
 {
@@ -536,6 +552,30 @@ public class General
                 Quicksortable temp = data[i];
                 data[i] = data[j];
                 data[j] = temp;
+                i++;
+                j--;
+            }
+        }
+        while (i <= j);
+        if (left < j) quicksort(data, left, j);
+        if (i < right) quicksort(data, i, right);
+    }
+
+    public static void quicksort(Vector data, int left, int right)
+    {
+        if (data == null || data.size() < 2)return;
+        int i = left, j = right;
+
+        double x = ((Quicksortable)data.get((left + right) / 2)).getQuicksortValue();
+        do
+        {
+            while (((Quicksortable)data.get(i)).getQuicksortValue() < x) i++;
+            while (x < ((Quicksortable)data.get(j)).getQuicksortValue()) j--;
+            if (i <= j)
+            {
+                Quicksortable temp = (Quicksortable)data.get(i);
+                data.set( i, data.get( j ) );
+                data.set(j, temp);
                 i++;
                 j--;
             }

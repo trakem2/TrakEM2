@@ -89,6 +89,7 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.geom.Area;
+import java.awt.geom.AffineTransform;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -2984,16 +2985,16 @@ abstract public class Loader {
 			if (p.getLayer().equals(slice.getLayer())) continue;
 			// ensure there are no negative numbers in the x,y
 			slice.getLayer().getParent().setMinimumDimensions();
-			correlate(slice, p, scale);
+			//correlate(slice, p, scale);
+			registerWithLandmarks(slice, p, scale);
 			correlateSlices(p, hs_done, scale, worker);
 		}
 	}
 
 	private void correlate(final Patch base, final Patch moving, final float scale) {
 		Utils.log2("Correlating #" + moving.getId() + " to #" + base.getId());
-		
-		// test rotation first TODO
 
+		// test rotation first TODO
 
 		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
 		if (pc[3] < 0.25f) {
@@ -3021,16 +3022,71 @@ abstract public class Loader {
 
 	private void registerWithLandmarks(final Patch base, final Patch moving, final float scale) {
 
-		Roi r1 = new Roi((int)base.getX(), (int)base.getY(), (int)base.getWidth(), (int)base.getHeight());
+		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
+
+		Roi r1 = new Roi(0, 0, (int)base.getWidth(), (int)base.getHeight());
 		ImageProcessor ip1 = StitchingTEM.makeStripe(base, r1, scale);
-		Roi r2 = new Roi((int)moving.getX(), (int)moving.getY(), (int)moving.getWidth(), (int)moving.getHeight());
+		Roi r2 = new Roi(0, 0, (int)moving.getWidth(), (int)moving.getHeight());
 		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, r2, scale);
 
-		final double[] lc = SIFT_Matcher.align(ip1, ip2);
+		// parameters
+		float min_epsilon = 5f; // maximal initial drift of landmark relative to its matching landmark in the other image, to consider when searching
+		float inlier_ratio = 0.1f; // minimal percent of good landmarks found
 
-		// failed, fall back to phase-correlation
-		Utils.log2("Automatic landmark detection failed, falling back to phase-correlation.");
-		correlate(base, moving, scale);
+		final float[] lc = new float[5];
+		if (mpi.fruitfly.registration.SIFTMatcher.align(ip1, ip2, min_epsilon, inlier_ratio, lc)) {
+			Utils.log2("SIFT: dx: " + lc[0] + ", dy: " + lc[1] + ",  angle:" + lc[2] + "  xo: " + lc[3] + ", yo: " + lc[4]);
+			final Transform t = moving.getTransform();
+
+
+			final double w1 = base.getWidth(),
+			      	     h1 = base.getHeight();
+
+			double dx = lc[0] / scale,
+			       dy = lc[1] / scale,
+			       angle = lc[2],
+			       xo = lc[3] / scale,
+			       yo = lc[4] / scale;
+
+			AffineTransform at1 = new AffineTransform();
+			at1.translate(- base.getWidth()/2, -base.getHeight()/2);
+			at1.rotate(Math.toRadians(base.getRotation()));
+			double[] src = new double[]{xo + dx, yo + dy};
+			double[] dest = new double[2];
+			at1.transform(src, 0, dest, 0, 1);
+
+			// new point in coords local to the center of the base image
+			double px2 = dest[0] - moving.getWidth()/2,
+			       py2 = dest[1] - moving.getHeight()/2;
+			// move to position of the base image
+			px2 += base.getX() + base.getWidth()/2;
+			py2 += base.getY() + base.getHeight()/2;
+
+			t.x = px2;
+			t.y = py2;
+			t.rot = base.getRotation() + Math.toDegrees(angle);
+
+			/*
+			double X0 = -w1/2 -0.5,
+			       Y0 = -h1/2 -0.5;
+			double X1 = X0 * Math.cos(-angle) - Y0 * Math.sin(-angle);
+			double Y1 = X0 * Math.sin(-angle) + Y0 * Math.cos(-angle);
+			*/
+
+			// apply
+			if (ControlWindow.isGUIEnabled()) {
+				Rectangle box = moving.getBoundingBox();
+				moving.setTransform(t);
+				box.add(moving.getBoundingBox());
+				Display.repaint(moving.getLayer(), box, 1);
+			} else {
+				moving.setTransform(t);
+			}
+		} else {
+			// failed, fall back to phase-correlation
+			Utils.log2("Automatic landmark detection failed, falling back to phase-correlation.");
+			correlate(base, moving, scale);
+		}
 	}
 
 	/** Fixes paths befor epresenting them to the file system, in an OS-dependent manner. */

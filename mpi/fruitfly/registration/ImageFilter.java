@@ -125,6 +125,52 @@ public class ImageFilter
                 img.set((float) (img.get(x, y) * weightsX[x] * weightsY[y]), x, y);
     }
 
+    public static void exponentialWindow(FloatArray3D img)
+    {
+        double a = 1000;
+
+        // create lookup table
+        double weightsX[] = new double[img.width];
+        double weightsY[] = new double[img.height];
+        double weightsZ[] = new double[img.depth];
+
+        for (int x = 0; x < img.width; x++)
+        {
+            double relPos = (double)x / (double)(img.width-1);
+
+            if (relPos <= 0.5)
+                weightsX[x] = 1.0-(1.0/(Math.pow(a,(relPos*2))));
+            else
+                weightsX[x] = 1.0-(1.0/(Math.pow(a,((1-relPos)*2))));
+        }
+
+        for (int y = 0; y < img.height; y++)
+        {
+            double relPos = (double)y / (double)(img.height-1);
+
+            if (relPos <= 0.5)
+                weightsY[y] = 1.0-(1.0/(Math.pow(a,(relPos*2))));
+            else
+                weightsY[y] = 1.0-(1.0/(Math.pow(a,((1-relPos)*2))));
+        }
+
+        for (int z = 0; z < img.depth; z++)
+        {
+            double relPos = (double)z / (double)(img.depth-1);
+
+            if (relPos <= 0.5)
+                weightsZ[z] = 1.0-(1.0/(Math.pow(a,(relPos*2))));
+            else
+                weightsZ[z] = 1.0-(1.0/(Math.pow(a,((1-relPos)*2))));
+        }
+
+
+        for (int z = 0; z < img.depth; z++)
+            for (int y = 0; y < img.height; y++)
+                for (int x = 0; x < img.width; x++)
+                    img.set((float) (img.get(x, y, z) * weightsX[x] * weightsY[y]* weightsZ[z]), x, y, z);
+    }
+
     /**
      * This class creates a gaussian kernel
      *
@@ -249,6 +295,51 @@ public class ImageFilter
 
 
         return gaussianKernel;
+    }
+
+    /*
+    ** create a normalized gaussian impulse with appropriate size and offset center
+    */
+    static public FloatArray2D create_gaussian_kernel_2D_offset(
+                    float sigma,
+                    float offset_x,
+                    float offset_y,
+                    boolean normalize)
+    {
+            int size = 3;
+            FloatArray2D gaussian_kernel;
+            if (sigma == 0)
+            {
+                    gaussian_kernel = new FloatArray2D(3 ,3);
+                    gaussian_kernel.data[4] = 1;
+            }
+            else
+            {
+                    size = Math.max(3, (int)( 2 * Math.round( 3 * sigma ) + 1 ) );
+                    float two_sq_sigma = 2*sigma*sigma;
+                    // float normalization_factor = 1.0/(float)M_PI/two_sq_sigma;
+                    gaussian_kernel = new FloatArray2D( size, size );
+                    for ( int x = size - 1; x >= 0; --x )
+                    {
+                            float fx = (float)( x - size / 2 );
+                            for ( int y = size-1; y >= 0; --y )
+                            {
+                                    float fy = (float)(y-size/2);
+                                    float val = (float)( Math.exp( -( Math.pow( fx - offset_x, 2)+Math.pow(fy-offset_y, 2))/two_sq_sigma));
+                                    gaussian_kernel.set(val, x, y);
+                            }
+                    }
+            }
+            if (normalize)
+            {
+                    float sum = 0;
+                    for (float value : gaussian_kernel.data)
+                    sum += value;
+
+                    for (int i = 0; i < gaussian_kernel.data.length; i++)
+                    gaussian_kernel.data[i] /= sum;
+            }
+            return gaussian_kernel;
     }
 
     public static FloatArray3D createGaussianKernel3D(float sigma, boolean normalize)
@@ -1036,4 +1127,39 @@ public class ImageFilter
 
         return output;
     }
+
+    public static FloatArray2D[] createGradients( FloatArray2D array)
+     {
+         FloatArray2D[] gradients = new FloatArray2D[2];
+         gradients[0] = new FloatArray2D(array.width, array.height);
+         gradients[1] = new FloatArray2D(array.width, array.height);
+
+         for (int y = 0; y < array.height; ++y)
+         {
+                 int[] ro = new int[3];
+                     ro[0] = array.width * Math.max(0, y - 1);
+                     ro[1] = array.width * y;
+                     ro[2] = array.width * Math.min(y + 1, array.height - 1);
+                 for (int x = 0; x < array.width; ++x)
+                 {
+                         // L(x+1, y) - L(x-1, y)
+                         float der_x = (
+                                         array.data[ro[1] + Math.min(x + 1, array.width - 1)] -
+                                         array.data[ro[1] + Math.max(0, x - 1)]) / 2;
+
+                         // L(x, y+1) - L(x, y-1)
+                         float der_y = (
+                                 array.data[ro[2] + x] -
+                                 array.data[ro[0] + x]) / 2;
+
+                         //! amplitude
+                         gradients[0].data[ro[1]+x] = (float)Math.sqrt( Math.pow( der_x, 2 ) + Math.pow( der_y, 2 ) );
+                         //! orientation
+                         gradients[1].data[ro[1]+x] = (float)Math.atan2( der_y, der_x );
+                 }
+         }
+         //ImageArrayConverter.FloatArrayToImagePlus( gradients[ 1 ], "gradients", 0, 0 ).show();
+         return gradients;
+     }
+
 }
