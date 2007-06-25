@@ -42,6 +42,11 @@ public abstract class Displayable extends DBObject {
 	protected double height = 0;
 	/** The angle of rotation around the Z axis, in degrees. */
 	protected double rot = 0.0D;
+
+
+	protected AffineTransform at = new AffineTransform();
+
+
 	private boolean locked = false;
 	protected String title;
 	protected Color color = Color.yellow;

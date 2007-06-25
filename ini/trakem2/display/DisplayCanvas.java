@@ -31,6 +31,7 @@ import ini.trakem2.imaging.*;
 
 import java.awt.event.*;
 import java.awt.*;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.awt.image.TileObserver;
 import java.awt.image.WritableRenderedImage;
@@ -442,6 +443,17 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					display.setCursor(Cursor.getDefaultCursor());
 					return;
 				}
+
+
+
+				AffineTransform at_original = ((Graphics2D)g).getTransform();
+				AffineTransform atc = new AffineTransform();
+				atc.scale(magnification, magnification);
+				atc.translate(-srcRect.x, -srcRect.y);
+				at_original.preConcatenate(atc);
+				((Graphics2D)g).setTransform(at_original);
+
+
 
 				if (null != active) {
 					try {

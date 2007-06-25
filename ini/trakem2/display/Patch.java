@@ -111,6 +111,18 @@ public class Patch extends Displayable {
 			// standard, from the image, to be defined when first painted
 			min = max = -1;
 		}
+		// TEMPORARY: in the near future, read the matrix values in the SVG
+		// reconstruct the AffineTransform
+		ImagePlus imp = getProject().getLoader().fetchImagePlus(this);
+		int w = imp.getWidth();
+		int h = imp.getHeight();
+		AffineTransform at2 = new AffineTransform();
+		at2.translate(x, y);
+		at2.rotate(Math.toRadians(rot), width/2, height/2);
+		at2.translate(w/2, h/2);
+		at2.scale(width / w, height / h);
+		at2.translate(-w/2, -h/2);
+		this.at.preConcatenate(at2);
 	}
 
 	/** Boundary checks on min and max, given the image type. */
@@ -328,12 +340,14 @@ public class Patch extends Displayable {
 		}
 
 		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate((t.x -srcRect.x + t.width/2)*magnification, (t.y -srcRect.y + t.height/2)*magnification);
+		//g2d.translate((t.x -srcRect.x + t.width/2)*magnification, (t.y -srcRect.y + t.height/2)*magnification);
 		AffineTransform original = null;
+		/*
 		if (0 != t.rot) {
 			original = g2d.getTransform();
 			g2d.rotate((t.rot * Math.PI) / 180); //t.rot * 2 * Math.PI / 360); //Math.toRadians(rot));   // if three constants are involved, do they get simplified at compile time?
 		}
+		*/
 
 		//arrange transparency
 		Composite original_composite = null;
@@ -342,14 +356,18 @@ public class Patch extends Displayable {
 			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, t.alpha));
 		}
 
-		g.drawImage(image, -(int)(t.width/2*magnification), -(int)(t.height/2*magnification), (int)Math.ceil(t.width * magnification), (int)Math.ceil(t.height * magnification), null);
+		//g.drawImage(image, -(int)(t.width/2*magnification), -(int)(t.height/2*magnification), (int)Math.ceil(t.width * magnification), (int)Math.ceil(t.height * magnification), null);
+
+		g2d.drawImage(image, this.at, null);
+		
+		//g2d.drawImage(image, (int)((x -srcRect.x)*magnification), (int)((y - srcRect.y)*magnification), null);
 
 		//Transparency: fix composite back to original.
 		if (t.alpha != 1.0f) {
 			g2d.setComposite(original_composite);
 		}
-		if (0 != t.rot) g2d.setTransform(original);
-		g2d.translate( - (t.x -srcRect.x + t.width/2)*magnification, - (t.y -srcRect.y + t.height/2)*magnification);
+		//if (0 != t.rot) g2d.setTransform(original);
+		//g2d.translate( - (t.x -srcRect.x + t.width/2)*magnification, - (t.y -srcRect.y + t.height/2)*magnification);
 	}
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
