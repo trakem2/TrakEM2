@@ -1187,4 +1187,16 @@ public abstract class Displayable extends DBObject {
 		}
 		return box;
 	}
+
+	public AffineTransform getAffineTransform() {
+		return at;
+	}
+
+	public AffineTransform getAffineTransformCopy() {
+		return (AffineTransform)at.clone();
+	}
+
+	public void setAffineTransform(AffineTransform at) {
+		this.at = at;
+	}
 }

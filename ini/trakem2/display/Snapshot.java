@@ -164,6 +164,7 @@ public class Snapshot {
 	static public Image createSnap(final Patch p, final Image awt, final double mag) {
 		final int w = (int)Math.ceil(p.getWidth() * mag);
 		final int h = (int)Math.ceil(p.getHeight() * mag);
+		try {
 		if (p.getLayer().getParent().snapshotsQuality()) {
 			// best, but very slow
 			return awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING);
@@ -196,6 +197,9 @@ public class Snapshot {
 			} while (wa != w || ha != h);
 			return bim;
 			*/
+		}
+		} catch (Exception e) {
+			Utils.log2("createSnap: layer is " + p.getLayer());
 		}
 		// else, grainy images by nearest-neighbor
 		BufferedImage bi = null;

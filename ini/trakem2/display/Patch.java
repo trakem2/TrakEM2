@@ -237,10 +237,6 @@ public class Patch extends Displayable {
 
 		if (isOutOfRepaintingClip(magnification, srcRect, clipRect)) return;
 
-		//debug: TODO it's being called 2 or 3 times for each repaint ???
-		//Utils.log2("Patch " + id + " channels: " + Integer.toHexString(channels));
-		//Utils.printCaller(this, 10);
-
 		Image image = null;
 		if (this.channels == channels) {
 			image = project.getLoader().fetchImage(this, magnification);
@@ -258,10 +254,6 @@ public class Patch extends Displayable {
 		// - paint not at 0,0 but at -width/2, -height/2
 		// - restore transform
 
-		g2d.translate((x - srcRect.x + width/2) * magnification, (y - srcRect.y + height/2) * magnification);
-		AffineTransform original = g2d.getTransform(); // left in purpose after the translate command, because the transform does not store the translation in any case.
-		g2d.rotate(rot * 2 * Math.PI / 360); //Math.toRadians(rot));
-
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
@@ -269,33 +261,12 @@ public class Patch extends Displayable {
 			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		g.drawImage(image, -(int)(width/2*magnification), -(int)(height/2*magnification), (int)Math.ceil(width * magnification), (int)Math.ceil(height * magnification), null);
-
-		// old way:
-		/*
-		g2d.translate((x - srcRect.x) * magnification, (y - srcRect.y) * magnification);
-		AffineTransform original = g2d.getTransform();
-		g2d.rotate(rot);
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		g.drawImage(image, 0, 0, (int)Math.ceil(width * magnification), (int)Math.ceil(height * magnification), null);
-		*/
+		g2d.drawImage(image, this.at, null);
 
 		//Transparency: fix composite back to original.
 		if (alpha != 1.0f) {
 			g2d.setComposite(original_composite);
 		}
-
-		
-		// undo transform and translation of the painting origin (for some misterious reason, the translation is not part of the transform, not even if calling g2d.getTransform() before doing the translation)
-		g2d.setTransform(original);
-		g2d.translate(- (x - srcRect.x + width/2)* magnification, - (y - srcRect.y + height/2)* magnification);
 	}
 
 	/** A method to paint, simply (to a flat image for example); no magnification or srcRect are considered. */
@@ -305,9 +276,6 @@ public class Patch extends Displayable {
 		Image image = project.getLoader().fetchImage(this);
 
 		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate(x + width/2, y + height/2);
-		AffineTransform original = g2d.getTransform();
-		g2d.rotate(rot * 2 * Math.PI / 360); //Math.toRadians(rot));
 
 		//arrange transparency
 		Composite original_composite = null;
@@ -316,15 +284,12 @@ public class Patch extends Displayable {
 			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		g.drawImage(image, -(int)(width/2), -(int)(height/2), (int)Math.ceil(width), (int)Math.ceil(height), null);
+		g2d.drawImage(image, this.at, null);
 
 		//Transparency: fix composite back to original.
 		if (alpha != 1.0f) {
 			g2d.setComposite(original_composite);
 		}
-		// undo translation
-		g2d.setTransform(original);
-		g2d.translate(- (x + width/2), - (y + height/2));
 	}
 
 	/** A method to paint to the given box, for transformations. */
@@ -340,14 +305,7 @@ public class Patch extends Displayable {
 		}
 
 		Graphics2D g2d = (Graphics2D)g;
-		//g2d.translate((t.x -srcRect.x + t.width/2)*magnification, (t.y -srcRect.y + t.height/2)*magnification);
 		AffineTransform original = null;
-		/*
-		if (0 != t.rot) {
-			original = g2d.getTransform();
-			g2d.rotate((t.rot * Math.PI) / 180); //t.rot * 2 * Math.PI / 360); //Math.toRadians(rot));   // if three constants are involved, do they get simplified at compile time?
-		}
-		*/
 
 		//arrange transparency
 		Composite original_composite = null;
@@ -356,18 +314,12 @@ public class Patch extends Displayable {
 			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, t.alpha));
 		}
 
-		//g.drawImage(image, -(int)(t.width/2*magnification), -(int)(t.height/2*magnification), (int)Math.ceil(t.width * magnification), (int)Math.ceil(t.height * magnification), null);
-
 		g2d.drawImage(image, this.at, null);
-		
-		//g2d.drawImage(image, (int)((x -srcRect.x)*magnification), (int)((y - srcRect.y)*magnification), null);
 
 		//Transparency: fix composite back to original.
 		if (t.alpha != 1.0f) {
 			g2d.setComposite(original_composite);
 		}
-		//if (0 != t.rot) g2d.setTransform(original);
-		//g2d.translate( - (t.x -srcRect.x + t.width/2)*magnification, - (t.y -srcRect.y + t.height/2)*magnification);
 	}
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {

@@ -249,6 +249,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					//Utils.log2(label + " ugt Creating offs " +  + System.currentTimeMillis());
 					offscreen1.setAccelerationPriority(1.0f);
 					g1 = (Graphics2D) offscreen1.getGraphics(); // the cast is safe in terms of: never failed in any JVM so far (macosx, linux, freebsd; 1.4.2, 1.5.0). But it may fail in GCJ !
+					// prepare the canvas for the srcRect and magnification
+					final AffineTransform at_original = g1.getTransform();
+					final AffineTransform atc = new AffineTransform();
+					atc.scale(magnification, magnification);
+					atc.translate(-srcRect.x, -srcRect.y);
+					at_original.preConcatenate(atc);
+					g1.setTransform(at_original);
 					//setRenderingHints(g1);
 
 					offscreen_locked = false;
@@ -445,14 +452,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 
 
-
+				// prepare the canvas for the srcRect and magnification
 				AffineTransform at_original = ((Graphics2D)g).getTransform();
 				AffineTransform atc = new AffineTransform();
 				atc.scale(magnification, magnification);
 				atc.translate(-srcRect.x, -srcRect.y);
 				at_original.preConcatenate(atc);
 				((Graphics2D)g).setTransform(at_original);
-
 
 
 				if (null != active) {

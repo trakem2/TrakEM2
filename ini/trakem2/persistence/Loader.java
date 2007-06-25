@@ -3036,51 +3036,24 @@ abstract public class Loader {
 		final float[] lc = new float[5];
 		if (mpi.fruitfly.registration.SIFTMatcher.align(ip1, ip2, min_epsilon, inlier_ratio, lc)) {
 			Utils.log2("SIFT: dx: " + lc[0] + ", dy: " + lc[1] + ",  angle:" + lc[2] + "  xo: " + lc[3] + ", yo: " + lc[4]);
-			final Transform t = moving.getTransform();
 
+			final AffineTransform at_base = base.getAffineTransformCopy();
+			final AffineTransform at_moving = moving.getAffineTransform();
 
-			final double w1 = base.getWidth(),
-			      	     h1 = base.getHeight();
-
-			double dx = lc[0] / scale,
-			       dy = lc[1] / scale,
-			       angle = lc[2],
-			       xo = lc[3] / scale,
-			       yo = lc[4] / scale;
-
-			AffineTransform at1 = new AffineTransform();
-			at1.translate(- base.getWidth()/2, -base.getHeight()/2);
-			at1.rotate(Math.toRadians(base.getRotation()));
-			double[] src = new double[]{xo + dx, yo + dy};
-			double[] dest = new double[2];
-			at1.transform(src, 0, dest, 0, 1);
-
-			// new point in coords local to the center of the base image
-			double px2 = dest[0] - moving.getWidth()/2,
-			       py2 = dest[1] - moving.getHeight()/2;
-			// move to position of the base image
-			px2 += base.getX() + base.getWidth()/2;
-			py2 += base.getY() + base.getHeight()/2;
-
-			t.x = px2;
-			t.y = py2;
-			t.rot = base.getRotation() + Math.toDegrees(angle);
-
-			/*
-			double X0 = -w1/2 -0.5,
-			       Y0 = -h1/2 -0.5;
-			double X1 = X0 * Math.cos(-angle) - Y0 * Math.sin(-angle);
-			double Y1 = X0 * Math.sin(-angle) + Y0 * Math.cos(-angle);
-			*/
+			// rotate relative to the anchor point:
+			at_moving.scale(1/scale, 1/scale);
+			//at_moving.translate(lc[3], lc[4]); // anchor point back
+			at_moving.rotate(lc[2], lc[3], lc[4]);
+			at_moving.translate(lc[0], lc[1]); // displacement
+			//at_moving.translate(-lc[3], -lc[4]); // anchor point
+			at_moving.scale(scale, scale);
+			at_moving.preConcatenate(at_base);
 
 			// apply
 			if (ControlWindow.isGUIEnabled()) {
 				Rectangle box = moving.getBoundingBox();
-				moving.setTransform(t);
 				box.add(moving.getBoundingBox());
 				Display.repaint(moving.getLayer(), box, 1);
-			} else {
-				moving.setTransform(t);
 			}
 		} else {
 			// failed, fall back to phase-correlation

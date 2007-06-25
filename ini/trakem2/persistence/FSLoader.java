@@ -548,7 +548,7 @@ public class FSLoader extends Loader {
 		final int i_slash = path.indexOf(File.separatorChar);
 		if ((!IJ.isWindows() && 0 != i_slash) || (IJ.isWindows() && 1 != path.indexOf(":/"))) {
 			// path is relative
-			Utils.log2("Where are in and project_xml_path is  " + project_xml_path);
+			//TODO too many calls//Utils.log2("Where are in and project_xml_path is  " + project_xml_path);
 			File fxml = new File(project_xml_path);
 			String parent_dir = fxml.getParent();
 			String tmp = parent_dir + "/" + path;
