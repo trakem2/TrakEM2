@@ -155,10 +155,8 @@ public class Selection {
 		if (transforming && !rotating) {
 			//Utils.log("box painting: " + box);
 			g.setColor(Color.yellow);
-			Graphics2D g2d = (Graphics2D)g;
-			Stroke original_stroke = g2d.getStroke();
-			Composite original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
+			final Graphics2D g2d = (Graphics2D)g;
+			final Stroke original_stroke = g2d.getStroke();
 			//g2d.setStroke(new BasicStroke(5)); // no need  , BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 			
 			// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
@@ -171,7 +169,6 @@ public class Selection {
 				   (int)Math.ceil(box.width  * magnification),
 				   (int)Math.ceil(box.height * magnification));
 			//restore Graphics object
-			g2d.setComposite(original_composite);
 			g2d.setStroke(original_stroke);
 			// paint handles for scaling (boxes) and rotating (circles), and floater
 			for (int i=0; i<handles.length; i++) {

@@ -391,6 +391,17 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		*/
 	}
 
+	public void setMagnification(double mag) {
+		// ensure a stroke of thickness 1.0 regardless of magnification
+		this.stroke = new BasicStroke((float)(1.0/mag), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+		super.setMagnification(mag);
+	}
+
+	/** Paint lines always with a thickness of 1 pixel. */
+	private BasicStroke stroke = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+
+	/** The affine transform representing the srcRect displacement and the magnification. */
+	private final AffineTransform atc = new AffineTransform();
 
 	// can only paint if cancel_painting is false; otherwise, it stops
 	public void paint(Graphics g) {
@@ -405,16 +416,15 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// ensure proper positioning
 				g.translate(0, 0); // ints!
 
-				int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
-				int g_height = getHeight();
+				final int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
+				final int g_height = getHeight();
 
-				Rectangle clipRect = g.getClipBounds();
+				final Rectangle clipRect = g.getClipBounds();
 
 				//debug:
 				//Utils.log2("clipRect: " + clipRect);
 
-
-				Displayable active = display.getActive();
+				final Displayable active = display.getActive();
 				int c_alphas = display.getDisplayChannelAlphas();
 				int sr_width = (int) (srcRect.width * magnification) + 1; // to make it a ceil operation
 				int sr_height = (int) (srcRect.height * magnification) + 1;
@@ -426,10 +436,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					return;
 				}
 
-				Selection selection = display.getSelection();
-				Layer active_layer = display.getLayer();
-
-				//Utils.log("bef draw off1");
+				final Selection selection = display.getSelection();
+				final Layer active_layer = display.getLayer();
 
 				if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass().equals(AreaList.class) && ((AreaList)active).getFillPaint()) {
 					// no background paint if painting in fill_paint mode
@@ -451,31 +459,25 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					return;
 				}
 
+				final Graphics2D g2d = (Graphics2D)g;
 
 				// prepare the canvas for the srcRect and magnification
-				AffineTransform at_original = ((Graphics2D)g).getTransform();
-				AffineTransform atc = new AffineTransform();
+				final AffineTransform at_original = g2d.getTransform();
+				atc.setToIdentity();
 				atc.scale(magnification, magnification);
 				atc.translate(-srcRect.x, -srcRect.y);
 				at_original.preConcatenate(atc);
-				((Graphics2D)g).setTransform(at_original);
+				g2d.setTransform(at_original);
+
+				// always a stroke of 1.0, regardless of magnification
+				g2d.setStroke(this.stroke);
 
 
 				if (null != active) {
 					try {
 						if (selection.contains(active) && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) {
 							active.paint(g, magnification, srcRect, clipRect, true, c_alphas, active_layer, selection.getTransform(active));
-						} else {
-							// never happens: can't be active if the selection doesn't have it! TODO clean up
-							active.paint(g, magnification, srcRect, clipRect, true, c_alphas, active_layer);
 						}
-						//debug:
-						/*
-						Rectangle box = active.getBoundingBox();
-						g.setColor(Color.green);
-						g.drawRect((int)((box.x - srcRect.x)*magnification)-2, (int)((box.y - srcRect.y)*magnification)-2, (int)(box.width*magnification)+4, (int)(box.height*magnification)+4);
-						Utils.log2("active screen box: " + new Rectangle((int)((box.x - srcRect.x)*magnification)-2, (int)((box.y - srcRect.y)*magnification)-2, (int)(box.width*magnification)+4, (int)(box.height*magnification)+4));
-						*/
 					} catch (Exception e) {
 						Utils.log2("Synchronization issues");
 					}
@@ -516,12 +518,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// paint a pink frame around selected objects, and a white frame around the active object, and a big yellow frame with handles if transforming
 				if (null != selection && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) selection.paint(g, srcRect, magnification);
 
-				Align align = null != active_layer ? active_layer.getParent().getAlign() : null;
+				final Align align = null != active_layer ? active_layer.getParent().getAlign() : null;
 				if (null != align) {
 					align.paint(active_layer, g, srcRect, magnification);
 				}
-
-				//Utils.log2("clip: " + clipRect);
 
 				// paint brush outline for AreaList
 				if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass().equals(AreaList.class)) {
@@ -530,26 +530,15 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
 				}
 
-				/*
-				if (cancel_painting) {
-					display.setCursor(Cursor.getDefaultCursor());
-					return;
-				}
-				*/
-
 				// finally, paint non-srcRect areas
+				g2d.setTransform();
 				g.setColor(Color.gray);
 				g.fillRect(sr_width, 0, g_width - sr_width, g_height);
 				g.fillRect(0, sr_height, g_width, g_height - sr_height);
 
 				if (null != roi) {
 					roi.draw(g);
-				} else {
-					g.setClip(new Rectangle(0, 0, g_width, g_height)); // TODO: what for?
 				}
-
-				// done!
-				//Utils.log2("^^^ paint completed.");
 
 				// restore cursor
 				display.setCursor(Cursor.getDefaultCursor());

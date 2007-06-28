@@ -200,6 +200,7 @@ public class Snapshot {
 		}
 		} catch (Exception e) {
 			Utils.log2("createSnap: layer is " + p.getLayer());
+			new ini.trakem2.utils.IJError(e);
 		}
 		// else, grainy images by nearest-neighbor
 		BufferedImage bi = null;

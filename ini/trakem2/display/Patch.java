@@ -113,9 +113,9 @@ public class Patch extends Displayable {
 		}
 		// TEMPORARY: in the near future, read the matrix values in the SVG
 		// reconstruct the AffineTransform
-		ImagePlus imp = getProject().getLoader().fetchImagePlus(this);
-		int w = imp.getWidth();
-		int h = imp.getHeight();
+		//FAILS for stacks at create snap, no Layer yet// ImagePlus imp = getProject().getLoader().fetchImagePlus(this);
+		double w = width; //imp.getWidth();
+		double h = height; //imp.getHeight();
 		AffineTransform at2 = new AffineTransform();
 		at2.translate(x, y);
 		at2.rotate(Math.toRadians(rot), width/2, height/2);
