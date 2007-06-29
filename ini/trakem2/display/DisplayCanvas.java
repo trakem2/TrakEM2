@@ -249,6 +249,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					//Utils.log2(label + " ugt Creating offs " +  + System.currentTimeMillis());
 					offscreen1.setAccelerationPriority(1.0f);
 					g1 = (Graphics2D) offscreen1.getGraphics(); // the cast is safe in terms of: never failed in any JVM so far (macosx, linux, freebsd; 1.4.2, 1.5.0). But it may fail in GCJ !
+
 					// prepare the canvas for the srcRect and magnification
 					final AffineTransform at_original = g1.getTransform();
 					final AffineTransform atc = new AffineTransform();
@@ -291,11 +292,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						if (top) {
 							al_top.add(d);
 						} else {
-							Transform t = selection.getTransform(d);
-						if (null == t) {
-							d.paint(g_any, magnification, srcRect, clipRect, false, c_alphas, layer);
-							} else {
-								d.paint(g_any, magnification, srcRect, clipRect, false, c_alphas, layer, t);
+							if (!d.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
+								d.paint(g_any, magnification, false, c_alphas, layer);
 							}
 						}
 					} else {
@@ -316,11 +314,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						if (top) {
 							al_top.add(zd);
 						} else {
-							Transform t = selection.getTransform(zd);
-							if (null == t) {
-								zd.paint(g_any, magnification, srcRect, clipRect, false, c_alphas, layer);
-							} else {
-								zd.paint(g_any, magnification, srcRect, clipRect, false, c_alphas, layer, t);
+							if (!zd.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
+								zd.paint(g_any, magnification, false, c_alphas, layer);
 							}
 						}
 					} else {
@@ -340,11 +335,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						if (top) {
 							al_top.add(d);
 						} else {
-							Transform t = selection.getTransform(d);
-							if (null == t) {
-								d.paint(g_any, magnification, srcRect, clipRect, false, c_alphas, layer);
-							} else {
-								d.paint(g_any, magnification, srcRect, clipRect, false, c_alphas, layer, t);
+							if (!d.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
+								d.paint(g_any, magnification, false, c_alphas, layer);
 							}
 						}
 					} else {
@@ -355,7 +347,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					i++;
 				}
 
-				if (null != g1) g1.dispose(); // Kai does it (but I suspect it's automatic?)
+				if (null != g1) g1.dispose(); // Kai Uwe Barthel does it (but I suspect it's automatic?)
 				// done
 				//Utils.log(label + " *** Done ugt " + System.currentTimeMillis());
 				// only on success:
@@ -476,7 +468,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if (null != active) {
 					try {
 						if (selection.contains(active) && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) {
-							active.paint(g, magnification, srcRect, clipRect, true, c_alphas, active_layer, selection.getTransform(active));
+							if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
+								active.paint(g2d, magnification, true, c_alphas, active_layer);
+							}
 						}
 					} catch (Exception e) {
 						Utils.log2("Synchronization issues");
@@ -506,17 +500,18 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							return;
 						}
 						Displayable ob = di[i];
-						Transform t = selection.getTransform(ob);
-						if (null == t) {
-							ob.paint(g, magnification, srcRect, clipRect, false, c_alphas, active_layer);
-						} else {
-							ob.paint(g, magnification, srcRect, clipRect, false, c_alphas, active_layer, t); // as inactive
+						if (!ob.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
+							ob.paint(g2d, magnification, false, c_alphas, active_layer);
 						}
 					}
 				}
 
 				// paint a pink frame around selected objects, and a white frame around the active object, and a big yellow frame with handles if transforming
-				if (null != selection && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) selection.paint(g, srcRect, magnification);
+				if (null != selection && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) {
+					selection.paint(g, srcRect, magnification);
+				}
+
+				g2d.setTransform(new AffineTransform()); // reset to identity
 
 				final Align align = null != active_layer ? active_layer.getParent().getAlign() : null;
 				if (null != align) {
@@ -531,7 +526,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 
 				// finally, paint non-srcRect areas
-				g2d.setTransform();
 				g.setColor(Color.gray);
 				g.fillRect(sr_width, 0, g_width - sr_width, g_height);
 				g.fillRect(0, sr_height, g_width, g_height - sr_height);

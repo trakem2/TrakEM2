@@ -106,6 +106,7 @@ public abstract class Displayable extends DBObject {
 		this.x = x;
 		this.y = y;
 		this.snapshot = new Snapshot(this);
+		this.at.translate(x, y);
 	}
 
 	/** Reconstruct a Displayable from the database. */
@@ -116,14 +117,15 @@ public abstract class Displayable extends DBObject {
 		this.y = y;
 		this.locked = locked;
 		this.snapshot = new Snapshot(this);
+		this.at.translate(x, y);
 	}
 
-	/** *Reconstruct a Displayable from an XML entry. Used entries get removed from the Hashtable. */
+	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the Hashtable. */
 	public Displayable(Project project, long id, Hashtable ht, Hashtable ht_links) {
 		super(project, id);
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
-		ArrayList al_used_keys = new ArrayList();
+		final ArrayList al_used_keys = new ArrayList();
 		for (Enumeration e = ht.keys(); e.hasMoreElements(); ) {
 			String key = (String)e.nextElement();
 			try {
@@ -132,7 +134,12 @@ public abstract class Displayable extends DBObject {
 				else if (key.equals("y")) y = Double.parseDouble(data);
 				else if (key.equals("width")) width = Double.parseDouble(data);
 				else if (key.equals("height")) height = Double.parseDouble(data);
-				else if (key.equals("rot")) rot = Double.parseDouble(data);
+				else if (key.equals("transform")) {
+					final String[] nums = data.substring(data.indexOf('(')+1, data.lastIndexOf(')')).split(",");
+					this.at.setTransform(Float.parseFloat(nums[0]), Float.parseFloat(nums[1]),
+							     Float.parseFloat(nums[2]), Float.parseFloat(nums[3]),
+							     Float.parseFloat(nums[4]), Float.parseFloat(nums[5]));
+				}
 				else if (key.equals("locked")) locked = data.trim().toLowerCase().equals("true");
 				else if (key.equals("visible")) visible = data.trim().toLowerCase().equals("true");
 				else if (key.equals("style")) {
@@ -192,12 +199,26 @@ public abstract class Displayable extends DBObject {
 		this.snapshot = new Snapshot(this);
 	}
 
-	abstract public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer);
+	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
+	}
 
-	abstract public void paint(Graphics g, Layer active_layer);
+	public void paint(Graphics2D g) {
+		Utils.log2("paint g: not implemented yet for " + this.getClass());
+	}
 
-	abstract public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform transform); /* {
-		Utils.log("Displayable " + this + ": painting as transformed not implemented yet.");
+	public void paint(Graphics g, Layer active_layer) {
+		paint((Graphics2D)g);
+	}
+
+	@Deprecated
+	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
+		Utils.log2("Deprecated paint method 1 for " + this.getClass());
+	}
+
+	@Deprecated
+	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
+		Utils.log2("Deprecated paint method 2 for " + this.getClass());
 	}
 
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
@@ -298,97 +319,58 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public Rectangle getBoundingBox() {
-		double abs = Math.abs(this.rot);
-		if (abs < 0.001) {
-			return new Rectangle((int)x, (int)y, (int)Math.ceil(width), (int)Math.ceil(height));
-		} else {
-			//double corner_angle2 = Utils.getAngle(width / 2, height / 2);
-			// optimized:
-			double corner_angle2 = Utils.getAngle(width, height);
-			double corner_angle1 = Math.PI - corner_angle2; //symmetric
-			//double hypot = Math.sqrt(width * width + height * height) / 2;
-			// optimized:
-			double hypot = Math.sqrt(width * width + height * height);//  / 2;
-			double rot = Math.toRadians(this.rot);
-			double cos1 = Math.abs(Math.cos(corner_angle1 - rot) * hypot);
-			double cos2 = Math.abs(Math.cos(corner_angle2 - rot) * hypot);
-			double sin1 = Math.abs(Math.sin(corner_angle1 - rot) * hypot);
-			double sin2 = Math.abs(Math.sin(corner_angle2 - rot) * hypot);
-			// choose largest
-			//double w = Math.ceil(( cos1 > cos2 ? cos1 : cos2 ) * 2);
-			//double h = Math.ceil((sin1 > sin2 ? sin1 : sin2 ) * 2);
-			// optimized:
-			double w = Math.ceil(( cos1 > cos2 ? cos1 : cos2 )); // * 2);
-			double h = Math.ceil((sin1 > sin2 ? sin1 : sin2 ));// * 2);
-			return new Rectangle((int)(x + (width - w) / 2), (int)(y + (height - h) / 2), (int)w, (int)h);
-		}
+		return getBoundingBox(null);
 	}
 
 	/** Saves one allocation, returns the same Rectangle, modified. */
 	public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
-		if (Math.abs(this.rot) < 0.001) {
-			r.x = (int)x;
-			r.y = (int)y;
-			r.width = (int)Math.ceil(width);
-			r.height = (int)Math.ceil(height);
+		if (this.at.isIdentity()) {
+			r.x = (int)this.x;
+			r.y = (int)this.y;
+			r.width = (int)this.width;
+			r.height = (int)this.height;
 		} else {
-			// optimized version:
-			double corner_angle2 = Utils.getAngle(width, height);
-			double corner_angle1 = Math.PI - corner_angle2; //symmetric
-			double hypot = Math.sqrt(width * width + height * height);//  / 2;
-			double rot = Math.toRadians(this.rot);
-			double cos1 = Math.abs(Math.cos(corner_angle1 - rot) * hypot);
-			double cos2 = Math.abs(Math.cos(corner_angle2 - rot) * hypot);
-			double sin1 = Math.abs(Math.sin(corner_angle1 - rot) * hypot);
-			double sin2 = Math.abs(Math.sin(corner_angle2 - rot) * hypot);
-			// choose largest
-			double w = Math.ceil(( cos1 > cos2 ? cos1 : cos2 )); // * 2);
-			double h = Math.ceil((sin1 > sin2 ? sin1 : sin2 ));// * 2);
-			r.x = (int)(x + (width - w) / 2);
-			r.y = (int)(y + (height - h) / 2);
-			r.width = (int)w;
-			r.height = (int)h;
+			// transform points
+			final double[] d1 = new double[]{0, 0, width, height};
+			final double[] d2 = new double[4];
+			this.at.transform(d1, 0, d2, 0, 2);
+			// find min/max
+			double min_x=Double.MAX_VALUE, min_y=Double.MAX_VALUE, max_x=-min_x, max_y=-min_y;
+			if (d2[0] < min_x) min_x = d2[0];
+			if (d2[0] > max_x) max_x = d2[0];
+			if (d2[2] < min_x) min_x = d2[2];
+			if (d2[2] > max_x) max_x = d2[2];
+			if (d2[1] < min_y) min_y = d2[1];
+			if (d2[1] > max_y) max_y = d2[1];
+			if (d2[3] < min_y) min_y = d2[3];
+			if (d2[3] > max_y) max_y = d2[3];
+			r.x = (int)min_x;
+			r.y = (int)min_y;
+			r.width = (int)(max_x - min_x);
+			r.height = (int)(max_y - min_y);
 		}
 		return r;
 	}
 
 	/** Subclasses can override this method to provide the exact contour, otherwise it returns the bounding box with x,y set to zero. */
 	public Polygon getPerimeter() {
-		if (Math.abs(this.rot) < 0.001) {
-			return new Polygon(new int[]{0, (int)Math.ceil(width), (int)Math.ceil(width), 0}, new int[]{0, 0, (int)Math.ceil(height), (int)Math.ceil(height)}, 4);
-		} else {
-			// rotate perimeter relative to the center.
-			double rot = Math.toRadians(this.rot);
-			double[][] p = rotatePoints(new double[][]{{0, width, width, 0}, {0, 0, height, height}}, rot, width/2, height/2);
-			Polygon pol = new Polygon();
-			for (int i=0; i<p[0].length; i++) {
-				pol.addPoint((int)p[0][i], (int)p[1][i]);
-			}
-			return pol;
-		}
+		return getPerimeter(0, 0);
 	}
 
 	/** Get the perimeter translated to the given coordinates. Subclasses can override this method to provide the exact contour, otherwise it returns the bounding box. */
 	public Polygon getPerimeter(double xo, double yo) {
-		if (Math.abs(this.rot) < 0.001) {
-			return new Polygon(new int[]{(int)(xo), (int)Math.ceil(xo + width), (int)Math.ceil(xo + width), (int)(xo)}, new int[]{(int)(yo), (int)(yo), (int)Math.ceil(yo + height), (int)Math.ceil(yo + height)}, 4);
-		} else {
-			// rotate perimeter relative to the center as displaced by xo,yo.
-			double[][] p = rotatePoints(new double[][]{{xo, xo+width, xo+width, xo}, {yo, yo, yo+height, yo+height}}, Math.toRadians(this.rot), xo + width/2, yo + height/2);
-			Polygon pol = new Polygon();
-			for (int i=0; i<p[0].length; i++) {
-				pol.addPoint((int)p[0][i], (int)p[1][i]);
-			}
-			return pol;
-		}
+		Rectangle r = getBoundingBox();
+		Utils.log2("x,y,w,h: " + x + "," + y + "," + width + "," + height);
+		Utils.log2("bbox is " + r);
+		return new Polygon(new int[]{r.x, r.x+r.width, r.x+r.width, r.x},
+				   new int[]{r.y, r.y, r.y+r.height, r.y+r.height},
+				   4);
 	}
 
 	/** Test whether the given point falls within the perimeter of this Displayable, considering the position x,y. Used by the DisplayCanvas mouse events. */
 	public boolean contains(int x_p, int y_p) {
-		// check bounding box first. Considering rotation, add aprox. *1.5 in all directions
-		if ((x_p < x - width/2 || x_p > x + width*1.5) && (y_p < y - height/2 || y_p > y + height*1.5)) return false;
-		return getPerimeter(this.x, this.y).contains(x_p, y_p);
+		return getPerimeter().contains(x_p, y_p);
 	}
 
 	public void setAlpha(float alpha) {
@@ -533,11 +515,30 @@ public abstract class Displayable extends DBObject {
 		updateInDatabase("position");
 	}
 
-	abstract public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag);
+	@Deprecated
+	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
+		Utils.log2("Deprecated mousePressed method for " + this.getClass());
+	}
 
-	abstract public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag);
+	@Deprecated
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
+		Utils.log2("DeprecaPressedted mouseDragged method for " + this.getClass());
+	}
 
-	abstract public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag);
+	@Deprecated
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
+		Utils.log2("Deprecated mouseReleased method for " + this.getClass());
+	}
+
+	public void mousePressed(MouseEvent me, int x_p, int y_p) {
+		Utils.log2("mousePressed not implemented yet for " + this.getClass().getName());
+	}
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+		Utils.log2("mouseDragged not implemented yet for " + this.getClass().getName());
+	}
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+		Utils.log2("mouseReleased not implemented yet for " + this.getClass().getName());
+	}
 
 	public void keyPressed(KeyEvent ke) {
 
@@ -1076,22 +1077,6 @@ public abstract class Displayable extends DBObject {
 		updateInDatabase("all");
 	}
 
-	public void paintBoundingBox(Graphics g, Rectangle srcRect, double magnification, Color color) {
-		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate((x - srcRect.x + width/2) * magnification, (y - srcRect.y + height/2) * magnification);
-		AffineTransform original = g2d.getTransform(); // left in purpose after the translate command, because the transform does not store the translation in any case.
-		g2d.rotate(rot * 2 * Math.PI / 360); //Math.toRadians(rot));
-
-		// paint box
-		if (null == color) color = this.color;
-		g.setColor(color);
-		g.drawRect(-(int)(width/2*magnification), -(int)(height/2*magnification), (int)Math.ceil(width * magnification), (int)Math.ceil(height * magnification));
-
-		// reset
-		g2d.setTransform(original);
-		g2d.translate(- (x - srcRect.x + width/2)* magnification, - (y - srcRect.y + height/2)* magnification);
-	}
-
 	/** Rotate 2D points relative to the given pivot point by the given rot angle (in radians), in the 2D plane. */
 	static public double[][] rotatePoints(double[][] p, double rot, double xo, double yo) {
 		//Utils.log("calling rotatePoints for " + p + "  with rot=" + Math.toDegrees(rot));
@@ -1198,5 +1183,16 @@ public abstract class Displayable extends DBObject {
 
 	public void setAffineTransform(AffineTransform at) {
 		this.at = at;
+	}
+
+	public void translate(double dx, double dy) {
+		AffineTransform at2 = new AffineTransform();
+		at2.translate(dx, dy);
+		this.at.preConcatenate(at2);
+	}
+
+	/** Rotate relative to an anchor point. */
+	public void rotate(double angle, double xo, double yo) {
+		this.at.rotate(angle, xo, yo);
 	}
 }

@@ -118,46 +118,8 @@ public class Snapshot {
 		return null;
 	}
 
-	/** The scale is the that of the navigator relative to the LayerSet's. */
-	public void paintTo(Graphics g, double scale, final Layer layer) {
-		Graphics2D g2d = (Graphics2D)g;
-		// arrange transparency
-		Composite original_composite = null;
-		AffineTransform original = g2d.getTransform();
-		float alpha = d.getAlpha();
-		if (alpha != 1.0f) {
-			g2d = (Graphics2D)g;
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-		if (d instanceof Patch) {
-			int target_x = (int)(d.getX() * scale);
-			int target_y = (int)(d.getY() * scale);
-			int target_width = (int)Math.ceil(d.getWidth() * scale);
-			int target_height = (int)Math.ceil(d.getHeight() * scale);
-			g2d.translate(target_x + target_width/2, target_y + target_height/2);
-			g2d.rotate(Math.toRadians(d.getRotation()));
-			if (d.getLayer().getParent().areSnapshotsEnabled()) {
-				Image image = reload();
-				g.drawImage(image, -target_width/2, -target_height/2, target_width, target_height, null);
-			} else {
-				g.setColor(d.getColor());
-				g.drawRect(-target_width/2, -target_height/2, target_width, target_height);
-			}
-		} else {
-			// paint directly, scaled
-			boolean v = d.visible;
-			d.visible = true;
-			g2d.scale(scale, scale);
-			d.paint(g, layer);
-			d.visible = v; // restoring
-		}
-		// reset transparency
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
-		}
-		// reset
-		g2d.setTransform(original);
+	public void paintTo(Graphics2D g, final Layer layer) {
+		d.paint(g, layer);
 	}
 
 	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. */

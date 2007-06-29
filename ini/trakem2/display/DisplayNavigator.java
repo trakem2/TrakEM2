@@ -37,6 +37,7 @@ import java.awt.event.MouseEvent;
 import java.util.Iterator;
 import java.util.ArrayList;
 import ini.trakem2.utils.*;
+import java.awt.geom.AffineTransform;
 
 public class DisplayNavigator extends JPanel implements MouseListener, MouseMotionListener {
 
@@ -190,7 +191,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				//g2d.getRenderingHints().put(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
 				//Rectangle clipRect = g.getClipBounds();
 
-				Graphics2D graphics = image.createGraphics();
+				final Graphics2D graphics = image.createGraphics();
 				graphics.setColor(Color.black);
 				graphics.fillRect(0, 0, DisplayNavigator.super.getWidth(), DisplayNavigator.super.getHeight());
 				// set a scaled stroke, or 0.4 if too small
@@ -200,14 +201,16 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				graphics.setColor(Color.black);
 				graphics.fillRect(0, 0, FIXED_WIDTH, height);
 
+				graphics.scale(scale, scale);
+
 				if (quit) {
 					updating = false;
 					updating_ob.notifyAll();
 					return;
 				}
 
-				ArrayList al = display.getLayer().getDisplayables();
-				int size = al.size();
+				final ArrayList al = display.getLayer().getDisplayables();
+				final int size = al.size();
 				boolean zd_done = false;
 				for (int i=0; i<size; i++) {
 					if (quit) {
@@ -215,7 +218,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 						updating_ob.notifyAll();
 						return;
 					}
-					Displayable d = (Displayable)al.get(i);
+					final Displayable d = (Displayable)al.get(i);
 					//if (d.isOutOfRepaintingClip(clip, scale)) continue; // needed at least for the visibility
 					if (!d.isVisible()) continue; // TODO proper clipRect for this navigator image may be necessary (lots of changes needed in the lines above reltive to filling the black background, etc)
 					if (!zd_done && d instanceof DLabel) {
@@ -230,10 +233,10 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 							}
 							ZDisplayable zd = (ZDisplayable)itz.next();
 							if (!zd.isVisible()) continue;
-							zd.getSnapshot().paintTo(graphics, scale, display.getLayer());
+							zd.getSnapshot().paintTo(graphics, display.getLayer());
 						}
 					}
-					d.getSnapshot().paintTo(graphics, scale, display.getLayer());
+					d.getSnapshot().paintTo(graphics, display.getLayer());
 				}
 				if (!zd_done) { // if no labels, ZDisplayables haven't been painted
 					zd_done = true;
@@ -247,7 +250,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 						}
 						ZDisplayable zd = (ZDisplayable)itz.next();
 						if (!zd.isVisible()) continue;
-						zd.getSnapshot().paintTo(graphics, scale, display.getLayer());
+						zd.getSnapshot().paintTo(graphics, display.getLayer());
 					}
 				}
 				updating = false;

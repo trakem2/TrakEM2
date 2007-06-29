@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Color;
 import java.awt.Dimension;
 import javax.swing.JPanel;
@@ -64,7 +65,9 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 		g.setColor(Color.black);
 		g.fillRect(0, 0, this.getWidth(), this.getHeight());
 		double scale = FIXED_HEIGHT / d.getLayer().getLayerHeight();
-		snapshot.paintTo(g, scale, display.getLayer());
+		Graphics2D g2d = (Graphics2D)g;
+		g2d.scale(scale, scale);
+		snapshot.paintTo((Graphics2D)g, display.getLayer());
 	}
 
 	public void mousePressed(MouseEvent me) {

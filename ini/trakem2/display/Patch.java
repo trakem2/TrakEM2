@@ -233,10 +233,7 @@ public class Patch extends Displayable {
 
 	static final public DirectColorModel DCM = new DirectColorModel(24, 0xff0000, 0xff00, 0xff);
 
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer acitve_layer) {
-
-		if (isOutOfRepaintingClip(magnification, srcRect, clipRect)) return;
-
+	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
 		Image image = null;
 		if (this.channels == channels) {
 			image = project.getLoader().fetchImage(this, magnification);
@@ -246,49 +243,39 @@ public class Patch extends Displayable {
 		}
 		if (null == image) return; // TEMPORARY from lazy repaints after closing a Project
 
-		Graphics2D g2d = (Graphics2D)g;
-
-		// To enable rotation:
-		// - translate to the center of the image
-		// - apply rotation
-		// - paint not at 0,0 but at -width/2, -height/2
-		// - restore transform
-
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+			original_composite = g.getComposite();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		g2d.drawImage(image, this.at, null);
+		g.drawImage(image, this.at, null);
 
 		//Transparency: fix composite back to original.
 		if (alpha != 1.0f) {
-			g2d.setComposite(original_composite);
+			g.setComposite(original_composite);
 		}
 	}
 
 	/** A method to paint, simply (to a flat image for example); no magnification or srcRect are considered. */
-	public void paint(Graphics g, Layer active_layer) {
+	public void paint(Graphics2D g) {
 		if (!this.visible) return;
 
 		Image image = project.getLoader().fetchImage(this);
 
-		Graphics2D g2d = (Graphics2D)g;
-
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+			original_composite = g.getComposite();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		g2d.drawImage(image, this.at, null);
+		g.drawImage(image, this.at, null);
 
 		//Transparency: fix composite back to original.
 		if (alpha != 1.0f) {
-			g2d.setComposite(original_composite);
+			g.setComposite(original_composite);
 		}
 	}
 
@@ -320,21 +307,6 @@ public class Patch extends Displayable {
 		if (t.alpha != 1.0f) {
 			g2d.setComposite(original_composite);
 		}
-	}
-
-	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
-		//if (ProjectToolbar.SELECT != ProjectToolbar.getToolId()) return;
-	}
-
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
-		if (ProjectToolbar.SELECT != ProjectToolbar.getToolId()) return;
-		super.drag(x_d - x_d_old, y_d - y_d_old);
-		repaint();
-	}
-
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
-		if (ProjectToolbar.SELECT != ProjectToolbar.getToolId()) return;
-		repaint();
 	}
 
 	public void keyPressed(KeyEvent ke) {

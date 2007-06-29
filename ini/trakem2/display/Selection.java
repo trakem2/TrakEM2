@@ -40,6 +40,7 @@ import java.awt.BasicStroke;
 import java.awt.AlphaComposite;
 import java.awt.Composite;
 import java.awt.Graphics2D;
+import java.awt.geom.AffineTransform;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -136,20 +137,16 @@ public class Selection {
 				unlock();
 			}
 		}
+		final Rectangle bbox = new Rectangle();
 		for (int i=0; i<da.length; i++) {
-			final Displayable d = da[i];
-			final Transform t = (Transform)ht.get(d);
-			//Utils.log("d, t: " + d + ", " + t);
-			if (null == t) {
-				Utils.log2("Selection.paint warning: null t for d: " + d);
-				continue;
-			}
-			if (d.equals(active)) {
+			da[i].getBoundingBox(bbox);
+			if (da[i].equals(active)) {
 				g.setColor(Color.white);
-				t.paintBox(g, srcRect, magnification);
+				g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
 				g.setColor(Color.pink);
+			} else {
+				g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
 			}
-			t.paintBox(g, srcRect, magnification);
 		}
 		//Utils.log2("transforming, dragging, rotating: " + transforming + "," + dragging + "," + rotating);
 		if (transforming && !rotating) {
@@ -161,19 +158,19 @@ public class Selection {
 			
 			// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
 			float[] dashPattern = { 30, 10, 10, 10 };
-			g2d.setStroke(new BasicStroke(3, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
+			g2d.setStroke(new BasicStroke((float)(2/magnification), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
 
 			// paint box
-			g.drawRect((int)((box.x - srcRect.x)*magnification),
-				   (int)((box.y - srcRect.y)*magnification),
-				   (int)Math.ceil(box.width  * magnification),
-				   (int)Math.ceil(box.height * magnification));
+			g.drawRect(box.x, box.y, box.width, box.height);
 			//restore Graphics object
 			g2d.setStroke(original_stroke);
 			// paint handles for scaling (boxes) and rotating (circles), and floater
+			AffineTransform original = g2d.getTransform();
+			g2d.setTransform(new AffineTransform());
 			for (int i=0; i<handles.length; i++) {
 				handles[i].paint(g, srcRect, magnification);
 			}
+			g2d.setTransform(original);
 		}
 
 		/*
@@ -797,10 +794,9 @@ public class Selection {
 			// drag the handle and perform whatever task it has assigned
 			grabbed.drag(dx, dy);
 		} else if (dragging) {
-			// drag the whole thing
+			// drag all selected and linked
 			for (Iterator it = ht.keySet().iterator(); it.hasNext(); ) {
-				Transform t = (Transform)ht.get(it.next());
-				t.translate(dx, dy);
+				((Displayable)it.next()).translate(dx, dy);
 			}
 			//and the box!
 			box.x += dx;
@@ -984,8 +980,8 @@ public class Selection {
 		box = null;
 		Rectangle b = new Rectangle();
 		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Transform t = (Transform)ht.get(it.next());
-			b = t.getBoundingBox(b);
+			Displayable d = (Displayable)it.next();
+			b = d.getBoundingBox(b);
 			if (null == box) box = (Rectangle)b.clone();
 			box.add(b);
 		}

@@ -113,9 +113,9 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
+	public void paint(Graphics g, boolean active, int channels, Layer active_layer) {
 		// check if it has to be painted at all
-		if (!AreaList.brushing && super.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
+		if (!AreaList.brushing) {
 			return; // avoid check if brushing, since update is on the brush which can be beyond current bonds until mouseRelease
 		}
 		Object ob = ht_areas.get(new Long(active_layer.getId()));
@@ -128,36 +128,22 @@ public class AreaList extends ZDisplayable {
 				return;
 			}
 		}
-		Area area = (Area)ob;
+		final Area area = (Area)ob;
 
 		g.setColor(this.color);
 
-		Graphics2D g2d = (Graphics2D)g;
+		final Graphics2D g2d = (Graphics2D)g;
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
 			original_composite = g2d.getComposite();
 			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
-		// imitating ij.gui.ShapeRoi.draw(Graphics g)
-		//AffineTransform aTx = g2d.getDeviceConfiguration().getDefaultTransform();
-		//AffineTransform aTx = new AffineTransform();
-		///aTx.setTransform(magnification, 0.0, 0.0, magnification, -srcRect.x*magnification, -srcRect.y*magnification);
-		AffineTransform at = new AffineTransform();
-		at.scale(magnification, magnification);
-		final int tx = (int)((this.x - srcRect.x) * magnification);
-		final int ty = (int)((this.y - srcRect.y) * magnification);
-		g2d.translate(tx, ty);
 		if (fill_paint) {
-			g2d.fill(area.createTransformedArea(at));
+			g2d.fill(area.createTransformedArea(this.at));
 		} else {
-			g2d.draw(area.createTransformedArea(at));  // the contour only
+			g2d.draw(area.createTransformedArea(this.at));  // the contour only
 		}
-		// no rotation because rotation is always applied! Which has to change in the future
-		//
-		//g2d.draw(aTx.createTransformedShape(shape)); // the contour only
-		//reset
-		g2d.translate(-tx, -ty);
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
 			g2d.setComposite(original_composite);
@@ -173,86 +159,21 @@ public class AreaList extends ZDisplayable {
 			ob = loadLayer(current.getId());
 			if (null == ob) return;
 		}
-		Area area = (Area)ob;
+		final Area area = (Area)ob;
 		g.setColor(this.color);
-		Graphics2D g2d = (Graphics2D)g;
+		final Graphics2D g2d = (Graphics2D)g;
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
 			original_composite = g2d.getComposite();
 			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
-		g2d.translate(this.x, this.y);
 		if (fill_paint) {
-			g2d.fill(area);
+			g2d.fill(area.createTransformedArea(this.at));
 		} else {
-			g2d.draw(area);
+			g2d.draw(area.createTransformedArea(this.at));  // the contour only
 		}
-		//reset
-		g2d.translate(-this.x, -this.y);
 		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
-		}
-	}
-
-	/** For painting while transforming (or selected). The given box is in offscreen coords. */
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
-		// shortcut to paint as is
-		if (AreaList.brushing) {
-			paint(g, magnification, srcRect, clipRect, active, channels, active_layer);
-			return;
-		}
-		// check if it has to be painted at all
-		if (super.isOutOfRepaintingClip(magnification, srcRect, clipRect)) { // this will fail if the transform changes the area's relative position!
-			return;
-		}
-		Object ob = ht_areas.get(new Long(active_layer.getId()));
-		if (null == ob) return;
-		if (AreaList.UNLOADED.equals(ob)) {
-			ob = loadLayer(active_layer.getId());
-			if (null == ob) return;
-		}
-		Area area = (Area)ob;
-		//Rectangle box = area.getBounds();
-		AffineTransform at = new AffineTransform();
-		//at.translate(-box.x - box.width/2, -box.y - box.height/2); // center at 0,0
-		at.translate(-this.width/2, -this.height/2); // center at 0,0
-		//screws up, can't see why// at.scale( (t.width / box.width) * magnification, (t.height / box.height) * magnification);
-		area = area.createTransformedArea(at); // a copy
-		at = new AffineTransform();
-		/*TEMP*/ at.rotate(Math.toRadians(t.rot));
-		area = area.createTransformedArea(at); // a copy
-
-
-		//Utils.log2("paint bounds: " + area.getBounds());
-
-		double pivot_x = (t.x + t.width/2 - srcRect.x) * magnification;
-		double pivot_y = (t.y + t.height/2 - srcRect.y) * magnification;
-		Graphics2D g2d = (Graphics2D)g;
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-		//in addition, translate to the center of the area for the rotation to work as expected
-		AffineTransform at_orig = g2d.getTransform();
-		g2d.translate(pivot_x, pivot_y);
-		//TEMP//if (0 != t.rot) g2d.rotate(Math.toRadians(t.rot));
-		double sx = (t.width / this.width) * magnification;
-		double sy = (t.height / this.height) * magnification;
-		g2d.scale(sx, sy);
-		g2d.setColor(this.color);
-		if (fill_paint) {
-			g2d.fill(area);
-		} else {
-			g2d.draw(area);
-		}
-		//g2d.scale(1/sx, 1/sy);
-		//g2d.translate(-pivot_x, -pivot_y);
-		g2d.setTransform(at_orig);
-		// TODO all the above could be combined in a single affine transform
 		if (null != original_composite) {
 			g2d.setComposite(original_composite);
 		}
