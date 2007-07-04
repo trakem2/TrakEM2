@@ -42,6 +42,7 @@ import java.awt.event.MouseEvent;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Hashtable;
@@ -107,7 +108,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	private int current = 0;
 	/** A flag to indicate that the user is undoing/redoing without adding new undo steps. Gets reset to false when a new undo step is added. */
 	private boolean cycle_flag = false;
-	private int MAX_UNDO_STEPS = 40; // should be editable.
+	private int MAX_UNDO_STEPS = 40; // should be editable, or rather, adaptable: count not the max steps but the max amount of memory used, computed by counting the number of AffineTransforms stored and the size of a single AffineTransform
 	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
 	private Align align = null;
 
@@ -452,12 +453,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			for (Iterator dit = ((Layer)it.next()).getDisplayables().iterator(); dit.hasNext(); ) {
 				Displayable d = (Displayable)dit.next();
-				ht_undo.put(d, d.getTransform());
+				ht_undo.put(d, d.getAffineTransform());
 			}
 		}
 		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ){
 			ZDisplayable zd = (ZDisplayable)it.next();
-			ht_undo.put(zd, zd.getTransform());
+			ht_undo.put(zd, zd.getAffineTransform());
 		}
 		addUndoStep(ht_undo);
 
@@ -507,16 +508,17 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		try {
 			if (x != 0 || y != 0) {
 				for (Iterator it = al.iterator(); it.hasNext(); ) {
-					((Displayable)it.next()).drag(-x, -y, 0); // drag regardless of getting off current LayerSet bounds
+					((Displayable)it.next()).translate(-x, -y); // drag regardless of getting off current LayerSet bounds
 				}
 			}
 			// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
+			final AffineTransform at_translate = new AffineTransform();
+			at_translate.translate(-x, -y);
 			for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
 				Hashtable ht = (Hashtable)it.next();
 				for (Iterator hi = ht.values().iterator(); hi.hasNext(); ) {
-					Transform t = (Transform)hi.next();
-					t.x -= x;
-					t.y -= y;
+					AffineTransform at = (AffineTransform)hi.next();
+					at.preConcatenate(at_translate);
 				}
 			}
 			project.getLoader().commitLargeUpdate();
@@ -1067,8 +1069,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			Layer la = (Layer)lit.next();
 			for (Iterator dit = la.getDisplayables().iterator(); dit.hasNext(); ) {
 				Displayable d = (Displayable)dit.next();
-				Transform t = d.getTransform();
-				ht_undo.put(d, t);
+				ht_undo.put(d, d.getAffineTransformCopy());
 			}
 		}
 		addUndoStep(ht_undo);
@@ -1080,8 +1081,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		final Hashtable ht_undo = new Hashtable();
 		for (Iterator dit = layer.getDisplayables().iterator(); dit.hasNext(); ) {
 			Displayable d = (Displayable)dit.next();
-			Transform t = d.getTransform();
-			ht_undo.put(d, t);
+			ht_undo.put(d, d.getAffineTransformCopy());
 		}
 		addUndoStep(ht_undo);
 	}
@@ -1096,6 +1096,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		//Utils.log("addUndoStep A: current: " + current + "  total: " + undo_queue.size());
 		// clear undo_queue beyond current
 		while (undo_queue.size() > current) {
+			if (0 == undo_queue.size()) {
+				Utils.log2("attempted to remove from empty list: current is " + current);
+				break;
+			}
 			undo_queue.removeLast();
 		}
 		// reset
@@ -1163,17 +1167,17 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	private void applyStep(Hashtable ht) {
 		// apply:
 		Rectangle box = null;
-		Rectangle b = new Rectangle();
+		Rectangle b = new Rectangle(); // tmp
 		project.getLoader().startLargeUpdate();
 		try {
 			for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
 				Map.Entry entry = (Map.Entry)it.next(); // I hate java
 				Displayable d = (Displayable)entry.getKey();
+				// add both the previous and the after box, for repainting
 				if (null == box) box = d.getBoundingBox(b);
 				else box.add(d.getBoundingBox(b));
-				Transform t = (Transform)entry.getValue();
-				d.setTransform(t);
-				box.add(t.getBoundingBox(b));
+				d.setAffineTransform((AffineTransform)entry.getValue());
+				box.add(d.getBoundingBox(b));
 			}
 			project.getLoader().commitLargeUpdate();
 		} catch (Exception e) {
@@ -1185,6 +1189,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		Display.repaint(this, box);
 		Display.repaintSnapshots(this);
 	}
+
 	/** Find the given Displayable in the undo/redo queues and clear it. This functionality is used when an object is removed, for which there is no undo. */
 	public void removeFromUndo(Displayable d) {
 		// from the undo_queue
@@ -1197,18 +1202,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				}
 			}
 		}
-		/*
-		// from the redo_queue
-		for (Iterator it = redo_queue.iterator(); it.hasNext(); ) {
-			Hashtable ht = (Hashtable)it.next();
-			for (Iterator itd = ht.keySet().iterator(); itd.hasNext(); ) {
-				if (d.equals(itd.next())) {
-					itd.remove();
-					break; // the inner loop only
-				}
-			}
-		}
-		*/
 	}
 
 	/** Used when there has been no real transformation (for example, a mouse click and release, but no drag. */

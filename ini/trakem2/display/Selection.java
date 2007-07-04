@@ -488,14 +488,13 @@ public class Selection {
 			setHandles(box);
 			// check if it was among the linked already before adding it's links and its transform
 			if (!ht.contains(d)) {
-				Transform t = d.getTransform();
-				ht.put(d, t);
+				ht.put(d, d.getAffineTransformCopy());
 				// now, grab the linked group and add it as well to the hashtable
 				HashSet hs = d.getLinkedGroup(new HashSet());
 				if (null != hs) {
 					for (Iterator it = hs.iterator(); it.hasNext(); ) {
 						Displayable displ = (Displayable)it.next();
-						if (!ht.contains(displ)) ht.put(displ, displ.getTransform());
+						if (!ht.contains(displ)) ht.put(displ, displ.getAffineTransformCopy());
 						if (0 != displ.getRotation()) {
 							keep_ratio = true;
 						}
@@ -534,14 +533,13 @@ public class Selection {
 				if (queue.contains(d)) continue;
 				queue.add(d);
 				if (ht.contains(d)) continue;
-				Transform t = d.getTransform();
-				ht.put(d, t);
+				ht.put(d, d.getAffineTransformCopy());
 				// now, grab the linked group and add it as well to the hashtable
 				HashSet hs = d.getLinkedGroup(new HashSet());
 				if (null != hs) {
 					for (Iterator hit = hs.iterator(); hit.hasNext(); ) {
 						Displayable displ = (Displayable)hit.next();
-						if (!ht.contains(displ)) ht.put(displ, displ.getTransform());
+						if (!ht.contains(displ)) ht.put(displ, displ.getAffineTransformCopy());
 						if (0 != displ.getRotation()) {
 							keep_ratio = true;
 						}
@@ -754,7 +752,7 @@ public class Selection {
 		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			Displayable d = (Displayable)entry.getKey();
-			entry.setValue(d.getTransform());
+			entry.setValue(d.getAffineTransformCopy());
 			box.add(d.getBoundingBox(b));
 		}
 		setHandles(box);
@@ -856,7 +854,7 @@ public class Selection {
 	}
 
 	/** Returns the total box enclosing all selected objects and their linked objects within the current layer.*/
-	public Rectangle getLinkedBox() {
+	public Rectangle getLinkedBox() { // TODO has to change to query the Displayable directly
 		if (null == active) return null;
 		Rectangle b = active.getBoundingBox();
 		Layer layer = display.getLayer();
@@ -927,13 +925,13 @@ public class Selection {
 		return (Transform)ht.get(d);
 	}
 
+	/** Returns a hash table with all selected Displayables as keys, and a copy of their affine transform as value.*/
 	protected Hashtable getTransformationsCopy() {
 		Hashtable ht_copy = new Hashtable(ht.size());
 		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			Displayable d = (Displayable)entry.getKey();
-			Transform t = (Transform)entry.getValue();
-			ht_copy.put(d, t.clone()); // the java language designers knew very well that the type is superfluous info on the pointer .. hence all these "convenient" methods to add and retrieve objects as Object from the lists,collections,tables, etc.
+			ht_copy.put(d, d.getAffineTransformCopy());
 		}
 		return ht_copy;
 	}
@@ -962,7 +960,7 @@ public class Selection {
 			}
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				ht.put(d, d.getTransform());
+				ht.put(d, d.getAffineTransformCopy());
 			}
 		} catch (Exception e) {
 			new IJError(e);
@@ -1001,7 +999,7 @@ public class Selection {
 				Utils.log2("Selection.updateTransform warning: " + d + " not selected or among the linked");
 				return;
 			}
-			ht.put(d, d.getTransform());
+			ht.put(d, d.getAffineTransformCopy());
 			resetBox();
 		} catch (Exception e) {
 			new IJError(e);

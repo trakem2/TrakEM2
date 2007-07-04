@@ -3062,7 +3062,7 @@ abstract public class Loader {
 		}
 	}
 
-	/** Fixes paths befor epresenting them to the file system, in an OS-dependent manner. */
+	/** Fixes paths before presenting them to the file system, in an OS-dependent manner. */
 	protected final ImagePlus openImage(String path) {
 		// supporting samba networks
 		if (IJ.isWindows() && path.startsWith("//")) {

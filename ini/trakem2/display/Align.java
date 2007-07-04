@@ -224,7 +224,7 @@ public class Align {
 		}*/ // only second layer will be affected
 		for (Iterator it = hs2.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			ht.put(d, d.getTransform());
+			ht.put(d, d.getAffineTransformCopy());
 		}
 		l1.layer.getParent().addUndoStep(ht);
 		ArrayList base_points = new ArrayList();

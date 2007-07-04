@@ -186,8 +186,7 @@ public abstract class Displayable extends DBObject {
 					if (null != data && !data.toLowerCase().equals("null")) {
 						this.title = data.replaceAll("^#^", "\""); // fix " and backslash characters
 					} else this.title = null;
-				}
-				else continue;
+				} else continue;
 				al_used_keys.add(key);
 			} catch (Exception ea) {
 				Utils.log(this + " : failed to read data for key '" + key + "':\n" + ea);
@@ -326,25 +325,23 @@ public abstract class Displayable extends DBObject {
 	public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
 		if (this.at.isIdentity()) {
-			r.x = (int)this.x;
-			r.y = (int)this.y;
+			r.x = 0;
+			r.y = 0;
 			r.width = (int)this.width;
 			r.height = (int)this.height;
 		} else {
 			// transform points
-			final double[] d1 = new double[]{0, 0, width, height};
-			final double[] d2 = new double[4];
-			this.at.transform(d1, 0, d2, 0, 2);
+			final double[] d1 = new double[]{0, 0, width, 0, width, height, 0, height};
+			final double[] d2 = new double[8];
+			this.at.transform(d1, 0, d2, 0, 4);
 			// find min/max
 			double min_x=Double.MAX_VALUE, min_y=Double.MAX_VALUE, max_x=-min_x, max_y=-min_y;
-			if (d2[0] < min_x) min_x = d2[0];
-			if (d2[0] > max_x) max_x = d2[0];
-			if (d2[2] < min_x) min_x = d2[2];
-			if (d2[2] > max_x) max_x = d2[2];
-			if (d2[1] < min_y) min_y = d2[1];
-			if (d2[1] > max_y) max_y = d2[1];
-			if (d2[3] < min_y) min_y = d2[3];
-			if (d2[3] > max_y) max_y = d2[3];
+			for (int i=0; i<d2.length; i+=2) {
+				if (d2[i] < min_x) min_x = d2[i];
+				if (d2[i] > max_x) max_x = d2[i];
+				if (d2[i+1] < min_y) min_y = d2[i+1];
+				if (d2[i+1] > max_y) max_y = d2[i+1];
+			}
 			r.x = (int)min_x;
 			r.y = (int)min_y;
 			r.width = (int)(max_x - min_x);
@@ -908,7 +905,7 @@ public abstract class Displayable extends DBObject {
 		Hashtable ht = new Hashtable();
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			ht.put(d, d.getTransform());
+			ht.put(d, d.getAffineTransformCopy());
 		}
 		layer.getParent().addUndoStep(ht);
 		// store old box
@@ -1006,10 +1003,13 @@ public abstract class Displayable extends DBObject {
 	static public void exportDTD(String type, StringBuffer sb_header, HashSet hs, String indent) {
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" oid").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" layer_id").append(TAG_ATTR2)
+			 /*
 			 .append(indent).append(TAG_ATTR1).append(type).append(" x").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" y").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" width").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" height").append(TAG_ATTR2)
+			 */
+			 .append(indent).append(TAG_ATTR1).append(type).append(" transform").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" style").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" locked").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" visible").append(TAG_ATTR2)
@@ -1020,12 +1020,22 @@ public abstract class Displayable extends DBObject {
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */
 	public void exportXML(StringBuffer sb_body, String in, Object any) {
+		final double[] a = new double[6];
+		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
+			/*
 			.append(in).append("x=\"").append(x).append("\"\n")
 			.append(in).append("y=\"").append(y).append("\"\n")
 			.append(in).append("rot=\"").append(rot).append("\"\n")
 			.append(in).append("width=\"").append(width).append("\"\n")
 			.append(in).append("height=\"").append(height).append("\"\n")
+			*/
+			.append(in).append("transform=\"matrix(").append(a[0]).append(',')
+								.append(a[1]).append(',')
+								.append(a[2]).append(',')
+								.append(a[3]).append(',')
+								.append(a[4]).append(',')
+								.append(a[5]).append("\"\n")
 		;
 		// the default is obvious, so just store the value if necessary
 		if (locked) sb_body.append(in).append("locked=\"true\"\n");
@@ -1059,22 +1069,14 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public ini.trakem2.display.Transform getTransform() {
+		Utils.log2("called Deprecated Displayable.getTransform for " + this);
+		Utils.printCaller(this, 3);
 		return new ini.trakem2.display.Transform(x, y, width, height, rot, alpha, visible, locked, color, layer);
 	}
 
 	/** Set the transform and save in database; does NOT repaint, nor affects any linked objects. */
 	public void setTransform(Transform t) {
-		this.x = t.x;
-		this.y = t.y;
-		this.width = t.width;
-		this.height = t.height;
-		this.rot = t.rot;
-		this.alpha = t.alpha;
-		this.visible = t.visible;
-		this.locked = t.locked;
-		this.color = t.color;
-		this.layer = t.layer;
-		updateInDatabase("all");
+		Utils.log2("called Deprecated Displayable.setTransform for " + this);
 	}
 
 	/** Rotate 2D points relative to the given pivot point by the given rot angle (in radians), in the 2D plane. */
@@ -1183,16 +1185,43 @@ public abstract class Displayable extends DBObject {
 
 	public void setAffineTransform(AffineTransform at) {
 		this.at = at;
+		updateInDatabase("transform");
 	}
 
 	public void translate(double dx, double dy) {
 		AffineTransform at2 = new AffineTransform();
 		at2.translate(dx, dy);
 		this.at.preConcatenate(at2);
+		updateInDatabase("transform");
 	}
 
 	/** Rotate relative to an anchor point. */
-	public void rotate(double angle, double xo, double yo) {
-		this.at.rotate(angle, xo, yo);
+	public void rotate(double radians, double xo, double yo) {
+		AffineTransform at2 = new AffineTransform();
+		at2.rotate(radians, xo, yo);
+		this.at.preConcatenate(at2);
+		updateInDatabase("transform");
+	}
+
+	/** Scale relative to an anchor point (will translate as necessary). */
+	public void scale(double sx, double sy, double xo, double yo) {
+		Rectangle b1 = getBoundingBox(null);
+		this.at.scale(sx, sy);
+		Rectangle b2 = getBoundingBox(null);
+		// old top-left local to the anchor
+		double x1 = b1.x - xo;
+		double y1 = b1.y - yo;
+		// new top-left local to the anchor
+		double x2 = b2.x - xo;
+		double y2 = b2.y - yo;
+		// desired new top-left position
+		double x3 = x1 * sx;
+		double y3 = y1 * sy;
+		//Utils.log2("x3,y3: " + x3 + "," + y3 + "\nx2,y2: " + x2 + "," + y2);
+		// top-left should be at x1*sx,y1*sy distance from the anchor
+		AffineTransform at2 = new AffineTransform();
+		at2.translate(x3 - x2, y3 - y2);
+		this.at.preConcatenate(at2);
+		updateInDatabase("transform");
 	}
 }
