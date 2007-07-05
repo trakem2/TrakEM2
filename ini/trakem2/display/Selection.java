@@ -60,8 +60,8 @@ public class Selection {
 	private final LinkedList queue = new LinkedList();
 	private final Object queue_lock = new Object();
 	private boolean queue_locked = false;
-	/** Relation of all selected objects plus their links, versus their transforms. */ // because what has to be transformed is all objects linked to the selected ones.
-	private final Hashtable ht = new Hashtable();
+	/** All selected objects plus their links. */
+	private final HashSet hs = new HashSet();
 	private Displayable active = null;
 	private boolean transforming = false;
 	private Rectangle box = null;
@@ -229,37 +229,12 @@ public class Selection {
 		public void drag(int dx, int dy) {
 			Rectangle box_old = (Rectangle)box.clone();
 			//Utils.log2("dx,dy: " + dx + "," + dy + " before mod");
-			if (keep_ratio) { // keep largest
-				switch (this.id) {
-					case iN:
-					case iS:
-						// listen only to dy
-						dx = dy;
-						break;
-					case iE:
-					case iW:
-						// listen only to dx
-						dy = dx;
-						break;
-					case iNW:
-					case iSE:
-						// listen to the largest
-						if (Math.abs(dx) > Math.abs(dy)) dy = dx;
-						else dx = dy;
-						break;
-					case iNE:
-					case iSW:
-						// listen to the largest by assign the negative of!
-						if (Math.abs(dx) > Math.abs(dy)) dy = -dx;
-						else dx = -dy;
-						break;
-				}
-			}
 			double res = dx / 2.0;
 			res -= Math.floor(res);
 			res *= 2;
 			int extra = (int)res;
-			//Utils.log2("dx,dy: " + dx + "," + dy + ", keep_ratio is " + keep_ratio + "  extra: " + extra);
+			int anchor_x = 0,
+			    anchor_y = 0;
 			switch (this.id) { // java sucks to such an extent, I don't even bother
 				case iNW:
 					if (x + dx >= E.x) return;
@@ -268,16 +243,15 @@ public class Selection {
 					box.y += dy;
 					box.width -= dx;
 					box.height -= dy;
+					anchor_x = SE.x;
+					anchor_y = SE.y;
 					break;
 				case iN:
 					if (y + dy >= S.y) return;
 					box.y += dy;
 					box.height -= dy;
-					if (keep_ratio) {
-						box.x += dx/2;
-						box.y -= extra; //correcting years and years of inaccurate computer math. What are these guys thinking?
-						box.width -= dx;
-					}
+					anchor_x = S.x;
+					anchor_y = S.y;
 					break;
 				case iNE:
 					if (x + dx <= W.x) return;
@@ -285,29 +259,28 @@ public class Selection {
 					box.y += dy;
 					box.width += dx;
 					box.height -= dy;
+					anchor_x = SW.x;
+					anchor_y = SW.y;
 					break;
 				case iE:
 					if (x + dx <= W.x) return;
 					box.width += dx;
-					if (keep_ratio) {
-						box.y -= dy/2;
-						box.height += dy + extra;
-					}
+					anchor_x = W.x;
+					anchor_y = W.y;
 					break;
 				case iSE:
 					if (x + dx <= W.x) return;
 					if (y + dy <= N.y) return;
 					box.width += dx;
 					box.height += dy;
+					anchor_x = NW.x;
+					anchor_y = NW.y;
 					break;
 				case iS:
 					if (y + dy <= N.y) return;
 					box.height += dy;
-					if (keep_ratio) {
-						box.x -= dx/2;
-						box.width += dx;
-						box.height -= extra;
-					}
+					anchor_x = N.x;
+					anchor_y = N.y;
 					break;
 				case iSW:
 					if (x + dx >= E.x) return;
@@ -315,29 +288,24 @@ public class Selection {
 					box.x += dx;
 					box.width -= dx;
 					box.height += dy;
+					anchor_x = NE.x;
+					anchor_y = NE.y;
 					break;
 				case iW:
 					if (x + dx >= E.x) return;
 					box.x += dx;
 					box.width -= dx;
-					if (keep_ratio) {
-						box.y += dy/2;
-						box.x -= extra;
-						box.height -= dy;
-					}
+					anchor_x = E.x;
+					anchor_y = E.y;
 					break;
 			}
 			// proportion:
 			double px = (double)box.width / (double)box_old.width;
 			double py = (double)box.height / (double)box_old.height;
-			if (keep_ratio) { // homogenize to largest
-				if (px > py) py = px;
-				else px = py;
-			}
 			// displacement: specific of each element of the selection and their links, depending on where they are.
-			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-				Transform t = (Transform)it.next();
-				t.scale(px, py, box, box_old);
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				d.scale(px, py, anchor_x, anchor_y);
 			}
 
 			// finally:
@@ -386,10 +354,9 @@ public class Selection {
 			if (zc < 0) {
 				delta = -delta;
 			}
-			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-				Transform t = (Transform)it.next(); // all this is so obvious and ridiculous compared to python's for t in ht: ...
-				
-				t.rotate(Math.toDegrees(delta), floater.x, floater.y);
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				d.rotate(delta, floater.x, floater.y);
 			}
 		}
 	}
@@ -448,7 +415,6 @@ public class Selection {
 				if (null != display) {
 					if (active instanceof ZDisplayable) {
 						active.setLayer(display.getLayer());
-						//no need, selection is cleared and then the ZDisplayable is added again when changing layers in the Display //ht.put(active, active.getTransform()); // update for the active Layer
 					}
 					display.setActive(d);
 				}
@@ -487,21 +453,18 @@ public class Selection {
 			//Utils.log("box after adding: " + box);
 			setHandles(box);
 			// check if it was among the linked already before adding it's links and its transform
-			if (!ht.contains(d)) {
-				ht.put(d, d.getAffineTransformCopy());
+			if (!hs.contains(d)) {
+				hs.add(d);
 				// now, grab the linked group and add it as well to the hashtable
-				HashSet hs = d.getLinkedGroup(new HashSet());
-				if (null != hs) {
-					for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				HashSet hsl = d.getLinkedGroup(new HashSet());
+				if (null != hsl) {
+					for (Iterator it = hsl.iterator(); it.hasNext(); ) {
 						Displayable displ = (Displayable)it.next();
-						if (!ht.contains(displ)) ht.put(displ, displ.getAffineTransformCopy());
-						if (0 != displ.getRotation()) {
-							keep_ratio = true;
-						}
+						if (!hs.contains(displ)) hs.add(displ);
 					}
 				}
 			}
-			// finally: (so that when calling the selection, its Transform exists already here)
+			// finally:
 			if (null != display) display.setActive(d);
 		} catch (Exception e) {
 			new IJError(e);
@@ -532,17 +495,14 @@ public class Selection {
 				Displayable d = (Displayable)it.next();
 				if (queue.contains(d)) continue;
 				queue.add(d);
-				if (ht.contains(d)) continue;
-				ht.put(d, d.getAffineTransformCopy());
+				if (hs.contains(d)) continue;
+				hs.add(d);
 				// now, grab the linked group and add it as well to the hashtable
-				HashSet hs = d.getLinkedGroup(new HashSet());
-				if (null != hs) {
-					for (Iterator hit = hs.iterator(); hit.hasNext(); ) {
+				HashSet hsl = d.getLinkedGroup(new HashSet());
+				if (null != hsl) {
+					for (Iterator hit = hsl.iterator(); hit.hasNext(); ) {
 						Displayable displ = (Displayable)hit.next();
-						if (!ht.contains(displ)) ht.put(displ, displ.getAffineTransformCopy());
-						if (0 != displ.getRotation()) {
-							keep_ratio = true;
-						}
+						if (!hs.contains(displ)) hs.add(displ);
 					}
 				}
 			}
@@ -613,20 +573,19 @@ public class Selection {
 		synchronized (queue_lock) {
 		try {
 			lock();
-			Object ob_t = ht.get(d);
-			if (null == ob_t) {
+			if (!hs.contains(d)) {
 				//Utils.log2("Selection.remove warning: can't find ob " + ob_t + " to remove");
 				// happens when removing a profile from the project tree that is not selected in the Display to which this Selection belongs
 				unlock();
 				return;
 			}
 			queue.remove(d);
-			ht.remove(d);
+			hs.remove(d);
 			if (d.equals(active)) {
 				if (0 == queue.size()) {
 					active = null;
 					box = null;
-					ht.clear();
+					hs.clear();
 				} else {
 					// select last
 					active = (Displayable)queue.getLast();
@@ -637,40 +596,30 @@ public class Selection {
 			// finish if none left
 			if (0 == queue.size()) {
 				box = null;
-				ht.clear();
-				keep_ratio = false;
+				hs.clear();
 				unlock();
 				return;
 			}
-			// now, remove linked ones from the ht
+			// now, remove linked ones from the hs
 			HashSet hs_to_remove = d.getLinkedGroup(new HashSet());
 			HashSet hs_to_keep = new HashSet();
 			for (Iterator it = queue.iterator(); it.hasNext(); ) {
 				Displayable displ = (Displayable)it.next();
-				hs_to_keep = displ.getLinkedGroup(hs_to_keep);
+				hs_to_keep = displ.getLinkedGroup(hs_to_keep); //accumulates into the hashset
 			}
-			for (Iterator it = ht.keySet().iterator(); it.hasNext(); ) {
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				Object ob = it.next();
 				if (hs_to_keep.contains(ob)) continue; // avoid linked ones still in queue or linked to those in queue
-				ht.remove(ob);
+				hs.remove(ob);
 			}
 			// recompute box
 			Rectangle r = new Rectangle(); // as temp storage
 			for (Iterator it = queue.iterator(); it.hasNext(); ) {
-				Transform tr = (Transform)ht.get(it.next());
-				box.add(d.getBoundingBox(r));
+				Displayable di = (Displayable)it.next();
+				box.add(di.getBoundingBox(r));
 			}
 			// reposition handles
 			setHandles(box);
-			// recheck keep_ratio
-			keep_ratio = false;
-			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-				Transform t = (Transform)it.next();
-				if (0 != t.rot) {
-					keep_ratio = true;
-					break;
-				}
-			}
 		} catch (Exception e) {
 			new IJError(e);
 		} finally {
@@ -703,7 +652,7 @@ public class Selection {
 		try {
 			lock();
 			this.queue.clear();
-			this.ht.clear();
+			this.hs.clear();
 			this.active = null;
 			if (null != display) display.setActive(null);
 			this.box = null;
@@ -725,37 +674,17 @@ public class Selection {
 			floater.center();
 			display.getLayer().getParent().addUndoStep(getTransformationsCopy());
 		} else {
-			// finish transform: apply transformations
-			applyTransforms();
 			transforming = false;
 		}
-	}
-
-	public void applyTransforms() {
-		if (null != display) display.getProject().getLoader().startLargeUpdate();
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			Displayable d = (Displayable)entry.getKey();
-			Transform t = (Transform)entry.getValue();
-			d.setTransform(t);
-		}
-		if (null != display) display.getProject().getLoader().commitLargeUpdate();
-		resetBox();
 	}
 
 	public void cancelTransform() { // TODO : use the undo feature, reread the transforms as originally cached for undo.
 		transforming = false;
 		if (null == active) return;
 		// reread all transforms and remake box
-		Rectangle b = new Rectangle();
-		box = active.getBoundingBox(b);
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			Displayable d = (Displayable)entry.getKey();
-			entry.setValue(d.getAffineTransformCopy());
-			box.add(d.getBoundingBox(b));
-		}
-		setHandles(box);
+		resetBox();
+
+		//TODO: do not make the Selection modal anymore for transformations
 	}
 
 	public boolean isTransforming() { return this.transforming; }
@@ -793,7 +722,7 @@ public class Selection {
 			grabbed.drag(dx, dy);
 		} else if (dragging) {
 			// drag all selected and linked
-			for (Iterator it = ht.keySet().iterator(); it.hasNext(); ) {
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				((Displayable)it.next()).translate(dx, dy);
 			}
 			//and the box!
@@ -801,17 +730,6 @@ public class Selection {
 			box.y += dy;
 			// and the handles!
 			setHandles(box);
-		}
-		// The penalty is tremendous, even when in a thread.
-		if (null != active) {
-			new Thread() {
-				public void run() {
-					Transform t = (Transform)ht.get(active);
-					//Utils.showStatus("x,y : " + t.x + ", " + t.y, false);
-					//Utils.log("x,y : " + t.x + ", " + t.y); // TODO: show in status bar
-					//TODO: what it should show is the absolute x,y AND the delta displacement 
-				}
-			}.start();
 		}
 	}
 
@@ -829,12 +747,7 @@ public class Selection {
 	*/
 
 	public void mouseReleased(int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-		if (!transforming) {
-			// apply modified transforms if any change has really occurred:
-			if (x_p != x_d || y_p != y_d) { // using x_d,y_d since they are the last meaningful ones. This is to avoid the undesired movement that happens when releasing the mouse sometimes.
-				applyTransforms();
-			}
-		} else {
+		if (transforming) {
 			// recalculate box
 			resetBox();
 		}
@@ -859,12 +772,10 @@ public class Selection {
 		Rectangle b = active.getBoundingBox();
 		Layer layer = display.getLayer();
 		Rectangle r = new Rectangle();
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			Displayable d = (Displayable)entry.getKey();
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
 			if (d.getLayer().equals(layer)) {
-				Transform t = (Transform)entry.getValue();
-				b.add(t.getBoundingBox(r));
+				b.add(d.getBoundingBox(r));
 			}
 		}
 		// include floater, whereever it is
@@ -874,9 +785,9 @@ public class Selection {
 
 	/** Test if any of the selection objects is directly or indirectly locked. */
 	public boolean isLocked() {
-		if (null == active || null == ht || ht.isEmpty()) return false;
+		if (null == active || null == hs || hs.isEmpty()) return false;
 		// loop directly to avoid looping through the same linked groups if two or more selected objects belong to the same linked group. The ht contains all linked items anyway.
-		for (Iterator it = ht.keySet().iterator(); it.hasNext(); ) {
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			if (d.isLocked2()) return true;
 		}
@@ -913,30 +824,26 @@ public class Selection {
 	}
 
 	protected void debug(String msg) {
-		Utils.log2(msg + ": queue size = " + queue.size() + "  ht size: " + ht.size());
+		Utils.log2(msg + ": queue size = " + queue.size() + "  hs size: " + hs.size());
 	}
 
 	/** May return null if not selected or not among the linked group. */
 	protected Transform getTransform(Displayable d) {
-		if (null == ht) {
-			Utils.log2("Selection.getTransform warning: null ht");
-			return null;
-		}
-		return (Transform)ht.get(d);
+		Utils.log2("calling obsolete method Selection.getTransform for " + d);
+		return null;
 	}
 
-	/** Returns a hash table with all selected Displayables as keys, and a copy of their affine transform as value.*/
+	/** Returns a hash table with all selected Displayables as keys, and a copy of their affine transform as value. This is useful to easily create undo steps. */
 	protected Hashtable getTransformationsCopy() {
-		Hashtable ht_copy = new Hashtable(ht.size());
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			Displayable d = (Displayable)entry.getKey();
+		Hashtable ht_copy = new Hashtable(hs.size());
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
 			ht_copy.put(d, d.getAffineTransformCopy());
 		}
 		return ht_copy;
 	}
 
-	/** Update the transforms of all selected objects and their linked ones - should NEVER be called directly, but through Display.updateSelection only, to ensure all selections in all Display instances are properly updated. */ // This is rather wrong, since updates will occur for layers that do not belong to the same LayerSet without reason. Needs some redesign of the 'active' and the 'selection' pointers, perhaps moving them to the LayerSet (but I don't want to loose the ability to have a different active/selection in each Display)
+	// this method should be removed TODO
 	void update() {
 		synchronized (queue_lock) {
 		try {
@@ -945,23 +852,20 @@ public class Selection {
 				Utils.log("Selection.update warning: shouldn't be doing this while transforming!");
 			}
 			Utils.log2("updating selection");
-			ht.clear();
-			HashSet hs = new HashSet();
+			hs.clear();
+			HashSet hsl = new HashSet();
 			for (Iterator it = queue.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
 				// collect all linked ones into the hs
-				hs = d.getLinkedGroup(hs);
+				hsl = d.getLinkedGroup(hsl);
 			}
-			if (0 == hs.size()) {
+			if (0 == hsl.size()) {
 				active = null;
 				if (null != display) display.setActive(null);
 				unlock();
 				return;
 			}
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				ht.put(d, d.getAffineTransformCopy());
-			}
+			hs.addAll(hsl); // hs is final, can't just assign
 		} catch (Exception e) {
 			new IJError(e);
 		} finally {
@@ -986,7 +890,7 @@ public class Selection {
 		setHandles(box);
 	}
 
-	/** Update the cached transform for the given Displayable, and the bounding box of the whole selection. */
+	/** Update the bounding box of the whole selection. */
 	public void updateTransform(Displayable d) {
 		if (null == d) {
 			Utils.log2("Selection.updateTransform warning: null Displayable");
@@ -995,11 +899,10 @@ public class Selection {
 		synchronized (queue_lock) {
 		try {
 			lock();
-			if (!ht.containsKey(d)) {
+			if (!hs.contains(d)) {
 				Utils.log2("Selection.updateTransform warning: " + d + " not selected or among the linked");
 				return;
 			}
-			ht.put(d, d.getAffineTransformCopy());
 			resetBox();
 		} catch (Exception e) {
 			new IJError(e);
@@ -1013,23 +916,22 @@ public class Selection {
 	}
 
 	public int getNLinked() {
-		return ht.size();
+		return hs.size();
 	}
 
 	/** Rotate the objects in the current selection by the given angle, in degrees, relative to the floater position. */
 	public void rotate(double angle) {
-		for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-			Transform t = (Transform)it.next(); // all this is so obvious and ridiculous compared to python's for t in ht: ...
-			t.rotate(angle, floater.x, floater.y);
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next(); // all this is so obvious and ridiculous compared to python's for t in ht: ...
+			d.rotate(Math.toRadians(angle), floater.x, floater.y);
 		}
 		resetBox();
 	}
 	/** Translate all selected objects and their links by the given differentials. The floater position is unaffected; if you want to update it call centerFloater() */
 	public void translate(double dx, double dy) {
-		for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-			Transform t = (Transform)it.next();
-			t.x += dx;
-			t.y += dy;
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			d.translate(dx, dy);
 		}
 		resetBox();
 	}
@@ -1059,6 +961,6 @@ public class Selection {
 
 	/** Returns the set of all Displayable objects affected by this selection, that is, the selected ones and their linked ones.*/
 	public Set getAffected() {
-		return ht.keySet();
+		return (Set)hs.clone();
 	}
 }

@@ -158,7 +158,6 @@ public class Registration {
 				selection.translate(data.dx, data.dy);
 			}
 			// done!
-			selection.applyTransforms();
 		} catch (Exception e) {
 			new IJError(e);
 			return false;

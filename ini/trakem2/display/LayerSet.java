@@ -1130,6 +1130,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (current < 1 || 0 == undo_queue.size()) return;
 		if (cycle_flag && undo_queue.size() == current) current--; // compensate
 		current--;
+		if (current < 0) current = 0; // patching ...
 		Hashtable step = (Hashtable)undo_queue.get(current);
 		applyStep(step);
 		cycle_flag = true;
