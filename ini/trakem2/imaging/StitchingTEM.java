@@ -175,18 +175,22 @@ public class StitchingTEM {
 				// boundary limits: don't move by more than the small dimension of the stripe
 				int max_abs_delta; // TODO: only the dx for left (and the dy for top) should be compared and found to be smaller or equal; the other dimension should be unbounded -for example, for manually acquired, grossly out-of-grid tiles.
 
-				final Transform t = patch[i].getTransform();
+				// target x,y
+				double tx = 0,
+				       ty = 0;
 
 				// check and apply: falls back to default overlaps when getting bad results
 				if (TOP == prev) {
 					if (SUCCESS == R1[2]) {
 						// trust top
-						t.x = R1[0];
-						t.y = R1[1];
+						tx = R1[0];
+						ty = R1[1];
 					} else {
+						final Rectangle b1 = patch[prev_i].getBoundingBox(null);
+						final Rectangle b2 = patch[i - grid_width].getBoundingBox(null);
 						// don't move: use default overlap
-						t.x = patch[prev_i].getX();
-						t.y = patch[prev_i].getY() + patch[i - grid_width].getHeight() - default_bottom_top_overlap;
+						tx = b1.x;
+						ty = b1.y + b2.height - default_bottom_top_overlap;
 					}
 				} else { // LEFT
 					// the one on top, if any
@@ -195,44 +199,47 @@ public class StitchingTEM {
 							// top is good
 							if (SUCCESS == R2[2]) {
 								// combine left and top
-								t.x = (R1[0] + R2[0]) / 2;
-								t.y = (R1[1] + R2[1]) / 2;
+								tx = (R1[0] + R2[0]) / 2;
+								ty = (R1[1] + R2[1]) / 2;
 							} else {
 								// use top alone
-								t.x = R1[0];
-								t.y = R1[1];
+								tx = R1[0];
+								ty = R1[1];
 							}
 						} else {
 							// ignore top
 							if (SUCCESS == R2[2]) {
 								// use left alone
-								t.x = R2[0];
-								t.y = R2[1];
+								tx = R2[0];
+								ty = R2[1];
 							} else {
+								final Rectangle b1 = patch[prev_i].getBoundingBox(null);
+								final Rectangle b2 = patch[i - grid_width].getBoundingBox(null);
 								// left not trusted, top not trusted: use a combination of defaults for both
-								t.x = patch[prev_i].getX() + patch[prev_i].getWidth() - default_left_right_overlap;
-								t.y = patch[i - grid_width].getY() + patch[i - grid_width].getHeight() - default_bottom_top_overlap;
+								tx = b1.x + b1.width - default_left_right_overlap;
+								ty = b2.y + b2.height - default_bottom_top_overlap;
 							}
 						}
 					} else if (SUCCESS == R2[2]) {
 						// use left alone (top not applicable in top row)
-						t.x = R2[0];
-						t.y = R2[1];
+						tx = R2[0];
+						ty = R2[1];
 					} else {
+						final Rectangle b1 = patch[prev_i].getBoundingBox(null);
 						// left not trusted, and top not applicable: use default overlap with left tile
-						t.x = patch[prev_i].getX() + patch[prev_i].getWidth() - default_left_right_overlap;
-						t.y = patch[prev_i].getY();
+						tx = b1.x + b1.width - default_left_right_overlap;
+						ty = b1.y;
 					}
 				}
 
 				// apply (and repaint)
 				if (ControlWindow.isGUIEnabled()) { // in a proper design, this would happen automatically when the transform is applied to the Patch
 					Rectangle box = patch[i].getBoundingBox();
-					patch[i].setTransform(t);
+					patch[i].setLocation(tx, ty);
 					box.add(patch[i].getBoundingBox());
 					Display.repaint(patch[i].getLayer(), box, 1);
 				} else {
-					patch[i].setTransform(t);
+					patch[i].setLocation(tx, ty);
 				}
 
 				Utils.log2(i + ": Done patch " + patch[i]);
@@ -273,7 +280,7 @@ public class StitchingTEM {
 		}
 
 		// debug
-		new ImagePlus("stripe", ip.duplicate()).show();
+		//new ImagePlus("stripe", ip.duplicate()).show();
 
 		// return a FloatProcessor
 		if (imp.getType() != ImagePlus.GRAY32) return ip.convertToFloat();

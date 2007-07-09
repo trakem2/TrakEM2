@@ -96,7 +96,6 @@ public class Selection {
 	private Handle grabbed = null;
 	private boolean dragging = false;
 	private boolean rotating = false;
-	private boolean keep_ratio = false;
 
 	private int x_d_old, y_d_old, x_d, y_d; // for rotations
 

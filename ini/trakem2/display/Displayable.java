@@ -225,12 +225,14 @@ public abstract class Displayable extends DBObject {
 		setDimensions(width, height, true);
 	}
 
-	/** Not accepted if zero or negative. If repaint is true, remakes the snapshot, updates the snapshot panel and the Display. */
+	/** Sets the dimensions of the bounding box. Not accepted if zero or negative. If repaint is true, remakes the snapshot, updates the snapshot panel and the Display. */
 	public void setDimensions(double width, double height, boolean repaint) {
 		if (width <= 0 || height <= 0) return;
-		this.width = width;
-		this.height = height;
-		updateInDatabase("dimensions");
+		Rectangle b = getBoundingBox(null);
+		if (b.width == width && b.height == height) return;
+		double sx = width / (double)b.width;
+		double sy = height / (double)b.height;
+		this.scale(sx, sy, b.x, b.y); // relative to top left corner
 		if (repaint) {
 			snapshot.remake();
 			Display.repaint(layer, this, 5);
@@ -262,16 +264,6 @@ public abstract class Displayable extends DBObject {
 		Display.updatePanel(layer, this);
 	}
 
-	public void setLocation(double x, double y) {
-		if (x + width < 0 || y + height < 0 || x > layer.getLayerWidth() || y > layer.getLayerHeight()) {
-			Utils.log("Prevented moving " + this + " beyond layer bonds.");
-			return;
-		}
-		this.x = x;
-		this.y = y;
-		updateInDatabase("position");
-	}
-
 	public void setLayer(Layer layer, boolean update_db) {
 		if (null == layer || this.layer == layer) return;
 		this.layer = layer;
@@ -301,20 +293,24 @@ public abstract class Displayable extends DBObject {
 		return "x=" + Utils.cutNumber(x, 2) + " y=" + Utils.cutNumber(y, 2) + (null != layer ? " z=" + Utils.cutNumber(layer.getZ(), 2) : "");
 	}
 
+	/** Returns the x of the bounding box. */
 	public double getX() {
-		return x;
+		return getBoundingBox(null).x;
 	}
 
+	/** Returns the y of the bounding box. */
 	public double getY() {
-		return y;
+		return getBoundingBox(null).y;
 	}
 
+	/** Returns the width of the bounding box. */
 	public double getWidth() {
-		return width;
+		return getBoundingBox(null).width;
 	}
 
+	/** Returns the height of the bounding box. */
 	public double getHeight() {
-		return height;
+		return getBoundingBox(null).height;
 	}
 
 	public Rectangle getBoundingBox() {
@@ -392,41 +388,6 @@ public abstract class Displayable extends DBObject {
 	public void setRotation(double rot) {
 		this.rot = rot;
 		updateInDatabase("rot");
-	}
-
-	/** Rotate by the given angle (in degrees) relative to the given center of coordinates. Will set the local angle and local x, y position accordingly. */
-	public void rotate(double delta_angle, double xo, double yo, boolean update_db) {
-		if (0 == delta_angle) return;
-		// Answer:
-		// 1 - what is the delta local angle to add to the existing local angle?
-		// 2 - what is the displacement of the x,y?
-		//
-		// center:
-		double cx = x + width/2;
-		double cy = y + height/2;
-
-		// angle of object with origin of rotation
-		double b1 = Utils.getAngle(xo - cx, yo - cy);
-		//Utils.log2("\nb1: " + Math.toDegrees(b1));
-		// new angle of object relative to origin of rotation
-		double b2 = b1 + Math.toRadians(delta_angle);
-		//Utils.log2("b2: " + Math.toDegrees(b2));
-		//Utils.log2("delta_angle: " + delta_angle);
-		// displacement
-		double hypot = Math.sqrt((xo - cx)*(xo - cx) + (yo - cy)*(yo - cy));
-		double dx = (Math.cos(b1) - Math.cos(b2)) * hypot;
-		double dy = (Math.sin(b1) - Math.sin(b2)) * hypot;
-
-		// set:
-		this.x += dx;
-		this.y += dy;
-		this.rot += delta_angle;
-		if (this.rot > 360) this.rot -= 360;
-		if (this.rot < 0) this.rot += 360;
-		if (update_db) {
-			updateInDatabase("position+rot");
-		}
-		// TODO check that it doesn't go beyond the layer set limits! (or ask to resize the LayerSet to a minimum enclosing dimensions)
 	}
 
 	public Color getColor() { return color; }
@@ -886,13 +847,14 @@ public abstract class Displayable extends DBObject {
 	}
 
 	protected GenericDialog makeAdjustPropertiesDialog() {
+		Rectangle box = getBoundingBox(null);
 		GenericDialog gd = new GenericDialog("Properties");
 		gd.addStringField("title: ", title);
-		gd.addNumericField("x: ", x, 2);
-		gd.addNumericField("y: ", y, 2);
-		gd.addNumericField("width: ", width, 2);
-		gd.addNumericField("height: ", height, 2);
-		gd.addNumericField("rot (degrees): ", rot, 2);
+		gd.addNumericField("x: ", box.x, 2);
+		gd.addNumericField("y: ", box.y, 2);
+		gd.addNumericField("scale_x: ", 1, 2);
+		gd.addNumericField("scale_y: ", 1, 2);
+		gd.addNumericField("rot (degrees): ", 0, 2);
 		gd.addSlider("alpha: ", 0, 100, (int)(alpha*100));
 		gd.addCheckbox("visible", visible);
 		gd.addCheckbox("locked", locked);
@@ -914,11 +876,11 @@ public abstract class Displayable extends DBObject {
 		String title1 = gd.getNextString();
 		double x1 = gd.getNextNumber();
 		double y1 = gd.getNextNumber();
-		double w1 = gd.getNextNumber();
-		double h1 = gd.getNextNumber();
+		double sx = gd.getNextNumber();
+		double sy = gd.getNextNumber();
 		double rot1 = gd.getNextNumber();
 		float alpha1 = (float)gd.getNextNumber() / 100;
-		if (Double.isNaN(x1) || Double.isNaN(y1) || Double.isNaN(w1) || Double.isNaN(h1) || Double.isNaN(h1) || Float.isNaN(alpha1)) {
+		if (Double.isNaN(x1) || Double.isNaN(y1) || Double.isNaN(sx) || Double.isNaN(sy) || Float.isNaN(alpha1)) {
 			Utils.showMessage("Invalid values!");
 			return;
 		}
@@ -928,7 +890,8 @@ public abstract class Displayable extends DBObject {
 			this.title = title1;
 			updateInDatabase("title");
 		}
-		if (x1 != x || y1 != y || w1 != width || h1 != height) {
+		final Rectangle b = getBoundingBox(null);
+		if (x1 != x || y1 != y) {
 			if (null != hs) {
 				// apply the scaling and displacement to all linked
 				Rectangle box_old = getBoundingBox();
@@ -943,39 +906,36 @@ public abstract class Displayable extends DBObject {
 						return;
 					}
 				}
-				// store original position+dimensions
-				double x0 = this.x; double w0 = this.width;
-				double y0 = this.y; double h0 = this.height;
-				// set new position+dimensions
-				this.x = x1; this.width = w1;
-				this.y = y1; this.height = h1;
-				Rectangle box_new = getBoundingBox(); // there's rotation involved
-				// restore position+dimensions
-				this.x = x0; this.width = w0;
-				this.y = y0; this.height = h0;
-				// compute proportions
-				double px = (double)box_new.width / (double)box_old.width;
-				double py = (double)box_new.height / (double)box_old.height;
+				this.setLocation(x1, y1);
+				Rectangle b2 = getBoundingBox(null);
+				int dx = b2.x - b.x;
+				int dy = b2.y - b.y;
+				for (Iterator it = hs.iterator(); it.hasNext(); ) {
+					Displayable d = (Displayable)it.next();
+					if (this.equals(d)) continue;
+					d.translate(dx, dy);
+				}
+			} else {
+				this.setLocation(x1, y1);
+			}
+		}
+		if (1 != sx || 1 != sy) {
+			if (null != hs) {
 				// scale all
 				for (Iterator it = hs.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
-					Transform t = d.getTransform();
-					t.scale(px, py, box_new, box_old); // displaces as well
-					d.setTransform(t);
+					d.scale(sx, sy, b.y+b.width/2, b.y+b.height/2); // centered on this
 				}
 			} else {
-				setBounds(x1, y1, w1, h1);
+				this.scale(sx, sy, b.y+b.width/2, b.y+b.height/2);
 			}
 		}
 		if (rot1 != rot) {
 			if (null != hs) {
-				double cx = this.x + this.width/2;
-				double cy = this.y + this.height/2;
-				double delta_angle = rot1 - this.rot;
 				//Utils.log2("delta_angle, rot1, rot: " + delta_angle + "," + rot1 + "," + rot);
 				for (Iterator it = hs.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
-					d.rotate(delta_angle, cx, cy, true);
+					d.rotate(Math.toRadians(rot1), b.x+b.width/2, b.y+b.height/2);
 				}
 			} else {
 				setRotation(rot1);
@@ -1223,5 +1183,11 @@ public abstract class Displayable extends DBObject {
 		at2.translate(x3 - x2, y3 - y2);
 		this.at.preConcatenate(at2);
 		updateInDatabase("transform");
+	}
+
+	/** Sets the top left of the bounding box to x,y. Warning: does not check that the object will remain within layer bounds.*/
+	public void setLocation(double x, double y) {
+		Rectangle b = getBoundingBox(null);
+		this.translate(x - b.x, y - b.y);
 	}
 }

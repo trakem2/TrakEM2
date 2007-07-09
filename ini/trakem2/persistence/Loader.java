@@ -170,14 +170,14 @@ abstract public class Loader {
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void lock() {
-		//Utils.printCaller(this, 7);
+		Utils.printCaller(this, 7);
 		while (db_busy) { try { db_lock.wait(); } catch (InterruptedException ie) {} }
 		db_busy = true;
 	}
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void unlock() {
-		//Utils.printCaller(this);
+		Utils.printCaller(this);
 		if (db_busy) {
 			db_busy = false;
 			db_lock.notifyAll();
@@ -773,7 +773,11 @@ abstract public class Loader {
 						return awt;
 					} else {
 						// must remake awt, it's not big enough
-						awts.remove(id).flush();
+						try {
+						awts.remove(id);//.flush(); // TODO this flush is hanging the program. Where is the collision? All that changed was the Displayable.getWidth()
+						} catch (Exception e) {
+							new IJError(e);
+						}
 						// see if the snap is cached and big enough
 						if (Math.abs(mag - Snapshot.SCALE) < 0.001) {
 							Image snap = snaps.get(id);
@@ -1491,7 +1495,8 @@ abstract public class Loader {
 				//add new Patch at base bx,by plus the x,y of the grid
 				Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
-				fetchSnapshot(patch); // make sure it is created from the Patch ImagePlus.
+				layer.add(patch, true);
+				//fetchSnapshot(patch); // make sure it is created from the Patch ImagePlus.
 				addedPatchFrom(path, patch);
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
 				pall[i][j] = patch;
@@ -1501,7 +1506,6 @@ abstract public class Loader {
 				//snaps.put(patch.getId(), snap);
 
 				al.add(patch);
-				layer.add(patch, true);
 				if (ControlWindow.isGUIEnabled()) {
 					layer.getParent().enlargeToFit(patch, LayerSet.NORTHWEST); // northwest to prevent screwing up Patch coordinates.
 				}
