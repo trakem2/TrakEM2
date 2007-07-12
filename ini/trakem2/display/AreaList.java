@@ -703,17 +703,6 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	public void drag(int dx, int dy) {
-		super.drag(dx, dy);
-		AffineTransform at = new AffineTransform();
-		at.translate(dx, dy);
-		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			Area area = (Area)entry.getValue();
-			entry.setValue(area.createTransformedArea(at));
-		}
-	}
-
 	/** Detect if a point in offscreen coords is not in the area, but lays inside one of its path, which is returned as a Polygon. Otherwise returns null. */
 	private Polygon findPath(Area area, int x, int y) {
 		// make local

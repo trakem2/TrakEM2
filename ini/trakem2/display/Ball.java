@@ -533,17 +533,6 @@ public class Ball extends ZDisplayable {
 			return super.getPerimeter();
 		}
 	}
-	/** The perimeter of this profile, in integer precision, translated to origin xo,yo */
-	public Polygon getPerimeter(double xo, double yo) {
-		if (-1 == n_points) setupForDisplay();
-		if (-1 != index) {
-			// the box of the selected point
-			return new Polygon(new int[]{(int)(xo + p[0][index] - p_width[index]), (int)(xo + p[0][index] + p_width[index]), (int)(xo + p[0][index] + p_width[index]), (int)(xo + p[0][index] - p_width[index])}, new int[]{(int)(yo + p[1][index] - p_width[index]), (int)(yo + p[1][index] + p_width[index]), (int)(yo + p[1][index] + p_width[index]), (int)(yo + p[1][index] - p_width[index])}, 4);
-		} else {
-			// the whole box
-			return super.getPerimeter(xo, yo);
-		}
-	}
 	/** Writes the data of this object as a Ball object in the .shapes file represented by the 'data' StringBuffer. */
 	public void toShapesFile(StringBuffer data, String group, String color, double z_scale) {
 		if (-1 == n_points) setupForDisplay();

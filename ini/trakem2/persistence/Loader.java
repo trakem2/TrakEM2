@@ -170,14 +170,14 @@ abstract public class Loader {
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void lock() {
-		Utils.printCaller(this, 7);
+		//Utils.printCaller(this, 7);
 		while (db_busy) { try { db_lock.wait(); } catch (InterruptedException ie) {} }
 		db_busy = true;
 	}
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void unlock() {
-		Utils.printCaller(this);
+		//Utils.printCaller(this);
 		if (db_busy) {
 			db_busy = false;
 			db_lock.notifyAll();

@@ -1982,7 +1982,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		double dy = best_pc[1] - p_dragged.getY(); //   and the dx,dy are relative to the matched patch
 		Rectangle box = p_dragged.getLinkedBox(true);
 		Utils.log2("box is " + box);
-		Rectangle r = p_dragged.drag(dx, dy, true);
+		p_dragged.translate(dx, dy, true);
+		Rectangle r = p_dragged.getLinkedBox(true);
 		Utils.log2("dragged box is " + r);
 		box.add(r);
 		Selection selection = display.getSelection();

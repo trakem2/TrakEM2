@@ -245,25 +245,22 @@ public class Align {
 		if (0 == angle) {
 			for (Iterator it = hs2.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				d.drag(dx, dy, 1);
+				d.translate(dx, dy, false);
 			}
 		} else {
 			for (Iterator it = hs2.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				Transform t = d.getTransform();
 				if (translate) {
-					t.x += dx;
-					t.y += dy;
+					d.translate(dx, dy, false);
 				}
 				/*
 				if (scale) {
-					t.scale(scale, scale, ?, ?); // need the boxes ... I just don't like it, besides, the scaling will introduce artifacts rather than correct them.
+					//
 				}
 				*/
 				if (rotate) {
-					t.rotate(angle, xo, yo);
+					d.rotate(angle, xo, yo, false);
 				}
-				d.setTransform(t);
 			}
 		}
 		ini.trakem2.Project p = l1.layer.getProject();
@@ -470,12 +467,10 @@ public class Align {
 		double yo = data[4];
 		for (Iterator it = la_target.getDisplayables().iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			Transform t = d.getTransform();
-			t.translate(dx, dy);
+			d.translate(dx, dy);
 			if (0 != rot) {
-				t.rotate(rot, xo, yo);
+				d.rotate(rot, xo, yo);
 			}
-			d.setTransform(t);
 		}
 		// translate/rotate points of ZDisplayable objects that fall within the target layer
 		for (Iterator it = la_target.getParent().getZDisplayables().iterator(); it.hasNext(); ) {

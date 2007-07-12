@@ -550,67 +550,6 @@ public class Layer extends DBObject {
 		}
 	}
 
-	/** Rotate all objects in the layer, see the WARNING. Possible directions are LayerSet.R90, .R270, .FLIP_VERTICAL and .FLIP_HORIZONTAL. WARNING: original images from the Patch objects are rotated, since the transformation is non-destructive over the pixels. */
-	protected void rotate(int direction, boolean check_links, boolean repaint) {
-		if (isEmpty()) return;
-		if (direction < LayerSet.R90 || direction > LayerSet.FLIP_VERTICAL) return;
-		if (check_links) {
-			// check if any of the Displayable objects in the current layer is linked to elements in other layers. If so, cancel!
-			for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				HashSet hs = d.getLinked();
-				if (null == hs) continue;
-				for (Iterator itl = hs.iterator(); itl.hasNext(); ) {
-					Displayable dl = (Displayable)itl.next();
-					if (!dl.getLayer().equals(this)) {
-						Utils.showMessage("Can't rotate or flip just this layer!\nSome objects are linked to others in other layers.");
-						return;
-					}
-				}
-			}
-		}
-		double tx, ty, tw, th;
-		double new_x, new_y;
-		double new_w, new_h;
-		double layer_width = parent.getLayerWidth();
-		double layer_height= parent.getLayerHeight();
-		Iterator it = al_displayables.iterator();
-		while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
-			d.rotateData(direction);
-			// adjust x,y,width, height
-			new_x = tx = d.getX();
-			new_y = ty = d.getY();
-			new_w = tw = d.getWidth();
-			new_h = th = d.getHeight();
-			switch (direction) {
-				case LayerSet.R90:
-					new_x = layer_height - ty - th;
-					new_y = tx;
-					new_w = th;
-					new_h = tw;
-					break;
-				case LayerSet.R270:
-					new_x = ty;
-					new_y = layer_width - tx - tw;
-					new_w = th;
-					new_h = tw;
-					break;
-				case LayerSet.FLIP_HORIZONTAL:
-					new_x = layer_width - tx - tw;
-					new_y = ty;
-					break;
-				case LayerSet.FLIP_VERTICAL:
-					new_x = tx;
-					new_y = layer_height - ty - th;
-					break;
-			}
-			// apply to the original image itself (it's safe because the bytes are not destroyed, only reorganized)
-			d.setBounds2(new_x, new_y, new_w, new_h); // will save the bounds and also remake the snapshot and the panel, if any.
-		}
-		if (repaint) Display.repaint(this);
-	}
-
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		String in = indent + "\t";
 		// 1 - open tag

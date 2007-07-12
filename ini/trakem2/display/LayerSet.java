@@ -330,7 +330,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
 		if (ProjectToolbar.SELECT != ProjectToolbar.getToolId()) return;
-		super.drag(x_d - x_d_old, y_d - y_d_old);
+		super.translate(x_d - x_d_old, y_d - y_d_old);
 		Display.repaint(layer, this, 0);
 	}
 
@@ -345,6 +345,39 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	public String toString() {
 		return this.title;
+	}
+
+	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		//arrange transparency
+		Composite original_composite = null;
+		if (alpha != 1.0f) {
+			original_composite = g.getComposite();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+		}
+
+		//set color
+		g.setColor(this.color);
+		// fill a background box
+		g.fillRect(0, 0, (int)(this.width), (int)(this.height));
+		g.setColor(new Color(255 - color.getRed(), 255 - color.getGreen(), 255 - color.getBlue()).brighter()); // the "opposite", but brighter, so it won't fail to generate contrast if the color is 127 in all channels
+		int x = (int)(this.width/5);
+		int y = (int)(this.height/5);
+		int width = (int)(this.width/5);
+		int height = (int)(this.height/5 * 3);
+
+		g.fillRect(x, y, width, height);
+
+		x = (int)(this.width/5 * 2);
+		y = (int)(this.height/5 * 3);
+		width = (int)(this.width/5 * 2);
+		height = (int)(this.height/5);
+
+		g.fillRect(x, y, width, height);
+
+		//Transparency: fix composite back to original.
+		if (alpha != 1.0f) {
+			g.setComposite(original_composite);
+		}
 	}
 
 	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
@@ -951,15 +984,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public double getDepth() {
 		if (null == al_layers || al_layers.isEmpty()) return 0;
 		return ((Layer)al_layers.get(al_layers.size() -1)).getZ() - ((Layer)al_layers.get(0)).getZ();
-	}
-
-	/** Rotate the entire LayerSet; will check whether any objects are linked to other layers if trying to rotate a single layer. Direction can be R90, R270, FLIP_HORIZONTAL and FLIP_VERTICAL*/
-	public void rotate(int direction) {
-		if (direction < R90 || direction > FLIP_VERTICAL) return;
-		for (int i=al_layers.size() -1; i>-1; i--) {
-			((Layer)al_layers.get(i)).rotate(direction, false, false);
-		}
-		Display.repaint(this);
 	}
 
 	/** Return all the Displayable objects from all the layers of this LayerSet. */

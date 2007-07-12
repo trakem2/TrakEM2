@@ -93,7 +93,7 @@ public class AmiraImporter {
 			label.al_areas = extractLabelAreas(label.id, labels.getStack());
 			if (null == label.al_areas || 0 == label.al_areas.size()) continue;
 			AreaList ali = createAreaList(label, first_layer);
-			ali.drag(xo, yo, 0);
+			ali.translate(xo, yo, false);
 			al_alis.add(ali);
 		}
 		return al_alis;

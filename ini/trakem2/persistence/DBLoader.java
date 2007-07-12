@@ -264,7 +264,7 @@ public class DBLoader extends Loader {
 				}
 				// create table ab_displayables if it does not exist
 				if (!table_displayables_exists) {
-					String query_displayables = "CREATE TABLE ab_displayables (id BIGINT NOT NULL, layer_id BIGINT DEFAULT -1, title TEXT NOT NULL, x DOUBLE PRECISION NOT NULL, y DOUBLE PRECISION NOT NULL, width DOUBLE PRECISION NOT NULL, height DOUBLE PRECISION NOT NULL, alpha DOUBLE PRECISION DEFAULT 1.0, visible BOOLEAN DEFAULT TRUE, color_red INT DEFAULT 255, color_green INT DEFAULT 255, color_blue INT DEFAULT 0, rot DOUBLE PRECISION DEFAULT 0.0, stack_index INT DEFAULT -1, annotation TEXT NULL, locked BOOLEAN DEFAULT FALSE, PRIMARY KEY (id))";
+					String query_displayables = "CREATE TABLE ab_displayables (id BIGINT NOT NULL, layer_id BIGINT DEFAULT -1, title TEXT NOT NULL, x DOUBLE PRECISION NOT NULL, y DOUBLE PRECISION NOT NULL, width DOUBLE PRECISION NOT NULL, height DOUBLE PRECISION NOT NULL, alpha DOUBLE PRECISION DEFAULT 1.0, visible BOOLEAN DEFAULT TRUE, color_red INT DEFAULT 255, color_green INT DEFAULT 255, color_blue INT DEFAULT 0, stack_index INT DEFAULT -1, annotation TEXT NULL, locked BOOLEAN DEFAULT FALSE, PRIMARY KEY (id))";
 					connection.prepareStatement(query_displayables).execute();
 					Utils.log("Created table ab_displayables in database " + db_name);
 				} else {
@@ -1817,14 +1817,11 @@ public class DBLoader extends Loader {
 			  .append(",height=").append(displ.getHeight());
 		} else if (key.equals("position+rot")) {
 			sb.append("x=").append(displ.getX())
-			  .append(",y=").append(displ.getY())
-			  .append(",rot=").append(displ.getRotation());
+			  .append(",y=").append(displ.getY());
 		} else if (key.equals("alpha")) {
 			sb.append("alpha=").append(displ.getAlpha());
 		} else if (key.equals("title")) {
 			sb.append("title='").append(displ.getTitle()).append("'");
-		} else if (key.equals("rot")) {
-			sb.append("rot=").append(displ.getRotation());
 		} else if (key.equals("color")) {
 			Color color = displ.getColor();
 			sb.append("color_red=").append(color.getRed())
@@ -1847,7 +1844,6 @@ public class DBLoader extends Loader {
 			sb.append(",color_red=").append(color.getRed())
 			  .append(",color_green=").append(color.getGreen())
 			  .append(",color_blue=").append(color.getBlue())
-			  .append(",rot=").append(displ.getRotation())
 			  .append(",locked=").append(displ.isLocked2());
 		} else if (key.equals("locked")) {
 			sb.append("locked=").append(displ.isLocked());

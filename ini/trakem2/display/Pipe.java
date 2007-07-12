@@ -927,9 +927,6 @@ public class Pipe extends ZDisplayable {
 				repaint();
 				return;
 			}
-		} else if (ProjectToolbar.SELECT == tool) {
-			super.drag(x_d - x_d_old, y_d - y_d_old);
-			repaint();
 		}
 	}
 

@@ -845,13 +845,6 @@ public class Profile extends Displayable {
 				return;
 			}
 		}
-
-		// Drag the whole curve
-		else if (ProjectToolbar.SELECT == tool/* && contains(x_p, y_p)*/) { // TODO this contains can be computationally VERY expensive on an awt.Polygon
-			super.drag(x_d - x_d_old, y_d - y_d_old);
-			repaint(); // repaint only this one, which is the active and thus the one receiving the event
-			return;
-		}
 	}
 
 	/**Execute the mouseReleased MouseEvent on this Profile.*/

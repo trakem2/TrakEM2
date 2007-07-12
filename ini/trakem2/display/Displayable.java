@@ -36,16 +36,17 @@ import ini.trakem2.utils.Search;
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject {
 
-	protected double x;
-	protected double y;
-	protected double width = 0;
-	protected double height = 0;
-	/** The angle of rotation around the Z axis, in degrees. */
-	protected double rot = 0.0D;
-
-
 	protected AffineTransform at = new AffineTransform();
 
+
+	// temporary, this three have to disappear
+	protected double x, y;
+	protected double rot;
+	/////////////////////////////////////
+
+
+	protected double width = 0,
+		         height = 0;
 
 	private boolean locked = false;
 	protected String title;
@@ -103,8 +104,6 @@ public abstract class Displayable extends DBObject {
 	public Displayable(Project project, String title, double x, double y) {
 		super(project);
 		this.title = title;
-		this.x = x;
-		this.y = y;
 		this.snapshot = new Snapshot(this);
 		this.at.translate(x, y);
 	}
@@ -113,8 +112,6 @@ public abstract class Displayable extends DBObject {
 	public Displayable(Project project, long id, String title, double x, double y, boolean locked) {
 		super(project, id);
 		this.title = title;
-		this.x = x;
-		this.y = y;
 		this.locked = locked;
 		this.snapshot = new Snapshot(this);
 		this.at.translate(x, y);
@@ -123,6 +120,7 @@ public abstract class Displayable extends DBObject {
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the Hashtable. */
 	public Displayable(Project project, long id, Hashtable ht, Hashtable ht_links) {
 		super(project, id);
+		double x=0, y=0;
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
 		final ArrayList al_used_keys = new ArrayList();
@@ -139,6 +137,7 @@ public abstract class Displayable extends DBObject {
 					this.at.setTransform(Float.parseFloat(nums[0]), Float.parseFloat(nums[1]),
 							     Float.parseFloat(nums[2]), Float.parseFloat(nums[3]),
 							     Float.parseFloat(nums[4]), Float.parseFloat(nums[5]));
+					Utils.log2("at: " + this.at);
 				}
 				else if (key.equals("locked")) locked = data.trim().toLowerCase().equals("true");
 				else if (key.equals("visible")) visible = data.trim().toLowerCase().equals("true");
@@ -196,6 +195,15 @@ public abstract class Displayable extends DBObject {
 			ht.remove(it.next());
 		}
 		this.snapshot = new Snapshot(this);
+
+		// support old versions:
+		if (0 != x || 0 != y) {
+			translate(x, y);
+		}
+		// scaling in old versions will be lost
+
+		// debug:
+		Utils.log2("box: " + getBoundingBox(null));
 	}
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
@@ -240,30 +248,6 @@ public abstract class Displayable extends DBObject {
 		}
 	}
 
-	/** Not accepted if new bounds will leave the Displayable beyond layer bounds. Subclasses should extend this method to make it meaningful for them. Does not repaint the Display, but updates its own snapshot panel. */
-	public void setBounds(double x, double y, double width, double height) {
-		if (x + width <= 0 || y + height <= 0 || x >= layer.getLayerWidth() || y >= layer.getLayerHeight()) return;
-		this.x = x;
-		this.y = y;
-		this.width = width;
-		this.height = height;
-		updateInDatabase("position+dimensions");
-		snapshot.remake();
-		Display.updatePanel(layer, this);
-	}
-
-	/** A second method to set the bounds, not to be extended by subclasses and only for rotating the Layer. */
-	protected void setBounds2(double x, double y, double width, double height) {
-		if (x + width <= 0 || y + height <= 0 || x >= layer.getLayerWidth() || y >= layer.getLayerHeight()) return;
-		this.x = x;
-		this.y = y;
-		this.width = width;
-		this.height = height;
-		updateInDatabase("position+dimensions");
-		snapshot.remake();
-		Display.updatePanel(layer, this);
-	}
-
 	public void setLayer(Layer layer, boolean update_db) {
 		if (null == layer || this.layer == layer) return;
 		this.layer = layer;
@@ -290,7 +274,8 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public String getShortTitle() {
-		return "x=" + Utils.cutNumber(x, 2) + " y=" + Utils.cutNumber(y, 2) + (null != layer ? " z=" + Utils.cutNumber(layer.getZ(), 2) : "");
+		Rectangle b = getBoundingBox(null);
+		return "x=" + Utils.cutNumber(b.x, 2) + " y=" + Utils.cutNumber(b.y, 2) + (null != layer ? " z=" + Utils.cutNumber(layer.getZ(), 2) : "");
 	}
 
 	/** Returns the x of the bounding box. */
@@ -346,16 +331,9 @@ public abstract class Displayable extends DBObject {
 		return r;
 	}
 
-	/** Subclasses can override this method to provide the exact contour, otherwise it returns the bounding box with x,y set to zero. */
+	/** Subclasses can override this method to provide the exact contour, otherwise it returns the bounding box. */
 	public Polygon getPerimeter() {
-		return getPerimeter(0, 0);
-	}
-
-	/** Get the perimeter translated to the given coordinates. Subclasses can override this method to provide the exact contour, otherwise it returns the bounding box. */
-	public Polygon getPerimeter(double xo, double yo) {
 		Rectangle r = getBoundingBox();
-		Utils.log2("x,y,w,h: " + x + "," + y + "," + width + "," + height);
-		Utils.log2("bbox is " + r);
 		return new Polygon(new int[]{r.x, r.x+r.width, r.x+r.width, r.x},
 				   new int[]{r.y, r.y, r.y+r.height, r.y+r.height},
 				   4);
@@ -382,13 +360,6 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public float getAlpha() { return alpha; }
-
-	public double getRotation() { return rot; }
-
-	public void setRotation(double rot) {
-		this.rot = rot;
-		updateInDatabase("rot");
-	}
 
 	public Color getColor() { return color; }
 
@@ -420,59 +391,6 @@ public abstract class Displayable extends DBObject {
 		return hs;
 	}
 
-	/** Drag by the given differentials this Displayable and the linked group, if 'linked' is true. Returns the bounding box of the entire linked group, for those Displayable objects that share the layer with this.*/ // this method shortcuts existing methods for efficiency (it's slow enough already)
-	protected Rectangle drag(double dx, double dy, boolean linked) {
-		if (linked) {
-			HashSet hs_linked = getLinkedGroup(null);
-			Iterator it = hs_linked.iterator();
-			Rectangle box = new Rectangle();
-			Rectangle r = new Rectangle();
-			while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
-			d.drag(dx, dy);
-			/*if (d.layer.equals(this.layer) || d instanceof ZDisplayable) {*/
-			box.add(d.getBoundingBox(r));
-			//}
-			// MUST warrantee that other Displays are painted properly as well! It is not so much overhead because rarely there will be a lot of displays open.
-			}
-			return box;
-		} else {
-			// only this:
-			drag(dx, dy);
-			return getBoundingBox();
-		}
-	}
-
-	protected void drag(int dx, int dy) {
-		// else drag this
-		this.x += dx;
-		this.y += dy;
-		if (x + width < 0 || y + height < 0 || x > layer.getLayerWidth() || y > layer.getLayerHeight()) {
-			Utils.log("Prevented moving " + this + " beyond layer bonds.");
-			this.x -= dx;
-			this.y -= dy;
-			return;
-		}
-		updateInDatabase("position");
-	}
-
-	public void drag(double dx, double dy) {
-		drag(dx, dy, 1);
-	}
-
-	public void drag(double dx, double dy, int within_bounds_only) { // works as a boolean
-		// else drag this
-		this.x += dx;
-		this.y += dy;
-		if (1 == within_bounds_only && (x + width < 0 || y + height < 0 || x > layer.getLayerWidth() || y > layer.getLayerHeight())) {
-			Utils.log("Prevented moving " + this + " beyond layer bonds.");
-			this.x -= dx;
-			this.y -= dy;
-			return;
-		}
-		updateInDatabase("position");
-	}
-
 	@Deprecated
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
 		Utils.log2("Deprecated mousePressed method for " + this.getClass());
@@ -502,27 +420,25 @@ public abstract class Displayable extends DBObject {
 
 		int key_code = ke.getKeyCode();
 
-		Rectangle box = null;
-
 		switch(key_code) {
 
 		case KeyEvent.VK_ENTER: //End transform or bring ImageJ to front
 			ke.consume();
 			break;
 		case KeyEvent.VK_UP: //move one pixel up
-			box = drag(0, -1, true);
+			translate(0, -1, true);
 			ke.consume();
 			break;
 		case KeyEvent.VK_DOWN: //move one pixel down
-			box = drag(0, 1, true);
+			translate(0, 1, true);
 			ke.consume();
 			break;
 		case KeyEvent.VK_LEFT: //move one pixel left
-			box = drag(-1, 0, true);
+			translate(-1, 0, true);
 			ke.consume();
 			break;
 		case KeyEvent.VK_RIGHT: //move one pixel right
-			box = drag(1, 0, true);
+			translate(1, 0, true);
 			ke.consume();
 			break;
 		case KeyEvent.VK_ESCAPE:
@@ -531,13 +447,11 @@ public abstract class Displayable extends DBObject {
 			break;
 		}
 
+		Rectangle box = getLinkedBox(true);
+
 		if (ke.isConsumed() && KeyEvent.VK_ESCAPE != key_code) {
 			// no need to repaint the previous box, falls within 1 pixel (and here I add 5 on the margins)
-			if (null == box) {
-				Display.repaint(this.layer, this, 5);
-			} else {
-				Display.repaint(this.layer, box, 5);
-			}
+			Display.repaint(this.layer, box, 5);
 		} //not repainting for ESC because it has been done already
 	}
 
@@ -744,7 +658,7 @@ public abstract class Displayable extends DBObject {
 		ArrayList al = layer.getDisplayables();
 
 		// this bounding box:
-		Polygon perimeter = getPerimeter(x, y); //displaced by this object's position!
+		Polygon perimeter = getPerimeter(); //displaced by this object's position!
 		if (null == perimeter) return; // happens when a profile with zero points is deleted
 
 		// for each Patch, check if it underlays this profile's bounding box
@@ -797,13 +711,13 @@ public abstract class Displayable extends DBObject {
 		Rectangle box = new Rectangle();
 		accumulateLinkedBox(same_layer, new HashSet(), box);
 		return box;
-	} // I HATE ECLIPSE
+	}
 
 	/** Accumulates in the box. */
 	private void accumulateLinkedBox(boolean same_layer, HashSet hs_done, Rectangle box) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
-		box.add(new Rectangle((int)x, (int)y, (int)Math.ceil(width), (int)Math.ceil(height))); // if one tries to save that many allocations of Rectangle instances, the method fails to do its job properly! Something is stinky in the setBounds implementation of the Rectangle class.
+		box.add(getBoundingBox(null));
 		Iterator it = hs_linked.iterator();
 		while (it.hasNext()) {
 			Displayable d = (Displayable)it.next();
@@ -890,8 +804,8 @@ public abstract class Displayable extends DBObject {
 			this.title = title1;
 			updateInDatabase("title");
 		}
-		final Rectangle b = getBoundingBox(null);
-		if (x1 != x || y1 != y) {
+		final Rectangle b = getBoundingBox(null); // previous
+		if (x1 != b.x || y1 != b.y) {
 			if (null != hs) {
 				// apply the scaling and displacement to all linked
 				Rectangle box_old = getBoundingBox();
@@ -930,15 +844,17 @@ public abstract class Displayable extends DBObject {
 				this.scale(sx, sy, b.y+b.width/2, b.y+b.height/2);
 			}
 		}
-		if (rot1 != rot) {
+		if (rot1 != 0) {
+			// rotate relative to the center of he Displayable
+			double rads = Math.toRadians(rot1);
 			if (null != hs) {
 				//Utils.log2("delta_angle, rot1, rot: " + delta_angle + "," + rot1 + "," + rot);
 				for (Iterator it = hs.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
-					d.rotate(Math.toRadians(rot1), b.x+b.width/2, b.y+b.height/2);
+					d.rotate(rads, b.x+b.width/2, b.y+b.height/2);
 				}
 			} else {
-				setRotation(rot1);
+				this.rotate(rads, b.x+b.width/2, b.y+b.height/2);
 			}
 		}
 		if (alpha1 != alpha) setAlpha(alpha1, true);
@@ -978,7 +894,7 @@ public abstract class Displayable extends DBObject {
 		;
 	}
 
-	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */
+	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
 	public void exportXML(StringBuffer sb_body, String in, Object any) {
 		final double[] a = new double[6];
 		at.getMatrix(a);
@@ -987,15 +903,15 @@ public abstract class Displayable extends DBObject {
 			.append(in).append("x=\"").append(x).append("\"\n")
 			.append(in).append("y=\"").append(y).append("\"\n")
 			.append(in).append("rot=\"").append(rot).append("\"\n")
+			*/
 			.append(in).append("width=\"").append(width).append("\"\n")
 			.append(in).append("height=\"").append(height).append("\"\n")
-			*/
 			.append(in).append("transform=\"matrix(").append(a[0]).append(',')
 								.append(a[1]).append(',')
 								.append(a[2]).append(',')
 								.append(a[3]).append(',')
 								.append(a[4]).append(',')
-								.append(a[5]).append("\"\n")
+								.append(a[5]).append(")\"\n")
 		;
 		// the default is obvious, so just store the value if necessary
 		if (locked) sb_body.append(in).append("locked=\"true\"\n");
@@ -1031,7 +947,8 @@ public abstract class Displayable extends DBObject {
 	public ini.trakem2.display.Transform getTransform() {
 		Utils.log2("called Deprecated Displayable.getTransform for " + this);
 		Utils.printCaller(this, 3);
-		return new ini.trakem2.display.Transform(x, y, width, height, rot, alpha, visible, locked, color, layer);
+		Rectangle b = getBoundingBox(null);
+		return new ini.trakem2.display.Transform(b.x, b.y, b.width, b.height, 0, alpha, visible, locked, color, layer);
 	}
 
 	/** Set the transform and save in database; does NOT repaint, nor affects any linked objects. */
@@ -1148,23 +1065,69 @@ public abstract class Displayable extends DBObject {
 		updateInDatabase("transform");
 	}
 
-	public void translate(double dx, double dy) {
-		AffineTransform at2 = new AffineTransform();
+	/** Translate this Displayable and its linked ones if linked=true. */
+	public void translate(double dx, double dy, boolean linked) {
+		final AffineTransform at2 = new AffineTransform();
 		at2.translate(dx, dy);
-		this.at.preConcatenate(at2);
-		updateInDatabase("transform");
+		if (linked) {
+			final HashSet hs_linked = getLinkedGroup(null); // includes the self
+			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				d.at.preConcatenate(at2);
+				d.updateInDatabase("transform");
+			}
+		} else {
+			this.at.preConcatenate(at2);
+			this.updateInDatabase("transform");
+		}
+	}
+
+	public void translate(double dx, double dy) {
+		translate(dx, dy, true);
 	}
 
 	/** Rotate relative to an anchor point. */
 	public void rotate(double radians, double xo, double yo) {
+		rotate(radians, xo, yo, true);
+	}
+
+	/** Rotate relative to an anchor point. */
+	public void rotate(double radians, double xo, double yo, boolean linked) {
 		AffineTransform at2 = new AffineTransform();
 		at2.rotate(radians, xo, yo);
-		this.at.preConcatenate(at2);
-		updateInDatabase("transform");
+		if (linked) {
+			final HashSet hs_linked = getLinkedGroup(null); // includes the self
+			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				d.at.preConcatenate(at2);
+				d.updateInDatabase("transform");
+			}
+		} else {
+			this.at.preConcatenate(at2);
+			this.updateInDatabase("transform");
+		}
 	}
 
 	/** Scale relative to an anchor point (will translate as necessary). */
 	public void scale(double sx, double sy, double xo, double yo) {
+		scale(sx, sy, xo, yo, true);
+	}
+
+	/** Scale relative to an anchor point (will translate as necessary). */
+	public void scale(double sx, double sy, double xo, double yo, boolean linked) {
+		if (linked) {
+			final HashSet hs_linked = getLinkedGroup(null); // includes the self
+			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				d.scale2(sx, sy, xo, yo);
+			}
+		} else {
+			this.scale2(sx, sy, xo, yo);
+		}
+	}
+
+	/** Scales this instance only, no linked ones, relative to the anchor point. */
+	private void scale2(double sx, double sy, double xo, double yo) {
 		Rectangle b1 = getBoundingBox(null);
 		this.at.scale(sx, sy);
 		Rectangle b2 = getBoundingBox(null);
@@ -1185,9 +1148,9 @@ public abstract class Displayable extends DBObject {
 		updateInDatabase("transform");
 	}
 
-	/** Sets the top left of the bounding box to x,y. Warning: does not check that the object will remain within layer bounds.*/
+	/** Sets the top left of the bounding box to x,y. Warning: does not check that the object will remain within layer bounds. Does NOT affect linked Displayables. */
 	public void setLocation(double x, double y) {
 		Rectangle b = getBoundingBox(null);
-		this.translate(x - b.x, y - b.y);
+		this.translate(x - b.x, y - b.y, false); // do not affect linked Displayables
 	}
 }
