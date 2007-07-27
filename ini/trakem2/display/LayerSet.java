@@ -1515,5 +1515,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public void setSnapshotsQuality(boolean b) {
 		this.snapshots_quality = b;
 		updateInDatabase("snapshots_quality");
+		// TODO should remake all snapshots
 	}
 }

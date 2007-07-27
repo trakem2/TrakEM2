@@ -235,11 +235,26 @@ public class Patch extends Displayable {
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
 		Image image = null;
+		// try to get the snapshot if appropriate, so that if quality is on, it will paint better
+		// (note that it has to scale the affine transform as well)
+		AffineTransform atp = this.at;
 		if (this.channels == channels) {
-			image = project.getLoader().fetchImage(this, magnification);
+			if (magnification <= Snapshot.SCALE) {
+				image = project.getLoader().fetchSnapshot(this);
+				atp = ((AffineTransform)atp.clone());
+				atp.scale(1/Snapshot.SCALE, 1/Snapshot.SCALE);
+			} else {
+				image = project.getLoader().fetchImage(this, magnification);
+			}
 		} else {
 			// remake to show appropriate channels
 			image = adjustChannels(channels);
+			if (magnification <= Snapshot.SCALE) {
+				image = project.getLoader().fetchSnapshot(this);
+				Rectangle r = getBoundingBox();
+				atp = ((AffineTransform)atp.clone());
+				atp.scale(1/Snapshot.SCALE, 1/Snapshot.SCALE);
+			}
 		}
 		if (null == image) return; // TEMPORARY from lazy repaints after closing a Project
 
@@ -250,7 +265,7 @@ public class Patch extends Displayable {
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		g.drawImage(image, this.at, null);
+		g.drawImage(image, atp, null);
 
 		//Transparency: fix composite back to original.
 		if (alpha != 1.0f) {

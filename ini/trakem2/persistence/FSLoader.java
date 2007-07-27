@@ -343,6 +343,7 @@ public class FSLoader extends Loader {
 				if (null == awt) {
 					unlock();
 					fetchImagePlus(p, true); // will create snapshot
+					snap = snaps.get(p.getId());
 					lock();
 				} else {
 					try {

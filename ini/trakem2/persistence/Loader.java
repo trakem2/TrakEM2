@@ -1505,6 +1505,14 @@ abstract public class Loader {
 				//Image snap = ip.resize((int)Math.ceil(img.getWidth() * Snapshot.SCALE), (int)Math.ceil(img.getHeight() * Snapshot.SCALE)).createImage();
 				//snaps.put(patch.getId(), snap);
 
+				// debug: does the snap exists?
+				Image sn = snaps.get(patch.getId());
+				if (null != sn) {
+					Utils.log2("@@@  SNAP YES");
+				} else {
+					Utils.log2("@@@  SNAP NO");
+				}
+
 				al.add(patch);
 				if (ControlWindow.isGUIEnabled()) {
 					layer.getParent().enlargeToFit(patch, LayerSet.NORTHWEST); // northwest to prevent screwing up Patch coordinates.
@@ -1661,6 +1669,7 @@ abstract public class Loader {
 					for (i=0; i<pa.length; i++) {
 						awts.remove(pa[i].getId());
 						snaps.remove(pa[i].getId());
+						Utils.log2(i + "removing awt and snap for " + pa[i].getId());
 					}
 					unlock();
 				}

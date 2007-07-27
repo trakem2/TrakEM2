@@ -82,7 +82,7 @@ public class Snapshot {
 		}
 		if (d instanceof Patch) {
 			
-			Image image = null;
+			//Image image = null;
 			/*
 			if (((Patch)d).getChannelAlphas() == 0xffffffff) {
 				image = d.getProject().getLoader().fetchImage((Patch)d);
@@ -91,18 +91,29 @@ public class Snapshot {
 			}
 			*/
 			final Patch p = (Patch)d;
-			//image = d.getProject().getLoader().fetchImage(p, 1.0); // not the snapshot, so retrieve for magnification 1.0
-			//final Image snap = Snapshot.createSnap(p, image, Snapshot.SCALE); //image.getScaledInstance((int)(w * SCALE), (int)(h * SCALE), SCALE_METHOD);
+			final Image image = d.getProject().getLoader().fetchImage(p, 1.0); // not the snapshot, so retrieve for magnification 1.0
+			final Image snap = Snapshot.createSnap(p, image, Snapshot.SCALE); //image.getScaledInstance((int)(w * SCALE), (int)(h * SCALE), SCALE_METHOD);
+			/* // debug
+			final BufferedImage bi = new BufferedImage(snap.getWidth(null), snap.getHeight(null), BufferedImage.TYPE_BYTE_INDEXED);
+			bi.getGraphics().drawImage(snap, 0, 0, null);
+			try {
+				new Thread() { public void run() { new ImagePlus("snap", bi).show();} }.start();
+				Thread.sleep(1000);
+			} catch (Exception ee) {
+			}
+			*/
 			// easier:
+			// NO, doesn't follow the general model of quality/non-quality!!
+			/*
 			final ImageProcessor ip = d.getProject().getLoader().fetchImagePlus(p, false).getProcessor();
 			ip.setInterpolate(true);
 			ImageProcessor ip_scaled = ip.resize((int)Math.ceil(p.getWidth() * SCALE), (int)Math.ceil(p.getHeight() * SCALE));
 			ip_scaled.setColorModel(ip.getColorModel()); // the LUT !
 			final Image snap = ip_scaled.createImage();
+			*/
 
 			d.getProject().getLoader().cacheSnapshot(d.getId(), snap);
 			p.updateInDatabase("tiff_snapshot");
-			return;
 		}
 	}
 
@@ -124,15 +135,27 @@ public class Snapshot {
 
 	static private int c = 0;
 
+	static public void printC() {
+		Utils.log2("c is " + c);
+	}
+
 	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. */
 	static public Image createSnap(final Patch p, final Image awt, final double mag) {
 		final int w = (int)Math.ceil(p.getWidth() * mag);
 		final int h = (int)Math.ceil(p.getHeight() * mag);
 		try {
 		if (p.getLayer().getParent().snapshotsQuality()) {
+			/*
+			try {
+			new Exception("CREATE SNAP:").printStackTrace();
+			} catch (Exception eee) {
+				Utils.log2("HUH?");
+			}
+			*/
 			// best, but very slow
-			Utils.log2("quality snap! " + (c++));
+			Utils.log2("QUALITY SNAP! " + (c++));
 			return awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING);
+
 			//second best, much faster, should be slightly blurry but looks grainy as well
 			/*
 			int type = p.getType();

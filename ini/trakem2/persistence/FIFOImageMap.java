@@ -45,6 +45,7 @@ public class FIFOImageMap {
 
 	/** No duplicates allowed: if the id exists it's sended to the end and the image is first flushed (if different), then updated with the new one provided. */
 	synchronized public void put(long id, Image image) {
+
 		try {
 			if (null == image) throw new Exception("FIFOImageMap: null image!");
 		} catch (Exception e) {
