@@ -26,6 +26,9 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
@@ -120,7 +123,7 @@ public abstract class Displayable extends DBObject {
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the Hashtable. */
 	public Displayable(Project project, long id, Hashtable ht, Hashtable ht_links) {
 		super(project, id);
-		double x=0, y=0;
+		double x=0, y=0; // for backward compatibility
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
 		final ArrayList al_used_keys = new ArrayList();
@@ -302,7 +305,7 @@ public abstract class Displayable extends DBObject {
 		return getBoundingBox(null);
 	}
 
-	/** Saves one allocation, returns the same Rectangle, modified. */
+	/** Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
 	public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
 		if (this.at.isIdentity()) {
@@ -1152,5 +1155,31 @@ public abstract class Displayable extends DBObject {
 	public void setLocation(double x, double y) {
 		Rectangle b = getBoundingBox(null);
 		this.translate(x - b.x, y - b.y, false); // do not affect linked Displayables
+	}
+
+	/** Apply this Displayable's AffineTransform to the given point. */
+	public Point2D.Double transformPoint(final int px, final int py) {
+		final Point2D.Double pSrc = new Point2D.Double(px, py);
+		if (this.at.isIdentity()) return pSrc;
+		final Point2D.Double pDst = new Point2D.Double();
+		this.at.transform(pSrc, pDst);
+		return pDst;
+	}
+
+	public Point2D.Double inverseTransformPoint(final int px, final int py) {
+		final Point2D.Double pSrc = new Point2D.Double(px, py);
+		if (this.at.isIdentity()) return pSrc;
+		final Point2D.Double pDst = new Point2D.Double();
+		try {
+			this.at.createInverse().transform(pSrc, pDst);
+		} catch (NoninvertibleTransformException nite) {
+			new IJError(nite);
+		}
+		return pDst;
+	}
+
+	/** Returns a new Rectangle which encloses completly the given rectangle after transforming it. The given rectangle's fiels are untouched.*/
+	final public Rectangle transformRectangle(final Rectangle r) {
+		return new Area(r).createTransformedArea(this.at).getBounds();
 	}
 }

@@ -431,7 +431,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				final Selection selection = display.getSelection();
 				final Layer active_layer = display.getLayer();
 
-				if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass().equals(AreaList.class) && ((AreaList)active).getFillPaint()) {
+				if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass().equals(AreaList.class) && ((AreaList)active).isFillPaint()) {
 					// no background paint if painting in fill_paint mode
 				} else {
 					synchronized (offscreen_lock) {
@@ -467,13 +467,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				if (null != active) {
 					try {
-						if (selection.contains(active) && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) {
-							if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-								active.paint(g2d, magnification, true, c_alphas, active_layer);
-							}
+						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
+							active.paint(g2d, magnification, true, c_alphas, active_layer);
 						}
 					} catch (Exception e) {
-						Utils.log2("Synchronization issues");
+						Utils.log2("Synchronization issues in painting the active");
 					}
 				}
 

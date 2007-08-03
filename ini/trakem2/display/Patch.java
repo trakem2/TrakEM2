@@ -295,6 +295,8 @@ public class Patch extends Displayable {
 	}
 
 	/** A method to paint to the given box, for transformations. */
+	// this is OBSOLETE
+	/*
 	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
 		if (isOutOfRepaintingClip(magnification, srcRect, clipRect)) return;
 
@@ -323,6 +325,7 @@ public class Patch extends Displayable {
 			g2d.setComposite(original_composite);
 		}
 	}
+	*/
 
 	public void keyPressed(KeyEvent ke) {
 		super.keyPressed(ke);

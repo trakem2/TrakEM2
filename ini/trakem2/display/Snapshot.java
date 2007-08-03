@@ -133,27 +133,13 @@ public class Snapshot {
 		d.paint(g, layer);
 	}
 
-	static private int c = 0;
-
-	static public void printC() {
-		Utils.log2("c is " + c);
-	}
-
 	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. */
 	static public Image createSnap(final Patch p, final Image awt, final double mag) {
 		final int w = (int)Math.ceil(p.getWidth() * mag);
 		final int h = (int)Math.ceil(p.getHeight() * mag);
 		try {
 		if (p.getLayer().getParent().snapshotsQuality()) {
-			/*
-			try {
-			new Exception("CREATE SNAP:").printStackTrace();
-			} catch (Exception eee) {
-				Utils.log2("HUH?");
-			}
-			*/
 			// best, but very slow
-			Utils.log2("QUALITY SNAP! " + (c++));
 			return awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING);
 
 			//second best, much faster, should be slightly blurry but looks grainy as well
@@ -210,7 +196,6 @@ public class Snapshot {
 		//g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
 		g.drawImage(awt, 0, 0, w, h, null);
 		g.dispose();
-		Utils.log2("NON quality snap! ");
 		return bi;
 	}
 

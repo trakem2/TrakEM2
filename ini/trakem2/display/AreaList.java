@@ -35,6 +35,7 @@ import ij.ImageStack;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.render3d.Perimeter2D;
 
@@ -48,6 +49,7 @@ import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.GeneralPath;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Point2D;
 import java.awt.Shape;
@@ -84,7 +86,6 @@ public class AreaList extends ZDisplayable {
 	public AreaList(Project project, String title, double x, double y) {
 		super(project, title, x, y);
 		addToDatabase();
-		// TODO: need default alpha 0.6 (but paints very slow, so not enabled by default)
 	}
 
 	/** Reconstruct from XML. */
@@ -113,6 +114,38 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
+	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		Object ob = ht_areas.get(new Long(active_layer.getId()));
+		if (null == ob) {
+			return;
+		}
+		if (AreaList.UNLOADED.equals(ob)) {
+			ob = loadLayer(active_layer.getId());
+			if (null == ob) {
+				return;
+			}
+		}
+		final Area area = (Area)ob;
+
+		g.setColor(this.color);
+		//arrange transparency
+		Composite original_composite = null;
+		if (alpha != 1.0f) {
+			original_composite = g.getComposite();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+		}
+		if (fill_paint) {
+			g.fill(area.createTransformedArea(this.at));
+		} else {
+			g.draw(area.createTransformedArea(this.at));  // the contour only
+		}
+		//Transparency: fix alpha composite back to original.
+		if (null != original_composite) {
+			g.setComposite(original_composite);
+		}
+	}
+
+	/* // obsolete
 	public void paint(Graphics g, boolean active, int channels, Layer active_layer) {
 		// check if it has to be painted at all
 		if (!AreaList.brushing) {
@@ -149,6 +182,7 @@ public class AreaList extends ZDisplayable {
 			g2d.setComposite(original_composite);
 		}
 	}
+	*/
 
 	public void paint(Graphics g, final Layer current) {
 		if (null == current) return;
@@ -206,6 +240,7 @@ public class AreaList extends ZDisplayable {
 			Map.Entry entry = (Map.Entry)it.next();
 			Layer la = this.layer_set.getLayer(((Long)entry.getKey()).longValue());
 			Area area = (Area)entry.getValue();
+			area = area.createTransformedArea(this.at);
 			for (Iterator dit = la.getDisplayables(Patch.class).iterator(); dit.hasNext(); ) {
 				Displayable d = (Displayable)dit.next();
 				r = d.getBoundingBox(r);
@@ -217,29 +252,6 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	/** The box around all areas. */
-	/*
-	public Rectangle getBoundingBox() {
-		return getBoundingBox(null);
-	}
-	*/
-
-	/** The box around all areas, reusing the given Rectangle instance. */
-	/*
-	public Rectangle getBoundingBox(Rectangle r) {
-		if (null == r) r = new Rectangle();
-		boolean first = true;
-		for (Iterator it = ht_areas.values().iterator(); it.hasNext(); ) {
-			Area area = (Area)it.next();
-			if (first) {
-				r.setBounds(area.getBounds());
-				first = false;
-			} else r.add(area.getBounds());
-		}
-		return r;
-	}
-	*/
-
 	/** Returns whether the point x,y is contained in this object at the given Layer. */
 	public boolean contains(Layer layer, int x, int y) {
 		Object ob = ht_areas.get(new Long(layer.getId()));
@@ -249,7 +261,8 @@ public class AreaList extends ZDisplayable {
 			if (null == ob) return false;
 		}
 		Area area = (Area)ob;
-		return area.contains(x - this.x, y - this.y);
+		if (!this.at.isIdentity()) area = area.createTransformedArea(this.at);
+		return area.contains(x, y);
 	}
 
 	public boolean isDeletable() {
@@ -275,32 +288,33 @@ public class AreaList extends ZDisplayable {
 				if (null == ob) return;
 			}
 			area = (Area)ob;
-			// make area relative to 0,0 for painting
-			/*
-			AffineTransform at = new AffineTransform();
-			at.translate(this.x, this.y);
-			area.transform(at);
-			*/
+		}
+
+		// transform the x_p, y_p to the local coordinates
+		if (!this.at.isIdentity()) {
+			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
+			x_p = (int)p.x;
+			y_p = (int)p.y;
 		}
 
 		if (me.isShiftDown()) {
 			// fill in a hole if the clicked point lays within one
 			Polygon pol = null;
-			if (area.contains((int)(x_p - this.x), (int)(y_p - this.y))) {
+			if (area.contains(x_p, y_p)) {
 				if (me.isAltDown()) {
 					// fill-remove
 					pol = findPath(area, x_p, y_p); // no null check, exists for sure
 					area.subtract(new Area(pol));
-					//if (null != pol) area.add(new Area(pol)); // TESTING
 				}
 			} else if (!me.isAltDown()) {
 				// fill-add
 				pol = findPath(area, x_p, y_p);
-				if (null != pol) area.add(new Area(pol)); // may not exist
+				if (null != pol) {
+					area.add(new Area(pol)); // may not exist
+				}
 			}
 			if (null != pol) {
-				Rectangle r_pol = pol.getBounds();
-				r_pol.translate((int)this.x, (int)this.y);
+				final Rectangle r_pol = transformRectangle(pol.getBounds());
 				Display.repaint(Display.getFrontLayer(), r_pol, 1);
 				updateInDatabase("points=" + lid);
 			}
@@ -334,18 +348,15 @@ public class AreaList extends ZDisplayable {
 			Utils.log("removing empty area");
 		}
 
-		double x_old = this.x;
-		double y_old = this.y;
-		calculateBoundingBox(); // will reset all areas' top-left coordinate
-		if (x_old == this.x && y_old == this.y) {
-			// update the points for the current layer only
-			updateInDatabase("points=" + lid);
-		} else {
+		final boolean translated = calculateBoundingBox(); // will reset all areas' top-left coordinates, and update the database if necessary
+		if (translated) {
 			// update for all, since the bounding box has changed
 			updateInDatabase("all_points");
+		} else {
+			// update the points for the current layer only
+			updateInDatabase("points=" + lid);
 		}
 
-		//NOT NEEDED//Display.repaint(Display.getFrontLayer(), this, 0); // excessive repaint, but at least not updating the offscreen image
 		// Repaint instead the last rectangle, to erase the circle
 		if (null != r_old) {
 			Display.repaint(Display.getFrontLayer(), r_old, 3, false);
@@ -355,9 +366,12 @@ public class AreaList extends ZDisplayable {
 		Display.repaint(Display.getFrontLayer(), this);
 	}
 
-	/** Calculate box, make this x,y,with,height be that of the box, and translate all areas to fit in.*/ //This is the only road to sanity for ZDisplayable objects.
-	public void calculateBoundingBox() {
-		if (0 == ht_areas.size()) return;
+	/** Calculate box, make this x,y,with,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
+	public boolean calculateBoundingBox() {
+		// forget it if this has been done once already, for at the moment it would work only for translations, not any other types of transforms. TODO: need to fix this somehow, generates repainting problems.
+		if (this.at.getType() != AffineTransform.TYPE_TRANSLATION) return false; // meaning, there's more bits in the type than just the translation
+		// check preconditions
+		if (0 == ht_areas.size()) return false;
 		Area[] area = new Area[ht_areas.size()];
 		Map.Entry[] entry = new Map.Entry[area.length];
 		ht_areas.entrySet().toArray(entry);
@@ -369,18 +383,20 @@ public class AreaList extends ZDisplayable {
 			if (null == box) box = (Rectangle)b[i].clone();
 			else box.add(b[i]);
 		}
-		if (null == box) return; // empty AreaList
+		if (null == box) return false; // empty AreaList
 		for (int i=0; i<area.length; i++) {
-			AffineTransform at = new AffineTransform();
-			at.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
-			entry[i].setValue(area[i].createTransformedArea(at));
+			AffineTransform atb = new AffineTransform();
+			atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
+			entry[i].setValue(area[i].createTransformedArea(atb));
 		}
-		this.x += box.x; // box is local to x,y
-		this.y += box.y;
+		this.translate(box.x, box.y);
 		this.width = box.width;
 		this.height = box.height;
-		//Utils.log("x,y,w,h: " + x + ", " + y + ", " + width + ", " + height);
 		updateInDatabase("position+dimensions");
+		if (0 != box.x || 0 != box.y) {
+			return true;
+		}
+		return false;
 	}
 
 	private BrushThread last = null;
@@ -413,7 +429,7 @@ public class AreaList extends ZDisplayable {
 			// create brush
 			final DisplayCanvas dc = Display.getFront().getCanvas();
 			Point p;
-			final AffineTransform at = new AffineTransform();
+			final AffineTransform atb = new AffineTransform();
 			int flags;
 			final int leftClick=16, alt=9;
 			double sqrt2 = Math.sqrt(2) + 0.001;
@@ -429,9 +445,19 @@ public class AreaList extends ZDisplayable {
 					try { Thread.sleep(1); } catch (InterruptedException ie) {}
 					continue;
 				}
-				at.translate(p.x - x, p.y - y); // local to the area
-				// prepare
-				Area slash = brush.createTransformedArea(at); //new Area(at.createTransformedShape(brush));
+				// bring to offscreen position of the mouse
+				atb.translate(p.x, p.y);
+				Area slash = brush.createTransformedArea(atb);
+				// capture bounds while still in offscreen coordinates
+				final Rectangle r = slash.getBounds();
+				// bring to the current transform, if any
+				if (!at.isIdentity()) {
+					try {
+						slash = slash.createTransformedArea(at.createInverse());
+					} catch (NoninvertibleTransformException nite) {
+						new IJError(nite);
+					}
+				}
 				if (0 == (flags & alt)) {
 					// no modifiers, just add
 					area.add(slash);
@@ -441,16 +467,14 @@ public class AreaList extends ZDisplayable {
 				}
 				previous_p = p;
 
-				Rectangle r = slash.getBounds();
-				r.translate((int)x, (int)y); // make absolute offscreen
-				Rectangle copy = (Rectangle)r.clone();
+				final Rectangle copy = (Rectangle)r.clone();
 				if (null != r_old) r.add(r_old);
 				r_old = copy;
 
 				Display.repaint(Display.getFrontLayer(), r, 3, false); // repaint only the last added slash
 
 				// reset
-				at.translate(-p.x + x, -p.y + y);
+				atb.setToIdentity();
 			}
 		}
 
@@ -703,11 +727,8 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	/** Detect if a point in offscreen coords is not in the area, but lays inside one of its path, which is returned as a Polygon. Otherwise returns null. */
+	/** Detect if a point in offscreen coords is not in the area, but lays inside one of its path, which is returned as a Polygon. Otherwise returns null. The given x,y must be already in the Area's coordinate system. */
 	private Polygon findPath(Area area, int x, int y) {
-		// make local
-		x -= this.x;
-		y -= this.y;
 		Polygon pol = new Polygon();
 		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
 			float[] coords = new float[6];
@@ -842,7 +863,7 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	public boolean getFillPaint() { return this.fill_paint; }
+	public boolean isFillPaint() { return this.fill_paint; }
 
 	/** Merge all arealists contained in the ArrayList to the first one found, and remove the others from the project, and only if they belong to the same LayerSet. Returns the merged AreaList object. */
 	static public AreaList merge(final ArrayList al) {

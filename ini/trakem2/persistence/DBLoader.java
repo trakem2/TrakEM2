@@ -2509,7 +2509,7 @@ public class DBLoader extends Loader {
 					}
 				}
 			} else if (key.equals("fill_paint")) {
-				connection.createStatement().executeUpdate(new StringBuffer("UPDATE ab_area_paths SET fill_paint=").append(arealist.getFillPaint()).append(" WHERE area_list_id=").append(arealist.getId()).toString()); // overkill, but otherwise I need to remake the ZDisplayable tables (which I will do at some point)
+				connection.createStatement().executeUpdate(new StringBuffer("UPDATE ab_area_paths SET fill_paint=").append(arealist.isFillPaint()).append(" WHERE area_list_id=").append(arealist.getId()).toString()); // overkill, but otherwise I need to remake the ZDisplayable tables (which I will do at some point)
 			}
 			connection.commit();
 			// restore
