@@ -2041,6 +2041,15 @@ abstract public class Loader {
 				}
 				al_zdispl = al_zdispl2;
 			}
+	
+			// prepare the canvas for the srcRect and magnification
+			final AffineTransform at_original = g2d.getTransform();
+			final AffineTransform atc = new AffineTransform();
+			atc.scale(scaleP, scaleP);
+			atc.translate(-srcRect.x, -srcRect.y);
+			at_original.preConcatenate(atc);
+			g2d.setTransform(at_original);
+
 			//Utils.log2("will paint: " + al_displ.size() + " displ and " + al_zdispl.size() + " zdispl");
 			int total = al_displ.size() + al_zdispl.size();
 			int count = 0;

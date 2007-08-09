@@ -389,8 +389,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		super.setMagnification(mag);
 	}
 
-	/** Paint lines always with a thickness of 1 pixel. */
+	/** Paint lines always with a thickness of 1 pixel. This stroke is modified when the magnification is changed, to compensate. */
 	private BasicStroke stroke = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+
+	private final void resetStroke() {
+		this.stroke = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+	}
 
 	/** The affine transform representing the srcRect displacement and the magnification. */
 	private final AffineTransform atc = new AffineTransform();
@@ -464,7 +468,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// always a stroke of 1.0, regardless of magnification
 				g2d.setStroke(this.stroke);
 
-
 				if (null != active) {
 					try {
 						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
@@ -529,6 +532,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				g.fillRect(0, sr_height, g_width, g_height - sr_height);
 
 				if (null != roi) {
+					// reset stroke, always thickness of 1
+					g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
 					roi.draw(g);
 				}
 
