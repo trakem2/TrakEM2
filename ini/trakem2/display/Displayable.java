@@ -1096,7 +1096,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Rotate relative to an anchor point. */
 	public void rotate(double radians, double xo, double yo, boolean linked) {
-		AffineTransform at2 = new AffineTransform();
+		final AffineTransform at2 = new AffineTransform();
 		at2.rotate(radians, xo, yo);
 		if (linked) {
 			final HashSet hs_linked = getLinkedGroup(null); // includes the self
@@ -1178,7 +1178,7 @@ public abstract class Displayable extends DBObject {
 		return pDst;
 	}
 
-	/** Returns a new Rectangle which encloses completly the given rectangle after transforming it. The given rectangle's fiels are untouched.*/
+	/** Returns a new Rectangle which encloses completly the given rectangle after transforming it. The given rectangle's fields are untouched.*/
 	final public Rectangle transformRectangle(final Rectangle r) {
 		return new Area(r).createTransformedArea(this.at).getBounds();
 	}

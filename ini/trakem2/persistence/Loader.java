@@ -1968,7 +1968,7 @@ abstract public class Loader {
 
 			//synchronized (db_lock) {
 			//	lock();
-				releaseToFit(bytes); // locks on it s own
+				releaseToFit(bytes); // locks on it's own
 			//	unlock();
 			//}
 			long curr = IJ.maxMemory() - IJ.currentMemory();
@@ -1999,7 +1999,7 @@ abstract public class Loader {
 					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_INT_ARGB);
 					break;
 			}
-			Graphics2D g2d = bi.createGraphics();
+			final Graphics2D g2d = bi.createGraphics();
 
 			// fill background with black, since the getScaledInstance creates an RGB with white background
 			if (quality) {
@@ -2052,12 +2052,18 @@ abstract public class Loader {
 					zd_done = true;
 					for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 						ZDisplayable zd = (ZDisplayable)itz.next();
-						zd.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
+						if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
+							//zd.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
+							zd.paint(g2d, scaleP, false, c_alphas, layer);
+						}
 						count++;
 						//Utils.log2("Painted " + count + " of " + total);
 					}
 				}
-				d.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
+				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
+					//d.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
+					d.paint(g2d, scaleP, false, c_alphas, layer);
+				}
 				count++;
 				//Utils.log2("Painted " + count + " of " + total);
 			}
@@ -2065,7 +2071,10 @@ abstract public class Loader {
 				zd_done = true;
 				for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 					ZDisplayable zd = (ZDisplayable)itz.next();
-					zd.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
+					if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
+						//zd.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
+						zd.paint(g2d, scaleP, false, c_alphas, layer);
+					}
 					count++;
 					//Utils.log2("Painted " + count + " of " + total);
 				}
