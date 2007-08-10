@@ -65,7 +65,7 @@ public class Patch extends Displayable {
 		this.type = imp.getType();
 		this.min = imp.getProcessor().getMin();
 		this.max = imp.getProcessor().getMax();
-		adjustMinMax();
+		checkMinMax();
 		this.width = imp.getWidth();
 		this.height = imp.getHeight();
 		project.getLoader().cache(this, imp);
@@ -81,7 +81,7 @@ public class Patch extends Displayable {
 		this.type = type;
 		this.min = min;
 		this.max = max;
-		adjustMinMax();
+		checkMinMax();
 	}
 
 	/** Reconstruct from an XML entry. */
@@ -106,29 +106,23 @@ public class Patch extends Displayable {
 			}
 		}
 		if (hasmin && hasmax) {
-			adjustMinMax();
+			checkMinMax();
 		} else {
 			// standard, from the image, to be defined when first painted
 			min = max = -1;
 		}
-		// TEMPORARY: in the near future, read the matrix values in the SVG
-		// reconstruct the AffineTransform
-		//FAILS for stacks at create snap, no Layer yet// ImagePlus imp = getProject().getLoader().fetchImagePlus(this);
-		double w = width; //imp.getWidth();
-		double h = height; //imp.getHeight();
-		AffineTransform at2 = new AffineTransform();
-		at2.translate(x, y);
-		at2.rotate(Math.toRadians(rot), width/2, height/2);
-		at2.translate(w/2, h/2);
-		at2.scale(width / w, height / h);
-		at2.translate(-w/2, -h/2);
-		this.at.preConcatenate(at2);
 	}
 
 	/** Boundary checks on min and max, given the image type. */
-	private void adjustMinMax() {
+	private void checkMinMax() {
 		if (-1 == this.type) return;
-		if (this.min < 0) this.min = 0;
+		switch (type) {
+			case ImagePlus.GRAY8:
+			case ImagePlus.COLOR_RGB:
+			case ImagePlus.COLOR_256:
+			     if (this.min < 0) this.min = 0;
+			     break;
+		}
 		final double max_max = Patch.getMaxMax(this.type);
 		if (this.max > max_max) this.max = max_max;
 	}
@@ -571,7 +565,7 @@ public class Patch extends Displayable {
 		sb_body.append(indent).append("/>\n");
 	}
 
-	static private double getMaxMax(final int type) {
+	static private final double getMaxMax(final int type) {
 		int pow = 1;
 		switch (type) {
 			case ImagePlus.GRAY16: pow = 2; break; // TODO problems with unsigned short most likely

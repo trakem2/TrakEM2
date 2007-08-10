@@ -177,7 +177,7 @@ abstract public class Loader {
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void unlock() {
-		//Utils.printCaller(this);
+		//Utils.printCaller(this, 7);
 		if (db_busy) {
 			db_busy = false;
 			db_lock.notifyAll();
@@ -1506,12 +1506,13 @@ abstract public class Loader {
 				//snaps.put(patch.getId(), snap);
 
 				// debug: does the snap exists?
+				/*
 				Image sn = snaps.get(patch.getId());
 				if (null != sn) {
 					Utils.log2("@@@  SNAP YES");
 				} else {
 					Utils.log2("@@@  SNAP NO");
-				}
+				}*/
 
 				al.add(patch);
 				if (ControlWindow.isGUIEnabled()) {

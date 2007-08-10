@@ -123,18 +123,18 @@ public class Project extends DBObject {
 	}
 
 	/** Create a new TrakEM2 project. */
-	static public void newDBProject() {
-		if (Utils.wrongImageJVersion()) return;
+	static public Project newDBProject() {
+		if (Utils.wrongImageJVersion()) return null;
 		// create
 		DBLoader loader = new DBLoader();
 		// check connection settings
-		if (!loader.isReady()) return;
+		if (!loader.isReady()) return null;
 		// check connection
 		if (!loader.isConnected()) {
 			Utils.showMessage("Can't talk to database.");
-			return;
+			return null;
 		}
-		createNewProject(loader, true);
+		return createNewProject(loader, true);
 	}
 
 	/** Open a TrakEM2 project from the database. Queries the database for existing projects and if more than one, asks which one to open. */
@@ -269,11 +269,11 @@ public class Project extends DBObject {
 	}
 
 	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for. */
-	static public void newFSProject(String arg) {
-		if (Utils.wrongImageJVersion()) return;
+	static public Project newFSProject(String arg) {
+		if (Utils.wrongImageJVersion()) return null;
 		try {
 			FSLoader loader = new FSLoader();
-			if (!loader.isReady()) return;
+			if (!loader.isReady()) return null;
 			Project project = createNewProject(loader, arg == null || !arg.equals("blank"));
 			// help the helpless users:
 			if (null != project && ControlWindow.isGUIEnabled()) {
@@ -286,9 +286,11 @@ public class Project extends DBObject {
 				display.getCanvas().setup(0.25, srcRect);
 				display.updateTitle();
 			}
+			return project;
 		} catch (Exception e) {
 			new IJError(e);
 		}
+		return null;
 	}
 
 	/** Opens a project from an .xml file and a folder of images. If the path is null it'll be asked for.*/
@@ -393,7 +395,7 @@ public class Project extends DBObject {
 			new IJError(e);
 		}
 		// create the project control window, containing the trees in a double JSplitPane
-		ControlWindow.add(project, project.template_tree, project.project_tree, project.layer_tree);
+		ControlWindow.add(project, project.template_tree, project.project_tree, project.layer_tree); // beware that this call is asynchronous, dispatched by the SwingUtilities.invokeLater to avoid havok with Swing components.
 		// register
 		al_open_projects.add(project);
 

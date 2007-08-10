@@ -129,6 +129,7 @@ public class ControlWindow {
 
 	static private boolean hooked = false;
 
+	/** Beware that this method is asynchronous, as it delegates the launching to the SwingUtilities.invokeLater method to avoid havoc with Swing components. */
 	static public void add(final Project project, final TemplateTree template_tree, final ProjectTree thing_tree, final LayerTree layer_tree) {
 
 		final Runnable gui_thread = new Runnable() {
