@@ -138,32 +138,32 @@ public class Project extends DBObject {
 	}
 
 	/** Open a TrakEM2 project from the database. Queries the database for existing projects and if more than one, asks which one to open. */
-	static public void openDBProject() {
-		if (Utils.wrongImageJVersion()) return;
+	static public Project openDBProject() {
+		if (Utils.wrongImageJVersion()) return null;
 		DBLoader loader = new DBLoader();
-		if (!loader.isReady()) return;
+		if (!loader.isReady()) return null;
 		// check connection
 		if (!loader.isConnected()) {
 			Utils.showMessage("Can't talk to database.");
 			loader.destroy();
-			return;
+			return null;
 		}
 		// query the database for existing projects
 		Project[] projects = loader.getProjects();
 		if (null == projects) {
 			Utils.showMessage("Can't talk to database (null list).");
 			loader.destroy();
-			return;
+			return null;
 		}
 		Project project = null;
 		if (null == projects) {
 			Utils.showMessage("Can't fetch list of projects.");
 			loader.destroy();
-			return;
+			return null;
 		} else if (0 == projects.length) {
 			Utils.showMessage("No projects in this database.");
 			loader.destroy();
-			return; 
+			return null; 
 		} else if (1 == projects.length) {
 			project = projects[0];
 		} else {
@@ -178,7 +178,7 @@ public class Project extends DBObject {
 			gd.showDialog();
 			if (gd.wasCanceled()) {
 				loader.destroy();
-				return;
+				return null;
 			}
 			project = projects[gd.getNextChoiceIndex()];
 		}
@@ -189,7 +189,7 @@ public class Project extends DBObject {
 			if (loader.isIdenticalProjectSource(p.loader) && p.id == project.id && p.title.equals(project.title)) {
 				Utils.showMessage("A project with title " + p.title + " and id " + p.id + " from the same database is already open.");
 				loader.destroy();
-				return;
+				return null;
 			}
 		}
 
@@ -202,7 +202,7 @@ public class Project extends DBObject {
 		if (null == template_root) {
 			Utils.showMessage("Failed to retrieve the template tree.");
 			project.destroy();
-			return;
+			return null;
 		}
 		project.template_tree = new TemplateTree(project, template_root);
 		project.ht_unique_tt = template_root.getUniqueTypes(new Hashtable());
@@ -220,7 +220,7 @@ public class Project extends DBObject {
 			Utils.showMessage("Failed to retrieve the Thing tree for the project.");
 			new IJError(e); 
 			project.destroy();
-			return;
+			return null;
 		}
 		// create the user objects tree
 		project.project_tree = new ProjectTree(project, project.root_pt);
@@ -236,7 +236,7 @@ public class Project extends DBObject {
 			if (null == root_layer_thing) {
 				project.destroy();
 				Utils.showMessage("Could not retrieve the root layer thing.");
-				return;
+				return null;
 			}
 			// set the child/parent relationships now that everything exists
 			root_layer_thing.setup();
@@ -244,7 +244,7 @@ public class Project extends DBObject {
 			if (null == project.layer_set) {
 				project.destroy();
 				Utils.showMessage("Could not retrieve the root layer set.");
-				return;
+				return null;
 			}
 			project.layer_set.setup(); // set the active layer to each ZDisplayable
 
@@ -257,7 +257,7 @@ public class Project extends DBObject {
 			Utils.showMessage("Failed to retrieve the Layer tree for the project.");
 			new IJError(e);
 			project.destroy();
-			return;
+			return null;
 		}
 
 		// if all when well, register as open:
@@ -266,6 +266,8 @@ public class Project extends DBObject {
 		ControlWindow.add(project, project.template_tree, project.project_tree, project.layer_tree);
 		// now open the displays that were stored for later, if any:
 		Display.openLater();
+
+		return project;
 	}
 
 	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for. */
@@ -294,12 +296,12 @@ public class Project extends DBObject {
 	}
 
 	/** Opens a project from an .xml file and a folder of images. If the path is null it'll be asked for.*/
-	static public void openFSProject(final String path) {
-		if (Utils.wrongImageJVersion()) return;
+	static public Project openFSProject(final String path) {
+		if (Utils.wrongImageJVersion()) return null;
 		final FSLoader loader = new FSLoader();
 		final Object[] data = loader.openXMLProject(path);
 		if (null == data) {
-			return;
+			return null;
 		}
 		Macro.setOptions("xml_path=" + loader.getProjectXMLPath()); // TODO gets overwritten by the file dialog, but still, the value is the same. Only the key is different.
 		final TemplateThing root_tt = (TemplateThing)data[0];
@@ -321,10 +323,8 @@ public class Project extends DBObject {
 		// create the project control window, containing the trees in a double JSplitPane
 		ControlWindow.add(project, project.template_tree, project.project_tree, project.layer_tree);
 
-
 		// debug: print the entire root project tree
 		//project.root_pt.debug("");
-
 
 		// set ProjectThing nodes expanded state, now that the trees exist
 		try {
@@ -356,6 +356,7 @@ public class Project extends DBObject {
 		Display.openLater();
 		// restore state (crude, but safe)
 		project.loader.setChanged(false);
+		return project;
 	}
 
 	static private Project createNewProject(Loader loader, boolean ask_for_template) {
