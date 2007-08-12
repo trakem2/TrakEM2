@@ -181,136 +181,77 @@ public class DLabel extends Displayable {
 		this.type = type;
 	}
 
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
-		if (isOutOfRepaintingClip(magnification, srcRect, clipRect)) return;
-		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate((x + width/2 - srcRect.x) * magnification, (y + height/2 - srcRect.y) * magnification);
-		AffineTransform original = g2d.getTransform(); // this transform also includes the translation, so careful!
-		g2d.rotate(Math.toRadians(rot));
 
-		double cx = this.width/2; // center of data
-		double cy = this.height/2;
-
+	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		//arrange transparency
 		Composite original_composite = null;
+		if (alpha != 1.0f) {
+			original_composite = g.getComposite();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+		}
+
+		Utils.log2("painting label");
+
+		final AffineTransform atg = g.getTransform();
+		final AffineTransform atp = (AffineTransform)atg.clone();
+		atp.concatenate(this.at);
+
+		g.setTransform(atp);
+
+		// paint a box of transparent color behind the text if active:
 		if (active) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.67f));
+			if (null == original_composite) original_composite = g.getComposite();
+			final double cx = this.width/2; // center of data
+			final double cy = this.height/2;
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.67f));
 			g.setColor(new Color(255 - color.getRed(), 255 - color.getGreen(), 255 - color.getBlue()).brighter()); // the "opposite", but brighter, so it won't fail to generate contrast if the color is 127 in all channels
-			g.fillRect((int)((-2 -cx) * magnification),(int)((-2 -cy) * magnification), (int)((width +4)*magnification), (int)((height +4)*magnification));
-			g2d.setComposite(original_composite);
-		}
-
-		//arrange transparency
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-		g.setColor(color);
-
-		switch (type) {
-			case TEXT:
-				g.setFont(font);
-				g2d.translate(-cx*magnification, (height -cy)*magnification);
-				g2d.scale(magnification, magnification);
-				g.drawString(getShortTitle(), 0, 0);
-				g2d.scale(1/magnification, 1/magnification);
-				g2d.translate(cx*magnification, -(height -cy)*magnification);
-				break;
-		}
-
-		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
-			g2d.setComposite(original_composite);
-		}
-		// undo transform and translation of the painting origin
-		g2d.setTransform(original); // TODO only one would be necessary if the getTransform is done before the translation
-		g2d.translate(- (x + width/2 - srcRect.x)* magnification, - (y + height/2 - srcRect.y)* magnification);
-	}
-
-	public void paint(Graphics g, Layer active_layer) {
-		if (!this.visible) return;
-		Graphics2D g2d = (Graphics2D)g;
-		//translate
-		g2d.translate(x + width/2, y + height/2);
-
-		double cx = this.width/2; // center of data
-		double cy = this.height/2;
-
-		AffineTransform original = g2d.getTransform();
-		g2d.rotate(Math.toRadians(rot));
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+			//g.fillRect((int)(-2 -cx),(int)(-2 -cy), (int)(width +4), (int)(height +4));
+			g.fillRect(0, -(int)height, (int)width, (int)height);
+			g.setComposite(original_composite);
 		}
 
 		g.setColor(color);
-
 		switch (type) {
 			case TEXT:
 				g.setFont(font);
-				g2d.translate(-cy, height -cy);
 				g.drawString(getShortTitle(), 0, 0);
-				g2d.translate(-cy, -(height -cy));
-				break;
 		}
 
-		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
-			g2d.setComposite(original_composite);
-		}
-		// undo translation
-		g2d.setTransform(original);
-		g2d.translate(-(x + width/2), -(y + height/2));
-	}
-
-	/** Scale is ignored for font text, only considered for x,y position. */
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
-		if (isOutOfRepaintingClip(magnification, srcRect, clipRect)) return;
-		Graphics2D g2d = (Graphics2D)g;
-		// translate graphics origin of coordinates
-		g2d.translate((int)((t.x + t.width/2 -srcRect.x)*magnification), (int)((t.y + t.height/2 -srcRect.y)*magnification));
-		double sx = t.width / this.width * magnification;
-		double sy = t.height / this.height * magnification;
-		double cx = this.width/2; // center of data
-		double cy = this.height/2;
-		AffineTransform original = g2d.getTransform();
-		g2d.rotate((t.rot * Math.PI) / 180); //(t.rot * 2 * Math.PI / 360); //Math.toRadians(rot));
-		Composite original_composite = null;
-		if (active) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.67f));
-			g.setColor(new Color(255 - color.getRed(), 255 - color.getGreen(), 255 - color.getBlue()).brighter()); // the "opposite", but brighter, so it won't fail to generate contrast if the color is 127 in all channels
-			g.fillRect((int)((-2 -cx) * sx),(int)((-2 -cy) * sy), (int)((width +4)*sx), (int)((height +4)*sy));
-			g2d.setComposite(original_composite);
-		}
-		//arrange transparency
-		if (t.alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, t.alpha));
-		}
-		g.setColor(color);
-
-		switch (type) {
-			case TEXT:
-				g.setFont(font);
-				g2d.translate(-cx*sx, (height -cy)*sy);
-				g2d.scale(sx, sy);
-				g.drawString(getShortTitle(), 0, 0);
-				g2d.scale(1/sx, 1/sy);
-				g2d.translate(cx*sx, -(height -cy)*sy);
-				break;
-		}
-
-		//Transparency: fix composite back to original.
+		// restore
+		g.setTransform(atg);
+		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
-			g2d.setComposite(original_composite);
+			g.setComposite(original_composite);
 		}
-		// undo transform and translation of the painting origin
-		g2d.setTransform(original);
-		// undo transport painting pointer
-		g2d.translate( - (int)((t.x + t.width/2 -srcRect.x)*magnification), - (int)((t.y + t.height/2 -srcRect.y)*magnification));
+	}
+
+	/** Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
+	public Rectangle getBoundingBox(Rectangle r) {
+		if (null == r) r = new Rectangle();
+		if (this.at.isIdentity()) {
+			r.x = 0;
+			r.y = 0;
+			r.width = (int)this.width;
+			r.height = -(int)this.height;
+		} else {
+			// transform points
+			final double[] d1 = new double[]{0, 0, width, 0, width, -height, 0, -height};
+			final double[] d2 = new double[8];
+			this.at.transform(d1, 0, d2, 0, 4);
+			// find min/max
+			double min_x=Double.MAX_VALUE, min_y=Double.MAX_VALUE, max_x=-min_x, max_y=-min_y;
+			for (int i=0; i<d2.length; i+=2) {
+				if (d2[i] < min_x) min_x = d2[i];
+				if (d2[i] > max_x) max_x = d2[i];
+				if (d2[i+1] < min_y) min_y = d2[i+1];
+				if (d2[i+1] > max_y) max_y = d2[i+1];
+			}
+			r.x = (int)min_x;
+			r.y = (int)min_y;
+			r.width = (int)(max_x - min_x);
+			r.height = (int)(max_y - min_y);
+		}
+		return r;
 	}
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
@@ -327,7 +268,6 @@ public class DLabel extends Displayable {
 	public boolean isDeletable() {
 		return null == title || "" == title;
 	}
-
 
 	public void keyPressed(KeyEvent ke) {
 		super.keyPressed(ke);

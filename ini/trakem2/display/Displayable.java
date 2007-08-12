@@ -215,9 +215,11 @@ public abstract class Displayable extends DBObject {
 
 	public void paint(Graphics2D g) {
 		Utils.log2("paint g: not implemented yet for " + this.getClass());
+		paint(g, 1.0, false, 1, this.layer);
 	}
 
 	public void paint(Graphics g, Layer active_layer) {
+		Utils.log2("paint g 2: not implemented yet for " + this.getClass());
 		paint((Graphics2D)g);
 	}
 

@@ -727,6 +727,7 @@ public class FSLoader extends Loader {
 				if (!vs_dir.endsWith("/")) vs_dir += "/";
 				String iname = vs.getFileName(i);
 				patch_path = vs_dir + iname;
+				releaseMemory();
 				imp_patch_i = opener.openImage(vs_dir, iname);
 			} else {
 				ImageProcessor ip = imp_stack.getStack().getProcessor(i);

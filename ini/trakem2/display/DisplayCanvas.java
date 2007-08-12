@@ -470,11 +470,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				if (null != active) {
 					try {
-						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
+						//if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
 							active.paint(g2d, magnification, true, c_alphas, active_layer);
-						}
+						//}
 					} catch (Exception e) {
 						Utils.log2("Synchronization issues in painting the active");
+						e.printStackTrace();
 					}
 				}
 

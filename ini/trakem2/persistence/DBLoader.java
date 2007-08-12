@@ -1155,7 +1155,7 @@ public class DBLoader extends Loader {
 			rls.close();
 
 			// add Patch objects from ab_patches joint-called with ab_displayables
-			ResultSet rp = connection.prepareStatement("SELECT ab_patches.id, ab_displayables.id, layer_id, title, x, y, width, height, rot, stack_index, imp_type, locked FROM ab_patches,ab_displayables WHERE ab_patches.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
+			ResultSet rp = connection.prepareStatement("SELECT ab_patches.id, ab_displayables.id, layer_id, title, x, y, width, height, rot, stack_index, imp_type, locked, min, max FROM ab_patches,ab_displayables WHERE ab_patches.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
 			while (rp.next()) {
 				long patch_id = rp.getLong("id");
 				Patch patch = new Patch(project, patch_id, rp.getString("title"), rp.getDouble("x"), rp.getDouble("y"), rp.getDouble("width"), rp.getDouble("height"), rp.getDouble("rot"), rp.getInt("imp_type"), rp.getBoolean("locked"), rp.getDouble("min"), rp.getDouble("max"));
