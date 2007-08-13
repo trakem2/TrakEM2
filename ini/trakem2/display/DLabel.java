@@ -190,8 +190,6 @@ public class DLabel extends Displayable {
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		Utils.log2("painting label");
-
 		final AffineTransform atg = g.getTransform();
 		final AffineTransform atp = (AffineTransform)atg.clone();
 		atp.concatenate(this.at);
@@ -201,11 +199,8 @@ public class DLabel extends Displayable {
 		// paint a box of transparent color behind the text if active:
 		if (active) {
 			if (null == original_composite) original_composite = g.getComposite();
-			final double cx = this.width/2; // center of data
-			final double cy = this.height/2;
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.67f));
 			g.setColor(new Color(255 - color.getRed(), 255 - color.getGreen(), 255 - color.getBlue()).brighter()); // the "opposite", but brighter, so it won't fail to generate contrast if the color is 127 in all channels
-			//g.fillRect((int)(-2 -cx),(int)(-2 -cy), (int)(width +4), (int)(height +4));
 			g.fillRect(0, -(int)height, (int)width, (int)height);
 			g.setComposite(original_composite);
 		}
@@ -225,7 +220,8 @@ public class DLabel extends Displayable {
 		}
 	}
 
-	/** Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
+	/** Saves one allocation, returns the same Rectangle, modified (or a new one if null).
+	 * This method is overriden so that the x,y, which underlies the text, is translated upward by the height to generate a box that encloses the text and not just sits under it. */
 	public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
 		if (this.at.isIdentity()) {

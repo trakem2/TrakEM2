@@ -453,7 +453,7 @@ public class ProjectThing extends DBObject implements Thing {
 		Layer layer = null;
 		if (ob instanceof Displayable) {
 			// which layer to add it to? Get it from the front Display
-			layer = Display.getFrontLayer();
+			layer = Display.getFrontLayer(this.project);
 			if (null == layer) {
 				Utils.showMessage("Open a display first!");
 				((DBObject)ob).removeFromDatabase();

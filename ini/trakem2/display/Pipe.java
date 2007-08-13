@@ -220,7 +220,7 @@ public class Pipe extends ZDisplayable {
 		int index = -1;
 		double d = (7.0D / magnification);
 		double min_dist = Double.MAX_VALUE;
-		long i_layer = Display.getFrontLayer().getId();
+		long i_layer = Display.getFrontLayer(this.project).getId();
 		for (int i=0; i<n_points; i++) {
 			double dist = Math.abs(x_p - a[0][i]) + Math.abs(y_p - a[1][i]);
 			if (i_layer == p_layer[i] && dist <= d && dist <= min_dist) {
@@ -425,7 +425,7 @@ public class Pipe extends ZDisplayable {
 			}
 			index = index_found;
 			// allow only when the closest index is visible in the current layer
-			// handled at mousePressed now//if (Display.getFrontLayer().getId() != p_layer[index]) return -1;
+			// handled at mousePressed now//if (Display.getFrontLayer(this.project).getId() != p_layer[index]) return -1;
 		}
 		return index;
 	}
@@ -842,7 +842,7 @@ public class Pipe extends ZDisplayable {
 			}
 
 			if (-1 != index) {
-				if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer().getId()) {
+				if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
 					//delete point
 					removePoint(index);
 					index = index_r = index_l = -1;
@@ -862,7 +862,7 @@ public class Pipe extends ZDisplayable {
 				index_r = findPoint(p_r, x_p, y_p, mag);
 			}
 
-			long layer_id = Display.getFrontLayer().getId();
+			long layer_id = Display.getFrontLayer(this.project).getId();
 
 			if (-1 != index && layer_id != p_layer[index]) index = -1; // disable!
 			else if (-1 != index_l && layer_id != p_layer[index_l]) index_l = -1;

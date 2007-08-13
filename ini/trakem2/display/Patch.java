@@ -288,39 +288,6 @@ public class Patch extends Displayable {
 		}
 	}
 
-	/** A method to paint to the given box, for transformations. */
-	// this is OBSOLETE
-	/*
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
-		if (isOutOfRepaintingClip(magnification, srcRect, clipRect)) return;
-
-		Image image = null;
-		if (this.channels == channels) {
-			image = project.getLoader().fetchImage(this, magnification);
-		} else {
-			// remake to show appropriate channels
-			image = adjustChannels(channels);
-		}
-
-		Graphics2D g2d = (Graphics2D)g;
-		AffineTransform original = null;
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (t.alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, t.alpha));
-		}
-
-		g2d.drawImage(image, this.at, null);
-
-		//Transparency: fix composite back to original.
-		if (t.alpha != 1.0f) {
-			g2d.setComposite(original_composite);
-		}
-	}
-	*/
-
 	public void keyPressed(KeyEvent ke) {
 		super.keyPressed(ke);
 		if (!ke.isConsumed()) {

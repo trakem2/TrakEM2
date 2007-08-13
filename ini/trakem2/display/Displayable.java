@@ -1099,6 +1099,7 @@ public abstract class Displayable extends DBObject {
 	/** Rotate relative to an anchor point. */
 	public void rotate(double radians, double xo, double yo, boolean linked) {
 		final AffineTransform at2 = new AffineTransform();
+		Utils.log2("radians, xo,yo: " + radians + "  ," + xo + "," + yo);
 		at2.rotate(radians, xo, yo);
 		if (linked) {
 			final HashSet hs_linked = getLinkedGroup(null); // includes the self

@@ -2305,7 +2305,7 @@ abstract public class Loader {
 		if (null == imp) return null;
 		if (imp.getNSlices() > 1) {
 			// a stack!
-			Layer layer = Display.getFrontLayer();
+			Layer layer = Display.getFrontLayer(project);
 			if (null == layer) return null;
 			importStack(layer, imp, true, path); // TODO: the x,y location is not set
 			return null;

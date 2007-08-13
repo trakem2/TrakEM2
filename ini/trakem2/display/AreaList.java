@@ -273,7 +273,7 @@ public class AreaList extends ZDisplayable {
 	private boolean is_new = false;
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
-		long lid = Display.getFrontLayer().getId(); // isn't this.layer pointing to the current layer always?
+		long lid = Display.getFrontLayer(this.project).getId(); // isn't this.layer pointing to the current layer always?
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
 		if (null == ob) {
@@ -335,7 +335,7 @@ public class AreaList extends ZDisplayable {
 		}
 		brushing = false;
 		if (null != last) last.quit();
-		long lid = Display.getFrontLayer().getId();
+		long lid = Display.getFrontLayer(this.project).getId();
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
 		if (null != ob) {

@@ -1534,10 +1534,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Utils.log2("Display.setActive : returning early");
 			return; // the same
 		}
-		if (canvas.isTransforming() && !(displ instanceof ZDisplayable)) {
-			Utils.showMessage("Transforming " + active + ". Stop transformation first.");
-			return;
-		}
 		// deactivate previously active
 		if (null != active) {
 			//  DON'T, so as long as a new Patch not belonging to the last_temp is selected, the same ImagePlus is presented to ImageJ
@@ -1708,6 +1704,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public Layer getFrontLayer() {
 		if (null == front) return null;
 		return front.layer;
+	}
+
+	/** Get the layer of an open Display of the given Project, or null if none.*/
+	static public Layer getFrontLayer(Project project) {
+		if (front.project.equals(project)) return front.layer;
+		// else, find an open Display for the given Project, if any
+		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
+			Display d = (Display)it.next();
+			if (d.project.equals(project)) {
+				d.frame.toFront();
+				return d.layer;
+			}
+		}
+		return null; // none found
 	}
 
 	public boolean isReadOnly() {
