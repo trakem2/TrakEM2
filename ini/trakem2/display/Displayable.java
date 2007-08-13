@@ -1099,7 +1099,6 @@ public abstract class Displayable extends DBObject {
 
 	/** Rotate relative to an anchor point. */
 	public void rotate(double radians, double xo, double yo, boolean linked) {
-		//Utils.log2("radians, xo,yo: " + radians + "  ," + xo + "," + yo);
 		if (Double.isNaN(radians) || Double.isNaN(xo) || Double.isNaN(yo)) return;
 		final AffineTransform at2 = new AffineTransform();
 		at2.rotate(radians, xo, yo);
@@ -1159,6 +1158,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Sets the top left of the bounding box to x,y. Warning: does not check that the object will remain within layer bounds. Does NOT affect linked Displayables. */
 	public void setLocation(double x, double y) {
+		if (Double.isNaN(x) || Double.isNaN(y)) return;
 		Rectangle b = getBoundingBox(null);
 		this.translate(x - b.x, y - b.y, false); // do not affect linked Displayables
 	}

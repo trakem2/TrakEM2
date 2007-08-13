@@ -78,6 +78,7 @@ public class Selection {
 	private final int rSE = 10;
 	private final int rSW = 11;
 	private final int FLOATER = 12;
+	private final int ROTATION = 13;
 	private final Handle NW = new BoxHandle(0,0, iNW);
 	private final Handle N  = new BoxHandle(0,0, iN);
 	private final Handle NE  = new BoxHandle(0,0, iNE);
@@ -90,6 +91,7 @@ public class Selection {
 	private final Handle R_NE = new OvalHandle(0,0, rNE, 1, -1);
 	private final Handle R_SE = new OvalHandle(0,0, rSE, 1, 1);
 	private final Handle R_SW = new OvalHandle(0,0, rSW, -1, 1);
+	private final Handle RO = new RotationHandle(0,0, ROTATION);
 	/** Pivot of rotation. Always checked first on mouse pressed, before other handles. */
 	private final Floater floater = new Floater(0, 0, FLOATER);
 	private final Handle[] handles;
@@ -363,6 +365,54 @@ public class Selection {
 		}
 	}
 
+	private class RotationHandle extends Handle {
+		RotationHandle(int x, int y, int id) {
+			super(x, y, id);
+		}
+		public void paint(final Graphics g, final Rectangle srcRect, final double mag) {
+			final int x = (int)((this.x + 30 - srcRect.x)*mag);
+			final int y = (int)((this.y - srcRect.y)*mag);
+			final int fx = (int)((floater.x - srcRect.x)*mag);
+			final int fy = (int)((floater.y - srcRect.y)*mag);
+			g.setColor(Color.white);
+			g.drawLine(fx, fy, x, y);
+			g.fillOval(x -4, y -4, 9, 9);
+			g.setColor(Color.black);
+			g.drawOval(x -2, y -2, 5, 5);
+		}
+		public boolean contains(int x_p, int y_p, double radius) {
+			final double mag = display.getCanvas().getMagnification();
+			final double x = this.x / mag;
+			final double y = this.y / mag;
+			if (x - radius <= x_p && x + radius >= x_p
+			 && y - radius <= y_p && y + radius >= y_p) return true;
+			return false;
+		}
+		public void drag(int dx, int dy) {
+			/// Bad design, I know, I'm ignoring the dx,dy
+			// how:
+			// center is the floater
+
+			double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
+			//double sin = Math.sqrt(1 - cos*cos);
+			//double delta = Utils.getAngle(cos, sin);
+			double delta = Math.acos(cos); // same thing as the two lines above
+			// need to compute the sign of rotation as well: the cross-product!
+			// cross-product:
+			// a = (3,0,0) and b = (0,2,0)
+			// a x b = (3,0,0) x (0,2,0) = ((0 x 0 - 2 x 0), -(3 x 0 - 0 x 0), (3 x 2 - 0 x 0)) = (0,0,6).
+			double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
+			// correction:
+			if (zc < 0) {
+				delta = -delta;
+			}
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				d.rotate(delta, floater.x, floater.y);
+			}
+		}
+	}
+
 	private class Floater extends Handle {
 		Floater(int x, int y, int id) {
 			super(x,y, id);
@@ -385,6 +435,8 @@ public class Selection {
 		public void drag(int dx, int dy) {
 			this.x += dx;
 			this.y += dy;
+			RO.x = this.x;
+			RO.y = this.y;
 		}
 		public void center() {
 			this.x = box.x + box.width/2;
