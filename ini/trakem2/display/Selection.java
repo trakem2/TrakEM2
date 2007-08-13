@@ -87,10 +87,12 @@ public class Selection {
 	private final Handle S  = new BoxHandle(0,0, iS);
 	private final Handle SW  = new BoxHandle(0,0, iSW);
 	private final Handle W  = new BoxHandle(0,0, iW);
+	/*
 	private final Handle R_NW = new OvalHandle(0,0, rNW, -1, -1);
 	private final Handle R_NE = new OvalHandle(0,0, rNE, 1, -1);
 	private final Handle R_SE = new OvalHandle(0,0, rSE, 1, 1);
 	private final Handle R_SW = new OvalHandle(0,0, rSW, -1, 1);
+	*/
 	private final Handle RO = new RotationHandle(0,0, ROTATION);
 	/** Pivot of rotation. Always checked first on mouse pressed, before other handles. */
 	private final Floater floater = new Floater(0, 0, FLOATER);
@@ -106,7 +108,7 @@ public class Selection {
 	/** The Display can be null, as long as paint, OvalHandle.contains, setTransforming, and getLinkedBox methods are never called on this object. */
 	public Selection(Display display) {
 		this.display = display;
-		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, R_NW, R_NE, R_SE, R_SW, RO, floater}; // shitty java, why no dictionaries (don't get me started with Hashtable class painful usability)
+		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, /*R_NW, R_NE, R_SE, R_SW,*/ RO, floater}; // shitty java, why no dictionaries (don't get me started with Hashtable class painful usability)
 	}
 
 	private void lock() {
@@ -345,23 +347,34 @@ public class Selection {
 			// how:
 			// center is the floater
 
-			double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
-			//double sin = Math.sqrt(1 - cos*cos);
-			//double delta = Utils.getAngle(cos, sin);
-			double delta = Math.acos(cos); // same thing as the two lines above
-			// need to compute the sign of rotation as well: the cross-product!
-			// cross-product:
-			// a = (3,0,0) and b = (0,2,0)
-			// a x b = (3,0,0) x (0,2,0) = ((0 x 0 - 2 x 0), -(3 x 0 - 0 x 0), (3 x 2 - 0 x 0)) = (0,0,6).
-			double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
-			// correction:
-			if (zc < 0) {
-				delta = -delta;
-			}
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				d.rotate(delta, floater.x, floater.y);
-			}
+			rotate();
+		}
+	}
+
+	private final void rotate() {
+		// center of rotation is the floater
+		double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
+		//double sin = Math.sqrt(1 - cos*cos);
+		//double delta = Utils.getAngle(cos, sin);
+		double delta = Math.acos(cos); // same thing as the two lines above
+		// need to compute the sign of rotation as well: the cross-product!
+		// cross-product:
+		// a = (3,0,0) and b = (0,2,0)
+		// a x b = (3,0,0) x (0,2,0) = ((0 x 0 - 2 x 0), -(3 x 0 - 0 x 0), (3 x 2 - 0 x 0)) = (0,0,6).
+
+		if (Double.isNaN(delta)) {
+			Utils.log2("Selection rotation handle: ignoring NaN angle");
+			return;
+		}
+
+		double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
+		// correction:
+		if (zc < 0) {
+			delta = -delta;
+		}
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			d.rotate(delta, floater.x, floater.y);
 		}
 	}
 
@@ -383,8 +396,8 @@ public class Selection {
 		}
 		public boolean contains(int x_p, int y_p, double radius) {
 			final double mag = display.getCanvas().getMagnification();
-			final double x = this.x / mag + shift;
-			final double y = this.y / mag;
+			final double x = this.x + shift / mag;
+			final double y = this.y;
 			if (x - radius <= x_p && x + radius >= x_p
 			 && y - radius <= y_p && y + radius >= y_p) return true;
 			return false;
@@ -394,23 +407,7 @@ public class Selection {
 			// how:
 			// center is the floater
 
-			double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
-			//double sin = Math.sqrt(1 - cos*cos);
-			//double delta = Utils.getAngle(cos, sin);
-			double delta = Math.acos(cos); // same thing as the two lines above
-			// need to compute the sign of rotation as well: the cross-product!
-			// cross-product:
-			// a = (3,0,0) and b = (0,2,0)
-			// a x b = (3,0,0) x (0,2,0) = ((0 x 0 - 2 x 0), -(3 x 0 - 0 x 0), (3 x 2 - 0 x 0)) = (0,0,6).
-			double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
-			// correction:
-			if (zc < 0) {
-				delta = -delta;
-			}
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				d.rotate(delta, floater.x, floater.y);
-			}
+			rotate();
 		}
 	}
 
@@ -695,10 +692,12 @@ public class Selection {
 		S.set(tx + tw/2, ty + th);
 		SW.set(tx, ty + th);
 		W.set(tx, ty + th/2);
+		/*
 		R_NW.set(tx, ty);
 		R_NE.set(tx + tw, ty);
 		R_SE.set(tx + tw, ty + th);
 		R_SW.set(tx, ty + th);
+		*/
 	}
 
 	/** Remove all Displayables from this selection. */
