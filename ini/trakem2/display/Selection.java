@@ -45,10 +45,6 @@ import java.awt.geom.AffineTransform;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
-// now all one has to make the Canvas do is manage the selection process, and once double-clicked (i.e. start transform mode), forward the mouse events to the selection. But this class can also manage the dragging events. The Canvas has to keep an undo list with all hashtables of transforms.
-// Then, while a selection exists, the canvas must repaint using the transforms stored in the selection. Otherwise paint the objects directly.
-
-
 /** Keeps track of selected objects and mediates their transformation.*/ 
 public class Selection {
 
@@ -87,12 +83,6 @@ public class Selection {
 	private final Handle S  = new BoxHandle(0,0, iS);
 	private final Handle SW  = new BoxHandle(0,0, iSW);
 	private final Handle W  = new BoxHandle(0,0, iW);
-	/*
-	private final Handle R_NW = new OvalHandle(0,0, rNW, -1, -1);
-	private final Handle R_NE = new OvalHandle(0,0, rNE, 1, -1);
-	private final Handle R_SE = new OvalHandle(0,0, rSE, 1, 1);
-	private final Handle R_SW = new OvalHandle(0,0, rSW, -1, 1);
-	*/
 	private final Handle RO = new RotationHandle(0,0, ROTATION);
 	/** Pivot of rotation. Always checked first on mouse pressed, before other handles. */
 	private final Floater floater = new Floater(0, 0, FLOATER);
@@ -108,7 +98,7 @@ public class Selection {
 	/** The Display can be null, as long as paint, OvalHandle.contains, setTransforming, and getLinkedBox methods are never called on this object. */
 	public Selection(Display display) {
 		this.display = display;
-		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, /*R_NW, R_NE, R_SE, R_SW,*/ RO, floater}; // shitty java, why no dictionaries (don't get me started with Hashtable class painful usability)
+		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, RO, floater}; // shitty java, why no dictionaries (don't get me started with Hashtable class painful usability)
 	}
 
 	private void lock() {
@@ -313,41 +303,6 @@ public class Selection {
 
 			// finally:
 			setHandles(box); // overkill. As Graham said, most newly available chip resources are going to be wasted. They are already.
-		}
-	}
-
-	private class OvalHandle extends Handle {
-		int sign_x;
-		int sign_y;
-		OvalHandle(int x, int y, int id, int sign_x, int sign_y) {
-			super(x,y, id);
-			this.sign_x = sign_x;
-			this.sign_y = sign_y;
-		}
-		public void paint(Graphics g, Rectangle srcRect, double mag) {
-			int x = (int)((this.x - srcRect.x)*mag) + sign_x * 25;
-			int y = (int)((this.y - srcRect.y)*mag) + sign_y * 25;
-			g.setColor(Color.white);
-			g.fillOval(x -4, y -4, 9, 9);
-			g.setColor(Color.black);
-			g.drawOval(x -2, y -2, 5, 5);
-		}
-		public boolean contains(int x_p, int y_p, double radius) {
-			double mag = display.getCanvas().getMagnification();
-			double x = this.x + sign_x * 25 / mag;
-			double y = this.y + sign_y * 25 / mag;
-			if (x - radius <= x_p && x + radius >= x_p
-			 && y - radius <= y_p && y + radius >= y_p) return true;
-			return false;
-		}
-		
-		// this method sometimes generates NaN delta angle, but I don't know why. I just have it Displayable.rotate not accept NaNs
-		public void drag(int dx, int dy) {
-			/// Bad design, I know, I'm ignoring the dx,dy
-			// how:
-			// center is the floater
-
-			rotate();
 		}
 	}
 
@@ -692,12 +647,6 @@ public class Selection {
 		S.set(tx + tw/2, ty + th);
 		SW.set(tx, ty + th);
 		W.set(tx, ty + th/2);
-		/*
-		R_NW.set(tx, ty);
-		R_NE.set(tx + tw, ty);
-		R_SE.set(tx + tw, ty + th);
-		R_SW.set(tx, ty + th);
-		*/
 	}
 
 	/** Remove all Displayables from this selection. */
