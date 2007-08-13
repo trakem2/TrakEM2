@@ -1072,6 +1072,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Translate this Displayable and its linked ones if linked=true. */
 	public void translate(double dx, double dy, boolean linked) {
+		if (Double.isNaN(dx) || Double.isNaN(dy)) return;
 		final AffineTransform at2 = new AffineTransform();
 		at2.translate(dx, dy);
 		if (linked) {
@@ -1098,8 +1099,9 @@ public abstract class Displayable extends DBObject {
 
 	/** Rotate relative to an anchor point. */
 	public void rotate(double radians, double xo, double yo, boolean linked) {
+		//Utils.log2("radians, xo,yo: " + radians + "  ," + xo + "," + yo);
+		if (Double.isNaN(radians) || Double.isNaN(xo) || Double.isNaN(yo)) return;
 		final AffineTransform at2 = new AffineTransform();
-		Utils.log2("radians, xo,yo: " + radians + "  ," + xo + "," + yo);
 		at2.rotate(radians, xo, yo);
 		if (linked) {
 			final HashSet hs_linked = getLinkedGroup(null); // includes the self
@@ -1121,6 +1123,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Scale relative to an anchor point (will translate as necessary). */
 	public void scale(double sx, double sy, double xo, double yo, boolean linked) {
+		if (Double.isNaN(sx) || Double.isNaN(sy) || Double.isNaN(xo) || Double.isNaN(yo)) return;
 		if (linked) {
 			final HashSet hs_linked = getLinkedGroup(null); // includes the self
 			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {

@@ -336,6 +336,8 @@ public class Selection {
 			 && y - radius <= y_p && y + radius >= y_p) return true;
 			return false;
 		}
+		
+		// this method sometimes generates NaN delta angle, but I don't know why. I just have it Displayable.rotate not accept NaNs
 		public void drag(int dx, int dy) {
 			/// Bad design, I know, I'm ignoring the dx,dy
 			// how:
@@ -350,6 +352,7 @@ public class Selection {
 			// a = (3,0,0) and b = (0,2,0)
 			// a x b = (3,0,0) x (0,2,0) = ((0 x 0 - 2 x 0), -(3 x 0 - 0 x 0), (3 x 2 - 0 x 0)) = (0,0,6).
 			double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
+			// correction:
 			if (zc < 0) {
 				delta = -delta;
 			}
