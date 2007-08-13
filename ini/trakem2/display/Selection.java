@@ -77,8 +77,8 @@ public class Selection {
 	private final int rNE = 9;
 	private final int rSE = 10;
 	private final int rSW = 11;
-	private final int FLOATER = 12;
-	private final int ROTATION = 13;
+	private final int ROTATION = 12;
+	private final int FLOATER = 13;
 	private final Handle NW = new BoxHandle(0,0, iNW);
 	private final Handle N  = new BoxHandle(0,0, iN);
 	private final Handle NE  = new BoxHandle(0,0, iNE);
@@ -106,7 +106,7 @@ public class Selection {
 	/** The Display can be null, as long as paint, OvalHandle.contains, setTransforming, and getLinkedBox methods are never called on this object. */
 	public Selection(Display display) {
 		this.display = display;
-		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, R_NW, R_NE, R_SE, R_SW, floater}; // shitty java, why no dictionaries (don't get me started with Hashtable class painful usability)
+		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, R_NW, R_NE, R_SE, R_SW, RO, floater}; // shitty java, why no dictionaries (don't get me started with Hashtable class painful usability)
 	}
 
 	private void lock() {
@@ -366,11 +366,12 @@ public class Selection {
 	}
 
 	private class RotationHandle extends Handle {
+		final int shift = 50;
 		RotationHandle(int x, int y, int id) {
 			super(x, y, id);
 		}
 		public void paint(final Graphics g, final Rectangle srcRect, final double mag) {
-			final int x = (int)((this.x + 30 - srcRect.x)*mag);
+			final int x = (int)((this.x - srcRect.x)*mag) + shift;
 			final int y = (int)((this.y - srcRect.y)*mag);
 			final int fx = (int)((floater.x - srcRect.x)*mag);
 			final int fy = (int)((floater.y - srcRect.y)*mag);
@@ -382,7 +383,7 @@ public class Selection {
 		}
 		public boolean contains(int x_p, int y_p, double radius) {
 			final double mag = display.getCanvas().getMagnification();
-			final double x = this.x / mag;
+			final double x = this.x / mag + shift;
 			final double y = this.y / mag;
 			if (x - radius <= x_p && x + radius >= x_p
 			 && y - radius <= y_p && y + radius >= y_p) return true;
@@ -439,8 +440,8 @@ public class Selection {
 			RO.y = this.y;
 		}
 		public void center() {
-			this.x = box.x + box.width/2;
-			this.y = box.y + box.height/2;
+			this.x = RO.x = box.x + box.width/2;
+			this.y = RO.y = box.y + box.height/2;
 		}
 		public boolean contains(int x_p, int y_p, double radius) {
 			return super.contains(x_p, y_p, radius*3.5);
@@ -737,8 +738,8 @@ public class Selection {
 		if (null == active) return;
 		// reread all transforms and remake box
 		resetBox();
-
-		//TODO: do not make the Selection modal anymore for transformations
+		// restoring transforms
+		display.getLayer().getParent().undoOneStep();
 	}
 
 	public boolean isTransforming() { return this.transforming; }
@@ -753,7 +754,7 @@ public class Selection {
 			for (int i=handles.length -1; i>-1; i--) {
 				if (handles[i].contains(x_p, y_p, radius)) {
 					grabbed = handles[i];
-					if (grabbed.id >= rNW && grabbed.id <= rSW) rotating = true;
+					if (grabbed.id >= rNW && grabbed.id <= ROTATION) rotating = true;
 					return;
 				}
 			}
