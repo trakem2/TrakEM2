@@ -27,6 +27,7 @@ import ij.process.ImageProcessor;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.ImagePlus;
+import ij.gui.GenericDialog;
 
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -39,11 +40,16 @@ import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.CrossCorrelation2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
+import mpi.fruitfly.math.General;
 
 import java.awt.Rectangle;
 import java.awt.Point;
 
 import java.awt.image.BufferedImage;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 
 
 /** Given:
@@ -76,6 +82,14 @@ public class StitchingTEM {
 	static public final int TOP_BOTTOM = 4;
 	static public final int LEFT_RIGHT = 5;
 
+	static public final int TOP_LEFT_RULE = 0;
+	static public final int NETWORK_RULE = 1;
+
+	static public void addStitchingRuleChoice(GenericDialog gd) {
+		final String[] rules = new String[]{"Top left", "Network"};
+		gd.addChoice("Stitching rule: ", rules, rules[1]);
+	}
+
 	public StitchingTEM() {}
 
 	/** Returns the same Patch instances with their coordinates modified; the top-left image is assumed to be the first one, and thus serves as reference; so, after the first image, coordinates are ignored for each specific Patch.
@@ -95,7 +109,7 @@ public class StitchingTEM {
 	 *
 	 * @return A new Thread in which the work is done, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
 	 */
-	public Thread stitch(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean use_masks) {
+	public Thread stitch(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean use_masks, final int stitching_rule) {
 		// start
 		this.flag = WORKING;
 		// check preconditions
@@ -122,15 +136,21 @@ public class StitchingTEM {
 		final StitchingTEM st = this;
 		Thread thread = new Thread() {
 			public void run() {
-				StitchingTEM.stitch(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap);
+				switch (stitching_rule) {
+				case StitchingTEM.TOP_LEFT_RULE:
+					StitchingTEM.stitchTopLeft(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap);
+					break;
+				case StitchingTEM.NETWORK_RULE:
+					StitchingTEM.stitchNetLike(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap);
+					break;
+				}
 			}
 		};
 		thread.start();
 		return thread;
 	}
 
-	/** Use phase correlation: much faster, very accurate. */
-	static private void stitch(final StitchingTEM st, final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap) {
+	static private void stitchTopLeft(final StitchingTEM st, final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap) {
 		try {
 			final int LEFT = 0, TOP = 1;
 
@@ -432,5 +452,157 @@ public class StitchingTEM {
 		// else both failed: return default values
 		Utils.log2("Using default");
 		return new double[]{default_dx, default_dy, ERROR, 0};
+	}
+
+	/** Represents an statement of neighborhood between two Patches. */
+	static private class Bond {
+		Tile one, two;
+		/** TOP_BOTTOM or LEFT_RIGHT */
+		int type;
+		double[] cc;
+		boolean validated = false;
+		Bond(Tile one, Tile two, int type) {
+			this.type = type;
+			this.one = one;
+			this.two = two;
+			one.addBond(this);
+			two.addBond(this);
+		}
+		void correlate(float percent_overlap, float scale, double default_bottom_top_overlap, double default_left_right_overlap) {
+			this.cc = StitchingTEM.correlate(this.one.patch, this.two.patch, percent_overlap, scale, this.type, default_bottom_top_overlap, default_left_right_overlap);
+			// convert absolute location to relative location
+			final Rectangle b = one.patch.getBoundingBox();
+			cc[0] -= b.x;
+			cc[1] -= b.y;
+		}
+		/** Pull the second tile towards the first according to the dx,dy of the cc results.
+		 * Will drag along tiles bonded to the second tile if its bonds are already validated
+		 */
+		void pull() {
+			if (two.pulled) return; // some other bond was better at it (came first)
+			validated = true;
+			two.pulled = true;
+			final Rectangle ref = one.patch.getBoundingBox();
+			final Rectangle b1 = two.patch.getBoundingBox();
+			two.patch.setLocation(ref.x + cc[0], ref.y + cc[1]);
+			final Rectangle b2 = two.patch.getBoundingBox();
+			Utils.log2("using pull on bond: \n\tone: " + one.patch + "\n\ttwo: " + two.patch + "\n\tcc: " + cc[0] + "," + cc[1]);
+			// hashset of bonds visited in this round
+			final HashSet hs_bonds = new HashSet();
+			hs_bonds.add(this);
+			hs_bonds.add(two.patch);
+			// drag along the ones already pulled by the translation of the patch
+			two.translate(b2.x - b1.x, b2.y - b1.y, hs_bonds);
+		}
+		void translatePartner(Tile tile, double dx, double dy, HashSet hs_bonds) {
+			// if not validated or already used, ignore
+			if (!validated || hs_bonds.contains(this)) return;
+			// else propagate
+			hs_bonds.add(this);
+			if (one.equals(tile)) {
+				Utils.log2(toString() + "translating 'two' " + validated);
+				two.translate(dx, dy, hs_bonds);
+			} else if (two.equals(tile)) {
+				Utils.log2(toString() + "translating 'one' " + validated);
+				one.translate(-dx, -dy, hs_bonds); // inverse displacement
+			}
+		}
+		public String toString() {
+			return "bond " + one.toString() + " to " + two.toString();
+		}
+	}
+	static private class Tile {
+		Patch patch;
+		ArrayList al_bonds = new ArrayList();
+		boolean pulled = false;
+		Tile(Patch p) {
+			this.patch = p;
+		}
+		void addBond(Bond bond) {
+			al_bonds.add(bond);
+		}
+		void translate(double dx, double dy, HashSet hs_bonds) {
+			// use also the hs_bonds to check that the same patch 'two' is not translated after setting its location.
+			if (!hs_bonds.contains(patch)) {
+				patch.translate(dx, dy);
+				hs_bonds.add(patch);
+			}
+			Utils.log2("translating " + toString() + " by: " + dx + "," + dy);
+			for (Iterator it = al_bonds.iterator(); it.hasNext(); ) {
+				Bond bond = (Bond)it.next();
+				bond.translatePartner(this, dx, dy, hs_bonds);
+			}
+		}
+		public String toString() {
+			return patch.toString(); //.substring(53,58);
+		}
+	}
+
+	/** Stitching by using the best matching values first, and iterating over the network of matches. This method is desgined to work around the problem of lack of overlap of some neighboring tiles, which have to be aligned then according to they other neighbors. */
+	static private void stitchNetLike(final StitchingTEM st, final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap) {
+		try {
+			final Tile[] tile = new Tile[patch.length];
+			for (int i=0; i<tile.length; i++) {
+				tile[i] = new Tile(patch[i]);
+			}
+			final ArrayList al_bonds = new ArrayList();
+			Bond bond;
+			final ArrayList al_scores = new ArrayList();
+			final ArrayList al_i = new ArrayList();
+			int next = 0;
+			for (int i=0; i<patch.length; i++) {
+				// try with right, if not at end of row
+				if (0 != (i+1) % grid_width) {
+					bond = new Bond(tile[i], tile[i+1], LEFT_RIGHT);
+					bond.correlate(percent_overlap, scale, default_bottom_top_overlap, default_left_right_overlap);
+					al_bonds.add(bond);
+					al_scores.add(new Double(bond.cc[3]));
+					al_i.add(new Integer(next));
+					next++;
+				}
+				// try with bottom, if not at last row
+				if (i + grid_width < patch.length) {
+					bond = new Bond(tile[i], tile[i+grid_width], TOP_BOTTOM);
+					bond.correlate(percent_overlap, scale, default_bottom_top_overlap, default_left_right_overlap);
+					al_bonds.add(bond);
+					al_scores.add(new Double(bond.cc[3]));
+					al_i.add(new Integer(next));
+					next++;
+				}
+			}
+			// sort bonds by cc score
+			final double[] scores = new double[al_scores.size()];
+			final int[] index = new int[scores.length];
+			next = 0;
+			for (Iterator s = al_scores.iterator(), it = al_i.iterator(); s.hasNext(); ) {
+				scores[next] = ((Double)s.next()).doubleValue();
+				index[next] = ((Integer)it.next()).intValue();
+				next++;
+			}
+			Utils.log2("sorting bonds by cc score");
+			General.quicksort(scores, index, 0, scores.length-1);
+			Utils.log2("sorted.\nindex length is " + index.length);
+			// iterate bonds from highest to lowest score, applying and propagating the translations
+			final ArrayList al_bad_apples = new ArrayList();
+			for (int i=index.length-1; i>-1; i--) {
+				Bond b = (Bond)al_bonds.get(index[i]);
+				if (ERROR == b.cc[2]) {
+					al_bad_apples.add(b);
+					// above, failed ones have the R of the cross-correlation which can be accidentally high in low contrast situations
+					continue;
+				}
+				b.pull();
+			}
+			// fix the bad apples
+			for (Iterator it = al_bad_apples.iterator(); it.hasNext(); ) {
+				Bond b = (Bond)it.next();
+				b.pull();
+			}
+			//
+			st.flag = DONE;
+		} catch (Exception e) {
+			new IJError(e);
+			st.flag = ERROR;
+		}
 	}
 }

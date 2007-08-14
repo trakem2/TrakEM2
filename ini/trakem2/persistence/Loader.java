@@ -1089,6 +1089,7 @@ abstract public class Loader {
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, 25);
 		gd.addCheckbox("homogenize_contrast", homogenize_contrast);
+		StitchingTEM.addStitchingRuleChoice(gd);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
@@ -1124,6 +1125,7 @@ abstract public class Loader {
 		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		float cc_scale = (float)gd.getNextNumber() / 100f;
 		homogenize_contrast = gd.getNextBoolean();
+		int stitching_rule = gd.getNextChoiceIndex();
 
 		String[] file_names = null;
 		if (null == image_file_names) {
@@ -1174,7 +1176,7 @@ abstract public class Loader {
 			cols.add(col);
 		}
 
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, use_cross_correlation, cc_percent_overlap, cc_scale, homogenize_contrast);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, use_cross_correlation, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
 
 		} catch (Exception e) {
 			new IJError(e);
@@ -1255,6 +1257,7 @@ abstract public class Loader {
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, 25);
 		gd.addCheckbox("homogenize_contrast", true);
+		StitchingTEM.addStitchingRuleChoice(gd);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
@@ -1289,6 +1292,7 @@ abstract public class Loader {
 		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		float cc_scale = (float)gd.getNextNumber() / 100f;
 		boolean homogenize_contrast = gd.getNextBoolean();
+		int stitching_rule = gd.getNextChoiceIndex();
 
 		//start magic
 		//get ImageJ-openable files that comply with the convention
@@ -1313,7 +1317,7 @@ abstract public class Loader {
 		Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
 		ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, use_cross_correlation, cc_percent_overlap, cc_scale, homogenize_contrast);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, use_cross_correlation, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
 
 		} catch (Exception e) {
 			new IJError(e);
@@ -1332,7 +1336,7 @@ abstract public class Loader {
 	 * @param link_images Link images to their neighbors.
 	 * @param preproprecessor The name of a PluginFilter in ImageJ's plugin directory, to be called on every image prior to insertion.
 	 */
-	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final String preprocessor, final boolean use_cross_correlation, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast) {
+	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final String preprocessor, final boolean use_cross_correlation, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule) {
 
 		// create a Worker, then give it to the Bureaucrat
 
@@ -1546,6 +1550,9 @@ abstract public class Loader {
 			layer.moveBottom(pa[j]);
 		}
 
+		// optimize repaints: all to background image
+		Display.clearSelection(layer);
+
 		if (homogenize_contrast) {
 			setTaskName("homogenizing contrast");
 			// 0 - check that all images are of the same type
@@ -1686,7 +1693,7 @@ abstract public class Loader {
 			if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
 			ControlWindow.startWaitingCursor();
 			final StitchingTEM st = new StitchingTEM();
-			Thread thread = st.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true);
+			Thread thread = st.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true, stitching_rule);
 			while (StitchingTEM.WORKING == st.getStatus()) {
 				if (this.quit) {
 					st.quit();
