@@ -2308,7 +2308,8 @@ abstract public class Loader {
 			if (null == name || 0 == name.length()) return null;
 			path = od.getDirectory() + "/" + name;
 		}
-		ImagePlus imp = opener.openImage(path);
+		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
+		final ImagePlus imp = opener.openImage(path);
 		if (null == imp) return null;
 		if (imp.getNSlices() > 1) {
 			// a stack!
@@ -2325,7 +2326,7 @@ abstract public class Loader {
 		last_opened_path = path;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(last_opened_path, p);
-		p.getSnapshot().remake(); // must be done AFTER setting the path
+		if (ControlWindow.isGUIEnabled()) p.getSnapshot().remake(); // must be done AFTER setting the path
 		return p;
 	}
 	public Patch importNextImage(Project project, double x, double y) {
@@ -2356,6 +2357,7 @@ abstract public class Loader {
 			Utils.showMessage("No more files after " + last_file);
 			return null;
 		}
+		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		ImagePlus imp = opener.openImage(dir_name, next_file);
 		if (null == imp) return null;
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {

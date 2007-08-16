@@ -138,7 +138,7 @@ public class Snapshot {
 		final int w = (int)Math.ceil(p.getWidth() * mag);
 		final int h = (int)Math.ceil(p.getHeight() * mag);
 		try {
-		if (p.getLayer().getParent().snapshotsQuality()) {
+		if (null != p.getLayer() && p.getLayer().getParent().snapshotsQuality()) {
 			// best, but very slow
 			return awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING);
 

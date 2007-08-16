@@ -87,7 +87,7 @@ public class StitchingTEM {
 
 	static public void addStitchingRuleChoice(GenericDialog gd) {
 		final String[] rules = new String[]{"Top left", "Network"};
-		gd.addChoice("Stitching rule: ", rules, rules[1]);
+		gd.addChoice("stitching_rule: ", rules, rules[1]);
 	}
 
 	public StitchingTEM() {}
