@@ -486,7 +486,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			for (Iterator dit = ((Layer)it.next()).getDisplayables().iterator(); dit.hasNext(); ) {
 				Displayable d = (Displayable)dit.next();
-				ht_undo.put(d, d.getAffineTransform());
+				ht_undo.put(d, d.getAffineTransformCopy());
 			}
 		}
 		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ){
@@ -539,19 +539,26 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		// translate
 		project.getLoader().startLargeUpdate();
 		try {
+			final AffineTransform at2 = new AffineTransform();
+			at2.translate(-x, -y);
+			Utils.log2("translating all displayables by " + x + "," + y);
 			if (x != 0 || y != 0) {
 				for (Iterator it = al.iterator(); it.hasNext(); ) {
-					((Displayable)it.next()).translate(-x, -y); // drag regardless of getting off current LayerSet bounds
+					//((Displayable)it.next()).translate(-x, -y, false); // drag regardless of getting off current LayerSet bounds
+					// optimized:
+					final Displayable d = (Displayable)it.next();
+					Utils.log2("BEFORE: " + d.getBoundingBox());
+					d.getAffineTransform().preConcatenate(at2);
+					Utils.log2("AFTER: " + d.getBoundingBox());
+					d.updateInDatabase("transform");
 				}
 			}
 			// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
-			final AffineTransform at_translate = new AffineTransform();
-			at_translate.translate(-x, -y);
 			for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
 				Hashtable ht = (Hashtable)it.next();
 				for (Iterator hi = ht.values().iterator(); hi.hasNext(); ) {
 					AffineTransform at = (AffineTransform)hi.next();
-					at.preConcatenate(at_translate);
+					at.preConcatenate(at2);
 				}
 			}
 			project.getLoader().commitLargeUpdate();

@@ -107,8 +107,6 @@ public class FSLoader extends Loader {
 		super(); // register
 		ht_dbo = new Hashtable();
 		ht_paths = new Hashtable();
-		// ask for a xml path to save to
-		//SaveDialog sd = new SaveDialog();
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
 
