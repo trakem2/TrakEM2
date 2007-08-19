@@ -33,6 +33,39 @@ import java.util.Vector;
 
 public class General
 {
+	final public static double M_2PI = 2.0 * Math.PI;
+
+	/**
+	 * simple square
+	 * @param value
+	 * @return value * value
+	 */
+	public static double sq( double a )
+	{
+		return a * a;
+	}
+
+	public static float sq( float a )
+	{
+		return a * a;
+	}
+
+	/**
+	 * return a integer that is flipped in the range [0 ... mod - 1]
+	 *
+	 * @param a the value to be flipped
+	 * @param range the size of the range
+	 * @return a flipped in range like a ping pong ball
+	 */
+	public static int flipInRange( int a, int mod )
+	{
+		int p = 2 * mod;
+		if ( a < 0 ) a = p + a % p;
+		if ( a >= p ) a = a % p;
+		if ( a >= mod ) a = mod - a % mod - 1;
+		return a;
+	}
+	
     public static int sign (double value)
     {
         if (value < 0)

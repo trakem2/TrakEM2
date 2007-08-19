@@ -1161,5 +1161,126 @@ public class ImageFilter
          //ImageArrayConverter.FloatArrayToImagePlus( gradients[ 1 ], "gradients", 0, 0 ).show();
          return gradients;
      }
+    
+    /**
+	 * convolve an image with a horizontal and a vertical kernel
+	 * simple straightforward, not optimized---replace this with a trusted better version soon
+	 * 
+	 * @param input the input image
+	 * @param h horizontal kernel
+	 * @param v vertical kernel
+	 * 
+	 * @return convolved image
+	 */
+	public static FloatArray2D convolveSeparable( FloatArray2D input, float[] h, float[] v )
+	{
+		FloatArray2D output = new FloatArray2D( input.width, input.height );
+		FloatArray2D temp = new FloatArray2D( input.width, input.height );
+
+		int hl = h.length / 2;
+		int vl = v.length / 2;
+		
+		int xl = input.width - h.length + 1;
+		int yl = input.height - v.length + 1;
+		
+		// create lookup tables for coordinates outside the image range
+		int[] xb = new int[ h.length + hl - 1 ];
+		int[] xa = new int[ h.length + hl - 1 ];
+		for ( int i = 0; i < xb.length; ++i )
+		{
+			xb[ i ] = flipInRange( i - hl, input.width );
+			xa[ i ] = flipInRange( i + xl, input.width );
+		}
+		
+		int[] yb = new int[ v.length + vl - 1 ];
+		int[] ya = new int[ v.length + vl - 1 ];
+		for ( int i = 0; i < yb.length; ++i )
+		{
+			yb[ i ] = input.width * flipInRange( i - vl, input.height );
+			ya[ i ] = input.width * flipInRange( i + yl, input.height );
+		}
+		
+//		String xa_str = "xa: ";
+//		String xb_str = "xb: ";
+//		String ya_str = "ya: ";
+//		String yb_str = "yb: ";
+//		for ( int i = 0; i < xa.length; ++i )
+//		{
+//			xa_str = xa_str + xa[ i ] + ", ";
+//			xb_str = xb_str + xb[ i ] + ", ";
+//			ya_str = ya_str + ( ya[ i ] / input.width ) + ", ";
+//			yb_str = yb_str + ( yb[ i ] / input.width ) + ", ";
+//		}
+//		
+//		System.out.println( xb_str );
+//		System.out.println( xa_str );
+//		System.out.println( yb_str );
+//		System.out.println( ya_str );
+		
+		
+		xl += hl;
+		yl += vl;
+		// horizontal convolution per row
+		int rl = input.height * input.width;
+		for ( int r = 0; r < rl; r += input.width )
+		{
+			for ( int x = hl; x < xl; ++x )
+			{
+				int c = x - hl;
+				float val = 0;
+				for ( int xk = 0; xk < h.length; ++xk )
+				{
+					val += h[ xk ] * input.data[ r + c + xk ];
+				}
+				temp.data[ r + x ] = val;
+			}
+			for ( int x = 0; x < hl; ++x )
+			{
+				float valb = 0;
+				float vala = 0;
+				for ( int xk = 0; xk < h.length; ++xk )
+				{
+					valb += h[ xk ] * input.data[ r + xb[ x + xk ] ];
+					vala += h[ xk ] * input.data[ r + xa[ x + xk ] ];
+				}
+				temp.data[ r + x ] = valb;
+				temp.data[ r + x + xl ] = vala;
+			}
+		}
+
+		// vertical convolution per column
+		rl = yl * temp.width;
+		int vlc = vl * temp.width;
+		for ( int x = 0; x < temp.width; ++x )
+		{
+			for ( int r = vlc; r < rl; r += temp.width )
+			{
+				float val = 0;
+				int c = r - vlc;
+				int rk = 0;
+				for ( int yk = 0; yk < v.length; ++yk )
+				{
+					val += v[ yk ] * temp.data[ c + rk + x ];
+					rk += temp.width;
+				}
+				output.data[ r + x ] = val;
+			}
+			for ( int y = 0; y < vl; ++y )
+			{
+				int r = y * temp.width;
+				float valb = 0;
+				float vala = 0;
+				for ( int yk = 0; yk < v.length; ++yk )
+				{
+					valb += h[ yk ] * temp.data[ yb[ y + yk ] + x ];
+					vala += h[ yk ] * temp.data[ ya[ y + yk ] + x ];
+				}
+				output.data[ r + x ] = valb;
+				output.data[ r + rl + x ] = vala;
+			}
+		}
+
+		return output;
+	}
 
 }
