@@ -2,7 +2,7 @@ package mpi.fruitfly.registration;
 
 import static mpi.fruitfly.math.General.flipInRange;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
-import mpi.fruitfly.registration.SIFTProcessor.Feature;
+//import mpi.fruitfly.registration.SIFTProcessor.Feature;
 
 import java.util.Vector;
 
