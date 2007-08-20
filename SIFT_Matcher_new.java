@@ -470,7 +470,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 					// compare the standard deviation of inliers and matches
 					if ( model != null )
 					{
-						int num_inliers = model.inliers.size();
+						int num_inliers = model.getInliers().size();
 						if ( num_inliers <= highest_num_inliers )
 						{
 							++convergence_count;
@@ -489,7 +489,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 						double[] oi2 = new double[ 2 ];
 						double[] eveci1 = new double[ 4 ];
 						double[] eveci2 = new double[ 4 ];
-						Match.covariance( model.inliers, covi1, covi2, oi1, oi2, evi1, evi2, eveci1, eveci2 );
+						Match.covariance( model.getInliers(), covi1, covi2, oi1, oi2, evi1, evi2, eveci1, eveci2 );
 
 						evi1[ 0 ] = Math.sqrt( evi1[ 0 ] );
 						evi1[ 1 ] = Math.sqrt( evi1[ 1 ] );
@@ -526,7 +526,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			if ( model != null )
 			{
 				
-				Match.covariance( model.inliers, cov1, cov2, o1, o2, ev1, ev2, evec1, evec2 );
+				Match.covariance( model.getInliers(), cov1, cov2, o1, o2, ev1, ev2, evec1, evec2 );
 
 				ip1.setLineWidth( 1 );
 				ip3.setLineWidth( 1 );
@@ -536,13 +536,13 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				drawEllipse( ip3, evec2, o2, ev2, vis_scale );
 				ip1.setLineWidth( 2 );
 				ip3.setLineWidth( 2 );
-				for ( Match m : model.inliers )
+				for ( Match m : model.getInliers() )
 				{
 					ip1.drawDot( ( int )Math.round( vis_scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale * m.p1[ 1 ] ) );
 					ip3.drawDot( ( int )Math.round( vis_scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale * m.p2[ 1 ] ) );
 				}
 
-				IJ.log( "Model with epsilon <= " + epsilon + " for " + model.inliers.size() + " inliers found." );
+				IJ.log( "Model with epsilon <= " + epsilon + " for " + model.getInliers().size() + " inliers found." );
 				IJ.log( "  Translation: ( " + ( tr[ 0 ] / scale ) + ", " + ( tr[ 1 ] / scale ) + " )" );
 				IJ.log( "  Rotation:	" + tr[ 2 ] + " = " + ( tr[ 2 ] / Math.PI * 180.0f ) + "°" );
 				IJ.log( "  Pivot:	   ( " + ( tr[ 3 ] / scale ) + ", " + ( tr[ 4 ] / scale ) + " )" );
@@ -582,8 +582,15 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 					  antialias );
 			ImagePlus impAlignedSlice = imgAligned.imageplus();
 			stackAligned.addSlice( null, impAlignedSlice.getProcessor() );
-			stackInfo.addSlice( null, ip1 );
-			stackInfo.addSlice( null, ip3 );
+			IJ.log("stackInfo.dimensions: " + stackInfo.getWidth() + ", " + stackInfo.getHeight());
+			IJ.log("ip dimensions: " + ip1.getWidth() + ", " + ip1.getHeight());
+			ImageProcessor tmp;
+			tmp = ip1.createProcessor(stackInfo.getWidth(), stackInfo.getHeight());
+			tmp.insert(ip1, 0, 0);
+			stackInfo.addSlice( null, tmp); // fixing silly 1 pixel size missmatches
+			tmp = ip3.createProcessor(stackInfo.getWidth(), stackInfo.getHeight());
+			tmp.insert(ip3, 0, 0);
+			stackInfo.addSlice( null, tmp);
 			impAligned.setStack( "Aligned " + stackAligned.getSize() + " of " + stack.getSize(), stackAligned );
 			impAligned.updateAndDraw();
 			if ( i == 1 )

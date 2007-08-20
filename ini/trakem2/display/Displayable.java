@@ -140,7 +140,7 @@ public abstract class Displayable extends DBObject {
 					this.at.setTransform(Float.parseFloat(nums[0]), Float.parseFloat(nums[1]),
 							     Float.parseFloat(nums[2]), Float.parseFloat(nums[3]),
 							     Float.parseFloat(nums[4]), Float.parseFloat(nums[5]));
-					Utils.log2("at: " + this.at);
+					//Utils.log2("at: " + this.at);
 				}
 				else if (key.equals("locked")) locked = data.trim().toLowerCase().equals("true");
 				else if (key.equals("visible")) visible = data.trim().toLowerCase().equals("true");
@@ -206,7 +206,7 @@ public abstract class Displayable extends DBObject {
 		// scaling in old versions will be lost
 
 		// debug:
-		Utils.log2("box: " + getBoundingBox(null));
+		//Utils.log2("box: " + getBoundingBox(null));
 	}
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {

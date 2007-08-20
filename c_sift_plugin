@@ -1,0 +1,1 @@
+javac -classpath $(find ../../jars "*jar" -print0 | sed -e 's/.jar/.jar:/g')../../ij.jar:$(find .. -name "*jar" -print0 | sed -e 's/.jar/.jar:/g'). SIFT_Matcher_new.java

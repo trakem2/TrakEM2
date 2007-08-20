@@ -3027,7 +3027,7 @@ abstract public class Loader {
 			// ensure there are no negative numbers in the x,y
 			slice.getLayer().getParent().setMinimumDimensions();
 			//correlate(slice, p, scale);
-			registerWithLandmarks(slice, p, scale);
+			registerWithSIFTLandmarks(slice, p, scale);
 			correlateSlices(p, hs_done, scale, worker);
 		}
 	}
@@ -3061,7 +3061,7 @@ abstract public class Loader {
 		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
 	}
 
-	private void registerWithLandmarks(final Patch base, final Patch moving, final float scale) {
+	private void registerWithSIFTLandmarks(final Patch base, final Patch moving, final float scale) {
 
 		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 
@@ -3075,12 +3075,17 @@ abstract public class Loader {
 		float inlier_ratio = 0.1f; // minimal percent of good landmarks found
 
 		final float[] lc = new float[5];
-		if (mpi.fruitfly.registration.SIFTMatcher.align(ip1, ip2, min_epsilon, inlier_ratio, lc)) {
+		//if (mpi.fruitfly.registration.SIFTMatcher.align(ip1, ip2, min_epsilon, inlier_ratio, lc)) {
+		final Object[] result = Registration.registerSIFT(ip1, ip2, null, 1.6f, 64, 1024, scale);
+		if (null != result) {
+			/*
 			Utils.log2("SIFT: dx: " + lc[0] + ", dy: " + lc[1] + ",  angle:" + lc[2] + "  xo: " + lc[3] + ", yo: " + lc[4]);
 
 			final AffineTransform at_base = base.getAffineTransformCopy();
+			*/
 			final AffineTransform at_moving = moving.getAffineTransform();
 
+			/*
 			// rotate relative to the anchor point:
 			at_moving.scale(1/scale, 1/scale);
 			//at_moving.translate(lc[3], lc[4]); // anchor point back
@@ -3089,8 +3094,13 @@ abstract public class Loader {
 			//at_moving.translate(-lc[3], -lc[4]); // anchor point
 			at_moving.scale(scale, scale);
 			at_moving.preConcatenate(at_base);
+			*/
 
-			// apply
+			// set to the given
+			at_moving.setTransform((AffineTransform)result[2]);
+			// pre-apply the base's transform
+			at_moving.preConcatenate(base.getAffineTransform());
+
 			if (ControlWindow.isGUIEnabled()) {
 				Rectangle box = moving.getBoundingBox();
 				box.add(moving.getBoundingBox());

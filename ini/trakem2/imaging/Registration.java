@@ -5,7 +5,7 @@ Copyright (C) 2005,2006 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.txt )
+as published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.txt)
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,15 +22,23 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.imaging;
 
+import static mpi.fruitfly.math.General.*;
+import mpi.fruitfly.general.*;
+import mpi.fruitfly.math.datastructures.*;
+import mpi.fruitfly.registration.FloatArray2DSIFT;
+import mpi.fruitfly.registration.TRModel;
+import mpi.fruitfly.registration.Match;
+import mpi.fruitfly.registration.ImageFilter;
+
 import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
-//import mpi.fruitfly.registration.*;
 import ij.ImagePlus;
-import ij.process.ImageProcessor;
-import ij.process.ColorProcessor;
+import ij.process.*;
 
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.util.*;
+import java.awt.geom.AffineTransform;
 
 /**
  * Accessor methods to Stephan Preibisch's FFT-based registration implementation.
@@ -44,88 +52,20 @@ import java.awt.Rectangle;
  * */
 public class Registration {
 
-	/** The result of registering two images. */
-	static public class Data {
-		/** the angle of rotation, in degrees*/
-		int rot;
-		/** the translation */
-		double dx, dy;
-	}
+	/** minimal allowed alignment error in px (pixels) */
+	private static float min_epsilon = 2.0f;
+	/** maximal allowed alignment error in px (pixels) */
+	private static float max_epsilon = 100.0f;
+	/** feature descriptor size */
+	private static int fdsize = 8;
+	/** feature descriptor orientation bins */
+	private static int fdbins = 8;
+	/** ASK */
+	private static int steps = 3;
 
-	/** Returns the Transform object that defines the registration of the second image to the first. Images will be duplicated and the originals provided will be left untouched. */
-	static public Registration.Data register(final ImagePlus imp1, final ImagePlus imp2, final boolean rotate, final boolean fix_angle, final boolean ignore_squared_angles, final boolean enhance_edges) {
-
-
-		// no need
-		//final ImagePlus imp1 = new ImagePlus(imp_1.getTitle(), imp_1.getProcessor().duplicate());
-		//final ImagePlus imp2 = new ImagePlus(imp_2.getTitle(), imp_2.getProcessor().duplicate());
-
-		final Registration.Data data = new Registration.Data();
-
-		/*
-		 *
-
-		// constants limiting exploration
-		final int MAX1 = 5;
-
-		if (rotate) {
-			// Find possible rotations
-			Rotation2D rot = new Rotation2D(imp1, imp2, 1, true, enhance_edges, false, false);
-			double[] angles = rot.getAllAngles();
-			// for each rotation, find possible translations
-			for (int i=0; i<angles.length && i < MAX1; i++) { // best scoring angle is at index 0
-				// ignore perfectly squared angles
-				if (ignore_squared_angles && (0 == angles[i] || 90 == angles[i] || 180 == angles[i] || 270 == angles[i])) {
-					Utils.log("Ignoring angle " + angles[i]);
-					continue;
-				}
-				double gamma = angles[i];
-				// translations for angle i and its pair
-				final PhaseCorrelation2D translation1 = new PhaseCorrelation2D(imp1, makeRotatedCopy(imp2, gamma), true, true, false);
-				final PhaseCorrelation2D translation2 = new PhaseCorrelation2D(imp1, makeRotatedCopy(imp2, gamma -180), true, true, false);
-				///
-				//
-			}
-		}
-
-		*/
-
-		// correct translation to make it relative to the image centers, not the top left corner of the rotated second image.
-
-		return data;
-	}
-
-	/** Create a rotated version of the processor, within an enlarged canvas whose background is filled with zeros. */
-	private ImageProcessor makeRotatedImage(final ImageProcessor ip, final double angle) {
-		// new dimensions:
-		final Transform t = Transform.createEmptyTransform();
-		t.width = ip.getWidth();
-		t.height = ip.getHeight();
-		t.rot = angle;
-		final Rectangle box = t.getBoundingBox(new Rectangle());
-		final ImageProcessor ip2 = ip.createProcessor(box.width, box.height);
-		if (ip2 instanceof ColorProcessor) {
-			// ensure black background
-			ip2.setValue(0);
-			ip2.setRoi(0, 0, (int)Math.ceil(t.width), (int)Math.ceil(t.height));
-			ip2.fill();
-		}
-		ip2.insert(ip, (int)((box.width - t.width) / 2), (int)((box.height - t.height) / 2));
-		ip2.setBackgroundValue(0);
-		ip2.rotate(angle);
-		return ip2;
-	}
-
-	/** Try the registration from all 4 sides, and return the best. */
-	static public Registration.Data register(final ImagePlus imp_1, final ImagePlus imp_2, final boolean rotate, final double percent_overlap) {
-		// TODO
-		return null;
-	}
-
-	/** Makes a snapshot with the Patch objects in both layers at the given scale, and rotates/translates all Displayable elements in the second Layer relative to the first. Returns the Transform needed to apply to layer2 objects to register it with layer1.*/
+	/** Makes a snapshot with the Patch objects in both layers at the given scale, and rotates/translates all Displayable elements in the second Layer relative to the first. */
 	static public boolean registerLayers(final Layer layer1, final Layer layer2, final double max_rot, final double max_displacement, final double scale, final boolean ignore_squared_angles, final boolean enhance_edges) {
 		if (scale <= 0) return false;
-		Registration.Data data = null;
 		try {
 			// get minimal enclosing boxes
 			Rectangle box1 = layer1.getMinimalBoundingBox(Patch.class);
@@ -136,32 +76,164 @@ public class Registration {
 			ImagePlus imp1 = layer1.getProject().getLoader().getFlatImage(layer1, box1, scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
 			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
 			// ready to start
-			data = register(imp1, imp2, true, true, ignore_squared_angles, enhance_edges); // WARNING relative to the box1 and box2 centers!!
-			// Grab all objects
-			final Selection selection = new Selection(null);
-			selection.selectAll(layer2);
-			// rotate
-			if (Math.abs(data.rot) <= Math.abs(max_rot)) {
-				selection.setFloater(box2.x + box2.width/2, box2.y + box2.height/2);
-				selection.rotate(data.rot);
-			} else {
-				// displacement makes no sense if rotation was not allowed, so recompute
-				data = register(imp1, imp2, false, true, ignore_squared_angles, enhance_edges);
-			}
-			// correct scale
-			if (1 != scale) {
-				data.dx = data.dx / scale;
-				data.dy = data.dy / scale;
-			}
-			// translate
-			if (Math.sqrt(data.dx * data.dx + data.dy * data.dy) <= max_displacement) {
-				selection.translate(data.dx, data.dy);
-			}
-			// done!
+			//
+			//
+			// TODO
+			//
+			//
 		} catch (Exception e) {
 			new IJError(e);
 			return false;
 		}
 		return true;
+	}
+
+	/** Registers the second image relative to the first. Returns an array of:
+	 * - the set of features for the first image
+	 * - the set of features for the second image
+	 * - the AffineTransform defining the registration of the second image relative to the first.
+	 *
+	 * The given @param fs1 may be null, in which case it will be generated from the first ImagePlus.
+	 * @param initial_sigma is adjustable, so that high magnification steps can be skipped for noisy or highly variable datasets, which show most similarity at coarser, lower magnifiation levels.
+	 *
+	 */
+	static public Object[] registerSIFT(final ImageProcessor ip1, final ImageProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final float initial_sigma, final int min_size, final int max_size, final float scale) {
+		// prepare both sets of features
+		if (null == fs1) fs1 = getSIFTFeatures(ip1, initial_sigma, min_size, max_size);
+		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures(ip2, initial_sigma, min_size, max_size);
+		// compare
+		final Vector<Match> correspondences = FloatArray2DSIFT.createMatches(fs1, fs2, 1.5f, null, Float.MAX_VALUE);
+		/** From Stephan Saalfeld:
+		 * We want to assure, that the model does not fit to a local spatial
+		 * subset of all matches only, because this signalizes a good local
+		 * alignment but bad global results.
+		 *
+		 * Therefore, we compare the Eigenvalues of the covariance matrix of
+		 * all points to those of the inliers matching the model.  That is, we
+		 * compare the variance of those point sets.  A low variance of the
+		 * inliers compared to those of all matches signifies a very local
+		 * subset.
+		 */
+
+		double[] ev1 = new double[2];
+		double[] ev2 = new double[2];
+		double[] cov1 = new double[3];
+		double[] cov2 = new double[3];
+		double[] o1 = new double[2];
+		double[] o2 = new double[2];
+		double[] evec1 = new double[4];
+		double[] evec2 = new double[4];
+		Match.covariance(correspondences, cov1, cov2, o1, o2, ev1, ev2, evec1, evec2);
+		// above: the mighty C++ programmer! What a piece of risky code!
+
+		TRModel model = null;
+		final float[] tr = new float[5];
+		float epsilon = 0.0f;
+		if (correspondences.size() > model.MIN_SET_SIZE) {
+			ev1[0] = Math.sqrt(ev1[0]);
+			ev1[1] = Math.sqrt(ev1[1]);
+			ev2[0] = Math.sqrt(ev2[0]);
+			ev2[1] = Math.sqrt(ev2[1]);
+
+			double r1 = Double.MAX_VALUE;
+			double r2 = Double.MAX_VALUE;
+			
+			int highest_num_inliers = 0;
+			int convergence_count = 0;
+			do {
+				epsilon += min_epsilon;
+				//System.out.println("Estimating model for epsilon = " + epsilon);
+				// 1000 iterations lead to a probability of < 0.01% that only bad data values were found
+				model = TRModel.estimateModel(
+						correspondences,			//!< point correspondences
+						1000,						//!< iterations
+						epsilon * (float)scale,	//!< maximal alignment error for a good point pair when fitting the model
+						//0.1f,						//!< minimal partition (of 1.0) of inliers
+						0.05f,						//!< minimal partition (of 1.0) of inliers
+						tr							//!< model as float array (TrakEM style)
+						);
+
+				// compare the standard deviation of inliers and matches
+				if (model != null) {
+					int num_inliers = model.getInliers().size();
+					if (num_inliers <= highest_num_inliers) {
+						++convergence_count; }
+					else {
+						convergence_count = 0;
+						highest_num_inliers = num_inliers;
+					}
+					double[] evi1 = new double[2];
+					double[] evi2 = new double[2];
+					double[] covi1 = new double[3];
+					double[] covi2 = new double[3];
+					double[] oi1 = new double[2];
+					double[] oi2 = new double[2];
+					double[] eveci1 = new double[4];
+					double[] eveci2 = new double[4];
+					Match.covariance(model.getInliers(), covi1, covi2, oi1, oi2, evi1, evi2, eveci1, eveci2);
+
+					evi1[0] = Math.sqrt(evi1[0]);
+					evi1[1] = Math.sqrt(evi1[1]);
+					evi2[0] = Math.sqrt(evi2[0]);
+					evi2[1] = Math.sqrt(evi2[1]);
+
+					double r1x = evi1[0] / ev1[0];
+					double r1y = evi1[1] / ev1[1];
+					double r2x = evi2[0] / ev2[0];
+					double r2y = evi2[1] / ev2[1];
+
+					r1x = r1x < 1.0 ? 1.0 / r1x : r1x;
+					r1y = r1y < 1.0 ? 1.0 / r1y : r1y;
+					r2x = r2x < 1.0 ? 1.0 / r2x : r2x;
+					r2y = r2y < 1.0 ? 1.0 / r2y : r2y;
+
+					r1 = (r1x + r1y) / 2.0;
+					r2 = (r2x + r2y) / 2.0;
+					r1 = Double.isNaN(r1) ? Double.MAX_VALUE : r1;
+					r2 = Double.isNaN(r2) ? Double.MAX_VALUE : r2;
+
+					//System.out.println("deviation ratio: " + r1 + ", " + r2 + ", max = " + Math.max(r1, r2));
+					//f.println(epsilon + " " + (float)model.inliers.size() / (float)correspondences.size());
+				}
+			} while ((model == null || convergence_count < 5 || (Math.max(r1, r2) > 2.0))
+			     && epsilon < max_epsilon);
+		}
+
+		final AffineTransform at = new AffineTransform();
+
+		if (model != null) {
+			// ASK: is this line needed at all?
+			Match.covariance(model.getInliers(), cov1, cov2, o1, o2, ev1, ev2, evec1, evec2);
+
+			//Utils.log("Model with epsilon <= " + epsilon + " for " + model.inliers.size() + " inliers found.");
+			//Utils.log("  Translation: (" + (tr[0] / scale) + ", " + (tr[1] / scale) + ")");
+			//Utils.log("  Rotation:	" + tr[2] + " = " + (tr[2] / Math.PI * 180.0f) + "°");
+			//Utils.log("  Pivot:	   (" + (tr[3] / scale) + ", " + (tr[4] / scale) + ")");
+
+			// images may have different sizes
+			final double xdiff = ip1.getWidth() - ip2.getWidth();
+			final double ydiff = ip1.getHeight() - ip2.getHeight();
+			// assumes rotation origin at the center of the image.
+			at.rotate( tr[2],
+				  (tr[3] - ip2.getWidth() / 2.0f) / scale + 0.5f,
+				  (tr[4] - ip2.getHeight() / 2.0f) / scale + 0.5f);
+			at.translate(tr[0] / scale, tr[1] / scale);
+		} else {
+			Utils.log("No sufficient model found, keeping original transformation for " + ip2);
+		}
+
+		return new Object[]{fs1, fs2, at};
+	}
+
+	/** Returns a sorted list of the SIFT features extracted from the given ImagePlus. */
+	final static public Vector<FloatArray2DSIFT.Feature> getSIFTFeatures(final ImageProcessor ip, final float initial_sigma, final int min_size, final int max_size) {
+		final FloatArray2D fa = ImageFilter.computeGaussianFastMirror(
+				ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat()),
+				(float)Math.sqrt(initial_sigma * initial_sigma - 0.25));
+		final FloatArray2DSIFT sift = new FloatArray2DSIFT(fdsize, fdbins);
+		sift.init(fa, steps, initial_sigma, min_size, max_size);
+		final Vector<FloatArray2DSIFT.Feature> fs = sift.run(max_size);
+		Collections.sort(fs);
+		return fs;
 	}
 }

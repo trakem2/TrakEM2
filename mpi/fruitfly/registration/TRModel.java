@@ -2,15 +2,18 @@ package mpi.fruitfly.registration;
 
 import java.util.Iterator;
 import java.util.Vector;
+import java.util.Random;
 
 public class TRModel extends Model {
 
-	static final int MIN_SET_SIZE = 2;
+	static public final int MIN_SET_SIZE = 2;
 	
 	private float[] translation;
 	
 	private float sin;
 	private float cos;
+
+	private final Vector<Match> inliers = new Vector<Match>();
 	
 	@Override
 	float[] apply( float[] point )
@@ -18,12 +21,12 @@ public class TRModel extends Model {
 		float[] transformed = point.clone();
 		
 //		 rotate                                                                                                                                                                                              
-	    transformed[ 0 ] = cos * point[ 0 ] - sin * point[ 1 ];                                                                                                                                                                          
+	    transformed[ 0 ] = cos * point[ 0 ] - sin * point[ 1 ];
 	    transformed[ 1 ] = sin * point[ 0 ] + cos * point[ 1 ];
 	    
 	    // translate                                                                                                                                                                                           
-	    transformed[ 0 ] += translation[ 0 ];                                                                                                                                                                                   
-	    transformed[ 1 ] += translation[ 1 ];                                                                                                                                                                                   
+	    transformed[ 0 ] += translation[ 0 ];
+	    transformed[ 1 ] += translation[ 1 ];
 
 	    return transformed;
 	}
@@ -35,32 +38,32 @@ public class TRModel extends Model {
 		Match m1 = matches.get( 0 );
         Match m2 = matches.get( 1 );
         
-        float x1 = m2.p1[ 0 ] - m1.p1[ 0 ];                                
-	    float y1 = m2.p1[ 1 ] - m1.p1[ 1 ];                                
-	    float x2 = m2.p2[ 0 ] - m1.p2[ 0 ];                                
-	    float y2 = m2.p2[ 1 ] - m1.p2[ 1 ];                                
-	    float l1 = ( float )Math.sqrt( x1 * x1 + y1 * y1 );                                                                        
-	    float l2 = ( float )Math.sqrt( x2 * x2 + y2 * y2 );                                                                        
+        float x1 = m2.p1[ 0 ] - m1.p1[ 0 ];
+	    float y1 = m2.p1[ 1 ] - m1.p1[ 1 ];
+	    float x2 = m2.p2[ 0 ] - m1.p2[ 0 ];
+	    float y2 = m2.p2[ 1 ] - m1.p2[ 1 ];
+	    float l1 = ( float )Math.sqrt( x1 * x1 + y1 * y1 );
+	    float l2 = ( float )Math.sqrt( x2 * x2 + y2 * y2 );
 	                                                                                                                 
-	    x1 /= l1;                                                                                                    
-	    x2 /= l2;                                                                                                    
-	    y1 /= l1;                                                                                                    
-	    y2 /= l2;                                                                                                    
+	    x1 /= l1;
+	    x2 /= l2;
+	    y1 /= l1;
+	    y2 /= l2;
 	                                                                                                                 
 	    //! unrotate (x2,y2)^T to (x1,y1)^T = (1,0)^T getting the sinus and cosinus of the rotation angle            
-	    cos = x1 * x2 + y1 * y2;                                                                                     
-	    sin = x1 * y2 - y1 * x2;                                                                                     
+	    cos = x1 * x2 + y1 * y2;
+	    sin = x1 * y2 - y1 * x2;
 	                                                                                                                 
-	    //m.alpha = atan2( y, x );                                                                                   
+	    //m.alpha = atan2( y, x );
 	                                                                                                                 
 	    //! rotate c1->f1                                                                                            
-	    x1 = cos * m1.p1[ 0 ] - sin * m1.p1[ 1 ];                          
-	    y1 = sin * m1.p1[ 0 ] + cos * m1.p1[ 1 ];                          
+	    x1 = cos * m1.p1[ 0 ] - sin * m1.p1[ 1 ];
+	    y1 = sin * m1.p1[ 0 ] + cos * m1.p1[ 1 ];
 	                                                                                                                 
-	    translation[ 0 ] = m1.p2[ 0 ] - x1;                                                                    
-	    translation[ 1 ] = m1.p2[ 1 ] - y1;                                                                    
+	    translation[ 0 ] = m1.p2[ 0 ] - x1;
+	    translation[ 1 ] = m1.p2[ 1 ] - y1;
 	                                                                                                                 
-	    //cout << "fitted" << endl;                                                                                  
+	    //cout << "fitted" << endl;
 	                                                                                                                 
 	    return true;
 	}
@@ -129,25 +132,30 @@ public class TRModel extends Model {
         	return null;
 		
         Vector< TRModel > models = new Vector< TRModel >();
-        Vector< Match > inliers = new Vector< Match >();
-                                                                                                  
+
         TRModel model = new TRModel();        //!< the final model to be estimated                                      
-        //std::vector< FeatureMatch* > points;                                                    
-                                                                                                  
-        int i = 0;                                                                           
+        /* Made into an instance final field by Albert // Vector< Match > inliers = new Vector< Match >(); */
+	final Vector< Match > inliers = model.inliers; // for local use in this static method
+
+        //std::vector< FeatureMatch* > points;
+
+	// get a new instance, so that Threads don't compete for it
+	final Random random = new Random(69997);
+
+        int i = 0;
         while ( i < iterations )                                                                  
         {                                                                                         
             // choose T::MIN_SET_SIZE disjunctive matches randomly                                
-            Vector< Match > points = new Vector< Match >();                                                  
+            Vector< Match > points = new Vector< Match >();
             Vector< Integer > keys = new Vector< Integer >();
-            //int[] keys;                                                         
+            //int[] keys;
             for ( int j = 0; j < TRModel.MIN_SET_SIZE; ++j )
             {
             	int key;
                 boolean in_set = false;
                 do
                 {
-                    key = ( int )( Math.random() * matches.size() );
+                    key = ( int )( random.nextDouble() * matches.size() );
                     in_set = false;
                     for ( Iterator k = keys.iterator(); k.hasNext(); )   
                     {
@@ -161,24 +169,31 @@ public class TRModel extends Model {
                 }
                 while ( in_set );
                 keys.addElement( key );
-                points.addElement( matches.get( key ) );                                               
+                points.addElement( matches.get( key ) );
             }
             
-            TRModel m = new TRModel();                                                                                  
+            final TRModel m = new TRModel();
             m.fit( points );
-            
-            Vector< Match > il = new Vector< Match >();
-            
-            if ( m.test( matches, epsilon, min_inliers, il ) > 0 && m.betterThan( model ) )                                    
+ 
+            final Vector< Match > il = new Vector< Match >();
+
+            if ( m.test( matches, epsilon, min_inliers, il ) > 0 && m.betterThan( model ) )
             {
+		 /*
             	inliers = new Vector< Match >();
             	for ( Match ma : il )
             		inliers.addElement( ma );
-            	model = m.clone();                                                           
-            }                                                                                     
-            ++i;                                                                                  
-            
-            points.clear();                                                                       
+		*/
+            	model = m.clone();
+		// faster:
+		inliers.clear(); // does not seem logical that this is necessary; there must be heavily entangled code in all these c++-like method calls
+		inliers.addAll(il);
+		model.inliers.addAll(inliers);
+		//System.out.println("size of inliers vector: " + model.inliers.size() + "\n\t il.size(): " + il.size());
+            }
+            ++i;
+
+            points.clear();
         }                                                                                        
         if ( inliers.size() == 0 )
         	return null;
@@ -199,7 +214,11 @@ public class TRModel extends Model {
 		trm.error = error;
 		trm.sin = sin;
 		trm.translation = translation.clone();
+		// TODO: should also duplicate the inliers? ASK // so far, I just set it when cloning it, above
 		return trm;
 	}
 
+	public Vector<Match> getInliers() {
+		return this.inliers;
+	}
 }
