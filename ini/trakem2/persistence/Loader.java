@@ -3020,7 +3020,7 @@ abstract public class Loader {
 		Utils.log2("@@@ size: " + hs.size());
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			if (worker.quit) return;
-			Patch p = (Patch)it.next();
+			final Patch p = (Patch)it.next();
 			if (hs_done.contains(p)) continue;
 			// skip linked images within the same layer
 			if (p.getLayer().equals(slice.getLayer())) continue;
@@ -3045,18 +3045,14 @@ abstract public class Loader {
 			pc[0] = base.getX();
 			pc[1] = base.getY();
 		}
-		final Transform t = moving.getTransform();
-		t.x = pc[0];
-		t.y = pc[1];
 		Utils.log2("BASE: x, y " + base.getX() + " , " + base.getY() + "\n\t pc x,y: " + pc[0] + ", " + pc[1]);
-		Utils.log2("t.x,y:  " + t.x + ", " + t.y);
 		if (ControlWindow.isGUIEnabled()) {
 			Rectangle box = moving.getBoundingBox();
-			moving.setTransform(t);
+			moving.setLocation(pc[0], pc[1]);
 			box.add(moving.getBoundingBox());
 			Display.repaint(moving.getLayer(), box, 1);
 		} else {
-			moving.setTransform(t);
+			moving.setLocation(pc[0], pc[1]);
 		}
 		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
 	}
@@ -3065,38 +3061,23 @@ abstract public class Loader {
 
 		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 
-		Roi r1 = new Roi(0, 0, (int)base.getWidth(), (int)base.getHeight());
-		ImageProcessor ip1 = StitchingTEM.makeStripe(base, r1, scale);
-		Roi r2 = new Roi(0, 0, (int)moving.getWidth(), (int)moving.getHeight());
-		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, r2, scale);
+		final Rectangle base_box = base.getBoundingBox();
+		Roi r1 = new Roi(0, 0, base_box.width, base_box.height);
+		ImageProcessor ip1 = StitchingTEM.makeStripe(base, r1, scale, true, true);
+		final Rectangle moving_box = moving.getBoundingBox();
+		Roi r2 = new Roi(0, 0, moving_box.width, moving_box.height);
+		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, r2, scale, true, true);
 
 		// parameters
 		float min_epsilon = 5f; // maximal initial drift of landmark relative to its matching landmark in the other image, to consider when searching
 		float inlier_ratio = 0.1f; // minimal percent of good landmarks found
 
 		final float[] lc = new float[5];
-		//if (mpi.fruitfly.registration.SIFTMatcher.align(ip1, ip2, min_epsilon, inlier_ratio, lc)) {
 		final Object[] result = Registration.registerSIFT(ip1, ip2, null, 1.6f, 64, 1024, scale);
 		if (null != result) {
-			/*
-			Utils.log2("SIFT: dx: " + lc[0] + ", dy: " + lc[1] + ",  angle:" + lc[2] + "  xo: " + lc[3] + ", yo: " + lc[4]);
-
-			final AffineTransform at_base = base.getAffineTransformCopy();
-			*/
 			final AffineTransform at_moving = moving.getAffineTransform();
-
-			/*
-			// rotate relative to the anchor point:
-			at_moving.scale(1/scale, 1/scale);
-			//at_moving.translate(lc[3], lc[4]); // anchor point back
-			at_moving.rotate(lc[2], lc[3], lc[4]);
-			at_moving.translate(lc[0], lc[1]); // displacement
-			//at_moving.translate(-lc[3], -lc[4]); // anchor point
-			at_moving.scale(scale, scale);
-			at_moving.preConcatenate(at_base);
-			*/
-
-			// set to the given
+			at_moving.setToIdentity(); // be sure to CLEAR it totally
+			// set to the given result
 			at_moving.setTransform((AffineTransform)result[2]);
 			// pre-apply the base's transform
 			at_moving.preConcatenate(base.getAffineTransform());

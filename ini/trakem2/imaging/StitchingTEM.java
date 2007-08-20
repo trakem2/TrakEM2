@@ -274,17 +274,20 @@ public class StitchingTEM {
 	}
 
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale) {
-		return makeStripe(p, roi, scale, false);
+		return makeStripe(p, roi, scale, false, false);
 	}
 
-	/** Return FloatProcessor */
-	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean quality) {
+	/** Return FloatProcessor.
+	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */ // TODO param 'quality' is being ignored
+	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean quality, boolean ignore_patch_transform) {
 		final ImagePlus imp = p.getProject().getLoader().fetchImagePlus(p, false);
 		ImageProcessor ip = imp.getProcessor();
 		// compare and adjust
-		if (ip.getWidth() != (int)p.getWidth() || ip.getHeight() != (int)p.getHeight()) {
-			ip = ip.resize((int)p.getWidth(), (int)p.getHeight());
+		if (!ignore_patch_transform && !p.getAffineTransform().isIdentity()) { //  (ip.getWidth() != (int)p.getWidth() || ip.getHeight() != (int)p.getHeight()))
+			final Rectangle b = p.getBoundingBox();
+			ip = ip.resize(b.width, b.height);
 			Utils.log2("resizing stripe for patch: " + p);
+			// the above is only meant to correct for improperly acquired images at the microscope.
 		}
 		// cut
 		final Rectangle rb = roi.getBounds();

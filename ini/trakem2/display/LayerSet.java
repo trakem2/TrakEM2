@@ -541,15 +541,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		try {
 			final AffineTransform at2 = new AffineTransform();
 			at2.translate(-x, -y);
-			Utils.log2("translating all displayables by " + x + "," + y);
+			//Utils.log2("translating all displayables by " + x + "," + y);
 			if (x != 0 || y != 0) {
 				for (Iterator it = al.iterator(); it.hasNext(); ) {
 					//((Displayable)it.next()).translate(-x, -y, false); // drag regardless of getting off current LayerSet bounds
 					// optimized to avoid creating so many AffineTransform instances:
 					final Displayable d = (Displayable)it.next();
-					Utils.log2("BEFORE: " + d.getBoundingBox());
+					//Utils.log2("BEFORE: " + d.getBoundingBox());
 					d.getAffineTransform().preConcatenate(at2);
-					Utils.log2("AFTER: " + d.getBoundingBox());
+					//Utils.log2("AFTER: " + d.getBoundingBox());
 					d.updateInDatabase("transform");
 				}
 			}
