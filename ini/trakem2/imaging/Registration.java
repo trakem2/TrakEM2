@@ -155,7 +155,7 @@ public class Registration {
 
 				// compare the standard deviation of inliers and matches
 				if (model != null) {
-					int num_inliers = model.getInliers().size();
+					int num_inliers = model.inliers.size();
 					if (num_inliers <= highest_num_inliers) {
 						++convergence_count; }
 					else {
@@ -170,7 +170,7 @@ public class Registration {
 					double[] oi2 = new double[2];
 					double[] eveci1 = new double[4];
 					double[] eveci2 = new double[4];
-					Match.covariance(model.getInliers(), covi1, covi2, oi1, oi2, evi1, evi2, eveci1, eveci2);
+					Match.covariance(model.inliers, covi1, covi2, oi1, oi2, evi1, evi2, eveci1, eveci2);
 
 					evi1[0] = Math.sqrt(evi1[0]);
 					evi1[1] = Math.sqrt(evi1[1]);
@@ -201,22 +201,25 @@ public class Registration {
 
 		final AffineTransform at = new AffineTransform();
 
-		if (model != null) {
-			// ASK: is this line needed at all?
-			Match.covariance(model.getInliers(), cov1, cov2, o1, o2, ev1, ev2, evec1, evec2);
-
-			//Utils.log("Model with epsilon <= " + epsilon + " for " + model.inliers.size() + " inliers found.");
-			//Utils.log("  Translation: (" + (tr[0] / scale) + ", " + (tr[1] / scale) + ")");
-			//Utils.log("  Rotation:	" + tr[2] + " = " + (tr[2] / Math.PI * 180.0f) + "°");
-			//Utils.log("  Pivot:	   (" + (tr[3] / scale) + ", " + (tr[4] / scale) + ")");
-
+		if (model != null)
+		{
 			// images may have different sizes
-			final double xdiff = ip1.getWidth() - ip2.getWidth();
-			final double ydiff = ip1.getHeight() - ip2.getHeight();
-			// assumes rotation origin at the center of the image.
-			at.rotate( tr[2],
-				  (tr[3] - ip2.getWidth() / 2.0f) / scale + 0.5f,
-				  (tr[4] - ip2.getHeight() / 2.0f) / scale + 0.5f);
+			/**
+			 * TODO Different sizes are no problem as long as the top left
+			 * corner is at the fixed position (x0:0.0f, y0:0.0f).  If this is not the
+			 * case, translate the image relative to this position.  That is,
+			 * translate the pivot point of the rotation and translate the translation
+			 * vector itself.
+			 */
+			//final double xdiff = ip1.getWidth() - ip2.getWidth();
+			//final double ydiff = ip1.getHeight() - ip2.getHeight();
+//			// assumes rotation origin at the center of the image.
+//			at.rotate( tr[2],
+//				  (tr[3] - ip2.getWidth() / 2.0f) / scale + 0.5f,
+//				  (tr[4] - ip2.getHeight() / 2.0f) / scale + 0.5f);
+			
+			// rotation origin at the top left corner of the image (0.0f, 0.0f) of the image.
+			at.rotate( tr[2], tr[3] / scale, tr[4] / scale );
 			at.translate(tr[0] / scale, tr[1] / scale);
 		} else {
 			Utils.log("No sufficient model found, keeping original transformation for " + ip2);
