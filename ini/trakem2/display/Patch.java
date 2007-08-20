@@ -250,7 +250,10 @@ public class Patch extends Displayable {
 				atp.scale(1/Snapshot.SCALE, 1/Snapshot.SCALE);
 			}
 		}
-		if (null == image) return; // TEMPORARY from lazy repaints after closing a Project
+		if (null == image) {
+			Utils.log2("Patch.paint: null image, returning");
+			return; // TEMPORARY from lazy repaints after closing a Project
+		}
 
 		//arrange transparency
 		Composite original_composite = null;

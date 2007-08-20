@@ -133,10 +133,10 @@ public class Snapshot {
 		d.paint(g, layer);
 	}
 
-	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. */
+	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. The @param awt Image is expected to have the same dimensions as the ImagePlus from which it originates. */
 	static public Image createSnap(final Patch p, final Image awt, final double mag) {
-		final int w = (int)Math.ceil(p.getWidth() * mag);
-		final int h = (int)Math.ceil(p.getHeight() * mag);
+		final int w = (int)Math.ceil(awt.getWidth(null) * mag);
+		final int h = (int)Math.ceil(awt.getHeight(null) * mag); // NOTE: can't get the Patch width and height because in the event of a rotation, it will work incorrectly (it returns the width and height of the bounding box, not of the image). But I can't fetch the actual image either, because this method is heavily used from the Loader and I would have to lock/unlock its usage, which is a pain.
 		try {
 		if (null != p.getLayer() && p.getLayer().getParent().snapshotsQuality()) {
 			// best, but very slow
