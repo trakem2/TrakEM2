@@ -1,4 +1,5 @@
 /** Adapted by Albert Cardona from the ArcBall C code in the Graphics Gems IV, 1993. */
+package ini.trakem2.utils;
 
 public class Vector3D {
 
