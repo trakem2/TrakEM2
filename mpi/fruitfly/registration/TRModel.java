@@ -4,6 +4,7 @@ import static mpi.fruitfly.math.General.*;
 
 import java.util.Iterator;
 import java.util.Vector;
+import java.util.Random;
 
 public class TRModel extends Model {
 
@@ -142,6 +143,7 @@ public class TRModel extends Model {
 		TRModel model = new TRModel();		//!< the final model to be estimated
 		//std::vector< FeatureMatch* > points;
 
+		final Random random = new Random(69997);
 		int i = 0;
 		while ( i < iterations )
 		{
@@ -155,7 +157,7 @@ public class TRModel extends Model {
 				boolean in_set = false;
 				do
 				{
-					key = ( int )( Math.random() * matches.size() );
+					key = ( int )( random.nextDouble() * matches.size() );
 					in_set = false;
 					for ( Iterator k = keys.iterator(); k.hasNext(); )
 					{
@@ -182,9 +184,12 @@ public class TRModel extends Model {
 					m.betterThan( model ) &&
 					il.size() > 2 * MIN_SET_SIZE )
 			{
-				inliers = new Vector< Match >();
-				for ( Match ma : il )
-					inliers.addElement( ma );
+				//inliers = new Vector< Match >();
+				//for ( Match ma : il )
+				//	inliers.addElement( ma );
+				// instead:
+				inliers.clear();
+				inliers.addAll(il);
 				model = m.clone();
 			}
 			++i;
@@ -200,7 +205,8 @@ public class TRModel extends Model {
 		for (int j = 0; j < transform.length; j++)
 			tr[j] = transform[j];
 
-		model.inliers = inliers;
+		model.getInliers().clear();
+		model.getInliers().addAll(inliers);
 
 		return model;
 	}

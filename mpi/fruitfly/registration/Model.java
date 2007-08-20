@@ -6,7 +6,7 @@ import java.util.Iterator;
 abstract public class Model {
 
 	public float error;		//!< maximal error of this model
-	public Vector < Match > inliers;
+	final private Vector < Match > inliers = new Vector < Match > ();
 
 	/**
 	 * instantiates an empty model with maximally large error
@@ -77,6 +77,10 @@ abstract public class Model {
 	{
 		if ( error < 0 ) return false;
 		return error < m.error;
+	}
+
+	public Vector < Match > getInliers() {
+		return this.inliers;
 	}
 
 	/**

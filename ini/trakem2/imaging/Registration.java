@@ -155,7 +155,7 @@ public class Registration {
 
 				// compare the standard deviation of inliers and matches
 				if (model != null) {
-					int num_inliers = model.inliers.size();
+					int num_inliers = model.getInliers().size();
 					if (num_inliers <= highest_num_inliers) {
 						++convergence_count; }
 					else {
@@ -170,7 +170,7 @@ public class Registration {
 					double[] oi2 = new double[2];
 					double[] eveci1 = new double[4];
 					double[] eveci2 = new double[4];
-					Match.covariance(model.inliers, covi1, covi2, oi1, oi2, evi1, evi2, eveci1, eveci2);
+					Match.covariance(model.getInliers(), covi1, covi2, oi1, oi2, evi1, evi2, eveci1, eveci2);
 
 					evi1[0] = Math.sqrt(evi1[0]);
 					evi1[1] = Math.sqrt(evi1[1]);
@@ -193,7 +193,7 @@ public class Registration {
 					r2 = Double.isNaN(r2) ? Double.MAX_VALUE : r2;
 
 					//System.out.println("deviation ratio: " + r1 + ", " + r2 + ", max = " + Math.max(r1, r2));
-					//f.println(epsilon + " " + (float)model.inliers.size() / (float)correspondences.size());
+					//f.println(epsilon + " " + (float)model.getInliers().size() / (float)correspondences.size());
 				}
 			} while ((model == null || convergence_count < 5 || (Math.max(r1, r2) > 2.0))
 			     && epsilon < max_epsilon);
