@@ -297,8 +297,9 @@ public class StitchingTEM {
 		}
 		// scale
 		if (scale < 1) {
+			p.getProject().getLoader().releaseToFit((long)(ip.getWidth() * ip.getHeight() * 4 * 1.2)); // floats have 4 bytes, plus some java peripherals correction factor
 			ip = ip.convertToFloat();
-			ip.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.getPixels(), ip.getWidth(), ip.getHeight()), 0.25f/scale).data); // scaling with area averaging is the same as a gaussian of sigma 0.5/scale and then resize with nearest neightbor
+			ip.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.getPixels(), ip.getWidth(), ip.getHeight()), 0.25f/scale).data); // scaling with area averaging is the same as a gaussian of sigma 0.5/scale and then resize with nearest neightbor. So this line does the gaussian, and line below does the neares-neighbor scaling
 			ip = ip.resize((int)(ip.getWidth() * scale)); // scale mantaining aspect ratio
 		}
 

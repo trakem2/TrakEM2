@@ -490,7 +490,7 @@ abstract public class Loader {
 		switch (type) {
 			case ImagePlus.GRAY32:
 				bytes *= 5; // 4 for the FloatProcessor, and 1 for the generated pixels8 to make an image
-				if (factor < 4) factor = 4; // for Open_MRC_Leginon ...
+				if (factor < 4) factor = 4; // for Open_MRC_Leginon ... TODO this is unnecessary in all other cases
 				break;
 			case ImagePlus.COLOR_RGB:
 				bytes *= 4;

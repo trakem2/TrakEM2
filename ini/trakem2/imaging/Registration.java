@@ -209,6 +209,8 @@ public class Registration {
 
 		if (model != null)
 		{
+			// debug
+			Utils.log2("epsilon: " + epsilon + "  inliers: " + model.getInliers().size() + "  corresp: " + correspondences.size());
 			// images may have different sizes
 			/**
 			 * TODO Different sizes are no problem as long as the top left
@@ -260,7 +262,7 @@ public class Registration {
 			public void run() {
 				startedWorking();
 				try {
-					correlateSlices(base_slice, new HashSet(), this, sp);
+					correlateSlices(base_slice, new HashSet(), this, sp, null);
 					// ensure there are no negative numbers in the x,y
 					base_slice.getLayer().getParent().setMinimumDimensions();
 				} catch (Exception e) {
@@ -275,7 +277,7 @@ public class Registration {
 		return burro;
 	}
 	/** Recursive into linked images in other layers. */
-	static private void correlateSlices(final Patch slice, final HashSet hs_done, final Worker worker, final Registration.SIFTParameters sp) {
+	static private void correlateSlices(final Patch slice, final HashSet hs_done, final Worker worker, final Registration.SIFTParameters sp, final Vector<FloatArray2DSIFT.Feature> fs_slice) {
 		if (hs_done.contains(slice)) return;
 		hs_done.add(slice);
 		// iterate over all Patches directly linked to the given slice
@@ -290,12 +292,13 @@ public class Registration {
 			// ensure there are no negative numbers in the x,y
 			slice.getLayer().getParent().setMinimumDimensions();
 			// go
-			Registration.registerWithSIFTLandmarks(slice, p, sp);
-			Registration.correlateSlices(p, hs_done, worker, sp);
+			final Object[] result = Registration.registerWithSIFTLandmarks(slice, p, sp, fs_slice);
+			Registration.correlateSlices(p, hs_done, worker, sp, (Vector<FloatArray2DSIFT.Feature>)result[1]); // I give it the feature set of the moving patch, which in this call will serve as base
 		}
 	}
 
-	static private void registerWithSIFTLandmarks(final Patch base, final Patch moving, final Registration.SIFTParameters sp) {
+	/** The @param fs_base is the vector of features of the base Patch, and can be null -in which case it will be computed. */
+	static private Object[] registerWithSIFTLandmarks(final Patch base, final Patch moving, final Registration.SIFTParameters sp, final Vector<FloatArray2DSIFT.Feature> fs_base) {
 
 		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 
@@ -306,7 +309,7 @@ public class Registration {
 		Roi r2 = new Roi(0, 0, moving_box.width, moving_box.height);
 		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, r2, sp.scale, true, true);
 
-		final Object[] result = Registration.registerSIFT(ip1, ip2, null, sp);
+		final Object[] result = Registration.registerSIFT(ip1, ip2, fs_base, sp);
 		if (null != result) {
 			final AffineTransform at_moving = moving.getAffineTransform();
 			at_moving.setToIdentity(); // be sure to CLEAR it totally
@@ -325,11 +328,12 @@ public class Registration {
 			Utils.log2("Automatic landmark detection failed, falling back to phase-correlation.");
 			Registration.correlate(base, moving, sp.scale);
 		}
+		return result;
 	}
 
 	static private class SIFTParameters {
 		// filled with default values
-		float scale = 0.25f;
+		float scale = 1.0f;
 		int steps = 3;
 		float initial_sigma = 1.6f;
 		int fdsize = 8;
@@ -344,7 +348,7 @@ public class Registration {
 
 		boolean setup() {
 			final GenericDialog gd = new GenericDialog("Options");
-			gd.addSlider("cc_scale (%):", 1, 100, scale*100);
+			gd.addSlider("scale (%):", 1, 100, scale*100);
 			gd.addNumericField("steps_per_scale_octave :", steps, 0);
 			gd.addNumericField("initial_gaussian_blur :", initial_sigma, 2);
 			gd.addNumericField("feature_descriptor_size :", fdsize, 0);
