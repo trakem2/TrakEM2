@@ -32,6 +32,7 @@ import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.LayerStack;
+import ini.trakem2.imaging.Registration;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.DNDInsertImage;
@@ -2620,14 +2621,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 							return;
 						}
 					}
-					// ask for the scaling value (i.e. how small should the cross-correlated imges be, for speed-up / noise-reduction purposes)
-					final GenericDialog gd = new GenericDialog("Options");
-					gd.addSlider("cc_scale (%):", 1, 100, 25);
-					gd.showDialog();
-					if (gd.wasCanceled()) return;
-					final float cc_scale = (float)gd.getNextNumber() / 100;
 					slice.getLayer().getParent().createUndoStep(); // full
-					slice.getProject().getLoader().registerStackSlices((Patch)getActive(), cc_scale); // will repaint
+					Registration.registerStackSlices((Patch)getActive()); // will repaint
 				} else {
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}

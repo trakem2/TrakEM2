@@ -32,8 +32,14 @@ import mpi.fruitfly.registration.ImageFilter;
 
 import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.ControlWindow;
+import ini.trakem2.imaging.StitchingTEM;
+
 import ij.ImagePlus;
 import ij.process.*;
+import ij.gui.GenericDialog;
+import ij.gui.Roi;
 
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -97,10 +103,10 @@ public class Registration {
 	 * @param initial_sigma is adjustable, so that high magnification steps can be skipped for noisy or highly variable datasets, which show most similarity at coarser, lower magnifiation levels.
 	 *
 	 */
-	static public Object[] registerSIFT(final ImageProcessor ip1, final ImageProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final float initial_sigma, final int min_size, final int max_size, final float scale) {
+	static public Object[] registerSIFT(final ImageProcessor ip1, final ImageProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
 		// prepare both sets of features
-		if (null == fs1) fs1 = getSIFTFeatures(ip1, initial_sigma, min_size, max_size);
-		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures(ip2, initial_sigma, min_size, max_size);
+		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp.initial_sigma, sp.min_size, sp.max_size);
+		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures(ip2, sp.initial_sigma, sp.min_size, sp.max_size);
 		// compare
 		final Vector<Match> correspondences = FloatArray2DSIFT.createMatches(fs1, fs2, 1.5f, null, Float.MAX_VALUE);
 		/** From Stephan Saalfeld:
@@ -141,13 +147,13 @@ public class Registration {
 			int highest_num_inliers = 0;
 			int convergence_count = 0;
 			do {
-				epsilon += min_epsilon;
+				epsilon += sp.min_epsilon;
 				//System.out.println("Estimating model for epsilon = " + epsilon);
 				// 1000 iterations lead to a probability of < 0.01% that only bad data values were found
 				model = TRModel.estimateModel(
 						correspondences,			//!< point correspondences
 						1000,						//!< iterations
-						epsilon * (float)scale,	//!< maximal alignment error for a good point pair when fitting the model
+						epsilon * sp.scale,	//!< maximal alignment error for a good point pair when fitting the model
 						//0.1f,						//!< minimal partition (of 1.0) of inliers
 						0.05f,						//!< minimal partition (of 1.0) of inliers
 						tr							//!< model as float array (TrakEM style)
@@ -196,7 +202,7 @@ public class Registration {
 					//f.println(epsilon + " " + (float)model.getInliers().size() / (float)correspondences.size());
 				}
 			} while ((model == null || convergence_count < 5 || (Math.max(r1, r2) > 2.0))
-			     && epsilon < max_epsilon);
+			     && epsilon < sp.max_epsilon);
 		}
 
 		final AffineTransform at = new AffineTransform();
@@ -219,8 +225,8 @@ public class Registration {
 //				  (tr[4] - ip2.getHeight() / 2.0f) / scale + 0.5f);
 			
 			// rotation origin at the top left corner of the image (0.0f, 0.0f) of the image.
-			at.rotate( tr[2], tr[3] / scale, tr[4] / scale );
-			at.translate(tr[0] / scale, tr[1] / scale);
+			at.rotate( tr[2], tr[3] / sp.scale, tr[4] / sp.scale );
+			at.translate(tr[0] / sp.scale, tr[1] / sp.scale);
 		} else {
 			Utils.log("No sufficient model found, keeping original transformation for " + ip2);
 		}
@@ -238,5 +244,155 @@ public class Registration {
 		final Vector<FloatArray2DSIFT.Feature> fs = sift.run(max_size);
 		Collections.sort(fs);
 		return fs;
+	}
+
+	/** Will cross-correlate slices in a separate Thread; leaves the given slice untouched. Eventually it will also rotate them.
+	 * @param base_slice is the reference slice from which the stack will be registered, i.e. it won't be affected in any way.
+	 */
+	static public Bureaucrat registerStackSlices(final Patch base_slice) {
+		// find linked images in different layers and register them
+		// 
+		// setup parameters
+		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+		sp.setup();
+
+		final Worker worker = new Worker("Registering stack slices") {
+			public void run() {
+				startedWorking();
+				try {
+					correlateSlices(base_slice, new HashSet(), this, sp);
+					// ensure there are no negative numbers in the x,y
+					base_slice.getLayer().getParent().setMinimumDimensions();
+				} catch (Exception e) {
+					new IJError(e);
+				}
+				finishedWorking();
+			}
+		};
+		// watcher thread
+		final Bureaucrat burro = new Bureaucrat(worker, base_slice.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+	/** Recursive into linked images in other layers. */
+	static private void correlateSlices(final Patch slice, final HashSet hs_done, final Worker worker, final Registration.SIFTParameters sp) {
+		if (hs_done.contains(slice)) return;
+		hs_done.add(slice);
+		// iterate over all Patches directly linked to the given slice
+		HashSet hs = slice.getLinked(Patch.class);
+		Utils.log2("@@@ size: " + hs.size());
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			if (worker.hasQuitted()) return;
+			final Patch p = (Patch)it.next();
+			if (hs_done.contains(p)) continue;
+			// skip linked images within the same layer
+			if (p.getLayer().equals(slice.getLayer())) continue;
+			// ensure there are no negative numbers in the x,y
+			slice.getLayer().getParent().setMinimumDimensions();
+			// go
+			Registration.registerWithSIFTLandmarks(slice, p, sp);
+			Registration.correlateSlices(p, hs_done, worker, sp);
+		}
+	}
+
+	static private void registerWithSIFTLandmarks(final Patch base, final Patch moving, final Registration.SIFTParameters sp) {
+
+		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
+
+		final Rectangle base_box = base.getBoundingBox();
+		Roi r1 = new Roi(0, 0, base_box.width, base_box.height);
+		ImageProcessor ip1 = StitchingTEM.makeStripe(base, r1, sp.scale, true, true);
+		final Rectangle moving_box = moving.getBoundingBox();
+		Roi r2 = new Roi(0, 0, moving_box.width, moving_box.height);
+		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, r2, sp.scale, true, true);
+
+		final Object[] result = Registration.registerSIFT(ip1, ip2, null, sp);
+		if (null != result) {
+			final AffineTransform at_moving = moving.getAffineTransform();
+			at_moving.setToIdentity(); // be sure to CLEAR it totally
+			// set to the given result
+			at_moving.setTransform((AffineTransform)result[2]);
+			// pre-apply the base's transform
+			at_moving.preConcatenate(base.getAffineTransform());
+
+			if (ControlWindow.isGUIEnabled()) {
+				Rectangle box = moving.getBoundingBox();
+				box.add(moving.getBoundingBox());
+				Display.repaint(moving.getLayer(), box, 1);
+			}
+		} else {
+			// failed, fall back to phase-correlation
+			Utils.log2("Automatic landmark detection failed, falling back to phase-correlation.");
+			Registration.correlate(base, moving, sp.scale);
+		}
+	}
+
+	static private class SIFTParameters {
+		// filled with default values
+		float scale = 0.25f;
+		int steps = 3;
+		float initial_sigma = 1.6f;
+		int fdsize = 8;
+		int fdbins = 2;
+		int min_size = 64;
+		int max_size = 1024;
+		/** Maximal initial drift of landmark relative to its matching landmark in the other image, to consider when searching. */
+		float min_epsilon = 5.0f;
+		float max_epsilon = 100.0f;
+		/** Minimal percent of good landmarks found */
+		float inlier_ratio = 0.1f;
+
+		boolean setup() {
+			final GenericDialog gd = new GenericDialog("Options");
+			gd.addSlider("cc_scale (%):", 1, 100, scale*100);
+			gd.addNumericField("steps_per_scale_octave :", steps, 0);
+			gd.addNumericField("initial_gaussian_blur :", initial_sigma, 2);
+			gd.addNumericField("feature_descriptor_size :", fdsize, 0);
+			gd.addNumericField("feature_descriptor_orientation_bins :", fdbins, 0);
+			gd.addNumericField("minimum_image_size :", min_size, 0);
+			gd.addNumericField("maximum_image_size :", max_size, 0);
+			gd.addNumericField("minimal_alignment_error :", min_epsilon, 2);
+			gd.addNumericField("maximal_alignment_error :", max_epsilon, 2);
+			gd.addNumericField("inlier_ratio :", inlier_ratio, 2);
+			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			this.scale = (float)gd.getNextNumber() / 100;
+			this.steps = (int)gd.getNextNumber();
+			this.initial_sigma = (float)gd.getNextNumber();
+			this.fdsize = (int)gd.getNextNumber();
+			this.fdbins = (int)gd.getNextNumber();
+			this.min_size = (int)gd.getNextNumber();
+			this.max_size = (int)gd.getNextNumber();
+			this.min_epsilon = (float)gd.getNextNumber();
+			this.max_epsilon = (float)gd.getNextNumber();
+			this.inlier_ratio = (float)gd.getNextNumber();
+
+			return true;
+		}
+	}
+
+	static private void correlate(final Patch base, final Patch moving, final float scale) {
+		Utils.log2("Correlating #" + moving.getId() + " to #" + base.getId());
+
+		// test rotation first TODO
+
+		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
+		if (pc[3] < 0.25f) {
+			// R is too low to be trusted
+			Utils.log("Bad R coefficient, skipping " + moving);
+			// set the moving to the same position as the base
+			pc[0] = base.getX();
+			pc[1] = base.getY();
+		}
+		Utils.log2("BASE: x, y " + base.getX() + " , " + base.getY() + "\n\t pc x,y: " + pc[0] + ", " + pc[1]);
+		if (ControlWindow.isGUIEnabled()) {
+			Rectangle box = moving.getBoundingBox();
+			moving.setLocation(pc[0], pc[1]);
+			box.add(moving.getBoundingBox());
+			Display.repaint(moving.getLayer(), box, 1);
+		} else {
+			moving.setLocation(pc[0], pc[1]);
+		}
+		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
 	}
 }

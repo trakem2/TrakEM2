@@ -814,7 +814,7 @@ abstract public class Loader {
 						Image image = p.createImage(); //considers c_alphas
 						lock();
 						if (1.0 != mag) { // make it smaller if possible
-							Image image2 = Snapshot.createSnap(p, image, mag); // image.getScaledInstance((int)Math.ceil(p.getWidth() * mag), (int)Math.ceil(p.getHeight() * mag), Snapshot.SCALE_METHOD);
+							Image image2 = Snapshot.createSnap(p, image, mag);
 							image.flush();
 							image = image2;
 						}
@@ -1756,7 +1756,7 @@ abstract public class Loader {
 		};
 
 		// watcher thread
-		Bureaucrat burro = new Bureaucrat(worker);
+		Bureaucrat burro = new Bureaucrat(worker, layer.getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -1906,7 +1906,7 @@ abstract public class Loader {
 			}
 			finishedWorking();
 		}};
-		Bureaucrat burro = new Bureaucrat(worker);
+		Bureaucrat burro = new Bureaucrat(worker, layer[0].getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -2245,7 +2245,7 @@ abstract public class Loader {
 		};
 
 		// watcher thread
-		Bureaucrat burro = new Bureaucrat(worker);
+		Bureaucrat burro = new Bureaucrat(worker, layer[0].getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -2841,22 +2841,6 @@ abstract public class Loader {
 
 	///////////////////////
 
-	public abstract class Worker extends Thread {
-		private String task_name;
-		private boolean working = false;
-		protected boolean quit = false;
-		Worker(String task_name) {
-			this.task_name = task_name;
-			setPriority(Thread.NORM_PRIORITY);
-		}
-		protected void setTaskName(String name) { this.task_name = name; }
-		protected void startedWorking() { this.working = true; }
-		protected void finishedWorking() { this.working = false; }
-		public boolean isWorking() { return working; }
-		public String getTaskName() { return task_name; }
-		public void quit() { this.quit = true; }
-		public boolean hasQuitted() { return this.quit; }
-	}
 
 	/** List of jobs running on this Loader. */
 	private ArrayList al_jobs = new ArrayList();
@@ -2864,76 +2848,28 @@ abstract public class Loader {
 	private final Object popup_lock = new Object();
 	private boolean popup_locked = false;
 
-	/** Sets a Worker thread to work, and waits until it finishes, blocking all user interface input until then, except for zoom and pan. */
-	public class Bureaucrat extends Thread {
-		private Worker worker;
-		private long onset;
-		final private Project project = Project.findProject(Loader.this);
-		Bureaucrat(Worker worker) {
-			this.worker = worker;
-			onset = System.currentTimeMillis();
-			project.setReceivesInput(false);
-			setPriority(Thread.NORM_PRIORITY);
-			synchronized (popup_lock) {
-				while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
-				popup_locked = true;
-				al_jobs.add(this);
-				popup_locked = false;
-				popup_lock.notifyAll();
-			}
-		}
-		void goHaveBreakfast() {
-			worker.start();
-			start();
-		}
-		public void run() {
-			int sandwitch = 1000; // one second, will get slower over time
-			if (null != IJ.getInstance()) IJ.getInstance().toFront();
-			Utils.showStatus("Started processing: " + worker.getTaskName());
-			while (worker.isWorking() && !worker.hasQuitted()) {
-				try { Thread.sleep(sandwitch); } catch (InterruptedException ie) {}
-				float elapsed_seconds = (System.currentTimeMillis() - onset) / 1000.0f;
-				Utils.showStatus("Processing... " + worker.getTaskName() + " - " + (elapsed_seconds < 60 ?
-						                        (int)elapsed_seconds + " seconds" :
-									(int)(elapsed_seconds / 60) + "' " + (int)(elapsed_seconds % 60) + "''"), false); // don't steal focus
-				// increase sandwitch length progressively
-				if (ControlWindow.isGUIEnabled()) {
-					if (elapsed_seconds > 180) sandwitch = 10000;
-					else if (elapsed_seconds > 60) sandwitch = 3000;
-				} else {
-					sandwitch = 60000; // every minute
-				}
-			}
-			Utils.showStatus("Done " + worker.getTaskName());
-			synchronized (popup_lock) {
-				while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
-				popup_locked = true;
-				if (null != popup_jobs && popup_jobs.isVisible()) {
-					popup_jobs.setVisible(false);
-				}
-				al_jobs.remove(this);
-				popup_locked = false;
-				popup_lock.notifyAll();
-			}
-			project.setReceivesInput(true);
-		}
-		public String getTaskName() {
-			return worker.getTaskName();
-		}
-		/** Waits until worker finishes before returning. */
-		public void quit() {
-			worker.quit();
-			try {
-				Utils.log("Waiting for worker to quit...");
-				worker.join();
-				Utils.log("Worker quitted.");
-			} catch (InterruptedException ie) {} // wait until worker finishes
-		}
-		public boolean isActive() {
-			return worker.isWorking();
+	/** Adds a new job to monitor.*/
+	public void addJob(Bureaucrat burro) {
+		synchronized (popup_lock) {
+			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
+			popup_locked = true;
+			al_jobs.add(burro);
+			popup_locked = false;
+			popup_lock.notifyAll();
 		}
 	}
-
+	public void removeJob(Bureaucrat burro) {
+		synchronized (popup_lock) {
+			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
+			popup_locked = true;
+			if (null != popup_jobs && popup_jobs.isVisible()) {
+				popup_jobs.setVisible(false);
+			}
+			al_jobs.remove(burro);
+			popup_locked = false;
+			popup_lock.notifyAll();
+		}
+	}
 	public JPopupMenu getJobsPopup(Display display) {
 		synchronized (popup_lock) {
 			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
@@ -2941,7 +2877,7 @@ abstract public class Loader {
 			this.popup_jobs = new JPopupMenu("Cancel jobs:");
 			int i = 1;
 			for (Iterator it = al_jobs.iterator(); it.hasNext(); ) {
-				Loader.Bureaucrat burro = (Loader.Bureaucrat)it.next();
+				Bureaucrat burro = (Bureaucrat)it.next();
 				JMenuItem item = new JMenuItem("Job " + i + ": " + burro.getTaskName());
 				item.addActionListener(display);
 				popup_jobs.add(item);
@@ -2952,7 +2888,6 @@ abstract public class Loader {
 		}
 		return popup_jobs;
 	}
-
 	/** Names as generated for popup menu items in the getJobsPopup method. If the name is null, it will cancel the last one. */
 	public void quitJob(String name) {
 		Object ob = null;
@@ -2970,7 +2905,7 @@ abstract public class Loader {
 		}
 		if (null != ob) {
 			// will wait until worker returns
-			((Loader.Bureaucrat)ob).quit(); // will require the lock
+			((Bureaucrat)ob).quit(); // will require the lock
 		}
 		synchronized (popup_lock) {
 			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
@@ -2988,110 +2923,6 @@ abstract public class Loader {
 				    .append("\n\tawts: ").append(awts.size())
 				    .append("\n\tsnaps: ").append(snaps.size())
 			   .toString());
-	}
-
-	/** Will cross-correlate slices in a separate Thread; leaves the given slice untouched. Eventually it will also rotate them. */
-	public Loader.Bureaucrat registerStackSlices(final Patch base_slice, final float scale) {
-		// find linked images in different layers and cross-correlate them
-		Worker worker = new Worker("Registering stack slices") {
-			public void run() {
-				startedWorking();
-				try {
-					correlateSlices(base_slice, new HashSet(), scale, this);
-					// ensure there are no negative numbers in the x,y
-					base_slice.getLayer().getParent().setMinimumDimensions();
-				} catch (Exception e) {
-					new IJError(e);
-				}
-				finishedWorking();
-			}
-		};
-		// watcher thread
-		Bureaucrat burro = new Bureaucrat(worker);
-		burro.goHaveBreakfast();
-		return burro;
-	}
-	/** Recursive into linked images in other layers. */
-	private void correlateSlices(Patch slice, HashSet hs_done, float scale, Worker worker) {
-		if (hs_done.contains(slice)) return;
-		hs_done.add(slice);
-		// iterate over all Patches directly linked to the given slice
-		HashSet hs = slice.getLinked(Patch.class);
-		Utils.log2("@@@ size: " + hs.size());
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			if (worker.quit) return;
-			final Patch p = (Patch)it.next();
-			if (hs_done.contains(p)) continue;
-			// skip linked images within the same layer
-			if (p.getLayer().equals(slice.getLayer())) continue;
-			// ensure there are no negative numbers in the x,y
-			slice.getLayer().getParent().setMinimumDimensions();
-			//correlate(slice, p, scale);
-			registerWithSIFTLandmarks(slice, p, scale);
-			correlateSlices(p, hs_done, scale, worker);
-		}
-	}
-
-	private void correlate(final Patch base, final Patch moving, final float scale) {
-		Utils.log2("Correlating #" + moving.getId() + " to #" + base.getId());
-
-		// test rotation first TODO
-
-		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
-		if (pc[3] < 0.25f) {
-			// R is too low to be trusted
-			Utils.log("Bad R coefficient, skipping " + moving);
-			// set the moving to the same position as the base
-			pc[0] = base.getX();
-			pc[1] = base.getY();
-		}
-		Utils.log2("BASE: x, y " + base.getX() + " , " + base.getY() + "\n\t pc x,y: " + pc[0] + ", " + pc[1]);
-		if (ControlWindow.isGUIEnabled()) {
-			Rectangle box = moving.getBoundingBox();
-			moving.setLocation(pc[0], pc[1]);
-			box.add(moving.getBoundingBox());
-			Display.repaint(moving.getLayer(), box, 1);
-		} else {
-			moving.setLocation(pc[0], pc[1]);
-		}
-		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
-	}
-
-	private void registerWithSIFTLandmarks(final Patch base, final Patch moving, final float scale) {
-
-		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
-
-		final Rectangle base_box = base.getBoundingBox();
-		Roi r1 = new Roi(0, 0, base_box.width, base_box.height);
-		ImageProcessor ip1 = StitchingTEM.makeStripe(base, r1, scale, true, true);
-		final Rectangle moving_box = moving.getBoundingBox();
-		Roi r2 = new Roi(0, 0, moving_box.width, moving_box.height);
-		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, r2, scale, true, true);
-
-		// parameters
-		float min_epsilon = 5f; // maximal initial drift of landmark relative to its matching landmark in the other image, to consider when searching
-		float inlier_ratio = 0.1f; // minimal percent of good landmarks found
-
-		final float[] lc = new float[5];
-		final Object[] result = Registration.registerSIFT(ip1, ip2, null, 1.6f, 64, 1024, scale);
-		if (null != result) {
-			final AffineTransform at_moving = moving.getAffineTransform();
-			at_moving.setToIdentity(); // be sure to CLEAR it totally
-			// set to the given result
-			at_moving.setTransform((AffineTransform)result[2]);
-			// pre-apply the base's transform
-			at_moving.preConcatenate(base.getAffineTransform());
-
-			if (ControlWindow.isGUIEnabled()) {
-				Rectangle box = moving.getBoundingBox();
-				box.add(moving.getBoundingBox());
-				Display.repaint(moving.getLayer(), box, 1);
-			}
-		} else {
-			// failed, fall back to phase-correlation
-			Utils.log2("Automatic landmark detection failed, falling back to phase-correlation.");
-			correlate(base, moving, scale);
-		}
 	}
 
 	/** Fixes paths before presenting them to the file system, in an OS-dependent manner. */
