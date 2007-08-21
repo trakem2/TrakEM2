@@ -12,7 +12,7 @@ public class FloatArray2DSIFT
 	/**
 	 * SIFT feature container
 	 */
-	public class Feature implements Comparable
+	public class Feature implements Comparable< FloatArray2DSIFT.Feature >
 	{
 		public float scale;
 		public float orientation;
@@ -32,9 +32,9 @@ public class FloatArray2DSIFT
 		 * please note, that the comparator returns -1 for
 		 * this.scale > o.scale, to sort the features in a descending order  
 		 */
-		public int compareTo( Object o )
+		public int compareTo( FloatArray2DSIFT.Feature f )
 		{
-			Feature f = ( Feature )o;
+			//Feature f = ( Feature )o;
 			return scale < f.scale ? 1 : scale == f.scale ? 0 : -1;
 		}
 		
