@@ -83,7 +83,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 
 	public void mousePressed(MouseEvent me) {
 		Object source = me.getSource();
-		if (!source.equals(this)) {
+		if (!source.equals(this) || !Project.getInstance(this).isInputEnabled()) {
 			return;
 		}
 		int x = me.getX();
@@ -141,6 +141,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 	public void mouseClicked(MouseEvent me) { }
 
 	public void actionPerformed(ActionEvent ae) {
+		if (!Project.getInstance(this).isInputEnabled()) return;
 		try {
 			if (null == selected_node) return;
 			Object ob = selected_node.getUserObject();

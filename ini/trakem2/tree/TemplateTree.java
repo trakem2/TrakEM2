@@ -57,7 +57,7 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 
 	public void mousePressed(MouseEvent me) {
 		Object source = me.getSource();
-		if (!source.equals(this)) {
+		if (!source.equals(this) || !Project.getInstance(this).isInputEnabled()) {
 			return;
 		}
 		// allow right-click only

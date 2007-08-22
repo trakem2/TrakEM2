@@ -102,6 +102,7 @@ public class Registration {
 	 * The given @param fs1 may be null, in which case it will be generated from the first ImagePlus.
 	 * @param initial_sigma is adjustable, so that high magnification steps can be skipped for noisy or highly variable datasets, which show most similarity at coarser, lower magnifiation levels.
 	 *
+	 * Returns null if the model is not significant.
 	 */
 	static public Object[] registerSIFT(final ImageProcessor ip1, final ImageProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
 		// prepare both sets of features
@@ -231,6 +232,7 @@ public class Registration {
 			at.translate(tr[0] / sp.scale, tr[1] / sp.scale);
 		} else {
 			Utils.log("No sufficient model found, keeping original transformation for " + ip2);
+			return null;
 		}
 
 		return new Object[]{fs1, fs2, at};
@@ -248,7 +250,7 @@ public class Registration {
 		return fs;
 	}
 
-	/** Will cross-correlate slices in a separate Thread; leaves the given slice untouched. Eventually it will also rotate them.
+	/** Will cross-correlate slices in a separate Thread; leaves the given slice untouched.
 	 * @param base_slice is the reference slice from which the stack will be registered, i.e. it won't be affected in any way.
 	 */
 	static public Bureaucrat registerStackSlices(final Patch base_slice) {
@@ -262,7 +264,7 @@ public class Registration {
 			public void run() {
 				startedWorking();
 				try {
-					correlateSlices(base_slice, new HashSet(), this, sp, null);
+					correlateSlices(base_slice, new HashSet(), this, sp/*, null*/); // using non-recursive version
 					// ensure there are no negative numbers in the x,y
 					base_slice.getLayer().getParent().setMinimumDimensions();
 				} catch (Exception e) {
@@ -281,6 +283,7 @@ public class Registration {
 		if (hs_done.contains(slice)) return;
 		hs_done.add(slice);
 		// iterate over all Patches directly linked to the given slice
+		// recursive version: has memory releasing problems.
 		HashSet hs = slice.getLinked(Patch.class);
 		Utils.log2("@@@ size: " + hs.size());
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
@@ -293,7 +296,56 @@ public class Registration {
 			slice.getLayer().getParent().setMinimumDimensions();
 			// go
 			final Object[] result = Registration.registerWithSIFTLandmarks(slice, p, sp, fs_slice);
-			Registration.correlateSlices(p, hs_done, worker, sp, (Vector<FloatArray2DSIFT.Feature>)result[1]); // I give it the feature set of the moving patch, which in this call will serve as base
+			// enable GC:
+			if (null != result) {
+				result[0] = null;
+				result[2] = null;
+			}
+			Registration.correlateSlices(p, hs_done, worker, sp, null != result ? (Vector<FloatArray2DSIFT.Feature>)result[1] : null); // I give it the feature set of the moving patch, which in this call will serve as base
+		}
+	}
+	/** Non-recursive version (for the processing; the assembly of the stack chain is recursive). */
+	static private void correlateSlices(final Patch slice, final HashSet hs_done, final Worker worker, final Registration.SIFTParameters sp) {
+		// non-recursive version: build the chain first. Assumes there are only two chains max.
+		final ArrayList al_chain1 = new ArrayList();
+		final ArrayList al_chain2 = new ArrayList();
+		for (Iterator it = slice.getLinked(Patch.class).iterator(); it.hasNext(); ) {
+			if (0 == al_chain1.size()) {
+				al_chain1.add(slice);
+				al_chain1.add(it.next());
+				buildChain(al_chain1);
+				continue;
+			}
+			if (0 == al_chain2.size()) {
+				al_chain2.add(slice);
+				al_chain2.add(it.next());
+				buildChain(al_chain2);
+				continue;
+			}
+			break; // only two max; a Patch of a stack should never have more than two Patch linked to it
+		}
+		if (al_chain1.size() >= 2) processChain(al_chain1, sp, worker);
+		if (al_chain2.size() >= 2) processChain(al_chain2, sp, worker);
+	}
+
+	/** Take the last one of the chain, inspect its linked Patches, add the one that is not yet included, continue building. Recursive. */
+	static private void buildChain(final ArrayList al_chain) {
+		final Patch p = (Patch)al_chain.get(al_chain.size()-1);
+		for (Iterator it = p.getLinked(Patch.class).iterator(); it.hasNext(); ) {
+			Object ob = it.next();
+			if (al_chain.contains(ob)) continue;
+			else {
+				al_chain.add(ob);
+				buildChain(al_chain);
+				break;
+			}
+		}
+	}
+	static private void processChain(final ArrayList al_chain, final Registration.SIFTParameters sp, final Worker worker) {
+		Object[] result = null;
+		for (int i=1; i<al_chain.size(); i++) {
+			if (worker.hasQuitted()) return;
+			result = registerWithSIFTLandmarks((Patch)al_chain.get(i-1), (Patch)al_chain.get(i), sp, null == result ? null : (Vector<FloatArray2DSIFT.Feature>)result[1]);
 		}
 	}
 
@@ -302,26 +354,36 @@ public class Registration {
 
 		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 
-		final Rectangle base_box = base.getBoundingBox();
-		Roi r1 = new Roi(0, 0, base_box.width, base_box.height);
-		ImageProcessor ip1 = StitchingTEM.makeStripe(base, r1, sp.scale, true, true);
-		final Rectangle moving_box = moving.getBoundingBox();
-		Roi r2 = new Roi(0, 0, moving_box.width, moving_box.height);
-		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, r2, sp.scale, true, true);
+		ImageProcessor ip1 = StitchingTEM.makeStripe(base, sp.scale, true, true);
+		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, sp.scale, true, true);
 
 		final Object[] result = Registration.registerSIFT(ip1, ip2, fs_base, sp);
+
+		// enable garbage collection!
+		ip1 = null;
+		ip2 = null;
+		// no hope. The recursion prevents from lots of memory from ever being released.
+		// MWAHAHA so I made a non-recursive smart-ass version.
+		// It is somewhat disturbing that each SIFT match at max_size 1600 was using nearly 400 Mb, and all of them were NOT released because of the recursion.
+		Loader.runGC();
+		base.getProject().getLoader().releaseMemory();
+
 		if (null != result) {
-			final AffineTransform at_moving = moving.getAffineTransform();
+			AffineTransform at_moving = moving.getAffineTransform();
 			at_moving.setToIdentity(); // be sure to CLEAR it totally
 			// set to the given result
 			at_moving.setTransform((AffineTransform)result[2]);
 			// pre-apply the base's transform
 			at_moving.preConcatenate(base.getAffineTransform());
 
+			at_moving = null;
+
 			if (ControlWindow.isGUIEnabled()) {
 				Rectangle box = moving.getBoundingBox();
 				box.add(moving.getBoundingBox());
 				Display.repaint(moving.getLayer(), box, 1);
+
+				box = null;
 			}
 		} else {
 			// failed, fall back to phase-correlation

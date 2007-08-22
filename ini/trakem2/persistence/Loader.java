@@ -539,21 +539,21 @@ abstract public class Loader {
 	}
 
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
-	public final void runGC() {
+	static public final void runGC() {
 		final long initial = IJ.currentMemory();
-		long now = 0;
+		long now = initial;
 		int max = 10;
 		long sleep = 50; // initial value
 		int iterations = 1;
 		do {
-			Utils.log("\titer " + iterations + "  initial: " + initial  + " now: " + now);
-			iterations++;
 			System.gc();
 			Thread.yield();
 			try { Thread.sleep(sleep); } catch (InterruptedException ie) {}
 			sleep += sleep;
 			now = IJ.currentMemory();
 			max--;
+			Utils.log("\titer " + iterations + "  initial: " + initial  + " now: " + now);
+			iterations++;
 		} while (now >= initial && max > 0);
 		Utils.log2("finished runGC");
 	}
@@ -562,7 +562,7 @@ abstract public class Loader {
 	public static final long MIN_FREE_BYTES = (long)(max_memory * 0.2f);
 
 	/** Remove up to half the ImagePlus cache of others (but their awts and snaps first if needed) and then one single ImagePlus of this Loader's cache. */
-	protected final void releaseMemory() {
+	public final void releaseMemory() {
 		releaseMemory(0.5D, true, MIN_FREE_BYTES);
 	}
 
@@ -570,7 +570,7 @@ abstract public class Loader {
 	*  The very last thing to remove is the stored awt.Image objects and then the snaps.
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .
 	*/ // NOT locked, however calls must take care of that.
-	protected final void releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
+	public final void releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
 		try {
 			while (!enoughFreeMemory(min_free_bytes)) {
 				// release the cache of other loaders (up to 'a' of the ImagePlus cache of them if necessary)

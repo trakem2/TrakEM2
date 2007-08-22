@@ -277,29 +277,36 @@ public class StitchingTEM {
 		return makeStripe(p, roi, scale, false, false);
 	}
 
-	/** Return FloatProcessor.
-	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */ // TODO param 'quality' is being ignored
+	static public ImageProcessor makeStripe(final Patch p, final float scale, final boolean quality, final boolean ignore_patch_transform) {
+		return makeStripe(p, null, scale, quality, ignore_patch_transform);
+	}
+
+	/** @return FloatProcessor.
+	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */ // TODO param 'quality' is being ignored // TODO 2: there is a combination of options that ends up resulting in the actual ImageProcessor of the Patch being returned as is, which is DANGEROUS because it can potentially result in changes in the data.
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean quality, boolean ignore_patch_transform) {
 		final ImagePlus imp = p.getProject().getLoader().fetchImagePlus(p, false);
 		ImageProcessor ip = imp.getProcessor();
+
 		// compare and adjust
 		if (!ignore_patch_transform && !p.getAffineTransform().isIdentity()) { //  (ip.getWidth() != (int)p.getWidth() || ip.getHeight() != (int)p.getHeight()))
 			final Rectangle b = p.getBoundingBox();
 			ip = ip.resize(b.width, b.height);
 			Utils.log2("resizing stripe for patch: " + p);
-			// the above is only meant to correct for improperly acquired images at the microscope.
+			// the above is only meant to correct for improperly acquired images at the microscope, the scale only. TODO this will generate endless problems with transformed images, needs fixing.
 		}
 		// cut
-		final Rectangle rb = roi.getBounds();
-		if (ip.getWidth() != rb.width || ip.getHeight() != rb.height) {
-			ip.setRoi(roi);
-			ip = ip.crop();
+		if (null != roi) {
+			final Rectangle rb = roi.getBounds();
+			if (ip.getWidth() != rb.width || ip.getHeight() != rb.height) {
+				ip.setRoi(roi);
+				ip = ip.crop();
+			}
 		}
 		// scale
 		if (scale < 1) {
 			p.getProject().getLoader().releaseToFit((long)(ip.getWidth() * ip.getHeight() * 4 * 1.2)); // floats have 4 bytes, plus some java peripherals correction factor
 			ip = ip.convertToFloat();
-			ip.setPixels( ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.getPixels(), ip.getWidth(), ip.getHeight()), (float)Math.sqrt(0.25 / scale / scale - 0.25)).data); // scaling with area averaging is the same as a gaussian of sigma 0.5/scale and then resize with nearest neightbor So this line does the gaussian, and line below does the neares-neighbor scaling
+			ip.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.getPixels(), ip.getWidth(), ip.getHeight()), (float)Math.sqrt(0.25 / scale / scale - 0.25)).data); // scaling with area averaging is the same as a gaussian of sigma 0.5/scale and then resize with nearest neightbor So this line does the gaussian, and line below does the neares-neighbor scaling
 			ip = ip.resize((int)(ip.getWidth() * scale)); // scale mantaining aspect ratio
 		}
 

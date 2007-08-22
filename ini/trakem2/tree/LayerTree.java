@@ -92,7 +92,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 
 	public void mousePressed(MouseEvent me) {
 		Object source = me.getSource();
-		if (!source.equals(this)) {
+		if (!source.equals(this) || !Project.getInstance(this).isInputEnabled()) {
 			return;
 		}
 
