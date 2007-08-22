@@ -586,7 +586,7 @@ public class FloatArray2DSIFT
 				else if ( d < second_best_d )
 					second_best_d = d;
 			}
-			if ( best != null && second_best_d < Float.MAX_VALUE && best_d / second_best_d < 0.9 )
+			if ( best != null && second_best_d < Float.MAX_VALUE && best_d / second_best_d < 0.95 )
 				matches.addElement(
 						new Match(
 								new float[] { f1.location[ 0 ], f1.location[ 1 ] },
