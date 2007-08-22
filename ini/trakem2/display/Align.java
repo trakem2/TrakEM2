@@ -276,7 +276,8 @@ public class Align {
 			final double scale = ls.getRegistrationProperty("rg_scale").doubleValue();
 			final boolean ignore_squared_angles = (ls.getRegistrationProperty("rg_ignore_squared_angles").equals(new Double(1)));
 			final boolean enhance_edges = (ls.getRegistrationProperty("rg_enhance_edges").equals(new Double(1)));
-			Registration.registerLayers(l1.layer, l2.layer, max_rot, max_displacement, scale, ignore_squared_angles, enhance_edges);
+			//TODO this entire method needs revision // Registration.registerLayers(l1.layer, l2.layer, max_rot, max_displacement, scale, ignore_squared_angles, enhance_edges);
+			Utils.log2("Align: under reconstruction.");
 		}
 
 		// end

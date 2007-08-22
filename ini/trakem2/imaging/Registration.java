@@ -69,29 +69,97 @@ public class Registration {
 	/** ASK */
 	private static int steps = 3;
 
-	/** Makes a snapshot with the Patch objects in both layers at the given scale, and rotates/translates all Displayable elements in the second Layer relative to the first. */
-	static public boolean registerLayers(final Layer layer1, final Layer layer2, final double max_rot, final double max_displacement, final double scale, final boolean ignore_squared_angles, final boolean enhance_edges) {
-		if (scale <= 0) return false;
-		try {
-			// get minimal enclosing boxes
-			Rectangle box1 = layer1.getMinimalBoundingBox(Patch.class);
-			if (null == box1) return false;
-			Rectangle box2 = layer2.getMinimalBoundingBox(Patch.class);
-			if (null == box2) return false;
-			// get flat grayscale images, scaled
-			ImagePlus imp1 = layer1.getProject().getLoader().getFlatImage(layer1, box1, scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
-			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
-			// ready to start
-			//
-			//
-			// TODO
-			//
-			//
-		} catch (Exception e) {
-			new IJError(e);
+	/** Register a subset of consecutive layers of the LayerSet, starting at 'start' (which is unmodified)
+	 *  and proceeding both towards first and towards last.
+	 *  The last transform is applied to all other subsequent, non-included layers if specified in @param propagate.
+	 */
+	static public Bureaucrat registerLayers(final LayerSet layer_set, final int first, final int start, final int last, final boolean propagate) {
+		// check preconditions
+		if (null == layer_set || first > start || first > last || start > last || last > layer_set.size()) {
+			Utils.log2("Registration.registerLayers: invalid parameters: " + layer_set + ", first: " + first + ", start: " + start + ", last" + last);
 			return false;
 		}
-		return true;
+		// TODO:
+		// 1 - setup worker/bureaucrat model
+		// 2 - popup menu to choose layer range
+		//
+		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+		sp.setup();
+		final Worker worker = new Worker("Registering stack slices") {
+			public void run() {
+				startedWorking();
+
+		try {
+			// build lists (Layers are consecutive)
+			final List list1 = layer_set.getLayers().subList(first, start+1); // endings are exclusive
+			final List list2 = layer_set.getLayers().subList(start, last+1);
+			// iterate in pairs
+			Collections.reverse(list1);
+			final Layer start_layer = (Layer)list2.get(0); // even if there is only one element, list2 will contain the starting layer as the first element.
+			final ImagePlus imp = start_layer.getProject().getLoader().getFlatImage(start_layer, start_layer.getMinimalBoundingBox(Patch.class), sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+			processLayerList(list1, imp, sp, propagate);
+			processLayerList(list2, imp, sp, propagate);
+		} catch (Exception e) {
+			new IJError(e);
+		}
+
+				finishedWorking();
+			}
+		};
+		// watcher thread
+		final Bureaucrat burro = new Bureaucrat(worker, base_slice.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+	static private void processLayerList(final List list, final ImagePlus imp_first, final Registration.SIFTParameters sp, final boolean propagate) {
+		Object[] result = null;
+		for (int i=1; i<list.size(); i++) {
+			Layer la1 = (Layer)list.get(i-1);
+			Layer la2 = (Layer)list.get(i);
+			result = registerSIFT(la1, la2, 1 == i ? imp_first : (null != result ? (ImagePlus)result[2] : null), null == result ? null : (Vector<FloatArray2DSIFT.Feature>)result[1], sp);
+		}
+		if (null != result[2]) ((ImagePlus)result[2]).flush();
+		result = null;
+		Loader.runGC();
+	}
+
+	/** Makes a snapshot with the Patch objects in both layers at the given scale, and rotates/translates all Displayable elements in the second Layer relative to the first.
+	 *
+	 * @return An array containing the Vector of features in layer1, the Vector of features in layer2, and the flat image used for layer2.
+	 */
+	static public Object[] registerSIFT(final Layer layer1, final Layer layer2, ImagePlus imp1, final Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
+		try {
+			// prepare flat images for each layer
+			if (null == imp1) {
+				imp1 = layer1.getProject().getLoader().getFlatImage(layer1, layer1.getMinimalBoundingBox(Patch.class), sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+			}
+			final ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, layer2.getMinimalBoundingBox(Patch.class), sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+
+			// ready to start
+			final Object[] result = Registration.registerSIFT(imp1.getProcessor().convertToFloat(), imp2.getProcessor().convertToFloat(), fs1, sp);
+
+			if (null != result) {
+				// use the returned AffineTransform to adjust all Patch objects in layer2
+				// The transform is the same for a part as for the whole.
+				// Since the flat image was done considering the tranforms of each tile,
+				// the returned transform simply needs to be preconcatenated to the tile's:
+				layer2.apply(Patch.class, (AffineTransform)result[2]); // preconcatenate the transform to every Patch in the Layer
+				// hack: (for caching)
+				result[2] = imp2;
+			} else {
+				// fall back to phase-correlation
+				// TODO
+			}
+
+			// cleanup:
+			imp1.flush();
+			// imp2 is preserved and returned for the next match
+			return result;
+
+		} catch (Exception e) {
+			new IJError(e);
+		}
+		return null;
 	}
 
 	/** Registers the second image relative to the first. Returns an array of:
@@ -99,7 +167,7 @@ public class Registration {
 	 * - the set of features for the second image
 	 * - the AffineTransform defining the registration of the second image relative to the first.
 	 *
-	 * The given @param fs1 may be null, in which case it will be generated from the first ImagePlus.
+	 * The given @param fs1 may be null, in which case it will be generated from the first ImagePlus. It is here so that caching is possible.
 	 * @param initial_sigma is adjustable, so that high magnification steps can be skipped for noisy or highly variable datasets, which show most similarity at coarser, lower magnifiation levels.
 	 *
 	 * Returns null if the model is not significant.
@@ -208,8 +276,7 @@ public class Registration {
 
 		final AffineTransform at = new AffineTransform();
 
-		if (model != null)
-		{
+		if (model != null) {
 			// debug
 			Utils.log2("epsilon: " + epsilon + "  inliers: " + model.getInliers().size() + "  corresp: " + correspondences.size());
 			// images may have different sizes
@@ -220,13 +287,11 @@ public class Registration {
 			 * translate the pivot point of the rotation and translate the translation
 			 * vector itself.
 			 */
-			//final double xdiff = ip1.getWidth() - ip2.getWidth();
-			//final double ydiff = ip1.getHeight() - ip2.getHeight();
-//			// assumes rotation origin at the center of the image.
-//			at.rotate( tr[2],
-//				  (tr[3] - ip2.getWidth() / 2.0f) / scale + 0.5f,
-//				  (tr[4] - ip2.getHeight() / 2.0f) / scale + 0.5f);
-			
+			// assumes rotation origin at the center of the image.
+			//at.rotate( tr[2],
+			//(tr[3] - ip2.getWidth() / 2.0f) / scale + 0.5f,
+			//(tr[4] - ip2.getHeight() / 2.0f) / scale + 0.5f);
+
 			// rotation origin at the top left corner of the image (0.0f, 0.0f) of the image.
 			at.rotate( tr[2], tr[3] / sp.scale, tr[4] / sp.scale );
 			at.translate(tr[0] / sp.scale, tr[1] / sp.scale);

@@ -1065,8 +1065,9 @@ public abstract class Displayable extends DBObject {
 		return (AffineTransform)at.clone();
 	}
 
+	/** Sets the matrix values of the given AffineTransform to this Displayable's AffineTransform. */
 	public void setAffineTransform(AffineTransform at) {
-		this.at = at;
+		this.at.setTransform(at);
 		updateInDatabase("transform");
 	}
 

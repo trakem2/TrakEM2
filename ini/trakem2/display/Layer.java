@@ -38,10 +38,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 
 import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
 
 public class Layer extends DBObject {
 
-	private ArrayList al_displayables;
+	private final ArrayList al_displayables = new ArrayList();
 
 	private double z;
 	private double thickness;
@@ -52,7 +53,6 @@ public class Layer extends DBObject {
 		super(project);
 		this.z = z;
 		this.thickness = thickness;
-		this.al_displayables = new ArrayList();
 		this.parent = parent;
 		addToDatabase();
 	}
@@ -62,7 +62,6 @@ public class Layer extends DBObject {
 		super(project, id);
 		this.z = z;
 		this.thickness = thickness;
-		this.al_displayables = new ArrayList();
 		this.parent = null;
 	}
 
@@ -70,7 +69,6 @@ public class Layer extends DBObject {
 	public Layer(Project project, long id, Hashtable ht_attributes) {
 		super(project, id);
 		this.parent = null;
-		this.al_displayables = new ArrayList();
 		// parse data
 		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
 			String key = (String)e.nextElement();
@@ -610,5 +608,16 @@ public class Layer extends DBObject {
 			box.add(tmp);
 		}
 		return box;
+	}
+
+	/** Preconcatenate the given AffineTransform to all Displayable objects of class c. */
+	public void apply(final Class c, final AffineTransform at) {
+		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
+			final Displayable d = (Displayable)it.next();
+			if (d.getClass().equals(c)) {
+				d.getAffineTransform().preConcatenate(at);
+				d.updateInDatabase("transform");
+			}
+		}
 	}
 }
