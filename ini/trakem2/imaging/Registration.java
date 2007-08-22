@@ -200,11 +200,12 @@ public class Registration {
 		double[] evec2 = new double[4];
 		Match.covariance(correspondences, cov1, cov2, o1, o2, ev1, ev2, evec1, evec2);
 		// above: the mighty C++ programmer! What a piece of risky code!
+		// TODO replace this as well as the iteration with increasing epsilon by a reliable robust maximal inlier set estimation to be found
 
 		TRModel model = null;
 		final float[] tr = new float[5];
 		float epsilon = 0.0f;
-		if (correspondences.size() > model.MIN_SET_SIZE) {
+		if (correspondences.size() > TRModel.MIN_SET_SIZE) {
 			ev1[0] = Math.sqrt(ev1[0]);
 			ev1[1] = Math.sqrt(ev1[1]);
 			ev2[0] = Math.sqrt(ev2[0]);
@@ -220,12 +221,11 @@ public class Registration {
 				//System.out.println("Estimating model for epsilon = " + epsilon);
 				// 1000 iterations lead to a probability of < 0.01% that only bad data values were found
 				model = TRModel.estimateModel(
-						correspondences,			//!< point correspondences
-						1000,						//!< iterations
-						epsilon * sp.scale,	//!< maximal alignment error for a good point pair when fitting the model
-						//0.1f,						//!< minimal partition (of 1.0) of inliers
-						0.05f,						//!< minimal partition (of 1.0) of inliers
-						tr							//!< model as float array (TrakEM style)
+						correspondences,      //!< point correspondences
+						1000,                 //!< iterations
+						epsilon * sp.scale,   //!< maximal alignment error for a good point pair when fitting the model
+						sp.inlier_ratio,      //!< minimal inlier ratio required for a model to be accepted
+						tr                    //!< model as float array (TrakEM style)
 						);
 
 				// compare the standard deviation of inliers and matches
@@ -270,7 +270,7 @@ public class Registration {
 					//System.out.println("deviation ratio: " + r1 + ", " + r2 + ", max = " + Math.max(r1, r2));
 					//f.println(epsilon + " " + (float)model.getInliers().size() / (float)correspondences.size());
 				}
-			} while ((model == null || convergence_count < 5 || (Math.max(r1, r2) > 2.0))
+			} while ((model == null || convergence_count < 4 || (Math.max(r1, r2) > 2.0))
 			     && epsilon < sp.max_epsilon);
 		}
 
@@ -464,14 +464,14 @@ public class Registration {
 		int steps = 3;
 		float initial_sigma = 1.6f;
 		int fdsize = 8;
-		int fdbins = 2;
+		int fdbins = 8;
 		int min_size = 64;
 		int max_size = 1024;
-		/** Maximal initial drift of landmark relative to its matching landmark in the other image, to consider when searching. */
-		float min_epsilon = 5.0f;
+		/** Maximal initial drift of landmark relative to its matching landmark in the other image, to consider when searching.  Also used as increment for epsilon when there was no sufficient model found.*/
+		float min_epsilon = 2.0f;
 		float max_epsilon = 100.0f;
 		/** Minimal percent of good landmarks found */
-		float inlier_ratio = 0.1f;
+		float inlier_ratio = 0.05f;
 
 		boolean setup() {
 			final GenericDialog gd = new GenericDialog("Options");

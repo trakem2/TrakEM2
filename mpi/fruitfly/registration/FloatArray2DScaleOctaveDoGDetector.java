@@ -12,7 +12,8 @@ public class FloatArray2DScaleOctaveDoGDetector
 	/**
 	 * minimal contrast of a candidate
 	 */
-	private static final float MIN_CONTRAST = 0.03f * 255.0f;
+	//private static final float MIN_CONTRAST = 0.03f * 255.0f;
+	private static final float MIN_CONTRAST = 0.025f * 255.0f;
 	
 	/**
 	 * maximal curvature ratio, higher values allow more edge-like responses
