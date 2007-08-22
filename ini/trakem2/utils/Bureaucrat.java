@@ -82,4 +82,7 @@ public class Bureaucrat extends Thread {
 	public boolean isActive() {
 		return worker.isWorking();
 	}
+	public Thread getWorker() {
+		return worker;
+	}
 }

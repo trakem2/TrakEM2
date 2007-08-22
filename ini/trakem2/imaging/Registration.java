@@ -58,17 +58,6 @@ import java.awt.geom.AffineTransform;
  * */
 public class Registration {
 
-	/** minimal allowed alignment error in px (pixels) */
-	private static float min_epsilon = 2.0f;
-	/** maximal allowed alignment error in px (pixels) */
-	private static float max_epsilon = 100.0f;
-	/** feature descriptor size */
-	private static int fdsize = 8;
-	/** feature descriptor orientation bins */
-	private static int fdbins = 8;
-	/** ASK */
-	private static int steps = 3;
-
 	/** Register a subset of consecutive layers of the LayerSet, starting at 'start' (which is unmodified)
 	 *  and proceeding both towards first and towards last.
 	 *  The last transform is applied to all other subsequent, non-included layers if specified in @param propagate.
@@ -77,19 +66,22 @@ public class Registration {
 		// check preconditions
 		if (null == layer_set || first > start || first > last || start > last || last > layer_set.size()) {
 			Utils.log2("Registration.registerLayers: invalid parameters: " + layer_set + ", first: " + first + ", start: " + start + ", last" + last);
-			return false;
+			return null;
 		}
 		// TODO:
 		// 1 - setup worker/bureaucrat model
 		// 2 - popup menu to choose layer range
 		//
-		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
-		sp.setup();
 		final Worker worker = new Worker("Registering stack slices") {
 			public void run() {
 				startedWorking();
 
 		try {
+			final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+			if (!sp.setup()) {
+				finishedWorking();
+				return;
+			}
 			// build lists (Layers are consecutive)
 			final List list1 = layer_set.getLayers().subList(first, start+1); // endings are exclusive
 			final List list2 = layer_set.getLayers().subList(start, last+1);
@@ -107,7 +99,7 @@ public class Registration {
 			}
 		};
 		// watcher thread
-		final Bureaucrat burro = new Bureaucrat(worker, base_slice.getProject());
+		final Bureaucrat burro = new Bureaucrat(worker, layer_set.getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -174,8 +166,8 @@ public class Registration {
 	 */
 	static public Object[] registerSIFT(final ImageProcessor ip1, final ImageProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
 		// prepare both sets of features
-		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp.initial_sigma, sp.min_size, sp.max_size);
-		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures(ip2, sp.initial_sigma, sp.min_size, sp.max_size);
+		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp);
+		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures(ip2, sp);
 		// compare
 		final Vector<Match> correspondences = FloatArray2DSIFT.createMatches(fs1, fs2, 1.5f, null, Float.MAX_VALUE);
 		/** From Stephan Saalfeld:
@@ -304,13 +296,13 @@ public class Registration {
 	}
 
 	/** Returns a sorted list of the SIFT features extracted from the given ImagePlus. */
-	final static public Vector<FloatArray2DSIFT.Feature> getSIFTFeatures(final ImageProcessor ip, final float initial_sigma, final int min_size, final int max_size) {
+	final static public Vector<FloatArray2DSIFT.Feature> getSIFTFeatures(final ImageProcessor ip, final Registration.SIFTParameters sp) {
 		final FloatArray2D fa = ImageFilter.computeGaussianFastMirror(
 				ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat()),
-				(float)Math.sqrt(initial_sigma * initial_sigma - 0.25));
-		final FloatArray2DSIFT sift = new FloatArray2DSIFT(fdsize, fdbins);
-		sift.init(fa, steps, initial_sigma, min_size, max_size);
-		final Vector<FloatArray2DSIFT.Feature> fs = sift.run(max_size);
+				(float)Math.sqrt(sp.initial_sigma * sp.initial_sigma - 0.25));
+		final FloatArray2DSIFT sift = new FloatArray2DSIFT(sp.fdsize, sp.fdbins);
+		sift.init(fa, sp.steps, sp.initial_sigma, sp.min_size, sp.max_size);
+		final Vector<FloatArray2DSIFT.Feature> fs = sift.run(sp.max_size);
 		Collections.sort(fs);
 		return fs;
 	}
@@ -321,13 +313,16 @@ public class Registration {
 	static public Bureaucrat registerStackSlices(final Patch base_slice) {
 		// find linked images in different layers and register them
 		// 
-		// setup parameters
-		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
-		sp.setup();
-
 		final Worker worker = new Worker("Registering stack slices") {
 			public void run() {
 				startedWorking();
+				// setup parameters
+				final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+				if (!sp.setup()) {
+					finishedWorking();
+					return;
+				}
+
 				try {
 					correlateSlices(base_slice, new HashSet(), this, sp/*, null*/); // using non-recursive version
 					// ensure there are no negative numbers in the x,y
