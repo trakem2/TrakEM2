@@ -127,6 +127,7 @@ public class FloatArray2DSIFT
 	 * initialize the scale space as a scale pyramid having octave stubs only
 	 * 
 	 * @param src image having a generating gaussian kernel of initial_sigma
+	 * 	 img must be a 2d-array of float values in range [0.0f, ..., 1.0f]
 	 * @param steps gaussian smooth steps steps per scale octave
 	 * @param initial_sigma sigma of the generating gaussian kernel of img
 	 * @param min_size minimal size of a scale octave in pixel
@@ -418,6 +419,7 @@ public class FloatArray2DSIFT
 						octave_sigma * scale,
 						orientation,
 						new float[]{ c[ 0 ] * scale, c[ 1 ] * scale },
+						//new float[]{ ( c[ 0 ] + 0.5f ) * scale - 0.5f, ( c[ 1 ] + 0.5f ) * scale - 0.5f },
 						createDescriptor( c, o, octave_sigma, orientation ) ) );
 
 		//System.out.println( "descriptor assigned" );
@@ -453,6 +455,7 @@ public class FloatArray2DSIFT
 									octave_sigma * scale,
 									orientation,
 									new float[]{ c[ 0 ] * scale, c[ 1 ] * scale },
+									//new float[]{ ( c[ 0 ] + 0.5f ) * scale - 0.5f, ( c[ 1 ] + 0.5f ) * scale - 0.5f },
 									createDescriptor( c, o, octave_sigma, orientation ) ) );
 				}
 			}

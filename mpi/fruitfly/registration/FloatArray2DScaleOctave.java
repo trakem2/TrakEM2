@@ -142,9 +142,9 @@ public class FloatArray2DScaleOctave
 	/**
 	 * Constructor
 	 * 
-	 * @param img image being the first gaussian instance of the scale octave 
-	 
-* @param initial_sigma inital gaussian sigma
+	 * @param img image being the first gaussian instance of the scale octave
+	 *   img must be a 2d-array of float values in range [0.0f, ..., 1.0f]
+	 * @param initial_sigma inital gaussian sigma
 	 */
 	public FloatArray2DScaleOctave(
 			FloatArray2D img,

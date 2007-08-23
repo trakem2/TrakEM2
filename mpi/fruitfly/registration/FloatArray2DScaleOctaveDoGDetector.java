@@ -13,7 +13,8 @@ public class FloatArray2DScaleOctaveDoGDetector
 	 * minimal contrast of a candidate
 	 */
 	//private static final float MIN_CONTRAST = 0.03f * 255.0f;
-	private static final float MIN_CONTRAST = 0.025f * 255.0f;
+	//private static final float MIN_CONTRAST = 0.025f * 255.0f;
+	private static final float MIN_CONTRAST = 0.025f;
 	
 	/**
 	 * maximal curvature ratio, higher values allow more edge-like responses
@@ -75,15 +76,13 @@ public class FloatArray2DScaleOctaveDoGDetector
 					int xa = xc - 1;
 					int xb = xc + 1;
 					float e111 = d[ ic ].data[ r + xc ];
-					boolean isMax = true;
-					boolean isMin = true;
 					
 					// check if d(x, y, i) is an extremum
 					// do it pipeline-friendly ;)
 					
 					float   e000 = d[ iac ].data[ rac + xa ];
-					isMax &= e000 < e111;
-					isMin &= e000 > e111;
+					boolean isMax = e000 < e111;
+					boolean isMin = e000 > e111;
 					if ( !( isMax || isMin ) ) continue;
 					float   e100 = d[ iac ].data[ rac + xc ];
 					isMax &= e100 < e111;
@@ -94,15 +93,15 @@ public class FloatArray2DScaleOctaveDoGDetector
 					isMin &= e200 > e111;
 					if ( !( isMax || isMin ) ) continue;
 					
-					float   e010 = d[ iac ].data[ r + xa ];
+					float   e010 = d[ iac ].data[ rc + xa ];
 					isMax &= e010 < e111;
 					isMin &= e010 > e111;
 					if ( !( isMax || isMin ) ) continue;
-					float   e110 = d[ iac ].data[ r + xc ];
+					float   e110 = d[ iac ].data[ rc + xc ];
 					isMax &= e110 < e111;
 					isMin &= e110 > e111;
 					if ( !( isMax || isMin ) ) continue;
-					float   e210 = d[ iac ].data[ r + xb ];
+					float   e210 = d[ iac ].data[ rc + xb ];
 					isMax &= e210 < e111;
 					isMin &= e210 > e111;
 					if ( !( isMax || isMin ) ) continue;
@@ -134,11 +133,11 @@ public class FloatArray2DScaleOctaveDoGDetector
 					isMin &= e201 > e111;
 					if ( !( isMax || isMin ) ) continue;
 					
-					float   e011 = d[ ic ].data[ r + xa ];
+					float   e011 = d[ ic ].data[ rc + xa ];
 					isMax &= e011 < e111;
 					isMin &= e011 > e111;
 					if ( !( isMax || isMin ) ) continue;
-					float   e211 = d[ ic ].data[ r + xb ];
+					float   e211 = d[ ic ].data[ rc + xb ];
 					isMax &= e211 < e111;
 					isMin &= e211 > e111;
 					if ( !( isMax || isMin ) ) continue;
@@ -170,15 +169,15 @@ public class FloatArray2DScaleOctaveDoGDetector
 					isMin &= e202 > e111;
 					if ( !( isMax || isMin ) ) continue;
 					
-					float   e012 = d[ ibc ].data[ r + xa ];
+					float   e012 = d[ ibc ].data[ rc + xa ];
 					isMax &= e012 < e111;
 					isMin &= e012 > e111;
 					if ( !( isMax || isMin ) ) continue;
-					float   e112 = d[ ibc ].data[ r + xc ];
+					float   e112 = d[ ibc ].data[ rc + xc ];
 					isMax &= e112 < e111;
 					isMin &= e112 > e111;
 					if ( !( isMax || isMin ) ) continue;
-					float   e212 = d[ ibc ].data[ r + xb ];
+					float   e212 = d[ ibc ].data[ rc + xb ];
 					isMax &= e212 < e111;
 					isMin &= e212 > e111;
 					if ( !( isMax || isMin ) ) continue;
@@ -196,7 +195,6 @@ public class FloatArray2DScaleOctaveDoGDetector
 					isMin &= e222 > e111;
 					if ( !( isMax || isMin ) ) continue;
 					
-
 					// so it is an extremum, try to localize it with subpixel
 					// accuracy, if it has to be moved for more than 0.5 in at
 					// least one direction, try it again there but maximally 5
@@ -287,9 +285,9 @@ public class FloatArray2DScaleOctaveDoGDetector
 						    	{
 						    		xa = xc - 1;
 						    		xb = xc + 1;
-						    		r = yc * d[ ic ].width;
-						    		rac = r - d[ ic ].width;
-						    		rbc = r + d[ ic ].width;
+						    		rc = yc * d[ ic ].width;
+						    		rac = rc - d[ ic ].width;
+						    		rbc = rc + d[ ic ].width;
 						    		iac = ic - 1;
 						    		ibc = ic + 1;
 						    		
@@ -297,9 +295,9 @@ public class FloatArray2DScaleOctaveDoGDetector
 						    		e100 = d[ iac ].data[ rac + xc ];
 						    		e200 = d[ iac ].data[ rac + xb ];
 									
-									e010 = d[ iac ].data[ r + xa ];
-									e110 = d[ iac ].data[ r + xc ];
-									e210 = d[ iac ].data[ r + xb ];
+									e010 = d[ iac ].data[ rc + xa ];
+									e110 = d[ iac ].data[ rc + xc ];
+									e210 = d[ iac ].data[ rc + xb ];
 									
 									e020 = d[ iac ].data[ rbc + xa ];
 									e120 = d[ iac ].data[ rbc + xc ];
@@ -310,9 +308,9 @@ public class FloatArray2DScaleOctaveDoGDetector
 									e101 = d[ ic ].data[ rac + xc ];
 									e201 = d[ ic ].data[ rac + xb ];
 									
-									e011 = d[ ic ].data[ r + xa ];
-									e111 = d[ ic ].data[ r + xc ];
-									e211 = d[ ic ].data[ r + xb ];
+									e011 = d[ ic ].data[ rc + xa ];
+									e111 = d[ ic ].data[ rc + xc ];
+									e211 = d[ ic ].data[ rc + xb ];
 									
 									e021 = d[ ic ].data[ rbc + xa ];
 									e121 = d[ ic ].data[ rbc + xc ];
@@ -323,9 +321,9 @@ public class FloatArray2DScaleOctaveDoGDetector
 									e102 = d[ ibc ].data[ rac + xc ];
 									e202 = d[ ibc ].data[ rac + xb ];
 	
-									e012 = d[ ibc ].data[ r + xa ];
-									e112 = d[ ibc ].data[ r + xc ];
-									e212 = d[ ibc ].data[ r + xb ];
+									e012 = d[ ibc ].data[ rc + xa ];
+									e112 = d[ ibc ].data[ rc + xc ];
+									e212 = d[ ibc ].data[ rc + xb ];
 									
 									e022 = d[ ibc ].data[ rbc + xa ];
 									e122 = d[ ibc ].data[ rbc + xc ];
@@ -334,11 +332,14 @@ public class FloatArray2DScaleOctaveDoGDetector
 						    }
 						    else 
 						    {
-						    	fx = ( float ) xc + ox;
-						    	fy = ( float ) yc + oy;
-						    	fi = ( float ) ic + oi;
+						    	fx = ( float )xc + ox;
+						    	fy = ( float )yc + oy;
+						    	fi = ( float )ic + oi;
 						    	
-						    	isLocalized = true;
+						    	if ( fx < 0 || fy < 0 || fi < 0 || fx > d[ 0 ].width - 1 || fy > d[ 0 ].height - 1 || fi > d.length - 1 )
+						    		isLocalizable = false;
+						    	else
+						    		isLocalized = true;
 						    }
 					    }
 					    else isLocalizable = false;

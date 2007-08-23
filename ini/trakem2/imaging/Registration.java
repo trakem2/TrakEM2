@@ -341,7 +341,9 @@ public class Registration {
 
 	/** Returns a sorted list of the SIFT features extracted from the given ImagePlus. */
 	final static public Vector<FloatArray2DSIFT.Feature> getSIFTFeatures(final ImageProcessor ip, final Registration.SIFTParameters sp) {
-		final FloatArray2D fa = ImageFilter.computeGaussianFastMirror(
+		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat());
+		ImageFilter.enhance( fa, 1.0f );
+		fa = ImageFilter.computeGaussianFastMirror(
 				ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat()),
 				(float)Math.sqrt(sp.initial_sigma * sp.initial_sigma - 0.25));
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT(sp.fdsize, sp.fdbins);

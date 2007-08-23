@@ -298,6 +298,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		FloatArray2DSIFT sift = new FloatArray2DSIFT( fdsize, fdbins );
 		
 		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( ip2 );
+		ImageFilter.enhance( fa, 1.0f );
 		fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
 		
 		long start_time = System.currentTimeMillis();
@@ -348,6 +349,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			ip1 = ip2;
 			ip2 = stack.getProcessor( i + 1 ).convertToFloat();
 			fa = ImageArrayConverter.ImageToFloatArray2D( ip2 );
+			ImageFilter.enhance( fa, 1.0f );
 			fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
 			
 			fs1 = fs2;
@@ -544,7 +546,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 
 				IJ.log( "Model with epsilon <= " + epsilon + " for " + model.getInliers().size() + " inliers found." );
 				IJ.log( "  Translation: ( " + ( tr[ 0 ] / scale ) + ", " + ( tr[ 1 ] / scale ) + " )" );
-				IJ.log( "  Rotation:	" + tr[ 2 ] + " = " + ( tr[ 2 ] / Math.PI * 180.0f ) + "°" );
+				IJ.log( "  Rotation:	" + tr[ 2 ] + " = " + ( tr[ 2 ] / Math.PI * 180.0f ) + "deg" );
 				IJ.log( "  Pivot:	   ( " + ( tr[ 3 ] / scale ) + ", " + ( tr[ 4 ] / scale ) + " )" );
 
 				/**
