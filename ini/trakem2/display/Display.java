@@ -1747,7 +1747,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			item = new JMenuItem("Cancel alignment"); item.addActionListener(this); popup.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
 			if (!aligning) item.setEnabled(false);
-			item = new JMenuItem("Align"); item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Align with landmarks"); item.addActionListener(this); popup.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true));
 			if (!aligning) item.setEnabled(false);
 			item = new JMenuItem("Align and register"); item.addActionListener(this); popup.add(item);
@@ -1756,6 +1756,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (!aligning || selection.isEmpty() || !selection.contains(Profile.class)) item.setEnabled(false);
 			item = new JMenuItem("Align stack slices"); item.addActionListener(this); popup.add(item);
 			if (selection.isEmpty() || ! (getActive().getClass().equals(Patch.class) && ((Patch)getActive()).isStack())) item.setEnabled(false);
+			item = new JMenuItem("Align layers"); item.addActionListener(this); popup.add(item);
+			if (1 == layer.getParent().size()) item.setEnabled(false);
 			return popup;
 		}
 
@@ -2582,7 +2584,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			updateSelection();
 		} else if (command.equals("Cancel alignment")) {
 			layer.getParent().cancelAlign();
-		} else if (command.equals("Align")) {
+		} else if (command.equals("Align with landmarks")) {
 			layer.getParent().applyAlign(false);
 		} else if (command.equals("Align and register")) {
 			layer.getParent().applyAlign(true);
@@ -2627,6 +2629,22 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}
 			}
+		} else if (command.equals("Align layers")) {
+			if (layer.getParent().size() <= 1) {
+				Utils.showMessage("There is only one layer.");
+				return;
+			}
+			final GenericDialog gd = new GenericDialog("Choose first and last", frame);
+			gd.addMessage("Choose first and last layers to register:");
+			Display.addLayerRangeChoices(this.layer, gd); /// $#%! where are my lisp macros
+			gd.addCheckbox("Propagate last transform: ", true);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final int i_first = gd.getNextChoiceIndex();
+			final int i_start = layer.getParent().indexOf(layer);
+			final int i_last = gd.getNextChoiceIndex();
+			final boolean propagate = gd.getNextBoolean();
+			Registration.registerLayers(layer.getParent(), i_first, i_start, i_last, propagate);
 		} else if (command.equals("Adjust registration properties...")) {
 			layer.getParent().adjustRegistrationProperties();
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.

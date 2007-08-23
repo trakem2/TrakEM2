@@ -60,7 +60,8 @@ public class Registration {
 
 	/** Register a subset of consecutive layers of the LayerSet, starting at 'start' (which is unmodified)
 	 *  and proceeding both towards first and towards last.
-	 *  The last transform is applied to all other subsequent, non-included layers if specified in @param propagate.
+	 *  If @param propagate is true, the last transform is applied to all other subsequent, non-included layers .
+	 *  @return The Bureaucrat thread in charge of the task, or null if the parameters are invalid.
 	 */
 	static public Bureaucrat registerLayers(final LayerSet layer_set, final int first, final int start, final int last, final boolean propagate) {
 		// check preconditions
@@ -68,10 +69,6 @@ public class Registration {
 			Utils.log2("Registration.registerLayers: invalid parameters: " + layer_set + ", first: " + first + ", start: " + start + ", last" + last);
 			return null;
 		}
-		// TODO:
-		// 1 - setup worker/bureaucrat model
-		// 2 - popup menu to choose layer range
-		//
 		final Worker worker = new Worker("Registering stack slices") {
 			public void run() {
 				startedWorking();
@@ -83,14 +80,35 @@ public class Registration {
 				return;
 			}
 			// build lists (Layers are consecutive)
-			final List list1 = layer_set.getLayers().subList(first, start+1); // endings are exclusive
-			final List list2 = layer_set.getLayers().subList(start, last+1);
-			// iterate in pairs
+			final List<Layer> list1 = layer_set.getLayers().subList(first, start+1); // endings are exclusive
 			Collections.reverse(list1);
-			final Layer start_layer = (Layer)list2.get(0); // even if there is only one element, list2 will contain the starting layer as the first element.
-			final ImagePlus imp = start_layer.getProject().getLoader().getFlatImage(start_layer, start_layer.getMinimalBoundingBox(Patch.class), sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
-			processLayerList(list1, imp, sp, propagate);
-			processLayerList(list2, imp, sp, propagate);
+			final List<Layer> list2 = layer_set.getLayers().subList(start, last+1);
+			// iterate in pairs
+			final Layer layer_start = (Layer)list2.get(0); // even if there is only one element, list2 will contain the starting layer as the first element. Should be equivalent to layer_set.get(start)
+			// check assumptions
+			if (0 == layer_start.count(Patch.class)) {
+				Utils.log("Registration of layers: ERROR: the starting layer is empty.");
+				finishedWorking();
+				return;
+			}
+			// prune empty layers (so they are ignored)
+			checkLayerList(list1);
+			checkLayerList(list2);
+
+			if (list1.size() <= 1 && list2.size() <= 1) {
+				finishedWorking();
+				return;
+			}
+
+			// ensure proper snapshots
+			layer_set.setMinimumDimensions();
+
+			//
+			final Rectangle box = layer_start.getMinimalBoundingBox(Patch.class);
+			final ImagePlus imp = layer_start.getProject().getLoader().getFlatImage(layer_start, box, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+			processLayerList(list1, imp, box, sp, propagate);
+			processLayerList(list2, imp, box, sp, propagate);
+
 		} catch (Exception e) {
 			new IJError(e);
 		}
@@ -103,50 +121,76 @@ public class Registration {
 		burro.goHaveBreakfast();
 		return burro;
 	}
-	static private void processLayerList(final List list, final ImagePlus imp_first, final Registration.SIFTParameters sp, final boolean propagate) {
-		Object[] result = null;
-		for (int i=1; i<list.size(); i++) {
-			Layer la1 = (Layer)list.get(i-1);
-			Layer la2 = (Layer)list.get(i);
-			result = registerSIFT(la1, la2, 1 == i ? imp_first : (null != result ? (ImagePlus)result[2] : null), null == result ? null : (Vector<FloatArray2DSIFT.Feature>)result[1], sp);
+	static private void checkLayerList(final List list) {
+		for (Iterator it = list.iterator(); it.hasNext(); ) {
+			Layer la = (Layer)it.next();
+			if (0 == la.count(Patch.class)) it.remove();
 		}
-		if (null != result[2]) ((ImagePlus)result[2]).flush();
+		// TODO: check that there aren't any elements linking any two consecutive layers together.
+	}
+	static private void processLayerList(final List list, final ImagePlus imp_first, final Rectangle box_first, final Registration.SIFTParameters sp, final boolean propagate) {
+		// check preconditions
+		if (list.size() <= 1) return; 
+		//
+		Object[] result = null;
+		// if i == 1:
+		result = registerSIFT((Layer)list.get(0), (Layer)list.get(1), new Object[]{imp_first, box_first, null, null}, sp);
+		// else:
+		for (int i=2; i<list.size(); i++) {
+			final Layer la1 = (Layer)list.get(i-1);
+			final Layer la2 = (Layer)list.get(i);
+			result = registerSIFT(la1, la2, null, sp);
+		}
+
 		result = null;
 		Loader.runGC();
 	}
 
 	/** Makes a snapshot with the Patch objects in both layers at the given scale, and rotates/translates all Displayable elements in the second Layer relative to the first.
 	 *
-	 * @return An array containing the Vector of features in layer1, the Vector of features in layer2, and the flat image used for layer2.
+	 * @return null for now. I will eventually figure out a way to do safe caching with no loss of precision, carrying along the AffineTransform.
 	 */
-	static public Object[] registerSIFT(final Layer layer1, final Layer layer2, ImagePlus imp1, final Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
+	static public Object[] registerSIFT(final Layer layer1, final Layer layer2, Object[] cached, final Registration.SIFTParameters sp) {
 		try {
 			// prepare flat images for each layer
-			if (null == imp1) {
-				imp1 = layer1.getProject().getLoader().getFlatImage(layer1, layer1.getMinimalBoundingBox(Patch.class), sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+			Rectangle box1 = null;
+			ImagePlus imp1 = null;
+			Vector<FloatArray2DSIFT.Feature> fs1 = null;
+			AffineTransform at_accum = null;
+			if (null == cached) {
+				box1 = layer1.getMinimalBoundingBox(Patch.class);
+				imp1 = layer1.getProject().getLoader().getFlatImage(layer1, box1, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+			} else {
+				imp1 = (ImagePlus)cached[0];
+				box1 = (Rectangle)cached[1];
+				fs1 = (Vector<FloatArray2DSIFT.Feature>)cached[2];
+				at_accum = (AffineTransform)cached[3];
 			}
-			final ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, layer2.getMinimalBoundingBox(Patch.class), sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+			Rectangle box2 = layer2.getMinimalBoundingBox(Patch.class);
+			final ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
 
 			// ready to start
 			final Object[] result = Registration.registerSIFT(imp1.getProcessor().convertToFloat(), imp2.getProcessor().convertToFloat(), fs1, sp);
+			final AffineTransform at_translate = new AffineTransform();
+			at_translate.translate(-(box2.x - box1.x), -(box2.y - box1.y)); // so that 0,0 of each image is the same, which is what SIFT expects
 
 			if (null != result) {
 				// use the returned AffineTransform to adjust all Patch objects in layer2
 				// The transform is the same for a part as for the whole.
 				// Since the flat image was done considering the tranforms of each tile,
 				// the returned transform simply needs to be preconcatenated to the tile's:
-				layer2.apply(Patch.class, (AffineTransform)result[2]); // preconcatenate the transform to every Patch in the Layer
-				// hack: (for caching)
-				result[2] = imp2;
+				AffineTransform at = (AffineTransform)result[2];
+				// correct for the difference in position of flat image boxes
+				at.preConcatenate(at_translate);
+				// apply accumulated transform
+				if (null != at_accum) at.preConcatenate(at_accum);
+				// preconcatenate the transform to every Patch in the Layer
+				layer2.apply(Patch.class, at);
 			} else {
 				// fall back to phase-correlation
-				// TODO
+				Utils.log2("Registration.registerSIFT for Layers: falling back to phase-correlation");
+				Utils.log2("\t--- Not yet implemented");
 			}
-
-			// cleanup:
-			imp1.flush();
-			// imp2 is preserved and returned for the next match
-			return result;
 
 		} catch (Exception e) {
 			new IJError(e);

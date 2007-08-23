@@ -137,6 +137,10 @@ public class Snapshot {
 	static public Image createSnap(final Patch p, final Image awt, final double mag) {
 		final int w = (int)Math.ceil(awt.getWidth(null) * mag);
 		final int h = (int)Math.ceil(awt.getHeight(null) * mag); // NOTE: can't get the Patch width and height because in the event of a rotation, it will work incorrectly (it returns the width and height of the bounding box, not of the image). But I can't fetch the actual image either, because this method is heavily used from the Loader and I would have to lock/unlock its usage, which is a pain.
+		if (0 == w || 0 == h) {
+			Utils.log2("Snapshot.createSnap: width or height are zero (?)");
+			return null;
+		}
 		try {
 		if (null != p.getLayer() && p.getLayer().getParent().snapshotsQuality()) {
 			// best, but very slow

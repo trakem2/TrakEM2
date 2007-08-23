@@ -1185,7 +1185,7 @@ public abstract class Displayable extends DBObject {
 		return pDst;
 	}
 
-	/** Returns a new Rectangle which encloses completly the given rectangle after transforming it. The given rectangle's fields are untouched.*/
+	/** Returns a new Rectangle which encloses completly the given rectangle after transforming it with this Displayable's AffineTransform. The given rectangle's fields are untouched.*/
 	final public Rectangle transformRectangle(final Rectangle r) {
 		return new Area(r).createTransformedArea(this.at).getBounds();
 	}
