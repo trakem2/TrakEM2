@@ -216,15 +216,15 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			done = true;
 		}
 
-		public void createOffscreenData(Layer layer, int g_width, int g_height, Displayable active, int c_alphas) {
+		public void createOffscreenData(final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
 			try {
 				// clip must be ALL for the offscreen painting of Displayables!
 				Rectangle clipRect = null; // purposefully shadowing this class clipRect value, which must only be used for repainting, not for offscreen creation
-				Loader loader = layer.getProject().getLoader();
+				final Loader loader = layer.getProject().getLoader();
 				// flag Loader to do massive flushing if needed
 				loader.setMassiveMode(true);
 
-				// remake offscreen images
+				/* // remake offscreen images
 				synchronized (offscreen_lock) {
 					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
 					offscreen_locked = true;
@@ -235,22 +235,43 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					offscreen_locked = false;
 					offscreen_lock.notifyAll();
 				}
+				*/
 
 				if (stop_offscreen_data) {
 					return;
 				}
 
-				// ensure there is enough memory for the offscreen images: two images plus the graphics object, of 24 bit depth, in bytes
-				loader.releaseToFit(g_width * g_height * 72); // * 24 * 3);
 				Graphics2D g1 = null;
 
 				synchronized (offscreen_lock) {
 					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
 					offscreen_locked = true;
-					offscreen1 = new BufferedImage(g_width, g_height, BufferedImage.TYPE_INT_RGB);
+					boolean reusing = false;
+					al_top.clear();
+					if (null != offscreen1) {
+						if (offscreen1.getWidth(null) != g_width || offscreen1.getHeight(null) != g_height) {
+							//Utils.log2("gw,gh : " + g_width + ", " + g_height + "  ow, oh: " + offscreen1.getWidth(null) + ", " + offscreen1.getHeight(null));
+							offscreen1.flush();
+						} else {
+							reusing = true;
+						}
+					}
+					if (!reusing) {
+						// ensure there is enough memory for the offscreen images: one image plus the graphics object, of 24 bit depth, in bytes
+						loader.releaseToFit(g_width * g_height * 72); // * 24 * 3);
+						offscreen1 = new BufferedImage(g_width, g_height, BufferedImage.TYPE_INT_RGB);
+						//Utils.log2("created offscreen1");
+					}
+
 					//Utils.log2(label + " ugt Creating offs " +  + System.currentTimeMillis());
 					offscreen1.setAccelerationPriority(1.0f);
 					g1 = (Graphics2D) offscreen1.getGraphics(); // the cast is safe in terms of: never failed in any JVM so far (macosx, linux, freebsd; 1.4.2, 1.5.0). But it may fail in GCJ !
+
+					if (reusing) {
+						g1.setColor(Color.black);
+						g1.fillRect(0, 0, g_width, g_height);
+						//Utils.log2("reusing");
+					}
 
 					// prepare the canvas for the srcRect and magnification
 					final AffineTransform at_original = g1.getTransform();
@@ -265,10 +286,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					offscreen_lock.notifyAll();
 				}
 				// start
-				ArrayList al = layer.getDisplayables();
-				int n = al.size();
-				ArrayList al_zdispl = layer.getParent().getZDisplayables();
-				int m = al_zdispl.size();
+				final ArrayList al = layer.getDisplayables();
+				final int n = al.size();
+				final ArrayList al_zdispl = layer.getParent().getZDisplayables();
+				final int m = al_zdispl.size();
 
 				// new way: assumes the Layer has its objects in order:
 				// 1 - Patches
@@ -276,18 +297,18 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// 3 - Pipes and ZDisplayables (from the parent LayerSet)
 				// 4 - DLabels
 				// So paint everything up to the active to offscreen1, then the rest to offscreen2.
-				Graphics2D g_any = g1; // a pointer to switch between both offscreen images.
+				final Graphics2D g_any = g1; // a pointer to switch between both offscreen images.
 				boolean top = false;
 
-				Selection selection = display.getSelection();
+				final Selection selection = display.getSelection();
 
 				int i = 0;
 				while (i < n) {
 					if (stop_offscreen_data) {
 						return;
 					}
-					Displayable d = (Displayable) al.get(i);
-					if (d instanceof DLabel || d instanceof LayerSet) {
+					final Displayable d = (Displayable) al.get(i);
+					if (d.getClass().equals(DLabel.class) || d.getClass().equals(LayerSet.class)) {
 						break;
 					}
 					if (d != active) {
@@ -311,7 +332,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					if (stop_offscreen_data) {
 						return;
 					}
-					ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
+					final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
 					if (zd != active) {
 						if (top) {
 							al_top.add(zd);
@@ -332,7 +353,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					if (stop_offscreen_data) {
 						return;
 					}
-					Displayable d = (Displayable) al.get(i);
+					final Displayable d = (Displayable) al.get(i);
 					if (d != active) {
 						if (top) {
 							al_top.add(d);
@@ -402,7 +423,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private final AffineTransform atc = new AffineTransform();
 
 	// can only paint if cancel_painting is false; otherwise, it stops
-	public void paint(Graphics g) {
+	public void paint(final Graphics g) {
 		try {
 			//setRenderingHints((Graphics2D)g);
 			if (handPaintingOffscreen == null) {
@@ -423,11 +444,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				//Utils.log2("clipRect: " + clipRect);
 
 				final Displayable active = display.getActive();
-				int c_alphas = display.getDisplayChannelAlphas();
-				int sr_width = (int) (srcRect.width * magnification) + 1; // to make it a ceil operation
-				int sr_height = (int) (srcRect.height * magnification) + 1;
+				final int c_alphas = display.getDisplayChannelAlphas();
+				final int sr_width = (int) (srcRect.width * magnification) + 1; // to make it a ceil operation
+				final int sr_height = (int) (srcRect.height * magnification) + 1;
 
-				Roi roi = imp.getRoi();
+				final Roi roi = imp.getRoi();
 
 				if (cancel_painting) {
 					display.setCursor(Cursor.getDefaultCursor());
@@ -503,7 +524,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							display.setCursor(Cursor.getDefaultCursor());
 							return;
 						}
-						Displayable ob = di[i];
+						final Displayable ob = di[i];
 						if (!ob.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
 							ob.paint(g2d, magnification, false, c_alphas, active_layer);
 						}
@@ -790,7 +811,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	public void mouseDragged(MouseEvent me) {
-
 
 		if (popup || locked || null != display.getLayer().getParent().getAlign()) return;
 
@@ -1953,9 +1973,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		//for (Iterator it = al.iterator(); it.hasNext(); ) {
 		//	Utils.log2("going to test for: " + it.next().toString());
 		//}
+
 		// dragged Patch
-		Patch p_dragged = (Patch)d;
-		// check that all images are of the same size
+		final Patch p_dragged = (Patch)d;
+
+		/* // NO LONGER NECESSARY // check that all images are of the same size
 		double sw = p_dragged.getWidth();
 		double sh = p_dragged.getHeight();
 		for (Iterator it = al.iterator(); it.hasNext(); ) {
@@ -1965,6 +1987,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				return;
 			}
 		}
+		*/
 		// start:
 		double[] best_pc = null;
 		try {

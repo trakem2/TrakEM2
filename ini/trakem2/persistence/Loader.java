@@ -540,6 +540,7 @@ abstract public class Loader {
 
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
 	static public final void runGC() {
+		Utils.printCaller("runGC", 4);
 		final long initial = IJ.currentMemory();
 		long now = initial;
 		final int max = 10;
@@ -755,7 +756,7 @@ abstract public class Loader {
 	 * If the magnification is bigger than 1.0, it will return as if the 'mag' was 1.0.
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 * */
-	public Image fetchImage(Patch p, double mag) {
+	public Image fetchImage(final Patch p, double mag) {
 		synchronized (db_lock) {
 			lock();
 			try {
@@ -764,7 +765,7 @@ abstract public class Loader {
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
 				if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
-				long id = p.getId();
+				final long id = p.getId();
 				// see if the Displayable AWT image is cached and big enough:
 				Image awt = awts.get(id);
 				if (null != awt) {
@@ -792,8 +793,8 @@ abstract public class Loader {
 					}
 				} else {
 					// If the awt is not cached, see if the snap is suitable
-					if (Math.abs(mag - Snapshot.SCALE) < 0.001) {
-						Image snap = snaps.get(id);
+					if (mag - Snapshot.SCALE < 0.001) { // i.e. if mag is 0.25 or lower
+						final Image snap = snaps.get(id);
 						if (null != snap) {
 							unlock();
 							return snap;
@@ -804,17 +805,19 @@ abstract public class Loader {
 					}
 				}
 
+				Utils.log2("Loader.fetchImage: awt is " + awt + "  cache size: " + awts.size());
+
 				releaseMemory();
 
 				// see if the ImagePlus is cached:
-				ImagePlus imp = imps.get(id);
+				final ImagePlus imp = imps.get(id);
 				if (null != imp) {
 					if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) { // may have been flushed by ImageJ, for example when making images from a stack
 						unlock();
 						Image image = p.createImage(); //considers c_alphas
 						lock();
 						if (1.0 != mag) { // make it smaller if possible
-							Image image2 = Snapshot.createSnap(p, image, mag);
+							final Image image2 = Snapshot.createSnap(p, image, mag);
 							image.flush();
 							image = image2;
 						}
@@ -834,7 +837,7 @@ abstract public class Loader {
 				}
 				lock();
 				if (1.0 != mag) { // make it smaller if possible
-					Image image2 = Snapshot.createSnap(p, image, mag); //image.getScaledInstance((int)Math.ceil(p.getWidth() * mag), (int)Math.ceil(p.getHeight() * mag), Snapshot.SCALE_METHOD);
+					final Image image2 = Snapshot.createSnap(p, image, mag); //image.getScaledInstance((int)Math.ceil(p.getWidth() * mag), (int)Math.ceil(p.getHeight() * mag), Snapshot.SCALE_METHOD);
 					image.flush();
 					image = image2;
 				}

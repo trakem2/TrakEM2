@@ -676,8 +676,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			long size = 0;
 			// limit magnification if appropriate
 			for (Iterator it = layer.getDisplayables(Patch.class).iterator(); it.hasNext(); ) {
-				Patch pa = (Patch)it.next();
-				size += (long)(pa.getWidth() * pa.getHeight());
+				final Patch pa = (Patch)it.next();
+				final Rectangle ba = pa.getBoundingBox();
+				size += (long)(ba.width * ba.height);
 			}
 			if (size > 10000000) canvas.setInitialMagnification(Snapshot.SCALE); // 10 Mb
 			else {
@@ -2745,8 +2746,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	protected void importImage() {
 		Rectangle srcRect = canvas.getSrcRect();
-		int x = srcRect.x + srcRect.width / 2;// - imp.getWidth() / 2;
-		int y = srcRect.y + srcRect.height/ 2;// - imp.getHeight()/ 2;
+		int x = srcRect.x + srcRect.width / 2;
+		int y = srcRect.y + srcRect.height/ 2;
 		Patch p = project.getLoader().importImage(project, x, y);
 		if (null == p) return;
 		layer.add(p); // will add it to the proper Displays

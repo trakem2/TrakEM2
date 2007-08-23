@@ -57,8 +57,9 @@ public class PatchStack extends ImagePlus {
 		this.patch = patch;
 		//this.currentSlice = currentSlice;
 		setSlice(currentSlice);
-		this.width = (int)Math.ceil(patch[0].getWidth());
-		this.height = (int)Math.ceil(patch[0].getHeight());
+		Rectangle b = patch[0].getBoundingBox(null);
+		this.width = b.width;
+		this.height = b.height;
 		if (patch.length > 1) this.stack = new VirtualStack(width, height);
 		else this.stack = null;
 		this.ip = null; // will be retrieved on the fly when necessary
@@ -139,6 +140,7 @@ public class PatchStack extends ImagePlus {
 		loader.updateCache(p, original); //flush awt, remake awt, flush snap, remake snap
 		Rectangle box = p.getBoundingBox();
 		p.setDimensions(original.getWidth(), original.getHeight(), false); // don't update snapshot or repaint
+		// TODO this method needs heavy revision and updating
 		Display.repaint(p.getLayer(), box, 5); // the previous dimensions
 	}
 
@@ -742,7 +744,7 @@ public class PatchStack extends ImagePlus {
 		}
 	}
 
-	// WARNING This method will failif the stack has slices of different dimensions
+	// WARNING This method will fail if the stack has slices of different dimensions
 	/** Does not respect local transform of the patches, this is intended for confocal stacks. */
 	public ImagePlus createGray8Copy() {
 		final int width = (int)Math.ceil(patch[0].getWidth());
