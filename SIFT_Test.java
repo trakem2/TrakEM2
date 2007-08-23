@@ -162,13 +162,14 @@ public class SIFT_Test implements PlugIn, KeyListener
 		
 		
 		ImageProcessor ip1 = imp.getProcessor().convertToFloat();
-		ImageProcessor ip2 = imp.getProcessor().convertToRGB();
+		ImageProcessor ip2 = imp.getProcessor().duplicate().convertToRGB();
 		
 		Vector< FloatArray2DSIFT.Feature > fs1;
 		
 		FloatArray2DSIFT sift = new FloatArray2DSIFT( fdsize, fdbins );
 		
 		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( ip1 );
+		ImageFilter.enhance( fa, 1.0f );
 		fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
 		
 		long start_time = System.currentTimeMillis();
@@ -176,6 +177,7 @@ public class SIFT_Test implements PlugIn, KeyListener
 		sift.init( fa, steps, initial_sigma, min_size, max_size );
 		
 		
+		/*
 		FloatArray2DScaleOctave[] sos = sift.getOctaves();
 		for ( int o = 0; o < sos.length; ++o )
 		{
@@ -206,9 +208,9 @@ public class SIFT_Test implements PlugIn, KeyListener
 						( int )Math.round( ( float )os * c[ 1 ] ) );
 			}
 		}
+		*/
 		
 		
-		/*
 		fs1 = sift.run( max_size );
 		Collections.sort( fs1 );
 		System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
@@ -219,9 +221,10 @@ public class SIFT_Test implements PlugIn, KeyListener
 		ip2.setColor( Color.red );
 		for ( FloatArray2DSIFT.Feature f : fs1 )
 		{
-			drawSquare( ip2, new double[]{ f.location[ 0 ], f.location[ 1 ] }, ( double )f.scale / 2, ( double )f.orientation );
+			System.out.println( f.location[ 0 ] + " " + f.location[ 1 ] + " " + f.scale + " " + f.orientation );
+			drawSquare( ip2, new double[]{ f.location[ 0 ], f.location[ 1 ] }, ( double )f.scale, ( double )f.orientation );
 		}
-		*/
+		
 		
 		
 		

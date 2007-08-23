@@ -1163,6 +1163,23 @@ public class ImageFilter
      }
     
     /**
+     * in place enhance all values of a FloatArray to fill the given range
+     */
+    public static final void enhance( FloatArray2D src, float scale )
+    {
+    	float min = Float.MAX_VALUE;
+    	float max = Float.MIN_VALUE;
+    	for ( int i = 0; i < src.data.length; ++i )
+    	{
+    		if ( src.data[ i ] < min ) min = src.data[ i ];
+    		else if ( src.data[ i ] > max ) max = src.data[ i ];
+    	}
+    	scale /= ( max - min );
+    	for ( int i = 0; i < src.data.length; ++i )
+    		src.data[ i ] = scale * ( src.data[ i ] - min );
+    }
+    
+    /**
 	 * convolve an image with a horizontal and a vertical kernel
 	 * simple straightforward, not optimized---replace this with a trusted better version soon
 	 * 

@@ -81,6 +81,7 @@ public class Scale_Space implements PlugIn, KeyListener
 		
 		ip = imp.getProcessor().convertToFloat();
 		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( ip );
+		ImageFilter.enhance( fa, 1.0f );
 		
 		fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
 		
@@ -149,11 +150,11 @@ public class Scale_Space implements PlugIn, KeyListener
 				os = ( int )Math.pow( 2, o );
 				FloatProcessor fp = new FloatProcessor( ls.width, ls.height );
 				ImageArrayConverter.FloatArrayToFloatProcessor( fp, ls );
-				fp.setMinAndMax( 0.0, 255.0 );
+				fp.setMinAndMax( 0.0, 1.0 );
 				//ImageProcessor ipl = fp.convertToRGB();
 				ImageProcessor ipl = fp.duplicate();
 				ImageArrayConverter.FloatArrayToFloatProcessor( fp, ds );
-				fp.setMinAndMax( -255.0, 255.0 );
+				fp.setMinAndMax( -1.0, 1.0 );
 				ImageProcessor ipd = fp.convertToRGB();
 			
 				// draw DoG detections
