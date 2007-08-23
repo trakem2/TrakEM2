@@ -336,7 +336,10 @@ public class FloatArray2DScaleOctaveDoGDetector
 						    	fy = ( float )yc + oy;
 						    	fi = ( float )ic + oi;
 						    	
-						    	isLocalized = true;
+						    	if ( fx < 0 || fy < 0 || fi < 0 || fx > d[ 0 ].width - 1 || fy > d[ 0 ].height - 1 || fi > d.length - 1 )
+						    		isLocalizable = false;
+						    	else
+						    		isLocalized = true;
 						    }
 					    }
 					    else isLocalizable = false;
