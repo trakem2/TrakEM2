@@ -344,7 +344,6 @@ public class FloatArray2DScaleOctaveDoGDetector
 					    else isLocalizable = false;
 					}
 					while ( !isLocalized && isLocalizable && t >= 0 );
-					
 				    // reject detections that could not be localized properly
 				    
 					if ( !isLocalized )
@@ -364,8 +363,9 @@ public class FloatArray2DScaleOctaveDoGDetector
 					float det = dxx * dyy - dxy * dxy;
 				    float trace = dxx + dyy;
 				    if ( trace * trace / det > MAX_CURVATURE_RATIO ) continue;
-					
-					candidates.addElement( new float[]{ fx, fy, fi } );
+
+				    candidates.addElement( new float[]{ fx, fy, fi } );
+					//candidates.addElement( new float[]{ x, y, i } );
 				}
 			}
 		}
