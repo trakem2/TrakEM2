@@ -1191,4 +1191,23 @@ public abstract class Displayable extends DBObject {
 	final public Rectangle transformRectangle(final Rectangle r) {
 		return new Area(r).createTransformedArea(this.at).getBounds();
 	}
+
+	/** Returns the argument if this Dispalayable's AffineTransform is the identity; otherwise returns a new double[][] with all points from @param p transformed according to the AffineTransform. The  double[][] array provided as argument is expected to be of type [2][length], i.e. two arrays describing x and y.  */
+	public double[][] transformPoints(double[][] p) {
+		if (this.at.isIdentity()) return p;
+		final int length = p[0].length;
+		final double[] p2a = new double[length * 2];
+		for (int i=0, j=0; i<length; i++, j+=2) {
+			p2a[j] = p[0][i];
+			p2a[j+1] = p[1][i];
+		}
+		final double[] p2b = new double[length * 2];
+		this.at.transform(p2a, 0, p2b, 0, length); // what a silly format: consecutive x,y numbers! Clear case of premature optimization.
+		final double[][] p3 = new double[2][length];
+		for (int i=0, j=0; i<length; i++, j+=2) {
+			p3[0][i] = p2b[j];
+			p3[1][i] = p2b[j+1];
+		}
+		return p3;
+	}
 }

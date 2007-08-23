@@ -145,45 +145,6 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	/* // obsolete
-	public void paint(Graphics g, boolean active, int channels, Layer active_layer) {
-		// check if it has to be painted at all
-		if (!AreaList.brushing) {
-			return; // avoid check if brushing, since update is on the brush which can be beyond current bonds until mouseRelease
-		}
-		Object ob = ht_areas.get(new Long(active_layer.getId()));
-		if (null == ob) {
-			return;
-		}
-		if (AreaList.UNLOADED.equals(ob)) {
-			ob = loadLayer(active_layer.getId());
-			if (null == ob) {
-				return;
-			}
-		}
-		final Area area = (Area)ob;
-
-		g.setColor(this.color);
-
-		final Graphics2D g2d = (Graphics2D)g;
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-		if (fill_paint) {
-			g2d.fill(area.createTransformedArea(this.at));
-		} else {
-			g2d.draw(area.createTransformedArea(this.at));  // the contour only
-		}
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
-		}
-	}
-	*/
-
 	public void paint(Graphics g, final Layer current) {
 		if (null == current) return;
 		if (!this.visible) return;
@@ -366,7 +327,7 @@ public class AreaList extends ZDisplayable {
 		Display.repaint(Display.getFrontLayer(), this);
 	}
 
-	/** Calculate box, make this x,y,with,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
+	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
 	public boolean calculateBoundingBox() {
 		// forget it if this has been done once already, for at the moment it would work only for translations, not any other types of transforms. TODO: need to fix this somehow, generates repainting problems.
 		if (this.at.getType() != AffineTransform.TYPE_TRANSLATION) return false; // meaning, there's more bits in the type than just the translation
@@ -384,9 +345,9 @@ public class AreaList extends ZDisplayable {
 			else box.add(b[i]);
 		}
 		if (null == box) return false; // empty AreaList
+		final AffineTransform atb = new AffineTransform();
+		atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
 		for (int i=0; i<area.length; i++) {
-			AffineTransform atb = new AffineTransform();
-			atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
 			entry[i].setValue(area[i].createTransformedArea(atb));
 		}
 		this.translate(box.x, box.y);

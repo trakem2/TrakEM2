@@ -40,6 +40,7 @@ import java.util.Hashtable;
 import java.util.HashSet;
 import java.util.List;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 
 import javax.vecmath.Point3f;
 
@@ -181,6 +182,67 @@ public class Ball extends ZDisplayable {
 		return index;
 	}
 
+	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		if (0 == n_points) return;
+		if (-1 == n_points) {
+			// load points from the database
+			setupForDisplay();
+		}
+		//arrange transparency
+		Composite original_composite = null;
+		if (alpha != 1.0f) {
+			original_composite = g.getComposite();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+		}
+
+		// local copies, since they may be transformed
+		double[][] p = this.p;
+		double[] p_width = this.p_width;
+		if (!this.at.isIdentity()) {
+			// transform points
+			p = transformPoints(this.p);
+			// create points to represent the point where the radius ends. Since these are abstract spheres, there's no need to consider a second point that would provide the shear. To capture both the X and Y axis deformations, I use a diagonal point which sits at sqrt(2) * p_width
+			double[][] pw = new double[2][n_points];
+			for (int i=0; i<n_points; i++) {
+				pw[0][i] = this.p[0][i] + p_width[i]; //built relative to the untransformed points!
+				pw[1][i] = this.p[1][i] + p_width[i];
+			}
+			pw = transformPoints(pw);
+			p_width = new double[n_points];
+			for (int i=0; i<n_points; i++) {
+				// plain average of differences in X and Y axis
+				p_width[i] = (pw[0][i] - p[0][i] + pw[1][i] - p[1][i]) / 2;
+			}
+		}
+
+		// paint proper:
+		final int i_current = layer_set.getLayerIndex(active_layer.getId());
+		int ii;
+		int radius;
+		for (int j=0; j<n_points; j++) {
+			ii = layer_set.getLayerIndex(p_layer[j]);
+			if (ii == i_current -1) g.setColor(Color.red);
+			else if (ii == i_current) g.setColor(this.color);
+			else if (ii == i_current + 1) g.setColor(Color.blue);
+			else continue; //don't paint!
+			radius = (int)(p_width[j] * magnification);
+			g.drawOval((int)(p[0][j] * magnification) - radius, (int)(p[1][j] * magnification) - radius, radius + radius, radius + radius);
+		}
+		if (active) {
+			final long layer_id = active_layer.getId();
+			for (int j=0; j<n_points; j++) {
+				if (layer_id != p_layer[j]) continue;
+				DisplayCanvas.drawHandle(g, (int)(p[0][j]*magnification), (int)(p[1][j]*magnification));
+			}
+		}
+
+		//Transparency: fix alpha composite back to original.
+		if (null != original_composite) {
+			g.setComposite(original_composite);
+		}
+	}
+
+	@Deprecated
 	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
 		if (0 == n_points) {
 			return;
@@ -359,15 +421,14 @@ public class Ball extends ZDisplayable {
 	static int index = -1;
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
-		if (0 == n_points) {
-			this.x = x_p;
-			this.y = y_p;
+		// transform the x_p, y_p to the local coordinates
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
+			x_p = (int)po.x;
+			y_p = (int)po.y;
 		}
-		// make local
-		x_p = x_p - (int)this.x;
-		y_p = y_p - (int)this.y;
 
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
 			long layer_id = Display.getFrontLayer().getId();
@@ -394,13 +455,18 @@ public class Ball extends ZDisplayable {
 	}
 
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
-		//make local
-		x_p = x_p - (int)this.x;
-		y_p = y_p - (int)this.y;
-		x_d = x_d - (int)this.x;
-		y_d = y_d - (int)this.y;
-		x_d_old = x_d_old - (int)this.x;
-		y_d_old = y_d_old - (int)this.y;
+		// transform to the local coordinates
+		if (!this.at.isIdentity()) {
+			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
+			x_p = (int)p.x;
+			y_p = (int)p.y;
+			final Point2D.Double pd = inverseTransformPoint(x_d, y_d);
+			x_d = (int)pd.x;
+			y_d = (int)pd.y;
+			final Point2D.Double pdo = inverseTransformPoint(x_d_old, y_d_old);
+			x_d_old = (int)pdo.x;
+			y_d_old = (int)pdo.y;
+		}
 
 		int tool = ProjectToolbar.getToolId();
 
@@ -419,15 +485,6 @@ public class Ball extends ZDisplayable {
 
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
 
-		//make local
-		/* // never used
-		x_p = x_p - (int)this.x;
-		y_p = y_p - (int)this.y;
-		x_d = x_d - (int)this.x; // never used
-		y_d = y_d - (int)this.y;
-		x_r = x_r - (int)this.x;
-		y_r = y_r - (int)this.y;
-		*/
 		int tool = ProjectToolbar.getToolId();
 
 		//update points in database if there was any change
@@ -453,7 +510,7 @@ public class Ball extends ZDisplayable {
 		double max_x = 0.0D;
 		double max_y = 0.0D;
 		if (0 == n_points) {
-			this.x = this.y = this.width = this.height = 0;
+			this.width = this.height = 0;
 			return;
 		}
 		if (0 != n_points) {
@@ -468,10 +525,15 @@ public class Ball extends ZDisplayable {
 		this.height = max_y - min_y;
 
 		if (adjust_position) {
+			// forget it if there is no transform or the transform type is not ONLY a translation
+			if (this.at.isIdentity() || this.at.getType() != AffineTransform.TYPE_TRANSLATION) {
+				return;
+			}
 			// now readjust points to make min_x,min_y be the x,y
 			for (int i=0; i<n_points; i++) {
 				p[0][i] -= min_x;	p[1][i] -= min_y;
 			}
+			setLocation(min_x, min_y);
 			this.x += min_x;
 			this.y += min_y;
 		}
@@ -619,8 +681,10 @@ public class Ball extends ZDisplayable {
 		if (-1 == n_points) setupForDisplay(); // reload points
 		if (0 == n_points) return false;
 		// make x,y local
-		x -= (int)this.x;
-		y -= (int)this.y;
+		final Point2D.Double po = inverseTransformPoint(x, y);
+		x = (int)po.x;
+		y = (int)po.y;
+		//
 		long layer_id = layer.getId();
 		for (int i=0; i<n_points; i++) {
 			if (layer_id != p_layer[i]) continue;

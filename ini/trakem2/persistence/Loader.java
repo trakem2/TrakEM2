@@ -805,7 +805,9 @@ abstract public class Loader {
 					}
 				}
 
-				Utils.log2("Loader.fetchImage: awt is " + awt + "  cache size: " + awts.size());
+				// if we get here and the awt is not null, it means its size is not appropriate
+
+				//Utils.log2("Loader.fetchImage: awt is " + awt + "  cache size: " + awts.size());
 
 				releaseMemory();
 

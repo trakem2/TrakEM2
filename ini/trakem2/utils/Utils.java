@@ -54,6 +54,8 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public String version = "0.3u 2007-06-19";
 
+	static public double SQRT2 = Math.sqrt(2.0);
+
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
 	static public boolean debug_sql = false;
