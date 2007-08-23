@@ -123,10 +123,13 @@ public class StitchingTEM {
 		}
 
 		// compare Patch dimensions: later code needs all to be equal
-		double w = patch[0].getWidth();
-		double h = patch[0].getHeight();
+		//double w = patch[0].getWidth();
+		//double h = patch[0].getHeight();
+		Rectangle b0 = patch[0].getBoundingBox(null);
 		for (int i=1; i<patch.length; i++) {
-			if (patch[i].getWidth() != w || patch[i].getHeight() != h) {
+			Rectangle bi = patch[i].getBoundingBox(null);
+			//if (patch[i].getWidth() != w || patch[i].getHeight() != h)
+			if (bi.width != b0.width || bi.height != b0.height) {
 				flag = ERROR;
 				Utils.log2("Stitching: dimensions' missmatch.\n\tAll images MUST have the same dimensions."); // i.e. all Patches, actually (meaning, all Patch objects must have the same width and the same height).
 				return null;
@@ -288,7 +291,7 @@ public class StitchingTEM {
 		ImageProcessor ip = imp.getProcessor();
 
 		// compare and adjust
-		if (!ignore_patch_transform && !p.getAffineTransform().isIdentity()) { //  (ip.getWidth() != (int)p.getWidth() || ip.getHeight() != (int)p.getHeight()))
+		if (!ignore_patch_transform && !p.getAffineTransform().isIdentity()) {
 			final Rectangle b = p.getBoundingBox();
 			ip = ip.resize(b.width, b.height);
 			Utils.log2("resizing stripe for patch: " + p);
@@ -344,10 +347,12 @@ public class StitchingTEM {
 		// Iterate until PhaseCorrelation correlation coeficient R is over 0.5, or there's no more
 		// image overlap to feed
 		ImageProcessor ip1, ip2;
-		final int w1 = (int)base.getWidth(),
-			  h1 = (int)base.getHeight(),
-			  w2 = (int)moving.getWidth(),
-			  h2 = (int)moving.getHeight();
+		final Rectangle b1 = base.getBoundingBox(null);
+		final Rectangle b2 = moving.getBoundingBox(null);
+		final int w1 = b1.width,
+			  h1 = b1.height,
+			  w2 = b2.width,
+			  h2 = b2.height;
 		Roi roi1=null,
 		    roi2=null;
 		float overlap = percent_overlap;
@@ -367,7 +372,7 @@ public class StitchingTEM {
 			}
 			Utils.log2("roi1: " + roi1);
 			Utils.log2("roi2: " + roi2);
-			ip1 = makeStripe(base, roi1, scale);
+			ip1 = makeStripe(base, roi1, scale); // will apply the transform if necessary
 			ip2 = makeStripe(moving, roi2, scale);
 			//new ImagePlus("roi1", ip1).show();
 			//new ImagePlus("roi2", ip2).show();

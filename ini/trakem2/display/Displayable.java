@@ -48,6 +48,7 @@ public abstract class Displayable extends DBObject {
 	/////////////////////////////////////
 
 
+	/** Width and height of the data, not the bounding box. If the AffineTransform is different than identity, then the bounding box will be different. */
 	protected double width = 0,
 		         height = 0;
 
@@ -293,21 +294,22 @@ public abstract class Displayable extends DBObject {
 		return getBoundingBox(null).y;
 	}
 
-	/** Returns the width of the bounding box. */
+	/** Returns the width of the data. */
 	public double getWidth() {
-		return getBoundingBox(null).width;
+		return this.width;
 	}
 
-	/** Returns the height of the bounding box. */
+	/** Returns the height of the data. */
 	public double getHeight() {
-		return getBoundingBox(null).height;
+		return this.height;
 	}
 
+	/** Bounding box of the transformed data. */
 	public Rectangle getBoundingBox() {
 		return getBoundingBox(null);
 	}
 
-	/** Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
+	/** Bounding box of the transformed data. Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
 	public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
 		if (this.at.isIdentity()) {
@@ -338,7 +340,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Subclasses can override this method to provide the exact contour, otherwise it returns the bounding box. */
 	public Polygon getPerimeter() {
-		Rectangle r = getBoundingBox();
+		final Rectangle r = getBoundingBox();
 		return new Polygon(new int[]{r.x, r.x+r.width, r.x+r.width, r.x},
 				   new int[]{r.y, r.y, r.y+r.height, r.y+r.height},
 				   4);

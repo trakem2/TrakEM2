@@ -1394,7 +1394,7 @@ public class DBLoader extends Loader {
 			// see if the Displayable AWT image is cached:
 			Image awt = awts.get(id);
 			if (null != awt) {
-				Image image = Snapshot.createSnap(p, awt, Snapshot.SCALE); //awt.getScaledInstance((int)(p.getWidth() * Snapshot.SCALE), (int)(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD);
+				Image image = Snapshot.createSnap(p, awt, Snapshot.SCALE);
 				snaps.put(id, image);
 				unlock();
 				//Utils.log("method awt");
@@ -1407,7 +1407,7 @@ public class DBLoader extends Loader {
 				Image image = p.createImage(); // with adjusted channels, calls the ImagePlus
 				lock();
 				awts.put(id, image);
-				image = Snapshot.createSnap(p, image, Snapshot.SCALE); //image.getScaledInstance((int)(p.getWidth() * Snapshot.SCALE), (int)(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD);
+				image = Snapshot.createSnap(p, image, Snapshot.SCALE);
 				snaps.put(id, image);
 
 				unlock();
@@ -1456,7 +1456,7 @@ public class DBLoader extends Loader {
 					//imp = fetchImagePlus(p); // what for?
 					lock();
 					awts.put(id, image);
-					image = Snapshot.createSnap(p, image, Snapshot.SCALE); //image.getScaledInstance((int)(p.getWidth() * Snapshot.SCALE), (int)(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD);
+					image = Snapshot.createSnap(p, image, Snapshot.SCALE);
 					snaps.put(id, image);
 					unlock(); // for the updateInDatabase method to lock on its own
 					p.updateInDatabase("tiff_snapshot");

@@ -44,30 +44,6 @@ public class Snapshot {
 	public static final double SCALE = 0.25;
 	public static final int SCALE_METHOD = Image.SCALE_SMOOTH; //SCALE_FAST;
 
-	/** Ensures the snap awt returned is of the proper type. */
-	/*
-	static public Image createSnap(final Patch p, final Image awt, final double mag) {
-		switch(p.getType()) {
-			case ImagePlus.COLOR_256: // preserve LUT
-				// TODO needs testing
-				ImagePlus imp_lut = p.getProject().getLoader().fetchImagePlus(p);
-				return imp_lut.getProcessor().resize((int)Math.ceil(p.getWidth() * mag), (int)Math.ceil(p.getHeight() * mag)).createImage();
-			case ImagePlus.COLOR_RGB:
-				return awt.getScaledInstance((int)Math.ceil(p.getWidth() * mag), (int)Math.ceil(p.getHeight() * mag), Snapshot.SCALE_METHOD);
-			default:
-				// scale and make 8-bit again
-				ImagePlus imp = new ImagePlus("s", awt.getScaledInstance((int)Math.ceil(p.getWidth() * mag), (int)Math.ceil(p.getHeight() * mag), Snapshot.SCALE_METHOD));
-				//Utils.log2("Created snap default");
-				if (ImagePlus.GRAY8 != imp.getType()) {
-					return imp.getProcessor().convertToByte(true).createImage();
-				} else {
-					return imp.getProcessor().createImage();
-				}
-				// the above is more CPU intensive but avoids reloading the ImagePlus
-		}
-	}
-	*/
-
 	public Snapshot(Displayable d) {
 		this.d = d;
 	}
@@ -80,38 +56,10 @@ public class Snapshot {
 			// when profiles have no points yet
 			w = h = Math.ceil(1.0D / SCALE);
 		}
-		if (d instanceof Patch) {
-			
-			//Image image = null;
-			/*
-			if (((Patch)d).getChannelAlphas() == 0xffffffff) {
-				image = d.getProject().getLoader().fetchImage((Patch)d);
-			} else {
-				image = d.getProject().getLoader().fetchImagePlus((Patch)d).getProcessor().createImage();
-			}
-			*/
+		if (d.getClass().equals(Patch.class)) {
 			final Patch p = (Patch)d;
 			final Image image = d.getProject().getLoader().fetchImage(p, 1.0); // not the snapshot, so retrieve for magnification 1.0
-			final Image snap = Snapshot.createSnap(p, image, Snapshot.SCALE); //image.getScaledInstance((int)(w * SCALE), (int)(h * SCALE), SCALE_METHOD);
-			/* // debug
-			final BufferedImage bi = new BufferedImage(snap.getWidth(null), snap.getHeight(null), BufferedImage.TYPE_BYTE_INDEXED);
-			bi.getGraphics().drawImage(snap, 0, 0, null);
-			try {
-				new Thread() { public void run() { new ImagePlus("snap", bi).show();} }.start();
-				Thread.sleep(1000);
-			} catch (Exception ee) {
-			}
-			*/
-			// easier:
-			// NO, doesn't follow the general model of quality/non-quality!!
-			/*
-			final ImageProcessor ip = d.getProject().getLoader().fetchImagePlus(p, false).getProcessor();
-			ip.setInterpolate(true);
-			ImageProcessor ip_scaled = ip.resize((int)Math.ceil(p.getWidth() * SCALE), (int)Math.ceil(p.getHeight() * SCALE));
-			ip_scaled.setColorModel(ip.getColorModel()); // the LUT !
-			final Image snap = ip_scaled.createImage();
-			*/
-
+			final Image snap = Snapshot.createSnap(p, image, Snapshot.SCALE);
 			d.getProject().getLoader().cacheSnapshot(d.getId(), snap);
 			p.updateInDatabase("tiff_snapshot");
 		}
@@ -119,10 +67,6 @@ public class Snapshot {
 
 	/** Fetch from database or the cache if this is a Patch. */
 	public Image reload() {
-		//Image image = d.getProject().getLoader().fetchSnapshot(d); // will cache it
-		//if (null == image) {
-		//	remake(); // some error ocurred, so failsafe.
-		//}
 		if (d.getClass().equals(Patch.class)) { // instanceof Patch
 			return d.getProject().getLoader().fetchSnapshot((Patch)d);
 		}

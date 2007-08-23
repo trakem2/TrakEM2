@@ -587,15 +587,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Enlarges the display in the given direction, */
-	public boolean enlargeToFit(Displayable d, int anchor) {
+	public boolean enlargeToFit(final Displayable d, final int anchor) {
 		// check if necessary
-		if (d.x + d.getWidth() < layer_width && d.y + d.getHeight() < layer_height) {
+		final Rectangle b = d.getBoundingBox(null);
+		if (b.x + b.width < layer_width && b.y + b.height < layer_height) {
 			return true;
 		}
 		// else, enlarge to fit it
-		Rectangle r = new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
-		Rectangle rd = d.getBoundingBox(null);
-		r.add(rd);
+		final Rectangle r = new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
+		r.add(b);
 		return setDimensions(r.width, r.height, anchor);
 	}
 
@@ -660,13 +660,13 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (layer_width < this.layer_width || layer_height < this.layer_height) {
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				double dw = d.getWidth();
-				double dh = d.getHeight();
+				Rectangle b = d.getBoundingBox(null);
+				double dw = b.getWidth();
+				double dh = b.getHeight();
 				// respect 10% margins
-				if (d.getX() + dw + new_x < 0.1 * dw || d.getX() + 0.9 * dw + new_x > layer_width || d.getY() + dh + new_y < 0.1 * dh || d.getY() + 0.9 * dh + new_y > layer_height) {
-				//if (d.getX() + dw < new_x + 0.1 * dw || d.getX() + 0.9 * dw > new_x + layer_width || d.getY() + dh < new_y + 0.1 * dh || d.getY() + 0.9 * dh > new_y + layer_height)
+				if (b.x + dw + new_x < 0.1 * dw || b.x + 0.9 * dw + new_x > layer_width || b.y + dh + new_y < 0.1 * dh || b.y + 0.9 * dh + new_y > layer_height) {
 					// cropping!
-					Utils.log("Cropping " + d + "\nLayerSet: not resizing.");
+					Utils.showMessage("Cropping " + d + "\nLayerSet: not resizing.");
 					return false;
 				}
 			}
@@ -678,8 +678,9 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (0 != new_x || 0 != new_y) {
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				Utils.log("d.x,y = " + d.x + ", " + d.y);
-				d.setLocation(d.x + new_x, d.y + new_y);
+				Rectangle b = d.getBoundingBox(null);
+				Utils.log("d x,y = " + b.x + ", " + b.y);
+				d.setLocation(b.x + new_x, b.y + new_y);
 			}
 		}
 
