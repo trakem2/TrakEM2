@@ -190,9 +190,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				}
 				// soft attempt to stop repainting (in purpose)
+				/*
 				cancel_painting = true;
 				Thread.yield();
 				cancel_painting = false;
+				*/
 
 				// call the paint(Graphics g) ATTENTION this is the only place where any of the repaint methods of the superclass are to be called (which will call the update(Graphics g), which will call the paint method.
 				if (null == clipRect) DisplayCanvas.super.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
@@ -470,9 +472,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				if (null != active) {
 					try {
-						//if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
+						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
 							active.paint(g2d, magnification, true, c_alphas, active_layer);
-						//}
+						}
 					} catch (Exception e) {
 						Utils.log2("Synchronization issues in painting the active");
 						e.printStackTrace();

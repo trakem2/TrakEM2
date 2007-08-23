@@ -1065,8 +1065,9 @@ public abstract class Displayable extends DBObject {
 		return (AffineTransform)at.clone();
 	}
 
+	/** Sets the matrix values of the given AffineTransform to this Displayable's AffineTransform. */
 	public void setAffineTransform(AffineTransform at) {
-		this.at = at;
+		this.at.setTransform(at);
 		updateInDatabase("transform");
 	}
 
@@ -1184,7 +1185,7 @@ public abstract class Displayable extends DBObject {
 		return pDst;
 	}
 
-	/** Returns a new Rectangle which encloses completly the given rectangle after transforming it. The given rectangle's fields are untouched.*/
+	/** Returns a new Rectangle which encloses completly the given rectangle after transforming it with this Displayable's AffineTransform. The given rectangle's fields are untouched.*/
 	final public Rectangle transformRectangle(final Rectangle r) {
 		return new Area(r).createTransformedArea(this.at).getBounds();
 	}

@@ -542,19 +542,19 @@ abstract public class Loader {
 	static public final void runGC() {
 		final long initial = IJ.currentMemory();
 		long now = initial;
-		int max = 10;
+		final int max = 10;
 		long sleep = 50; // initial value
-		int iterations = 1;
+		int iterations = 0;
 		do {
+			Runtime.getRuntime().runFinalization(); // enforce it
 			System.gc();
 			Thread.yield();
 			try { Thread.sleep(sleep); } catch (InterruptedException ie) {}
-			sleep += sleep;
+			sleep += sleep; // incremental
 			now = IJ.currentMemory();
-			max--;
 			Utils.log("\titer " + iterations + "  initial: " + initial  + " now: " + now);
 			iterations++;
-		} while (now >= initial && max > 0);
+		} while (now >= initial && iterations < max);
 		Utils.log2("finished runGC");
 	}
 
