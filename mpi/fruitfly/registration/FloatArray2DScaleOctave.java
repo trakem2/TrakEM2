@@ -261,7 +261,7 @@ public class FloatArray2DScaleOctave
 			if ( state == State.STUB && i == STEPS ) continue;
 			// use precomputed kernels
 			l[ i ] = ImageFilter.convolveSeparable( l[ 0 ], KERNEL_DIFF[ i ], KERNEL_DIFF[ i ] );
-			//l[ i ] = ImageFilter.computeGaussianFastMirror( l[ 0 ], SIGMA_DIFF[ i ] );
+			//l[ i ] = ImageFilter.computeGaussian( l[ 0 ], SIGMA_DIFF[ i ] );
 		}
 		d = new FloatArray2D[ STEPS + 2 ];
 		for ( int i = 0; i < d.length; ++i )
