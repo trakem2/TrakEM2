@@ -754,6 +754,7 @@ public abstract class Displayable extends DBObject {
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {}
 
 	/** Possible directions are LayerSet.R90, .R270, .FLIP_VERTICAL and .FLIP_HORIZONTAL. */
+	@Deprecated
 	public void rotateData(int direction) {}  // DLabel and LayerSet do NOT do anything
 
 	/** Does nothing unless overriden. Used for profile, pipe and ball points when preventing dragging beyond the screen, to snap to cursor when this reenters. */

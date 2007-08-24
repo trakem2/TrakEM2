@@ -228,10 +228,17 @@ public class Patch extends Displayable {
 	static final public DirectColorModel DCM = new DirectColorModel(24, 0xff0000, 0xff00, 0xff);
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-		Image image = null;
+		//Image image = null;
+		//
 		// try to get the snapshot if appropriate, so that if quality is on, it will paint better
 		// (note that it has to scale the affine transform as well)
+		// All the dancing below with the magnification is so that if the snapshots can be
+		// used instead, they will, mostly because painting a large image as smaller does
+		// not necessarily paint it smoother than the snapshots do, when the quality option is on.
+
 		AffineTransform atp = this.at;
+
+		/*
 		if (this.channels == channels) {
 			if (magnification <= Snapshot.SCALE) {
 				image = project.getLoader().fetchSnapshot(this);
@@ -242,7 +249,7 @@ public class Patch extends Displayable {
 			}
 		} else {
 			// remake to show appropriate channels
-			image = adjustChannels(channels);
+			image = adjustChannels(channels); // with full size
 			if (magnification <= Snapshot.SCALE) {
 				image = project.getLoader().fetchSnapshot(this);
 				Rectangle r = getBoundingBox();
@@ -250,10 +257,47 @@ public class Patch extends Displayable {
 				atp.scale(1/Snapshot.SCALE, 1/Snapshot.SCALE);
 			}
 		}
+		*/
+
+		if (this.channels != channels) {
+			// more proper, so a snap with proper quality may be returned, or a smaller awt
+			final Image awt = getProject().getLoader().decacheAWT(this.id);
+			if (null != awt) try {
+				awt.flush();
+			} catch (Exception e) {
+				new Thread() {
+					public void run() {
+						try { Thread.sleep(10); } catch (InterruptedException ie) {}
+						Display.repaint(layer, Patch.this, 0);
+					}
+				}.start(); // this flush may have interfered with paints in progress, so just repaint again
+			}
+			// the above just throws the cached image away if the alpha of the channels has changed
+		}
+
+		final Image image = project.getLoader().fetchImage(this, magnification);
+
 		if (null == image) {
 			Utils.log2("Patch.paint: null image, returning");
 			return; // TEMPORARY from lazy repaints after closing a Project
 		}
+
+		// fix dimensions (may be smaller; either a snap or a smaller awt)
+		final int iw = image.getWidth(null);
+		if (iw < this.width) {  // no need to check height
+			atp = (AffineTransform)atp.clone();
+			final double K = this.width / (double)iw;
+			atp.scale(K, K);
+		}
+
+		/* // fix dimensions (DONE above)
+		final int iw = image.getWidth(null);
+		if (iw < this.width) {  // no need to check height
+			atp = (AffineTransform)atp.clone();
+			final double K = this.width / (double)iw;
+			atp.scale(K, K);
+		}
+		*/
 
 		//arrange transparency
 		Composite original_composite = null;

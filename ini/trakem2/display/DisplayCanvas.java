@@ -116,7 +116,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	/** Master over the rt_old */
-	private Object controler_ob2 = new Object();
+	private final Object controler_ob2 = new Object();
 	private boolean controling2 = false;
 
 	private int count = 0; // threads' tag

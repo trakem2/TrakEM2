@@ -164,6 +164,27 @@ abstract public class Loader {
 		if (!ControlWindow.isGUIEnabled()) {
 			opener.setSilentMode(true);
 		}
+
+		// debug: report cache status every ten seconds
+		/*
+		final Loader lo = this;
+		new Thread() {
+			public void run() {
+				while (true) {
+					try { Thread.sleep(10000); } catch (InterruptedException ie) {}
+					synchronized(db_lock) {
+						lock();
+						if (!v_loaders.contains(lo)) {
+							unlock();
+							break;
+						}
+						Utils.log2("CACHE: \n\timps: " + imps.size() + "\n\tawts: " + awts.size() + "\n\tsnaps: " + snaps.size());
+						unlock();
+					}
+				}
+			}
+		}.start();
+		*/
 	}
 
 	abstract public boolean isReady();
@@ -540,7 +561,7 @@ abstract public class Loader {
 
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
 	static public final void runGC() {
-		Utils.printCaller("runGC", 4);
+		//Utils.printCaller("runGC", 4);
 		final long initial = IJ.currentMemory();
 		long now = initial;
 		final int max = 10;
@@ -764,10 +785,18 @@ abstract public class Loader {
 					unlock();
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
-				if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 				final long id = p.getId();
+				// If the is cached, see if it's suitable
+				if (mag - Snapshot.SCALE < 0.001) { // i.e. if mag is 0.25 or lower
+					final Image snap = snaps.get(id);
+					if (null != snap) {
+						unlock();
+						return snap;
+					}
+				}
 				// see if the Displayable AWT image is cached and big enough:
 				Image awt = awts.get(id);
+				if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 				if (null != awt) {
 					if (mag - (awt.getWidth(null) / (double)p.getWidth()) < 0.001) {
 						unlock();
@@ -791,21 +820,10 @@ abstract public class Loader {
 							}
 						}
 					}
-				} else {
-					// If the awt is not cached, see if the snap is suitable
-					if (mag - Snapshot.SCALE < 0.001) { // i.e. if mag is 0.25 or lower
-						final Image snap = snaps.get(id);
-						if (null != snap) {
-							unlock();
-							return snap;
-						} else {
-							unlock();
-							return fetchSnapshot(p);
-						}
-					}
 				}
 
 				// if we get here and the awt is not null, it means its size is not appropriate
+				// If it's null, it means the snapshot is also null and/or not appropriate
 
 				//Utils.log2("Loader.fetchImage: awt is " + awt + "  cache size: " + awts.size());
 
@@ -819,7 +837,7 @@ abstract public class Loader {
 						Image image = p.createImage(); //considers c_alphas
 						lock();
 						if (1.0 != mag) { // make it smaller if possible
-							final Image image2 = Snapshot.createSnap(p, image, mag);
+							final Image image2 = Snapshot.createSnap(p, image, mag); // reusing the function createSnap to obtain a proper, quality option-respecting awt.
 							image.flush();
 							image = image2;
 						}
@@ -839,7 +857,7 @@ abstract public class Loader {
 				}
 				lock();
 				if (1.0 != mag) { // make it smaller if possible
-					final Image image2 = Snapshot.createSnap(p, image, mag); //image.getScaledInstance((int)Math.ceil(p.getWidth() * mag), (int)Math.ceil(p.getHeight() * mag), Snapshot.SCALE_METHOD);
+					final Image image2 = Snapshot.createSnap(p, image, mag); // reusing the function createSnap to obtain a proper, quality option-respecting awt.
 					image.flush();
 					image = image2;
 				}
@@ -1600,7 +1618,7 @@ abstract public class Loader {
 						al_p.add(q, pa[i]);
 					}
 				}
-				ArrayList al_p2 = (ArrayList)al_p.clone(); // shallow copy of the ordered list
+				final ArrayList al_p2 = (ArrayList)al_p.clone(); // shallow copy of the ordered list
 				// 2 - discard the first and last 25% (TODO: a proper histogram clustering analysis and histogram examination should apply here)
 				if (pa.length > 3) { // under 4 images, use them all
 					int i=0;
@@ -2750,7 +2768,7 @@ abstract public class Loader {
 
 	static public void startSetTempCurrentImage(final ImagePlus imp) {
 		synchronized (temp_current_image_lock) {
-			Utils.log2("temp in use: " + temp_in_use);
+			//Utils.log2("temp in use: " + temp_in_use);
 			while (temp_in_use) { try { temp_current_image_lock.wait(); } catch (InterruptedException ie) {} }
 			temp_in_use = true;
 			previous_current_image = WindowManager.getCurrentImage();

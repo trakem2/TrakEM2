@@ -242,177 +242,6 @@ public class Ball extends ZDisplayable {
 		}
 	}
 
-	@Deprecated
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
-		if (0 == n_points) {
-			return;
-		}
-		// check if it has to be painted at all
-		if (super.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-			return;
-		}
-
-		if (-1 == n_points) {
-			// load points from the database
-			setupForDisplay();
-		}
-		// translate graphics origin of coordinates
-		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate((x - srcRect.x)* magnification, (y - srcRect.y)* magnification);
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-		int i_current = layer_set.getLayerIndex(active_layer.getId());
-		int ii;
-		int radius;
-		for (int j=0; j<n_points; j++) {
-			//z = layer_set.getLayer(p_layer[j]).getZ();
-			//if (z < z_current) g.setColor(Color.red);
-			//else if (z == z_current) g.setColor(this.color);
-			//else g.setColor(Color.blue);
-			ii = layer_set.getLayerIndex(p_layer[j]);
-			if (ii == i_current -1) g.setColor(Color.red);
-			else if (ii == i_current) g.setColor(this.color);
-			else if (ii == i_current + 1) g.setColor(Color.blue);
-			else continue; //don't paint!
-			radius = (int)(p_width[j] * magnification);
-			g2d.drawOval((int)(p[0][j] * magnification) - radius, (int)(p[1][j] * magnification) - radius, radius + radius, radius + radius);
-		}
-		if (active) {
-			long layer_id = active_layer.getId();
-			for (int j=0; j<n_points; j++) {
-				if (layer_id != p_layer[j]) continue;
-				DisplayCanvas.drawHandle(g, (int)(p[0][j]*magnification), (int)(p[1][j]*magnification));
-			}
-		}
-
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
-		}
-		// undo transport painting pointer
-		g2d.translate(- (x - srcRect.x)* magnification, - (y - srcRect.y)* magnification);
-	}
-
-	public void paint(Graphics g, Layer active_layer) {
-		if (0 == n_points) {
-			return;
-		}
-		// check if it has to be painted at all
-		if (!this.visible) {
-			return;
-		}
-
-		if (-1 == n_points) {
-			// load points from the database
-			setupForDisplay();
-		}
-		// translate graphics origin of coordinates
-		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate(x, y);
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		int i_current = layer_set.getLayerIndex(active_layer.getId());
-		int ii;
-		int radius;
-		for (int j=0; j<n_points; j++) {
-			//z = layer_set.getLayer(p_layer[j]).getZ();
-			//if (z < z_current) g.setColor(Color.red);
-			//else if (z == z_current) g.setColor(this.color);
-			//else g.setColor(Color.blue);
-			ii = layer_set.getLayerIndex(p_layer[j]);
-			if (ii == i_current -1) g.setColor(Color.red);
-			else if (ii == i_current) g.setColor(this.color);
-			else if (ii == i_current + 1) g.setColor(Color.blue);
-			else continue; //don't paint!
-			radius = (int)(p_width[j]);
-			g2d.drawOval((int)(p[0][j]) - radius, (int)(p[1][j]) - radius, radius + radius, radius + radius);
-		}
-
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
-		}
-		// undo transport painting pointer
-		g2d.translate(- x, - y);
-	}
-
-	/** For painting while transforming. The given box is in offscreen coords. */
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
-		if (0 == n_points) {
-			return;
-		}
-
-		// check if it has to be painted at all
-		if (super.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-			return;
-		}
-
-		if (-1 == n_points) {
-			// load points from the database
-			setupForDisplay();
-		}
-
-		// translate graphics origin of coordinates
-		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate((int)((t.x + t.width/2 -srcRect.x)*magnification), (int)((t.y + t.height/2 -srcRect.y)*magnification));
-		double sx = t.width / this.width;
-		double sy = t.height / this.height;
-		double sm = (sx > sy ? sy : sx) * magnification; // smallest
-		sx *= magnification;
-		sy *= magnification;
-		double cx = this.width/2; // center of data
-		double cy = this.height/2;
-		AffineTransform original = g2d.getTransform();
-		g2d.rotate((t.rot * Math.PI) / 180); //(t.rot * 2 * Math.PI / 360); //Math.toRadians(rot));
-		//arrange transparency
-		Composite original_composite = null;
-		if (t.alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, t.alpha));
-		}
-
-		int i_current = layer_set.getLayerIndex(active_layer.getId());
-		int ii;
-		int radius;
-		for (int j=0; j<n_points; j++) {
-			ii = layer_set.getLayerIndex(p_layer[j]);
-			if (ii == i_current -1) g.setColor(Color.red);
-			else if (ii == i_current) g.setColor(this.color);
-			else if (ii == i_current + 1) g.setColor(Color.blue);
-			else continue; //don't paint!
-			radius = (int)(p_width[j] * sm);
-			g2d.drawOval((int)((p[0][j] -cx) * sx) - radius, (int)((p[1][j] -cy) * sy) - radius, radius + radius, radius + radius);
-		}
-		if (active) {
-			long layer_id = active_layer.getId();
-			for (int j=0; j<n_points; j++) {
-				if (layer_id != p_layer[j]) continue;
-				DisplayCanvas.drawHandle(g, (int)((p[0][j] -cx) * sx), (int)((p[1][j] - cy) * sy));
-			}
-		}
-
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
-		}
-		// undo scale
-		// DONE BELOW //g2d.scale(1/sx, 1/sy);
-		g2d.setTransform(original);
-		// undo transport painting pointer
-		g2d.translate( - (int)((t.x +t.width/2 -srcRect.x)*magnification), - (int)((t.y +t.height/2 -srcRect.y)*magnification));
-	}
-
 	public void keyPressed(KeyEvent ke) {
 		// TODO
 	}
@@ -501,9 +330,6 @@ public class Ball extends ZDisplayable {
 		index = -1;
 	}
 
-	private void calculateBoundingBox() {
-		calculateBoundingBox(true);
-	}
 	private void calculateBoundingBox(boolean adjust_position) {
 		double min_x = Double.MAX_VALUE;
 		double min_y = Double.MAX_VALUE;
@@ -551,7 +377,7 @@ public class Ball extends ZDisplayable {
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
 	public void repaint() {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
-		calculateBoundingBox();
+		calculateBoundingBox(true);
 		Display.repaint(layer_set, this, 5);
 	}
 
@@ -740,28 +566,6 @@ public class Ball extends ZDisplayable {
 			}
 		}
 	}
-	/** Not accepted if new bounds will leave the Displayable beyond layer bounds. */
-	public void setBounds(double x, double y, double width, double height) {
-		if (x + width <= 0 || y + height <= 0 || x >= layer.getLayerWidth() || y >= layer.getLayerHeight()) return;
-		// scale the points
-		double sx = width / this.width;
-		double sy = height / this.height;
-		for (int i=0; i<n_points; i++) {
-			p[0][i] *= sx;	p[1][i] *= sy;
-			p_width[i] *= sx; // TODO spheres don't scale properly in the Y axis! Would be hell to do so.
-		}
-		/* TEMPORARY*/ calculateBoundingBox(true); // to fix the lack of proper sy scaling
-		updateInDatabase("points");
-		/*
-		this.x = x;
-		this.y = y;
-		this.width = width;
-		this.height = height;
-		*/
-		updateInDatabase("position+dimensions");
-		snapshot.remake();
-		Display.updatePanel(layer, this);
-	}
 
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in, or the creation layer if no points yet. */
 	public Layer getFirstLayer() {
@@ -776,7 +580,7 @@ public class Ball extends ZDisplayable {
 		return la;
 	}
 
-	/** Returns a [n_points][4] array, with x,y,z,radius on the second part.  Not translated to x,y but local!*/
+	/** Returns a [n_points][4] array, with x,y,z,radius on the second part.  Not transformed, but local!*/
 	public double[][] getBalls() {
 		if (-1 == n_points) setupForDisplay(); // reload
 		double[][] b = new double[n_points][4];
@@ -787,39 +591,6 @@ public class Ball extends ZDisplayable {
 			b[i][3] = p_width[i];
 		}
 		return b;
-	}
-
-	public void rotateData(int direction) {
-		boolean flushed = false;
-		if (-1 == n_points) {
-			setupForDisplay(); //reload
-			flushed = true;
-		}
-		if (0 == n_points) return;
-		double tmp;
-		for (int i=0; i<n_points; i++) {
-			switch (direction) {
-				case LayerSet.R90:
-					tmp = p[0][i];
-					p[0][i] = height - p[1][i]; 
-					p[1][i] = tmp;
-					break;
-				case LayerSet.R270:
-					tmp = p[0][i];
-					p[0][i] = p[1][i]; 
-					p[1][i] = width - tmp;
-					break;
-				case LayerSet.FLIP_HORIZONTAL:
-					p[0][i] = width - p[0][i];
-					break;
-				case LayerSet.FLIP_VERTICAL:
-					p[1][i] = height - p[1][i];
-					break;
-			}
-		}
-		updateInDatabase("points");
-		// restore loaded state
-		if (flushed) flush();
 	}
 
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {
@@ -879,54 +650,6 @@ public class Ball extends ZDisplayable {
 			 .append(indent).append("<!ATTLIST t2_ball_ob r NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_ball_ob layer_id NMTOKEN #REQUIRED>\n")
 		;
-	}
-
-	public void setTransform(Transform t) {
-		// Remember: data is local, the x,y makes it global
-		// center is:
-		double cx = this.width/2; // points are local!
-		double cy = this.height/2;
-		// scale data relative to the center
-		double sx = t.width / this.width;
-		double sy = t.height / this.height;
-		if (t.width != this.width || t.height != this.height) {
-			this.p = scalePoints(p, sx, sy, cx, cy);
-			double s = sx > sy ? sy : sx; // the smallest
-			for (int i=0; i<n_points; i++) {
-				this.p_width[i] *= s;
-			}
-		}
-		// WARNING: if the t.layer is changed, the p_layer should be updated, and yet it is not at the moment.
-		// rotate data relative to the center
-		if (0 != t.rot) {
-			double r = Math.toRadians(t.rot);
-			this.p = rotatePoints(p, r, cx, cy);
-		}
-		// reset transform data:
-		if (0 != t.rot || t.width != this.width || t.height != this.height) {
-			double dx = t.x - this.x; //displacement, needed when there is a rotation and a displacement, to correct the x,y generated by the calculateBoundingBox
-			double dy = t.y - this.y;
-			calculateBoundingBox(true); // will CHANGE this.x and this.y
-			t.x = this.x + (t.width - t.width/sx)/2 + dx; // this.x and this.y has been changed by calculateBoundingBox
-			t.y = this.y + (t.height - t.height/sy)/2 + dy; // the t.width/sx is the old width, I could cache it and avoid losing some infinitesimal precision
-			t.width = this.width; // should be equal anyway
-			t.height = this.height;
-			t.rot = 0;
-		}
-		// update database position, dimensions, etc.
-		super.setTransform(t);
-		updateInDatabase("points");
-	}
-	/** Transform points falling within the given layer; translate by dx,dy and rotate by rot relative to origin xo,yo*/
-	public void transformPoints(Layer layer, double dx, double dy, double rot, double xo, double yo) {
-		if (-1 == n_points) setupForDisplay(); //reload
-		for (int i=0; i<n_points; i++) {
-			if (p_layer[i] == layer.getId()) {
-				Displayable.transformPoint(p, i, dx, dy, rot, xo, yo);
-			}
-		}
-		calculateBoundingBox(true);
-		updateInDatabase("points");
 	}
 
 	/** */ // this may be inaccurate

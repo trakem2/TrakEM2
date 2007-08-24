@@ -94,7 +94,8 @@ public abstract class ZDisplayable extends Displayable {
 	}
 
 	/** Transform points falling within the given layer; translate by dx,dy and rotate by rot relative to origin xo,yo*/
-	abstract public void transformPoints(Layer layer, double dx, double dy, double rot, double xo, double yo);
+	@Deprecated
+	public void transformPoints(Layer layer, double dx, double dy, double rot, double xo, double yo) {}
 
 	public boolean remove(boolean check) {
 		if (check && !Utils.check("Really remove " + this.toString() + " ?")) return false;

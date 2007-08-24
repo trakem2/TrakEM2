@@ -74,7 +74,10 @@ public class Snapshot {
 	}
 
 	public void paintTo(Graphics2D g, final Layer layer) {
-		d.paint(g, layer);
+		//d.paint(g, layer);
+		// the above results in the Patch calling for the full awt to do the painting,
+		// which may have been easily thrown away under heavy load.
+		d.paint(g, Snapshot.SCALE, false, (d.getClass().equals(Patch.class) ? ((Patch)d).getChannelAlphas() : 1), layer);
 	}
 
 	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. The @param awt Image is expected to have the same dimensions as the ImagePlus from which it originates. */
@@ -88,7 +91,20 @@ public class Snapshot {
 		try {
 		if (null != p.getLayer() && p.getLayer().getParent().snapshotsQuality()) {
 			// best, but very slow
-			return awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING);
+			Image snap = awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING);
+			switch (p.getType()) {
+				case ImagePlus.GRAY16:
+				case ImagePlus.GRAY32:
+				case ImagePlus.GRAY8:
+					// convert to 8-bit (reduce memory footprint by 4x)
+					final Image snap8 = new ImagePlus("", snap).getProcessor().convertToByte(true).createImage();
+					snap.flush();
+					return snap8;
+				//case ImagePlus.COLOR_RGB:
+				//case ImagePlus.COLOR_256:
+				default:
+					return snap;
+			}
 
 			//second best, much faster, should be slightly blurry but looks grainy as well
 			/*

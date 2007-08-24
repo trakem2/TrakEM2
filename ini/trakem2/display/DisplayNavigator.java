@@ -141,20 +141,23 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		private boolean quit = false;
 
 		UpdateGraphicsThread() {
-			if (null != ugt) {
-				ugt.quit = true;
-				Thread.yield();
-				synchronized (updating_ob) {
-					while (updating) {
-						try { updating_ob.wait(); } catch (InterruptedException ie) {}
-					}
-					updating = true;
-					ugt = this;
-					quit = false;
-					updating = false;
-					updating_ob.notifyAll();
+			synchronized (updating_ob) {
+				while (updating) {
+					try {
+						if (quit) return;
+						updating_ob.wait();
+					} catch (InterruptedException ie) {}
 				}
+				updating = true;
+				if (null != ugt) {
+					ugt.quit = true;
+				}
+				ugt = this;
+				quit = false;
+				updating = false;
+				updating_ob.notifyAll();
 			}
+			Thread.yield();
 			setPriority(Thread.NORM_PRIORITY);
 			start();
 		}
@@ -294,31 +297,39 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		g.drawRect((int)(srcRect.x * scale) +1, (int)(srcRect.y * scale) +1, gw, gh);
 	}
 
+
+	private final Object control_lock = new Object();
+	private boolean controling = false;
+
 	private class RepaintThread extends Thread {
 
 		private boolean quit = true;
 		private Rectangle clipRect = null;
 
 		RepaintThread(Rectangle clipRect_) {
+			synchronized (control_lock) {
+				while (controling) { try { control_lock.wait(); } catch (InterruptedException ie) {}}
+				controling = true;
+				if (null != rt) {
+					rt.quit = true;
+					Thread.yield();
+					// accumulate clipRect. A null clipRect means the entire area
+					if (null != clipRect) {
+						if (null == clipRect_) clipRect = new Rectangle(0, 0, FIXED_WIDTH, height);
+						else clipRect.add(clipRect_);
+					}
+				} else {
+					clipRect = clipRect_;
+				}
+				rt = this;
+				controling = false;
+				control_lock.notifyAll();
+			}
+			Thread.yield(); // still the launcher thread
 			if (redraw_displayables) {
 				new UpdateGraphicsThread();
 				redraw_displayables = false; // reset
 			}
-			if (null != rt) {
-				rt.quit = true;
-				// wait until dying (i.e. the run() method returns)
-				//while (rt.isAlive()) {
-					Thread.yield();
-				//}
-				// accumulate clipRect. A null clipRect means the entire area
-				if (null != clipRect) {
-					if (null == clipRect_) clipRect = new Rectangle(0, 0, FIXED_WIDTH, height);
-					else clipRect.add(clipRect_);
-				}
-			} else {
-				clipRect = clipRect_;
-			}
-			rt = this;
 			quit = false;
 			setPriority(Thread.NORM_PRIORITY);
 			start();
@@ -329,12 +340,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		}
 
 		public void run() {
-			/* // set earlier, at construction time
-			if (redraw_displayables) {
-				new UpdateGraphicsThread();
-				redraw_displayables = false; // reset
-			}
-			*/
+			if (quit) return;
 			// now wait for the image to be done
 			synchronized (updating_ob) {
 				while (updating) {

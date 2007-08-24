@@ -27,6 +27,7 @@ public abstract class Worker extends Thread {
 	private boolean working = false;
 	protected boolean quit = false;
 	public Worker(String task_name) {
+		super("Worker");
 		this.task_name = task_name;
 		setPriority(Thread.NORM_PRIORITY);
 	}
