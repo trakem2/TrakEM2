@@ -362,11 +362,21 @@ public abstract class Displayable extends DBObject {
 		return r;
 	}
 
-	/** Subclasses can override this method to provide the exact contour, otherwise it returns the bounding box. */
+	/** Subclasses can override this method to provide the exact contour, otherwise it returns the transformed bounding box. */
 	public Polygon getPerimeter() {
-		final Rectangle r = getBoundingBox();
-		return new Polygon(new int[]{r.x, r.x+r.width, r.x+r.width, r.x},
-				   new int[]{r.y, r.y, r.y+r.height, r.y+r.height},
+		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
+			// return the bounding box as a polygon:
+			final Rectangle r = getBoundingBox();
+			return new Polygon(new int[]{r.x, r.x+r.width, r.x+r.width, r.x},
+					   new int[]{r.y, r.y, r.y+r.height, r.y+r.height},
+					   4);
+		}
+		// else, the rotated/sheared/scaled and translated bounding box:
+		final double[] po1 = new double[]{0,0,  width,0,  width,height,  0,height};
+		final double[] po2 = new double[8];
+		this.at.transform(po1, 0, po2, 0, 4);
+		return new Polygon(new int[]{(int)po2[0], (int)po2[2], (int)po2[4], (int)po2[6]},
+				   new int[]{(int)po2[1], (int)po2[3], (int)po2[5], (int)po2[7]},
 				   4);
 	}
 
