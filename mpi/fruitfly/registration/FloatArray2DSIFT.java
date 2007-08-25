@@ -2,7 +2,13 @@ package mpi.fruitfly.registration;
 
 import static mpi.fruitfly.math.General.flipInRange;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
-//import mpi.fruitfly.registration.SIFTProcessor.Feature;
+
+// TODO this is for testing
+//---------------------------------------------------------------------
+//import ij.*;
+//import mpi.fruitfly.general.*;
+//import mpi.fruitfly.math.datastructures.*;
+
 
 import java.util.Vector;
 
@@ -192,6 +198,11 @@ public class FloatArray2DSIFT
 		}
 	}
 	
+	// TODO this is for testing
+	//---------------------------------------------------------------------
+	//public FloatArray2D pattern;
+	
+	
 	/**
 	 * sample the scaled and rotated gradients in a region around the
 	 * features location, the regions size is defined by
@@ -212,6 +223,7 @@ public class FloatArray2DSIFT
 		FloatArray2DScaleOctave octave = octaves[ o ];
 		FloatArray2D[] gradients = octave.getL1( Math.round( c[ 2 ] ) );
 		FloatArray2D[] region = new FloatArray2D[ 2 ];
+		
 		region[ 0 ] = new FloatArray2D(
 				FEATURE_DESCRIPTOR_WIDTH,
 				FEATURE_DESCRIPTOR_WIDTH );
@@ -220,6 +232,11 @@ public class FloatArray2DSIFT
 				FEATURE_DESCRIPTOR_WIDTH );
 		float cos_o = ( float )Math.cos( orientation );
 		float sin_o = ( float )Math.sin( orientation );
+
+		// TODO this is for testing
+		//---------------------------------------------------------------------
+		FloatArray2D image = octave.getL( Math.round( c[ 2 ] ) );
+		//pattern = new FloatArray2D( FEATURE_DESCRIPTOR_WIDTH, FEATURE_DESCRIPTOR_WIDTH );
 		
 		//! sample the region arround the keypoint location
 		for ( int y = FEATURE_DESCRIPTOR_WIDTH - 1; y >= 0; --y )
@@ -257,8 +274,14 @@ public class FloatArray2DSIFT
 
 				// rotate the gradients orientation it with respect to the features orientation
 				region[ 1 ].data[ region_p ] = gradients[ 1 ].data[ gradient_p ] - orientation;
+				
+				// TODO this is for testing
+				//---------------------------------------------------------------------
+				//pattern.data[ region_p ] = image.data[ gradient_p ];
 			}
 		}
+		
+		
 		
 		float[][][] hist = new float[ FEATURE_DESCRIPTOR_SIZE ][ FEATURE_DESCRIPTOR_SIZE ][ FEATURE_DESCRIPTOR_ORIENTATION_BINS ];
 
@@ -356,15 +379,16 @@ public class FloatArray2DSIFT
 			ImageFilter.create_gaussian_kernel_2D_offset(
 					octave_sigma * 1.5f,
 					c[ 0 ] - ( float )Math.floor( c[ 0 ] ),
-					c[ 0 ] - ( float )Math.floor( c[ 0 ] ),
+					c[ 1 ] - ( float )Math.floor( c[ 1 ] ),
 					false );
 		//FloatArrayToImagePlus( gaussianMask, "gaussianMask", 0, 0 ).show();
-
+		
 		// get the gradients in a region arround the keypoints location
 		FloatArray2D[] src = octave.getL1( Math.round( c[ 2 ] ) );
 		FloatArray2D[] gradientROI = new FloatArray2D[ 2 ];
 		gradientROI[ 0 ] = new FloatArray2D( gaussianMask.width, gaussianMask.width );
 		gradientROI[ 1 ] = new FloatArray2D( gaussianMask.width, gaussianMask.width );
+		
 		int half_size = gaussianMask.width / 2;
 		int p = gaussianMask.width * gaussianMask.width - 1;
 		for ( int yi = gaussianMask.width - 1; yi >= 0; --yi )
@@ -386,7 +410,11 @@ public class FloatArray2DSIFT
 		{
 			gradientROI[ 0 ].data[ i ] *= gaussianMask.data[ i ];
 		}
-		//FloatArrayToImagePlus( gradientROI[0], "gaussianMaskedGradientROI", 0, 0 ).show();
+		
+		// TODO this is for testing
+		//---------------------------------------------------------------------
+		//ImageArrayConverter.FloatArrayToImagePlus( gradientROI[ 0 ], "gaussianMaskedGradientROI", 0, 0 ).show();
+		//ImageArrayConverter.FloatArrayToImagePlus( gradientROI[ 1 ], "gaussianMaskedGradientROI", 0, 0 ).show();
 
 		// build an orientation histogram of the region
 		for ( int i = 0; i < gradientROI[ 0 ].data.length; ++i )
@@ -421,6 +449,12 @@ public class FloatArray2DSIFT
 						new float[]{ c[ 0 ] * scale, c[ 1 ] * scale },
 						//new float[]{ ( c[ 0 ] + 0.5f ) * scale - 0.5f, ( c[ 1 ] + 0.5f ) * scale - 0.5f },
 						createDescriptor( c, o, octave_sigma, orientation ) ) );
+		
+		// TODO this is for testing
+		//---------------------------------------------------------------------
+		//ImageArrayConverter.FloatArrayToImagePlus( pattern, "test", 0f, 1.0f ).show();
+		
+		
 
 		//System.out.println( "descriptor assigned" );
 
@@ -457,6 +491,10 @@ public class FloatArray2DSIFT
 									new float[]{ c[ 0 ] * scale, c[ 1 ] * scale },
 									//new float[]{ ( c[ 0 ] + 0.5f ) * scale - 0.5f, ( c[ 1 ] + 0.5f ) * scale - 0.5f },
 									createDescriptor( c, o, octave_sigma, orientation ) ) );
+					
+					// TODO this is for testing
+					//---------------------------------------------------------------------
+					//ImageArrayConverter.FloatArrayToImagePlus( pattern, "test", 0f, 1.0f ).show();
 				}
 			}
 		}
@@ -527,15 +565,15 @@ public class FloatArray2DSIFT
 	/**
 	 * identify corresponding features using spatial constraints
 	 * 
-	 * @param fs1 feature collection from set 1
-	 * @param fs2 feature collection from set 2
+	 * @param fs1 feature collection from set 1 sorted by decreasing size
+	 * @param fs2 feature collection from set 2 sorted by decreasing size
 	 * @param max_sd maximal difference in size (ratio max/min)
 	 * @param model transformation model to be applied to fs2
 	 * @param max_id maximal distance in image space ($\sqrt{x^2+y^2}$)
 	 * 
 	 * @return matches
 	 * 
-	 * TODO implement the constraints properly, sort the feature sets by scale
+	 * TODO implement the spatial constraints
 	 */
 	public static Vector< Match > createMatches(
 			Vector< Feature > fs1,

@@ -222,7 +222,7 @@ public class SIFT_Test implements PlugIn, KeyListener
 		for ( FloatArray2DSIFT.Feature f : fs1 )
 		{
 			System.out.println( f.location[ 0 ] + " " + f.location[ 1 ] + " " + f.scale + " " + f.orientation );
-			drawSquare( ip2, new double[]{ f.location[ 0 ], f.location[ 1 ] }, ( double )f.scale, ( double )f.orientation );
+			drawSquare( ip2, new double[]{ f.location[ 0 ], f.location[ 1 ] }, 2 * ( double )f.scale, ( double )f.orientation );
 		}
 		
 		
