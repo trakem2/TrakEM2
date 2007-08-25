@@ -1046,8 +1046,9 @@ public abstract class Displayable extends DBObject {
 		}
 	}
 
-	/** Fine nearest point in array a, from 0 up to n_points, to point x_p,y_p, with accuracy dependeing on .*/
-	static protected int findNearestPoint(double[][] a, int n_points, double x_p, double y_p) {
+	/** Fine nearest point in array a, from 0 up to n_points, to point x_p,y_p.
+	 * @return the index of such point. */
+	static protected int findNearestPoint(final double[][] a, final int n_points, final double x_p, final double y_p) {
 		if (0 == n_points) return -1;
 		double min_dist = Double.MAX_VALUE;
 		int index = -1;

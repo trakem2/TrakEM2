@@ -166,6 +166,7 @@ abstract public class Loader {
 		}
 
 		// debug: report cache status every ten seconds
+		/*
 		final Loader lo = this;
 		new Thread() {
 			public void run() {
@@ -183,6 +184,7 @@ abstract public class Loader {
 				}
 			}
 		}.start();
+		*/
 	}
 
 	abstract public boolean isReady();

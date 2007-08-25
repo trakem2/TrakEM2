@@ -225,14 +225,14 @@ public class Ball extends ZDisplayable {
 			else if (ii == i_current) g.setColor(this.color);
 			else if (ii == i_current + 1) g.setColor(Color.blue);
 			else continue; //don't paint!
-			radius = (int)(p_width[j] * magnification);
-			g.drawOval((int)(p[0][j] * magnification) - radius, (int)(p[1][j] * magnification) - radius, radius + radius, radius + radius);
+			radius = (int)p_width[j];
+			g.drawOval((int)(p[0][j]) - radius, (int)(p[1][j]) - radius, radius + radius, radius + radius);
 		}
 		if (active) {
 			final long layer_id = active_layer.getId();
 			for (int j=0; j<n_points; j++) {
 				if (layer_id != p_layer[j]) continue;
-				DisplayCanvas.drawHandle(g, (int)(p[0][j]*magnification), (int)(p[1][j]*magnification));
+				DisplayCanvas.drawHandle(g, (int)p[0][j], (int)p[1][j]);
 			}
 		}
 
@@ -243,7 +243,7 @@ public class Ball extends ZDisplayable {
 	}
 
 	public void keyPressed(KeyEvent ke) {
-		// TODO
+		// TODo
 	}
 
 	/**Helper vars for mouse events. Safe as static since only one Ball will be edited at a time.*/
@@ -352,17 +352,17 @@ public class Ball extends ZDisplayable {
 
 		if (adjust_position) {
 			// forget it if there is no transform or the transform type is not ONLY a translation
-			if (this.at.isIdentity() || this.at.getType() != AffineTransform.TYPE_TRANSLATION) {
+			if (this.at.isIdentity()) { // || this.at.getType() != AffineTransform.TYPE_TRANSLATION) {
 				return;
 			}
 			// now readjust points to make min_x,min_y be the x,y
 			for (int i=0; i<n_points; i++) {
 				p[0][i] -= min_x;	p[1][i] -= min_y;
 			}
-			setLocation(min_x, min_y);
-			this.x += min_x;
-			this.y += min_y;
+			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+			updateInDatabase("transform");
 		}
+		updateInDatabase("position+dimensions");
 	}
 
 	/**Release all memory resources taken by this object.*/

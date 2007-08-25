@@ -1810,7 +1810,7 @@ public class DBLoader extends Loader {
 		} else if (key.equals("dimensions")) {
 			sb.append("width=").append(displ.getWidth())
 			  .append(",height=").append(displ.getHeight());
-		} else if (key.equals("position+dimensions")) {
+		} else if (key.equals("position+dimensions")) {// TODO save the dimensions and the transform, not the x,y
 			sb.append("x=").append(displ.getX())
 			  .append(",y=").append(displ.getY())
 			  .append(",width=").append(displ.getWidth())

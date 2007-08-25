@@ -330,7 +330,7 @@ public class AreaList extends ZDisplayable {
 	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
 	public boolean calculateBoundingBox() {
 		// forget it if this has been done once already, for at the moment it would work only for translations, not any other types of transforms. TODO: need to fix this somehow, generates repainting problems.
-		if (this.at.getType() != AffineTransform.TYPE_TRANSLATION) return false; // meaning, there's more bits in the type than just the translation
+		//if (this.at.getType() != AffineTransform.TYPE_TRANSLATION) return false; // meaning, there's more bits in the type than just the translation
 		// check preconditions
 		if (0 == ht_areas.size()) return false;
 		Area[] area = new Area[ht_areas.size()];
@@ -350,7 +350,9 @@ public class AreaList extends ZDisplayable {
 		for (int i=0; i<area.length; i++) {
 			entry[i].setValue(area[i].createTransformedArea(atb));
 		}
-		this.translate(box.x, box.y);
+		//this.translate(box.x, box.y);
+		this.at.translate(box.x, box.y);
+		updateInDatabase("transform");
 		this.width = box.width;
 		this.height = box.height;
 		updateInDatabase("position+dimensions");
