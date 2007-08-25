@@ -298,7 +298,7 @@ public class Selection {
 			// displacement: specific of each element of the selection and their links, depending on where they are.
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				d.scale(px, py, anchor_x, anchor_y);
+				d.scale(px, py, anchor_x, anchor_y, false); // false because the linked ones are already included in the HashSet
 			}
 
 			// finally:
@@ -329,7 +329,7 @@ public class Selection {
 		}
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			d.rotate(delta, floater.x, floater.y);
+			d.rotate(delta, floater.x, floater.y, false); // false because the linked ones are already included in the HashSet
 		}
 	}
 
@@ -726,7 +726,7 @@ public class Selection {
 		} else if (dragging) {
 			// drag all selected and linked
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				((Displayable)it.next()).translate(dx, dy);
+				((Displayable)it.next()).translate(dx, dy, false); // false because the linked ones are already included in the HashSet
 			}
 			//and the box!
 			box.x += dx;

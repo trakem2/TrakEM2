@@ -686,25 +686,20 @@ public abstract class Displayable extends DBObject {
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
 		// catch all displayables of the current Layer
-		ArrayList al = layer.getDisplayables();
+		final ArrayList al = layer.getDisplayables(Patch.class);
 
 		// this bounding box:
-		Polygon perimeter = getPerimeter(); //displaced by this object's position!
+		final Polygon perimeter = getPerimeter(); //displaced by this object's position!
 		if (null == perimeter) return; // happens when a profile with zero points is deleted
 
 		// for each Patch, check if it underlays this profile's bounding box
 		Rectangle box = new Rectangle();
-		Iterator itd = al.iterator();
-		while (itd.hasNext()) {
-			Displayable displ = (Displayable)itd.next();
-			// link only Patch objects
-			if (!displ.getClass().equals(Patch.class)) {
-			continue;
-			}
+		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
+			final Displayable displ = (Displayable)itd.next();
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			if (perimeter.intersects(displ.getBoundingBox(box))) {
-			// Link the patch
-			this.link(displ);
+				// Link the patch
+				this.link(displ);
 			}
 		}
 	}
@@ -1215,11 +1210,12 @@ public abstract class Displayable extends DBObject {
 
 	/** Returns a new Rectangle which encloses completly the given rectangle after transforming it with this Displayable's AffineTransform. The given rectangle's fields are untouched.*/
 	final public Rectangle transformRectangle(final Rectangle r) {
+		if (this.at.isIdentity()) return (Rectangle)r.clone();
 		return new Area(r).createTransformedArea(this.at).getBounds();
 	}
 
-	/** Returns the argument if this Dispalayable's AffineTransform is the identity; otherwise returns a new double[][] with all points from @param p transformed according to the AffineTransform. The  double[][] array provided as argument is expected to be of type [2][length], i.e. two arrays describing x and y.  */
-	public double[][] transformPoints(double[][] p) {
+	/** Returns the argument if this Displayable's AffineTransform is the identity; otherwise returns a new double[][] with all points from @param p transformed according to the AffineTransform. The  double[][] array provided as argument is expected to be of type [2][length], i.e. two arrays describing x and y, and it is left intact.  */
+	public double[][] transformPoints(final double[][] p) {
 		if (this.at.isIdentity()) return p;
 		final int length = p[0].length;
 		final double[] p2a = new double[length * 2];

@@ -973,8 +973,8 @@ public class AreaList extends ZDisplayable {
 		//imp.show();
 		// end of generating byte[] arrays
 		// Now marching cubes
-		Triangulator tri = new MCTriangulator();
-		List list = tri.getTriangles(imp, 0, new boolean[]{true, true, true}, 1);
+		final Triangulator tri = new MCTriangulator();
+		final List list = tri.getTriangles(imp, 0, new boolean[]{true, true, true}, 1);
 		// now translate all coordinates by x,y,z (it would be nice to simply assign them to a mesh object)
 		float dx = (float)this.x * (float)scale;
 		float dy = (float)this.y * (float)scale;

@@ -195,24 +195,14 @@ public class Ball extends ZDisplayable {
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		// local copies, since they may be transformed
+		// local pointers, since they may be transformed
 		double[][] p = this.p;
 		double[] p_width = this.p_width;
+
 		if (!this.at.isIdentity()) {
-			// transform points
-			p = transformPoints(this.p);
-			// create points to represent the point where the radius ends. Since these are abstract spheres, there's no need to consider a second point that would provide the shear. To capture both the X and Y axis deformations, I use a diagonal point which sits at sqrt(2) * p_width
-			double[][] pw = new double[2][n_points];
-			for (int i=0; i<n_points; i++) {
-				pw[0][i] = this.p[0][i] + p_width[i]; //built relative to the untransformed points!
-				pw[1][i] = this.p[1][i] + p_width[i];
-			}
-			pw = transformPoints(pw);
-			p_width = new double[n_points];
-			for (int i=0; i<n_points; i++) {
-				// plain average of differences in X and Y axis
-				p_width[i] = (pw[0][i] - p[0][i] + pw[1][i] - p[1][i]) / 2;
-			}
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_width = (double[])ob[1];
 		}
 
 		// paint proper:
@@ -243,7 +233,7 @@ public class Ball extends ZDisplayable {
 	}
 
 	public void keyPressed(KeyEvent ke) {
-		// TODo
+		// TODO
 	}
 
 	/**Helper vars for mouse events. Safe as static since only one Ball will be edited at a time.*/
@@ -520,16 +510,23 @@ public class Ball extends ZDisplayable {
 	}
 
 	/** Get the perimeter of all parts that show in the given layer (as defined by its Z), but representing each ball as a square in a Rectangle object. Returns null if none found. */
-	private Rectangle[] getSubPerimeters(Layer layer, double ox, double oy) {
-		ArrayList al = new ArrayList();
-		long layer_id = layer.getId();
+	private Rectangle[] getSubPerimeters(final Layer layer) {
+		final ArrayList al = new ArrayList();
+		final long layer_id = layer.getId();
+		double[][] p = this.p;
+		double[] p_width = this.p_width;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_width = (double[])ob[1];
+		}
 		for (int i=0; i<n_points; i++) {
 			if (layer_id != p_layer[i]) continue;
-			al.add(new Rectangle((int)(p[0][i] - p_width[i]), (int)(p[1][i] - p_width[i]), (int)Math.ceil(p_width[i] + p_width[i]), (int)Math.ceil(p_width[i] + p_width[i])));
+			al.add(new Rectangle((int)(p[0][i] - p_width[i]), (int)(p[1][i] - p_width[i]), (int)Math.ceil(p_width[i] + p_width[i]), (int)Math.ceil(p_width[i] + p_width[i]))); // transformRectangle returns a copy of the Rectangle
 		}
 		if (al.isEmpty()) return null;
 		else {
-			Rectangle[] rects = new Rectangle[al.size()];
+			final Rectangle[] rects = new Rectangle[al.size()];
 			al.toArray(rects);
 			return rects;
 		}
@@ -542,21 +539,16 @@ public class Ball extends ZDisplayable {
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
 		// catch all displayables of the current Layer
-		ArrayList al = layer.getDisplayables();
+		final ArrayList al = layer.getDisplayables(Patch.class);
 
 		// this bounding box as in the present layer
-		Rectangle[] perimeters = getSubPerimeters(layer, x, y); //displaced by this object's position!
+		final Rectangle[] perimeters = getSubPerimeters(layer); // transformed
 		if (null == perimeters) return;
 
 		// for each Patch, check if it underlays this profile's bounding box
-		Rectangle box = new Rectangle();
-		Iterator itd = al.iterator();
-		while (itd.hasNext()) {
-			Displayable displ = (Displayable)itd.next();
-			// link only Patch objects
-			if (!displ.getClass().equals(Patch.class)) {
-				continue;
-			}
+		final Rectangle box = new Rectangle(); // as tmp
+		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
+			final Displayable displ = (Displayable)itd.next();
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			for (int i=0; i<perimeters.length; i++) {
 				if (perimeters[i].intersects(displ.getBoundingBox(box))) {
@@ -780,9 +772,17 @@ public class Ball extends ZDisplayable {
 			Utils.log("Java3D is not installed.");
 			return null;
 		}
-		//Utils.log2("Ball: scale is " + scale + "\n\tx,y: " + x + ", " + y);
 		// modify the globe to fit each ball's radius and x,y,z position
 		final ArrayList list = new ArrayList();
+		// transform points
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[] p_width = this.p_width;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_width = (double[])ob[1];
+		}
 		// for each ball
 		for (int i=0; i<n_points; i++) {
 			// create local globe for the ball, and translate it to z,y,z
@@ -790,10 +790,9 @@ public class Ball extends ZDisplayable {
 			for (int z=0; z<ball.length; z++) {
 				for (int k=0; k<ball[0].length; k++) {
 					// the line below says: to each globe point, multiply it by the radius of the particular ball, then translate to the ball location, then translate to this Displayable's location, then scale to the Display3D scale.
-					ball[z][k][0] = (globe[z][k][0] * p_width[i] + p[0][i] + x) * scale;
-					ball[z][k][1] = (globe[z][k][1] * p_width[i] + p[1][i] + y) * scale;
+					ball[z][k][0] = (globe[z][k][0] * p_width[i] + p[0][i]) * scale;
+					ball[z][k][1] = (globe[z][k][1] * p_width[i] + p[1][i]) * scale;
 					ball[z][k][2] = (globe[z][k][2] * p_width[i] + layer_set.getLayer(p_layer[i]).getZ()) * scale;
-					//Utils.log2("ball xyz: " + ball[z][k][0] + ", " + ball[z][k][1] + "," + ball[z][k][2]);
 				}
 			}
 			// create triangular faces and add them to the list
@@ -812,5 +811,23 @@ public class Ball extends ZDisplayable {
 			}
 		}
 		return list;
+	}
+
+	private final Object[] getTransformedData() {
+		// transform points
+		final double[][] p = transformPoints(this.p);
+		// create points to represent the point where the radius ends. Since these are abstract spheres, there's no need to consider a second point that would provide the shear. To capture both the X and Y axis deformations, I use a diagonal point which sits at (x,y) => (p[0][i] + p_width[i], p[1][i] + p_width[i]) 
+		double[][] pw = new double[2][n_points];
+		for (int i=0; i<n_points; i++) {
+			pw[0][i] = this.p[0][i] + p_width[i]; //built relative to the untransformed points!
+			pw[1][i] = this.p[1][i] + p_width[i];
+		}
+		pw = transformPoints(pw);
+		final double[] p_width = new double[n_points];
+		for (int i=0; i<n_points; i++) {
+			// plain average of differences in X and Y axis, relative to the transformed points.
+			p_width[i] = (Math.abs(pw[0][i] - p[0][i]) + Math.abs(pw[1][i] - p[1][i])) / 2;
+		}
+		return new Object[]{p, p_width};
 	}
 }
