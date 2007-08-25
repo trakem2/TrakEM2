@@ -312,12 +312,36 @@ public abstract class Displayable extends DBObject {
 	/** Bounding box of the transformed data. Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
 	public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
-		if (this.at.isIdentity()) {
+		//if (this.at.isIdentity()) {
 			r.x = 0;
 			r.y = 0;
 			r.width = (int)this.width;
 			r.height = (int)this.height;
+		//} else {
+			/*
+			// transform points
+			final double[] d1 = new double[]{0, 0, width, 0, width, height, 0, height};
+			final double[] d2 = new double[8];
+			this.at.transform(d1, 0, d2, 0, 4);
+			// find min/max
+			double min_x=Double.MAX_VALUE, min_y=Double.MAX_VALUE, max_x=-min_x, max_y=-min_y;
+			for (int i=0; i<d2.length; i+=2) {
+				if (d2[i] < min_x) min_x = d2[i];
+				if (d2[i] > max_x) max_x = d2[i];
+				if (d2[i+1] < min_y) min_y = d2[i+1];
+				if (d2[i+1] > max_y) max_y = d2[i+1];
+			}
+			r.x = (int)min_x;
+			r.y = (int)min_y;
+			r.width = (int)(max_x - min_x);
+			r.height = (int)(max_y - min_y);
+			*/
+			// Easier:
+		if (this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
+			r.x += (int)this.at.getTranslateX();
+			r.y += (int)this.at.getTranslateY();
 		} else {
+			//r = transformRectangle(r);
 			// transform points
 			final double[] d1 = new double[]{0, 0, width, 0, width, height, 0, height};
 			final double[] d2 = new double[8];
