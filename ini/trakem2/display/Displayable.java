@@ -1170,6 +1170,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Scales this instance only, no linked ones, relative to the anchor point. */
 	private void scale2(double sx, double sy, double xo, double yo) {
+		/*
 		Rectangle b1 = getBoundingBox(null);
 		this.at.scale(sx, sy);
 		Rectangle b2 = getBoundingBox(null);
@@ -1187,7 +1188,17 @@ public abstract class Displayable extends DBObject {
 		AffineTransform at2 = new AffineTransform();
 		at2.translate(x3 - x2, y3 - y2);
 		this.at.preConcatenate(at2);
-		updateInDatabase("transform");
+		*/
+		
+		// TODO check if this works as you expected---it took a while to find out, that the bounding box is already included in x0 and y0 ;)
+		
+		AffineTransform at2 = new AffineTransform();
+		at2.translate( xo, yo );
+		at2.scale( sx, sy );
+		at2.translate( -xo, -yo );
+		
+		at.preConcatenate( at2 );
+		updateInDatabase( "transform" );
 	}
 
 	/** Sets the top left of the bounding box to x,y. Warning: does not check that the object will remain within layer bounds. Does NOT affect linked Displayables. */
