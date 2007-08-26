@@ -111,6 +111,9 @@ public class Registration {
 			processLayerList(list1, imp, box, sp, propagate, this);
 			processLayerList(list2, imp, box, sp, propagate, this);
 
+			// trim and polish:
+			layer_set.setMinimumDimensions();
+
 		} catch (Exception e) {
 			new IJError(e);
 		}
@@ -195,7 +198,7 @@ public class Registration {
 				Utils.log2("\t--- Not yet implemented");
 			}
 
-			layer2.getParent().setMinimumDimensions();
+			// SCREWS UP a lot, because of the caching I guess // layer2.getParent().setMinimumDimensions();
 			// repaint the second Layer, if it is showing in any Display:
 			// no need // Display.repaint(layer2, null, 0);
 
