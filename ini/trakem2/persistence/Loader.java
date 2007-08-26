@@ -1058,18 +1058,18 @@ abstract public class Loader {
 		double by = 0;
 		double bt_overlap = 0;
 		double lr_overlap = 0;
-		boolean link_images = false;
-		boolean use_cross_correlation = false;
+		boolean link_images = true;
+		boolean stitch_tiles = true;
 		boolean homogenize_contrast = true;
 
 		/** Need some sort of user properties system. */
 		String username = System.getProperty("user.name");
-		if (null != username && (username.startsWith("albert") || username.equals("cardona"))) {
+		if (null != username && (username.equals("albert") || username.equals("cardona"))) {
 			preprocessor = ""; //"Adjust_EMMENU_Images";
 			link_images = false; //true;
 			bt_overlap = 204.8; //102.4;
 			lr_overlap = 204.8; //102.4; // testing cross-correlation
-			use_cross_correlation = true;
+			stitch_tiles = true;
 			homogenize_contrast = true;
 		}
 		// reasonable estimate
@@ -1089,7 +1089,7 @@ abstract public class Loader {
 		gd.addNumericField("left-right overlap: ", lr_overlap, 2);
 		gd.addCheckbox("link images", link_images);
 		gd.addStringField("preprocess with: ", preprocessor); // the name of a plugin to use for preprocessing the images before importing, which implements PlugInFilter
-		gd.addCheckbox("use_cross-correlation", use_cross_correlation);
+		gd.addCheckbox("use_cross-correlation", stitch_tiles);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, 25);
 		gd.addCheckbox("homogenize_contrast", homogenize_contrast);
@@ -1125,7 +1125,7 @@ abstract public class Loader {
 		lr_overlap = gd.getNextNumber();
 		link_images = gd.getNextBoolean();
 		preprocessor = gd.getNextString().replace(' ', '_'); // just in case
-		use_cross_correlation = gd.getNextBoolean();
+		stitch_tiles = gd.getNextBoolean();
 		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		float cc_scale = (float)gd.getNextNumber() / 100f;
 		homogenize_contrast = gd.getNextBoolean();
@@ -1180,7 +1180,7 @@ abstract public class Loader {
 			cols.add(col);
 		}
 
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, use_cross_correlation, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
 
 		} catch (Exception e) {
 			new IJError(e);
@@ -1292,7 +1292,7 @@ abstract public class Loader {
 		double lr_overlap = gd.getNextNumber();
 		boolean link_images = gd.getNextBoolean();
 		String preprocessor = gd.getNextString();
-		boolean use_cross_correlation = gd.getNextBoolean();
+		boolean stitch_tiles = gd.getNextBoolean();
 		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		float cc_scale = (float)gd.getNextNumber() / 100f;
 		boolean homogenize_contrast = gd.getNextBoolean();
@@ -1321,7 +1321,7 @@ abstract public class Loader {
 		Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
 		ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, use_cross_correlation, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
 
 		} catch (Exception e) {
 			new IJError(e);
@@ -1340,7 +1340,7 @@ abstract public class Loader {
 	 * @param link_images Link images to their neighbors.
 	 * @param preproprecessor The name of a PluginFilter in ImageJ's plugin directory, to be called on every image prior to insertion.
 	 */
-	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final String preprocessor, final boolean use_cross_correlation, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule) {
+	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final String preprocessor, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule) {
 
 		// create a Worker, then give it to the Bureaucrat
 
@@ -1689,8 +1689,8 @@ abstract public class Loader {
 			}
 		}
 
-		if (use_cross_correlation) {
-			setTaskName("cross-correlating tiles");
+		if (stitch_tiles) {
+			setTaskName("stitching tiles");
 			// create undo
 			layer.getParent().createUndoStep(layer);
 			// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)

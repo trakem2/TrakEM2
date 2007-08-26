@@ -52,9 +52,7 @@ import java.awt.event.ItemEvent;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.3u 2007-06-19";
-
-	static public double SQRT2 = Math.sqrt(2.0);
+	static public String version = "0.4a 2007-08-26";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -106,19 +104,6 @@ public class Utils implements ij.plugin.PlugIn {
 		//Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I has the same problem for Pipe.java in the A_3D_editing plugin)
 		//Using schemata in JavaAngles.ai as reference
 
-		//double a = 0.0;
-
-		/*if (angle < 0) {
-			a = Math.PI/2 + Math.PI + angle; //+ because the angle is negative!
-		} else {
-			if (angle >= Math.PI/2) {
-				a = angle - Math.PI/2;
-			} else {
-				a = Math.PI + Math.PI/2 + angle;
-			}
-		}
-		*/ //reversed orientation, Y increases downwards !!
-
 		double a = angle;
 		//fix too large angles
 		if (angle > 2*Math.PI) {
@@ -144,9 +129,6 @@ public class Utils implements ij.plugin.PlugIn {
 		if (elems.length < 3) {
 			log("Stack trace too short! No useful info");
 		} else {
-			/*
-			log( "******\nThe object " + called_object.getClass().getName() + "   " + called_object.toString() + "\n    has been called at:\n        " + elems[1].getFileName() + " at line " + elems[1].getLineNumber() + ":" + elems[1].getClassName() + "." + elems[1].getMethodName() + "()\n    by: " + elems[2].getClassName() + "   " + elems[2].getFileName() + " at line " + elems[2].getLineNumber() + ":" + elems[2].getClassName() + "." + elems[2].getMethodName() + "()\n*********************");
-			*/
 			log( "#### START TRACE ####\nObject " + called_object.getClass().getName() + " called at: " + elems[1].getFileName() + " " + elems[1].getLineNumber() + ": " + elems[1].getMethodName() + "()\n    by: " + elems[2].getClassName() + " " + elems[2].getLineNumber() + ": " + elems[2].getMethodName() + "()");
 			log("==== END ====");
 		}
@@ -164,20 +146,6 @@ public class Utils implements ij.plugin.PlugIn {
 			log("==== END ====");
 		}
 	}
-	/* // old. excessively verbose version
-	static public void printCaller(Object called_object, int lines) {
-		StackTraceElement[] elems = new Exception().getStackTrace();
-		if (elems.length < 3) {
-			log("Stack trace too short! No useful info");
-		} else {
-			log( "******\nThe object " + called_object.getClass().getName() + "   " + called_object.toString() + "\n    has been called at:\n        " + elems[1].getFileName() + " at line " + elems[1].getLineNumber() + ":" + elems[1].getClassName() + "." + elems[1].getMethodName() + "()\n    by: " + elems[2].getClassName() + "   " + elems[2].getFileName() + " at line " + elems[2].getLineNumber() + ":" + elems[2].getClassName() + "." + elems[2].getMethodName() + "()");
-			for (int i=3; i<lines+2 && i<elems.length; i++) {
-				log("\n    by: " + elems[i].getClassName() + "   " + elems[i].getFileName() + " at line " + elems[i].getLineNumber() + ":" + elems[i].getClassName() + "." + elems[i].getMethodName() + "()");
-			}
-			log("********************");
-		}
-	}
-	*/
 
 	static public String caller(Object called) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
