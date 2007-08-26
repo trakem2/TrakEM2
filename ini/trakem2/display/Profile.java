@@ -127,8 +127,8 @@ public class Profile extends Displayable {
 	}
 
 	/**Construct a Bezier Profile from the database.*/
-	public Profile(Project project, long id, String title, double x, double y, float alpha, boolean visible, Color color, double[][][] bezarr, boolean closed, boolean locked) {
-		super(project, id, title, x, y, locked);
+	public Profile(Project project, long id, String title, float alpha, boolean visible, Color color, double[][][] bezarr, boolean closed, boolean locked, AffineTransform at) {
+		super(project, id, title, locked, at, 0, 0);
 		this.visible = visible;
 		this.alpha = alpha;
 		this.color = color;
@@ -145,10 +145,8 @@ public class Profile extends Displayable {
 	}
 
 	/** Construct a Bezier Profile from the database, but the points will be loaded later, when actually needed, by calling setupForDisplay(). */
-	public Profile(Project project, long id, String title, double x, double y, double width, double height, float alpha, boolean visible, Color color, boolean closed, boolean locked) {
-		super(project, id, title, x, y, locked);
-		this.width = width;
-		this.height = height;
+	public Profile(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean closed, boolean locked, AffineTransform at) {
+		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
 		this.color = color;
@@ -741,13 +739,13 @@ public class Profile extends Displayable {
 		//update points in database if there was any change
 		if (-1 != index || -1 != index_r || -1 != index_l) {
 			updateInDatabase("points");
-			updateInDatabase("position+dimensions"); //was: dimensions
+			updateInDatabase("transform+dimensions"); //was: dimensions
 			//remake snapshot
 			snapshot.remake();
 			//repaint snapshot
 			Display.repaint(layer, this); // the DisplayablePanel
 		} else if (x_r != x_p || y_r != y_p) {
-			updateInDatabase("position+dimensions");
+			updateInDatabase("transform+dimensions");
 			//repaint snapshot
 			Display.repaint(layer, this); // the DisplayablePanel
 		}
@@ -979,27 +977,6 @@ public class Profile extends Displayable {
 		    .append(indent).append("/>\n")
 		;
 	}
-
-	/** Returns a deep copy of this Profile, with a new id.*/
-	/*
-	public Object clone() {
-		double[][] p = new double[2][n_points];
-		System.arraycopy(this.p[0], 0, p[0], 0, n_points);
-		System.arraycopy(this.p[1], 0, p[1], 0, n_points);
-		double[][] p_l=new double[2][n_points];
-		System.arraycopy(this.p_l[0], 0, p_l[0], 0, n_points);
-		System.arraycopy(this.p_l[1], 0, p_l[1], 0, n_points);
-		double[][] p_r=new double[2][n_points];
-		System.arraycopy(this.p_r[0], 0, p_r[0], 0, n_points);
-		System.arraycopy(this.p_r[1], 0, p_r[1], 0, n_points);
-		double[][] p_i = new double[2][this.p_i[0].length];
-		System.arraycopy(this.p_i[0], 0, p_i[0], 0, this.p_i[0].length);
-		System.arraycopy(this.p_i[1], 0, p_i[1], 0, this.p_i[0].length);
-
-		return new Profile(this.project, this.title, this.x, this.y, this.width, this.height, this.alpha, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.n_points, p, p_r, p_l, p_i, this.closed);
-	}
-	*/
-
 
 	/** Returns a triple array, each containing a [2][n_points] array specifiying the x,y of each left control point, backbone point and right control point respectively.*/
 	public double[][][] getBezierArrays() {
@@ -1440,7 +1417,7 @@ public class Profile extends Displayable {
 
 	/** Performs a deep copy of this object, unlocked and visible. */
 	public Object clone() {
-		final Profile copy = new Profile(project, project.getLoader().getNextId(), null != title ? title.toString() : null, 0, 0, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), closed, false);
+		final Profile copy = new Profile(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), closed, false, (AffineTransform)this.at.clone());
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
 		copy.n_points = n_points;
@@ -1448,7 +1425,6 @@ public class Profile extends Displayable {
 		copy.p_l = new double[][]{(double[])this.p_l[0].clone(), (double[])this.p_l[1].clone()};
 		copy.p_r = new double[][]{(double[])this.p_r[0].clone(), (double[])this.p_r[1].clone()};
 		copy.p_i = new double[][]{(double[])this.p_i[0].clone(), (double[])this.p_i[1].clone()};
-		copy.at = (AffineTransform)this.at.clone();
 		// add
 		copy.addToDatabase();
 		// the snapshot has been already created in the Displayable constructor, but needs updating

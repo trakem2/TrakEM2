@@ -29,6 +29,7 @@ import java.awt.Graphics;
 import java.awt.Rectangle;
 import java.util.Hashtable;
 import java.util.HashSet;
+import java.awt.geom.AffineTransform;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
@@ -44,8 +45,8 @@ public abstract class ZDisplayable extends Displayable {
 	}
 
 	/** For reconstruction from the database. */
-	public ZDisplayable(Project project, long id, String title, double x, double y, boolean locked) {
-		super(project, id, title, x, y, locked);
+	public ZDisplayable(Project project, long id, String title, boolean locked, AffineTransform at, double width, double height) {
+		super(project, id, title, locked, at, width, height);
 	}
 
 	/** For reconstruction from an XML file. */

@@ -39,7 +39,7 @@ import ini.trakem2.utils.Search;
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject {
 
-	protected AffineTransform at = new AffineTransform();
+	final protected AffineTransform at = new AffineTransform();
 
 	/** Width and height of the data, not the bounding box. If the AffineTransform is different than identity, then the bounding box will be different. */
 	protected double width = 0,
@@ -106,12 +106,14 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Reconstruct a Displayable from the database. */
-	public Displayable(Project project, long id, String title, double x, double y, boolean locked) {
+	public Displayable(Project project, long id, String title, boolean locked, AffineTransform at, double width, double height) {
 		super(project, id);
 		this.title = title;
 		this.locked = locked;
 		this.snapshot = new Snapshot(this);
-		this.at.translate(x, y);
+		if (null != at) this.at.setTransform(at);
+		this.width = width;
+		this.height = height;
 	}
 
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the Hashtable. */

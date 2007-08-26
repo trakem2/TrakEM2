@@ -74,13 +74,10 @@ public class Patch extends Displayable {
 
 	/** Reconstruct a Patch from the database. The ImagePlus will be loaded when necessary. */
 	public Patch(Project project, long id, String title, double width, double height, int type, boolean locked, double min, double max, AffineTransform at) {
-		super(project, id, title, x, y, locked);
-		this.width = width;
-		this.height = height;
+		super(project, id, title, locked, at, width, height);
 		this.type = type;
 		this.min = min;
 		this.max = max;
-		this.at = at;
 		checkMinMax();
 	}
 
@@ -583,7 +580,7 @@ public class Patch extends Displayable {
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible; the image will be duplicated and asked to be saved; if not saved this method returns null. */
 	public Object clone() {
-		final Patch copy = new Patch(project, project.getLoader().getNextId(), null != title ? title.toString() : null, x, y, width, height, rot, type, false, min, max);
+		final Patch copy = new Patch(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.alpha = this.alpha;
 		copy.visible = true;

@@ -65,11 +65,8 @@ public class Ball extends ZDisplayable {
 	}
 
 	/** Construct an unloaded Ball from the database. Points will be loaded later, when needed. */
-	public Ball(Project project, long id, String title, double x, double y, double width, double height, float alpha, boolean visible, Color color, boolean locked) {
-		super(project, id, title, x, y, locked);
-		this.visible = visible;
-		this.width = width;
-		this.height = height;
+	public Ball(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
 		this.color = color;
@@ -147,8 +144,9 @@ public class Ball extends ZDisplayable {
 			}
 		}
 
+		calculateBoundingBox(true);
+
 		//update in database
-		updateInDatabase("position+dimensions");
 		updateInDatabase("points");
 	}
 
@@ -311,7 +309,7 @@ public class Ball extends ZDisplayable {
 		}
 		if (-1 != index) {
 			calculateBoundingBox(true);
-			updateInDatabase("position+dimensions");
+			updateInDatabase("transform+dimensions");
 		}
 
 		// reset
@@ -348,9 +346,10 @@ public class Ball extends ZDisplayable {
 				p[0][i] -= min_x;	p[1][i] -= min_y;
 			}
 			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
-			updateInDatabase("transform");
+			updateInDatabase("transform+dimensions");
+		} else {
+			updateInDatabase("dimensions");
 		}
-		updateInDatabase("dimensions");
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -423,8 +422,16 @@ public class Ball extends ZDisplayable {
 	public void toShapesFile(StringBuffer data, String group, String color, double z_scale) {
 		if (-1 == n_points) setupForDisplay();
 		// TEMPORARY FIX: sort balls by layer_id (by Z, which is roughly the same)
-		Hashtable ht = new Hashtable();
-		String l = "\n";
+		final Hashtable ht = new Hashtable();
+		final char l = '\n';
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[] p_width = this.p_width;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_width = (double[])ob[1];
+		}
 		StringBuffer sb = new StringBuffer();
 		sb.append("type=ball").append(l)
 		  .append("name=").append(project.getMeaningfulTitle(this)).append(l)
@@ -451,14 +458,13 @@ public class Ball extends ZDisplayable {
 				tmp.append(layer.getParent().getLayer(p_layer[i]).getZ() * z_scale).append(l);
 				ht.put(layer_id, tmp);
 			}
-			tmp.append("x").append(x + p[0][i]).append(l)
-			   .append("y").append(y + p[1][i]).append(l)
+			tmp.append("x").append(p[0][i]).append(l)
+			   .append("y").append(p[1][i]).append(l)
 			   .append("r").append(p_width[i]).append(l)
 			;
 			tmp = null;
 		}
-		Enumeration e = ht.keys();
-		while (e.hasMoreElements()) {
+		for (Enumeration e = ht.keys(); e.hasMoreElements(); ) {
 			tmp = (StringBuffer)ht.get(e.nextElement());
 			data.append(tmp).append(l);
 
@@ -704,7 +710,7 @@ public class Ball extends ZDisplayable {
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
 	public Object clone() {
-		final Ball copy = new Ball(project, project.getLoader().getNextId(), null != title ? title.toString() : null, 0, 0, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false);
+		final Ball copy = new Ball(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
 		// links are left null
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
@@ -712,7 +718,6 @@ public class Ball extends ZDisplayable {
 		copy.p = new double[][]{(double[])this.p[0].clone(), (double[])this.p[1].clone()};
 		copy.p_layer = (long[])this.p_layer.clone();
 		copy.p_width = (double[])this.p_width.clone();
-		copy.at = (AffineTransform)this.at.clone();
 		// add
 		copy.layer = this.layer;
 		copy.addToDatabase();

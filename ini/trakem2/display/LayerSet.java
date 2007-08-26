@@ -125,7 +125,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	/** Dummy. */
 	protected LayerSet(Project project, long id) {
-		super(project, id, null, 0, 0, false);
+		super(project, id, null, false, null, 20, 20);
 	}
 
 	/** Create a new LayerSet with a 0,0,0 rotation vector and default 20,20 px Displayable width,height. */
@@ -141,10 +141,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Reconstruct from the database. */
-	public LayerSet(Project project, long id, String title, double x, double y, double width, double height, double rot_x, double rot_y, double rot_z, double layer_width, double layer_height, boolean locked, boolean snapshots_enabled) {
-		super(project, id, title, x, y, locked);
-		this.width = width;
-		this.height = height;
+	public LayerSet(Project project, long id, String title, double width, double height, double rot_x, double rot_y, double rot_z, double layer_width, double layer_height, boolean locked, boolean snapshots_enabled, AffineTransform at) {
+		super(project, id, title, locked, at, width, height);
 		this.rot_x = rot_x;
 		this.rot_y = rot_y;
 		this.rot_z = rot_z;

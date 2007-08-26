@@ -72,12 +72,9 @@ public class DLabel extends Displayable {
 	}
 
 	/** For reconstruction purposes. */
-	public DLabel(Project project, long id, String text, double x, double y, double width, double height, double rot, int type, String font_name, int font_style, int font_size, boolean locked) {
-		super(project, id, text, x, y, locked);
+	public DLabel(Project project, long id, String text, double width, double height, int type, String font_name, int font_style, int font_size, boolean locked, AffineTransform at) {
+		super(project, id, text, locked, at, width, height);
 		this.type = TEXT; // default
-		this.width = width;
-		this.height = height;
-		this.rot = rot;
 		this.font = new Font(font_name, font_style, font_size);
 	}
 
@@ -440,14 +437,13 @@ public class DLabel extends Displayable {
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
 	public Object clone() {
-		final DLabel copy = new DLabel(project, project.getLoader().getNextId(), title, 0, 0, width, height, rot, type, font.getName(), font.getStyle(), font.getSize(), false);
+		final DLabel copy = new DLabel(project, project.getLoader().getNextId(), title, width, height, type, font.getName(), font.getStyle(), font.getSize(), false, (AffineTransform)this.at.clone());
 		snapshot.remake();
 		copy.alpha = this.alpha;
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.visible = true;
 		// add
 		copy.layer = this.layer;
-		copy.at = (AffineTransform)this.at.clone();
 		copy.layer.add(copy); // TODO: added to the Layer !?!?
 		copy.addToDatabase();
 		Display.repaint(layer, this, 5);

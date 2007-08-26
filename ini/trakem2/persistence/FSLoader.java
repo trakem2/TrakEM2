@@ -63,6 +63,7 @@ import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.geom.Area;
+import java.awt.geom.AffineTransform;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -748,7 +749,9 @@ public class FSLoader extends Loader {
 			} else {
 				patch_path = filepath + "-----#slice=" + i;
 				//Utils.log2("path is "+ patch_path);
-				patch = new Patch(project, getNextId(), label + " " + title + " " + i, pos_x, pos_y, imp_stack.getWidth(), imp_stack.getHeight(), 0, imp_stack.getType(), false, imp_stack.getProcessor().getMin(), imp_stack.getProcessor().getMax());
+				final AffineTransform atp = new AffineTransform();
+				atp.translate(pos_x, pos_y);
+				patch = new Patch(project, getNextId(), label + " " + title + " " + i, imp_stack.getWidth(), imp_stack.getHeight(), imp_stack.getType(), false, imp_stack.getProcessor().getMin(), imp_stack.getProcessor().getMax(), atp);
 				patch.addToDatabase();
 				//Utils.log2("type is " + imp_stack.getType());
 			}

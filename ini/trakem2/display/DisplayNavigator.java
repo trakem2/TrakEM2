@@ -109,7 +109,12 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	public void repaint(Displayable d) {
 		if (display.getCanvas().isDragging()) return;
 		redraw_displayables = true;
-		new RepaintThread(new Rectangle((int)(d.x * scale), (int)(d.y * scale), (int)Math.ceil(d.width * scale), (int)Math.ceil(d.height * scale))); // accessing protected vars directly within the package, WARNING
+		final Rectangle r = d.getBoundingBox(null);
+		r.x = (int)(r.x * scale);
+		r.y = (int)(r.y * scale);
+		r.width = (int)Math.ceil(r.width * scale);
+		r.height = (int)Math.ceil(r.height * scale);
+		new RepaintThread(r);
 	}
 
 	/** Overridden to multithread. TrakEM2 does not call this method directly ever. */

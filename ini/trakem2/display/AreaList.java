@@ -101,12 +101,10 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Reconstruct from the database. */
-	public AreaList(Project project, long id, String title, double x, double y, double width, double height, float alpha, boolean visible, Color color, boolean locked, ArrayList al_ul) { // al_ul contains Long() wrapping layer ids
-		super(project, id, title, x, y, locked);
+	public AreaList(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, ArrayList al_ul, AffineTransform at) { // al_ul contains Long() wrapping layer ids
+		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
-		this.width = width;
-		this.height = height;
 		this.visible = visible;
 		this.color = color;
 		for (Iterator it = al_ul.iterator(); it.hasNext(); ) {
@@ -161,7 +159,7 @@ public class AreaList extends ZDisplayable {
 
 	public void linkPatches() {
 		unlinkAll(Patch.class);
-		// cheap way: intersection of the pathches' bounding box with the area
+		// cheap way: intersection of the patches' bounding box with the area
 		Rectangle r = new Rectangle();
 		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
@@ -171,7 +169,6 @@ public class AreaList extends ZDisplayable {
 			for (Iterator dit = la.getDisplayables(Patch.class).iterator(); dit.hasNext(); ) {
 				Displayable d = (Displayable)dit.next();
 				r = d.getBoundingBox(r);
-				r.translate(-(int)this.x, -(int)this.y);
 				if (area.intersects(r)) {
 					link(d, true);
 				}
@@ -318,10 +315,9 @@ public class AreaList extends ZDisplayable {
 		}
 		//this.translate(box.x, box.y);
 		this.at.translate(box.x, box.y);
-		updateInDatabase("transform");
 		this.width = box.width;
 		this.height = box.height;
-		updateInDatabase("position+dimensions");
+		updateInDatabase("transform+dimensions");
 		if (0 != box.x || 0 != box.y) {
 			return true;
 		}
@@ -426,13 +422,6 @@ public class AreaList extends ZDisplayable {
 			// Needs a workround: before adding/substracting, enlarge the polygon to have square edges
 			*/
 		}
-	}
-
-	private void updateBounds(Rectangle b) {
-		x = b.x;
-		y = b.y;
-		width = b.width;
-		height = b.height;
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
@@ -684,71 +673,6 @@ public class AreaList extends ZDisplayable {
 		return null;
 	}
 
-	/** Deform all areas according to the Transform relative to the area in the current Layer. */
-	public void setTransform(Transform t) {
-		//Utils.log("box: " + x + ", " + y + ", " + width + ", " + height);
-		//Utils.log("t:   " + t.x + ", " + t.y + ", " + t.width + ", " + t.height);
-
-		// extract parameters
-		// scale:
-		double sx = t.width / this.width;
-		double sy = t.height / this.height;
-		// translation
-		double dx = t.x - this.x;
-		double dy = t.y - this.y;
-		if ( (1 != dx || 1 != dy) || (1 != sx || 1 != sy) || 0 != t.rot) {
-			for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next();
-				Area area = (Area)entry.getValue();
-				long lid = ((Long)entry.getKey()).longValue();
-				// ah... java and it's ridiculous verbosity!
-				AffineTransform at = new AffineTransform();
-				if (0 != t.rot) {
-					//Utils.log2("bounds are " + area.getBounds());
-					// make center be 0,0 for rotation
-					at.translate(-this.width/2, -this.height/2);
-					area.transform(at); //area.createTransformedArea(at);
-					at.setToIdentity(); // = new AffineTransform(); // in two steps, otherwise fails
-					at.rotate(Math.toRadians(t.rot));
-					area.transform(at); // = area.createTransformedArea(at);
-
-					// if correct, bounds should be as in paint method
-					//Utils.log2("area.getBounds(): " + area.getBounds());
-					// looks FINE, exactly like when painting
-					at.setToIdentity();
-
-
-					at.translate(this.width/2, this.height/2); // translate back
-					area.transform(at); // = area.createTransformedArea(at);
-					at.setToIdentity(); // = new AffineTransform();
-					//entry.setValue(area);
-				}
-				if (1 != sx || 1 != sy) {
-					at.scale(sx, sy);
-					area.transform(at); // in place
-				}
-				//area = area.createTransformedArea(at);
-				//entry.setValue(area);
-
-				if (0 != t.rot || 1 != sx || 1 != sy) updateInDatabase("points=" + lid);
-			}
-			double old_x = t.x;
-			double old_y = t.y;
-			calculateBoundingBox(); // will change x,y,width,height
-			// reset transform data: the t.x, t.y need only to change when there are rotations
-			if (0 != t.rot) {
-				t.x = this.x + (t.width - this.width)/2 + dx;
-				t.y = this.y + (t.height - this.height)/2 + dy;
-				//t.x =  this.x + (this.width - t.width/sx)/2 + dx;
-				//t.y =  this.y + (this.height - t.height/sy)/2 + dy;
-			}
-			t.rot = 0;
-			t.width = this.width; // should be the same anyway
-			t.height = this.height;
-			super.setTransform(t); // sets this.x,y to t.x,y
-		}
-	}
-
 	public boolean paintsAt(final Layer layer) {
 		if (!super.paintsAt(layer)) return false;
 		if (null != ht_areas.get(new Long(layer.getId()))) return true;
@@ -839,9 +763,14 @@ public class AreaList extends ZDisplayable {
 			long lid = ((Long)entry.getKey()).longValue();
 			if (UNLOADED.equals(ob_area)) ob_area = ali.loadLayer(lid);
 			Area area = (Area)ob_area;
-			AffineTransform at = new AffineTransform();
-			at.translate(ali.x - this.x, ali.y - this.y);
-			area = area.createTransformedArea(at);
+			area = area.createTransformedArea(ali.at);
+			// now need to inverse transform it by this.at
+			try {
+				area = area.createTransformedArea(this.at.createInverse());
+			} catch (NoninvertibleTransformException nte) {
+				new IJError(nte);
+				// do what?
+			}
 			Object this_area = this.ht_areas.get(entry.getKey());
 			if (UNLOADED.equals(this_area)) { this_area = loadLayer(lid); }
 			if (null == this_area) this.ht_areas.put(entry.getKey(), (Area)area.clone());
@@ -868,14 +797,13 @@ public class AreaList extends ZDisplayable {
 		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
 			al_ul.add(new Long(((Long)it.next()).longValue())); // clones of the Long that wrap layer ids
 		}
-		final AreaList copy = new AreaList(project, project.getLoader().getNextId(), null != title ? title.toString() : null, x, y, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, al_ul);
+		final AreaList copy = new AreaList(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, al_ul, (AffineTransform)this.at.clone());
 		for (Iterator it = copy.ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			entry.setValue(((Area)this.ht_areas.get(entry.getKey())).clone());
 		}
 		// add
 		copy.layer = this.layer; // this does not add it to any layer, just sets the 'current' layer pointer
-		copy.at = (AffineTransform)this.at.clone();
 		copy.addToDatabase();
 		snapshot.remake();
 		//
@@ -956,7 +884,6 @@ public class AreaList extends ZDisplayable {
 		float dx = (float)r.x * (float)scale;
 		float dy = (float)r.y * (float)scale;
 		float dz = (float)((z - thickness) * scale); // the z of the first layer found, corrected for both scale and the zero padding
-		Utils.log2("AreaList: scale=" + scale + " x,y: " + x + "," + y + "  dx,dy: " + dx + "," + dy);
 		for (Iterator it = list.iterator(); it.hasNext(); ) {
 			Point3f p = (Point3f)it.next();
 			// fix back the resampling (but not the universe scale, which has already been considered)

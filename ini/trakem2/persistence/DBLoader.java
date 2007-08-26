@@ -73,6 +73,7 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.geom.Area;
+import java.awt.geom.AffineTransform;
 import java.awt.Polygon;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -264,7 +265,7 @@ public class DBLoader extends Loader {
 				}
 				// create table ab_displayables if it does not exist
 				if (!table_displayables_exists) {
-					String query_displayables = "CREATE TABLE ab_displayables (id BIGINT NOT NULL, layer_id BIGINT DEFAULT -1, title TEXT NOT NULL, x DOUBLE PRECISION NOT NULL, y DOUBLE PRECISION NOT NULL, width DOUBLE PRECISION NOT NULL, height DOUBLE PRECISION NOT NULL, alpha DOUBLE PRECISION DEFAULT 1.0, visible BOOLEAN DEFAULT TRUE, color_red INT DEFAULT 255, color_green INT DEFAULT 255, color_blue INT DEFAULT 0, stack_index INT DEFAULT -1, annotation TEXT NULL, locked BOOLEAN DEFAULT FALSE, PRIMARY KEY (id))";
+					String query_displayables = "CREATE TABLE ab_displayables (id BIGINT NOT NULL, layer_id BIGINT DEFAULT -1, title TEXT NOT NULL, width DOUBLE PRECISION NOT NULL, height DOUBLE PRECISION NOT NULL, alpha DOUBLE PRECISION DEFAULT 1.0, visible BOOLEAN DEFAULT TRUE, color_red INT DEFAULT 255, color_green INT DEFAULT 255, color_blue INT DEFAULT 0, stack_index INT DEFAULT -1, annotation TEXT NULL, locked BOOLEAN DEFAULT FALSE, m00 DOUBLE PRECISION DEFAULT 0.0, m10 DOUBLE PRECISION DEFAULT 0.0, m01 DOUBLE PRECISION DEFAULT 0.0, m11 DOUBLE PRECISION DEFAULT 0.0, m02 DOUBLE PRECISION DEFAULT 0.0, m12 DOUBLE PRECISION DEFAULT 0.0, PRIMARY KEY (id))";
 					connection.prepareStatement(query_displayables).execute();
 					Utils.log("Created table ab_displayables in database " + db_name);
 				} else {
@@ -591,17 +592,67 @@ public class DBLoader extends Loader {
 	}
 
 	private boolean upgradeDisplayablesTable() throws Exception {
-		ResultSet r = connection.prepareStatement("SELECT column_name FROM information_schema.columns WHERE table_name='ab_displayables' AND column_name='locked'").executeQuery();
-		if (!r.next()) {
-			YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Upgrade", "Need to upgrade table ab_displayables.\nThe column 'locked' will be added.\nProceed?");
-			if (!yn.yesPressed()) {
-				r.close();
-				return false;
+		final Statement st = connection.createStatement();
+		try {
+			ResultSet r = st.executeQuery("SELECT column_name FROM information_schema.columns WHERE table_name='ab_displayables' AND column_name='locked'");
+			if (!r.next()) {
+				YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Upgrade", "Need to upgrade table ab_displayables.\nThe column 'locked' will be added.\nProceed?");
+				if (!yn.yesPressed()) {
+					r.close();
+					return false;
+				}
+				st.execute("ALTER TABLE ab_displayables ADD locked BOOLEAN");
+				st.execute("ALTER TABLE ab_displayables ALTER COLUMN locked SET DEFAULT false");
 			}
-			connection.prepareStatement("ALTER TABLE ab_displayables ADD locked BOOLEAN").execute();
-			connection.prepareStatement("ALTER TABLE ab_displayables ALTER COLUMN locked SET DEFAULT false").execute();
+			r.close();
+		} catch (Exception e) {
+			new IJError(e);
+			return false;
 		}
-		r.close();
+		try {
+			ResultSet r2 = st.executeQuery("SELECT column_name FROM information_schema.columns WHERE table_name='ab_displayables' AND column_name='m00'"); // testing for just one of the column names
+			if (!r2.next()) {
+				// 1 - create the transform's matrix values columns
+				st.execute("ALTER TABLE ab_displayables ADD m00 DOUBLE PRECISION");
+				st.execute("ALTER TABLE ab_displayables ALTER COLUMN m00 SET DEFAULT 0.0");
+				st.execute("ALTER TABLE ab_displayables ADD m10 DOUBLE PRECISION");
+				st.execute("ALTER TABLE ab_displayables ALTER COLUMN m10 SET DEFAULT 0.0");
+				st.execute("ALTER TABLE ab_displayables ADD m01 DOUBLE PRECISION");
+				st.execute("ALTER TABLE ab_displayables ALTER COLUMN m01 SET DEFAULT 0.0");
+				st.execute("ALTER TABLE ab_displayables ADD m11 DOUBLE PRECISION");
+				st.execute("ALTER TABLE ab_displayables ALTER COLUMN m11 SET DEFAULT 0.0");
+				st.execute("ALTER TABLE ab_displayables ADD m02 DOUBLE PRECISION");
+				st.execute("ALTER TABLE ab_displayables ALTER COLUMN m02 SET DEFAULT 0.0");
+				st.execute("ALTER TABLE ab_displayables ADD m12 DOUBLE PRECISION");
+				st.execute("ALTER TABLE ab_displayables ALTER COLUMN m12 SET DEFAULT 0.0");
+				// 2 - select all x,y,rot and create the proper affinetransform, and put it
+				final ResultSet r3 = st.executeQuery("SELECT id,x,y,rot FROM ab_displayables"); // ALL
+				final AffineTransform at = new AffineTransform();
+				final double[] m = new double[6];
+				while (r3.next()) {
+					at.setToIdentity();
+					at.rotate(r3.getDouble("rot"));
+					at.translate(r3.getDouble("x"), r3.getDouble("y"));
+					at.getMatrix(m);
+					st.execute(new StringBuffer("UPDATE ab_displayables SET m00=").append(m[0])
+											.append(",m10=").append(m[1])
+											.append(",m01=").append(m[2])
+											.append(",m11=").append(m[3])
+											.append(",m02=").append(m[4])
+											.append(",m12=").append(m[5])
+					.append(" WHERE id='" + r3.getLong("id")).toString());
+				}
+				r3.close();
+				// 3 - on success, tell the user to remove the x,y,rot columns on his own
+				// Needs lots of testing before doing it automatically
+				Utils.showMessage("Database update completed successfully.\nColumns x,y,rot have NOT been deleted\nfor data safety.\nYou can delete them manually when happy with the update.");
+			}
+			r2.close();
+		} catch (Exception e) {
+			new IJError(e);
+			return false;
+		}
+
 		return true;
 	}
 
@@ -933,10 +984,10 @@ public class DBLoader extends Loader {
 
 	private Profile fetchProfile(Project project, long id) throws Exception {
 		// joint call
-		ResultSet r = connection.prepareStatement("SELECT ab_profiles.id, ab_displayables.id, title, x, y, width, height, alpha, visible, color_red, color_green, color_blue, closed, locked FROM ab_profiles, ab_displayables WHERE ab_profiles.id=ab_displayables.id AND ab_profiles.id=" + id).executeQuery();
+		ResultSet r = connection.prepareStatement("SELECT ab_profiles.id, ab_displayables.id, title, width, height, alpha, visible, color_red, color_green, color_blue, closed, locked, m00, m10, m01, m11, m02, m12 FROM ab_profiles, ab_displayables WHERE ab_profiles.id=ab_displayables.id AND ab_profiles.id=" + id).executeQuery();
 		Profile p = null;
 		if (r.next()) {
-			p = new Profile(project, id, r.getString("title"), r.getDouble("x"), r.getDouble("y"), r.getDouble("width"), r.getDouble("height"), (float)r.getDouble("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("closed"), r.getBoolean("locked"));
+			p = new Profile(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), (float)r.getDouble("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("closed"), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 			// the polygon is not loaded, only when repainting the profile.
 		}
 		r.close();
@@ -944,20 +995,20 @@ public class DBLoader extends Loader {
 	}
 
 	private Pipe fetchPipe(Project project, long id) throws Exception {
-		ResultSet r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.x, ab_displayables.y, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, ab_zdisplayables.id, ab_pipe_points.pipe_id, ab_displayables.locked FROM ab_zdisplayables, ab_displayables, ab_pipe_points WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=ab_pipe_points.pipe_id AND ab_zdisplayables.id=" + id).executeQuery(); // strange query, but can't distinguish between pipes and balls otherwise
+		ResultSet r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, ab_zdisplayables.id, ab_pipe_points.pipe_id, ab_displayables.locked, m00, m10, m01, m11, m02, m12 FROM ab_zdisplayables, ab_displayables, ab_pipe_points WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=ab_pipe_points.pipe_id AND ab_zdisplayables.id=" + id).executeQuery(); // strange query, but can't distinguish between pipes and balls otherwise
 		Pipe p = null;
 		if (r.next()) {
-			p = new Pipe(project, id, r.getString("title"), r.getDouble("x"), r.getDouble("y"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"));
+			p = new Pipe(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 		}
 		r.close();
 		return p;
 	}
 
 	private Ball fetchBall(Project project, long id) throws Exception {
-		ResultSet r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.x, ab_displayables.y, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, ab_zdisplayables.id, ab_ball_points.ball_id, ab_displayables.locked FROM ab_zdisplayables, ab_displayables, ab_ball_points WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=ab_ball_points.ball_id AND ab_zdisplayables.id=" + id).executeQuery(); // strange query, but can't distinguish between pipes and balls otherwise
+		ResultSet r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, ab_zdisplayables.id, ab_ball_points.ball_id, ab_displayables.locked, m00, m10, m01, m11, m02, m12 FROM ab_zdisplayables, ab_displayables, ab_ball_points WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=ab_ball_points.ball_id AND ab_zdisplayables.id=" + id).executeQuery(); // strange query, but can't distinguish between pipes and balls otherwise
 		Ball b = null;
 		if (r.next()) {
-			b = new Ball(project, id, r.getString("title"), r.getDouble("x"), r.getDouble("y"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"));
+			b = new Ball(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 		}
 		r.close();
 		return b;
@@ -970,10 +1021,10 @@ public class DBLoader extends Loader {
 			al_ul.add(new Long(r.getLong(2))); // the ids of the unloaded layers
 		}
 		r.close();
-		r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.x, ab_displayables.y, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, locked, ab_zdisplayables.id FROM ab_zdisplayables, ab_displayables WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=" + id).executeQuery();
+		r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, locked, m00, m10, m01, m11, m02, m12, ab_zdisplayables.id FROM ab_zdisplayables, ab_displayables WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=" + id).executeQuery();
 		AreaList area_list = null;
 		if (r.next()) {
-			area_list = new AreaList(project, id, r.getString("title"), r.getDouble("x"), r.getDouble("y"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), al_ul);
+			area_list = new AreaList(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), al_ul, new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 		}
 		r.close();
 		return area_list;
@@ -1076,7 +1127,7 @@ public class DBLoader extends Loader {
 				LayerSet layer_set = null;
 				if (rls.next()) {
 					long ls_id = rls.getLong("id");
-					layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("x"), rls.getDouble("y"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getBoolean("snapshots_enabled"));
+					layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getBoolean("snapshots_enabled"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
 					// store for children Layer to find it
 					hs_pt.put(new Long(ls_id), layer_set);
 					// find the pipes (or other possible ZDisplayable objects) in the hs_pt that belong to this LayerSet and add them silently
@@ -1135,7 +1186,7 @@ public class DBLoader extends Loader {
 			ResultSet rls = connection.prepareStatement("SELECT * FROM ab_layer_sets, ab_displayables WHERE ab_layer_sets.id=ab_displayables.id AND ab_layer_sets.parent_layer_id=" + id).executeQuery();
 			while (rls.next()) {
 				long ls_id = rls.getLong("id");
-				LayerSet layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("x"), rls.getDouble("y"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getBoolean("snapshots_enabled"));
+				LayerSet layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getBoolean("snapshots_enabled"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
 				hs_pt.put(new Long(ls_id), layer_set);
 				hs_d.put(new Integer(rls.getInt("stack_index")), layer_set);
 				layer_set.setLayer(layer, false);
@@ -1155,20 +1206,20 @@ public class DBLoader extends Loader {
 			rls.close();
 
 			// add Patch objects from ab_patches joint-called with ab_displayables
-			ResultSet rp = connection.prepareStatement("SELECT ab_patches.id, ab_displayables.id, layer_id, title, width, height, stack_index, imp_type, locked, min, max, transform FROM ab_patches,ab_displayables WHERE ab_patches.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
+			ResultSet rp = connection.prepareStatement("SELECT ab_patches.id, ab_displayables.id, layer_id, title, width, height, stack_index, imp_type, locked, min, max, m00, m10, m01, m11, m02, m12 FROM ab_patches,ab_displayables WHERE ab_patches.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
 			while (rp.next()) {
 				long patch_id = rp.getLong("id");
-				Patch patch = new Patch(project, patch_id, rp.getString("title"), rp.getDouble("width"), rp.getDouble("height"), rp.getDouble("rot"), rp.getInt("imp_type"), rp.getBoolean("locked"), rp.getDouble("min"), rp.getDouble("max"));
+				Patch patch = new Patch(project, patch_id, rp.getString("title"), rp.getDouble("width"), rp.getDouble("height"), rp.getInt("imp_type"), rp.getBoolean("locked"), rp.getDouble("min"), rp.getDouble("max"), new AffineTransform(rp.getDouble("m00"), rp.getDouble("m10"), rp.getDouble("m01"), rp.getDouble("m11"), rp.getDouble("m02"), rp.getDouble("m12")));
 				hs_pt.put(new Long(patch_id), patch); // collecting all Displayable objects to reconstruct links
 				hs_d.put(new Integer(rp.getInt("stack_index")), patch);
 			}
 			rp.close();
 
 			// add DLabel objects
-			ResultSet rl = connection.prepareStatement("SELECT ab_labels.id, ab_displayables.id, layer_id, title, x, y, width, height, rot, stack_index, font_name, font_style, font_size, ab_labels.type, locked FROM ab_labels,ab_displayables WHERE ab_labels.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
+			ResultSet rl = connection.prepareStatement("SELECT ab_labels.id, ab_displayables.id, layer_id, title, width, height, m00, m10, m01, m11, m02, m12, stack_index, font_name, font_style, font_size, ab_labels.type, locked FROM ab_labels,ab_displayables WHERE ab_labels.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
 			while (rl.next()) {
 				long label_id = rl.getLong("id");
-				DLabel label = new DLabel(project, label_id, rl.getString("title"), rl.getDouble("x"), rl.getDouble("y"), rl.getDouble("width"), rl.getDouble("height"), rl.getDouble("rot"), rl.getInt("type"), rl.getString("font_name"), rl.getInt("font_style"), rl.getInt("font_size"), rl.getBoolean("locked"));
+				DLabel label = new DLabel(project, label_id, rl.getString("title"), rl.getDouble("width"), rl.getDouble("height"), rl.getInt("type"), rl.getString("font_name"), rl.getInt("font_style"), rl.getInt("font_size"), rl.getBoolean("locked"), new AffineTransform(rl.getDouble("m00"), rl.getDouble("m10"), rl.getDouble("m01"), rl.getDouble("m11"), rl.getDouble("m02"), rl.getDouble("m12")));
 				hs_pt.put(new Long(label_id), label); // collecting all Displayable objects to reconstruct links
 				hs_d.put(new Integer(rl.getInt("stack_index")), label);
 			}
@@ -1803,21 +1854,31 @@ public class DBLoader extends Loader {
 
 	private void updateInDatabase(Displayable displ, String key) throws Exception {
 		StringBuffer sb = new StringBuffer("UPDATE ab_displayables SET ");
-		if (key.equals("position")) {
-			//Utils.log2("updating position of " + displ + " to " + displ.getX() + "," + displ.getY());
-			sb.append("x=").append(displ.getX())
-			  .append(",y=").append(displ.getY());
-		} else if (key.equals("dimensions")) {
+		if (key.equals("transform")) {
+			final double[] m = new double[6];
+			displ.getAffineTransform().getMatrix(m);
+			sb.append(",m00=").append(m[0])
+			  .append(",m10=").append(m[1])
+			  .append(",m01=").append(m[2])
+			  .append(",m11=").append(m[3])
+			  .append(",m02=").append(m[4])
+			  .append(",m12=").append(m[5])
+			;
+		} else if (key.equals("dimensions")) { // of the data
 			sb.append("width=").append(displ.getWidth())
 			  .append(",height=").append(displ.getHeight());
-		} else if (key.equals("position+dimensions")) {// TODO save the dimensions and the transform, not the x,y
-			sb.append("x=").append(displ.getX())
-			  .append(",y=").append(displ.getY())
-			  .append(",width=").append(displ.getWidth())
-			  .append(",height=").append(displ.getHeight());
-		} else if (key.equals("position+rot")) {
-			sb.append("x=").append(displ.getX())
-			  .append(",y=").append(displ.getY());
+		} else if (key.equals("transform+dimensions")) {
+			final double[] m = new double[6];
+			displ.getAffineTransform().getMatrix(m);
+			sb.append(",width=").append(displ.getWidth())
+			  .append(",height=").append(displ.getHeight())
+			  .append(",m00=").append(m[0])
+			  .append(",m10=").append(m[1])
+			  .append(",m01=").append(m[2])
+			  .append(",m11=").append(m[3])
+			  .append(",m02=").append(m[4])
+			  .append(",m12=").append(m[5])
+			;
 		} else if (key.equals("alpha")) {
 			sb.append("alpha=").append(displ.getAlpha());
 		} else if (key.equals("title")) {
@@ -1832,10 +1893,10 @@ public class DBLoader extends Loader {
 		} else if (key.equals("layer_id")) {
 			sb.append("layer_id=").append(displ.getLayer().getId());
 		} else if (key.equals("all")) {
+			final double[] m = new double[6];
+			displ.getAffineTransform().getMatrix(m);
 			sb.append("layer_id=").append( null == displ.getLayer() ? -1 : displ.getLayer().getId() )
 			  .append(",title='").append(displ.getTitle()) // "'" appended below!
-			  .append("',x=").append(displ.getX())
-			  .append(",y=").append(displ.getY())
 			  .append(",width=").append(displ.getWidth())
 			  .append(",height=").append(displ.getHeight())
 			  .append(",alpha=").append(displ.getAlpha())
@@ -1844,7 +1905,14 @@ public class DBLoader extends Loader {
 			sb.append(",color_red=").append(color.getRed())
 			  .append(",color_green=").append(color.getGreen())
 			  .append(",color_blue=").append(color.getBlue())
-			  .append(",locked=").append(displ.isLocked2());
+			  .append(",locked=").append(displ.isLocked2())
+			  .append(",m00=").append(m[0])
+			  .append(",m10=").append(m[1])
+			  .append(",m01=").append(m[2])
+			  .append(",m11=").append(m[3])
+			  .append(",m02=").append(m[4])
+			  .append(",m12=").append(m[5])
+			;
 		} else if (key.equals("locked")) {
 			sb.append("locked=").append(displ.isLocked());
 		} else {
