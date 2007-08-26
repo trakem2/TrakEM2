@@ -120,7 +120,7 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			String old_name = tt.getType();
-			String new_name = gd.getNextString();
+			String new_name = gd.getNextString().replace(' ', '_');
 			if (null == new_name || 0 == new_name.length()) {
 				Utils.showMessage("Unacceptable new name: '" + new_name + "'");
 				return;

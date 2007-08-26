@@ -78,6 +78,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		/** Override to set a yellow background color to elements that belong to the currently displayed layer. The JTree nodes are painted as a JLabel that is transparent (no background, it has a setOpque(true) by default), so the code is insane.*/
 		public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
 			JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+			label.setText(label.getText().replace('_', ' ')); // just for display
 			if (value instanceof DefaultMutableTreeNode) {
 				Object obb = ((DefaultMutableTreeNode)value).getUserObject();
 				if (obb instanceof ProjectThing) { // must be, but checking ...
