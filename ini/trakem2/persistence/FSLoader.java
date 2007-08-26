@@ -579,7 +579,7 @@ public class FSLoader extends Loader {
 	/** This method has the exclusivity in calling ht_paths.put, because it ensures the path won't have escape characters. */
 	private final void updatePatchPath(final Patch patch, String path) { // reversed order in purpose, relative to addedPatchFrom
 		// avoid W1nd0ws nightmares
-		path = path.replace('\\', '/'); //All("\\\\", "/"); // The \\\\ is just a single \ in the final regex match
+		path = path.replace('\\', '/'); // replacing with chars, in place
 		// if path is absolute, try to make it relative
 		path = makeRelativePath(path);
 		// store
@@ -637,15 +637,16 @@ public class FSLoader extends Loader {
 	/** Takes the given path and tries to makes it relative to this instance's project_xml_path, if possible. Otherwise returns the argument as is. */
 	private String makeRelativePath(String path) {
 		if (null == project_xml_path) {
-			//unsaved project//Utils.log2("WARNING: null project_xml_path at makeRelativePath");
+			//unsaved project//
+			//Utils.log2("WARNING: null project_xml_path at makeRelativePath");
 			return path;
 		}
 		if (null == path) {
-			Utils.log2("WARNING: null path at makeRelativePath");
+			//Utils.log2("WARNING: null path at makeRelativePath");
 			return null;
 		}
 		// fix W1nd0ws paths
-		path = path.replace('\\', '/'); // the \\\\ is just a single \, because the regex pattern creation reinterprets it
+		path = path.replace('\\', '/'); // char-based, no parsing problems
 		// remove slice tag
 		String slice = null;
 		int isl = path.lastIndexOf("-----#slice");

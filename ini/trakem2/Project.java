@@ -369,7 +369,7 @@ public class Project extends DBObject {
 					setPriority(Thread.NORM_PRIORITY);
 					// avoiding "can't call invokeAndWait from the EventDispatch thread" error
 					try {
-						javax.swing.SwingUtilities.invokeLater(ru);
+						javax.swing.SwingUtilities.invokeAndWait(ru);
 					} catch (Exception e) {
 						Utils.log2("ERROR: " + e);
 					}

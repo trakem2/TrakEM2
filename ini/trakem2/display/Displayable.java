@@ -196,13 +196,10 @@ public abstract class Displayable extends DBObject {
 		this.snapshot = new Snapshot(this);
 
 		// support old versions:
-		if (0 != x || 0 != y) {
-			translate(x, y);
+		if (this.at.isIdentity() && (0 != x || 0 != y)) {
+			this.at.translate(x, y);
 		}
 		// scaling in old versions will be lost
-
-		// debug:
-		//Utils.log2("box: " + getBoundingBox(null));
 	}
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
