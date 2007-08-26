@@ -440,7 +440,7 @@ public class DLabel extends Displayable {
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
 	public Object clone() {
-		final DLabel copy = new DLabel(project, project.getLoader().getNextId(), title, x, y, width, height, rot, type, font.getName(), font.getStyle(), font.getSize(), false);
+		final DLabel copy = new DLabel(project, project.getLoader().getNextId(), title, 0, 0, width, height, rot, type, font.getName(), font.getStyle(), font.getSize(), false);
 		snapshot.remake();
 		copy.alpha = this.alpha;
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());

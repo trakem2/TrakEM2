@@ -41,13 +41,6 @@ public abstract class Displayable extends DBObject {
 
 	protected AffineTransform at = new AffineTransform();
 
-
-	// temporary, this three have to disappear
-	protected double x, y;
-	protected double rot;
-	/////////////////////////////////////
-
-
 	/** Width and height of the data, not the bounding box. If the AffineTransform is different than identity, then the bounding box will be different. */
 	protected double width = 0,
 		         height = 0;
@@ -936,11 +929,6 @@ public abstract class Displayable extends DBObject {
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
-			/*
-			.append(in).append("x=\"").append(x).append("\"\n")
-			.append(in).append("y=\"").append(y).append("\"\n")
-			.append(in).append("rot=\"").append(rot).append("\"\n")
-			*/
 			.append(in).append("width=\"").append(width).append("\"\n")
 			.append(in).append("height=\"").append(height).append("\"\n")
 			.append(in).append("transform=\"matrix(").append(a[0]).append(',')
@@ -1170,33 +1158,14 @@ public abstract class Displayable extends DBObject {
 
 	/** Scales this instance only, no linked ones, relative to the anchor point. */
 	private void scale2(double sx, double sy, double xo, double yo) {
-		/*
-		Rectangle b1 = getBoundingBox(null);
-		this.at.scale(sx, sy);
-		Rectangle b2 = getBoundingBox(null);
-		// old top-left local to the anchor
-		double x1 = b1.x - xo;
-		double y1 = b1.y - yo;
-		// new top-left local to the anchor
-		double x2 = b2.x - xo;
-		double y2 = b2.y - yo;
-		// desired new top-left position
-		double x3 = x1 * sx;
-		double y3 = y1 * sy;
-		//Utils.log2("x3,y3: " + x3 + "," + y3 + "\nx2,y2: " + x2 + "," + y2);
-		// top-left should be at x1*sx,y1*sy distance from the anchor
-		AffineTransform at2 = new AffineTransform();
-		at2.translate(x3 - x2, y3 - y2);
-		this.at.preConcatenate(at2);
-		*/
-		
 		// TODO check if this works as you expected---it took a while to find out, that the bounding box is already included in x0 and y0 ;)
-		
-		AffineTransform at2 = new AffineTransform();
+		// Stephan Saalfeld AffineTransform magic as usual (thanks!):
+
+		final AffineTransform at2 = new AffineTransform();
 		at2.translate( xo, yo );
 		at2.scale( sx, sy );
 		at2.translate( -xo, -yo );
-		
+
 		at.preConcatenate( at2 );
 		updateInDatabase( "transform" );
 	}

@@ -73,14 +73,14 @@ public class Patch extends Displayable {
 	}
 
 	/** Reconstruct a Patch from the database. The ImagePlus will be loaded when necessary. */
-	public Patch(Project project, long id, String title, double x, double y, double width, double height, double rot, int type, boolean locked, double min, double max) {
+	public Patch(Project project, long id, String title, double width, double height, int type, boolean locked, double min, double max, AffineTransform at) {
 		super(project, id, title, x, y, locked);
 		this.width = width;
 		this.height = height;
-		this.rot = rot;
 		this.type = type;
 		this.min = min;
 		this.max = max;
+		this.at = at;
 		checkMinMax();
 	}
 

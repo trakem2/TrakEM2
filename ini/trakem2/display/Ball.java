@@ -598,8 +598,16 @@ public class Ball extends ZDisplayable {
 		if (0 == n_points) return;
 		String in = indent + "\t";
 		String[] RGB = Utils.getHexRGBColor(color);
+		final double[] a = new double[6];
+		at.getMatrix(a);
 		data.append(indent).append("<ball_ob\n>")
 		    .append(in).append("id=\"").append(id).append("\"")
+		    .append(in).append("transform=\"matrix(").append(a[0]).append(',')
+								.append(a[1]).append(',')
+								.append(a[2]).append(',')
+								.append(a[3]).append(',')
+								.append(a[4]).append(',')
+								.append(a[5]).append(")\"\n")
 		    .append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n")
 		    .append(in).append("links=\"")
 		;
@@ -696,7 +704,7 @@ public class Ball extends ZDisplayable {
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
 	public Object clone() {
-		final Ball copy = new Ball(project, project.getLoader().getNextId(), null != title ? title.toString() : null, x, y, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false);
+		final Ball copy = new Ball(project, project.getLoader().getNextId(), null != title ? title.toString() : null, 0, 0, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false);
 		// links are left null
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data

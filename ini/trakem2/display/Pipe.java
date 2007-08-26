@@ -1278,11 +1278,17 @@ public class Pipe extends ZDisplayable {
 		if (-1 == n_points) setupForDisplay(); // reload
 		if (0 == n_points) return;
 		String[] RGB = Utils.getHexRGBColor(color);
+		final double[] a = new double[6];
+		at.getMatrix(a);
 		data.append(indent).append("<path\n")
 		    .append(in).append("type=\"pipe\"\n")
 		    .append(in).append("id=\"").append(id).append("\"\n")
-		    .append(in).append("x=\"").append(x).append("\"\n")
-		    .append(in).append("y=\"").append(y).append("\"\n")
+		    .append(in).append("transform=\"matrix(").append(a[0]).append(',')
+								.append(a[1]).append(',')
+								.append(a[2]).append(',')
+								.append(a[3]).append(',')
+								.append(a[4]).append(',')
+								.append(a[5]).append(")\"\n")
 		    .append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n")
 		    .append(in).append("d=\"M")
 		;
@@ -1550,7 +1556,7 @@ public class Pipe extends ZDisplayable {
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
 	public Object clone() {
-		final Pipe copy = new Pipe(project, project.getLoader().getNextId(), null != title ? title.toString() : null, x, y, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false);
+		final Pipe copy = new Pipe(project, project.getLoader().getNextId(), null != title ? title.toString() : null, 0, 0, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false);
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
 		copy.n_points = n_points;
