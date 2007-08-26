@@ -182,7 +182,7 @@ public class Ball extends ZDisplayable {
 		return index;
 	}
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -222,7 +222,7 @@ public class Ball extends ZDisplayable {
 			final long layer_id = active_layer.getId();
 			for (int j=0; j<n_points; j++) {
 				if (layer_id != p_layer[j]) continue;
-				DisplayCanvas.drawHandle(g, (int)p[0][j], (int)p[1][j]);
+				DisplayCanvas.drawHandle(g, (int)p[0][j], (int)p[1][j], magnification);
 			}
 		}
 
@@ -287,7 +287,7 @@ public class Ball extends ZDisplayable {
 			y_d_old = (int)pdo.y;
 		}
 
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
 			if (-1 != index) {
@@ -303,8 +303,6 @@ public class Ball extends ZDisplayable {
 	}
 
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
-
-		int tool = ProjectToolbar.getToolId();
 
 		//update points in database if there was any change
 		if (-1 != index && index != n_points) { // don't do it when the last point is removed
@@ -352,7 +350,7 @@ public class Ball extends ZDisplayable {
 			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 			updateInDatabase("transform");
 		}
-		updateInDatabase("position+dimensions");
+		updateInDatabase("dimensions");
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -501,7 +499,7 @@ public class Ball extends ZDisplayable {
 		x = (int)po.x;
 		y = (int)po.y;
 		//
-		long layer_id = layer.getId();
+		final long layer_id = layer.getId();
 		for (int i=0; i<n_points; i++) {
 			if (layer_id != p_layer[i]) continue;
 			if (x >= p[0][i] - p_width[i] && x <= p[0][i] + p_width[i] && y >= p[1][i] - p_width[i] && y <= p[1][i] + p_width[i]) return true;
@@ -813,6 +811,7 @@ public class Ball extends ZDisplayable {
 		return list;
 	}
 
+	/** Apply the AffineTransform to a copy of the points and return the arrays. */
 	private final Object[] getTransformedData() {
 		// transform points
 		final double[][] p = transformPoints(this.p);

@@ -930,11 +930,21 @@ public class AreaList extends ZDisplayable {
 		int n = getNAreas();
 		if (0 == n) return null;
 		final Rectangle r = getBoundingBox();
+		// remove translation from a copy of this Displayable's AffineTransform
+		final AffineTransform at_translate = new AffineTransform();
+		at_translate.translate(-r.x, -r.y);
+		final AffineTransform at2 = (AffineTransform)this.at.clone();
+		at2.preConcatenate(at_translate);
+		// incorporate resampling scaling into the transform
+		final AffineTransform atK = new AffineTransform();
+		//Utils.log("resample: " + resample + "  scale: " + scale);
+		final double K = (1.0 / resample) * scale; // 'scale' is there to limit gigantic universes
+		atK.scale(K, K);
+		at2.preConcatenate(atK);
+		//
 		ImageStack stack = null;
 		float z = 0;
 		double thickness = 1;
-		//Utils.log("resample: " + resample + "  scale: " + scale);
-		final double K = (1.0 / resample) * scale; // 'scale' is there to limit gigantic universes
 		final int w = (int)Math.ceil(r.width * K);
 		final int h = (int)Math.ceil(r.height * K);
 		for (Iterator it = layer_set.getLayers().iterator(); it.hasNext(); ) {
@@ -948,11 +958,11 @@ public class AreaList extends ZDisplayable {
 					z = (float)la.getZ(); // z of the first layer
 					thickness = la.getThickness();
 				}
-				ImageProcessor ip = new ByteProcessor(w, h);
+				final ImageProcessor ip = new ByteProcessor(w, h);
 				ip.setColor(Color.white);
-				AffineTransform at = new AffineTransform();
-				at.scale(K, K);
-				area = area.createTransformedArea(at);
+				//final AffineTransform atK = new AffineTransform();
+				//atK.scale(K, K);
+				area = area.createTransformedArea(at2); //atK);
 				ShapeRoi roi = new ShapeRoi(area);
 				ip.setRoi(roi);
 				ip.fill(roi.getMask()); // should be automatic!
@@ -976,8 +986,8 @@ public class AreaList extends ZDisplayable {
 		final Triangulator tri = new MCTriangulator();
 		final List list = tri.getTriangles(imp, 0, new boolean[]{true, true, true}, 1);
 		// now translate all coordinates by x,y,z (it would be nice to simply assign them to a mesh object)
-		float dx = (float)this.x * (float)scale;
-		float dy = (float)this.y * (float)scale;
+		float dx = (float)r.x * (float)scale;
+		float dy = (float)r.y * (float)scale;
 		float dz = (float)((z - thickness) * scale); // the z of the first layer found, corrected for both scale and the zero padding
 		Utils.log2("AreaList: scale=" + scale + " x,y: " + x + "," + y + "  dx,dy: " + dx + "," + dy);
 		for (Iterator it = list.iterator(); it.hasNext(); ) {

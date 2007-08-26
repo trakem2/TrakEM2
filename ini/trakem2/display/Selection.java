@@ -209,15 +209,10 @@ public class Selection {
 		BoxHandle(int x, int y, int id) {
 			super(x,y,id);
 		}
-		public void paint(Graphics g, Rectangle srcRect, double mag) {
-			int x = (int)((this.x - srcRect.x)*mag);
-			int y = (int)((this.y - srcRect.y)*mag);
-			g.setColor(Color.white);
-			g.drawRect(x - 2, y - 2, 5, 5);
-			g.setColor(Color.black);
-			g.drawRect(x - 1, y - 1, 3, 3);
-			g.setColor(Color.white);
-			g.fillRect(x, y, 1, 1);
+		public void paint(final Graphics g, final Rectangle srcRect, final double mag) {
+			final int x = (int)((this.x - srcRect.x)*mag);
+			final int y = (int)((this.y - srcRect.y)*mag);
+			DisplayCanvas.drawHandle(g, x, y, mag);
 		}
 		public void drag(int dx, int dy) {
 			Rectangle box_old = (Rectangle)box.clone();

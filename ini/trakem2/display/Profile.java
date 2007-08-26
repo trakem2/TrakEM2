@@ -559,7 +559,7 @@ public class Profile extends Displayable {
 			for (int j=0; j<n_points; j++) { //TODO there is room for optimization, operations are being done twice or 3 times; BUT is the creation of new variables as costly as the calculations? I have no idea.
 				//draw big ovals at backbone points
 				//g.drawOval((int)(p[0][j]*magnification) -3, (int)(p[1][j]*magnification) -3, 6, 6);
-				DisplayCanvas.drawHandle(g, (int)(p[0][j]*magnification), (int)(p[1][j]*magnification));
+				DisplayCanvas.drawHandle(g, (int)(p[0][j]*magnification), (int)(p[1][j]*magnification), magnification);
 				g.setColor(this.color);
 				//fill small ovals at control points
 				g.fillOval((int)(p_l[0][j]*magnification) -3, (int)(p_l[1][j]*magnification) -3, 4, 4);
@@ -668,7 +668,7 @@ public class Profile extends Displayable {
 			for (int j=0; j<n_points; j++) { //TODO there is room for optimization, operations are being done twice or 3 times; BUT is the creation of new variables as costly as the calculations? I have no idea.
 				//draw big ovals at backbone points
 				//g.drawOval((int)(p[0][j]*magnification) -3, (int)(p[1][j]*magnification) -3, 6, 6);
-				DisplayCanvas.drawHandle(g, (int)((p[0][j] - cx)*sx), (int)((p[1][j] - cy)*sy));
+				DisplayCanvas.drawHandle(g, (int)((p[0][j] - cx)*sx), (int)((p[1][j] - cy)*sy), magnification);
 				g.setColor(this.color);
 				//fill small ovals at control points
 				g.fillOval((int)((p_l[0][j] -cx) * sx) -3, (int)((p_l[1][j] -cy) * sy) -3, 4, 4);

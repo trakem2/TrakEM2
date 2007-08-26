@@ -457,24 +457,6 @@ public class Patch extends Displayable {
 	}
 	*/
 
-	/** Not accepted if new bounds will leave the Displayable beyond layer bounds. Creates a copy of the ImagePlus to be stored as the 'tiff_working' with the new dimensions. Does not repaint the Display, but updates its own snapshot panel. */
-	public void setBounds(double x, double y, double width, double height) {
-		if (x + width <= 0 || y + height <= 0 || x >= layer.getLayerWidth() || y >= layer.getLayerHeight()) return;
-		// Transform ImageProcessor
-		ImagePlus imp = project.getLoader().fetchImagePlus(this);
-		// set the resized processor with the same title
-		imp.setProcessor(null, imp.getProcessor().resize((int)Math.ceil(width), (int)Math.ceil(height)));
-		// set new bounds
-		this.x = x;
-		this.y = y;
-		this.width = width;
-		this.height = height;
-		snapshot.remake();
-		Display.updatePanel(layer, this);
-		updateInDatabase("position+dimensions");
-		updateInDatabase("tiff_working");
-	}
-
 	/** Retuns a virtual ImagePlus with a virtual stack if necessary. */
 	public PatchStack makePatchStack() {
 		// are we a stack?

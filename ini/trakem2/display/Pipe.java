@@ -46,6 +46,7 @@ import java.awt.Graphics2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 
 import javax.vecmath.Point3f;
 
@@ -499,48 +500,56 @@ public class Pipe extends ZDisplayable {
 		}
 	}
 
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
-
-		//Utils.log2("pipe w,h: " + width + "," + height);
-		
-		if (0 == n_points) {
-			return;
-		}
-		// check if it has to be painted at all
-		if (super.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-			return;
-		}
-
+	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
 			setupForDisplay();
 		}
-		// translate graphics origin of coordinates
-		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate((x - srcRect.x)* magnification, (y - srcRect.y)* magnification);
-
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+			original_composite = g.getComposite();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+		}
+
+		//Transparency: fix alpha composite back to original.
+		if (null != original_composite) {
+			g.setComposite(original_composite);
+		}
+
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[][] p_r = this.p_r;
+		double[][] p_l = this.p_l;
+		double[][] p_i = this.p_i;
+		double[] p_width = this.p_width;
+		double[] p_width_i = this.p_width_i;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_l = (double[][])ob[1];
+			p_r = (double[][])ob[2];
+			p_i = (double[][])ob[3];
+			p_width = (double[])ob[4];
+			p_width_i = (double[])ob[5];
 		}
 
 		if (active) {
-			long layer_id = active_layer.getId();
-			//draw/fill points
+			final long layer_id = active_layer.getId();
+			// draw/fill points
+			final int oval_radius = (int)Math.ceil(4 / magnification);
 			for (int j=0; j<n_points; j++) { //TODO there is room for optimization, operations are being done twice or 3 times; BUT is the creation of new variables as costly as the calculations? I have no idea.
 				if (layer_id != p_layer[j]) continue;
 				//draw big ovals at backbone points
-				//g.drawOval((int)(p[0][j]*magnification) -3, (int)(p[1][j]*magnification) -3, 6, 6);
-				DisplayCanvas.drawHandle(g, (int)(p[0][j]*magnification), (int)(p[1][j]*magnification));
+				DisplayCanvas.drawHandle(g, (int)p[0][j], (int)p[1][j], magnification);
 				g.setColor(color);
 				//fill small ovals at control points
-				g.fillOval((int)(p_l[0][j]*magnification) -3, (int)(p_l[1][j]*magnification) -3, 4, 4);
-				g.fillOval((int)(p_r[0][j]*magnification) -3, (int)(p_r[1][j]*magnification) -3, 4, 4);
+				g.fillOval((int)p_l[0][j] -3, (int)p_l[1][j] -3, oval_radius, oval_radius);
+				g.fillOval((int)p_r[0][j] -3, (int)p_r[1][j] -3, oval_radius, oval_radius);
 				//draw lines between backbone and control points
-				g.drawLine((int)(p[0][j]*magnification), (int)(p[1][j]*magnification), (int)(p_l[0][j]*magnification), (int)(p_l[1][j]*magnification));
-				g.drawLine((int)(p[0][j]*magnification), (int)(p[1][j]*magnification), (int)(p_r[0][j]*magnification), (int)(p_r[1][j]*magnification));
+				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_l[0][j], (int)p_l[1][j]);
+				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_r[0][j], (int)p_r[1][j]);
 			}
 		}
 		// paint the tube in 2D:
@@ -588,93 +597,6 @@ public class Pipe extends ZDisplayable {
 				if (la +1 >= r_side_x.length) la--; // quick fix
 				if (fi > la) fi = la;
 
-				//Utils.log(id + " pipe data: fi, la, r_side_x.length :" + fi + ", " + la + ", " + r_side_x.length + ", " + r_side_y.length);
-				for (int k=fi; k<=la; k++) {
-					//Utils.log("k=" + k);
-					g.drawLine((int)(r_side_x[k]*magnification), (int)(r_side_y[k]*magnification), (int)(r_side_x[k+1]*magnification), (int)(r_side_y[k+1]*magnification));
-					g.drawLine((int)(l_side_x[k]*magnification), (int)(l_side_y[k]*magnification), (int)(l_side_x[k+1]*magnification), (int)(l_side_y[k+1]*magnification));
-				}
-			}
-		}
-
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
-		}
-		// undo transport painting pointer
-		g2d.translate(- (x - srcRect.x)* magnification, - (y - srcRect.y)* magnification);
-	}
-
-	public void paint(Graphics g, Layer active_layer) {
-		if (0 == n_points) {
-			return;
-		}
-		// check if it has to be painted at all
-		if (!this.visible) {
-			return;
-		}
-
-		if (-1 == n_points) {
-			// load points from the database
-			setupForDisplay();
-		}
-		// translate graphics origin of coordinates
-		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate(x, y);
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		g.setColor(color);
-
-		// paint the tube in 2D:
-		if (n_points > 1 && p_i[0].length > 1) { // need the second check for repaints that happen before generating the interpolated points.
-			double angle = 0;
-			double a0 = Math.toRadians(0);
-			double a90 = Math.toRadians(90);
-			double a180 = Math.toRadians(180);
-			double a270 = Math.toRadians(270);
-			int n = p_i[0].length;
-			double[] r_side_x = new double[n];
-			double[] r_side_y = new double[n];
-			double[] l_side_x = new double[n];
-			double[] l_side_y = new double[n];
-			int m = n-1;
-
-			for (int i=0; i<n-1; i++) {
-				angle = Math.atan2(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i]);
-
-				r_side_x[i] = p_i[0][i] + Math.sin(angle+a90) * p_width_i[i];  //sin and cos are inverted, but works better like this. WHY ??
-				r_side_y[i] = p_i[1][i] + Math.cos(angle+a90) * p_width_i[i];
-				l_side_x[i] = p_i[0][i] + Math.sin(angle-a90) * p_width_i[i];
-				l_side_y[i] = p_i[1][i] + Math.cos(angle-a90) * p_width_i[i];
-			}
-
-			angle = Math.atan2(p_i[0][m] - p_i[0][m-1], p_i[1][m] - p_i[1][m-1]);
-
-			r_side_x[m] = p_i[0][m] + Math.sin(angle+a90) * p_width_i[m];
-			r_side_y[m] = p_i[1][m] + Math.cos(angle+a90) * p_width_i[m];
-			l_side_x[m] = p_i[0][m] + Math.sin(angle-a90) * p_width_i[m];
-			l_side_y[m] = p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
-
-			double z_current = active_layer.getZ();
-
-			for (int j=0; j<n_points; j++) { // at least looping through 2 points, as guaranteed by the preconditions checking
-				double z = layer_set.getLayer(p_layer[j]).getZ();
-				if (z < z_current) g.setColor(Color.red);
-				else if (z == z_current) g.setColor(this.color);
-				else g.setColor(Color.blue);
-
-				int fi = 0;
-				int la = j * 20 -1;
-				if (0 != j) fi = (j * 20) - 10; // 10 is half a segment
-				if (n_points -1 != j) la += 10; // same //= j * 20 + 9;
-				if (la +1 >= r_side_x.length) la--; // quick fix TODO
-
 				for (int k=fi; k<=la; k++) {
 					g.drawLine((int)r_side_x[k], (int)r_side_y[k], (int)r_side_x[k+1], (int)r_side_y[k+1]);
 					g.drawLine((int)l_side_x[k], (int)l_side_y[k], (int)l_side_x[k+1], (int)l_side_y[k+1]);
@@ -684,133 +606,8 @@ public class Pipe extends ZDisplayable {
 
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
-			g2d.setComposite(original_composite);
+			g.setComposite(original_composite);
 		}
-		// undo transport painting pointer
-		g2d.translate(- x, - y);
-	}
-
-	/** For painting while transforming. The given box is in offscreen coords. */
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
-		if (0 == n_points) {
-			return;
-		}
-
-		// check if it has to be painted at all
-		if (super.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-			return;
-		}
-
-		if (-1 == n_points) {
-			// load points from the database
-			setupForDisplay();
-		}
-
-		// translate graphics origin of coordinates
-		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate((int)((t.x + t.width/2 -srcRect.x)*magnification), (int)((t.y + t.height/2 -srcRect.y)*magnification));
-		double sx = t.width / this.width;
-		double sy = t.height / this.height;
-		double sm = sx > sy ? sy : sx; // smallest
-		sx *= magnification;
-		sy *= magnification;
-		double cx = this.width/2; // center of data
-		double cy = this.height/2;
-		AffineTransform original = g2d.getTransform();
-		g2d.rotate((t.rot * Math.PI) / 180); //(t.rot * 2 * Math.PI / 360); //Math.toRadians(rot));
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (t.alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, t.alpha));
-		}
-
-		if (active) {
-			long layer_id = active_layer.getId();
-			//draw/fill points
-			for (int j=0; j<n_points; j++) { //TODO there is room for optimization, operations are being done twice or 3 times; BUT is the creation of new variables as costly as the calculations? I have no idea.
-				if (layer_id != p_layer[j]) continue;
-				//draw big ovals at backbone points
-				//g.drawOval((int)(p[0][j]*magnification) -3, (int)(p[1][j]*magnification) -3, 6, 6);
-				DisplayCanvas.drawHandle(g, (int)((p[0][j] -cx) * sx), (int)((p[1][j] -cy) * sy));
-				g.setColor(color);
-				//fill small ovals at control points
-				g.fillOval((int)((p_l[0][j] -cx) * sx) -3, (int)((p_l[1][j] -cy) * sy) -3, 4, 4);
-				g.fillOval((int)((p_r[0][j] -cx) * sx) -3, (int)((p_r[1][j] -cy) * sy) -3, 4, 4);
-				//draw lines between backbone and control points
-				g.drawLine((int)((p[0][j] -cx) * sx), (int)((p[1][j] -cy) * sy), (int)((p_l[0][j] -cx) * sx), (int)((p_l[1][j] -cy) * sy));
-				g.drawLine((int)((p[0][j] -cx) * sx), (int)((p[1][j] -cy) * sy), (int)((p_r[0][j] -cx) * sx), (int)((p_r[1][j] -cy) * sy));
-			}
-		}
-		// paint the tube in 2D:
-		if (n_points > 1 && p_i[0].length > 1) { // need the second check for repaints that happen before generating the interpolated points.
-			double angle = 0;
-			double a0 = Math.toRadians(0);
-			double a90 = Math.toRadians(90);
-			double a180 = Math.toRadians(180);
-			double a270 = Math.toRadians(270);
-			int n = p_i[0].length;
-			double[] r_side_x = new double[n];
-			double[] r_side_y = new double[n];
-			double[] l_side_x = new double[n];
-			double[] l_side_y = new double[n];
-			int m = n-1;
-			double pw;
-
-			for (int i=0; i<n-1; i++) {
-				angle = Math.atan2(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i]);
-
-				pw = p_width_i[i] * sm;
-				r_side_x[i] = p_i[0][i] + Math.sin(angle+a90) * pw;  //sin and cos are inverted, but works better like this. WHY ??
-				r_side_y[i] = p_i[1][i] + Math.cos(angle+a90) * pw;
-				l_side_x[i] = p_i[0][i] + Math.sin(angle-a90) * pw;
-				l_side_y[i] = p_i[1][i] + Math.cos(angle-a90) * pw;
-			}
-
-			angle = Math.atan2(p_i[0][m] - p_i[0][m-1], p_i[1][m] - p_i[1][m-1]);
-
-			pw = p_width_i[m] * sm;
-			r_side_x[m] = p_i[0][m] + Math.sin(angle+a90) * pw;
-			r_side_y[m] = p_i[1][m] + Math.cos(angle+a90) * pw;
-			l_side_x[m] = p_i[0][m] + Math.sin(angle-a90) * pw;
-			l_side_y[m] = p_i[1][m] + Math.cos(angle-a90) * pw;
-
-			if (null == active_layer) {
-				Utils.log("Pipe.paint: null front layer!");
-				return;
-			}
-
-			double z_current = active_layer.getZ();
-
-			for (int j=0; j<n_points; j++) { // at least looping through 2 points, as guaranteed by the preconditions checking
-				double z = layer_set.getLayer(p_layer[j]).getZ();
-				if (z < z_current) g.setColor(Color.red);
-				else if (z == z_current) g.setColor(this.color);
-				else g.setColor(Color.blue);
-
-				int fi = 0;
-				int la = j * 20 -1;
-				if (0 != j) fi = (j * 20) - 10; // 10 is half a segment
-				if (n_points -1 != j) la += 10; // same //= j * 20 + 9;
-				if (la +1 >= r_side_x.length) la--; // quick fix TODO
-
-				for (int k=fi; k<=la; k++) {
-					g.drawLine((int)((r_side_x[k] -cx) * sx), (int)((r_side_y[k] -cy) * sy), (int)((r_side_x[k+1] -cx) * sx), (int)((r_side_y[k+1] -cy) * sy));
-					g.drawLine((int)((l_side_x[k] -cx) * sx), (int)((l_side_y[k] -cy) * sy), (int)((l_side_x[k+1] -cx) * sx), (int)((l_side_y[k+1] -cy) * sy));
-				}
-			}
-		}
-
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
-		}
-		// undo scale
-		// DONE BELOW //g2d.scale(1/sx, 1/sy);
-		g2d.setTransform(original);
-		// undo transport painting pointer
-		g2d.translate( - (int)((t.x + t.width/2 -srcRect.x)*magnification), - (int)((t.y + t.height/2 -srcRect.y)*magnification));
 	}
 
 	public void keyPressed(KeyEvent ke) {
@@ -822,16 +619,14 @@ public class Pipe extends ZDisplayable {
 	static private boolean is_new_point = false;
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
-
-		if (0 == n_points) {
-			this.x = x_p;
-			this.y = y_p;
+		// transform the x_p, y_p to the local coordinates
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
+			x_p = (int)po.x;
+			y_p = (int)po.y;
 		}
-		// make local
-		x_p = x_p - (int)this.x;
-		y_p = y_p - (int)this.y;
 
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
 
@@ -886,15 +681,20 @@ public class Pipe extends ZDisplayable {
 	}
 
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
-		//make local
-		x_p = x_p - (int)this.x;
-		y_p = y_p - (int)this.y;
-		x_d = x_d - (int)this.x;
-		y_d = y_d - (int)this.y;
-		x_d_old = x_d_old - (int)this.x;
-		y_d_old = y_d_old - (int)this.y;
+		// transform to the local coordinates
+		if (!this.at.isIdentity()) {
+			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
+			x_p = (int)p.x;
+			y_p = (int)p.y;
+			final Point2D.Double pd = inverseTransformPoint(x_d, y_d);
+			x_d = (int)pd.x;
+			y_d = (int)pd.y;
+			final Point2D.Double pdo = inverseTransformPoint(x_d_old, y_d_old);
+			x_d_old = (int)pdo.x;
+			y_d_old = (int)pdo.y;
+		}
 
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
 			//if a point in the backbone is found, then:
@@ -932,26 +732,13 @@ public class Pipe extends ZDisplayable {
 
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
 
-		//make local
-		/* // never used
-		x_p = x_p - (int)this.x;
-		y_p = y_p - (int)this.y;
-		x_d = x_d - (int)this.x; // never used
-		y_d = y_d - (int)this.y;
-		x_r = x_r - (int)this.x;
-		y_r = y_r - (int)this.y;
-		*/
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
 			//generate interpolated points
 			generateInterpolatedPoints(0.05);
 			repaint(); //needed at least for the removePoint
 		}
-
-		// TODO: there is a "bug" somewhere (relative to the Profile, which is fine), for this step is missing:
-		//calculateBoundingBox();
-		//updateInDatabase("position+dimensions");
 
 		//update points in database if there was any change
 		if (-1 != index || -1 != index_r || -1 != index_l) {
@@ -969,9 +756,9 @@ public class Pipe extends ZDisplayable {
 				// update all
 				updateInDatabase("points");
 			}
-			updateInDatabase("position+dimensions");
+			updateInDatabase("dimensions");
 		} else if (x_r != x_p || y_r != y_p) {
-			updateInDatabase("position+dimensions");
+			updateInDatabase("dimensions");
 		}
 
 		Display.repaint(layer, this, 5); // the entire Displayable object, snapshot included.
@@ -981,10 +768,7 @@ public class Pipe extends ZDisplayable {
 		index = index_r = index_l = -1;
 	}
 
-	protected void calculateBoundingBox() {
-		calculateBoundingBox(true);
-	}
-	protected void calculateBoundingBox(boolean adjust_position) {
+	protected void calculateBoundingBox(final boolean adjust_position) {
 		double min_x = Double.MAX_VALUE;
 		double min_y = Double.MAX_VALUE;
 		double max_x = 0.0D;
@@ -1029,9 +813,10 @@ public class Pipe extends ZDisplayable {
 			for (int i=0; i<p_i[0].length; i++) {
 				p_i[0][i] -= min_x;	p_i[1][i] -= min_y;
 			}
-			this.x += min_x;
-			this.y += min_y;
+			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+			updateInDatabase("transform");
 		}
+		updateInDatabase("dimensions");
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -1051,7 +836,7 @@ public class Pipe extends ZDisplayable {
 	public void repaint() {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
-		calculateBoundingBox();
+		calculateBoundingBox(true);
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 5);
 	}
@@ -1276,11 +1061,15 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Test whether the Pipe contains the given point at the given layer. What it does: generates subpolygons that are present in the given layer, and tests whether the point is contained in any of them. */
-	public boolean contains(Layer layer, int x, int y) {
+	public boolean contains(final Layer layer, int x, int y) {
 		if (-1 == n_points) setupForDisplay(); // reload points
 		if (0 == n_points) return false;
+		// make x,y local
+		final Point2D.Double po = inverseTransformPoint(x, y);
+		x = (int)po.x;
+		y = (int)po.y;
 		if (1 == n_points) {
-			if (Math.abs(this.x + p[0][0] - x) < 3 && Math.abs(this.y + p[1][0] - y) < 3) return true; // error in clicked precision of 3 pixels
+			if (Math.abs(p[0][0] - x) < 3 && Math.abs(p[1][0] - y) < 3) return true; // error in clicked precision of 3 pixels
 			else return false;
 		}
 		double angle = 0;
@@ -1299,22 +1088,22 @@ public class Pipe extends ZDisplayable {
 			angle = Math.atan2(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i]);
 
 			// side points, displaced by this.x, this.y
-			r_side_x[i] = this.x + p_i[0][i] + Math.sin(angle+a90) * p_width_i[i];  //sin and cos are inverted, but works better like this. WHY ??
-			r_side_y[i] = this.y + p_i[1][i] + Math.cos(angle+a90) * p_width_i[i];
-			l_side_x[i] = this.x + p_i[0][i] + Math.sin(angle-a90) * p_width_i[i];
-			l_side_y[i] = this.y + p_i[1][i] + Math.cos(angle-a90) * p_width_i[i];
+			r_side_x[i] = p_i[0][i] + Math.sin(angle+a90) * p_width_i[i];  //sin and cos are inverted, but works better like this. WHY ??
+			r_side_y[i] = p_i[1][i] + Math.cos(angle+a90) * p_width_i[i];
+			l_side_x[i] = p_i[0][i] + Math.sin(angle-a90) * p_width_i[i];
+			l_side_y[i] = p_i[1][i] + Math.cos(angle-a90) * p_width_i[i];
 		}
 
 		// last point
 		angle = Math.atan2(p_i[0][m] - p_i[0][m-1], p_i[1][m] - p_i[1][m-1]);
 
 		// side points, displaced by this.x, this.y
-		r_side_x[m] = this.x + p_i[0][m] + Math.sin(angle+a90) * p_width_i[m];
-		r_side_y[m] = this.y + p_i[1][m] + Math.cos(angle+a90) * p_width_i[m];
-		l_side_x[m] = this.x + p_i[0][m] + Math.sin(angle-a90) * p_width_i[m];
-		l_side_y[m] = this.y + p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
+		r_side_x[m] = p_i[0][m] + Math.sin(angle+a90) * p_width_i[m];
+		r_side_y[m] = p_i[1][m] + Math.cos(angle+a90) * p_width_i[m];
+		l_side_x[m] = p_i[0][m] + Math.sin(angle-a90) * p_width_i[m];
+		l_side_y[m] = p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
 
-		long layer_id = layer.getId();
+		final long layer_id = layer.getId();
 		//double z_given = layer.getZ();
 		//double z = 0;
 		int first = 0; // the first backbone point in the subpolygon present in the layer
@@ -1359,8 +1148,24 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Get the perimeter of all parts that show in the given layer (as defined by its Z). Returns null if none found. */
-	protected Polygon[] getSubPerimeters(Layer layer, double ox, double oy) {
+	private Polygon[] getSubPerimeters(final Layer layer) {
 		if (n_points <= 1) return null;
+
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[][] p_r = this.p_r;
+		double[][] p_l = this.p_l;
+		double[][] p_i = this.p_i;
+		double[] p_width = this.p_width;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_l = (double[][])ob[1];
+			p_r = (double[][])ob[2];
+			p_i = (double[][])ob[3];
+			p_width = (double[])ob[4];
+			p_width_i = (double[])ob[5];
+		}
 
 		double angle = 0;
 		double a0 = Math.toRadians(0);
@@ -1377,30 +1182,30 @@ public class Pipe extends ZDisplayable {
 		for (int i=0; i<n-1; i++) {
 			angle = Math.atan2(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i]);
 
-			// side points, displaced by this.x, this.y
-			r_side_x[i] = this.x + p_i[0][i] + Math.sin(angle+a90) * p_width_i[i];  //sin and cos are inverted, but works better like this. WHY ??
-			r_side_y[i] = this.y + p_i[1][i] + Math.cos(angle+a90) * p_width_i[i];
-			l_side_x[i] = this.x + p_i[0][i] + Math.sin(angle-a90) * p_width_i[i];
-			l_side_y[i] = this.y + p_i[1][i] + Math.cos(angle-a90) * p_width_i[i];
+			// side points
+			r_side_x[i] = p_i[0][i] + Math.sin(angle+a90) * p_width_i[i];  //sin and cos are inverted, but works better like this. WHY ??
+			r_side_y[i] = p_i[1][i] + Math.cos(angle+a90) * p_width_i[i];
+			l_side_x[i] = p_i[0][i] + Math.sin(angle-a90) * p_width_i[i];
+			l_side_y[i] = p_i[1][i] + Math.cos(angle-a90) * p_width_i[i];
 		}
 
 		// last point
 		angle = Math.atan2(p_i[0][m] - p_i[0][m-1], p_i[1][m] - p_i[1][m-1]);
 
 		// side points, displaced by this.x, this.y
-		r_side_x[m] = this.x + p_i[0][m] + Math.sin(angle+a90) * p_width_i[m];
-		r_side_y[m] = this.y + p_i[1][m] + Math.cos(angle+a90) * p_width_i[m];
-		l_side_x[m] = this.x + p_i[0][m] + Math.sin(angle-a90) * p_width_i[m];
-		l_side_y[m] = this.y + p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
+		r_side_x[m] = p_i[0][m] + Math.sin(angle+a90) * p_width_i[m];
+		r_side_y[m] = p_i[1][m] + Math.cos(angle+a90) * p_width_i[m];
+		l_side_x[m] = p_i[0][m] + Math.sin(angle-a90) * p_width_i[m];
+		l_side_y[m] = p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
 
-		long layer_id = layer.getId();
+		final long layer_id = layer.getId();
 		//double z_given = layer.getZ();
 		//double z = 0;
 		int first = 0; // the first backbone point in the subpolygon present in the layer
 		int last = 0; // the last backbone point in the subpolygon present in the layer
 
 		boolean add_pol = false;
-		ArrayList al = new ArrayList();
+		final ArrayList al = new ArrayList();
 
 		for (int j=0; j<n_points; j++) {
 			if (layer_id != p_layer[j]) {
@@ -1436,7 +1241,7 @@ public class Pipe extends ZDisplayable {
 		}
 		if (al.isEmpty()) return null;
 		else {
-			Polygon[] pols = new Polygon[al.size()];
+			final Polygon[] pols = new Polygon[al.size()];
 			al.toArray(pols);
 			return pols;
 		}
@@ -1459,21 +1264,16 @@ public class Pipe extends ZDisplayable {
 			Layer layer = layer_set.getLayer(p_layer[l]);
 
 			// this bounding box as in the current layer
-			Polygon[] perimeters = getSubPerimeters(layer, x, y); //displaced by this object's position!
+			final Polygon[] perimeters = getSubPerimeters(layer);
 			if (null == perimeters) continue;
 
 			// catch all displayables of the current Layer
-			ArrayList al = layer.getDisplayables();
+			final ArrayList al = layer.getDisplayables(Patch.class);
 
 			// for each Patch, check if it underlays this profile's bounding box
-			Rectangle box = new Rectangle();
-			Iterator itd = al.iterator();
-			while (itd.hasNext()) {
-				Displayable displ = (Displayable)itd.next();
-				// link only Patch objects
-				if (!displ.getClass().equals(Patch.class)) {
-					continue;
-				}
+			final Rectangle box = new Rectangle();
+			for (Iterator itd = al.iterator(); itd.hasNext(); ) {
+				final Displayable displ = (Displayable)itd.next();
 				// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 				for (int i=0; i<perimeters.length; i++) {
 					if (perimeters[i].intersects(displ.getBoundingBox(box))) {
@@ -1483,28 +1283,6 @@ public class Pipe extends ZDisplayable {
 				}
 			}
 		}
-	}
-
-	/** Not accepted if new bounds will leave the Displayable beyond layer bounds. */
-	public void setBounds(double x, double y, double width, double height) {
-		if (x + width <= 0 || y + height <= 0 || x >= layer_set.getLayerWidth() || y >= layer_set.getLayerHeight()) return;
-		// scale the points
-		double sx = width / this.width;
-		double sy = height / this.height;
-		for (int i=0; i<n_points; i++) {
-			p[0][i] *= sx;	p[1][i] *= sy;
-			p_r[0][i] *= sx; p_r[1][i] *= sy;
-			p_l[0][i] *= sx; p_l[1][i] *= sy;
-		}
-		generateInterpolatedPoints(0.05);
-		updateInDatabase("points");
-		this.x = x;
-		this.y = y;
-		this.width = width;
-		this.height = height;
-		updateInDatabase("position+dimensions");
-		snapshot.remake();
-		Display.updatePanel(null, this); //call on the front layer
 	}
 
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in, or the creation layer if no points yet. */
@@ -1850,10 +1628,28 @@ public class Pipe extends ZDisplayable {
 	/** From my former program, A_3D_Editing.java and Pipe.java  */
 	private double[][][] generateJoints(final int parallels) {
 		if (-1 == n_points) setupForDisplay();
-		int n = p_i[0].length;
-		int mm = n_points;
-		double[] z_values = new double[n];
-		int interval_points = n / (mm-1);
+		
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[][] p_r = this.p_r;
+		double[][] p_l = this.p_l;
+		double[][] p_i = this.p_i;
+		double[] p_width = this.p_width;
+		double[] p_width_i = this.p_width_i;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_l = (double[][])ob[1];
+			p_r = (double[][])ob[2];
+			p_i = (double[][])ob[3];
+			p_width = (double[])ob[4];
+			p_width_i = (double[])ob[5];
+		}
+
+		final int n = p_i[0].length;
+		final int mm = n_points;
+		final double[] z_values = new double[n];
+		final int interval_points = n / (mm-1);
 		double z_val = 0;
 		double z_val_next = 0;
 		double z_diff = 0;
@@ -2045,5 +1841,38 @@ public class Pipe extends ZDisplayable {
 		result.z += (cos + (1-cos) * r.z * r.z) * v.z;
 		*/
 		return result;
+	}
+
+	private Object[] getTransformedData() {
+		final double[][] p = transformPoints(this.p);
+		final double[][] p_r = transformPoints(this.p_r);
+		final double[][] p_l = transformPoints(this.p_l);
+		final double[][] p_i = transformPoints(this.p_i);
+		// p_width: same rule as for Ball: average of x and y
+		double[][] pw = new double[2][n_points];
+		for (int i=0; i<n_points; i++) {
+			pw[0][i] = this.p[0][i] + p_width[i]; //built relative to the untransformed points!
+			pw[1][i] = this.p[1][i] + p_width[i];
+		}
+		pw = transformPoints(pw);
+		final double[] p_width = new double[n_points];
+		for (int i=0; i<n_points; i++) {
+			// plain average of differences in X and Y axis, relative to the transformed points.
+			p_width[i] = (Math.abs(pw[0][i] - p[0][i]) + Math.abs(pw[1][i] - p[1][i])) / 2;
+		}
+		// same with p_width_i
+		double[][] pwi = new double[2][p_i[0].length];
+		for (int i=0; i<p_i[0].length; i++) {
+			pwi[0][i] = this.p_i[0][i] + p_width_i[i]; //built relative to the untransformed points!
+			pwi[1][i] = this.p_i[1][i] + p_width_i[i];
+		}
+		pwi = transformPoints(pwi);
+		final double[] p_width_i = new double[p_i[0].length];
+		for (int i=0; i<p_i[0].length; i++) {
+			// plain average of differences in X and Y axis, relative to the transformed points.
+			p_width_i[i] = (Math.abs(pwi[0][i] - p_i[0][i]) + Math.abs(pwi[1][i] - p_i[1][i])) / 2;
+		}
+
+		return new Object[]{p, p_l, p_r, p_i, p_width, p_width_i};
 	}
 }

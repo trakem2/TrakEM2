@@ -597,11 +597,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	/** Paints a handle on the screen coords. Adapted from ij.gui.Roi class. */
-	static public void drawHandle(Graphics g, int x, int y) {
+	static public void drawHandle(final Graphics g, final int x, final int y, final double magnification) {
+		final int width5 = (int)Math.round(5 / magnification);
+		final int width3 = (int)Math.round(3 / magnification);
 		g.setColor(Color.white);
-		g.drawRect(x - 2, y - 2, 5, 5);
+		g.drawRect(x - 2, y - 2, width5, width5);
 		g.setColor(Color.black);
-		g.drawRect(x - 1, y - 1, 3, 3);
+		g.drawRect(x - 1, y - 1, width3, width3);
 		g.setColor(Color.white);
 		g.fillRect(x, y, 1, 1);
 	}
