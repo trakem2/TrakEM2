@@ -116,17 +116,12 @@ public class AreaList extends ZDisplayable {
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
 		Object ob = ht_areas.get(new Long(active_layer.getId()));
-		if (null == ob) {
-			return;
-		}
+		if (null == ob) return;
 		if (AreaList.UNLOADED.equals(ob)) {
 			ob = loadLayer(active_layer.getId());
-			if (null == ob) {
-				return;
-			}
+			if (null == ob) return;
 		}
 		final Area area = (Area)ob;
-
 		g.setColor(this.color);
 		//arrange transparency
 		Composite original_composite = null;
@@ -142,35 +137,6 @@ public class AreaList extends ZDisplayable {
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
 			g.setComposite(original_composite);
-		}
-	}
-
-	public void paint(Graphics g, final Layer current) {
-		if (null == current) return;
-		if (!this.visible) return;
-		Object ob = ht_areas.get(new Long(current.getId()));
-		if (null == ob) return;
-		if (AreaList.UNLOADED.equals(ob)) {
-			ob = loadLayer(current.getId());
-			if (null == ob) return;
-		}
-		final Area area = (Area)ob;
-		g.setColor(this.color);
-		final Graphics2D g2d = (Graphics2D)g;
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-		if (fill_paint) {
-			g2d.fill(area.createTransformedArea(this.at));
-		} else {
-			g2d.draw(area.createTransformedArea(this.at));  // the contour only
-		}
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
 		}
 	}
 
@@ -909,6 +875,7 @@ public class AreaList extends ZDisplayable {
 		}
 		// add
 		copy.layer = this.layer; // this does not add it to any layer, just sets the 'current' layer pointer
+		copy.at = (AffineTransform)this.at.clone();
 		copy.addToDatabase();
 		snapshot.remake();
 		//

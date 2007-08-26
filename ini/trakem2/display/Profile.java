@@ -519,17 +519,9 @@ public class Profile extends Displayable {
 		}
 	}
 
-	/**Paint the bezier curve in the given graphics.*/
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
-		if (0 == n_points) {
-			return;
-		}
 
-		// check if it has to be painted at all
-		if (super.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-			return;
-		}
-
+	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
 			setupForDisplay();
@@ -538,35 +530,38 @@ public class Profile extends Displayable {
 				return;
 			}
 		}
-		if (n_points < 1 || null == p_i || 0 == p_i.length) return;
-
-		// translate graphics origin of coordinates
-		Graphics2D g2d = (Graphics2D)g;
-		g2d.translate((x - srcRect.x)* magnification, (y - srcRect.y)* magnification);
-
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+			original_composite = g.getComposite();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
-		//
-		// TODO add methods to make it paint solid, as an area. Such a feature will require a different color (or XORed color) for the outline, so that draggable points are visible.
-		// BEWARE that the g.fillPolygon() is a very time-consuming method.
 
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[][] p_r = this.p_r;
+		double[][] p_l = this.p_l;
+		double[][] p_i = this.p_i;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_l = (double[][])ob[1];
+			p_r = (double[][])ob[2];
+			p_i = (double[][])ob[3];
+		}
 		if (active) {
 			//draw/fill points
-			for (int j=0; j<n_points; j++) { //TODO there is room for optimization, operations are being done twice or 3 times; BUT is the creation of new variables as costly as the calculations? I have no idea.
-				//draw big ovals at backbone points
-				//g.drawOval((int)(p[0][j]*magnification) -3, (int)(p[1][j]*magnification) -3, 6, 6);
-				DisplayCanvas.drawHandle(g, (int)(p[0][j]*magnification), (int)(p[1][j]*magnification), magnification);
+			final int oval_radius = (int)Math.ceil(4 / magnification);
+			final int oval_corr = (int)Math.ceil(3 / magnification);
+			for (int j=0; j<n_points; j++) {
+				DisplayCanvas.drawHandle(g, (int)p[0][j], (int)p[1][j], magnification);
 				g.setColor(this.color);
 				//fill small ovals at control points
-				g.fillOval((int)(p_l[0][j]*magnification) -3, (int)(p_l[1][j]*magnification) -3, 4, 4);
-				g.fillOval((int)(p_r[0][j]*magnification) -3, (int)(p_r[1][j]*magnification) -3, 4, 4);
+				g.fillOval((int)p_l[0][j] -oval_corr, (int)p_l[1][j] -oval_corr, oval_radius, oval_radius);
+				g.fillOval((int)p_r[0][j] -oval_corr, (int)p_r[1][j] -oval_corr, oval_radius, oval_radius);
 				//draw lines between backbone and control points
-				g.drawLine((int)(p[0][j]*magnification), (int)(p[1][j]*magnification), (int)(p_l[0][j]*magnification), (int)(p_l[1][j]*magnification));
-				g.drawLine((int)(p[0][j]*magnification), (int)(p[1][j]*magnification), (int)(p_r[0][j]*magnification), (int)(p_r[1][j]*magnification));
+				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_l[0][j], (int)p_l[1][j]);
+				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_r[0][j], (int)p_r[1][j]);
 			}
 		}
 
@@ -584,122 +579,8 @@ public class Profile extends Displayable {
 
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
-			g2d.setComposite(original_composite);
+			g.setComposite(original_composite);
 		}
-		// undo transport painting pointer
-		g2d.translate(- (x - srcRect.x)* magnification, - (y - srcRect.y)* magnification);
-	}
-
-	/** A method to paint with no ovals or control points, just the outline of the Profile; no magnification or srcRect are considered. */
-	public void paint(Graphics g, Layer active_layer) {
-		if (!this.visible) return;
-
-		if (-1 == n_points) setupForDisplay(); // reload
-		if (n_points < 1 || null == p_i || 0 == p_i.length) return;
-
-		Graphics2D g2d = (Graphics2D)g;
-		//translate
-		g2d.translate(x, y);
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		//set color
-		g.setColor(this.color);
-
-		//draw lines between any two consecutive interpolated points
-		for (int i=0; i<p_i[0].length-1; i++) {
-			g.drawLine((int)(p_i[0][i]), (int)(p_i[1][i]), (int)(p_i[0][i+1]), (int)(p_i[1][i+1]));
-		}
-		//draw last segment between last and first points, only if closed:
-		if (closed) {
-			g.drawLine((int)(p_i[0][p_i[0].length-1]), (int)(p_i[1][p_i[0].length-1]), (int)(p_i[0][0]), (int)(p_i[1][0]));
-		}
-
-		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
-			g2d.setComposite(original_composite);
-		}
-		// undo translation
-		g2d.translate(-x, -y);
-	}
-
-	/** For painting while transforming. The given box is in offscreen coords. */
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
-		if (0 == n_points) return;
-
-		// check if it has to be painted at all
-		if (super.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-			return;
-		}
-
-		if (-1 == n_points) {
-			// load points from the database
-			setupForDisplay();
-		}
-		if (n_points < 1 || null == p_i || 0 == p_i.length) return;
-
-		Graphics2D g2d = (Graphics2D)g;
-
-		// translate graphics origin of coordinates
-		g2d.translate((int)((t.x + t.width/2 -srcRect.x)*magnification), (int)((t.y + t.height/2 -srcRect.y)*magnification));
-		double sx = t.width / this.width * magnification;
-		double sy = t.height / this.height * magnification;
-		double cx = this.width/2; // center of data
-		double cy = this.height/2;
-		AffineTransform original = g2d.getTransform();
-		g2d.rotate((t.rot * Math.PI) / 180); //(t.rot * 2 * Math.PI / 360); //Math.toRadians(rot));
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (t.alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, t.alpha));
-		}
-		//
-		// TODO add methods to make it paint solid, as an area. Such a feature will require a different color (or XORed color) for the outline, so that draggable points are visible.
-		// BEWARE that the g.fillPolygon() is a very time-consuming method.
-
-		if (active && (ProjectToolbar.getToolId() == ProjectToolbar.PEN || ProjectToolbar.getToolId() == ProjectToolbar.PENCIL)) {
-			//draw/fill points
-			for (int j=0; j<n_points; j++) { //TODO there is room for optimization, operations are being done twice or 3 times; BUT is the creation of new variables as costly as the calculations? I have no idea.
-				//draw big ovals at backbone points
-				//g.drawOval((int)(p[0][j]*magnification) -3, (int)(p[1][j]*magnification) -3, 6, 6);
-				DisplayCanvas.drawHandle(g, (int)((p[0][j] - cx)*sx), (int)((p[1][j] - cy)*sy), magnification);
-				g.setColor(this.color);
-				//fill small ovals at control points
-				g.fillOval((int)((p_l[0][j] -cx) * sx) -3, (int)((p_l[1][j] -cy) * sy) -3, 4, 4);
-				g.fillOval((int)((p_r[0][j] -cx) * sx) -3, (int)((p_r[1][j] -cy) * sy) -3, 4, 4);
-				//draw lines between backbone and control points
-				g.drawLine((int)((p[0][j] -cx) * sx), (int)((p[1][j] -cy) * sy), (int)((p_l[0][j] -cx) * sx), (int)((p_l[1][j] - cy) * sy));
-				g.drawLine((int)((p[0][j] -cx) * sx), (int)((p[1][j] -cy) * sy), (int)((p_r[0][j] -cx) * sx), (int)((p_r[1][j] - cy) * sy));
-			}
-		}
-
-		//set color
-		g.setColor(this.color);
-
-		//draw lines between any two consecutive interpolated points
-		for (int i=0; i<p_i[0].length-1; i++) {
-			g.drawLine((int)((p_i[0][i] -cx) * sx), (int)((p_i[1][i] -cy) * sy), (int)((p_i[0][i+1] -cx) * sx), (int)((p_i[1][i+1] -cy) * sy));
-		}
-		//draw last segment between last and first points, only if closed:
-		if (closed) {
-			g.drawLine((int)((p_i[0][p_i[0].length-1] -cx) * sx), (int)((p_i[1][p_i[0].length-1] -cy) * sy), (int)((p_i[0][0] -cx) * sx), (int)((p_i[1][0] -cy) * sy));
-		}
-
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
-		}
-		// undo scale
-		// DONE BELOW //g2d.scale(1/sx, 1/sy);
-		g2d.setTransform(original);
-		// undo transport painting pointer
-		g2d.translate( - (int)((t.x + t.width/2 -srcRect.x)*magnification), - (int)((t.y + t.height/2 -srcRect.y)*magnification));
 	}
 
 	/**Helper vars for mouse events. It's safe to have them static since only one Profile will be edited at a time.*/
@@ -710,15 +591,14 @@ public class Profile extends Displayable {
 
 	/**Execute the mousePressed MouseEvent on this Profile.*/
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
-		if (0 == n_points) {
-			this.x = x_p;
-			this.y = y_p;
+		// transform the x_p, y_p to the local coordinates
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
+			x_p = (int)po.x;
+			y_p = (int)po.y;
 		}
-		// make local
-		x_p = x_p - (int)this.x;
-		y_p = y_p - (int)this.y;
 
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		// reset helper vars
 		is_new_point = false;
@@ -793,16 +673,20 @@ public class Profile extends Displayable {
 
 	/**Execute the mouseDragged MouseEvent on this Profile.*/
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
+		// transform to the local coordinates
+		if (!this.at.isIdentity()) {
+			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
+			x_p = (int)p.x;
+			y_p = (int)p.y;
+			final Point2D.Double pd = inverseTransformPoint(x_d, y_d);
+			x_d = (int)pd.x;
+			y_d = (int)pd.y;
+			final Point2D.Double pdo = inverseTransformPoint(x_d_old, y_d_old);
+			x_d_old = (int)pdo.x;
+			y_d_old = (int)pdo.y;
+		}
 
-		//make local
-		x_p = x_p - (int)this.x;
-		y_p = y_p - (int)this.y;
-		x_d = x_d - (int)this.x;
-		y_d = y_d - (int)this.y;
-		x_d_old = x_d_old - (int)this.x;
-		y_d_old = y_d_old - (int)this.y;
-
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
 
@@ -810,9 +694,8 @@ public class Profile extends Displayable {
 			if (-1 != index) {
 				if (!me.isAltDown()) {
 					//drag point
-					//dragPoint(index, x_d, y_d);
 					dragPoint(index, x_d - x_d_old, y_d - y_d_old);
-				} else { //TODO in linux the alt+click is stolen by the KDE window manager but then the middle-click works as if it was the alt+click. Weird!
+				} else {
 					//drag both control points symmetrically
 					dragControlPoint(index, x_d, y_d, p_l, p_r, true);
 				}
@@ -834,13 +717,12 @@ public class Profile extends Displayable {
 				repaint();
 				return;
 			}
-			
+
 			// no points selected. Drag the whole curve on alt down (without affecting linked curves)
 			if (me.isAltDown()) {
 				int dx = x_d - x_d_old;
 				int dy = y_d - y_d_old;
-				this.x += dx;
-				this.y += dy;
+				this.at.translate(dx, dy);
 				repaint();
 				return;
 			}
@@ -919,9 +801,10 @@ public class Profile extends Displayable {
 			for (int i=0; i<p_i[0].length; i++) {
 				p_i[0][i] -= min_x;	p_i[1][i] -= min_y;
 			}
-			this.x += min_x;
-			this.y += min_y;
+			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+			updateInDatabase("transform");
 		}
+		updateInDatabase("dimensions");
 	}
 
 
@@ -934,8 +817,8 @@ public class Profile extends Displayable {
 		Display.repaint(layer, this, box, 5);
 	}
 
-	/**Check if the given point (usually from a MOUSE_PRESSED MouseEvent) is contained within the boundaries of this object.*/
-	public boolean containsPoint(int x_p, int y_p) {
+	/**Check if the given point (usually from a MOUSE_PRESSED MouseEvent) is contained within the boundaries of this object. The point is expected as local coordinates. */
+	public boolean containsPoint(final int x_p, final int y_p) {
 		// as in getPerimeter():
 		int n_i = p_i[0].length;
 		int[] intx = new int[n_i];
@@ -974,8 +857,6 @@ public class Profile extends Displayable {
 			n_points = p[0].length;
 			// recreate interpolated points
 			generateInterpolatedPoints(0.05); //TODO the 0.05 bezier finess, read the value from the Project perhaps.
-			//calculate width and height
-			// HASN'T CHANGED //calculateBoundingBox(false);
 		}
 	}
 
@@ -990,7 +871,7 @@ public class Profile extends Displayable {
 		p_l = null;
 		p_r = null;
 		p_i = null;
-		n_points = -1; // flag that points exist
+		n_points = -1; // flag that points exist (and need to be reloaded)
 	}
 
 	/** The perimeter of this profile, in integer precision. */
@@ -1007,25 +888,21 @@ public class Profile extends Displayable {
 		return new Polygon(intx, inty, n_i);
 	}
 
-	/** The perimeter of this profile, in integer precision, translated to origin xo,yo */
-	public Polygon getPerimeter(double xo, double yo) {
-		if (-1 == n_points) setupForDisplay();
-		if (null == p_i) return null; // has been flushed, incorrect access! TODO maybe reload with setupForDisplay() ? But wouldn't it be there, if it is being tested on, presumably from a mouse click?
-		int n_i = p_i[0].length;
-		int[] intx = new int[n_i];
-		int[] inty = new int[n_i];
-		for (int i=0; i<n_i; i++) {
-			intx[i] = (int)(xo + p_i[0][i]);
-			inty[i] = (int)(yo + p_i[1][i]);
-		}
-		return new Polygon(intx, inty, n_i);
-	}
-
 	/** Writes the data of this object as a Bezier object in the .shapes file represented by the 'data' StringBuffer. The z_scale is added to manually correct for sample squashing under the coverslip. */
 	public void toShapesFile(StringBuffer data, String group, String color, double z_scale) {
 		if (-1 == n_points) setupForDisplay(); // reload
-		double z = layer.getZ();
-		String l = "\n";
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[][] p_r = this.p_r;
+		double[][] p_l = this.p_l;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_l = (double[][])ob[1];
+			p_r = (double[][])ob[2];
+		}
+		final double z = layer.getZ();
+		final char l = '\n';
 		data.append("type=bezier").append(l)
 		    .append("name=").append(project.getMeaningfulTitle(this)).append(l)
 		    .append("group=").append(group).append(l)
@@ -1037,12 +914,12 @@ public class Profile extends Displayable {
 		    .append("density field=").append(false).append(l) // must!
 		;
 		for (int i=0; i<n_points; i++) {
-			data.append("p x=").append(x + p[0][i]).append(l)
-			    .append("p y=").append(y + p[1][i]).append(l)
-			    .append("p_r x=").append(x + p_r[0][i]).append(l)
-			    .append("p_r y=").append(y + p_r[1][i]).append(l)
-			    .append("p_l x=").append(x + p_l[0][i]).append(l)
-			    .append("p_l y=").append(y + p_l[1][i]).append(l)
+			data.append("p x=").append(p[0][i]).append(l)
+			    .append("p y=").append(p[1][i]).append(l)
+			    .append("p_r x=").append(p_r[0][i]).append(l)
+			    .append("p_r y=").append(p_r[1][i]).append(l)
+			    .append("p_l x=").append(p_l[0][i]).append(l)
+			    .append("p_l y=").append(p_l[1][i]).append(l)
 			;
 		}
 	}
@@ -1620,7 +1497,6 @@ public class Profile extends Displayable {
 	/** Performs a deep copy of this object, unlocked and visible. */
 	public Object clone() {
 		final Profile copy = new Profile(project, project.getLoader().getNextId(), null != title ? title.toString() : null, x, y, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), closed, false);
-		// the rotation is always zero because it has been applied.
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
 		copy.n_points = n_points;
@@ -1628,11 +1504,20 @@ public class Profile extends Displayable {
 		copy.p_l = new double[][]{(double[])this.p_l[0].clone(), (double[])this.p_l[1].clone()};
 		copy.p_r = new double[][]{(double[])this.p_r[0].clone(), (double[])this.p_r[1].clone()};
 		copy.p_i = new double[][]{(double[])this.p_i[0].clone(), (double[])this.p_i[1].clone()};
+		copy.at = (AffineTransform)this.at.clone();
 		// add
 		copy.addToDatabase();
 		// the snapshot has been already created in the Displayable constructor, but needs updating
 		snapshot.remake();
 
 		return copy;
+	}
+
+	private Object[] getTransformedData() {
+		final double[][] p = transformPoints(this.p);
+		final double[][] p_l = transformPoints(this.p_l);
+		final double[][] p_r = transformPoints(this.p_r);
+		final double[][] p_i = transformPoints(this.p_i);
+		return new Object[]{p, p_l, p_r, p_i};
 	}
 }

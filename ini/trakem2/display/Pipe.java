@@ -539,14 +539,15 @@ public class Pipe extends ZDisplayable {
 			final long layer_id = active_layer.getId();
 			// draw/fill points
 			final int oval_radius = (int)Math.ceil(4 / magnification);
+			final int oval_corr = (int)Math.ceil(3 / magnification);
 			for (int j=0; j<n_points; j++) { //TODO there is room for optimization, operations are being done twice or 3 times; BUT is the creation of new variables as costly as the calculations? I have no idea.
 				if (layer_id != p_layer[j]) continue;
 				//draw big ovals at backbone points
 				DisplayCanvas.drawHandle(g, (int)p[0][j], (int)p[1][j], magnification);
 				g.setColor(color);
 				//fill small ovals at control points
-				g.fillOval((int)p_l[0][j] -3, (int)p_l[1][j] -3, oval_radius, oval_radius);
-				g.fillOval((int)p_r[0][j] -3, (int)p_r[1][j] -3, oval_radius, oval_radius);
+				g.fillOval((int)p_l[0][j] -oval_corr, (int)p_l[1][j] -oval_corr, oval_radius, oval_radius);
+				g.fillOval((int)p_r[0][j] -oval_corr, (int)p_r[1][j] -oval_corr, oval_radius, oval_radius);
 				//draw lines between backbone and control points
 				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_l[0][j], (int)p_l[1][j]);
 				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_r[0][j], (int)p_r[1][j]);
@@ -885,10 +886,10 @@ public class Pipe extends ZDisplayable {
 	public Polygon getPerimeter() {
 		if (null == p_i || p_i[0].length < 2) return new Polygon();  // meaning: if there aren't any interpolated points
 		double angle = 0;
-		double a0 = Math.toRadians(0);
-		double a90 = Math.toRadians(90);
-		double a180 = Math.toRadians(180);
-		double a270 = Math.toRadians(270);
+		final double a0 = Math.toRadians(0);
+		final double a90 = Math.toRadians(90);
+		final double a180 = Math.toRadians(180);
+		final double a270 = Math.toRadians(270);
 		int n = p_i[0].length; // the number of interpolated points
 		double[] r_side_x = new double[n];
 		double[] r_side_y = new double[n];
@@ -1576,7 +1577,6 @@ public class Pipe extends ZDisplayable {
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
 	public Object clone() {
 		final Pipe copy = new Pipe(project, project.getLoader().getNextId(), null != title ? title.toString() : null, x, y, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false);
-		// the rotation is always zero because it has been applied.
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
 		copy.n_points = n_points;
@@ -1587,6 +1587,7 @@ public class Pipe extends ZDisplayable {
 		copy.p_width = (double[])this.p_width.clone();
 		copy.p_i = new double[][]{(double[])this.p_i[0].clone(), (double[])this.p_i[1].clone()};
 		copy.p_width_i = (double[])this.p_width_i.clone();
+		copy.at = (AffineTransform)this.at.clone();
 		// add
 		copy.layer = this.layer;
 		copy.addToDatabase();
@@ -1845,8 +1846,8 @@ public class Pipe extends ZDisplayable {
 
 	private Object[] getTransformedData() {
 		final double[][] p = transformPoints(this.p);
-		final double[][] p_r = transformPoints(this.p_r);
 		final double[][] p_l = transformPoints(this.p_l);
+		final double[][] p_r = transformPoints(this.p_r);
 		final double[][] p_i = transformPoints(this.p_i);
 		// p_width: same rule as for Ball: average of x and y
 		double[][] pw = new double[2][n_points];

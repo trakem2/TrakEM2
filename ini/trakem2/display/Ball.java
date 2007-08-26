@@ -398,7 +398,7 @@ public class Ball extends ZDisplayable {
 		n_points = -1; // flag that points exist
 	}
 
-	/** The exact perimeter of this profile, in integer precision. */
+	/** The exact perimeter of this Ball, in integer precision. */
 	public Polygon getPerimeter() {
 		if (-1 == n_points) setupForDisplay();
 		if (-1 != index) {
@@ -687,7 +687,6 @@ public class Ball extends ZDisplayable {
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
 	public Object clone() {
 		final Ball copy = new Ball(project, project.getLoader().getNextId(), null != title ? title.toString() : null, x, y, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false);
-		// the rotation is always zero because it has been applied.
 		// links are left null
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
@@ -695,6 +694,7 @@ public class Ball extends ZDisplayable {
 		copy.p = new double[][]{(double[])this.p[0].clone(), (double[])this.p[1].clone()};
 		copy.p_layer = (long[])this.p_layer.clone();
 		copy.p_width = (double[])this.p_width.clone();
+		copy.at = (AffineTransform)this.at.clone();
 		// add
 		copy.layer = this.layer;
 		copy.addToDatabase();

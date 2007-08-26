@@ -212,7 +212,7 @@ public class Selection {
 		public void paint(final Graphics g, final Rectangle srcRect, final double mag) {
 			final int x = (int)((this.x - srcRect.x)*mag);
 			final int y = (int)((this.y - srcRect.y)*mag);
-			DisplayCanvas.drawHandle(g, x, y, mag);
+			DisplayCanvas.drawHandle(g, x, y, 1.0); // ignoring magnification for the sizes, since Selection is painted differently
 		}
 		public void drag(int dx, int dy) {
 			Rectangle box_old = (Rectangle)box.clone();
