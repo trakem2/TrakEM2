@@ -80,9 +80,11 @@ public class Registration {
 				return;
 			}
 			// build lists (Layers are consecutive)
-			final List<Layer> list1 = layer_set.getLayers().subList(first, start+1); // endings are exclusive
+			final List<Layer> list1 = new ArrayList<Layer>();
+			list1.addAll(layer_set.getLayers().subList(first, start+1)); // endings are exclusive
 			Collections.reverse(list1);
-			final List<Layer> list2 = layer_set.getLayers().subList(start, last+1);
+			final List<Layer> list2 = new ArrayList<Layer>();
+			list2.addAll(layer_set.getLayers().subList(start, last+1)); // kludge because subList ends up removing stuff from the main Layer list!
 			// iterate in pairs
 			final Layer layer_start = (Layer)list2.get(0); // even if there is only one element, list2 will contain the starting layer as the first element. Should be equivalent to layer_set.get(start)
 			// check assumptions
@@ -106,8 +108,8 @@ public class Registration {
 			//
 			final Rectangle box = layer_start.getMinimalBoundingBox(Patch.class);
 			final ImagePlus imp = layer_start.getProject().getLoader().getFlatImage(layer_start, box, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
-			processLayerList(list1, imp, box, sp, propagate);
-			processLayerList(list2, imp, box, sp, propagate);
+			processLayerList(list1, imp, box, sp, propagate, this);
+			processLayerList(list2, imp, box, sp, propagate, this);
 
 		} catch (Exception e) {
 			new IJError(e);
@@ -128,15 +130,16 @@ public class Registration {
 		}
 		// TODO: check that there aren't any elements linking any two consecutive layers together.
 	}
-	static private void processLayerList(final List list, final ImagePlus imp_first, final Rectangle box_first, final Registration.SIFTParameters sp, final boolean propagate) {
+	static private void processLayerList(final List list, final ImagePlus imp_first, final Rectangle box_first, final Registration.SIFTParameters sp, final boolean propagate, final Worker worker) {
 		// check preconditions
-		if (list.size() <= 1) return; 
+		if (list.size() <= 1 || worker.hasQuitted()) return; 
 		//
 		Object[] result = null;
 		// if i == 1:
 		result = registerSIFT((Layer)list.get(0), (Layer)list.get(1), new Object[]{imp_first, box_first, null, null}, sp);
 		// else:
 		for (int i=2; i<list.size(); i++) {
+			if (worker.hasQuitted()) return;
 			final Layer la1 = (Layer)list.get(i-1);
 			final Layer la2 = (Layer)list.get(i);
 			result = registerSIFT(la1, la2, null, sp);
@@ -191,6 +194,10 @@ public class Registration {
 				Utils.log2("Registration.registerSIFT for Layers: falling back to phase-correlation");
 				Utils.log2("\t--- Not yet implemented");
 			}
+
+			layer2.getParent().setMinimumDimensions();
+			// repaint the second Layer, if it is showing in any Display:
+			// no need // Display.repaint(layer2, null, 0);
 
 		} catch (Exception e) {
 			new IJError(e);

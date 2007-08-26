@@ -447,7 +447,8 @@ public class DLabel extends Displayable {
 		copy.visible = true;
 		// add
 		copy.layer = this.layer;
-		copy.layer.add(copy);
+		copy.at = (AffineTransform)this.at.clone();
+		copy.layer.add(copy); // TODO: added to the Layer !?!?
 		copy.addToDatabase();
 		Display.repaint(layer, this, 5);
 		return copy;

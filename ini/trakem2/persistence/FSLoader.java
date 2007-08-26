@@ -250,12 +250,14 @@ public class FSLoader extends Loader {
 						}
 					}
 				}
+				//Utils.log2("   imp (2) is " + imp);
 				if (null != imp) {
 					if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
 						unlock();
 						//Utils.log2("A1 returning " + imp + " at slice" + imp.getCurrentSlice() + " for path " + path);
 						return imp;
 					} else {
+						//Utils.log2("   flushing");
 						imp.flush(); // can't hurt: it does, runs GC
 					}
 				}

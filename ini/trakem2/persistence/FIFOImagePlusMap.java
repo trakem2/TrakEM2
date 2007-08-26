@@ -33,7 +33,7 @@ public class FIFOImagePlusMap {
 	private ImagePlus[] images;
 	private final int inc = 50;
 
-	FIFOImagePlusMap(int initial_size) {
+	public FIFOImagePlusMap(int initial_size) {
 		if (initial_size < 0) initial_size = inc;
 		this.images = new ImagePlus[initial_size];
 		this.ids = new long[initial_size];
@@ -42,7 +42,11 @@ public class FIFOImagePlusMap {
 	}
 
 	/** No duplicates allowed: if the id exists it's sended to the end and the image is updated with the one provided as argmument; the old one is NOT flushed. */ // Only the Loader can flush an ImagePlus
-	synchronized public void put(long id, ImagePlus image) {
+	public void put(long id, ImagePlus image) {
+		/*System.out.println("putting: id=" + id + "  im = " + image);
+		if (null == image) {
+			ini.trakem2.utils.Utils.printCaller(this, 10);
+		}*/
 		// check if exists already, if so, send if to the end
 		for (int i=start; i<next; i++) {
 			if (id == ids[i]) {
@@ -95,7 +99,7 @@ public class FIFOImagePlusMap {
 	}
 
 	/** A call to this method puts the element at the end of the list. Returns null if not found. */
-	synchronized public ImagePlus get(long id) {
+	public ImagePlus get(final long id) {
 		// find the id
 		long idd = -1L;
 		int i = start;
@@ -107,6 +111,13 @@ public class FIFOImagePlusMap {
 		}
 		if (i == next) return null;
 		ImagePlus im = images[i];
+		/*System.out.println("im is " + im + " for i=" + i);
+		if (null == im) {
+			for (int j=start; j<next; j++) {
+				System.out.println("\tid=" + ids[j] + "  " + images[j]);
+			}
+		}*/
+
 		// put the found id at the end, move the others forward.
 		next--;
 		while (i < next) {
@@ -121,7 +132,7 @@ public class FIFOImagePlusMap {
 	}
 
 	/** Remove the ImagePlus if found and returns it, without flushing it. Returns null if not found. */
-	synchronized public ImagePlus remove(long id) {
+	public ImagePlus remove(final long id) {
 		// find the id
 		int i = start;
 		for (; i<next; i++) {
@@ -142,7 +153,7 @@ public class FIFOImagePlusMap {
 	}
 
 	/** Remove the given index and return it, returns null if outside range. The underlying arrays are untouched besides nullifying the proper pointer if the given 'i' is the first element of the arrays. */
-	synchronized public ImagePlus remove(int i) {
+	public ImagePlus remove(int i) {
 		if (i < start || i >= next) return null;
 		ImagePlus im = images[i];
 		if (i == start) {
@@ -164,7 +175,7 @@ public class FIFOImagePlusMap {
 	}
 
 	/** Remove the first element and return it. Returns null if none. The underlaying arrays are untouched besides nullifying the proper pointer. */
-	synchronized public ImagePlus removeFirst() {
+	public ImagePlus removeFirst() {
 		if (start == next) return null;
 		ImagePlus im = images[start];
 		images[start] = null;
@@ -172,10 +183,10 @@ public class FIFOImagePlusMap {
 		return im;
 	}
 
-	synchronized public int size() { return next - start; }
+	public int size() { return next - start; }
 
 	/** Get all ids that refer to the given ImagePlus */
-	synchronized public long[] getAll(final ImagePlus imp) {
+	public long[] getAll(final ImagePlus imp) {
 		if (null == imp) return null;
 		long[] a = new long[next];
 		int ne = 0;
@@ -188,5 +199,11 @@ public class FIFOImagePlusMap {
 			a = a2;
 		}
 		return a;
+	}
+
+	public void debug() {
+		for (int i=0; i<next; i++) {
+			System.out.println(i + " id: " + ids[i]);
+		}
 	}
 }

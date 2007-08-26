@@ -312,12 +312,36 @@ public abstract class Displayable extends DBObject {
 	/** Bounding box of the transformed data. Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
 	public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
-		if (this.at.isIdentity()) {
+		//if (this.at.isIdentity()) {
 			r.x = 0;
 			r.y = 0;
 			r.width = (int)this.width;
 			r.height = (int)this.height;
+		//} else {
+			/*
+			// transform points
+			final double[] d1 = new double[]{0, 0, width, 0, width, height, 0, height};
+			final double[] d2 = new double[8];
+			this.at.transform(d1, 0, d2, 0, 4);
+			// find min/max
+			double min_x=Double.MAX_VALUE, min_y=Double.MAX_VALUE, max_x=-min_x, max_y=-min_y;
+			for (int i=0; i<d2.length; i+=2) {
+				if (d2[i] < min_x) min_x = d2[i];
+				if (d2[i] > max_x) max_x = d2[i];
+				if (d2[i+1] < min_y) min_y = d2[i+1];
+				if (d2[i+1] > max_y) max_y = d2[i+1];
+			}
+			r.x = (int)min_x;
+			r.y = (int)min_y;
+			r.width = (int)(max_x - min_x);
+			r.height = (int)(max_y - min_y);
+			*/
+			// Easier:
+		if (this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
+			r.x += (int)this.at.getTranslateX();
+			r.y += (int)this.at.getTranslateY();
 		} else {
+			//r = transformRectangle(r);
 			// transform points
 			final double[] d1 = new double[]{0, 0, width, 0, width, height, 0, height};
 			final double[] d2 = new double[8];
@@ -338,11 +362,21 @@ public abstract class Displayable extends DBObject {
 		return r;
 	}
 
-	/** Subclasses can override this method to provide the exact contour, otherwise it returns the bounding box. */
+	/** Subclasses can override this method to provide the exact contour, otherwise it returns the transformed bounding box. */
 	public Polygon getPerimeter() {
-		final Rectangle r = getBoundingBox();
-		return new Polygon(new int[]{r.x, r.x+r.width, r.x+r.width, r.x},
-				   new int[]{r.y, r.y, r.y+r.height, r.y+r.height},
+		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
+			// return the bounding box as a polygon:
+			final Rectangle r = getBoundingBox();
+			return new Polygon(new int[]{r.x, r.x+r.width, r.x+r.width, r.x},
+					   new int[]{r.y, r.y, r.y+r.height, r.y+r.height},
+					   4);
+		}
+		// else, the rotated/sheared/scaled and translated bounding box:
+		final double[] po1 = new double[]{0,0,  width,0,  width,height,  0,height};
+		final double[] po2 = new double[8];
+		this.at.transform(po1, 0, po2, 0, 4);
+		return new Polygon(new int[]{(int)po2[0], (int)po2[2], (int)po2[4], (int)po2[6]},
+				   new int[]{(int)po2[1], (int)po2[3], (int)po2[5], (int)po2[7]},
 				   4);
 	}
 
@@ -662,25 +696,20 @@ public abstract class Displayable extends DBObject {
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
 		// catch all displayables of the current Layer
-		ArrayList al = layer.getDisplayables();
+		final ArrayList al = layer.getDisplayables(Patch.class);
 
 		// this bounding box:
-		Polygon perimeter = getPerimeter(); //displaced by this object's position!
+		final Polygon perimeter = getPerimeter(); //displaced by this object's position!
 		if (null == perimeter) return; // happens when a profile with zero points is deleted
 
 		// for each Patch, check if it underlays this profile's bounding box
 		Rectangle box = new Rectangle();
-		Iterator itd = al.iterator();
-		while (itd.hasNext()) {
-			Displayable displ = (Displayable)itd.next();
-			// link only Patch objects
-			if (!displ.getClass().equals(Patch.class)) {
-			continue;
-			}
+		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
+			final Displayable displ = (Displayable)itd.next();
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			if (perimeter.intersects(displ.getBoundingBox(box))) {
-			// Link the patch
-			this.link(displ);
+				// Link the patch
+				this.link(displ);
 			}
 		}
 	}
@@ -1022,8 +1051,9 @@ public abstract class Displayable extends DBObject {
 		}
 	}
 
-	/** Fine nearest point in array a, from 0 up to n_points, to point x_p,y_p, with accuracy dependeing on .*/
-	static protected int findNearestPoint(double[][] a, int n_points, double x_p, double y_p) {
+	/** Fine nearest point in array a, from 0 up to n_points, to point x_p,y_p.
+	 * @return the index of such point. */
+	static protected int findNearestPoint(final double[][] a, final int n_points, final double x_p, final double y_p) {
 		if (0 == n_points) return -1;
 		double min_dist = Double.MAX_VALUE;
 		int index = -1;
@@ -1190,11 +1220,12 @@ public abstract class Displayable extends DBObject {
 
 	/** Returns a new Rectangle which encloses completly the given rectangle after transforming it with this Displayable's AffineTransform. The given rectangle's fields are untouched.*/
 	final public Rectangle transformRectangle(final Rectangle r) {
+		if (this.at.isIdentity()) return (Rectangle)r.clone();
 		return new Area(r).createTransformedArea(this.at).getBounds();
 	}
 
-	/** Returns the argument if this Dispalayable's AffineTransform is the identity; otherwise returns a new double[][] with all points from @param p transformed according to the AffineTransform. The  double[][] array provided as argument is expected to be of type [2][length], i.e. two arrays describing x and y.  */
-	public double[][] transformPoints(double[][] p) {
+	/** Returns the argument if this Displayable's AffineTransform is the identity; otherwise returns a new double[][] with all points from @param p transformed according to the AffineTransform. The  double[][] array provided as argument is expected to be of type [2][length], i.e. two arrays describing x and y, and it is left intact.  */
+	public double[][] transformPoints(final double[][] p) {
 		if (this.at.isIdentity()) return p;
 		final int length = p[0].length;
 		final double[] p2a = new double[length * 2];

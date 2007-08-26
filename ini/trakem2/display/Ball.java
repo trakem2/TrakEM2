@@ -182,7 +182,7 @@ public class Ball extends ZDisplayable {
 		return index;
 	}
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -195,24 +195,14 @@ public class Ball extends ZDisplayable {
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		// local copies, since they may be transformed
+		// local pointers, since they may be transformed
 		double[][] p = this.p;
 		double[] p_width = this.p_width;
+
 		if (!this.at.isIdentity()) {
-			// transform points
-			p = transformPoints(this.p);
-			// create points to represent the point where the radius ends. Since these are abstract spheres, there's no need to consider a second point that would provide the shear. To capture both the X and Y axis deformations, I use a diagonal point which sits at sqrt(2) * p_width
-			double[][] pw = new double[2][n_points];
-			for (int i=0; i<n_points; i++) {
-				pw[0][i] = this.p[0][i] + p_width[i]; //built relative to the untransformed points!
-				pw[1][i] = this.p[1][i] + p_width[i];
-			}
-			pw = transformPoints(pw);
-			p_width = new double[n_points];
-			for (int i=0; i<n_points; i++) {
-				// plain average of differences in X and Y axis
-				p_width[i] = (pw[0][i] - p[0][i] + pw[1][i] - p[1][i]) / 2;
-			}
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_width = (double[])ob[1];
 		}
 
 		// paint proper:
@@ -225,14 +215,14 @@ public class Ball extends ZDisplayable {
 			else if (ii == i_current) g.setColor(this.color);
 			else if (ii == i_current + 1) g.setColor(Color.blue);
 			else continue; //don't paint!
-			radius = (int)(p_width[j] * magnification);
-			g.drawOval((int)(p[0][j] * magnification) - radius, (int)(p[1][j] * magnification) - radius, radius + radius, radius + radius);
+			radius = (int)p_width[j];
+			g.drawOval((int)(p[0][j]) - radius, (int)(p[1][j]) - radius, radius + radius, radius + radius);
 		}
 		if (active) {
 			final long layer_id = active_layer.getId();
 			for (int j=0; j<n_points; j++) {
 				if (layer_id != p_layer[j]) continue;
-				DisplayCanvas.drawHandle(g, (int)(p[0][j]*magnification), (int)(p[1][j]*magnification));
+				DisplayCanvas.drawHandle(g, (int)p[0][j], (int)p[1][j], magnification);
 			}
 		}
 
@@ -297,7 +287,7 @@ public class Ball extends ZDisplayable {
 			y_d_old = (int)pdo.y;
 		}
 
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
 			if (-1 != index) {
@@ -313,8 +303,6 @@ public class Ball extends ZDisplayable {
 	}
 
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
-
-		int tool = ProjectToolbar.getToolId();
 
 		//update points in database if there was any change
 		if (-1 != index && index != n_points) { // don't do it when the last point is removed
@@ -352,17 +340,17 @@ public class Ball extends ZDisplayable {
 
 		if (adjust_position) {
 			// forget it if there is no transform or the transform type is not ONLY a translation
-			if (this.at.isIdentity() || this.at.getType() != AffineTransform.TYPE_TRANSLATION) {
+			if (this.at.isIdentity()) { // || this.at.getType() != AffineTransform.TYPE_TRANSLATION) {
 				return;
 			}
 			// now readjust points to make min_x,min_y be the x,y
 			for (int i=0; i<n_points; i++) {
 				p[0][i] -= min_x;	p[1][i] -= min_y;
 			}
-			setLocation(min_x, min_y);
-			this.x += min_x;
-			this.y += min_y;
+			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+			updateInDatabase("transform");
 		}
+		updateInDatabase("dimensions");
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -410,9 +398,19 @@ public class Ball extends ZDisplayable {
 		n_points = -1; // flag that points exist
 	}
 
-	/** The exact perimeter of this profile, in integer precision. */
+	/** The exact perimeter of this Ball, in integer precision. */
 	public Polygon getPerimeter() {
 		if (-1 == n_points) setupForDisplay();
+
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[] p_width = this.p_width;
+
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_width = (double[])ob[1];
+		}
 		if (-1 != index) {
 			// the box of the selected point
 			return new Polygon(new int[]{(int)(p[0][index] - p_width[index]), (int)(p[0][index] + p_width[index]), (int)(p[0][index] + p_width[index]), (int)(p[0][index] - p_width[index])}, new int[]{(int)(p[1][index] - p_width[index]), (int)(p[1][index] + p_width[index]), (int)(p[1][index] + p_width[index]), (int)(p[1][index] - p_width[index])}, 4);
@@ -511,7 +509,7 @@ public class Ball extends ZDisplayable {
 		x = (int)po.x;
 		y = (int)po.y;
 		//
-		long layer_id = layer.getId();
+		final long layer_id = layer.getId();
 		for (int i=0; i<n_points; i++) {
 			if (layer_id != p_layer[i]) continue;
 			if (x >= p[0][i] - p_width[i] && x <= p[0][i] + p_width[i] && y >= p[1][i] - p_width[i] && y <= p[1][i] + p_width[i]) return true;
@@ -520,16 +518,23 @@ public class Ball extends ZDisplayable {
 	}
 
 	/** Get the perimeter of all parts that show in the given layer (as defined by its Z), but representing each ball as a square in a Rectangle object. Returns null if none found. */
-	private Rectangle[] getSubPerimeters(Layer layer, double ox, double oy) {
-		ArrayList al = new ArrayList();
-		long layer_id = layer.getId();
+	private Rectangle[] getSubPerimeters(final Layer layer) {
+		final ArrayList al = new ArrayList();
+		final long layer_id = layer.getId();
+		double[][] p = this.p;
+		double[] p_width = this.p_width;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_width = (double[])ob[1];
+		}
 		for (int i=0; i<n_points; i++) {
 			if (layer_id != p_layer[i]) continue;
-			al.add(new Rectangle((int)(p[0][i] - p_width[i]), (int)(p[1][i] - p_width[i]), (int)Math.ceil(p_width[i] + p_width[i]), (int)Math.ceil(p_width[i] + p_width[i])));
+			al.add(new Rectangle((int)(p[0][i] - p_width[i]), (int)(p[1][i] - p_width[i]), (int)Math.ceil(p_width[i] + p_width[i]), (int)Math.ceil(p_width[i] + p_width[i]))); // transformRectangle returns a copy of the Rectangle
 		}
 		if (al.isEmpty()) return null;
 		else {
-			Rectangle[] rects = new Rectangle[al.size()];
+			final Rectangle[] rects = new Rectangle[al.size()];
 			al.toArray(rects);
 			return rects;
 		}
@@ -542,21 +547,16 @@ public class Ball extends ZDisplayable {
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
 		// catch all displayables of the current Layer
-		ArrayList al = layer.getDisplayables();
+		final ArrayList al = layer.getDisplayables(Patch.class);
 
 		// this bounding box as in the present layer
-		Rectangle[] perimeters = getSubPerimeters(layer, x, y); //displaced by this object's position!
+		final Rectangle[] perimeters = getSubPerimeters(layer); // transformed
 		if (null == perimeters) return;
 
 		// for each Patch, check if it underlays this profile's bounding box
-		Rectangle box = new Rectangle();
-		Iterator itd = al.iterator();
-		while (itd.hasNext()) {
-			Displayable displ = (Displayable)itd.next();
-			// link only Patch objects
-			if (!displ.getClass().equals(Patch.class)) {
-				continue;
-			}
+		final Rectangle box = new Rectangle(); // as tmp
+		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
+			final Displayable displ = (Displayable)itd.next();
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			for (int i=0; i<perimeters.length; i++) {
 				if (perimeters[i].intersects(displ.getBoundingBox(box))) {
@@ -697,7 +697,6 @@ public class Ball extends ZDisplayable {
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
 	public Object clone() {
 		final Ball copy = new Ball(project, project.getLoader().getNextId(), null != title ? title.toString() : null, x, y, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false);
-		// the rotation is always zero because it has been applied.
 		// links are left null
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
@@ -705,6 +704,7 @@ public class Ball extends ZDisplayable {
 		copy.p = new double[][]{(double[])this.p[0].clone(), (double[])this.p[1].clone()};
 		copy.p_layer = (long[])this.p_layer.clone();
 		copy.p_width = (double[])this.p_width.clone();
+		copy.at = (AffineTransform)this.at.clone();
 		// add
 		copy.layer = this.layer;
 		copy.addToDatabase();
@@ -780,9 +780,17 @@ public class Ball extends ZDisplayable {
 			Utils.log("Java3D is not installed.");
 			return null;
 		}
-		//Utils.log2("Ball: scale is " + scale + "\n\tx,y: " + x + ", " + y);
 		// modify the globe to fit each ball's radius and x,y,z position
 		final ArrayList list = new ArrayList();
+		// transform points
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[] p_width = this.p_width;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_width = (double[])ob[1];
+		}
 		// for each ball
 		for (int i=0; i<n_points; i++) {
 			// create local globe for the ball, and translate it to z,y,z
@@ -790,10 +798,9 @@ public class Ball extends ZDisplayable {
 			for (int z=0; z<ball.length; z++) {
 				for (int k=0; k<ball[0].length; k++) {
 					// the line below says: to each globe point, multiply it by the radius of the particular ball, then translate to the ball location, then translate to this Displayable's location, then scale to the Display3D scale.
-					ball[z][k][0] = (globe[z][k][0] * p_width[i] + p[0][i] + x) * scale;
-					ball[z][k][1] = (globe[z][k][1] * p_width[i] + p[1][i] + y) * scale;
+					ball[z][k][0] = (globe[z][k][0] * p_width[i] + p[0][i]) * scale;
+					ball[z][k][1] = (globe[z][k][1] * p_width[i] + p[1][i]) * scale;
 					ball[z][k][2] = (globe[z][k][2] * p_width[i] + layer_set.getLayer(p_layer[i]).getZ()) * scale;
-					//Utils.log2("ball xyz: " + ball[z][k][0] + ", " + ball[z][k][1] + "," + ball[z][k][2]);
 				}
 			}
 			// create triangular faces and add them to the list
@@ -812,5 +819,24 @@ public class Ball extends ZDisplayable {
 			}
 		}
 		return list;
+	}
+
+	/** Apply the AffineTransform to a copy of the points and return the arrays. */
+	private final Object[] getTransformedData() {
+		// transform points
+		final double[][] p = transformPoints(this.p);
+		// create points to represent the point where the radius ends. Since these are abstract spheres, there's no need to consider a second point that would provide the shear. To capture both the X and Y axis deformations, I use a diagonal point which sits at (x,y) => (p[0][i] + p_width[i], p[1][i] + p_width[i]) 
+		double[][] pw = new double[2][n_points];
+		for (int i=0; i<n_points; i++) {
+			pw[0][i] = this.p[0][i] + p_width[i]; //built relative to the untransformed points!
+			pw[1][i] = this.p[1][i] + p_width[i];
+		}
+		pw = transformPoints(pw);
+		final double[] p_width = new double[n_points];
+		for (int i=0; i<n_points; i++) {
+			// plain average of differences in X and Y axis, relative to the transformed points.
+			p_width[i] = (Math.abs(pw[0][i] - p[0][i]) + Math.abs(pw[1][i] - p[1][i])) / 2;
+		}
+		return new Object[]{p, p_width};
 	}
 }

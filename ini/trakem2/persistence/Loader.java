@@ -861,8 +861,6 @@ abstract public class Loader {
 					image.flush();
 					image = image2;
 				}
-				// cache
-				imps.put(id, imp); // TODO no need for this line I think, except perhaps in rare occasions
 				awts.put(id, image); // this is already done by the call to cacheAWT from p.createImage()
 
 				unlock();
@@ -972,24 +970,7 @@ abstract public class Loader {
 
 	/** A dialog to open a stack, making sure there is enough memory for it. */
 	synchronized public ImagePlus openStack() {
-		/*
-		FileDialog fd = new FileDialog(IJ.getInstance(), "Select stack", FileDialog.LOAD);
-		if (null != Utils.last_dir) {
-			fd.setDirectory(Utils.last_dir);
-		}
-		if (null != Utils.last_file) {
-			fd.setFile(Utils.last_file);
-		}
-		fd.show();
-		String file_name = fd.getFile();
-		if (null == file_name) {
-			// dialog was canceled.
-			return null;
-		}
-		String dir = fd.getDirectory();
-		
-		*/
-		OpenDialog od = new OpenDialog("Select stack", OpenDialog.getDefaultDirectory(), null);
+		final OpenDialog od = new OpenDialog("Select stack", OpenDialog.getDefaultDirectory(), null);
 		String file_name = od.getFileName();
 		if (null == file_name || file_name.toLowerCase().startsWith("null")) return null;
 		String dir = od.getDirectory();
@@ -2954,6 +2935,9 @@ abstract public class Loader {
 		if (IJ.isWindows() && path.startsWith("//")) {
 			path = path.replace('/', '\\');
 		}
+		// debug:
+		Utils.log2("opening image " + path);
+		//Utils.printCaller(this, 10);
 		return opener.openImage(path);
 	}
 }

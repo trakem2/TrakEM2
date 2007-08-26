@@ -35,7 +35,7 @@ public class FIFOImageMap {
 	private Image[] images;
 	private final int inc = 50;
 
-	FIFOImageMap(int initial_size) {
+	public FIFOImageMap(int initial_size) {
 		if (initial_size < 0) initial_size = inc;
 		this.images = new Image[initial_size];
 		this.ids = new long[initial_size];
@@ -44,7 +44,7 @@ public class FIFOImageMap {
 	}
 
 	/** No duplicates allowed: if the id exists it's sended to the end and the image is first flushed (if different), then updated with the new one provided. */
-	synchronized public void put(long id, Image image) {
+	public void put(long id, Image image) {
 
 		try {
 			if (null == image) throw new Exception("FIFOImageMap: null image!");
@@ -105,7 +105,7 @@ public class FIFOImageMap {
 	}
 
 	/** A call to this method puts the element at the end of the list. Returns null if not found. */
-	synchronized public Image get(long id) {
+	public Image get(long id) {
 		// find the id
 		long idd = -1L;
 		int i = start;
@@ -131,7 +131,7 @@ public class FIFOImageMap {
 	}
 
 	/** Remove the Image if found and returns it, without flushing it. Returns null if not found. */
-	synchronized public Image remove(long id) {
+	public Image remove(long id) {
 		// find the id
 		int i = start;
 		for (; i<next; i++) {
@@ -152,7 +152,7 @@ public class FIFOImageMap {
 	}
 
 	/** Remove the given index and return it, returns null if outside range. The underlying arrays are untouched besides nullifying the proper pointer if the given 'i' is the first element of the arrays. */
-	synchronized public Image remove(int i) {
+	public Image remove(int i) {
 		if (i < start || i >= next) return null;
 		Image im = images[i];
 		if (i == start) {
@@ -174,7 +174,7 @@ public class FIFOImageMap {
 	}
 
 	/** Remove the first element and return it. Returns null if none. The underlaying arrays are untouched besides nullifying the proper pointer. */
-	synchronized public Image removeFirst() {
+	public Image removeFirst() {
 		if (start == next) return null; //empty!
 		Image im = images[start];
 		images[start] = null;
@@ -182,6 +182,12 @@ public class FIFOImageMap {
 		return im;
 	}
 
-	synchronized public int size() { return next - start; }
+	public int size() { return next - start; }
+
+	public void debug() {
+		for (int i=0; i<next; i++) {
+			System.out.println(i + " id: " + ids[i]);
+		}
+	}
 
 }

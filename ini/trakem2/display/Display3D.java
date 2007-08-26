@@ -279,9 +279,18 @@ public class Display3D {
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				// obtain the Displayable object under the node
 				ProjectThing child = (ProjectThing)it.next();
-				Displayable displ = (Displayable)child.getObject();
+				Object obc = child.getObject();
+				if (obc.equals("profile_list")) {
+					Utils.log("Display3D can't handle profile lists at the moment.");
+					continue;
+				}
+				Displayable displ = (Displayable)obc;
+				if (displ.getClass().equals(Profile.class)) {
+					Utils.log("Display3D can't handle Bezier profiles at the moment.");
+					continue;
+				}
 				if (!displ.isVisible()) {
-					Utils.log2("Skipping non-visible node " + displ);
+					Utils.log("Skipping non-visible node " + displ);
 					continue;
 				}
 				StopWatch sw = new StopWatch();

@@ -116,17 +116,12 @@ public class AreaList extends ZDisplayable {
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
 		Object ob = ht_areas.get(new Long(active_layer.getId()));
-		if (null == ob) {
-			return;
-		}
+		if (null == ob) return;
 		if (AreaList.UNLOADED.equals(ob)) {
 			ob = loadLayer(active_layer.getId());
-			if (null == ob) {
-				return;
-			}
+			if (null == ob) return;
 		}
 		final Area area = (Area)ob;
-
 		g.setColor(this.color);
 		//arrange transparency
 		Composite original_composite = null;
@@ -142,35 +137,6 @@ public class AreaList extends ZDisplayable {
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
 			g.setComposite(original_composite);
-		}
-	}
-
-	public void paint(Graphics g, final Layer current) {
-		if (null == current) return;
-		if (!this.visible) return;
-		Object ob = ht_areas.get(new Long(current.getId()));
-		if (null == ob) return;
-		if (AreaList.UNLOADED.equals(ob)) {
-			ob = loadLayer(current.getId());
-			if (null == ob) return;
-		}
-		final Area area = (Area)ob;
-		g.setColor(this.color);
-		final Graphics2D g2d = (Graphics2D)g;
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g2d.getComposite();
-			g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-		if (fill_paint) {
-			g2d.fill(area.createTransformedArea(this.at));
-		} else {
-			g2d.draw(area.createTransformedArea(this.at));  // the contour only
-		}
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g2d.setComposite(original_composite);
 		}
 	}
 
@@ -330,7 +296,7 @@ public class AreaList extends ZDisplayable {
 	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
 	public boolean calculateBoundingBox() {
 		// forget it if this has been done once already, for at the moment it would work only for translations, not any other types of transforms. TODO: need to fix this somehow, generates repainting problems.
-		if (this.at.getType() != AffineTransform.TYPE_TRANSLATION) return false; // meaning, there's more bits in the type than just the translation
+		//if (this.at.getType() != AffineTransform.TYPE_TRANSLATION) return false; // meaning, there's more bits in the type than just the translation
 		// check preconditions
 		if (0 == ht_areas.size()) return false;
 		Area[] area = new Area[ht_areas.size()];
@@ -350,7 +316,9 @@ public class AreaList extends ZDisplayable {
 		for (int i=0; i<area.length; i++) {
 			entry[i].setValue(area[i].createTransformedArea(atb));
 		}
-		this.translate(box.x, box.y);
+		//this.translate(box.x, box.y);
+		this.at.translate(box.x, box.y);
+		updateInDatabase("transform");
 		this.width = box.width;
 		this.height = box.height;
 		updateInDatabase("position+dimensions");
@@ -907,6 +875,7 @@ public class AreaList extends ZDisplayable {
 		}
 		// add
 		copy.layer = this.layer; // this does not add it to any layer, just sets the 'current' layer pointer
+		copy.at = (AffineTransform)this.at.clone();
 		copy.addToDatabase();
 		snapshot.remake();
 		//
@@ -928,11 +897,21 @@ public class AreaList extends ZDisplayable {
 		int n = getNAreas();
 		if (0 == n) return null;
 		final Rectangle r = getBoundingBox();
+		// remove translation from a copy of this Displayable's AffineTransform
+		final AffineTransform at_translate = new AffineTransform();
+		at_translate.translate(-r.x, -r.y);
+		final AffineTransform at2 = (AffineTransform)this.at.clone();
+		at2.preConcatenate(at_translate);
+		// incorporate resampling scaling into the transform
+		final AffineTransform atK = new AffineTransform();
+		//Utils.log("resample: " + resample + "  scale: " + scale);
+		final double K = (1.0 / resample) * scale; // 'scale' is there to limit gigantic universes
+		atK.scale(K, K);
+		at2.preConcatenate(atK);
+		//
 		ImageStack stack = null;
 		float z = 0;
 		double thickness = 1;
-		//Utils.log("resample: " + resample + "  scale: " + scale);
-		final double K = (1.0 / resample) * scale; // 'scale' is there to limit gigantic universes
 		final int w = (int)Math.ceil(r.width * K);
 		final int h = (int)Math.ceil(r.height * K);
 		for (Iterator it = layer_set.getLayers().iterator(); it.hasNext(); ) {
@@ -946,11 +925,11 @@ public class AreaList extends ZDisplayable {
 					z = (float)la.getZ(); // z of the first layer
 					thickness = la.getThickness();
 				}
-				ImageProcessor ip = new ByteProcessor(w, h);
+				final ImageProcessor ip = new ByteProcessor(w, h);
 				ip.setColor(Color.white);
-				AffineTransform at = new AffineTransform();
-				at.scale(K, K);
-				area = area.createTransformedArea(at);
+				//final AffineTransform atK = new AffineTransform();
+				//atK.scale(K, K);
+				area = area.createTransformedArea(at2); //atK);
 				ShapeRoi roi = new ShapeRoi(area);
 				ip.setRoi(roi);
 				ip.fill(roi.getMask()); // should be automatic!
@@ -971,11 +950,11 @@ public class AreaList extends ZDisplayable {
 		//imp.show();
 		// end of generating byte[] arrays
 		// Now marching cubes
-		Triangulator tri = new MCTriangulator();
-		List list = tri.getTriangles(imp, 0, new boolean[]{true, true, true}, 1);
+		final Triangulator tri = new MCTriangulator();
+		final List list = tri.getTriangles(imp, 0, new boolean[]{true, true, true}, 1);
 		// now translate all coordinates by x,y,z (it would be nice to simply assign them to a mesh object)
-		float dx = (float)this.x * (float)scale;
-		float dy = (float)this.y * (float)scale;
+		float dx = (float)r.x * (float)scale;
+		float dy = (float)r.y * (float)scale;
 		float dz = (float)((z - thickness) * scale); // the z of the first layer found, corrected for both scale and the zero padding
 		Utils.log2("AreaList: scale=" + scale + " x,y: " + x + "," + y + "  dx,dy: " + dx + "," + dy);
 		for (Iterator it = list.iterator(); it.hasNext(); ) {

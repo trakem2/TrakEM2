@@ -209,15 +209,10 @@ public class Selection {
 		BoxHandle(int x, int y, int id) {
 			super(x,y,id);
 		}
-		public void paint(Graphics g, Rectangle srcRect, double mag) {
-			int x = (int)((this.x - srcRect.x)*mag);
-			int y = (int)((this.y - srcRect.y)*mag);
-			g.setColor(Color.white);
-			g.drawRect(x - 2, y - 2, 5, 5);
-			g.setColor(Color.black);
-			g.drawRect(x - 1, y - 1, 3, 3);
-			g.setColor(Color.white);
-			g.fillRect(x, y, 1, 1);
+		public void paint(final Graphics g, final Rectangle srcRect, final double mag) {
+			final int x = (int)((this.x - srcRect.x)*mag);
+			final int y = (int)((this.y - srcRect.y)*mag);
+			DisplayCanvas.drawHandle(g, x, y, 1.0); // ignoring magnification for the sizes, since Selection is painted differently
 		}
 		public void drag(int dx, int dy) {
 			Rectangle box_old = (Rectangle)box.clone();
@@ -298,7 +293,7 @@ public class Selection {
 			// displacement: specific of each element of the selection and their links, depending on where they are.
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				d.scale(px, py, anchor_x, anchor_y);
+				d.scale(px, py, anchor_x, anchor_y, false); // false because the linked ones are already included in the HashSet
 			}
 
 			// finally:
@@ -329,7 +324,7 @@ public class Selection {
 		}
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			d.rotate(delta, floater.x, floater.y);
+			d.rotate(delta, floater.x, floater.y, false); // false because the linked ones are already included in the HashSet
 		}
 	}
 
@@ -726,7 +721,7 @@ public class Selection {
 		} else if (dragging) {
 			// drag all selected and linked
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				((Displayable)it.next()).translate(dx, dy);
+				((Displayable)it.next()).translate(dx, dy, false); // false because the linked ones are already included in the HashSet
 			}
 			//and the box!
 			box.x += dx;
