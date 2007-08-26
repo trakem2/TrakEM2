@@ -4,6 +4,7 @@ import static mpi.fruitfly.math.General.*;
 
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
+import mpi.fruitfly.registration.FloatArray2DScaleOctave;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
 //import mpi.fruitfly.registration.RoiList;
 import mpi.fruitfly.registration.TRModel;
@@ -35,7 +36,6 @@ import java.io.*;
 
 public class SIFT_Matcher_new implements PlugIn, KeyListener
 {
-	private static final int min_size = 64;
 	private static final String[] schemes = {
 		"nearest neighbor",
 		"linear",
@@ -47,38 +47,34 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 	private static int scheme = 5;
 
 	// steps
-	private static String steps_str = "3";
 	private static int steps = 3;
-
 	// initial sigma
-	private static String initial_sigma_str = "1.6";
 	private static float initial_sigma = 1.6f;
-
 	// background colour
-	private static String bg_str = "0.0";
 	private static double bg = 0.0;
-
 	// feature descriptor size
-	private static String fdsize_str = "8";
 	private static int fdsize = 8;
-
 	// feature descriptor orientation bins
-	private static String fdbins_str = "8";
 	private static int fdbins = 8;
-
-	// scale factor for the image
-	private static String max_size_str = "1024";
+	// size restrictions for scale octaves, use octaves < max_size and > min_size only
+	private static int min_size = 64;
 	private static int max_size = 1024;
-	private static double scale = 1.0;
-
 	// minimal allowed alignment error in px
-	private static String min_epsilon_str = "2.0";
 	private static float min_epsilon = 2.0f;
-
 	// maximal allowed alignment error in px
-	private static String max_epsilon_str = "100.0";
 	private static float max_epsilon = 100.0f;
-
+	private static float inlier_ratio = 0.05f;
+	
+	/**
+	 * Set true to double the size of the image by linear interpolation to
+	 * ( with * 2 + 1 ) * ( height * 2 + 1 ).  Thus we can start identifying
+	 * DoG extrema with $\sigma = INITIAL_SIGMA / 2$ like proposed by
+	 * \citet{Lowe04}.
+	 * 
+	 * This is useful for images scmaller than 1000px per side only. 
+	 */ 
+	private static boolean upscale = false;
+	private static float scale = 1.0f;
 	
 	private static boolean adjust = false;
 	private static boolean antialias = true;
@@ -135,115 +131,43 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 
 		final ImagePlus imp = WindowManager.getCurrentImage();
 		if ( imp == null )  { System.err.println( "There are no images open" ); return; }
-
+		
 		GenericDialog gd = new GenericDialog( "Align stack" );
-		gd.addStringField( "Steps per scale octave:", steps_str, 2 );
-		gd.addStringField( "Initial gaussian blur (Sigma):", initial_sigma_str, 2 );
-		gd.addStringField( "Feature descriptor size:", fdsize_str, 2 );
-		gd.addStringField( "Feature descriptor orientation bins:", fdbins_str, 2 );
-		gd.addStringField( "Maximum image size:", max_size_str, 2 );
-		gd.addStringField( "Minimal alignment error [px]:", min_epsilon_str, 2 );
-		gd.addStringField( "Maximal alignment error [px]:", max_epsilon_str, 2 );
-		final Vector< TextField > tfs = gd.getStringFields();
-		tfs.get( 0 ).addKeyListener( this );
-		gd.addPanel( new Panel(),GridBagConstraints.WEST, new Insets( 0,0,0,0 ) );
-		gd.addChoice( "Interpolation scheme:",schemes, schemes[ scheme ] );
-		gd.addStringField( "Background value:", bg_str );
-		//gd.addCheckbox( " Adjust size to fit result", adjust );
-		//gd.addCheckbox( " Anti-alias borders", antialias );
+		gd.addNumericField( "steps_per_scale_octave :", steps, 0 );
+		gd.addNumericField( "initial_gaussian_blur :", initial_sigma, 2 );
+		gd.addNumericField( "feature_descriptor_size :", fdsize, 0 );
+		gd.addNumericField( "feature_descriptor_orientation_bins :", fdbins, 0 );
+		gd.addNumericField( "minimum_image_size :", min_size, 0 );
+		gd.addNumericField( "maximum_image_size :", max_size, 0 );
+		gd.addNumericField( "minimal_alignment_error :", min_epsilon, 2 );
+		gd.addNumericField( "maximal_alignment_error :", max_epsilon, 2 );
+		gd.addNumericField( "inlier_ratio :", inlier_ratio, 2 );
+		gd.addNumericField( "background_color :", bg, 2 );
+		gd.addChoice( "interpolation_scheme :", schemes, schemes[ scheme ] );
+		gd.addCheckbox( "upscale_image_first", upscale );
 		gd.showDialog();
-
 		if (gd.wasCanceled()) return;
-
-		steps_str = gd.getNextString();
-		initial_sigma_str = gd.getNextString();
-		fdsize_str = gd.getNextString();
-		fdbins_str = gd.getNextString();
-		max_size_str = gd.getNextString();
-		min_epsilon_str = gd.getNextString();
-		max_epsilon_str = gd.getNextString();
+		
+		steps = ( int )gd.getNextNumber();
+		initial_sigma = ( float )gd.getNextNumber();
+		fdsize = ( int )gd.getNextNumber();
+		fdbins = ( int )gd.getNextNumber();
+		min_size = ( int )gd.getNextNumber();
+		max_size = ( int )gd.getNextNumber();
+		min_epsilon = ( float )gd.getNextNumber();
+		max_epsilon = ( float )gd.getNextNumber();
+		inlier_ratio = ( float )gd.getNextNumber();
+		bg = ( double )gd.getNextNumber();
 		scheme = gd.getNextChoiceIndex();
-		bg_str = gd.getNextString();
+		upscale = gd.getNextBoolean();
+		if ( upscale ) scale = 2.0f;
+		else scale = 1.0f;
+		
 		//adjust = gd.getNextBoolean();
 		//antialias = gd.getNextBoolean();
 
 		Affine a = new Affine();
 		
-		try
-		{
-			bg = Double.parseDouble( bg_str );
-		}
-		catch ( Exception e )
-		{
-			throw new IllegalArgumentException( "Invalid background value" );
-		}
-		a.background( bg );
-		
-		try
-		{
-			steps = Integer.parseInt( steps_str );
-		}
-		catch ( Exception e )
-		{
-			throw new IllegalArgumentException( "Invalid steps value." );
-		}
-
-		try
-		{
-			initial_sigma = Float.parseFloat( initial_sigma_str );
-		}
-		catch ( Exception e )
-		{
-			throw new IllegalArgumentException( "Invalid Sigma value." );
-		}
-		if ( initial_sigma < 0.5 )
-			throw new IllegalArgumentException( "Invalid Sigma value, must not be smaller than 0.5)." );
-
-		try
-		{
-			fdsize = Integer.parseInt( fdsize_str );
-		}
-		catch ( Exception e )
-		{
-			throw new IllegalArgumentException( "Invalid feature descriptor size value" );
-		}
-
-		try
-		{
-			fdbins = Integer.parseInt( fdbins_str );
-		}
-		catch ( Exception e )
-		{
-			throw new IllegalArgumentException( "Invalid feature descriptor bins value" );
-		}
-
-		try
-		{
-			max_size = Integer.parseInt( max_size_str );
-		}
-		catch ( Exception e )
-		{
-			throw new IllegalArgumentException( "Invalid image max_size value" );
-		}
-
-		try
-		{
-			min_epsilon = Float.parseFloat( min_epsilon_str );
-		}
-		catch ( Exception e )
-		{
-			throw new IllegalArgumentException( "Invalid minimal error value" );
-		}
-
-		try
-		{
-			max_epsilon = Float.parseFloat( max_epsilon_str );
-		}
-		catch ( Exception e )
-		{
-			throw new IllegalArgumentException( "Invalid maximal error value" );
-		}
-
 		int ischeme = Affine.NEAREST;
 		switch ( scheme )
 		{
@@ -280,8 +204,6 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		impAligned.show();
 		ImagePlus impInfo = null;
 		
-		//scale = ( ( float )max_size / ( float )stack.getWidth() );
-		
 		ImageProcessor ip1;
 		ImageProcessor ip2;
 		ImageProcessor ip3;
@@ -291,15 +213,22 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 
 		ip2 = stack.getProcessor( 1 ).convertToFloat();
 		
-//		imp1.setProcessor(null, imp1.getProcessor().resize((int)(0.5 * imp1.getWidth())));
-
 		AffineTransform at = new AffineTransform();
 		
 		FloatArray2DSIFT sift = new FloatArray2DSIFT( fdsize, fdbins );
 		
 		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( ip2 );
 		ImageFilter.enhance( fa, 1.0f );
-		fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
+		
+		if ( upscale )
+		{
+			FloatArray2D fat = new FloatArray2D( fa.width * 2 - 1, fa.height * 2 - 1 ); 
+			FloatArray2DScaleOctave.upsample( fa, fat );
+			fa = fat;
+			fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 1.0 ) );
+		}
+		else
+			fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
 		
 		long start_time = System.currentTimeMillis();
 		System.out.print( "processing SIFT ..." );
@@ -350,7 +279,16 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			ip2 = stack.getProcessor( i + 1 ).convertToFloat();
 			fa = ImageArrayConverter.ImageToFloatArray2D( ip2 );
 			ImageFilter.enhance( fa, 1.0f );
-			fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
+			
+			if ( upscale )
+			{
+				FloatArray2D fat = new FloatArray2D( fa.width * 2 - 1, fa.height * 2 - 1 ); 
+				FloatArray2DScaleOctave.upsample( fa, fat );
+				fa = fat;
+				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 1.0 ) );
+			}
+			else
+				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
 			
 			fs1 = fs2;
 			
@@ -393,16 +331,11 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			double[] evec2 = new double[ 4 ];
 			Match.covariance( correspondences, cov1, cov2, o1, o2, ev1, ev2, evec1, evec2 );
 			
-
-			
 			/**
 			 * draw standard-deviation ellipse of all identified correspondences and
 			 * all the correspondences
 			 */
 			
-			vis_scale = 256.0f / ip2.getWidth();
-			
-			// downscale ip2 to width=256px for visualisation purposes
 			ip2 = downScale( ( FloatProcessor )ip2, vis_scale );
 			
 			ip1 = ip1.convertToRGB();
@@ -418,15 +351,15 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 //			System.out.println( "  xx = " + cov1[ 0 ] );
 //			System.out.println( "  xy = " + cov1[ 1 ] );
 //			System.out.println( "  yy = " + cov1[ 2 ] );
-			drawEllipse( ip1, evec1, o1, ev1, vis_scale );
-			drawEllipse( ip3, evec2, o2, ev2, vis_scale );
+			drawEllipse( ip1, evec1, o1, ev1, vis_scale / scale );
+			drawEllipse( ip3, evec2, o2, ev2, vis_scale / scale );
 
 			ip1.setLineWidth( 2 );
 			ip3.setLineWidth( 2 );
 			for ( Match m : correspondences )
 			{
-				ip1.drawDot( ( int )Math.round( vis_scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale * m.p1[ 1 ] ) );
-				ip3.drawDot( ( int )Math.round( vis_scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale * m.p2[ 1 ] ) );
+				ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
+				ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
 			}
 
 			TRModel model = null;
@@ -464,9 +397,8 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 					model = TRModel.estimateModel(
 							correspondences,			//!< point correspondences
 							1000,						//!< iterations
-							epsilon * ( float )scale,	//!< maximal alignment error for a good point pair when fitting the model
-							//0.1f,						//!< minimal partition (of 1.0) of inliers
-							0.05f,						//!< minimal partition (of 1.0) of inliers
+							epsilon * scale,			//!< maximal alignment error for a good point pair when fitting the model
+							inlier_ratio,				//!< minimal partition (of 1.0) of inliers
 							tr							//!< model as float array (TrakEM style)
 							);
 					// compare the standard deviation of inliers and matches
@@ -534,14 +466,14 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				ip3.setLineWidth( 1 );
 				ip1.setColor( Color.green );
 				ip3.setColor( Color.green );
-				drawEllipse( ip1, evec1, o1, ev1, vis_scale );
-				drawEllipse( ip3, evec2, o2, ev2, vis_scale );
+				drawEllipse( ip1, evec1, o1, ev1, vis_scale / scale );
+				drawEllipse( ip3, evec2, o2, ev2, vis_scale / scale );
 				ip1.setLineWidth( 2 );
 				ip3.setLineWidth( 2 );
 				for ( Match m : model.getInliers() )
 				{
-					ip1.drawDot( ( int )Math.round( vis_scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale * m.p1[ 1 ] ) );
-					ip3.drawDot( ( int )Math.round( vis_scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale * m.p2[ 1 ] ) );
+					ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
+					ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
 				}
 
 				IJ.log( "Model with epsilon <= " + epsilon + " for " + model.getInliers().size() + " inliers found." );
@@ -602,10 +534,6 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			}
 			impInfo.setStack( "Alignment info", stackInfo );
 			impInfo.updateAndDraw();
-			
-//			displayMatches( matches, imp1, imp2 );
-//			displayFeatures( fp1.getFeatures(), imp1 );
-//			displayFeatures( fp2.getFeatures(), imp2 );
 		}
 	}
 

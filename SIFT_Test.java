@@ -57,22 +57,29 @@ public class SIFT_Test implements PlugIn, KeyListener
 	private static int fdsize = 8;
 	// feature descriptor orientation bins
 	private static int fdbins = 8;
-	// maximal image size
-	private static int max_size = 1024;
-	// minimal image size
+	// size restrictions for scale octaves, use octaves < max_size and > min_size only
 	private static int min_size = 64;
-	private static double scale = 1.0;
+	private static int max_size = 1024;
 	// minimal allowed alignment error in px
 	private static float min_epsilon = 2.0f;
 	// maximal allowed alignment error in px
 	private static float max_epsilon = 100.0f;
 	
 	private static float inlier_ratio = 0.05f;
+	
+	/**
+	 * Set true to double the size of the image by linear interpolation to
+	 * ( with * 2 + 1 ) * ( height * 2 + 1 ).  Thus we can start identifying
+	 * DoG extrema with $\sigma = INITIAL_SIGMA / 2$ like proposed by
+	 * \citet{Lowe04}.
+	 * 
+	 * This is useful for images scmaller than 1000px per side only. 
+	 */ 
+	private static boolean upscale = false;
+	private static float scale = 1.0f;
 
 	
-	private static boolean adjust = false;
-	private static boolean antialias = true;
-
+	
 	/**
 	 * draw an arbitrarily rotated ellipse
 	 * @param double c[] contains the eigenvector for x
@@ -148,6 +155,7 @@ public class SIFT_Test implements PlugIn, KeyListener
 		gd.addNumericField("minimal_alignment_error :", min_epsilon, 2);
 		gd.addNumericField("maximal_alignment_error :", max_epsilon, 2);
 		gd.addNumericField("inlier_ratio :", inlier_ratio, 2);
+		gd.addCheckbox( "upscale_image_first", upscale );
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		steps = (int)gd.getNextNumber();
@@ -159,6 +167,8 @@ public class SIFT_Test implements PlugIn, KeyListener
 		min_epsilon = (float)gd.getNextNumber();
 		max_epsilon = (float)gd.getNextNumber();
 		inlier_ratio = (float)gd.getNextNumber();
+		upscale = gd.getNextBoolean();
+		if ( upscale ) scale = 2.0f;
 		
 		
 		ImageProcessor ip1 = imp.getProcessor().convertToFloat();
@@ -170,47 +180,20 @@ public class SIFT_Test implements PlugIn, KeyListener
 		
 		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( ip1 );
 		ImageFilter.enhance( fa, 1.0f );
-		fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
+		
+		if ( upscale )
+		{
+			FloatArray2D fat = new FloatArray2D( fa.width * 2 - 1, fa.height * 2 - 1 ); 
+			FloatArray2DScaleOctave.upsample( fa, fat );
+			fa = fat;
+			fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 1.0 ) );
+		}
+		else
+			fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
 		
 		long start_time = System.currentTimeMillis();
 		System.out.print( "processing SIFT ..." );
 		sift.init( fa, steps, initial_sigma, min_size, max_size );
-		
-		
-		/*
-		FloatArray2DScaleOctave[] sos = sift.getOctaves();
-		for ( int o = 0; o < sos.length; ++o )
-		{
-			FloatArray2DScaleOctave so = sos[ o ];
-			start_time = System.currentTimeMillis();
-			System.out.print( "building scale octave ..." );
-			so.build();
-			System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
-			
-			int os = ( int )Math.pow( 2, o );
-			
-			FloatArray2DScaleOctaveDoGDetector dog = new FloatArray2DScaleOctaveDoGDetector();
-		
-			start_time = System.currentTimeMillis();
-			System.out.print( "identifying difference of gaussian extrema ..." );
-			dog.run( so );
-			System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
-		
-			// draw DoG detections
-			ip2.setLineWidth( 1 );
-			ip2.setColor( Color.green );
-			
-			Vector< float[] > candidates = dog.getCandidates();
-			for ( float[] c : candidates )
-			{
-				ip2.drawDot(
-						( int )Math.round( ( float )os * c[ 0 ] ),
-						( int )Math.round( ( float )os * c[ 1 ] ) );
-			}
-		}
-		*/
-		
-		
 		fs1 = sift.run( max_size );
 		Collections.sort( fs1 );
 		System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
@@ -222,7 +205,7 @@ public class SIFT_Test implements PlugIn, KeyListener
 		for ( FloatArray2DSIFT.Feature f : fs1 )
 		{
 			System.out.println( f.location[ 0 ] + " " + f.location[ 1 ] + " " + f.scale + " " + f.orientation );
-			drawSquare( ip2, new double[]{ f.location[ 0 ], f.location[ 1 ] }, 2 * ( double )f.scale, ( double )f.orientation );
+			drawSquare( ip2, new double[]{ f.location[ 0 ] / scale, f.location[ 1 ] / scale }, 2 * ( double )f.scale / scale, ( double )f.orientation );
 		}
 		
 		
