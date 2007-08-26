@@ -32,7 +32,6 @@ import ij.gui.GenericDialog;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.display.Patch;
-import ini.trakem2.display.Transform;
 import ini.trakem2.display.Display;
 import ini.trakem2.ControlWindow;
 

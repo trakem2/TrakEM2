@@ -64,7 +64,6 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.Snapshot;
-import ini.trakem2.display.Transform;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.tree.*;
@@ -477,14 +476,28 @@ abstract public class Loader {
 		}
 	}
 
+	///////////////////
+
+	static private final float OSFRACTION = computeOSFraction();
+	static private final float computeOSFraction() {
+		int bits = 32;
+		try {
+			// 32 or 64 bit?
+			bits = Integer.parseInt(System.getProperty("sun.arch.data.model"));
+		} catch (Exception e) {
+			new IJError(e);
+			return 0.68f; // conservative
+		}
+		if (64 == bits) return 0.68f; // 64-bit JVM
+		return 0.80f; // 32-bit JVM
+	}
 	/** Really available maximum memory, in bytes.
 	 *  By try and error I have found out that, at least in Linux:
 	 *  * 64-bit systems have a real maximum of 68% of the Xmx maximum heap memory value.
 	 *  * 32-bit systems have about 80% of the Xmx.
 	 */
-	static public final long max_memory = (long)((IJ.maxMemory() * 0.68f) - 3000000); // 3 M always free
+	static public final long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
 	
-
 	/** Measure wether there is at least 20% of available memory. */
 	protected boolean enoughFreeMemory() {
 		long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
@@ -2790,7 +2803,9 @@ abstract public class Loader {
 			startSetTempCurrentImage(null);
 			IJ.redirectErrorMessages();
 			Object ob = IJ.runPlugIn(plugin_class_name, "");
-			if (!(ob instanceof PlugInFilter)) {
+			if (null == ob) {
+				Utils.showMessage("The preprocessor plugin " + plugin_class_name + " was not found.");
+			} else if (!(ob instanceof PlugInFilter)) {
 				Utils.showMessage("Plug in '" + plugin_class_name + "' is invalid: does not implement PlugInFilter");
 			} else { // all is good:
 				this.preprocessor = plugin_class_name;

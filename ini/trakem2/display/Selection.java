@@ -825,12 +825,6 @@ public class Selection {
 		Utils.log2(msg + ": queue size = " + queue.size() + "  hs size: " + hs.size());
 	}
 
-	/** May return null if not selected or not among the linked group. */
-	protected Transform getTransform(Displayable d) {
-		Utils.log2("calling obsolete method Selection.getTransform for " + d);
-		return null;
-	}
-
 	/** Returns a hash table with all selected Displayables as keys, and a copy of their affine transform as value. This is useful to easily create undo steps. */
 	protected Hashtable getTransformationsCopy() {
 		Hashtable ht_copy = new Hashtable(hs.size());

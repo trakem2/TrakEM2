@@ -43,6 +43,7 @@ import ini.trakem2.tree.Thing;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Bureaucrat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -353,9 +354,28 @@ public class Project extends DBObject {
 			new IJError(e);
 		}
 		// open any stored displays
-		Display.openLater();
-		// restore state (crude, but safe)
-		project.loader.setChanged(false);
+		final Bureaucrat burro = Display.openLater();
+		if (null != burro) {
+			final Runnable ru = new Runnable() {
+				public void run() {
+					// wait until the Bureaucrat finishes
+					try { burro.join(); } catch (InterruptedException ie) {}
+					// restore to non-changes (crude, but works)
+					project.loader.setChanged(false);
+				}
+			};
+			new Thread() {
+				public void run() {
+					setPriority(Thread.NORM_PRIORITY);
+					// avoiding "can't call invokeAndWait from the EventDispatch thread" error
+					try {
+						javax.swing.SwingUtilities.invokeLater(ru);
+					} catch (Exception e) {
+						Utils.log2("ERROR: " + e);
+					}
+				}
+			}.start();
+		}
 		return project;
 	}
 

@@ -37,6 +37,8 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.DNDInsertImage;
 import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.Worker;
 import ini.trakem2.tree.*;
 
 import javax.swing.*;
@@ -108,7 +110,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static private Display front = null;
 
 	/** Displays to open when all objects have been reloaded from the database. */
-	static private Hashtable hs_later = null;
+	static private Hashtable ht_later = null;
 
 	static private WindowAdapter window_listener = new WindowAdapter() {
 		/** Unregister the closed Display. */
@@ -352,11 +354,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		addToDatabase();
 	}
 
-	/** For reconstruction purposes. The Display will be stored in the hs_later.*/
+	/** For reconstruction purposes. The Display will be stored in the ht_later.*/
 	public Display(Project project, long id, Layer layer, Object[] props) {
 		super(project, id);
-		if (null == hs_later) hs_later = new Hashtable();
-		Display.hs_later.put(this, props);
+		if (null == ht_later) ht_later = new Hashtable();
+		Display.ht_later.put(this, props);
 		this.layer = layer;
 	}
 
@@ -423,28 +425,44 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// TODO the above is insecure, in that data is not fully checked to be within bounds.
 		}
 		Object[] props = new Object[]{p, new Double(magnification), srcRect, new Long(layer.getId()), new Integer(c_alphas), new Integer(c_alphas_state)};
-		if (null == hs_later) hs_later = new Hashtable();
-		Display.hs_later.put(this, props);
+		if (null == ht_later) ht_later = new Hashtable();
+		Display.ht_later.put(this, props);
 		this.layer = layer;
 	}
 
 	/** After reloading a project from the database, open the Displays that the project had. */
-	static public void openLater() {
-		if (null == hs_later) return;
-		Enumeration e = hs_later.keys();
-		while (e.hasMoreElements()) {
-			Display d = (Display)e.nextElement();
+	static public Bureaucrat openLater() {
+		if (null == ht_later || 0 == ht_later.size()) return null;
+		final Worker worker = new Worker("Opening displays") {
+			public void run() {
+				startedWorking();
+				try {
+					Thread.sleep(300); // waiting for Swing
+
+		for (Enumeration e = ht_later.keys(); e.hasMoreElements(); ) {
+			final Display d = (Display)e.nextElement();
 			front = d; // must be set before repainting any ZDisplayable!
-			Object[] props = (Object[])hs_later.get(d);
+			Object[] props = (Object[])ht_later.get(d);
 			d.makeGUI(d.layer, props);
 			d.setLayerLater(d.layer, d.layer.get(((Long)props[3]).longValue())); //important to do it after makeGUI
 			ImagePlus.addImageListener(d);
 			al_displays.add(d);
 			d.updateTitle();
 		}
-		hs_later.clear();
-		hs_later = null;
+		ht_later.clear();
+		ht_later = null;
 		if (null != front) front.getProject().select(front.layer);
+
+				} catch (Throwable t) {
+					new IJError(t);
+				} finally {
+					finishedWorking();
+				}
+			}
+		};
+		final Bureaucrat burro = new Bureaucrat(worker, ((Display)ht_later.keySet().iterator().next()).getProject()); // gets the project from the first Display
+		burro.goHaveBreakfast();
+		return burro;
 	}
 
 	private void makeGUI(final Layer layer, final Object[] props) {

@@ -224,11 +224,6 @@ public abstract class Displayable extends DBObject {
 		Utils.log2("Deprecated paint method 1 for " + this.getClass());
 	}
 
-	@Deprecated
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer, Transform t) {
-		Utils.log2("Deprecated paint method 2 for " + this.getClass());
-	}
-
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
 	public void setDimensions(double width, double height) {
 		setDimensions(width, height, true);
@@ -969,18 +964,6 @@ public abstract class Displayable extends DBObject {
 			if (!d.layer.equals(la)) return false;
 		}
 		return true;
-	}
-
-	public ini.trakem2.display.Transform getTransform() {
-		Utils.log2("called Deprecated Displayable.getTransform for " + this);
-		Utils.printCaller(this, 3);
-		Rectangle b = getBoundingBox(null);
-		return new ini.trakem2.display.Transform(b.x, b.y, b.width, b.height, 0, alpha, visible, locked, color, layer);
-	}
-
-	/** Set the transform and save in database; does NOT repaint, nor affects any linked objects. */
-	public void setTransform(Transform t) {
-		Utils.log2("called Deprecated Displayable.setTransform for " + this);
 	}
 
 	/** Rotate 2D points relative to the given pivot point by the given rot angle (in radians), in the 2D plane. */

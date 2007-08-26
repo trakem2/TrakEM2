@@ -545,6 +545,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				// paint brush outline for AreaList
 				if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass().equals(AreaList.class)) {
+					// reset stroke, always thickness of 1
+					g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
 					int brushSize = ProjectToolbar.getBrushSize();
 					g.setColor(active.getColor());
 					g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));

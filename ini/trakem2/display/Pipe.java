@@ -126,7 +126,6 @@ public class Pipe extends ZDisplayable {
 					// reduce ", " and " ," to ","
 					txt = txt.replaceAll(" ,", ",");
 					txt = txt.replaceAll(", ", ",");
-					Utils.log("Parsing pipe: " + txt);
 					// cut by spaces
 					String[] points = txt.split(" ");
 					if (3 == points.length) {

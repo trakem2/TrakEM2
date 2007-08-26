@@ -98,7 +98,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	private boolean snapshots_enabled = true;
 
 	/** For creating snapshots. */
-	private boolean snapshots_quality = false;
+	private boolean snapshots_quality = true;
 
 	/** Store Hashtables of displayable/transformation pairs for undo. */
 	private LinkedList undo_queue = new LinkedList();

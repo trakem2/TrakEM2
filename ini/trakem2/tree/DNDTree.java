@@ -359,7 +359,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		//javax.swing.SwingUtilities.invokeLater(updater); // generates random lock ups at start up
 		new Thread() {
 			public void run() {
-				// avoiding "can't call invokeAndWait from the EventDispatch thread
+				// avoiding "can't call invokeAndWait from the EventDispatch thread" error
 				try {
 					javax.swing.SwingUtilities.invokeAndWait(updater);
 				} catch (Exception e) {

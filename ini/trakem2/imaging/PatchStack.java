@@ -138,8 +138,16 @@ public class PatchStack extends ImagePlus {
 		}
 		current.flush();
 		loader.updateCache(p, original); //flush awt, remake awt, flush snap, remake snap
-		Rectangle box = p.getBoundingBox();
-		p.setDimensions(original.getWidth(), original.getHeight(), false); // don't update snapshot or repaint
+		Rectangle box = p.getBoundingBox(null);
+		
+		// ideally, all I want is to remove the scaling and shear components only
+		// but unfortunately the m02, m12 are edited to correct for shear and rotation
+		// and scaling -induced translations. So this is PARTIAL TODO
+		p.getAffineTransform().setToIdentity();
+		p.getAffineTransform().translate(box.x, box.y);
+
+		box = p.getBoundingBox(null);
+
 		// TODO this method needs heavy revision and updating
 		Display.repaint(p.getLayer(), box, 5); // the previous dimensions
 	}
