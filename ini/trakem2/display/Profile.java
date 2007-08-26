@@ -570,11 +570,11 @@ public class Profile extends Displayable {
 
 		//draw lines between any two consecutive interpolated points
 		for (int i=0; i<p_i[0].length-1; i++) {
-			g.drawLine((int)(p_i[0][i]*magnification), (int)(p_i[1][i]*magnification), (int)(p_i[0][i+1]*magnification), (int)(p_i[1][i+1]*magnification));
+			g.drawLine((int)p_i[0][i], (int)p_i[1][i], (int)p_i[0][i+1], (int)p_i[1][i+1]);
 		}
 		//draw last segment between last and first points, only if closed:
 		if (closed) {
-			g.drawLine((int)(p_i[0][p_i[0].length-1]*magnification), (int)(p_i[1][p_i[0].length-1]*magnification), (int)(p_i[0][0]*magnification), (int)(p_i[1][0]*magnification));
+			g.drawLine((int)p_i[0][p_i[0].length-1], (int)p_i[1][p_i[0].length-1], (int)p_i[0][0], (int)p_i[1][0]);
 		}
 
 		//Transparency: fix alpha composite back to original.
@@ -878,6 +878,11 @@ public class Profile extends Displayable {
 	public Polygon getPerimeter() {
 		if (-1 == n_points) setupForDisplay();
 		if (null == p_i) return null; // has been flushed, incorrect access! This is a patch.
+
+		// transform
+		double[][] p_i = this.p_i;
+		if (!this.at.isIdentity()) p_i = transformPoints(this.p_i);
+
 		int n_i = p_i[0].length;
 		int[] intx = new int[n_i];
 		int[] inty = new int[n_i];

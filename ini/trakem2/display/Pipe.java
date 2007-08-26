@@ -885,6 +885,24 @@ public class Pipe extends ZDisplayable {
 	/** The exact perimeter of this profile, in integer precision. */
 	public Polygon getPerimeter() {
 		if (null == p_i || p_i[0].length < 2) return new Polygon();  // meaning: if there aren't any interpolated points
+
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[][] p_r = this.p_r;
+		double[][] p_l = this.p_l;
+		double[][] p_i = this.p_i;
+		double[] p_width = this.p_width;
+		double[] p_width_i = this.p_width_i;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_l = (double[][])ob[1];
+			p_r = (double[][])ob[2];
+			p_i = (double[][])ob[3];
+			p_width = (double[])ob[4];
+			p_width_i = (double[])ob[5];
+		}
+
 		double angle = 0;
 		final double a0 = Math.toRadians(0);
 		final double a90 = Math.toRadians(90);
@@ -924,51 +942,7 @@ public class Pipe extends ZDisplayable {
 		}
 		return new Polygon(pol_x, pol_y, pol_x.length);
 	}
-	/** The perimeter of this profile, in integer precision, translated to origin xo,yo */
-	public Polygon getPerimeter(double xo, double yo) {
-		if (n_points > 1 && p_i[0].length > 0) {  // meaning: if there are any interpolated points
-			double angle = 0;
-			double a0 = Math.toRadians(0);
-			double a90 = Math.toRadians(90);
-			double a180 = Math.toRadians(180);
-			double a270 = Math.toRadians(270);
-			int n = p_i[0].length; // the number of interpolated points
-			double[] r_side_x = new double[n];
-			double[] r_side_y = new double[n];
-			double[] l_side_x = new double[n];
-			double[] l_side_y = new double[n];
-			int m = n-1;
 
-			for (int i=0; i<n-1; i++) {
-				angle = Math.atan2(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i]);
-
-				r_side_x[i] = p_i[0][i] + Math.sin(angle+a90) * p_width_i[i];  //sin and cos are inverted, but works better like this. WHY ?? // because of the dreadful atan2 output
-				r_side_y[i] = p_i[1][i] + Math.cos(angle+a90) * p_width_i[i];
-				l_side_x[i] = p_i[0][i] + Math.sin(angle-a90) * p_width_i[i];
-				l_side_y[i] = p_i[1][i] + Math.cos(angle-a90) * p_width_i[i];
-			}
-
-			// last point
-			angle = Math.atan2(p_i[0][m] - p_i[0][m-1], p_i[1][m] - p_i[1][m-1]);
-
-			r_side_x[m] = p_i[0][m] + Math.sin(angle+a90) * p_width_i[m];
-			r_side_y[m] = p_i[1][m] + Math.cos(angle+a90) * p_width_i[m];
-			l_side_x[m] = p_i[0][m] + Math.sin(angle-a90) * p_width_i[m];
-			l_side_y[m] = p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
-
-			int[] pol_x = new int[n * 2];
-			int[] pol_y = new int[n * 2];
-			for (int j=0; j<n; j++) {
-				pol_x[j] = (int)(xo + r_side_x[j]);
-				pol_y[j] = (int)(yo + r_side_y[j]);
-				pol_x[n + j] = (int)(xo + l_side_x[m -j]);
-				pol_y[n + j] = (int)(yo + l_side_y[m -j]);
-			}
-			return new Polygon(pol_x, pol_y, pol_x.length);
-		} else {
-			return new Polygon();
-		}
-	}
 	/** Writes the data of this object as a Pipe object in the .shapes file represented by the 'data' StringBuffer. */
 	public void toShapesFile(StringBuffer data, String group, String color, double z_scale) {
 		if (-1 == n_points) setupForDisplay(); // reload

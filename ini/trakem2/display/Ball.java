@@ -401,6 +401,16 @@ public class Ball extends ZDisplayable {
 	/** The exact perimeter of this Ball, in integer precision. */
 	public Polygon getPerimeter() {
 		if (-1 == n_points) setupForDisplay();
+
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[] p_width = this.p_width;
+
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_width = (double[])ob[1];
+		}
 		if (-1 != index) {
 			// the box of the selected point
 			return new Polygon(new int[]{(int)(p[0][index] - p_width[index]), (int)(p[0][index] + p_width[index]), (int)(p[0][index] + p_width[index]), (int)(p[0][index] - p_width[index])}, new int[]{(int)(p[1][index] - p_width[index]), (int)(p[1][index] + p_width[index]), (int)(p[1][index] + p_width[index]), (int)(p[1][index] - p_width[index])}, 4);
