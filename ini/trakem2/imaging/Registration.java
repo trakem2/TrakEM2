@@ -192,6 +192,10 @@ public class Registration {
 				Utils.log2("\t--- Not yet implemented");
 			}
 
+			layer2.getParent().setMinimumDimensions();
+			// repaint the second Layer, if it is showing in any Display:
+			// no need // Display.repaint(layer2, null, 0);
+
 		} catch (Exception e) {
 			new IJError(e);
 		}
