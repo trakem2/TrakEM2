@@ -40,7 +40,6 @@ public class FloatArray2DSIFT
 		 */
 		public int compareTo( FloatArray2DSIFT.Feature f )
 		{
-			//Feature f = ( Feature )o;
 			return scale < f.scale ? 1 : scale == f.scale ? 0 : -1;
 		}
 		
@@ -235,7 +234,7 @@ public class FloatArray2DSIFT
 
 		// TODO this is for testing
 		//---------------------------------------------------------------------
-		FloatArray2D image = octave.getL( Math.round( c[ 2 ] ) );
+		//FloatArray2D image = octave.getL( Math.round( c[ 2 ] ) );
 		//pattern = new FloatArray2D( FEATURE_DESCRIPTOR_WIDTH, FEATURE_DESCRIPTOR_WIDTH );
 		
 		//! sample the region arround the keypoint location
@@ -299,32 +298,36 @@ public class FloatArray2DSIFT
 					{
 						float bin_location = ( region[ 1 ].data[ yp + xp + ysrp + xsr ] + ( float )Math.PI ) / ( float )FEATURE_DESCRIPTOR_ORIENTATION_BIN_SIZE;
 
+						/*
 						int bin_b = ( int )( bin_location - 0.5 );
 						int bin_t = ( int )( bin_location + 0.5 );
 						float d_b = bin_location - ( float )bin_b - 0.5f;
 						float d_t = ( float )bin_t - bin_location + 0.5f;
-
+						*/
+						
+						int bin_b = ( int )( bin_location );
+						int bin_t = bin_b + 1;
+						float d = bin_location - ( float )bin_b;
+						
 						bin_b = ( bin_b + 2 * FEATURE_DESCRIPTOR_ORIENTATION_BINS ) % FEATURE_DESCRIPTOR_ORIENTATION_BINS;
 						bin_t = ( bin_t + 2 * FEATURE_DESCRIPTOR_ORIENTATION_BINS ) % FEATURE_DESCRIPTOR_ORIENTATION_BINS;
 
-						float temp = region[ 0 ].data[ yp + xp + ysrp + xsr ];
+						float t = region[ 0 ].data[ yp + xp + ysrp + xsr ];
 						
-						/*
-						System.out.println( "orientation (bin location): " + ( region[ 1 ].data[ yp + xp + ysrp + xsr ] + ( float )Math.PI ));
-						System.out.println( "gradient amplitude at " + ( yp + xp + ysrp + xsr ) + ": " + temp );
-						System.out.println( "bins to fill: " + bin_b + " [" + d_b + "]; " + bin_t + " [" + d_t + "]" );
-						*/
-
-						// System.out.println( "bin_b = " + bin_b + ", bin_t = "
-						// + bin_t );
+						//System.out.println( "orientation (bin location): " + ( region[ 1 ].data[ yp + xp + ysrp + xsr ] + ( float )Math.PI ));
+						//System.out.println( "gradient amplitude at " + ( yp + xp + ysrp + xsr ) + ": " + t );
 						
-						hist[ y ][ x ][ bin_b % FEATURE_DESCRIPTOR_ORIENTATION_BINS ] += region[ 0 ].data[ yp + xp + ysrp + xsr ] * ( 1 - d_b );
+						// System.out.println( "bin_b = " + bin_b + ", bin_t = " + bin_t );
+						
+						hist[ y ][ x ][ bin_b ] += t * ( 1 - d );
+						hist[ y ][ x ][ bin_t ] += t * d;
 					}
 				}
 			}
 		}
 		
 		float[] desc = new float[ FEATURE_DESCRIPTOR_SIZE * FEATURE_DESCRIPTOR_SIZE * FEATURE_DESCRIPTOR_ORIENTATION_BINS ];
+		
 		// normalize, cut above 0.2 and renormalize
 		float max_bin_val = 0;
 		int i = 0;
@@ -439,7 +442,8 @@ public class FloatArray2DSIFT
 		float e1 = histogram_bins[ max_i ];
 		float e2 = histogram_bins[ ( max_i + 1 ) % ORIENTATION_BINS ];
 		float offset = ( e0 - e2 ) / 2.0f / ( e0 - 2.0f * e1 + e2 );
-		float orientation = ( ( float )max_i + 0.5f + offset ) * ORIENTATION_BIN_SIZE - ( float )Math.PI;
+		//float orientation = ( ( float )max_i + 0.5f + offset ) * ORIENTATION_BIN_SIZE - ( float )Math.PI;
+		float orientation = ( ( float )max_i + offset ) * ORIENTATION_BIN_SIZE - ( float )Math.PI;
 
 		// assign descriptor and add the Feature instance to the collection
 		features.addElement(
@@ -521,6 +525,7 @@ public class FloatArray2DSIFT
 			this.processCandidate( c, o, features );
 		}
 		//System.out.println( features.size() + " candidates processed in octave " + o );
+		
 		return features;
 	}
 	
@@ -557,6 +562,7 @@ public class FloatArray2DSIFT
 				features.addAll( more );
 			}
 		}
+		
 		//System.out.println( features.size() + " candidates processed in all octaves" );
 		return features;
 	}
