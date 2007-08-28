@@ -28,14 +28,17 @@ import ini.trakem2.tree.Thing;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.AreaList;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.YesNoDialog;
 
 import amira.*;
+
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.io.OpenDialog;
 import ij.io.FileInfo;
 import ij.gui.ShapeRoi;
 import ij.gui.Roi;
+import ij.measure.Calibration;
 import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ImageProcessor;
 
@@ -60,7 +63,8 @@ public class AmiraImporter {
 		String path = od.getDirectory() + filename;
 		AmiraMeshDecoder dec = new AmiraMeshDecoder();
 		if (!dec.open(path)) {
-			Utils.showMessage("AmiraMeshDecoder failed with path " + path);
+			YesNoDialog yn = new YesNoDialog("Error", "File was not an Amira labels file.\nChoose another one?");
+			if (yn.yesPressed()) return importAmiraLabels(first_layer, xo, yo, default_dir);
 			return null;
 		}
 		ImagePlus imp = null;
@@ -80,7 +84,20 @@ public class AmiraImporter {
 	/** Returns an ArrayList containing all AreaList objects. The xo,yo is the pivot of reference. */
 	static public ArrayList extractAmiraLabels(ImagePlus labels, AmiraParameters ap, Layer first_layer, double xo, double yo) {
 		// adjust first layer thickness to be that of the pixelDepth
-		first_layer.setThickness(labels.getCalibration().pixelDepth);
+		boolean calibrate = true;
+		if (first_layer.getParent().isCalibrated()) {
+			YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the Amira's stack calibration values?");
+			if (!yn.yesPressed()) {
+				calibrate = false;
+			}
+		}
+		if (calibrate) {
+			final Calibration cal = labels.getCalibration();
+			final double depth = cal.pixelDepth / cal.pixelHeight; // assuming pixelWidth and pixelHeight to be the same
+			first_layer.getParent().setCalibration(cal);
+			first_layer.setThickness(depth);
+			// TODO: need to think about a proper, integrated setup for Z and thickness regarding calibration.
+		}
 		String[] materials = ap.getMaterialList();
 		// extract labels as ArrayList of Area
 		ArrayList al_alis = new ArrayList();
@@ -90,6 +107,10 @@ public class AmiraImporter {
 			label.color = ap.getMaterialColor(label.id);
 			label.name = ap.getMaterialName(label.id);
 			Utils.log2("Processing label " + label.id + " " + label.name);
+			if (label.name.equals("Exterior")) {
+				Utils.log("Ignoring Amira's \"Exterior\" label");
+				continue; // ignoring
+			}
 			label.al_areas = extractLabelAreas(label.id, labels.getStack());
 			if (null == label.al_areas || 0 == label.al_areas.size()) continue;
 			AreaList ali = createAreaList(label, first_layer);
@@ -101,7 +122,7 @@ public class AmiraImporter {
 
 	static private AreaList createAreaList(final AmiraLabel label, final Layer first_layer) {
 		final AreaList ali = new AreaList(first_layer.getProject(), label.name, 0, 0);
-		first_layer.getParent().addSilently(ali);
+		first_layer.getParent().add(ali);
 		ali.setColor(new Color((float)label.color[0], (float)label.color[1], (float)label.color[2]));
 		final double thickness = first_layer.getThickness();
 		int i=1;
@@ -117,6 +138,7 @@ public class AmiraImporter {
 			// increase layer count
 			i++;
 		}
+		ali.setTitle(label.name);
 		// make all areas local to ali's x,y
 		ali.calculateBoundingBox();
 

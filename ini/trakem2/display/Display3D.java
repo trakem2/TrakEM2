@@ -620,7 +620,7 @@ public class Display3D {
 				if (ht_pt_meshes.contains(pt)) {
 					// remove content from universe
 					universe.removeContent(title);
-					// no need to remove entry form table, it's overwritten below
+					// no need to remove entry from table, it's overwritten below
 				}
 				// register mesh
 				ht_pt_meshes.put(pt, triangles);

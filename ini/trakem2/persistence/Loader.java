@@ -2461,7 +2461,7 @@ abstract public class Loader {
 				// ask for slice separation in pixels
 				GenericDialog gd = new GenericDialog("Slice separation?");
 				gd.addMessage("Please enter the slice thickness, in pixels");
-				gd.addNumericField("slice thickness: ", imp_stack.getCalibration().pixelDepth /*first_layer.getThickness()*/, 3);
+				gd.addNumericField("slice thickness: ", imp_stack.getCalibration().pixelDepth / imp_stack.getCalibration().pixelHeight, 3); // assuming pixelWidth == pixelHeight
 				if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
 					gd.addCheckbox("Resize canvas to fit stack", true);
 					gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);

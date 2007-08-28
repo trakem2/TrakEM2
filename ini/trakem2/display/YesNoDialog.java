@@ -34,6 +34,10 @@ public class YesNoDialog extends Dialog implements ActionListener, KeyListener {
     private boolean yesPressed;
 	private boolean firstPaint = true;
 
+	public YesNoDialog(String title, String msg) {
+		this(IJ.getInstance(), title, msg);
+	}
+
 	public YesNoDialog(Frame parent, String title, String msg) {
 		super(parent, title, true);
 		setLayout(new BorderLayout());

@@ -335,9 +335,10 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 	public void insertSegmentations(Project project, ArrayList al) {
 		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there
-		if (!project.typeExists("imported_segmentations")) {
+		final String imported_labels = "imported_labels";
+		if (!project.typeExists(imported_labels)) {
 			// create it
-			TemplateThing tet = new TemplateThing("imported_segmentations", project); // yes I know I should check for the project of each Displayable in the ArrayList
+			TemplateThing tet = new TemplateThing(imported_labels, project); // yes I know I should check for the project of each Displayable in the ArrayList
 			project.addUniqueType(tet);
 			DefaultMutableTreeNode root = project.getTemplateTree().getRoot();
 			tt_root.addChild(tet);
@@ -345,13 +346,13 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			DNDTree.expandNode(project.getTemplateTree(), DNDTree.findNode(tet, project.getTemplateTree()));
 			// JTree is serious pain
 		}
-		TemplateThing tt_is = project.getTemplateThing("imported_segmentations"); // it's the same as 'tet' above, unless it existed
+		TemplateThing tt_is = project.getTemplateThing(imported_labels); // it's the same as 'tet' above, unless it existed
 		// create a project node from "imported_segmentations" template under a new top node
 		DefaultMutableTreeNode project_node = project.getProjectTree().getRoot();
 		ProjectThing project_pt = (ProjectThing)project_node.getUserObject();
 		ProjectThing ct = project_pt.createChild(tt_root.getType());
 		DefaultMutableTreeNode ctn = addChild(ct, project_node);
-		ProjectThing pt_is = ct.createChild("imported_segmentations");
+		ProjectThing pt_is = ct.createChild(imported_labels);
 		DefaultMutableTreeNode node_pt_is = addChild(pt_is, ctn);
 		this.scrollPathToVisible(new TreePath(node_pt_is.getPath()));
 
