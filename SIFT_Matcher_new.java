@@ -1,13 +1,10 @@
 //package mpi.fruitfly.registration;
 
-import static mpi.fruitfly.math.General.*;
-
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 import mpi.fruitfly.registration.FloatArray2DScaleOctave;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
-//import mpi.fruitfly.registration.RoiList;
-import mpi.fruitfly.registration.TRModel;
+import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
 
@@ -20,18 +17,13 @@ import ij.*;
 import ij.process.*;
 
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Vector;
 import java.awt.Color;
 import java.awt.Polygon;
 import java.awt.geom.AffineTransform;
-import java.awt.GridBagConstraints;
-import java.awt.Insets;
-import java.awt.Panel;
 import java.awt.TextField;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
-import java.io.*;
 
 
 public class SIFT_Matcher_new implements PlugIn, KeyListener
@@ -362,10 +354,9 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
 			}
 
-			TRModel model = null;
-			float[] tr = new float[ 5 ];
+			TRModel2D model = null;
 			float epsilon = 0.0f;
-			if ( correspondences.size() > TRModel.MIN_SET_SIZE )
+			if ( correspondences.size() > TRModel2D.MIN_SET_SIZE )
 			{
 				ev1[ 0 ] = Math.sqrt( ev1[ 0 ] );
 				ev1[ 1 ] = Math.sqrt( ev1[ 1 ] );
@@ -394,13 +385,12 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 					epsilon += min_epsilon;
 					//System.out.println( "Estimating model for epsilon = " + epsilon );
 					// 1000 iterations lead to a probability of < 0.01% that only bad data values were found
-					model = TRModel.estimateModel(
+					model = TRModel2D.estimateModel(
 							correspondences,			//!< point correspondences
 							1000,						//!< iterations
 							epsilon * scale,			//!< maximal alignment error for a good point pair when fitting the model
-							inlier_ratio,				//!< minimal partition (of 1.0) of inliers
-							tr							//!< model as float array (TrakEM style)
-							);
+							inlier_ratio );				//!< minimal partition (of 1.0) of inliers
+							
 					// compare the standard deviation of inliers and matches
 					if ( model != null )
 					{
@@ -450,7 +440,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 					}
 				}
 				while (
-						( model == null || convergence_count < 5 ||	( Math.max( r1, r2 ) > 2.0 ) ) &&
+						( model == null || convergence_count < 4 ||	( Math.max( r1, r2 ) > 2.0 ) ) &&
 						epsilon < max_epsilon );
 				//while ( model == null || epsilon < max_epsilon );
 				
@@ -477,23 +467,40 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				}
 
 				IJ.log( "Model with epsilon <= " + epsilon + " for " + model.getInliers().size() + " inliers found." );
-				IJ.log( "  Translation: ( " + ( tr[ 0 ] / scale ) + ", " + ( tr[ 1 ] / scale ) + " )" );
-				IJ.log( "  Rotation:	" + tr[ 2 ] + " = " + ( tr[ 2 ] / Math.PI * 180.0f ) + "deg" );
-				IJ.log( "  Pivot:	   ( " + ( tr[ 3 ] / scale ) + ", " + ( tr[ 4 ] / scale ) + " )" );
+				IJ.log( "  Affine transform: " + model.affine.toString() );
+				//IJ.log( "  Translation: ( " + ( tr[ 0 ] / scale ) + ", " + ( tr[ 1 ] / scale ) + " )" );
+				//IJ.log( "  Rotation:	" + tr[ 2 ] + " = " + ( tr[ 2 ] / Math.PI * 180.0f ) + "deg" );
+				//IJ.log( "  Pivot:	   ( " + ( tr[ 3 ] / scale ) + ", " + ( tr[ 4 ] / scale ) + " )" );
 
 				/**
 				 * append the estimated transformation model
-				 * @todo the current rotation assumes the origin (0,0) of the
-				 * image in the image's center.  This is because we use
-				 * imagescience.jar for transformation and they do so...
+				 * 
+				 * TODO the current rotation assumes the origin (0,0) of the
+				 * image in the image's "center"
+				 * ( width / 2 - 1.0, height / 2 - 1.0 ).  This is, because we
+				 * use imagescience.jar for transformation and they do so...
 				 * Think about using an other transformation class, focusing on
 				 * better interpolation schemes ( Lanczos would be great ).
 				 */
-				at.rotate(
-						tr[ 2 ],
-						( tr[ 3 ] - imp.getWidth() / 2.0f ) / scale + 0.5f,
-						( tr[ 4 ] - imp.getHeight() / 2.0f ) / scale + 0.5f );
-				at.translate( tr[ 0 ] / scale, tr[ 1 ] / scale  );
+				AffineTransform at_current = new AffineTransform( model.affine );
+				double[] m = new double[ 6 ];
+				at_current.getMatrix( m );
+				m[ 4 ] /= scale;
+				m[ 5 ] /= scale;
+				at_current.setTransform( m[ 0 ], m[ 1 ], m[ 2 ], m[ 3 ], m[ 4 ], m[ 5 ] );
+				
+				double hw = ( double )imp.getWidth() / 2.0 - 1.0;
+				double hh = ( double )imp.getHeight() / 2.0 - 1.0;
+				
+				at.translate(
+						-hw,
+						-hh );
+				at.concatenate( at_current );
+				at.translate(
+						hw,
+						hh );
+				
+				
 			}
 			else
 			{

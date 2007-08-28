@@ -1,12 +1,17 @@
 package mpi.fruitfly.registration;
 
 import java.util.Vector;
-import java.util.Iterator;
 
 abstract public class Model {
+	
+	static final public int MIN_SET_SIZE = 0;
 
 	public float error;		//!< maximal error of this model
-	final private Vector < Match > inliers = new Vector < Match > ();
+	final protected Vector< Match > inliers = new Vector< Match >();
+	final public Vector< Match > getInliers()
+	{
+		return inliers;
+	}
 
 	/**
 	 * instantiates an empty model with maximally large error
@@ -16,10 +21,10 @@ abstract public class Model {
 		error = Float.MAX_VALUE;
 	}
 
-	static final public int MIN_SET_SIZE = 0;
-
 	/**
 	 * fit the model to a minimal set of FeatureMatches
+	 * 
+	 * estimates a model to transform the second set to the first
 	 */
 	abstract boolean fit( Vector< Match > matches );
 
@@ -29,45 +34,53 @@ abstract public class Model {
 	abstract float[] apply( float[] point );
 
 	/**
-	 * test the model for a set of Matches
+	 * test the model for a set of point correspondences
+	 * 
+	 * @param matches set of point correspondences
+	 * @param epsilon maximal allowed transfer error
+	 * @param min_inliers minimal ratio of inliers of 1.0
+	 * @param inliers set of point correspondences fitting the model with a transfer error smaller than epsilon  
 	 */
-	public float test( Vector< Match > matches, float epsilon, float min_inliers, Vector< Match > inliers )
+	public boolean test(
+			Vector< Match > matches,
+			float epsilon,
+			float min_inlier_ratio )
 	{
-		int mi = ( int )( min_inliers * matches.size() );
+		inliers.clear();
+		
+		//System.out.println();
 
-		int ni = 0;
-		for ( Iterator< Match > i = matches.iterator(); i.hasNext(); )
+		for ( Match m : matches )
 		{
-			Match m = i.next();
+			float[] p2t = apply( m.p2 );
 
-			float[] p1t = apply( m.p1 );
-
+			// estimate Euclidean distance
 			float te = 0;
-			for ( int j = 0; j < m.p2.length; ++ j )
+			for ( int j = 0; j < m.p1.length; ++ j )
 			{
-				float d = p1t[ j ] - m.p2[ j ];
+				float d = p2t[ j ] - m.p1[ j ];
 				te += d * d;
 			}
-
-			//System.out.println( "te: " + te );
 			te = ( float )Math.sqrt( te );
-			if ( te < epsilon )
-			{
-				inliers.addElement( m );
-				++ni;
-			}
-			if ( ni > mi )
-			{
-				//error = e / static_cast< float >( ni );
-				error = 1.0f - ( ( float )( ni ) / ( float )( matches.size() ) );
-				if (error > 1.0f)
-					error = 1.0f;
-				if (error < 0f)
-					error = 0.0f;
-			}
+			
+			//System.out.println( te );
+			
+			if ( te < epsilon ) inliers.addElement( m );
 		}
-
-		return error;
+		
+		//System.out.println( inliers.size() + " inliers" );
+		
+		float ir = ( float )( inliers.size() ) / ( float )( matches.size() );
+		error = 1.0f - ir;
+		if (error > 1.0f)
+			error = 1.0f;
+		if (error < 0f)
+			error = 0.0f;
+		
+		//System.out.println( ir + " " + ( ir > min_inlier_ratio ) );
+		
+		
+		return ( ir > min_inlier_ratio );
 	}
 
 	/**
@@ -77,10 +90,6 @@ abstract public class Model {
 	{
 		if ( error < 0 ) return false;
 		return error < m.error;
-	}
-
-	public Vector < Match > getInliers() {
-		return this.inliers;
 	}
 
 	/**

@@ -8,7 +8,7 @@ import mpi.fruitfly.registration.FloatArray2DSIFT;
 //import mpi.fruitfly.registration.RoiList;
 import mpi.fruitfly.registration.FloatArray2DScaleOctave;
 import mpi.fruitfly.registration.FloatArray2DScaleOctaveDoGDetector;
-import mpi.fruitfly.registration.TRModel;
+import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
 

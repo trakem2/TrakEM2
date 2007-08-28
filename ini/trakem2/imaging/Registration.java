@@ -26,7 +26,7 @@ import static mpi.fruitfly.math.General.*;
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
-import mpi.fruitfly.registration.TRModel;
+import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
 
@@ -248,10 +248,9 @@ public class Registration {
 		// above: the mighty C++ programmer! What a piece of risky code!
 		// TODO replace this as well as the iteration with increasing epsilon by a reliable robust maximal inlier set estimation to be found
 
-		TRModel model = null;
-		final float[] tr = new float[5];
+		TRModel2D model = null;
 		float epsilon = 0.0f;
-		if (correspondences.size() > TRModel.MIN_SET_SIZE) {
+		if (correspondences.size() > TRModel2D.MIN_SET_SIZE) {
 			ev1[0] = Math.sqrt(ev1[0]);
 			ev1[1] = Math.sqrt(ev1[1]);
 			ev2[0] = Math.sqrt(ev2[0]);
@@ -266,13 +265,11 @@ public class Registration {
 				epsilon += sp.min_epsilon;
 				//System.out.println("Estimating model for epsilon = " + epsilon);
 				// 1000 iterations lead to a probability of < 0.01% that only bad data values were found
-				model = TRModel.estimateModel(
+				model = TRModel2D.estimateModel(
 						correspondences,      //!< point correspondences
 						1000,                 //!< iterations
 						epsilon * sp.scale,   //!< maximal alignment error for a good point pair when fitting the model
-						sp.inlier_ratio,      //!< minimal inlier ratio required for a model to be accepted
-						tr                    //!< model as float array (TrakEM style)
-						);
+						sp.inlier_ratio );    //!< minimal inlier ratio required for a model to be accepted
 
 				// compare the standard deviation of inliers and matches
 				if (model != null) {
@@ -333,14 +330,14 @@ public class Registration {
 			 * translate the pivot point of the rotation and translate the translation
 			 * vector itself.
 			 */
-			// assumes rotation origin at the center of the image.
-			//at.rotate( tr[2],
-			//(tr[3] - ip2.getWidth() / 2.0f) / scale + 0.5f,
-			//(tr[4] - ip2.getHeight() / 2.0f) / scale + 0.5f);
-
 			// rotation origin at the top left corner of the image (0.0f, 0.0f) of the image.
-			at.rotate( tr[2], tr[3] / sp.scale, tr[4] / sp.scale );
-			at.translate(tr[0] / sp.scale, tr[1] / sp.scale);
+			AffineTransform at_current = new AffineTransform( model.affine );
+			double[] m = new double[ 6 ];
+			at_current.getMatrix( m );
+			m[ 4 ] /= sp.scale;
+			m[ 5 ] /= sp.scale;
+			at_current.setTransform( m[ 0 ], m[ 1 ], m[ 2 ], m[ 3 ], m[ 4 ], m[ 5 ] );
+			at.concatenate( at_current );
 		} else {
 			Utils.log("No sufficient model found, keeping original transformation for " + ip2);
 			return null;
