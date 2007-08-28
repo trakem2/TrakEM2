@@ -48,7 +48,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 
 
-/** Parses an amira labelfield and imports the labels as AreaList instances in the project tree.*/
+/** Parses an amira labelfield and imports the labels as AreaList instances into the project tree.*/
 public class AmiraImporter {
 
 	/** Returns the array of AreaList or null if the file dialog is canceled. The xo,yo is the pivot of reference. */
@@ -82,7 +82,7 @@ public class AmiraImporter {
 		// adjust first layer thickness to be that of the pixelDepth
 		first_layer.setThickness(labels.getCalibration().pixelDepth);
 		String[] materials = ap.getMaterialList();
-		// extract labels as ArraList of Area
+		// extract labels as ArrayList of Area
 		ArrayList al_alis = new ArrayList();
 		for (int i=0; i<materials.length; i++) {
 			AmiraLabel label = new AmiraLabel();
@@ -111,9 +111,10 @@ public class AmiraImporter {
 			Layer layer = first_layer;
 			if (i > 1) layer = first_layer.getParent().getLayer(z, thickness, true); // will create new layer if not found
 			// after creating the layer, avoid adding the area if empty
-			if (area.isEmpty()) continue;
-			ali.setArea(layer.getId(), area);
-			//
+			if (!area.isEmpty()) {
+				ali.setArea(layer.getId(), area);
+			}
+			// increase layer count
 			i++;
 		}
 		// make all areas local to ali's x,y
