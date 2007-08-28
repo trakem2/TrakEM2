@@ -527,6 +527,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	protected DefaultMutableTreeNode addChild(Thing child, DefaultMutableTreeNode parent_node) {
 		DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(child);
 		((DefaultTreeModel)getModel()).insertNodeInto(node_child, parent_node, parent_node.getChildCount());
+		updateUI();
 		return node_child;
 	}
 }

@@ -342,6 +342,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			DefaultMutableTreeNode root = project.getTemplateTree().getRoot();
 			tt_root.addChild(tet);
 			addChild(tet, root);
+			DNDTree.expandNode(project.getTemplateTree(), DNDTree.findNode(tet, project.getTemplateTree()));
 			// JTree is serious pain
 		}
 		TemplateThing tt_is = project.getTemplateThing("imported_segmentations"); // it's the same as 'tet' above, unless it existed
@@ -368,15 +369,17 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				// ignore
 				continue;
 			}
-			Utils.log2("tt is " + tt);
+			//Utils.log2("tt is " + tt);
 			try {
 				ProjectThing one = new ProjectThing(tt, project, ob);
+				pt_is.addChild(one);
 				addChild(one, node_pt_is);
-				Utils.log2("one parent : " + one.getParent());
+				//Utils.log2("one parent : " + one.getParent());
 			} catch (Exception e) {
 				new IJError(e);
 			}
 		}
+		DNDTree.expandNode(this, DNDTree.findNode(pt_is, this));
 	}
 
 	private final TemplateThing getOrCreateChildTemplateThing(TemplateThing parent, String type) {
