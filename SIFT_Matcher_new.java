@@ -25,6 +25,8 @@ import java.awt.TextField;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 
+import java.io.*;
+
 
 public class SIFT_Matcher_new implements PlugIn, KeyListener
 {
@@ -366,17 +368,16 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				double r1 = Double.MAX_VALUE;
 				double r2 = Double.MAX_VALUE;
 				
-				/*
-				PrintStream f = System.out;
-				try
-				{
-					f = new PrintStream( new FileOutputStream( "inliers.dat", false ) );
-				}
-				catch ( FileNotFoundException e )
-				{
-					System.err.println( "File inliers.dat not found for writing." );
-				}
-				*/
+				// TODO empirical evaluation of the convergance of inliers and epsilon
+//				PrintStream f = System.out;
+//				try
+//				{
+//					f = new PrintStream( new FileOutputStream( "inliers.dat", false ) );
+//				}
+//				catch ( FileNotFoundException e )
+//				{
+//					System.err.println( "File inliers.dat not found for writing." );
+//				}
 				
 				int highest_num_inliers = 0;
 				int convergence_count = 0;
@@ -390,6 +391,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 							1000,						//!< iterations
 							epsilon * scale,			//!< maximal alignment error for a good point pair when fitting the model
 							inlier_ratio );				//!< minimal partition (of 1.0) of inliers
+							//0 );
 							
 					// compare the standard deviation of inliers and matches
 					if ( model != null )
@@ -442,9 +444,8 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				while (
 						( model == null || convergence_count < 4 ||	( Math.max( r1, r2 ) > 2.0 ) ) &&
 						epsilon < max_epsilon );
-				//while ( model == null || epsilon < max_epsilon );
-				
-				//f.close();
+//				while ( model == null || epsilon < max_epsilon );				
+//				f.close();
 			}
 
 			if ( model != null )
