@@ -368,15 +368,15 @@ public class Registration {
 		// 
 		final Worker worker = new Worker("Registering stack slices") {
 			public void run() {
-				startedWorking();
-				// setup parameters
-				final Registration.SIFTParameters sp = new Registration.SIFTParameters();
-				if (!sp.setup()) {
-					finishedWorking();
-					return;
-				}
-
 				try {
+					startedWorking();
+					// setup parameters
+					final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+					if (!sp.setup()) {
+						finishedWorking();
+						return;
+					}
+
 					correlateSlices(base_slice, new HashSet(), this, sp/*, null*/); // using non-recursive version
 					// ensure there are no negative numbers in the x,y
 					base_slice.getLayer().getParent().setMinimumDimensions();

@@ -610,7 +610,7 @@ public class Layer extends DBObject {
 		return box;
 	}
 
-	/** Preconcatenate the given AffineTransform to all Displayable objects of class c. */
+	/** Preconcatenate the given AffineTransform to all Displayable objects of class c, without respecting their links. */
 	public void apply(final Class c, final AffineTransform at) {
 		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 			final Displayable d = (Displayable)it.next();

@@ -84,6 +84,7 @@ public class AmiraImporter {
 	/** Returns an ArrayList containing all AreaList objects. The xo,yo is the pivot of reference. */
 	static public ArrayList extractAmiraLabels(ImagePlus labels, AmiraParameters ap, Layer first_layer, double xo, double yo) {
 		// adjust first layer thickness to be that of the pixelDepth
+		/* // done at Loader.importStack
 		boolean calibrate = true;
 		if (first_layer.getParent().isCalibrated()) {
 			YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the Amira's stack calibration values?");
@@ -98,6 +99,7 @@ public class AmiraImporter {
 			first_layer.setThickness(depth);
 			// TODO: need to think about a proper, integrated setup for Z and thickness regarding calibration.
 		}
+		*/
 		String[] materials = ap.getMaterialList();
 		// extract labels as ArrayList of Area
 		ArrayList al_alis = new ArrayList();

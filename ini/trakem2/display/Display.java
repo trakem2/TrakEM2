@@ -1817,9 +1817,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					}
 					item = new JMenuItem("Snap"); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
-					if (0 == active.getLinked(Patch.class).size()) item.setEnabled(false);
-					item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
 					HashSet hs = active.getLinked(Patch.class);
+					if (null == hs || 0 == hs.size()) item.setEnabled(false);
+					item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
 					if (null == hs || 0 == hs.size()) item.setEnabled(false); // if no Patch instances among the directly linked, then it's not a stack
 					popup.addSeparator();
 				} else {

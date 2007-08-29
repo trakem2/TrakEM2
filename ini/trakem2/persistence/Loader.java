@@ -2501,10 +2501,15 @@ abstract public class Loader {
 			// WARNING: there are fundamental issues with calibration, because the Layer thickness is disconnected from the Calibration pixelDepth
 
 			// set LayerSet calibration if there is no calibration
-			if (!first_layer.getParent().isCalibrated()) {
-				Calibration cal = imp_stack.getCalibration();
-				cal.pixelDepth = thickness;
-				first_layer.getParent().setCalibration(cal);
+			boolean calibrate = true;
+			if (first_layer.getParent().isCalibrated()) {
+				YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the stack calibration values?");
+				if (!yn.yesPressed()) {
+					calibrate = false;
+				}
+			}
+			if (calibrate) {
+				first_layer.getParent().setCalibration(imp_stack.getCalibration());
 			}
 
 			if (layer_width < imp_stack.getWidth() || layer_height < imp_stack.getHeight()) {

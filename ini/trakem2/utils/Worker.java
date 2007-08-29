@@ -27,7 +27,10 @@ public abstract class Worker extends Thread {
 	private boolean working = false;
 	protected boolean quit = false;
 	public Worker(String task_name) {
-		super("Worker");
+		this(task_name, false);
+	}
+	public Worker(String task_name, boolean headless_mode) {
+		super((headless_mode ? "Run$_": "") +  "Worker"); // the Run$_ tag is for ImageJ to properly grant it Macro.getOptions()
 		this.task_name = task_name;
 		setPriority(Thread.NORM_PRIORITY);
 	}
