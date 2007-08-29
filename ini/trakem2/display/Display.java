@@ -736,6 +736,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	public void setLayer(Layer layer) {
 		if (null == layer || layer.equals(this.layer)) return;
+		if (selection.isTransforming()) {
+			Utils.log("Can't browse layers while transforming.\nCANCEL the transform first with the ESCAPE key or right-click -> cancel.");
+			scroller.setValue(this.layer.getParent().getLayerIndex(this.layer.getId()));
+			return;
+		}
 		this.layer = layer;
 		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 		// debug:
