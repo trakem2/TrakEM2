@@ -370,17 +370,16 @@ public class Registration {
 	static public Bureaucrat registerStackSlices(final Patch base_slice) {
 		// find linked images in different layers and register them
 		// 
+		// setup parameters. Put outside the Worker so the dialog is controlable from a Macro.setOptions(...) if the Thread's name that calls this method starts with the string "Run$_"
+		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+		if (!sp.setup()) {
+			return null;
+		}
+
 		final Worker worker = new Worker("Registering stack slices") {
 			public void run() {
 				try {
 					startedWorking();
-					// setup parameters
-					final Registration.SIFTParameters sp = new Registration.SIFTParameters();
-					if (!sp.setup()) {
-						finishedWorking();
-						return;
-					}
-
 					correlateSlices(base_slice, new HashSet(), this, sp/*, null*/); // using non-recursive version
 					// ensure there are no negative numbers in the x,y
 					base_slice.getLayer().getParent().setMinimumDimensions();
