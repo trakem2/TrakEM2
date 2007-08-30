@@ -177,8 +177,6 @@ public class Registration {
 
 			// ready to start
 			final Object[] result = Registration.registerSIFT(imp1.getProcessor().convertToFloat(), imp2.getProcessor().convertToFloat(), fs1, sp);
-			final AffineTransform at_translate = new AffineTransform();
-			at_translate.translate(-(box2.x - box1.x), -(box2.y - box1.y)); // so that 0,0 of each image is the same, which is what SIFT expects
 
 			if (null != result) {
 				// use the returned AffineTransform to adjust all Patch objects in layer2
@@ -187,11 +185,17 @@ public class Registration {
 				// the returned transform simply needs to be preconcatenated to the tile's:
 				AffineTransform at = (AffineTransform)result[2];
 				// correct for the difference in position of flat image boxes
-				at.preConcatenate(at_translate);
+
+				final AffineTransform atap = new AffineTransform();
+				// so that 0,0 of each image is the same, which is what SIFT expects
+				atap.translate(box1.x, box1.y);
+				atap.concatenate(at);
+				atap.translate(-box2.x, -box2.y);
+
 				// apply accumulated transform
 				if (null != at_accum) at.preConcatenate(at_accum);
 				// preconcatenate the transform to every Patch in the Layer
-				layer2.apply(Patch.class, at);
+				layer2.apply(Patch.class, atap);
 			} else {
 				// fall back to phase-correlation
 				Utils.log2("Registration.registerSIFT for Layers: falling back to phase-correlation");
