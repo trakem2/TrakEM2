@@ -8,8 +8,8 @@ import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
 
-import imagescience.transforms.*;
-import imagescience.images.Image;
+import imagescience.transform.*;
+import imagescience.image.Image;
 
 import ij.plugin.*;
 import ij.gui.*;
@@ -72,10 +72,19 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 	
 	private static boolean adjust = false;
 	private static boolean antialias = true;
+	
+	/**
+	 * show the employed feature correspondences in a small info stack
+	 */
+	private static boolean show_info = true;
 
 	/**
-	 * draw an arbitrarily rotated ellipse
-	 * @param double c[] contains the eigenvector for x
+	 * draw an arbitrarily rotated and scaled ellipse
+	 * 
+	 * @param evec eigenvectors of unit length ( ev1_x, ev1_y, ev2_x, ev2_y ) define the ellipse's rotation
+	 * @param e eigenvalues ( e1, e2 ) define the ellipses size
+	 * @param o center of the ellipse ( o_x, o_y )
+	 * @param scale scales both, e and o
 	 */
 	static void drawEllipse( ImageProcessor ip, double[] evec, double[] o, double[] e, double scale )
 	{
@@ -139,6 +148,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		gd.addNumericField( "background_color :", bg, 2 );
 		gd.addChoice( "interpolation_scheme :", schemes, schemes[ scheme ] );
 		gd.addCheckbox( "upscale_image_first", upscale );
+		gd.addCheckbox( "display_correspondences", show_info );
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		
@@ -156,10 +166,8 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		upscale = gd.getNextBoolean();
 		if ( upscale ) scale = 2.0f;
 		else scale = 1.0f;
+		show_info = gd.getNextBoolean();
 		
-		//adjust = gd.getNextBoolean();
-		//antialias = gd.getNextBoolean();
-
 		Affine a = new Affine();
 		
 		int ischeme = Affine.NEAREST;
@@ -189,14 +197,17 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		ImageStack stackAligned = new ImageStack( stack.getWidth(), stack.getHeight() );
 		
 		float vis_scale = 256.0f / imp.getWidth();
+		ImageStack stackInfo = null;
+		ImagePlus impInfo = null;
 		
-		ImageStack stackInfo = new ImageStack(
-				Math.round( vis_scale * stack.getWidth() ),
-				Math.round( vis_scale * stack.getHeight() ) );
+		if ( show_info )
+			stackInfo = new ImageStack(
+					Math.round( vis_scale * stack.getWidth() ),
+					Math.round( vis_scale * stack.getHeight() ) );
+		
 		stackAligned.addSlice( null, stack.getProcessor( 1 ) );
 		ImagePlus impAligned = new ImagePlus( "Aligned 1 of " + stack.getSize(), stackAligned );
 		impAligned.show();
-		ImagePlus impInfo = null;
 		
 		ImageProcessor ip1;
 		ImageProcessor ip2;
@@ -338,13 +349,6 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			ip3.setLineWidth( 1 );
 			ip1.setColor( Color.red );
 			ip3.setColor( Color.red );
-//			System.out.println( "Mean P1" );
-//			System.out.println( "  x0 = " + o1[ 0 ] );
-//			System.out.println( "  y0 = " + o1[ 1 ] );
-//			System.out.println( "Covariance P1" );
-//			System.out.println( "  xx = " + cov1[ 0 ] );
-//			System.out.println( "  xy = " + cov1[ 1 ] );
-//			System.out.println( "  yy = " + cov1[ 2 ] );
 			drawEllipse( ip1, evec1, o1, ev1, vis_scale / scale );
 			drawEllipse( ip3, evec2, o2, ev2, vis_scale / scale );
 
@@ -391,7 +395,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 							1000,						//!< iterations
 							epsilon * scale,			//!< maximal alignment error for a good point pair when fitting the model
 							inlier_ratio );				//!< minimal partition (of 1.0) of inliers
-							//0 );
+//							0 );
 							
 					// compare the standard deviation of inliers and matches
 					if ( model != null )
@@ -438,7 +442,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 						r2 = Double.isNaN( r2 ) ? Double.MAX_VALUE : r2;
 
 						//System.out.println( "deviation ratio: " + r1 + ", " + r2 + ", max = " + Math.max( r1, r2 ) );
-						//f.println( epsilon + " " + ( float )model.getInliers().size() / ( float )correspondences.size() );
+//						f.println( epsilon + " " + ( float )model.getInliers().size() / ( float )correspondences.size() );
 					}
 				}
 				while (
@@ -469,9 +473,6 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 
 				IJ.log( "Model with epsilon <= " + epsilon + " for " + model.getInliers().size() + " inliers found." );
 				IJ.log( "  Affine transform: " + model.affine.toString() );
-				//IJ.log( "  Translation: ( " + ( tr[ 0 ] / scale ) + ", " + ( tr[ 1 ] / scale ) + " )" );
-				//IJ.log( "  Rotation:	" + tr[ 2 ] + " = " + ( tr[ 2 ] / Math.PI * 180.0f ) + "deg" );
-				//IJ.log( "  Pivot:	   ( " + ( tr[ 3 ] / scale ) + ", " + ( tr[ 4 ] / scale ) + " )" );
 
 				/**
 				 * append the estimated transformation model
@@ -524,24 +525,25 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 					  antialias );
 			ImagePlus impAlignedSlice = imgAligned.imageplus();
 			stackAligned.addSlice( null, impAlignedSlice.getProcessor() );
-			IJ.log("stackInfo.dimensions: " + stackInfo.getWidth() + ", " + stackInfo.getHeight());
-			IJ.log("ip dimensions: " + ip1.getWidth() + ", " + ip1.getHeight());
-			ImageProcessor tmp;
-			tmp = ip1.createProcessor(stackInfo.getWidth(), stackInfo.getHeight());
-			tmp.insert(ip1, 0, 0);
-			stackInfo.addSlice( null, tmp); // fixing silly 1 pixel size missmatches
-			tmp = ip3.createProcessor(stackInfo.getWidth(), stackInfo.getHeight());
-			tmp.insert(ip3, 0, 0);
-			stackInfo.addSlice( null, tmp);
+			if ( show_info )
+			{
+				ImageProcessor tmp;
+				tmp = ip1.createProcessor( stackInfo.getWidth(), stackInfo.getHeight() );
+				tmp.insert( ip1, 0, 0 );
+				stackInfo.addSlice( null, tmp ); // fixing silly 1 pixel size missmatches
+				tmp = ip3.createProcessor( stackInfo.getWidth(), stackInfo.getHeight() );
+				tmp.insert( ip3, 0, 0 );
+				stackInfo.addSlice( null, tmp );
+				if ( i == 1 )
+				{
+					impInfo = new ImagePlus( "Alignment info", stackInfo );
+					impInfo.show();
+				}
+				impInfo.setStack( "Alignment info", stackInfo );
+				impInfo.updateAndDraw();
+			}
 			impAligned.setStack( "Aligned " + stackAligned.getSize() + " of " + stack.getSize(), stackAligned );
 			impAligned.updateAndDraw();
-			if ( i == 1 )
-			{
-				impInfo = new ImagePlus( "Alignment info", stackInfo );
-				impInfo.show();
-			}
-			impInfo.setStack( "Alignment info", stackInfo );
-			impInfo.updateAndDraw();
 		}
 	}
 
@@ -549,7 +551,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 	{
 		if (
 				( e.getKeyCode() == KeyEvent.VK_F1 ) &&
-				( e.getSource() instanceof TextField) )
+				( e.getSource() instanceof TextField ) )
 		{
 		}
 	}

@@ -4,8 +4,8 @@ import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 import mpi.fruitfly.registration.*;
 
-import imagescience.transforms.*;
-import imagescience.images.Image;
+import imagescience.transform.*;
+import imagescience.image.Image;
 
 import ij.plugin.*;
 import ij.gui.*;
