@@ -211,7 +211,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		
 		ImageProcessor ip1;
 		ImageProcessor ip2;
-		ImageProcessor ip3;
+		ImageProcessor ip3 = null;
 		
 		Vector< FloatArray2DSIFT.Feature > fs1;
 		Vector< FloatArray2DSIFT.Feature > fs2;
@@ -276,7 +276,8 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		*/
 		
 		// downscale ip2 to width=256px for visualisation purposes
-		ip2 = downScale( ( FloatProcessor )ip2, vis_scale );
+		if ( show_info )
+			ip2 = downScale( ( FloatProcessor )ip2, vis_scale );
 		
 		for ( int i = 1; i < stack.getSize(); ++i )
 		{
@@ -340,24 +341,26 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			 * draw standard-deviation ellipse of all identified correspondences and
 			 * all the correspondences
 			 */
-			
-			ip2 = downScale( ( FloatProcessor )ip2, vis_scale );
-			
-			ip1 = ip1.convertToRGB();
-			ip3 = ip2.convertToRGB();
-			ip1.setLineWidth( 1 );
-			ip3.setLineWidth( 1 );
-			ip1.setColor( Color.red );
-			ip3.setColor( Color.red );
-			drawEllipse( ip1, evec1, o1, ev1, vis_scale / scale );
-			drawEllipse( ip3, evec2, o2, ev2, vis_scale / scale );
-
-			ip1.setLineWidth( 2 );
-			ip3.setLineWidth( 2 );
-			for ( Match m : correspondences )
+			if ( show_info )
 			{
-				ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
-				ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
+				ip2 = downScale( ( FloatProcessor )ip2, vis_scale );
+			
+				ip1 = ip1.convertToRGB();
+				ip3 = ip2.convertToRGB();
+				ip1.setLineWidth( 1 );
+				ip3.setLineWidth( 1 );
+				ip1.setColor( Color.red );
+				ip3.setColor( Color.red );
+				drawEllipse( ip1, evec1, o1, ev1, vis_scale / scale );
+				drawEllipse( ip3, evec2, o2, ev2, vis_scale / scale );
+
+				ip1.setLineWidth( 2 );
+				ip3.setLineWidth( 2 );
+				for ( Match m : correspondences )
+				{
+					ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
+					ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
+				}
 			}
 
 			TRModel2D model = null;
@@ -457,18 +460,21 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				
 				Match.covariance( model.getInliers(), cov1, cov2, o1, o2, ev1, ev2, evec1, evec2 );
 
-				ip1.setLineWidth( 1 );
-				ip3.setLineWidth( 1 );
-				ip1.setColor( Color.green );
-				ip3.setColor( Color.green );
-				drawEllipse( ip1, evec1, o1, ev1, vis_scale / scale );
-				drawEllipse( ip3, evec2, o2, ev2, vis_scale / scale );
-				ip1.setLineWidth( 2 );
-				ip3.setLineWidth( 2 );
-				for ( Match m : model.getInliers() )
+				if ( show_info )
 				{
-					ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
-					ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
+					ip1.setLineWidth( 1 );
+					ip3.setLineWidth( 1 );
+					ip1.setColor( Color.green );
+					ip3.setColor( Color.green );
+					drawEllipse( ip1, evec1, o1, ev1, vis_scale / scale );
+					drawEllipse( ip3, evec2, o2, ev2, vis_scale / scale );
+					ip1.setLineWidth( 2 );
+					ip3.setLineWidth( 2 );
+					for ( Match m : model.getInliers() )
+					{
+						ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
+						ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
+					}
 				}
 
 				IJ.log( "Model with epsilon <= " + epsilon + " for " + model.getInliers().size() + " inliers found." );
