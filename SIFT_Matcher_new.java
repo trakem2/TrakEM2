@@ -76,7 +76,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 	/**
 	 * show the employed feature correspondences in a small info stack
 	 */
-	private static boolean show_info = true;
+	private static boolean show_info = false;
 
 	/**
 	 * draw an arbitrarily rotated and scaled ellipse
