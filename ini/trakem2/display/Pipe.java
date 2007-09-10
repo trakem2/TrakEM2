@@ -1488,21 +1488,6 @@ public class Pipe extends ZDisplayable {
 		;
 	}
 
-	/** Transform points falling within the given layer; translate by dx,dy and rotate by rot relative to origin xo,yo*/
-	public void transformPoints(Layer layer, double dx, double dy, double rot, double xo, double yo) {
-		if (-1 == n_points) setupForDisplay(); //reload
-		for (int i=0; i<n_points; i++) {
-			if (p_layer[i] == layer.getId()) {
-				Displayable.transformPoint(p, i, dx, dy, rot, xo, yo);
-				Displayable.transformPoint(p_l, i, dx, dy, rot, xo, yo);
-				Displayable.transformPoint(p_r, i, dx, dy, rot, xo, yo);
-			}
-		}
-		generateInterpolatedPoints(0.05);
-		calculateBoundingBox(true);
-		updateInDatabase("points");
-	}
-
 	public double[][][] generateMesh(double scale) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return null;

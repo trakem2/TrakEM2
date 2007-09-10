@@ -103,7 +103,6 @@ public class AreaList extends ZDisplayable {
 	/** Reconstruct from the database. */
 	public AreaList(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, ArrayList al_ul, AffineTransform at) { // al_ul contains Long() wrapping layer ids
 		super(project, id, title, locked, at, width, height);
-		this.visible = visible;
 		this.alpha = alpha;
 		this.visible = visible;
 		this.color = color;
@@ -112,7 +111,7 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		Object ob = ht_areas.get(new Long(active_layer.getId()));
 		if (null == ob) return;
 		if (AreaList.UNLOADED.equals(ob)) {
