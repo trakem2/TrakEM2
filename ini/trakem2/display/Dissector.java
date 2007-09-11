@@ -33,11 +33,13 @@ import ini.trakem2.persistence.DBObject;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Hashtable;
+import java.util.HashSet;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
+import java.awt.event.MouseEvent;
 
 
 /** Implements the Double Dissector method with scale-invariant grouped labels.
@@ -64,13 +66,34 @@ public class Dissector extends ZDisplayable {
 		/** Current number of points */
 		int n_points = 0;
 		/** The numeric tag of this Item. */
-		int index;
+		int tag;
 
-		Item(int index, double x, double y, Layer layer) {
-			this.index = index;
+		private Item(int tag) {
+			this.tag = tag;
 			p = new double[2][2];
 			p_layer = new long[2];
+		}
+
+		Item(int tag, double x, double y, Layer layer) {
+			this(tag);
 			add(x, y, layer);
+		}
+
+		Item(int tag, String data) {
+			this(tag);
+			// parse
+			data = data.trim().replace('\n', ' ');
+			data = data.substring(1, data.length() -1); // remove first and last [ ]
+			final String[] si = data.split("]\\["); // this is SLOW but easy
+			for (int i=0;i <si.length; i++) {
+				if (n_points == p[0].length) enlargeArrays();
+				int isp1 =  si[i].indexOf(' ');
+				int isp2 =  si[i].lastIndexOf(' ');
+				p[0][n_points] = Double.parseDouble(si[i].substring(0, isp1));
+				p[1][n_points] = Double.parseDouble(si[i].substring(isp1+1, isp2));
+				p_layer[n_points] = Long.parseLong(si[i].substring(isp2+1).trim()); // Double.parseDouble trims on its own, but Long.parseLong doesn't - buh!
+				n_points++;
+			}
 		}
 
 		/** Returns the index of the added point only if:
@@ -94,11 +117,20 @@ public class Dissector extends ZDisplayable {
 			// check if the given layer already contains one point
 			for (int i=0; i<n_points; i++) if (lid == p_layer[i]) return -1;
 
-			// check size
-			if (n_points >= p[0].length) enlargeArrays();
-
 			final int il = layer_set.indexOf(layer);
 			if (layer_set.indexOf(layer_set.getLayer(p_layer[n_points-1])) == il -1) {
+				// check if new point is within RADIUS of the found point
+				if (p[n_points][0] + RADIUS >= x && p[n_points][0] - RADIUS <= x
+				 && p[n_points][1] + RADIUS >= y && p[n_points][1] - RADIUS <= y) {
+					// ok
+				} else {
+					// can't add
+					return -1;
+				}
+
+				// check size
+				if (n_points >= p[0].length) enlargeArrays();
+
 				// append at the end
 				p[n_points][0] = x;
 				p[n_points][1] = y;
@@ -106,6 +138,18 @@ public class Dissector extends ZDisplayable {
 				return n_points-1;
 			}
 			if (layer_set.indexOf(layer_set.getLayer(p_layer[0])) == il +1) {
+				// check if new point is within RADIUS of the found point
+				if (p[0][0] + RADIUS >= x && p[0][0] - RADIUS <= x
+				 && p[0][1] + RADIUS >= y && p[0][1] - RADIUS <= y) {
+					// ok
+				} else {
+					// can't add
+					return -1;
+				}
+
+				// check size
+				if (n_points >= p[0].length) enlargeArrays();
+
 				// prepend
 				// shift all points one position to the right
 				for (int i=n_points-1; i>-1; i--) {
@@ -130,19 +174,28 @@ public class Dissector extends ZDisplayable {
 			p = p2;
 			p_layer = l2;
 		}
-		final void paint(final Graphics2D g, final double magnification, final long lid) {
+		final void paint(final Graphics2D g, final double magnification, final Layer layer) {
+			// 
+			// TODO: paint blue/red hints in next/previous layer
+			//
 			// only one point per layer
-			final int WIDTH = 15;
+
+			int i_current = layer_set.getLayerIndex(layer.getId());
+			int ii;
+			final int WIDTH = (int)Math.ceil(RADIUS / magnification);
 			for (int i=0; i<n_points; i++) {
-				if (lid == p_layer[i]) {
-					final Point2D.Double po = transformPoint(p[0][i], p[1][i]);
-					final int px = (int)po.x;
-					final int py = (int)po.y;
-					g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
-					g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
-					g.drawString(Integer.toString(index), px + WIDTH/2, py + WIDTH/2);
-					return;
-				}
+				ii = layer_set.getLayerIndex(p_layer[i]);
+				if (ii == i_current -1) g.setColor(Color.red);
+				else if (ii == i_current) g.setColor(color); // the color of the Dissector
+				else if (ii == i_current + 1) g.setColor(Color.blue);
+				else continue; // don't paint
+				final Point2D.Double po = transformPoint(p[0][i], p[1][i]);
+				final int px = (int)po.x;
+				final int py = (int)po.y;
+				g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
+				g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
+				g.drawString(Integer.toString(tag), px + WIDTH/2, py + WIDTH/2);
+				return;
 			}
 		}
 
@@ -166,15 +219,59 @@ public class Dissector extends ZDisplayable {
 			}
 		}
 
-		/** Check whether the given point x,y falls within radius of any of the points in this Item. */
-		final boolean contains(long lid, int x, int y, int radius) {
+		/** Check whether the given point x,y falls within radius of any of the points in this Item.
+		 *  Returns -1 if not found, or its index if found. */
+		final int find(final long lid, int x, int y, int radius) {
 			for (int i=0; i<n_points; i++) {
-				if (p[0][i] + radius > x && p[0][i] - radius < x &&
-				    p[1][i] + radius > y && p[1][i] - radius < y) {
-					return true;
+				if (lid == p_layer[i]
+				    && p[0][i] + radius > x && p[0][i] - radius < x
+				    && p[1][i] + radius > y && p[1][i] - radius < y) {
+					return i;
 				}
 			}
-			return false;
+			return -1;
+		}
+
+		final void translate(int index, int dx, int dy) {
+			p[0][index] += dx;
+			p[1][index] += dy;
+		}
+
+		final void remove(int index) {
+			for (int i=index; i<n_points-1; i++) {
+				p[0][i] = p[0][i+1];
+				p[1][i] = p[1][i+1];
+				p_layer[i] = p_layer[i+1];
+			}
+			n_points--;
+		}
+
+		final Rectangle getBoundingBox() {
+			int x1=Integer.MAX_VALUE;
+			int y1=x1,
+			    x2=-x1, y2=-x1;
+			for (int i=0; i<n_points; i++) {
+				if (p[0][i] < x1) x1 = (int)p[0][i];
+				if (p[1][i] < y1) y1 = (int)p[1][i];
+				if (p[0][i] > x2) x2 = (int)Math.ceil(p[0][i]);
+				if (p[1][i] > y2) y2 = (int)Math.ceil(p[1][i]);
+			}
+			return new Rectangle(x1, y1, x2-x1, y2-y1);
+		}
+		final void translateAll(int dx, int dy) {
+			for (int i=0; i<n_points; i++) {
+				p[0][i] += dx;
+				p[1][i] += dy;
+			}
+		}
+
+		final void exportXML(StringBuffer sb_body, String indent) {
+			sb_body.append(indent).append("<t2_dd_item tag=\"").append(tag).append("\" points=\"");
+			for (int i=0; i<n_points; i++) {
+				sb_body.append('[').append(p[0][i]).append(' ').append(p[1][i]).append(' ').append(p_layer[i]).append(']');
+				if (n_points -1 != i) sb_body.append(' ');
+			}
+			sb_body.append("\" />\n");
 		}
 	}
 
@@ -195,9 +292,8 @@ public class Dissector extends ZDisplayable {
 	}
 
 	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
-		final long lid = active_layer.getId();
 		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			((Item)it.next()).paint(g, magnification, lid);
+			((Item)it.next()).paint(g, magnification, active_layer);
 		}
 	}
 
@@ -205,8 +301,8 @@ public class Dissector extends ZDisplayable {
 		double min_z = Double.MAX_VALUE;
 		Layer min_la = this.layer; // so a null pointer is not returned
 		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item item = (Item)it.next();
-			Layer la = item.getFirstLayer();
+			Item tmp = (Item)it.next();
+			Layer la = tmp.getFirstLayer();
 			if (null != la && la.getZ() < min_z) {
 				min_z = la.getZ();
 				min_la = la;
@@ -219,17 +315,19 @@ public class Dissector extends ZDisplayable {
 		if (0 == al_items.size()) return;
 		unlinkAll(Patch.class);
 		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item item = (Item)it.next();
-			item.linkPatches();
+			Item tmp = (Item)it.next();
+			tmp.linkPatches();
 		}
 	}
 
 	public boolean contains(Layer layer, int x, int y) {
-		final int RADIUS = 10; // needs adjustment
 		final long lid = layer.getId();
+		Point2D.Double po = inverseTransformPoint(x, y);
+		x = (int)po.x;
+		y = (int)po.y;
 		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item item = (Item)it.next();
-			if (item.contains(lid, x, y, RADIUS)) return true;
+			Item tmp = (Item)it.next();
+			if (-1 != tmp.find(lid, x, y, RADIUS)) return true;
 		}
 		return false;
 	}
@@ -246,8 +344,19 @@ public class Dissector extends ZDisplayable {
 		return false;
 	}
 
+	/** The active item in the mouse pressed-dragged-released cycle. */
+	private Item item = null;
+	/** The selected label in the active item. */
+	private int index = -1;
+	private final int RADIUS = 15;
+
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
-		long lid = Display.getFrontLayer(this.project).getId(); // isn't this.layer pointing to the current layer always?
+		final int tool = ProjectToolbar.getToolId();
+		if (ProjectToolbar.PEN != tool) return;
+
+		final Layer la = Display.getFrontLayer(this.project);
+		final long lid = la.getId(); // isn't this.layer pointing to the current layer always?
+
 		// transform the x_p, y_p to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -255,6 +364,130 @@ public class Dissector extends ZDisplayable {
 			y_p = (int)p.y;
 		}
 
-		// 
+		// find if the click is within radius of an existing point for the current layer
+		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
+			Item tmp = (Item)it.next();
+			index = tmp.find(lid, x_p, y_p, RADIUS);
+			if (-1 != index) {
+				this.item = tmp;
+				break;
+			}
+		}
+
+		if (-1 != index) {
+			if (me.isShiftDown() && me.isAltDown()) {
+				// delete
+				this.item.remove(index);
+				index = -1;
+			}
+			// in any case:
+			return;
+		}
+		// else try to add a point to a suitable item
+		// Find an item in the previous or the next layer,
+		//     which falls within RADIUS of the clicked point
+		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
+			Item tmp = (Item)it.next();
+			index = tmp.add(x_p, y_p, la);
+			if (-1 != index) {
+				this.item = tmp;
+				return;
+			}
+		}
+		// could not be added to an existing item, so creating a new item with a new point in it
+		int max_tag = 0;
+		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
+			Item tmp = (Item)it.next();
+			if (tmp.tag > max_tag) max_tag = tmp.tag;
+		}
+		this.item = new Item(max_tag+1, x_p, y_p, la);
+		index = 0;
+		al_items.add(this.item);
+	}
+
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
+		final int tool = ProjectToolbar.getToolId();
+		if (ProjectToolbar.PEN != tool) return;
+
+		// transform to the local coordinates
+		if (!this.at.isIdentity()) {
+			//final Point2D.Double p = inverseTransformPoint(x_p, y_p);
+			//x_p = (int)p.x;
+			//y_p = (int)p.y;
+			final Point2D.Double pd = inverseTransformPoint(x_d, y_d);
+			x_d = (int)pd.x;
+			y_d = (int)pd.y;
+			final Point2D.Double pdo = inverseTransformPoint(x_d_old, y_d_old);
+			x_d_old = (int)pdo.x;
+			y_d_old = (int)pdo.y;
+		}
+
+		if (-1 != index) {
+			item.translate(index, x_d - x_d_old, y_d - y_d_old);
+			Display.repaint(layer_set, this, RADIUS);
+		}
+	}
+
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
+		this.item = null;
+		this.index = -1;
+		calculateBoundingBox();
+	}
+
+	/** Make points as local as possible, and set the width and height. */
+	private void calculateBoundingBox() {
+		Rectangle box = null;
+		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
+			Item tmp = (Item)it.next();
+			if (null == box) box = tmp.getBoundingBox();
+			else box.add(getBoundingBox());
+		}
+		// enlarge so it includes painted crosses
+		box.x -= RADIUS/2;
+		box.y -= RADIUS/2;
+		box.width += RADIUS/2;
+		box.height += RADIUS/2;
+		// edit the AffineTransform
+		this.translate(box.x, box.y, false);
+		// set dimensions
+		this.width = box.width;
+		this.height = box.height;
+		// apply new x,y position to all items
+		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
+			Item tmp = (Item)it.next();
+			tmp.translateAll(-box.x, -box.y);
+		}
+	}
+
+	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+		String type = "t2_dissector";
+		if (hs.contains(type)) return;
+		hs.add(type);
+		sb_header.append(indent).append("<!ELEMENT t2_dissector (t2_dd_item)>\n");
+		Displayable.exportDTD(type, sb_header, hs, indent); // all ATTLIST of a Displayable
+		sb_header.append(indent).append("<!ATTLIST t2_dissector radius NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ELEMENT t2_dd_item EMPTY>\n")
+			 .append(indent).append("<!ATTLIST t2_dd_item tag NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_dd_item points NMTOKEN #REQUIRED>\n")
+		;
+	}
+
+	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+		sb_body.append(indent).append("<t2_dissector\n");
+		final String in = indent + "\t";
+		super.exportXML(sb_body, in, any);
+		String[] RGB = Utils.getHexRGBColor(color);
+		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
+		sb_body.append(indent).append(">\n");
+		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
+			Item tmp = (Item)it.next();
+			tmp.exportXML(sb_body, in);
+		}
+		sb_body.append(indent).append("</t2_dissector>\n");
+	}
+
+	/** For reconstruction purposes. */
+	public void addItem(int tag, String data) {
+		al_items.add(new Item(tag, data));
 	}
 }
