@@ -193,6 +193,7 @@ public class Dissector extends ZDisplayable {
 			final int i_current = layer_set.getLayerIndex(layer.getId());
 			int ii;
 			final int WIDTH = (int)Math.ceil(RADIUS / magnification);
+			final int extra = (int)Math.ceil(2 / magnification);
 			boolean paint_current = false;
 			int paint_i = -1;
 			for (int i=0; i<n_points; i++) {
@@ -208,18 +209,20 @@ public class Dissector extends ZDisplayable {
 				final Point2D.Double po = transformPoint(p[0][i], p[1][i]);
 				final int px = (int)po.x;
 				final int py = (int)po.y;
-				g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
-				g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
-				g.drawString(Integer.toString(tag), px + WIDTH/2, py + WIDTH/2);
+				//g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
+				//g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
+				g.drawOval(px - WIDTH/2, py - WIDTH/2, WIDTH, WIDTH);
+				g.drawString(Integer.toString(tag), px + WIDTH/2 + extra, py + WIDTH/2);
 			}
 			if (paint_current) {
 				g.setColor(color); // the color of the Dissector
 				final Point2D.Double po = transformPoint(p[0][paint_i], p[1][paint_i]);
 				final int px = (int)po.x;
 				final int py = (int)po.y;
-				g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
-				g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
-				g.drawString(Integer.toString(tag), px + WIDTH/2, py + WIDTH/2);
+				//g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
+				//g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
+				g.drawRect(px - WIDTH/2, py - WIDTH/2, WIDTH, WIDTH);
+				g.drawString(Integer.toString(tag), px + WIDTH/2 + extra, py + WIDTH/2);
 			}
 		}
 
@@ -450,6 +453,7 @@ public class Dissector extends ZDisplayable {
 
 		if (-1 != index) {
 			item.translate(index, x_d - x_d_old, y_d - y_d_old);
+			calculateBoundingBox();
 			Display.repaint(layer_set, this, RADIUS);
 		}
 	}
@@ -466,13 +470,13 @@ public class Dissector extends ZDisplayable {
 		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
 			Item tmp = (Item)it.next();
 			if (null == box) box = tmp.getBoundingBox();
-			else box.add(getBoundingBox());
+			else box.add(tmp.getBoundingBox());
 		}
 		// enlarge so it includes painted crosses
 		box.x -= RADIUS/2;
 		box.y -= RADIUS/2;
-		box.width += RADIUS/2;
-		box.height += RADIUS/2;
+		box.width += RADIUS;
+		box.height += RADIUS;
 		// edit the AffineTransform
 		this.translate(box.x, box.y, false);
 		// set dimensions
