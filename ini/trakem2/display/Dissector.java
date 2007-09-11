@@ -299,6 +299,16 @@ public class Dissector extends ZDisplayable {
 			}
 			sb_body.append("\" />\n");
 		}
+
+		final void putData(StringBuffer sb) {
+			for (int i=0; i<n_points; i++) {
+				sb.append(tag).append('\t')
+				   .append(radius).append('\t')
+				   .append(p[0][i]).append('\t')
+				   .append(p[1][i]).append('\t')
+				   .append(layer_set.getLayer(p_layer[i]).getZ()).append('\n');
+			}
+		}
 	}
 
 	public Dissector(Project project, String title, double x, double y) {
@@ -520,5 +530,18 @@ public class Dissector extends ZDisplayable {
 	/** For reconstruction purposes from XML. */
 	public void addItem(int tag, int radius, String data) {
 		al_items.add(new Item(tag, radius, data));
+	}
+
+	/** Returns:
+	 * - first line: the title of this dissector
+	 * - second line: the number of items included in this dissector
+	 *  and then a list of 5 tab-separated columns: item tag, radius, x, y, z
+	 */
+	public String getInfo() {
+		StringBuffer sb = new StringBuffer("title: ").append(this.title).append("\nitems: ").append(al_items.size()).append('\n').append("tag\tradius\tx\ty\tz\n");
+		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
+			((Item)it.next()).putData(sb);
+		}
+		return sb.toString();
 	}
 }

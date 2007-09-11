@@ -541,7 +541,7 @@ public class ProjectThing extends DBObject implements Thing {
 
 	/** Call on children things, and on itself if it contains a basic data type directly. */
 	public void measure() {
-		Utils.log("Measure: not implemented yet.");
+		Utils.showMessage("Not implemented yet.");
 	}
 
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {
@@ -754,6 +754,6 @@ public class ProjectThing extends DBObject implements Thing {
 
 	/** Return information on this node and its object. */
 	public String getInfo() {
-		return "Node: " + object + "\n" + (object instanceof DBObject ? ((DBObject)object).getInfo() : "") + " [" + template.getType() + "]";
+		return "Node: " + object + " [" + template.getType() + "]\n" + (object instanceof DBObject ? ((DBObject)object).getInfo() : "");
 	}
 }
