@@ -433,6 +433,7 @@ public class TMLHandler extends DefaultHandler {
 			} else if (type.equals("dd_item")) {
 				if (null != last_dissector) {
 					last_dissector.addItem(Integer.parseInt((String)ht_attributes.get("tag")),
+							       Integer.parseInt((String)ht_attributes.get("radius")),
 							       (String)ht_attributes.get("points"));
 				}
 			} else if (type.equals("dissector")) {

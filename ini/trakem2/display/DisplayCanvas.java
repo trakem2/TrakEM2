@@ -281,6 +281,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					at_original.preConcatenate(atc);
 					g1.setTransform(at_original);
 					//setRenderingHints(g1);
+					// always a stroke of 1.0, regardless of magnification
+					g1.setStroke(stroke);
+
 
 					offscreen_locked = false;
 					offscreen_lock.notifyAll();

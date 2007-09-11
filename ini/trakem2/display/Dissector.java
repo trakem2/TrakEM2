@@ -67,20 +67,23 @@ public class Dissector extends ZDisplayable {
 		int n_points = 0;
 		/** The numeric tag of this Item. */
 		int tag;
+		/** The dimensions of each box. */
+		int radius;
 
-		private Item(int tag) {
+		private Item(int tag, int radius) {
 			this.tag = tag;
+			this.radius = radius;
 			p = new double[2][2];
 			p_layer = new long[2];
 		}
 
-		Item(int tag, double x, double y, Layer layer) {
-			this(tag);
+		Item(int tag, int radius, double x, double y, Layer layer) {
+			this(tag, radius);
 			add(x, y, layer);
 		}
 
-		Item(int tag, String data) {
-			this(tag);
+		Item(int tag, int radius, String data) {
+			this(tag, radius);
 			// parse
 			data = data.trim().replace('\n', ' ');
 			data = data.substring(1, data.length() -1); // remove first and last [ ]
@@ -124,11 +127,11 @@ public class Dissector extends ZDisplayable {
 
 			final int il = layer_set.indexOf(layer);
 			if (layer_set.indexOf(layer_set.getLayer(p_layer[n_points-1])) == il -1) {
-				// check if new point is within RADIUS of the found point
+				// check if new point is within radius of the found point
 				Utils.log2(tag + "  point: " + x + ", " + y);
-				Utils.log2(tag + "  last: " + p[0][n_points-1] + ", " + p[0][n_points-1] + "  RADIUS: " + RADIUS);
-				if (p[0][n_points-1] + RADIUS >= x && p[0][n_points-1] - RADIUS <= x
-				 && p[1][n_points-1] + RADIUS >= y && p[1][n_points-1] - RADIUS <= y) {
+				Utils.log2(tag + "  last: " + p[0][n_points-1] + ", " + p[0][n_points-1] + "  radius: " + radius);
+				if (p[0][n_points-1] + radius >= x && p[0][n_points-1] - radius <= x
+				 && p[1][n_points-1] + radius >= y && p[1][n_points-1] - radius <= y) {
 					// ok
 				} else {
 					// can't add
@@ -149,9 +152,9 @@ public class Dissector extends ZDisplayable {
 				return n_points-1;
 			}
 			if (layer_set.indexOf(layer_set.getLayer(p_layer[0])) == il +1) {
-				// check if new point is within RADIUS of the found point
-				if (p[0][0] + RADIUS >= x && p[0][0] - RADIUS <= x
-				 && p[1][0] + RADIUS >= y && p[1][0] - RADIUS <= y) {
+				// check if new point is within radius of the found point
+				if (p[0][0] + radius >= x && p[0][0] - radius <= x
+				 && p[1][0] + radius >= y && p[1][0] - radius <= y) {
 					// ok
 				} else {
 					// can't add
@@ -192,8 +195,8 @@ public class Dissector extends ZDisplayable {
 		final void paint(final Graphics2D g, final double magnification, final Layer layer) {
 			final int i_current = layer_set.getLayerIndex(layer.getId());
 			int ii;
-			final int WIDTH = (int)Math.ceil(RADIUS / magnification);
-			final int extra = (int)Math.ceil(2 / magnification);
+			final int M_radius = radius;
+			final int EXTRA = 2;
 			boolean paint_current = false;
 			int paint_i = -1;
 			for (int i=0; i<n_points; i++) {
@@ -209,20 +212,16 @@ public class Dissector extends ZDisplayable {
 				final Point2D.Double po = transformPoint(p[0][i], p[1][i]);
 				final int px = (int)po.x;
 				final int py = (int)po.y;
-				//g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
-				//g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
-				g.drawOval(px - WIDTH/2, py - WIDTH/2, WIDTH, WIDTH);
-				g.drawString(Integer.toString(tag), px + WIDTH/2 + extra, py + WIDTH/2);
+				g.drawOval(px - M_radius, py - M_radius, M_radius+M_radius, M_radius+M_radius);
+				g.drawString(Integer.toString(tag), px + M_radius + EXTRA, py + M_radius);
 			}
 			if (paint_current) {
 				g.setColor(color); // the color of the Dissector
 				final Point2D.Double po = transformPoint(p[0][paint_i], p[1][paint_i]);
 				final int px = (int)po.x;
 				final int py = (int)po.y;
-				//g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
-				//g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
-				g.drawRect(px - WIDTH/2, py - WIDTH/2, WIDTH, WIDTH);
-				g.drawString(Integer.toString(tag), px + WIDTH/2 + extra, py + WIDTH/2);
+				g.drawRect(px - M_radius, py - M_radius, M_radius+M_radius, M_radius+M_radius);
+				g.drawString(Integer.toString(tag), px + M_radius + EXTRA, py + M_radius);
 			}
 		}
 
@@ -248,7 +247,7 @@ public class Dissector extends ZDisplayable {
 
 		/** Check whether the given point x,y falls within radius of any of the points in this Item.
 		 *  Returns -1 if not found, or its index if found. */
-		final int find(final long lid, int x, int y, int radius) {
+		final int find(final long lid, int x, int y) {
 			for (int i=0; i<n_points; i++) {
 				if (lid == p_layer[i]
 				    && p[0][i] + radius > x && p[0][i] - radius < x
@@ -283,7 +282,7 @@ public class Dissector extends ZDisplayable {
 				if (p[0][i] > x2) x2 = (int)Math.ceil(p[0][i]);
 				if (p[1][i] > y2) y2 = (int)Math.ceil(p[1][i]);
 			}
-			return new Rectangle(x1, y1, x2-x1, y2-y1);
+			return new Rectangle(x1 -radius, y1 -radius, x2-x1 + radius+radius, y2-y1 + radius+radius);
 		}
 		final void translateAll(int dx, int dy) {
 			for (int i=0; i<n_points; i++) {
@@ -293,7 +292,7 @@ public class Dissector extends ZDisplayable {
 		}
 
 		final void exportXML(StringBuffer sb_body, String indent) {
-			sb_body.append(indent).append("<t2_dd_item tag=\"").append(tag).append("\" points=\"");
+			sb_body.append(indent).append("<t2_dd_item tag=\"").append(tag).append("\" radius=\"").append(radius).append("\" points=\"");
 			for (int i=0; i<n_points; i++) {
 				sb_body.append('[').append(p[0][i]).append(' ').append(p[1][i]).append(' ').append(p_layer[i]).append(']');
 				if (n_points -1 != i) sb_body.append(' ');
@@ -354,7 +353,7 @@ public class Dissector extends ZDisplayable {
 		y = (int)po.y;
 		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
 			Item tmp = (Item)it.next();
-			if (-1 != tmp.find(lid, x, y, RADIUS)) return true;
+			if (-1 != tmp.find(lid, x, y)) return true;
 		}
 		return false;
 	}
@@ -375,7 +374,6 @@ public class Dissector extends ZDisplayable {
 	private Item item = null;
 	/** The selected label in the active item. */
 	private int index = -1;
-	private final int RADIUS = 15;
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
 		final int tool = ProjectToolbar.getToolId();
@@ -394,7 +392,7 @@ public class Dissector extends ZDisplayable {
 		// find if the click is within radius of an existing point for the current layer
 		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
 			Item tmp = (Item)it.next();
-			index = tmp.find(lid, x_p, y_p, RADIUS);
+			index = tmp.find(lid, x_p, y_p);
 			if (-1 != index) {
 				this.item = tmp;
 				break;
@@ -414,7 +412,7 @@ public class Dissector extends ZDisplayable {
 		}
 		// else try to add a point to a suitable item
 		// Find an item in the previous or the next layer,
-		//     which falls within RADIUS of the clicked point
+		//     which falls within radius of the clicked point
 		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
 			Item tmp = (Item)it.next();
 			index = tmp.add(x_p, y_p, la);
@@ -429,7 +427,9 @@ public class Dissector extends ZDisplayable {
 			Item tmp = (Item)it.next();
 			if (tmp.tag > max_tag) max_tag = tmp.tag;
 		}
-		this.item = new Item(max_tag+1, x_p, y_p, la);
+		int radius = 8;
+		if (al_items.size() > 0) radius = ((Item)al_items.get(al_items.size()-1)).radius;
+		this.item = new Item(max_tag+1, radius, x_p, y_p, la);
 		index = 0;
 		al_items.add(this.item);
 	}
@@ -452,9 +452,15 @@ public class Dissector extends ZDisplayable {
 		}
 
 		if (-1 != index) {
-			item.translate(index, x_d - x_d_old, y_d - y_d_old);
+			if (me.isShiftDown()) {
+				// resize
+				item.radius = (int)Math.ceil(Math.sqrt((x_d - item.p[0][index])*(x_d - item.p[0][index]) + (y_d - item.p[1][index])*(y_d - item.p[1][index])));
+				if (item.radius < 1) item.radius = 1;
+			} else {
+				item.translate(index, x_d - x_d_old, y_d - y_d_old);
+			}
 			calculateBoundingBox();
-			Display.repaint(layer_set, this, RADIUS);
+			Display.repaint(layer_set, this, 0);
 		}
 	}
 
@@ -472,11 +478,6 @@ public class Dissector extends ZDisplayable {
 			if (null == box) box = tmp.getBoundingBox();
 			else box.add(tmp.getBoundingBox());
 		}
-		// enlarge so it includes painted crosses
-		box.x -= RADIUS/2;
-		box.y -= RADIUS/2;
-		box.width += RADIUS;
-		box.height += RADIUS;
 		// edit the AffineTransform
 		this.translate(box.x, box.y, false);
 		// set dimensions
@@ -495,8 +496,8 @@ public class Dissector extends ZDisplayable {
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_dissector (t2_dd_item)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent); // all ATTLIST of a Displayable
-		sb_header.append(indent).append("<!ATTLIST t2_dissector radius NMTOKEN #REQUIRED>\n")
-			 .append(indent).append("<!ELEMENT t2_dd_item EMPTY>\n")
+		sb_header.append(indent).append("<!ELEMENT t2_dd_item EMPTY>\n")
+			 .append(indent).append("<!ATTLIST t2_dd_item radius NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_dd_item tag NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_dd_item points NMTOKEN #REQUIRED>\n")
 		;
@@ -516,8 +517,8 @@ public class Dissector extends ZDisplayable {
 		sb_body.append(indent).append("</t2_dissector>\n");
 	}
 
-	/** For reconstruction purposes. */
-	public void addItem(int tag, String data) {
-		al_items.add(new Item(tag, data));
+	/** For reconstruction purposes from XML. */
+	public void addItem(int tag, int radius, String data) {
+		al_items.add(new Item(tag, radius, data));
 	}
 }
