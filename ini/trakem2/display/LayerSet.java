@@ -927,6 +927,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return al;
 	}
 
+	/** From zero to size-1. */
 	public int indexOf(Layer layer) {
 		return al_layers.indexOf(layer);
 	}
@@ -942,7 +943,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		       .append(in).append("rot_z=\"").append(rot_z).append("\"\n")
 		       .append(in).append("snapshots_quality=\"").append(snapshots_quality).append("\"\n")
 		       .append(in).append("snapshots_enabled=\"").append(snapshots_enabled).append("\"\n")
-		       // TODO: alpha! But I don't care.
+		       // TODO: alpha! But it's not necessary.
 		;
 		sb_body.append(indent).append(">\n");
 		if (null != calibration) {

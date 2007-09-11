@@ -112,38 +112,50 @@ public class Dissector extends ZDisplayable {
 				p[1][0] = y;
 				p_layer[0] = lid;
 				n_points = 1;
+				Utils.log2(tag + " trivial case");
 				return 0;
 			}
-			// check if the given layer already contains one point
-			for (int i=0; i<n_points; i++) if (lid == p_layer[i]) return -1;
+			// check if there is already a point for the given layer
+			for (int i=0; i<n_points; i++)
+				if (lid == p_layer[i]) {
+					Utils.log2(tag + " already here");
+					return -1;
+				}
 
 			final int il = layer_set.indexOf(layer);
 			if (layer_set.indexOf(layer_set.getLayer(p_layer[n_points-1])) == il -1) {
 				// check if new point is within RADIUS of the found point
-				if (p[n_points][0] + RADIUS >= x && p[n_points][0] - RADIUS <= x
-				 && p[n_points][1] + RADIUS >= y && p[n_points][1] - RADIUS <= y) {
+				Utils.log2(tag + "  point: " + x + ", " + y);
+				Utils.log2(tag + "  last: " + p[0][n_points-1] + ", " + p[0][n_points-1] + "  RADIUS: " + RADIUS);
+				if (p[0][n_points-1] + RADIUS >= x && p[0][n_points-1] - RADIUS <= x
+				 && p[1][n_points-1] + RADIUS >= y && p[1][n_points-1] - RADIUS <= y) {
 					// ok
 				} else {
 					// can't add
+					Utils.log2(tag + " case append: can't add");
 					return -1;
 				}
+
 
 				// check size
 				if (n_points >= p[0].length) enlargeArrays();
 
 				// append at the end
-				p[n_points][0] = x;
-				p[n_points][1] = y;
+				p[0][n_points] = x;
+				p[1][n_points] = y;
+				p_layer[n_points] = lid;
 				n_points++;
+				Utils.log2("appending at the end, returning index = " + (n_points-1));
 				return n_points-1;
 			}
 			if (layer_set.indexOf(layer_set.getLayer(p_layer[0])) == il +1) {
 				// check if new point is within RADIUS of the found point
 				if (p[0][0] + RADIUS >= x && p[0][0] - RADIUS <= x
-				 && p[0][1] + RADIUS >= y && p[0][1] - RADIUS <= y) {
+				 && p[1][0] + RADIUS >= y && p[1][0] - RADIUS <= y) {
 					// ok
 				} else {
 					// can't add
+					Utils.log2(tag + " case preppend: can't add");
 					return -1;
 				}
 
@@ -155,13 +167,16 @@ public class Dissector extends ZDisplayable {
 				for (int i=n_points-1; i>-1; i--) {
 					p[0][i+1] = p[0][i];
 					p[1][i+1] = p[1][i];
+					p_layer[i+1] = p_layer[i];
 				}
 				p[0][0] = x;
 				p[1][0] = y;
+				p_layer[0] = lid;
 				n_points++;
 				return 0;
 			}
 			// else invalid layer
+			Utils.log2(tag + " invalid layer");
 			return -1;
 		}
 
@@ -175,27 +190,36 @@ public class Dissector extends ZDisplayable {
 			p_layer = l2;
 		}
 		final void paint(final Graphics2D g, final double magnification, final Layer layer) {
-			// 
-			// TODO: paint blue/red hints in next/previous layer
-			//
-			// only one point per layer
-
-			int i_current = layer_set.getLayerIndex(layer.getId());
+			final int i_current = layer_set.getLayerIndex(layer.getId());
 			int ii;
 			final int WIDTH = (int)Math.ceil(RADIUS / magnification);
+			boolean paint_current = false;
+			int paint_i = -1;
 			for (int i=0; i<n_points; i++) {
 				ii = layer_set.getLayerIndex(p_layer[i]);
 				if (ii == i_current -1) g.setColor(Color.red);
-				else if (ii == i_current) g.setColor(color); // the color of the Dissector
+				else if (ii == i_current) {
+					paint_current = true;
+					paint_i = i;
+					continue; // paint it last, on top of all
+				}
 				else if (ii == i_current + 1) g.setColor(Color.blue);
-				else continue; // don't paint
+				else continue; // don't paint. Should just return, since points are in order
 				final Point2D.Double po = transformPoint(p[0][i], p[1][i]);
 				final int px = (int)po.x;
 				final int py = (int)po.y;
 				g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
 				g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
 				g.drawString(Integer.toString(tag), px + WIDTH/2, py + WIDTH/2);
-				return;
+			}
+			if (paint_current) {
+				g.setColor(color); // the color of the Dissector
+				final Point2D.Double po = transformPoint(p[0][paint_i], p[1][paint_i]);
+				final int px = (int)po.x;
+				final int py = (int)po.y;
+				g.drawLine(px, py - WIDTH/2, px, py + WIDTH/2);
+				g.drawLine(px - WIDTH/2, py, px + WIDTH/2, py);
+				g.drawString(Integer.toString(tag), px + WIDTH/2, py + WIDTH/2);
 			}
 		}
 
@@ -375,9 +399,11 @@ public class Dissector extends ZDisplayable {
 		}
 
 		if (-1 != index) {
-			if (me.isShiftDown() && me.isAltDown()) {
+			if (me.isShiftDown() && me.isControlDown()) {
 				// delete
-				this.item.remove(index);
+				item.remove(index);
+				if (0 == item.n_points) al_items.remove(item);
+				item = null;
 				index = -1;
 			}
 			// in any case:
