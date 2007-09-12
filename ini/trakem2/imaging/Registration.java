@@ -69,16 +69,16 @@ public class Registration {
 			Utils.log2("Registration.registerLayers: invalid parameters: " + layer_set + ", first: " + first + ", start: " + start + ", last" + last);
 			return null;
 		}
+		// outside the Worker thread, so that the dialog can be controled with Macro.setOptions
+		// if the calling Thread's name starts with "Run$_"
+		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+		if (!sp.setup()) return null;
+
 		final Worker worker = new Worker("Registering stack slices") {
 			public void run() {
 				startedWorking();
 
 		try {
-			final Registration.SIFTParameters sp = new Registration.SIFTParameters();
-			if (!sp.setup()) {
-				finishedWorking();
-				return;
-			}
 			// build lists (Layers are consecutive)
 			final List<Layer> list1 = new ArrayList<Layer>();
 			list1.addAll(layer_set.getLayers().subList(first, start+1)); // endings are exclusive
