@@ -289,6 +289,11 @@ public class Project extends DBObject {
 				display.getCanvas().setup(0.25, srcRect);
 				display.updateTitle();
 			}
+			try {
+				Thread.sleep(200); // waiting cheaply for asynchronous swing calls
+			} catch (InterruptedException ie) {
+				ie.printStackTrace();
+			}
 			return project;
 		} catch (Exception e) {
 			new IJError(e);
@@ -438,6 +443,10 @@ public class Project extends DBObject {
 
 	public String getType() {
 		return "project";
+	}
+
+	public void save() {
+		loader.save(this);
 	}
 
 	public boolean destroy() {

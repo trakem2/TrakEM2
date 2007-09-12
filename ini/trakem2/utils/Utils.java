@@ -555,7 +555,7 @@ public class Utils implements ij.plugin.PlugIn {
 			while (true) {
 				String s = r.readLine();
 				if (null == s) break;
-				sb.append(s).append('\n');
+				sb.append(s).append('\n'); // I am sure the reading can be done better
         		}
 			r.close();
 		} catch (Exception e) {
