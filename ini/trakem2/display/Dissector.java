@@ -87,7 +87,7 @@ public class Dissector extends ZDisplayable {
 			// parse
 			data = data.trim().replace('\n', ' ');
 			data = data.substring(1, data.length() -1); // remove first and last [ ]
-			final String[] si = data.split("]\\["); // this is SLOW but easy
+			final String[] si = data.split("] *\\["); // this is SLOW but easy
 			for (int i=0;i <si.length; i++) {
 				if (n_points == p[0].length) enlargeArrays();
 				int isp1 =  si[i].indexOf(' ');

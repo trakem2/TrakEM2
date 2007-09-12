@@ -52,7 +52,7 @@ import java.awt.event.ItemEvent;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.4a 2007-08-26";
+	static public String version = "0.4c 2007-09-12";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;

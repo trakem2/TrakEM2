@@ -113,6 +113,32 @@ public class Registration {
 
 			// transfer the last affine transform to the remaining layers
 			if (propagate) {
+				if (0 != first || first != start) {
+					if (null == ob1) {
+						// can't propagate
+						Utils.log2("Can't propagate towards the first layer in the layer set.");
+					} else {
+						// propagate from first towards zero
+						AffineTransform at1 = (AffineTransform)ob1[0];
+						for (Iterator it = layer_set.getLayers().subList(0, first).iterator(); it.hasNext(); ){
+							// preconcatenate the transform to every Patch in the Layer
+							((Layer)it.next()).apply(Patch.class, at1);
+						}
+					}
+				}
+				if (layer_set.size() -1 != last) {
+					if (null == ob2) {
+						// can't propagate
+						Utils.log2("Can't propagate towards the last layer in the layer set");
+					} else {
+						AffineTransform at2 = (AffineTransform)ob2[0];
+						// propagate towards the last slice
+						for (Iterator it = layer_set.getLayers().subList(last+1, layer_set.size()).iterator(); it.hasNext(); ) {
+							// preconcatenate the transform to every Patch in the Layer
+							((Layer)it.next()).apply(Patch.class, at2);
+						}
+					}
+				}
 			}
 
 			// trim and polish:
@@ -158,7 +184,7 @@ public class Registration {
 
 	/** Makes a snapshot with the Patch objects in both layers at the given scale, and rotates/translates all Displayable elements in the second Layer relative to the first.
 	 *
-	 * @return null for now. I will eventually figure out a way to do safe caching with no loss of precision, carrying along the AffineTransform.
+	 * @return the AffineTransform only for now. I will eventually figure out a way to do safe caching with no loss of precision, carrying along the AffineTransform.
 	 */
 	static public Object[] registerSIFT(final Layer layer1, final Layer layer2, Object[] cached, final Registration.SIFTParameters sp) {
 		try {
@@ -200,6 +226,8 @@ public class Registration {
 				if (null != at_accum) at.preConcatenate(at_accum);
 				// preconcatenate the transform to every Patch in the Layer
 				layer2.apply(Patch.class, atap);
+
+				return new Object[]{atap};
 			} else {
 				// fall back to phase-correlation
 				Utils.log2("Registration.registerSIFT for Layers: falling back to phase-correlation");

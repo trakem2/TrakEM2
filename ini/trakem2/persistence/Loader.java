@@ -2643,11 +2643,7 @@ abstract public class Loader {
 		File fxml = Utils.chooseFile(null, ".xml");
 		if (null == fxml) return null;
 		String path = export(project, fxml);
-		if (null != path) {
-			this.changes = false;
-			// replace the stored path, so that subsequent calls to 'save' will overwrite the new XML file
-			this.project_xml_path = xml_path;
-		}
+		if (null != path) this.changes = false;
 		return path;
 	}
 
