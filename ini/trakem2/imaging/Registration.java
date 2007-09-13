@@ -257,6 +257,8 @@ public class Registration {
 				Utils.log2("Registered layer " + layer2 + " to " + layer1);
 
 				// cleanup
+					// !@#$% TODO this needs fine-tuning
+				layer1.getProject().getLoader().releaseToFit(ij.IJ.maxMemory() / 2); // TODO may be too much, but SIFT is very needy and the JVM sucks at releasing memory
 				if (null == cached) { // created locally, flushed locally since there's no caching
 					imp1.flush();
 					imp1 = null;

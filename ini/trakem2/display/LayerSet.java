@@ -917,7 +917,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return ((Layer)al_layers.get(al_layers.size() -1)).getZ() - ((Layer)al_layers.get(0)).getZ();
 	}
 
-	/** Return all the Displayable objects from all the layers of this LayerSet. */
+	/** Return all the Displayable objects from all the layers of this LayerSet. Does not include the ZDisplayables. */
 	protected ArrayList getDisplayables() {
 		ArrayList al = new ArrayList();
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
