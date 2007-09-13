@@ -557,7 +557,7 @@ public class FSLoader extends Loader {
 			if (new File(tmp).exists()) {
 				path = tmp;
 			} else {
-				// try *_images folder
+				// try *_images folder // TODO this needs to change, should test the same folder
 				final String dir = extractRelativeFolderPath(new File(project_xml_path));
 				if (null != dir) path = dir + "/" + path;
 			}

@@ -85,6 +85,25 @@ public class Registration {
 			Collections.reverse(list1);
 			final List<Layer> list2 = new ArrayList<Layer>();
 			list2.addAll(layer_set.getLayers().subList(start, last+1)); // kludge because subList ends up removing stuff from the main Layer list!
+
+			// remove empty layers
+			for (Iterator it = list1.iterator(); it.hasNext(); ) {
+				Layer la = (Layer)it.next();
+				if (0 == la.getDisplayables(Patch.class).size()) {
+					it.remove();
+					Utils.log2("FORE: Removing from registration list layer with no images " + la.getProject().findLayerThing(la).getTitle() + " -- " + la);
+				}
+			}
+			for (Iterator it = list2.iterator(); it.hasNext(); ) {
+				Layer la = (Layer)it.next();
+				if (0 == la.getDisplayables(Patch.class).size()) {
+					it.remove();
+					Utils.log2("AFT: Removing from registration list layer with no images " + la.getProject().findLayerThing(la).getTitle() + " -- " + la);
+				}
+			}
+			// there must be some way to make inner anonymous methods or something to avoid duplicating code like this.
+
+
 			// iterate in pairs
 			final Layer layer_start = (Layer)list2.get(0); // even if there is only one element, list2 will contain the starting layer as the first element. Should be equivalent to layer_set.get(start)
 			// check assumptions
@@ -176,6 +195,14 @@ public class Registration {
 			final Layer la1 = (Layer)list.get(i-1);
 			final Layer la2 = (Layer)list.get(i);
 			result = registerSIFT(la1, la2, null, sp);
+			// !@#$% TODO this needs fine-tuning
+			la1.getProject().getLoader().releaseMemory();
+			Loader.runGC();
+
+			// debug: at least we get chunks done
+			if (!ControlWindow.isGUIEnabled() && System.getProperty("user.name").equals("cardona")) {
+				la1.getProject().save();
+			}
 		}
 
 		Loader.runGC();
@@ -203,7 +230,7 @@ public class Registration {
 				at_accum = (AffineTransform)cached[3];
 			}
 			Rectangle box2 = layer2.getMinimalBoundingBox(Patch.class);
-			final ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
 
 			// ready to start
 			final Object[] result = Registration.registerSIFT(imp1.getProcessor().convertToFloat(), imp2.getProcessor().convertToFloat(), fs1, sp);
@@ -226,6 +253,16 @@ public class Registration {
 				if (null != at_accum) at.preConcatenate(at_accum);
 				// preconcatenate the transform to every Patch in the Layer
 				layer2.apply(Patch.class, atap);
+
+				Utils.log2("Registered layer " + layer2 + " to " + layer1);
+
+				// cleanup
+				if (null == cached) { // created locally, flushed locally since there's no caching
+					imp1.flush();
+					imp1 = null;
+				}
+				imp2.flush();
+				imp2 = null;
 
 				return new Object[]{atap};
 			} else {
@@ -556,6 +593,21 @@ public class Registration {
 		/** Minimal percent of good landmarks found */
 		float inlier_ratio = 0.05f;
 
+		void print() {
+			Utils.log2(new StringBuffer("SIFTParameters:\n")
+				   .append("\tscale: ").append(scale).append('\n')
+				   .append("\tsteps per scale octave: ").append(steps).append('\n')
+				   .append("\tinitial gaussian blur: ").append(initial_sigma).append('\n') 
+				   .append("\tfeature descriptor size: ").append(fdsize).append('\n')
+				   .append("\tfeature descriptor orientation bins: ").append(fdbins).append('\n')
+				   .append("\tminimum image size: ").append(min_size).append('\n')
+				   .append("\tmaximum image size: ").append(max_size).append('\n')
+				   .append("\tminimal alignment error: ").append(min_epsilon).append('\n')
+				   .append("\tmaximal alignment error: ").append(max_epsilon).append('\n')
+				   .append("\tinlier ratio: ").append(inlier_ratio)
+				   .toString());
+		}
+
 		boolean setup() {
 			final GenericDialog gd = new GenericDialog("Options");
 			gd.addSlider("scale (%):", 1, 100, scale*100);
@@ -580,6 +632,9 @@ public class Registration {
 			this.min_epsilon = (float)gd.getNextNumber();
 			this.max_epsilon = (float)gd.getNextNumber();
 			this.inlier_ratio = (float)gd.getNextNumber();
+
+			// debug:
+			print();
 
 			return true;
 		}

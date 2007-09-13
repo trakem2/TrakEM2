@@ -1967,7 +1967,7 @@ abstract public class Loader {
 		ImagePlus imp = null;
 		try {
 
-			double scaleP = quality ? 1.0 : scale;
+			double scaleP = quality ? 1.0 : scale; // TODO: evaluate carefully
 
 			if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 			// dimensions
@@ -1988,8 +1988,8 @@ abstract public class Loader {
 			}
 			Utils.log2("Loader.getFlatImage: using rectangle " + srcRect);
 			// estimate image size
-			long bytes = (long)((w * h * scaleP * scaleP * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
-			Utils.log2("Flat image estimated bytes: " + Long.toString(bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP));
+			long bytes = (long)((w * h * scale * scale * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
+			Utils.log2("Flat image estimated bytes: " + Long.toString(bytes) + "  w,h : " + (int)Math.ceil(w * scale) + "," + (int)Math.ceil(h * scale));
 
 			//synchronized (db_lock) {
 			//	lock();
@@ -2018,10 +2018,10 @@ abstract public class Loader {
 						g[i]=(byte)i;
 						b[i]=(byte)i;
 					}
-					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, new IndexColorModel(8, 256, r, g, b));//INDEXED); // will show incorrect as 8-bit color, but the proper scale is preserved.
+					bi = new BufferedImage((int)Math.ceil(w * scale), (int)Math.ceil(h * scale), BufferedImage.TYPE_BYTE_INDEXED, new IndexColorModel(8, 256, r, g, b));//INDEXED); // will show incorrect as 8-bit color, but the proper scale is preserved.
 					break;
 				case ImagePlus.COLOR_RGB:
-					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_INT_ARGB);
+					bi = new BufferedImage((int)Math.ceil(w * scale), (int)Math.ceil(h * scale), BufferedImage.TYPE_INT_ARGB);
 					break;
 			}
 			final Graphics2D g2d = bi.createGraphics();
@@ -2070,7 +2070,7 @@ abstract public class Loader {
 			// prepare the canvas for the srcRect and magnification
 			final AffineTransform at_original = g2d.getTransform();
 			final AffineTransform atc = new AffineTransform();
-			atc.scale(scaleP, scaleP);
+			atc.scale(scale, scale);
 			atc.translate(-srcRect.x, -srcRect.y);
 			at_original.preConcatenate(atc);
 			g2d.setTransform(at_original);
@@ -2081,12 +2081,13 @@ abstract public class Loader {
 			boolean zd_done = false;
 			for(Iterator it = al_displ.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
+				//Utils.log2("d is: " + d);
 				// paint the ZDisplayables before the first label, if any
 				if (!zd_done && d instanceof DLabel) {
 					zd_done = true;
 					for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 						ZDisplayable zd = (ZDisplayable)itz.next();
-						if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
+						if (!zd.isOutOfRepaintingClip(scale, srcRect, null)) {
 							//zd.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
 							zd.paint(g2d, scaleP, false, c_alphas, layer);
 						}
@@ -2094,7 +2095,7 @@ abstract public class Loader {
 						//Utils.log2("Painted " + count + " of " + total);
 					}
 				}
-				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
+				if (!d.isOutOfRepaintingClip(scale, srcRect, null)) {
 					//d.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
 					d.paint(g2d, scaleP, false, c_alphas, layer);
 				}
@@ -2105,7 +2106,7 @@ abstract public class Loader {
 				zd_done = true;
 				for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 					ZDisplayable zd = (ZDisplayable)itz.next();
-					if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
+					if (!zd.isOutOfRepaintingClip(scale, srcRect, null)) {
 						//zd.paint(g2d, scaleP, srcRect, null, false, c_alphas, layer);
 						zd.paint(g2d, scaleP, false, c_alphas, layer);
 					}
