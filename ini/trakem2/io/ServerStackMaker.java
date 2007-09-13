@@ -38,6 +38,15 @@ import java.awt.Rectangle;
  * To launch a new server for a specific project, do as in the example:
  
  $ java -Xmx512m -classpath ../ij.jar:./TrakEM2_.jar:./TrakEM2-src/ImageJ_3D_Viewer.jar:./edu_mines_jtk.jar:./TrakEM2-src/Jama-1.0.2.jar:./TrakEM2-src/AmiraMesh_.jar:./TrakEM2-src/jzlib-1.0.7.jar:. ini.trakem2.io.ServerStackMaker /home/albert/Desktop/ministack4.xml 5000
+
+ Then from a server call:
+
+GET /0/0/400/400/0.25/0/3/true/ HTTP/1.0
+
+which is equivalent to:
+http:/www.yourserver.com/0/0/400/400/0.25/0/3/true/
+
+and which returns the URL where the generated file will be, or an error message.
  
  *
  *
@@ -142,7 +151,7 @@ public class ServerStackMaker {
 		// cut
 		command = command.substring(command.indexOf('/')+1, command.indexOf("/ HTTP"));
 		String[] com = command.split("/");
-		if (com.length < 7) {
+		if (com.length < 8) {
 			return new Error("Invalid command request: " + command + "\nReceived command with invalid number of arguments.\n"
 				 + "Expected:\n"
 				 + "\t- x coordinate of the desired area\n"
@@ -151,7 +160,8 @@ public class ServerStackMaker {
 				 + "\t- height idem.\n"
 				 + "\t- scale, in floating point: 0.25 is 25%\n"
 				 + "\t- index of the first layer (starting at zero)\n"
-				 + "\t- index of the last layer, inclusive\n");
+				 + "\t- index of the last layer, inclusive\n"
+				 + "\t- true or false, whether to align or not");
 		}
 		int i_first = 0;
 		int i_last = 0;
@@ -188,8 +198,9 @@ public class ServerStackMaker {
 		} catch (NumberFormatException nfe) {
 			return new Error("Number format error in the scale");
 		}
+		boolean align = Boolean.valueOf(com[7]);
 
-		return new Target(new Rectangle(x, y, width, height), scale, i_first, i_last);
+		return new Target(new Rectangle(x, y, width, height), scale, i_first, i_last, align);
 	}
 
 	private interface Task {
@@ -211,15 +222,18 @@ public class ServerStackMaker {
 		float scale;
 		int i_first_layer;
 		int i_last_layer;
-		Target(Rectangle r, float scale, int i_first_layer, int i_last_layer) {
+		boolean align;
+		Target(Rectangle r, float scale, int i_first_layer, int i_last_layer, boolean align) {
 			this.r = r;
 			this.scale = scale;
 			this.i_first_layer = i_first_layer;
 			this.i_last_layer = i_last_layer;
+			this.align = align;
 		}
 		public void execute(PrintWriter out) {
 			// dummy
-			out.println("OK will process box:" + r + " scale: " + scale + " layers: " + i_first_layer + "-" + i_last_layer);
+			out.println("OK will process box:" + r + " scale: " + scale + " layers: " + i_first_layer + "-" + i_last_layer + " align: " + align);
+			out.println("dummy - here you'll get the URL to the cropped stack.");
 			// TODO
 			// - make the stack
 			// - align it
