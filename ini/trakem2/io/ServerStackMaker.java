@@ -323,11 +323,15 @@ public class ServerStackMaker {
 				registerSlices(fdir);
 			}
 			// create a compressed archive 
-			Process process = Runtime.getRuntime().exec("cd " + stack_dir + " && tar cvzf " + task_title + ".tar.gz " + task_title); // 'task'title' is also the name of the subdirectory containing the images
+			Process process = Runtime.getRuntime().exec("/bin/tar cvzf " + stack_dir + task_title + ".tar.gz " + stack_dir + task_title); // 'task'title' is also the name of the subdirectory containing the images
+
+			// TODO: the above tar command is wrong: generates archives with the full path of folders inside.
+
 			BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
 			String line;
 			while (null != (line = br.readLine())) {
-				// wait. When no more input comes, it's done
+				// watch and wait. When no more input comes, it's done
+				Utils.log2(line);
 				try { Thread.sleep(200); } catch (InterruptedException ie) {}
 			}
 			// check that the archive file exists
