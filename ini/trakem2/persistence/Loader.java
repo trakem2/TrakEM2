@@ -560,7 +560,7 @@ abstract public class Loader {
 					if (iterations < 20) Display.flushAll();
 				}
 				if (iterations < 0) {
-					Utils.showMessage("Can't make room for " + bytes + " bytes in memory.");
+					Utils.log("Can't make room for " + bytes + " bytes in memory.");
 					break;
 				}
 				Thread.yield(); // for the GC to run

@@ -257,14 +257,16 @@ public class Registration {
 				Utils.log2("Registered layer " + layer2 + " to " + layer1);
 
 				// cleanup
-					// !@#$% TODO this needs fine-tuning
-				layer1.getProject().getLoader().releaseToFit(ij.IJ.maxMemory() / 2); // TODO may be too much, but SIFT is very needy and the JVM sucks at releasing memory
+				result = null; // contains the fs1 and fs2
+					// TODO the above is temporary; need to figure out how to properly cache
 				if (null == cached) { // created locally, flushed locally since there's no caching
 					imp1.flush();
 					imp1 = null;
 				}
 				imp2.flush();
 				imp2 = null;
+					// !@#$% TODO this needs fine-tuning
+				layer1.getProject().getLoader().releaseToFit(ij.IJ.maxMemory() / 2); // TODO may be too much, but SIFT is very needy and the JVM sucks at releasing memory
 
 				return new Object[]{atap};
 			} else {
