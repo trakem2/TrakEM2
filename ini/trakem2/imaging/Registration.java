@@ -233,7 +233,7 @@ public class Registration {
 			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
 
 			// ready to start
-			final Object[] result = Registration.registerSIFT(imp1.getProcessor().convertToFloat(), imp2.getProcessor().convertToFloat(), fs1, sp);
+			Object[] result = Registration.registerSIFT(imp1.getProcessor().convertToFloat(), imp2.getProcessor().convertToFloat(), fs1, sp);
 
 			if (null != result) {
 				// use the returned AffineTransform to adjust all Patch objects in layer2

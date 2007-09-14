@@ -24,9 +24,15 @@ package ini.trakem2.io;
 
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Patch;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.io.FileSaver;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.*;
 import java.io.*;
 import java.net.*;
 import java.awt.Rectangle;
@@ -48,6 +54,8 @@ http:/www.yourserver.com/0/0/400/400/0.25/0/3/true/
 
 and which returns the URL where the generated file will be, or an error message.
  
+
+TODO: need a system to delete the generated tar.gz archives after a few hours or minutes
  *
  *
 */
@@ -57,17 +65,23 @@ public class ServerStackMaker {
 	private int port;
 	private boolean listen = true;
 	private Project project;
+	private String base_url;
+	private String stack_dir;
 	private AtomicInteger count = new AtomicInteger();
 	private static int MAX_JOBS = 4;
+	private static long MAX_STACK_SIZE = 400 * 1024 * 1024; // 400 Mb
 
-	public ServerStackMaker(Project project, int port) {
+	public ServerStackMaker(Project project, int port, String stack_dir) {
 		this.project = project;
 		this.port = port;
+		this.stack_dir = stack_dir;
 		try {
 			this.listener = new ServerSocket(port);
+			this.base_url = listener.getInetAddress().getCanonicalHostName();
+			Utils.log2("Server listening on URL " + base_url);
 			// wait until killed
 			while (listen) {
-				handleNewConnection(listener.accept());
+				handleNewConnection(listener.accept()); // blocks here until there is an incomming connection
 			}
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
@@ -121,9 +135,13 @@ public class ServerStackMaker {
 	}
 
 	static public void main(String[] arg) {
-		if (arg.length < 2) {
+		if (IJ.isWindows()) {
+			Utils.log2("This server will not run under Windows.");
+			return;
+		}
+		if (arg.length < 3) {
 			Utils.log2("The number of arguments is incorrect!\nUsage:\n"
-				 + "\tjava -Xmx1650m -Xincgc -classpath ij.jar:TrakEM2.jar:ImageJ_3D_Viewer.jar /path/to/project.xml <port>\n");
+				 + "\tjava -Xmx1650m -Xincgc -classpath ij.jar:TrakEM2.jar:ImageJ_3D_Viewer.jar /path/to/project.xml <port> /path/to/stacks/dir/\n");
 			return;
 		}
 		if (!new File(arg[0]).exists() || !arg[0].toLowerCase().endsWith(".xml")) {
@@ -141,11 +159,18 @@ public class ServerStackMaker {
 			port = Integer.parseInt(arg[1]);
 			if (port < 1) throw new NumberFormatException("Negative port number");
 		} catch (NumberFormatException nfe) {
-			Utils.log2("Number format exception: Invalid port number.");
+			Utils.log2("!! Invalid port number:\n" + nfe);
 			return;
 		}
+		String stack_dir = arg[2];
+		File file = new File(stack_dir);
+		if (!file.exists() || !file.isDirectory()) {
+			Utils.log2("The given stacks directory is invalid.");
+			return;
+		}
+		if (!stack_dir.endsWith("/")) stack_dir += "/";
 		Utils.log2("Creating new server for " + arg[0]);
-		new ServerStackMaker(project, port);
+		new ServerStackMaker(project, port, stack_dir);
 	}
 
 
@@ -215,7 +240,7 @@ public class ServerStackMaker {
 	}
 
 	private interface Task {
-		public void execute(PrintWriter out);
+		public void execute(PrintWriter out) throws Exception;
 	}
 
 	private class Error implements Task {
@@ -223,7 +248,7 @@ public class ServerStackMaker {
 		Error(String error) {
 			this.error = error;
 		}
-		public void execute(PrintWriter out) {
+		public void execute(PrintWriter out) throws Exception {
 			out.println(error);
 		}
 	}
@@ -241,11 +266,17 @@ public class ServerStackMaker {
 			this.i_last_layer = i_last_layer;
 			this.align = align;
 		}
-		public void execute(PrintWriter out) {
-			// dummy
+		public void execute(PrintWriter out) throws Exception {
+			// check preconditions: how big will the final file be?
+			final long size = (long)((i_last_layer - i_first_layer + 1) * r.width * r.height * scale);
+			if (size > MAX_STACK_SIZE) {
+				out.println("ERROR maximum file size exceeded. Try to scale it more.");
+				return;
+			}
+			// 
 			out.println("OK will process box:" + r + " scale: " + scale + " layers: " + i_first_layer + "-" + i_last_layer + " align: " + align);
 			out.println("dummy - here you'll get the URL to the cropped stack.");
-			// TODO
+			//
 			// - make the stack
 			// - align it
 			// - print back the URL where it will be stored at
@@ -255,6 +286,96 @@ public class ServerStackMaker {
 				Utils.log2("Jobs in queue: " + (count.get() - MAX_JOBS));
 				try { Thread.sleep(1000); } catch (InterruptedException e) {}
 			}
+			// generate an empty directory to store a flat image for each layer
+			final String task_title = Thread.currentThread().getId() + "_"
+				             + r.x + "_"
+					     + r.y + "_"
+					     + r.width + "_"
+					     + r.height + "_"
+					     + scale + "_"
+					     + i_first_layer + "_"
+					     + i_last_layer + "_"
+					     + align;
+			final File fdir = new File(stack_dir + task_title);
+			fdir.mkdir();
+
+			final ArrayList list = new ArrayList();
+			list.addAll(project.getRootLayerSet().getLayers().subList(i_first_layer, i_last_layer+1)); // making sure it's a copy
+			// remove empty layers
+			for (Iterator it = list.iterator(); it.hasNext(); ) {
+				Layer la = (Layer)it.next();
+				if (0 == la.getDisplayables(Patch.class).size()) it.remove();
+			}
+			final Layer[] layer = new Layer[list.size()];
+			list.toArray(layer);
+			// generate a flat image for each layer
+			for (int i=0; i<layer.length; i++) {
+				ImagePlus imp = project.getLoader().getFlatImage(layer[i], this.r, this.scale, 1, ImagePlus.GRAY8, Patch.class, null, true);
+				if (null == imp) {
+					Utils.log2("WARNING: skipping null image for layer " + layer[i] + " for task " + task_title);
+					continue;
+				}
+				new ij.io.FileSaver(imp).saveAsTiff(stack_dir + task_title + "/" + imp.getTitle() + ".tif");
+				imp.flush();
+				imp = null;
+			}
+			if (align) {
+				registerSlices(fdir);
+			}
+			// create a compressed archive 
+			Process process = Runtime.getRuntime().exec("cd " + stack_dir + " && tar cvzf " + task_title + ".tar.gz " + task_title); // 'task'title' is also the name of the subdirectory containing the images
+			BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+			String line;
+			while (null != (line = br.readLine())) {
+				// wait. When no more input comes, it's done
+				try { Thread.sleep(200); } catch (InterruptedException ie) {}
+			}
+			// check that the archive file exists
+			File targz = new File(stack_dir + task_title + ".tar.gz");
+			if (!targz.exists()) {
+				String error = "ERROR: could not generate the tar.gz archive.";
+				out.println(error);
+				Utils.log2(error);
+			} else {
+				// success: notify back
+				out.println("http://" + base_url + "/" + stack_dir + task_title + ".tar.gz");
+			}
+			//
+			// Cleanup:
+			//
+			// Attempt to remove the temporary directory and its contents
+			// This line would do it:
+			//Runtime.getRuntime().exec("cd " + stack_dir + " && rm -rf " + task_title);
+			// ... but the java way lets me catch errors:
+			final String[] files = fdir.list(new FilenameFilter() {
+				public boolean accept(File dir, String name) {
+					if (name.equals(".") || name.equals("..")) return false;
+					return true;
+				}
+			});
+			for (int i=0; i<files.length; i++) {
+				try {
+					new File(stack_dir + task_title + "/" + files[i]).delete();
+				} catch (Exception e) {
+					Utils.log2("Could not delete file " + files[i] + " from directory " + task_title);
+				}
+			}
+			try {
+				// can only be deleted if empty
+				fdir.delete();
+			} catch (Exception e) {
+				Utils.log2("Could not delete temporary directory " + stack_dir + task_title);
+			}
 		}
+	}
+
+	/** Takes all image files from the given folder as a stack, makes a project with it, aligns the slices, and then overwrites the images with the new ones. */
+	static private void registerSlices(File source_dir) {
+		// 1 - create a project
+		// 2 - import the folder as a stack
+		// 3 - register
+		// 4 - generate flat images, overwritting them
+		// 5 - delele tmp stack
+		// 6 - return new stack
 	}
 }
