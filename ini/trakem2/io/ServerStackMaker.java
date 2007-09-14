@@ -78,35 +78,46 @@ public class ServerStackMaker {
 
 	/** Forks a new Thread to handle the new request. */
 	private void handleNewConnection(final Socket socket) {
-		new Thread() {
-			public void run() {
-				Utils.log2("Handling new connection. Current count: " + count.get());
-				// waint until less than MAX_JOBS are currently in the works
-				while (count.get() >= MAX_JOBS) {
-					try { Thread.sleep(1000); } catch (InterruptedException e) {}
-				}
+		Utils.log2("New connection. Current count: " + count.get());
+		new Connection(socket).start();
+	}
+
+	private class Connection extends Thread {
+
+		private Socket socket;
+		private BufferedReader in = null;
+		private PrintWriter out = null;
+
+		Connection(Socket socket) {
+			setPriority(Thread.NORM_PRIORITY);
+			this.socket = socket;
+			// process socket.
+			try {
+				this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+				this.out = new PrintWriter(socket.getOutputStream(), true);
+			} catch (IOException ioe) {
+				ioe.printStackTrace();
+			}
+		}
+
+		public void run() {
+			if (null == in || null == out) return;
+			try {
 				// register new job
 				count.addAndGet(1);
-				try {
-					setPriority(Thread.NORM_PRIORITY);
-					// process socket.
-					BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-					PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-					// read only the first line
-					String line = in.readLine();
-					Utils.log2("Processing: " + line);
-					Task task = parseCommand(line);
-					task.execute(out);
-				} catch (IOException ioe) {
-					ioe.printStackTrace();
-				} catch (Throwable t) {
-					t.printStackTrace();
-				} finally {
-					// deregister
-					count.decrementAndGet();
-				}
+				// read the first line
+				String line = in.readLine();
+				Utils.log2("Processing: " + line);
+				Task task = parseCommand(line);
+				task.execute(out);
+				socket.close();
+			} catch (Throwable t) {
+				t.printStackTrace();
+			} finally {
+				// deregister
+				count.decrementAndGet();
 			}
-		}.start();
+		}
 	}
 
 	static public void main(String[] arg) {
@@ -138,7 +149,7 @@ public class ServerStackMaker {
 	}
 
 
-	/** Returns null if the string contains incorrect commands.*/
+	/** Returns an Error Task if the string contains incorrect commands.*/
 	private Task parseCommand(String command) {
 		// check proper command string
 		if (!command.startsWith("GET /") || !command.contains("HTTP/")) {
@@ -238,6 +249,12 @@ public class ServerStackMaker {
 			// - make the stack
 			// - align it
 			// - print back the URL where it will be stored at
+
+			// waint until less than MAX_JOBS are currently in the works
+			while (count.get() >= MAX_JOBS) {
+				Utils.log2("Jobs in queue: " + (count.get() - MAX_JOBS));
+				try { Thread.sleep(1000); } catch (InterruptedException e) {}
+			}
 		}
 	}
 }
