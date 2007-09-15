@@ -2503,7 +2503,7 @@ abstract public class Loader {
 
 			// set LayerSet calibration if there is no calibration
 			boolean calibrate = true;
-			if (first_layer.getParent().isCalibrated()) {
+			if (ask_for_data && first_layer.getParent().isCalibrated()) {
 				YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the stack calibration values?");
 				if (!yn.yesPressed()) {
 					calibrate = false;

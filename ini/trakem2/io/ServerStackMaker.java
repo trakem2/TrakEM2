@@ -25,11 +25,15 @@ package ini.trakem2.io;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.imaging.VirtualStack;
+import ini.trakem2.imaging.Registration;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.Macro;
 import ij.io.FileSaver;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
@@ -305,6 +309,10 @@ public class ServerStackMaker {
 				Layer la = (Layer)it.next();
 				if (0 == la.getDisplayables(Patch.class).size()) it.remove();
 			}
+			// TODO: above, don't remove, but replace with nearest non-empty Layer
+			//
+			//
+			//
 			final Layer[] layer = new Layer[list.size()];
 			list.toArray(layer);
 			// generate a flat image for each layer
@@ -318,8 +326,14 @@ public class ServerStackMaker {
 				imp.flush();
 				imp = null;
 			}
+			final String[] files = fdir.list(new FilenameFilter() {
+				public boolean accept(File dir, String name) {
+					if (name.equals(".") || name.equals("..")) return false;
+					return true;
+				}
+			});
 			if (align) {
-				registerSlices(fdir);
+				registerSlices(stack_dir + task_title, files);
 			}
 			// Create a compressed archive
 			//   - 'task_title' is also the name of the subdirectory containing the images
@@ -352,12 +366,6 @@ public class ServerStackMaker {
 			//Runtime.getRuntime().exec("cd " + stack_dir + " && rm -rf " + task_title);
 			// ... but the java way lets me catch errors
 			// (and trusting java not to mess up a 'rm -rf' is too much for my well being)
-			final String[] files = fdir.list(new FilenameFilter() {
-				public boolean accept(File dir, String name) {
-					if (name.equals(".") || name.equals("..")) return false;
-					return true;
-				}
-			});
 			for (int i=0; i<files.length; i++) {
 				try {
 					new File(stack_dir + task_title + "/" + files[i]).delete();
@@ -372,15 +380,36 @@ public class ServerStackMaker {
 				Utils.log2("Could not delete temporary directory " + stack_dir + task_title);
 			}
 		}
-	}
 
-	/** Takes all image files from the given folder as a stack, makes a project with it, aligns the slices, and then overwrites the images with the new ones. */
-	static private void registerSlices(File source_dir) {
-		// 1 - create a project
-		// 2 - import the folder as a stack
-		// 3 - register
-		// 4 - generate flat images, overwritting them
-		// 5 - delele tmp stack
-		// 6 - return new stack
+		/** Takes all image files from the given folder as a stack, makes a project with it, aligns the slices, and then overwrites the images with the new ones. */
+		private void registerSlices(final String source_dir, final String[] files) throws Exception {
+			// 1 - create a project
+			Project pr = Project.newFSProject("blank");
+			// 2 - import the folder as a stack
+			VirtualStack vs = new VirtualStack(10, 10, null, source_dir); // I don't care about the dimensions
+			for (int i=0; i<files.length; i++) vs.addSlice(files[i]);
+			LayerSet ls = pr.getRootLayerSet();
+			pr.getLoader().importStack(ls.getLayer(0, 1, true), new ImagePlus("vs", vs), false, source_dir);
+			// 3 - register
+			// enable Macro.getOptions
+			Thread.currentThread().setName("Run$_" + Thread.currentThread().getName());
+			// define a K so that the resized image is around max. 2500 pixels in both width and height
+			final int largest = r.width > r.height ? r.width : r.height;
+			final float K =  largest / 2048.0f;
+			// set rather flexible options
+			Macro.setOptions("scale=" + ((int)K*100) + " steps_per_scale_octave=3 initial_gaussian_blur=2.0 feature_descriptor_size=8 feature_descriptor_orientation_bins=8 minimum_image_size=64 maximum_image_size=2500 minimal_alignment_error=2.0 maximal_alignment_error=200 inlier_ratio=0.05");
+			Utils.log2("number of layers: " + ls.size() + "\nnumber of displayables: " + ls.getDisplayables().size());
+			Thread t = Registration.registerStackSlices((Patch)ls.getDisplayables().get(0));
+			t.join(); // wait until done
+			ls.setMinimumDimensions();
+			// 4 - generate flat images, overwritting the existing ones
+			int i = 0;
+			for (Iterator it = ls.getLayers().iterator(); it.hasNext(); ) {
+				Layer la = (Layer)it.next();
+				ImagePlus imp = pr.getLoader().getFlatImage(la, this.r, 1.0, 1, ImagePlus.GRAY8, Patch.class, null, true);
+				new ij.io.FileSaver(imp).saveAsTiff(source_dir + "/" + files[i]);
+				i++;
+			}
+		}
 	}
 }
