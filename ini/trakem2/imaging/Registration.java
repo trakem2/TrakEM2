@@ -30,6 +30,7 @@ import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
 
+import ini.trakem2.Project;
 import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.persistence.Loader;
@@ -47,13 +48,38 @@ import java.util.*;
 import java.awt.geom.AffineTransform;
 
 /**
- * Accessor methods to Stephan Preibisch's FFT-based registration implementation.
+ * Accessor methods to Stephan Preibisch's FFT-based registration,
+ * and to Stephan Saalfeld's SIFT-based registration.
  * 
  * Preibisch's registration:
  * - returns angles between 0 and 180, perfectly reciprocal (img1 to img2 equals img2 to img1)
  * - is non-reciprocal (but almos) for translations (must choose between best)
  * - will only work reliably if there is at least 50% overlap between any two images to register
  *
+ *
+ *
+ *
+ * SIFT consumes plenty of memory:
+ *  - in extracting features:
+ *     - ImageArrayConverter.ImageToFloatArray2D:
+ *         - makes a new FloatProcessor (so the original pointers can be set to null)
+ *         - makes a new FloatArray2D from the FloatProcessor
+ *     - FloatArray2DSIFT:
+ *         - makes a new FloatArray2DScaleOctaveDoGDetector
+ *         - makes a new float[] for the descriptorMask
+ *     - FloatArray2DSIFT.init:
+ *         - makes a new FloatArray2DScaleOctave
+ *         - makes one new ImageFilter.createGaussianKernel1D for each step
+ *         - makes one new FloatArray2DScaleOctave for each octave
+ *     - ImageFilter.computeGaussianFastMirror: duplicates the FloatArray2D
+ *
+ *     In all, the above relates to the input image width and height as:
+ *      area = width * height
+ *      size = area * sizeof(float) * 2
+ *      plus a factorial factor for the octaves of aprox 1.5,
+ *      plus another 1.5 for all the small arrays created on the meanwhile:
+ *
+ *      size = area * 8 * 2 * 3 = area * 48  (aprox.)
  *
  * */
 public class Registration {
@@ -72,6 +98,7 @@ public class Registration {
 		// outside the Worker thread, so that the dialog can be controled with Macro.setOptions
 		// if the calling Thread's name starts with "Run$_"
 		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+		sp.project = layer_set.getProject();
 		if (!sp.setup()) return null;
 
 		final Worker worker = new Worker("Registering stack slices") {
@@ -197,7 +224,6 @@ public class Registration {
 			result = registerSIFT(la1, la2, null, sp);
 			// !@#$% TODO this needs fine-tuning
 			la1.getProject().getLoader().releaseMemory();
-			Loader.runGC();
 
 			// debug: at least we get chunks done
 			if (!ControlWindow.isGUIEnabled() && System.getProperty("user.name").equals("cardona")) {
@@ -232,8 +258,17 @@ public class Registration {
 			Rectangle box2 = layer2.getMinimalBoundingBox(Patch.class);
 			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
 
+			FloatProcessor fp1 = (FloatProcessor)imp1.getProcessor().convertToFloat();
+			FloatProcessor fp2 = (FloatProcessor)imp2.getProcessor().convertToFloat();
+			if (null == cached) { // created locally, flushed locally since there's no caching
+				imp1.flush();
+				imp1 = null;
+			}
+			imp2.flush(); // WARNING this may have to be removed if caching is enabled
+			imp2 = null;
+
 			// ready to start
-			Object[] result = Registration.registerSIFT(imp1.getProcessor().convertToFloat(), imp2.getProcessor().convertToFloat(), fs1, sp);
+			Object[] result = Registration.registerSIFT(fp1, fp2, fs1, sp);
 
 			if (null != result) {
 				// use the returned AffineTransform to adjust all Patch objects in layer2
@@ -259,14 +294,6 @@ public class Registration {
 				// cleanup
 				result = null; // contains the fs1 and fs2
 					// TODO the above is temporary; need to figure out how to properly cache
-				if (null == cached) { // created locally, flushed locally since there's no caching
-					imp1.flush();
-					imp1 = null;
-				}
-				imp2.flush();
-				imp2 = null;
-					// !@#$% TODO this needs fine-tuning
-				layer1.getProject().getLoader().releaseToFit(ij.IJ.maxMemory() / 2); // TODO may be too much, but SIFT is very needy and the JVM sucks at releasing memory
 
 				return new Object[]{atap};
 			} else {
@@ -275,7 +302,6 @@ public class Registration {
 				Utils.log2("\t--- Not yet implemented");
 			}
 
-			// SCREWS UP a lot, because of the caching I guess // layer2.getParent().setMinimumDimensions();
 			// repaint the second Layer, if it is showing in any Display:
 			// no need // Display.repaint(layer2, null, 0);
 
@@ -295,10 +321,17 @@ public class Registration {
 	 *
 	 * Returns null if the model is not significant.
 	 */
-	static public Object[] registerSIFT(final ImageProcessor ip1, final ImageProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
+	static public Object[] registerSIFT(FloatProcessor ip1, FloatProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
+		// ensure enough memory space (in bytes: area * 48 * 2)
+		sp.project.getLoader().releaseToFit(ip1.getWidth() * ip2.getHeight() * 48L
+				                  + ip1.getWidth() * ip2.getHeight() * 48L);
 		// prepare both sets of features
 		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp);
 		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures(ip2, sp);
+		// free all those temporary arrays
+		ip1 = null;
+		ip2 = null;
+		Loader.runGC();
 		// compare
 		final Vector<Match> correspondences = FloatArray2DSIFT.createMatches(fs1, fs2, 1.5f, null, Float.MAX_VALUE);
 		/** From Stephan Saalfeld:
@@ -424,14 +457,16 @@ public class Registration {
 	}
 
 	/** Returns a sorted list of the SIFT features extracted from the given ImagePlus. */
-	final static public Vector<FloatArray2DSIFT.Feature> getSIFTFeatures(final ImageProcessor ip, final Registration.SIFTParameters sp) {
+	final static public Vector<FloatArray2DSIFT.Feature> getSIFTFeatures(ImageProcessor ip, final Registration.SIFTParameters sp) {
 		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat());
-		ImageFilter.enhance( fa, 1.0f );
+		ip = null; // enable GC
+		ImageFilter.enhance( fa, 1.0f ); // done in place
 		fa = ImageFilter.computeGaussianFastMirror(
-				ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat()),
+				fa,
 				(float)Math.sqrt(sp.initial_sigma * sp.initial_sigma - 0.25));
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT(sp.fdsize, sp.fdbins);
 		sift.init(fa, sp.steps, sp.initial_sigma, sp.min_size, sp.max_size);
+		fa = null; // enableGC
 		final Vector<FloatArray2DSIFT.Feature> fs = sift.run(sp.max_size);
 		Collections.sort(fs);
 		return fs;
@@ -445,6 +480,7 @@ public class Registration {
 		// 
 		// setup parameters. Put outside the Worker so the dialog is controlable from a Macro.setOptions(...) if the Thread's name that calls this method starts with the string "Run$_"
 		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+		sp.project = base_slice.getProject();
 		if (!sp.setup()) {
 			return null;
 		}
@@ -543,14 +579,14 @@ public class Registration {
 
 		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 
-		ImageProcessor ip1 = StitchingTEM.makeStripe(base, sp.scale, true, true);
-		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, sp.scale, true, true);
+		FloatProcessor fp1 = (FloatProcessor)StitchingTEM.makeStripe(base, sp.scale, true, true);
+		FloatProcessor fp2 = (FloatProcessor)StitchingTEM.makeStripe(moving, sp.scale, true, true);
 
-		final Object[] result = Registration.registerSIFT(ip1, ip2, fs_base, sp);
+		final Object[] result = Registration.registerSIFT(fp1, fp2, fs_base, sp);
 
 		// enable garbage collection!
-		ip1 = null;
-		ip2 = null;
+		fp1 = null;
+		fp2 = null;
 		// no hope. The recursion prevents from lots of memory from ever being released.
 		// MWAHAHA so I made a non-recursive smart-ass version.
 		// It is somewhat disturbing that each SIFT match at max_size 1600 was using nearly 400 Mb, and all of them were NOT released because of the recursion.
@@ -583,6 +619,7 @@ public class Registration {
 	}
 
 	static private class SIFTParameters {
+		Project project = null;
 		// filled with default values
 		float scale = 1.0f;
 		int steps = 3;
