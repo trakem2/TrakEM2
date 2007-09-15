@@ -173,8 +173,8 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 
 		/** paint all snapshots, scaled, to an offscreen awt.Image */
 		public void run() {
+			// block only while modifying the image pointer
 			synchronized (updating_ob) {
-			try {
 				while (updating) {
 					try { updating_ob.wait(); } catch (InterruptedException ie) {}
 				}
@@ -189,9 +189,11 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					image = new BufferedImage(FIXED_WIDTH, height, BufferedImage.TYPE_INT_ARGB); // looks very crappy with RGB images// BufferedImage.TYPE_BYTE_INDEXED);
 					// for efficiency with large montages, the Display should be queried to find out if any RGB image is present TODO same with the snapshot background one
 				}
+				updating = false;
+				updating_ob.notifyAll();
+			}
+			try {
 				if (quit) {
-					updating = false;
-					updating_ob.notifyAll();
 					return;
 				}
 
@@ -200,20 +202,16 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				//Rectangle clipRect = g.getClipBounds();
 
 				final Graphics2D graphics = image.createGraphics();
+				// paint background as black
 				graphics.setColor(Color.black);
 				graphics.fillRect(0, 0, DisplayNavigator.super.getWidth(), DisplayNavigator.super.getHeight());
 				// set a scaled stroke, or 0.4 if too small
 				if (scale >= 0.4D) graphics.setStroke(new BasicStroke((float)scale));
 				else graphics.setStroke(new BasicStroke(0.4f));
-				// paint background as black
-				graphics.setColor(Color.black);
-				graphics.fillRect(0, 0, FIXED_WIDTH, height);
 
 				graphics.scale(scale, scale);
 
 				if (quit) {
-					updating = false;
-					updating_ob.notifyAll();
 					return;
 				}
 
@@ -222,8 +220,6 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				boolean zd_done = false;
 				for (int i=0; i<size; i++) {
 					if (quit) {
-						updating = false;
-						updating_ob.notifyAll();
 						return;
 					}
 					final Displayable d = (Displayable)al.get(i);
@@ -235,8 +231,6 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 						Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
 						while (itz.hasNext()) {
 							if (quit) {
-								updating = false;
-								updating_ob.notifyAll();
 								return;
 							}
 							ZDisplayable zd = (ZDisplayable)itz.next();
@@ -252,8 +246,6 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
 					while (itz.hasNext()) {
 						if (quit) {
-							updating = false;
-							updating_ob.notifyAll();
 							return;
 						}
 						ZDisplayable zd = (ZDisplayable)itz.next();
@@ -261,19 +253,10 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 						zd.getSnapshot().paintTo(graphics, display.getLayer());
 					}
 				}
-				updating = false;
-				updating_ob.notifyAll();
+				// finally, when done, call repaint (like sending an event)
+				new RepaintThread(null);
 			} catch (Exception e) {
-				if (updating) {
-					updating = false;
-					try {
-						updating_ob.notifyAll();
-					} catch (Exception ee) {
-						Utils.log2("Navigator: synchronization issues.");
-					}
-				}
 				new IJError(e);
-			}
 			}
 		}
 	}
@@ -331,10 +314,12 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				control_lock.notifyAll();
 			}
 			Thread.yield(); // still the launcher thread
+			/* // blocks EDT !
 			if (redraw_displayables) {
 				new UpdateGraphicsThread();
 				redraw_displayables = false; // reset
 			}
+			*/
 			quit = false;
 			setPriority(Thread.NORM_PRIORITY);
 			start();
@@ -346,6 +331,11 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 
 		public void run() {
 			if (quit) return;
+			if (redraw_displayables) {
+				redraw_displayables = false; // reset
+				new UpdateGraphicsThread();
+			}
+			/* Don't wait. When done, the thread will call another repaint thread
 			// now wait for the image to be done
 			synchronized (updating_ob) {
 				while (updating) {
@@ -355,6 +345,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					} catch (InterruptedException ie) {}
 				}
 			}
+			*/
 			// this is the only place where the real, super repaint is to be called directly
 			if (null == clipRect) DisplayNavigator.super.repaint(0, 0, 0, FIXED_WIDTH, height); // calling super.repaint() causes infinite loops of RepaintThread instances, for unknown reasons in the IBM-1.4.2-ppc. The method long, int, int, int, int exists in the JComponent and holds ...
 			else DisplayNavigator.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);

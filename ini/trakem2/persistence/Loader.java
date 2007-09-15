@@ -2810,15 +2810,15 @@ abstract public class Loader {
 			IJ.redirectErrorMessages();
 			Object ob = IJ.runPlugIn(plugin_class_name, "");
 			if (null == ob) {
-				Utils.showMessage("The preprocessor plugin " + plugin_class_name + " was not found.");
+				Utils.showMessageT("The preprocessor plugin " + plugin_class_name + " was not found.");
 			} else if (!(ob instanceof PlugInFilter)) {
-				Utils.showMessage("Plug in '" + plugin_class_name + "' is invalid: does not implement PlugInFilter");
+				Utils.showMessageT("Plug in '" + plugin_class_name + "' is invalid: does not implement PlugInFilter");
 			} else { // all is good:
 				this.preprocessor = plugin_class_name;
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
-			Utils.showMessage("Plug in " + plugin_class_name + " is invalid: ImageJ has thrown an exception when testing it with a null image.");
+			Utils.showMessageT("Plug in " + plugin_class_name + " is invalid: ImageJ has thrown an exception when testing it with a null image.");
 		} finally {
 			finishSetTempCurrentImage();
 		}
@@ -2957,7 +2957,7 @@ abstract public class Loader {
 			path = path.replace('/', '\\');
 		}
 		// debug:
-		Utils.log2("opening image " + path);
+		Utils.showStatus("opening image " + path);
 		//Utils.printCaller(this, 10);
 		return opener.openImage(path);
 	}

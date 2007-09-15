@@ -232,6 +232,16 @@ public class Utils implements ij.plugin.PlugIn {
 		else IJ.showMessage(msg);
 	}
 
+	/** Runs the showMessage in a separate Thread. */
+	static public void showMessageT(final String msg) {
+		new Thread() {
+			public void run() {
+				setPriority(Thread.NORM_PRIORITY);
+				Utils.showMessage(msg);
+			}
+		}.start();
+	}
+
 	static public void showStatus(String msg, boolean focus) {
 		// blocks input tremendously!
 		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled()) {
