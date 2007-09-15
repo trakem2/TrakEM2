@@ -240,12 +240,21 @@ abstract public class Loader {
 		return roots[0];
 	}
 
-	/** Does nothing unless overriden. */
-	public void startLargeUpdate() {}
-	/** Does nothing unless overriden. */
-	public void commitLargeUpdate() {}
-	/** Does nothing unless overriden. */
-	public void rollback() {}
+	private boolean temp_snapshots_enabled = true;
+
+	public void startLargeUpdate() {
+		LayerSet ls = Project.findProject(this).getRootLayerSet();
+		temp_snapshots_enabled = ls.areSnapshotsEnabled();
+		if (temp_snapshots_enabled) ls.setSnapshotsEnabled(false);
+	}
+
+	public void commitLargeUpdate() {
+		Project.findProject(this).getRootLayerSet().setSnapshotsEnabled(temp_snapshots_enabled);
+	}
+
+	public void rollback() {
+		Project.findProject(this).getRootLayerSet().setSnapshotsEnabled(temp_snapshots_enabled);
+	}
 
 	abstract public double[][][] fetchBezierArrays(long id);
 
@@ -1377,7 +1386,7 @@ abstract public class Loader {
 			try {
 				Object ob = IJ.runPlugIn(preprocessor, "");
 				if (!(ob instanceof PlugInFilter)) {
-					Utils.showMessage("Plug in " + preprocessor + " is invalid: does not implement interface PlugInFilter");
+					Utils.showMessageT("Plug in " + preprocessor + " is invalid: does not implement interface PlugInFilter");
 					finishSetTempCurrentImage();
 					return;
 				}
@@ -1385,7 +1394,7 @@ abstract public class Loader {
 			} catch (Exception e) {
 				new IJError(e);
 				finishSetTempCurrentImage();
-				Utils.showMessage("Plug in " + preprocessor + " is invalid: ImageJ has trhown an exception when testing it with a null image.");
+				Utils.showMessageT("Plug in " + preprocessor + " is invalid: ImageJ has trhown an exception when testing it with a null image.");
 				return;
 			}
 		}
@@ -1423,6 +1432,7 @@ abstract public class Loader {
 			auto_fix_all = true;
 			resize = true;
 		}
+
 		startLargeUpdate();
 		for (int i=0; i<cols.size(); i++) {
 			String[] rows = (String[])cols.get(i);
@@ -1717,6 +1727,7 @@ abstract public class Loader {
 					rollback();
 					ControlWindow.endWaitingCursor();
 					Display.repaint(layer);
+					rollback();
 					return;
 				}
 				try { Thread.sleep(1000); } catch (InterruptedException ie) {}
@@ -2957,7 +2968,7 @@ abstract public class Loader {
 			path = path.replace('/', '\\');
 		}
 		// debug:
-		Utils.showStatus("opening image " + path);
+		Utils.log2("opening image " + path);
 		//Utils.printCaller(this, 10);
 		return opener.openImage(path);
 	}

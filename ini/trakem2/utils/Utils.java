@@ -52,7 +52,7 @@ import java.awt.event.ItemEvent;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.4c 2007-09-12";
+	static public String version = "0.4d 2007-09-15";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -70,7 +70,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Intended for the user to see. */
-	static public void log(String msg) {
+	static public void log(final String msg) {
 		// print caller if possible
 		/* Freezes ImageJ !
 		StackTraceElement[] elems = new Exception().getStackTrace();
@@ -79,11 +79,19 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		*/
 
-		//IJ.log(msg);
+		/*
+		new Thread() {
+			public void run() {
+				IJ.log(msg);
+			}
+		}.start();
+		*/
+
+		// for now:
 		System.out.println(msg);
 	}
 
-	/** Intended for developers to see. */
+	/** Intended for developers. */
 	static public void log2(String msg) {
 		System.out.println(msg);
 	}

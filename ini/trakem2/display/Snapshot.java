@@ -80,6 +80,7 @@ public class Snapshot {
 			double[] c = new double[]{0,0,  d.getWidth(),0,  d.getWidth(),d.getHeight(),  0,d.getHeight()};
 			final double[] c2 = new double[8];
 			d.getAffineTransform().transform(c, 0, c2, 0, 4);
+			g.setColor(d.getColor());
 			g.drawLine((int)c2[0], (int)c2[1], (int)c2[2], (int)c2[3]);
 			g.drawLine((int)c2[2], (int)c2[3], (int)c2[4], (int)c2[5]);
 			g.drawLine((int)c2[4], (int)c2[5], (int)c2[6], (int)c2[7]);

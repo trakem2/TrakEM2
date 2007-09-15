@@ -2046,8 +2046,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						} else {
 							if (!d.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
 								d.paint(g_any, magnification, false, c_alphas, layer);
-								new RepaintThread(DisplayCanvas.this, d.getBoundingBox(), false);
-								// keep updating for each image
+								if (0 == (i+1) % 10) new RepaintThread(DisplayCanvas.this, d.getBoundingBox(), false);
+								// keep updating every 10th image
 								// This is like sending an event
 							}
 						}
@@ -2108,7 +2108,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// only on success:
 				update_graphics = false;
 				loader.setMassiveMode(false);
+				// signal that the offscreen image is done: repaint
 				new RepaintThread(DisplayCanvas.this, null, false);
+
 			} catch (OutOfMemoryError oome) {
 				// so OutOfMemoryError won't generate locks
 				new IJError(oome);
