@@ -275,7 +275,6 @@ public class ServerStackMaker {
 			}
 			// 
 			out.println("OK will process box:" + r + " scale: " + scale + " layers: " + i_first_layer + "-" + i_last_layer + " align: " + align);
-			out.println("dummy - here you'll get the URL to the cropped stack.");
 			//
 			// - make the stack
 			// - align it
@@ -322,10 +321,11 @@ public class ServerStackMaker {
 			if (align) {
 				registerSlices(fdir);
 			}
-			// create a compressed archive 
-			Process process = Runtime.getRuntime().exec("/bin/tar cvzf " + stack_dir + task_title + ".tar.gz " + stack_dir + task_title); // 'task'title' is also the name of the subdirectory containing the images
-
-			// TODO: the above tar command is wrong: generates archives with the full path of folders inside.
+			// Create a compressed archive
+			//   - 'task_title' is also the name of the subdirectory containing the images
+			//   - the second argument is the environmental variables, which I set to null so that the parent's process vars are inherited
+			//   - the third argument is the desired working directory; in this case, the stack_dir where the temporary directories are created.
+			Process process = Runtime.getRuntime().exec("/bin/tar cvzf " + task_title + ".tar.gz " + task_title, null, new File(stack_dir));
 
 			BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
 			String line;
@@ -350,7 +350,8 @@ public class ServerStackMaker {
 			// Attempt to remove the temporary directory and its contents
 			// This line would do it:
 			//Runtime.getRuntime().exec("cd " + stack_dir + " && rm -rf " + task_title);
-			// ... but the java way lets me catch errors:
+			// ... but the java way lets me catch errors
+			// (and trusting java not to mess up a 'rm -rf' is too much for my well being)
 			final String[] files = fdir.list(new FilenameFilter() {
 				public boolean accept(File dir, String name) {
 					if (name.equals(".") || name.equals("..")) return false;
