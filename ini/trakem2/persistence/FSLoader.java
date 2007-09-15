@@ -394,25 +394,21 @@ public class FSLoader extends Loader {
 	}
 
 	public boolean updateInDatabase(DBObject ob, String key) {
-		synchronized (db_lock) {
-			lock();
-			setChanged(true);
-			unlock();
-		}
+		setChanged(true);
 		if (ob instanceof Patch) {
 			try {
 				Patch p = (Patch)ob;
-				String path = getAbsolutePath(p); //(String)ht_paths.get(ob);
-				String slice = null;
-				// path can be null if the image is pasted, or from a copy
-				if (null != path) {
-					int i_sl = path.lastIndexOf("-----#slice=");
-					if (-1 != i_sl) {
-						slice = path.substring(i_sl);
-						path = path.substring(0, i_sl);
-					}
-				}
 				if (key.equals("tiff_working")) {
+					String path = getAbsolutePath(p);
+					String slice = null;
+					// path can be null if the image is pasted, or from a copy
+					if (null != path) {
+						int i_sl = path.lastIndexOf("-----#slice=");
+						if (-1 != i_sl) {
+							slice = path.substring(i_sl);
+							path = path.substring(0, i_sl);
+						}
+					}
 					boolean overwrite = null != path;
 					if (overwrite) {
 						Utils.printCaller(this, 10);
