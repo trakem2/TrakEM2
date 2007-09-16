@@ -105,6 +105,8 @@ public class Registration {
 			public void run() {
 				startedWorking();
 
+		boolean massive_mode = layer_set.getProject().getLoader().getMassiveMode();
+		layer_set.getProject().getLoader().setMassiveMode(true); // should be done with startLargeUpdate
 		try {
 			// build lists (Layers are consecutive)
 			final List<Layer> list1 = new ArrayList<Layer>();
@@ -193,6 +195,7 @@ public class Registration {
 		} catch (Exception e) {
 			new IJError(e);
 		}
+		layer_set.getProject().getLoader().setMassiveMode(massive_mode);
 
 				finishedWorking();
 			}
@@ -323,13 +326,20 @@ public class Registration {
 	 */
 	static public Object[] registerSIFT(FloatProcessor ip1, FloatProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
 		// ensure enough memory space (in bytes: area * 48 * 2)
-		sp.project.getLoader().releaseToFit(ip1.getWidth() * ip2.getHeight() * 48L
-				                  + ip1.getWidth() * ip2.getHeight() * 48L);
+		// times 2, ... !@#$%
+		long size = 2 * (ip1.getWidth() * ip2.getHeight() * 48L + ip2.getWidth() * ip2.getHeight() * 48L);
+		Utils.log2("size is: " + size);
+		while (!sp.project.getLoader().releaseToFit(size) && size > 10000000) { // 10 Mb
+			size = (size / 3) * 2; // if it fails, at least release as much as possible
+			Utils.log2("size is: " + size);
+			// size /= 1.5  was NOT failing at the compiler level! Uh?
+		}
 		// prepare both sets of features
 		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp);
+		ip1 = null;
+		Loader.runGC(); // cleanup
 		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures(ip2, sp);
 		// free all those temporary arrays
-		ip1 = null;
 		ip2 = null;
 		Loader.runGC();
 		// compare

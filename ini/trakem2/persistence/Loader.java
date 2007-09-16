@@ -548,15 +548,16 @@ abstract public class Loader {
 	}
 
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
-	public final void releaseToFit(long bytes) {
+	public final boolean releaseToFit(long bytes) {
 		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
 		if (bytes > max_memory) {
 			Utils.showMessage("Can't fit " + bytes + " bytes in memory.");
-			return;
+			return false;
 		}
 		boolean previous = massive_mode;
-		if (bytes > max_memory / 4) setMassiveMode(true); //massive_mode = true;
+		if (bytes > max_memory / 4) setMassiveMode(true);
 		int iterations = 30;
+		boolean result = true;
 		synchronized (db_lock) {
 			lock();
 			while (!enoughFreeMemory(bytes)) {
@@ -565,11 +566,12 @@ abstract public class Loader {
 				if (0 == imps.size() && 0 == awts.size() && 0 == snaps.size()) {
 					// wait for GC ...
 					try { Thread.sleep(1000); } catch (InterruptedException ie) {}
-					// release offscreen images (will leave the canvas labeled for rremaking when necessary)
+					// release offscreen images (will leave the canvas labeled for remaking when necessary)
 					if (iterations < 20) Display.flushAll();
 				}
 				if (iterations < 0) {
 					Utils.log("Can't make room for " + bytes + " bytes in memory.");
+					result = false;
 					break;
 				}
 				Thread.yield(); // for the GC to run
@@ -578,7 +580,8 @@ abstract public class Loader {
 			}
 			unlock();
 		}
-		setMassiveMode(previous); //massive_mode = previous;
+		setMassiveMode(previous);
+		return result;
 	}
 
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
