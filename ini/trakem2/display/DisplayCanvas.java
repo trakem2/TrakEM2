@@ -147,20 +147,24 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				controling2 = true;
 
 				// merge clip with previous thread if it wasn't finished
-				if (null != rt_old && !rt_old.done) { // only if unfinished
+				if (null != rt_old) { // only if unfinished
 					// in any case, cancel previous thread
 					if (create_offscreen_data) {
 						// cancel previous creation of offscreen data (if any)
 						if (null != rt_old.offscreen_thread) {
-							rt_old.offscreen_thread.cancel();
 							rt_old.stop_offscreen_data = true;
+							rt_old.offscreen_thread.cancel();
+							try { rt_old.offscreen_thread.join(); } catch (InterruptedException ie) {}
+							rt_old.offscreen_thread = null;
 						}
 					}
-					rt_old.quit();
-					// merge clips
-					if (null != this.clipRect) {
-						if (null != rt_old.clipRect) this.clipRect.add(rt_old.clipRect);
-						else this.clipRect = null; // null means 'all'
+					if (!rt_old.done) {
+						rt_old.quit();
+						// merge clips
+						if (null != this.clipRect) {
+							if (null != rt_old.clipRect) this.clipRect.add(rt_old.clipRect);
+							else this.clipRect = null; // null means 'all'
+						}
 					}
 				}
 				// register (this is why I synch with controler_ob2)
@@ -196,16 +200,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					createOffscreenData(layer, g_width, g_height, active, c_alphas); // the offscreen1 and the al_top_paint. Will fork and call a new repaint thread when done
 
 				}
-				// soft attempt to stop repainting (in purpose)
-				/*
-				cancel_painting = true;
-				Thread.yield();
-				cancel_painting = false;
-				*/
 
 				// call the paint(Graphics g) ATTENTION this is the only place where any of the repaint methods of the superclass are to be called (which will call the update(Graphics g), which will call the paint method.
 				if (null == clipRect) DisplayCanvas.super.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
 				else DisplayCanvas.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
+				/* // no need, and would make me loose the pointer to cancel the previous offscreen thread if any.
 				synchronized (controler_ob2) {
 					while (controling2) { try { controler_ob2.wait(); } catch (InterruptedException ie) {} }
 
@@ -214,6 +213,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					controling2 = false;
 					controler_ob2.notifyAll();
 				}
+				*/
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("RepaintThread OutOfMemoryError: " + oome); // so OutOfMemoryError won't generate locks
 			} catch (Exception e) {
@@ -1951,8 +1951,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			this.g_height = g_height;
 			this.active = active;
 			this.c_alphas = c_alphas;
+			Utils.log2("offscreen created " + this.getId());
 		}
 		public void cancel() {
+			Utils.log2("offscreen canceled " + this.getId());
 			this.stop_offscreen_data = true;
 		}
 		public void run() {
@@ -2031,6 +2033,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				final Selection selection = display.getSelection();
 
+				Rectangle accum_box = null;
+				final Rectangle tmp = new Rectangle();
+
 				int i = 0;
 				while (i < n) {
 					if (stop_offscreen_data) {
@@ -2046,7 +2051,17 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						} else {
 							if (!d.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
 								d.paint(g_any, magnification, false, c_alphas, layer);
-								if (0 == (i+1) % 10) new RepaintThread(DisplayCanvas.this, d.getBoundingBox(), false);
+								Utils.log2("painted " + this.getId());
+								if (null == accum_box) {
+									accum_box = (Rectangle)d.getBoundingBox(tmp).clone();
+								} else {
+									accum_box.add(d.getBoundingBox(tmp));
+								}
+								if (0 == (i+1) % 10) {
+									final Rectangle accum_box2 = accum_box;
+									new Thread() { public void run() { new RepaintThread(DisplayCanvas.this, accum_box2, false); }}.start(); // the new thread prevents lock up, since a thread may be joining this thread if it's trying to quit it
+									accum_box = null;
+								}
 								// keep updating every 10th image
 								// This is like sending an event
 							}
@@ -2109,7 +2124,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				update_graphics = false;
 				loader.setMassiveMode(false);
 				// signal that the offscreen image is done: repaint
-				new RepaintThread(DisplayCanvas.this, null, false);
+				new Thread() { public void run() { new RepaintThread(DisplayCanvas.this, null, false); }}.start(); // the new thread prevents lock up, since a thread may be joining this thread if it's trying to quit it
 
 			} catch (OutOfMemoryError oome) {
 				// so OutOfMemoryError won't generate locks
