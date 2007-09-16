@@ -343,9 +343,16 @@ public class FSLoader extends Loader {
 				Image awt = awts.get(p.getId()); // automatically places it at the end of the FIFO
 				if (null == awt) {
 					unlock();
-					fetchImagePlus(p, true); // will create snapshot
-					snap = snaps.get(p.getId());
+					ImagePlus imp = fetchImagePlus(p, true); // will create snapshot
 					lock();
+					snap = snaps.get(p.getId());
+					if (null == snap) { // should not happen, but it does TODO
+						unlock();
+						awt = p.createImage(imp); // caches awt
+						lock();
+						snap = Snapshot.createSnap(p, awt, Snapshot.SCALE);
+						snaps.put(p.getId(), snap);
+					}
 				} else {
 					try {
 						releaseMemory(); // mild attempt

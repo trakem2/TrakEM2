@@ -364,7 +364,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 
 				// paint a pink frame around selected objects, and a white frame around the active object, and a big yellow frame with handles if transforming
-				if (null != selection && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) {
+				if (null != selection && ProjectToolbar.getToolId() < ProjectToolbar.PENCIL) { // i.e. PENCIL, PEN and ALIGN
 					selection.paint(g, srcRect, magnification);
 				}
 
@@ -1951,10 +1951,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			this.g_height = g_height;
 			this.active = active;
 			this.c_alphas = c_alphas;
-			Utils.log2("offscreen created " + this.getId());
+			//Utils.log2("offscreen created " + this.getId());
 		}
 		public void cancel() {
-			Utils.log2("offscreen canceled " + this.getId());
+			//Utils.log2("offscreen canceled " + this.getId());
 			this.stop_offscreen_data = true;
 		}
 		public void run() {
@@ -2051,7 +2051,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						} else {
 							if (!d.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
 								d.paint(g_any, magnification, false, c_alphas, layer);
-								Utils.log2("painted " + this.getId());
+								//Utils.log2("painted " + this.getId());
 								if (null == accum_box) {
 									accum_box = (Rectangle)d.getBoundingBox(tmp).clone();
 								} else {
