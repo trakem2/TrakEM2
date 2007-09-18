@@ -917,9 +917,9 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return ((Layer)al_layers.get(al_layers.size() -1)).getZ() - ((Layer)al_layers.get(0)).getZ();
 	}
 
-	/** Return all the Displayable objects from all the layers of this LayerSet. */
-	protected ArrayList getDisplayables() {
-		ArrayList al = new ArrayList();
+	/** Return all the Displayable objects from all the layers of this LayerSet. Does not include the ZDisplayables. */
+	public ArrayList getDisplayables() {
+		final ArrayList al = new ArrayList();
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
 			al.addAll(layer.getDisplayables());
@@ -927,6 +927,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return al;
 	}
 
+	/** From zero to size-1. */
 	public int indexOf(Layer layer) {
 		return al_layers.indexOf(layer);
 	}
@@ -942,7 +943,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		       .append(in).append("rot_z=\"").append(rot_z).append("\"\n")
 		       .append(in).append("snapshots_quality=\"").append(snapshots_quality).append("\"\n")
 		       .append(in).append("snapshots_enabled=\"").append(snapshots_enabled).append("\"\n")
-		       // TODO: alpha! But I don't care.
+		       // TODO: alpha! But it's not necessary.
 		;
 		sb_body.append(indent).append(">\n");
 		if (null != calibration) {

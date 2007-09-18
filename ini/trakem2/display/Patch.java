@@ -259,15 +259,17 @@ public class Patch extends Displayable {
 		if (this.channels != channels) {
 			// more proper, so a snap with proper quality may be returned, or a smaller awt
 			final Image awt = getProject().getLoader().decacheAWT(this.id);
-			if (null != awt) try {
-				awt.flush();
-			} catch (Exception e) {
-				new Thread() {
-					public void run() {
-						try { Thread.sleep(10); } catch (InterruptedException ie) {}
-						Display.repaint(layer, Patch.this, 0);
-					}
-				}.start(); // this flush may have interfered with paints in progress, so just repaint again
+			if (null != awt) {
+				try {
+					awt.flush();
+				} catch (Exception e) {
+					new Thread() {
+						public void run() {
+							try { Thread.sleep(10); } catch (InterruptedException ie) {}
+							Display.repaint(layer, Patch.this, 0);
+						}
+					}.start(); // this flush may have interfered with paints in progress, so just repaint again
+				}
 			}
 			// the above just throws the cached image away if the alpha of the channels has changed
 		}

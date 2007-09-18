@@ -1160,7 +1160,7 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Apply this Displayable's AffineTransform to the given point. */
-	public Point2D.Double transformPoint(final int px, final int py) {
+	public Point2D.Double transformPoint(final double px, final double py) {
 		final Point2D.Double pSrc = new Point2D.Double(px, py);
 		if (this.at.isIdentity()) return pSrc;
 		final Point2D.Double pDst = new Point2D.Double();

@@ -27,6 +27,7 @@ import ij.io.*;
 import ij.gui.*;
 import ij.process.*;
 import ini.trakem2.Project;
+import ini.trakem2.ControlWindow;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
@@ -443,8 +444,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			final Display d = (Display)e.nextElement();
 			front = d; // must be set before repainting any ZDisplayable!
 			Object[] props = (Object[])ht_later.get(d);
-			d.makeGUI(d.layer, props);
+			if (ControlWindow.isGUIEnabled()) d.makeGUI(d.layer, props);
 			d.setLayerLater(d.layer, d.layer.get(((Long)props[3]).longValue())); //important to do it after makeGUI
+			if (!ControlWindow.isGUIEnabled()) continue;
 			ImagePlus.addImageListener(d);
 			al_displays.add(d);
 			d.updateTitle();
@@ -807,6 +809,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	private void setLayerLater(Layer layer, final Displayable active) {
 		if (null == layer) return;
 		this.layer = layer;
+		if (!ControlWindow.isGUIEnabled()) return;
 		// empty the tabs, except channels and pipes
 		clearTab(panel_profiles, "Profiles");
 		clearTab(panel_patches, "Patches");

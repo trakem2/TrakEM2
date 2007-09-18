@@ -289,6 +289,11 @@ public class Project extends DBObject {
 				display.getCanvas().setup(0.25, srcRect);
 				display.updateTitle();
 			}
+			try {
+				Thread.sleep(200); // waiting cheaply for asynchronous swing calls
+			} catch (InterruptedException ie) {
+				ie.printStackTrace();
+			}
 			return project;
 		} catch (Exception e) {
 			new IJError(e);
@@ -440,6 +445,10 @@ public class Project extends DBObject {
 		return "project";
 	}
 
+	public void save() {
+		loader.save(this);
+	}
+
 	public boolean destroy() {
 		if (loader.hasChanges()) { // DBLoader always returns false
 			if (ControlWindow.isGUIEnabled()) {
@@ -527,6 +536,9 @@ public class Project extends DBObject {
 		} else if (type.equals("ball")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Ball(this, "ball", 0, 0);
+		} else if (type.equals("dissector")) {
+			ProjectToolbar.setTool(ProjectToolbar.PEN);
+			return new Dissector(this, "dissector", 0, 0);
 		} else if (type.equals("label")) {
 			return new DLabel(this, "  ", 0, 0); // never used so far
 		} else {
@@ -688,6 +700,7 @@ public class Project extends DBObject {
 		if (!ht_unique_tt.contains("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
 		if (!ht_unique_tt.contains("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
 		if (!ht_unique_tt.contains("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
+		if (!ht_unique_tt.contains("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
 
 		String[] ut = new String[ht_unique_tt.size()-1];
 		int i = 0;
@@ -783,6 +796,7 @@ public class Project extends DBObject {
 		Pipe.exportDTD(sb_header, hs, indent);
 		Profile.exportDTD(sb_header, hs, indent);
 		AreaList.exportDTD(sb_header, hs, indent);
+		Dissector.exportDTD(sb_header, hs, indent);
 		// 4 - export Display
 		Display.exportDTD(sb_header, hs, indent);
 		// all the above could be done with reflection, automatically detecting the presence of an exportDTD method.
