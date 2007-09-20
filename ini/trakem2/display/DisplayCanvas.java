@@ -400,6 +400,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			} else {
 				g.drawImage(handPaintingOffscreen, 0, 0, null);
 			}
+
+			// clean up
+			if (Thread.currentThread().equals(rt_old)) {
+				rt_old = null;
+			}
+
+
 			// Mathias code:
 			if (null != freehandProfile) {
 				freehandProfile.paint(g, magnification, srcRect, true);
@@ -425,9 +432,22 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			try { rt_old.join(); } catch (InterruptedException ie) {}
 		}
 		*/
+		/*
 		while (null != rt_old) {
 			try { Thread.sleep(1000); } catch (InterruptedException ie) {}
 		}
+		*/
+		Thread t = null;
+		synchronized (controler_ob2) {
+			while (controling2) { try { controler_ob2.wait(); } catch (InterruptedException ie) {} }
+			controling2 = true;
+			t = rt_old;
+			controling2 = false;
+			controler_ob2.notifyAll();
+		}
+		if (null != t) try {
+			t.join();
+		} catch (InterruptedException ie) {}
 	}
 
 	/** Paints a handle on the screen coords. Adapted from ij.gui.Roi class. */
