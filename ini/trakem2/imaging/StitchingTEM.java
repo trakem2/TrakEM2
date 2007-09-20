@@ -49,6 +49,7 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.awt.geom.AffineTransform;
 
 
 /** Given:
@@ -290,11 +291,11 @@ public class StitchingTEM {
 		ImageProcessor ip = imp.getProcessor();
 
 		// compare and adjust
-		if (!ignore_patch_transform && !p.getAffineTransform().isIdentity()) {
+		if (!ignore_patch_transform && p.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) { // if it's not only a translation:
 			final Rectangle b = p.getBoundingBox();
 			ip = ip.resize(b.width, b.height);
-			Utils.log2("resizing stripe for patch: " + p);
-			// the above is only meant to correct for improperly acquired images at the microscope, the scale only. TODO this will generate endless problems with transformed images, needs fixing.
+			//Utils.log2("resizing stripe for patch: " + p);
+			// the above is only meant to correct for improperly acquired images at the microscope, the scale only.
 		}
 		// cut
 		if (null != roi) {
@@ -369,8 +370,8 @@ public class StitchingTEM {
 					roi2 = new Roi(0, 0, (int)(w2 * overlap), h2); // left
 					break;
 			}
-			Utils.log2("roi1: " + roi1);
-			Utils.log2("roi2: " + roi2);
+			//Utils.log2("roi1: " + roi1);
+			//Utils.log2("roi2: " + roi2);
 			ip1 = makeStripe(base, roi1, scale); // will apply the transform if necessary
 			ip2 = makeStripe(moving, roi2, scale);
 			//new ImagePlus("roi1", ip1).show();
