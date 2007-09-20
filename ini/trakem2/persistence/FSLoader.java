@@ -631,6 +631,16 @@ public class FSLoader extends Loader {
 		}
 	}
 
+	public String saveAs(Project project) {
+		String path = super.saveAs(project);
+		if (null != path) {
+			// update the xml path to point to the new one
+			this.project_xml_path = path;
+			Utils.log2("After saveAs, new xml path is: " + path);
+		}
+		return path;
+	}
+
 	/** Returns the stored path for the given Patch image, which may be relative.*/
 	public String getPath(final Patch patch) {
 		final Object ob = ht_paths.get(patch);

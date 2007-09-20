@@ -23,6 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
+import ij.IJ;
 import ij.gui.OvalRoi;
 import ij.gui.ShapeRoi;
 import ij.gui.Toolbar;
@@ -52,6 +53,8 @@ import java.awt.geom.GeneralPath;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.awt.Shape;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -925,5 +928,93 @@ public class AreaList extends ZDisplayable {
 		if (null == area) return;
 		ht_areas.put(new Long(layer_id), area);
 		updateInDatabase("points=" + layer_id);
+	}
+
+	/** Measure the volume (in voxels) of this AreaList,
+	 *  and the surface area, the latter estimated as the number of voxels that
+	 *  make the outline.
+	 *  
+	 *  If the width and height of this AreaList cannot be fit in memory, scaled down versions will be used,
+	 *  and thus the results will be approximate.
+	 *
+	 *  */
+	public String getInfo() {
+		Rectangle box = getBoundingBox(null);
+		float scale = 1.0f;
+		while (!getProject().getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000)) { // factor of 2, because a mask will be involved
+			scale /= 2;
+		}
+		Utils.log2("starting AreaList getInfo");
+		double volume = 0;
+		double surface = 0;
+		final int w = (int)Math.ceil(box.width * scale);
+		final int h = (int)Math.ceil(box.height * scale);
+		BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
+		Graphics2D g = bi.createGraphics();
+		//DataBufferByte buffer = (DataBufferByte)bi.getRaster().getDataBuffer();
+		byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
+
+		// prepare suitable transform
+		AffineTransform aff = (AffineTransform)this.at.clone();
+		AffineTransform aff2 = new AffineTransform();
+		//  A - remove translation
+		aff2.translate(-box.x, -box.y);
+		aff.preConcatenate(aff2);
+		//  B - scale
+		if (1.0f != scale) {
+			aff2.setToIdentity();
+			aff2.translate(box.width/2, box.height/2);
+			aff2.scale(scale, scale);
+			aff2.translate(-box.width/2, -box.height/2);
+			aff.preConcatenate(aff2);
+		}
+		// for each area, measure its area and its perimeter
+		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
+			// fetch Area
+			Map.Entry entry = (Map.Entry)it.next();
+			Object ob_area = entry.getValue();
+			long lid = ((Long)entry.getKey()).longValue();
+			if (UNLOADED.equals(ob_area)) ob_area = loadLayer(lid);
+			Area area2 = ((Area)ob_area).createTransformedArea(aff);
+			// paint the area, filling mode
+			g.setColor(Color.white);
+			g.fill(area2);
+			double n_pix = 0;
+			// count white pixels
+			for (int i=0; i<pixels.length; i++) {
+				if (255 == (pixels[i]&0xff)) n_pix++;
+				// could set the pixel to 0, but I have no idea if that holds properly (or is fast at all) in automatically accelerated images
+			}
+			// debug: show me
+			// new ImagePlus("lid=" + lid, bi).show();
+
+			double thickness = layer_set.getLayer(lid).getThickness();
+			volume += n_pix * thickness;
+			// reset board (filling all, to make sure there are no rounding surprises)
+			g.setColor(Color.black);
+			g.fillRect(0, 0, w, h);
+			// now measure length of perimeter
+			ArrayList al_paths = getPaths(lid);
+			double length = 0;
+			for (Iterator ipath = al_paths.iterator(); ipath.hasNext(); ) {
+				ArrayList path = (ArrayList)ipath.next();
+				Point p2 = (Point)path.get(0);
+				for (int i=path.size()-1; i>-1; i--) {
+					Point p1 = (Point)path.get(i);
+					length += p1.distance(p2);
+					p1 = p2;
+				}
+			}
+			surface += length * thickness;
+		}
+		// cleanup
+		pixels = null;
+		g = null;
+		bi.flush();
+		// correct scale
+		volume /= scale;
+		surface /= scale;
+		// remove pretentious after-comma digits on return:
+		return new StringBuffer("Volume: ").append(IJ.d2s(volume, 2)).append(" (cubic pixels)\nSurface: ").append(IJ.d2s(surface, 2)).append(" (square pixels)\n").toString();
 	}
 }
