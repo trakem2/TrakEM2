@@ -427,16 +427,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	public void waitForRepaint() {
-		/*
-		if (null != rt_old) {
-			try { rt_old.join(); } catch (InterruptedException ie) {}
-		}
-		*/
-		/*
-		while (null != rt_old) {
-			try { Thread.sleep(1000); } catch (InterruptedException ie) {}
-		}
-		*/
 		Thread t = null;
 		synchronized (controler_ob2) {
 			while (controling2) { try { controler_ob2.wait(); } catch (InterruptedException ie) {} }
