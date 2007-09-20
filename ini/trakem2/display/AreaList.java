@@ -144,7 +144,7 @@ public class AreaList extends ZDisplayable {
 		Utils.log("AreaList.transformPoints: not implemented yet.");
 	}
 
-	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in. */
+	/** Returns the layer of lowest Z coordinate Layer where this ZDisplayable has a point in. */
 	public Layer getFirstLayer() {
 		double min_z = Double.MAX_VALUE;
 		Layer first_layer = null;
@@ -158,6 +158,21 @@ public class AreaList extends ZDisplayable {
 		}
 		return first_layer;
 	}
+
+	/** Returns the layer of highest Z coordinate Layer where this ZDisplayable has a point in. */
+	public Layer getLastLayer() {
+		double max_z = -Double.MAX_VALUE;
+		Layer last_layer = null;
+		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
+			Layer la = this.layer_set.getLayer(((Long)it.next()).longValue());
+			double z = la.getZ();
+			if (z > max_z) {
+				max_z = z;
+				last_layer = la;
+			}
+		}
+		return last_layer;
+	} // I do REALLY miss Lisp macros. Writting the above two methods in a lispy way would make the java code unreadable
 
 	public void linkPatches() {
 		unlinkAll(Patch.class);
@@ -944,7 +959,6 @@ public class AreaList extends ZDisplayable {
 		while (!getProject().getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000)) { // factor of 2, because a mask will be involved
 			scale /= 2;
 		}
-		Utils.log2("starting AreaList getInfo");
 		double volume = 0;
 		double surface = 0;
 		final int w = (int)Math.ceil(box.width * scale);
@@ -987,6 +1001,7 @@ public class AreaList extends ZDisplayable {
 			}
 			// debug: show me
 			// new ImagePlus("lid=" + lid, bi).show();
+			//
 
 			double thickness = layer_set.getLayer(lid).getThickness();
 			volume += n_pix * thickness;
@@ -1015,6 +1030,6 @@ public class AreaList extends ZDisplayable {
 		volume /= scale;
 		surface /= scale;
 		// remove pretentious after-comma digits on return:
-		return new StringBuffer("Volume: ").append(IJ.d2s(volume, 2)).append(" (cubic pixels)\nSurface: ").append(IJ.d2s(surface, 2)).append(" (square pixels)\n").toString();
+		return new StringBuffer("Volume: ").append(IJ.d2s(volume, 2)).append(" (cubic pixels)\nLateral surface: ").append(IJ.d2s(surface, 2)).append(" (square pixels)\n").toString();
 	}
 }
