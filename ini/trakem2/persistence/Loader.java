@@ -1088,6 +1088,7 @@ abstract public class Loader {
 		boolean homogenize_contrast = true;
 
 		/** Need some sort of user properties system. */
+		/*
 		String username = System.getProperty("user.name");
 		if (null != username && (username.equals("albert") || username.equals("cardona"))) {
 			preprocessor = ""; //"Adjust_EMMENU_Images";
@@ -1097,6 +1098,7 @@ abstract public class Loader {
 			stitch_tiles = true;
 			homogenize_contrast = true;
 		}
+		*/
 		// reasonable estimate
 		n_rows = n_cols = (int)Math.floor(Math.sqrt(n_max));
 
@@ -2354,6 +2356,7 @@ abstract public class Loader {
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		final ImagePlus imp = opener.openImage(path);
 		if (null == imp) return null;
+		preProcess(imp);
 		if (imp.getNSlices() > 1) {
 			// a stack!
 			Layer layer = Display.getFrontLayer(project);
@@ -2402,6 +2405,7 @@ abstract public class Loader {
 		}
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		ImagePlus imp = opener.openImage(dir_name, next_file);
+		preProcess(imp);
 		if (null == imp) return null;
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
 			Utils.showMessage("Can't import image of zero width or height.");
