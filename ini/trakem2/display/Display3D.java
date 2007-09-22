@@ -665,6 +665,7 @@ public class Display3D {
 
 	static public void setColor(Displayable d, Color color) {
 		Display3D d3d = get(d.getLayer().getParent());
+		if (null == d3d) return; // no 3D displays open
 		Content content = d3d.universe.getContent(d.getTitle() + " #" + d.getId());
 		//Utils.log2("content: " + content);
 		if (null != content) content.setColor(new Color3f(color));

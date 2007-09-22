@@ -73,11 +73,19 @@ public class Snapshot {
 		return null;
 	}
 
-	public void paintTo(Graphics2D g, final Layer layer) {
-		//d.paint(g, layer);
-		// the above results in the Patch calling for the full awt to do the painting,
-		// which may have been easily thrown away under heavy load.
-		d.paint(g, Snapshot.SCALE, false, (d.getClass().equals(Patch.class) ? ((Patch)d).getChannelAlphas() : 1), layer);
+	public void paintTo(final Graphics2D g, final Layer layer) {
+		if (layer.getParent().areSnapshotsEnabled() || !d.getClass().equals(Patch.class)) {
+			d.paint(g, Snapshot.SCALE, false, (d.getClass().equals(Patch.class) ? ((Patch)d).getChannelAlphas() : 1), layer);
+		} else {
+			double[] c = new double[]{0,0,  d.getWidth(),0,  d.getWidth(),d.getHeight(),  0,d.getHeight()};
+			final double[] c2 = new double[8];
+			d.getAffineTransform().transform(c, 0, c2, 0, 4);
+			g.setColor(d.getColor());
+			g.drawLine((int)c2[0], (int)c2[1], (int)c2[2], (int)c2[3]);
+			g.drawLine((int)c2[2], (int)c2[3], (int)c2[4], (int)c2[5]);
+			g.drawLine((int)c2[4], (int)c2[5], (int)c2[6], (int)c2[7]);
+			g.drawLine((int)c2[6], (int)c2[7], (int)c2[0], (int)c2[1]);
+		}
 	}
 
 	/** Ensures the snap awt returned is of the proper type. Avoids using getScaledInstance, which generates RGB images (big) and is slower than the equivalent code from Graphics2D. The @param awt Image is expected to have the same dimensions as the ImagePlus from which it originates. */

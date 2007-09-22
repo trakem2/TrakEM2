@@ -30,6 +30,7 @@ import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
 
+import ini.trakem2.Project;
 import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.persistence.Loader;
@@ -47,13 +48,38 @@ import java.util.*;
 import java.awt.geom.AffineTransform;
 
 /**
- * Accessor methods to Stephan Preibisch's FFT-based registration implementation.
+ * Accessor methods to Stephan Preibisch's FFT-based registration,
+ * and to Stephan Saalfeld's SIFT-based registration.
  * 
  * Preibisch's registration:
  * - returns angles between 0 and 180, perfectly reciprocal (img1 to img2 equals img2 to img1)
  * - is non-reciprocal (but almos) for translations (must choose between best)
  * - will only work reliably if there is at least 50% overlap between any two images to register
  *
+ *
+ *
+ *
+ * SIFT consumes plenty of memory:
+ *  - in extracting features:
+ *     - ImageArrayConverter.ImageToFloatArray2D:
+ *         - makes a new FloatProcessor (so the original pointers can be set to null)
+ *         - makes a new FloatArray2D from the FloatProcessor
+ *     - FloatArray2DSIFT:
+ *         - makes a new FloatArray2DScaleOctaveDoGDetector
+ *         - makes a new float[] for the descriptorMask
+ *     - FloatArray2DSIFT.init:
+ *         - makes a new FloatArray2DScaleOctave
+ *         - makes one new ImageFilter.createGaussianKernel1D for each step
+ *         - makes one new FloatArray2DScaleOctave for each octave
+ *     - ImageFilter.computeGaussianFastMirror: duplicates the FloatArray2D
+ *
+ *     In all, the above relates to the input image width and height as:
+ *      area = width * height
+ *      size = area * sizeof(float) * 2
+ *      plus a factorial factor for the octaves of aprox 1.5,
+ *      plus another 1.5 for all the small arrays created on the meanwhile:
+ *
+ *      size = area * 8 * 2 * 3 = area * 48  (aprox.)
  *
  * */
 public class Registration {
@@ -69,22 +95,44 @@ public class Registration {
 			Utils.log2("Registration.registerLayers: invalid parameters: " + layer_set + ", first: " + first + ", start: " + start + ", last" + last);
 			return null;
 		}
+		// outside the Worker thread, so that the dialog can be controled with Macro.setOptions
+		// if the calling Thread's name starts with "Run$_"
+		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+		sp.project = layer_set.getProject();
+		if (!sp.setup()) return null;
+
 		final Worker worker = new Worker("Registering stack slices") {
 			public void run() {
 				startedWorking();
 
+		boolean massive_mode = layer_set.getProject().getLoader().getMassiveMode();
+		layer_set.getProject().getLoader().setMassiveMode(true); // should be done with startLargeUpdate
 		try {
-			final Registration.SIFTParameters sp = new Registration.SIFTParameters();
-			if (!sp.setup()) {
-				finishedWorking();
-				return;
-			}
 			// build lists (Layers are consecutive)
 			final List<Layer> list1 = new ArrayList<Layer>();
 			list1.addAll(layer_set.getLayers().subList(first, start+1)); // endings are exclusive
 			Collections.reverse(list1);
 			final List<Layer> list2 = new ArrayList<Layer>();
 			list2.addAll(layer_set.getLayers().subList(start, last+1)); // kludge because subList ends up removing stuff from the main Layer list!
+
+			// remove empty layers
+			for (Iterator it = list1.iterator(); it.hasNext(); ) {
+				Layer la = (Layer)it.next();
+				if (0 == la.getDisplayables(Patch.class).size()) {
+					it.remove();
+					Utils.log2("FORE: Removing from registration list layer with no images " + la.getProject().findLayerThing(la).getTitle() + " -- " + la);
+				}
+			}
+			for (Iterator it = list2.iterator(); it.hasNext(); ) {
+				Layer la = (Layer)it.next();
+				if (0 == la.getDisplayables(Patch.class).size()) {
+					it.remove();
+					Utils.log2("AFT: Removing from registration list layer with no images " + la.getProject().findLayerThing(la).getTitle() + " -- " + la);
+				}
+			}
+			// there must be some way to make inner anonymous methods or something to avoid duplicating code like this.
+
+
 			// iterate in pairs
 			final Layer layer_start = (Layer)list2.get(0); // even if there is only one element, list2 will contain the starting layer as the first element. Should be equivalent to layer_set.get(start)
 			// check assumptions
@@ -108,8 +156,38 @@ public class Registration {
 			//
 			final Rectangle box = layer_start.getMinimalBoundingBox(Patch.class);
 			final ImagePlus imp = layer_start.getProject().getLoader().getFlatImage(layer_start, box, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
-			processLayerList(list1, imp, box, sp, propagate, this);
-			processLayerList(list2, imp, box, sp, propagate, this);
+			final Object[] ob1 = processLayerList(list1, imp, box, sp, propagate, this);
+			final Object[] ob2 = processLayerList(list2, imp, box, sp, propagate, this);
+
+			// transfer the last affine transform to the remaining layers
+			if (propagate) {
+				if (0 != first || first != start) {
+					if (null == ob1) {
+						// can't propagate
+						Utils.log2("Can't propagate towards the first layer in the layer set.");
+					} else {
+						// propagate from first towards zero
+						AffineTransform at1 = (AffineTransform)ob1[0];
+						for (Iterator it = layer_set.getLayers().subList(0, first).iterator(); it.hasNext(); ){
+							// preconcatenate the transform to every Patch in the Layer
+							((Layer)it.next()).apply(Patch.class, at1);
+						}
+					}
+				}
+				if (layer_set.size() -1 != last) {
+					if (null == ob2) {
+						// can't propagate
+						Utils.log2("Can't propagate towards the last layer in the layer set");
+					} else {
+						AffineTransform at2 = (AffineTransform)ob2[0];
+						// propagate towards the last slice
+						for (Iterator it = layer_set.getLayers().subList(last+1, layer_set.size()).iterator(); it.hasNext(); ) {
+							// preconcatenate the transform to every Patch in the Layer
+							((Layer)it.next()).apply(Patch.class, at2);
+						}
+					}
+				}
+			}
 
 			// trim and polish:
 			layer_set.setMinimumDimensions();
@@ -117,6 +195,7 @@ public class Registration {
 		} catch (Exception e) {
 			new IJError(e);
 		}
+		layer_set.getProject().getLoader().setMassiveMode(massive_mode);
 
 				finishedWorking();
 			}
@@ -133,28 +212,35 @@ public class Registration {
 		}
 		// TODO: check that there aren't any elements linking any two consecutive layers together.
 	}
-	static private void processLayerList(final List list, final ImagePlus imp_first, final Rectangle box_first, final Registration.SIFTParameters sp, final boolean propagate, final Worker worker) {
+	static private Object[] processLayerList(final List list, final ImagePlus imp_first, final Rectangle box_first, final Registration.SIFTParameters sp, final boolean propagate, final Worker worker) {
 		// check preconditions
-		if (list.size() <= 1 || worker.hasQuitted()) return; 
+		if (list.size() <= 1 || worker.hasQuitted()) return null;
 		//
 		Object[] result = null;
 		// if i == 1:
 		result = registerSIFT((Layer)list.get(0), (Layer)list.get(1), new Object[]{imp_first, box_first, null, null}, sp);
 		// else:
 		for (int i=2; i<list.size(); i++) {
-			if (worker.hasQuitted()) return;
+			if (worker.hasQuitted()) return null;
 			final Layer la1 = (Layer)list.get(i-1);
 			final Layer la2 = (Layer)list.get(i);
 			result = registerSIFT(la1, la2, null, sp);
+			// !@#$% TODO this needs fine-tuning
+			la1.getProject().getLoader().releaseMemory();
+
+			// debug: at least we get chunks done
+			if (!ControlWindow.isGUIEnabled() && System.getProperty("user.name").equals("cardona")) {
+				la1.getProject().save();
+			}
 		}
 
-		result = null;
 		Loader.runGC();
+		return result;
 	}
 
 	/** Makes a snapshot with the Patch objects in both layers at the given scale, and rotates/translates all Displayable elements in the second Layer relative to the first.
 	 *
-	 * @return null for now. I will eventually figure out a way to do safe caching with no loss of precision, carrying along the AffineTransform.
+	 * @return the AffineTransform only for now. I will eventually figure out a way to do safe caching with no loss of precision, carrying along the AffineTransform.
 	 */
 	static public Object[] registerSIFT(final Layer layer1, final Layer layer2, Object[] cached, final Registration.SIFTParameters sp) {
 		try {
@@ -173,10 +259,19 @@ public class Registration {
 				at_accum = (AffineTransform)cached[3];
 			}
 			Rectangle box2 = layer2.getMinimalBoundingBox(Patch.class);
-			final ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+
+			FloatProcessor fp1 = (FloatProcessor)imp1.getProcessor().convertToFloat();
+			FloatProcessor fp2 = (FloatProcessor)imp2.getProcessor().convertToFloat();
+			if (null == cached) { // created locally, flushed locally since there's no caching
+				imp1.flush();
+				imp1 = null;
+			}
+			imp2.flush(); // WARNING this may have to be removed if caching is enabled
+			imp2 = null;
 
 			// ready to start
-			final Object[] result = Registration.registerSIFT(imp1.getProcessor().convertToFloat(), imp2.getProcessor().convertToFloat(), fs1, sp);
+			Object[] result = Registration.registerSIFT(fp1, fp2, fs1, sp);
 
 			if (null != result) {
 				// use the returned AffineTransform to adjust all Patch objects in layer2
@@ -196,13 +291,20 @@ public class Registration {
 				if (null != at_accum) at.preConcatenate(at_accum);
 				// preconcatenate the transform to every Patch in the Layer
 				layer2.apply(Patch.class, atap);
+
+				Utils.log2("Registered layer " + layer2 + " to " + layer1);
+
+				// cleanup
+				result = null; // contains the fs1 and fs2
+					// TODO the above is temporary; need to figure out how to properly cache
+
+				return new Object[]{atap};
 			} else {
 				// fall back to phase-correlation
 				Utils.log2("Registration.registerSIFT for Layers: falling back to phase-correlation");
 				Utils.log2("\t--- Not yet implemented");
 			}
 
-			// SCREWS UP a lot, because of the caching I guess // layer2.getParent().setMinimumDimensions();
 			// repaint the second Layer, if it is showing in any Display:
 			// no need // Display.repaint(layer2, null, 0);
 
@@ -222,10 +324,24 @@ public class Registration {
 	 *
 	 * Returns null if the model is not significant.
 	 */
-	static public Object[] registerSIFT(final ImageProcessor ip1, final ImageProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
+	static public Object[] registerSIFT(FloatProcessor ip1, FloatProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
+		// ensure enough memory space (in bytes: area * 48 * 2)
+		// times 2, ... !@#$%
+		long size = 2 * (ip1.getWidth() * ip2.getHeight() * 48L + ip2.getWidth() * ip2.getHeight() * 48L);
+		Utils.log2("size is: " + size);
+		while (!sp.project.getLoader().releaseToFit(size) && size > 10000000) { // 10 Mb
+			size = (size / 3) * 2; // if it fails, at least release as much as possible
+			Utils.log2("size is: " + size);
+			// size /= 1.5  was NOT failing at the compiler level! Uh?
+		}
 		// prepare both sets of features
 		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp);
+		ip1 = null;
+		Loader.runGC(); // cleanup
 		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures(ip2, sp);
+		// free all those temporary arrays
+		ip2 = null;
+		Loader.runGC();
 		// compare
 		final Vector<Match> correspondences = FloatArray2DSIFT.createMatches(fs1, fs2, 1.5f, null, Float.MAX_VALUE);
 		/** From Stephan Saalfeld:
@@ -351,14 +467,16 @@ public class Registration {
 	}
 
 	/** Returns a sorted list of the SIFT features extracted from the given ImagePlus. */
-	final static public Vector<FloatArray2DSIFT.Feature> getSIFTFeatures(final ImageProcessor ip, final Registration.SIFTParameters sp) {
+	final static public Vector<FloatArray2DSIFT.Feature> getSIFTFeatures(ImageProcessor ip, final Registration.SIFTParameters sp) {
 		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat());
-		ImageFilter.enhance( fa, 1.0f );
+		ip = null; // enable GC
+		ImageFilter.enhance( fa, 1.0f ); // done in place
 		fa = ImageFilter.computeGaussianFastMirror(
-				ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat()),
+				fa,
 				(float)Math.sqrt(sp.initial_sigma * sp.initial_sigma - 0.25));
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT(sp.fdsize, sp.fdbins);
 		sift.init(fa, sp.steps, sp.initial_sigma, sp.min_size, sp.max_size);
+		fa = null; // enableGC
 		final Vector<FloatArray2DSIFT.Feature> fs = sift.run(sp.max_size);
 		Collections.sort(fs);
 		return fs;
@@ -372,6 +490,7 @@ public class Registration {
 		// 
 		// setup parameters. Put outside the Worker so the dialog is controlable from a Macro.setOptions(...) if the Thread's name that calls this method starts with the string "Run$_"
 		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
+		sp.project = base_slice.getProject();
 		if (!sp.setup()) {
 			return null;
 		}
@@ -470,14 +589,14 @@ public class Registration {
 
 		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 
-		ImageProcessor ip1 = StitchingTEM.makeStripe(base, sp.scale, true, true);
-		ImageProcessor ip2 = StitchingTEM.makeStripe(moving, sp.scale, true, true);
+		FloatProcessor fp1 = (FloatProcessor)StitchingTEM.makeStripe(base, sp.scale, true, true);
+		FloatProcessor fp2 = (FloatProcessor)StitchingTEM.makeStripe(moving, sp.scale, true, true);
 
-		final Object[] result = Registration.registerSIFT(ip1, ip2, fs_base, sp);
+		final Object[] result = Registration.registerSIFT(fp1, fp2, fs_base, sp);
 
 		// enable garbage collection!
-		ip1 = null;
-		ip2 = null;
+		fp1 = null;
+		fp2 = null;
 		// no hope. The recursion prevents from lots of memory from ever being released.
 		// MWAHAHA so I made a non-recursive smart-ass version.
 		// It is somewhat disturbing that each SIFT match at max_size 1600 was using nearly 400 Mb, and all of them were NOT released because of the recursion.
@@ -510,6 +629,7 @@ public class Registration {
 	}
 
 	static private class SIFTParameters {
+		Project project = null;
 		// filled with default values
 		float scale = 1.0f;
 		int steps = 3;
@@ -523,6 +643,21 @@ public class Registration {
 		float max_epsilon = 100.0f;
 		/** Minimal percent of good landmarks found */
 		float inlier_ratio = 0.05f;
+
+		void print() {
+			Utils.log2(new StringBuffer("SIFTParameters:\n")
+				   .append("\tscale: ").append(scale).append('\n')
+				   .append("\tsteps per scale octave: ").append(steps).append('\n')
+				   .append("\tinitial gaussian blur: ").append(initial_sigma).append('\n') 
+				   .append("\tfeature descriptor size: ").append(fdsize).append('\n')
+				   .append("\tfeature descriptor orientation bins: ").append(fdbins).append('\n')
+				   .append("\tminimum image size: ").append(min_size).append('\n')
+				   .append("\tmaximum image size: ").append(max_size).append('\n')
+				   .append("\tminimal alignment error: ").append(min_epsilon).append('\n')
+				   .append("\tmaximal alignment error: ").append(max_epsilon).append('\n')
+				   .append("\tinlier ratio: ").append(inlier_ratio)
+				   .toString());
+		}
 
 		boolean setup() {
 			final GenericDialog gd = new GenericDialog("Options");
@@ -548,6 +683,9 @@ public class Registration {
 			this.min_epsilon = (float)gd.getNextNumber();
 			this.max_epsilon = (float)gd.getNextNumber();
 			this.inlier_ratio = (float)gd.getNextNumber();
+
+			// debug:
+			print();
 
 			return true;
 		}

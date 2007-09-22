@@ -240,12 +240,21 @@ abstract public class Loader {
 		return roots[0];
 	}
 
-	/** Does nothing unless overriden. */
-	public void startLargeUpdate() {}
-	/** Does nothing unless overriden. */
-	public void commitLargeUpdate() {}
-	/** Does nothing unless overriden. */
-	public void rollback() {}
+	private boolean temp_snapshots_enabled = true;
+
+	public void startLargeUpdate() {
+		LayerSet ls = Project.findProject(this).getRootLayerSet();
+		temp_snapshots_enabled = ls.areSnapshotsEnabled();
+		if (temp_snapshots_enabled) ls.setSnapshotsEnabled(false);
+	}
+
+	public void commitLargeUpdate() {
+		Project.findProject(this).getRootLayerSet().setSnapshotsEnabled(temp_snapshots_enabled);
+	}
+
+	public void rollback() {
+		Project.findProject(this).getRootLayerSet().setSnapshotsEnabled(temp_snapshots_enabled);
+	}
 
 	abstract public double[][][] fetchBezierArrays(long id);
 
@@ -539,15 +548,16 @@ abstract public class Loader {
 	}
 
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
-	public final void releaseToFit(long bytes) {
+	public final boolean releaseToFit(long bytes) {
 		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
 		if (bytes > max_memory) {
 			Utils.showMessage("Can't fit " + bytes + " bytes in memory.");
-			return;
+			return false;
 		}
 		boolean previous = massive_mode;
-		if (bytes > max_memory / 4) setMassiveMode(true); //massive_mode = true;
+		if (bytes > max_memory / 4) setMassiveMode(true);
 		int iterations = 30;
+		boolean result = true;
 		synchronized (db_lock) {
 			lock();
 			while (!enoughFreeMemory(bytes)) {
@@ -556,11 +566,12 @@ abstract public class Loader {
 				if (0 == imps.size() && 0 == awts.size() && 0 == snaps.size()) {
 					// wait for GC ...
 					try { Thread.sleep(1000); } catch (InterruptedException ie) {}
-					// release offscreen images (will leave the canvas labeled for rremaking when necessary)
+					// release offscreen images (will leave the canvas labeled for remaking when necessary)
 					if (iterations < 20) Display.flushAll();
 				}
 				if (iterations < 0) {
-					Utils.showMessage("Can't make room for " + bytes + " bytes in memory.");
+					Utils.log("Can't make room for " + bytes + " bytes in memory.");
+					result = false;
 					break;
 				}
 				Thread.yield(); // for the GC to run
@@ -569,7 +580,8 @@ abstract public class Loader {
 			}
 			unlock();
 		}
-		setMassiveMode(previous); //massive_mode = previous;
+		setMassiveMode(previous);
+		return result;
 	}
 
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
@@ -1076,6 +1088,7 @@ abstract public class Loader {
 		boolean homogenize_contrast = true;
 
 		/** Need some sort of user properties system. */
+		/*
 		String username = System.getProperty("user.name");
 		if (null != username && (username.equals("albert") || username.equals("cardona"))) {
 			preprocessor = ""; //"Adjust_EMMENU_Images";
@@ -1085,6 +1098,7 @@ abstract public class Loader {
 			stitch_tiles = true;
 			homogenize_contrast = true;
 		}
+		*/
 		// reasonable estimate
 		n_rows = n_cols = (int)Math.floor(Math.sqrt(n_max));
 
@@ -1377,7 +1391,7 @@ abstract public class Loader {
 			try {
 				Object ob = IJ.runPlugIn(preprocessor, "");
 				if (!(ob instanceof PlugInFilter)) {
-					Utils.showMessage("Plug in " + preprocessor + " is invalid: does not implement interface PlugInFilter");
+					Utils.showMessageT("Plug in " + preprocessor + " is invalid: does not implement interface PlugInFilter");
 					finishSetTempCurrentImage();
 					return;
 				}
@@ -1385,7 +1399,7 @@ abstract public class Loader {
 			} catch (Exception e) {
 				new IJError(e);
 				finishSetTempCurrentImage();
-				Utils.showMessage("Plug in " + preprocessor + " is invalid: ImageJ has trhown an exception when testing it with a null image.");
+				Utils.showMessageT("Plug in " + preprocessor + " is invalid: ImageJ has trhown an exception when testing it with a null image.");
 				return;
 			}
 		}
@@ -1423,6 +1437,7 @@ abstract public class Loader {
 			auto_fix_all = true;
 			resize = true;
 		}
+
 		startLargeUpdate();
 		for (int i=0; i<cols.size(); i++) {
 			String[] rows = (String[])cols.get(i);
@@ -1717,6 +1732,7 @@ abstract public class Loader {
 					rollback();
 					ControlWindow.endWaitingCursor();
 					Display.repaint(layer);
+					rollback();
 					return;
 				}
 				try { Thread.sleep(1000); } catch (InterruptedException ie) {}
@@ -1962,12 +1978,16 @@ abstract public class Loader {
 	}
 
 	/** Returns a screenshot of the given layer for the given magnification and srcRect. Returns null if the was not enough memory to create it.
-	 * @param al_displ The Displayable objects to paint. If null, all those matching Class clazz are included. */
+	 * @param al_displ The Displayable objects to paint. If null, all those matching Class clazz are included.
+	 *
+	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0, and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
+	 *
+	 */
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
 		ImagePlus imp = null;
 		try {
 
-			double scaleP = quality ? 1.0 : scale;
+			double scaleP = quality ? 1.0 : scale; // TODO: evaluate carefully
 
 			if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 			// dimensions
@@ -1989,7 +2009,7 @@ abstract public class Loader {
 			Utils.log2("Loader.getFlatImage: using rectangle " + srcRect);
 			// estimate image size
 			long bytes = (long)((w * h * scaleP * scaleP * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
-			Utils.log2("Flat image estimated bytes: " + Long.toString(bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP));
+			Utils.log2("Flat image estimated bytes: " + Long.toString(bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with proper area averaging)" : ""));
 
 			//synchronized (db_lock) {
 			//	lock();
@@ -2018,7 +2038,7 @@ abstract public class Loader {
 						g[i]=(byte)i;
 						b[i]=(byte)i;
 					}
-					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, new IndexColorModel(8, 256, r, g, b));//INDEXED); // will show incorrect as 8-bit color, but the proper scale is preserved.
+					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, new IndexColorModel(8, 256, r, g, b));
 					break;
 				case ImagePlus.COLOR_RGB:
 					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_INT_ARGB);
@@ -2081,6 +2101,7 @@ abstract public class Loader {
 			boolean zd_done = false;
 			for(Iterator it = al_displ.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
+				//Utils.log2("d is: " + d);
 				// paint the ZDisplayables before the first label, if any
 				if (!zd_done && d instanceof DLabel) {
 					zd_done = true;
@@ -2120,10 +2141,17 @@ abstract public class Loader {
 			//	unlock();
 			//}
 			try {
-				Image scaled = bi;
-				if (quality) scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
-				// else the image was made scaled down already
-				imp = new ImagePlus(layer.getPrintableTitle(), scaled);
+				if (quality) {
+					Image scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
+					bi.flush();
+					runGC();
+					imp = new ImagePlus(layer.getPrintableTitle(), scaled);
+					if (ImagePlus.COLOR_RGB != type) imp.setProcessor(imp.getTitle(), imp.getProcessor().convertToByte(false)); // no need for 'scaling' flag, since the image generated by the getScaledInstance is an RGB
+
+				} else {
+					// else the image was made scaled down already
+					imp = new ImagePlus(layer.getPrintableTitle(), bi);
+				}
 			} catch (OutOfMemoryError oome) {
 				if (null != imp) imp.flush();
 				imp = null;
@@ -2328,6 +2356,7 @@ abstract public class Loader {
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		final ImagePlus imp = opener.openImage(path);
 		if (null == imp) return null;
+		preProcess(imp);
 		if (imp.getNSlices() > 1) {
 			// a stack!
 			Layer layer = Display.getFrontLayer(project);
@@ -2376,6 +2405,7 @@ abstract public class Loader {
 		}
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		ImagePlus imp = opener.openImage(dir_name, next_file);
+		preProcess(imp);
 		if (null == imp) return null;
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
 			Utils.showMessage("Can't import image of zero width or height.");
@@ -2502,7 +2532,7 @@ abstract public class Loader {
 
 			// set LayerSet calibration if there is no calibration
 			boolean calibrate = true;
-			if (first_layer.getParent().isCalibrated()) {
+			if (ask_for_data && first_layer.getParent().isCalibrated()) {
 				YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the stack calibration values?");
 				if (!yn.yesPressed()) {
 					calibrate = false;
@@ -2809,15 +2839,15 @@ abstract public class Loader {
 			IJ.redirectErrorMessages();
 			Object ob = IJ.runPlugIn(plugin_class_name, "");
 			if (null == ob) {
-				Utils.showMessage("The preprocessor plugin " + plugin_class_name + " was not found.");
+				Utils.showMessageT("The preprocessor plugin " + plugin_class_name + " was not found.");
 			} else if (!(ob instanceof PlugInFilter)) {
-				Utils.showMessage("Plug in '" + plugin_class_name + "' is invalid: does not implement PlugInFilter");
+				Utils.showMessageT("Plug in '" + plugin_class_name + "' is invalid: does not implement PlugInFilter");
 			} else { // all is good:
 				this.preprocessor = plugin_class_name;
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
-			Utils.showMessage("Plug in " + plugin_class_name + " is invalid: ImageJ has thrown an exception when testing it with a null image.");
+			Utils.showMessageT("Plug in " + plugin_class_name + " is invalid: ImageJ has thrown an exception when testing it with a null image.");
 		} finally {
 			finishSetTempCurrentImage();
 		}

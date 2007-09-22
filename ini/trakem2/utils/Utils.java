@@ -52,7 +52,7 @@ import java.awt.event.ItemEvent;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.4a 2007-08-26";
+	static public String version = "0.4f 2007-09-20";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -70,7 +70,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Intended for the user to see. */
-	static public void log(String msg) {
+	static public void log(final String msg) {
 		// print caller if possible
 		/* Freezes ImageJ !
 		StackTraceElement[] elems = new Exception().getStackTrace();
@@ -79,11 +79,19 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		*/
 
-		//IJ.log(msg);
+		/*
+		new Thread() {
+			public void run() {
+				IJ.log(msg);
+			}
+		}.start();
+		*/
+
+		// for now:
 		System.out.println(msg);
 	}
 
-	/** Intended for developers to see. */
+	/** Intended for developers. */
 	static public void log2(String msg) {
 		System.out.println(msg);
 	}
@@ -230,6 +238,16 @@ public class Utils implements ij.plugin.PlugIn {
 	static public void showMessage(String msg) {
 		if (!ControlWindow.isGUIEnabled()) System.out.println(msg);
 		else IJ.showMessage(msg);
+	}
+
+	/** Runs the showMessage in a separate Thread. */
+	static public void showMessageT(final String msg) {
+		new Thread() {
+			public void run() {
+				setPriority(Thread.NORM_PRIORITY);
+				Utils.showMessage(msg);
+			}
+		}.start();
 	}
 
 	static public void showStatus(String msg, boolean focus) {
@@ -555,7 +573,7 @@ public class Utils implements ij.plugin.PlugIn {
 			while (true) {
 				String s = r.readLine();
 				if (null == s) break;
-				sb.append(s).append('\n');
+				sb.append(s).append('\n'); // I am sure the reading can be done better
         		}
 			r.close();
 		} catch (Exception e) {

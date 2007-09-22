@@ -67,7 +67,7 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 		double scale = FIXED_HEIGHT / d.getLayer().getLayerHeight();
 		Graphics2D g2d = (Graphics2D)g;
 		g2d.scale(scale, scale);
-		snapshot.paintTo((Graphics2D)g, display.getLayer());
+		snapshot.paintTo(g2d, display.getLayer());
 	}
 
 	public void mousePressed(MouseEvent me) {

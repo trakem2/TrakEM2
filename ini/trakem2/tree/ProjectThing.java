@@ -541,7 +541,7 @@ public class ProjectThing extends DBObject implements Thing {
 
 	/** Call on children things, and on itself if it contains a basic data type directly. */
 	public void measure() {
-		Utils.log("Measure: not implemented yet.");
+		Utils.showMessage("Not implemented yet.");
 	}
 
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {
@@ -753,7 +753,27 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Return information on this node and its object. */
+	public String getNodeInfo() {
+		return "Node: " + object + " [" + template.getType() + "]\n" + (object instanceof DBObject ? ((DBObject)object).getInfo() : "");
+	}
+
+	/** Return information on this node and its object, and also on all the children, recursively. */
 	public String getInfo() {
-		return "Node: " + object + "\n" + (object instanceof DBObject ? ((DBObject)object).getInfo() : "") + " [" + template.getType() + "]";
+		StringBuffer sb = new StringBuffer();
+		getInfo(new HashSet(), sb);
+		return sb.toString();
+	}
+
+	private void getInfo(HashSet hs, StringBuffer info) {
+		if (null == hs) hs = new HashSet();
+		if (null == info) info = new StringBuffer();
+		if (hs.contains(this)) return;
+		hs.add(this);
+		info.append('\n').append(getNodeInfo());
+		if (null == al_children) return;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			ProjectThing pt = (ProjectThing)it.next();
+			pt.getInfo(hs, info);
+		}
 	}
 }

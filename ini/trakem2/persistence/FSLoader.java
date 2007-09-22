@@ -343,9 +343,16 @@ public class FSLoader extends Loader {
 				Image awt = awts.get(p.getId()); // automatically places it at the end of the FIFO
 				if (null == awt) {
 					unlock();
-					fetchImagePlus(p, true); // will create snapshot
-					snap = snaps.get(p.getId());
+					ImagePlus imp = fetchImagePlus(p, true); // will create snapshot
 					lock();
+					snap = snaps.get(p.getId());
+					if (null == snap) { // should not happen, but it does TODO
+						unlock();
+						awt = p.createImage(imp); // caches awt
+						lock();
+						snap = Snapshot.createSnap(p, awt, Snapshot.SCALE);
+						snaps.put(p.getId(), snap);
+					}
 				} else {
 					try {
 						releaseMemory(); // mild attempt
@@ -394,25 +401,21 @@ public class FSLoader extends Loader {
 	}
 
 	public boolean updateInDatabase(DBObject ob, String key) {
-		synchronized (db_lock) {
-			lock();
-			setChanged(true);
-			unlock();
-		}
+		setChanged(true);
 		if (ob instanceof Patch) {
 			try {
 				Patch p = (Patch)ob;
-				String path = getAbsolutePath(p); //(String)ht_paths.get(ob);
-				String slice = null;
-				// path can be null if the image is pasted, or from a copy
-				if (null != path) {
-					int i_sl = path.lastIndexOf("-----#slice=");
-					if (-1 != i_sl) {
-						slice = path.substring(i_sl);
-						path = path.substring(0, i_sl);
-					}
-				}
 				if (key.equals("tiff_working")) {
+					String path = getAbsolutePath(p);
+					String slice = null;
+					// path can be null if the image is pasted, or from a copy
+					if (null != path) {
+						int i_sl = path.lastIndexOf("-----#slice=");
+						if (-1 != i_sl) {
+							slice = path.substring(i_sl);
+							path = path.substring(0, i_sl);
+						}
+					}
 					boolean overwrite = null != path;
 					if (overwrite) {
 						Utils.printCaller(this, 10);
@@ -557,7 +560,7 @@ public class FSLoader extends Loader {
 			if (new File(tmp).exists()) {
 				path = tmp;
 			} else {
-				// try *_images folder
+				// try *_images folder // TODO this needs to change, should test the same folder
 				final String dir = extractRelativeFolderPath(new File(project_xml_path));
 				if (null != dir) path = dir + "/" + path;
 			}
@@ -626,6 +629,16 @@ public class FSLoader extends Loader {
 			File fxml = new File(project_xml_path);
 			return super.export(project, fxml, false);
 		}
+	}
+
+	public String saveAs(Project project) {
+		String path = super.saveAs(project);
+		if (null != path) {
+			// update the xml path to point to the new one
+			this.project_xml_path = path;
+			Utils.log2("After saveAs, new xml path is: " + path);
+		}
+		return path;
 	}
 
 	/** Returns the stored path for the given Patch image, which may be relative.*/

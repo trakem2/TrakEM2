@@ -28,6 +28,7 @@ import java.awt.datatransfer.*;
 import java.io.File;
 import java.io.StringReader;
 import java.io.BufferedReader;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import ij.gui.YesNoCancelDialog;
@@ -123,6 +124,7 @@ public class DNDInsertImage implements DropTargetListener {
 				case 0: // as stack
 					// if importing image sequence as a stack:
 					String[] names = f.list();
+					Arrays.sort(names);
 					VirtualStack stack = new VirtualStack(10, 10, null, f.getAbsolutePath().replace('\\', '/')); // I don't care about the dimensions
 					for (int k=0; k<names.length; k++) {
 						IJ.redirectErrorMessages();

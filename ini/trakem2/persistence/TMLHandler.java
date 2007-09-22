@@ -71,6 +71,7 @@ public class TMLHandler extends DefaultHandler {
 	private Hashtable ht_pt_expanded = new Hashtable();
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
+	private Dissector last_dissector = null;
 
 
 	/** @param path The XML file that contains the project data in XML format.
@@ -289,6 +290,8 @@ public class TMLHandler extends DefaultHandler {
 		} else if (orig_qualified_name.equals("t2_area_list")) {
 			last_area_list.__endReconstructing();
 			last_area_list = null;
+		} else if (orig_qualified_name.equals("t2_dissector")) {
+			last_dissector = null;
 		}
 	}
 	public void characters(char[] c, int start, int length) {}
@@ -427,6 +430,19 @@ public class TMLHandler extends DefaultHandler {
 				ht_zdispl.put(new Long(oid), ball);
 				addToLastOpenLayerSet(ball);
 				return null;
+			} else if (type.equals("dd_item")) {
+				if (null != last_dissector) {
+					last_dissector.addItem(Integer.parseInt((String)ht_attributes.get("tag")),
+							       Integer.parseInt((String)ht_attributes.get("radius")),
+							       (String)ht_attributes.get("points"));
+				}
+			} else if (type.equals("dissector")) {
+				Dissector dissector = new Dissector(this.project, oid, ht_attributes, ht_links);
+				dissector.addToDatabase();
+				last_dissector = dissector;
+				ht_displayables.put(new Long(oid), dissector);
+				ht_zdispl.put(new Long(oid), dissector);
+				addToLastOpenLayerSet(dissector);
 			} else if (type.equals("label")) {
 				DLabel label = new DLabel(project, oid, ht_attributes, ht_links);
 				label.addToDatabase();

@@ -437,6 +437,7 @@ public class DBLoader extends Loader {
 
 	/** Used in combination with commitLargeUpdate() */
 	public void startLargeUpdate() {
+		super.startLargeUpdate();
 		try {
 			connection.setAutoCommit(false);
 		} catch (SQLException e) {
@@ -445,6 +446,7 @@ public class DBLoader extends Loader {
 	}
 	/** Used in combination with startLargeUpdate() */
 	public void commitLargeUpdate() {
+		super.commitLargeUpdate();
 		try {
 			connection.commit();
 			connection.setAutoCommit(true);
@@ -455,6 +457,7 @@ public class DBLoader extends Loader {
 
 	/** Used when errors ocurr during a large insertion. */
 	public void rollback() {
+		super.rollback();
 		try {
 			connection.rollback();
 			connection.setAutoCommit(true);
