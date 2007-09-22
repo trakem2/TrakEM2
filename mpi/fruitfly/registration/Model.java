@@ -96,5 +96,9 @@ abstract public class Model {
 	 * string to output stream
 	 */
 	abstract public String toString();
-
+	
+	/**
+	 * clone
+	 */
+	abstract public Model clone();
 };
