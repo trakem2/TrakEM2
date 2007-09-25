@@ -1854,7 +1854,6 @@ abstract public class Loader {
 			try {
 			//
 			ImagePlus imp = null;
-			// estimate size
 			String target_dir = null;
 			boolean choose_dir = force_to_file;
 			// if not saving to a file:
