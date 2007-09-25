@@ -201,6 +201,13 @@ public class FIFOImagePlusMap {
 		return a;
 	}
 
+	public boolean contains(long id) {
+		for (int i=0; i<next; i++) {
+			if (id == ids[i]) return true;
+		}
+		return false;
+	}
+
 	public void debug() {
 		for (int i=0; i<next; i++) {
 			System.out.println(i + " id: " + ids[i]);

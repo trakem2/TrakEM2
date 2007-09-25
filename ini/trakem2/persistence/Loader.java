@@ -867,6 +867,7 @@ abstract public class Loader {
 							image = image2;
 						}
 						awts.put(id, image);
+						Display.repaintSnapshot(p);
 						unlock();
 						return image;
 					} else {
@@ -887,6 +888,7 @@ abstract public class Loader {
 					image = image2;
 				}
 				awts.put(id, image); // this is already done by the call to cacheAWT from p.createImage()
+				Display.repaintSnapshot(p);
 
 				unlock();
 				return image;
@@ -2988,5 +2990,18 @@ abstract public class Loader {
 		Utils.log2("opening image " + path);
 		//Utils.printCaller(this, 10);
 		return opener.openImage(path);
+	}
+
+	/** Check if the snap or the awt exists to paint as a snap. */
+	public boolean isSnapPaintable(final long id) {
+		synchronized (db_lock) {
+			lock();
+			if (snaps.contains(id) || awts.contains(id) /*|| imps.contains(id)*/) { // the other two tests may be necessary, but it's acceptable without them.
+				unlock();
+				return true;
+			}
+			unlock();
+		}
+		return false;
 	}
 }

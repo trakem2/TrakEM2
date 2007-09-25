@@ -305,6 +305,7 @@ public class FSLoader extends Loader {
 									Image awt = pa.createImage(imp); // will call cacheAWT
 									lock();
 									snaps.put(pa.getId(), Snapshot.createSnap(pa, awt, Snapshot.SCALE));
+									Display.repaintSnapshot(pa);
 								}
 							}
 						}
@@ -352,12 +353,14 @@ public class FSLoader extends Loader {
 						lock();
 						snap = Snapshot.createSnap(p, awt, Snapshot.SCALE);
 						snaps.put(p.getId(), snap);
+						Display.repaintSnapshot(p);
 					}
 				} else {
 					try {
 						releaseMemory(); // mild attempt
 						snap = Snapshot.createSnap(p, awt, Snapshot.SCALE); //awt.getScaledInstance((int)(p.getWidth() * Snapshot.SCALE), (int)(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD);
 						snaps.put(p.getId(), snap);
+						Display.repaintSnapshot(p);
 					} catch (Exception e) {
 						unlock();
 						return NOT_FOUND;

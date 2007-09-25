@@ -1306,6 +1306,17 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 	}
 
+	static public void repaintSnapshot(Displayable displ) {
+		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
+			Display d = (Display)it.next();
+			if (d.layer.contains(displ)) {
+				DisplayablePanel dp = (DisplayablePanel)d.hs_panels.get(displ);
+				if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
+				d.navigator.repaint(displ);
+			}
+		}
+	}
+
 	/** Repaint the given Rectangle in all Displays showing the layer, updating the offscreen image if any. */
 	static public void repaint(Layer layer, Rectangle r, int extra) {
 		repaint(layer, r, extra, true);
