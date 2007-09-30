@@ -535,15 +535,15 @@ public class Editions2D {
 		return p_list;
 	}
 
-	/** From an array of VectorString2D, return a new array of VectorString2D defining all necessary intermediate, morphed perimeters that describe a skin between each consecutive pairi; includes the originals inserted at the proper locations. The 'z' is interpolated. */
-	static public VectorString2D[] getMorphedPerimeters(final VectorString2D[] sv, int n_morphed_perimeters, double delta_, boolean closed) {
+	/** From an array of VectorString2D, return a new array of VectorString2D defining all necessary intermediate, morphed perimeters that describe a skin between each consecutive pair; includes the originals inserted at the proper locations. The 'z' is interpolated. Returns the array of VectorString2D and the array of Editions2D (which is one item smaller, since it represents matches). */
+	static public ArrayList<Editions2D.Match> getMorphedPerimeters(final VectorString2D[] sv, int n_morphed_perimeters, double delta_, boolean closed) {
 		//check preconditions:
 		if (n_morphed_perimeters < -1 || sv.length <=0) {
 			Utils.log2("\nERROR: args are not acceptable at getAllPerimeters:\n\t n_morphed_perimeters " + n_morphed_perimeters + ", n_perimeters " + sv.length);
 			return null;
 		}
 
-		final ArrayList al_perimeters = new ArrayList();
+		final ArrayList<Editions2D.Match> al_matches = new ArrayList();
 
 		try {
 			// get all morphed curves and return them.
@@ -569,28 +569,38 @@ public class Editions2D {
 
 			// fetch morphed ones and fill all_perimeters array:
 			for (i=1; i<sv.length; i++) {
-				// append sv1
-				al_perimeters.add(sv[i-1]);
-				// append morphed perimeters
 				Editions2D ed = new Editions2D(sv[i-1], sv[i], delta, closed);
 				double[][][] d = ed.getMorphedPerimeters(n_morphed_perimeters);
-				if (null == d) continue; // none are created
 				// else, add them all
 				double z_start = sv[i-1].z;
-				double z_inc = (sv[i].z - z_start) / d.length;
+				double z_inc = (sv[i].z - z_start) / ( 0 == d.length ? 1 : d.length); // if zero, none are added anyway; '1' is a dummy number
+				VectorString2D[] p = new VectorString2D[d.length];
 				for (int k=0; k<d.length; k++) {
-					al_perimeters.add(new VectorString2D(d[k][0], d[k][1], delta, z_start + z_inc*i));
+					p[k] = new VectorString2D(d[k][0], d[k][1], delta, z_start + z_inc*i);
 				}
+				al_matches.add(new Match(sv[i-1], sv[i], ed, p));
 			}
-			// append the last one
-			al_perimeters.add(sv[sv.length -1]);
 
-			VectorString2D[] svr = new VectorString2D[al_perimeters.size()];
-			al_perimeters.toArray(svr);
-			return svr;
+			return al_matches;
+
 		} catch (Exception e) {
 			new IJError(e);
 		}
 		return null;
+	}
+
+	/** Tuple to avoid ugly castings. Java is disgusting. */
+	static public class Match {
+		public VectorString2D sv1;
+		public VectorString2D sv2;
+		public Editions2D editions;
+		/** The interpolated curves in between sv1 nd sv2.*/
+		public VectorString2D[] p;
+		public Match(VectorString2D sv1, VectorString2D sv2, Editions2D editions, VectorString2D[] p) {
+			this.sv1 = sv1;
+			this.sv2 = sv2;
+			this.editions = editions;
+			this.p = p;
+		}
 	}
 }

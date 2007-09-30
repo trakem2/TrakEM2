@@ -50,6 +50,14 @@ import java.awt.Graphics2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
 
+import ini.trakem2.tree.Thing;
+import ini.trakem2.tree.ProjectThing;
+import javax.vecmath.Point3f;
+import ini.trakem2.vector.VectorString2D;
+import ini.trakem2.vector.Editions2D;
+import java.util.Arrays;
+import ini.trakem2.utils.IJError;
+
 
 /** A class to be a user-outlined profile over an image, which is painted with a particular color and also holds an associated text label.
  * TODO - label not implemented yet.
@@ -1444,12 +1452,167 @@ public class Profile extends Displayable {
 		return new Object[]{p, p_l, p_r, p_i};
 	}
 
+	/** Takes a profile_list, scans for its Profile children, makes sublists of continuous profiles (if they happen to be branched), and then creates triangles for them using weighted vector strings. */
 	static public List generateTriangles(final ProjectThing pt, final double scale) {
 		if (!pt.getType().equals("profile_list")) {
 			Utils.log2("Profile: ignoring unhandable ProjectThing type.");
 			return null;
 		}
 		ArrayList al = pt.getChildren(); // should be sorted by Z already
+		if (al.size() < 2) {
+			Utils.log2("profile_list " + pt + " has less than two profiles: can't render in 3D.");
+		}
+		// collect all Profile
+		final HashSet hs = new HashSet();
+		for (Iterator it = al.iterator(); it.hasNext(); ) {
+			Thing child = (Thing)it.next();
+			Object ob = child.getObject();
+			if (ob instanceof Profile) {
+				hs.add(ob);
+			} else {
+				Utils.log2("Render: skipping non Profile class child");
+			}
+		}
+		// Create sublists of profiles, following the chain of links.
+		final Profile[] p = new Profile[hs.size()];
+		hs.toArray(p);
+		// collect starts and ends
+		final HashSet hs_bases = new HashSet();
+		final HashSet hs_done = new HashSet();
+		final List triangles = new ArrayList();
+		do {
+			Profile base = null;
+			// choose among existing bases
+			if (hs_bases.size() > 0) {
+				base = (Profile)hs_bases.iterator().next();
+			} else {
+				// find a new base, simply by taking the lowest Z or remaining profiles
+				double min_z = Double.MAX_VALUE;
+				for (int i=0; i<p.length; i++) {
+					if (hs_done.contains(p[i])) continue;
+					double z = p[i].getLayer().getZ();
+					if (z < min_z) {
+						min_z = z;
+						base = p[i];
+					}
+				}
+				// add base
+				if (null != base) hs_bases.add(base);
+			}
+			if (null == base) {
+				Utils.log2("No more bases.");
+				break;
+			}
+			// crawl list to get a sequence of profiles in increasing or decreasing Z order, but not mixed z trends
+			final ArrayList al_profiles = new ArrayList();
+			//Utils.log2("Calling accumulate for base " + base);
+			al_profiles.add(base);
+			final Profile last = accumulate(hs_done, al_profiles, base, 0);
+			// if the trend was not empty, add it
+			if (last != base) {
+				// count as done
+				hs_done.addAll(al_profiles);
+				// add new possible base (which may have only 2 links if it was from a broken Z trend)
+				hs_bases.add(last);
+				// create 3D object from base to base
+				final Profile[] profiles = new Profile[al_profiles.size()];
+				al_profiles.toArray(profiles);
+				List tri = makeTriangles(profiles, scale);
+				if (null != tri) triangles.addAll(tri);
+			} else {
+				// remove base
+				hs_bases.remove(base);
+			}
+		} while (0 != hs_bases.size());
+
+		return triangles;
+	}
+
+	/** Recursive; returns the last added profile. */
+	static private Profile accumulate(final HashSet hs_done, final ArrayList al, final Profile step, int z_trend) {
+		final HashSet hs_linked = step.getLinked(Profile.class);
+		if (al.size() > 1 && hs_linked.size() > 2) {
+			// base found
+			return step;
+		}
+		double step_z = step.getLayer().getZ();
+		Profile next_step = null;
+		boolean started = false;
+		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+			Object ob = it.next();
+			// loop only one cycle, to move only in one direction
+			if (al.contains(ob) || started || hs_done.contains(ob)) continue;
+			started = true;
+			next_step = (Profile)ob;
+			double next_z = next_step.getLayer().getZ();
+			if (0 == z_trend) {
+				// define trend
+				if (next_z > step_z) {
+					z_trend = 1;
+				} else {
+					z_trend = -1;
+				}
+				// add!
+				al.add(next_step);
+			} else {
+				// if the z trend is broken, finish
+				if ( (next_z > step_z &&  1 == z_trend)
+				  || (next_z < step_z && -1 == z_trend) ) {
+					// z trend continues
+					al.add(next_step);
+				} else {
+					// z trend broken
+					next_step = null;
+				}
+			}
+		}
+		Profile last = step;
+		if (null != next_step) {
+			hs_done.add(next_step);
+			last = accumulate(hs_done, al, next_step, z_trend);
+		}
+		return last;
+	}
+
+	static private List<Point3f> makeTriangles(final Profile[] p, final double scale) {
+		try {
+			final VectorString2D[] sv = new VectorString2D[p.length];
+			boolean closed = true; // dummy initialization
+			for (int i=0; i<p.length; i++) {
+				if (-1 == p[i].n_points) p[i].setupForDisplay();
+				if (0 == p[i].n_points) continue;
+				if (0 == i) closed = p[i].closed;
+				else if (p[i].closed != closed) {
+					Utils.log2("All profiles should be either open or closed, not mixed.");
+					return null;
+				}
+				double[][] pi = p[i].transformPoints(p[i].p_i);
+				final double[] x = (double[])pi[0].clone();
+				final double[] y = (double[])pi[1].clone();
+				pi = null;
+				if (1 != scale) {
+					for (int k=0; k<x.length; k++) {
+						x[k] *= scale;
+						y[k] *= scale;
+					}
+				}
+				// with automatic delta
+				sv[i] = new VectorString2D(x, y, 0, p[i].layer.getZ());
+			}
+			final ArrayList<Editions2D.Match> al_matches = Editions2D.getMorphedPerimeters(sv, -1, -1, true); // automatic number of interpolated curves, automatic delta
+			// convert to Point3f
+			final List triangles = new ArrayList(); // every three consecutive Point3f make a triangle
+			for (Editions2D.Match match : al_matches) {
+				// crawl Editions2D to find the actual matches
+				// TODO
+				// ---- beware of possibly null or empty match.p array of weighted perimeters
+				//
+			}
+			//
+			return triangles;
+		} catch (Exception e) {
+			new IJError(e);
+		}
 		return null;
 	}
 }

@@ -199,7 +199,7 @@ public class Render {
 		return last;
 	}
 
-	/** Render an object from the given profile, following the chain of links, until reaching a profile that is linked to more than two profiles. Keeps poping profiles out of the hs_remaining as they are being used. */
+	/** Render an object from the given profile, following the chain of links, until reaching a profile that is linked to more than two profiles. */
 	private void renderSubObjects(final HashSet hs_all, final ArrayList al_used_names) {
 		int size = hs_all.size();
 		Profile[] p = new Profile[size];
