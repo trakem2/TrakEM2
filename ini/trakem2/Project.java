@@ -562,10 +562,10 @@ public class Project extends DBObject {
 
 	static public boolean isLayerType(String type) {
 		type = type.toLowerCase().replace(' ', '_');
-		if (type.equals("profile")) return true;
 		if (type.equals("patch")) return true;
-		if (type.equals("label")) return true;
 		if (type.equals("area_list")) return true;
+		if (type.equals("label")) return true;
+		if (type.equals("profile")) return true;
 		if (type.equals("pipe")) return true;
 		if (type.equals("ball")) return true;
 		if (type.equals("layer")) return true;

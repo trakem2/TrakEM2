@@ -280,22 +280,33 @@ public class Display3D {
 				// obtain the Displayable object under the node
 				ProjectThing child = (ProjectThing)it.next();
 				Object obc = child.getObject();
+				/*
 				if (obc.equals("profile_list")) {
 					Utils.log("Display3D can't handle profile lists at the moment.");
 					continue;
 				}
-				Displayable displ = (Displayable)obc;
-				if (displ.getClass().equals(Profile.class)) {
-					Utils.log("Display3D can't handle Bezier profiles at the moment.");
-					continue;
-				}
-				if (!displ.isVisible()) {
-					Utils.log("Skipping non-visible node " + displ);
-					continue;
+				*/
+				Displayable displ = null == obc ? null : (Displayable)obc;
+				if (null != displ) {
+					if (displ.getClass().equals(Profile.class)) {
+						Utils.log("Display3D can't handle Bezier profiles at the moment.");
+						continue;
+					}
+					if (!displ.isVisible()) {
+						Utils.log("Skipping non-visible node " + displ);
+						continue;
+					}
 				}
 				StopWatch sw = new StopWatch();
 				// obtain the containing LayerSet
-				Display3D d3d = Display3D.get(displ.getLayerSet());
+				Display3D d3d = null;
+				if (null != displ) Display3D.get(displ.getLayerSet());
+				else if (child.getType().equals("profile_list")) {
+					ArrayList al_children = child.getChildren();
+					if (null == al_children || 0 == al_children.size()) continue;
+					// else, get the first Profile and get its LayerSet
+					d3d = Display3D.get(((Displayable)al_children.get(0)).getLayerSet());
+				}
 				if (null == d3d) {
 					Utils.log("Could not get a proper 3D display for node " + displ);
 					return; // java3D not installed most likely
@@ -571,8 +582,8 @@ public class Display3D {
 		}
 	}
 
-	static private final int max_threads = Runtime.getRuntime().availableProcessors();
-	static private final Vector v_threads = new Vector(max_threads); // synchronized
+	static private final int MAX_THREADS = Runtime.getRuntime().availableProcessors();
+	static private final Vector v_threads = new Vector(MAX_THREADS); // synchronized
 
 	/** Creates a mesh for the given Displayable in a separate Thread. */
 	private Thread addMesh(final ProjectThing pt, final Displayable displ) {
@@ -580,13 +591,13 @@ public class Display3D {
 		Thread thread = new Thread() {
 			public void run() {
 				setPriority(Thread.NORM_PRIORITY);
-				while (v_threads.size() >= max_threads) {
+				while (v_threads.size() >= MAX_THREADS) {
 					try { Thread.sleep(400); } catch (InterruptedException ie) {}
 				}
 				v_threads.add(this);
 				try {
 
-		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. 
+		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
 		List triangles = null;
 		if (displ instanceof AreaList) {
 			adjustResampling();
@@ -597,6 +608,8 @@ public class Display3D {
 			triangles = ((Ball)displ).generateTriangles(scale, globe);
 		} else if (displ instanceof Pipe) {
 			triangles = ((Pipe)displ).generateTriangles(scale, 12);
+		} else if (null == displ && pt.getType().equals("profile_list")) {
+			triangles = Profile.generateTriangles(pt, scale);
 		}
 		// safety checks
 		if (null == triangles) {

@@ -388,10 +388,9 @@ public class ProjectThing extends DBObject implements Thing {
 
 		addPopupItem("Info", listener, al_items);
 
-		// enable renaming for non-basic types only
-		if (!Project.isBasicType(getType())) {
-			addPopupItem("Rename...", listener, al_items);
-		} else {
+		addPopupItem("Rename...", listener, al_items);
+		// enable duplicating for basic types only
+		if (Project.isBasicType(getType())) {
 			addPopupItem("Duplicate", listener, al_items);
 		}
 

@@ -1306,6 +1306,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 	}
 
+	/** Repaint the snapshot for the given Displayable both at the DisplayNavigator and on its panel. */
 	static public void repaintSnapshot(Displayable displ) {
 		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
 			Display d = (Display)it.next();

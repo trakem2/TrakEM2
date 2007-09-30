@@ -29,7 +29,6 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Vector3;
 import ini.trakem2.persistence.DBObject;
-import ini.trakem2.vector.SV;
 
 import java.awt.Color;
 import java.awt.Rectangle;

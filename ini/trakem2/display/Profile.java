@@ -29,6 +29,8 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.render3d.Perimeter2D;
+import ini.trakem2.display.Display3D;
+import ini.trakem2.tree.ProjectThing;
 
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -40,6 +42,7 @@ import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.Graphics;
@@ -1439,5 +1442,14 @@ public class Profile extends Displayable {
 		final double[][] p_r = transformPoints(this.p_r);
 		final double[][] p_i = transformPoints(this.p_i);
 		return new Object[]{p, p_l, p_r, p_i};
+	}
+
+	static public List generateTriangles(final ProjectThing pt, final double scale) {
+		if (!pt.getType().equals("profile_list")) {
+			Utils.log2("Profile: ignoring unhandable ProjectThing type.");
+			return null;
+		}
+		ArrayList al = pt.getChildren(); // should be sorted by Z already
+		return null;
 	}
 }
