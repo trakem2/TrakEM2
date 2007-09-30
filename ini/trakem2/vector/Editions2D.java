@@ -622,8 +622,69 @@ public class Editions2D {
 		private ArrayList<Point3f> makeSkin(VectorString2D a, VectorString2D b, boolean closed) {
 			final ArrayList<Point3f> triangles = new ArrayList();
 			// the sequence of editions defines the edges
-			for (int e=1; e<ed.editions.length; e++) {
-				// TODO
+			final int[][] editions = ed.editions;
+			int e_start = 1;
+			if (MUTATION == editions[0][0]) e_start = 0;
+			int i1, j1;
+			int lag = 0;
+			boolean use_lag = true;
+			if (a.length == b.length) use_lag = false;
+			int i=0,
+			    j=0;
+			int ei;
+			for (int e=e_start; e<ed.editions.length; e++) {
+				ei = editions[e][0];
+				i1 = editions[e][1];
+				j1 = editions[e][2];
+				if (use_lag) {
+					switch (ei) {
+						case INSERTION:
+						case DELETION:
+							lag++;
+							break;
+					}
+					if (a.length < b.length) j1 += lag;
+					else i1 += lag;
+				}
+				// safety checks
+				if (i1 >= a.length) {
+					if (closed) i1 = 0;
+					else i1 = a.length - 1;
+				}
+				if (j1 >= b.length) {
+					if (closed) j1 = 0;
+					else j1 = b.length - 1;
+				}
+				if (MUTATION == ei || (a.length == b.length && (INSERTION == ei || DELETION == ei))) {
+					// a quad, split into two triangles:
+					// i1, i, j
+					triangles.add(new Point3f((float)a.x[i1], (float)a.y[i1], (float)a.z));
+					triangles.add(new Point3f((float)a.x[i], (float)a.y[i], (float)a.z));
+					triangles.add(new Point3f((float)b.x[j], (float)b.y[j], (float)b.z));
+					// i1, j, j1
+					triangles.add(new Point3f((float)a.x[i1], (float)a.y[i1], (float)a.z));
+					triangles.add(new Point3f((float)b.x[j], (float)b.y[j], (float)b.z));
+					triangles.add(new Point3f((float)b.x[j1], (float)b.y[j1], (float)b.z));
+				} else {
+					// an INSERTION or a DELETION when a.length != b.length
+					// i, j, j1
+					triangles.add(new Point3f((float)a.x[i], (float)a.y[i], (float)a.z));
+					triangles.add(new Point3f((float)b.x[j], (float)b.y[j], (float)b.z));
+					triangles.add(new Point3f((float)b.x[j1], (float)b.y[j1], (float)b.z));
+				}
+				i = i1;
+				j = j1;
+			}
+			if (closed) {
+				// last point with first point: a quad
+				// 0_i, last_i, last_j
+				triangles.add(new Point3f((float)a.x[0], (float)a.y[0], (float)a.z));
+				triangles.add(new Point3f((float)a.x[a.length-1], (float)a.y[a.length-1], (float)a.z));
+				triangles.add(new Point3f((float)b.x[b.length-1], (float)b.y[b.length-1], (float)b.z));
+				// 0_i, last_j, 0_j
+				triangles.add(new Point3f((float)a.x[0], (float)a.y[0], (float)a.z));
+				triangles.add(new Point3f((float)b.x[b.length-1], (float)b.y[b.length-1], (float)b.z));
+				triangles.add(new Point3f((float)b.x[0], (float)b.y[0], (float)b.z));
 			}
 			return triangles;
 		}

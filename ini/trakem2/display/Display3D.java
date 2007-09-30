@@ -286,7 +286,7 @@ public class Display3D {
 					continue;
 				}
 				*/
-				Displayable displ = null == obc ? null : (Displayable)obc;
+				Displayable displ = obc.getClass().equals(String.class) ? null : (Displayable)obc;
 				if (null != displ) {
 					if (displ.getClass().equals(Profile.class)) {
 						Utils.log("Display3D can't handle Bezier profiles at the moment.");
@@ -305,7 +305,7 @@ public class Display3D {
 					ArrayList al_children = child.getChildren();
 					if (null == al_children || 0 == al_children.size()) continue;
 					// else, get the first Profile and get its LayerSet
-					d3d = Display3D.get(((Displayable)al_children.get(0)).getLayerSet());
+					d3d = Display3D.get(((Displayable)((ProjectThing)al_children.get(0)).getObject()).getLayerSet());
 				}
 				if (null == d3d) {
 					Utils.log("Could not get a proper 3D display for node " + displ);
@@ -624,12 +624,25 @@ public class Display3D {
 			Utils.log2("Skipping non-multiple-of-3 vertices list generated for " + displ.getTitle());
 			return;
 		}
+		Color color = null;
+		float alpha = 1.0f;
+		if (null != displ) {
+			color = displ.getColor();
+			alpha = displ.getAlpha();
+		} else {
+			// for profile_list: get from the first (what a kludge)
+			Object obp = ((ProjectThing)pt.getChildren().get(0)).getObject();
+			if (null == obp) return;
+			Displayable di = (Displayable)obp;
+			color = di.getColor();
+			alpha = di.getAlpha();
+		}
 		// add to 3D view (synchronized)
 		synchronized (u_lock) {
 			lock();
 			try {
 				// craft a unique title (id is always unique)
-				String title = displ.getTitle() + " #" + displ.getId();
+				String title = null == displ ? pt.toString() : displ.getTitle() + " #" + displ.getId();
 				if (ht_pt_meshes.contains(pt)) {
 					// remove content from universe
 					universe.removeContent(title);
@@ -640,9 +653,9 @@ public class Display3D {
 				// ensure proper default transform
 				universe.resetView();
 				//
-				universe.addMesh(triangles, new Color3f(displ.getColor()), title, (float)(1.0 / (width*scale)), 1);
+				universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
 				Content ct = universe.getContent(title);
-				ct.setTransparency(1f - displ.getAlpha());
+				ct.setTransparency(1f - alpha);
 				ct.toggleLock();
 			} catch (Exception e) {
 				new IJError(e);
@@ -650,7 +663,7 @@ public class Display3D {
 			unlock();
 		}
 
-		Utils.log2(displ.getTitle() + " n points: " + triangles.size());
+		Utils.log2(pt.toString() + " n points: " + triangles.size());
 
 				} catch (Exception e) {
 					new IJError(e);
