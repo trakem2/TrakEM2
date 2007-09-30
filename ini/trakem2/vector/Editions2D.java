@@ -23,6 +23,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.vector;
 
 import java.util.ArrayList;
+import java.util.List;
+import javax.vecmath.Point3f;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
@@ -591,16 +593,48 @@ public class Editions2D {
 
 	/** Tuple to avoid ugly castings. Java is disgusting. */
 	static public class Match {
-		public VectorString2D sv1;
-		public VectorString2D sv2;
-		public Editions2D editions;
-		/** The interpolated curves in between sv1 nd sv2.*/
-		public VectorString2D[] p;
-		public Match(VectorString2D sv1, VectorString2D sv2, Editions2D editions, VectorString2D[] p) {
+		private VectorString2D sv1;
+		private VectorString2D sv2;
+		private Editions2D ed;
+		/** The interpolated curves in between sv1 and sv2.*/
+		private VectorString2D[] p;
+
+		public Match(VectorString2D sv1, VectorString2D sv2, Editions2D ed, VectorString2D[] p) {
 			this.sv1 = sv1;
 			this.sv2 = sv2;
-			this.editions = editions;
+			this.ed = ed;
 			this.p = p;
 		}
+		/** Generate a list of Point3f points, every three defining a triangle, between sv1 and sv2 using the given sequence of editions. */
+		public List<Point3f> generateTriangles(boolean closed) {
+			ArrayList<Point3f> triangles = new ArrayList();
+			if (null == p || 0 == p.length) {
+				triangles.addAll(makeSkin(sv1, sv2, closed));
+			} else {
+				triangles.addAll(makeSkin(sv1, p[0], closed));
+				for (int i=1; i<p.length; i++) {
+					triangles.addAll(makeSkin(p[i-1], p[i], closed));
+				}
+				triangles.addAll(makeSkin(p[p.length-1], sv2, closed));
+			}
+			return triangles;
+		}
+		private ArrayList<Point3f> makeSkin(VectorString2D a, VectorString2D b, boolean closed) {
+			final ArrayList<Point3f> triangles = new ArrayList();
+			// the sequence of editions defines the edges
+			for (int e=1; e<ed.editions.length; e++) {
+				// TODO
+			}
+			return triangles;
+		}
+	}
+
+	static public List<Point3f> generateTriangles(final VectorString2D[] sv, int n_morphed_perimeters, double delta_, boolean closed) {
+		final ArrayList<Editions2D.Match> al_matches = Editions2D.getMorphedPerimeters(sv, -1, -1, true); // automatic number of interpolated curves, automatic delta
+		final List triangles = new ArrayList(); // every three consecutive Point3f make a triangle
+		for (Editions2D.Match match : al_matches) {
+			triangles.addAll(match.generateTriangles(closed));
+		}
+		return triangles;
 	}
 }

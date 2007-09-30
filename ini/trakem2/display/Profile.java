@@ -1599,17 +1599,7 @@ public class Profile extends Displayable {
 				// with automatic delta
 				sv[i] = new VectorString2D(x, y, 0, p[i].layer.getZ());
 			}
-			final ArrayList<Editions2D.Match> al_matches = Editions2D.getMorphedPerimeters(sv, -1, -1, true); // automatic number of interpolated curves, automatic delta
-			// convert to Point3f
-			final List triangles = new ArrayList(); // every three consecutive Point3f make a triangle
-			for (Editions2D.Match match : al_matches) {
-				// crawl Editions2D to find the actual matches
-				// TODO
-				// ---- beware of possibly null or empty match.p array of weighted perimeters
-				//
-			}
-			//
-			return triangles;
+			return Editions2D.generateTriangles(sv, -1, -1, closed);
 		} catch (Exception e) {
 			new IJError(e);
 		}
