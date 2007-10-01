@@ -451,7 +451,7 @@ public class Editions2D {
 		final double[] v_y1 = sv1.v_y;
 		final double[] v_x2 = sv2.v_x;
 		final double[] v_y2 = sv2.v_y;
-		final int n_editions = editions[0].length;
+		final int n_editions = editions.length;
 		// the points to create. There is one point for each edition, plus the starting point.
 		final double[] x = new double[n_editions +1];
 		final double[] y = new double[n_editions +1]; 
@@ -513,6 +513,10 @@ public class Editions2D {
 			// advance
 			next++;
 		}
+
+		Utils.log2("editions length: " + editions.length + "\nx,y length: " + x.length + ", " + y.length);
+
+
 		// return packed:
 		double[][] d = new double[2][];
 		d[0] = x;
@@ -549,14 +553,12 @@ public class Editions2D {
 
 		try {
 			// get all morphed curves and return them.
-			int i, j; //, n_morphed_perimeters;
-
 			double delta = 0.0;
 			// calculate delta, or taken the user-given one if acceptable (TODO acceptable is not only delta > 0, but also smaller than half the curve length or so.
 			if (delta_ > 0) {
 				delta = delta_;
 			} else {
-				for (i=0; i<sv.length; i++) {
+				for (int i=0; i<sv.length; i++) {
 					delta += sv[i].getAverageDelta();
 				}
 				delta = delta / sv.length;
@@ -565,20 +567,21 @@ public class Editions2D {
 			Utils.log2("\nUsing delta=" + delta);
 
 			// resample perimeters so that point interdistance becomes delta
-			for (i=0; i<sv.length; i++) {
+			for (int i=0; i<sv.length; i++) {
 				sv[i].resample(delta);
 			}
 
 			// fetch morphed ones and fill all_perimeters array:
-			for (i=1; i<sv.length; i++) {
+			for (int i=1; i<sv.length; i++) {
 				Editions2D ed = new Editions2D(sv[i-1], sv[i], delta, closed);
 				double[][][] d = ed.getMorphedPerimeters(n_morphed_perimeters);
 				// else, add them all
 				double z_start = sv[i-1].z;
-				double z_inc = (sv[i].z - z_start) / ( 0 == d.length ? 1 : d.length); // if zero, none are added anyway; '1' is a dummy number
+				double z_inc = (sv[i].z - z_start) / (double)( 0 == d.length ? 1 : (d.length + 1)); // if zero, none are added anyway; '1' is a dummy number
+				Utils.log2("sv[i].z: " + sv[i].z + "  z_start: " + z_start + "  z_inc is: " + z_inc);
 				VectorString2D[] p = new VectorString2D[d.length];
 				for (int k=0; k<d.length; k++) {
-					p[k] = new VectorString2D(d[k][0], d[k][1], delta, z_start + z_inc*i);
+					p[k] = new VectorString2D(d[k][0], d[k][1], delta, z_start + z_inc*(k+1));
 				}
 				al_matches.add(new Match(sv[i-1], sv[i], ed, p));
 			}
@@ -609,53 +612,78 @@ public class Editions2D {
 		public List<Point3f> generateTriangles(boolean closed) {
 			ArrayList<Point3f> triangles = new ArrayList();
 			if (null == p || 0 == p.length) {
-				triangles.addAll(makeSkin(sv1, sv2, closed));
+				triangles.addAll(makeSkin(sv1, sv2, closed, true, true));
 			} else {
-				triangles.addAll(makeSkin(sv1, p[0], closed));
+				triangles.addAll(makeSkin(sv1, p[0], closed, true, false));
 				for (int i=1; i<p.length; i++) {
-					triangles.addAll(makeSkin(p[i-1], p[i], closed));
+					triangles.addAll(makeSkin(p[i-1], p[i], closed, false, false));
 				}
-				triangles.addAll(makeSkin(p[p.length-1], sv2, closed));
+				triangles.addAll(makeSkin(p[p.length-1], sv2, closed, false, true));
 			}
 			return triangles;
 		}
-		private ArrayList<Point3f> makeSkin(VectorString2D a, VectorString2D b, boolean closed) {
+		private ArrayList<Point3f> makeSkin(VectorString2D a, VectorString2D b, boolean closed, boolean ao, boolean bo) {
 			final ArrayList<Point3f> triangles = new ArrayList();
 			// the sequence of editions defines the edges
 			final int[][] editions = ed.editions;
 			int e_start = 1;
 			if (MUTATION == editions[0][0]) e_start = 0;
 			int i1, j1;
-			int lag = 0;
-			boolean use_lag = true;
-			if (a.length == b.length) use_lag = false;
 			int i=0,
 			    j=0;
-			int ei;
-			for (int e=e_start; e<ed.editions.length; e++) {
-				ei = editions[e][0];
-				i1 = editions[e][1];
-				j1 = editions[e][2];
-				if (use_lag) {
+			if (!(!ao && !bo)) { // if at least one is original, use editions for matching
+				int ei;
+				int lag = 0;
+				for (int e=e_start; e<editions.length; e++) {
+					ei = editions[e][0];
+					i1 = editions[e][1];
+					j1 = editions[e][2];
 					switch (ei) {
 						case INSERTION:
+							if (!ao) lag++;
+							break;
 						case DELETION:
-							lag++;
+							if (!bo) lag++;
 							break;
 					}
-					if (a.length < b.length) j1 += lag;
-					else i1 += lag;
+					if (!ao) i1 += lag; // if a is not original
+					if (!bo) j1 += lag; // if b is not original
+					// safety checks
+					if (i1 >= a.length) {
+						if (closed) i1 = 0;
+						else i1 = a.length - 1;
+					}
+					if (j1 >= b.length) {
+						if (closed) j1 = 0;
+						else j1 = b.length - 1;
+					}
+					if ( MUTATION == ei || ( (!ao || !bo) && (INSERTION == ei || DELETION == ei) ) ) { 
+						// if it's a mutation, or one of the two curves is not original
+						// a quad, split into two triangles:
+						// i1, i, j
+						triangles.add(new Point3f((float)a.x[i1], (float)a.y[i1], (float)a.z));
+						triangles.add(new Point3f((float)a.x[i], (float)a.y[i], (float)a.z));
+						triangles.add(new Point3f((float)b.x[j], (float)b.y[j], (float)b.z));
+						// i1, j, j1
+						triangles.add(new Point3f((float)a.x[i1], (float)a.y[i1], (float)a.z));
+						triangles.add(new Point3f((float)b.x[j], (float)b.y[j], (float)b.z));
+						triangles.add(new Point3f((float)b.x[j1], (float)b.y[j1], (float)b.z));
+					} else {
+						// an INSERTION or a DELETION, when both curves are original
+						// i, j, j1
+						triangles.add(new Point3f((float)a.x[i], (float)a.y[i], (float)a.z));
+						triangles.add(new Point3f((float)b.x[j], (float)b.y[j], (float)b.z));
+						triangles.add(new Point3f((float)b.x[j1], (float)b.y[j1], (float)b.z));
+					}
+					i = i1;
+					j = j1;
 				}
-				// safety checks
-				if (i1 >= a.length) {
-					if (closed) i1 = 0;
-					else i1 = a.length - 1;
-				}
-				if (j1 >= b.length) {
-					if (closed) j1 = 0;
-					else j1 = b.length - 1;
-				}
-				if (MUTATION == ei || (a.length == b.length && (INSERTION == ei || DELETION == ei))) {
+			} else {
+				// Orthogonal match: both are interpolated and have the same amount of points,
+				//  	which correspond to each other 1:1
+				for (int k=0; k<a.length-1; k++) {
+					i1 = k+1;
+					j1 = i1;
 					// a quad, split into two triangles:
 					// i1, i, j
 					triangles.add(new Point3f((float)a.x[i1], (float)a.y[i1], (float)a.z));
@@ -665,17 +693,12 @@ public class Editions2D {
 					triangles.add(new Point3f((float)a.x[i1], (float)a.y[i1], (float)a.z));
 					triangles.add(new Point3f((float)b.x[j], (float)b.y[j], (float)b.z));
 					triangles.add(new Point3f((float)b.x[j1], (float)b.y[j1], (float)b.z));
-				} else {
-					// an INSERTION or a DELETION when a.length != b.length
-					// i, j, j1
-					triangles.add(new Point3f((float)a.x[i], (float)a.y[i], (float)a.z));
-					triangles.add(new Point3f((float)b.x[j], (float)b.y[j], (float)b.z));
-					triangles.add(new Point3f((float)b.x[j1], (float)b.y[j1], (float)b.z));
+					i = i1;
+					j = j1;
 				}
-				i = i1;
-				j = j1;
 			}
 			if (closed) {
+				/*
 				// last point with first point: a quad
 				// 0_i, last_i, last_j
 				triangles.add(new Point3f((float)a.x[0], (float)a.y[0], (float)a.z));
@@ -685,6 +708,7 @@ public class Editions2D {
 				triangles.add(new Point3f((float)a.x[0], (float)a.y[0], (float)a.z));
 				triangles.add(new Point3f((float)b.x[b.length-1], (float)b.y[b.length-1], (float)b.z));
 				triangles.add(new Point3f((float)b.x[0], (float)b.y[0], (float)b.z));
+				*/
 			}
 			return triangles;
 		}

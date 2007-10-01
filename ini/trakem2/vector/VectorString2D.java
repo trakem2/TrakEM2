@@ -87,7 +87,7 @@ public class VectorString2D {
 		this.resample();
 	}
 
-	/** As in the resampling method for CurveMorphing_just_C.c but for 2D and only open curves! Uses the assigned 'delta'. */
+	/** As in the resampling method for CurveMorphing_just_C.c but for 2D. Uses the assigned 'delta'. Will reorder to counter-clock wise if necessary. */
 	private void resample() {
 		final int MAX_AHEAD = 6;
 		final double MAX_DISTANCE = 2.5 * delta;
@@ -97,6 +97,41 @@ public class VectorString2D {
 		double[] v_y = new double[length];
 		final int p_length = this.length; // to keep my head cool
 		int ps_length = this.length; // the length of the resampled vectors
+
+		// reorder to CCW if needed: (so all curves have the same orientation)
+		// find bounding box:
+		double x_max = 0;			int x_max_i = 0;
+		double y_max = 0;			int y_max_i = 0;
+		double x_min = Double.MAX_VALUE;		int x_min_i = 0;
+		double y_min = Double.MAX_VALUE;		int y_min_i = 0;
+		for (int i=0;i <p_length; i++) {
+			if (x[i] > x_max) { x_max = x[i]; x_max_i = i; } // this lines could be optimized, the p->x etc. are catched below
+			if (y[i] > y_max) { y_max = y[i]; y_max_i = i; }
+			if (x[i] < x_min) { x_min = x[i]; x_min_i = i; }
+			if (y[i] < y_min) { y_min = y[i]; y_min_i = i; }
+		}
+		int collect = 0;
+		if (y_min_i - x_max_i >= 0) collect++;
+		if (x_min_i - y_min_i >= 0) collect++;
+		if (y_max_i - x_min_i >= 0) collect++;
+		if (x_max_i - y_max_i >= 0) collect++;
+		//if (3 == collect)
+		if (3 != collect) { // this should be '3 == collect', but then we are looking at the curves from the other side relative to what ImageJ is showing. In any case as long as one or the other gets rearranged, they'll be fine.
+			// Clockwise! Reorder to CCW by reversing the arrays in place
+			int n = p_length;
+			double tmp;
+			for (int i=0; i< p_length /2; i++) {
+
+				tmp = x[i];
+				x[i] = x[n-i-1];
+				x[n-i-1] = tmp;
+
+				tmp = y[i];
+				y[i] = y[n-i-1];
+				y[n-i-1] = tmp;
+			}
+		}
+
 		// first resampled point is the same as 0
 		ps_x[0] = x[0];
 		ps_y[0] = y[0];
@@ -119,22 +154,25 @@ public class VectorString2D {
 
 		// start infinite loop
 		for (;prev_i <= i;) {
+			if (prev_i > i) {//the loop has completed one round, since 'i' can go up to MAX_POINTS ahead of the last point into the points at the beggining of the array. Whenever the next point 'i' to start exploring is set beyond the length of the array, then the condition is met.
+				break;
+			}
 			// check ps and v array lengths
 			if (j >= ps_length) {
-				int new_length = ps_length + 20;
 				// must enlarge
-				v_x = enlargeArrayOfDoubles(v_x, new_length);
-				v_y = enlargeArrayOfDoubles(v_y, new_length);
-				ps_x = enlargeArrayOfDoubles(ps_x, new_length);
-				ps_y = enlargeArrayOfDoubles(ps_y, new_length);
+				ps_length += 20;
+				v_x = enlargeArrayOfDoubles(v_x, ps_length);
+				v_y = enlargeArrayOfDoubles(v_y, ps_length);
+				ps_x = enlargeArrayOfDoubles(ps_x, ps_length);
+				ps_y = enlargeArrayOfDoubles(ps_y, ps_length);
 			}
 			// get distances of MAX_POINTs ahead from the previous point
 			n_ahead = 0; // reset
 			for (t=0; t<MAX_AHEAD; t++) {
 				s = i + t; // 'i' is the first to start inspecting from
-				// stop if it goes over the end (no closed curves!)
+				// fix 's' if it goes over the end // TODO this is problematic for sure for open curves.
 				if (s >= p_length) {
-					break;
+					s = s - p_length;
 				}
 				dist_ahead = Math.sqrt((x[s] - ps_x[j-1])*(x[s] - ps_x[j-1]) + (y[s] - ps_y[j-1])*(y[s] - ps_y[j-1]));
 				if (dist_ahead < MAX_DISTANCE) {
@@ -245,12 +283,11 @@ public class VectorString2D {
 				// check ps and v array lengths
 				if (j >= ps_length) {
 					// must enlarge.
-					int new_length = ps_length + 20;
-					v_x = enlargeArrayOfDoubles(v_x, new_length);
-					v_y = enlargeArrayOfDoubles(v_y, new_length);
-					ps_x = enlargeArrayOfDoubles(ps_x, new_length);
-					ps_y = enlargeArrayOfDoubles(ps_y, new_length);
 					ps_length += 20;
+					v_x = enlargeArrayOfDoubles(v_x, ps_length);
+					v_y = enlargeArrayOfDoubles(v_y, ps_length);
+					ps_x = enlargeArrayOfDoubles(ps_x, ps_length);
+					ps_y = enlargeArrayOfDoubles(ps_y, ps_length);
 				}
 				//add a point
 				ps_x[j] = ps_x[j-1] + dx;
