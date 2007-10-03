@@ -300,7 +300,7 @@ public class Display3D {
 				StopWatch sw = new StopWatch();
 				// obtain the containing LayerSet
 				Display3D d3d = null;
-				if (null != displ) Display3D.get(displ.getLayerSet());
+				if (null != displ) d3d = Display3D.get(displ.getLayerSet());
 				else if (child.getType().equals("profile_list")) {
 					ArrayList al_children = child.getChildren();
 					if (null == al_children || 0 == al_children.size()) continue;

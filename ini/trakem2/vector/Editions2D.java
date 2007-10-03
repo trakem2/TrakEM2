@@ -291,11 +291,6 @@ public class Editions2D {
 
 	/** Generate the matrix between sv1 and sv2. The lower right value of the matrix is the Levenshtein's distance between the two strings of vectors. @param delta is the desired point interdistance. @param first is the first index of sv2  to be matched with index zero of sv1. @param matrix is optional, for recyclying. */
 	static private double[][] findEditMatrix(final VectorString2D sv1, final VectorString2D sv2, final int first, final double delta, double[][] matrix_) {
-
-		// if already resampled, nothing will change
-		sv1.resample(delta);
-		sv2.resample(delta);
-
 		// cache locally
 		final double[] v_x1 = sv1.v_x;
 		final double[] v_y1 = sv1.v_y;
@@ -526,8 +521,6 @@ public class Editions2D {
 
 	/** From two VectorString2D, return an array of x,y points ( in the form [2][n] ) defining all necessary intermediate, morphed perimeters that describe a skin between them (not including the two VectorString2D) */
 	public double[][][] getMorphedPerimeters(int n_morphed_perimeters) {
-		sv1.resample(this.delta);
-		sv2.resample(this.delta);
 		// check automatic mode (-1 is the flag; if less, then just survive it):
 		if (n_morphed_perimeters < 0) n_morphed_perimeters = (int)(Math.sqrt(Math.sqrt(this.distance)));
 
@@ -566,11 +559,6 @@ public class Editions2D {
 
 			Utils.log2("\nUsing delta=" + delta);
 
-			// resample perimeters so that point interdistance becomes delta
-			for (int i=0; i<sv.length; i++) {
-				sv[i].resample(delta);
-			}
-
 			// fetch morphed ones and fill all_perimeters array:
 			for (int i=1; i<sv.length; i++) {
 				Editions2D ed = new Editions2D(sv[i-1], sv[i], delta, closed);
@@ -581,7 +569,7 @@ public class Editions2D {
 				Utils.log2("sv[i].z: " + sv[i].z + "  z_start: " + z_start + "  z_inc is: " + z_inc);
 				VectorString2D[] p = new VectorString2D[d.length];
 				for (int k=0; k<d.length; k++) {
-					p[k] = new VectorString2D(d[k][0], d[k][1], delta, z_start + z_inc*(k+1));
+					p[k] = new VectorString2D(d[k][0], d[k][1], z_start + z_inc*(k+1), sv[0].closed); // takes the closed value from the first one
 				}
 				al_matches.add(new Match(sv[i-1], sv[i], ed, p));
 			}
@@ -595,7 +583,7 @@ public class Editions2D {
 	}
 
 	/** Tuple to avoid ugly castings. Java is disgusting. */
-	static public class Match {
+	static private class Match {
 		private VectorString2D sv1;
 		private VectorString2D sv2;
 		private Editions2D ed;
@@ -679,7 +667,7 @@ public class Editions2D {
 					j = j1;
 				}
 			} else {
-				// Orthogonal match: both are interpolated and have the same amount of points,
+				// Orthogonal match: both are interpolated and thus have the same amount of points,
 				//  	which correspond to each other 1:1
 				for (int k=0; k<a.length-1; k++) {
 					i1 = k+1;
@@ -698,7 +686,7 @@ public class Editions2D {
 				}
 			}
 			if (closed) {
-				/*
+				/* // for some reason this is not necessary (inspect why!)
 				// last point with first point: a quad
 				// 0_i, last_i, last_j
 				triangles.add(new Point3f((float)a.x[0], (float)a.y[0], (float)a.z));
@@ -714,6 +702,7 @@ public class Editions2D {
 		}
 	}
 
+	/** From an array of VectorString2D, obtain a list of Point3f which define, every three, a triangle of a skin. */
 	static public List<Point3f> generateTriangles(final VectorString2D[] sv, int n_morphed_perimeters, double delta_, boolean closed) {
 		final ArrayList<Editions2D.Match> al_matches = Editions2D.getMorphedPerimeters(sv, -1, -1, true); // automatic number of interpolated curves, automatic delta
 		final List triangles = new ArrayList(); // every three consecutive Point3f make a triangle

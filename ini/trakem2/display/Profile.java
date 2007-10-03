@@ -1597,7 +1597,7 @@ public class Profile extends Displayable {
 					}
 				}
 				// with automatic delta
-				sv[i] = new VectorString2D(x, y, 0, p[i].layer.getZ());
+				sv[i] = new VectorString2D(x, y, p[i].layer.getZ(), p[i].closed);
 			}
 			return Editions2D.generateTriangles(sv, -1, -1, closed);
 		} catch (Exception e) {

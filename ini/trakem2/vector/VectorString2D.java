@@ -35,20 +35,22 @@ public class VectorString2D {
 	double[] v_y = null;
 	/** The length of the x,y and v_x, v_y resampled points (the actual arrays may be a bit longer) */
 	int length;
-	double delta; // the delta used for resampling
+	/** The point interdistance after resampling. */
+	double delta = 0; // the delta used for resampling
 	/** The Z coordinate of the entire planar curve represented by this VectorString2D. */
 	double z;
+	boolean closed;
 
 	/** Construct a new String of Vectors from the given points and desired resampling point interdistance 'delta'. */
-	public VectorString2D(double[] x, double[] y, double delta, double z) throws Exception {
+	public VectorString2D(double[] x, double[] y, double z, boolean closed) throws Exception {
 		if (!(x.length == y.length)) {
 			throw new Exception("x and y must be of the same length.");
 		}
 		this.length = x.length;
 		this.x = x;
 		this.y = y;
-		this.delta = delta;
 		this.z = z;
+		this.closed = closed;
 	}
 
 	/** Does NOT clone the vector arrays, which are initialized to NULL; only the x,y,delta,z. */
@@ -58,7 +60,7 @@ public class VectorString2D {
 		System.arraycopy(x, 0, x2, 0, length);
 		System.arraycopy(y, 0, y2, 0, length);
 		try {
-			return new VectorString2D(x2, y2, delta, z);
+			return new VectorString2D(x2, y2, z, closed);
 		} catch (Exception e) {
 			new IJError(e);
 			return null;
@@ -172,7 +174,8 @@ public class VectorString2D {
 				s = i + t; // 'i' is the first to start inspecting from
 				// fix 's' if it goes over the end // TODO this is problematic for sure for open curves.
 				if (s >= p_length) {
-					s = s - p_length;
+					if (this.closed) s = s - p_length;
+					else s = p_length -1; // the last
 				}
 				dist_ahead = Math.sqrt((x[s] - ps_x[j-1])*(x[s] - ps_x[j-1]) + (y[s] - ps_y[j-1])*(y[s] - ps_y[j-1]));
 				if (dist_ahead < MAX_DISTANCE) {
@@ -202,7 +205,6 @@ public class VectorString2D {
 					for (u=i; u<=p_length; u++) {
 						dist2 = Math.sqrt((x[u] - ps_x[j-1])*(x[u] - ps_x[j-1]) + (y[u] - ps_y[j-1])*(y[u] - ps_y[j-1]));
 						if (dist2 > delta) {
-							//printf("\nADVANCING: prev i=%i, next i=%i, j-1=%i, dist2 = %f", i, u, j, dist2);
 							prev_i = i;
 							i = u;
 							break;
@@ -228,7 +230,7 @@ public class VectorString2D {
 				if (sum < 1.0) {
 					w[0] += 1.0 - sum;
 				} else {
-					w = recalculate(w, n_ahead, sum); // TODO : 'recalculate' function!
+					w = recalculate(w, n_ahead, sum);
 				}
 				// calculate the new point using the weights
 				dx = 0.0;

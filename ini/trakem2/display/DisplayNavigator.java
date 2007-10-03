@@ -361,7 +361,6 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	public void mouseDragged(MouseEvent me) {
 		// prevent action if the srcRect takes over the whole area
 		if (this.srcRect.width == display.getLayer().getLayerWidth() && this.srcRect.height == display.getLayer().getLayerHeight()) { // testing for numeric identity, not for pointer identity; hence he usage of equals()
-			Utils.log2("identical");
 			return;
 		}
 		int x_d = me.getX();
