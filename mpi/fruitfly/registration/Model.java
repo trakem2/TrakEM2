@@ -84,7 +84,7 @@ abstract public class Model {
 	}
 
 	/**
-	 * less than operater to make the models sortable, returns false for error < 0
+	 * less than operater to make the models comparable, returns false for error < 0
 	 */
 	public boolean betterThan( Model m )
 	{

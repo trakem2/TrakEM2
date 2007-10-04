@@ -20,6 +20,7 @@ public class SimPoint2D
 	final public float getWty() { return wty; }
 	final public float getWorientation() { return worientation; }
 	final public float getWscale() { return wscale; }
+	final public float getWeight() { return wscale; }
 	
 	
 	// local coordinates
@@ -56,5 +57,19 @@ public class SimPoint2D
 		wtx = t[ 0 ];
 		wty = t[ 1 ];
 		return true;
+	}
+	
+	/**
+	 * estimate the Euclidean distance of two points in the world
+	 *  
+	 * @param s1
+	 * @param s2
+	 * @return Euclidean distance
+	 */
+	final public static float distance( SimPoint2D s1, SimPoint2D s2 )
+	{
+		float dx = s1.wtx - s2.wtx;
+		float dy = s1.wty - s2.wty;
+		return ( float )Math.sqrt( dx * dx + dy * dy );
 	}
 }

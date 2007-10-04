@@ -2,6 +2,7 @@ package mpi.fruitfly.registration;
 
 import java.util.Iterator;
 import java.util.Vector;
+import java.util.ArrayList;
 import java.util.Random;
 import java.awt.geom.AffineTransform;
 
@@ -115,6 +116,51 @@ public class TRModel2D extends Model {
 		affine.setToIdentity();
 		affine.rotate( angle, xo1, yo1 );
 		affine.translate( dx, dy );
+		//return new float[]{dx, dy, angle, xo1, yo1};
+	}
+	
+	public void minimize( ArrayList< SimPoint2DMatch > matches )
+	{
+		// center of mass:
+		float xo1 = 0, yo1 = 0;
+		float xo2 = 0, yo2 = 0;
+		// Implementing Johannes Schindelin's squared error minimization formula
+		// tan(angle) = Sum(x1*y1 + x2y2) / Sum(x1*y2 - x2*y1)
+		int length = matches.size();
+		// 1 - compute centers of mass, for displacement and origin of rotation
+
+		for ( SimPoint2DMatch m : matches )
+		{
+			xo1 += m.s1.getWtx();
+			yo1 += m.s1.getWty();
+			xo2 += m.s2.getWtx();
+			yo2 += m.s2.getWty();
+		}
+		xo1 /= length;
+		yo1 /= length;
+		xo2 /= length;
+		yo2 /= length;
+
+		float dx = xo1 - xo2; // reversed, because the second will be moved relative to the first
+		float dy = yo1 - yo2;
+		float sum1 = 0, sum2 = 0;
+		float x1, y1, x2, y2;
+		for ( SimPoint2DMatch m : matches )
+		{
+			// make points local to the center of mass of the first landmark set
+			x1 = m.s1.getWtx() - xo1; // x1
+			y1 = m.s1.getWty() - yo1; // x2
+			x2 = m.s2.getWtx() - xo2 + dx; // y1
+			y2 = m.s2.getWty() - yo2 + dy; // y2
+			sum1 += x1 * y2 - y1 * x2; //   x1 * y2 - x2 * y1 // assuming p1 is x1,x2, and p2 is y1,y2
+			sum2 += x1 * x2 + y1 * y2; //   x1 * y1 + x2 * y2
+		}
+		float angle = ( float )Math.atan2( -sum1, sum2 );
+		
+		//angle = Math.toDegrees(angle);
+		affine.setToIdentity();
+		affine.rotate( -angle, xo2, yo2 );
+		affine.translate( -dx, -dy );
 		//return new float[]{dx, dy, angle, xo1, yo1};
 	}
 

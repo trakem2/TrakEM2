@@ -8,6 +8,7 @@ import Jama.Matrix;
 import java.util.Vector;
 import java.util.Iterator;
 
+// TODO store size and orientation of the features (float[ 4 ]?), this might be useful, particularly for the minimizer
 public class Match {
 	final public float[] p1;
 	final public float[] p2;
