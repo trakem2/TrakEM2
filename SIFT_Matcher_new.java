@@ -478,7 +478,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				}
 
 				IJ.log( "Model with epsilon <= " + epsilon + " for " + model.getInliers().size() + " inliers found." );
-				IJ.log( "  Affine transform: " + model.affine.toString() );
+				IJ.log( "  Affine transform: " + model.getAffine().toString() );
 
 				/**
 				 * append the estimated transformation model
@@ -490,7 +490,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				 * Think about using an other transformation class, focusing on
 				 * better interpolation schemes ( Lanczos would be great ).
 				 */
-				AffineTransform at_current = new AffineTransform( model.affine );
+				AffineTransform at_current = new AffineTransform( model.getAffine() );
 				double[] m = new double[ 6 ];
 				at_current.getMatrix( m );
 				m[ 4 ] /= scale;

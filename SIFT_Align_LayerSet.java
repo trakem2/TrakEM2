@@ -4,6 +4,8 @@ import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 
 import mpi.fruitfly.registration.FloatArray2DSIFT;
+import mpi.fruitfly.registration.Model;
+import mpi.fruitfly.registration.TModel2D;
 import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
@@ -28,6 +30,11 @@ import java.io.*;
 
 public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 {
+	private static final String[] dimensions = {
+		"translation",
+		"translation and rotation" };
+	private static int dimension = 1;
+	
 	// steps
 	private static int steps = 3;
 	// initial sigma
@@ -38,11 +45,11 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	private static int fdbins = 8;
 	// size restrictions for scale octaves, use octaves < max_size and > min_size only
 	private static int min_size = 64;
-	private static int max_size = 1024;
+	private static int max_size = 512;
 	// minimal allowed alignment error in px
-	private static float min_epsilon = 2.0f;
+	private static float min_epsilon = 1.0f;
 	// maximal allowed alignment error in px
-	private static float max_epsilon = 100.0f;
+	private static float max_epsilon = 10.0f;
 	private static float inlier_ratio = 0.05f;
 	private static float scale = 1.0f;
 	
@@ -135,6 +142,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		gd.addNumericField( "minimal_alignment_error :", min_epsilon, 2 );
 		gd.addNumericField( "maximal_alignment_error :", max_epsilon, 2 );
 		gd.addNumericField( "inlier_ratio :", inlier_ratio, 2 );
+		gd.addChoice( "transformations_to_be_optimized :", dimensions, dimensions[ dimension ] );
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		
@@ -147,6 +155,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		min_epsilon = ( float )gd.getNextNumber();
 		max_epsilon = ( float )gd.getNextNumber();
 		inlier_ratio = ( float )gd.getNextNumber();
+		String dimension_str = gd.getNextChoice();
 		
 		ArrayList< Layer > layers = set.getLayers();
 		ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
@@ -182,8 +191,14 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				
 				System.out.println( fs.size() + " features identified and processed" );
 				
-				TRModel2D model = new TRModel2D();
-				model.affine.setTransform( patch.getAffineTransform() ); 
+				Model model;
+				
+				if ( dimension_str == "translation" )
+					model = new TModel2D();
+				else
+					model = new TRModel2D();
+				
+				model.getAffine().setTransform( patch.getAffineTransform() ); 
 				Tile tile = new Tile( ( float )fa.width, ( float )fa.height, model );
 				tiles.add( tile );
 				featureSets.add( fs );
@@ -211,20 +226,20 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 									Float.MAX_VALUE );
 						System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 						
-						IJ.log( correspondences.size() + " potentially corresponding features  for tiles " + i + " and " + j + " identified" );
+						IJ.log( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
 						
 						TRModel2D model = estimateModel( correspondences );
 						
 						if ( model != null )
 						{
-							IJ.log( model.getInliers().size() + " true correspondences" );
+							IJ.log( model.getInliers().size() + " of them are good." );
 							ArrayList< SimPoint2DMatch > matches = SimPoint2DMatch.fromMatches( model.getInliers() );
 							current_tile.addMatches( matches );
 							other_tile.addMatches( SimPoint2DMatch.flip( matches ) );
 						}
 						else
 						{
-							IJ.log( "no true correspondences" );
+							IJ.log( "None of them are good." );
 						}
 					}
 				}
@@ -244,17 +259,25 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				{
 					Tile tile = tiles.get( i );
 					tile.update();
-					if ( tile.diceBetterModel( 100000, tile.getDistance() ) )
+					if ( tile.diceBetterModel( 100000, 1.0f ) )
 					{
-						patches.get( i ).getAffineTransform().setTransform( tile.getModel().affine );
-
-						// repaint all Displays showing a Layer of the edited LayerSet
-						Display.update( set );
+						patches.get( i ).getAffineTransform().setTransform( tile.getModel().getAffine() );
 						
-						IJ.showStatus( "displacement: " + tile.getDistance() );
+						double od = 0.0;
+						for ( Tile t : tiles )
+						{
+							t.update();
+							od += t.getDistance();
+						}						
+						od /= tiles.size();
+						
+						IJ.showStatus( "displacement: overall => " + od + ", current => " + tile.getDistance() );
 						
 						changed = true;
 					}
+					
+					// repaint all Displays showing a Layer of the edited LayerSet
+					Display.update( set );					
 				}
 			}
 		}
@@ -271,6 +294,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				( e.getKeyCode() == KeyEvent.VK_F1 ) &&
 				( e.getSource() instanceof TextField ) )
 		{
+		}
+		else if ( e.getKeyCode() == KeyEvent.VK_ESCAPE )
+		{
+			return;
 		}
 	}
 

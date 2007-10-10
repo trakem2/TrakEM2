@@ -5,18 +5,31 @@ import static mpi.fruitfly.math.General.sq;
 import Jama.EigenvalueDecomposition;
 import Jama.Matrix;
 
-import java.util.Vector;
-import java.util.Iterator;
+import java.util.Collection;
 
-// TODO store size and orientation of the features (float[ 4 ]?), this might be useful, particularly for the minimizer
 public class Match {
+	
+	// coordinates
 	final public float[] p1;
 	final public float[] p2;
-
+	
+	// weight
+	final public float w1;
+	final public float w2;
+	
 	public Match( float[] p1, float[] p2 )
 	{
 		this.p1 = p1;
 		this.p2 = p2;
+		w1 = w2 = 1.0f;
+	}
+
+	public Match( float[] p1, float[] p2, float w1, float w2 )
+	{
+		this.p1 = p1;
+		this.p2 = p2;
+		this.w1 = w1;
+		this.w2 = w2;
 	}
 
 	/**
@@ -24,7 +37,7 @@ public class Match {
 	 * of the spatial distribution of the matches
 	 */
 	static public void covariance(
-			Vector< Match > matches,
+			Collection< Match > matches,
 			double[] covariance_P1,		//!< xx_1, xy_1, yy_1
 			double[] covariance_P2,		//!< xx_2, xy_2, yy_2
 			double[] o_P1,				//!< x0_1, y0_1

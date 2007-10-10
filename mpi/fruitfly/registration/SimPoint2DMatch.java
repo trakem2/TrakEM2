@@ -9,7 +9,14 @@ public class SimPoint2DMatch
 	public SimPoint2D s2;
 	
 	private float distance;
+	private float xDistance;
+	private float yDistance;
+	private float rDistance;
+	
 	final public float getDistance(){ return distance; }
+	final public float getXDistance(){ return xDistance; }
+	final public float getYDistance(){ return yDistance; }
+	final public float getRDistance(){ return rDistance; }
 	
 	public SimPoint2DMatch(
 			SimPoint2D s1,
@@ -45,6 +52,21 @@ public class SimPoint2DMatch
 									match.p2[ 1 ],
 									0.0f,
 									weight ) ) );
+		}
+		return list;
+	}
+	
+	final public static ArrayList< Match > toMatches( Collection< SimPoint2DMatch > matches )
+	{
+		ArrayList< Match > list = new ArrayList< Match >();
+		for ( SimPoint2DMatch match : matches )
+		{
+			list.add(
+					new Match(
+							new float[]{ match.s1.getWtx(), match.s1.getWty() },
+							new float[]{ match.s2.getWtx(), match.s2.getWty() },
+							match.s1.getWeight(),
+							match.s2.getWeight() ) );
 		}
 		return list;
 	}
