@@ -245,9 +245,29 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				}
 			}
 			
+			/**
+			 * One tile per connected graph has to be fixed to make the problem
+			 * solvable, otherwise it is ill defined and has infinite
+			 * solutions.
+			 * 
+			 * TODO Identify the connected graphs.  Currently, we assume all
+			 *   tiles to be connected
+			 */
+			Tile fixed = null;
+			int max_num_matches = 0;
 			
 			// apply each tiles transformation to its correspondences
-			for ( Tile tile : tiles ) tile.update();
+			// and find the one with the highest number of matches
+			for ( Tile tile : tiles )
+			{
+				tile.update();
+				int num_matches = tile.getNumMatches();
+				if ( max_num_matches < num_matches )
+				{
+					max_num_matches = num_matches;
+					fixed = tile;
+				}
+			}
 			// again, for error and distance correction
 			for ( Tile tile : tiles ) tile.update();
 			
@@ -255,9 +275,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			while ( changed )
 			{
 				changed = false;
-				for ( int i = 1; i < num_patches; ++i )
+				for ( int i = 0; i < num_patches; ++i )
 				{
 					Tile tile = tiles.get( i );
+					if ( tile == fixed ) continue;
 					tile.update();
 					if ( tile.diceBetterModel( 100000, 1.0f ) )
 					{

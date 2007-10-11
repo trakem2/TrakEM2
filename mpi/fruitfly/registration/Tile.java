@@ -19,6 +19,8 @@ public class Tile
 	private Model model;
 	final public Model getModel() { return model; }
 	final private ArrayList< SimPoint2DMatch > matches = new ArrayList< SimPoint2DMatch >();
+	final public int getNumMatches() { return matches.size(); }
+	
 	final private static Random rnd = new Random( 69997 );
 	
 	private float error;
