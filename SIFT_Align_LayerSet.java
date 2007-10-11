@@ -178,7 +178,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			for ( Patch patch : patches )
 			{
 				imp = patch.getProject().getLoader().fetchImagePlus( patch );
-				FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor() );
+				FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
 				ImageFilter.enhance( fa, 1.0f );
 				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
 				
