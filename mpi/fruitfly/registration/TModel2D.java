@@ -14,25 +14,22 @@ public class TModel2D extends Model {
 	public AffineTransform getAffine() { return affine; }
 	
 	@Override
-	float[] apply( float[] point )
+	public float[] apply( float[] point )
 	{
 		float[] transformed = new float[ 2 ];
-
 		affine.transform( point, 0, transformed, 0, 1 );
-		// rotate
-		/*
-		transformed[ 0 ] = cos * point[ 0 ] - sin * point[ 1 ];
-		transformed[ 1 ] = sin * point[ 0 ] + cos * point[ 1 ];
-
-		// translate
-		transformed[ 0 ] += translation[ 0 ];
-		transformed[ 1 ] += translation[ 1 ];
-		*/
 		return transformed;
 	}
+	
+	@Override
+	public void applyInPlace( float[] point )
+	{
+		affine.transform( point, 0, point, 0, 1 );
+	}
+
 
 	@Override
-	boolean fit( Match[] matches )
+	public boolean fit( Match[] matches )
 	{
 		Match m1 = matches[ 0 ];
 		
@@ -51,7 +48,7 @@ public class TModel2D extends Model {
 		return ( "[3,3](" + affine + ") " + error );
 	}
 
-	private void minimize()
+	public void minimize()
 	{
 		// center of mass:
 		float xo1 = 0, yo1 = 0;

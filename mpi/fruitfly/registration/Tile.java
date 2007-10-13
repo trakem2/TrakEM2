@@ -2,6 +2,7 @@ package mpi.fruitfly.registration;
 
 import java.util.Random;
 import java.util.ArrayList;
+import java.util.Vector;
 import java.util.Collection;
 import java.awt.geom.AffineTransform;
 
@@ -18,7 +19,7 @@ public class Tile
 
 	private Model model;
 	final public Model getModel() { return model; }
-	final private ArrayList< SimPoint2DMatch > matches = new ArrayList< SimPoint2DMatch >();
+	final private ArrayList< PointMatch > matches = new ArrayList< PointMatch >();
 	final public int getNumMatches() { return matches.size(); }
 	
 	final private static Random rnd = new Random( 69997 );
@@ -57,7 +58,7 @@ public class Tile
 	 * @param more collection of matches
 	 * @return true if the list changed as a result of the call.
 	 */
-	final public boolean addMatches( Collection< SimPoint2DMatch > more )
+	final public boolean addMatches( Collection< PointMatch > more )
 	{
 		return matches.addAll( more );
 	}
@@ -83,16 +84,17 @@ public class Tile
 		int num_matches = matches.size();
 		if ( num_matches > 0 )
 		{
-			for ( SimPoint2DMatch match : matches )
+			double sum_weight = 0.0;
+			for ( PointMatch match : matches )
 			{
 				match.apply( model );
 				double dl = match.getDistance();
 				d += dl;
-				//e += dl * dl * match.s1.getWeight();
-				e += dl * dl;
+				e += dl * dl * match.getWeight();
+				sum_weight += match.getWeight();
 			}
-			d /= matches.size();
-			e /= matches.size();
+			d /= sum_weight;
+			e /= sum_weight;
 		}
 		distance = ( float )d;
 		error = ( float )e;
@@ -110,7 +112,7 @@ public class Tile
 	{
 		// store old model
 		Model old_model = model;
-		ArrayList< Match > ms = SimPoint2DMatch.toMatches( matches );
+		ArrayList< Match > ms = PointMatch.toMatches( matches );
 		
 		for ( int t = 0; t < max_num_tries; ++t )
 		{
@@ -126,5 +128,12 @@ public class Tile
 		// no better model found, so roll back
 		update();
 		return false;
+	}
+	
+	final public void minimizeModel()
+	{
+		model.inliers.clear();
+		model.inliers.addAll( PointMatch.toLocalMatches( matches ) );
+		model.minimize();
 	}
 }

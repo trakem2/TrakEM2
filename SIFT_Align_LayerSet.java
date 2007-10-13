@@ -1,4 +1,5 @@
 import ini.trakem2.display.*;
+import ini.trakem2.*;
 
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
@@ -10,7 +11,7 @@ import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.registration.Tile;
-import mpi.fruitfly.registration.SimPoint2DMatch;
+import mpi.fruitfly.registration.PointMatch;
 
 import ij.plugin.*;
 import ij.gui.*;
@@ -20,10 +21,15 @@ import ij.process.*;
 import java.util.Collections;
 import java.util.ArrayList;
 import java.util.Vector;
-import java.awt.geom.AffineTransform;
 import java.awt.TextField;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.Rectangle;
+import java.awt.Color;
+import java.awt.Font;
+
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 
 import java.io.*;
 
@@ -52,6 +58,9 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	private static float max_epsilon = 10.0f;
 	private static float inlier_ratio = 0.05f;
 	private static float scale = 1.0f;
+	
+	final static private DecimalFormat decimalFormat = new DecimalFormat();
+	final static private DecimalFormatSymbols decimalFormatSymbols = new DecimalFormatSymbols();
 	
 	/**
 	 * downscale a grey scale float image using gaussian blur
@@ -131,6 +140,12 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			System.err.println( "no open layer-set" );
 			return;
 		}
+		
+		decimalFormatSymbols.setGroupingSeparator( ',' );
+		decimalFormatSymbols.setDecimalSeparator( '.' );
+		decimalFormat.setDecimalFormatSymbols( decimalFormatSymbols );
+		decimalFormat.setMaximumFractionDigits( 3 );
+		decimalFormat.setMinimumFractionDigits( 3 );
 		
 		GenericDialog gd = new GenericDialog( "Align stack" );
 		gd.addNumericField( "steps_per_scale_octave :", steps, 0 );
@@ -233,9 +248,9 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 						if ( model != null )
 						{
 							IJ.log( model.getInliers().size() + " of them are good." );
-							ArrayList< SimPoint2DMatch > matches = SimPoint2DMatch.fromMatches( model.getInliers() );
+							ArrayList< PointMatch > matches = PointMatch.fromMatches( model.getInliers() );
 							current_tile.addMatches( matches );
-							other_tile.addMatches( SimPoint2DMatch.flip( matches ) );
+							other_tile.addMatches( PointMatch.flip( matches ) );
 						}
 						else
 						{
@@ -244,6 +259,12 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 					}
 				}
 			}
+			
+//			featureSets.clear();
+//			System.gc();
+//			System.gc();
+//			System.gc();
+//			System.gc();
 			
 			/**
 			 * One tile per connected graph has to be fixed to make the problem
@@ -271,38 +292,117 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			// again, for error and distance correction
 			for ( Tile tile : tiles ) tile.update();
 			
-			boolean changed = true;
-			while ( changed )
+//			boolean changed = true;
+//			while ( changed )
+//			{
+//				changed = false;
+//				for ( int i = 0; i < num_patches; ++i )
+//				{
+//					Tile tile = tiles.get( i );
+//					if ( tile == fixed ) continue;
+//					tile.update();
+//					
+//					if ( tile.diceBetterModel( 100000, 1.0f ) )
+//					{
+//						patches.get( i ).getAffineTransform().setTransform( tile.getModel().getAffine() );
+//						
+//						double od = 0.0;
+//						for ( Tile t : tiles )
+//						{
+//							t.update();
+//							od += t.getDistance();
+//						}						
+//						od /= tiles.size();
+//						
+//						IJ.showStatus( "displacement: overall => " + od + ", current => " + tile.getDistance() );
+//						
+//						changed = true;
+//					}					
+//				}
+//				
+//				// repaint all Displays showing a Layer of the edited LayerSet
+//				Display.update( set );
+//			}
+			
+			double od = Double.MAX_VALUE;
+			double d = Double.MAX_VALUE;
+			int iteration = 1;
+			int cc = 0;
+			while ( cc < 10 )
 			{
-				changed = false;
 				for ( int i = 0; i < num_patches; ++i )
 				{
 					Tile tile = tiles.get( i );
 					if ( tile == fixed ) continue;
 					tile.update();
-					if ( tile.diceBetterModel( 100000, 1.0f ) )
-					{
-						patches.get( i ).getAffineTransform().setTransform( tile.getModel().getAffine() );
-						
-						double od = 0.0;
-						for ( Tile t : tiles )
-						{
-							t.update();
-							od += t.getDistance();
-						}						
-						od /= tiles.size();
-						
-						IJ.showStatus( "displacement: overall => " + od + ", current => " + tile.getDistance() );
-						
-						changed = true;
-					}
 					
-					// repaint all Displays showing a Layer of the edited LayerSet
-					Display.update( set );					
+					tile.minimizeModel();
+					patches.get( i ).getAffineTransform().setTransform( tile.getModel().getAffine() );
+					//IJ.showStatus( "displacement: overall => " + od + ", current => " + tile.getDistance() );
 				}
+				double cd = 0.0;
+				for ( Tile t : tiles )
+				{
+					t.update();
+					cd += t.getDistance();
+				}						
+				cd /= tiles.size();
+				d = Math.abs( od - cd );
+				od = cd;
+				IJ.showStatus( "displacement: " + decimalFormat.format( od ) + " after " + iteration + " iterations");
+				
+				cc = d < 0.0001 ? cc + 1 : 0;
+				
+				// repaint all Displays showing a Layer of the edited LayerSet
+				Display.update( set );
+				
+				
+//				int img_left = 0;
+//				int img_top = 0;
+//				int img_width = 20000;
+//				int img_height = 20000;
+//				float img_scale = 600.0f / img_height;
+//				
+//				ImagePlus flat_section = ControlWindow.getActive().getLoader().getFlatImage(
+//						layer,
+//						new Rectangle( img_left, img_top, img_width, img_height ),
+//						img_scale,
+//						0xffffffff,
+//						ImagePlus.GRAY8,
+//						Patch.class,
+//						null,
+//						true );
+//				ImageProcessor imp1 = flat_section.getProcessor();
+//				imp1.setAntialiasedText( true );
+//				imp1.setColor( Color.white );
+//				imp1.setFont( new Font( "Arial", Font.PLAIN, 20 ) );
+//				imp1.setJustification( ImageProcessor.LEFT_JUSTIFY );
+//				imp1.drawString(
+//						"  :  e = " + decimalFormat.format( od ),
+//						//( int )( img_width * img_scale - 144 ),
+//						( int )( 64 ),
+//						( int )( img_height * img_scale - 8 ) );
+//				imp1.setJustification( ImageProcessor.RIGHT_JUSTIFY );
+//				imp1.drawString(
+//						"" + iteration,
+//						( int )( 64 ),
+//						( int )( img_height * img_scale - 8 ) );
+//				
+//				
+//				flat_section.updateAndDraw();
+//				
+//				new ij.io.FileSaver( flat_section ).saveAsTiff(
+//						"D:/Benutzer/Stephan/Eigene Dateien/diploma/anim." + iteration + ".tif" );
+				
+				
+				++iteration;
 			}
+			
+			// repaint all Displays showing a Layer of the edited LayerSet
+			Display.update( set );
 		}
-		// // update selection internals in all open Displays
+		
+		// update selection internals in all open Displays
 		Display.updateSelection( front );
 
 		// repaint all Displays showing a Layer of the edited LayerSet

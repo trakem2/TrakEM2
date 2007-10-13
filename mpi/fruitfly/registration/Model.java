@@ -60,7 +60,7 @@ abstract public class Model {
 	 * @param matches minimal set of point correpondences
 	 * @return true if a model was estimated
 	 */
-	abstract boolean fit( Match[] matches );
+	public abstract boolean fit( Match[] matches );
 
 	/**
 	 * apply the model to a point location
@@ -68,8 +68,15 @@ abstract public class Model {
 	 * @param point
 	 * @return transformed point
 	 */
-	abstract float[] apply( float[] point );
-
+	public abstract float[] apply( float[] point );
+	
+	/**
+	 * apply the model to a point location
+	 * 
+	 * @param point
+	 */
+	public abstract void applyInPlace( float[] point );
+	
 	/**
 	 * test the model for a set of point correspondences
 	 * 
@@ -125,6 +132,8 @@ abstract public class Model {
 	}
 	
 	abstract public void shake( Collection< Match > matches, float scale, float[] center );
+	
+	abstract public void minimize();
 	
 	abstract public AffineTransform getAffine();
 

@@ -3,10 +3,6 @@ package mpi.fruitfly.registration;
 /**
  * a similarity, consists of tx, ty, orientation, scale
  * 
- * all coordinates w... are given in the WORLD reference frame,
- * local reference
- * 
- * TODO specify a nice way to get local coordinates... 
  */
 public class SimPoint2D
 {
