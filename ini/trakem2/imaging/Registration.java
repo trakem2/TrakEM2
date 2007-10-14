@@ -451,7 +451,7 @@ public class Registration {
 			 * vector itself.
 			 */
 			// rotation origin at the top left corner of the image (0.0f, 0.0f) of the image.
-			AffineTransform at_current = new AffineTransform( model.affine );
+			AffineTransform at_current = new AffineTransform( model.getAffine() );
 			double[] m = new double[ 6 ];
 			at_current.getMatrix( m );
 			m[ 4 ] /= sp.scale;

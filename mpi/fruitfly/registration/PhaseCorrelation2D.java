@@ -60,6 +60,9 @@ import java.util.Date;
 import java.util.concurrent.atomic.AtomicInteger;
 import mpi.fruitfly.general.MultiThreading;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+
 
 
 /**
@@ -77,11 +80,31 @@ import mpi.fruitfly.general.MultiThreading;
 
 public class PhaseCorrelation2D
 {
+
+    private class Point2D
+    {
+        public int x = 0, y = 0;
+        public float value;
+
+        public Point2D(int x, int y)
+        {
+            this.x = x;
+            this.y = y;
+        }
+
+        public Point2D(int x, int y, float value)
+        {
+            this.x = x;
+            this.y = y;
+            this.value = value;
+        }
+    }
+
     ///private int imgW1, imgW2, imgH1, imgH2;
     private int heightZP, widthZP;
     private boolean kaiserBessel, normalize, showImages;
     private int checkImages;
-
+    
     private ImagePlus phaseCorrelationImg, orgImg1, orgImg2;
     private float[] pixels;
     private Point[] location;
@@ -311,7 +334,8 @@ public class PhaseCorrelation2D
 		for (int x = 0; x < imgW; x++)
 		    for (int y = 1; y <= extH/2 + extH%2; y++)
 		    {
-			// lower lane
+			// lower lane        location = new Point[pixels.length];
+
 			extended.set(input.getMirror(-x, imgH + y - 1), x + extW / 2,  extended.height - extH/2 + y - 1 - extH%2);
 		    }
 	 
@@ -563,13 +587,14 @@ public class PhaseCorrelation2D
     {
         return bestTranslation;
     }
-
-
+    /*
+    
+    // OLD VERSION OF findPeak
+    
     private Point findPeak(FloatProcessor fp, int imgW1, int imgH1, int imgW2, int imgH2, int extW1, int extH1, int extW2, int extH2)
     {
-        pixels = (float[])fp.getPixelsCopy();
+        pixels = (float[]) fp.getPixelsCopy();
         location = new Point[pixels.length];
-
 
         int count = 0;
         int w = fp.getWidth();
@@ -580,16 +605,16 @@ public class PhaseCorrelation2D
             for (int x = 0; x < w; x++)
             {
                 // find relative to the left upper corners of both images
-                xt = x + (imgW1 - imgW2)/2 - (extW1 - extW2)/2;
+                xt = x + (imgW1 - imgW2) / 2 - (extW1 - extW2) / 2;
 
-                if (xt >= w/2)
+                if (xt >= w / 2)
                     xs = xt - w;
                 else
                     xs = xt;
 
-                yt = y + (imgH1 - imgH2)/2 - (extH1 - extH2)/2;
+                yt = y + (imgH1 - imgH2) / 2 - (extH1 - extH2) / 2;
 
-                if (yt >= h/2)
+                if (yt >= h / 2)
                     ys = yt - h;
                 else
                     ys = yt;
@@ -597,15 +622,143 @@ public class PhaseCorrelation2D
                 location[count++] = new Point(xs, ys);
             }
 
-
         quicksort(pixels, location, 0, pixels.length - 1);
 
         //for (int i = 1; i < 5; i++)
-          //  System.out.println(location[pixels.length - i].x + " x " + location[pixels.length - i].y + " = " + pixels[pixels.length - i]);
+        //  System.out.println(location[pixels.length - i].x + " x " + location[pixels.length - i].y + " = " + pixels[pixels.length - i]);
 
         //System.out.println(location[pixels.length - 1].x + " " + location[pixels.length - 1].y);
         return location[pixels.length - 1];
     }
+    
+    */
+
+    private Point findPeak(FloatProcessor fp, int imgW1, int imgH1, int imgW2, int imgH2, int extW1, int extH1, int extW2, int extH2)
+    {
+        pixels = (float[])fp.getPixelsCopy();
+
+        int count = 0;
+        int w = fp.getWidth();
+        int h = fp.getHeight();
+        int xs, ys, xt, yt;
+        float value;
+
+        FloatArray2D invPCM = new FloatArray2D(pixels, w, h);
+
+        ArrayList< Point2D > peaks = new ArrayList< Point2D >();
+
+        for (int j = 0; j < checkImages; j++)
+            peaks.add(new Point2D(0, 0, Float.MIN_VALUE));
+
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if (isLocalMaximum(invPCM, x, y))
+                {
+                    value = invPCM.get(x, y);
+                    Point2D insert = null;
+                    int insertPos = -1;
+
+                    Iterator i = peaks.iterator();
+                    boolean wasBigger = true;
+
+                    while (i.hasNext() && wasBigger)
+                    {
+                        if (value > ((Point2D) i.next()).value)
+                        {
+                            if (insert == null)
+                                insert = new Point2D(0, 0, value);
+
+                            insertPos++;
+                        }
+                        else
+                            wasBigger = false;
+                    }
+
+                    if (insertPos >= 0)
+                        peaks.add(insertPos + 1, insert);
+
+                    // remove lowest peak
+                    if (peaks.size() > checkImages)
+                        peaks.remove(0);
+
+                    if (insert != null)
+                    {
+                        // find relative to the left upper front corners of both images
+                        xt = x + (imgW1 - imgW2) / 2 - (extW1 - extW2) / 2;
+
+                        if (xt >= w / 2)
+                        {
+                            xs = xt - w;
+                        }
+                        else
+                            xs = xt;
+
+                        yt = y + (imgH1 - imgH2) / 2 - (extH1 - extH2) / 2;
+
+                        if (yt >= h / 2)
+                        {
+                            ys = yt - h;
+                        }
+                        else
+                            ys = yt;
+
+                        insert.x = xs;
+                        insert.y = ys;
+                    }
+                }
+
+	  location = new Point[peaks.size()];
+	  
+	  for (int i = 0; i < location.length; i++)
+	  {
+	  	Point2D peak = peaks.get(i);
+	  	location[location.length - i - 1] = new Point(peak.x, peak.y);
+	  }
+	  
+	  return location[location.length - 1];
+    }
+
+    private boolean isLocalMaximum(FloatArray2D invPCM, int x, int y)
+    {
+        int width = invPCM.width;
+        int height = invPCM.height;
+
+        boolean isMax = true;
+        float value = invPCM.get(x, y);
+
+        if (x > 0 && y > 0 && x < width - 1 && y < height - 1)
+        {
+            for (int xs = x - 1; xs <= x + 1 && isMax; xs++)
+                for (int ys = y - 1; ys <= y + 1 && isMax; ys++)
+                    if (!(x == xs && y == ys))
+                        if (invPCM.get(xs, ys) > value)
+                            isMax = false;
+        }
+        else
+        {
+            int xt, yt;
+
+            for (int xs = x - 1; xs <= x + 1 && isMax; xs++)
+                for (int ys = y - 1; ys <= y + 1 && isMax; ys++)
+                    if (!(x == xs && y == ys))
+                    {
+                        xt = xs;
+                        yt = ys;
+
+                        if (xt == -1) xt = width - 1;
+                        if (yt == -1) yt = height - 1;
+
+                        if (xt == width) xt = 0;
+                        if (yt == height) yt = 0;
+
+                        if (invPCM.get(xt, yt) > value)
+                            isMax = false;
+                    }
+        }
+
+        return isMax;
+    }
+
 
     private ImagePlus computePhaseCorrelationMatrixFloat(FloatArray2D img1, FloatArray2D img2)
     {

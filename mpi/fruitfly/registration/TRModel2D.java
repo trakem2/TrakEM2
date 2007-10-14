@@ -1,7 +1,8 @@
 package mpi.fruitfly.registration;
 
 import java.util.Iterator;
-import java.util.Vector;
+import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import java.awt.geom.AffineTransform;
 
@@ -9,31 +10,28 @@ public class TRModel2D extends Model {
 
 	static final public int MIN_SET_SIZE = 2;
 
-	final public AffineTransform affine = new AffineTransform();
+	final private AffineTransform affine = new AffineTransform();
+	public AffineTransform getAffine() { return affine; }
 	
 	@Override
-	float[] apply( float[] point )
+	public float[] apply( float[] point )
 	{
 		float[] transformed = new float[ 2 ];
-
 		affine.transform( point, 0, transformed, 0, 1 );
-		// rotate
-		/*
-		transformed[ 0 ] = cos * point[ 0 ] - sin * point[ 1 ];
-		transformed[ 1 ] = sin * point[ 0 ] + cos * point[ 1 ];
-
-		// translate
-		transformed[ 0 ] += translation[ 0 ];
-		transformed[ 1 ] += translation[ 1 ];
-		*/
 		return transformed;
 	}
 
 	@Override
-	boolean fit( Vector< Match > matches )
+	public void applyInPlace( float[] point )
 	{
-		Match m1 = matches.get( 0 );
-		Match m2 = matches.get( 1 );
+		affine.transform( point, 0, point, 0, 1 );
+	}
+	
+	@Override
+	public boolean fit( Match[] matches )
+	{
+		Match m1 = matches[ 0 ];
+		Match m2 = matches[ 1 ];
 
 		float x1 = m2.p1[ 0 ] - m1.p1[ 0 ];
 		float y1 = m2.p1[ 1 ] - m1.p1[ 1 ];
@@ -71,8 +69,7 @@ public class TRModel2D extends Model {
 		return ( "[3,3](" + affine + ") " + error );
 	}
 
-	/** Returns dx, dy, rot, xo, yo from the two sets of points, where xo,yo is the center of rotation */
-	private void minimize()
+	public void minimize()
 	{
 		// center of mass:
 		float xo1 = 0, yo1 = 0;
@@ -111,11 +108,68 @@ public class TRModel2D extends Model {
 		}
 		float angle = ( float )Math.atan2( -sum1, sum2 );
 		
-		//angle = Math.toDegrees(angle);
 		affine.setToIdentity();
 		affine.rotate( angle, xo1, yo1 );
 		affine.translate( dx, dy );
-		//return new float[]{dx, dy, angle, xo1, yo1};
+	}
+	
+	final private void shake( float[] d, float[] center )
+	{
+		affine.rotate( rnd.nextGaussian() * d[ 2 ], center[ 0 ], center[ 1 ] );
+		affine.translate( rnd.nextGaussian() * d[ 0 ], rnd.nextGaussian() * d[ 1 ] );
+	}
+	
+	/**
+	 * change the model a bit
+	 * 
+	 * estimates the necessary amount of shaking for each single dimensional
+	 * distance in the set of matches
+	 * 
+	 * @param matches 
+	 * @param scale gives a multiplicative factor to each dimensional distance (increases the amount of shaking)
+	 */
+	final public void shake( Collection< Match > matches, float scale, float[] center )
+	{
+		double xd = 0.0;
+		double yd = 0.0;
+		double rd = 0.0;
+		
+		int num_matches = matches.size();
+		if ( num_matches > 0 )
+		{
+			for ( Match match : matches )
+			{
+				xd += Math.abs( match.p1[ 0 ] - match.p2[ 0 ] );;
+				yd += Math.abs( match.p1[ 1 ] - match.p2[ 1 ] );;
+				
+				// shift relative to the center
+				float x1 = match.p1[ 0 ] - center[ 0 ];
+				float y1 = match.p1[ 1 ] - center[ 1 ];
+				float x2 = match.p2[ 0 ] - center[ 0 ];
+				float y2 = match.p2[ 1 ] - center[ 1 ];
+				
+				float l1 = ( float )Math.sqrt( x1 * x1 + y1 * y1 );
+				float l2 = ( float )Math.sqrt( x2 * x2 + y2 * y2 );
+
+				x1 /= l1;
+				x2 /= l2;
+				y1 /= l1;
+				y2 /= l2;
+
+				//! unrotate (x1,y1)^T to (x2,y2)^T = (1,0)^T getting the sinus and cosinus of the rotation angle
+				float cos = x1 * x2 + y1 * y2;
+				float sin = y1 * x2 - x1 * y2;
+
+				rd += Math.abs( Math.atan2( sin, cos ) );
+			}
+			xd /= matches.size();
+			yd /= matches.size();
+			rd /= matches.size();
+			
+			//System.out.println( rd );
+		}
+		
+		shake( new float[]{ ( float )xd * scale, ( float )yd * scale, ( float )rd * scale }, center );
 	}
 
 	/**
@@ -123,7 +177,7 @@ public class TRModel2D extends Model {
 	 * containing a high number of outliers using RANSAC
 	 */
 	static public TRModel2D estimateModel(
-			Vector< Match > matches,
+			List< Match > matches,
 			int iterations,
 			float epsilon,
 			float min_inliers )
@@ -137,29 +191,26 @@ public class TRModel2D extends Model {
 		TRModel2D model = new TRModel2D();		//!< the final model to be estimated
 		//std::vector< FeatureMatch* > points;
 
-		// real random
-		//final Random random = new Random( System.currentTimeMillis() );
-		// repeatable results
-		final Random random = new Random( 69997 );
 		int i = 0;
 		while ( i < iterations )
 		{
 			// choose T::MIN_SET_SIZE disjunctive matches randomly
-			Vector< Match > points = new Vector< Match >();
-			Vector< Integer > keys = new Vector< Integer >();
-			//int[] keys;
+			Match[] points = new Match[ MIN_SET_SIZE ];
+			int[] keys = new int[ MIN_SET_SIZE ];
+			
 			for ( int j = 0; j < TRModel2D.MIN_SET_SIZE; ++j )
 			{
 				int key;
 				boolean in_set = false;
 				do
 				{
-					key = ( int )( random.nextDouble() * matches.size() );
+					key = ( int )( rnd.nextDouble() * matches.size() );
 					in_set = false;
-					for ( Iterator k = keys.iterator(); k.hasNext(); )
+					
+					// check if this key exists already
+					for ( int k = 0; k < j; ++k )
 					{
-						Integer kk = ( Integer )k.next();
-						if ( key == kk.intValue() )
+						if ( key == keys[ k ] )
 						{
 							in_set = true;
 							break;
@@ -167,8 +218,8 @@ public class TRModel2D extends Model {
 					}
 				}
 				while ( in_set );
-				keys.addElement( key );
-				points.addElement( matches.get( key ) );
+				keys[ j ] = key;
+				points[ j ] = matches.get( key );
 			}
 
 			TRModel2D m = new TRModel2D();
@@ -192,8 +243,6 @@ public class TRModel2D extends Model {
 				//System.out.println( "good model found" );
 			}
 			++i;
-
-			points.clear();
 		}
 		if ( model.inliers.size() == 0 )
 			return null;
@@ -210,5 +259,4 @@ public class TRModel2D extends Model {
 		trm.error = error;
 		return trm;
 	}
-
 }
