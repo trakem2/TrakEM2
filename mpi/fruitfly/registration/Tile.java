@@ -20,6 +20,7 @@ public class Tile
 	private Model model;
 	final public Model getModel() { return model; }
 	final private ArrayList< PointMatch > matches = new ArrayList< PointMatch >();
+	final public ArrayList< PointMatch > getMatches() { return matches; }
 	final public int getNumMatches() { return matches.size(); }
 	
 	final private static Random rnd = new Random( 69997 );

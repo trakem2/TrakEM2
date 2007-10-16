@@ -2,8 +2,10 @@
 
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
+import mpi.fruitfly.math.*;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
 import mpi.fruitfly.registration.FloatArray2DScaleOctave;
+import mpi.fruitfly.registration.FloatArray2DScaleOctaveDoGDetector;
 import mpi.fruitfly.registration.ImageFilter;
 
 import ij.plugin.*;
@@ -135,6 +137,106 @@ public class SIFT_Test implements PlugIn, KeyListener
 		System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 		
 		System.out.println( fs1.size() + " features identified and processed" );
+		
+//#############################################################################
+		
+		FloatArray2DScaleOctave[] sos = sift.getOctaves();
+		for ( int o = 0; o < sos.length; ++o )
+		{
+			FloatArray2DScaleOctave so = sos[ o ];
+			
+			FloatArray2D[] l = so.getL();
+			FloatArray2D[] d = so.getD();
+
+			for ( int i = 0; i < steps; ++i )
+			{
+				FloatArray2D ls = l[ i ];
+				FloatArray2D ds = d[ i ];
+				int os;
+				for ( int oi = o; oi > 0; --oi )
+				{
+					os = ( int )Math.pow( 2, oi - 1 );
+					int w = imp.getWidth();
+					int h = imp.getHeight();
+					for ( os = oi; os > 1; --os )
+					{
+						w = w / 2 + w % 2;
+						h = h / 2 + h % 2;
+					}
+					//System.out.println( "o: " + o + ", w: " + w + ", h: " + h );
+					FloatArray2D ld = new FloatArray2D( w, h );
+					FloatArray2D dd = new FloatArray2D( w, h );
+					FloatArray2DScaleOctave.upsample( ls, ld );
+					FloatArray2DScaleOctave.upsample( ds, dd );
+					ls = ld;
+					ds = dd;
+				}
+				os = ( int )Math.pow( 2, o );
+				FloatProcessor fp = new FloatProcessor( ls.width, ls.height );
+				ImageArrayConverter.FloatArrayToFloatProcessor( fp, ls );
+				fp.setMinAndMax( 0.0, 1.0 );
+				//ImageProcessor ipl = fp.convertToRGB();
+				ImageProcessor ipl = fp.duplicate();
+				ImageArrayConverter.FloatArrayToFloatProcessor( fp, ds );
+				fp.setMinAndMax( -1.0, 1.0 );
+				ImageProcessor ipd = fp.convertToRGB();
+			
+				// draw DoG detections
+				
+				ipl.setLineWidth( 1 );
+				ipl.setColor( Color.red );
+				for ( FloatArray2DSIFT.Feature f : fs1 )
+				{
+					int ol = General.ldu( ( int )( f.scale / initial_sigma ) );
+				    int sl = ( int )Math.round( steps * ( Math.log( f.scale / Math.pow( 2.0, ol ) / initial_sigma ) ) / Math.log( 2.0 ) );
+				    if ( sl >= steps )
+				    {
+				        ++ol;
+				        sl = sl % steps;
+				    }
+
+					if ( ol <= o && sl <= i )
+						drawSquare( ipl, new double[]{ f.location[ 0 ] / scale, f.location[ 1 ] / scale }, fdsize * ( double )f.scale / scale, ( double )f.orientation );
+				}
+				
+				/*
+				FloatArray2D[] gradients = so.getL1( i );
+				ImageArrayConverter.FloatArrayToFloatProcessor( fp, gradients[ 0 ] );
+				stackGradientAmplitude.addSlice( null, fp );
+				ImageArrayConverter.FloatArrayToFloatProcessor( fp, gradients[ 1 ] );
+				stackGradientOrientation.addSlice( null, fp );
+				*/
+			}
+			
+			/*
+			for ( int i = 0; i < d.length; ++i )
+			{
+				FloatProcessor fp = new FloatProcessor( d[ i ].width, d[ i ].height );
+				ImageArrayConverter.FloatArrayToFloatProcessor( fp, d[ i ] );
+				fp.setMinAndMax( -255.0, 255.0 );
+				ImageProcessor ipl = fp.convertToRGB();
+				
+				// draw DoG detections
+				ipl.setLineWidth( 2 );
+				ipl.setColor( Color.green );
+				
+				Vector< float[] > candidates = dog.getCandidates();
+				for ( float[] c : candidates )
+				{
+					if ( i == ( int )Math.round( c[ 2 ] ) )
+						ipl.drawDot( ( int )Math.round( c[ 0 ] ), ( int )Math.round( c[ 1 ] ) );
+				}
+				
+				stackDoG.addSlice( null, ipl );
+				
+				
+				//stackDoG.addSlice( null, fp );			
+			}
+			*/
+		}
+		
+//#############################################################################
+		
 		
 		ip2.setLineWidth( 1 );
 		ip2.setColor( Color.red );

@@ -127,6 +127,38 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		//ip.setInterpolate( false );
 		return ip.resize( ( int )( s * ip.getWidth() ) );
 	}
+	
+	/**
+	 * draws a rotated square with center point  center, having size and orientation
+	 */
+	static void drawSquare( ImageProcessor ip, double[] o, double scale, double orient )
+	{
+		scale /= 2;
+		
+	    double sin = Math.sin( orient );
+	    double cos = Math.cos( orient );
+	    
+	    int[] x = new int[ 6 ];
+	    int[] y = new int[ 6 ];
+	    
+
+	    x[ 0 ] = ( int )( o[ 0 ] + ( sin - cos ) * scale );
+	    y[ 0 ] = ( int )( o[ 1 ] - ( sin + cos ) * scale );
+	    
+	    x[ 1 ] = ( int )o[ 0 ];
+	    y[ 1 ] = ( int )o[ 1 ];
+	    
+	    x[ 2 ] = ( int )( o[ 0 ] + ( sin + cos ) * scale );
+	    y[ 2 ] = ( int )( o[ 1 ] + ( sin - cos ) * scale );
+	    x[ 3 ] = ( int )( o[ 0 ] - ( sin - cos ) * scale );
+	    y[ 3 ] = ( int )( o[ 1 ] + ( sin + cos ) * scale );
+	    x[ 4 ] = ( int )( o[ 0 ] - ( sin + cos ) * scale );
+	    y[ 4 ] = ( int )( o[ 1 ] - ( sin - cos ) * scale );
+	    x[ 5 ] = x[ 0 ];
+	    y[ 5 ] = y[ 0 ];
+	    
+	    ip.drawPolygon( new Polygon( x, y, x.length ) );
+	}
 
 	public void run( String args )
 	{
@@ -197,6 +229,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		ImageStack stackAligned = new ImageStack( stack.getWidth(), stack.getHeight() );
 		
 		float vis_scale = 256.0f / imp.getWidth();
+		//float vis_scale = 1024.0f / imp.getWidth();
 		ImageStack stackInfo = null;
 		ImagePlus impInfo = null;
 		
@@ -358,6 +391,23 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				ip3.setLineWidth( 2 );
 				for ( Match m : correspondences )
 				{
+//					ip1.setLineWidth( 2 );
+//					ip3.setLineWidth( 2 );
+//					drawSquare(
+//							ip1,
+//							new double[]{
+//									vis_scale / scale * m.p1[ 0 ],
+//									vis_scale / scale * m.p1[ 1 ] },
+//									vis_scale * fdsize * m.w1 / scale,
+//									m.o1 );
+//					drawSquare(
+//							ip3,
+//							new double[]{
+//									vis_scale / scale * m.p2[ 0 ],
+//									vis_scale / scale * m.p2[ 1 ] },
+//									vis_scale * fdsize * m.w2 / scale,
+//									m.o2 );
+					
 					ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
 					ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
 				}
@@ -472,6 +522,23 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 					ip3.setLineWidth( 2 );
 					for ( Match m : model.getInliers() )
 					{
+//						ip1.setLineWidth( 2 );
+//						ip3.setLineWidth( 2 );
+//						drawSquare(
+//								ip1,
+//								new double[]{
+//										vis_scale / scale * m.p1[ 0 ],
+//										vis_scale / scale * m.p1[ 1 ] },
+//										vis_scale * fdsize * m.w1 / scale,
+//										m.o1 );
+//						drawSquare(
+//								ip3,
+//								new double[]{
+//										vis_scale / scale * m.p2[ 0 ],
+//										vis_scale / scale * m.p2[ 1 ] },
+//										vis_scale * fdsize * m.w2 / scale,
+//										m.o2 );
+						
 						ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
 						ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
 					}

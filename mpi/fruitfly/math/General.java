@@ -49,6 +49,21 @@ public class General
 	{
 		return a * a;
 	}
+	
+	/**
+	 * fast floor ld of unsigned v
+	 */
+	public static int ldu( int v )
+	{
+	    int c = 0; // c will be lg( v )
+	    do
+	    {
+	    	v >>= 1;
+	        c++;
+	    }
+	    while ( v > 1 );
+	    return c;
+	}
 
 	/**
 	 * return a integer that is flipped in the range [0 ... mod - 1]
