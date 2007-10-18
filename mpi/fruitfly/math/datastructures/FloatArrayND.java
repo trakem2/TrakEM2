@@ -49,7 +49,7 @@ public class FloatArrayND extends FloatArray
     private int dim = 0;
 
     /** Create N-dimensional float array
-    @param  int n[] - The entries are the sizes in each dimension
+    @param n - The entries are the sizes in each dimension
     */
     public FloatArrayND(int n[])
     {
@@ -72,7 +72,7 @@ public class FloatArrayND extends FloatArray
     }
 
     /** Return the position in a 1-dimensional array for a given positions in the nth-dimension
-    @param  int n[] - The entries are the positions in each dimension
+    @param i - The entries are the positions in each dimension
     @return the position in a 1-dimensional array
     */
     public int getPos(int i[])
@@ -96,7 +96,7 @@ public class FloatArrayND extends FloatArray
     }
 
     /** Return the value for a given positions in the nth-dimension
-    @param  int n[] - The entries are the positions in each dimension
+    @param  i - The entries are the positions in each dimension
     @return the value for given postion
     */
     public float get(int i[])
@@ -105,7 +105,7 @@ public class FloatArrayND extends FloatArray
     }
 
     /** Sets the value for a given positions in the n-dimensional array
-    @param  int n[] - The entries are the positions in each dimension
+    @param i - The entries are the positions in each dimension
     */
     public void set(float value, int i[])
     {

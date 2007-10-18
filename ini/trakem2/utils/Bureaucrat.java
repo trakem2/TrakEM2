@@ -41,6 +41,7 @@ public class Bureaucrat extends Thread {
 		setPriority(Thread.NORM_PRIORITY);
 		project.getLoader().addJob(this);
 	}
+	/** Sets the worker to work and monitors it until it finishes.*/
 	public void goHaveBreakfast() {
 		worker.start();
 		start();
@@ -67,6 +68,7 @@ public class Bureaucrat extends Thread {
 		project.getLoader().removeJob(this);
 		project.setReceivesInput(true);
 	}
+	/** Returns the task the worker is currently executing, which may change over time. */
 	public String getTaskName() {
 		return worker.getTaskName();
 	}

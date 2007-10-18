@@ -138,6 +138,11 @@ public class ServerStackMaker {
 		}
 	}
 
+	/** Launch a server for a specific TraKEM2 XML file:<br />
+	 * 
+	 $ java -Xmx1650m -Xincgc -classpath ij.jar:TrakEM2.jar:ImageJ_3D_Viewer.jar /path/to/project.xml &lt;port&gt; /path/to/stacks/dir/
+	 *
+	 */
 	static public void main(String[] arg) {
 		if (IJ.isWindows()) {
 			Utils.log2("This server will not run under Windows.");

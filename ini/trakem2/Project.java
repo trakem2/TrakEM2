@@ -123,7 +123,7 @@ public class Project extends DBObject {
 		this.project = this;
 	}
 
-	/** Create a new TrakEM2 project. */
+	/** Create a new PostgreSQL-based TrakEM2 project. */
 	static public Project newDBProject() {
 		if (Utils.wrongImageJVersion()) return null;
 		// create
@@ -301,7 +301,7 @@ public class Project extends DBObject {
 		return null;
 	}
 
-	/** Opens a project from an .xml file and a folder of images. If the path is null it'll be asked for.*/
+	/** Opens a project from an .xml file. If the path is null it'll be asked for.*/
 	static public Project openFSProject(final String path) {
 		if (Utils.wrongImageJVersion()) return null;
 		final FSLoader loader = new FSLoader();
@@ -480,7 +480,7 @@ public class Project extends DBObject {
 		return null == template_tree;
 	}
 
-	/** Remove project from database and release memory. */
+	/** Remove the project from the database and release memory. */
 	public void remove() {
 		removeFromDatabase();
 		destroy();
@@ -802,6 +802,7 @@ public class Project extends DBObject {
 		// all the above could be done with reflection, automatically detecting the presence of an exportDTD method.
 	}
 
+	/** Returns the String to be used as Document Type of the XML file, generated from the name of the root template thing.*/
 	public String getDocType() {
 		TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
 		return "trakem2_" + root_tt.getType();

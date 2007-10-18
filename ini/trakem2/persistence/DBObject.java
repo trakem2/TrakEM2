@@ -26,6 +26,11 @@ import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
 
+/** Base class of all objects that can be saved in a database or XML file.<br />
+ *  Methods to add to, update in and remove from a database are called anyway for XML projects,
+ *  and can thus be used to perform tasks on updating a specific object.
+ *
+ */
 public class DBObject {
 
 	protected long id;

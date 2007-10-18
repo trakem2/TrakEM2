@@ -423,7 +423,7 @@ public class ControlWindow {
 	}
 	*/
 
-	/** Recursive. */
+	// /** Recursive. */
 	/*
 	static private void findJSP(final Container parent, final JTree  tree, final JScrollPane[] jsp) {
 		if (null != jsp[0]) return;

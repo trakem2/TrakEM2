@@ -955,4 +955,24 @@ public class Selection {
 	public Set getAffected() {
 		return (Set)hs.clone();
 	}
+
+	/** Send all selected components to the previous layer. */
+	public void moveUp() {
+		if (null == display) return;
+		Layer la = display.getLayer();
+		for (Iterator it = queue.iterator(); it.hasNext(); ) {
+			la.getParent().moveUp(la, (Displayable)it.next());
+		}
+		clear();
+	}
+
+	/** Send all selected components to the next layer. */
+	public void moveDown() {
+		if (null == display) return;
+		Layer la = display.getLayer();
+		for (Iterator it = queue.iterator(); it.hasNext(); ) {
+			la.getParent().moveDown(la, (Displayable)it.next());
+		}
+		clear();
+	}
 }

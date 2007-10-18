@@ -1249,11 +1249,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		zoomOut2(x, y);
 	}
 
-	/** Center the srcRect around the displ, zooming if necessary to fit the Displayable bounding box.  */
-	public void showCentered(Displayable displ) {
-		if (null == displ) return;
-		// get bounding box
-		Rectangle r = displ.getBoundingBox();
+	/** Center the srcRect around the given object(s) bounding box, zooming if necessary. */
+	public void showCentered(Rectangle r) {
 		// multiply bounding box dimensions by two
 		r.x -= r.width / 2;
 		r.y -= r.height / 2;

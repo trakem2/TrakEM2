@@ -47,7 +47,7 @@ public class Search {
 	private Class[] types = null;
 
 
-	/** Creates the GUI for searching. */
+	/** Creates the GUI for searching text in any TrakEM2 element. */
 	public Search() {
 		if (null != instance) {
 			instance.makeGUI();
@@ -294,7 +294,7 @@ public class Search {
 		}
 	}
 
-	/** Repaint only if any of the selected tabs in any of the search frames contains the given object in its rows. */
+	/** Repaint (refresh the text in the cells) only if any of the selected tabs in any of the search frames contains the given object in its rows. */
 	static public void repaint(Object ob) {
 		if (null == instance) return;
 		int selected = instance.search_tabs.getSelectedIndex();

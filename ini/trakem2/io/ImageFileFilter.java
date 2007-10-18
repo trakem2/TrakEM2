@@ -68,7 +68,7 @@ public class ImageFileFilter implements FilenameFilter {
 		return b;
 	}
 
-	public boolean accept0(File dir, String name) {
+	private boolean accept0(File dir, String name) {
 		// skip directories
 		try {
 			final File file = new File(dir.getCanonicalPath() + "/" + name);
@@ -86,8 +86,8 @@ public class ImageFileFilter implements FilenameFilter {
 		return false;
 	}
 
-	static final String LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	static final String NUMBERS = "0123456789";
+	//static final String LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	//static final String NUMBERS = "0123456789";
 
 	boolean startsWithCode(String name) {
 		// code is of type 'ccxdd' (for example). 'x' is any, 'c' char, 'd' digit
@@ -95,14 +95,17 @@ public class ImageFileFilter implements FilenameFilter {
 			char c = name.charAt(i);
 			switch (code.charAt(i)) {
 				case 'c':
-					if (-1 == LETTERS.indexOf(c)) return false;
+					//if (-1 == LETTERS.indexOf(c)) return false;
+					if (!Character.isLetter(c)) return false;
 					break;
 				case 'd':
-					if (-1 == NUMBERS.indexOf(c)) return false;
+					//if (-1 == NUMBERS.indexOf(c)) return false;
+					if (!Character.isDigit(c)) return false;
 					break;
-				case 'x':
-					if (-1 == LETTERS.indexOf(c)) return false;
-					break;
+				case 'x': // any character
+					continue;
+					//if (-1 == LETTERS.indexOf(c)) return false;
+				//	break;
 			}
 		}
 		return true;

@@ -1126,7 +1126,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		if (!IJ.shiftKeyDown()) selection.clear();
 		selection.add(displ);
-		canvas.showCentered(displ);
+		canvas.showCentered(displ.getBoundingBox());
 	}
 
 	/** Find the displays that show the given Layer, and add the given Displayable to the GUI and sets it active only in the front Display and only if 'activate' is true. */
@@ -2403,17 +2403,19 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				active.unlinkAll(Patch.class);
 				updateSelection();//selection.update();
 			} catch (Exception e) { new IJError(e); }
-			layer.getParent().moveDown(layer, active); // will repaint whatever appropriate layers
+			//layer.getParent().moveDown(layer, active); // will repaint whatever appropriate layers
+			selection.moveDown();
 		} else if (command.equals("Send to previous layer")) {
 			try {
 				// unlink Patch instances
 				active.unlinkAll(Patch.class);
 				updateSelection();//selection.update();
 			} catch (Exception e) { new IJError(e); }
-			layer.getParent().moveUp(layer, active); // will repaint whatever appropriate layers
+			//layer.getParent().moveUp(layer, active); // will repaint whatever appropriate layers
+			selection.moveUp();
 		} else if (command.equals("Show centered")) {
 			if (active == null) return;
-			canvas.showCentered(active);
+			canvas.showCentered(selection.getBox());
 		} else if (command.equals("Delete...")) {
 			/*
 			if (null != active) {
@@ -2857,10 +2859,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Show the given Displayable centered. */ // TODO this is repeated with 'show(Displayable' to some extent
 	static public void showCentered(Layer layer, Displayable displ) {
 		// see if the given layer belongs to the layer set being displayed
-		if (null != front && front.layer.getParent().equals(layer.getParent())) front.canvas.showCentered(displ);
+		if (null != front && front.layer.getParent().equals(layer.getParent())) front.canvas.showCentered(displ.getBoundingBox());
 		else {
 			front = new Display(layer.getProject(), layer, displ);
-			front.canvas.showCentered(displ);
+			front.canvas.showCentered(displ.getBoundingBox());
 		}
 		// now a 'front' exists
 		if (displ instanceof ZDisplayable) {

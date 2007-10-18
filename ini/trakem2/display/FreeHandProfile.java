@@ -146,19 +146,6 @@ public class FreeHandProfile {
 		lastBezierIndex = 0;
 	}
 
-	/**
-	 * 
-	 * @param me
-	 * @param x_p
-	 * @param y_p
-	 * @param x_d
-	 * @param y_d
-	 * @param x_d_old
-	 * @param y_d_old
-	 * @param srcRect
-	 * @param mag
-	 * @return the new mouse pointer position {xpos,ypos}
-	 */
 	public void mouseDragged(MouseEvent me, int x_d, int y_d, double dx, double dy, Rectangle srcRect, double mag) {
 		mouseVelocity[0] = dx / MOUSE_MASS + (1 - 1d / MOUSE_MASS) * mouseVelocity[0];
 		mouseVelocity[1] = dy / MOUSE_MASS + (1 - 1d / MOUSE_MASS) * mouseVelocity[1];

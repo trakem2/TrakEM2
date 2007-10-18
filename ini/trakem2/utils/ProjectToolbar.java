@@ -216,7 +216,7 @@ public class ProjectToolbar implements MouseListener {
 		return brushSize;
 	}
 
-	/** Change the brush size by the given pixel increment. A lower limit of 1 pixel is preserved. Returns the value finally accepted for brush size.*/
+	/** Change the brush size by the given length increment (in pixel units). A lower limit of 1 pixel is preserved. Returns the value finally accepted for brush size.*/
 	static public int setBrushSize(int inc) {
 		int brushSize = 15;
 		try {

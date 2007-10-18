@@ -104,7 +104,7 @@ public class FIFOImageMap {
 		next++;
 	}
 
-	/** A call to this method puts the element at the end of the list. Returns null if not found. */
+	/** A call to this method puts the element at the end of the list, and returns it. Returns null if not found. */
 	public Image get(long id) {
 		// find the id
 		long idd = -1L;

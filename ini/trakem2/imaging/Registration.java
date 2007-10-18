@@ -50,37 +50,35 @@ import java.awt.geom.AffineTransform;
 /**
  * Accessor methods to Stephan Preibisch's FFT-based registration,
  * and to Stephan Saalfeld's SIFT-based registration.
- * 
- * Preibisch's registration:
- * - returns angles between 0 and 180, perfectly reciprocal (img1 to img2 equals img2 to img1)
- * - is non-reciprocal (but almos) for translations (must choose between best)
- * - will only work reliably if there is at least 50% overlap between any two images to register
- *
- *
- *
- *
- * SIFT consumes plenty of memory:
- *  - in extracting features:
- *     - ImageArrayConverter.ImageToFloatArray2D:
- *         - makes a new FloatProcessor (so the original pointers can be set to null)
- *         - makes a new FloatArray2D from the FloatProcessor
- *     - FloatArray2DSIFT:
- *         - makes a new FloatArray2DScaleOctaveDoGDetector
- *         - makes a new float[] for the descriptorMask
- *     - FloatArray2DSIFT.init:
- *         - makes a new FloatArray2DScaleOctave
- *         - makes one new ImageFilter.createGaussianKernel1D for each step
- *         - makes one new FloatArray2DScaleOctave for each octave
- *     - ImageFilter.computeGaussianFastMirror: duplicates the FloatArray2D
- *
- *     In all, the above relates to the input image width and height as:
- *      area = width * height
- *      size = area * sizeof(float) * 2
- *      plus a factorial factor for the octaves of aprox 1.5,
- *      plus another 1.5 for all the small arrays created on the meanwhile:
- *
- *      size = area * 8 * 2 * 3 = area * 48  (aprox.)
- *
+ * <pre>
+Preibisch's registration:
+- returns angles between 0 and 180, perfectly reciprocal (img1 to img2 equals img2 to img1)
+- is non-reciprocal (but almos) for translations (must choose between best)
+- will only work reliably if there is at least 50% overlap between any two images to register
+
+
+SIFT consumes plenty of memory:
+ - in extracting features:
+    - ImageArrayConverter.ImageToFloatArray2D:
+        - makes a new FloatProcessor (so the original pointers can be set to null)
+        - makes a new FloatArray2D from the FloatProcessor
+    - FloatArray2DSIFT:
+        - makes a new FloatArray2DScaleOctaveDoGDetector
+        - makes a new float[] for the descriptorMask
+    - FloatArray2DSIFT.init:
+        - makes a new FloatArray2DScaleOctave
+        - makes one new ImageFilter.createGaussianKernel1D for each step
+        - makes one new FloatArray2DScaleOctave for each octave
+    - ImageFilter.computeGaussianFastMirror: duplicates the FloatArray2D
+
+    In all, the above relates to the input image width and height as:
+     area = width * height
+     size = area * sizeof(float) * 2
+     plus a factorial factor for the octaves of aprox 1.5,
+     plus another 1.5 for all the small arrays created on the meanwhile:
+
+     size = area * 8 * 2 * 3 = area * 48  (aprox.)
+</pre>
  * */
 public class Registration {
 

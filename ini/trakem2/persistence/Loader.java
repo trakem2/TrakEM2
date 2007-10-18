@@ -2218,7 +2218,7 @@ abstract public class Loader {
 
 		try {
 
-		ij.plugin.JpegWriter.setQuality(75); // 75 %
+		ij.plugin.JpegWriter.setQuality(85); // 75 %
 
 		// project name
 		String pname = layer[0].getProject().getTitle();
@@ -2230,6 +2230,20 @@ abstract public class Loader {
 		int edge_length = best[0];
 		final int n_edge_tiles = edge_length / 256;
 		Utils.log2("edge_length, n_edge_tiles, best[1] " + best[0] + ", " + n_edge_tiles + ", " + best[1]);
+		// thumbnail dimensions
+		LayerSet ls = layer[0].getParent();
+		double ratio = ls.getLayerWidth() / ls.getLayerHeight();
+		double thumb_scale = 1.0;
+		if (ratio >= 1) {
+			// width is larger or equal than height
+			//int tw = 192;
+			//int th = (int)(192 / ratio);
+			thumb_scale = 192 / ls.getLayerWidth();
+		} else {
+			//tw = (int)(192 * ratio);
+			//th = 192;
+			thumb_scale = 192 / ls.getLayerHeight();
+		}
 		for (int iz=0; iz<layer.length; iz++) {
 			if (this.quit) {
 				cleanup();
@@ -2254,7 +2268,12 @@ abstract public class Loader {
 			Utils.log2("tile_dir: " + tile_dir + "\ntmp: " + tmp);
 			tile_dir = tmp;
 			if (!tile_dir.endsWith("/")) tile_dir += "/"; // Windows users may suffer here
-			// 2 - fill directory with tiles
+			// 2 - create layer thumbnail, max 192x192
+			ImagePlus thumb = getFlatImage(layer[iz], srcRect, thumb_scale, c_alphas, type, clazz, false); // TODO should be true, but it's too much overhead at the moment
+			new FileSaver(thumb).saveAsJpeg(tile_dir + "/small.jpg");
+			thumb.flush();
+			thumb = null;
+			// 3 - fill directory with tiles
 			if (edge_length < 256) {
 				// create single tile per layer
 				makeTile(layer[iz], srcRect, max_scale, c_alphas, type, clazz, tile_dir + "0_0_0.jpg");
@@ -2307,6 +2326,13 @@ abstract public class Loader {
 		// correct cropped tiles
 		if (imp.getWidth() < 256 || imp.getHeight() < 256) {
 			ImagePlus imp2 = new ImagePlus(imp.getTitle(), imp.getProcessor().createProcessor(256, 256));
+			// ensure black background for color images
+			if (imp2.getType() == ImagePlus.COLOR_RGB) {
+				Roi roi = new Roi(0, 0, 256, 256);
+				imp2.setRoi(roi);
+				imp2.getProcessor().setValue(0); // black
+				imp2.getProcessor().fill();
+			}
 			imp2.getProcessor().insert(imp.getProcessor(), 0, 0);
 			imp = imp2;
 		}

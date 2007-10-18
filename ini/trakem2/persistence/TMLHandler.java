@@ -110,12 +110,14 @@ public class TMLHandler extends DefaultHandler {
 		return null == loader;
 	}
 
-	/** Returns:
-	 * [0] = root TemplateThing
-	 * [1] = root ProjectThing (contains Project instance)
-	 * [2] = root LayerThing (contains the top-level LayerSet)
-	 * [3] = expanded states of all ProjectThing objects
-	 *
+	/** returns 4 objects packed in an array:
+	 <pre>
+	 [0] = root TemplateThing
+	 [1] = root ProjectThing (contains Project instance)
+	 [2] = root LayerThing (contains the top-level LayerSet)
+	 [3] = expanded states of all ProjectThing objects
+	 </pre>
+	 * <br />
 	 * Also, triggers the reconstruction of links and assignment of Displayable objects to their layer.
 	 */
 	public Object[] getProjectData() {
