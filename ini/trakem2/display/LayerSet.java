@@ -640,6 +640,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (null == layer || -1 == al_layers.indexOf(layer)) return;
 		al_layers.remove(layer);
 		Display.updateLayerScroller(this);
+		Display.updateTitle(this);
 	}
 
 	public Layer next(Layer layer) {
