@@ -960,7 +960,8 @@ public class Selection {
 	public void moveUp() {
 		if (null == display) return;
 		Layer la = display.getLayer();
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
+		LinkedList list = (LinkedList)queue.clone();
+		for (Iterator it = list.iterator(); it.hasNext(); ) {
 			la.getParent().moveUp(la, (Displayable)it.next());
 		}
 		clear();
@@ -970,7 +971,8 @@ public class Selection {
 	public void moveDown() {
 		if (null == display) return;
 		Layer la = display.getLayer();
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
+		LinkedList list = (LinkedList)queue.clone();
+		for (Iterator it = list.iterator(); it.hasNext(); ) {
 			la.getParent().moveDown(la, (Displayable)it.next());
 		}
 		clear();

@@ -1571,7 +1571,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null != displ && displ.equals(active)) {
 			// make sure the proper tab is selected.
 			selectTab(displ);
-			Utils.log2("Display.setActive : returning early");
+			//Utils.log2("Display.setActive : returning early");
 			return; // the same
 		}
 		// deactivate previously active
@@ -2136,6 +2136,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
 			Display d = (Display)it.next();
 			if (d.layer.equals(layer)) {
+				d.updateTitle();
+			}
+		}
+	}
+	static public void updateTitle(LayerSet ls) {
+		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
+			Display d = (Display)it.next();
+			if (d.layer.getParent().equals(ls)) {
 				d.updateTitle();
 			}
 		}

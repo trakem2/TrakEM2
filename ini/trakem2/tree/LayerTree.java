@@ -258,6 +258,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 					if (null == new_layer) return;
 					tt = thing.getChildTemplate("layer");
 					ob = new_layer;
+					Display.updateTitle(set);
 				} else if (name.equals("layer set")) { // with space in the middle
 					// Create a new LayerSet and add it in the middle
 					Layer layer = (Layer)thing.getObject();
@@ -281,6 +282,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				for (int i=0; i<layer.length; i++) {
 					addLayer(set, layer[i]); // null layers will be skipped
 				}
+				Display.updateTitle(set);
 				return;
 			} else if (command.equals("Show")) {
 				// create a new Display
