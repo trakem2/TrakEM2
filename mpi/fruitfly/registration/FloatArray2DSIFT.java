@@ -638,6 +638,14 @@ public class FloatArray2DSIFT
 						new Match(
 								new float[] { f1.location[ 0 ], f1.location[ 1 ] },
 								new float[] { best.location[ 0 ], best.location[ 1 ] } ) );
+//				matches.addElement(
+//						new Match(
+//								new float[] { f1.location[ 0 ], f1.location[ 1 ] },
+//								new float[] { best.location[ 0 ], best.location[ 1 ] },
+//								f1.scale,
+//								best.scale,
+//								f1.orientation,
+//								best.orientation ) );
 		}
 		// now remove ambiguous matches
 		for ( int i = 0; i < matches.size(); )

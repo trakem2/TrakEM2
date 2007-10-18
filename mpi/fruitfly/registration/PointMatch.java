@@ -6,7 +6,10 @@ import java.util.Collection;
 public class PointMatch
 {
 	final private Point p1;
+	final public Point getP1() { return p1; }
+	
 	final private Point p2;
+	final public Point getP2() { return p2; }
 	
 	final private float weight;
 	final public float getWeight(){ return weight; } 

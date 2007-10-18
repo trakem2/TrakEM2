@@ -122,6 +122,126 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		}
 		return model;
 	}
+	
+	private void drawAndSaveIterationSnapshot(
+			Layer layer,
+			ArrayList< Tile > tiles,
+			int iteration,
+			int current,
+			double od,
+			String path )
+	{
+		int img_left = 0;
+		int img_top = 0;
+		//int img_width = 7428;
+		//int img_height = 7339;
+		float img_scale = 600.0f / ( float )layer.getLayerHeight();
+		
+		ImagePlus flat_section = ControlWindow.getActive().getLoader().getFlatImage(
+				layer,
+				new Rectangle( img_left, img_top, ( int )layer.getLayerWidth(), ( int )layer.getLayerHeight() ),
+				img_scale,
+				0xffffffff,
+				ImagePlus.GRAY8,
+				Patch.class,
+				null,
+				//true );	// high quality
+				false );	// flow quality
+		ImageProcessor ip = flat_section.getProcessor().convertToRGB();
+		ip.setAntialiasedText( true );
+		ip.setColor( Color.white );
+		ip.setFont( new Font( "Arial", Font.PLAIN, 20 ) );
+		
+		if ( od < Double.MAX_VALUE )
+		{
+			ip.setJustification( ImageProcessor.LEFT_JUSTIFY );
+			ip.drawString(
+					"  :  e = " + decimalFormat.format( od ),
+					//( int )( img_width * img_scale - 144 ),
+					( int )( 64 ),
+					( int )( layer.getLayerHeight() * img_scale - 8 ) );
+		}
+		ip.setJustification( ImageProcessor.RIGHT_JUSTIFY );
+		String id_str = "";
+		if ( current >= 0 )
+		{
+			id_str = iteration + "_" + current;
+			ip.drawString(
+					iteration + " : " + current,
+					( int )( 64 ),
+					( int )( layer.getLayerHeight() * img_scale - 8 ) );
+		}
+		else
+		{
+			id_str = "" + iteration;
+			ip.drawString(
+					id_str,
+					( int )( 64 ),
+					( int )( layer.getLayerHeight() * img_scale - 8 ) );
+		}
+		
+		// draw correspondences
+		if ( current >= 0 )
+		{
+			Tile tile = tiles.get( current );
+			for ( PointMatch match : tile.getMatches() )
+			{
+				float[] w1 = match.getP1().getW();
+				float[] w2 = match.getP2().getW();
+				
+				ip.setLineWidth( 1 );
+				ip.setColor( Color.red );
+				ip.drawLine(
+						( int )Math.round( w1[ 0 ] * img_scale ),
+						( int )Math.round( w1[ 1 ] * img_scale ),
+						( int )Math.round( w2[ 0 ] * img_scale ),
+						( int )Math.round( w2[ 1 ] * img_scale ) );
+				
+				ip.setLineWidth( 3 );
+				ip.setColor( Color.green );
+				ip.drawDot(
+						( int )Math.round( w1[ 0 ] * img_scale ),
+						( int )Math.round( w1[ 1 ] * img_scale ) );
+				ip.drawDot(
+						( int )Math.round( w2[ 0 ] * img_scale ),
+						( int )Math.round( w2[ 1 ] * img_scale ) );
+			}
+		}
+		else
+		{
+			for ( Tile tile : tiles )
+			{
+				for ( PointMatch match : tile.getMatches() )
+				{
+					float[] w1 = match.getP1().getW();
+					float[] w2 = match.getP2().getW();
+					
+					ip.setLineWidth( 1 );
+					ip.setColor( Color.red );
+					ip.drawLine(
+							( int )Math.round( w1[ 0 ] * img_scale ),
+							( int )Math.round( w1[ 1 ] * img_scale ),
+							( int )Math.round( w2[ 0 ] * img_scale ),
+							( int )Math.round( w2[ 1 ] * img_scale ) );
+					
+					ip.setLineWidth( 3 );
+					ip.setColor( Color.green );
+					ip.drawDot(
+							( int )Math.round( w1[ 0 ] * img_scale ),
+							( int )Math.round( w1[ 1 ] * img_scale ) );
+					ip.drawDot(
+							( int )Math.round( w2[ 0 ] * img_scale ),
+							( int )Math.round( w2[ 1 ] * img_scale ) );
+				}
+			}
+		}
+		
+		flat_section.setProcessor( null, ip );
+		flat_section.updateAndDraw();
+		
+		new ij.io.FileSaver( flat_section ).saveAsTiff(
+				path + "/anim." + id_str + ".tif" );
+	}
 
 	public void run( String args )
 	{
@@ -268,11 +388,12 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 
 			/**
 			 * One tile per connected graph has to be fixed to make the problem
-			 * solvable, otherwise it is ill defined and has infinite
-			 * solutions.
+			 * solvable, otherwise it is ill defined and has an infinite number
+			 * of solutions.
 			 * 
 			 * TODO Identify the connected graphs.  Currently, we assume all
-			 *   tiles to be connected
+			 *   tiles to be connected and fix the tile with the highest number
+			 *   of correspondences
 			 */
 			Tile fixed = null;
 			int max_num_matches = 0;
@@ -324,6 +445,16 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 //				Display.update( set );
 //			}
 			
+//#############################################################################
+//			drawAndSaveIterationSnapshot(
+//					layer,
+//					tiles,
+//					0,
+//					0,
+//					Double.MAX_VALUE,
+//					"/home/saalfeld" );
+//#############################################################################
+
 			double od = Double.MAX_VALUE;
 			double d = Double.MAX_VALUE;
 			int iteration = 1;
@@ -335,10 +466,30 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 					Tile tile = tiles.get( i );
 					if ( tile == fixed ) continue;
 					tile.update();
-					
 					tile.minimizeModel();
+					tile.update();
 					patches.get( i ).getAffineTransform().setTransform( tile.getModel().getAffine() );
 					//IJ.showStatus( "displacement: overall => " + od + ", current => " + tile.getDistance() );
+					
+//#############################################################################
+//					// show each single update step
+//					double cd = 0.0;
+//					for ( Tile t : tiles )
+//					{
+//						t.update();
+//						cd += t.getDistance();
+//					}						
+//					cd /= tiles.size();
+//					Display.update( set );
+//					drawAndSaveIterationSnapshot(
+//							layer,
+//							tiles,
+//							iteration,
+//							i,
+//							cd,
+//							"/home/saalfeld" );
+//#############################################################################
+					
 				}
 				double cd = 0.0;
 				for ( Tile t : tiles )
@@ -351,49 +502,22 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				od = cd;
 				IJ.showStatus( "displacement: " + decimalFormat.format( od ) + " after " + iteration + " iterations");
 				
-				cc = d < 0.0001 ? cc + 1 : 0;
+				cc = d < 0.00025 ? cc + 1 : 0;
 				
 				// repaint all Displays showing a Layer of the edited LayerSet
 				Display.update( set );
 				
-				
-//				int img_left = 0;
-//				int img_top = 0;
-//				int img_width = 20000;
-//				int img_height = 20000;
-//				float img_scale = 600.0f / img_height;
-//				
-//				ImagePlus flat_section = ControlWindow.getActive().getLoader().getFlatImage(
+
+//#############################################################################
+//				drawAndSaveIterationSnapshot(
 //						layer,
-//						new Rectangle( img_left, img_top, img_width, img_height ),
-//						img_scale,
-//						0xffffffff,
-//						ImagePlus.GRAY8,
-//						Patch.class,
-//						null,
-//						true );
-//				ImageProcessor imp1 = flat_section.getProcessor();
-//				imp1.setAntialiasedText( true );
-//				imp1.setColor( Color.white );
-//				imp1.setFont( new Font( "Arial", Font.PLAIN, 20 ) );
-//				imp1.setJustification( ImageProcessor.LEFT_JUSTIFY );
-//				imp1.drawString(
-//						"  :  e = " + decimalFormat.format( od ),
-//						//( int )( img_width * img_scale - 144 ),
-//						( int )( 64 ),
-//						( int )( img_height * img_scale - 8 ) );
-//				imp1.setJustification( ImageProcessor.RIGHT_JUSTIFY );
-//				imp1.drawString(
-//						"" + iteration,
-//						( int )( 64 ),
-//						( int )( img_height * img_scale - 8 ) );
-//				
-//				
-//				flat_section.updateAndDraw();
-//				
-//				new ij.io.FileSaver( flat_section ).saveAsTiff(
-//						"D:/Benutzer/Stephan/Eigene Dateien/diploma/anim." + iteration + ".tif" );
-				
+//						tiles,
+//						iteration,
+//						-1,
+//						od,
+//						"D:/Benutzer/Stephan/Eigene Dateien/diploma" );
+//#############################################################################
+			
 				
 				++iteration;
 			}

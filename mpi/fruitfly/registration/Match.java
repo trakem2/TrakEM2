@@ -17,11 +17,16 @@ public class Match {
 	final public float w1;
 	final public float w2;
 	
+	// orientation TODO not needed for visualisation, remove it
+//	final public float o1;
+//	final public float o2;
+	
 	public Match( float[] p1, float[] p2 )
 	{
 		this.p1 = p1;
 		this.p2 = p2;
 		w1 = w2 = 1.0f;
+//		o1 = o2 = 0.0f;
 	}
 
 	public Match( float[] p1, float[] p2, float w1, float w2 )
@@ -30,7 +35,19 @@ public class Match {
 		this.p2 = p2;
 		this.w1 = w1;
 		this.w2 = w2;
+//		o1 = o2 = 0.0f;
 	}
+
+//	public Match( float[] p1, float[] p2, float w1, float w2, float o1, float o2 )
+//	{
+//		this.p1 = p1;
+//		this.p2 = p2;
+//		this.w1 = w1;
+//		this.w2 = w2;
+//		this.o1 = o1;
+//		this.o2 = o2;
+//		
+//	}
 
 	/**
 	 * estimate the covariance, main components (eigenvalues) and mean values

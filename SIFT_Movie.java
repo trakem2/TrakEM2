@@ -22,7 +22,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 
 
-public class SIFT_Test implements PlugIn, KeyListener
+public class SIFT_Movie implements PlugIn, KeyListener
 {
 	// steps
 	private static int steps = 3;
@@ -172,32 +172,48 @@ public class SIFT_Test implements PlugIn, KeyListener
 					ds = dd;
 				}
 				os = ( int )Math.pow( 2, o );
+				
+				System.out.println( os * so.SIGMA[ i ] );
+				
 				FloatProcessor fp = new FloatProcessor( ls.width, ls.height );
 				ImageArrayConverter.FloatArrayToFloatProcessor( fp, ls );
 				fp.setMinAndMax( 0.0, 1.0 );
-				//ImageProcessor ipl = fp.convertToRGB();
-				ImageProcessor ipl = fp.duplicate();
-				ImageArrayConverter.FloatArrayToFloatProcessor( fp, ds );
-				fp.setMinAndMax( -1.0, 1.0 );
-				ImageProcessor ipd = fp.convertToRGB();
+//				FloatProcessor fp = new FloatProcessor( ds.width, ds.height );
+//				ImageArrayConverter.FloatArrayToFloatProcessor( fp, ds );
+//				fp.setMinAndMax( -0.25, 0.25 );
+				ImageProcessor ip = fp.convertToRGB();
 			
 				// draw DoG detections
 				
-				ipl.setLineWidth( 1 );
-				ipl.setColor( Color.red );
-				for ( FloatArray2DSIFT.Feature f : fs1 )
-				{
-					int ol = General.ldu( ( int )( f.scale / initial_sigma ) );
-				    int sl = ( int )Math.round( steps * ( Math.log( f.scale / Math.pow( 2.0, ol ) / initial_sigma ) ) / Math.log( 2.0 ) );
-				    if ( sl >= steps )
-				    {
-				        ++ol;
-				        sl = sl % steps;
-				    }
-
-					if ( ol <= o && sl <= i )
-						drawSquare( ipl, new double[]{ f.location[ 0 ] / scale, f.location[ 1 ] / scale }, fdsize * ( double )f.scale / scale, ( double )f.orientation );
-				}
+//				ip.setLineWidth( 2 );
+//				ip.setColor( Color.red );
+//				for ( FloatArray2DSIFT.Feature f : fs1 )
+//				{
+//					int ot = ( int )( f.scale / initial_sigma );
+//					int ol = 0;
+//					while ( ot > 1 )
+//					{
+//						ot /= 2;
+//						++ol;
+//					}
+//					//int ol = General.ldu( ( int )( f.scale / initial_sigma ) ) - 1;
+//				    int sl = ( int )Math.round( steps * ( Math.log( f.scale / Math.pow( 2.0, ol ) / initial_sigma ) ) / Math.log( 2.0 ) );
+//				    if ( sl >= steps )
+//				    {
+//				        ++ol;
+//				        sl = sl % steps;
+//				    }
+//
+//					//if ( ol < o || ( ol == o && sl <= i ) )
+//				    if ( ol == o && sl == i )
+//						drawSquare( ip, new double[]{ f.location[ 0 ] / scale, f.location[ 1 ] / scale }, fdsize * ( double )f.scale / scale, ( double )f.orientation );
+//				}
+				
+				imp.setProcessor( null, ip );
+				imp.updateAndDraw();
+				
+				new ij.io.FileSaver( imp ).saveAsTiff(
+						"D:/Benutzer/Stephan/Eigene Dateien/diploma/gauss-0" + ( steps * o + i ) + ".tif" );
 				
 				/*
 				FloatArray2D[] gradients = so.getL1( i );
@@ -238,11 +254,11 @@ public class SIFT_Test implements PlugIn, KeyListener
 //#############################################################################
 		
 		
-		ip2.setLineWidth( 1 );
+		ip2.setLineWidth( 2 );
 		ip2.setColor( Color.red );
 		for ( FloatArray2DSIFT.Feature f : fs1 )
 		{
-			System.out.println( f.location[ 0 ] + " " + f.location[ 1 ] + " " + f.scale + " " + f.orientation );
+			//System.out.println( f.location[ 0 ] + " " + f.location[ 1 ] + " " + f.scale + " " + f.orientation );
 			drawSquare( ip2, new double[]{ f.location[ 0 ] / scale, f.location[ 1 ] / scale }, fdsize * ( double )f.scale / scale, ( double )f.orientation );
 		}
 	
