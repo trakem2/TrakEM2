@@ -265,7 +265,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 //			System.gc();
 //			System.gc();
 //			System.gc();
-			
+
 			/**
 			 * One tile per connected graph has to be fixed to make the problem
 			 * solvable, otherwise it is ill defined and has infinite
