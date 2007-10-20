@@ -1795,7 +1795,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (!aligning || selection.isEmpty() || !selection.contains(Profile.class)) item.setEnabled(false);
 			item = new JMenuItem("Align stack slices"); item.addActionListener(this); popup.add(item);
 			if (selection.isEmpty() || ! (getActive().getClass().equals(Patch.class) && ((Patch)getActive()).isStack())) item.setEnabled(false);
-			item = new JMenuItem("Align layers"); item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Align layers (montage-based)"); item.addActionListener(this); popup.add(item);
+			if (1 == layer.getParent().size()) item.setEnabled(false);
+			item = new JMenuItem("Align layers (tile-based global minimization)"); item.addActionListener(this); popup.add(item);
 			if (1 == layer.getParent().size()) item.setEnabled(false);
 			return popup;
 		}
@@ -2580,7 +2582,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				gd.addChoice("Start: ", layers, layers[i_layer]);
 				gd.addChoice("End: ", layers, layers[i_layer]);
 				*/
-				Display.addLayerRangeChoices(this.layer, gd); /// $#%! where are my lisp macros
+				Utils.addLayerRangeChoices(this.layer, gd); /// $#%! where are my lisp macros
 				gd.addCheckbox("Include non-empty layers only", true);
 			}
 			gd.addCheckbox("Best quality", false);
@@ -2645,7 +2647,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 			// ask for range of layers
 			final GenericDialog gd = new GenericDialog("Choose range");
-			Display.addLayerRangeChoices(this.layer, gd);
+			Utils.addLayerRangeChoices(this.layer, gd);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			Layer la_start = layer.getParent().getLayer(gd.getNextChoiceIndex());
@@ -2679,22 +2681,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}
 			}
-		} else if (command.equals("Align layers")) {
-			if (layer.getParent().size() <= 1) {
-				Utils.showMessage("There is only one layer.");
-				return;
-			}
-			final GenericDialog gd = new GenericDialog("Choose first and last", frame);
-			gd.addMessage("Choose first and last layers to register:");
-			Display.addLayerRangeChoices(this.layer, gd); /// $#%! where are my lisp macros
-			gd.addCheckbox("Propagate last transform: ", true);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			final int i_first = gd.getNextChoiceIndex();
-			final int i_start = layer.getParent().indexOf(layer);
-			final int i_last = gd.getNextChoiceIndex();
-			final boolean propagate = gd.getNextBoolean();
-			Registration.registerLayers(layer.getParent(), i_first, i_start, i_last, propagate);
+		} else if (command.equals("Align layers (montage-based)")) {
+			Registration.registerLayers(layer, Registration.LAYER_SIFT);
+		} else if (command.equals("Align layers (tile-based global minimization)")) {
+			Registration.registerLayers(layer, Registration.GLOBAL_MINIMIZATION);
 		} else if (command.equals("Adjust registration properties...")) {
 			layer.getParent().adjustRegistrationProperties();
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
@@ -3078,35 +3068,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display d = (Display)it.next();
 			if (d.layer.equals(layer)) d.selection.clear();
 		}
-	}
-
-	static private void addLayerRangeChoices(final Layer selected, final GenericDialog gd) {
-		final String[] layers = new String[selected.getParent().size()];
-		final ArrayList al_layer_titles =  new ArrayList();
-		int i = 0;
-		for (Iterator it = selected.getParent().getLayers().iterator(); it.hasNext(); ) {
-			layers[i] = selected.getProject().findLayerThing((Layer)it.next()).toString();
-			al_layer_titles.add(layers[i]);
-			i++;
-		}
-		final int i_layer = selected.getParent().indexOf(selected);
-		gd.addChoice("Start: ", layers, layers[i_layer]);
-		final Vector v = gd.getChoices();
-		final Choice cstart = (Choice)v.get(v.size()-1);
-		gd.addChoice("End: ", layers, layers[i_layer]);
-		final Choice cend = (Choice)v.get(v.size()-1);
-		cstart.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = al_layer_titles.indexOf(ie.getItem());
-				if (index > cend.getSelectedIndex()) cend.select(index);
-			}
-		});
-		cend.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = al_layer_titles.indexOf(ie.getItem());
-				if (index < cstart.getSelectedIndex()) cstart.select(index);
-			}
-		});
 	}
 
 	private void setTempCurrentImage() {

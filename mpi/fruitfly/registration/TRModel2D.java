@@ -79,7 +79,8 @@ public class TRModel2D extends Model {
 		int length = inliers.size();
 		// 1 - compute centers of mass, for displacement and origin of rotation
 
-		// TODO fix this ...
+		if (0 == length) return;
+
 		for ( Match m : inliers )
 		{
 			xo1 += m.p1[ 0 ];
@@ -258,5 +259,9 @@ public class TRModel2D extends Model {
 		trm.affine.setTransform( affine );
 		trm.error = error;
 		return trm;
+	}
+
+	public void preConcatenate(TRModel2D model) {
+		this.affine.preConcatenate(model.affine);
 	}
 }

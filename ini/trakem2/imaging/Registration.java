@@ -82,6 +82,34 @@ SIFT consumes plenty of memory:
  * */
 public class Registration {
 
+	static public final int GLOBAL_MINIMIZATION = 0;
+	static public final int LAYER_SIFT = 1;
+
+	static public Bureaucrat registerLayers(final Layer layer, final int kind) {
+		if (layer.getParent().size() <= 1) {
+			Utils.showMessage("There is only one layer.");
+			return null;
+		}
+		final GenericDialog gd = new GenericDialog("Choose first and last");
+		gd.addMessage("Choose first and last layers to register:");
+		Utils.addLayerRangeChoices(layer, gd); /// $#%! where are my lisp macros
+		gd.addCheckbox("Propagate last transform: ", true);
+		gd.showDialog();
+		if (gd.wasCanceled()) return null;
+		final int i_first = gd.getNextChoiceIndex();
+		final int i_start = layer.getParent().indexOf(layer);
+		final int i_last = gd.getNextChoiceIndex();
+		final boolean propagate = gd.getNextBoolean();
+		switch (kind) {
+			case GLOBAL_MINIMIZATION:
+				// TODO
+				break;
+			case LAYER_SIFT:
+				return registerLayers(layer.getParent(), i_first, i_start, i_last, propagate);
+		}
+		return null;
+	}
+
 	/** Register a subset of consecutive layers of the LayerSet, starting at 'start' (which is unmodified)
 	 *  and proceeding both towards first and towards last.
 	 *  If @param propagate is true, the last transform is applied to all other subsequent, non-included layers .
@@ -95,8 +123,7 @@ public class Registration {
 		}
 		// outside the Worker thread, so that the dialog can be controled with Macro.setOptions
 		// if the calling Thread's name starts with "Run$_"
-		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
-		sp.project = layer_set.getProject();
+		final Registration.SIFTParameters sp = new Registration.SIFTParameters(layer_set.getProject());
 		if (!sp.setup()) return null;
 
 		final Worker worker = new Worker("Registering stack slices") {
@@ -487,8 +514,7 @@ public class Registration {
 		// find linked images in different layers and register them
 		// 
 		// setup parameters. Put outside the Worker so the dialog is controlable from a Macro.setOptions(...) if the Thread's name that calls this method starts with the string "Run$_"
-		final Registration.SIFTParameters sp = new Registration.SIFTParameters();
-		sp.project = base_slice.getProject();
+		final Registration.SIFTParameters sp = new Registration.SIFTParameters(base_slice.getProject());
 		if (!sp.setup()) {
 			return null;
 		}
@@ -626,7 +652,7 @@ public class Registration {
 		return result;
 	}
 
-	static private class SIFTParameters {
+	static public class SIFTParameters {
 		Project project = null;
 		// filled with default values
 		float scale = 1.0f;
@@ -642,7 +668,16 @@ public class Registration {
 		/** Minimal percent of good landmarks found */
 		float inlier_ratio = 0.05f;
 
-		void print() {
+		public SIFTParameters(Project project) {
+			this.project = project;
+		}
+		
+		public SIFTParameters(Project project, boolean setup) {
+			this(project);
+			setup();
+		}
+
+		public void print() {
 			Utils.log2(new StringBuffer("SIFTParameters:\n")
 				   .append("\tscale: ").append(scale).append('\n')
 				   .append("\tsteps per scale octave: ").append(steps).append('\n')
@@ -657,7 +692,7 @@ public class Registration {
 				   .toString());
 		}
 
-		boolean setup() {
+		public boolean setup() {
 			final GenericDialog gd = new GenericDialog("Options");
 			gd.addSlider("scale (%):", 1, 100, scale*100);
 			gd.addNumericField("steps_per_scale_octave :", steps, 0);

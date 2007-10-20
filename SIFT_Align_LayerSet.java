@@ -1,5 +1,6 @@
 import ini.trakem2.display.*;
 import ini.trakem2.*;
+import ini.trakem2.imaging.Registration;
 
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
@@ -12,6 +13,7 @@ import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.registration.Tile;
 import mpi.fruitfly.registration.PointMatch;
+import mpi.fruitfly.analysis.FitLine;
 
 import ij.plugin.*;
 import ij.gui.*;
@@ -27,6 +29,8 @@ import java.awt.event.KeyListener;
 import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Font;
+
+import java.awt.geom.AffineTransform;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -56,6 +60,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	private static float min_epsilon = 1.0f;
 	// maximal allowed alignment error in px
 	private static float max_epsilon = 10.0f;
+	// minimal allowed alignment error in px (across sections)
+	private static float cs_min_epsilon = 1.0f;
+	// maximal allowed alignment error in px (across sections)
+	private static float cs_max_epsilon = 30.0f;
 	private static float inlier_ratio = 0.05f;
 	private static float scale = 1.0f;
 	
@@ -276,6 +284,8 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		gd.addNumericField( "maximum_image_size :", max_size, 0 );
 		gd.addNumericField( "minimal_alignment_error :", min_epsilon, 2 );
 		gd.addNumericField( "maximal_alignment_error :", max_epsilon, 2 );
+		gd.addNumericField( "cs_minimal_alignment_error :", cs_min_epsilon, 2 );
+		gd.addNumericField( "cs_maximal_alignment_error :", cs_max_epsilon, 2 );
 		gd.addNumericField( "inlier_ratio :", inlier_ratio, 2 );
 		gd.addChoice( "transformations_to_be_optimized :", dimensions, dimensions[ dimension ] );
 		gd.showDialog();
@@ -289,25 +299,42 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		max_size = ( int )gd.getNextNumber();
 		min_epsilon = ( float )gd.getNextNumber();
 		max_epsilon = ( float )gd.getNextNumber();
+		cs_min_epsilon = ( float )gd.getNextNumber();
+		cs_max_epsilon = ( float )gd.getNextNumber();
 		inlier_ratio = ( float )gd.getNextNumber();
 		String dimension_str = gd.getNextChoice();
 		
 		ArrayList< Layer > layers = set.getLayers();
-		ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
+		ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets1 = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
+		ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets2 = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
 		
 		FloatArray2DSIFT sift = new FloatArray2DSIFT( fdsize, fdbins );
 		
 		long start_time;
-		
+
+		ArrayList< Tile > all_tiles = new ArrayList< Tile >();
+		ArrayList< Patch > all_patches = new ArrayList< Patch >();
+
+		Layer previous_layer = null;
+
+		Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), true);
+		//sp_gross_interlayer.setup();
+
 		for ( Layer layer : layers )
 		{
 			// first, intra-layer alignment
 			// TODO involve the correlation techniques
 			ArrayList< Patch > patches = layer.getDisplayables( Patch.class );
 			ArrayList< Tile > tiles = new ArrayList< Tile >();
-			
+
+			if (null != previous_layer) {
+				featureSets1.clear();
+				featureSets1.addAll(featureSets2);
+				featureSets2.clear();
+			}
+
 			ImagePlus imp;
-			
+
 			// extract SIFT-features in all patches
 			// TODO store the feature sets on disk, each of them might be in the magnitude of 10MB large
 			for ( Patch patch : patches )
@@ -328,17 +355,17 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				
 				Model model;
 				
-				if ( dimension_str == "translation" )
+				if ( dimension_str.equals("translation") )
 					model = new TModel2D();
 				else
 					model = new TRModel2D();
 				
-				model.getAffine().setTransform( patch.getAffineTransform() ); 
+				model.getAffine().setTransform( patch.getAffineTransform() );
 				Tile tile = new Tile( ( float )fa.width, ( float )fa.height, model );
 				tiles.add( tile );
-				featureSets.add( fs );
+				featureSets2.add( fs );
 			}
-			
+
 			// identify correspondences
 			int num_patches = patches.size();
 			for ( int i = 0; i < num_patches; ++i )
@@ -354,8 +381,8 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 						start_time = System.currentTimeMillis();
 						System.out.print( "identifying correspondences using brute force ..." );
 						Vector< Match > correspondences = FloatArray2DSIFT.createMatches(
-									featureSets.get( i ),
-									featureSets.get( j ),
+									featureSets2.get( i ),
+									featureSets2.get( j ),
 									1.25f,
 									null,
 									Float.MAX_VALUE );
@@ -459,7 +486,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			double d = Double.MAX_VALUE;
 			int iteration = 1;
 			int cc = 0;
-			while ( cc < 10 )
+			double[] dall = new double[100];
+			int next = 0;
+			//while ( cc < 10 )
+			while ( true )
 			{
 				for ( int i = 0; i < num_patches; ++i )
 				{
@@ -501,11 +531,32 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				d = Math.abs( od - cd );
 				od = cd;
 				IJ.showStatus( "displacement: " + decimalFormat.format( od ) + " after " + iteration + " iterations");
-				
-				cc = d < 0.00025 ? cc + 1 : 0;
-				
+				//cc = d < 0.00025 ? cc + 1 : 0;
+				cc = d < 0.001 ? cc + 1 : 0;
+
+				if (dall.length  == next) {
+					double[] dall2 = new double[dall.length + 100];
+					System.arraycopy(dall, 0, dall2, 0, dall.length);
+					dall = dall2;
+				}
+				dall[next++] = d;
+				// cut the last 'n'
+				if (next > 100) { // wait until completing at least 'n' iterations
+					double[] dn = new double[100];
+					System.arraycopy(dall, dall.length - 100, dn, 0, 100);
+					// fit curve
+					double[] ft = FitLine.fitLine(dn);
+					// ft[1] StdDev
+					// ft[2] m (slope)
+					if (Math.abs(ft[1]) < 0.001) {
+						System.out.println("Exiting at iteration " + next + " with slope " + ft[1]);
+						break;
+					}
+				}
+
+
 				// repaint all Displays showing a Layer of the edited LayerSet
-				Display.update( set );
+				Display.update( layer );
 				
 
 //#############################################################################
@@ -524,8 +575,26 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			
 			// repaint all Displays showing a Layer of the edited LayerSet
 			Display.update( set );
+
+			// store for global minimization
+			all_tiles.addAll(tiles);
+			all_patches.addAll(patches);
+
+			// coarse registration
+
+			if (null != previous_layer) {
+				Object[] ob = Registration.registerSIFT(previous_layer, layer, null, sp_gross_interlayer);
+				AffineTransform at = (AffineTransform)ob[0];
+				TRModel2D model = new TRModel2D();
+				model.getAffine().setTransform(at);
+				for (Tile tile : tiles) {
+					((TRModel2D)tile.getModel()).preConcatenate(model);
+				}
+			}
+
+			previous_layer = layer;
 		}
-		
+
 		// update selection internals in all open Displays
 		Display.updateSelection( front );
 

@@ -25,6 +25,8 @@ package ini.trakem2.utils;
 
 import ini.trakem2.ControlWindow;
 import ini.trakem2.display.YesNoDialog;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
 
 
 import ij.IJ;
@@ -36,6 +38,7 @@ import ij.gui.YesNoCancelDialog;
 import ij.io.*;
 
 import java.awt.Checkbox;
+import java.awt.Choice;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.MenuBar;
@@ -44,6 +47,10 @@ import java.awt.MenuItem;
 import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Vector;
 
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
@@ -657,5 +664,34 @@ public class Utils implements ij.plugin.PlugIn {
 			return false;
 		}
 		return true;
+	}
+
+	static public void addLayerRangeChoices(final Layer selected, final GenericDialog gd) {
+		final String[] layers = new String[selected.getParent().size()];
+		final ArrayList al_layer_titles =  new ArrayList();
+		int i = 0;
+		for (Iterator it = selected.getParent().getLayers().iterator(); it.hasNext(); ) {
+			layers[i] = selected.getProject().findLayerThing((Layer)it.next()).toString();
+			al_layer_titles.add(layers[i]);
+			i++;
+		}
+		final int i_layer = selected.getParent().indexOf(selected);
+		gd.addChoice("Start: ", layers, layers[i_layer]);
+		final Vector v = gd.getChoices();
+		final Choice cstart = (Choice)v.get(v.size()-1);
+		gd.addChoice("End: ", layers, layers[i_layer]);
+		final Choice cend = (Choice)v.get(v.size()-1);
+		cstart.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				int index = al_layer_titles.indexOf(ie.getItem());
+				if (index > cend.getSelectedIndex()) cend.select(index);
+			}
+		});
+		cend.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				int index = al_layer_titles.indexOf(ie.getItem());
+				if (index < cstart.getSelectedIndex()) cstart.select(index);
+			}
+		});
 	}
 }
