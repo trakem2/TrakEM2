@@ -720,11 +720,12 @@ public abstract class Displayable extends DBObject {
 		}
 	}
 
-	/** Check if this perimeter's intersects that of the given Displayable. */
+	/** Check if this perimeter's intersects that of the given Displayable.<br />
+	 *  TODO check exact perimeters, rotation ...
+	 * */
 	public boolean intersects(Displayable d) {
 		if (!this.getBoundingBox().intersects(d.getBoundingBox())) return false;
 		// now faster: check if any corner of this is contained within the area of 'd'
-		// TODO check exact perimeters, rotation ...
 		return true;
 	}
 

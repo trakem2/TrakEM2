@@ -1795,7 +1795,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (!aligning || selection.isEmpty() || !selection.contains(Profile.class)) item.setEnabled(false);
 			item = new JMenuItem("Align stack slices"); item.addActionListener(this); popup.add(item);
 			if (selection.isEmpty() || ! (getActive().getClass().equals(Patch.class) && ((Patch)getActive()).isStack())) item.setEnabled(false);
-			item = new JMenuItem("Align layers (montage-based)"); item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Align layers (layer-based)"); item.addActionListener(this); popup.add(item);
 			if (1 == layer.getParent().size()) item.setEnabled(false);
 			item = new JMenuItem("Align layers (tile-based global minimization)"); item.addActionListener(this); popup.add(item);
 			if (1 == layer.getParent().size()) item.setEnabled(false);
@@ -2681,7 +2681,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}
 			}
-		} else if (command.equals("Align layers (montage-based)")) {
+		} else if (command.equals("Align layers (layer-based)")) {
 			Registration.registerLayers(layer, Registration.LAYER_SIFT);
 		} else if (command.equals("Align layers (tile-based global minimization)")) {
 			Registration.registerLayers(layer, Registration.GLOBAL_MINIMIZATION);
