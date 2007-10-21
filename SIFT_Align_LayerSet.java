@@ -320,10 +320,13 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		final ArrayList< Patch > patches2 = new ArrayList< Patch >();
 		final ArrayList< Tile > tiles2 = new ArrayList< Tile >();
 
-		// works as a service
-		final FloatArray2DSIFT sift = new FloatArray2DSIFT( fdsize, fdbins );
+		final Thread[] threads = MultiThreading.newThreads();
+		final FloatArray2DSIFT[] sift = new FloatArray2DSIFT[threads.length];
+		for (int k=0; k<threads.length; k++) {
+			sift[k] = new FloatArray2DSIFT( fdsize, fdbins );
+		}
 		// roughly, we expect about 1000 features per 512x512 image
-		final long feature_size = (long)((max_size * max_size) / (512 * 512) * 1000 * sift.getFeatureObjectSize() * 1.5);
+		final long feature_size = (long)((max_size * max_size) / (512 * 512) * 1000 * sift[0].getFeatureObjectSize() * 1.5);
 
 		final ArrayList< Tile > all_tiles = new ArrayList< Tile >();
 		final ArrayList< Patch > all_patches = new ArrayList< Patch >();
@@ -338,8 +341,13 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		for ( Layer layer : layers )
 		{
 
+			IJ.log("###############\nStarting layer " + set.indexOf(layer) + " of " + set.size() + "\n###############");
+
 			// ignore empty layers
-			if (!layer.contains(Patch.class)) continue;
+			if (!layer.contains(Patch.class)) {
+				IJ.log("Ignoring empty layer.");
+				continue;
+			}
 
 			if (null != previous_layer) {
 				featureSets1.clear();
@@ -362,7 +370,6 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			// TODO store the feature sets on disk, each of them might be in the magnitude of 10MB large
 
 			final AtomicInteger ai = new AtomicInteger(0); // from 0 to patches2.length
-			final Thread[] threads = MultiThreading.newThreads();
 			final int num_pa2 = patches2.size();
 
 			final Patch[] pa2 = new Patch[num_pa2];
@@ -372,24 +379,31 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 
 			for (int ithread = 0; ithread < threads.length; ++ithread)
 			{
+				final int si = ithread;
 				threads[ithread] = new Thread(new Runnable()
 				{
 					public void run() {
 						for (int k=ai.getAndIncrement(); k<num_pa2; k = ai.getAndIncrement())
 						{
 
+				System.out.println("k is " + k);
 				Patch patch = pa2[ k ];
+				if (null == patch) System.out.println("patch is null");
+				System.out.println("patch is " + patch);
 				ImagePlus imp = patch.getProject().getLoader().fetchImagePlus( patch );
+				if (null == imp) System.out.println("imp is null");
 				set.getProject().getLoader().releaseToFit(imp.getWidth() * imp.getHeight() * 96L + feature_size);
 
 				FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
+				if (null == fa) System.out.println("fa is null");
 				ImageFilter.enhance( fa, 1.0f );
 				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
+				if (null == fa) System.out.println("fa is null");
 				
 				long start_time = System.currentTimeMillis();
 				System.out.print( "processing SIFT ..." );
-				sift.init( fa, steps, initial_sigma, min_size, max_size );
-				Vector< FloatArray2DSIFT.Feature > fs = sift.run( max_size );
+				sift[si].init( fa, steps, initial_sigma, min_size, max_size );
+				Vector< FloatArray2DSIFT.Feature > fs = sift[si].run( max_size );
 				Collections.sort( fs );
 				System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 				
