@@ -13,6 +13,7 @@ import mpi.fruitfly.registration.Match;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.registration.Tile;
 import mpi.fruitfly.registration.PointMatch;
+import mpi.fruitfly.registration.Point;
 import mpi.fruitfly.analysis.FitLine;
 
 import ij.plugin.*;
@@ -29,6 +30,7 @@ import java.awt.event.KeyListener;
 import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.geom.Point2D;
 
 import java.awt.geom.AffineTransform;
 
@@ -315,6 +317,8 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 
 		// works as a service
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT( fdsize, fdbins );
+		// roughly, we expect about 1000 features per 512x512 image
+		final long feature_size = (long)((max_size * max_size) / (512 * 512) * 1000 * sift.getFeatureObjectSize() * 1.5);
 
 		long start_time;
 
@@ -328,6 +332,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 
 		for ( Layer layer : layers )
 		{
+
+			// ignore empty layers
+			if (!layer.contains(Patch.class)) continue;
+
 			if (null != previous_layer) {
 				featureSets1.clear();
 				featureSets1.addAll(featureSets2);
@@ -350,6 +358,8 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			for ( Patch patch : patches2 )
 			{
 				imp = patch.getProject().getLoader().fetchImagePlus( patch );
+				set.getProject().getLoader().releaseToFit(imp.getWidth() * imp.getHeight() * 96L + feature_size);
+
 				FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
 				ImageFilter.enhance( fa, 1.0f );
 				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
@@ -382,12 +392,14 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			{
 				Patch current_patch = patches2.get( i );
 				Tile current_tile = tiles2.get( i );
+				ArrayList< Integer > intersecting_tiles = new ArrayList< Integer >();
 				for ( int j = i + 1; j < num_patches; ++j )
 				{
 					Patch other_patch = patches2.get( j );
 					Tile other_tile = tiles2.get( j );
 					if ( current_patch.intersects( other_patch ) )
 					{
+						intersecting_tiles.add( new Integer( j ) );
 						start_time = System.currentTimeMillis();
 						System.out.print( "identifying correspondences using brute force ..." );
 						Vector< Match > correspondences = FloatArray2DSIFT.createMatches(
@@ -415,8 +427,38 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 						}
 					}
 				}
+				// if there are no features at all, then use two synthetic features
+				// (two nails) with each intersecting patch
+				if (0 == current_tile.getNumMatches()) {
+					final Rectangle r = current_patch.getBoundingBox();
+					for (Integer j : intersecting_tiles) {
+						Patch p = patches2.get( j.intValue() );
+						Tile tile = tiles2.get( j.intValue() );
+						Rectangle rp = p.getBoundingBox().intersection(r);
+						int xp1 = rp.x;
+						int yp1 = rp.y;
+						int xp2 = rp.x + rp.width;
+						int yp2 = rp.y + rp.height;
+						Point2D.Double dcp1 = current_patch.inverseTransformPoint(xp1, yp1);
+						Point2D.Double dcp2 = current_patch.inverseTransformPoint(xp2, yp2);
+						Point2D.Double dp1 = p.inverseTransformPoint(xp1, yp1);
+						Point2D.Double dp2 = p.inverseTransformPoint(xp2, yp2);
+						Point cp1 = new Point(new float[]{(float)dcp1.x, (float)dcp1.y});
+						Point cp2 = new Point(new float[]{(float)dcp2.x, (float)dcp2.y});
+						Point p1 = new Point(new float[]{(float)dp1.x, (float)dp1.y});
+						Point p2 = new Point(new float[]{(float)dp2.x, (float)dp2.y});
+						ArrayList< PointMatch > a1 = new ArrayList<PointMatch>();
+						a1.add(new PointMatch( cp1, p1, 1.0f ));
+						a1.add(new PointMatch( cp2, p2, 1.0f ));
+						current_tile.addMatches(a1);
+						ArrayList< PointMatch > a2 = new ArrayList<PointMatch>();
+						a2.add(new PointMatch( p1, cp1, 0.0f ));
+						a2.add(new PointMatch( p2, cp2, 0.0f ));
+						tile.addMatches(a2);
+					}
+				}
 			}
-			
+
 //			featureSets.clear();
 //			System.gc();
 //			System.gc();

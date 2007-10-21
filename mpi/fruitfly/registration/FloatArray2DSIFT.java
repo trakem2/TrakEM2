@@ -32,7 +32,7 @@ public class FloatArray2DSIFT
 			location = l;
 			descriptor = d;
 		}
-		
+
 		/**
 		 * comparator for making Features sortable
 		 * please note, that the comparator returns -1 for
@@ -72,6 +72,14 @@ public class FloatArray2DSIFT
 	 * evaluation mask for the feature descriptor square
 	 */
 	private float[][] descriptorMask;
+
+
+	/**
+	 * Returns the size in bytes of a Feature object.
+	 */
+	public long getFeatureObjectSize() {
+		return 32 + 4 + 4 + 8 + FEATURE_DESCRIPTOR_SIZE * FEATURE_DESCRIPTOR_SIZE * FEATURE_DESCRIPTOR_ORIENTATION_BINS * 4 + 32 + 32;
+	}
 
 	
 	/**

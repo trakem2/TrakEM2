@@ -352,7 +352,7 @@ public class Registration {
 	static public Object[] registerSIFT(FloatProcessor ip1, FloatProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
 		// ensure enough memory space (in bytes: area * 48 * 2)
 		// times 2, ... !@#$%
-		long size = 2 * (ip1.getWidth() * ip2.getHeight() * 48L + ip2.getWidth() * ip2.getHeight() * 48L);
+		long size = 2 * (ip1.getWidth() * ip1.getHeight() * 48L + ip2.getWidth() * ip2.getHeight() * 48L);
 		Utils.log2("size is: " + size);
 		while (!sp.project.getLoader().releaseToFit(size) && size > 10000000) { // 10 Mb
 			size = (size / 3) * 2; // if it fails, at least release as much as possible
