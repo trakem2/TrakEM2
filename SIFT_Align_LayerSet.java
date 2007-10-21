@@ -15,6 +15,7 @@ import mpi.fruitfly.registration.Tile;
 import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.Point;
 import mpi.fruitfly.analysis.FitLine;
+import mpi.fruitfly.general.MultiThreading;
 
 import ij.plugin.*;
 import ij.gui.*;
@@ -38,6 +39,9 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 
 import java.io.*;
+
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class SIFT_Align_LayerSet implements PlugIn, KeyListener
@@ -264,7 +268,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			return;
 		}
 		
-		LayerSet set = front.getLayer().getParent();
+		final LayerSet set = front.getLayer().getParent();
 		if ( set == null )
 		{
 			System.err.println( "no open layer-set" );
@@ -304,11 +308,12 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		cs_min_epsilon = ( float )gd.getNextNumber();
 		cs_max_epsilon = ( float )gd.getNextNumber();
 		inlier_ratio = ( float )gd.getNextNumber();
-		String dimension_str = gd.getNextChoice();
+		final String dimension_str = gd.getNextChoice();
 		
 		final ArrayList< Layer > layers = set.getLayers();
 		final ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets1 = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
 		final ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets2 = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
+
 
 		final ArrayList< Patch > patches1 = new ArrayList< Patch >();
 		final ArrayList< Tile > tiles1 = new ArrayList< Tile >();
@@ -320,10 +325,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		// roughly, we expect about 1000 features per 512x512 image
 		final long feature_size = (long)((max_size * max_size) / (512 * 512) * 1000 * sift.getFeatureObjectSize() * 1.5);
 
-		long start_time;
-
 		final ArrayList< Tile > all_tiles = new ArrayList< Tile >();
 		final ArrayList< Patch > all_patches = new ArrayList< Patch >();
+
+		final ArrayList< Tile > empty_tiles = new ArrayList< Tile >();
 
 		Layer previous_layer = null;
 
@@ -347,24 +352,41 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				tiles1.addAll(tiles2);
 			}
 
+			empty_tiles.clear();
+
 			patches2.clear();
 			patches2.addAll(layer.getDisplayables( Patch.class ));
 			tiles2.clear();
 
-			ImagePlus imp;
-
 			// extract SIFT-features in all patches
 			// TODO store the feature sets on disk, each of them might be in the magnitude of 10MB large
-			for ( Patch patch : patches2 )
+
+			final AtomicInteger ai = new AtomicInteger(0); // from 0 to patches2.length
+			final Thread[] threads = MultiThreading.newThreads();
+			final int num_pa2 = patches2.size();
+
+			final Patch[] pa2 = new Patch[num_pa2];
+			patches2.toArray(pa2);
+			final Vector[] fsets = new Vector[pa2.length];
+			final Tile[] tls = new Tile[pa2.length];
+
+			for (int ithread = 0; ithread < threads.length; ++ithread)
 			{
-				imp = patch.getProject().getLoader().fetchImagePlus( patch );
+				threads[ithread] = new Thread(new Runnable()
+				{
+					public void run() {
+						for (int k=ai.getAndIncrement(); k<num_pa2; k = ai.getAndIncrement())
+						{
+
+				Patch patch = pa2[ k ];
+				ImagePlus imp = patch.getProject().getLoader().fetchImagePlus( patch );
 				set.getProject().getLoader().releaseToFit(imp.getWidth() * imp.getHeight() * 96L + feature_size);
 
 				FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
 				ImageFilter.enhance( fa, 1.0f );
 				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
 				
-				start_time = System.currentTimeMillis();
+				long start_time = System.currentTimeMillis();
 				System.out.print( "processing SIFT ..." );
 				sift.init( fa, steps, initial_sigma, min_size, max_size );
 				Vector< FloatArray2DSIFT.Feature > fs = sift.run( max_size );
@@ -382,8 +404,22 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				
 				model.getAffine().setTransform( patch.getAffineTransform() );
 				Tile tile = new Tile( ( float )fa.width, ( float )fa.height, model );
-				tiles2.add( tile );
-				featureSets2.add( fs );
+				
+				//tiles2.add( tile );
+				tls[ k ] = tile;
+
+				//featureSets2.add( fs );
+				fsets[ k ] = fs;
+
+						}
+					}
+				});
+			}
+        		MultiThreading.startAndJoin(threads);
+
+			for (int k=0; k<pa2.length; k++) {
+				featureSets2.add( fsets[ k ] );
+				tiles2.add( tls[ k ] );
 			}
 
 			// identify correspondences
@@ -392,15 +428,13 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			{
 				Patch current_patch = patches2.get( i );
 				Tile current_tile = tiles2.get( i );
-				ArrayList< Integer > intersecting_tiles = new ArrayList< Integer >();
 				for ( int j = i + 1; j < num_patches; ++j )
 				{
 					Patch other_patch = patches2.get( j );
 					Tile other_tile = tiles2.get( j );
 					if ( current_patch.intersects( other_patch ) )
 					{
-						intersecting_tiles.add( new Integer( j ) );
-						start_time = System.currentTimeMillis();
+						long start_time = System.currentTimeMillis();
 						System.out.print( "identifying correspondences using brute force ..." );
 						Vector< Match > correspondences = FloatArray2DSIFT.createMatches(
 									featureSets2.get( i ),
@@ -430,17 +464,25 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				// if there are no features at all, then use two synthetic features
 				// (two nails) with each intersecting patch
 				if (0 == current_tile.getNumMatches()) {
-					final Rectangle r = current_patch.getBoundingBox();
-					for (Integer j : intersecting_tiles) {
-						Patch p = patches2.get( j.intValue() );
-						Tile tile = tiles2.get( j.intValue() );
+					empty_tiles.add(current_tile);
+				}
+			}
+
+			for (Tile empty_tile : empty_tiles) {
+				Patch empty_patch = patches2.get( tiles2.indexOf( empty_tile ) );
+				final Rectangle r = empty_patch.getBoundingBox();
+				for ( Patch p : patches2 ) {
+					if ( ! empty_patch.equals(p) && empty_patch.intersects( p ) )
+					{
+						Tile tile = tiles2.get( patches2.indexOf( p ) );
+						// add nails
 						Rectangle rp = p.getBoundingBox().intersection(r);
 						int xp1 = rp.x;
 						int yp1 = rp.y;
 						int xp2 = rp.x + rp.width;
 						int yp2 = rp.y + rp.height;
-						Point2D.Double dcp1 = current_patch.inverseTransformPoint(xp1, yp1);
-						Point2D.Double dcp2 = current_patch.inverseTransformPoint(xp2, yp2);
+						Point2D.Double dcp1 = empty_patch.inverseTransformPoint(xp1, yp1);
+						Point2D.Double dcp2 = empty_patch.inverseTransformPoint(xp2, yp2);
 						Point2D.Double dp1 = p.inverseTransformPoint(xp1, yp1);
 						Point2D.Double dp2 = p.inverseTransformPoint(xp2, yp2);
 						Point cp1 = new Point(new float[]{(float)dcp1.x, (float)dcp1.y});
@@ -450,7 +492,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 						ArrayList< PointMatch > a1 = new ArrayList<PointMatch>();
 						a1.add(new PointMatch( cp1, p1, 1.0f ));
 						a1.add(new PointMatch( cp2, p2, 1.0f ));
-						current_tile.addMatches(a1);
+						empty_tile.addMatches(a1);
 						ArrayList< PointMatch > a2 = new ArrayList<PointMatch>();
 						a2.add(new PointMatch( p1, cp1, 0.0f ));
 						a2.add(new PointMatch( p2, cp2, 0.0f ));
@@ -541,7 +583,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			double[] dall = new double[100];
 			int next = 0;
 			//while ( cc < 10 )
-			while ( true )
+			while ( next < 100000 )  // safety check
 			{
 				for ( int i = 0; i < num_patches; ++i )
 				{
@@ -578,7 +620,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				{
 					t.update();
 					cd += t.getDistance();
-				}						
+				}
 				cd /= tiles2.size();
 				d = Math.abs( od - cd );
 				od = cd;
@@ -644,7 +686,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 
 				// identify corresponding matches across layers using tiles1 and tiles2
 				int num_patches2 = patches2.size();
-				int num_patches1 = patches2.size();
+				int num_patches1 = patches1.size();
 				for ( int i = 0; i < num_patches2; ++i )
 				{
 					Patch current_patch = patches2.get( i );
@@ -655,7 +697,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 						Tile other_tile = tiles1.get( j );
 						if ( current_patch.intersects( other_patch ) )
 						{
-							start_time = System.currentTimeMillis();
+							long start_time = System.currentTimeMillis();
 							System.out.print( "identifying correspondences using brute force ..." );
 							Vector< Match > correspondences = FloatArray2DSIFT.createMatches(
 										featureSets2.get( i ),
