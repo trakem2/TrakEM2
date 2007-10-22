@@ -1,6 +1,7 @@
 import ini.trakem2.display.*;
 import ini.trakem2.*;
 import ini.trakem2.imaging.Registration;
+import ini.trakem2.utils.Utils;
 
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
@@ -309,6 +310,13 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		cs_max_epsilon = ( float )gd.getNextNumber();
 		inlier_ratio = ( float )gd.getNextNumber();
 		final String dimension_str = gd.getNextChoice();
+
+
+		// ask for SIFT parameters
+		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject());
+		if (!sp_gross_interlayer.setup()) return;
+
+		// start:
 		
 		final ArrayList< Layer > layers = set.getLayers();
 		final ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets1 = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
@@ -335,8 +343,6 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 
 		Layer previous_layer = null;
 
-		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), true);
-		//sp_gross_interlayer.setup();
 
 		for ( Layer layer : layers )
 		{
@@ -691,11 +697,36 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			if (null != previous_layer) {
 				// coarse registration
 				Object[] ob = Registration.registerSIFT(previous_layer, layer, null, sp_gross_interlayer);
-				AffineTransform at = (AffineTransform)ob[0];
-				TRModel2D model = new TRModel2D();
-				model.getAffine().setTransform(at);
-				for (Tile tile : tiles2) {
-					((TRModel2D)tile.getModel()).preConcatenate(model);
+				while (null == ob || null == ob[0]) {
+					// need to recurse up both the max size and the maximal alignment error
+					int next_max_size = sp_gross_interlayer.max_size;
+					float next_max_epsilon = sp_gross_interlayer.max_epsilon;
+					if (next_max_epsilon < 300) {
+						next_max_epsilon += 100;
+					}
+					Rectangle rfit1 = previous_layer.getMinimalBoundingBox(Patch.class);
+					Rectangle rfit2 = layer.getMinimalBoundingBox(Patch.class);
+					if (next_max_size < rfit1.width || next_max_size < rfit1.height
+					 || next_max_size < rfit2.width || next_max_size < rfit2.height) {
+						next_max_size += 1024;
+					} else {
+						// fail completely
+						Utils.log2("FAILED to align layers " + set.indexOf(previous_layer) + " and " + set.indexOf(layer));
+						// Need to fall back to totally unguided double-layer registration
+						// TODO
+						break;
+					}
+					sp_gross_interlayer.max_size = next_max_size;
+					sp_gross_interlayer.max_epsilon = next_max_epsilon;
+					ob = Registration.registerSIFT(previous_layer, layer, null, sp_gross_interlayer);
+				}
+				if (null != ob && null != ob[0]) {
+					AffineTransform at = (AffineTransform)ob[0];
+					TRModel2D model = new TRModel2D();
+					model.getAffine().setTransform(at);
+					for (Tile tile : tiles2) {
+						((TRModel2D)tile.getModel()).preConcatenate(model);
+					}
 				}
 
 				// identify corresponding matches across layers using tiles1 and tiles2

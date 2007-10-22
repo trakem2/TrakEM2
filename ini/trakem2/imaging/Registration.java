@@ -655,26 +655,21 @@ public class Registration {
 	static public class SIFTParameters {
 		Project project = null;
 		// filled with default values
-		float scale = 1.0f;
-		int steps = 3;
-		float initial_sigma = 1.6f;
-		int fdsize = 8;
-		int fdbins = 8;
-		int min_size = 64;
-		int max_size = 1024;
+		public float scale = 1.0f;
+		public int steps = 3;
+		public float initial_sigma = 1.6f;
+		public int fdsize = 8;
+		public int fdbins = 8;
+		public int min_size = 64;
+		public int max_size = 1024;
 		/** Maximal initial drift of landmark relative to its matching landmark in the other image, to consider when searching.  Also used as increment for epsilon when there was no sufficient model found.*/
-		float min_epsilon = 2.0f;
-		float max_epsilon = 100.0f;
+		public float min_epsilon = 2.0f;
+		public float max_epsilon = 100.0f;
 		/** Minimal percent of good landmarks found */
-		float inlier_ratio = 0.05f;
+		public float inlier_ratio = 0.05f;
 
 		public SIFTParameters(Project project) {
 			this.project = project;
-		}
-		
-		public SIFTParameters(Project project, boolean setup) {
-			this(project);
-			setup();
 		}
 
 		public void print() {
