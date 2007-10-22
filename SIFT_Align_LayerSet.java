@@ -317,7 +317,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		if (!sp_gross_interlayer.setup()) return;
 
 		// start:
-		
+
 		final ArrayList< Layer > layers = set.getLayers();
 		final ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets1 = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
 		final ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets2 = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
@@ -697,10 +697,12 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			if (null != previous_layer) {
 				// coarse registration
 				Object[] ob = Registration.registerSIFT(previous_layer, layer, null, sp_gross_interlayer);
+				int original_max_size = sp_gross_interlayer.max_size;
+				float original_max_epsilon = sp_gross_interlayer.max_epsilon;
 				while (null == ob || null == ob[0]) {
-					// need to recurse up both the max size and the maximal alignment error
 					int next_max_size = sp_gross_interlayer.max_size;
 					float next_max_epsilon = sp_gross_interlayer.max_epsilon;
+					// need to recurse up both the max size and the maximal alignment error
 					if (next_max_epsilon < 300) {
 						next_max_epsilon += 100;
 					}
@@ -714,12 +716,17 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 						Utils.log2("FAILED to align layers " + set.indexOf(previous_layer) + " and " + set.indexOf(layer));
 						// Need to fall back to totally unguided double-layer registration
 						// TODO
+						//
 						break;
 					}
 					sp_gross_interlayer.max_size = next_max_size;
 					sp_gross_interlayer.max_epsilon = next_max_epsilon;
 					ob = Registration.registerSIFT(previous_layer, layer, null, sp_gross_interlayer);
 				}
+				// fix back modified parameters
+				sp_gross_interlayer.max_size = original_max_size;
+				sp_gross_interlayer.max_epsilon = original_max_epsilon;
+
 				if (null != ob && null != ob[0]) {
 					AffineTransform at = (AffineTransform)ob[0];
 					TRModel2D model = new TRModel2D();
