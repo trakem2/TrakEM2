@@ -97,7 +97,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		return ip.resize( ( int )( s * ip.getWidth() ) );
 	}
 	
-	final private TRModel2D estimateModel( Vector< Match > correspondences )
+	final private TRModel2D estimateModel(
+			Vector< Match > correspondences,
+			float min_epsilon,
+			float max_epsilon )
 	{
 		TRModel2D model = null;
 		float epsilon = 0.0f;
@@ -466,7 +469,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 						
 						IJ.log( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
 						
-						TRModel2D model = estimateModel( correspondences );
+						TRModel2D model = estimateModel(
+								correspondences,
+								min_epsilon,
+								max_epsilon );
 						
 						if ( model != null )
 						{
@@ -761,7 +767,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 							
 							IJ.log( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
 							
-							TRModel2D mo = estimateModel( correspondences );
+							TRModel2D mo = estimateModel(
+									correspondences,
+									cs_min_epsilon,
+									cs_max_epsilon );
 
 							if ( mo != null )
 							{
