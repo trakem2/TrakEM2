@@ -3037,13 +3037,14 @@ abstract public class Loader {
 		return false;
 	}
 
+	/** Path to the directory hosting the file image pyramids. */
 	private String dir_mipmaps = null;
 
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 64x64 pixels.
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps
 	 */
-	protected boolean generateMipMaps(final ImagePlus imp, final String filename) {
+	public boolean generateMipMaps(final ImagePlus imp, final String filename) {
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		if (null == dir_mipmaps) return false;
 		JpegWriter.setQuality(85);
@@ -3057,9 +3058,10 @@ abstract public class Loader {
 		final ColorModel cm = imp.getProcessor().getDefaultColorModel();
 		FloatProcessor fp = (FloatProcessor)imp.getProcessor().convertToFloat();
 		int k = 1; // the scale level. Proper scale is: 1 / pow(2, k)
+		           //   but since we scale 50% relative the previous, it's always 0.75
 		while (w > 64 && h > 64) {
 			// 1 - blur the previous image to 0.75 sigma
-			fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])imp.getProcessor().convertToFloat().getPixels(), w, h), 0.75f).data, cm);
+			fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
 			// 2 - prepare values for the next scaled image
 			w /= 2;
 			h /= 2;
@@ -3070,7 +3072,7 @@ abstract public class Loader {
 			String target_dir = getScaleDir(dir_mipmaps, k);
 			if (null == target_dir) return false;
 			// 5 - save as 8-bit jpeg
-			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(true))).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(false))).saveAsJpeg(dir_mipmaps + k + "/" + filename);
 		}
 		return true;
 	}
@@ -3098,12 +3100,21 @@ abstract public class Loader {
 			if (null == parent_path) return false;
 			if (!parent_path.endsWith("/")) parent_path += "/";
 		}
-		// examine
+		// examine parent path
 		File file = new File(parent_path);
 		if (file.exists()) {
 			if (file.isDirectory()) {
 				// all OK
 				this.dir_mipmaps = parent_path + "trakem2.mipmaps/";
+				try {
+					File f = new File(this.dir_mipmaps);
+					if (!f.exists()) {
+						f.mkdir();
+					}
+				} catch (Exception e) {
+					new IJError(e);
+					return false;
+				}
 			} else {
 				Utils.showMessage("Selected parent path is not a directory. Please choose another one.");
 				return createMipMapsDir(null);
