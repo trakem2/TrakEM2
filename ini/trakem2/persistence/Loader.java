@@ -796,6 +796,27 @@ abstract public class Loader {
 		return awt;
 	}
 
+	/** Transform mag to nearest scale level that delivers an equally sized or larger image.<br />
+	 *  Returns -1 if the magnification is NaN or negative or zero.<br />
+	 *  As explanation:<br />
+	 *  mag = 1 / Math.pow(2, level) <br />
+	 *  so that 100% is 0, 50% is 1, 25% is 2, and so on.
+	 * */
+	static public final int getMipMapLevel(final double mag) {
+		// check parameters
+		if (mag <= 0 || Double.isNaN(mag)) return -1; //error signal
+		//
+		int level = 0;
+		double scale;
+		while (true) {
+			scale = 1 / Math.pow(2, level);
+			if (mag < scale) break;
+			level++;
+		}
+		// return the previous one to that found, since it has to be equal or larger
+		return level -1;
+	}
+
 	public Image fetchImage(Patch p) {
 		return fetchImage(p, 1.0);
 	}
@@ -809,6 +830,8 @@ abstract public class Loader {
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 * */
 	public Image fetchImage(final Patch p, double mag) {
+		final int level = Loader.getMipMapLevel(mag);
+
 		synchronized (db_lock) {
 			lock();
 			try {
@@ -3057,7 +3080,7 @@ abstract public class Loader {
 		// prepare a 0.75 sigma image from the original
 		final ColorModel cm = imp.getProcessor().getDefaultColorModel();
 		FloatProcessor fp = (FloatProcessor)imp.getProcessor().convertToFloat();
-		int k = 1; // the scale level. Proper scale is: 1 / pow(2, k)
+		int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 		           //   but since we scale 50% relative the previous, it's always 0.75
 		while (w > 64 && h > 64) {
 			// 1 - blur the previous image to 0.75 sigma
