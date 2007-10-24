@@ -44,8 +44,10 @@ import ij.io.Opener;
 import ij.io.OpenDialog;
 import ij.io.TiffEncoder;
 import ij.plugin.filter.PlugInFilter;
+import ij.plugin.JpegWriter;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
+import ij.process.FloatProcessor;
 import ij.process.StackProcessor;
 import ij.process.StackStatistics;
 import ij.process.ImageStatistics;
@@ -79,6 +81,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Checkbox;
 import java.awt.Cursor;
+import java.awt.image.ColorModel;
 //import java.awt.FileDialog;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -120,6 +123,9 @@ import java.util.zip.Inflater;
 import java.util.zip.Deflater;
 
 import javax.swing.JMenu;
+
+import mpi.fruitfly.math.datastructures.FloatArray2D;
+import mpi.fruitfly.registration.ImageFilter;
 
 
 /** Handle all data-related issues with a virtualization engine, including load/unload and saving, saving as and overwriting. */
@@ -3029,5 +3035,83 @@ abstract public class Loader {
 			unlock();
 		}
 		return false;
+	}
+
+	private String dir_mipmaps = null;
+
+	/** Given an image and its source file name (without directory prepended), generate
+	 * a pyramid of images until reaching an image not smaller than 64x64 pixels.
+	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps
+	 */
+	protected boolean generateMipMaps(final ImagePlus imp, final String filename) {
+		if (null == dir_mipmaps) createMipMapsDir(null);
+		if (null == dir_mipmaps) return false;
+		JpegWriter.setQuality(85);
+		// ok, now proceed using this.dir_mipmaps
+		int w = imp.getWidth();
+		int h = imp.getHeight();
+		// sigma = sqrt(1^2 - 0.5^2)
+		//    where 0.5 is the estimated sigma for a full-scale image
+		//  which means sigma = 0.75 for the full-scale image
+		// prepare a 0.75 sigma image from the original
+		final ColorModel cm = imp.getProcessor().getDefaultColorModel();
+		FloatProcessor fp = (FloatProcessor)imp.getProcessor().convertToFloat();
+		int k = 1; // the scale level. Proper scale is: 1 / pow(2, k)
+		while (w > 64 && h > 64) {
+			// 1 - blur the previous image to 0.75 sigma
+			fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])imp.getProcessor().convertToFloat().getPixels(), w, h), 0.75f).data, cm);
+			// 2 - prepare values for the next scaled image
+			w /= 2;
+			h /= 2;
+			k++;
+			// 3 - generate scaled image
+			fp = (FloatProcessor)fp.resize(w, h);
+			// 4 - check that the target folder for the desired scale exists
+			String target_dir = getScaleDir(dir_mipmaps, k);
+			if (null == target_dir) return false;
+			// 5 - save as 8-bit jpeg
+			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(true))).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+		}
+		return true;
+	}
+
+	static private final String getScaleDir(final String dir_mipmaps, final int k) {
+		final String path = dir_mipmaps + k;
+		File file = new File(path);
+		if (file.exists() && file.isDirectory()) return path;
+		// else, create it
+		try {
+			file.mkdir();
+			return path;
+		} catch (Exception e) {
+			new IJError(e);
+		}
+		return null;
+	}
+
+	/** If parent path is null, it's asked for.*/
+	public boolean createMipMapsDir(String parent_path) {
+		if (null == parent_path) {
+			// ask for a new folder
+			DirectoryChooser dc = new DirectoryChooser("Select MipMaps parent directory");
+			parent_path = dc.getDirectory();
+			if (null == parent_path) return false;
+			if (!parent_path.endsWith("/")) parent_path += "/";
+		}
+		// examine
+		File file = new File(parent_path);
+		if (file.exists()) {
+			if (file.isDirectory()) {
+				// all OK
+				this.dir_mipmaps = parent_path + "trakem2.mipmaps/";
+			} else {
+				Utils.showMessage("Selected parent path is not a directory. Please choose another one.");
+				return createMipMapsDir(null);
+			}
+		} else {
+			Utils.showMessage("Parent path does not exist. Please select a new one.");
+			return createMipMapsDir(null);
+		}
+		return true;
 	}
 }
