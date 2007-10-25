@@ -591,10 +591,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		final ArrayList< Tile > tiles2 = new ArrayList< Tile >();
 
 		final Thread[] threads = MultiThreading.newThreads();
-		final FloatArray2DSIFT[] sift = new FloatArray2DSIFT[threads.length];
-		for (int k=0; k<threads.length; k++) {
-			sift[k] = new FloatArray2DSIFT( fdsize, fdbins );
-		}
+		final FloatArray2DSIFT[] sift = new FloatArray2DSIFT[ threads.length ];
+		for ( int k=0; k < threads.length; k++ )
+			sift[ k ] = new FloatArray2DSIFT( fdsize, fdbins );
+		
 		// roughly, we expect about 1000 features per 512x512 image
 		final long feature_size = (long)((max_size * max_size) / (512 * 512) * 1000 * sift[0].getFeatureObjectSize() * 1.5);
 
@@ -647,34 +647,50 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			final Vector[] fsets = new Vector[ num_pa2 ];
 			final Tile[] tls = new Tile[ num_pa2 ];
 
-			for (int ithread = 0; ithread < threads.length; ++ithread)
+			//#################################################################
+			// single threaded version
+			
+			for ( int k = 0; k < num_pa2; ++k )
 			{
-				final int si = ithread;
-				threads[ ithread ] = new Thread( new Runnable()
-				{
-					public void run()
-					{
-						for ( int k = ai.getAndIncrement(); k < num_pa2; k = ai.getAndIncrement() )
-						{
-
-				System.out.println("k is " + k);
+				System.out.println( "k is " + k );
 				Patch patch = pa2[ k ];
-				if (null == patch) System.out.println("patch is null");
-				System.out.println("patch is " + patch);
-				ImagePlus imp = patch.getProject().getLoader().fetchImagePlus( patch );
-				if (null == imp) System.out.println("imp is null");
-				set.getProject().getLoader().releaseToFit(imp.getWidth() * imp.getHeight() * 96L + feature_size);
-
-				FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
-				if (null == fa) System.out.println("fa is null");
+				if ( null == patch ) System.out.println( "patch is null" );
+				System.out.println( "patch is " + patch );
+				
+				ImagePlus imp = null;
+				boolean exception = true;
+				FloatArray2D fa = null;
+				
+				while ( exception || fa == null )
+				{
+					try
+					{
+						imp = patch.getProject().getLoader().fetchImagePlus( patch );
+						if ( null == imp ) System.out.println( "imp is null" );
+						ImageProcessor tmp = imp.getProcessor();
+						if (tmp == null) System.out.println( "imageprocessor is null" );
+					
+						set.getProject().getLoader().releaseToFit( imp.getWidth() * imp.getHeight() * 96L + feature_size );
+				
+						fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
+						exception = false;
+					}
+					catch ( Exception e )
+					{
+						exception = true;
+						System.out.println( "Exception happened..." );
+					}
+				}
+				
+				if ( null == fa ) System.out.println( "fa is null" );
 				ImageFilter.enhance( fa, 1.0f );
 				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
-				if (null == fa) System.out.println("fa is null");
+				if ( null == fa ) System.out.println( "fa is null" );
 				
 				long start_time = System.currentTimeMillis();
 				System.out.print( "processing SIFT ..." );
-				sift[si].init( fa, steps, initial_sigma, min_size, max_size );
-				Vector< FloatArray2DSIFT.Feature > fs = sift[si].run( max_size );
+				sift[ 0 ].init( fa, steps, initial_sigma, min_size, max_size );
+				Vector< FloatArray2DSIFT.Feature > fs = sift[ 0 ].run( max_size );
 				Collections.sort( fs );
 				System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 				
@@ -692,16 +708,73 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				
 				//tiles2.add( tile );
 				tls[ k ] = tile;
-
+			
 				//featureSets2.add( fs );
 				fsets[ k ] = fs;
-
-						}
-					}
-				} );
 			}
-        	
-			MultiThreading.startAndJoin(threads);
+			//#################################################################
+
+			//#################################################################
+			// multi threaded version
+			
+//			for (int ithread = 0; ithread < threads.length; ++ithread)
+//			{
+//				final int si = ithread;
+//				threads[ ithread ] = new Thread( new Runnable()
+//				{
+//					public void run()
+//					{
+//						for ( int k = ai.getAndIncrement(); k < num_pa2; k = ai.getAndIncrement() )
+//						{
+//
+//				System.out.println("k is " + k);
+//				Patch patch = pa2[ k ];
+//				if (null == patch) System.out.println("patch is null");
+//				System.out.println("patch is " + patch);
+//				ImagePlus imp = patch.getProject().getLoader().fetchImagePlus( patch );
+//				if (null == imp) System.out.println("imp is null");
+//				set.getProject().getLoader().releaseToFit(imp.getWidth() * imp.getHeight() * 96L + feature_size);
+//
+//				FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
+//				if (null == fa) System.out.println("fa is null");
+//				ImageFilter.enhance( fa, 1.0f );
+//				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
+//				if (null == fa) System.out.println("fa is null");
+//				
+//				long start_time = System.currentTimeMillis();
+//				System.out.print( "processing SIFT ..." );
+//				sift[si].init( fa, steps, initial_sigma, min_size, max_size );
+//				Vector< FloatArray2DSIFT.Feature > fs = sift[si].run( max_size );
+//				Collections.sort( fs );
+//				System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
+//				
+//				System.out.println( fs.size() + " features identified and processed" );
+//				
+//				Model model;
+//				
+//				if ( dimension_str.equals( "translation" ) )
+//					model = new TModel2D();
+//				else
+//					model = new TRModel2D();
+//				
+//				model.getAffine().setTransform( patch.getAffineTransform() );
+//				Tile tile = new Tile( ( float )fa.width, ( float )fa.height, model );
+//				
+//				//tiles2.add( tile );
+//				tls[ k ] = tile;
+//
+//				//featureSets2.add( fs );
+//				fsets[ k ] = fs;
+//
+//						}
+//					}
+//				} );
+//			}
+//        	
+//			MultiThreading.startAndJoin(threads);
+
+			//#################################################################
+
 
 			for ( int k = 0; k < num_pa2; k++ )
 			{
