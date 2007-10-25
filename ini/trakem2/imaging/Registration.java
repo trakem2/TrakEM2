@@ -27,7 +27,7 @@ import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
 import mpi.fruitfly.registration.TRModel2D;
-import mpi.fruitfly.registration.Match;
+import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.ImageFilter;
 
 import ini.trakem2.Project;
@@ -349,7 +349,12 @@ public class Registration {
 	 *
 	 * Returns null if the model is not significant.
 	 */
-	static public Object[] registerSIFT(FloatProcessor ip1, FloatProcessor ip2, Vector <FloatArray2DSIFT.Feature> fs1, final Registration.SIFTParameters sp) {
+	static public Object[] registerSIFT(
+			FloatProcessor ip1,
+			FloatProcessor ip2,
+			Vector < FloatArray2DSIFT.Feature > fs1,
+			final Registration.SIFTParameters sp )
+	{
 		// ensure enough memory space (in bytes: area * 48 * 2)
 		// times 2, ... !@#$%
 		long size = 2 * (ip1.getWidth() * ip1.getHeight() * 48L + ip2.getWidth() * ip2.getHeight() * 48L);
@@ -363,110 +368,27 @@ public class Registration {
 		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp);
 		ip1 = null;
 		Loader.runGC(); // cleanup
-		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures(ip2, sp);
+		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures( ip2, sp );
 		// free all those temporary arrays
 		ip2 = null;
 		Loader.runGC();
-		// compare
-		final Vector<Match> correspondences = FloatArray2DSIFT.createMatches(fs1, fs2, 1.5f, null, Float.MAX_VALUE);
-		/** From Stephan Saalfeld:
-		 * We want to assure, that the model does not fit to a local spatial
-		 * subset of all matches only, because this signalizes a good local
-		 * alignment but bad global results.
-		 *
-		 * Therefore, we compare the Eigenvalues of the covariance matrix of
-		 * all points to those of the inliers matching the model.  That is, we
-		 * compare the variance of those point sets.  A low variance of the
-		 * inliers compared to those of all matches signifies a very local
-		 * subset.
-		 */
+		// compare in the order that image2 should be moved relative to imag1
+		final Vector< PointMatch > candidates = FloatArray2DSIFT.createMatches( fs2, fs1, 1.5f, null, Float.MAX_VALUE );
+		
+		final Vector< PointMatch > inliers = new Vector< PointMatch >();
 
-		double[] ev1 = new double[2];
-		double[] ev2 = new double[2];
-		double[] cov1 = new double[3];
-		double[] cov2 = new double[3];
-		double[] o1 = new double[2];
-		double[] o2 = new double[2];
-		double[] evec1 = new double[4];
-		double[] evec2 = new double[4];
-		Match.covariance(correspondences, cov1, cov2, o1, o2, ev1, ev2, evec1, evec2);
-		// above: the mighty C++ programmer! What a piece of risky code!
-		// TODO replace this as well as the iteration with increasing epsilon by a reliable robust maximal inlier set estimation to be found
-
-		TRModel2D model = null;
-		float epsilon = 0.0f;
-		if (correspondences.size() > TRModel2D.MIN_SET_SIZE) {
-			ev1[0] = Math.sqrt(ev1[0]);
-			ev1[1] = Math.sqrt(ev1[1]);
-			ev2[0] = Math.sqrt(ev2[0]);
-			ev2[1] = Math.sqrt(ev2[1]);
-
-			double r1 = Double.MAX_VALUE;
-			double r2 = Double.MAX_VALUE;
-			
-			int highest_num_inliers = 0;
-			int convergence_count = 0;
-			do {
-				epsilon += sp.min_epsilon;
-				//System.out.println("Estimating model for epsilon = " + epsilon);
-				// 1000 iterations lead to a probability of < 0.01% that only bad data values were found
-				model = TRModel2D.estimateModel(
-						correspondences,      //!< point correspondences
-						1000,                 //!< iterations
-						epsilon * sp.scale,   //!< maximal alignment error for a good point pair when fitting the model
-						sp.inlier_ratio );    //!< minimal inlier ratio required for a model to be accepted
-
-				// compare the standard deviation of inliers and matches
-				if (model != null) {
-					int num_inliers = model.getInliers().size();
-					if (num_inliers <= highest_num_inliers) {
-						++convergence_count; }
-					else {
-						convergence_count = 0;
-						highest_num_inliers = num_inliers;
-					}
-					double[] evi1 = new double[2];
-					double[] evi2 = new double[2];
-					double[] covi1 = new double[3];
-					double[] covi2 = new double[3];
-					double[] oi1 = new double[2];
-					double[] oi2 = new double[2];
-					double[] eveci1 = new double[4];
-					double[] eveci2 = new double[4];
-					Match.covariance(model.getInliers(), covi1, covi2, oi1, oi2, evi1, evi2, eveci1, eveci2);
-
-					evi1[0] = Math.sqrt(evi1[0]);
-					evi1[1] = Math.sqrt(evi1[1]);
-					evi2[0] = Math.sqrt(evi2[0]);
-					evi2[1] = Math.sqrt(evi2[1]);
-
-					double r1x = evi1[0] / ev1[0];
-					double r1y = evi1[1] / ev1[1];
-					double r2x = evi2[0] / ev2[0];
-					double r2y = evi2[1] / ev2[1];
-
-					r1x = r1x < 1.0 ? 1.0 / r1x : r1x;
-					r1y = r1y < 1.0 ? 1.0 / r1y : r1y;
-					r2x = r2x < 1.0 ? 1.0 / r2x : r2x;
-					r2y = r2y < 1.0 ? 1.0 / r2y : r2y;
-
-					r1 = (r1x + r1y) / 2.0;
-					r2 = (r2x + r2y) / 2.0;
-					r1 = Double.isNaN(r1) ? Double.MAX_VALUE : r1;
-					r2 = Double.isNaN(r2) ? Double.MAX_VALUE : r2;
-
-					//System.out.println("deviation ratio: " + r1 + ", " + r2 + ", max = " + Math.max(r1, r2));
-					//f.println(epsilon + " " + (float)model.getInliers().size() / (float)correspondences.size());
-				}
-			} while ((model == null || convergence_count < 4 || (Math.max(r1, r2) > 2.0))
-			     && epsilon < sp.max_epsilon);
-		}
-
+		TRModel2D model = TRModel2D.estimateBestModel(
+				candidates,
+				inliers,
+				sp.min_epsilon,
+				sp.max_epsilon,
+				sp.min_inlier_ratio );
+		
 		final AffineTransform at = new AffineTransform();
 
 		if (model != null) {
 			// debug
-			Utils.log2("epsilon: " + epsilon + "  inliers: " + model.getInliers().size() + "  corresp: " + correspondences.size());
+			Utils.log2( "inliers: " + inliers.size() + "  corresp: " + candidates.size());
 			// images may have different sizes
 			/**
 			 * TODO Different sizes are no problem as long as the top left
@@ -666,7 +588,7 @@ public class Registration {
 		public float min_epsilon = 2.0f;
 		public float max_epsilon = 100.0f;
 		/** Minimal percent of good landmarks found */
-		public float inlier_ratio = 0.05f;
+		public float min_inlier_ratio = 0.05f;
 
 		public SIFTParameters(Project project) {
 			this.project = project;
@@ -683,7 +605,7 @@ public class Registration {
 				   .append("\tmaximum image size: ").append(max_size).append('\n')
 				   .append("\tminimal alignment error: ").append(min_epsilon).append('\n')
 				   .append("\tmaximal alignment error: ").append(max_epsilon).append('\n')
-				   .append("\tinlier ratio: ").append(inlier_ratio)
+				   .append("\tminimal inlier ratio: ").append(min_inlier_ratio)
 				   .toString());
 		}
 
@@ -698,7 +620,7 @@ public class Registration {
 			gd.addNumericField("maximum_image_size :", max_size, 0);
 			gd.addNumericField("minimal_alignment_error :", min_epsilon, 2);
 			gd.addNumericField("maximal_alignment_error :", max_epsilon, 2);
-			gd.addNumericField("inlier_ratio :", inlier_ratio, 2);
+			gd.addNumericField("minimal_inlier_ratio :", min_inlier_ratio, 2);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 			this.scale = (float)gd.getNextNumber() / 100;
@@ -710,7 +632,7 @@ public class Registration {
 			this.max_size = (int)gd.getNextNumber();
 			this.min_epsilon = (float)gd.getNextNumber();
 			this.max_epsilon = (float)gd.getNextNumber();
-			this.inlier_ratio = (float)gd.getNextNumber();
+			this.min_inlier_ratio = (float)gd.getNextNumber();
 
 			// debug:
 			print();

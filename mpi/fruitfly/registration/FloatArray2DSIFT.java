@@ -2,6 +2,8 @@ package mpi.fruitfly.registration;
 
 import static mpi.fruitfly.math.General.flipInRange;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
+import java.util.List;
+
 
 // TODO this is for testing
 //---------------------------------------------------------------------
@@ -589,14 +591,14 @@ public class FloatArray2DSIFT
 	 * 
 	 * TODO implement the spatial constraints
 	 */
-	public static Vector< Match > createMatches(
-			Vector< Feature > fs1,
-			Vector< Feature > fs2,
+	public static Vector< PointMatch > createMatches(
+			List< Feature > fs1,
+			List< Feature > fs2,
 			float max_sd,
 			Model model,
 			float max_id )
 	{
-		Vector< Match > matches = new Vector< Match >();
+		Vector< PointMatch > matches = new Vector< PointMatch >();
 		float min_sd = 1.0f / max_sd;
 		
 		int size = fs2.size();
@@ -643,9 +645,11 @@ public class FloatArray2DSIFT
 			}
 			if ( best != null && second_best_d < Float.MAX_VALUE && best_d / second_best_d < 0.92 )
 				matches.addElement(
-						new Match(
-								new float[] { f1.location[ 0 ], f1.location[ 1 ] },
-								new float[] { best.location[ 0 ], best.location[ 1 ] } ) );
+						new PointMatch(
+								new Point(
+										new float[] { f1.location[ 0 ], f1.location[ 1 ] } ),
+								new Point(
+										new float[] { best.location[ 0 ], best.location[ 1 ] } ) ) );
 //				matches.addElement(
 //						new Match(
 //								new float[] { f1.location[ 0 ], f1.location[ 1 ] },
@@ -659,11 +663,15 @@ public class FloatArray2DSIFT
 		for ( int i = 0; i < matches.size(); )
 		{
 			boolean amb = false;
-			Match m = matches.get( i );
+			PointMatch m = matches.get( i );
+			float[] m_p1 = m.getP1().getL(); 
+			float[] m_p2 = m.getP2().getL(); 
 			for ( int j = i + 1; j < matches.size(); )
 			{
-				Match n = matches.get( j );
-				if ( m.p2[ 0 ] == n.p2[ 0 ] && m.p2[ 1 ] == n.p2[ 1 ] )
+				PointMatch n = matches.get( j );
+				float[] n_p1 = n.getP1().getL(); 
+				float[] n_p2 = n.getP2().getL(); 
+				if ( m_p2[ 0 ] == n_p2[ 0 ] && m_p2[ 1 ] == n_p2[ 1 ] )
 				{
 					amb = true;
 					//System.out.println( "removing ambiguous match at " + j );

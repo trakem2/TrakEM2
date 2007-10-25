@@ -11,8 +11,9 @@ public class PointMatch
 	final private Point p2;
 	final public Point getP2() { return p2; }
 	
-	final private float weight;
+	private float weight;
 	final public float getWeight(){ return weight; } 
+	final public void setWeight( float weight ){ this.weight = weight; }
 	
 	private float distance;
 	final public float getDistance(){ return distance; }

@@ -35,32 +35,39 @@ abstract public class Model {
 	 * error depends on what kind of algorithm is running
 	 * small error is better than large error
 	 */
-	public float error;
+	public double error;
 	
-	/**
-	 * set of point correspondences that match the model
-	 * the model transforms match.p2 to match.p1
-	 * TODO check if this is correctly used everywhere
-	 */
-	final protected Vector< Match > inliers = new Vector< Match >();
-	final public Vector< Match > getInliers() { return inliers;	}
+//	/**
+//	 * set of point correspondences that match the model
+//	 * the model transforms match.p2 to match.p1
+//	 * TODO check if this is correctly used everywhere
+//	 */
+//	final protected Vector< PointMatch > matches = new Vector< PointMatch >();
+//	final public Vector< PointMatch > getMatches() { return matches; }
+//	final public void addMatches( Collection< PointMatch > new_matches ) { matches.addAll( new_matches ); }
+//	final public void setMatches( Collection< PointMatch > new_matches )
+//	{
+//		matches.clear();
+//		matches.addAll( new_matches );
+//	}
+
 
 	/**
 	 * instantiates an empty model with maximally large error
 	 */
 	public Model()
 	{
-		error = Float.MAX_VALUE;
+		error = Double.MAX_VALUE;
 	}
 
 	/**
 	 * fit the model to a minimal set of point correpondences
-	 * estimates a model to transform match.p2 to match.p1
+	 * estimates a model to transform match.p2.local to match.p1.world
 	 * 
-	 * @param matches minimal set of point correpondences
+	 * @param min_matches minimal set of point correpondences
 	 * @return true if a model was estimated
 	 */
-	public abstract boolean fit( Match[] matches );
+	public abstract boolean fit( PointMatch[] min_matches );
 
 	/**
 	 * apply the model to a point location
@@ -78,43 +85,35 @@ abstract public class Model {
 	public abstract void applyInPlace( float[] point );
 	
 	/**
-	 * test the model for a set of point correspondences
+	 * test the model for a set of point correspondence candidates
 	 * 
-	 * sets this.inliers with the fitting subset of matches
+	 * clears inliers and fills it with the fitting subset of candidates
 	 * 
-	 * @param matches set of point correspondences
+	 * @param candidates set of point correspondence candidates
+	 * @param candidates set of point correspondences that fit the model
 	 * @param epsilon maximal allowed transfer error
 	 * @param min_inliers minimal ratio of inliers (0.0 => 0%, 1.0 => 100%)
 	 */
 	public boolean test(
-			Collection< Match > matches,
-			float epsilon,
-			float min_inlier_ratio )
+			Collection< PointMatch > candidates,
+			Collection< PointMatch > inliers,
+			double epsilon,
+			double min_inlier_ratio )
 	{
 		inliers.clear();
 		
-		for ( Match m : matches )
+		for ( PointMatch m : candidates )
 		{
-			float[] p2t = apply( m.p2 );
-
-			// estimate Euclidean distance
-			float te = 0;
-			for ( int j = 0; j < m.p1.length; ++ j )
-			{
-				float d = p2t[ j ] - m.p1[ j ];
-				te += d * d;
-			}
-			te = ( float )Math.sqrt( te );
-			
-			if ( te < epsilon ) inliers.addElement( m );
+			m.apply( this );
+			if ( m.getDistance() < epsilon ) inliers.add( m );
 		}
 		
-		float ir = ( float )( inliers.size() ) / ( float )( matches.size() );
-		error = 1.0f - ir;
-		if (error > 1.0f)
-			error = 1.0f;
-		if (error < 0f)
-			error = 0.0f;
+		float ir = ( float )inliers.size() / ( float )candidates.size();
+		error = 1.0 - ir;
+		if (error > 1.0)
+			error = 1.0;
+		if (error < 0)
+			error = 0.0;
 		
 		return ( ir > min_inlier_ratio );
 	}
@@ -131,9 +130,22 @@ abstract public class Model {
 		return error < m.error;
 	}
 	
-	abstract public void shake( Collection< Match > matches, float scale, float[] center );
+	/**
+	 * randomly change the model a bit
+	 * 
+	 * estimates the necessary amount of shaking for each single dimensional
+	 * distance in the set of matches
+	 *
+	 * @param matches point matches
+	 * @param scale gives a multiplicative factor to each dimensional distance (scales the amount of shaking)
+	 * @param center local pivot point for centered shakes (e.g. rotation)
+	 */
+	abstract public void shake(
+			Collection< PointMatch > matches,
+			float scale,
+			float[] center );
 	
-	abstract public void minimize();
+	abstract public void minimize( Collection< PointMatch > matches );
 	
 	abstract public AffineTransform getAffine();
 

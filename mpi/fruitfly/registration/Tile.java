@@ -23,6 +23,12 @@ public class Tile
 	final public ArrayList< PointMatch > getMatches() { return matches; }
 	final public int getNumMatches() { return matches.size(); }
 	
+	final private ArrayList< Tile > connectedTiles = new ArrayList< Tile >();
+	final public ArrayList< Tile > getConnectedTiles() { return connectedTiles; }
+	final public int getNumConnectedTiles() { return connectedTiles.size(); }
+	final public boolean addConnectedTile( Tile t ) { return connectedTiles.add( t ); }
+	final public boolean removeConnectedTile( Tile t ) { return connectedTiles.remove( t ); }
+	
 	final private static Random rnd = new Random( 69997 );
 	
 	private float error;
@@ -37,8 +43,6 @@ public class Tile
 	 * @param width width of the tile in world unit dimension (e.g. pixels)
 	 * @param height height of the tile in world unit dimension (e.g. pixels)
 	 * @param model the transformation model of the tile
-	 * 
-	 * TODO Needs revision to make it work with arbitrary models instead of TRModel2D only.
 	 */
 	public Tile(
 			float width,
@@ -94,7 +98,7 @@ public class Tile
 				e += dl * dl * match.getWeight();
 				sum_weight += match.getWeight();
 			}
-			d /= sum_weight;
+			d /= num_matches;
 			e /= sum_weight;
 		}
 		distance = ( float )d;
@@ -113,12 +117,11 @@ public class Tile
 	{
 		// store old model
 		Model old_model = model;
-		ArrayList< Match > ms = PointMatch.toMatches( matches );
 		
 		for ( int t = 0; t < max_num_tries; ++t )
 		{
 			model = model.clone();
-			model.shake( ms, scale, lc );
+			model.shake( matches, scale, lc );
 			update();
 			if ( model.betterThan( old_model ) )
 			{
@@ -131,10 +134,82 @@ public class Tile
 		return false;
 	}
 	
+	/**
+	 * minimize the model
+	 *
+	 */
 	final public void minimizeModel()
 	{
-		model.inliers.clear();
-		model.inliers.addAll( PointMatch.toLocalMatches( matches ) );
-		model.minimize();
+		model.minimize( matches );
+		update();
+	}
+	
+	/**
+	 * traces the connectivity graph recursively starting from the current tile
+	 * 
+	 * @param graph
+	 * @return the number of connected tiles in the graph
+	 */
+	final public int traceConnectedGraph( ArrayList< Tile > graph )
+	{
+		graph.add( this );
+		for ( Tile t : connectedTiles )
+		{
+			if ( !graph.contains( t ) )
+				t.traceConnectedGraph( graph );
+		}
+		return graph.size();
+	}
+	
+	/**
+	 * connect two tiles by a set of point correspondences
+	 * 
+	 * re-weighs the point correpondences
+	 * 
+	 * We set a weigh of 1.0 / num_matches to each correspondence to equalize
+	 * the connections between tiles during minimization.
+	 * TODO Check if this is a good idea...
+	 * TODO What about the size of a detection, shouldn't it be used as a
+	 * weight factor as	well?
+	 * 
+	 * @param other_tile
+	 * @param matches
+	 */
+	final public void connect(
+			Tile other_tile,
+			Collection< PointMatch > matches )
+	{
+		float num_matches = ( float )matches.size();
+		for ( PointMatch m : matches )
+			m.setWeight( 1.0f / num_matches );
+		
+		this.addMatches( matches );
+		other_tile.addMatches( PointMatch.flip( matches ) );
+		
+		this.addConnectedTile( other_tile );
+		other_tile.addConnectedTile( this );
+	}
+	
+	/**
+	 * identify the set of connected graphs that contains all given tiles
+	 * 
+	 * @param tiles
+	 * @return
+	 */
+	final static public ArrayList< ArrayList< Tile > > identifyConnectedGraphs(
+			Collection< Tile > tiles )
+	{
+		ArrayList< ArrayList< Tile > > graphs = new ArrayList< ArrayList< Tile > >();
+		int num_inspected_tiles = 0;
+A:		for ( Tile tile : tiles )
+		{
+			for ( ArrayList< Tile > known_graph : graphs )
+				if ( known_graph.contains( tile ) ) continue A; 
+			ArrayList< Tile > current_graph = new ArrayList< Tile >();
+			num_inspected_tiles += tile.traceConnectedGraph( current_graph );
+			graphs.add( current_graph );
+			if ( num_inspected_tiles == tiles.size() ) break;
+		}
+		return graphs;
 	}
 }

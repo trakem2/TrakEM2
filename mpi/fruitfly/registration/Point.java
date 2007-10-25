@@ -30,7 +30,8 @@ public class Point
 	public Point( float[] l )
 	{
 		this.l = l;
-		this.w = new float[ l.length ];
+//		new float[ l.length ];
+		w = l.clone();		
 	}
 	
 	/**

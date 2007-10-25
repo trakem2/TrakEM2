@@ -5,7 +5,7 @@ import mpi.fruitfly.math.datastructures.*;
 import mpi.fruitfly.registration.FloatArray2DScaleOctave;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
 import mpi.fruitfly.registration.TRModel2D;
-import mpi.fruitfly.registration.Match;
+import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.ImageFilter;
 
 import imagescience.transform.*;
@@ -57,7 +57,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 	private static float min_epsilon = 2.0f;
 	// maximal allowed alignment error in px
 	private static float max_epsilon = 100.0f;
-	private static float inlier_ratio = 0.05f;
+	private static float min_inlier_ratio = 0.05f;
 	
 	/**
 	 * Set true to double the size of the image by linear interpolation to
@@ -88,9 +88,6 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 	 */
 	static void drawEllipse( ImageProcessor ip, double[] evec, double[] o, double[] e, double scale )
 	{
-		//System.out.println( "eigenvector: ( " + evec[ 0 ] + ", " + evec[ 1 ] + ")" );
-		//System.out.println( "			 ( " + evec[ 2 ] + ", " + evec[ 3 ] + ")" );
-		//System.out.println( "eigenvalues: ( " + e[ 0 ] + ", " + e[ 1 ] + ")" );
 		int num_keys = 36;
 		int[] x_keys = new int[ num_keys + 1 ];
 		int[] y_keys = new int[ num_keys + 1 ];
@@ -101,7 +98,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			double y = Math.cos( r ) * Math.sqrt( Math.abs( e[ 1 ] ) );
 			x_keys[ i ] = ( int )( scale * ( x * evec[ 0 ] + y * evec[ 2 ] + o[ 0 ] ) );
 			y_keys[ i ] = ( int )( scale * ( x * evec[ 1 ] + y * evec[ 3 ] + o[ 1 ] ) );
-			//System.out.println( "keypoint: ( " + x_keys[ i ] + ", " + y_keys[ i ] + ")" );
+//			System.out.println( "keypoint: ( " + x_keys[ i ] + ", " + y_keys[ i ] + ")" );
 		}
 		x_keys[ num_keys ] = x_keys[ 0 ];
 		y_keys[ num_keys ] = y_keys[ 0 ];
@@ -118,13 +115,10 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		float sigma = ( float )Math.sqrt( 0.25 / s / s - 0.25 );
 		float[] kernel = ImageFilter.createGaussianKernel1D( sigma, true );
 		
-		long start_time = System.currentTimeMillis();
-		System.out.print( "Scaling image by " + s + " => gaussian blur with sigma " + sigma + " ..." );
 		g = ImageFilter.convolveSeparable( g, kernel, kernel );
-		System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 
 		ImageArrayConverter.FloatArrayToFloatProcessor( ip, g );
-		//ip.setInterpolate( false );
+//		ip.setInterpolate( false );
 		return ip.resize( ( int )( s * ip.getWidth() ) );
 	}
 	
@@ -176,7 +170,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		gd.addNumericField( "maximum_image_size :", max_size, 0 );
 		gd.addNumericField( "minimal_alignment_error :", min_epsilon, 2 );
 		gd.addNumericField( "maximal_alignment_error :", max_epsilon, 2 );
-		gd.addNumericField( "inlier_ratio :", inlier_ratio, 2 );
+		gd.addNumericField( "inlier_ratio :", min_inlier_ratio, 2 );
 		gd.addNumericField( "background_color :", bg, 2 );
 		gd.addChoice( "interpolation_scheme :", schemes, schemes[ scheme ] );
 		gd.addCheckbox( "upscale_image_first", upscale );
@@ -192,7 +186,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		max_size = ( int )gd.getNextNumber();
 		min_epsilon = ( float )gd.getNextNumber();
 		max_epsilon = ( float )gd.getNextNumber();
-		inlier_ratio = ( float )gd.getNextNumber();
+		min_inlier_ratio = ( float )gd.getNextNumber();
 		bg = ( double )gd.getNextNumber();
 		scheme = gd.getNextChoiceIndex();
 		upscale = gd.getNextBoolean();
@@ -229,7 +223,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		ImageStack stackAligned = new ImageStack( stack.getWidth(), stack.getHeight() );
 		
 		float vis_scale = 256.0f / imp.getWidth();
-		//float vis_scale = 1024.0f / imp.getWidth();
+//		float vis_scale = 1024.0f / imp.getWidth();
 		ImageStack stackInfo = null;
 		ImagePlus impInfo = null;
 		
@@ -277,38 +271,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		
 		System.out.println( fs2.size() + " features identified and processed" );
 		
-		/*
-		try
-		{
-			PrintStream f = new PrintStream( new FileOutputStream( "size.dat", true ) );
-			float[] h = sift.featureSizeHistogram( fs2, 0.0f, 127.0f, 197 );
-			for ( float b : h )
-			{
-				f.println( b );
-			}
-			f.close();
-		}
-		catch ( FileNotFoundException e )
-		{
-			System.err.println( "File size.dat not found for writing." );
-		}
-		
-		try
-		{
-			PrintStream f = new PrintStream( new FileOutputStream( "size.all.dat", true ) );
-			for ( FloatArray2DSIFT.Feature g : fs2 )
-			{
-				f.println( g.scale );
-			}
-			f.close();
-		}
-		catch ( FileNotFoundException e )
-		{
-			System.err.println( "File size.all.dat not found for writing." );
-		}
-		*/
-		
-		// downscale ip2 to width=256px for visualisation purposes
+		// downscale ip2 for visualisation purposes
 		if ( show_info )
 			ip2 = downScale( ( FloatProcessor )ip2, vis_scale );
 		
@@ -342,37 +305,14 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			
 			start_time = System.currentTimeMillis();
 			System.out.print( "identifying correspondences using brute force ..." );
-			Vector< Match > correspondences =
-				FloatArray2DSIFT.createMatches( fs1, fs2, 1.5f, null, Float.MAX_VALUE );
+			Vector< PointMatch > candidates = 
+				FloatArray2DSIFT.createMatches( fs2, fs1, 1.5f, null, Float.MAX_VALUE );
 			System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 			
-			IJ.log( correspondences.size() + " potentially corresponding features identified" );
+			IJ.log( candidates.size() + " potentially corresponding features identified" );
 			
 			/**
-			 * We want to assure, that the model does not fit to a local spatial
-			 * subset of all matches only, because this signalizes a good local
-			 * alignment but bad global results.
-			 *
-			 * Therefore, we compare the Eigenvalues of the covariance matrix of
-			 * all points to those of the inliers matching the model.  That is, we
-			 * compare the variance of those point sets.  A low variance of the
-			 * inliers compared to those of all matches signifies a very local
-			 * subset.
-			 */
-
-			double[] ev1 = new double[ 2 ];
-			double[] ev2 = new double[ 2 ];
-			double[] cov1 = new double[ 3 ];
-			double[] cov2 = new double[ 3 ];
-			double[] o1 = new double[ 2 ];
-			double[] o2 = new double[ 2 ];
-			double[] evec1 = new double[ 4 ];
-			double[] evec2 = new double[ 4 ];
-			Match.covariance( correspondences, cov1, cov2, o1, o2, ev1, ev2, evec1, evec2 );
-			
-			/**
-			 * draw standard-deviation ellipse of all identified correspondences and
-			 * all the correspondences
+			 * draw all correspondence candidates
 			 */
 			if ( show_info )
 			{
@@ -380,172 +320,48 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 			
 				ip1 = ip1.convertToRGB();
 				ip3 = ip2.convertToRGB();
-				ip1.setLineWidth( 1 );
-				ip3.setLineWidth( 1 );
 				ip1.setColor( Color.red );
 				ip3.setColor( Color.red );
-				drawEllipse( ip1, evec1, o1, ev1, vis_scale / scale );
-				drawEllipse( ip3, evec2, o2, ev2, vis_scale / scale );
 
 				ip1.setLineWidth( 2 );
 				ip3.setLineWidth( 2 );
-				for ( Match m : correspondences )
+				for ( PointMatch m : candidates )
 				{
-//					ip1.setLineWidth( 2 );
-//					ip3.setLineWidth( 2 );
-//					drawSquare(
-//							ip1,
-//							new double[]{
-//									vis_scale / scale * m.p1[ 0 ],
-//									vis_scale / scale * m.p1[ 1 ] },
-//									vis_scale * fdsize * m.w1 / scale,
-//									m.o1 );
-//					drawSquare(
-//							ip3,
-//							new double[]{
-//									vis_scale / scale * m.p2[ 0 ],
-//									vis_scale / scale * m.p2[ 1 ] },
-//									vis_scale * fdsize * m.w2 / scale,
-//									m.o2 );
+					float[] m_p1 = m.getP1().getL(); 
+					float[] m_p2 = m.getP2().getL(); 
 					
-					ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
-					ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
+					ip1.drawDot( ( int )Math.round( vis_scale / scale * m_p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m_p2[ 1 ] ) );
+					ip3.drawDot( ( int )Math.round( vis_scale / scale * m_p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m_p1[ 1 ] ) );
 				}
 			}
 
-			TRModel2D model = null;
+			Vector< PointMatch > inliers = new Vector< PointMatch >();
+			
+			TRModel2D model = TRModel2D.estimateBestModel(
+					candidates,
+					inliers,
+					min_epsilon,
+					max_epsilon,
+					min_inlier_ratio );
 			float epsilon = 0.0f;
-			if ( correspondences.size() > TRModel2D.MIN_SET_SIZE )
-			{
-				ev1[ 0 ] = Math.sqrt( ev1[ 0 ] );
-				ev1[ 1 ] = Math.sqrt( ev1[ 1 ] );
-				ev2[ 0 ] = Math.sqrt( ev2[ 0 ] );
-				ev2[ 1 ] = Math.sqrt( ev2[ 1 ] );
-
-				double r1 = Double.MAX_VALUE;
-				double r2 = Double.MAX_VALUE;
-				
-				// TODO empirical evaluation of the convergance of inliers and epsilon
-//				PrintStream f = System.out;
-//				try
-//				{
-//					f = new PrintStream( new FileOutputStream( "inliers.dat", false ) );
-//				}
-//				catch ( FileNotFoundException e )
-//				{
-//					System.err.println( "File inliers.dat not found for writing." );
-//				}
-				
-				int highest_num_inliers = 0;
-				int convergence_count = 0;
-				do
-				{
-					epsilon += min_epsilon;
-					//System.out.println( "Estimating model for epsilon = " + epsilon );
-					// 1000 iterations lead to a probability of < 0.01% that only bad data values were found
-					model = TRModel2D.estimateModel(
-							correspondences,			//!< point correspondences
-							1000,						//!< iterations
-							epsilon * scale,			//!< maximal alignment error for a good point pair when fitting the model
-							inlier_ratio );				//!< minimal partition (of 1.0) of inliers
-//							0 );
-							
-					// compare the standard deviation of inliers and matches
-					if ( model != null )
-					{
-						int num_inliers = model.getInliers().size();
-						if ( num_inliers <= highest_num_inliers )
-						{
-							++convergence_count;
-						}
-						else
-						{
-							convergence_count = 0;
-							highest_num_inliers = num_inliers;
-						}
-						
-						double[] evi1 = new double[ 2 ];
-						double[] evi2 = new double[ 2 ];
-						double[] covi1 = new double[ 3 ];
-						double[] covi2 = new double[ 3 ];
-						double[] oi1 = new double[ 2 ];
-						double[] oi2 = new double[ 2 ];
-						double[] eveci1 = new double[ 4 ];
-						double[] eveci2 = new double[ 4 ];
-						Match.covariance( model.getInliers(), covi1, covi2, oi1, oi2, evi1, evi2, eveci1, eveci2 );
-
-						evi1[ 0 ] = Math.sqrt( evi1[ 0 ] );
-						evi1[ 1 ] = Math.sqrt( evi1[ 1 ] );
-						evi2[ 0 ] = Math.sqrt( evi2[ 0 ] );
-						evi2[ 1 ] = Math.sqrt( evi2[ 1 ] );
-
-						double r1x = evi1[ 0 ] / ev1[ 0 ];
-						double r1y = evi1[ 1 ] / ev1[ 1 ];
-						double r2x = evi2[ 0 ] / ev2[ 0 ];
-						double r2y = evi2[ 1 ] / ev2[ 1 ];
-
-						r1x = r1x < 1.0 ? 1.0 / r1x : r1x;
-						r1y = r1y < 1.0 ? 1.0 / r1y : r1y;
-						r2x = r2x < 1.0 ? 1.0 / r2x : r2x;
-						r2y = r2y < 1.0 ? 1.0 / r2y : r2y;
-
-						r1 = ( r1x + r1y ) / 2.0;
-						r2 = ( r2x + r2y ) / 2.0;
-						r1 = Double.isNaN( r1 ) ? Double.MAX_VALUE : r1;
-						r2 = Double.isNaN( r2 ) ? Double.MAX_VALUE : r2;
-
-						//System.out.println( "deviation ratio: " + r1 + ", " + r2 + ", max = " + Math.max( r1, r2 ) );
-//						f.println( epsilon + " " + ( float )model.getInliers().size() / ( float )correspondences.size() );
-					}
-				}
-				while (
-						( model == null || convergence_count < 4 ||	( Math.max( r1, r2 ) > 2.0 ) ) &&
-						epsilon < max_epsilon );
-//				while ( model == null || epsilon < max_epsilon );				
-//				f.close();
-			}
-
+			
 			if ( model != null )
 			{
-				
-				Match.covariance( model.getInliers(), cov1, cov2, o1, o2, ev1, ev2, evec1, evec2 );
-
 				if ( show_info )
 				{
-					ip1.setLineWidth( 1 );
-					ip3.setLineWidth( 1 );
 					ip1.setColor( Color.green );
 					ip3.setColor( Color.green );
-					drawEllipse( ip1, evec1, o1, ev1, vis_scale / scale );
-					drawEllipse( ip3, evec2, o2, ev2, vis_scale / scale );
 					ip1.setLineWidth( 2 );
 					ip3.setLineWidth( 2 );
-					for ( Match m : model.getInliers() )
+					for ( PointMatch m : inliers )
 					{
-//						ip1.setLineWidth( 2 );
-//						ip3.setLineWidth( 2 );
-//						drawSquare(
-//								ip1,
-//								new double[]{
-//										vis_scale / scale * m.p1[ 0 ],
-//										vis_scale / scale * m.p1[ 1 ] },
-//										vis_scale * fdsize * m.w1 / scale,
-//										m.o1 );
-//						drawSquare(
-//								ip3,
-//								new double[]{
-//										vis_scale / scale * m.p2[ 0 ],
-//										vis_scale / scale * m.p2[ 1 ] },
-//										vis_scale * fdsize * m.w2 / scale,
-//										m.o2 );
+						float[] m_p1 = m.getP1().getL(); 
+						float[] m_p2 = m.getP2().getL(); 
 						
-						ip1.drawDot( ( int )Math.round( vis_scale / scale * m.p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p1[ 1 ] ) );
-						ip3.drawDot( ( int )Math.round( vis_scale / scale * m.p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m.p2[ 1 ] ) );
+						ip1.drawDot( ( int )Math.round( vis_scale / scale * m_p2[ 0 ] ), ( int )Math.round( vis_scale / scale * m_p2[ 1 ] ) );
+						ip3.drawDot( ( int )Math.round( vis_scale / scale * m_p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m_p1[ 1 ] ) );
 					}
 				}
-
-				IJ.log( "Model with epsilon <= " + epsilon + " for " + model.getInliers().size() + " inliers found." );
-				IJ.log( "  Affine transform: " + model.getAffine().toString() );
 
 				/**
 				 * append the estimated transformation model
@@ -574,13 +390,8 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 				at.translate(
 						hw,
 						hh );
-				
-				
 			}
-			else
-			{
-				IJ.log( "No sufficient model found, keeping original transformation." );
-			}
+			
 			double[] m = new double[ 6 ];
 			at.getMatrix( m );
 
