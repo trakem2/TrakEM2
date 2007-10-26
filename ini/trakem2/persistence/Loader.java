@@ -801,8 +801,10 @@ abstract public class Loader {
 	 *  As explanation:<br />
 	 *  mag = 1 / Math.pow(2, level) <br />
 	 *  so that 100% is 0, 50% is 1, 25% is 2, and so on.
+	 *
+	 *  Be warned: if mag is larger than 1, it will enter an infinite loop.
 	 * */
-	static public final int getMipMapLevel(final double mag) {
+	static protected final int getMipMapLevel(final double mag) {
 		// check parameters
 		if (mag <= 0 || Double.isNaN(mag)) return -1; //error signal
 		//
@@ -810,11 +812,18 @@ abstract public class Loader {
 		double scale;
 		while (true) {
 			scale = 1 / Math.pow(2, level);
-			if (mag < scale) break;
+			Utils.log2("scale, mag, level: " + scale + ", " + mag + ", " + level);
+			if (scale == mag) {
+				break;
+			} else if (scale < mag) {
+				// provide the previous one
+				level--;
+				break;
+			}
+			// else, continue search
 			level++;
 		}
-		// return the previous one to that found, since it has to be equal or larger
-		return level -1;
+		return level;
 	}
 
 	public Image fetchImage(Patch p) {
@@ -830,7 +839,9 @@ abstract public class Loader {
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 * */
 	public Image fetchImage(final Patch p, double mag) {
-		//final int level = Loader.getMipMapLevel(mag);
+		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
+		final int level = Loader.getMipMapLevel(mag);
+		Utils.log2("level is: " + level);
 
 		synchronized (db_lock) {
 			lock();
@@ -850,7 +861,6 @@ abstract public class Loader {
 				}
 				// see if the Displayable AWT image is cached and big enough:
 				Image awt = awts.get(id);
-				if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 				if (null != awt) {
 					if (mag - (awt.getWidth(null) / (double)p.getWidth()) < 0.001) {
 						unlock();
