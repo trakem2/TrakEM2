@@ -44,7 +44,6 @@ import ij.io.Opener;
 import ij.io.OpenDialog;
 import ij.io.TiffEncoder;
 import ij.plugin.filter.PlugInFilter;
-import ij.plugin.JpegWriter;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
@@ -81,7 +80,6 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Checkbox;
 import java.awt.Cursor;
-import java.awt.image.ColorModel;
 //import java.awt.FileDialog;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -160,6 +158,8 @@ abstract public class Loader {
 	protected FIFOImagePlusMap imps = new FIFOImagePlusMap(50);
 	protected FIFOImageMap snaps = new FIFOImageMap(50);
 
+	protected FIFOImageMipMaps mawts = new FIFOImageMipMaps(50);
+
 	static protected Vector v_loaders = null; // Vector: synchronized
 
 	protected Loader() {
@@ -192,6 +192,7 @@ abstract public class Loader {
 		*/
 	}
 
+	/** When the loader has completed its initialization, it should return true on this method. */
 	abstract public boolean isReady();
 
 	/** To be called within a synchronized(db_lock) */
@@ -800,20 +801,19 @@ abstract public class Loader {
 	 *  Returns -1 if the magnification is NaN or negative or zero.<br />
 	 *  As explanation:<br />
 	 *  mag = 1 / Math.pow(2, level) <br />
-	 *  so that 100% is 0, 50% is 1, 25% is 2, and so on.
-	 *
-	 *  Be warned: if mag is larger than 1, it will enter an infinite loop.
-	 * */
-	static protected final int getMipMapLevel(final double mag) {
+	 *  so that 100% is 0, 50% is 1, 25% is 2, and so on, but represented in values between 0 and 1.
+	 */
+	static protected final int getMipMapLevel(double mag) {
 		// check parameters
+		if (mag > 1) mag = 1;
 		if (mag <= 0 || Double.isNaN(mag)) return -1; //error signal
 		//
 		int level = 0;
 		double scale;
 		while (true) {
 			scale = 1 / Math.pow(2, level);
-			Utils.log2("scale, mag, level: " + scale + ", " + mag + ", " + level);
-			if (scale == mag) {
+			//Utils.log2("scale, mag, level: " + scale + ", " + mag + ", " + level);
+			if (Math.abs(scale - mag) < 0.00000001) { //if (scale == mag) { // floating-point typical behaviour
 				break;
 			} else if (scale < mag) {
 				// provide the previous one
@@ -841,8 +841,62 @@ abstract public class Loader {
 	public Image fetchImage(final Patch p, double mag) {
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag);
-		Utils.log2("level is: " + level);
 
+		// find an equal or larger existing pyramid awt
+		synchronized (db_lock) {
+			lock();
+			Image mawt = null;
+			try {
+				if (null == awts) {
+					unlock();
+					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
+				}
+				final long id = p.getId();
+				// 1 - check if any suitable level is cached
+				mawt = mawts.getClosest(id, level);
+				if (null != mawt) {
+					unlock();
+					Utils.log2("returning from getClosest with level " + level);
+					return mawt;
+				}
+				// 2 - else, load the appropiate level if found, or the one closest to it but still giving a larger image
+				unlock();
+				Object[] ob = getClosestMipMapAWT(p, level);
+				lock();
+				if (null != ob) {
+					mawt = (Image)ob[0];
+					int lev = ((Integer)ob[1]).intValue();
+					mawts.put(id, mawt, lev);
+					unlock();
+					Display.repaintSnapshot(p);
+					Utils.log2("returning from getClosestMipMapAWT with level " + lev);
+					return mawt;
+				}
+				// 3- else, fetch the ImagePlus and make an image from it
+				ImagePlus imp = imps.get(id);
+				if (null == imp) {
+					imp = fetchImagePlus(p, false); // should not make any awts or snaps
+				}
+				Utils.log2("layer is " + p.getLayer());
+				Utils.log2("ls is " + p.getLayer().getParent());
+				Utils.log2("qual is " + p.getLayer().getParent().snapshotsQuality());
+				mawt = Loader.createImage(imp.getProcessor(), mag, p.getLayer().getParent().snapshotsQuality());
+				mawts.put(id, mawt, level);
+				Display.repaintSnapshot(p);
+				unlock();
+				Utils.log2("Returning from imp with level " + level);
+				return mawt;
+
+			} catch (Exception e) {
+				new IJError(e);
+				unlock();
+				return NOT_FOUND;
+			}
+		}
+
+		/*
+
+		// old:
 		synchronized (db_lock) {
 			lock();
 			try {
@@ -938,9 +992,10 @@ abstract public class Loader {
 				return NOT_FOUND;
 			}
 		}
+		*/
 	}
 
-	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary.This is intended for the LayerStack. */
+	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
 	public ImagePlus fetchImagePlus(long id) {
 		synchronized(db_lock) {
 			ImagePlus imp = null;
@@ -2953,12 +3008,6 @@ abstract public class Loader {
 		imp.changes = false;
 	}
 
-	/** Specific options for the Loader which existed as attributes to the Project XML node. */
-	public void parseXMLOptions(final Hashtable ht_attributes) {
-		Object ob = ht_attributes.get("preprocessor");
-		if (ob != null) setPreprocessor((String)ob);
-	}
-
 	///////////////////////
 
 
@@ -3070,92 +3119,31 @@ abstract public class Loader {
 		return false;
 	}
 
-	/** Path to the directory hosting the file image pyramids. */
-	private String dir_mipmaps = null;
+	/** Does nothing unless overriden. */
+	public void flushMipMaps(boolean forget_dir_mipmaps) {}
 
-	/** Given an image and its source file name (without directory prepended), generate
-	 * a pyramid of images until reaching an image not smaller than 64x64 pixels.
-	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps
-	 */
-	public boolean generateMipMaps(final ImagePlus imp, final String filename) {
-		if (null == dir_mipmaps) createMipMapsDir(null);
-		if (null == dir_mipmaps) return false;
-		JpegWriter.setQuality(85);
-		// ok, now proceed using this.dir_mipmaps
-		int w = imp.getWidth();
-		int h = imp.getHeight();
-		// sigma = sqrt(1^2 - 0.5^2)
-		//    where 0.5 is the estimated sigma for a full-scale image
-		//  which means sigma = 0.75 for the full-scale image
-		// prepare a 0.75 sigma image from the original
-		final ColorModel cm = imp.getProcessor().getDefaultColorModel();
-		FloatProcessor fp = (FloatProcessor)imp.getProcessor().convertToFloat();
-		int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
-		           //   but since we scale 50% relative the previous, it's always 0.75
-		while (w > 64 && h > 64) {
-			// 1 - blur the previous image to 0.75 sigma
-			fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
-			// 2 - prepare values for the next scaled image
-			w /= 2;
-			h /= 2;
-			k++;
-			// 3 - generate scaled image
-			fp = (FloatProcessor)fp.resize(w, h);
-			// 4 - check that the target folder for the desired scale exists
-			String target_dir = getScaleDir(dir_mipmaps, k);
-			if (null == target_dir) return false;
-			// 5 - save as 8-bit jpeg
-			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(false))).saveAsJpeg(dir_mipmaps + k + "/" + filename);
-		}
-		return true;
-	}
+	/** Does nothing and returns null unless overriden. */
+	public Bureaucrat generateMipMaps(final LayerSet ls) { return null; }
 
-	static private final String getScaleDir(final String dir_mipmaps, final int k) {
-		final String path = dir_mipmaps + k;
-		File file = new File(path);
-		if (file.exists() && file.isDirectory()) return path;
-		// else, create it
-		try {
-			file.mkdir();
-			return path;
-		} catch (Exception e) {
-			new IJError(e);
-		}
-		return null;
-	}
+	/** Does nothing and returns false unless overriden. */
+	public boolean isMipMapsEnabled() { return false; }
 
-	/** If parent path is null, it's asked for.*/
-	public boolean createMipMapsDir(String parent_path) {
-		if (null == parent_path) {
-			// ask for a new folder
-			DirectoryChooser dc = new DirectoryChooser("Select MipMaps parent directory");
-			parent_path = dc.getDirectory();
-			if (null == parent_path) return false;
-			if (!parent_path.endsWith("/")) parent_path += "/";
+	/** Does nothing and returns null unless overriden. */
+	public Object[] getClosestMipMapAWT(final Patch patch, final int level) { return null; }
+
+	static public Image createImage(ImageProcessor ip, double mag, final boolean quality) {
+		if (mag > 1) mag = 1;
+		if (1 == mag) return ip.createImage();
+		// else, make a properly scaled image:
+		//  - gaussian blurred for best quality when resizing with nearest neighbor
+		//  - direct nearest neighbor otherwise
+		final int w = ip.getWidth();
+		final int h = ip.getHeight();
+		if (quality) {
+			// apply proper gaussian filter
+			double sigma = Math.sqrt(Math.pow(2, getMipMapLevel(mag)) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
+			ip = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel());
 		}
-		// examine parent path
-		File file = new File(parent_path);
-		if (file.exists()) {
-			if (file.isDirectory()) {
-				// all OK
-				this.dir_mipmaps = parent_path + "trakem2.mipmaps/";
-				try {
-					File f = new File(this.dir_mipmaps);
-					if (!f.exists()) {
-						f.mkdir();
-					}
-				} catch (Exception e) {
-					new IJError(e);
-					return false;
-				}
-			} else {
-				Utils.showMessage("Selected parent path is not a directory. Please choose another one.");
-				return createMipMapsDir(null);
-			}
-		} else {
-			Utils.showMessage("Parent path does not exist. Please select a new one.");
-			return createMipMapsDir(null);
-		}
-		return true;
+		return ip.resize((int)(w * mag), (int)(h * mag)).createImage();
 	}
 }

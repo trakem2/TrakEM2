@@ -50,6 +50,7 @@ public class Snapshot {
 
 	/** Remake the image from the Displayable only in the case of Patch. The snapshot ignores the alphas of the channels of the Patch.*/
 	public void remake() {
+		if (true) return; // TODO this function should disappear for mipmaps
 		double w = d.getWidth();
 		double h = d.getHeight();
 		if (0 == w || 0 == h) {

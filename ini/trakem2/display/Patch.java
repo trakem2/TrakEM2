@@ -110,6 +110,11 @@ public class Patch extends Displayable {
 		}
 	}
 
+	/** Fetches the image plus from the cache. Be warned: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache. */
+	public ImagePlus getImagePlus() {
+		return this.project.getLoader().fetchImagePlus(this);
+	}
+
 	/** Boundary checks on min and max, given the image type. */
 	private void checkMinMax() {
 		if (-1 == this.type) return;
@@ -209,7 +214,7 @@ public class Patch extends Displayable {
 		//Utils.log2("ip's min, max: " + ip.getMin() + ", " + ip.getMax());
 
 		this.channels = c;
-		project.getLoader().cacheAWT(id, awt);
+		//project.getLoader().cacheAWT(id, awt);
 
 		if (min != ip.getMin() || max != ip.getMax()) {
 			min = ip.getMin();

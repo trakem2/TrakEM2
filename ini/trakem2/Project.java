@@ -756,9 +756,13 @@ public class Project extends DBObject {
 		sb_body.append(indent).append("<trakem2>\n");
 		String in = indent + "\t";
 		// 2 - the project itself
-		sb_body.append(in).append("<project").append(" id=\"").append(id).append("\" title=\"").append(title).append("\"");
+		sb_body.append(in).append("<project \n")
+		       .append(in).append("\t id=\"").append(id).append("\"\n")
+		       .append(in).append("\t title=\"").append(title).append("\"\n");
 		String preprocessor = loader.getPreprocessor();
-		if (null != preprocessor) sb_body.append(" preprocessor=\"").append(preprocessor).append("\"");
+		if (null != preprocessor) sb_body.append(in).append("\t preprocessor=\"").append(preprocessor).append("\"\n");
+		String dir_mipmaps = ((FSLoader)loader).getMipMapsFolder();
+		if (null != dir_mipmaps) sb_body.append(in).append("\t dir_mipmaps=\"").append(dir_mipmaps).append("\"\n");
 		sb_body.append(">\n");
 		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
 		if (null != root_pt.getChildren()) {
@@ -786,6 +790,7 @@ public class Project extends DBObject {
 		sb_header.append(indent).append("<!ATTLIST project id NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project title NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project preprocessor NMTOKEN #REQUIRED>\n");
+		sb_header.append(indent).append("<!ATTLIST project mipmaps_folder NMTOKEN #REQUIRED>\n");
 		root_tt.exportDTD(sb_header, hs, indent);
 		// 3 - export all project objects DTD in the Top Level LayerSet
 		Layer.exportDTD(sb_header, hs, indent);

@@ -26,7 +26,9 @@ import ij.IJ;
 import ij.ImagePlus;
 import ini.trakem2.imaging.VirtualStack; //import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
+import ij.plugin.JpegWriter;
 import ij.process.ImageProcessor;
+import ij.process.FloatProcessor;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.Project;
 import ini.trakem2.display.Ball;
@@ -62,6 +64,7 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
+import java.awt.image.ColorModel;
 import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
 import java.io.BufferedInputStream;
@@ -94,6 +97,8 @@ import org.xml.sax.Attributes;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.SAXParser;
 
+import mpi.fruitfly.math.datastructures.FloatArray2D;
+import mpi.fruitfly.registration.ImageFilter;
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
 public class FSLoader extends Loader {
@@ -786,5 +791,186 @@ public class FSLoader extends Loader {
 		//if ( TODO
 		// return the last patch
 		return previous_patch;
+	}
+
+	/** Specific options for the Loader which existed as attributes to the Project XML node. */
+	public void parseXMLOptions(final Hashtable ht_attributes) {
+		Object ob = ht_attributes.get("preprocessor");
+		if (null != ob) setPreprocessor((String)ob);
+		ob = ht_attributes.get("mipmaps_folder");
+		if (null != ob) {
+			File f = new File((String)ob);
+			if (f.exists() && f.isDirectory()) {
+				this.dir_mipmaps = (String)ob;
+				if (!this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
+			} else Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
+		}
+	}
+
+	/** Path to the directory hosting the file image pyramids. */
+	private String dir_mipmaps = null;
+
+	/** Returns the path to the directory hosting the file image pyramids. */
+	public String getMipMapsFolder() {
+		return dir_mipmaps;
+	}
+
+	/** Given an image and its source file name (without directory prepended), generate
+	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.
+	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps
+	 */
+	public boolean generateMipMaps(final ImagePlus imp, final String filename) {
+		if (null == dir_mipmaps) createMipMapsDir(null);
+		if (null == dir_mipmaps) return false;
+		JpegWriter.setQuality(85);
+		// ok, now proceed using this.dir_mipmaps
+		int w = imp.getWidth();
+		int h = imp.getHeight();
+		// sigma = sqrt(2^level - 0.5^2)
+		//    where 0.5 is the estimated sigma for a full-scale image
+		//  which means sigma = 0.75 for the full-scale image (has level 0)
+		// prepare a 0.75 sigma image from the original
+		final ColorModel cm = imp.getProcessor().getDefaultColorModel();
+		FloatProcessor fp = (FloatProcessor)imp.getProcessor().convertToFloat();
+		int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
+		           //   but since we scale 50% relative the previous, it's always 0.75
+		while (w >= 64 && h >= 64) { // not smaller than 32x32
+			// 1 - blur the previous image to 0.75 sigma
+			fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
+			// 2 - prepare values for the next scaled image
+			w /= 2;
+			h /= 2;
+			k++;
+			// 3 - generate scaled image
+			fp = (FloatProcessor)fp.resize(w, h);
+			// 4 - check that the target folder for the desired scale exists
+			String target_dir = getScaleDir(dir_mipmaps, k);
+			if (null == target_dir) return false;
+			// 5 - save as 8-bit jpeg
+			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(false))).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+		}
+		return true;
+	}
+
+	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. */
+	public Bureaucrat generateMipMaps(final LayerSet ls) {
+		final Worker worker = new Worker("Generating MipMaps") {
+			public void run() {
+
+		for (Iterator it = ls.getDisplayables(Patch.class).iterator(); it.hasNext(); ) {
+			if (this.quit) {
+				return;
+			}
+			Patch pa = (Patch)it.next();
+			File f = new File(getAbsolutePath(pa));
+			generateMipMaps(fetchImagePlus(pa), f.getName());
+		}
+
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, ls.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	static private final String getScaleDir(final String dir_mipmaps, final int k) {
+		final String path = dir_mipmaps + k;
+		File file = new File(path);
+		if (file.exists() && file.isDirectory()) return path;
+		// else, create it
+		try {
+			file.mkdir();
+			return path;
+		} catch (Exception e) {
+			new IJError(e);
+		}
+		return null;
+	}
+
+	/** If parent path is null, it's asked for.*/
+	public boolean createMipMapsDir(String parent_path) {
+		if (null == parent_path) {
+			// ask for a new folder
+			DirectoryChooser dc = new DirectoryChooser("Select MipMaps parent directory");
+			parent_path = dc.getDirectory();
+			if (null == parent_path) return false;
+			if (!parent_path.endsWith("/")) parent_path += "/";
+		}
+		// examine parent path
+		File file = new File(parent_path);
+		if (file.exists()) {
+			if (file.isDirectory()) {
+				// all OK
+				this.dir_mipmaps = parent_path + "trakem2.mipmaps/";
+				try {
+					File f = new File(this.dir_mipmaps);
+					if (!f.exists()) {
+						f.mkdir();
+					}
+				} catch (Exception e) {
+					new IJError(e);
+					return false;
+				}
+			} else {
+				Utils.showMessage("Selected parent path is not a directory. Please choose another one.");
+				return createMipMapsDir(null);
+			}
+		} else {
+			Utils.showMessage("Parent path does not exist. Please select a new one.");
+			return createMipMapsDir(null);
+		}
+		return true;
+	}
+
+	/** Remove all mipmap images from the cache, and optionally set the dir_mipmaps to null. */
+	public void flushMipMaps(boolean forget_dir_mipmaps) {
+		synchronized (db_lock) {
+			lock();
+			if (forget_dir_mipmaps) this.dir_mipmaps = null;
+			mawts.removeAllPyramids();
+			unlock();
+		}
+	}
+
+	/** Checks whether this Loader is using a directory of image pyramids for each Patch or not. */
+	public boolean isMipMapsEnabled() {
+		return null != dir_mipmaps;
+	}
+
+	/** Returns the AWT Image from the file in the dir_mipmaps that exists equal or closest (but larger) to the given level, and the integer level of such found file; returns null if dir_mipmaps is null, or no suitable file was found. */
+	public Object[] getClosestMipMapAWT(final Patch patch, int level) {
+		if (null == dir_mipmaps) return null;
+		synchronized (db_lock) {
+			lock();
+
+		try {
+			final String filename = new File(getAbsolutePath(patch)).getName();
+			File fdir = new File(dir_mipmaps + level);
+			while (true) {
+				if (fdir.exists() && fdir.isDirectory()) {
+					String[] list = fdir.list(new FilenameFilter() {
+						public boolean accept(File dir, String name) {
+							if (name.equals(filename)) return true;
+							return false;
+						}
+					});
+					if (null != list) {
+						ImagePlus imp = opener.openImage(fdir.getAbsolutePath() + "/" + list[0]);
+						return new Object[]{patch.createImage(imp), new Integer(level)}; // considers c_alphas
+					}
+				}
+				// stop at 50% images (there are no mipmaps for level 0)
+				if (1 == level) return null;
+				// try the next level
+				level--;
+				fdir = new File(dir_mipmaps + level);
+			}
+		} catch (Exception e) {
+			new IJError(e);
+		}
+
+			unlock();
+		}
+		return null;
 	}
 }

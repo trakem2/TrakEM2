@@ -1486,9 +1486,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		ArrayList al = layer.find(x_p, y_p);
 		al.addAll(layer.getParent().findZDisplayables(layer, x_p, y_p));
 		if (al.isEmpty()) {
+			Displayable act = this.active;
 			selection.clear();
 			canvas.setUpdateGraphics(true);
 			//Utils.log("choose: set active to null");
+			// fixing lack of repainting for unknown reasons, of the active one TODO this is a temporary solution
+			if (null != act) Display.repaint(layer, act, 5);
 		} else if (1 == al.size()) {
 			Displayable d = (Displayable)al.get(0);
 			if (null != c && !d.getClass().equals(c)) {
@@ -2693,6 +2696,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			gd.addSlider("layer_scroll_step: ", 1, layer.getParent().size(), this.scroll_step);
 			gd.addCheckbox("show_snapshots", layer.getParent().areSnapshotsEnabled());
 			gd.addCheckbox("prefer_snapshots_quality", layer.getParent().snapshotsQuality());
+			Loader lo = getProject().getLoader();
+			boolean using_mipmaps = lo.isMipMapsEnabled();
+			gd.addCheckbox("generate_mipmaps", using_mipmaps);
 			String preprocessor = project.getLoader().getPreprocessor();
 			gd.addStringField("image_preprocessor: ", null == preprocessor ? "" : preprocessor);
 			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
@@ -2708,6 +2714,18 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			//
 			layer.getParent().setSnapshotsEnabled(gd.getNextBoolean());
 			layer.getParent().setSnapshotsQuality(gd.getNextBoolean());
+			//
+			boolean generate_mipmaps = gd.getNextBoolean();
+			if (using_mipmaps && generate_mipmaps) {
+				// nothing changed
+			} else {
+				if (using_mipmaps) { // and !generate_mipmaps
+					lo.flushMipMaps(true);
+				} else {
+					// not using mipmaps before, and true == generate_mipmaps
+					lo.generateMipMaps(layer.getParent());
+				}
+			}
 			//
 			project.getLoader().setPreprocessor(gd.getNextString());
 			//
@@ -2873,7 +2891,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Listen to interesting updates, such as the ColorPicker and updates to Patch objects. */
 	public void imageUpdated(ImagePlus updated) {
 		// detect ColorPicker
-		if (this.equals(front) && updated instanceof ij.plugin.ColorPicker) {
+		if (this.equals(front) && this.frame.isActive() && updated instanceof ij.plugin.ColorPicker) {
 			if (null != active) {
 				active.setColor(Toolbar.getForegroundColor());
 			}

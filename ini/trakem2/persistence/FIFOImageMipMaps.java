@@ -141,6 +141,49 @@ public class FIFOImageMipMaps {
 		return im;
 	}
 
+	private final void toTheEnd(final int index) {
+		Image im = images[index];
+		int level = levels[index];
+		long id = ids[index];
+		// put the found id at the end, move the others forward.
+		next--;
+		int i = index;
+		while (i < next) {
+			ids[i] = ids[i+1];
+			images[i] = images[i+1];
+			levels[i] = levels[i+1];
+			i++;
+		}
+		next++;
+		ids[i] = id;
+		images[i] = im;
+		levels[i] = level;
+	}
+
+	/** Find the cached image of the given level or its closest but larger one, or null if none found. */
+	public Image getClosest(final long id, final int level) {
+		Image im = null;
+		int lev = -1;
+		int index = -1;
+		for (int i=start; i<next; i++) {
+			if (id == ids[i]) {
+				if (level == levels[i]) {
+					im = images[i];
+					toTheEnd(i);
+					return im;
+				} else if (levels[i] < level) {
+					if (levels[i] > lev) { // here going for the smallest image (larger level) that is still larger, and thus its level smaller, than the desired level
+						lev = levels[i];
+						index = i;
+						im = images[i];
+					}
+				}
+			}
+		}
+		if (-1 != index) toTheEnd(index);
+		return im;
+	}
+
 	/** Remove the Image if found and returns it, without flushing it. Returns null if not found. */
 	public Image remove(final long id, final int level) {
 		// find the id
@@ -161,6 +204,22 @@ public class FIFOImageMipMaps {
 			i++;
 		}
 		return im;
+	}
+
+	/** Remove all awts associated with a level different than 0 (that means all scaled down versions). */
+	public void removeAllPyramids() {
+		int end = next;
+		for (int i=start+1; i<end; i++) {
+			if (i == next) break;
+			if (0 != levels[i]) {
+				Image awt = remove(i);
+				awt.flush();
+				if (i != start) { // start may keep moving forward
+					end--;
+					i--;
+				}
+			}
+		}
 	}
 
 	/** Remove all images that share the same id (but have different levels). */
