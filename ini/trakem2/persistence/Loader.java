@@ -830,7 +830,7 @@ abstract public class Loader {
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 * */
 	public Image fetchImage(final Patch p, double mag) {
-		final int level = Loader.getMipMapLevel(mag);
+		//final int level = Loader.getMipMapLevel(mag);
 
 		synchronized (db_lock) {
 			lock();

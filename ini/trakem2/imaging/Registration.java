@@ -275,8 +275,11 @@ public class Registration {
 			Vector<FloatArray2DSIFT.Feature> fs1 = null;
 			AffineTransform at_accum = null;
 			if (null == cached) {
+				System.out.println( "cached is null in Registration.java:277" );
 				box1 = layer1.getMinimalBoundingBox(Patch.class);
+				System.out.println( "layer1.getminimalBoundingBox succeeded with " + box1 );
 				imp1 = layer1.getProject().getLoader().getFlatImage(layer1, box1, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
+				System.out.println( "layer1.getProject().getLoader().getFlatImage succeeded with " + imp1 );				
 			} else {
 				imp1 = (ImagePlus)cached[0];
 				box1 = (Rectangle)cached[1];

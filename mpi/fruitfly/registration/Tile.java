@@ -172,6 +172,10 @@ public class Tile
 	 * TODO What about the size of a detection, shouldn't it be used as a
 	 * weight factor as	well?
 	 * 
+	 * Change 2007-10-27
+	 * Do not normalize by changing the weight, correpondences are weighted by
+	 * feature scale. 
+	 * 
 	 * @param other_tile
 	 * @param matches
 	 */
@@ -179,9 +183,9 @@ public class Tile
 			Tile other_tile,
 			Collection< PointMatch > matches )
 	{
-		float num_matches = ( float )matches.size();
-		for ( PointMatch m : matches )
-			m.setWeight( 1.0f / num_matches );
+//		float num_matches = ( float )matches.size();
+//		for ( PointMatch m : matches )
+//			m.setWeight( 1.0f / num_matches );
 		
 		this.addMatches( matches );
 		other_tile.addMatches( PointMatch.flip( matches ) );
