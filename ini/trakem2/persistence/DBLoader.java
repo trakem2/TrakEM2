@@ -1967,6 +1967,7 @@ public class DBLoader extends Loader {
 	private void updateInDatabase(Patch patch, String key) throws Exception {
 
 		if (key.equals("tiff_snapshot")) {
+			/* // DEPRECATED, now using mipmaps
 			InputStream i_stream = null;
 			try {
 				ImagePlus imp = new ImagePlus("s", snaps.get(patch.getId())); // not calling fetchSnapshot because old code could end in a loop.
@@ -1985,6 +1986,7 @@ public class DBLoader extends Loader {
 			} finally {
 				if (null != i_stream) try { i_stream.close(); } catch (Exception e1) { new IJError(e1); }
 			}
+			*/
 			return;
 		}
 
@@ -2033,10 +2035,11 @@ public class DBLoader extends Loader {
 		removeFromDatabase((Displayable)patch); // problem: this is not atomic.
 
 		// finally, remove the images from the cache if any
-		Image snap = snaps.remove(patch.getId());
-		if (null != snap) snap.flush();
-		Image awt = awts.remove(patch.getId());
-		if (null != awt) awt.flush();
+		//Image snap = snaps.remove(patch.getId());
+		//if (null != snap) snap.flush();
+		//Image awt = awts.remove(patch.getId());
+		//if (null != awt) awt.flush();
+		mawts.removeAndFlush(patch.getId());
 		ImagePlus imp = imps.remove(patch.getId());
 		if (null != imp) imp.flush(); // calls System.gc()
 	}
@@ -2829,180 +2832,6 @@ public class DBLoader extends Loader {
 			return;
 		}
 		super.prepare(layer);
-	}
-
-	/** Preload Patch snapshots on a separate Thread, only if they intersect the given rectangle, in chunks of maximum n_bytes. If there is not enough memory, it will silently fail. */
-	/* // NOT NEEDED if the database has proper settings for work_mem such as 128MB in a 4GB RAM system.
-	public void preloadSnapshots(final Layer layer, final double magnification, final Rectangle srcRect, final Rectangle clipRect, final int n_bytes) {
-		new Thread() {
-			public void run() {
-				Utils.log2("started preloader for " + layer);
-				ArrayList al = layer.getDisplayables();
-				Displayable[] d = new Displayable[al.size()];
-				al.toArray(d);
-				long size = 0;
-				final ArrayList al_p = new ArrayList();
-				for (int i=0; i<d.length; i++) { // the call to snaps.getId is not synchronized!
-					if (null != snaps.get(d[i].getId()) || d[i].isOutOfRepaintingClip(magnification, srcRect, clipRect) || !(d[i] instanceof Patch)) continue;
-					Patch p = (Patch)d[i];
-					int snap_size = (int)(Snapshot.SCALE * p.getWidth() * p.getHeight() * (ImagePlus.GRAY8 == p.getType() ? 1 : 4));
-					if (size + snap_size > n_bytes) {
-						preloadSnapshots(al_p, size);
-						size = 0;
-						al_p.clear();
-					} else {
-						size += snap_size;
-						al_p.add(p);
-					}
-				}
-				if (0 != al_p.size()) {
-					preloadSnapshots(al_p, size);
-				}
-				Utils.log2("finished preloader for " + layer);
-			}
-		}.start();
-	}*/
-
-	/** Preload the snapshots for the given Patch list. If there is not enough memory it will silently fail, since this is an accessory method. Returns if only one snapshot is to be preloaded. */
-	/*
-	private void preloadSnapshots(final ArrayList al_p, final long size) {
-		ResultSet r = null;
-		try {
-			final int length = al_p.size();
-			if (1 == length) return;
-			final StringBuffer sb = new StringBuffer("SELECT id,tiff_snapshot from ab_patches WHERE id=");
-			sb.append(((DBObject)al_p.get(length-1)).getId());
-			for (int i=length-2; i>-1; i--) {
-				DBObject dbo = (DBObject)al_p.get(i);
-				sb.append(" OR id=").append(dbo.getId());
-			}
-			final Statement st = getPreloaderConnection().createStatement();
-			//st.setFetchSize(1); // defeats the purpose of a quick load
-			r = st.executeQuery(sb.toString());
-			final Hashtable ht = new Hashtable();
-			while (r.next()) {
-				final InputStream i_stream = r.getBinaryStream(2);
-				long id = r.getLong(1);
-				if (null != snaps.get(id)) continue;
-				if (null == i_stream) continue;
-				final ImagePlus imp = unzipTiff(i_stream, "s");
-				final Image snap = imp.getProcessor().createImage();
-				imp.flush();
-				ht.put(new Long(id), snap);
-			}
-			// finally, synchronize
-			synchronized (db_lock) {
-				lock();
-				try {
-					for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-						Map.Entry entry = (Map.Entry)it.next();
-						snaps.put(((Long)entry.getKey()).longValue(), (Image)entry.getValue());
-					}
-				} catch (Exception e) {
-					new IJError(e);
-				} finally {
-					unlock();
-				}
-			}
-		} catch (Exception e) {
-			Utils.log2("DBLoader.preload: " + e);
-		} finally {
-			try { if (null != r) r.close(); } catch(Exception ee) {}
-		}
-	}
-	*/
-
-	/** Rotate or flip the original image and the working image (if any) in the given direction, which is LayerSet.R90, .R180, .R270, .FLIP_VERTICAL or .FLIP_HORIZONTAL. Will remake the awt.Image only if it's loaded. The snapshot is NOT remade. */ // TODO this method CANNOT survive future requirements. Instead a full transformation always be taken care of ...
-	public void rotatePixels(Patch patch, int direction) {
-		synchronized (db_lock) {
-			long id = patch.getId();
-			ImagePlus imp_o = null;
-			ImagePlus imp_w = fetchImagePlus(patch);
-			lock(); // locking AFTER fetching the image (which also locks)
-			if (!connectToDatabase()) {
-				unlock();
-				return;
-			}
-			InputStream i_stream = null;
-			try {
-				rotatePixels(imp_w, direction);
-				ResultSet r = connection.prepareStatement("SELECT id FROM ab_patches WHERE tiff_working IS NOT NULL AND id=" + id).executeQuery();
-				if (r.next()) {
-					// just save normally, over tiff_working
-					unlock();
-					patch.updateInDatabase("tiff_working");
-					lock();
-					// get the original and rotate it as well
-					releaseMemory();
-					ResultSet ro = connection.prepareStatement("SELECT tiff_original FROM ab_patches WHERE id=" + id).executeQuery();
-					if (ro.next()) {
-						// retrieve the original
-						i_stream = ro.getBinaryStream("tiff_original");
-						imp_o = unzipTiff(i_stream, patch.getTitle());
-						i_stream.close();
-						// rotate pixels in the original
-						rotatePixels(imp_o, direction);
-						// overwrite original
-						i_stream = createZippedStream(imp_o);
-						PreparedStatement st = connection.prepareStatement("UPDATE ab_patches SET tiff_original=? WHERE id=" + id);
-						st.setBinaryStream(1, i_stream, i_stream.available());
-						st.executeUpdate();
-						i_stream.close();
-					}
-					ro.close();
-				} else {
-					// there is no tiff_working, so overwrite tiff_original
-					i_stream = createZippedStream(imp_w);
-					PreparedStatement st = connection.prepareStatement("UPDATE ab_patches SET tiff_original=? WHERE id=" + id);
-					st.setBinaryStream(1, i_stream, i_stream.available());
-					st.executeUpdate();
-					i_stream.close();
-				}
-				r.close();
-				// now update the awt.Image, if loaded only!
-				if (null != awts.get(id)) {
-					awts.put(id, imp_w.getProcessor().createImage()); // flushes the old
-				}
-			} catch (Exception e) {
-				new IJError(e);
-			} finally {
-				unlock();
-			}
-		}
-	}
-
-	private void rotatePixels(ImagePlus imp, int direction) {
-		ImageProcessor ip = imp.getProcessor();
-		StackProcessor sp;
-		ImageStack is;
-		Calibration cal;
-		double tmp;
-		switch (direction) {
-			case LayerSet.FLIP_HORIZONTAL:
-				ip.flipHorizontal();
-				break;
-			case LayerSet.FLIP_VERTICAL:
-				ip.flipVertical();
-				break;
-			case LayerSet.R90:
-				sp = new StackProcessor(imp.getStack(), ip);
-				is = sp.rotateRight();
-				cal = imp.getCalibration();
-				imp.setStack(null, is);
-				tmp = cal.pixelWidth;
-				cal.pixelWidth = cal.pixelHeight;
-				cal.pixelHeight = tmp;
-				break;
-			case LayerSet.R270:
-				sp = new StackProcessor(imp.getStack(), ip);
-				is = sp.rotateLeft();
-				cal = imp.getCalibration();
-				imp.setStack(null, is);
-				tmp = cal.pixelWidth;
-				cal.pixelWidth = cal.pixelHeight;
-				cal.pixelHeight = tmp;
-				break;
-		}
 	}
 
 	//private Monitor monitor = null;

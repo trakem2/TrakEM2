@@ -469,36 +469,9 @@ public class FSLoader extends Loader {
 			Long lid = new Long(loid);
 			ht_dbo.remove(lid);
 			if (ob instanceof Patch) {
-				/*
-				// remove the image from the dir and the table
-				String path = (String)ht_paths.get(ob);
-				if (null == path) {
-					Utils.log("ERROR FSLoader.removeFromDatabase: null path for id=" + ob.getId());
-					unlock();
-					return false;
-				}
-				try {
-					unlock(); // !@#$%^&*
-					YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Delete file?", "Delete image file '" + path + "' as well?");
-					lock();
-					if (yn.yesPressed()) {
-						new File(path).delete();
-					}
-					// in any case:
-					ht_paths.remove(ob);
-				} catch (Exception e) {
-					Utils.log("Could NOT delete the image file " + path + " for Patch with id=" + ob.getId());
-					new IJError(e);
-					unlock();
-					return false;
-				}*/
-
 				// STRATEGY change: images are not owned by the FSLoader.
 				ht_paths.remove(ob);
-				Image snap = snaps.remove(loid);
-				if (null != snap) snap.flush();
-				Image awt = awts.remove(loid);
-				if (null != awt) awt.flush();
+				mawts.remove(loid);
 				ImagePlus imp = imps.remove(loid);
 				if (null != imp) {
 					if (imp.getStackSize() > 1) { // avoid calling gc() if unnecessary
@@ -553,7 +526,6 @@ public class FSLoader extends Loader {
 			return;
 		}
 		updatePatchPath(patch, path);
-		if (null != dir_mipmaps) generateMipMaps(patch);
 	}
 
 	/** This method has the exclusivity in calling ht_paths.put, because it ensures the path won't have escape characters. */
@@ -789,7 +761,8 @@ public class FSLoader extends Loader {
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
-	 * The Patch id and a ".jpg" extension will be appended to the filename in all cases.
+	 * The Patch id and a ".jpg" extension will be appended to the filename in all cases.<br />
+	 * Any equally named files will be overwritten.
 	 */
 	public boolean generateMipMaps(final Patch patch) {
 		if (null == dir_mipmaps) createMipMapsDir(null);

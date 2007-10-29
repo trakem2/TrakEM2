@@ -240,7 +240,7 @@ public class FIFOImageMipMaps {
 
 	/** Remove all images that share the same id (but have different levels). */
 	public ArrayList<Image> remove(final long id) {
-		final ArrayList al = new ArrayList();
+		final ArrayList<Image> al = new ArrayList<Image>();
 		int i = start;
 		for (; i<next; i++) {
 			if (id == ids[i]) {
@@ -255,6 +255,23 @@ public class FIFOImageMipMaps {
 			}
 		}
 		return al;
+	}
+
+	/** Remove and flush away all images that share the same id. */
+	public void removeAndFlush(final long id) {
+		int i = start;
+		for (; i<next; i++) {
+			if (id == ids[i]) {
+				if (null != images[i]) images[i].flush();
+				// move the others to close the gap
+				next--;
+				for (int j=i; j<next; j++) {
+					ids[j] = ids[j+1];
+					images[j] = images[j+1];
+					levels[j] = levels[j+1];
+				}
+			}
+		}
 	}
 
 	/** Remove the given index and return it, returns null if outside range. The underlying arrays are untouched besides nullifying the proper pointer if the given 'i' is the first element of the arrays. */

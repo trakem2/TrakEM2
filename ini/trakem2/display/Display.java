@@ -103,8 +103,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private int scroll_step = 1;
 
-	//private boolean preload_snapshots = true;
-
 	/** Keep track of all existing Display objects. */
 	static private ArrayList al_displays = new ArrayList();
 	/** The currently focused Display, if any. */
@@ -309,17 +307,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				}
 				setting_layer = true;
 				try {
-					// preload snapshots in the background
-					/*
-					if (preload_snapshots) {
-						final ArrayList al_l = layer.getParent().getNeighborLayers(layer, 2);
-						for (Iterator it = al_l.iterator(); it.hasNext(); ) {
-							Layer la = (Layer)it.next();
-							la.getProject().getLoader().preloadSnapshots((Layer)it.next(), canvas.getMagnification(), canvas.getSrcRect(), null, 30000000);
-						}
-					}
-					*/
-					//
 					d.setLayer(layer);
 					updateInDatabase("layer_id"); // not being done at the setLayer method to avoid thread locking design problems (the setLayer is used when reconstructing from the database)
 					Thread.yield();

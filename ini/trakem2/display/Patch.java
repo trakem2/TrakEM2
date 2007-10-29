@@ -70,6 +70,8 @@ public class Patch extends Displayable {
 		this.height = imp.getHeight();
 		project.getLoader().cache(this, imp);
 		addToDatabase();
+		if (project.getLoader().isMipMapsEnabled()) project.getLoader().generateMipMaps(this);
+		// TODO the above may end up generating mipmaps two times when inserting a grid and adjusting contrast
 	}
 
 	/** Reconstruct a Patch from the database. The ImagePlus will be loaded when necessary. */
@@ -504,10 +506,6 @@ public class Patch extends Displayable {
 				}
 			}
 		}
-	}
-
-	public void rotateData(int direction) {
-		project.getLoader().rotatePixels(this, direction);
 	}
 
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */

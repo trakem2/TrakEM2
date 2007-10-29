@@ -154,10 +154,7 @@ abstract public class Loader {
 
 
 	// What I need is not provided: a LinkedHashMap with a method to do 'removeFirst' or remove(0) !!! To call my_map.entrySet().iterator() to delete the the first element of a LinkedHashMap is just too much calling for an operation that has to be blazing fast. So I create a double list setup with arrays. The variables are not static because each loader could be connected to a different database, and each database has its own set of unique ids. Memory from other loaders is free by the releaseOthers(double) method.
-	protected FIFOImageMap awts = new FIFOImageMap(50);
 	protected FIFOImagePlusMap imps = new FIFOImagePlusMap(50);
-	protected FIFOImageMap snaps = new FIFOImageMap(50);
-
 	protected FIFOImageMipMaps mawts = new FIFOImageMipMaps(50);
 
 	static protected Vector v_loaders = null; // Vector: synchronized
@@ -183,7 +180,7 @@ abstract public class Loader {
 							unlock();
 							break;
 						}
-						Utils.log2("CACHE: \n\timps: " + imps.size() + "\n\tawts: " + awts.size() + "\n\tsnaps: " + snaps.size());
+						Utils.log2("CACHE: \n\timps: " + imps.size() + "\n\tmawts: " + mawts.size());
 						unlock();
 					}
 				}
@@ -384,6 +381,7 @@ abstract public class Loader {
 				if (null == imps.get(id)) { // the 'get' call already puts it at the end if there.
 					imps.put(id, imp);
 				}
+				/* // DEPRECATED
 				if (!massive_mode) { // don't if loading lots of images
 					if (null == awts.get(id)) {
 						unlock();
@@ -399,6 +397,7 @@ abstract public class Loader {
 						snaps.put(id, snap);
 					}
 				}
+				*/
 			} else {
 				Utils.log("Loader.cache: don't know how to cache: " + d);
 			}
@@ -420,22 +419,6 @@ abstract public class Loader {
 		patch.createImage(imp); // create from the cached new imp, and cache the new awt
 		// will lock on its own
 		patch.getSnapshot().remake(); // create from the cached new awt, and cache the new snap
-	}
-
-	public void cacheAWT(long id, Image image) {
-		synchronized (db_lock) {
-			lock();
-			awts.put(id, image); // will flush the image if it exists in the cache, and add the new at the end
-			unlock();
-		}
-	}
-
-	public void cacheSnapshot(long id, Image snap) {
-		synchronized (db_lock) {
-			lock();
-			snaps.put(id, snap);
-			unlock();
-		}
 	}
 
 	/** Cache any ImagePlus, as long as a unique id is assigned to it there won't be problems; you can obtain a unique id from method getNextId() .*/
@@ -566,7 +549,7 @@ abstract public class Loader {
 			while (!enoughFreeMemory(bytes)) {
 				Utils.log2("rtf " + iterations);
 				releaseMemory(0.5D, true, bytes);
-				if (0 == imps.size() && 0 == awts.size() && 0 == snaps.size()) {
+				if (0 == imps.size() && 0 == mawts.size()) {
 					// wait for GC ...
 					try { Thread.sleep(1000); } catch (InterruptedException ie) {}
 					// release offscreen images (will leave the canvas labeled for remaking when necessary)
@@ -611,15 +594,16 @@ abstract public class Loader {
 	/** The minimal number of memory bytes that should always be free. */
 	public static final long MIN_FREE_BYTES = (long)(max_memory * 0.2f);
 
-	/** Remove up to half the ImagePlus cache of others (but their awts and snaps first if needed) and then one single ImagePlus of this Loader's cache. */
+	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
 	public final void releaseMemory() {
 		releaseMemory(0.5D, true, MIN_FREE_BYTES);
 	}
 
-	/** Release as much of the cache as necessary to make 'enoughFreeMemory()'.
-	*  The very last thing to remove is the stored awt.Image objects and then the snaps.
-	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .
-	*/ // NOT locked, however calls must take care of that.
+	/** Release as much of the cache as necessary to make 'enoughFreeMemory()'.<br />
+	*  The very last thing to remove is the stored awt.Image objects.<br />
+	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
+	*  NOT locked, however calls must take care of that.<br />
+	*/
 	public final void releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
 		try {
 			while (!enoughFreeMemory(min_free_bytes)) {
@@ -630,14 +614,6 @@ abstract public class Loader {
 					// reset
 					//massive_mode = true; // NEEDS TESTING, a good debugger would tell me when is this variable changed... Or, set the value always with the method setMassiveMode
 					if (enoughFreeMemory(min_free_bytes)) return;
-					// awts can be recreated from imps, remove half of them
-					if (0 != awts.size()) {
-						for (int i=awts.size()/2; i>-1; i--) {
-							Image im = awts.removeFirst();
-							if (null != im) im.flush();
-						}
-						if (enoughFreeMemory(min_free_bytes)) return;
-					}
 					// remove half of the imps
 					if (0 != imps.size()) {
 						for (int i=imps.size()/2; i>-1; i--) {
@@ -649,11 +625,11 @@ abstract public class Loader {
 						if (enoughFreeMemory(min_free_bytes)) return;
 					}
 					// finally, release snapshots
-					if (0 != snaps.size()) {
+					if (0 != mawts.size()) {
 						// release almost all snapshots (they're cheap to reload/recreate)
-						for (int i=(int)(snaps.size() * 0.25); i>-1; i--) { // 0.9, 0.5 ... still too much, so 0.25
-							Image snap = snaps.removeFirst();
-							if (null != snap) snap.flush();
+						for (int i=(int)(mawts.size() * 0.25); i>-1; i--) {
+							Image mawt = mawts.removeFirst();
+							if (null != mawt) mawt.flush();
 						}
 						runGC();
 						if (enoughFreeMemory(min_free_bytes)) return;
@@ -665,19 +641,10 @@ abstract public class Loader {
 					}
 					if (0 == imps.size()) {
 						// release half the cached awt images
-						if (0 != awts.size()) {
-							for (int i=awts.size()/3; i>-1; i--) {
-								Image im = awts.removeFirst();
+						if (0 != mawts.size()) {
+							for (int i=mawts.size()/3; i>-1; i--) {
+								Image im = mawts.removeFirst();
 								if (null != im) im.flush();
-							}
-							runGC();
-							if (enoughFreeMemory(min_free_bytes)) return;
-						}
-						if (0 != snaps.size()) {
-							// release almost all snapshots (they're cheap to reload/recreate)
-							for (int i=(int)(snaps.size() * 0.5); i>-1; i--) {
-								Image snap = snaps.removeFirst();
-								if (null != snap) snap.flush();
 							}
 							runGC();
 							if (enoughFreeMemory(min_free_bytes)) return;
@@ -697,10 +664,8 @@ abstract public class Loader {
 					}
 				}
 
-				//Utils.log("imps, awts, snaps size: " + imps.size() + "," + awts.size()  + "," + snaps.size());
-
 				// sanity check:
-				if (0 == imps.size() && 0 == awts.size() && 0 == snaps.size()) {
+				if (0 == imps.size() && 0 == mawts.size()) {
 					if (massive_mode) {
 						Utils.log("Loader.releaseMemory: last desperate attempt.");
 						runGC();
@@ -747,19 +712,12 @@ abstract public class Loader {
 					}
 					imps = null;
 				}
-				if (null != awts) {
-					for (int i=awts.size()-1; i>-1; i--) {
-						Image awt = awts.remove(i);
-						if (null != awt) awt.flush();
+				if (null != mawts) {
+					for (int i=mawts.size()-1; i>-1; i--) {
+						Image mawt = mawts.remove(i);
+						if (null != mawt) mawt.flush();
 					}
-					awts = null;
-				}
-				if (null != snaps) {
-					for (int i=snaps.size()-1; i>-1; i--) {
-						Image snap = snaps.remove(i);
-						if (null != snap) snap.flush();
-					}
-					snaps = null;
+					mawts = null;
 				}
 				System.gc();
 			} catch (Exception e) {
@@ -771,23 +729,12 @@ abstract public class Loader {
 		}
 	}
 
-	/** Just query the cache, does not attempt to reload anything. */
-	public Image fetchAWT(long id) {
-		Image awt = null;
-		synchronized (db_lock) {
-			lock();
-			awt = awts.get(id);
-			unlock();
-		}
-		return awt;
-	}
-
 	/** Removes from the cache and returns it intact, unflushed. Returns null if not found. */
 	public Image decacheAWT(long id) {
 		Image awt = null;
 		synchronized (db_lock) {
 			lock();
-			awt = awts.remove(id); // where are my lisp macros! Wrapping any function in a synch/lock/unlock could be done crudely with reflection, but what a pain
+			mawts.removeAndFlush(id); // where are my lisp macros! Wrapping any function in a synch/lock/unlock could be done crudely with reflection, but what a pain
 			unlock();
 		}
 		return awt;
@@ -839,7 +786,7 @@ abstract public class Loader {
 			lock();
 			Image mawt = null;
 			try {
-				if (null == awts) {
+				if (null == mawts) {
 					unlock();
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
@@ -1722,9 +1669,12 @@ abstract public class Loader {
 				synchronized (db_lock) {
 					lock();
 					for (i=0; i<pa.length; i++) {
-						awts.remove(pa[i].getId());
-						snaps.remove(pa[i].getId());
-						Utils.log2(i + "removing awt and snap for " + pa[i].getId());
+						mawts.removeAndFlush(pa[i].getId());
+						if (isMipMapsEnabled()) {
+							// recreate files
+							generateMipMaps(pa[i]);
+						}
+						Utils.log2(i + "removing mawt for " + pa[i].getId());
 					}
 					unlock();
 				}
@@ -1845,6 +1795,7 @@ abstract public class Loader {
 
 		int n_cached = 0;
 		double area = 0;
+		/* // ignoring, usage will decide, don't slow down layer switching anymore
 		Image snap = null; // snaps are flushed the latest
 		for (int i=0; i<next; i++) {
 			awts.get(ids[i]); // put at the end if there
@@ -1854,6 +1805,7 @@ abstract public class Loader {
 				n_cached++;
 			}
 		}
+		*/
 		if (0 == next) return; // no need
 		else if (n_cached > 0) { // make no assumptions on image compression, assume 8-bit though
 			long estimate = (long)(((area / n_cached) * next * 8) / 1024.0D); // 'next' is total
@@ -2003,6 +1955,7 @@ abstract public class Loader {
 
 		if (isMipMapsEnabled()) {
 			quality = false; // since all mipmaps are generated from gaussian blurred images, the flat image will be of best quality already despite the nearest-neighbor scaling. So there is no need to create a gigantic image and then do the SCALE_AREA_AVERAGING.
+			// still there may be little glitches, in generating very small images for example that have no direct or very close mipmap level images associated.
 		}
 
 		try {
@@ -2382,8 +2335,6 @@ abstract public class Loader {
 		// 'larger' is now larger or equal to 'edge', and will reduce to starter[min_i] tiles squared.
 		return new int[]{min_larger, starter[min_i]};
 	}
-
-	public void rotatePixels(Patch patch, int direction) {}
 
 	private String last_opened_path = null;
 
@@ -2794,9 +2745,6 @@ abstract public class Loader {
 		return path;
 	}
 
-	/** Attempts, but does not guarantee, that the snapshots falling within the given clipRect and srcRect will be loaded, in chuncks of n_bytes at a time. */
-	public void preloadSnapshots(final Layer layer, final double magnification, final Rectangle srcRect, final Rectangle clipRect, final int n_bytes) {}
-
 	/** Whether any changes need to be saved. */
 	public boolean hasChanges() {
 		return this.changes;
@@ -2823,21 +2771,15 @@ abstract public class Loader {
 	public void deCache(final ImagePlus imp) {
 		synchronized(db_lock) {
 			lock();
-			long[] a = imps.getAll(imp);
-			Utils.log2("deCaching " + a.length);
-			if (null == a) return;
-			deCache(awts, a);
-			deCache(snaps, a);
+			long[] ids = imps.getAll(imp);
+			Utils.log2("deCaching " + ids.length);
+			if (null == ids) return;
+			for (int i=0; i<ids.length; i++) {
+				mawts.remove(ids[i]);
+			}
 			unlock();
 		}
 	}
-	/** WARNING: not synchronized */
-	private void deCache(final FIFOImageMap f, final long[] ids) {
-		for (int i=0; i<ids.length; i++) {
-			f.remove(ids[i]);
-		}
-	}
-
 
 	static private Object temp_current_image_lock = new Object();
 	static private boolean temp_in_use = false;
@@ -3013,11 +2955,10 @@ abstract public class Loader {
 		Utils.showStatus("Job canceled.");
 	}
 
-	protected final void printMemState() {
+	public final void printMemState() {
 		Utils.log2(new StringBuffer("mem in use: ").append((IJ.currentMemory() * 100.0f) / max_memory).append('%')
 		                    .append("\n\timps: ").append(imps.size())
-				    .append("\n\tawts: ").append(awts.size())
-				    .append("\n\tsnaps: ").append(snaps.size())
+				    .append("\n\tmawts: ").append(mawts.size())
 			   .toString());
 	}
 
@@ -3037,7 +2978,7 @@ abstract public class Loader {
 	public boolean isSnapPaintable(final long id) {
 		synchronized (db_lock) {
 			lock();
-			if (mawts.contains(id)) { //if (snaps.contains(id) || awts.contains(id) /*|| imps.contains(id)*/) { // the other two tests may be necessary, but it's acceptable without them.
+			if (mawts.contains(id)) {
 				unlock();
 				return true;
 			}
@@ -3051,6 +2992,9 @@ abstract public class Loader {
 
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(final long id) {}
+
+	/** Does nothing and returns null unless overriden. */
+	public boolean generateMipMaps(final Patch patch) { return false; }
 
 	/** Does nothing and returns null unless overriden. */
 	public Bureaucrat generateMipMaps(final LayerSet ls) { return null; }

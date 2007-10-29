@@ -50,7 +50,8 @@ public class Snapshot {
 
 	/** Remake the image from the Displayable only in the case of Patch. The snapshot ignores the alphas of the channels of the Patch.*/
 	public void remake() {
-		if (true) return; // TODO this function should disappear for mipmaps
+		// TODO this function should disappear for mipmaps
+		/*
 		if (d.getClass().equals(Patch.class)) {
 			final Patch p = (Patch)d;
 			final Image image = d.getProject().getLoader().fetchImage(p, 1.0); // not the snapshot, so retrieve for magnification 1.0
@@ -58,6 +59,7 @@ public class Snapshot {
 			d.getProject().getLoader().cacheSnapshot(d.getId(), snap);
 			p.updateInDatabase("tiff_snapshot");
 		}
+		*/
 	}
 
 	public void paintTo(final Graphics2D g, final Layer layer, final double mag) {
