@@ -33,6 +33,8 @@ public class Bureaucrat extends Thread {
 	private Worker worker;
 	private long onset;
 	private Project project;
+
+	/** Registers itself in the project loader job queue. */
 	public Bureaucrat(Worker worker, Project project) {
 		this.worker = worker;
 		this.project = project;

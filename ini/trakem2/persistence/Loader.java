@@ -852,50 +852,69 @@ abstract public class Loader {
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
 				final long id = p.getId();
-				// 1 - check if any suitable level is cached
+				if (isMipMapsEnabled()) {
+					// 1 - check if the exact level is cached
+					mawt = mawts.get(id, level);
+					if (null != mawt) {
+						unlock();
+						//Utils.log2("returning cached exact mawt for level " + level);
+						return mawt;
+					}
+					// 2 - check if the exact file is present
+					mawt = getMipMapAWT(p, level);
+					if (null != mawt) {
+						mawts.put(id, mawt, level);
+						//Utils.log2("returning exact mawt from file for level " + level);
+						unlock();
+						return mawt;
+					}
+					// 3 - else, load the appropiate level if found, or the one closest to it but still giving a larger image
+					unlock();
+					Object[] ob = getClosestMipMapAWT(p, level);
+					lock();
+					if (null != ob) {
+						mawt = (Image)ob[0];
+						int lev = ((Integer)ob[1]).intValue();
+						mawts.put(id, mawt, lev);
+						unlock();
+						Display.repaintSnapshot(p);
+						//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
+						return mawt;
+					}
+				}
+				// 4 - check if any suitable level is cached (whithout mipmaps, it may be the large image)
 				mawt = mawts.getClosest(id, level);
 				if (null != mawt) {
 					unlock();
-					Utils.log2("returning from getClosest with level " + level);
+					//Utils.log2("returning from getClosest with level " + level);
 					return mawt;
 				}
-				// 2 - else, load the appropiate level if found, or the one closest to it but still giving a larger image
-				unlock();
-				Object[] ob = getClosestMipMapAWT(p, level);
-				lock();
-				if (null != ob) {
-					mawt = (Image)ob[0];
-					int lev = ((Integer)ob[1]).intValue();
-					mawts.put(id, mawt, lev);
-					unlock();
-					Display.repaintSnapshot(p);
-					Utils.log2("returning from getClosestMipMapAWT with level " + lev);
-					return mawt;
-				}
-				// 3- else, fetch the ImagePlus and make an image from it
+				// 5 - else, fetch the ImagePlus and make an image from it of the proper size and quality
 				ImagePlus imp = imps.get(id);
 				if (null == imp) {
+					unlock();
 					imp = fetchImagePlus(p, false); // should not make any awts or snaps
+					lock();
 				}
-				Utils.log2("layer is " + p.getLayer());
-				Utils.log2("ls is " + p.getLayer().getParent());
-				Utils.log2("qual is " + p.getLayer().getParent().snapshotsQuality());
-				mawt = Loader.createImage(imp.getProcessor(), mag, p.getLayer().getParent().snapshotsQuality());
-				mawts.put(id, mawt, level);
-				Display.repaintSnapshot(p);
-				unlock();
-				Utils.log2("Returning from imp with level " + level);
-				return mawt;
+				if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
+					mawt = Loader.createImage(imp.getProcessor(), mag, p.getLayer().getParent().snapshotsQuality());
+					mawts.put(id, mawt, level);
+					Display.repaintSnapshot(p);
+					unlock();
+					//Utils.log2("Returning from imp with level " + level);
+					return mawt;
+				}
 
 			} catch (Exception e) {
 				new IJError(e);
 				unlock();
 				return NOT_FOUND;
 			}
+			unlock();
+			return NOT_FOUND;
 		}
 
 		/*
-
 		// old:
 		synchronized (db_lock) {
 			lock();
@@ -3110,7 +3129,7 @@ abstract public class Loader {
 	public boolean isSnapPaintable(final long id) {
 		synchronized (db_lock) {
 			lock();
-			if (snaps.contains(id) || awts.contains(id) /*|| imps.contains(id)*/) { // the other two tests may be necessary, but it's acceptable without them.
+			if (mawts.contains(id)) { //if (snaps.contains(id) || awts.contains(id) /*|| imps.contains(id)*/) { // the other two tests may be necessary, but it's acceptable without them.
 				unlock();
 				return true;
 			}
@@ -3130,6 +3149,9 @@ abstract public class Loader {
 
 	/** Does nothing and returns null unless overriden. */
 	public Object[] getClosestMipMapAWT(final Patch patch, final int level) { return null; }
+
+	/** Does nothing and returns null unless overriden. */
+	public Image getMipMapAWT(final Patch patch, final int level) { return null; }
 
 	static public Image createImage(ImageProcessor ip, double mag, final boolean quality) {
 		if (mag > 1) mag = 1;

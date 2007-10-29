@@ -305,6 +305,7 @@ public class FSLoader extends Loader {
 								imps.put(pa.getId(), imp);
 								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
 								pa.putMinAndMax(imp);
+								/* // old
 								if (create_snap) {
 									unlock();
 									Image awt = pa.createImage(imp); // will call cacheAWT
@@ -312,6 +313,7 @@ public class FSLoader extends Loader {
 									snaps.put(pa.getId(), Snapshot.createSnap(pa, awt, Snapshot.SCALE));
 									Display.repaintSnapshot(pa);
 								}
+								*/
 							}
 						}
 						// set proper active slice
@@ -323,6 +325,7 @@ public class FSLoader extends Loader {
 					}
 					// need to create the snapshot
 					//Utils.log2("create_snap: " + create_snap + ", " + slice);
+					/* // old
 					if (create_snap && null == slice) {
 						unlock();
 						Image awt = p.createImage(imp);
@@ -331,6 +334,7 @@ public class FSLoader extends Loader {
 						//awts.put(p.getId(), awt);
 						snaps.put(p.getId(), Snapshot.createSnap(p, awt, Snapshot.SCALE)); //awt.getScaledInstance((int)Math.ceil(p.getWidth() * Snapshot.SCALE), (int)Math.ceil(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD));
 					}
+					*/
 				}
 			} catch (Exception e) {
 				new IJError(e);
@@ -847,7 +851,7 @@ public class FSLoader extends Loader {
 			String target_dir = getScaleDir(dir_mipmaps, k);
 			if (null == target_dir) return false;
 			// 5 - save as 8-bit jpeg
-			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(false))).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(true))).saveAsJpeg(dir_mipmaps + k + "/" + filename + ".jpg");
 		}
 		return true;
 	}
@@ -944,7 +948,7 @@ public class FSLoader extends Loader {
 			lock();
 
 		try {
-			final String filename = new File(getAbsolutePath(patch)).getName();
+			final String filename = new File(getAbsolutePath(patch)).getName() + ".jpg";
 			File fdir = new File(dir_mipmaps + level);
 			while (true) {
 				if (fdir.exists() && fdir.isDirectory()) {
@@ -956,11 +960,15 @@ public class FSLoader extends Loader {
 					});
 					if (null != list) {
 						ImagePlus imp = opener.openImage(fdir.getAbsolutePath() + "/" + list[0]);
+						unlock();
 						return new Object[]{patch.createImage(imp), new Integer(level)}; // considers c_alphas
 					}
 				}
 				// stop at 50% images (there are no mipmaps for level 0)
-				if (1 == level) return null;
+				if (level <= 1) {
+					unlock();
+					return null;
+				}
 				// try the next level
 				level--;
 				fdir = new File(dir_mipmaps + level);
@@ -969,6 +977,23 @@ public class FSLoader extends Loader {
 			new IJError(e);
 		}
 
+			unlock();
+		}
+		return null;
+	}
+
+	public Image getMipMapAwt(final Patch patch, final int level) {
+		if (null == dir_mipmaps) return null;
+		synchronized (db_lock) {
+			lock();
+			try {
+				ImagePlus imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + ".jpg");
+				if (null != imp) {
+					return patch.createImage(imp); // considers c_alphas
+				}
+			} catch (Exception e) {
+				new IJError(e);
+			}
 			unlock();
 		}
 		return null;

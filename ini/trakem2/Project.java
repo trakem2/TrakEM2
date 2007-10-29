@@ -762,7 +762,7 @@ public class Project extends DBObject {
 		String preprocessor = loader.getPreprocessor();
 		if (null != preprocessor) sb_body.append(in).append("\t preprocessor=\"").append(preprocessor).append("\"\n");
 		String dir_mipmaps = ((FSLoader)loader).getMipMapsFolder();
-		if (null != dir_mipmaps) sb_body.append(in).append("\t dir_mipmaps=\"").append(dir_mipmaps).append("\"\n");
+		if (null != dir_mipmaps) sb_body.append(in).append("\t mipmaps_folder=\"").append(dir_mipmaps).append("\"\n");
 		sb_body.append(">\n");
 		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
 		if (null != root_pt.getChildren()) {

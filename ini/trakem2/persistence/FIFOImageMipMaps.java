@@ -273,6 +273,15 @@ public class FIFOImageMipMaps {
 		return im;
 	}
 
+	/** Checks if there's any image at all for the given id. */
+	public boolean contains(final long id) {
+		for (int i=0; i<next; i++) {
+			if (id == ids[i]) return true;
+		}
+		return false;
+	}
+
+	/** Checks if there's any image for the given id and level. */
 	public boolean contains(final long id, final int level) {
 		for (int i=0; i<next; i++) {
 			if (id == ids[i] && level == levels[i]) return true;
