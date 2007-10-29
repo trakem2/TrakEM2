@@ -2892,7 +2892,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	public void imageUpdated(ImagePlus updated) {
 		// detect ColorPicker
 		if (this.equals(front) && this.frame.isActive() && updated instanceof ij.plugin.ColorPicker) {
-			if (null != active) {
+			if (null != active && project.isInputEnabled()) {
 				active.setColor(Toolbar.getForegroundColor());
 			}
 			return;
@@ -2905,7 +2905,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (updated instanceof PatchStack) {
 			((PatchStack)updated).deCacheAll();
 		}
-
 
 		// detect LUT changes: DONE at PatchStack, which is the active (virtual) image
 		//Utils.log2("calling deCache for " + updated);

@@ -897,10 +897,21 @@ public class FSLoader extends Loader {
 
 	/** Remove all mipmap images from the cache, and optionally set the dir_mipmaps to null. */
 	public void flushMipMaps(boolean forget_dir_mipmaps) {
+		if (null == dir_mipmaps) return;
 		synchronized (db_lock) {
 			lock();
 			if (forget_dir_mipmaps) this.dir_mipmaps = null;
 			mawts.removeAllPyramids(); // does not remove level 0 awts (i.e. the 100% images)
+			unlock();
+		}
+	}
+
+	/** Remove from the cache all images of level larger than zero corresponding to the given patch id. */
+	public void flushMipMaps(final long id) {
+		if (null == dir_mipmaps) return;
+		synchronized (db_lock) {
+			lock();
+			mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
 			unlock();
 		}
 	}

@@ -3041,6 +3041,9 @@ abstract public class Loader {
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(boolean forget_dir_mipmaps) {}
 
+	/** Does nothing unless overriden. */
+	public void flushMipMaps(final long id) {}
+
 	/** Does nothing and returns null unless overriden. */
 	public Bureaucrat generateMipMaps(final LayerSet ls) { return null; }
 
