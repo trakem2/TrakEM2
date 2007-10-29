@@ -849,7 +849,7 @@ abstract public class Loader {
 					// if NOT mag == 1.0
 					if (Math.abs(mag - 1) > 0.000001) {
 						imp = new ImagePlus("", Loader.scaleImage(imp, mag, p.getLayer().getParent().snapshotsQuality()));
-						Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
+						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
 						p.putMinAndMax(imp);
 					}
 					mawt = p.createImage(imp);

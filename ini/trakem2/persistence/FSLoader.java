@@ -785,20 +785,27 @@ public class FSLoader extends Loader {
 		FloatProcessor fp = (FloatProcessor)imp.getProcessor().convertToFloat();
 		int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 		           //   but since we scale 50% relative the previous, it's always 0.75
-		while (w >= 64 && h >= 64) { // not smaller than 32x32
-			// 1 - blur the previous image to 0.75 sigma
-			fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
-			// 2 - prepare values for the next scaled image
-			w /= 2;
-			h /= 2;
-			k++;
-			// 3 - generate scaled image
-			fp = (FloatProcessor)fp.resize(w, h);
-			// 4 - check that the target folder for the desired scale exists
-			String target_dir = getScaleDir(dir_mipmaps, k);
-			if (null == target_dir) return false;
-			// 5 - save as 8-bit jpeg
-			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(true))).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+		try {
+			while (w >= 64 && h >= 64) { // not smaller than 32x32
+				// 1 - blur the previous image to 0.75 sigma
+				fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
+				// 2 - prepare values for the next scaled image
+				w /= 2;
+				h /= 2;
+				k++;
+				// 3 - generate scaled image
+				fp = (FloatProcessor)fp.resize(w, h);
+				// 4 - check that the target folder for the desired scale exists
+				String target_dir = getScaleDir(dir_mipmaps, k);
+				if (null == target_dir) continue;
+				// 5 - save as 8-bit jpeg
+				ImagePlus imp2 = new ImagePlus(imp.getTitle(), Utils.convertTo(fp, patch.getType(), false)); // no scaling, since the conversion to float above didn't change the range
+				imp2.getProcessor().setMinAndMax(patch.getMin(), patch.getMax());
+				new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+			}
+		} catch (Exception e) {
+			new IJError(e);
+			return false;
 		}
 		return true;
 	}
