@@ -212,7 +212,7 @@ public class FIFOImageMipMaps {
 		for (int i=start+1; i<end; i++) {
 			if (i == next) break;
 			if (0 != levels[i]) {
-				Image awt = remove(i);
+				Image awt = remove(i); // may modify start and/or next
 				awt.flush();
 				if (i != start) { // start may keep moving forward
 					end--;

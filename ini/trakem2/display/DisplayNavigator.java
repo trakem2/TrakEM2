@@ -235,10 +235,10 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 							}
 							ZDisplayable zd = (ZDisplayable)itz.next();
 							if (!zd.isVisible()) continue;
-							zd.getSnapshot().paintTo(graphics, display.getLayer());
+							zd.getSnapshot().paintTo(graphics, display.getLayer(), scale);
 						}
 					}
-					d.getSnapshot().paintTo(graphics, display.getLayer());
+					d.getSnapshot().paintTo(graphics, display.getLayer(), scale);
 				}
 				if (!zd_done) { // if no labels, ZDisplayables haven't been painted
 					zd_done = true;
@@ -250,7 +250,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 						}
 						ZDisplayable zd = (ZDisplayable)itz.next();
 						if (!zd.isVisible()) continue;
-						zd.getSnapshot().paintTo(graphics, display.getLayer());
+						zd.getSnapshot().paintTo(graphics, display.getLayer(), scale);
 					}
 				}
 				// finally, when done, call repaint (like sending an event)

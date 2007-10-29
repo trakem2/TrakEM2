@@ -51,12 +51,6 @@ public class Snapshot {
 	/** Remake the image from the Displayable only in the case of Patch. The snapshot ignores the alphas of the channels of the Patch.*/
 	public void remake() {
 		if (true) return; // TODO this function should disappear for mipmaps
-		double w = d.getWidth();
-		double h = d.getHeight();
-		if (0 == w || 0 == h) {
-			// when profiles have no points yet
-			w = h = Math.ceil(1.0D / SCALE);
-		}
 		if (d.getClass().equals(Patch.class)) {
 			final Patch p = (Patch)d;
 			final Image image = d.getProject().getLoader().fetchImage(p, 1.0); // not the snapshot, so retrieve for magnification 1.0
@@ -66,20 +60,12 @@ public class Snapshot {
 		}
 	}
 
-	/** Fetch from database or the cache if this is a Patch. */
-	public Image reload() {
-		if (d.getClass().equals(Patch.class)) { // instanceof Patch
-			return d.getProject().getLoader().fetchSnapshot((Patch)d);
-		}
-		return null;
-	}
-
-	public void paintTo(final Graphics2D g, final Layer layer) {
+	public void paintTo(final Graphics2D g, final Layer layer, final double mag) {
 		if (layer.getParent().areSnapshotsEnabled()) {
 			if (d.getClass().equals(Patch.class) && !d.getProject().getLoader().isSnapPaintable(d.getId())) {
 				paintAsBox(g, d);
 			} else {
-				d.paint(g, Snapshot.SCALE, false, (d.getClass().equals(Patch.class) ? ((Patch)d).getChannelAlphas() : 1), layer);
+				d.paint(g, mag, false, (d.getClass().equals(Patch.class) ? ((Patch)d).getChannelAlphas() : 1), layer);
 			}
 		} else {
 			paintAsBox(g, d);

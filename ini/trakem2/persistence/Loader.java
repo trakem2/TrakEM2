@@ -271,10 +271,6 @@ abstract public class Loader {
 
 	abstract public Area fetchArea(long area_list_id, long layer_id);
 
-	/** Get the snapshot again from the database, unless it's on cache or the Patch is on cache (Remake from it). */
-	abstract public Image fetchSnapshot(Patch p);
-
-
 	/* GENERIC, from DBObject calls */
 	abstract public boolean addToDatabase(DBObject ob);
 
@@ -831,13 +827,9 @@ abstract public class Loader {
 	}
 
 	/** Fetch a suitable awt.Image for the given mag.
-	 * If the mag equals or is below 0.25 (Snapshot.SCALE), the snap is returned.
-	 * Else, if the awt is cached and is suitable for that mag or larger, it is returned.
-	 * Else, a new awt is made for the given mag.
-	 * 
 	 * If the magnification is bigger than 1.0, it will return as if the 'mag' was 1.0.
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
-	 * */
+	 */
 	public Image fetchImage(final Patch p, double mag) {
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag);
@@ -860,26 +852,36 @@ abstract public class Loader {
 						//Utils.log2("returning cached exact mawt for level " + level);
 						return mawt;
 					}
-					// 2 - check if the exact file is present
-					mawt = getMipMapAWT(p, level);
+					// 2 - check if the exact file is present for the desired level
+					mawt = fetchMipMapAWT(p, level);
 					if (null != mawt) {
 						mawts.put(id, mawt, level);
-						//Utils.log2("returning exact mawt from file for level " + level);
 						unlock();
+						//Utils.log2("returning exact mawt from file for level " + level);
+						Display.repaintSnapshot(p);
 						return mawt;
 					}
-					// 3 - else, load the appropiate level if found, or the one closest to it but still giving a larger image
-					unlock();
-					Object[] ob = getClosestMipMapAWT(p, level);
-					lock();
-					if (null != ob) {
-						mawt = (Image)ob[0];
-						int lev = ((Integer)ob[1]).intValue();
-						mawts.put(id, mawt, lev);
-						unlock();
-						Display.repaintSnapshot(p);
-						//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
-						return mawt;
+					// 3 - else, load closest level to it but still giving a larger image
+					int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
+					//Utils.log2("closest mipmap level is " + lev);
+					if (0 != lev) {
+						mawt = mawts.getClosest(id, lev);
+						boolean newly_cached = false;
+						if (null == mawt) {
+							// reload existing scaled file
+							mawt = fetchMipMapAWT(p, lev);
+							if (null != mawt) {
+								mawts.put(id, mawt, lev);
+								newly_cached = true; // means: cached was false, now it is
+							}
+						}
+						//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
+						if (null != mawt) {
+							if (newly_cached) Display.repaintSnapshot(p);
+							unlock();
+							//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
+							return mawt;
+						}
 					}
 				}
 				// 4 - check if any suitable level is cached (whithout mipmaps, it may be the large image)
@@ -896,7 +898,7 @@ abstract public class Loader {
 					imp = fetchImagePlus(p, false); // should not make any awts or snaps
 					lock();
 				}
-				if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
+				if (null != imp && null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
 					mawt = Loader.createImage(imp.getProcessor(), mag, p.getLayer().getParent().snapshotsQuality());
 					mawts.put(id, mawt, level);
 					Display.repaintSnapshot(p);
@@ -907,111 +909,10 @@ abstract public class Loader {
 
 			} catch (Exception e) {
 				new IJError(e);
-				unlock();
-				return NOT_FOUND;
 			}
 			unlock();
 			return NOT_FOUND;
 		}
-
-		/*
-		// old:
-		synchronized (db_lock) {
-			lock();
-			try {
-				if (null == awts) {
-					unlock();
-					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
-				}
-				final long id = p.getId();
-				// If the is cached, see if it's suitable
-				if (mag - Snapshot.SCALE < 0.001) { // i.e. if mag is 0.25 or lower
-					final Image snap = snaps.get(id);
-					if (null != snap) {
-						unlock();
-						return snap;
-					}
-				}
-				// see if the Displayable AWT image is cached and big enough:
-				Image awt = awts.get(id);
-				if (null != awt) {
-					if (mag - (awt.getWidth(null) / (double)p.getWidth()) < 0.001) {
-						unlock();
-						return awt;
-					} else {
-						// must remake awt, it's not big enough
-						try {
-						awts.remove(id);//.flush(); // TODO this flush is hanging the program. Where is the collision? All that changed was the Displayable.getWidth()
-						} catch (Exception e) {
-							new IJError(e);
-						}
-						// see if the snap is cached and big enough
-						if (Math.abs(mag - Snapshot.SCALE) < 0.001) {
-							Image snap = snaps.get(id);
-							if (null != snap) {
-								unlock();
-								return snap; // kind of redundant with the line below
-							} else {
-								unlock();
-								return fetchSnapshot(p); // will create the awt as well
-							}
-						}
-					}
-				}
-
-				// if we get here and the awt is not null, it means its size is not appropriate
-				// If it's null, it means the snapshot is also null and/or not appropriate
-
-				//Utils.log2("Loader.fetchImage: awt is " + awt + "  cache size: " + awts.size());
-
-				releaseMemory();
-
-				// see if the ImagePlus is cached:
-				final ImagePlus imp = imps.get(id);
-				if (null != imp) {
-					if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) { // may have been flushed by ImageJ, for example when making images from a stack
-						unlock();
-						Image image = p.createImage(); //considers c_alphas
-						lock();
-						if (1.0 != mag) { // make it smaller if possible
-							final Image image2 = Snapshot.createSnap(p, image, mag); // reusing the function createSnap to obtain a proper, quality option-respecting awt.
-							image.flush();
-							image = image2;
-						}
-						awts.put(id, image);
-						Display.repaintSnapshot(p);
-						unlock();
-						return image;
-					} else {
-						imp.flush(); // can't hurt
-					}
-				}
-				// else, reload and cache both the imp and the awt
-
-				unlock();
-				Image image = p.createImage(); // calls fetchImagePlus, which will lock
-				if (null == image) {
-					return NOT_FOUND; // fixing synch problems when deleting a Patch
-				}
-				lock();
-				if (1.0 != mag) { // make it smaller if possible
-					final Image image2 = Snapshot.createSnap(p, image, mag); // reusing the function createSnap to obtain a proper, quality option-respecting awt.
-					image.flush();
-					image = image2;
-				}
-				awts.put(id, image); // this is already done by the call to cacheAWT from p.createImage()
-				Display.repaintSnapshot(p);
-
-				unlock();
-				return image;
-
-			} catch (Exception e) {
-				unlock();
-				new IJError(e);
-				return NOT_FOUND;
-			}
-		}
-		*/
 	}
 
 	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
@@ -1647,7 +1548,6 @@ abstract public class Loader {
 				Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
 				layer.add(patch, true);
-				//fetchSnapshot(patch); // make sure it is created from the Patch ImagePlus.
 				addedPatchFrom(path, patch);
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
 				pall[i][j] = patch;
@@ -3147,11 +3047,11 @@ abstract public class Loader {
 	/** Does nothing and returns false unless overriden. */
 	public boolean isMipMapsEnabled() { return false; }
 
-	/** Does nothing and returns null unless overriden. */
-	public Object[] getClosestMipMapAWT(final Patch patch, final int level) { return null; }
+	/** Does nothing and returns zero unless overriden. */
+	public int getClosestMipMapLevel(final Patch patch, int level) {return 0;}
 
 	/** Does nothing and returns null unless overriden. */
-	public Image getMipMapAWT(final Patch patch, final int level) { return null; }
+	public Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
 
 	static public Image createImage(ImageProcessor ip, double mag, final boolean quality) {
 		if (mag > 1) mag = 1;
@@ -3161,6 +3061,7 @@ abstract public class Loader {
 		//  - direct nearest neighbor otherwise
 		final int w = ip.getWidth();
 		final int h = ip.getHeight();
+		// TODO releseToFit !
 		if (quality) {
 			// apply proper gaussian filter
 			double sigma = Math.sqrt(Math.pow(2, getMipMapLevel(mag)) - 0.25); // sigma = sqrt(level^2 - 0.5^2)

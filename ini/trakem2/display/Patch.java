@@ -108,6 +108,7 @@ public class Patch extends Displayable {
 			// standard, from the image, to be defined when first painted
 			min = max = -1;
 		}
+		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
 	/** Fetches the image plus from the cache. Be warned: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache. */
@@ -173,15 +174,17 @@ public class Patch extends Displayable {
 		return channels;
 	}
 
-	/** Only for RGB images. 'c' contains the current Display 'channels' value (the transparencies of each channel). This method creates a new color image in which each channel (R, G, B) has the corresponding alpha (in fact, opacity) specified in the 'c'. This alpha is independent of the alpha of the whole Patch. The method updates the Loader cache with the newly created image. The argument 'imp' is optional: if null, it will be retrieved from the loader. */
+	/** @param c contains the current Display 'channels' value (the transparencies of each channel). This method creates a new color image in which each channel (R, G, B) has the corresponding alpha (in fact, opacity) specified in the 'c'. This alpha is independent of the alpha of the whole Patch. The method updates the Loader cache with the newly created image. The argument 'imp' is optional: if null, it will be retrieved from the loader.<br />
+	 * For non-color images, a standard image is returned regardless of the @param c
+	 */
 	private Image adjustChannels(int c, boolean force, ImagePlus imp) {
 		if (null == imp) imp = project.getLoader().fetchImagePlus(this, false); // calling create_snap will end up calling this method adjustChannels twice, which is ludicrous, so 'false'
 		// the method fetchImage above has set the min and max already on the image
 		//Utils.log2("Patch " + this + "   imp: slice is " + imp.getCurrentSlice());
 		//Utils.printCaller(this, 12);
-		Image awt = null;
 		final ImageProcessor ip = imp.getProcessor();
 		if (null == ip) return null; // fixing synch problems when deleting a Patch
+		Image awt = null;
 		if (ImagePlus.COLOR_RGB == type) {
 			if ((c&0x00ffffff) == 0x00ffffff && !force) {
 				// full transparency
@@ -216,7 +219,10 @@ public class Patch extends Displayable {
 		this.channels = c;
 		//project.getLoader().cacheAWT(id, awt);
 
-		if (min != ip.getMin() || max != ip.getMax()) {
+		// only for the large image, not any of the scaled ones (the mipmaps)
+		if (imp.getWidth() == this.width && (min != ip.getMin() || max != ip.getMax())) {
+			//Utils.log2("adjustChannels: changing min and max from " + min + "," + max + " to " + ip.getMin() + ", " + ip.getMax());
+			//Utils.log2("imp.getWidth(): " + imp.getWidth() + " imp.getType(): " + imp.getType() + " this.width=" + this.width);
 			min = ip.getMin();
 			max = ip.getMax();
 			updateInDatabase("min_and_max");

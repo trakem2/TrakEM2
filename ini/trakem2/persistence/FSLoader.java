@@ -321,6 +321,7 @@ public class FSLoader extends Loader {
 					} else {
 						// for non-stack images
 						p.putMinAndMax(imp); // non-destructive contrast: min and max
+							// puts the Patch min and max values into the ImagePlus processor.
 						imps.put(p.getId(), imp);
 					}
 					// need to create the snapshot
@@ -342,43 +343,6 @@ public class FSLoader extends Loader {
 			unlock();
 			//Utils.log2("A2 returning " + imp + " for path " + path + slice);
 			return imp;
-		}
-	}
-
-	public Image fetchSnapshot(Patch p) {
-		synchronized (db_lock) {
-			lock();
-			Image snap = snaps.get(p.getId());
-			if (null == snap) {
-				Image awt = awts.get(p.getId()); // automatically places it at the end of the FIFO
-				if (null == awt) {
-					unlock();
-					ImagePlus imp = fetchImagePlus(p, true); // will create snapshot
-					lock();
-					snap = snaps.get(p.getId());
-					if (null == snap) { // should not happen, but it does TODO
-						unlock();
-						awt = p.createImage(imp); // caches awt
-						lock();
-						snap = Snapshot.createSnap(p, awt, Snapshot.SCALE);
-						snaps.put(p.getId(), snap);
-						Display.repaintSnapshot(p);
-					}
-				} else {
-					try {
-						releaseMemory(); // mild attempt
-						snap = Snapshot.createSnap(p, awt, Snapshot.SCALE); //awt.getScaledInstance((int)(p.getWidth() * Snapshot.SCALE), (int)(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD);
-						snaps.put(p.getId(), snap);
-						Display.repaintSnapshot(p);
-					} catch (Exception e) {
-						unlock();
-						return NOT_FOUND;
-					}
-				}
-			}
-			unlock();
-			if (null == snap) return NOT_FOUND;
-			return snap;
 		}
 	}
 
@@ -861,13 +825,18 @@ public class FSLoader extends Loader {
 		final Worker worker = new Worker("Generating MipMaps") {
 			public void run() {
 
-		for (Iterator it = ls.getDisplayables(Patch.class).iterator(); it.hasNext(); ) {
+		ArrayList al = ls.getDisplayables(Patch.class);
+		int size = al.size();
+		int i = 1;
+		for (Iterator it = al.iterator(); it.hasNext(); ) {
 			if (this.quit) {
 				return;
 			}
+			this.setTaskName("Generating MipMaps " + i + "/" + size);
 			Patch pa = (Patch)it.next();
 			File f = new File(getAbsolutePath(pa));
 			generateMipMaps(fetchImagePlus(pa), f.getName());
+			i++;
 		}
 
 			}
@@ -931,7 +900,7 @@ public class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			if (forget_dir_mipmaps) this.dir_mipmaps = null;
-			mawts.removeAllPyramids();
+			mawts.removeAllPyramids(); // does not remove level 0 awts (i.e. the 100% images)
 			unlock();
 		}
 	}
@@ -941,60 +910,41 @@ public class FSLoader extends Loader {
 		return null != dir_mipmaps;
 	}
 
-	/** Returns the AWT Image from the file in the dir_mipmaps that exists equal or closest (but larger) to the given level, and the integer level of such found file; returns null if dir_mipmaps is null, or no suitable file was found. */
-	public Object[] getClosestMipMapAWT(final Patch patch, int level) {
-		if (null == dir_mipmaps) return null;
-		synchronized (db_lock) {
-			lock();
-
+	/** Return the closest level to @param level that exists as a file. */
+	public int getClosestMipMapLevel(final Patch patch, int level) {
+		if (null == dir_mipmaps) return 0;
 		try {
 			final String filename = new File(getAbsolutePath(patch)).getName() + ".jpg";
-			File fdir = new File(dir_mipmaps + level);
 			while (true) {
-				if (fdir.exists() && fdir.isDirectory()) {
-					String[] list = fdir.list(new FilenameFilter() {
-						public boolean accept(File dir, String name) {
-							if (name.equals(filename)) return true;
-							return false;
-						}
-					});
-					if (null != list) {
-						ImagePlus imp = opener.openImage(fdir.getAbsolutePath() + "/" + list[0]);
-						unlock();
-						return new Object[]{patch.createImage(imp), new Integer(level)}; // considers c_alphas
-					}
+				File f = new File(dir_mipmaps + level + "/" + filename);
+				if (f.exists()) {
+					return level;
 				}
 				// stop at 50% images (there are no mipmaps for level 0)
 				if (level <= 1) {
-					unlock();
-					return null;
+					return 0;
 				}
 				// try the next level
 				level--;
-				fdir = new File(dir_mipmaps + level);
 			}
 		} catch (Exception e) {
 			new IJError(e);
 		}
-
-			unlock();
-		}
-		return null;
+		return 0;
 	}
 
-	public Image getMipMapAwt(final Patch patch, final int level) {
+	/** Loads the file containing the scaled image correspinding to the given level and returns it as an awt.Image, or null if not found.*/
+	public Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
-		synchronized (db_lock) {
-			lock();
-			try {
-				ImagePlus imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + ".jpg");
-				if (null != imp) {
-					return patch.createImage(imp); // considers c_alphas
-				}
-			} catch (Exception e) {
-				new IJError(e);
+		try {
+			ImagePlus imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + ".jpg");
+			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + ".jpg");
+			if (null != imp) {
+				unlock();
+				return patch.createImage(imp); // considers c_alphas
 			}
-			unlock();
+		} catch (Exception e) {
+			new IJError(e);
 		}
 		return null;
 	}

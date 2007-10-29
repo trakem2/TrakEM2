@@ -1431,6 +1431,7 @@ public class DBLoader extends Loader {
 		}
 	}
 
+	/* // DEPRECATED, now using mipmaps
 	public Image fetchSnapshot(Patch p) {
 		synchronized (db_lock) {
 			lock();
@@ -1526,6 +1527,7 @@ public class DBLoader extends Loader {
 			return image;
 		}
 	}
+	*/
 
 	/** Recursive. Place all Layer (but not LayerSet) objects with a key as Long(id). */
 	private void unpackLayers(LayerThing root, Hashtable hs) {
