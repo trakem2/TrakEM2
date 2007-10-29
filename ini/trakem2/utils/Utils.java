@@ -698,12 +698,12 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Converts the ImageProcessor to an ImageProcessor of the given type, or the same if of equal type. */
-	static final public ImageProcessor convertTo(final ImageProcessor ip, final int type) {
+	static final public ImageProcessor convertTo(final ImageProcessor ip, final int type, final boolean scaling) {
 		switch (type) {
 			case ImagePlus.GRAY8:
-				return ip.convertToByte(true);
+				return ip.convertToByte(scaling);
 			case ImagePlus.GRAY16:
-				return ip.convertToShort(true);
+				return ip.convertToShort(scaling);
 			case ImagePlus.GRAY32:
 				return ip.convertToFloat();
 			case ImagePlus.COLOR_RGB:

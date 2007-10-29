@@ -835,7 +835,7 @@ abstract public class Loader {
 				mawt = mawts.getClosest(id, level);
 				if (null != mawt) {
 					unlock();
-					//Utils.log2("returning from getClosest with level " + level);
+					Utils.log2("returning from getClosest with level " + level);
 					return mawt;
 				}
 				// 5 - else, fetch the ImagePlus and make an image from it of the proper size and quality
@@ -846,11 +846,17 @@ abstract public class Loader {
 					lock();
 				}
 				if (null != imp && null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
-					mawt = Loader.createImage(imp.getProcessor(), mag, p.getLayer().getParent().snapshotsQuality());
+					// if NOT mag == 1.0
+					if (Math.abs(mag - 1) > 0.000001) {
+						imp = new ImagePlus("", Loader.scaleImage(imp, mag, p.getLayer().getParent().snapshotsQuality()));
+						Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
+						p.putMinAndMax(imp);
+					}
+					mawt = p.createImage(imp);
 					mawts.put(id, mawt, level);
 					Display.repaintSnapshot(p);
 					unlock();
-					//Utils.log2("Returning from imp with level " + level);
+					Utils.log2("Returning from imp with level " + level);
 					return mawt;
 				}
 
@@ -3008,9 +3014,10 @@ abstract public class Loader {
 	/** Does nothing and returns null unless overriden. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
 
-	static public Image createImage(ImageProcessor ip, double mag, final boolean quality) {
+	static public ImageProcessor scaleImage(ImagePlus imp, double mag, final boolean quality) {
 		if (mag > 1) mag = 1;
-		if (1 == mag) return ip.createImage();
+		ImageProcessor ip = imp.getProcessor();
+		if (Math.abs(mag - 1) < 0.000001) return ip;
 		// else, make a properly scaled image:
 		//  - gaussian blurred for best quality when resizing with nearest neighbor
 		//  - direct nearest neighbor otherwise
@@ -3021,7 +3028,10 @@ abstract public class Loader {
 			// apply proper gaussian filter
 			double sigma = Math.sqrt(Math.pow(2, getMipMapLevel(mag)) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
 			ip = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel());
+			ip = ip.resize((int)(w * mag), (int)(h * mag)); // better while float
+			return Utils.convertTo(ip, imp.getType(), false);
+		} else {
+			return ip.resize((int)(w * mag), (int)(h * mag));
 		}
-		return ip.resize((int)(w * mag), (int)(h * mag)).createImage();
 	}
 }
