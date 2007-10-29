@@ -803,6 +803,7 @@ public class FSLoader extends Loader {
 	public Bureaucrat generateMipMaps(final LayerSet ls) {
 		final Worker worker = new Worker("Generating MipMaps") {
 			public void run() {
+				startedWorking();
 
 				Utils.log2("starting mipmap generation ..");
 
@@ -817,11 +818,13 @@ public class FSLoader extends Loader {
 				Utils.log2("done " + i + "/" + size);
 			if ( ! generateMipMaps((Patch)it.next()) ) {
 				// some error ocurred
+				finishedWorking();
 				return;
 			}
 			i++;
 		}
 
+		finishedWorking();
 			}
 		};
 		Bureaucrat burro = new Bureaucrat(worker, ls.getProject());
@@ -933,6 +936,14 @@ public class FSLoader extends Loader {
 		try {
 			ImagePlus imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
 			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + ".jpg");
+			if (null == imp && isMipMapsEnabled()) {
+				// regenerate
+				unlock();
+				generateMipMaps(patch);
+				lock();
+				// try again
+				imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
+			}
 			if (null != imp) {
 				unlock();
 				return patch.createImage(imp); // considers c_alphas

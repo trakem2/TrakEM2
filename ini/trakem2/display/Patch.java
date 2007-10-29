@@ -184,9 +184,12 @@ public class Patch extends Displayable {
 		// the method fetchImage above has set the min and max already on the image
 		//Utils.log2("Patch " + this + "   imp: slice is " + imp.getCurrentSlice());
 		//Utils.printCaller(this, 12);
-		final ImageProcessor ip = imp.getProcessor();
+		ImageProcessor ip = imp.getProcessor();
 		if (null == ip) return null; // fixing synch problems when deleting a Patch
 		Image awt = null;
+		if (imp.getType() != this.type) {
+			ip = Utils.convertTo(ip, this.type);
+		}
 		if (ImagePlus.COLOR_RGB == type) {
 			if ((c&0x00ffffff) == 0x00ffffff && !force) {
 				// full transparency

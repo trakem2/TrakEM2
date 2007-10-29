@@ -36,6 +36,8 @@ import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ij.io.*;
+import ij.process.ImageProcessor;
+import ij.process.ImageConverter;
 
 import java.awt.Checkbox;
 import java.awt.Choice;
@@ -693,5 +695,25 @@ public class Utils implements ij.plugin.PlugIn {
 				if (index < cstart.getSelectedIndex()) cstart.select(index);
 			}
 		});
+	}
+
+	/** Converts the ImageProcessor to an ImageProcessor of the given type, or the same if of equal type. */
+	static final public ImageProcessor convertTo(final ImageProcessor ip, final int type) {
+		switch (type) {
+			case ImagePlus.GRAY8:
+				return ip.convertToByte(true);
+			case ImagePlus.GRAY16:
+				return ip.convertToShort(true);
+			case ImagePlus.GRAY32:
+				return ip.convertToFloat();
+			case ImagePlus.COLOR_RGB:
+				return ip.convertToRGB();
+			case ImagePlus.COLOR_256:
+				ImagePlus imp = new ImagePlus("", ip.convertToRGB());
+				new ImageConverter(imp).convertRGBtoIndexedColor(256);
+				return imp.getProcessor();
+			default:
+				return null;
+		}
 	}
 }
