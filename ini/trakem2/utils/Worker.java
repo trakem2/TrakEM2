@@ -34,7 +34,7 @@ public abstract class Worker extends Thread {
 		this.task_name = task_name;
 		setPriority(Thread.NORM_PRIORITY);
 	}
-	protected void setTaskName(String name) { this.task_name = name; }
+	public void setTaskName(String name) { this.task_name = name; }
 	protected void startedWorking() { this.working = true; }
 	protected void finishedWorking() { this.working = false; }
 	public boolean isWorking() { return working; }

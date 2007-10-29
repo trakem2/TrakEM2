@@ -99,6 +99,10 @@ import javax.xml.parsers.SAXParser;
 
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
+import mpi.fruitfly.general.MultiThreading;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
 public class FSLoader extends Loader {
@@ -799,32 +803,45 @@ public class FSLoader extends Loader {
 		return true;
 	}
 
-	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. */
+	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.*/
 	public Bureaucrat generateMipMaps(final LayerSet ls) {
+		if (null == dir_mipmaps) createMipMapsDir(null);
 		final Worker worker = new Worker("Generating MipMaps") {
 			public void run() {
 				startedWorking();
+				final Worker wo = this;
 
 				Utils.log2("starting mipmap generation ..");
 
-		ArrayList al = ls.getDisplayables(Patch.class);
-		int size = al.size();
-		int i = 1;
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			if (this.quit) {
-				return;
-			}
-			this.setTaskName("Generating MipMaps " + i + "/" + size);
-				Utils.log2("done " + i + "/" + size);
-			if ( ! generateMipMaps((Patch)it.next()) ) {
-				// some error ocurred
-				finishedWorking();
-				return;
-			}
-			i++;
-		}
+				ArrayList al = ls.getDisplayables(Patch.class);
+				final int size = al.size();
+				final Patch[] pa = new Patch[size];
+				final Thread[] threads = MultiThreading.newThreads();
+				al.toArray(pa);
+				final AtomicInteger ai = new AtomicInteger(0);
 
-		finishedWorking();
+				for (int ithread = 0; ithread < threads.length; ++ithread) {
+					final int si = ithread;
+					threads[ithread] = new Thread(new Runnable() {
+						public void run() {
+
+				for (int k = ai.getAndIncrement(); k < size; k = ai.getAndIncrement()) {
+					if (wo.hasQuitted()) {
+						return;
+					}
+					wo.setTaskName("Generating MipMaps " + k + "/" + size);
+					if ( ! generateMipMaps(pa[k]) ) {
+						// some error ocurred
+						Utils.log2("Could not generate mipmaps for patch " + pa[k]);
+					}
+				}
+
+				}});
+
+				}
+				MultiThreading.startAndJoin(threads);
+
+				finishedWorking();
 			}
 		};
 		Bureaucrat burro = new Bureaucrat(worker, ls.getProject());
@@ -832,16 +849,25 @@ public class FSLoader extends Loader {
 		return burro;
 	}
 
-	static private final String getScaleDir(final String dir_mipmaps, final int k) {
-		final String path = dir_mipmaps + k;
-		File file = new File(path);
-		if (file.exists() && file.isDirectory()) return path;
-		// else, create it
-		try {
-			file.mkdir();
-			return path;
-		} catch (Exception e) {
-			new IJError(e);
+	private final String getScaleDir(final String dir_mipmaps, final int level) {
+		// synch, so that multithreaded generateMipMaps won't collide trying to create dirs
+		synchronized (db_lock) {
+			lock();
+			final String path = dir_mipmaps + level;
+			File file = new File(path);
+			if (file.exists() && file.isDirectory()) {
+				unlock();
+				return path;
+			}
+			// else, create it
+			try {
+				file.mkdir();
+				unlock();
+				return path;
+			} catch (Exception e) {
+				new IJError(e);
+			}
+			unlock();
 		}
 		return null;
 	}
@@ -930,23 +956,52 @@ public class FSLoader extends Loader {
 		return 0;
 	}
 
+	final private HashSet hs_regenerating_mipmaps = new HashSet();
+
 	/** Loads the file containing the scaled image correspinding to the given level and returns it as an awt.Image, or null if not found.*/
-	public Image fetchMipMapAWT(final Patch patch, final int level) {
+	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
 		try {
 			ImagePlus imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
-			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + ".jpg");
-			if (null == imp && isMipMapsEnabled()) {
-				// regenerate
-				unlock();
-				generateMipMaps(patch);
-				lock();
-				// try again
-				imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
-			}
+			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
 			if (null != imp) {
-				unlock();
 				return patch.createImage(imp); // considers c_alphas
+			}
+			// Regenerate in the case of not asking for an image under 64x64
+			double scale = 1 / Math.pow(2, level);
+			if ((patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
+				// regenerate
+				Worker worker = new Worker("Regenerating mipmaps") {
+					public void run() {
+						synchronized (db_lock) {
+							lock();
+							if (hs_regenerating_mipmaps.contains(patch)) {
+								// already being done, just wait
+								unlock();
+								return;
+							}
+							hs_regenerating_mipmaps.add(patch);
+							unlock();
+						}
+
+						startedWorking();
+
+						generateMipMaps(patch);
+
+						synchronized (db_lock) {
+							lock();
+							hs_regenerating_mipmaps.remove(patch);
+							unlock();
+						}
+
+						Display.repaint(patch.getLayer(), patch, 0);
+
+						finishedWorking();
+					}
+				};
+				Bureaucrat burro = new Bureaucrat(worker, patch.getProject());
+				burro.goHaveBreakfast();
+				return null;
 			}
 		} catch (Exception e) {
 			new IJError(e);

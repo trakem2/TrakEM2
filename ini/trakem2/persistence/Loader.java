@@ -3006,7 +3006,7 @@ abstract public class Loader {
 	public int getClosestMipMapLevel(final Patch patch, int level) {return 0;}
 
 	/** Does nothing and returns null unless overriden. */
-	public Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
+	protected Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
 
 	static public Image createImage(ImageProcessor ip, double mag, final boolean quality) {
 		if (mag > 1) mag = 1;
