@@ -1998,10 +1998,16 @@ abstract public class Loader {
 	 *
 	 */
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
+
 		ImagePlus imp = null;
+
+		if (isMipMapsEnabled()) {
+			quality = false; // since all mipmaps are generated from gaussian blurred images, the flat image will be of best quality already despite the nearest-neighbor scaling. So there is no need to create a gigantic image and then do the SCALE_AREA_AVERAGING.
+		}
+
 		try {
 
-			double scaleP = quality ? 1.0 : scale; // TODO: evaluate carefully
+			double scaleP = quality ? 1.0 : scale;
 
 			if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 			// dimensions
@@ -2169,8 +2175,9 @@ abstract public class Loader {
 			} catch (OutOfMemoryError oome) {
 				if (null != imp) imp.flush();
 				imp = null;
-				Utils.log("Not enough memory to create the ImagePlus. Try scaling it down.");
+				Utils.log("Not enough memory to create the ImagePlus. Try scaling it down or not using the 'quality' flag.");
 			}
+
 		} catch (Exception e) {
 			if (ControlWindow.isGUIEnabled()) new IJError(e);
 			else e.printStackTrace();
@@ -2179,6 +2186,7 @@ abstract public class Loader {
 		} finally {
 			if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getDefaultCursor());
 		}
+
 		return imp;
 	}
 
@@ -2379,7 +2387,7 @@ abstract public class Loader {
 
 	private String last_opened_path = null;
 
-	/** Subclasses can override this method to register the URL to the imported image. */
+	/** Subclasses can override this method to register the URL of the imported image. */
 	public void addedPatchFrom(String path, Patch patch) {}
 
 	public Patch importImage(Project project, double x, double y) {

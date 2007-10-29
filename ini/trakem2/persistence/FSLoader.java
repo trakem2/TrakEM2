@@ -553,6 +553,7 @@ public class FSLoader extends Loader {
 			return;
 		}
 		updatePatchPath(patch, path);
+		if (null != dir_mipmaps) generateMipMaps(patch);
 	}
 
 	/** This method has the exclusivity in calling ht_paths.put, because it ensures the path won't have escape characters. */
@@ -775,6 +776,8 @@ public class FSLoader extends Loader {
 		}
 	}
 
+	/* ************** MIPMAPS **********************/
+
 	/** Path to the directory hosting the file image pyramids. */
 	private String dir_mipmaps = null;
 
@@ -784,12 +787,15 @@ public class FSLoader extends Loader {
 	}
 
 	/** Given an image and its source file name (without directory prepended), generate
-	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.
-	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps
+	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
+	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
+	 * The Patch id and a ".jpg" extension will be appended to the filename in all cases.
 	 */
-	public boolean generateMipMaps(final ImagePlus imp, final String filename) {
+	public boolean generateMipMaps(final Patch patch) {
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		if (null == dir_mipmaps) return false;
+		final ImagePlus imp = fetchImagePlus(patch);
+		final String filename = new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
 		JpegWriter.setQuality(85);
 		// ok, now proceed using this.dir_mipmaps
 		int w = imp.getWidth();
@@ -815,7 +821,7 @@ public class FSLoader extends Loader {
 			String target_dir = getScaleDir(dir_mipmaps, k);
 			if (null == target_dir) return false;
 			// 5 - save as 8-bit jpeg
-			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(true))).saveAsJpeg(dir_mipmaps + k + "/" + filename + ".jpg");
+			new FileSaver(new ImagePlus(imp.getTitle(), fp.convertToByte(true))).saveAsJpeg(dir_mipmaps + k + "/" + filename);
 		}
 		return true;
 	}
@@ -825,6 +831,8 @@ public class FSLoader extends Loader {
 		final Worker worker = new Worker("Generating MipMaps") {
 			public void run() {
 
+				Utils.log2("starting mipmap generation ..");
+
 		ArrayList al = ls.getDisplayables(Patch.class);
 		int size = al.size();
 		int i = 1;
@@ -833,9 +841,11 @@ public class FSLoader extends Loader {
 				return;
 			}
 			this.setTaskName("Generating MipMaps " + i + "/" + size);
-			Patch pa = (Patch)it.next();
-			File f = new File(getAbsolutePath(pa));
-			generateMipMaps(fetchImagePlus(pa), f.getName());
+				Utils.log2("done " + i + "/" + size);
+			if ( ! generateMipMaps((Patch)it.next()) ) {
+				// some error ocurred
+				return;
+			}
 			i++;
 		}
 
@@ -948,7 +958,7 @@ public class FSLoader extends Loader {
 	public Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
 		try {
-			ImagePlus imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + ".jpg");
+			ImagePlus imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
 			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + ".jpg");
 			if (null != imp) {
 				unlock();

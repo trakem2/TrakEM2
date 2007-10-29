@@ -2910,16 +2910,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//Utils.log2("calling deCache for " + updated);
 		//getProject().getLoader().deCache(updated);
 
-		/* // done at the PatchStack level
-		// new way: the temp is a virtual PatchStack
-		if (updated.equals(last_temp)) {
-			if (!last_temp.changes) {
-				last_temp.reset();
-			} else {
-				last_temp.saveImages();
-			}
-		}
-		*/
 		//Utils.log2("imageUpdated: updated imp is " + updated.getTitle() + "\n\t and is last_temp: " + updated.equals(last_temp) + "\n\t and changes=" + updated.changes + " and class: " + updated.getClass());
 	}
 
