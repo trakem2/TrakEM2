@@ -644,20 +644,21 @@ public class FloatArray2DSIFT
 					second_best_d = d;
 			}
 			if ( best != null && second_best_d < Float.MAX_VALUE && best_d / second_best_d < 0.92 )
+				// not weighted
+//				matches.addElement(
+//						new PointMatch(
+//								new Point(
+//										new float[] { f1.location[ 0 ], f1.location[ 1 ] } ),
+//								new Point(
+//										new float[] { best.location[ 0 ], best.location[ 1 ] } ) ) );
+				// weighted with the features scale
 				matches.addElement(
 						new PointMatch(
 								new Point(
 										new float[] { f1.location[ 0 ], f1.location[ 1 ] } ),
 								new Point(
-										new float[] { best.location[ 0 ], best.location[ 1 ] } ) ) );
-//				matches.addElement(
-//						new Match(
-//								new float[] { f1.location[ 0 ], f1.location[ 1 ] },
-//								new float[] { best.location[ 0 ], best.location[ 1 ] },
-//								f1.scale,
-//								best.scale,
-//								f1.orientation,
-//								best.orientation ) );
+										new float[] { best.location[ 0 ], best.location[ 1 ] } ),
+								( f1.scale + best.scale ) / 2.0f ) );
 		}
 		// now remove ambiguous matches
 		for ( int i = 0; i < matches.size(); )

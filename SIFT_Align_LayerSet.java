@@ -83,6 +83,38 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	final static private DecimalFormat decimalFormat = new DecimalFormat();
 	final static private DecimalFormatSymbols decimalFormatSymbols = new DecimalFormatSymbols();
 	
+	private class Observer
+	{
+		public int i;			// iteration
+		public double v;		// value
+		public double d;		// first derivative
+		public double m;		// mean
+		public double var;		// variance
+		public double std;		// standard-deviation
+		
+		public void add( double new_value )
+		{
+			if ( i == 0 )
+			{
+				i = 1;
+				v = new_value;
+				d = 0.0;
+				m = v;
+				var = 0.0;
+				std = 0.0;
+			}
+			else
+			{
+				d = new_value - v;
+				v = new_value;
+				m = ( v + m * ( double )i++ ) / ( double )i;
+				double tmp = v - m;
+				var += tmp * tmp / ( double )i;
+				std = Math.sqrt( var );
+			}
+		}
+	}
+	
 	/**
 	 * downscale a grey scale float image using gaussian blur
 	 */
@@ -105,7 +137,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	
 	private void drawAndSaveIterationSnapshot(
 			Layer layer,
-			ArrayList< Tile > tiles,
+			List< Tile > tiles,
 			int iteration,
 			int current,
 			double od,
@@ -113,8 +145,6 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	{
 		int img_left = 0;
 		int img_top = 0;
-		//int img_width = 7428;
-		//int img_height = 7339;
 		float img_scale = 600.0f / ( float )layer.getLayerHeight();
 		
 		ImagePlus flat_section = ControlWindow.getActive().getLoader().getFlatImage(
@@ -126,7 +156,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				Patch.class,
 				null,
 				//true );	// high quality
-				false );	// flow quality
+				false );	// low quality
 		ImageProcessor ip = flat_section.getProcessor().convertToRGB();
 		ip.setAntialiasedText( true );
 		ip.setColor( Color.white );
@@ -312,10 +342,23 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		 * tiles.
 		 */
 		System.out.println( "Synthetically connecting graphs using the given alignment." );
+		
+		ArrayList< Tile > empty_tiles = new ArrayList< Tile >();
+		for ( ArrayList< Tile > graph : graphs )
+		{
+			if ( graph.size() == 1 )
+			{
+				/**
+				 *  This is a single unconnected tile.
+				 */
+				empty_tiles.add( graph.get( 0 ) );
+			}
+		}
 		for ( ArrayList< Tile > graph : graphs )
 		{
 			for ( Tile tile : graph )
 			{
+				boolean is_empty = empty_tiles.contains( tile );
 				Patch patch = patches.get( tiles.indexOf( tile ) );
 				final Rectangle r = patch.getBoundingBox();
 				// check this patch against each patch of the other graphs
@@ -345,12 +388,26 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 							Point p2 = new Point(
 									new float[]{ ( float )dp2.x, ( float )dp2.y } );
 							ArrayList< PointMatch > a1 = new ArrayList<PointMatch>();
-							a1.add( new PointMatch( cp1, p1, 0.5f ) );
-							a1.add( new PointMatch( cp2, p2, 0.5f ) );
+							a1.add( new PointMatch( cp1, p1, 1.0f ) );
+							a1.add( new PointMatch( cp2, p2, 1.0f ) );
 							tile.addMatches( a1 );
 							ArrayList< PointMatch > a2 = new ArrayList<PointMatch>();
-							a2.add( new PointMatch( p1, cp1, 0.0f ) );
-							a2.add( new PointMatch( p2, cp2, 0.0f ) );
+							if ( is_empty )
+							{
+								/**
+								 * very low weight instead of 0.0
+								 * 
+								 * TODO nothing could lead to disconntected graphs that were
+								 *   connected by one empty tile only...
+								 */
+								a2.add( new PointMatch( p1, cp1, 0.1f ) );
+								a2.add( new PointMatch( p2, cp2, 0.1f ) );
+							}
+							else
+							{
+								a2.add( new PointMatch( p1, cp1, 1.0f ) );
+								a2.add( new PointMatch( p2, cp2, 1.0f ) );
+							}
 							other_tile.addMatches( a2 );
 							
 							// and tell them that they are connected now
@@ -371,12 +428,22 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	 * @param patches
 	 * @param fixed_tiles do not touch these tiles
 	 * @param update_this
+	 * 
+	 * TODO revise convergence check
+	 *   particularly for unguided minimization, it is hard to identify
+	 *   convergence due to presence of local minima
+	 *   
+	 *   Johannes Schindelin suggested to start from a good guess, which is
+	 *   e.g. the propagated unoptimized pose of a tile relative to its
+	 *   connected tile that was already identified during RANSAC
+	 *   correpondence check.  Thank you, Johannes, great hint!
 	 */
 	private void minimizeAll(
 			List< Tile > tiles,
 			List< Patch > patches,
 			List< Tile > fixed_tiles,
-			Object update_this )
+			Object update_this,
+			float max_error )
 	{
 		int num_patches = patches.size();
 //		boolean changed = true;
@@ -428,7 +495,23 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		double[] dall = new double[100];
 		int next = 0;
 		//while ( cc < 10 )
+		
+//		TODO empirical evaluation of the convergence of inliers and epsilon
+//#############################################################################
+//		PrintStream f = System.out;
+//		try
+//		{
+//			f = new PrintStream( new FileOutputStream( "minimize.dat", false ) );
+//		}
+//		catch ( FileNotFoundException e )
+//		{
+//			System.err.println( "File minimize.dat not found for writing." );
+//		}
+		Observer observer = new Observer();
+//#############################################################################
+		
 		while ( next < 100000 )  // safety check
+//		while ( next < 10000 )  // safety check
 		{
 			for ( int i = 0; i < num_patches; ++i )
 			{
@@ -470,6 +553,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			d = Math.abs( od - cd );
 			od = cd;
 			IJ.showStatus( "displacement: " + decimalFormat.format( od ) + " after " + iteration + " iterations");
+			
+			observer.add( od );			
+//			f.println( observer.i + " " + observer.v + " " + observer.d + " " + observer.m + " " + observer.std );
+			
 			//cc = d < 0.00025 ? cc + 1 : 0;
 			cc = d < 0.001 ? cc + 1 : 0;
 
@@ -479,6 +566,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				dall = dall2;
 			}
 			dall[next++] = d;
+			
 			// cut the last 'n'
 			if (next > 100) { // wait until completing at least 'n' iterations
 				double[] dn = new double[100];
@@ -488,33 +576,36 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				// ft[1] StdDev
 				// ft[2] m (slope)
 				//if ( Math.abs( ft[ 1 ] ) < 0.001 )
-				if ( ft[ 2 ] >= 0.0 )
+
+				// TODO revise convergence check or start from better guesses
+				if ( od < max_error && ft[ 2 ] >= 0.0 )
 				{
 					System.out.println( "Exiting at iteration " + next + " with slope " + ft[ 2 ] );
 					break;
 				}
+
 			}
 
 			// repaint all Displays showing those patches
 			if ( update_this.getClass() == Layer.class )
+			{
 				Display.update( ( Layer )update_this );
+//#############################################################################
+//				drawAndSaveIterationSnapshot(
+//						( Layer )update_this,
+//						tiles,
+//						iteration,
+//						-1,
+//						od,
+//						"D:/Benutzer/Stephan/Eigene Dateien/diploma" );
+//#############################################################################
+			}
 			else if ( update_this.getClass() == LayerSet.class )
-				Display.update( ( LayerSet )update_this );
-			
-
-//#############################################################################
-//			drawAndSaveIterationSnapshot(
-//					layer,
-//					tiles2,
-//					iteration,
-//					-1,
-//					od,
-//					"D:/Benutzer/Stephan/Eigene Dateien/diploma" );
-//#############################################################################
-		
+				Display.update( ( LayerSet )update_this );		
 			
 			++iteration;
 		}
+//		f.close();
 
 	}
 
@@ -647,104 +738,56 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			final Vector[] fsets = new Vector[ num_pa2 ];
 			final Tile[] tls = new Tile[ num_pa2 ];
 
-			//#################################################################
-			// single threaded version
-			
-			for ( int k = 0; k < num_pa2; ++k )
-			{
-				System.out.println( "k is " + k );
-				Patch patch = pa2[ k ];
-				if ( null == patch ) System.out.println( "patch is null" );
-				System.out.println( "patch is " + patch );
-				
-				ImagePlus imp = null;
-				boolean exception = true;
-				FloatArray2D fa = null;
-				
-				while ( exception || fa == null )
-				{
-					try
-					{
-						imp = patch.getProject().getLoader().fetchImagePlus( patch );
-						if ( null == imp ) System.out.println( "imp is null" );
-						ImageProcessor tmp = imp.getProcessor();
-						if (tmp == null) System.out.println( "imageprocessor is null" );
-					
-						set.getProject().getLoader().releaseToFit( imp.getWidth() * imp.getHeight() * 96L + feature_size );
-				
-						fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
-						exception = false;
-					}
-					catch ( Exception e )
-					{
-						exception = true;
-						System.out.println( "Exception happened..." );
-					}
-				}
-				
-				if ( null == fa ) System.out.println( "fa is null" );
-				ImageFilter.enhance( fa, 1.0f );
-				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
-				if ( null == fa ) System.out.println( "fa is null" );
-				
-				long start_time = System.currentTimeMillis();
-				System.out.print( "processing SIFT ..." );
-				sift[ 0 ].init( fa, steps, initial_sigma, min_size, max_size );
-				Vector< FloatArray2DSIFT.Feature > fs = sift[ 0 ].run( max_size );
-				Collections.sort( fs );
-				System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
-				
-				System.out.println( fs.size() + " features identified and processed" );
-				
-				Model model;
-				
-				if ( dimension_str.equals( "translation" ) )
-					model = new TModel2D();
-				else
-					model = new TRModel2D();
-				
-				model.getAffine().setTransform( patch.getAffineTransform() );
-				Tile tile = new Tile( ( float )fa.width, ( float )fa.height, model );
-				
-				//tiles2.add( tile );
-				tls[ k ] = tile;
-			
-				//featureSets2.add( fs );
-				fsets[ k ] = fs;
-			}
-			//#################################################################
-
-			//#################################################################
-			// multi threaded version
-			
-//			for (int ithread = 0; ithread < threads.length; ++ithread)
+//			//#################################################################
+//			// single threaded version
+//			
+//			for ( int k = 0; k < num_pa2; ++k )
 //			{
-//				final int si = ithread;
-//				threads[ ithread ] = new Thread( new Runnable()
-//				{
-//					public void run()
-//					{
-//						for ( int k = ai.getAndIncrement(); k < num_pa2; k = ai.getAndIncrement() )
-//						{
-//
-//				System.out.println("k is " + k);
+//				System.out.println( "k is " + k );
 //				Patch patch = pa2[ k ];
-//				if (null == patch) System.out.println("patch is null");
-//				System.out.println("patch is " + patch);
-//				ImagePlus imp = patch.getProject().getLoader().fetchImagePlus( patch );
-//				if (null == imp) System.out.println("imp is null");
-//				set.getProject().getLoader().releaseToFit(imp.getWidth() * imp.getHeight() * 96L + feature_size);
-//
+//				if ( null == patch ) System.out.println( "patch is null" );
+//				System.out.println( "patch is " + patch );
+//				
+//				final ImagePlus imp = patch.getProject().getLoader().fetchImagePlus( patch );
+//				if ( null == imp ) System.out.println( "imp is null" );
 //				FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
-//				if (null == fa) System.out.println("fa is null");
+//			
+//				set.getProject().getLoader().releaseToFit( imp.getWidth() * imp.getHeight() * 96L + feature_size );
+//				
+////				ImagePlus imp = null;
+////				boolean exception = true;
+////				FloatArray2D fa = null;
+////				
+////				while ( exception || fa == null )
+////				{
+////					try
+////					{
+////						imp = patch.getProject().getLoader().fetchImagePlus( patch );
+////						if ( null == imp ) System.out.println( "imp is null" );
+////						ImageProcessor tmp = imp.getProcessor();
+////						if ( tmp == null ) System.out.println( "imageprocessor is null" );
+////					
+////						set.getProject().getLoader().releaseToFit( imp.getWidth() * imp.getHeight() * 96L + feature_size );
+////				
+////						fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
+////						exception = false;
+////					}
+////					catch ( Exception e )
+////					{
+////						exception = true;
+////						System.out.println( "Exception happened..." );
+////					}
+////				}
+//				
+//				if ( null == fa ) System.out.println( "fa is null" );
 //				ImageFilter.enhance( fa, 1.0f );
 //				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
-//				if (null == fa) System.out.println("fa is null");
+//				if ( null == fa ) System.out.println( "fa is null" );
 //				
 //				long start_time = System.currentTimeMillis();
 //				System.out.print( "processing SIFT ..." );
-//				sift[si].init( fa, steps, initial_sigma, min_size, max_size );
-//				Vector< FloatArray2DSIFT.Feature > fs = sift[si].run( max_size );
+//				sift[ 0 ].init( fa, steps, initial_sigma, min_size, max_size );
+//				Vector< FloatArray2DSIFT.Feature > fs = sift[ 0 ].run( max_size );
 //				Collections.sort( fs );
 //				System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 //				
@@ -762,16 +805,73 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 //				
 //				//tiles2.add( tile );
 //				tls[ k ] = tile;
-//
+//			
 //				//featureSets2.add( fs );
 //				fsets[ k ] = fs;
-//
-//						}
-//					}
-//				} );
 //			}
-//        	
-//			MultiThreading.startAndJoin(threads);
+//			//#################################################################
+
+			//#################################################################
+			// multi threaded version
+			
+			for (int ithread = 0; ithread < threads.length; ++ithread)
+			{
+				final int si = ithread;
+				threads[ ithread ] = new Thread( new Runnable()
+				{
+					public void run()
+					{
+						for ( int k = ai.getAndIncrement(); k < num_pa2; k = ai.getAndIncrement() )
+						{
+
+				System.out.println("k is " + k);
+				Patch patch = pa2[ k ];
+				if (null == patch) System.out.println("patch is null");
+				System.out.println("patch is " + patch);
+				
+				final ImagePlus imp = patch.getProject().getLoader().fetchImagePlus( patch );
+				if (null == imp) System.out.println("imp is null");
+				
+				FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( imp.getProcessor().convertToByte( true ) );
+				if (null == fa) System.out.println("fa is null");
+				
+				set.getProject().getLoader().releaseToFit(imp.getWidth() * imp.getHeight() * 96L + feature_size);
+
+				ImageFilter.enhance( fa, 1.0f );
+				fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
+				if (null == fa) System.out.println("fa is null");
+				
+				long start_time = System.currentTimeMillis();
+				System.out.print( "processing SIFT ..." );
+				sift[si].init( fa, steps, initial_sigma, min_size, max_size );
+				Vector< FloatArray2DSIFT.Feature > fs = sift[si].run( max_size );
+				Collections.sort( fs );
+				System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
+				
+				System.out.println( fs.size() + " features identified and processed" );
+				
+				Model model;
+				
+				if ( dimension_str.equals( "translation" ) )
+					model = new TModel2D();
+				else
+					model = new TRModel2D();
+				
+				model.getAffine().setTransform( patch.getAffineTransform() );
+				Tile tile = new Tile( ( float )fa.width, ( float )fa.height, model );
+				
+				//tiles2.add( tile );
+				tls[ k ] = tile;
+
+				//featureSets2.add( fs );
+				fsets[ k ] = fs;
+
+						}
+					}
+				} );
+			}
+        	
+			MultiThreading.startAndJoin(threads);
 
 			//#################################################################
 
@@ -875,7 +975,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			for ( Tile tile : tiles2 ) tile.update();
 			
 			// optimize the pose of all tiles in the current layer
-			minimizeAll( tiles2, patches2, layer_fixed_tiles, layer );
+			minimizeAll( tiles2, patches2, layer_fixed_tiles, layer, max_epsilon );
 			
 			// repaint all Displays showing a Layer of the edited LayerSet
 			Display.update( set );
@@ -886,6 +986,8 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 
 			if ( null != previous_layer )
 			{
+				System.out.println( "previous_layer is " + ( previous_layer == null ? "null" : "not null." ) );
+				System.out.println( "layer is " + ( layer == null ? "null" : "not null." ) );
 				/**
 				 * Coarse registration
 				 * 
@@ -906,6 +1008,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				 *       graph-connectivity?
 				 */ 
 				Object[] ob = Registration.registerSIFT( previous_layer, layer, null, sp_gross_interlayer );
+				System.out.println( ob[ 0 ] );
 				int original_max_size = sp_gross_interlayer.max_size;
 				float original_max_epsilon = sp_gross_interlayer.max_epsilon;
 				while (null == ob || null == ob[0]) {
@@ -971,8 +1074,6 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 					 * correspondences to disconnected graphs having overlapping
 					 * tiles.
 					 */
-					System.out.println( "Synthetically connecting graphs using the given alignment." );
-					
 					ArrayList< Patch > both_layer_patches = new ArrayList< Patch >();
 					both_layer_patches.addAll( patches1 );
 					both_layer_patches.addAll( patches2 );
@@ -1024,7 +1125,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		for ( Tile tile : all_tiles ) tile.update();
 
 		// global minimization
-		minimizeAll( all_tiles, all_patches, fixed_tiles, set );
+		minimizeAll( all_tiles, all_patches, fixed_tiles, set, cs_max_epsilon );
 
 		// update selection internals in all open Displays
 		Display.updateSelection( front );
