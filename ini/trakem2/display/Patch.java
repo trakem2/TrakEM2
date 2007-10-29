@@ -187,10 +187,10 @@ public class Patch extends Displayable {
 		ImageProcessor ip = imp.getProcessor();
 		if (null == ip) return null; // fixing synch problems when deleting a Patch
 		Image awt = null;
-		if (imp.getType() != this.type) {
-			ip = Utils.convertTo(ip, this.type, false); // no scaling
-		}
 		if (ImagePlus.COLOR_RGB == type) {
+			if (imp.getType() != type ) {
+				ip = Utils.convertTo(ip, type, false); // all other types need not be converted, since there are no alphas anyway
+			}
 			if ((c&0x00ffffff) == 0x00ffffff && !force) {
 				// full transparency
 				awt = ip.createImage(); //imp.getImage();

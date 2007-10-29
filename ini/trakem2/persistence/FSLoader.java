@@ -774,7 +774,6 @@ public class FSLoader extends Loader {
 		final ImagePlus imp = fetchImagePlus(patch);
 		final String filename = new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
 		JpegWriter.setQuality(85);
-		// ok, now proceed using this.dir_mipmaps
 		int w = imp.getWidth();
 		int h = imp.getHeight();
 		// sigma = sqrt(2^level - 0.5^2)
