@@ -720,8 +720,7 @@ public abstract class Displayable extends DBObject {
 		}
 	}
 
-	/** Check if this perimeter's intersects that of the given Displayable.<br />
-	 */
+	/** Check if this perimeter's intersects that of the given Displayable. */
 	public boolean intersects(final Displayable d) {
 		//if (!this.getBoundingBox().intersects(d.getBoundingBox())) return false;
 		//return true;
@@ -733,6 +732,13 @@ public abstract class Displayable extends DBObject {
 			}
 		}
 		return false;
+	}
+
+	/** Returns the intersection this Displayable with the given one. */
+	public Area getIntersection(final Displayable d) {
+		final Area a = new Area(this.getPerimeter());
+		a.intersect(new Area(d.getPerimeter()));
+		return a;
 	}
 
 	/** Returns the sum of bounding boxes of all linked Displayables. */
