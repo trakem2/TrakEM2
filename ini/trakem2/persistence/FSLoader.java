@@ -881,7 +881,22 @@ public class FSLoader extends Loader {
 	/** If parent path is null, it's asked for.*/
 	public boolean createMipMapsDir(String parent_path) {
 		if (null == parent_path) {
-			// ask for a new folder
+			// try to create it in the same directory where the XML file is
+			if (null != project_xml_path) {
+				File fxml = new File(project_xml_path);
+				File fparent = fxml.getParentFile();
+				if (null != fparent && fparent.isDirectory()) {
+					File f = new File(fparent.getAbsolutePath().replace('\\', '/') + "/" + fxml.getName() + ".mipmaps");
+					try {
+						if (f.mkdir()) {
+							this.dir_mipmaps = f.getAbsolutePath().replace('\\', '/');
+							if (!dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
+							return true;
+						}
+					} catch (Exception e) {}
+				}
+			}
+			// else,  ask for a new folder
 			DirectoryChooser dc = new DirectoryChooser("Select MipMaps parent directory");
 			parent_path = dc.getDirectory();
 			if (null == parent_path) return false;

@@ -495,7 +495,7 @@ abstract public class Loader {
 	
 	/** Measure wether there is at least 20% of available memory. */
 	protected boolean enoughFreeMemory() {
-		long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
+		final long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
 		if (mem_in_use < 80L) { // 80 % // this 100-20 could very well be the actual lost-in-hyperspace memory, which may be 20% for 32-bit and 32% in 64-bit systems
 			return true;
 		}
@@ -503,9 +503,9 @@ abstract public class Loader {
 	}
 
 	/** Measure whether there are at least 'bytes' free. */
-	protected boolean enoughFreeMemory(long bytes) {
+	protected boolean enoughFreeMemory(final long bytes) {
 		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
-		long mem_in_use = IJ.currentMemory(); // in bytes
+		final long mem_in_use = IJ.currentMemory(); // in bytes
 		//Utils.log("max_memory: " + max_memory + "  mem_in_use: " + mem_in_use);
 		if (bytes < max_memory - mem_in_use) {
 			return true;
@@ -676,7 +676,6 @@ abstract public class Loader {
 			}
 		} catch (Exception e) {
 			new IJError(e);
-			return;
 		}
 	}
 
@@ -799,6 +798,8 @@ abstract public class Loader {
 						//Utils.log2("returning cached exact mawt for level " + level);
 						return mawt;
 					}
+					//
+					releaseMemory();
 					// 2 - check if the exact file is present for the desired level
 					mawt = fetchMipMapAWT(p, level);
 					if (null != mawt) {
@@ -835,7 +836,7 @@ abstract public class Loader {
 				mawt = mawts.getClosest(id, level);
 				if (null != mawt) {
 					unlock();
-					Utils.log2("returning from getClosest with level " + level);
+					//Utils.log2("returning from getClosest with level " + level);
 					return mawt;
 				}
 				// 5 - else, fetch the ImagePlus and make an image from it of the proper size and quality
@@ -856,7 +857,7 @@ abstract public class Loader {
 					mawts.put(id, mawt, level);
 					Display.repaintSnapshot(p);
 					unlock();
-					Utils.log2("Returning from imp with level " + level);
+					//Utils.log2("Returning from imp with level " + level);
 					return mawt;
 				}
 

@@ -721,12 +721,18 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Check if this perimeter's intersects that of the given Displayable.<br />
-	 *  TODO check exact perimeters, rotation ...
-	 * */
-	public boolean intersects(Displayable d) {
-		if (!this.getBoundingBox().intersects(d.getBoundingBox())) return false;
-		// now faster: check if any corner of this is contained within the area of 'd'
-		return true;
+	 */
+	public boolean intersects(final Displayable d) {
+		//if (!this.getBoundingBox().intersects(d.getBoundingBox())) return false;
+		//return true;
+		final Polygon pol1 = getPerimeter();
+		final Polygon pol2 = d.getPerimeter();
+		for (int i=0; i<pol1.npoints; i++) {
+			if (pol2.contains(pol1.xpoints[i], pol1.ypoints[i])) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Returns the sum of bounding boxes of all linked Displayables. */
