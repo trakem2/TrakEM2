@@ -368,9 +368,15 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 					for ( Tile other_tile : other_graph )
 					{
 						Patch other_patch = patches.get( tiles.indexOf( other_tile ) );
-						final Rectangle rp = patch.getBoundingBox();
 						if ( patch.intersects( other_patch ) )
 						{
+							/**
+							 * TODO get a proper intersection polygon instead
+							 *   of the intersection of bounding boxes.
+							 *   
+							 *   - Where to add the faked nails then?
+							 */
+							final Rectangle rp = other_patch.getBoundingBox().intersection( r );
 							int xp1 = rp.x;
 							int yp1 = rp.y;
 							int xp2 = rp.x + rp.width;
@@ -487,16 +493,29 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 //				Double.MAX_VALUE,
 //				"/home/saalfeld" );
 //#############################################################################
+//#############################################################################
+		if ( update_this.getClass() == LayerSet.class )
+			drawAndSaveIterationSnapshot(
+				( ( LayerSet )update_this ).getLayer( 1 ),
+				tiles,
+				0,
+				-1,
+				0,
+				"D:/Benutzer/Stephan/Eigene Dateien/diploma" );
+//#############################################################################
+
 
 		double od = Double.MAX_VALUE;
-		double d = Double.MAX_VALUE;
+		double dd = Double.MAX_VALUE;
+		double min_d = Double.MAX_VALUE;
+		double max_d = Double.MIN_VALUE;
 		int iteration = 1;
 		int cc = 0;
 		double[] dall = new double[100];
 		int next = 0;
 		//while ( cc < 10 )
 		
-//		TODO empirical evaluation of the convergence of inliers and epsilon
+//		TODO empirical evaluation of the convergence
 //#############################################################################
 //		PrintStream f = System.out;
 //		try
@@ -544,28 +563,33 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				
 			}
 			double cd = 0.0;
+			min_d = Double.MAX_VALUE;
+			max_d = Double.MIN_VALUE;
 			for ( Tile t : tiles )
 			{
 				t.update();
-				cd += t.getDistance();
+				double d = t.getDistance();
+				if ( d < min_d ) min_d = d;
+				if ( d > max_d ) max_d = d;
+				cd += d;
 			}
 			cd /= tiles.size();
-			d = Math.abs( od - cd );
+			dd = Math.abs( od - cd );
 			od = cd;
-			IJ.showStatus( "displacement: " + decimalFormat.format( od ) + " after " + iteration + " iterations");
+			IJ.showStatus( "displacement: " + decimalFormat.format( od ) + " [" + decimalFormat.format( min_d ) + "; " + decimalFormat.format( max_d ) + "] after " + iteration + " iterations");
 			
 			observer.add( od );			
 //			f.println( observer.i + " " + observer.v + " " + observer.d + " " + observer.m + " " + observer.std );
 			
 			//cc = d < 0.00025 ? cc + 1 : 0;
-			cc = d < 0.001 ? cc + 1 : 0;
+			cc = dd < 0.001 ? cc + 1 : 0;
 
 			if (dall.length  == next) {
 				double[] dall2 = new double[dall.length + 100];
 				System.arraycopy(dall, 0, dall2, 0, dall.length);
 				dall = dall2;
 			}
-			dall[next++] = d;
+			dall[next++] = dd;
 			
 			// cut the last 'n'
 			if (next > 100) { // wait until completing at least 'n' iterations
@@ -580,7 +604,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				// TODO revise convergence check or start from better guesses
 				if ( od < max_error && ft[ 2 ] >= 0.0 )
 				{
-					System.out.println( "Exiting at iteration " + next + " with slope " + ft[ 2 ] );
+					System.out.println( "Exiting at iteration " + next + " with slope " + decimalFormat.format( ft[ 2 ] ) );
 					break;
 				}
 
@@ -601,12 +625,29 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 //#############################################################################
 			}
 			else if ( update_this.getClass() == LayerSet.class )
-				Display.update( ( LayerSet )update_this );		
+			{
+				Display.update( ( LayerSet )update_this );
+//#############################################################################
+				drawAndSaveIterationSnapshot(
+						( ( LayerSet )update_this ).getLayer( 1 ),
+						tiles,
+						iteration,
+						-1,
+						od,
+						"D:/Benutzer/Stephan/Eigene Dateien/diploma" );
+//#############################################################################
+
+			}
+
 			
 			++iteration;
 		}
 //		f.close();
-
+		
+		System.out.println( "Successfully optimized configuration of " + tiles.size() + " tiles:" );
+		System.out.println( "  average displacement: " + decimalFormat.format( od ) + "px" );
+		System.out.println( "  minimal displacement: " + decimalFormat.format( min_d ) + "px" );
+		System.out.println( "  maximal displacement: " + decimalFormat.format( max_d ) + "px" );
 	}
 
 	public void run( String args )
@@ -701,11 +742,12 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		{
 			final ArrayList< Tile > layer_fixed_tiles = new ArrayList< Tile >();
 
-			IJ.log("###############\nStarting layer " + ( set.indexOf(layer) + 1 ) + " of " + set.size() + "\n###############");
+			IJ.log( "###############\nStarting layer " + ( set.indexOf( layer ) + 1 ) + " of " + set.size() + "\n###############" );
 
 			// ignore empty layers
-			if (!layer.contains(Patch.class)) {
-				IJ.log("Ignoring empty layer.");
+			if ( !layer.contains( Patch.class ) )
+			{
+				IJ.log( "Ignoring empty layer." );
 				continue;
 			}
 
@@ -917,14 +959,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 								min_inlier_ratio );
 						
 						if ( model != null ) // that implies that inliers is not empty
-						{
-							IJ.log( inliers.size() + " of them are good." );
 							current_tile.connect( other_tile, inliers );
-						}
-						else
-						{
-							IJ.log( "None of them is good." );
-						}
 					}
 				}
 			}
@@ -986,8 +1021,6 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 
 			if ( null != previous_layer )
 			{
-				System.out.println( "previous_layer is " + ( previous_layer == null ? "null" : "not null." ) );
-				System.out.println( "layer is " + ( layer == null ? "null" : "not null." ) );
 				/**
 				 * Coarse registration
 				 * 
@@ -1006,9 +1039,18 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				 *    translation will fail because of missing information
 				 *    -> How to handle this, how to handle this for
 				 *       graph-connectivity?
-				 */ 
+				 */
+				
+				/**
+				 * returns an Object[] with
+				 *   [0] AffineTransform that transforms layer towards previous_layer
+				 *   [1] bounding box of previous_layer in world coordinates
+				 *   [2] bounding box of layer in world coordinates
+				 *   [3] true correspondences with p1 in layer and p2 in previous_layer,
+				 *       both in the local coordinate frames defined by box1 and box2 and
+				 *       scaled with sp_gross_interlayer.scale
+				 */
 				Object[] ob = Registration.registerSIFT( previous_layer, layer, null, sp_gross_interlayer );
-				System.out.println( ob[ 0 ] );
 				int original_max_size = sp_gross_interlayer.max_size;
 				float original_max_epsilon = sp_gross_interlayer.max_epsilon;
 				while (null == ob || null == ob[0]) {
@@ -1041,7 +1083,106 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 
 				if ( null != ob && null != ob[ 0 ] )
 				{
+					// defensive programming ... ;)
 					AffineTransform at = ( AffineTransform )ob[ 0 ];
+					Rectangle previous_layer_box = ( Rectangle )ob[ 1 ];
+					Rectangle layer_box = ( Rectangle )ob[ 2 ];
+					Vector< PointMatch > inliers = ( Vector< PointMatch > )ob[ 3 ];
+					
+					/**
+					 * Find the closest tiles in both layers for each of the
+					 * inliers and append a correponding nail to it
+					 */
+					for ( PointMatch inlier : inliers )
+					{
+						// transfer the coordinates to actual world coordinates 
+						float[] previous_layer_coords = inlier.getP2().getL();
+						previous_layer_coords[ 0 ] = previous_layer_coords[ 0 ] * sp_gross_interlayer.scale + previous_layer_box.x;
+						previous_layer_coords[ 1 ] = previous_layer_coords[ 1 ] * sp_gross_interlayer.scale + previous_layer_box.y;
+						
+						float[] layer_coords = inlier.getP1().getL();
+						layer_coords[ 0 ] = layer_coords[ 0 ] * sp_gross_interlayer.scale + layer_box.x;
+						layer_coords[ 1 ] = layer_coords[ 1 ] * sp_gross_interlayer.scale + layer_box.y;
+						
+						// find the tile whose center is closest to the points in previous_layer
+						Tile previous_layer_closest_tile = null;
+						float previous_layer_min_d = Float.MAX_VALUE;
+						for ( Tile tile : tiles1 )
+						{
+							tile.update();
+							float[] tw = tile.getWC();
+							float dx = tw[ 0 ] - previous_layer_coords[ 0 ];
+							dx *= dx;
+							float dy = tw[ 1 ] - previous_layer_coords[ 1 ];
+							dy *= dy;
+							
+							float d = ( float )Math.sqrt( dx + dy );
+							if ( d < previous_layer_min_d )
+							{
+								previous_layer_min_d = d;
+								previous_layer_closest_tile = tile;
+							}
+						}
+						
+						System.out.println( "Tile " + tiles1.indexOf( previous_layer_closest_tile ) + " is closest in previous layer:" );
+						System.out.println( "  distance: " + previous_layer_min_d );
+						
+						
+						// find the tile whose center is closest to the points in layer
+						Tile layer_closest_tile = null;
+						float layer_min_d = Float.MAX_VALUE;
+						for ( Tile tile : tiles2 )
+						{
+							tile.update();
+							float[] tw = tile.getWC();
+							float dx = tw[ 0 ] - layer_coords[ 0 ];
+							dx *= dx;
+							float dy = tw[ 1 ] - layer_coords[ 1 ];
+							dy *= dy;
+							
+							float d = ( float )Math.sqrt( dx + dy );
+							if ( d < layer_min_d )
+							{
+								layer_min_d = d;
+								layer_closest_tile = tile;
+							}
+						}
+						
+						System.out.println( "Tile " + tiles2.indexOf( layer_closest_tile ) + " is closest in layer:" );
+						System.out.println( "  distance: " + layer_min_d );
+						
+						if ( previous_layer_closest_tile != null && layer_closest_tile != null )
+						{
+//							System.out.println( "world coordinates in previous layer: " + previous_layer_coords[ 0 ] + ", " + previous_layer_coords[ 1 ] );
+//							System.out.println( "world coordinates in layer: " + layer_coords[ 0 ] + ", " + layer_coords[ 1 ] );
+							
+							// transfer the world coordinates to local tile coordinates
+							previous_layer_closest_tile.getModel().applyInverseInPlace( previous_layer_coords );
+							layer_closest_tile.getModel().applyInverseInPlace( layer_coords );
+							
+//							System.out.println( "local coordinates in previous layer: " + previous_layer_coords[ 0 ] + ", " + previous_layer_coords[ 1 ] );
+//							System.out.println( "local coordinates in layer: " + layer_coords[ 0 ] + ", " + layer_coords[ 1 ] );
+							
+							// create PointMatch for both tiles
+							Point previous_layer_point = new Point( previous_layer_coords );
+							Point layer_point = new Point( layer_coords );
+							
+							previous_layer_closest_tile.addMatch(
+									new PointMatch(
+											previous_layer_point,
+											layer_point,
+											inlier.getWeight() * sp_gross_interlayer.scale ) );
+							layer_closest_tile.addMatch(
+									new PointMatch(
+											layer_point,
+											previous_layer_point,
+											inlier.getWeight() * sp_gross_interlayer.scale ) );
+							
+							previous_layer_closest_tile.addConnectedTile( layer_closest_tile );
+							layer_closest_tile.addConnectedTile( previous_layer_closest_tile );
+						}
+					}
+					
 					TRModel2D model = new TRModel2D();
 					model.getAffine().setTransform( at );
 					for ( Tile tile : tiles2 )
@@ -1067,26 +1208,26 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				
 				System.out.println( graphs.size() + " cross-section graphs detected." );
 				
-				if ( graphs.size() > 1 && ( null != ob && null != ob[ 0 ] ) )
-				{
-					/**
-					 * We have to trust the given alignment.  Try to add synthetic
-					 * correspondences to disconnected graphs having overlapping
-					 * tiles.
-					 */
-					ArrayList< Patch > both_layer_patches = new ArrayList< Patch >();
-					both_layer_patches.addAll( patches1 );
-					both_layer_patches.addAll( patches2 );
-					this.connectDisconnectedGraphs( graphs, both_layer_tiles, both_layer_patches );
-					
-					/**
-					 * check the connectivity graphs again.  Hopefully there is
-					 * only one graph now.  If not, we still have to fix one tile
-					 * per graph, regardless if it is only one or several oth them.
-					 */
-					graphs = Tile.identifyConnectedGraphs( tiles2 );
-					System.out.println( graphs.size() + " cross-section graphs detected after synthetic connection." );
-				}				
+//				if ( graphs.size() > 1 && ( null != ob && null != ob[ 0 ] ) )
+//				{
+//					/**
+//					 * We have to trust the given alignment.  Try to add synthetic
+//					 * correspondences to disconnected graphs having overlapping
+//					 * tiles.
+//					 */
+//					ArrayList< Patch > both_layer_patches = new ArrayList< Patch >();
+//					both_layer_patches.addAll( patches1 );
+//					both_layer_patches.addAll( patches2 );
+//					this.connectDisconnectedGraphs( graphs, both_layer_tiles, both_layer_patches );
+//					
+//					/**
+//					 * check the connectivity graphs again.  Hopefully there is
+//					 * only one graph now.  If not, we still have to fix one tile
+//					 * per graph, regardless if it is only one or several of them.
+//					 */
+//					graphs = Tile.identifyConnectedGraphs( tiles2 );
+//					System.out.println( graphs.size() + " cross-section graphs detected after synthetic connection." );
+//				}				
 			}
 
 			previous_layer = layer;

@@ -16,6 +16,7 @@ public class Tile
 	private float[] lc;
 	// world center coordinates of the tile
 	private float[] wc;
+	public float[] getWC() { return wc; }
 
 	private Model model;
 	final public Model getModel() { return model; }
@@ -26,7 +27,11 @@ public class Tile
 	final private ArrayList< Tile > connectedTiles = new ArrayList< Tile >();
 	final public ArrayList< Tile > getConnectedTiles() { return connectedTiles; }
 	final public int getNumConnectedTiles() { return connectedTiles.size(); }
-	final public boolean addConnectedTile( Tile t ) { return connectedTiles.add( t ); }
+	final public boolean addConnectedTile( Tile t )
+	{
+		if ( connectedTiles.contains( t ) ) return true;
+		else return connectedTiles.add( t );
+	}
 	final public boolean removeConnectedTile( Tile t ) { return connectedTiles.remove( t ); }
 	
 	final private static Random rnd = new Random( 69997 );
@@ -66,6 +71,17 @@ public class Tile
 	final public boolean addMatches( Collection< PointMatch > more )
 	{
 		return matches.addAll( more );
+	}
+	
+	/**
+	 * Add one matches
+	 *  
+	 * @param match
+	 * @return true if the list changed as a result of the call.
+	 */
+	final public boolean addMatch( PointMatch match )
+	{
+		return matches.add( match );
 	}
 	
 	/**
