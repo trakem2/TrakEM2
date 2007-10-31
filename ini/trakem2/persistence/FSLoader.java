@@ -121,7 +121,7 @@ public class FSLoader extends Loader {
 	}
 
 	public String getProjectXMLPath() {
-		return project_xml_path;
+		return project_xml_path.toString(); // a copy of it
 	}
 
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */

@@ -2,11 +2,13 @@ import ini.trakem2.display.*;
 import ini.trakem2.*;
 import ini.trakem2.imaging.Registration;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.persistence.FSLoader;
 
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 
 import mpi.fruitfly.registration.FloatArray2DSIFT;
+import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.registration.Model;
 import mpi.fruitfly.registration.TModel2D;
 import mpi.fruitfly.registration.TRModel2D;
@@ -82,6 +84,8 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	
 	final static private DecimalFormat decimalFormat = new DecimalFormat();
 	final static private DecimalFormatSymbols decimalFormatSymbols = new DecimalFormatSymbols();
+
+
 	
 	private class Observer
 	{
@@ -256,7 +260,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	/**
 	 * Identify point correspondences from two sets of tiles, patches and SIFT-features.
 	 * 
-	 * @note List< List< FloatArray2DSIFT.Feature > > should work but doesn't.
+	 * @note List< List< Feature > > should work but doesn't.
 	 *  Java "generics" are the crappiest bullshit I have ever seen.
 	 *  They should hire a linguist!
 	 * 
@@ -268,10 +272,10 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 	private void identifyCrossLayerCorrespondences(
 			List< Tile > tiles1,
 			List< Patch > patches1,
-			List< Vector< FloatArray2DSIFT.Feature > > featureSets1,
+			List< Vector< Feature > > featureSets1,
 			List< Tile > tiles2,
 			List< Patch > patches2,
-			List< Vector< FloatArray2DSIFT.Feature > > featureSets2,
+			List< Vector< Feature > > featureSets2,
 			boolean is_prealigned )
 	{
 		int num_patches2 = patches2.size();
@@ -713,8 +717,8 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		// start:
 
 		final ArrayList< Layer > layers = set.getLayers();
-		final ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets1 = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
-		final ArrayList< Vector< FloatArray2DSIFT.Feature > > featureSets2 = new ArrayList< Vector< FloatArray2DSIFT.Feature > >();
+		final ArrayList< Vector< Feature > > featureSets1 = new ArrayList< Vector< Feature > >();
+		final ArrayList< Vector< Feature > > featureSets2 = new ArrayList< Vector< Feature > >();
 
 
 		final ArrayList< Patch > patches1 = new ArrayList< Patch >();
@@ -736,6 +740,23 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		final ArrayList< Tile > fixed_tiles = new ArrayList< Tile >();
 
 		Layer previous_layer = null;
+
+		// the storage folder for serialized features
+		final FSLoader loader = (FSLoader)set.getProject().getLoader();
+		String xml_file_path = loader.getProjectXMLPath();
+		File xfile = new File(xml_file_path);
+		String parent_dir = xfile.getParent().replace('\\', '/');
+		if (parent_dir.endsWith("/")) parent_dir += "/";
+		String storage_folder_ = parent_dir + xfile.getName() + ".features.ser/";
+		File sdir = new File(storage_folder_);
+		if (!sdir.exists()) {
+			try {
+				sdir.mkdir();
+			} catch (Exception e) {
+				storage_folder_ = null; // can't store
+			}
+		}
+		final String storage_folder = storage_folder_;
 
 
 		for ( Layer layer : layers )
@@ -829,7 +850,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 //				long start_time = System.currentTimeMillis();
 //				System.out.print( "processing SIFT ..." );
 //				sift[ 0 ].init( fa, steps, initial_sigma, min_size, max_size );
-//				Vector< FloatArray2DSIFT.Feature > fs = sift[ 0 ].run( max_size );
+//				Vector< Feature > fs = sift[ 0 ].run( max_size );
 //				Collections.sort( fs );
 //				System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 //				
@@ -885,8 +906,14 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				
 				long start_time = System.currentTimeMillis();
 				System.out.print( "processing SIFT ..." );
-				sift[si].init( fa, steps, initial_sigma, min_size, max_size );
-				Vector< FloatArray2DSIFT.Feature > fs = sift[si].run( max_size );
+
+				Vector< Feature > fs = loader.retrieve( patch, storage_folder );
+				if (null == fs)
+				{
+					sift[si].init( fa, steps, initial_sigma, min_size, max_size );
+					fs = sift[si].run( max_size );
+					loader.store( patch, fs, storage_folder );
+				}
 				Collections.sort( fs );
 				System.out.println( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 				
