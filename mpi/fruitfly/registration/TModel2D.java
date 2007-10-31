@@ -29,6 +29,32 @@ public class TModel2D extends Model {
 	{
 		affine.transform( point, 0, point, 0, 1 );
 	}
+	
+	@Override
+	public float[] applyInverse( float[] point )
+	{
+		// the brilliant java.awt.geom.AffineTransform implements transform for float[] but inverseTransform for double[] only...
+		double[] double_point = new double[]{ point[ 0 ], point[ 1 ] };
+		double[] transformed = new double[ 2 ];
+		try
+		{
+			affine.inverseTransform( double_point, 0, transformed, 0, 1 );
+		}
+		catch ( Exception e )
+		{
+			System.err.println( "Noninvertible transformation." );
+		}
+		return new float[]{ ( float )transformed[ 0 ], ( float )transformed[ 1 ] };
+	}
+
+	@Override
+	public void applyInverseInPlace( float[] point )
+	{
+		float[] temp_point = applyInverse( point );
+		point[ 0 ] = temp_point[ 0 ];
+		point[ 1 ] = temp_point[ 1 ];
+	}
+	
 
 
 	@Override

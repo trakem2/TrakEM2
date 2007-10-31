@@ -322,12 +322,14 @@ public class Registration {
 				layer2.apply(Patch.class, atap);
 
 				Utils.log2("Registered layer " + layer2 + " to " + layer1);
+				
+				Vector< PointMatch > inliers = ( Vector< PointMatch > )result[ 3 ];
 
 				// cleanup
 				result = null; // contains the fs1 and fs2
 					// TODO the above is temporary; need to figure out how to properly cache
 
-				return new Object[]{atap};
+				return new Object[]{ atap, box1, box2, inliers };
 			} else {
 				// fall back to phase-correlation
 				Utils.log2("Registration.registerSIFT for Layers: falling back to phase-correlation");
@@ -414,7 +416,7 @@ public class Registration {
 			return null;
 		}
 
-		return new Object[]{fs1, fs2, at};
+		return new Object[]{fs1, fs2, at, inliers};
 	}
 
 	/** Returns a sorted list of the SIFT features extracted from the given ImagePlus. */

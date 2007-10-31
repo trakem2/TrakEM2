@@ -85,6 +85,21 @@ abstract public class Model {
 	public abstract void applyInPlace( float[] point );
 	
 	/**
+	 * apply the inverse of the model to a point location
+	 * 
+	 * @param point
+	 * @return transformed point
+	 */
+	public abstract float[] applyInverse( float[] point );
+	
+	/**
+	 * apply the inverse of the model to a point location
+	 * 
+	 * @param point
+	 */
+	public abstract void applyInverseInPlace( float[] point );
+	
+	/**
 	 * test the model for a set of point correspondence candidates
 	 * 
 	 * clears inliers and fills it with the fitting subset of candidates
