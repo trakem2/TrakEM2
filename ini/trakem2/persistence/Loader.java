@@ -3066,7 +3066,7 @@ abstract public class Loader {
 			// make the path Windows-safe
 			storage_folder.replace('\\', '/');
 			if (!storage_folder.endsWith("/")) storage_folder += "/";
-			final String path = storage_folder + "feature_" + p.getId() + ".ser";
+			final String path = storage_folder + "features_" + p.getId() + ".ser";
 			if (!new File(path).exists()) return null;
 			ObjectInputStream in = new ObjectInputStream(new FileInputStream(path));
 			Vector<Feature> v = (Vector<Feature>)in.readObject();
