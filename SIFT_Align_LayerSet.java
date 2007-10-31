@@ -494,14 +494,14 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 //				"/home/saalfeld" );
 //#############################################################################
 //#############################################################################
-		if ( update_this.getClass() == LayerSet.class )
-			drawAndSaveIterationSnapshot(
-				( ( LayerSet )update_this ).getLayer( 1 ),
-				tiles,
-				0,
-				-1,
-				0,
-				"D:/Benutzer/Stephan/Eigene Dateien/diploma" );
+//		if ( update_this.getClass() == LayerSet.class )
+//			drawAndSaveIterationSnapshot(
+//				( ( LayerSet )update_this ).getLayer( 1 ),
+//				tiles,
+//				0,
+//				-1,
+//				0,
+//				"/home/saalfeld" );
 //#############################################################################
 
 
@@ -621,20 +621,20 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 //						iteration,
 //						-1,
 //						od,
-//						"D:/Benutzer/Stephan/Eigene Dateien/diploma" );
+//						"/home/saalfeld" );
 //#############################################################################
 			}
 			else if ( update_this.getClass() == LayerSet.class )
 			{
 				Display.update( ( LayerSet )update_this );
 //#############################################################################
-				drawAndSaveIterationSnapshot(
-						( ( LayerSet )update_this ).getLayer( 1 ),
-						tiles,
-						iteration,
-						-1,
-						od,
-						"D:/Benutzer/Stephan/Eigene Dateien/diploma" );
+//				drawAndSaveIterationSnapshot(
+//						( ( LayerSet )update_this ).getLayer( 1 ),
+//						tiles,
+//						iteration,
+//						-1,
+//						od,
+//						"/home/saalfeld" );
 //#############################################################################
 
 			}
@@ -1097,12 +1097,12 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 					{
 						// transfer the coordinates to actual world coordinates 
 						float[] previous_layer_coords = inlier.getP2().getL();
-						previous_layer_coords[ 0 ] = previous_layer_coords[ 0 ] * sp_gross_interlayer.scale + previous_layer_box.x;
-						previous_layer_coords[ 1 ] = previous_layer_coords[ 1 ] * sp_gross_interlayer.scale + previous_layer_box.y;
+						previous_layer_coords[ 0 ] = previous_layer_coords[ 0 ] / sp_gross_interlayer.scale + previous_layer_box.x;
+						previous_layer_coords[ 1 ] = previous_layer_coords[ 1 ] / sp_gross_interlayer.scale + previous_layer_box.y;
 						
 						float[] layer_coords = inlier.getP1().getL();
-						layer_coords[ 0 ] = layer_coords[ 0 ] * sp_gross_interlayer.scale + layer_box.x;
-						layer_coords[ 1 ] = layer_coords[ 1 ] * sp_gross_interlayer.scale + layer_box.y;
+						layer_coords[ 0 ] = layer_coords[ 0 ] / sp_gross_interlayer.scale + layer_box.x;
+						layer_coords[ 1 ] = layer_coords[ 1 ] / sp_gross_interlayer.scale + layer_box.y;
 						
 						// find the tile whose center is closest to the points in previous_layer
 						Tile previous_layer_closest_tile = null;
