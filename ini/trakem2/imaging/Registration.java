@@ -26,6 +26,7 @@ import static mpi.fruitfly.math.General.*;
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
+import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.ImageFilter;
@@ -272,7 +273,7 @@ public class Registration {
 			// prepare flat images for each layer
 			Rectangle box1 = null;
 			ImagePlus imp1 = null;
-			Vector<FloatArray2DSIFT.Feature> fs1 = null;
+			Vector<Feature> fs1 = null;
 			AffineTransform at_accum = null;
 			if (null == cached) {
 				System.out.println( "cached is null in Registration.java:277" );
@@ -283,7 +284,7 @@ public class Registration {
 			} else {
 				imp1 = (ImagePlus)cached[0];
 				box1 = (Rectangle)cached[1];
-				fs1 = (Vector<FloatArray2DSIFT.Feature>)cached[2];
+				fs1 = (Vector<Feature>)cached[2];
 				at_accum = (AffineTransform)cached[3];
 			}
 			Rectangle box2 = layer2.getMinimalBoundingBox(Patch.class);
@@ -355,7 +356,7 @@ public class Registration {
 	static public Object[] registerSIFT(
 			FloatProcessor ip1,
 			FloatProcessor ip2,
-			Vector < FloatArray2DSIFT.Feature > fs1,
+			Vector < Feature > fs1,
 			final Registration.SIFTParameters sp )
 	{
 		// ensure enough memory space (in bytes: area * 48 * 2)
@@ -371,7 +372,7 @@ public class Registration {
 		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp);
 		ip1 = null;
 		Loader.runGC(); // cleanup
-		final Vector<FloatArray2DSIFT.Feature> fs2 = getSIFTFeatures( ip2, sp );
+		final Vector<Feature> fs2 = getSIFTFeatures( ip2, sp );
 		// free all those temporary arrays
 		ip2 = null;
 		Loader.runGC();
@@ -417,7 +418,7 @@ public class Registration {
 	}
 
 	/** Returns a sorted list of the SIFT features extracted from the given ImagePlus. */
-	final static public Vector<FloatArray2DSIFT.Feature> getSIFTFeatures(ImageProcessor ip, final Registration.SIFTParameters sp) {
+	final static public Vector<Feature> getSIFTFeatures(ImageProcessor ip, final Registration.SIFTParameters sp) {
 		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat());
 		ip = null; // enable GC
 		ImageFilter.enhance( fa, 1.0f ); // done in place
@@ -427,7 +428,7 @@ public class Registration {
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT(sp.fdsize, sp.fdbins);
 		sift.init(fa, sp.steps, sp.initial_sigma, sp.min_size, sp.max_size);
 		fa = null; // enableGC
-		final Vector<FloatArray2DSIFT.Feature> fs = sift.run(sp.max_size);
+		final Vector<Feature> fs = sift.run(sp.max_size);
 		Collections.sort(fs);
 		return fs;
 	}
@@ -463,7 +464,7 @@ public class Registration {
 		return burro;
 	}
 	/** Recursive into linked images in other layers. */
-	static private void correlateSlices(final Patch slice, final HashSet hs_done, final Worker worker, final Registration.SIFTParameters sp, final Vector<FloatArray2DSIFT.Feature> fs_slice) {
+	static private void correlateSlices(final Patch slice, final HashSet hs_done, final Worker worker, final Registration.SIFTParameters sp, final Vector<Feature> fs_slice) {
 		if (hs_done.contains(slice)) return;
 		hs_done.add(slice);
 		// iterate over all Patches directly linked to the given slice
@@ -485,7 +486,7 @@ public class Registration {
 				result[0] = null;
 				result[2] = null;
 			}
-			Registration.correlateSlices(p, hs_done, worker, sp, null != result ? (Vector<FloatArray2DSIFT.Feature>)result[1] : null); // I give it the feature set of the moving patch, which in this call will serve as base
+			Registration.correlateSlices(p, hs_done, worker, sp, null != result ? (Vector<Feature>)result[1] : null); // I give it the feature set of the moving patch, which in this call will serve as base
 		}
 	}
 	/** Non-recursive version (for the processing; the assembly of the stack chain is recursive). */
@@ -529,12 +530,12 @@ public class Registration {
 		Object[] result = null;
 		for (int i=1; i<al_chain.size(); i++) {
 			if (worker.hasQuitted()) return;
-			result = registerWithSIFTLandmarks((Patch)al_chain.get(i-1), (Patch)al_chain.get(i), sp, null == result ? null : (Vector<FloatArray2DSIFT.Feature>)result[1]);
+			result = registerWithSIFTLandmarks((Patch)al_chain.get(i-1), (Patch)al_chain.get(i), sp, null == result ? null : (Vector<Feature>)result[1]);
 		}
 	}
 
 	/** The @param fs_base is the vector of features of the base Patch, and can be null -in which case it will be computed. */
-	static private Object[] registerWithSIFTLandmarks(final Patch base, final Patch moving, final Registration.SIFTParameters sp, final Vector<FloatArray2DSIFT.Feature> fs_base) {
+	static private Object[] registerWithSIFTLandmarks(final Patch base, final Patch moving, final Registration.SIFTParameters sp, final Vector<Feature> fs_base) {
 
 		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 

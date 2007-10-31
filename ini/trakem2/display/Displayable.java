@@ -734,7 +734,7 @@ public abstract class Displayable extends DBObject {
 		return false;
 	}
 
-	/** Returns the intersection this Displayable with the given one. */
+	/** Returns the intersection of this Displayable's area with the given one. */
 	public Area getIntersection(final Displayable d) {
 		final Area a = new Area(this.getPerimeter());
 		a.intersect(new Area(d.getPerimeter()));

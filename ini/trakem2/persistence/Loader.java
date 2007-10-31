@@ -52,8 +52,6 @@ import ij.process.StackStatistics;
 import ij.process.ImageStatistics;
 import ij.measure.Calibration;
 
-import mpi.fruitfly.registration.PhaseCorrelation2D;
-
 import ini.trakem2.Project;
 import ini.trakem2.display.Ball;
 import ini.trakem2.display.DLabel;
@@ -100,6 +98,10 @@ import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -124,6 +126,9 @@ import javax.swing.JMenu;
 
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
+import mpi.fruitfly.registration.PhaseCorrelation2D;
+import mpi.fruitfly.registration.Feature;
+
 
 
 /** Handle all data-related issues with a virtualization engine, including load/unload and saving, saving as and overwriting. */
@@ -3034,5 +3039,42 @@ abstract public class Loader {
 		} else {
 			return ip.resize((int)(w * mag), (int)(h * mag));
 		}
+	}
+
+	/* =========================== */
+
+	/** Serializes the given vector of Feature instances and stores it in a file whose name is "features_" + p.getId() + ".ser". <br /> Returns false on failure. */
+	public boolean store(final Patch p, final Vector<Feature> v, String storage_folder) {
+		try {
+			// make shallow copy to prevent any problems when writing.
+			Vector<Feature> v2 = (Vector<Feature>)v.clone();
+			// make the path Windows-safe
+			storage_folder.replace('\\', '/');
+			if (!storage_folder.endsWith("/")) storage_folder += "/";
+			ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(storage_folder + "features_" + p.getId() + ".ser"));
+			out.writeObject(v2);
+			out.close();
+			return true;
+		} catch (Exception e) {
+			new IJError(e);
+		}
+		return false;
+	}
+	/** Attempts to find a file containing the serialized Vector of Feature instances generated for the given Patch. <br />Returns null if no suitable file is found, or an error occurs while deserializing. */
+	public Vector<Feature> retrieve(final Patch p, String storage_folder) {
+		try {
+			// make the path Windows-safe
+			storage_folder.replace('\\', '/');
+			if (!storage_folder.endsWith("/")) storage_folder += "/";
+			final String path = storage_folder + "feature_" + p.getId() + ".ser";
+			if (!new File(path).exists()) return null;
+			ObjectInputStream in = new ObjectInputStream(new FileInputStream(path));
+			Vector<Feature> v = (Vector<Feature>)in.readObject();
+			in.close();
+			return v;
+		} catch (Exception e) {
+			new IJError(e);
+		}
+		return null;
 	}
 }

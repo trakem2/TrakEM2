@@ -2685,7 +2685,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			gd.addCheckbox("prefer_snapshots_quality", layer.getParent().snapshotsQuality());
 			Loader lo = getProject().getLoader();
 			boolean using_mipmaps = lo.isMipMapsEnabled();
-			gd.addCheckbox("generate_mipmaps", using_mipmaps);
+			gd.addCheckbox("enable_mipmaps", using_mipmaps);
 			String preprocessor = project.getLoader().getPreprocessor();
 			gd.addStringField("image_preprocessor: ", null == preprocessor ? "" : preprocessor);
 			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
