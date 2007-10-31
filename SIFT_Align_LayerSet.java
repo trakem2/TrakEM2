@@ -1171,12 +1171,12 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 									new PointMatch(
 											previous_layer_point,
 											layer_point,
-											inlier.getWeight() * sp_gross_interlayer.scale ) );
+											inlier.getWeight() / sp_gross_interlayer.scale ) );
 							layer_closest_tile.addMatch(
 									new PointMatch(
 											layer_point,
 											previous_layer_point,
-											inlier.getWeight() * sp_gross_interlayer.scale ) );
+											inlier.getWeight() / sp_gross_interlayer.scale ) );
 							
 							previous_layer_closest_tile.addConnectedTile( layer_closest_tile );
 							layer_closest_tile.addConnectedTile( previous_layer_closest_tile );
