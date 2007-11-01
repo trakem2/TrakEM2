@@ -771,22 +771,49 @@ public class FSLoader extends Loader {
 	public void parseXMLOptions(final Hashtable ht_attributes) {
 		Object ob = ht_attributes.get("preprocessor");
 		if (null != ob) setPreprocessor((String)ob);
-		ob = ht_attributes.get("mipmaps_folder");
-		if (null != ob) {
-			File f = new File((String)ob);
-			if (f.exists() && f.isDirectory()) {
-				this.dir_mipmaps = (String)ob;
-				if (!this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
-			} else Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
-		}
+		// Adding some logic to support old projects which lack a storage folder and a mipmaps folder
+		// and also to prevent errors such as those created when manualy tinkering with the XML file
+		// or renaming directories, etc.
 		ob = ht_attributes.get("storage_folder");
 		if (null != ob) {
 			File f = new File((String)ob);
 			if (f.exists() && f.isDirectory()) {
 				this.dir_storage = (String)ob;
-				if (!this.dir_storage.endsWith("/")) this.dir_storage += "/";
-			} else Utils.log2("storage_folder was not found or is invalid: " + ob);
+			} else {
+				Utils.log2("storage_folder was not found or is invalid: " + ob);
+			}
 		}
+		if (null == this.dir_storage) {
+			// select the directory where the xml file lives.
+			File fdir = new File(this.project_xml_path);
+			this.dir_storage = fdir.getParent().replace('\\', '/');
+			if (null == this.dir_storage) {
+				DirectoryChooser dc = new DirectoryChooser("REQUIRED: select storage folder");
+				this.dir_storage = dc.getDirectory();
+				if (null == this.dir_storage) {
+					IJ.showMessage("TrakEM2 requires a storage folder.\nTemporarily your home directory will be used.");
+					this.dir_storage = System.getProperty("user.home").replace('\\', '/');
+				}
+			}
+		}
+		// fix
+		if (null != this.dir_storage && !this.dir_storage.endsWith("/")) this.dir_storage += "/";
+		//
+		ob = ht_attributes.get("mipmaps_folder");
+		if (null != ob) {
+			File f = new File((String)ob);
+			if (f.exists() && f.isDirectory()) {
+				this.dir_mipmaps = (String)ob;
+			} else {
+				Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
+			}
+		}
+		if (null == this.dir_mipmaps) {
+			// create a new one inside the dir_storage, which can't be null
+			createMipMapsDir(dir_storage);
+		}
+		// fix
+		if (null != this.dir_mipmaps && !this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
