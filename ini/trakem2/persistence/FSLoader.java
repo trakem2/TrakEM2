@@ -821,7 +821,7 @@ public class FSLoader extends Loader {
 		//    where 0.5 is the estimated sigma for a full-scale image
 		//  which means sigma = 0.75 for the full-scale image (has level 0)
 		// prepare a 0.75 sigma image from the original
-		final ColorModel cm = imp.getProcessor().getDefaultColorModel();
+		final ColorModel cm = imp.getProcessor().getColorModel();
 		int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 		           //   but since we scale 50% relative the previous, it's always 0.75
 		try {
@@ -877,6 +877,7 @@ public class FSLoader extends Loader {
 					// 5 - save as 8-bit jpeg
 					ImagePlus imp2 = new ImagePlus(imp.getTitle(), Utils.convertTo(fp, patch.getType(), false)); // no scaling, since the conversion to float above didn't change the range
 					imp2.getProcessor().setMinAndMax(patch.getMin(), patch.getMax());
+					imp2.getProcessor().setColorModel(cm);
 					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
 				}
 			}
