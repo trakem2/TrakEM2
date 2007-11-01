@@ -61,7 +61,7 @@ import java.util.Vector;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.4g 2007-09-26";
+	static public String version = "0.4h 2007-11-01";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -265,7 +265,9 @@ public class Utils implements ij.plugin.PlugIn {
 			System.out.println(msg);
 			return;
 		}
-		if (focus) IJ.getInstance().toFront();
+		if (focus) {
+			IJ.getInstance().toFront();
+		}
 		IJ.showStatus(msg);
 		// temporarily:
 		//log(msg);

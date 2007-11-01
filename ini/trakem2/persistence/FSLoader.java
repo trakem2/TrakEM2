@@ -370,6 +370,120 @@ public class FSLoader extends Loader {
 		}
 	}
 
+	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example. */
+	public ImageProcessor fetchImageProcessor(final Patch p) {
+		synchronized (db_lock) {
+			lock();
+			ImagePlus imp = imps.get(p.getId());
+			ImageProcessor ip = null;
+			String slice = null;
+			String path = null;
+			try {
+				path = getAbsolutePath(p);
+				int i_sl = -1;
+				if (null != path) i_sl = path.lastIndexOf("-----#slice=");
+				if (-1 != i_sl) {
+					// activate proper slice
+					if (null != imp) {
+						// check that the stack is large enough (user may have changed it)
+						final int ia = Integer.parseInt(path.substring(i_sl + 12));
+						if (ia <= imp.getNSlices()) {
+							imp.setSlice(ia);
+							ip = imp.getStack().getProcessor(ia);
+							unlock();
+							return ip;
+						} else {
+							unlock();
+							return null; // beyond bonds!
+						}
+					}
+				}
+				// for non-stack images
+				if (null != imp) {
+					unlock();
+					return imp.getProcessor();
+				}
+				releaseMemory(); // ensure there is a minimum % of free memory
+				if (null != path) {
+					if (-1 != i_sl) {
+						slice = path.substring(i_sl);
+						// set path proper
+						path = path.substring(0, i_sl);
+					}
+					imp = openImage(path);
+					preProcess(imp);
+					//Utils.log2("opened " + path);
+					//Utils.printCaller(this, 10);
+					if (null == imp) {
+						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
+						unlock();
+						return null;
+					}
+					// update all clients of the stack, if any
+					if (null != slice) {
+						String rel_path = getPath(p); // possibly relative
+						int r_isl = rel_path.lastIndexOf("-----#slice");
+						if (-1 != r_isl) rel_path = rel_path.substring(0, r_isl); // should always happen
+						for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
+							Map.Entry entry = (Map.Entry)it.next();
+							String str = (String)entry.getValue(); // this is like calling getPath(p)
+							Utils.log2("processing " + str);
+							if (0 != str.indexOf(rel_path)) {
+								Utils.log2("SKIP str is: " + str + "\t but path is: " + rel_path);
+								continue; // get only those whose path is identical, of course!
+							}
+							int isl = str.lastIndexOf("-----#slice=");
+							if (-1 != isl) {
+								//int i_slice = Integer.parseInt(str.substring(isl + 12));
+								Patch pa = (Patch)entry.getKey();
+								imps.put(pa.getId(), imp);
+								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
+								pa.putMinAndMax(imp);
+								/* // old
+								if (create_snap) {
+									unlock();
+									Image awt = pa.createImage(imp); // will call cacheAWT
+									lock();
+									snaps.put(pa.getId(), Snapshot.createSnap(pa, awt, Snapshot.SCALE));
+									Display.repaintSnapshot(pa);
+								}
+								*/
+							}
+						}
+						// set proper active slice
+						int ia = Integer.parseInt(slice.substring(12));
+						imp.setSlice(ia);
+						ip = imp.getStack().getProcessor(ia);
+					} else {
+						// for non-stack images
+						p.putMinAndMax(imp); // non-destructive contrast: min and max
+							// puts the Patch min and max values into the ImagePlus processor.
+						imps.put(p.getId(), imp);
+						ip = imp.getProcessor();
+					}
+					// need to create the snapshot
+					//Utils.log2("create_snap: " + create_snap + ", " + slice);
+					/* // old
+					if (create_snap && null == slice) {
+						unlock();
+						Image awt = p.createImage(imp);
+						lock();
+						//The line below done at p.createImage() because it calls cacheAWT
+						//awts.put(p.getId(), awt);
+						snaps.put(p.getId(), Snapshot.createSnap(p, awt, Snapshot.SCALE)); //awt.getScaledInstance((int)Math.ceil(p.getWidth() * Snapshot.SCALE), (int)Math.ceil(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD));
+					}
+					*/
+				}
+
+			} catch (Exception e) {
+				new IJError(e);
+			}
+			unlock();
+			//Utils.log2("A2 returning " + imp + " for path " + path + slice);
+			return ip;
+		}
+	}
+
 	public Object[] fetchLabel(DLabel label) {
 		return null;
 	}
@@ -839,21 +953,21 @@ public class FSLoader extends Loader {
 	public boolean generateMipMaps(final Patch patch) {
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		if (null == dir_mipmaps) return false;
-		final ImagePlus imp = fetchImagePlus(patch);
+		final ImageProcessor ip = fetchImageProcessor(patch);
 		final String filename = new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
 		JpegWriter.setQuality(85);
-		int w = imp.getWidth();
-		int h = imp.getHeight();
+		int w = ip.getWidth();
+		int h = ip.getHeight();
 		// sigma = sqrt(2^level - 0.5^2)
 		//    where 0.5 is the estimated sigma for a full-scale image
 		//  which means sigma = 0.75 for the full-scale image (has level 0)
 		// prepare a 0.75 sigma image from the original
-		final ColorModel cm = imp.getProcessor().getColorModel();
+		final ColorModel cm = ip.getColorModel();
 		int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 		           //   but since we scale 50% relative the previous, it's always 0.75
 		try {
 			if (ImagePlus.COLOR_RGB == patch.getType()) {
-				ColorProcessor cp = (ColorProcessor)imp.getProcessor();
+				ColorProcessor cp = (ColorProcessor)ip;
 				FloatProcessor red = cp.toFloat(0, new FloatProcessor(w, h));
 				FloatProcessor green = cp.toFloat(1, new FloatProcessor(w, h));
 				FloatProcessor blue = cp.toFloat(2, new FloatProcessor(w, h));
@@ -883,12 +997,12 @@ public class FSLoader extends Loader {
 					}
 					ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 					cp2.setMinAndMax(patch.getMin(), patch.getMax());
-					ImagePlus imp2 = new ImagePlus(imp.getTitle(), cp2);
+					ImagePlus imp2 = new ImagePlus(filename, cp2);
 					// 5 - save as jpeg
 					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
 				}
 			} else {
-				FloatProcessor fp = (FloatProcessor)imp.getProcessor().convertToFloat();
+				FloatProcessor fp = (FloatProcessor)ip.convertToFloat();
 				while (w >= 64 && h >= 64) { // not smaller than 32x32
 					// 1 - blur the previous image to 0.75 sigma
 					fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
@@ -902,7 +1016,7 @@ public class FSLoader extends Loader {
 					// 4 - generate scaled image
 					fp = (FloatProcessor)fp.resize(w, h);
 					// 5 - save as 8-bit jpeg
-					ImagePlus imp2 = new ImagePlus(imp.getTitle(), Utils.convertTo(fp, patch.getType(), false)); // no scaling, since the conversion to float above didn't change the range
+					ImagePlus imp2 = new ImagePlus(filename, Utils.convertTo(fp, patch.getType(), false)); // no scaling, since the conversion to float above didn't change the range
 					imp2.getProcessor().setMinAndMax(patch.getMin(), patch.getMax());
 					imp2.getProcessor().setColorModel(cm);
 					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
@@ -921,7 +1035,8 @@ public class FSLoader extends Loader {
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		final Worker worker = new Worker("Generating MipMaps") {
 			public void run() {
-				startedWorking();
+				this.setAsBackground(true);
+				this.startedWorking();
 				try {
 
 				final Worker wo = this;
@@ -959,7 +1074,7 @@ public class FSLoader extends Loader {
 					new IJError(e);
 				}
 
-				finishedWorking();
+				this.finishedWorking();
 			}
 		};
 		Bureaucrat burro = new Bureaucrat(worker, ((Patch)al.get(0)).getProject());
@@ -1155,10 +1270,13 @@ public class FSLoader extends Loader {
 				// regenerate
 				Worker worker = new Worker("Regenerating mipmaps") {
 					public void run() {
+						this.setAsBackground(true);
+						this.startedWorking();
 						synchronized (db_lock) {
 							lock();
 							if (hs_regenerating_mipmaps.contains(patch)) {
 								// already being done, just wait
+								this.quit();
 								unlock();
 								return;
 							}
@@ -1166,9 +1284,12 @@ public class FSLoader extends Loader {
 							unlock();
 						}
 
-						startedWorking();
 
-						generateMipMaps(patch);
+						try { 
+							generateMipMaps(patch);
+						} catch (Exception e) {
+							new IJError(e);
+						}
 
 						synchronized (db_lock) {
 							lock();
@@ -1178,7 +1299,7 @@ public class FSLoader extends Loader {
 
 						Display.repaint(patch.getLayer(), patch, 0);
 
-						finishedWorking();
+						this.finishedWorking();
 					}
 				};
 				Bureaucrat burro = new Bureaucrat(worker, patch.getProject());

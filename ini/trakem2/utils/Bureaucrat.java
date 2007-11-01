@@ -49,9 +49,13 @@ public class Bureaucrat extends Thread {
 		start();
 	}
 	public void run() {
+		// wait until worker starts
+		while (!worker.isWorking()) {
+			try { Thread.sleep(50); } catch (InterruptedException ie) {}
+			if (worker.hasQuitted()) return;
+		}
 		int sandwitch = 1000; // one second, will get slower over time
-		if (null != IJ.getInstance()) IJ.getInstance().toFront();
-		Utils.showStatus("Started processing: " + worker.getTaskName());
+		Utils.showStatus("Started processing: " + worker.getTaskName(), !worker.onBackground());
 		while (worker.isWorking() && !worker.hasQuitted()) {
 			try { Thread.sleep(sandwitch); } catch (InterruptedException ie) {}
 			float elapsed_seconds = (System.currentTimeMillis() - onset) / 1000.0f;
@@ -66,7 +70,7 @@ public class Bureaucrat extends Thread {
 				sandwitch = 60000; // every minute
 			}
 		}
-		Utils.showStatus("Done " + worker.getTaskName());
+		Utils.showStatus("Done " + worker.getTaskName(), !worker.onBackground());
 		project.getLoader().removeJob(this);
 		project.setReceivesInput(true);
 	}
