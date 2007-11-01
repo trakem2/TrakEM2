@@ -5,7 +5,7 @@ Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.txt )
+/s published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.txt )
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -751,10 +751,10 @@ public class FSLoader extends Loader {
 				//Utils.log2("type is " + imp_stack.getType());
 			}
 			addedPatchFrom(patch_path, patch);
-			if (isMipMapsEnabled()) generateMipMaps(patch);
 			if (!as_copy) {
 				cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
 			}
+			if (isMipMapsEnabled()) generateMipMaps(patch);
 			if (null != previous_patch) patch.link(previous_patch);
 			layer.add(patch);
 			previous_patch = patch;
@@ -771,22 +771,49 @@ public class FSLoader extends Loader {
 	public void parseXMLOptions(final Hashtable ht_attributes) {
 		Object ob = ht_attributes.get("preprocessor");
 		if (null != ob) setPreprocessor((String)ob);
-		ob = ht_attributes.get("mipmaps_folder");
-		if (null != ob) {
-			File f = new File((String)ob);
-			if (f.exists() && f.isDirectory()) {
-				this.dir_mipmaps = (String)ob;
-				if (!this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
-			} else Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
-		}
+		// Adding some logic to support old projects which lack a storage folder and a mipmaps folder
+		// and also to prevent errors such as those created when manualy tinkering with the XML file
+		// or renaming directories, etc.
 		ob = ht_attributes.get("storage_folder");
 		if (null != ob) {
 			File f = new File((String)ob);
 			if (f.exists() && f.isDirectory()) {
 				this.dir_storage = (String)ob;
-				if (!this.dir_storage.endsWith("/")) this.dir_storage += "/";
-			} else Utils.log2("storage_folder was not found or is invalid: " + ob);
+			} else {
+				Utils.log2("storage_folder was not found or is invalid: " + ob);
+			}
 		}
+		if (null == this.dir_storage) {
+			// select the directory where the xml file lives.
+			File fdir = new File(this.project_xml_path);
+			this.dir_storage = fdir.getParent().replace('\\', '/');
+			if (null == this.dir_storage) {
+				DirectoryChooser dc = new DirectoryChooser("REQUIRED: select storage folder");
+				this.dir_storage = dc.getDirectory();
+				if (null == this.dir_storage) {
+					IJ.showMessage("TrakEM2 requires a storage folder.\nTemporarily your home directory will be used.");
+					this.dir_storage = System.getProperty("user.home").replace('\\', '/');
+				}
+			}
+		}
+		// fix
+		if (null != this.dir_storage && !this.dir_storage.endsWith("/")) this.dir_storage += "/";
+		//
+		ob = ht_attributes.get("mipmaps_folder");
+		if (null != ob) {
+			File f = new File((String)ob);
+			if (f.exists() && f.isDirectory()) {
+				this.dir_mipmaps = (String)ob;
+			} else {
+				Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
+			}
+		}
+		if (null == this.dir_mipmaps) {
+			// create a new one inside the dir_storage, which can't be null
+			createMipMapsDir(dir_storage);
+		}
+		// fix
+		if (null != this.dir_mipmaps && !this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
@@ -889,16 +916,18 @@ public class FSLoader extends Loader {
 	}
 
 	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.*/
-	public Bureaucrat generateMipMaps(final LayerSet ls) {
+	public Bureaucrat generateMipMaps(final ArrayList al) {
+		if (null == al || 0 == al.size()) return null;
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		final Worker worker = new Worker("Generating MipMaps") {
 			public void run() {
 				startedWorking();
+				try {
+
 				final Worker wo = this;
 
 				Utils.log2("starting mipmap generation ..");
 
-				ArrayList al = ls.getDisplayables(Patch.class);
 				final int size = al.size();
 				final Patch[] pa = new Patch[size];
 				final Thread[] threads = MultiThreading.newThreads();
@@ -921,15 +950,19 @@ public class FSLoader extends Loader {
 					}
 				}
 
-				}});
-
+						}
+					});
 				}
 				MultiThreading.startAndJoin(threads);
+
+				} catch (Exception e) {
+					new IJError(e);
+				}
 
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, ls.getProject());
+		Bureaucrat burro = new Bureaucrat(worker, ((Patch)al.get(0)).getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -1107,7 +1140,7 @@ public class FSLoader extends Loader {
 
 	final private HashSet hs_regenerating_mipmaps = new HashSet();
 
-	/** Loads the file containing the scaled image correspinding to the given level and returns it as an awt.Image, or null if not found.*/
+	/** Loads the file containing the scaled image corresponding to the given level and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
 		try {
@@ -1118,7 +1151,7 @@ public class FSLoader extends Loader {
 			}
 			// Regenerate in the case of not asking for an image under 64x64
 			double scale = 1 / Math.pow(2, level);
-			if ((patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
+			if (level > 0 && (patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
 				// regenerate
 				Worker worker = new Worker("Regenerating mipmaps") {
 					public void run() {

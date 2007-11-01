@@ -810,7 +810,7 @@ abstract public class Loader {
 					//
 					releaseMemory();
 					// 2 - check if the exact file is present for the desired level
-					mawt = fetchMipMapAWT(p, level);
+					if (level > 0) mawt = fetchMipMapAWT(p, level);
 					if (null != mawt) {
 						mawts.put(id, mawt, level);
 						unlock();
@@ -1512,9 +1512,11 @@ abstract public class Loader {
 				//add new Patch at base bx,by plus the x,y of the grid
 				Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
-				layer.add(patch, true);
 				addedPatchFrom(path, patch);
-				if (isMipMapsEnabled()) generateMipMaps(patch);
+				//if (isMipMapsEnabled()) generateMipMaps(patch);
+				if (!homogenize_contrast) generateMipMaps(patch); // otherwise, it will be done again (and thus adds considerable delay for nothing)
+				//
+				layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
 				pall[i][j] = patch;
 				//ImageProcessor ip = img.getProcessor();
@@ -1689,13 +1691,16 @@ abstract public class Loader {
 					lock();
 					for (i=0; i<pa.length; i++) {
 						mawts.removeAndFlush(pa[i].getId());
-						if (isMipMapsEnabled()) {
-							// recreate files
-							generateMipMaps(pa[i]);
-						}
 						Utils.log2(i + "removing mawt for " + pa[i].getId());
 					}
 					unlock();
+				}
+				// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more tha once for a few tiles
+				if (isMipMapsEnabled()) {
+					setTaskName("Regenerating snapshots.");
+					// recreate files
+					Utils.log2("Generating mipmaps for " + al.size() + " patches.");
+					generateMipMaps(al);
 				}
 				Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 			}
@@ -2996,7 +3001,6 @@ abstract public class Loader {
 		}
 		// debug:
 		Utils.log2("opening image " + path);
-		//Utils.printCaller(this, 10);
 		return opener.openImage(path);
 	}
 
@@ -3026,7 +3030,7 @@ abstract public class Loader {
 	public void removeMipMaps(final Patch patch) {}
 
 	/** Does nothing and returns null unless overriden. */
-	public Bureaucrat generateMipMaps(final LayerSet ls) { return null; }
+	public Bureaucrat generateMipMaps(final ArrayList al) { return null; }
 
 	/** Does nothing and returns false unless overriden. */
 	public boolean isMipMapsEnabled() { return false; }

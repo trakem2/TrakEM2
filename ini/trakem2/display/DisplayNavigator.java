@@ -352,13 +352,20 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		}
 	}
 
+	private boolean drag = false;
+
 	public void mousePressed(MouseEvent me) {
 		x_p = me.getX();
 		y_p = me.getY();
 		this.srcRect = (Rectangle)display.getCanvas().getSrcRect().clone();
+		// prevent dragging unless mouse is inside he red box
+		if (srcRect.contains((int)(x_p / scale), (int)(y_p / scale))) {
+			drag = true;
+		}
 	}
 
 	public void mouseDragged(MouseEvent me) {
+		if (!drag) return;
 		// prevent action if the srcRect takes over the whole area
 		if (this.srcRect.width == display.getLayer().getLayerWidth() && this.srcRect.height == display.getLayer().getLayerHeight()) { // testing for numeric identity, not for pointer identity; hence he usage of equals()
 			return;
@@ -387,7 +394,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		this.repaint();
 	}
 
-	public void mouseReleased(MouseEvent me) {}
+	public void mouseReleased(MouseEvent me) { drag = false; }
 	public void mouseEntered(MouseEvent me) {}
 	public void mouseExited (MouseEvent me) {}
 	public void mouseClicked(MouseEvent me) {}

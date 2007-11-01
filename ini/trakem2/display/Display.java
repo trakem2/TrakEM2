@@ -558,7 +558,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		int extent = (int)(250.0 / layer.getParent().size());
 		if (extent < 10) extent = 10;
 		this.scroller = new JScrollBar(JScrollBar.HORIZONTAL);
-		if (layer.getParent().size() > 1) updateLayerScroller(layer);
+		updateLayerScroller(layer);
 		this.scroller.addAdjustmentListener(scroller_listener);
 
 
@@ -1170,13 +1170,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			p = panel_patches;
 		} else if (d instanceof DLabel) {
 			p = panel_labels;
-		} else if (d instanceof ZDisplayable) { //both pipes and balls
+		} else if (d instanceof ZDisplayable) { //both pipes and balls and AreaList
 			p = panel_zdispl;
 		} else {
 			// LayerSet objects
 			return;
 		}
-		dp = new DisplayablePanel(this, d); // TODO: instead of destroying/recreating, we could just recycle them by reassigning a different Displayable. See how it goes!
+		dp = new DisplayablePanel(this, d); // TODO: instead of destroying/recreating, we could just recycle them by reassigning a different Displayable. See how it goes! It'd need a pool of objects
 		addToPanel(p, 0, dp, activate);
 		hs_panels.put(d, dp);
 		if (activate) {
@@ -2205,9 +2205,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (size <= 1) {
 			scroller.setValues(0, 1, 0, 0);
 			scroller.setEnabled(false);
-			return;
+		} else {
+			scroller.setEnabled(true);
+			scroller.setValues(layer.getParent().getLayerIndex(layer.getId()), 1, 0, size);
 		}
-		scroller.setValues(layer.getParent().getLayerIndex(layer.getId()), 1, 0, size);
 	}
 
 	private void updateSnapshots() {
@@ -2710,7 +2711,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					lo.flushMipMaps(true);
 				} else {
 					// not using mipmaps before, and true == generate_mipmaps
-					lo.generateMipMaps(layer.getParent());
+					lo.generateMipMaps(layer.getParent().getDisplayables(Patch.class));
 				}
 			}
 			//
