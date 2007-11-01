@@ -785,6 +785,10 @@ abstract public class Loader {
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag);
 
+		// testing:
+		// if (level > 0) level--; // passing an image double the size, so it's like interpolating when doing nearest neighbor since the images are blurred with sigma 0.5
+		// SLOW, very slow ...
+
 		// find an equal or larger existing pyramid awt
 		synchronized (db_lock) {
 			lock();
@@ -853,9 +857,10 @@ abstract public class Loader {
 				}
 				if (null != imp && null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
 					// if NOT mag == 1.0 // but 0.75 also needs the 1.0 ... problem is, I can't cache level 1.5 or so
-					mag = 1 / Math.pow(2, level); // correcting mag
-					if (mag < 0.5001) {
-						imp = new ImagePlus("", Loader.scaleImage(imp, mag, p.getLayer().getParent().snapshotsQuality()));
+					//mag = 1 / Math.pow(2, level); // correcting mag
+					//if (mag < 0.5001) {
+					if (level < 0) {
+						imp = new ImagePlus("", Loader.scaleImage(imp, level, p.getLayer().getParent().snapshotsQuality()));
 						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
 						p.putMinAndMax(imp);
 					}
@@ -3032,7 +3037,7 @@ abstract public class Loader {
 	/** Does nothing and returns null unless overriden. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
 
-	static public ImageProcessor scaleImage(ImagePlus imp, double mag, final boolean quality) {
+	static public ImageProcessor scaleImage(final ImagePlus imp, double mag, final boolean quality) {
 		if (mag > 1) mag = 1;
 		ImageProcessor ip = imp.getProcessor();
 		if (Math.abs(mag - 1) < 0.000001) return ip;
@@ -3045,6 +3050,27 @@ abstract public class Loader {
 		if (quality) {
 			// apply proper gaussian filter
 			double sigma = Math.sqrt(Math.pow(2, getMipMapLevel(mag)) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
+			ip = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel());
+			ip = ip.resize((int)(w * mag), (int)(h * mag)); // better while float
+			return Utils.convertTo(ip, imp.getType(), false);
+		} else {
+			return ip.resize((int)(w * mag), (int)(h * mag));
+		}
+	}
+
+	static public ImageProcessor scaleImage(final ImagePlus imp, final int level, final boolean quality) {
+		if (level <= 0) return imp.getProcessor();
+		// else, make a properly scaled image:
+		//  - gaussian blurred for best quality when resizing with nearest neighbor
+		//  - direct nearest neighbor otherwise
+		ImageProcessor ip = imp.getProcessor();
+		final int w = ip.getWidth();
+		final int h = ip.getHeight();
+		final double mag = 1 / Math.pow(2, level);
+		// TODO releseToFit !
+		if (quality) {
+			// apply proper gaussian filter
+			double sigma = Math.sqrt(Math.pow(2, level) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
 			ip = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel());
 			ip = ip.resize((int)(w * mag), (int)(h * mag)); // better while float
 			return Utils.convertTo(ip, imp.getType(), false);
