@@ -26,6 +26,8 @@ import java.awt.Rectangle;
 import java.awt.Image;
 import java.awt.Window;
 import java.awt.Color;
+import java.awt.geom.Point2D;
+import java.awt.image.PixelGrabber;
 import java.util.Properties;
 import java.util.HashSet;
 import ij.*;
@@ -443,16 +445,56 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public int[] getPixel(int x, int y) {
+		final int[] pvalue = new int[4];
 		Display front = Display.getFront();
-		if (null != front && Math.abs(front.getCanvas().getMagnification() - 0.25) < 0.001) return new int[]{0, 0, 0}; // ignore if the magnification is too low (would load a lot of ImagePlus for almost nothing)
-		// TODO: just grab the pixel from the underlying awt painted on the screen
-		// can be done with PixelGrabber, to grab an area of 1 pixel
-		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1], false);
-		if (null == imp) {
-			Utils.log2("PatchStack.getPixel(x,y): null imp?");
-			return new int[]{0,0,0};
+		double mag = front.getCanvas().getMagnification();
+		if (null == front || mag < 0.249) return pvalue; // ignore if the magnification is too low (would load a lot of ImagePlus for almost nothing)
+
+		final Patch pa = patch[currentSlice-1];
+		final Image img = pa.getProject().getLoader().fetchImage(pa, mag);
+		int w = img.getWidth(null);
+		double scale = w / pa.getWidth(); // pa.getWidth() returns a double
+		Point2D.Double pd = pa.inverseTransformPoint(x, y);
+		int x2 = (int)(pd.x * scale);
+		int y2 = (int)(pd.y * scale);
+		PixelGrabber pg = new PixelGrabber(img, x2, y2, 1, 1, pvalue, 0, w);
+		try {
+			pg.grabPixels();
+		} catch (InterruptedException ie) {
+			return pvalue;
 		}
-		return imp.getPixel((int)(x -patch[currentSlice-1].getX()), (int)(y -patch[currentSlice-1].getY()));
+		switch (pa.getType()) {
+			case ImagePlus.COLOR_256:
+				PixelGrabber pg2 = new PixelGrabber(img,x2,y2,1,1,false);
+				try {
+					pg2.grabPixels();
+				} catch (InterruptedException ie) {
+					return pvalue;
+				}
+				byte[] pix8 = (byte[])pg2.getPixels();
+				pvalue[3] = null != pix8 ? pix8[0]&0xff : 0;
+				// fall through to get RGB values
+			case ImagePlus.COLOR_RGB:
+				int c = pvalue[0];
+				pvalue[0] = (c&0xff0000)>>16; // R
+				pvalue[1] = (c&0xff00)>>8;    // G
+				pvalue[2] = c&0xff;           // B
+				break;
+			default:
+				pvalue[0] = pvalue[0]&0xff;
+				break;
+		}
+
+		return pvalue;
+
+		/* // always returns 0, because ImagePlus.getPixel depends on the awt.Image and it has none
+		Utils.log2("x, y : " + x + "," + y + "   " + x2 + ", " + y2);
+		int[] iArray = imp.getPixel(x2, y2);
+		StringBuffer val = new StringBuffer();
+		for (int i=0; i<iArray.length; i++) val.append(iArray[i]).append(" ");
+		Utils.log2(imp + " " + val.toString());
+		return iArray;
+		*/
 	}
 
 	public ImageStack createEmptyStack() {

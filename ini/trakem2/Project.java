@@ -27,6 +27,7 @@ import ij.IJ;
 import ij.Macro;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
+import ij.io.DirectoryChooser;
 import ini.trakem2.display.*;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.DBLoader;
@@ -275,7 +276,10 @@ public class Project extends DBObject {
 	static public Project newFSProject(String arg) {
 		if (Utils.wrongImageJVersion()) return null;
 		try {
-			FSLoader loader = new FSLoader();
+			DirectoryChooser dc = new DirectoryChooser("Select storage folder");
+			String dir_project = dc.getDirectory();
+			if (null == dir_project) return null;
+			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
 			Project project = createNewProject(loader, arg == null || !arg.equals("blank"));
 			// help the helpless users:
@@ -757,13 +761,10 @@ public class Project extends DBObject {
 		String in = indent + "\t";
 		// 2 - the project itself
 		sb_body.append(in).append("<project \n")
-		       .append(in).append("\t id=\"").append(id).append("\"\n")
-		       .append(in).append("\t title=\"").append(title).append("\"\n");
-		String preprocessor = loader.getPreprocessor();
-		if (null != preprocessor) sb_body.append(in).append("\t preprocessor=\"").append(preprocessor).append("\"\n");
-		String dir_mipmaps = ((FSLoader)loader).getMipMapsFolder();
-		if (null != dir_mipmaps) sb_body.append(in).append("\t mipmaps_folder=\"").append(dir_mipmaps).append("\"\n");
-		sb_body.append(">\n");
+		       .append(in).append("\tid=\"").append(id).append("\"\n")
+		       .append(in).append("\ttitle=\"").append(title).append("\"\n");
+		loader.insertXMLOptions(sb_body, in + "\t");
+		sb_body.append(in).append(">\n");
 		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
 		if (null != root_pt.getChildren()) {
 			String in2 = in + "\t";
@@ -791,6 +792,7 @@ public class Project extends DBObject {
 		sb_header.append(indent).append("<!ATTLIST project title NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project preprocessor NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project mipmaps_folder NMTOKEN #REQUIRED>\n");
+		sb_header.append(indent).append("<!ATTLIST project storage_folder NMTOKEN #REQUIRED>\n");
 		root_tt.exportDTD(sb_header, hs, indent);
 		// 3 - export all project objects DTD in the Top Level LayerSet
 		Layer.exportDTD(sb_header, hs, indent);

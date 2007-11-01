@@ -785,6 +785,10 @@ abstract public class Loader {
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag);
 
+		// testing:
+		// if (level > 0) level--; // passing an image double the size, so it's like interpolating when doing nearest neighbor since the images are blurred with sigma 0.5
+		// SLOW, very slow ...
+
 		// find an equal or larger existing pyramid awt
 		synchronized (db_lock) {
 			lock();
@@ -852,9 +856,11 @@ abstract public class Loader {
 					lock();
 				}
 				if (null != imp && null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
-					// if NOT mag == 1.0
-					if (Math.abs(mag - 1) > 0.000001) {
-						imp = new ImagePlus("", Loader.scaleImage(imp, mag, p.getLayer().getParent().snapshotsQuality()));
+					// if NOT mag == 1.0 // but 0.75 also needs the 1.0 ... problem is, I can't cache level 1.5 or so
+					//mag = 1 / Math.pow(2, level); // correcting mag
+					//if (mag < 0.5001) {
+					if (level < 0) {
+						imp = new ImagePlus("", Loader.scaleImage(imp, level, p.getLayer().getParent().snapshotsQuality()));
 						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
 						p.putMinAndMax(imp);
 					}
@@ -1508,6 +1514,7 @@ abstract public class Loader {
 				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
 				layer.add(patch, true);
 				addedPatchFrom(path, patch);
+				if (isMipMapsEnabled()) generateMipMaps(patch);
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
 				pall[i][j] = patch;
 				//ImageProcessor ip = img.getProcessor();
@@ -2383,6 +2390,7 @@ abstract public class Loader {
 		last_opened_path = path;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(last_opened_path, p);
+		if (isMipMapsEnabled()) generateMipMaps(p);
 		if (ControlWindow.isGUIEnabled()) p.getSnapshot().remake(); // must be done AFTER setting the path
 		return p;
 	}
@@ -2426,6 +2434,7 @@ abstract public class Loader {
 		last_opened_path = dir + "/" + next_file;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(last_opened_path, p);
+		if (isMipMapsEnabled()) generateMipMaps(p);
 		p.getSnapshot().remake(); // must be done AFTER setting the path
 		return p;
 	}
@@ -2680,8 +2689,13 @@ abstract public class Loader {
 
 	/** Exports to an XML file chosen by the user. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
 	public String saveAs(Project project) {
+		// kludge:
+		String default_dir = null;
+		if (this.getClass().equals(FSLoader.class)) {
+			default_dir = ((FSLoader)this).getStorageFolder();
+		}
 		// Select a file to export to
-		File fxml = Utils.chooseFile(null, ".xml");
+		File fxml = Utils.chooseFile(default_dir, null, ".xml");
 		if (null == fxml) return null;
 		String path = export(project, fxml);
 		if (null != path) this.changes = false;
@@ -2826,7 +2840,7 @@ abstract public class Loader {
 		}
 	}
 
-	private String preprocessor = null;
+	protected String preprocessor = null;
 
 	public void setPreprocessor(String plugin_class_name) {
 		if (null == plugin_class_name || 0 == plugin_class_name.length()) {
@@ -3005,8 +3019,11 @@ abstract public class Loader {
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(final long id) {}
 
-	/** Does nothing and returns null unless overriden. */
+	/** Does nothing and returns false unless overriden. */
 	public boolean generateMipMaps(final Patch patch) { return false; }
+
+	/** Does nothing unless overriden. */
+	public void removeMipMaps(final Patch patch) {}
 
 	/** Does nothing and returns null unless overriden. */
 	public Bureaucrat generateMipMaps(final LayerSet ls) { return null; }
@@ -3020,7 +3037,7 @@ abstract public class Loader {
 	/** Does nothing and returns null unless overriden. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
 
-	static public ImageProcessor scaleImage(ImagePlus imp, double mag, final boolean quality) {
+	static public ImageProcessor scaleImage(final ImagePlus imp, double mag, final boolean quality) {
 		if (mag > 1) mag = 1;
 		ImageProcessor ip = imp.getProcessor();
 		if (Math.abs(mag - 1) < 0.000001) return ip;
@@ -3033,6 +3050,27 @@ abstract public class Loader {
 		if (quality) {
 			// apply proper gaussian filter
 			double sigma = Math.sqrt(Math.pow(2, getMipMapLevel(mag)) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
+			ip = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel());
+			ip = ip.resize((int)(w * mag), (int)(h * mag)); // better while float
+			return Utils.convertTo(ip, imp.getType(), false);
+		} else {
+			return ip.resize((int)(w * mag), (int)(h * mag));
+		}
+	}
+
+	static public ImageProcessor scaleImage(final ImagePlus imp, final int level, final boolean quality) {
+		if (level <= 0) return imp.getProcessor();
+		// else, make a properly scaled image:
+		//  - gaussian blurred for best quality when resizing with nearest neighbor
+		//  - direct nearest neighbor otherwise
+		ImageProcessor ip = imp.getProcessor();
+		final int w = ip.getWidth();
+		final int h = ip.getHeight();
+		final double mag = 1 / Math.pow(2, level);
+		// TODO releseToFit !
+		if (quality) {
+			// apply proper gaussian filter
+			double sigma = Math.sqrt(Math.pow(2, level) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
 			ip = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel());
 			ip = ip.resize((int)(w * mag), (int)(h * mag)); // better while float
 			return Utils.convertTo(ip, imp.getType(), false);
@@ -3077,4 +3115,6 @@ abstract public class Loader {
 		}
 		return null;
 	}
+
+	public void insertXMLOptions(StringBuffer sb_body, String indent) {}
 }

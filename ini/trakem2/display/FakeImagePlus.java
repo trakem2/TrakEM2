@@ -71,20 +71,19 @@ public class FakeImagePlus extends ImagePlus {
 		// ip.getPixel(x, y);
 
 		ImagePlus ps = display.getLastTemp();
-		int[] iArray = new int[3];
-		if (null == ps || this.equals(ps)) return iArray; // zeros
+		if (null == ps || this.equals(ps)) return new int[3]; // zeros
 		try {
 			if (ps instanceof PatchStack) {
-				iArray = ps.getPixel(x, y);
+				return ps.getPixel(x, y);
 			} else if (ps.getStack() instanceof LayerStack) {
 				Rectangle box = null;
 				if (null != getRoi()) box = getRoi().getBounds();
 				else box = display.getLayer().getParent().get2DBounds();
 				double vscale = display.getLayer().getParent().getPixelsVirtualizationScale(box);
-				iArray = ps.getPixel((int)(x * vscale), (int)(y * vscale));
+				return ps.getPixel((int)(x * vscale), (int)(y * vscale));
 			}
 		} catch (Exception e) {} // closing swing lazy repaints!
-		return iArray;
+		return null;
 	}
 
 	private class FakeProcessor extends ByteProcessor {

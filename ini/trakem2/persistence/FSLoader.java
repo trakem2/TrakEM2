@@ -29,6 +29,7 @@ import ij.io.*;
 import ij.plugin.JpegWriter;
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
+import ij.process.ColorProcessor;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.Project;
 import ini.trakem2.display.Ball;
@@ -112,6 +113,11 @@ public class FSLoader extends Loader {
 	private Hashtable ht_paths = null;
 	/** For saving and overwriting. */
 	private String project_xml_path = null;
+	/** Path to the directory hosting the file image pyramids. */
+	private String dir_mipmaps = null;
+	/** Path to the directory the user provided when creating the project. */
+	private String dir_storage = null;
+
 
 	public FSLoader() {
 		super(); // register
@@ -120,8 +126,22 @@ public class FSLoader extends Loader {
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
 
+	public FSLoader(String dir_storage) {
+		this();
+		if (null == dir_storage) return;
+		if (!dir_storage.endsWith("/")) dir_storage += "/";
+		this.dir_storage = dir_storage;
+		createMipMapsDir(dir_storage);
+	}
+
 	public String getProjectXMLPath() {
+		if (null == project_xml_path) return null;
 		return project_xml_path.toString(); // a copy of it
+	}
+
+	public String getStorageFolder() {
+		if (null == dir_storage) return null;
+		return dir_storage.toString(); // a copy
 	}
 
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */
@@ -472,9 +492,14 @@ public class FSLoader extends Loader {
 			long loid = ob.getId();
 			Long lid = new Long(loid);
 			ht_dbo.remove(lid);
+			Utils.log2("removing " + ob);
 			if (ob instanceof Patch) {
+				Utils.log2("removing patch " + ob);
+				Utils.log2("");
 				// STRATEGY change: images are not owned by the FSLoader.
-				ht_paths.remove(ob);
+				Patch p = (Patch)ob;
+				removeMipMaps(p);
+				ht_paths.remove(ob); // after removeMipMaps !
 				mawts.remove(loid);
 				ImagePlus imp = imps.remove(loid);
 				if (null != imp) {
@@ -486,6 +511,9 @@ public class FSLoader extends Loader {
 						imp.flush();
 					}
 				}
+				unlock();
+				flushMipMaps(p.getId()); // locks on its own
+				return true;
 			}
 			unlock();
 		}
@@ -723,6 +751,7 @@ public class FSLoader extends Loader {
 				//Utils.log2("type is " + imp_stack.getType());
 			}
 			addedPatchFrom(patch_path, patch);
+			if (isMipMapsEnabled()) generateMipMaps(patch);
 			if (!as_copy) {
 				cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
 			}
@@ -738,7 +767,7 @@ public class FSLoader extends Loader {
 		return previous_patch;
 	}
 
-	/** Specific options for the Loader which existed as attributes to the Project XML node. */
+	/** Specific options for the Loader which exist as attributes to the Project XML node. */
 	public void parseXMLOptions(final Hashtable ht_attributes) {
 		Object ob = ht_attributes.get("preprocessor");
 		if (null != ob) setPreprocessor((String)ob);
@@ -750,12 +779,24 @@ public class FSLoader extends Loader {
 				if (!this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
 			} else Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
 		}
+		ob = ht_attributes.get("storage_folder");
+		if (null != ob) {
+			File f = new File((String)ob);
+			if (f.exists() && f.isDirectory()) {
+				this.dir_storage = (String)ob;
+				if (!this.dir_storage.endsWith("/")) this.dir_storage += "/";
+			} else Utils.log2("storage_folder was not found or is invalid: " + ob);
+		}
+	}
+
+	/** Specific options for the Loader which exist as attributes to the Project XML node. */
+	public void insertXMLOptions(StringBuffer sb_body, String indent) {
+		if (null != preprocessor) sb_body.append(indent).append("preprocessor=\"").append(preprocessor).append("\"\n");
+		if (null != dir_mipmaps) sb_body.append(indent).append("mipmaps_folder=\"").append(dir_mipmaps).append("\"\n");
+		if (null != dir_storage) sb_body.append(indent).append("storage_folder=\"").append(dir_storage).append("\"\n");
 	}
 
 	/* ************** MIPMAPS **********************/
-
-	/** Path to the directory hosting the file image pyramids. */
-	private String dir_mipmaps = null;
 
 	/** Returns the path to the directory hosting the file image pyramids. */
 	public String getMipMapsFolder() {
@@ -781,26 +822,63 @@ public class FSLoader extends Loader {
 		//  which means sigma = 0.75 for the full-scale image (has level 0)
 		// prepare a 0.75 sigma image from the original
 		final ColorModel cm = imp.getProcessor().getDefaultColorModel();
-		FloatProcessor fp = (FloatProcessor)imp.getProcessor().convertToFloat();
 		int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 		           //   but since we scale 50% relative the previous, it's always 0.75
 		try {
-			while (w >= 64 && h >= 64) { // not smaller than 32x32
-				// 1 - blur the previous image to 0.75 sigma
-				fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
-				// 2 - prepare values for the next scaled image
-				w /= 2;
-				h /= 2;
-				k++;
-				// 3 - generate scaled image
-				fp = (FloatProcessor)fp.resize(w, h);
-				// 4 - check that the target folder for the desired scale exists
-				String target_dir = getScaleDir(dir_mipmaps, k);
-				if (null == target_dir) continue;
-				// 5 - save as 8-bit jpeg
-				ImagePlus imp2 = new ImagePlus(imp.getTitle(), Utils.convertTo(fp, patch.getType(), false)); // no scaling, since the conversion to float above didn't change the range
-				imp2.getProcessor().setMinAndMax(patch.getMin(), patch.getMax());
-				new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+			if (ImagePlus.COLOR_RGB == patch.getType()) {
+				ColorProcessor cp = (ColorProcessor)imp.getProcessor();
+				FloatProcessor red = cp.toFloat(0, new FloatProcessor(w, h));
+				FloatProcessor green = cp.toFloat(1, new FloatProcessor(w, h));
+				FloatProcessor blue = cp.toFloat(2, new FloatProcessor(w, h));
+				while (w >= 64 && h >= 64) { // not smaller than 32x32
+					// 1 - blur the previous image to 0.75 sigma
+					red = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])red.getPixels(), w, h), 0.75f).data, cm);
+					green = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])green.getPixels(), w, h), 0.75f).data, cm);
+					blue = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])blue.getPixels(), w, h), 0.75f).data, cm);
+					// 2 - prepare values for the next scaled image
+					w /= 2;
+					h /= 2;
+					k++;
+					// 3 - check that the target folder for the desired scale exists
+					String target_dir = getScaleDir(dir_mipmaps, k);
+					if (null == target_dir) continue;
+					// 4 - generate scaled image
+					red = (FloatProcessor)red.resize(w, h);
+					green = (FloatProcessor)green.resize(w, h);
+					blue = (FloatProcessor)blue.resize(w, h);
+					// compose ColorProcessor
+					int[] pix = new int[w * h];
+					byte[] r = (byte[])red.convertToByte(false).getPixels();
+					byte[] g = (byte[])green.convertToByte(false).getPixels();
+					byte[] b = (byte[])blue.convertToByte(false).getPixels();
+					for (int i=0; i<pix.length; i++) {
+						pix[i] = (r[i]<<16) + (g[i]<<8) + b[i];
+					}
+					ColorProcessor cp2 = new ColorProcessor(w, h, pix);
+					cp2.setMinAndMax(patch.getMin(), patch.getMax());
+					ImagePlus imp2 = new ImagePlus(imp.getTitle(), cp2);
+					// 5 - save as jpeg
+					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+				}
+			} else {
+				FloatProcessor fp = (FloatProcessor)imp.getProcessor().convertToFloat();
+				while (w >= 64 && h >= 64) { // not smaller than 32x32
+					// 1 - blur the previous image to 0.75 sigma
+					fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
+					// 2 - prepare values for the next scaled image
+					w /= 2;
+					h /= 2;
+					k++;
+					// 3 - check that the target folder for the desired scale exists
+					String target_dir = getScaleDir(dir_mipmaps, k);
+					if (null == target_dir) continue;
+					// 4 - generate scaled image
+					fp = (FloatProcessor)fp.resize(w, h);
+					// 5 - save as 8-bit jpeg
+					ImagePlus imp2 = new ImagePlus(imp.getTitle(), Utils.convertTo(fp, patch.getType(), false)); // no scaling, since the conversion to float above didn't change the range
+					imp2.getProcessor().setMinAndMax(patch.getMin(), patch.getMax());
+					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+				}
 			}
 		} catch (Exception e) {
 			new IJError(e);
@@ -882,7 +960,23 @@ public class FSLoader extends Loader {
 	public boolean createMipMapsDir(String parent_path) {
 		if (null == parent_path) {
 			// try to create it in the same directory where the XML file is
-			if (null != project_xml_path) {
+			if (null != dir_storage) {
+				File f = new File(dir_storage + "trakem2.mipmaps");
+				if (!f.exists()) {
+					try {
+						if (f.mkdir()) {
+							this.dir_mipmaps = f.getAbsolutePath().replace('\\', '/');
+							if (!dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
+							return true;
+						}
+					} catch (Exception e) {}
+				} else if (f.isDirectory()) {
+					this.dir_mipmaps = f.getAbsolutePath().replace('\\', '/');
+					if (!dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
+					return true;
+				}
+				// else can't use it
+			} else if (null != project_xml_path) {
 				File fxml = new File(project_xml_path);
 				File fparent = fxml.getParentFile();
 				if (null != fparent && fparent.isDirectory()) {
@@ -947,6 +1041,39 @@ public class FSLoader extends Loader {
 			mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
 			unlock();
 		}
+	}
+
+	/** Gets data from the Patch and forks a new Thread to do the file removal. */
+	public void removeMipMaps(final Patch p) {
+		if (null == dir_mipmaps) return;
+		// remove the files
+		final int width = (int)p.getWidth();
+		final int height = (int)p.getHeight();
+		final String filename = new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg";
+		new Thread() {
+			public void run() {
+
+		int w = width;
+		int h = height;
+		int k = 0; // the level
+		while (w >= 64 && h >= 64) { // not smaller than 32x32
+			w /= 2;
+			h /= 2;
+			k++;
+			File f = new File(dir_mipmaps + k + "/" + filename);
+			if (f.exists()) {
+				try {
+					if (!f.delete()) {
+						Utils.log2("Could not remove file " + f.getAbsolutePath());
+					}
+				} catch (Exception e) {
+					new IJError(e);
+				}
+			}
+		}
+
+			}
+		}.start();
 	}
 
 	/** Checks whether this Loader is using a directory of image pyramids for each Patch or not. */
