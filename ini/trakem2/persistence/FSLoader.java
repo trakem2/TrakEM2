@@ -5,7 +5,7 @@ Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.txt )
+/s published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.txt )
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -751,10 +751,10 @@ public class FSLoader extends Loader {
 				//Utils.log2("type is " + imp_stack.getType());
 			}
 			addedPatchFrom(patch_path, patch);
-			if (isMipMapsEnabled()) generateMipMaps(patch);
 			if (!as_copy) {
 				cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
 			}
+			if (isMipMapsEnabled()) generateMipMaps(patch);
 			if (null != previous_patch) patch.link(previous_patch);
 			layer.add(patch);
 			previous_patch = patch;
@@ -889,16 +889,18 @@ public class FSLoader extends Loader {
 	}
 
 	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.*/
-	public Bureaucrat generateMipMaps(final LayerSet ls) {
+	public Bureaucrat generateMipMaps(final ArrayList al) {
+		if (null == al || 0 == al.size()) return null;
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		final Worker worker = new Worker("Generating MipMaps") {
 			public void run() {
 				startedWorking();
+				try {
+
 				final Worker wo = this;
 
 				Utils.log2("starting mipmap generation ..");
 
-				ArrayList al = ls.getDisplayables(Patch.class);
 				final int size = al.size();
 				final Patch[] pa = new Patch[size];
 				final Thread[] threads = MultiThreading.newThreads();
@@ -921,15 +923,19 @@ public class FSLoader extends Loader {
 					}
 				}
 
-				}});
-
+						}
+					});
 				}
 				MultiThreading.startAndJoin(threads);
+
+				} catch (Exception e) {
+					new IJError(e);
+				}
 
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, ls.getProject());
+		Bureaucrat burro = new Bureaucrat(worker, ((Patch)al.get(0)).getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -1107,7 +1113,7 @@ public class FSLoader extends Loader {
 
 	final private HashSet hs_regenerating_mipmaps = new HashSet();
 
-	/** Loads the file containing the scaled image correspinding to the given level and returns it as an awt.Image, or null if not found.*/
+	/** Loads the file containing the scaled image corresponding to the given level and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
 		try {
@@ -1118,7 +1124,7 @@ public class FSLoader extends Loader {
 			}
 			// Regenerate in the case of not asking for an image under 64x64
 			double scale = 1 / Math.pow(2, level);
-			if ((patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
+			if (level > 0 && (patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
 				// regenerate
 				Worker worker = new Worker("Regenerating mipmaps") {
 					public void run() {

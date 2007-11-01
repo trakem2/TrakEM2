@@ -222,6 +222,9 @@ public class Patch extends Displayable {
 		this.channels = c;
 		//project.getLoader().cacheAWT(id, awt);
 
+		/* // This code is here only to update min and max values when the image is edited. Should be done elsewhere.
+		 *  //  IN ADITTION it results in locks sometimes with the new mipmaps code, because of the call to updateInDatabase which also locks
+		 *
 		// only for the large image, not any of the scaled ones (the mipmaps)
 		if (imp.getWidth() == this.width && (min != ip.getMin() || max != ip.getMax())) {
 			//Utils.log2("adjustChannels: changing min and max from " + min + "," + max + " to " + ip.getMin() + ", " + ip.getMax());
@@ -232,6 +235,7 @@ public class Patch extends Displayable {
 			// update snapshot
 			snapshot.remake();
 		}
+		*/
 
 		return awt;
 	}
