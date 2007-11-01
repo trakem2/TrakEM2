@@ -265,7 +265,9 @@ public class Utils implements ij.plugin.PlugIn {
 			System.out.println(msg);
 			return;
 		}
-		if (focus) IJ.getInstance().toFront();
+		if (focus) {
+			IJ.getInstance().toFront();
+		}
 		IJ.showStatus(msg);
 		// temporarily:
 		//log(msg);

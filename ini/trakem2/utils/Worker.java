@@ -26,6 +26,7 @@ public abstract class Worker extends Thread {
 	private String task_name;
 	private boolean working = false;
 	protected boolean quit = false;
+	private boolean background = false;
 	public Worker(String task_name) {
 		this(task_name, false);
 	}
@@ -41,4 +42,7 @@ public abstract class Worker extends Thread {
 	public String getTaskName() { return task_name; }
 	public void quit() { this.quit = true; }
 	public boolean hasQuitted() { return this.quit; }
+	protected void setAsBackground(boolean b) { this.background = b; }
+	/** Whether the work is done on the background, without need to bring ImageJ toolbar to front for instance. */
+	public boolean onBackground() { return this.background; }
 }

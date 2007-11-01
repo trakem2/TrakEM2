@@ -799,7 +799,7 @@ abstract public class Loader {
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
 				final long id = p.getId();
-				if (isMipMapsEnabled()) {
+				if (level > 0 && isMipMapsEnabled()) {
 					// 1 - check if the exact level is cached
 					mawt = mawts.get(id, level);
 					if (null != mawt) {
@@ -848,23 +848,23 @@ abstract public class Loader {
 					//Utils.log2("returning from getClosest with level " + level);
 					return mawt;
 				}
-				// 5 - else, fetch the ImagePlus and make an image from it of the proper size and quality
-				ImagePlus imp = imps.get(id);
-				if (null == imp) {
-					unlock();
-					imp = fetchImagePlus(p, false); // should not make any awts or snaps
-					lock();
-				}
-				if (null != imp && null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
+				// 5 - else, fetch the ImageProcessor and make an image from it of the proper size and quality
+				unlock();
+				ImageProcessor ip = fetchImageProcessor(p);
+				lock();
+				ImagePlus imp;
+				if (null != ip && null != ip.getPixels()) {
 					// if NOT mag == 1.0 // but 0.75 also needs the 1.0 ... problem is, I can't cache level 1.5 or so
 					//mag = 1 / Math.pow(2, level); // correcting mag
 					//if (mag < 0.5001) {
 					if (level < 0) {
-						imp = new ImagePlus("", Loader.scaleImage(imp, level, p.getLayer().getParent().snapshotsQuality()));
+						imp = new ImagePlus("", Loader.scaleImage(new ImagePlus("", ip), level, p.getLayer().getParent().snapshotsQuality()));
 						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
 						p.putMinAndMax(imp);
+					} else {
+						imp = new ImagePlus("", ip);
 					}
-					mawt = p.createImage(imp);
+					mawt = p.createImage(imp); // could lock by calling fetchImagePlus if the imp was null, so CAREFUL
 					mawts.put(id, mawt, level);
 					Display.repaintSnapshot(p);
 					unlock();
@@ -893,6 +893,8 @@ abstract public class Loader {
 
 	abstract public ImagePlus fetchImagePlus(Patch p);
 	abstract public ImagePlus fetchImagePlus(Patch p, boolean create_snap);
+	/** Returns null unless overriden. */
+	public ImageProcessor fetchImageProcessor(Patch p) { return null; }
 
 	abstract public Object[] fetchLabel(DLabel label);
 
