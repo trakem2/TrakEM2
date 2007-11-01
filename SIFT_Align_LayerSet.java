@@ -746,7 +746,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 		String xml_file_path = loader.getProjectXMLPath();
 		File xfile = new File(xml_file_path);
 		String parent_dir = xfile.getParent().replace('\\', '/');
-		if (parent_dir.endsWith("/")) parent_dir += "/";
+		if (!parent_dir.endsWith("/")) parent_dir += "/";
 		String storage_folder_ = parent_dir + xfile.getName() + ".features.ser/";
 		File sdir = new File(storage_folder_);
 		if (!sdir.exists()) {

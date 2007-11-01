@@ -7,6 +7,7 @@ import mpi.fruitfly.registration.FloatArray2DSIFT;
 import mpi.fruitfly.registration.FloatArray2DScaleOctave;
 import mpi.fruitfly.registration.FloatArray2DScaleOctaveDoGDetector;
 import mpi.fruitfly.registration.ImageFilter;
+import mpi.fruitfly.registration.Feature;
 
 import ij.plugin.*;
 import ij.gui.*;
@@ -112,7 +113,7 @@ public class SIFT_Movie implements PlugIn, KeyListener
 		ImageProcessor ip1 = imp.getProcessor().convertToFloat();
 		ImageProcessor ip2 = imp.getProcessor().duplicate().convertToRGB();
 		
-		Vector< FloatArray2DSIFT.Feature > fs1;
+		Vector< Feature > fs1;
 		
 		FloatArray2DSIFT sift = new FloatArray2DSIFT( fdsize, fdbins );
 		
@@ -256,7 +257,7 @@ public class SIFT_Movie implements PlugIn, KeyListener
 		
 		ip2.setLineWidth( 2 );
 		ip2.setColor( Color.red );
-		for ( FloatArray2DSIFT.Feature f : fs1 )
+		for ( Feature f : fs1 )
 		{
 			//System.out.println( f.location[ 0 ] + " " + f.location[ 1 ] + " " + f.scale + " " + f.orientation );
 			drawSquare( ip2, new double[]{ f.location[ 0 ] / scale, f.location[ 1 ] / scale }, fdsize * ( double )f.scale / scale, ( double )f.orientation );
