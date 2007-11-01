@@ -492,14 +492,21 @@ public class Utils implements ij.plugin.PlugIn {
 		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH\nUniversity of California Los Angeles");
 	}
 
-	/** Select a file from the file system, for saving purposes. Prompts for overwritting if the file exists, unless the ControlWindow.isGUIEnabled() returns false (i.e. there is no GUI). */
 	static public File chooseFile(String name, String extension) {
+		return Utils.chooseFile(null, name, extension);
+	}
+
+	/** Select a file from the file system, for saving purposes. Prompts for overwritting if the file exists, unless the ControlWindow.isGUIEnabled() returns false (i.e. there is no GUI). */
+	static public File chooseFile(String default_dir, String name, String extension) {
 		// using ImageJ's JFileChooser or internal FileDialog, according to user preferences.
 		String user = System.getProperty("user.name");
 		String name2 = null;
 		if (null != name && null != extension) name2 = name + extension;
 		else if (null != name) name2 = name;
 		else if (null != extension) name2 = "untitled" + extension;
+		if (null != default_dir) {
+			OpenDialog.setDefaultDirectory(default_dir);
+		}
 		SaveDialog sd = new SaveDialog("Save",
 						//(user.startsWith("albert") || user.endsWith("cardona")) ? 
 						//	"/home/" + user + "/temp" :

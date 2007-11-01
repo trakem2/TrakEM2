@@ -852,8 +852,9 @@ abstract public class Loader {
 					lock();
 				}
 				if (null != imp && null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
-					// if NOT mag == 1.0
-					if (Math.abs(mag - 1) > 0.000001) {
+					// if NOT mag == 1.0 // but 0.75 also needs the 1.0 ... problem is, I can't cache level 1.5 or so
+					mag = 1 / Math.pow(2, level); // correcting mag
+					if (mag < 0.5001) {
 						imp = new ImagePlus("", Loader.scaleImage(imp, mag, p.getLayer().getParent().snapshotsQuality()));
 						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
 						p.putMinAndMax(imp);
@@ -1508,6 +1509,7 @@ abstract public class Loader {
 				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
 				layer.add(patch, true);
 				addedPatchFrom(path, patch);
+				if (isMipMapsEnabled()) generateMipMaps(patch);
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
 				pall[i][j] = patch;
 				//ImageProcessor ip = img.getProcessor();
@@ -2383,6 +2385,7 @@ abstract public class Loader {
 		last_opened_path = path;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(last_opened_path, p);
+		if (isMipMapsEnabled()) generateMipMaps(p);
 		if (ControlWindow.isGUIEnabled()) p.getSnapshot().remake(); // must be done AFTER setting the path
 		return p;
 	}
@@ -2426,6 +2429,7 @@ abstract public class Loader {
 		last_opened_path = dir + "/" + next_file;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(last_opened_path, p);
+		if (isMipMapsEnabled()) generateMipMaps(p);
 		p.getSnapshot().remake(); // must be done AFTER setting the path
 		return p;
 	}
@@ -2680,8 +2684,13 @@ abstract public class Loader {
 
 	/** Exports to an XML file chosen by the user. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
 	public String saveAs(Project project) {
+		// kludge:
+		String default_dir = null;
+		if (this.getClass().equals(FSLoader.class)) {
+			default_dir = ((FSLoader)this).getStorageFolder();
+		}
 		// Select a file to export to
-		File fxml = Utils.chooseFile(null, ".xml");
+		File fxml = Utils.chooseFile(default_dir, null, ".xml");
 		if (null == fxml) return null;
 		String path = export(project, fxml);
 		if (null != path) this.changes = false;
@@ -2826,7 +2835,7 @@ abstract public class Loader {
 		}
 	}
 
-	private String preprocessor = null;
+	protected String preprocessor = null;
 
 	public void setPreprocessor(String plugin_class_name) {
 		if (null == plugin_class_name || 0 == plugin_class_name.length()) {
@@ -3005,8 +3014,11 @@ abstract public class Loader {
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(final long id) {}
 
-	/** Does nothing and returns null unless overriden. */
+	/** Does nothing and returns false unless overriden. */
 	public boolean generateMipMaps(final Patch patch) { return false; }
+
+	/** Does nothing unless overriden. */
+	public void removeMipMaps(final Patch patch) {}
 
 	/** Does nothing and returns null unless overriden. */
 	public Bureaucrat generateMipMaps(final LayerSet ls) { return null; }
@@ -3077,4 +3089,6 @@ abstract public class Loader {
 		}
 		return null;
 	}
+
+	public void insertXMLOptions(StringBuffer sb_body, String indent) {}
 }
