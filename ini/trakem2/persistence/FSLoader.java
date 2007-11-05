@@ -221,17 +221,23 @@ public class FSLoader extends Loader {
 		Utils.showStatus("");
 	}
 
+	/** Get the next unique id, not shared by any other object within the same project. */
 	public long getNextId() {
 		// examine the hastable for existing ids
-		int n = ht_dbo.size();
-		if (0 != n) {
-			long[] ids = new long[ht_dbo.size()];
-			int i = 0;
-			for (Enumeration e = ht_dbo.keys(); e.hasMoreElements(); i++) {
-				ids[i] = ((Long)e.nextElement()).longValue();
+		synchronized (db_lock) {
+			lock();
+			int n = ht_dbo.size();
+			if (0 != n) {
+				long[] ids = new long[ht_dbo.size()];
+				int i = 0;
+				for (Enumeration e = ht_dbo.keys(); e.hasMoreElements(); i++) {
+					ids[i] = ((Long)e.nextElement()).longValue();
+				}
+				Arrays.sort(ids);
+				unlock();
+				return ids[n-1] + 1;
 			}
-			Arrays.sort(ids);
-			return ids[n-1] + 1;
+			unlock();
 		}
 		return 1;
 	}
