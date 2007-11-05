@@ -967,6 +967,8 @@ public class FSLoader extends Loader {
 		           //   but since we scale 50% relative the previous, it's always 0.75
 		try {
 			if (ImagePlus.COLOR_RGB == patch.getType()) {
+				// TODO releaseToFit proper
+				releaseToFit(w * h * 4 * 5);
 				ColorProcessor cp = (ColorProcessor)ip;
 				FloatProcessor red = cp.toFloat(0, new FloatProcessor(w, h));
 				FloatProcessor green = cp.toFloat(1, new FloatProcessor(w, h));
@@ -1002,6 +1004,8 @@ public class FSLoader extends Loader {
 					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
 				}
 			} else {
+				// TODO releaseToFit proper
+				releaseToFit(w * h * 4 * 5);
 				FloatProcessor fp = (FloatProcessor)ip.convertToFloat();
 				while (w >= 64 && h >= 64) { // not smaller than 32x32
 					// 1 - blur the previous image to 0.75 sigma
@@ -1059,9 +1063,13 @@ public class FSLoader extends Loader {
 						return;
 					}
 					wo.setTaskName("Generating MipMaps " + k + "/" + size);
-					if ( ! generateMipMaps(pa[k]) ) {
-						// some error ocurred
-						Utils.log2("Could not generate mipmaps for patch " + pa[k]);
+					try {
+						if ( ! generateMipMaps(pa[k]) ) {
+							// some error ocurred
+							Utils.log2("Could not generate mipmaps for patch " + pa[k]);
+						}
+					} catch (Exception e) {
+						new IJError(e);
 					}
 				}
 

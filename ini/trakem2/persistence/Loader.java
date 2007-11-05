@@ -79,6 +79,7 @@ import java.awt.Component;
 import java.awt.Checkbox;
 import java.awt.Cursor;
 //import java.awt.FileDialog;
+import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Point;
@@ -496,11 +497,11 @@ abstract public class Loader {
 	 *  * 64-bit systems have a real maximum of 68% of the Xmx maximum heap memory value.
 	 *  * 32-bit systems have about 80% of the Xmx.
 	 */
-	static public final long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
+	static public final long MAX_MEMORY = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
 	
 	/** Measure wether there is at least 20% of available memory. */
 	protected boolean enoughFreeMemory() {
-		final long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
+		final long mem_in_use = (IJ.currentMemory() * 100) / MAX_MEMORY; // IJ.maxMemory();
 		if (mem_in_use < 80L) { // 80 % // this 100-20 could very well be the actual lost-in-hyperspace memory, which may be 20% for 32-bit and 32% in 64-bit systems
 			return true;
 		}
@@ -512,7 +513,7 @@ abstract public class Loader {
 		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
 		final long mem_in_use = IJ.currentMemory(); // in bytes
 		//Utils.log("max_memory: " + max_memory + "  mem_in_use: " + mem_in_use);
-		if (bytes < max_memory - mem_in_use) {
+		if (bytes < MAX_MEMORY - mem_in_use) {
 			return true;
 		} else {
 			return false;
@@ -541,12 +542,12 @@ abstract public class Loader {
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
 	public final boolean releaseToFit(long bytes) {
 		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
-		if (bytes > max_memory) {
+		if (bytes > MAX_MEMORY) {
 			Utils.showMessage("Can't fit " + bytes + " bytes in memory.");
 			return false;
 		}
 		boolean previous = massive_mode;
-		if (bytes > max_memory / 4) setMassiveMode(true);
+		if (bytes > MAX_MEMORY / 4) setMassiveMode(true);
 		int iterations = 30;
 		boolean result = true;
 		synchronized (db_lock) {
@@ -597,7 +598,7 @@ abstract public class Loader {
 	}
 
 	/** The minimal number of memory bytes that should always be free. */
-	public static final long MIN_FREE_BYTES = (long)(max_memory * 0.2f);
+	public static final long MIN_FREE_BYTES = (long)(MAX_MEMORY * 0.2f);
 
 	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
 	public final void releaseMemory() {
@@ -608,8 +609,9 @@ abstract public class Loader {
 	*  The very last thing to remove is the stored awt.Image objects.<br />
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
 	*  NOT locked, however calls must take care of that.<br />
+	*  For synchronized and public, use method releaseMemory()
 	*/
-	public final void releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
+	protected final void releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
 		try {
 			while (!enoughFreeMemory(min_free_bytes)) {
 				// release the cache of other loaders (up to 'a' of the ImagePlus cache of them if necessary)
@@ -1846,6 +1848,7 @@ abstract public class Loader {
 		final Worker worker = new Worker("making flat images") { public void run() {
 			try {
 			//
+			startedWorking();
 			ImagePlus imp = null;
 			String target_dir = null;
 			boolean choose_dir = force_to_file;
@@ -1979,14 +1982,22 @@ abstract public class Loader {
 
 		ImagePlus imp = null;
 
-		if (isMipMapsEnabled()) {
-			quality = false; // since all mipmaps are generated from gaussian blurred images, the flat image will be of best quality already despite the nearest-neighbor scaling. So there is no need to create a gigantic image and then do the SCALE_AREA_AVERAGING.
-			// still there may be little glitches, in generating very small images for example that have no direct or very close mipmap level images associated.
-		}
-
 		try {
 
-			double scaleP = quality ? 1.0 : scale;
+			// if quality is specified, then a larger image is generated:
+			//   - full size if no mipmaps
+			//   - double the size if mipmaps is enabled
+			double scaleP = scale;
+			if (quality) {
+				if (isMipMapsEnabled()) {
+					// just double the size
+					scaleP = scale + scale;
+					if (scaleP > 1.0) scaleP = 1.0;
+				} else {
+					// full
+					scaleP = 1.0;
+				}
+			}
 
 			if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 			// dimensions
@@ -2027,6 +2038,7 @@ abstract public class Loader {
 				unlock();
 			}
 			BufferedImage bi = null;
+			IndexColorModel icm = null;
 			switch (type) {
 				case ImagePlus.GRAY8:
 					byte[] r = new byte[256];
@@ -2037,7 +2049,8 @@ abstract public class Loader {
 						g[i]=(byte)i;
 						b[i]=(byte)i;
 					}
-					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, new IndexColorModel(8, 256, r, g, b));
+					icm = new IndexColorModel(8, 256, r, g, b);
+					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, icm);
 					break;
 				case ImagePlus.COLOR_RGB:
 					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_INT_ARGB);
@@ -2141,7 +2154,17 @@ abstract public class Loader {
 			//}
 			try {
 				if (quality) {
-					Image scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
+					Image scaled = null;
+					if (!isMipMapsEnabled() || scale >= 0.499) { // there are no proper mipmaps above 50%, so there's need for SCALE_AREA_AVERAGING.
+						scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
+					} else {
+						// faster, but requires gaussian blurred images (such as the mipmaps)
+						scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType(), icm); // without a proper grayscale color model, vertical lines appear (is there an underlying problem in the painting?)
+						Graphics2D gs = (Graphics2D)scaled.getGraphics();
+						//gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+						gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+						gs.drawImage(bi, 0, 0, (int)(w * scale), (int)(h * scale), null);
+					}
 					bi.flush();
 					runGC();
 					imp = new ImagePlus(layer.getPrintableTitle(), scaled);
@@ -2989,7 +3012,7 @@ abstract public class Loader {
 	}
 
 	public final void printMemState() {
-		Utils.log2(new StringBuffer("mem in use: ").append((IJ.currentMemory() * 100.0f) / max_memory).append('%')
+		Utils.log2(new StringBuffer("mem in use: ").append((IJ.currentMemory() * 100.0f) / MAX_MEMORY).append('%')
 		                    .append("\n\timps: ").append(imps.size())
 				    .append("\n\tmawts: ").append(mawts.size())
 			   .toString());
