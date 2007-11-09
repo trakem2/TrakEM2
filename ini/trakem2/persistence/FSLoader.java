@@ -907,13 +907,14 @@ public class FSLoader extends Loader {
 			// select the directory where the xml file lives.
 			File fdir = new File(this.project_xml_path);
 			this.dir_storage = fdir.getParent().replace('\\', '/');
-			if (null == this.dir_storage) {
+			if (null == this.dir_storage && ControlWindow.isGUIEnabled()) {
+				Utils.log2("Asking user for a storage folder."); // tip for headless runners whose program gets "stuck"
 				DirectoryChooser dc = new DirectoryChooser("REQUIRED: select storage folder");
 				this.dir_storage = dc.getDirectory();
-				if (null == this.dir_storage) {
-					IJ.showMessage("TrakEM2 requires a storage folder.\nTemporarily your home directory will be used.");
-					this.dir_storage = System.getProperty("user.home").replace('\\', '/');
-				}
+			}
+			if (null == this.dir_storage) {
+				IJ.showMessage("TrakEM2 requires a storage folder.\nTemporarily your home directory will be used.");
+				this.dir_storage = System.getProperty("user.home").replace('\\', '/');
 			}
 		}
 		// fix
@@ -931,6 +932,25 @@ public class FSLoader extends Loader {
 		if (null == this.dir_mipmaps) {
 			// create a new one inside the dir_storage, which can't be null
 			createMipMapsDir(dir_storage);
+			if (null != this.dir_mipmaps && ControlWindow.isGUIEnabled() && null != IJ.getInstance()) {
+				Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
+				YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", "Generate mipmaps in the background for all images?");
+				if (yn.yesPressed()) {
+					final Loader lo = this;
+					new Thread() {
+						public void run() {
+							try {
+								// wait while parsing the rest of the XML file
+								while (!v_loaders.contains(lo)) {
+									Thread.sleep(1000);
+								}
+								Project pj = Project.findProject(lo);
+								lo.generateMipMaps(pj.getRootLayerSet().getDisplayables(Patch.class));
+							} catch (Exception e) {}
+						}
+					}.start();
+				}
+			}
 		}
 		// fix
 		if (null != this.dir_mipmaps && !this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
