@@ -32,6 +32,7 @@ import ij.process.FloatProcessor;
 import ij.process.ColorProcessor;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.Project;
+import ini.trakem2.ControlWindow;
 import ini.trakem2.display.Ball;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
