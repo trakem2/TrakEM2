@@ -858,7 +858,7 @@ public class FSLoader extends Loader {
 			Patch patch = null;
 			if (as_copy) {
 				patch_path = target_dir + imp_patch_i.getTitle() + ".zip";
-				new FileSaver(imp_patch_i).saveAsZip(patch_path);
+				ini.trakem2.io.ImageSaver.saveAsZip(imp_patch_i, patch_path);
 				patch = new Patch(project, label + " " + title + " " + i, pos_x, pos_y, imp_patch_i);
 			} else if (virtual) {
 				patch = new Patch(project, label, pos_x, pos_y, imp_patch_i);
@@ -982,7 +982,6 @@ public class FSLoader extends Loader {
 		if (null == dir_mipmaps) return false;
 		final ImageProcessor ip = fetchImageProcessor(patch);
 		final String filename = new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
-		JpegWriter.setQuality(85);
 		int w = ip.getWidth();
 		int h = ip.getHeight();
 		// sigma = sqrt(2^level - 0.5^2)
@@ -1026,9 +1025,8 @@ public class FSLoader extends Loader {
 					}
 					ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 					cp2.setMinAndMax(patch.getMin(), patch.getMax());
-					ImagePlus imp2 = new ImagePlus(filename, cp2);
 					// 5 - save as jpeg
-					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+					ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f);
 				}
 			} else {
 				// TODO releaseToFit proper
@@ -1047,10 +1045,10 @@ public class FSLoader extends Loader {
 					// 4 - generate scaled image
 					fp = (FloatProcessor)fp.resize(w, h);
 					// 5 - save as 8-bit jpeg
-					ImagePlus imp2 = new ImagePlus(filename, Utils.convertTo(fp, patch.getType(), false)); // no scaling, since the conversion to float above didn't change the range
-					imp2.getProcessor().setMinAndMax(patch.getMin(), patch.getMax());
-					imp2.getProcessor().setColorModel(cm);
-					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range
+					ip2.setMinAndMax(patch.getMin(), patch.getMax());
+					ip2.setColorModel(cm);
+					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f);
 				}
 			}
 		} catch (Exception e) {
@@ -1288,6 +1286,7 @@ public class FSLoader extends Loader {
 		return 0;
 	}
 
+	/** A temporary list of Patch instances for which a pyramid is being generated. */
 	final private HashSet hs_regenerating_mipmaps = new HashSet();
 
 	/** Loads the file containing the scaled image corresponding to the given level and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */

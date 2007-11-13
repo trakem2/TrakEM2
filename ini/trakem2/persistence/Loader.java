@@ -601,7 +601,7 @@ abstract public class Loader {
 	public static final long MIN_FREE_BYTES = (long)(MAX_MEMORY * 0.2f);
 
 	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
-	public final void releaseMemory() {
+	protected final void releaseMemory() {
 		releaseMemory(0.5D, true, MIN_FREE_BYTES);
 	}
 
@@ -609,7 +609,6 @@ abstract public class Loader {
 	*  The very last thing to remove is the stored awt.Image objects.<br />
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
 	*  NOT locked, however calls must take care of that.<br />
-	*  For synchronized and public, use method releaseMemory()
 	*/
 	protected final void releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
 		try {
@@ -858,7 +857,7 @@ abstract public class Loader {
 				if (null != ip && null != ip.getPixels()) {
 					// if NOT mag == 1.0 // but 0.75 also needs the 1.0 ... problem is, I can't cache level 1.5 or so
 					//mag = 1 / Math.pow(2, level); // correcting mag
-					//if (mag < 0.5001) {
+					//if (mag < 0.5001)
 					if (level < 0) {
 						imp = new ImagePlus("", Loader.scaleImage(new ImagePlus("", ip), level, p.getLayer().getParent().snapshotsQuality()));
 						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
