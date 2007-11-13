@@ -26,7 +26,6 @@ import ij.IJ;
 import ij.ImagePlus;
 import ini.trakem2.imaging.VirtualStack; //import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
-import ij.plugin.JpegWriter;
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ColorProcessor;
