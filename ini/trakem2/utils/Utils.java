@@ -584,7 +584,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public String openTextFile(final String path) {
-		if (!new File(path).exists()) return null;
+		if (null == path || !new File(path).exists()) return null;
 		StringBuffer sb = new StringBuffer();
 		try {
 			BufferedReader r = new BufferedReader(new FileReader(path));
@@ -599,6 +599,27 @@ public class Utils implements ij.plugin.PlugIn {
 			return null;
 		}
 		return sb.toString();
+	}
+
+	/** Returns the file found at path as an array of lines, or null if not found. */
+	static public String[] openTextFileLines(final String path) {
+		if (null == path || !new File(path).exists()) return null;
+		final ArrayList al = new ArrayList();
+		try {
+			BufferedReader r = new BufferedReader(new FileReader(path));
+			while (true) {
+				String s = r.readLine();
+				if (null == s) break;
+				al.add(s);
+        		}
+			r.close();
+		} catch (Exception e) {
+			new IJError(e);
+			return null;
+		}
+		String[] sal = new String[al.size()];
+		al.toArray(sal);
+		return sal;
 	}
 
 	/** The cosinus between two vectors (in polar coordinates), by means of the dot product. */
