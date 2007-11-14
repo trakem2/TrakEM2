@@ -327,7 +327,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if (null != active) {
 					//Utils.log2("active is: " + active);
 					try {
-						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
+						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
 							active.paint(g2d, magnification, true, c_alphas, active_layer);
 						}
 					} catch (Exception e) {
@@ -516,8 +516,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 		//Utils.log2("button: " + me.getButton() + "  BUTTON2: " + MouseEvent.BUTTON2);
 
-		Displayable active = display.getActive();
-
 		switch (tool) {
 		case Toolbar.MAGNIFIER:
 			if (me.isAltDown()) zoomOut(me.getX(), me.getY());
@@ -535,6 +533,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			return; // only zoom and pan are allowed
 		}
 
+		Displayable active = display.getActive();
+
+
 		switch (tool) {
 		case Toolbar.WAND:
 			if (null != active && active instanceof Patch) {
@@ -544,7 +545,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 			return;
 		case ProjectToolbar.PENCIL:
-			if (active instanceof Profile) {
+			if (active.isVisible() && active instanceof Profile) {
 				Profile prof = (Profile) active;
 				handPaintingOffscreen = null;
 				BufferedImage tmp = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_RGB);
@@ -589,7 +590,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				display.choose(me.getX(), me.getY(), x_p, y_p, DLabel.class);
 				active = display.getActive();
 			}
-			if (active instanceof DLabel) {
+			if (null != active && active.isVisible() && active instanceof DLabel) {
 				// edit
 				((DLabel) active).edit();
 			} else {
