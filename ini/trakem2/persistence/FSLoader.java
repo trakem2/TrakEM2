@@ -899,6 +899,7 @@ public class FSLoader extends Loader {
 			File f = new File((String)ob);
 			if (f.exists() && f.isDirectory()) {
 				this.dir_storage = (String)ob;
+				this.dir_storage.replace('\\', '/'); // let Windows users survive
 			} else {
 				Utils.log2("storage_folder was not found or is invalid: " + ob);
 			}
@@ -925,6 +926,7 @@ public class FSLoader extends Loader {
 			File f = new File((String)ob);
 			if (f.exists() && f.isDirectory()) {
 				this.dir_mipmaps = (String)ob;
+				this.dir_mipmaps.replace('\\', '/'); // let Windows users survive
 			} else {
 				Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
 			}
