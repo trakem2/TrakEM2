@@ -252,7 +252,7 @@ public class Registration {
 			final Layer la2 = (Layer)list.get(i);
 			result = registerSIFT(la1, la2, null, sp);
 			// !@#$% TODO this needs fine-tuning
-			la1.getProject().getLoader().releaseMemory();
+			la1.getProject().getLoader().releaseToFit(Loader.MIN_FREE_BYTES * 20);
 
 			// debug: at least we get chunks done
 			if (!ControlWindow.isGUIEnabled() && System.getProperty("user.name").equals("cardona")) {
@@ -553,7 +553,7 @@ public class Registration {
 		// MWAHAHA so I made a non-recursive smart-ass version.
 		// It is somewhat disturbing that each SIFT match at max_size 1600 was using nearly 400 Mb, and all of them were NOT released because of the recursion.
 		Loader.runGC();
-		base.getProject().getLoader().releaseMemory();
+		base.getProject().getLoader().releaseToFit(Loader.MIN_FREE_BYTES * 20);
 
 		if (null != result) {
 			AffineTransform at_moving = moving.getAffineTransform();

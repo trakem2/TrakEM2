@@ -215,6 +215,7 @@ public class ControlWindow {
 		if (null == ht_projects) ht_projects = new Hashtable();
 		ht_projects.put(project, tab);
 
+		// the frame is created ANYWAY, it is just not made visible if !gui_enabled
 		if (!frame.isVisible() && gui_enabled) {
 			frame.pack();
 			frame.setVisible(true);

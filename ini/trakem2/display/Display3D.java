@@ -689,7 +689,18 @@ public class Display3D {
 		resample = ((java.awt.Scrollbar)gd.getSliders().get(0)).getValue();
 	}
 
-	static public void setColor(Displayable d, Color color) {
+	/** Checks if there is any Display3D instance currently showing the given Displayable. */
+	static public boolean isDisplayed(final Displayable d) {
+		final String title = d.getTitle() + " #" + d.getId();
+		for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
+			Display3D d3d = (Display3D)it.next();
+			if (null != d3d.universe.getContent(title)) return true;
+		}
+		return false;
+	}
+
+	static public void setColor(final Displayable d, final Color color) {
+		if (!isDisplayed(d)) return;
 		Display3D d3d = get(d.getLayer().getParent());
 		if (null == d3d) return; // no 3D displays open
 		Content content = d3d.universe.getContent(d.getTitle() + " #" + d.getId());
@@ -697,7 +708,8 @@ public class Display3D {
 		if (null != content) content.setColor(new Color3f(color));
 	}
 
-	static public void setTransparency(Displayable d, float alpha) {
+	static public void setTransparency(final Displayable d, final float alpha) {
+		if (!isDisplayed(d)) return;
 		Layer layer = d.getLayer();
 		if (null == layer) return; // some objects have no layer, such as the parent LayerSet.
 		Object ob = ht_layer_sets.get(layer.getParent());
@@ -709,7 +721,7 @@ public class Display3D {
 
 	/** Remake the mesh for the Displayable in a separate Thread, if it's included in a Display3D
 	 *  (otherwise returns null). */
-	static public Thread update(Displayable d) {
+	static public Thread update(final Displayable d) {
 		Layer layer = d.getLayer();
 		if (null == layer) return null; // some objects have no layer, such as the parent LayerSet.
 		Object ob = ht_layer_sets.get(layer.getParent());

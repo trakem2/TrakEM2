@@ -48,11 +48,18 @@ public class Bureaucrat extends Thread {
 		worker.start();
 		start();
 	}
+	private void cleanup() {
+		project.getLoader().removeJob(this);
+		project.setReceivesInput(true);
+	}
 	public void run() {
 		// wait until worker starts
 		while (!worker.isWorking()) {
 			try { Thread.sleep(50); } catch (InterruptedException ie) {}
-			if (worker.hasQuitted()) return;
+			if (worker.hasQuitted()) {
+				cleanup();
+				return;
+			}
 		}
 		int sandwitch = 1000; // one second, will get slower over time
 		Utils.showStatus("Started processing: " + worker.getTaskName(), !worker.onBackground());
@@ -71,8 +78,7 @@ public class Bureaucrat extends Thread {
 			}
 		}
 		Utils.showStatus("Done " + worker.getTaskName(), !worker.onBackground());
-		project.getLoader().removeJob(this);
-		project.setReceivesInput(true);
+		cleanup();
 	}
 	/** Returns the task the worker is currently executing, which may change over time. */
 	public String getTaskName() {

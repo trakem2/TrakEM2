@@ -26,12 +26,12 @@ import ij.IJ;
 import ij.ImagePlus;
 import ini.trakem2.imaging.VirtualStack; //import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
-import ij.plugin.JpegWriter;
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ColorProcessor;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.Project;
+import ini.trakem2.ControlWindow;
 import ini.trakem2.display.Ball;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
@@ -221,17 +221,23 @@ public class FSLoader extends Loader {
 		Utils.showStatus("");
 	}
 
+	/** Get the next unique id, not shared by any other object within the same project. */
 	public long getNextId() {
 		// examine the hastable for existing ids
-		int n = ht_dbo.size();
-		if (0 != n) {
-			long[] ids = new long[ht_dbo.size()];
-			int i = 0;
-			for (Enumeration e = ht_dbo.keys(); e.hasMoreElements(); i++) {
-				ids[i] = ((Long)e.nextElement()).longValue();
+		synchronized (db_lock) {
+			lock();
+			int n = ht_dbo.size();
+			if (0 != n) {
+				long[] ids = new long[ht_dbo.size()];
+				int i = 0;
+				for (Enumeration e = ht_dbo.keys(); e.hasMoreElements(); i++) {
+					ids[i] = ((Long)e.nextElement()).longValue();
+				}
+				Arrays.sort(ids);
+				unlock();
+				return ids[n-1] + 1;
 			}
-			Arrays.sort(ids);
-			return ids[n-1] + 1;
+			unlock();
 		}
 		return 1;
 	}
@@ -851,7 +857,7 @@ public class FSLoader extends Loader {
 			Patch patch = null;
 			if (as_copy) {
 				patch_path = target_dir + imp_patch_i.getTitle() + ".zip";
-				new FileSaver(imp_patch_i).saveAsZip(patch_path);
+				ini.trakem2.io.ImageSaver.saveAsZip(imp_patch_i, patch_path);
 				patch = new Patch(project, label + " " + title + " " + i, pos_x, pos_y, imp_patch_i);
 			} else if (virtual) {
 				patch = new Patch(project, label, pos_x, pos_y, imp_patch_i);
@@ -901,13 +907,14 @@ public class FSLoader extends Loader {
 			// select the directory where the xml file lives.
 			File fdir = new File(this.project_xml_path);
 			this.dir_storage = fdir.getParent().replace('\\', '/');
-			if (null == this.dir_storage) {
+			if (null == this.dir_storage && ControlWindow.isGUIEnabled()) {
+				Utils.log2("Asking user for a storage folder."); // tip for headless runners whose program gets "stuck"
 				DirectoryChooser dc = new DirectoryChooser("REQUIRED: select storage folder");
 				this.dir_storage = dc.getDirectory();
-				if (null == this.dir_storage) {
-					IJ.showMessage("TrakEM2 requires a storage folder.\nTemporarily your home directory will be used.");
-					this.dir_storage = System.getProperty("user.home").replace('\\', '/');
-				}
+			}
+			if (null == this.dir_storage) {
+				IJ.showMessage("TrakEM2 requires a storage folder.\nTemporarily your home directory will be used.");
+				this.dir_storage = System.getProperty("user.home").replace('\\', '/');
 			}
 		}
 		// fix
@@ -925,6 +932,25 @@ public class FSLoader extends Loader {
 		if (null == this.dir_mipmaps) {
 			// create a new one inside the dir_storage, which can't be null
 			createMipMapsDir(dir_storage);
+			if (null != this.dir_mipmaps && ControlWindow.isGUIEnabled() && null != IJ.getInstance()) {
+				Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
+				YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", "Generate mipmaps in the background for all images?");
+				if (yn.yesPressed()) {
+					final Loader lo = this;
+					new Thread() {
+						public void run() {
+							try {
+								// wait while parsing the rest of the XML file
+								while (!v_loaders.contains(lo)) {
+									Thread.sleep(1000);
+								}
+								Project pj = Project.findProject(lo);
+								lo.generateMipMaps(pj.getRootLayerSet().getDisplayables(Patch.class));
+							} catch (Exception e) {}
+						}
+					}.start();
+				}
+			}
 		}
 		// fix
 		if (null != this.dir_mipmaps && !this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
@@ -955,7 +981,6 @@ public class FSLoader extends Loader {
 		if (null == dir_mipmaps) return false;
 		final ImageProcessor ip = fetchImageProcessor(patch);
 		final String filename = new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
-		JpegWriter.setQuality(85);
 		int w = ip.getWidth();
 		int h = ip.getHeight();
 		// sigma = sqrt(2^level - 0.5^2)
@@ -967,6 +992,8 @@ public class FSLoader extends Loader {
 		           //   but since we scale 50% relative the previous, it's always 0.75
 		try {
 			if (ImagePlus.COLOR_RGB == patch.getType()) {
+				// TODO releaseToFit proper
+				releaseToFit(w * h * 4 * 5);
 				ColorProcessor cp = (ColorProcessor)ip;
 				FloatProcessor red = cp.toFloat(0, new FloatProcessor(w, h));
 				FloatProcessor green = cp.toFloat(1, new FloatProcessor(w, h));
@@ -997,11 +1024,12 @@ public class FSLoader extends Loader {
 					}
 					ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 					cp2.setMinAndMax(patch.getMin(), patch.getMax());
-					ImagePlus imp2 = new ImagePlus(filename, cp2);
 					// 5 - save as jpeg
-					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+					ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f);
 				}
 			} else {
+				// TODO releaseToFit proper
+				releaseToFit(w * h * 4 * 5);
 				FloatProcessor fp = (FloatProcessor)ip.convertToFloat();
 				while (w >= 64 && h >= 64) { // not smaller than 32x32
 					// 1 - blur the previous image to 0.75 sigma
@@ -1016,10 +1044,10 @@ public class FSLoader extends Loader {
 					// 4 - generate scaled image
 					fp = (FloatProcessor)fp.resize(w, h);
 					// 5 - save as 8-bit jpeg
-					ImagePlus imp2 = new ImagePlus(filename, Utils.convertTo(fp, patch.getType(), false)); // no scaling, since the conversion to float above didn't change the range
-					imp2.getProcessor().setMinAndMax(patch.getMin(), patch.getMax());
-					imp2.getProcessor().setColorModel(cm);
-					new FileSaver(imp2).saveAsJpeg(dir_mipmaps + k + "/" + filename);
+					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range
+					ip2.setMinAndMax(patch.getMin(), patch.getMax());
+					ip2.setColorModel(cm);
+					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f);
 				}
 			}
 		} catch (Exception e) {
@@ -1059,9 +1087,13 @@ public class FSLoader extends Loader {
 						return;
 					}
 					wo.setTaskName("Generating MipMaps " + k + "/" + size);
-					if ( ! generateMipMaps(pa[k]) ) {
-						// some error ocurred
-						Utils.log2("Could not generate mipmaps for patch " + pa[k]);
+					try {
+						if ( ! generateMipMaps(pa[k]) ) {
+							// some error ocurred
+							Utils.log2("Could not generate mipmaps for patch " + pa[k]);
+						}
+					} catch (Exception e) {
+						new IJError(e);
 					}
 				}
 
@@ -1253,6 +1285,7 @@ public class FSLoader extends Loader {
 		return 0;
 	}
 
+	/** A temporary list of Patch instances for which a pyramid is being generated. */
 	final private HashSet hs_regenerating_mipmaps = new HashSet();
 
 	/** Loads the file containing the scaled image corresponding to the given level and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
