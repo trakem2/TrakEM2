@@ -325,9 +325,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				g2d.setStroke(this.stroke);
 
 				if (null != active) {
-					//Utils.log2("active is: " + active);
 					try {
-						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
+						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || (active.isVisible() && ProjectToolbar.PEN == ProjectToolbar.getToolId())) { // ensure AreaList can be painted even when the brush hits outside the current bounding box
 							active.paint(g2d, magnification, true, c_alphas, active_layer);
 						}
 					} catch (Exception e) {
