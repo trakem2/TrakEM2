@@ -1080,7 +1080,6 @@ public class FSLoader extends Loader {
 				final AtomicInteger ai = new AtomicInteger(0);
 
 				for (int ithread = 0; ithread < threads.length; ++ithread) {
-					final int si = ithread;
 					threads[ithread] = new Thread(new Runnable() {
 						public void run() {
 

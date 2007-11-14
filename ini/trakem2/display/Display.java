@@ -2878,8 +2878,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Listen to interesting updates, such as the ColorPicker and updates to Patch objects. */
 	public void imageUpdated(ImagePlus updated) {
-		// detect ColorPicker
-		if (this.equals(front) && this.frame.isActive() && updated instanceof ij.plugin.ColorPicker) {
+		// detect ColorPicker WARNING this will work even if the Display is not the window immediately active under the color picker.
+		if (this.equals(front) && updated instanceof ij.plugin.ColorPicker) {
 			if (null != active && project.isInputEnabled()) {
 				active.setColor(Toolbar.getForegroundColor());
 			}

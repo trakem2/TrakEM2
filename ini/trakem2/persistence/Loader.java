@@ -129,6 +129,9 @@ import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.Feature;
+import mpi.fruitfly.general.MultiThreading;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 
@@ -1516,7 +1519,6 @@ abstract public class Loader {
 				Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
 				addedPatchFrom(path, patch);
-				//if (isMipMapsEnabled()) generateMipMaps(patch);
 				if (!homogenize_contrast) generateMipMaps(patch); // otherwise, it will be done again (and thus adds considerable delay for nothing)
 				//
 				layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
@@ -1782,6 +1784,122 @@ abstract public class Loader {
 
 		// watcher thread
 		Bureaucrat burro = new Bureaucrat(worker, layer.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	/** Import images from the given text file, which is expected to contain 4 columns:<br />
+	 * - column 1: image file path (if base_dir is not null, it will be prepended)<br />
+	 * - column 2: x coord<br />
+	 * - column 3: y coord<br />
+	 * - column 4: z coord (layer_thickness will be multiplied to it if not zero)<br />
+	 * 
+	 * Layers will be automatically created as needed. <br />
+	 * The text file can contain comments that start with the # sign.<br />
+	 * Images will be imported in parallel, using as many cores as your machine has.<br />
+	 */
+	public Bureaucrat importImages(final LayerSet layer_set, final String base_dir, final String abs_text_file_path, final String column_separator, final double layer_thickness) {
+		// check parameters
+		if (null == abs_text_file_path || null == column_separator) {
+			return null;
+		}
+		final Worker worker = new Worker("Importing images") {
+			public void run() {
+				startedWorking();
+				final Worker wo = this;
+				try {
+					// 1 - read text file
+					final String[] lines = Utils.openTextFileLines(abs_text_file_path);
+					if (null == lines || 0 == lines.length) {
+						Utils.log2("No images to import from " + abs_text_file_path);
+						finishedWorking();
+						return;
+					}
+					// 2 - fix base dir path if necessary
+					String bdir_ = base_dir.replace('\\', '/');
+					if (null != bdir_ && bdir_.endsWith("/")) bdir_ += "/";
+					final String bdir = bdir_;
+
+					///////// Multithreading ///////
+					final AtomicInteger ai = new AtomicInteger(0);
+					final Thread[] threads = MultiThreading.newThreads();
+
+					for (int ithread = 0; ithread < threads.length; ++ithread) {
+						final int si = ithread;
+						threads[ithread] = new Thread(new Runnable() {
+							public void run() {
+					///////////////////////////////
+
+					// 3 - parse each line
+					for (int i = ai.getAndIncrement(); i < lines.length; i = ai.getAndIncrement()) {
+						if (wo.hasQuitted()) return;
+						// process line
+						String line = lines[i].replace('\\','/').trim(); // first thing is the backslash removal, before they get processed
+						int ic = line.indexOf('#');
+						if (-1 != ic) line = line.substring(0, ic); // remove comment at end of line if any
+						if (0 == line.length() || '#' == line.charAt(0)) continue;
+						String[] column = line.split(column_separator);
+						if (column.length < 4) {
+							Utils.log("Less than 4 columns: can't import from line " + i + " : "  + line);
+							continue;
+						}
+						// obtain coordinates
+						double x=0,
+						       y=0,
+						       z=0;
+						try {
+							x = Double.parseDouble(column[1].trim());
+							y = Double.parseDouble(column[2].trim());
+							z = Double.parseDouble(column[3].trim());
+						} catch (NumberFormatException nfe) {
+							Utils.log("Non-numeric value in a numeric column at line " + i + " : " + line);
+							continue;
+						}
+						if (0 != layer_thickness) z *= layer_thickness;
+						// open image
+						String path = column[0].trim();
+						if (0 == path.length()) continue;
+						if (null != bdir) path = bdir + path;
+						File f = new File(path);
+						if (!f.exists()) {
+							Utils.log("No file found for path " + path);
+							continue;
+						}
+						synchronized (db_lock) {
+							lock();
+							releaseMemory(); //ensures a usable minimum is free
+							unlock();
+						}
+						ImagePlus imp = opener.openImage(path);
+						if (null == imp) {
+							Utils.log("Ignoring unopenable image from " + path);
+							continue;
+						}
+						// add Patch and generate its mipmaps
+						Layer layer = layer_set.getLayer(z, layer_thickness, true); // will create a new Layer if necessary
+						Patch patch = new Patch(layer.getProject(), imp.getTitle(), x, y, imp);
+						addedPatchFrom(path, patch);
+						if (!generateMipMaps(patch)) {
+							Utils.log("Failed to generate mipmaps for " + patch);
+						}
+						layer.add(patch, true);
+						decacheImagePlus(patch.getId()); // no point in keeping it around
+					}
+
+					/////////////////////////
+							}
+						});
+					}
+					MultiThreading.startAndJoin(threads);
+					/////////////////////////
+
+				} catch (Exception e) {
+					new IJError(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, layer_set.getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -3145,4 +3263,198 @@ abstract public class Loader {
 	}
 
 	public void insertXMLOptions(StringBuffer sb_body, String indent) {}
+
+	/** Homogenize contrast layer-wise, for all given layers, in a multithreaded manner. */
+	public Bureaucrat homogenizeContrast(final Layer[] la) {
+		if (null == la || 0 == la.length) return null;
+		Worker worker = new Worker("Homogenizing contrast") {
+			public void run() {
+				startedWorking();
+				final Worker wo = this;
+				try {
+					
+					///////// Multithreading ///////
+					final AtomicInteger ai = new AtomicInteger(0);
+					final Thread[] threads = MultiThreading.newThreads();
+
+					for (int ithread = 0; ithread < threads.length; ++ithread) {
+						final int si = ithread;
+						threads[ithread] = new Thread(new Runnable() {
+							public void run() {
+					///////////////////////////////
+
+					// when quited, rollback() and Display.repaint(layer)
+					for (int i = ai.getAndIncrement(); i < la.length; i = ai.getAndIncrement()) {
+						if (wo.hasQuitted()) return;
+						ArrayList al = la[i].getDisplayables(Patch.class);
+						Patch[] pa = new Patch[al.size()];
+						al.toArray(pa);
+						if (!homogenizeContrast(la[i], pa)) {
+							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
+						}
+					}
+
+
+					/////////////////////////   - where are my lisp macros .. and no, mapping a function with reflection is not elegant, but a verbosity and constriction attack
+							}
+						});
+					}
+					MultiThreading.startAndJoin(threads);
+					/////////////////////////
+
+				} catch (Exception e) {
+					new IJError(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, la[0].getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. Needs a layer to repaint when done. */
+	public boolean homogenizeContrast(final Layer layer, final Patch[] pa) {
+		try {
+			if (null == pa) return false; // error
+			if (0 == pa.length) return true; // done
+			// 0 - check that all images are of the same size and type
+			int ptype = pa[0].getType();
+			double pw = pa[0].getWidth();
+			double ph = pa[0].getHeight();
+			for (int e=1; e<pa.length; e++) {
+				if (pa[e].getType() != ptype) {
+					// can't continue
+					Utils.log("Can't homogenize histograms: images are not all of the same type.\nFirst offending image is: " + pa[e]);
+					return false;
+				}
+				if (pa[e].getWidth() != pw || pa[e].getHeight() != ph) {
+					Utils.log("Can't homogenize histograms: images are not all of the same size.\nFirst offending image is: " + pa[e]);
+					return false;
+				}
+			}
+			// Set min and max for all images
+			// 1 - fetch statistics for each image
+			final ArrayList al_st = new ArrayList();
+			final ArrayList al_p = new ArrayList(); // list of Patch ordered by stdDev ASC
+			int type = -1;
+			for (int i=0; i<pa.length; i++) {
+				ImagePlus imp = fetchImagePlus(pa[i]);
+				if (-1 == type) type = imp.getType();
+				releaseToFit(imp.getWidth() * imp.getHeight() * (ImagePlus.COLOR_RGB == type ? 4 : 1));
+				ImageStatistics i_st = imp.getStatistics();
+				// order by stdDev, from small to big
+				int q = 0;
+				for (Iterator it = al_st.iterator(); it.hasNext(); ) {
+					ImageStatistics st = (ImageStatistics)it.next();
+					q++;
+					if (st.stdDev > i_st.stdDev) break;
+				}
+				if (q == pa.length) {
+					al_st.add(i_st); // append at the end. WARNING if importing thousands of images, this is a potential source of out of memory errors. I could just recompute it when I needed it again below
+					al_p.add(pa[i]);
+				} else {
+					al_st.add(q, i_st);
+					al_p.add(q, pa[i]);
+				}
+			}
+			final ArrayList al_p2 = (ArrayList)al_p.clone(); // shallow copy of the ordered list
+			// 2 - discard the first and last 25% (TODO: a proper histogram clustering analysis and histogram examination should apply here)
+			if (pa.length > 3) { // under 4 images, use them all
+				int i=0;
+				while (i <= pa.length * 0.25) {
+					al_p.remove(i);
+					i++;
+				}
+				int count = i;
+				i = pa.length -1 -count;
+				while (i > (pa.length* 0.75) - count) {
+					al_p.remove(i);
+					i--;
+				}
+			}
+			// 3 - compute common histogram for the middle 50% images
+			final Patch[] p50 = new Patch[al_p.size()];
+			al_p.toArray(p50);
+			StackStatistics stats = new StackStatistics(new PatchStack(p50, 1));
+			int n = 1;
+			switch (type) {
+				case ImagePlus.GRAY16:
+				case ImagePlus.GRAY32:
+					n = 2;
+					break;
+			}
+			// 4 - compute autoAdjust min and max values
+			// extracting code from ij.plugin.frame.ContrastAdjuster, method autoAdjust
+			int autoThreshold = 0;
+			double min = 0;
+			double max = 0;
+			// once for 8-bit and color, twice for 16 and 32-bit (thus the 2501 autoThreshold value)
+			int limit = stats.pixelCount/10;
+			int[] histogram = stats.histogram;
+			//if (autoThreshold<10) autoThreshold = 5000;
+			//else autoThreshold /= 2;
+			if (ImagePlus.GRAY16 == type || ImagePlus.GRAY32 == type) autoThreshold = 2500;
+			else autoThreshold = 5000;
+			int threshold = stats.pixelCount / autoThreshold;
+			int i = -1;
+			boolean found = false;
+			int count;
+			do {
+				i++;
+				count = histogram[i];
+				if (count>limit) count = 0;
+				found = count > threshold;
+			} while (!found && i<255);
+			int hmin = i;
+			i = 256;
+			do {
+				i--;
+				count = histogram[i];
+				if (count > limit) count = 0;
+				found = count > threshold;
+			} while (!found && i>0);
+			int hmax = i;
+			if (hmax >= hmin) {
+				min = stats.histMin + hmin*stats.binSize;
+				max = stats.histMin + hmax*stats.binSize;
+				if (min == max) {
+					min = stats.min;
+					max = stats.max;
+				}
+			}
+			// 5 - compute common mean within min,max range
+			double target_mean = getMeanOfRange(stats, min, max);
+			Utils.log2("Loader min,max: " + min + ", " + max + ",   target mean: " + target_mean);
+			// 6 - apply to all
+			for (i=al_p2.size()-1; i>-1; i--) {
+				Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
+				double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
+				p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
+				p.putMinAndMax(fetchImagePlus(p, false));
+			}
+
+			// 7 - flush away any existing awt images, so that they'll be recreated with the new min and max
+			synchronized (db_lock) {
+				lock();
+				for (i=0; i<pa.length; i++) {
+					mawts.removeAndFlush(pa[i].getId());
+					Utils.log2(i + "removing mawt for " + pa[i].getId());
+				}
+				unlock();
+			}
+			// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more tha once for a few tiles
+			if (isMipMapsEnabled()) {
+				// recreate files
+				ArrayList al = new ArrayList();
+				for (int k=0; k<pa.length; k++) al.add(pa[k]);
+				generateMipMaps(al);
+			}
+			if (null != layer) Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
+		} catch (Exception e) {
+			new IJError(e);
+			return false;
+		}
+		return true;
+	}
 }
