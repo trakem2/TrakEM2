@@ -128,6 +128,7 @@ public class Patch extends Displayable {
 		}
 		final double max_max = Patch.getMaxMax(this.type);
 		if (this.max > max_max) this.max = max_max;
+		// still this.max could be -1, in which case putMinAndMax will fix it to the ImageProcessor's values
 	}
 
 	/** The min and max values are stored with the Patch, so that the image can be flushed away but the non-destructive contrast settings preserved. */
@@ -144,7 +145,7 @@ public class Patch extends Displayable {
 	public void putMinAndMax(final ImagePlus imp) throws Exception {
 		ImageProcessor ip = imp.getProcessor();
 		// adjust lack of values
-		if (-1 == min && -1 == max) {
+		if (-1 == min || -1 == max) {
 			min = ip.getMin();
 			max = ip.getMax();
 		} else {

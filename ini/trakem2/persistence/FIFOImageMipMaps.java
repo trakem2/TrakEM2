@@ -259,8 +259,7 @@ public class FIFOImageMipMaps {
 
 	/** Remove and flush away all images that share the same id. */
 	public void removeAndFlush(final long id) {
-		int i = start;
-		for (; i<next; i++) {
+		for (int i = start; i<next; i++) {
 			if (id == ids[i]) {
 				if (null != images[i]) images[i].flush();
 				// move the others to close the gap

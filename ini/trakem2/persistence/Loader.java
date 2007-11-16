@@ -1825,7 +1825,6 @@ abstract public class Loader {
 					final Thread[] threads = MultiThreading.newThreads();
 
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
-						final int si = ithread;
 						threads[ithread] = new Thread(new Runnable() {
 							public void run() {
 					///////////////////////////////
@@ -1911,10 +1910,10 @@ abstract public class Loader {
 		int first_bin = 0;
 		int last_bin = st.nBins -1;
 		for (int b=0; b<st.nBins; b++) {
-			if (st.min + st.binSize * b > min) break;
+			if (st.min + st.binSize * b > min) { first_bin = b; break; }
 		}
 		for (int b=last_bin; b>first_bin; b--) {
-			if (st.max - st.binSize * b <= max) break;
+			if (st.max - st.binSize * b <= max) { last_bin = b; break; }
 		}
 		for (int h=first_bin; h<=last_bin; h++) {
 			nn += st.histogram[h];
@@ -3272,35 +3271,41 @@ abstract public class Loader {
 				startedWorking();
 				final Worker wo = this;
 				try {
-					
+
 					///////// Multithreading ///////
 					final AtomicInteger ai = new AtomicInteger(0);
 					final Thread[] threads = MultiThreading.newThreads();
 
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
-						final int si = ithread;
 						threads[ithread] = new Thread(new Runnable() {
 							public void run() {
 					///////////////////////////////
 
 					// when quited, rollback() and Display.repaint(layer)
 					for (int i = ai.getAndIncrement(); i < la.length; i = ai.getAndIncrement()) {
-						if (wo.hasQuitted()) return;
+						if (wo.hasQuitted()) {
+							break;
+						}
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
 						if (!homogenizeContrast(la[i], pa)) {
 							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
 						}
+						setTaskName("Homogenizing contrast for layer " + i + " of " + la.length);
 					}
 
-
-					/////////////////////////   - where are my lisp macros .. and no, mapping a function with reflection is not elegant, but a verbosity and constriction attack
+					/////////////////////////   - where are my lisp macros .. and no, mapping a function with reflection is not elegant, but rather a verbosity and constriction attack
 							}
 						});
 					}
 					MultiThreading.startAndJoin(threads);
 					/////////////////////////
+
+					if (wo.hasQuitted()) {
+						rollback();
+						for (int i=0; i<la.length; i++) Display.repaint(la[i]);
+					}
 
 				} catch (Exception e) {
 					new IJError(e);
@@ -3309,6 +3314,27 @@ abstract public class Loader {
 			}
 		};
 		Bureaucrat burro = new Bureaucrat(worker, la[0].getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al) {
+		if (null == al || al.size() < 2) return null;
+		final Patch[] pa = new Patch[al.size()];
+		al.toArray(pa);
+		Worker worker = new Worker("Homogenizing contrast") {
+			public void run() {
+				startedWorking();
+				final Worker wo = this;
+				try {
+					homogenizeContrast(pa[0].getLayer(), pa);
+				} catch (Exception e) {
+					new IJError(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, pa[0].getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -3425,31 +3451,35 @@ abstract public class Loader {
 			}
 			// 5 - compute common mean within min,max range
 			double target_mean = getMeanOfRange(stats, min, max);
-			Utils.log2("Loader min,max: " + min + ", " + max + ",   target mean: " + target_mean);
+			//Utils.log2("Loader min,max: " + min + ", " + max + ",   target mean: " + target_mean + "\nApplying to " + al_p2.size() + " images.");
 			// 6 - apply to all
 			for (i=al_p2.size()-1; i>-1; i--) {
 				Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
 				double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
 				p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-				p.putMinAndMax(fetchImagePlus(p, false));
+				ImagePlus imp = imps.get(p.getId());
+				if (null != imp) p.putMinAndMax(imp);
+				// else, it will be put when reloading the file
 			}
-
-			// 7 - flush away any existing awt images, so that they'll be recreated with the new min and max
+			// 7 - recreate mipmap files
+			if (isMipMapsEnabled()) {
+				ArrayList al = new ArrayList();
+				for (int k=0; k<pa.length; k++) al.add(pa[k]);
+				Thread task = generateMipMaps(al);
+				task.join();
+				// not threaded:
+				//for (int k=0; k<pa.length; k++) generateMipMaps(pa[k]);
+			}
+			// 8 - flush away any existing awt images, so that they'll be reloaded or recreated
 			synchronized (db_lock) {
 				lock();
 				for (i=0; i<pa.length; i++) {
 					mawts.removeAndFlush(pa[i].getId());
-					Utils.log2(i + "removing mawt for " + pa[i].getId());
+					Utils.log2(i + " removing mawt for " + pa[i].getId());
 				}
 				unlock();
 			}
-			// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more tha once for a few tiles
-			if (isMipMapsEnabled()) {
-				// recreate files
-				ArrayList al = new ArrayList();
-				for (int k=0; k<pa.length; k++) al.add(pa[k]);
-				generateMipMaps(al);
-			}
+			// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more than once for a few tiles
 			if (null != layer) Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 		} catch (Exception e) {
 			new IJError(e);

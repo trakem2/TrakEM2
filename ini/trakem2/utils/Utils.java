@@ -259,7 +259,46 @@ public class Utils implements ij.plugin.PlugIn {
 		}.start();
 	}
 
+	/* // I don't get it
+	static private class StatusThread extends Thread {
+		private String msg = null;
+		public StatusThread() {
+			this.setPriority(Thread.NORM_PRIORITY);
+			start();
+		}
+		public void run() {
+			while (true) {
+				Utils.log2("waiting");
+				synchronized(this) { try { wait(); } catch(InterruptedException ie) { continue; } }
+				Utils.log2("printing");
+				String msg = this.msg;
+				if (null == msg) continue;
+				if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled()) {
+					System.out.println(msg);
+				} else {
+					IJ.showStatus(msg);
+				}
+			}
+		}
+		synchronized public void print(String msg) {
+			this.msg = msg;
+			Utils.log2("msg arrived");
+			notifyAll();
+			Utils.log2("msg notified");
+		}
+	}
+
+	static private StatusThread status_thread = null;
+	*/
+
+
 	static public void showStatus(String msg, boolean focus) {
+
+		/*
+		if (null == status_thread || status_thread.isAlive()) status_thread = new StatusThread();
+		status_thread.print(msg);
+		*/
+
 		// blocks input tremendously!
 		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled()) {
 			System.out.println(msg);
