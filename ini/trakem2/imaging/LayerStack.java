@@ -160,7 +160,7 @@ public class LayerStack extends ImageStack {
 		final Layer layer = layer_set.getLayer(n-1);
 		//Utils.log2("LayerStack: layer is " + layer + " from n=" + n);
 		final Loader loader = layer_set.getProject().getLoader();
-		ImagePlus flat = loader.fetchImagePlus(layer.getId());
+		ImagePlus flat = loader.getCachedImagePlus(layer.getId());
 		if (null == flat || flat.getWidth() != box.width || flat.getHeight() != box.height) {
 			// TODO fix cache, store as Patch with x,y
 			ArrayList al = new ArrayList();

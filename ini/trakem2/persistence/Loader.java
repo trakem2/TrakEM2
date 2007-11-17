@@ -784,10 +784,23 @@ abstract public class Loader {
 	}
 
 	public Image getCachedClosestAboveImage(Patch p, double mag) {
-		return mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag));
+		Image awt = null;
+		synchronized (db_lock) {
+			lock();
+			awt = mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag));
+			unlock();
+		}
+		return awt;
 	}
+
 	public Image getCachedClosestBelowImage(Patch p, double mag) {
-		return mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag));
+		Image awt = null;
+		synchronized (db_lock) {
+			lock();
+			awt = mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag));
+			unlock();
+		}
+		return awt;
 	}
 
 	public Image fetchImage(Patch p) {
@@ -827,7 +840,7 @@ abstract public class Loader {
 					//
 					releaseMemory();
 					// 2 - check if the exact file is present for the desired level
-					if (level > 0) mawt = fetchMipMapAWT(p, level);
+					if (level > 0) mawt = fetchMipMapAWT2(p, level);
 					if (null != mawt) {
 						mawts.put(id, mawt, level);
 						unlock();
@@ -843,7 +856,7 @@ abstract public class Loader {
 						boolean newly_cached = false;
 						if (null == mawt) {
 							// reload existing scaled file
-							mawt = fetchMipMapAWT(p, lev);
+							mawt = fetchMipMapAWT2(p, lev);
 							if (null != mawt) {
 								mawts.put(id, mawt, lev);
 								newly_cached = true; // means: cached was false, now it is
@@ -897,8 +910,19 @@ abstract public class Loader {
 		}
 	}
 
+	/** Must be called within synchronized db_lock. */
+	private final Image fetchMipMapAWT2(final Patch p, final int level) {
+		final long size = estimateImageFileSize(p, level);
+		max_memory -= size;
+		unlock();
+		Image mawt = fetchMipMapAWT(p, level);
+		lock();
+		max_memory += size;
+		return mawt;
+	}
+
 	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
-	public ImagePlus fetchImagePlus(long id) {
+	public ImagePlus getCachedImagePlus(long id) {
 		synchronized(db_lock) {
 			ImagePlus imp = null;
 			lock();
@@ -3158,7 +3182,7 @@ abstract public class Loader {
 		return opener.openImage(path);
 	}
 
-	/** Check if the snap or the awt exists to paint as a snap. */
+	/** Check if an awt exists to paint as a snap. */
 	public boolean isSnapPaintable(final long id) {
 		synchronized (db_lock) {
 			lock();
@@ -3504,5 +3528,14 @@ abstract public class Loader {
 			return false;
 		}
 		return true;
+	}
+
+	public long estimateImageFileSize(final Patch p, final int level) {
+		if (0 == level) {
+			return (long)(p.getWidth() * p.getHeight() * 5 + 1024); // conservative
+		}
+		// else, compute scale
+		final double scale = 1 / Math.pow(2, level);
+		return (long)(p.getWidth() * scale * p.getHeight() * scale * 5 + 1024); // conservative
 	}
 }

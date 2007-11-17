@@ -744,14 +744,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		else hs_panels.clear();
 		Iterator it = layer.getDisplayables().iterator();
 		while (it.hasNext()) {
-			add((Displayable)it.next(), false);
+			add((Displayable)it.next(), false, false);
 		}
 		// update the current Layer pointer in ZDisplayable objects
 		it = layer.getParent().getZDisplayables().iterator(); // the pipe and ball objects, that live in the LayerSet
 		while (it.hasNext()) {
 			ZDisplayable zd = (ZDisplayable)it.next();
 			zd.setLayer(layer); // the active layer
-			add(zd, false);
+			add(zd, false, false);
 		}
 		// see if a lot has to be reloaded, put the relevant ones at the end
 		project.getLoader().prepare(layer);
@@ -806,12 +806,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		else hs_panels.clear();
 		Iterator it = layer.getDisplayables().iterator();
 		while (it.hasNext()) {
-			add((Displayable)it.next(), false);
+			add((Displayable)it.next(), false, false);
 		}
 		it = layer.getParent().getZDisplayables().iterator(); // the pipes, that live in the LayerSet
 		while (it.hasNext()) {
-			add((Displayable)it.next(), false);
+			add((Displayable)it.next(), false, false);
 		}
+		navigator.repaint(true); // was not done when adding
 		updateComponent(tabs.getSelectedComponent());
 		// swing issues:
 		new Thread() {
@@ -1123,10 +1124,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display d = (Display)it.next();
 			if (d.layer.equals(layer)) {
 				if (front == d) {
-					d.add(displ, activate);
+					d.add(displ, activate, true);
 					front.frame.toFront();
 				} else {
-					d.add(displ, false);
+					d.add(displ, false, true);
 				}
 			}
 		}
@@ -1143,17 +1144,17 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display d = (Display)it.next();
 			if (set.contains(d.layer)) {
 				if (front == d) {
-					d.add(zdispl, true); // calling add(Displayable, boolean)
+					d.add(zdispl, true, true); // calling add(Displayable, boolean)
 					front.frame.toFront();
 				} else {
-					d.add(zdispl, false);
+					d.add(zdispl, false, true);
 				}
 			}
 		}
 	}
 
 	/** Add it to the proper panel, at the top, and set it active. */
-	private void add(Displayable d, boolean activate) {
+	private void add(Displayable d, boolean activate, boolean repaint_snapshot) {
 		DisplayablePanel dp = (DisplayablePanel)hs_panels.get(d);
 		if (null != dp) { // for ZDisplayable objects (TODO I think this is not used anymore)
 			dp.setActive(true);
@@ -1185,7 +1186,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			selection.clear();
 			selection.add(d);
 		}
-		navigator.repaint(true);
+		if (repaint_snapshot) navigator.repaint(true);
 	}
 
 	private void addToPanel(JPanel panel, int index, DisplayablePanel dp, boolean repaint) {

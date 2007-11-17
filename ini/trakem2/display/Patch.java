@@ -310,12 +310,13 @@ public class Patch extends Displayable {
 
 
 		Image image = project.getLoader().getCachedClosestAboveImage(this, magnification);
+		Thread higher = null;
 		if (null == image) {
 			image = project.getLoader().getCachedClosestBelowImage(this, magnification);
 			boolean thread = false;
 			if (null == image) {
 				// fetch the proper image, nothing is cached
-				if (magnification < 1) {
+				if (magnification <= 0.5) {
 					// load the mipmap
 					image = project.getLoader().fetchImage(this, magnification);
 				} else {
@@ -328,14 +329,15 @@ public class Patch extends Displayable {
 				thread = true;
 			}
 			if (thread) {
-				// use the lower resolution image, but spawn a thread to load and paint the proper one
-				new Thread() {
+				// use the lower resolution image, but spawn a thread to load and paint the proper one on loading it.
+				higher = new Thread() {
 					public void run() {
+						try { Thread.sleep(50); } catch (InterruptedException ie) {}
 						// load the proper image
 						Patch.this.project.getLoader().fetchImage(Patch.this, magnification);
 						Display.repaint(Patch.this.layer, Patch.this, 0);
 					}
-				}.start();
+				};
 			}
 		}
 
@@ -365,6 +367,8 @@ public class Patch extends Displayable {
 		if (alpha != 1.0f) {
 			g.setComposite(original_composite);
 		}
+
+		if (null != higher) higher.start();
 	}
 
 	/** A method to paint, simply (to a flat image for example); no magnification or srcRect are considered. */
@@ -458,47 +462,6 @@ public class Patch extends Displayable {
 		}
 		return false;
 	}
-
-	/** Returns a proper, on-the-fly ImageProcessor that contains a copy of the ImageProcessor of the ImagePlus contained here after applying to it proper transformations. */
-	/*
-	public ImageProcessor getProcessor() {
-		Utils.log("Patch.getProcessor called");
-		ImagePlus imp = project.getLoader().fetchImagePlus(this);
-		ImageProcessor ip = imp.getProcessor();
-		if (Math.abs(0.0f - rot) < 0.001f && Math.abs(width - ip.getWidth()) < 0.001 && Math.abs(height - ip.getHeight()) < 0.001) {
-			Utils.log("returning duplicate");
-			return ip.duplicate();
-		}
-		// else return a transformed copy
-		ip.resetRoi();
-		ip.setInterpolate(true);
-		ImageProcessor copy = ip.resize((int)Math.ceil(width), (int)Math.ceil(height));
-		// debug !!!
-		double rot = 0.4;
-		if (Math.abs(0.0 - rot) < 0.001) {
-			copy.setBackgroundValue(0.0); // black
-			copy.setInterpolate(true);
-			// compute new dimensions
-			double angle0 = Utils.getAngle(x - width/2, y - height/2);
-			double angle1 = angle0 + rot;
-			double cos0 = Math.cos(angle0); cos0 = cos0 > 0 ? cos0 : -cos0;
-			double cos1 = Math.cos(angle1); cos1 = cos1 > 0 ? cos1 : -cos1;
-			int w = (int)Math.ceil(cos0 > cos1 ? cos0 - cos1 : cos1 - cos0);
-			double sin0 = Math.sin(angle0); sin0 = sin0 > 0 ? sin0 : -sin0;
-			double sin1 = Math.sin(angle1); sin1 = sin1 > 0 ? sin1 : -sin1;
-			int h = (int)Math.ceil(sin0 > sin1 ? sin0 - sin1 : sin1 - sin0);
-			// enlarge and insert centered
-			ImageProcessor large = copy.createProcessor(w, h);
-			large.insert(copy, (int)Math.ceil((width - w) / 2), (int)Math.ceil((height - h) / 2));
-			// rotate and assign
-			large.rotate(rot);
-			copy = large;
-		}
-		// debug:
-		new ImagePlus("copy", copy.duplicate()).show();
-		return copy;
-	}
-	*/
 
 	/** Retuns a virtual ImagePlus with a virtual stack if necessary. */
 	public PatchStack makePatchStack() {

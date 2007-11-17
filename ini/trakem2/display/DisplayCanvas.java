@@ -1997,6 +1997,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					g1 = (Graphics2D) offscreen1.getGraphics(); // the cast is safe in terms of: never failed in any JVM so far (macosx, linux, freebsd; 1.4.2, 1.5.0). But it may fail in GCJ !
 
 					if (reusing) {
+						// before painting black, which creates flickering, first determineif any area will be left unpainted.
+						// TODO: the sequence below has to separate two lists, and then use such lists to determine if any area is left unpainted by the images.
+						//
 						g1.setColor(Color.black);
 						g1.fillRect(0, 0, g_width, g_height);
 						//Utils.log2("reusing");

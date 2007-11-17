@@ -295,6 +295,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		private Rectangle clipRect = null;
 
 		RepaintThread(Rectangle clipRect_) {
+			//Utils.printCaller(this, 8);
 			synchronized (control_lock) {
 				while (controling) { try { control_lock.wait(); } catch (InterruptedException ie) {}}
 				controling = true;

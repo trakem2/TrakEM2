@@ -258,30 +258,6 @@ public class FSLoader extends Loader {
 		return null;
 	}
 
-	/** Compute the number of bytes that the ImagePlus of a Patch will take. Assumes a large header of 1024 bytes. If the image is saved as jpeg the returned bytes will be incorrect, because a jpeg is always opened as a ColorProcessor and then transformed to 8-bit if all color channels are the same. */
-	private final long getMemorySize(final Patch p) {
-		long size = (long)(p.getWidth() * p.getHeight());
-		int bytes_per_pixel = 1;
-		switch (p.getType()) {
-			case ImagePlus.GRAY32:
-				bytes_per_pixel = 5; // 4 for the FloatProcessor, and 1 for the pixels8 to make an image
-				break;
-			case ImagePlus.GRAY16:
-				bytes_per_pixel = 3; // 2 for the ShortProcessor, and 1 for the pixels8
-			case ImagePlus.COLOR_RGB:
-				bytes_per_pixel = 4;
-				break;
-			case ImagePlus.GRAY8:
-			case ImagePlus.COLOR_256:
-				bytes_per_pixel = 1;
-				break;
-			default:
-				bytes_per_pixel = 5; // conservative
-				break;
-		}
-		return size * bytes_per_pixel + 1024;
-	}
-
 	public ImagePlus fetchImagePlus(Patch p) {
 		return fetchImagePlus(p, true);
 	}
@@ -331,14 +307,14 @@ public class FSLoader extends Loader {
 
 					// Decouple the loading of the image from the lock
 					// but ensuring no memory availability problems
-					long n_bytes = getMemorySize(p);
+					long n_bytes = estimateImageFileSize(p, 0);
 					max_memory -= n_bytes;
 					unlock();
 					imp = openImage(path);
+					preProcess(imp);
 					lock();
 					max_memory += n_bytes;
 
-					preProcess(imp);
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 						unlock();
@@ -429,14 +405,14 @@ public class FSLoader extends Loader {
 
 					// Decouple the loading of the image from the lock
 					// but ensuring no memory availability problems
-					long n_bytes = getMemorySize(p);
+					long n_bytes = estimateImageFileSize(p, 0);
 					max_memory -= n_bytes;
 					unlock();
 					imp = openImage(path);
+					preProcess(imp);
 					lock();
 					max_memory += n_bytes;
 
-					preProcess(imp);
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 						unlock();
@@ -1351,5 +1327,39 @@ public class FSLoader extends Loader {
 			new IJError(e);
 		}
 		return null;
+	}
+
+	/** Compute the number of bytes that the ImagePlus of a Patch will take. Assumes a large header of 1024 bytes. If the image is saved as a grayscale jpeg the returned bytes will be 5 times as expected, because jpeg images are opened as int[] and then copied to a byte[] if all channels have the same values for all pixels. */ // The header is unnecessary because it's read, but not stored except for some of its variables; it works here as a safety buffer space.
+	public long estimateImageFileSize(final Patch p, final int level) {
+		if (level > 0) {
+			// jpeg image to be loaded:
+			final double scale = 1 / Math.pow(2, level);
+			return (long)(p.getWidth() * scale * p.getHeight() * scale * 5 + 1024);
+		}
+		long size = (long)(p.getWidth() * p.getHeight());
+		int bytes_per_pixel = 1;
+		final int type = p.getType();
+		switch (type) {
+			case ImagePlus.GRAY32:
+				bytes_per_pixel = 5; // 4 for the FloatProcessor, and 1 for the pixels8 to make an image
+				break;
+			case ImagePlus.GRAY16:
+				bytes_per_pixel = 3; // 2 for the ShortProcessor, and 1 for the pixels8
+			case ImagePlus.COLOR_RGB:
+				bytes_per_pixel = 4;
+				break;
+			case ImagePlus.GRAY8:
+			case ImagePlus.COLOR_256:
+				bytes_per_pixel = 1;
+				// check jpeg, which can only encode RGB ( take care of above) and 8-bit and 8-bit color images:
+				String path = (String)ht_paths.get(p);
+				if (null != path && path.endsWith(".jpg")) bytes_per_pixel = 5; //4 for the int[] and 1 for the byte[]
+				break;
+			default:
+				bytes_per_pixel = 5; // conservative
+				break;
+		}
+
+		return size * bytes_per_pixel + 1024;
 	}
 }
