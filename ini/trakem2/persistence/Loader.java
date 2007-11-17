@@ -817,7 +817,6 @@ abstract public class Loader {
 		final String key = p.getId() + "." + level;
 		Object ob = ht_plocks.get(key);
 		if (null != ob) {
-			Utils.log2("found key " + key);
 			return (PatchLoadingLock)ob;
 		}
 		PatchLoadingLock pl = new PatchLoadingLock(key);
@@ -961,14 +960,13 @@ abstract public class Loader {
 					//Utils.log2("returning from getClosest with level " + level);
 					return mawt;
 				}
-				// 5 - else, fetch the ImageProcessor and make an image from it of the proper size and quality
 				unlock();
 			} catch (Exception e) {
 				new IJError(e);
 			}
 		}
 
-		// else, load
+		// 5 - else, fetch the ImageProcessor and make an image from it of the proper size and quality
 
 		ImageProcessor ip = fetchImageProcessor(p);
 

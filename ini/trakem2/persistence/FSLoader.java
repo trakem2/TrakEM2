@@ -263,70 +263,96 @@ public class FSLoader extends Loader {
 	}
 
 	public ImagePlus fetchImagePlus(Patch p, boolean create_snap) {
+		ImagePlus imp = null;
+		String slice = null;
+		String path = null;
+		long n_bytes = 0;
+		PatchLoadingLock plock = null;
 		synchronized (db_lock) {
 			lock();
-			ImagePlus imp = imps.get(p.getId());
-			String slice = null;
-			String path = null;
+			imp = imps.get(p.getId());
 			try {
-				path = getAbsolutePath(p); // this query could be very expensive if the hashtable is simply gigantic. Needs profiling.
+				path = getAbsolutePath(p);
 				int i_sl = -1;
 				if (null != path) i_sl = path.lastIndexOf("-----#slice=");
 				if (-1 != i_sl) {
 					// activate proper slice
-					//Utils.log("setting " + p + " to slice " +path.substring(i_sl + 12));
 					if (null != imp) {
 						// check that the stack is large enough (user may have changed it)
 						final int ia = Integer.parseInt(path.substring(i_sl + 12));
 						if (ia <= imp.getNSlices()) {
 							imp.setSlice(ia);
+							unlock();
+							return imp;
 						} else {
 							unlock();
 							return null; // beyond bonds!
 						}
 					}
 				}
-				//Utils.log2("   imp (2) is " + imp);
+				// for non-stack images
 				if (null != imp) {
-					if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) {
-						unlock();
-						//Utils.log2("A1 returning " + imp + " at slice" + imp.getCurrentSlice() + " for path " + path);
-						return imp;
-					} else {
-						//Utils.log2("   flushing");
-						imp.flush(); // can't hurt: it does, runs GC
-					}
+					unlock();
+					return imp;
 				}
 				releaseMemory(); // ensure there is a minimum % of free memory
-				if (null != path) {
-					if (-1 != i_sl) {
-						slice = path.substring(i_sl);
-						// set path proper
-						path = path.substring(0, i_sl);
-					}
+				if (-1 != i_sl) {
+					slice = path.substring(i_sl);
+					// set path proper
+					path = path.substring(0, i_sl);
+				}
 
-					// Decouple the loading of the image from the lock
-					// but ensuring no memory availability problems
-					long n_bytes = estimateImageFileSize(p, 0);
-					max_memory -= n_bytes;
-					unlock();
-					imp = openImage(path);
-					preProcess(imp);
+				plock = getOrMakePatchLoadingLock(p, 0);
+				unlock();
+			} catch (Exception e) {
+				new IJError(e);
+				return null;
+			}
+		}
+
+
+		synchronized (plock) {
+			while (plock.loading) try { p.wait(); } catch (InterruptedException ie) {};
+			plock.loading = true;
+
+			imp = imps.get(p.getId());
+			if (null != imp) {
+				synchronized (db_lock) { lock(); max_memory += n_bytes; unlock(); }
+				plock.loading = false;
+				plock.notifyAll();
+				return imp; // was loaded by a different thread
+			}
+
+			// going to load:
+
+			// reserve memory:
+			synchronized (db_lock) {
+				lock();
+				n_bytes = estimateImageFileSize(p, 0);
+				max_memory += n_bytes;
+				unlock();
+			}
+
+			imp = openImage(path);
+			preProcess(imp);
+
+			synchronized (db_lock) {
+				try {
 					lock();
 					max_memory += n_bytes;
 
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 						unlock();
-						return null;
+						plock.loading = false;
+						plock.notifyAll();
+						return null; // not removing the plock ?
 					}
-					//Utils.log("debug: slice is " + slice);
 					// update all clients of the stack, if any
 					if (null != slice) {
 						String rel_path = getPath(p); // possibly relative
 						int r_isl = rel_path.lastIndexOf("-----#slice");
 						if (-1 != r_isl) rel_path = rel_path.substring(0, r_isl); // should always happen
-						//Utils.log("rel_path is " + rel_path);
 						for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
 							Map.Entry entry = (Map.Entry)it.next();
 							String str = (String)entry.getValue(); // this is like calling getPath(p)
@@ -345,20 +371,26 @@ public class FSLoader extends Loader {
 							}
 						}
 						// set proper active slice
-						imp.setSlice(Integer.parseInt(slice.substring(12)));
+						int ia = Integer.parseInt(slice.substring(12));
+						imp.setSlice(ia);
 					} else {
 						// for non-stack images
 						p.putMinAndMax(imp); // non-destructive contrast: min and max
 							// puts the Patch min and max values into the ImagePlus processor.
 						imps.put(p.getId(), imp);
 					}
+					// imp is cached, so:
+					removePatchLoadingLock(plock);
+
+				} catch (Exception e) {
+					new IJError(e);
 				}
-			} catch (Exception e) {
-				new IJError(e);
+				unlock();
+				plock.loading = false;
+				plock.notifyAll();
+				return imp;
+				//Utils.log2("A2 returning " + imp + " for path " + path + slice);
 			}
-			unlock();
-			//Utils.log2("A2 returning " + imp + " for path " + path + slice);
-			return imp;
 		}
 	}
 
@@ -428,6 +460,7 @@ public class FSLoader extends Loader {
 
 			// going to load:
 
+			// reserve memory:
 			synchronized (db_lock) {
 				lock();
 				n_bytes = estimateImageFileSize(p, 0);
@@ -490,13 +523,12 @@ public class FSLoader extends Loader {
 					new IJError(e);
 				}
 				unlock();
+				plock.loading = false;
+				plock.notifyAll();
+				return ip;
 				//Utils.log2("A2 returning " + imp + " for path " + path + slice);
 			}
-
-			plock.loading = false;
-			plock.notifyAll();
 		}
-		return ip;
 	}
 
 	public Object[] fetchLabel(DLabel label) {
