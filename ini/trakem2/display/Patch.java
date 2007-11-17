@@ -337,7 +337,7 @@ public class Patch extends Displayable {
 						try { Thread.sleep(50); } catch (InterruptedException ie) {}
 						// load the proper image
 						Patch.this.project.getLoader().fetchImage(Patch.this, magnification);
-						Display.repaint(Patch.this.layer, Patch.this, 0);
+						Display.repaint(Patch.this.layer, Patch.this, Patch.this.getBoundingBox(), 1, false); // not the navigator
 					}
 				};
 			}

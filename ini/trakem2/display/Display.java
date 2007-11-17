@@ -1245,7 +1245,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		selection.remove(displ); //if (displ == active) setActive(null);
 		layer.getParent().removeFromUndo(displ);
-		repaint(displ, 5);
+		repaint(displ, 5, true);
 	}
 
 	static public void remove(ZDisplayable zdispl) {
@@ -1261,34 +1261,37 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		repaint(layer, displ, null, extra);
 	}
 
-	/** Find the displays that show the given Layer, and repaint the given Displayable. */
 	static public void repaint(Layer layer, Displayable displ, Rectangle r, int extra) {
+		repaint(layer, displ, r, extra, true);
+	}
+
+	/** Find the displays that show the given Layer, and repaint the given Displayable. */
+	static public void repaint(Layer layer, Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
 		Iterator it = al_displays.iterator();
 		while (it.hasNext()) {
 			Display d = (Display)it.next();
 			if (layer.equals(d.layer)) {
-				if (null == r) d.repaint(displ, extra);
-				else d.repaint(displ, r, extra);
-				d.navigator.repaint(true); // everything
+				if (null == r) d.repaint(displ, extra, repaint_navigator);
+				else d.repaint(displ, r, extra, repaint_navigator);
 			}
 		}
 	}
 	/** Repaint as much as the bounding box around the given Displayable. */
-	private void repaint(Displayable displ, int extra) {
+	private void repaint(Displayable displ, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
 		if (!displ.equals(active)) canvas.setUpdateGraphics(true);
-		navigator.repaint(true); // everything
+		if (repaint_navigator) navigator.repaint(true); // everything
 		canvas.repaint(displ, extra);
 		DisplayablePanel dp = (DisplayablePanel)hs_panels.get(displ);
 		if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 	}
 
 	/** Repaint as much as the bounding box around the given Displayable. */
-	private void repaint(Displayable displ, Rectangle r, int extra) {
+	private void repaint(Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
 		if (!displ.equals(active)) canvas.setUpdateGraphics(true);
-		navigator.repaint(true); // everything
+		if (repaint_navigator) navigator.repaint(true); // everything
 		canvas.repaint(r, extra);
 		DisplayablePanel dp = (DisplayablePanel)hs_panels.get(displ);
 		if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
@@ -1605,7 +1608,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// select the proper tab, and scroll to visible
 			selectTab(displ);
 			canvas.setUpdateGraphics(true); // remake offscreen images
-			repaint(displ, 5); // to show the border
+			repaint(displ, 5, false); // to show the border
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
