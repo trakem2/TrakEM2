@@ -364,12 +364,15 @@ public class FSLoader extends Loader {
 
 	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example. */
 	public ImageProcessor fetchImageProcessor(final Patch p) {
+		ImagePlus imp = null;
+		ImageProcessor ip = null;
+		String slice = null;
+		String path = null;
+		long n_bytes = 0;
+		PatchLoadingLock plock = null;
 		synchronized (db_lock) {
 			lock();
-			ImagePlus imp = imps.get(p.getId());
-			ImageProcessor ip = null;
-			String slice = null;
-			String path = null;
+			imp = imps.get(p.getId());
 			try {
 				path = getAbsolutePath(p);
 				int i_sl = -1;
@@ -396,27 +399,56 @@ public class FSLoader extends Loader {
 					return imp.getProcessor();
 				}
 				releaseMemory(); // ensure there is a minimum % of free memory
-				if (null != path) {
-					if (-1 != i_sl) {
-						slice = path.substring(i_sl);
-						// set path proper
-						path = path.substring(0, i_sl);
-					}
+				if (-1 != i_sl) {
+					slice = path.substring(i_sl);
+					// set path proper
+					path = path.substring(0, i_sl);
+				}
 
-					// Decouple the loading of the image from the lock
-					// but ensuring no memory availability problems
-					long n_bytes = estimateImageFileSize(p, 0);
-					max_memory -= n_bytes;
-					unlock();
-					imp = openImage(path);
-					preProcess(imp);
+				plock = getOrMakePatchLoadingLock(p, 0);
+				unlock();
+			} catch (Exception e) {
+				new IJError(e);
+				return null;
+			}
+		}
+
+
+		synchronized (plock) {
+			while (plock.loading) try { p.wait(); } catch (InterruptedException ie) {};
+			plock.loading = true;
+
+			imp = imps.get(p.getId());
+			if (null != imp) {
+				synchronized (db_lock) { lock(); max_memory += n_bytes; unlock(); }
+				plock.loading = false;
+				plock.notifyAll();
+				return imp.getProcessor(); // was loaded by a different thread
+			}
+
+			// going to load:
+
+			synchronized (db_lock) {
+				lock();
+				n_bytes = estimateImageFileSize(p, 0);
+				max_memory += n_bytes;
+				unlock();
+			}
+
+			imp = openImage(path);
+			preProcess(imp);
+
+			synchronized (db_lock) {
+				try {
 					lock();
 					max_memory += n_bytes;
 
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 						unlock();
-						return null;
+						plock.loading = false;
+						plock.notifyAll();
+						return null; // not removing the plock ?
 					}
 					// update all clients of the stack, if any
 					if (null != slice) {
@@ -451,15 +483,20 @@ public class FSLoader extends Loader {
 						imps.put(p.getId(), imp);
 						ip = imp.getProcessor();
 					}
-				}
+					// imp is cached, so:
+					removePatchLoadingLock(plock);
 
-			} catch (Exception e) {
-				new IJError(e);
+				} catch (Exception e) {
+					new IJError(e);
+				}
+				unlock();
+				//Utils.log2("A2 returning " + imp + " for path " + path + slice);
 			}
-			unlock();
-			//Utils.log2("A2 returning " + imp + " for path " + path + slice);
-			return ip;
+
+			plock.loading = false;
+			plock.notifyAll();
 		}
+		return ip;
 	}
 
 	public Object[] fetchLabel(DLabel label) {

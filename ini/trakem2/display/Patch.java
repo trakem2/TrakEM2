@@ -255,6 +255,7 @@ public class Patch extends Displayable {
 				} catch (Exception e) {
 					new Thread() {
 						public void run() {
+							setPriority(Thread.NORM_PRIORITY);
 							try { Thread.sleep(10); } catch (InterruptedException ie) {}
 							Display.repaint(layer, Patch.this, 0);
 						}
@@ -332,6 +333,7 @@ public class Patch extends Displayable {
 				// use the lower resolution image, but spawn a thread to load and paint the proper one on loading it.
 				higher = new Thread() {
 					public void run() {
+						setPriority(Thread.NORM_PRIORITY);
 						try { Thread.sleep(50); } catch (InterruptedException ie) {}
 						// load the proper image
 						Patch.this.project.getLoader().fetchImage(Patch.this, magnification);

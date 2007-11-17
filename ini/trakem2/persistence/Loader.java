@@ -196,6 +196,8 @@ abstract public class Loader {
 			}
 		}.start();
 		*/
+
+		Utils.log2("MAX_MEMORY: " + max_memory);
 	}
 
 	/** When the loader has completed its initialization, it should return true on this method. */
@@ -803,6 +805,29 @@ abstract public class Loader {
 		return awt;
 	}
 
+	protected class PatchLoadingLock {
+		String key;
+		boolean loading = false;
+		PatchLoadingLock(String key) { this.key = key; }
+	}
+
+	private Hashtable ht_plocks = new Hashtable();
+
+	protected PatchLoadingLock getOrMakePatchLoadingLock(final Patch p, final int level) {
+		final String key = p.getId() + "." + level;
+		Object ob = ht_plocks.get(key);
+		if (null != ob) {
+			Utils.log2("found key " + key);
+			return (PatchLoadingLock)ob;
+		}
+		PatchLoadingLock pl = new PatchLoadingLock(key);
+		ht_plocks.put(key, pl);
+		return pl;
+	}
+	protected void removePatchLoadingLock(PatchLoadingLock pl) {
+		ht_plocks.remove(pl.key);
+	}
+
 	public Image fetchImage(Patch p) {
 		return fetchImage(p, 1.0);
 	}
@@ -812,6 +837,8 @@ abstract public class Loader {
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 */
 	public Image fetchImage(final Patch p, double mag) {
+		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus callong lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
+
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag);
 
@@ -820,15 +847,18 @@ abstract public class Loader {
 		// SLOW, very slow ...
 
 		// find an equal or larger existing pyramid awt
+		Image mawt = null;
+		final long id = p.getId();
+		long n_bytes = 0;
+		PatchLoadingLock plock = null;
+
 		synchronized (db_lock) {
 			lock();
-			Image mawt = null;
 			try {
 				if (null == mawts) {
 					unlock();
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
-				final long id = p.getId();
 				if (level > 0 && isMipMapsEnabled()) {
 					// 1 - check if the exact level is cached
 					mawt = mawts.get(id, level);
@@ -839,38 +869,91 @@ abstract public class Loader {
 					}
 					//
 					releaseMemory();
-					// 2 - check if the exact file is present for the desired level
-					if (level > 0) mawt = fetchMipMapAWT2(p, level);
-					if (null != mawt) {
-						mawts.put(id, mawt, level);
-						unlock();
-						//Utils.log2("returning exact mawt from file for level " + level);
-						Display.repaintSnapshot(p);
-						return mawt;
-					}
-					// 3 - else, load closest level to it but still giving a larger image
-					int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
-					//Utils.log2("closest mipmap level is " + lev);
-					if (0 != lev) {
-						mawt = mawts.getClosestAbove(id, lev);
-						boolean newly_cached = false;
-						if (null == mawt) {
-							// reload existing scaled file
-							mawt = fetchMipMapAWT2(p, lev);
-							if (null != mawt) {
-								mawts.put(id, mawt, lev);
-								newly_cached = true; // means: cached was false, now it is
-							}
-						}
-						//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
+					plock = getOrMakePatchLoadingLock(p, level);
+				}
+				unlock();
+			} catch (Exception e) {
+				new IJError(e);
+			}
+		}
+
+		// 2 - check if the exact file is present for the desired level
+		if (level > 0 && isMipMapsEnabled()) {
+			synchronized (plock) {
+				while (plock.loading) try { p.wait(); } catch (InterruptedException ie) {};
+				plock.loading = true;
+
+				mawt = mawts.get(id, level);
+				if (null != mawt) {
+					synchronized (db_lock) { lock(); max_memory += n_bytes; unlock(); }
+					plock.loading = false;
+					plock.notifyAll();
+					return mawt; // was loaded by a different thread
+				}
+
+				// going to load:
+
+				synchronized (db_lock) {
+					lock();
+					n_bytes = estimateImageFileSize(p, level);
+					max_memory += n_bytes;
+					unlock();
+				}
+
+				mawt = fetchMipMapAWT(p, level);
+
+				synchronized (db_lock) {
+					try {
+						lock();
+						//removePatchLoadingLock(plock);
+						max_memory += n_bytes;
 						if (null != mawt) {
-							if (newly_cached) Display.repaintSnapshot(p);
+							mawts.put(id, mawt, level);
 							unlock();
-							//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
+							plock.loading = false;
+							plock.notifyAll();
+							//Utils.log2("returning exact mawt from file for level " + level);
+							Display.repaintSnapshot(p);
 							return mawt;
 						}
+						// 3 - else, load closest level to it but still giving a larger image
+						int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
+						//Utils.log2("closest mipmap level is " + lev);
+						if (0 != lev) {
+							mawt = mawts.getClosestAbove(id, lev);
+							boolean newly_cached = false;
+							if (null == mawt) {
+								// reload existing scaled file
+								mawt = fetchMipMapAWT2(p, lev);
+								if (null != mawt) {
+									mawts.put(id, mawt, lev);
+									newly_cached = true; // means: cached was false, now it is
+								}
+							}
+							//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
+							if (null != mawt) {
+								if (newly_cached) Display.repaintSnapshot(p);
+								unlock();
+								plock.loading = false;
+								plock.notifyAll();
+								//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
+								return mawt;
+							}
+						}
+						unlock();
+					} catch (Exception e) {
+						new IJError(e);
 					}
 				}
+				plock.loading = false;
+				plock.notifyAll();
+			}
+		}
+
+		synchronized (db_lock) {
+			try {
+				lock();
+
 				// 4 - check if any suitable level is cached (whithout mipmaps, it may be the large image)
 				mawt = mawts.getClosestAbove(id, level);
 				if (null != mawt) {
@@ -880,13 +963,21 @@ abstract public class Loader {
 				}
 				// 5 - else, fetch the ImageProcessor and make an image from it of the proper size and quality
 				unlock();
-				ImageProcessor ip = fetchImageProcessor(p);
+			} catch (Exception e) {
+				new IJError(e);
+			}
+		}
+
+		// else, load
+
+		ImageProcessor ip = fetchImageProcessor(p);
+
+		synchronized (db_lock) {
+			try {
 				lock();
-				ImagePlus imp;
 				if (null != ip && null != ip.getPixels()) {
 					// if NOT mag == 1.0 // but 0.75 also needs the 1.0 ... problem is, I can't cache level 1.5 or so
-					//mag = 1 / Math.pow(2, level); // correcting mag
-					//if (mag < 0.5001)
+					ImagePlus imp;
 					if (level < 0) {
 						imp = new ImagePlus("", Loader.scaleImage(new ImagePlus("", ip), level, p.getLayer().getParent().snapshotsQuality()));
 						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
@@ -3058,23 +3149,10 @@ abstract public class Loader {
 
 	/** Preprocess an image before TrakEM2 ever has a look at it with a system-wide defined preprocessor plugin, specified in the XML file and/or from within the Display properties dialog. Does not lock, and should always run within locking/unlocking statements. */
 	protected final void preProcess(final ImagePlus imp) {
-		if (null == preprocessor) {
-			/*
-			String username = System.getProperty("user.name");
-			if (username.equals("albert") || username.equals("cardona")) {
-				setPreprocessor("Preprocessor_Smooth");
-				if (null == preprocessor) {
-					Utils.log2("WARNING: Preprocessor_Smooth is not present.");
-					return;
-				}
-			} else {
-				return;
-			}*/
-			return;
-		}
+		if (null == preprocessor) return;
 		// access to WindowManager.setTempCurrentImage(...) is locked within the Loader
-		startSetTempCurrentImage(imp);
 		try {
+			startSetTempCurrentImage(imp);
 			IJ.redirectErrorMessages();
 			IJ.runPlugIn(preprocessor, "");
 		} catch (Exception e) {
