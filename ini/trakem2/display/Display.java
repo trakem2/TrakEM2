@@ -1602,7 +1602,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// select the proper tab, and scroll to visible
 			selectTab(displ);
 			canvas.setUpdateGraphics(true); // remake offscreen images
-			repaint(displ, 5);
+			repaint(displ, 5); // to show the border
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
@@ -1616,7 +1616,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	private void selectTab(Displayable displ) {
 		try {
 			Object ob_tab = ht_tabs.get(displ.getClass());
-			if (null == ob_tab || !tabs.getSelectedComponent().equals(ob_tab)) return;
+			if (null == ob_tab /*|| !tabs.getSelectedComponent().equals(ob_tab)*/) return; // disabled the "select only if the corresponding tab is visible" switch
 			if (!(displ instanceof LayerSet)) {
 				Method method = getClass().getDeclaredMethod("selectTab", new Class[]{displ.getClass()});
 				method.invoke(this, new Object[]{displ});

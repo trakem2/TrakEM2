@@ -71,8 +71,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private boolean input_disabled = false;
 	private boolean input_disabled2 = false;
 
-	private BufferStrategy bus = null;
-
 	public DisplayCanvas(Display display, int width, int height) {
 		super(new FakeImagePlus(width, height, display));
 		fake_win = new FakeImageWindow(imp, this, display);
@@ -196,19 +194,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if (create_offscreen_data /*update_graphics*/ || (null == offscreen1 && !layer.isEmpty())) {
 					if (quit) return;
 					createOffscreenData(layer, g_width, g_height, active, c_alphas); // the offscreen1 and the al_top_paint. Will fork and call a new repaint thread when done
-					paint();
-
 				}
 
 				// call the paint(Graphics g) ATTENTION this is the only place where any of the repaint methods of the superclass are to be called (which will call the update(Graphics g), which will call the paint method.
-				/*
 				if (null == clipRect) DisplayCanvas.super.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
 				else DisplayCanvas.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
-				*/
-
-				try {
-					bus.show();
-				} catch (Exception e) {}
 
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("RepaintThread OutOfMemoryError: " + oome); // so OutOfMemoryError won't generate locks
@@ -254,33 +244,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	// can only paint if cancel_painting is false; otherwise, it stops
 	public void paint(final Graphics g) {
 		try {
-			bus.show();
-		} catch (Exception e) {}
-	}
-	public void paint() {
-		try {
-			if (null == bus) {
-				createBufferStrategy(2); // whatever the system can do
-				bus = getBufferStrategy();
-				final BufferStrategy buss = bus;
-				new Thread() {
-					public void run() {
-						while (true) {
-							try {
-								do {
-									do {
-										paint();
-									} while (buss.contentsRestored());
-									buss.show();
-								} while (buss.contentsLost());
-								Thread.sleep(100);
-							} catch (Exception e) {}
-						}
-					}
-				}.start();
-			}
-			do {
-			final Graphics g = bus.getDrawGraphics();
 			//setRenderingHints((Graphics2D)g);
 			if (handPaintingOffscreen == null) {
 
@@ -442,9 +405,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if(noCursor == null)
 					noCursor = Toolkit.getDefaultToolkit().createCustomCursor(new BufferedImage(1,1,BufferedImage.TYPE_BYTE_BINARY  /* does not exist in java 1.4.2  BITMASK*/), new Point(0,0), "noCursor");
 			}
-
-			} while (bus.contentsRestored());
-
 		} catch (Exception e) {
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
 			new IJError(e);
@@ -928,15 +888,17 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		// must be done here, for now the ROI is complete
 		Roi roi = imp.getRoi();
-		ImagePlus last_temp = display.getLastTemp();
-		if (null != last_temp) {
-			last_temp.setRoi(roi);
+		if (null != roi) {
+			ImagePlus last_temp = display.getLastTemp();
+			if (null != last_temp) {
+				last_temp.setRoi(roi);
+			}
 		}
 
 		// check:
 		if (display.isReadOnly()) return;
 
-		if (tool >= ProjectToolbar.SELECT) imp.killRoi();
+		if (tool >= ProjectToolbar.SELECT && null != roi) imp.killRoi();
 		else return;
 
 		Displayable active = display.getActive();

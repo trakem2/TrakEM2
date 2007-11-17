@@ -393,8 +393,11 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public int getType() {
+		/*
 		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
 		return imp.getType();
+		*/
+		return patch[currentSlice-1].getType();
 	}
 
 	public int getBitDepth() {

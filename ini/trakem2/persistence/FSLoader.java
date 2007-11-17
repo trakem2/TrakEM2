@@ -263,6 +263,7 @@ public class FSLoader extends Loader {
 	}
 
 	public ImagePlus fetchImagePlus(Patch p, boolean create_snap) {
+		Utils.printCaller(this, 10);
 		synchronized (db_lock) {
 			lock();
 			ImagePlus imp = imps.get(p.getId());
