@@ -897,8 +897,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		// check:
 		if (display.isReadOnly()) return;
 
-		if (tool >= ProjectToolbar.SELECT && null != roi) imp.killRoi();
-		else return;
+		if (tool >= ProjectToolbar.SELECT) {
+			if (null != roi) imp.killRoi();
+		} else return;
 
 		Displayable active = display.getActive();
 

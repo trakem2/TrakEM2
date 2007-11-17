@@ -61,7 +61,7 @@ import java.util.Vector;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.4j 2007-11-13";
+	static public String version = "0.4k 2007-11-16";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
