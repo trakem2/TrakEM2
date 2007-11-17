@@ -197,7 +197,7 @@ public class PatchStack extends ImagePlus {
 				patch[i].getSnapshot().remake(); // will cache the new snap and thus flush the old
 				*/
 				// just flush away all dependent images, will be recreated when needed on repaint
-				patch[i].getProject().getLoader().deCache(imp);
+				patch[i].getProject().getLoader().decache(imp);
 				Display.repaint(patch[i].getLayer(), patch[i], 0);
 				// reset
 				imp.changes = false;
@@ -654,14 +654,14 @@ public class PatchStack extends ImagePlus {
 	}
 
 	/** Remove all awts and snaps from the loader's cache, and repaint (which will remake as many as needed) */
-	public void deCacheAll() {
+	public void decacheAll() {
 		final HashSet hs = new HashSet(); // record already flushed imps, since there can be shared imps among Patch instances (for example in stacks)
 		final Loader loader = patch[currentSlice-1].getProject().getLoader();
 		for (int i=0; i<patch.length; i++) {
 			ImagePlus imp = loader.fetchImagePlus(patch[i]);
 			if (hs.contains(imp)) continue;
 			else if (null != imp) hs.add(imp);
-			loader.deCache(imp);
+			loader.decache(imp);
 			loader.flushMipMaps(patch[i].getId());
 			Display.repaint(patch[i].getLayer(), patch[i], 0);
 		}

@@ -33,8 +33,7 @@ import java.awt.event.*;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
-import java.awt.image.TileObserver;
-import java.awt.image.WritableRenderedImage;
+import java.awt.image.BufferStrategy;
 import java.util.*;
 import java.awt.Cursor;
 
@@ -72,8 +71,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private boolean input_disabled = false;
 	private boolean input_disabled2 = false;
 
-	/** Enables not using offscreen images. */
-	//private boolean direct_repainting = true;
+	private BufferStrategy bus = null;
 
 	public DisplayCanvas(Display display, int width, int height) {
 		super(new FakeImagePlus(width, height, display));
@@ -198,22 +196,20 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if (create_offscreen_data /*update_graphics*/ || (null == offscreen1 && !layer.isEmpty())) {
 					if (quit) return;
 					createOffscreenData(layer, g_width, g_height, active, c_alphas); // the offscreen1 and the al_top_paint. Will fork and call a new repaint thread when done
+					paint();
 
 				}
 
 				// call the paint(Graphics g) ATTENTION this is the only place where any of the repaint methods of the superclass are to be called (which will call the update(Graphics g), which will call the paint method.
+				/*
 				if (null == clipRect) DisplayCanvas.super.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
 				else DisplayCanvas.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
-				/* // no need, and would make me loose the pointer to cancel the previous offscreen thread if any.
-				synchronized (controler_ob2) {
-					while (controling2) { try { controler_ob2.wait(); } catch (InterruptedException ie) {} }
-
-					controling2 = true;
-					if (this.equals(rt_old)) rt_old = null;
-					controling2 = false;
-					controler_ob2.notifyAll();
-				}
 				*/
+
+				try {
+					bus.show();
+				} catch (Exception e) {}
+
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("RepaintThread OutOfMemoryError: " + oome); // so OutOfMemoryError won't generate locks
 			} catch (Exception e) {
@@ -258,6 +254,33 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	// can only paint if cancel_painting is false; otherwise, it stops
 	public void paint(final Graphics g) {
 		try {
+			bus.show();
+		} catch (Exception e) {}
+	}
+	public void paint() {
+		try {
+			if (null == bus) {
+				createBufferStrategy(2); // whatever the system can do
+				bus = getBufferStrategy();
+				final BufferStrategy buss = bus;
+				new Thread() {
+					public void run() {
+						while (true) {
+							try {
+								do {
+									do {
+										paint();
+									} while (buss.contentsRestored());
+									buss.show();
+								} while (buss.contentsLost());
+								Thread.sleep(100);
+							} catch (Exception e) {}
+						}
+					}
+				}.start();
+			}
+			do {
+			final Graphics g = bus.getDrawGraphics();
 			//setRenderingHints((Graphics2D)g);
 			if (handPaintingOffscreen == null) {
 
@@ -327,7 +350,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if (null != active) {
 					try {
 						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || (active.isVisible() && ProjectToolbar.PEN == ProjectToolbar.getToolId())) { // ensure AreaList can be painted even when the brush hits outside the current bounding box
-							active.paint(g2d, magnification, true, c_alphas, active_layer);
+							active.prePaint(g2d, magnification, true, c_alphas, active_layer);
 						}
 					} catch (Exception e) {
 						Utils.log2("Synchronization issues in painting the active");
@@ -359,7 +382,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						}
 						final Displayable ob = di[i];
 						if (!ob.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-							ob.paint(g2d, magnification, false, c_alphas, active_layer);
+							ob.prePaint(g2d, magnification, false, c_alphas, active_layer);
 						}
 					}
 				}
@@ -404,9 +427,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 			// clean up
 			if (Thread.currentThread().equals(rt_old)) {
-				rt_old = null;
+				synchronized (controler_ob2) {
+					while (controling2) { try { controler_ob2.wait(); } catch (InterruptedException ie) {} }
+					controling2 = true;
+					rt_old = null;
+					controling2 = false;
+					controler_ob2.notifyAll();
+				}
 			}
-
 
 			// Mathias code:
 			if (null != freehandProfile) {
@@ -414,6 +442,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if(noCursor == null)
 					noCursor = Toolkit.getDefaultToolkit().createCustomCursor(new BufferedImage(1,1,BufferedImage.TYPE_BYTE_BINARY  /* does not exist in java 1.4.2  BITMASK*/), new Point(0,0), "noCursor");
 			}
+
+			} while (bus.contentsRestored());
+
 		} catch (Exception e) {
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
 			new IJError(e);
@@ -1763,24 +1794,23 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 				break;
 			default:
-				// forward event to active_displayable
+				// forward event to active
 				if (null != active) {
-					active.keyPressed(ke); // will consume the KeyEvent
+					active.keyPressed(ke);
 					if (ke.isConsumed()) {
 						Selection selection = display.getSelection();
 						repaint(selection.getLinkedBox(), Selection.PADDING + 2); // optimization
-					} else {
-						ke.consume();
 					}
 				}
 		}
 
-		if (!ke.isConsumed() && null != active && active instanceof Patch) {
+		if ( !(keyCode == KeyEvent.VK_UNDEFINED || keyChar == KeyEvent.CHAR_UNDEFINED) && !ke.isConsumed() && null != active && active instanceof Patch) {
 			// forward to ImageJ for a final try
 			IJ.getInstance().keyPressed(ke);
 			repaint(active, 5);
 			ke.consume();
 		}
+		//Utils.log2("keyCode, keyChar: " + keyCode + ", " + keyChar + " ref: " + KeyEvent.VK_UNDEFINED + ", " + KeyEvent.CHAR_UNDEFINED);
 	}
 
 	public void keyTyped(KeyEvent ke) {
@@ -2059,7 +2089,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							al_top.add(d);
 						} else {
 							if (!d.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-								d.paint(g_any, magnification, false, c_alphas, layer);
+								d.prePaint(g_any, magnification, false, c_alphas, layer);
 								//Utils.log2("painted " + this.getId());
 								if (null == accum_box) {
 									accum_box = (Rectangle)d.getBoundingBox(tmp).clone();

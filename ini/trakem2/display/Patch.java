@@ -243,38 +243,9 @@ public class Patch extends Displayable {
 
 	static final public DirectColorModel DCM = new DirectColorModel(24, 0xff0000, 0xff00, 0xff);
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-		//Image image = null;
-		//
-		// try to get the snapshot if appropriate, so that if quality is on, it will paint better
-		// (note that it has to scale the affine transform as well)
-		// All the dancing below with the magnification is so that if the snapshots can be
-		// used instead, they will, mostly because painting a large image as smaller does
-		// not necessarily paint it smoother than the snapshots do, when the quality option is on.
 
-		AffineTransform atp = this.at;
-
-		/*
-		if (this.channels == channels) {
-			if (magnification <= Snapshot.SCALE) {
-				image = project.getLoader().fetchSnapshot(this);
-				atp = ((AffineTransform)atp.clone());
-				atp.scale(1/Snapshot.SCALE, 1/Snapshot.SCALE);
-			} else {
-				image = project.getLoader().fetchImage(this, magnification);
-			}
-		} else {
-			// remake to show appropriate channels
-			image = adjustChannels(channels); // with full size
-			if (magnification <= Snapshot.SCALE) {
-				image = project.getLoader().fetchSnapshot(this);
-				Rectangle r = getBoundingBox();
-				atp = ((AffineTransform)atp.clone());
-				atp.scale(1/Snapshot.SCALE, 1/Snapshot.SCALE);
-			}
-		}
-		*/
-
+	/** Just throws the cached image away if the alpha of the channels has changed. */
+	private final void checkChannels(int channels) {
 		if (this.channels != channels) {
 			// more proper, so a snap with proper quality may be returned, or a smaller awt
 			final Image awt = getProject().getLoader().decacheAWT(this.id);
@@ -290,8 +261,14 @@ public class Patch extends Displayable {
 					}.start(); // this flush may have interfered with paints in progress, so just repaint again
 				}
 			}
-			// the above just throws the cached image away if the alpha of the channels has changed
 		}
+	}
+
+	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+
+		AffineTransform atp = this.at;
+
+		checkChannels(channels);
 
 		final Image image = project.getLoader().fetchImage(this, magnification);
 
@@ -308,14 +285,72 @@ public class Patch extends Displayable {
 			atp.scale(K, K);
 		}
 
-		/* // fix dimensions (DONE above)
+		//arrange transparency
+		Composite original_composite = null;
+		if (alpha != 1.0f) {
+			original_composite = g.getComposite();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+		}
+
+		g.drawImage(image, atp, null);
+
+		//Transparency: fix composite back to original.
+		if (alpha != 1.0f) {
+			g.setComposite(original_composite);
+		}
+	}
+
+	
+	/** Paint first whatever is available, then spawn a thread to load the proper image and paint it. */
+	public void prePaint(Graphics2D g, final double magnification, boolean active, int channels, Layer active_layer) {
+
+		AffineTransform atp = this.at;
+
+		checkChannels(channels);
+
+
+		Image image = project.getLoader().getCachedClosestAboveImage(this, magnification);
+		if (null == image) {
+			image = project.getLoader().getCachedClosestBelowImage(this, magnification);
+			boolean thread = false;
+			if (null == image) {
+				// fetch the proper image, nothing is cached
+				if (magnification < 1) {
+					// load the mipmap
+					image = project.getLoader().fetchImage(this, magnification);
+				} else {
+					// load a smaller mipmap, and then spawn the thread
+					image = project.getLoader().fetchImage(this, 0.25);
+					thread = true;
+				}
+			} else {
+				// painting a smaller image, will need to repaint with the proper one
+				thread = true;
+			}
+			if (thread) {
+				// use the lower resolution image, but spawn a thread to load and paint the proper one
+				new Thread() {
+					public void run() {
+						// load the proper image
+						Patch.this.project.getLoader().fetchImage(Patch.this, magnification);
+						Display.repaint(Patch.this.layer, Patch.this, 0);
+					}
+				}.start();
+			}
+		}
+
+		if (null == image) {
+			Utils.log2("Patch.paint: null image, returning");
+			return; // TEMPORARY from lazy repaints after closing a Project
+		}
+
+		// fix dimensions (may be smaller; either a snap or a smaller awt)
 		final int iw = image.getWidth(null);
 		if (iw < this.width) {  // no need to check height
 			atp = (AffineTransform)atp.clone();
 			final double K = this.width / (double)iw;
 			atp.scale(K, K);
 		}
-		*/
 
 		//arrange transparency
 		Composite original_composite = null;
@@ -336,7 +371,7 @@ public class Patch extends Displayable {
 	public void paint(Graphics2D g) {
 		if (!this.visible) return;
 
-		Image image = project.getLoader().fetchImage(this);
+		Image image = project.getLoader().fetchImage(this); // TODO: could read the scale parameter of the graphics object and call for the properly sized mipmap accordingly.
 
 		//arrange transparency
 		Composite original_composite = null;
@@ -350,16 +385,6 @@ public class Patch extends Displayable {
 		//Transparency: fix composite back to original.
 		if (alpha != 1.0f) {
 			g.setComposite(original_composite);
-		}
-	}
-
-	public void keyPressed(KeyEvent ke) {
-		super.keyPressed(ke);
-		if (!ke.isConsumed()) {
-			// forward to ImageJ for a final try
-			IJ.getInstance().keyPressed(ke);
-			Display.repaint(this.layer, this, 0);
-			ke.consume();
 		}
 	}
 

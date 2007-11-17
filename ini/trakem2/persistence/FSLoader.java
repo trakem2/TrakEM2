@@ -1058,7 +1058,7 @@ public class FSLoader extends Loader {
 					if (wo.hasQuitted()) {
 						return;
 					}
-					wo.setTaskName("Generating MipMaps " + k + "/" + size);
+					wo.setTaskName("Generating MipMaps " + (k+1) + "/" + size);
 					try {
 						if ( ! generateMipMaps(pa[k]) ) {
 							// some error ocurred

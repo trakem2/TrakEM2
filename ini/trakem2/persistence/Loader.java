@@ -523,7 +523,7 @@ abstract public class Loader {
 		}
 	}
 
-	public final void releaseToFit(final int width, final int height, final int type, float factor) {
+	public final boolean releaseToFit(final int width, final int height, final int type, float factor) {
 		long bytes = width * height;
 		switch (type) {
 			case ImagePlus.GRAY32:
@@ -539,7 +539,7 @@ abstract public class Loader {
 			default: // times 1
 				break;
 		}
-		releaseToFit((long)(bytes*factor));
+		return releaseToFit((long)(bytes*factor));
 	}
 
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
@@ -777,6 +777,18 @@ abstract public class Loader {
 		return level;
 	}
 
+	/** Returns true if there is a cached awt image for the given mag and Patch id. */
+	public boolean isCached(Patch p, double mag) {
+		return mawts.contains(p.getId(), Loader.getMipMapLevel(mag));
+	}
+
+	public Image getCachedClosestAboveImage(Patch p, double mag) {
+		return mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag));
+	}
+	public Image getCachedClosestBelowImage(Patch p, double mag) {
+		return mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag));
+	}
+
 	public Image fetchImage(Patch p) {
 		return fetchImage(p, 1.0);
 	}
@@ -826,7 +838,7 @@ abstract public class Loader {
 					int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
 					//Utils.log2("closest mipmap level is " + lev);
 					if (0 != lev) {
-						mawt = mawts.getClosest(id, lev);
+						mawt = mawts.getClosestAbove(id, lev);
 						boolean newly_cached = false;
 						if (null == mawt) {
 							// reload existing scaled file
@@ -846,7 +858,7 @@ abstract public class Loader {
 					}
 				}
 				// 4 - check if any suitable level is cached (whithout mipmaps, it may be the large image)
-				mawt = mawts.getClosest(id, level);
+				mawt = mawts.getClosestAbove(id, level);
 				if (null != mawt) {
 					unlock();
 					//Utils.log2("returning from getClosest with level " + level);
@@ -2940,11 +2952,11 @@ abstract public class Loader {
 	}
 
 	/** Throw away all awts and snaps that depend on this image, so that they will be recreated next time they are needed. */
-	public void deCache(final ImagePlus imp) {
+	public void decache(final ImagePlus imp) {
 		synchronized(db_lock) {
 			lock();
 			long[] ids = imps.getAll(imp);
-			Utils.log2("deCaching " + ids.length);
+			Utils.log2("decaching " + ids.length);
 			if (null == ids) return;
 			for (int i=0; i<ids.length; i++) {
 				mawts.remove(ids[i]);
@@ -3274,7 +3286,12 @@ abstract public class Loader {
 
 					///////// Multithreading ///////
 					final AtomicInteger ai = new AtomicInteger(0);
-					final Thread[] threads = MultiThreading.newThreads();
+					final Thread[] threads = new Thread[1]; // MultiThreading.newThreads();
+
+					// USING one single thread, for the locking is so bad, to access
+					//  the imps and to releaseToFit, that it's not worth it: same images
+					//  are being reloaded many times just because they all don't fit in
+					//  at the same time.
 
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
 						threads[ithread] = new Thread(new Runnable() {
@@ -3286,13 +3303,13 @@ abstract public class Loader {
 						if (wo.hasQuitted()) {
 							break;
 						}
+						setTaskName("Homogenizing contrast for layer " + (i+1) + " of " + la.length);
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
 						if (!homogenizeContrast(la[i], pa)) {
 							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
 						}
-						setTaskName("Homogenizing contrast for layer " + i + " of " + la.length);
 					}
 
 					/////////////////////////   - where are my lisp macros .. and no, mapping a function with reflection is not elegant, but rather a verbosity and constriction attack

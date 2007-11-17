@@ -2921,12 +2921,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//}
 		// the above is overkill. Instead:
 		if (updated instanceof PatchStack) {
-			((PatchStack)updated).deCacheAll();
+			((PatchStack)updated).decacheAll();
 		}
 
 		// detect LUT changes: DONE at PatchStack, which is the active (virtual) image
-		//Utils.log2("calling deCache for " + updated);
-		//getProject().getLoader().deCache(updated);
+		//Utils.log2("calling decache for " + updated);
+		//getProject().getLoader().decache(updated);
 
 		//Utils.log2("imageUpdated: updated imp is " + updated.getTitle() + "\n\t and is last_temp: " + updated.equals(last_temp) + "\n\t and changes=" + updated.changes + " and class: " + updated.getClass());
 	}

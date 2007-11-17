@@ -215,19 +215,9 @@ public abstract class Displayable extends DBObject {
 		//Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
 	}
 
-	public void paint(Graphics2D g) {
-		//Utils.log2("paint g: not implemented yet for " + this.getClass());
-		paint(g, 1.0, false, 1, this.layer);
-	}
-
-	public void paint(Graphics g, Layer active_layer) {
-		//Utils.log2("paint g 2: not implemented yet for " + this.getClass());
-		paint((Graphics2D)g);
-	}
-
-	@Deprecated
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
-		Utils.log2("Deprecated paint method 1 for " + this.getClass());
+	/** If the painting is expensive, children classes can override this method to provide first a coarse painting, and then call repaint on their own again once the desired graphics are ready. */
+	public void prePaint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, magnification, active, channels, active_layer);
 	}
 
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
