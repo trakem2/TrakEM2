@@ -606,6 +606,7 @@ public class PatchStack extends ImagePlus {
 
 	public synchronized void flush() {
 		// flush extra awts created if any
+		/* // this is not useful: it is creating images by calling getImage, and incurring in imp loading with fetchImagePlus
 		Loader loader = patch[0].getProject().getLoader();
 		for (int i=0; i<patch.length; i++) {
 			if (null == patch[i]) continue; // when closing from the Patch.remove(boolean() if isStack() ? TODO investigate
@@ -616,6 +617,7 @@ public class PatchStack extends ImagePlus {
 			// note 20070405: getImage() should always return null
 			if (imp.getStackSize() > 1) return; // done, for real stacks
 		}
+		*/
 	}
 
 	public Calibration getCalibration() {

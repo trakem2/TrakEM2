@@ -43,7 +43,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private Display display;
 
 	private boolean update_graphics = false;
-	private Image offscreen1, offscreen, offscreen_a, offscreen_b;
+	private Image offscreen1;
 	private ArrayList al_top = new ArrayList();
 	private BufferedImage handPaintingOffscreen;
 
@@ -195,27 +195,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					createOffscreenData(layer, g_width, g_height, active, c_alphas); // the offscreen1 and the al_top_paint. Will fork and call a new repaint thread when done
 				}
 
-				Graphics g = null;
-				Image target = null;
-				if (null == offscreen || offscreen_b == offscreen) {
-					// paint on a
-					if (null == offscreen_a || g_width != offscreen.getWidth(null) || g_height != offscreen.getHeight(null)) {
-						offscreen_a = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
-						offscreen_a.setAccelerationPriority(1.0f);
-					}
-					target = offscreen_a;
-				} else {
-					// offscreen_a == offscreen, paint on b
-					if (null == offscreen_b || g_width != offscreen.getWidth(null) || g_height != offscreen.getHeight(null)) {
-						offscreen_b = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
-						offscreen_b.setAccelerationPriority(1.0f);
-					}
-					target = offscreen_b;
-				}
-				paintOffscreen(target.getGraphics());
-				// switch pointer
-				offscreen = target;
-
 				// call the paint(Graphics g) ATTENTION this is the only place where any of the repaint methods of the superclass are to be called (which will call the update(Graphics g), which will call the paint method.
 				if (null == clipRect) DisplayCanvas.super.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
 				else DisplayCanvas.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
@@ -261,18 +240,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	/** The affine transform representing the srcRect displacement and the magnification. */
 	private final AffineTransform atc = new AffineTransform();
 
-	public void paint(final Graphics g) {
-		if (null == offscreen) return;
-		g.drawImage(offscreen, 0, 0, null);
-		Utils.log2( offscreen == offscreen_a ? "a" : "b");
-	}
-
 	// can only paint if cancel_painting is false; otherwise, it stops
-	public void paintOffscreen(final Graphics g) {
+	public void paint(final Graphics g) {
 		try {
-			final int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
-			final int g_height = getHeight();
-
 			//setRenderingHints((Graphics2D)g);
 			if (handPaintingOffscreen == null) {
 
@@ -292,6 +262,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				final int c_alphas = display.getDisplayChannelAlphas();
 				final int sr_width = (int) (srcRect.width * magnification) + 1; // to make it a ceil operation
 				final int sr_height = (int) (srcRect.height * magnification) + 1;
+
+				final int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
+				final int g_height = getHeight();
 
 				final Roi roi = imp.getRoi();
 
