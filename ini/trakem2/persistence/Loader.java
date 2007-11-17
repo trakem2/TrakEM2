@@ -392,23 +392,6 @@ abstract public class Loader {
 				if (null == imps.get(id)) { // the 'get' call already puts it at the end if there.
 					imps.put(id, imp);
 				}
-				/* // DEPRECATED
-				if (!massive_mode) { // don't if loading lots of images
-					if (null == awts.get(id)) {
-						unlock();
-						Image awt = p.createImage();
-						lock();
-						awts.put(id, awt);  // with adjusted channels. Will flush the Image if it existed and was different
-					}
-					if (null == snaps.get(id) && null != d.getLayer()) {
-						final Image image = awts.get(id);
-						unlock();
-						final Image snap = Snapshot.createSnap(p, image, Snapshot.SCALE);
-						lock();
-						snaps.put(id, snap);
-					}
-				}
-				*/
 			} else {
 				Utils.log("Loader.cache: don't know how to cache: " + d);
 			}

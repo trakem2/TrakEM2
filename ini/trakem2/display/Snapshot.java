@@ -65,7 +65,7 @@ public class Snapshot {
 	public void paintTo(final Graphics2D g, final Layer layer, final double mag) {
 		if (layer.getParent().areSnapshotsEnabled()) {
 			if (d.getClass().equals(Patch.class) && !d.getProject().getLoader().isSnapPaintable(d.getId())) {
-				paintAsBox(g, d);
+				Snapshot.paintAsBox(g, d);
 			} else {
 				d.paint(g, mag, false, (d.getClass().equals(Patch.class) ? ((Patch)d).getChannelAlphas() : 1), layer);
 			}
@@ -74,7 +74,7 @@ public class Snapshot {
 		}
 	}
 
-	final private void paintAsBox(final Graphics2D g, final Displayable d) {
+	static final public void paintAsBox(final Graphics2D g, final Displayable d) {
 		double[] c = new double[]{0,0,  d.getWidth(),0,  d.getWidth(),d.getHeight(),  0,d.getHeight()};
 		final double[] c2 = new double[8];
 		d.getAffineTransform().transform(c, 0, c2, 0, 4);

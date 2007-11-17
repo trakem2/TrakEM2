@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 //import java.awt.Canvas;
 import javax.swing.JPanel;
+import java.awt.Image;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
@@ -36,12 +37,15 @@ import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseEvent;
 import java.util.Iterator;
 import java.util.ArrayList;
+import java.util.HashSet;
 import ini.trakem2.utils.*;
 import java.awt.geom.AffineTransform;
 
 public class DisplayNavigator extends JPanel implements MouseListener, MouseMotionListener {
 
 	private Display display;
+	private Layer layer;
+	private HashSet hs_painted = new HashSet();
 	static private final int FIXED_WIDTH = 250;
 	private int height;
 	private BufferedImage image = null;
@@ -66,6 +70,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 
 	DisplayNavigator(Display display, double layer_width, double layer_height) { // contorsions to avoid java bugs ( a.k.a. the 'this' is not functional until the object in question has finished initialization.
 		this.display = display;
+		this.layer = display.getLayer();
 		this.scale = FIXED_WIDTH / layer_width;
 		this.height = (int)(layer_height * scale);
 		//Utils.log("fixed_w, h: " + FIXED_WIDTH +","+ height + "   layer_width,height: " + layer_width + "," + layer_height);
@@ -83,6 +88,13 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		if (null == display || null == display.getCanvas() || null == display.getLayer() || display.getCanvas().isDragging()) return;
 		// fixing null at start up (because the JPanel becomes initialized and repainted before returning to my subclass constructor! Stupid java!)
 		if (null == display) return;
+
+		//check if layer has changed
+		if (this.layer != display.getLayer()) {
+			this.layer = display.getLayer();
+			this.hs_painted.clear();
+		}
+
 		scale = FIXED_WIDTH / display.getLayer().getLayerWidth();
 		int height = (int)(display.getLayer().getLayerHeight() * scale);
 		if (height != this.height) {
@@ -225,7 +237,8 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					final Displayable d = (Displayable)al.get(i);
 					//if (d.isOutOfRepaintingClip(clip, scale)) continue; // needed at least for the visibility
 					if (!d.isVisible()) continue; // TODO proper clipRect for this navigator image may be necessary (lots of changes needed in the lines above reltive to filling the black background, etc)
-					if (!zd_done && d instanceof DLabel) {
+					Class c = d.getClass();
+					if (!zd_done && c.equals(DLabel.class)) {
 						zd_done = true;
 						// paint ZDisplayables before the labels
 						Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
@@ -237,8 +250,19 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 							if (!zd.isVisible()) continue;
 							zd.getSnapshot().paintTo(graphics, display.getLayer(), scale);
 						}
+					} else if (c.equals(Patch.class)) {
+						Patch p = (Patch)d;
+						Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
+						if (null != img) {
+							d.paint(graphics, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
+							hs_painted.add(d);
+						} else {
+							Snapshot.paintAsBox(graphics, d);
+						}
+					} else {
+						//d.getSnapshot().paintTo(graphics, display.getLayer(), scale);
+						d.paint(graphics, scale, false, 1, DisplayNavigator.this.layer);
 					}
-					d.getSnapshot().paintTo(graphics, display.getLayer(), scale);
 				}
 				if (!zd_done) { // if no labels, ZDisplayables haven't been painted
 					zd_done = true;
@@ -422,5 +446,10 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 			updating = false;
 			updating_ob.notifyAll();
 		}
+	}
+
+	/** Returns true if the given Displayable has been painted as an image and false if as a box or not at all. */
+	public boolean isPainted(Displayable d) {
+		return hs_painted.contains(d);
 	}
 }

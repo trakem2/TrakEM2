@@ -1294,14 +1294,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 	}
 
-	/** Repaint the snapshot for the given Displayable both at the DisplayNavigator and on its panel. */
+	/** Repaint the snapshot for the given Displayable both at the DisplayNavigator and on its panel,and only if it has not been painted before. This method is intended for the loader to know when to paint a snap, to avoid overhead. */
 	static public void repaintSnapshot(Displayable displ) {
 		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
 			Display d = (Display)it.next();
 			if (d.layer.contains(displ)) {
-				DisplayablePanel dp = (DisplayablePanel)d.hs_panels.get(displ);
-				if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
-				d.navigator.repaint(displ);
+				if (!d.navigator.isPainted(displ)) {
+					DisplayablePanel dp = (DisplayablePanel)d.hs_panels.get(displ);
+					if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
+					d.navigator.repaint(displ);
+				}
 			}
 		}
 	}
