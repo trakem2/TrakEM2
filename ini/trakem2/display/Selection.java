@@ -679,10 +679,10 @@ public class Selection {
 	public void cancelTransform() { // TODO : use the undo feature, reread the transforms as originally cached for undo.
 		transforming = false;
 		if (null == active) return;
-		// reread all transforms and remake box
-		resetBox();
 		// restoring transforms
 		display.getLayer().getParent().undoOneStep();
+		// reread all transforms and remake box
+		resetBox();
 	}
 
 	public boolean isTransforming() { return this.transforming; }

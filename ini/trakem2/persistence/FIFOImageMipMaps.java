@@ -160,18 +160,46 @@ public class FIFOImageMipMaps {
 		levels[i] = level;
 	}
 
+	/** Find the cached image of the given level or its closest but smaller one, or null if none found. */
+	public Image getClosestBelow(final long id, final int level) {
+		Image im = null;
+		int lev = Integer.MAX_VALUE;
+		int index = -1;
+		for (int i=start; i<next; i++) {
+			if (id == ids[i]) {
+				if (level == levels[i]) {
+					// if equal level as asked, just return it
+					im = images[i];
+					toTheEnd(i);
+					return im;
+				} else if (levels[i] > level) {
+					// if smaller image (larger level) than asked, choose the less smaller
+					if (levels[i] < lev) { // here going for the largest image (smaller level) that is still smaller, and thus its level larger, than the desired level
+						lev = levels[i];
+						index = i;
+						im = images[i];
+					}
+				}
+			}
+		}
+		if (-1 != index) toTheEnd(index);
+		return im;
+	}
+
 	/** Find the cached image of the given level or its closest but larger one, or null if none found. */
-	public Image getClosest(final long id, final int level) {
+	public Image getClosestAbove(final long id, final int level) {
 		Image im = null;
 		int lev = -1;
 		int index = -1;
 		for (int i=start; i<next; i++) {
 			if (id == ids[i]) {
 				if (level == levels[i]) {
+					// if equal level as asked, just return it
 					im = images[i];
 					toTheEnd(i);
 					return im;
 				} else if (levels[i] < level) {
+					// if larger image (smaller level) than asked, choose the less larger
 					if (levels[i] > lev) { // here going for the smallest image (larger level) that is still larger, and thus its level smaller, than the desired level
 						lev = levels[i];
 						index = i;
@@ -259,8 +287,7 @@ public class FIFOImageMipMaps {
 
 	/** Remove and flush away all images that share the same id. */
 	public void removeAndFlush(final long id) {
-		int i = start;
-		for (; i<next; i++) {
+		for (int i = start; i<next; i++) {
 			if (id == ids[i]) {
 				if (null != images[i]) images[i].flush();
 				// move the others to close the gap

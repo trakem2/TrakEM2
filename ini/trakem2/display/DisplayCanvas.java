@@ -33,8 +33,7 @@ import java.awt.event.*;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
-import java.awt.image.TileObserver;
-import java.awt.image.WritableRenderedImage;
+import java.awt.image.BufferStrategy;
 import java.util.*;
 import java.awt.Cursor;
 
@@ -45,7 +44,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 	private boolean update_graphics = false;
 	private Image offscreen1;
-	//private BufferedImage offscreen2;
 	private ArrayList al_top = new ArrayList();
 	private BufferedImage handPaintingOffscreen;
 
@@ -71,9 +69,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private boolean dragging = false;
 	private boolean input_disabled = false;
 	private boolean input_disabled2 = false;
-
-	/** Enables not using offscreen images. */
-	//private boolean direct_repainting = true;
 
 	public DisplayCanvas(Display display, int width, int height) {
 		super(new FakeImagePlus(width, height, display));
@@ -190,30 +185,20 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				Layer layer = display.getLayer();
 				if (null == layer) return; // fixing startup problems (stupid java, calling repaint() on an object before it has been initialized in full!)
 
-				int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
-				int g_height = getHeight();
+				final int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
+				final int g_height = getHeight();
 				Displayable active = display.getActive();
 				int c_alphas = display.getDisplayChannelAlphas();
 
 				if (create_offscreen_data /*update_graphics*/ || (null == offscreen1 && !layer.isEmpty())) {
 					if (quit) return;
 					createOffscreenData(layer, g_width, g_height, active, c_alphas); // the offscreen1 and the al_top_paint. Will fork and call a new repaint thread when done
-
 				}
 
 				// call the paint(Graphics g) ATTENTION this is the only place where any of the repaint methods of the superclass are to be called (which will call the update(Graphics g), which will call the paint method.
 				if (null == clipRect) DisplayCanvas.super.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
 				else DisplayCanvas.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
-				/* // no need, and would make me loose the pointer to cancel the previous offscreen thread if any.
-				synchronized (controler_ob2) {
-					while (controling2) { try { controler_ob2.wait(); } catch (InterruptedException ie) {} }
 
-					controling2 = true;
-					if (this.equals(rt_old)) rt_old = null;
-					controling2 = false;
-					controler_ob2.notifyAll();
-				}
-				*/
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("RepaintThread OutOfMemoryError: " + oome); // so OutOfMemoryError won't generate locks
 			} catch (Exception e) {
@@ -268,9 +253,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// ensure proper positioning
 				g.translate(0, 0); // ints!
 
-				final int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
-				final int g_height = getHeight();
-
 				final Rectangle clipRect = g.getClipBounds();
 
 				//debug:
@@ -280,6 +262,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				final int c_alphas = display.getDisplayChannelAlphas();
 				final int sr_width = (int) (srcRect.width * magnification) + 1; // to make it a ceil operation
 				final int sr_height = (int) (srcRect.height * magnification) + 1;
+
+				final int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
+				final int g_height = getHeight();
 
 				final Roi roi = imp.getRoi();
 
@@ -327,7 +312,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if (null != active) {
 					try {
 						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || (active.isVisible() && ProjectToolbar.PEN == ProjectToolbar.getToolId())) { // ensure AreaList can be painted even when the brush hits outside the current bounding box
-							active.paint(g2d, magnification, true, c_alphas, active_layer);
+							active.prePaint(g2d, magnification, true, c_alphas, active_layer);
 						}
 					} catch (Exception e) {
 						Utils.log2("Synchronization issues in painting the active");
@@ -359,7 +344,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						}
 						final Displayable ob = di[i];
 						if (!ob.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-							ob.paint(g2d, magnification, false, c_alphas, active_layer);
+							ob.prePaint(g2d, magnification, false, c_alphas, active_layer);
 						}
 					}
 				}
@@ -404,9 +389,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 			// clean up
 			if (Thread.currentThread().equals(rt_old)) {
-				rt_old = null;
+				synchronized (controler_ob2) {
+					while (controling2) { try { controler_ob2.wait(); } catch (InterruptedException ie) {} }
+					controling2 = true;
+					rt_old = null;
+					controling2 = false;
+					controler_ob2.notifyAll();
+				}
 			}
-
 
 			// Mathias code:
 			if (null != freehandProfile) {
@@ -897,16 +887,19 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		// must be done here, for now the ROI is complete
 		Roi roi = imp.getRoi();
-		ImagePlus last_temp = display.getLastTemp();
-		if (null != last_temp) {
-			last_temp.setRoi(roi);
+		if (null != roi) {
+			ImagePlus last_temp = display.getLastTemp();
+			if (null != last_temp) {
+				last_temp.setRoi(roi);
+			}
 		}
 
 		// check:
 		if (display.isReadOnly()) return;
 
-		if (tool >= ProjectToolbar.SELECT) imp.killRoi();
-		else return;
+		if (tool >= ProjectToolbar.SELECT) {
+			if (null != roi) imp.killRoi();
+		} else return;
 
 		Displayable active = display.getActive();
 
@@ -1763,24 +1756,23 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 				break;
 			default:
-				// forward event to active_displayable
+				// forward event to active
 				if (null != active) {
-					active.keyPressed(ke); // will consume the KeyEvent
+					active.keyPressed(ke);
 					if (ke.isConsumed()) {
 						Selection selection = display.getSelection();
 						repaint(selection.getLinkedBox(), Selection.PADDING + 2); // optimization
-					} else {
-						ke.consume();
 					}
 				}
 		}
 
-		if (!ke.isConsumed() && null != active && active instanceof Patch) {
+		if ( !(keyCode == KeyEvent.VK_UNDEFINED || keyChar == KeyEvent.CHAR_UNDEFINED) && !ke.isConsumed() && null != active && active instanceof Patch) {
 			// forward to ImageJ for a final try
 			IJ.getInstance().keyPressed(ke);
 			repaint(active, 5);
 			ke.consume();
 		}
+		//Utils.log2("keyCode, keyChar: " + keyCode + ", " + keyChar + " ref: " + KeyEvent.VK_UNDEFINED + ", " + KeyEvent.CHAR_UNDEFINED);
 	}
 
 	public void keyTyped(KeyEvent ke) {
@@ -2059,7 +2051,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							al_top.add(d);
 						} else {
 							if (!d.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-								d.paint(g_any, magnification, false, c_alphas, layer);
+								d.prePaint(g_any, magnification, false, c_alphas, layer);
 								//Utils.log2("painted " + this.getId());
 								if (null == accum_box) {
 									accum_box = (Rectangle)d.getBoundingBox(tmp).clone();

@@ -119,7 +119,7 @@ public abstract class Displayable extends DBObject {
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the Hashtable. */
 	public Displayable(Project project, long id, Hashtable ht, Hashtable ht_links) {
 		super(project, id);
-		double x=0, y=0; // for backward compatibility
+		double x=0, y=0, rot=0; // for backward compatibility
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
 		final ArrayList al_used_keys = new ArrayList();
@@ -127,9 +127,7 @@ public abstract class Displayable extends DBObject {
 			String key = (String)e.nextElement();
 			try {
 				String data = (String)ht.get(key);
-				if (key.equals("x")) x = Double.parseDouble(data); // this could be done with reflection, but not all, hence this dullness
-				else if (key.equals("y")) y = Double.parseDouble(data);
-				else if (key.equals("width")) width = Double.parseDouble(data);
+				if (key.equals("width")) width = Double.parseDouble(data);
 				else if (key.equals("height")) height = Double.parseDouble(data);
 				else if (key.equals("transform")) {
 					final String[] nums = data.substring(data.indexOf('(')+1, data.lastIndexOf(')')).split(",");
@@ -184,6 +182,12 @@ public abstract class Displayable extends DBObject {
 					if (null != data && !data.toLowerCase().equals("null")) {
 						this.title = data.replaceAll("^#^", "\""); // fix " and backslash characters
 					} else this.title = null;
+				} else if (key.equals("x")) {
+					x = Double.parseDouble(data); // this could be done with reflection, but not all, hence this dullness
+				} else if (key.equals("y")) {
+					y = Double.parseDouble(data);
+				} else if (key.equals("rot")) {
+					rot = Double.parseDouble(data);
 				} else continue;
 				al_used_keys.add(key);
 			} catch (Exception ea) {
@@ -196,8 +200,13 @@ public abstract class Displayable extends DBObject {
 		this.snapshot = new Snapshot(this);
 
 		// support old versions:
-		if (this.at.isIdentity() && (0 != x || 0 != y)) {
+		if (this.at.isIdentity() && (0 != x || 0 != y || 0 != rot)) {
 			this.at.translate(x, y);
+			if (0 != rot) {
+				AffineTransform at2 = new AffineTransform();
+				at2.rotate(Math.toRadians(rot), x + width/2, y + height/2);
+				this.at.preConcatenate(at2);
+			}
 		}
 		// scaling in old versions will be lost
 	}
@@ -206,19 +215,9 @@ public abstract class Displayable extends DBObject {
 		//Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
 	}
 
-	public void paint(Graphics2D g) {
-		//Utils.log2("paint g: not implemented yet for " + this.getClass());
-		paint(g, 1.0, false, 1, this.layer);
-	}
-
-	public void paint(Graphics g, Layer active_layer) {
-		//Utils.log2("paint g 2: not implemented yet for " + this.getClass());
-		paint((Graphics2D)g);
-	}
-
-	@Deprecated
-	public void paint(Graphics g, double magnification, Rectangle srcRect, Rectangle clipRect, boolean active, int channels, Layer active_layer) {
-		Utils.log2("Deprecated paint method 1 for " + this.getClass());
+	/** If the painting is expensive, children classes can override this method to provide first a coarse painting, and then call repaint on their own again once the desired graphics are ready. */
+	public void prePaint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, magnification, active, channels, active_layer);
 	}
 
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */

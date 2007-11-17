@@ -263,6 +263,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 
 	public void paint(Graphics g) {
 		Graphics2D g2d = (Graphics2D)g;
+		Utils.log2("step 1");
 		synchronized (updating_ob) {
 			while (updating) { try { updating_ob.wait(); } catch (InterruptedException ie) {} }
 			updating = true;
@@ -274,6 +275,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 			updating = false;
 			updating_ob.notifyAll();
 		}
+		Utils.log2("step 2");
 		// paint red rectangle indicating srcRect
 		Rectangle srcRect = display.getCanvas().getSrcRect();
 		g.setColor(Color.red);
@@ -283,6 +285,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		if (gw < 5) gw = 5;
 		if (gh < 5) gh = 5;
 		g.drawRect((int)(srcRect.x * scale) +1, (int)(srcRect.y * scale) +1, gw, gh);
+		Utils.log2("step 3");
 	}
 
 

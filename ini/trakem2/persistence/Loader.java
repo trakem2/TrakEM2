@@ -523,7 +523,7 @@ abstract public class Loader {
 		}
 	}
 
-	public final void releaseToFit(final int width, final int height, final int type, float factor) {
+	public final boolean releaseToFit(final int width, final int height, final int type, float factor) {
 		long bytes = width * height;
 		switch (type) {
 			case ImagePlus.GRAY32:
@@ -539,7 +539,7 @@ abstract public class Loader {
 			default: // times 1
 				break;
 		}
-		releaseToFit((long)(bytes*factor));
+		return releaseToFit((long)(bytes*factor));
 	}
 
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
@@ -777,6 +777,18 @@ abstract public class Loader {
 		return level;
 	}
 
+	/** Returns true if there is a cached awt image for the given mag and Patch id. */
+	public boolean isCached(Patch p, double mag) {
+		return mawts.contains(p.getId(), Loader.getMipMapLevel(mag));
+	}
+
+	public Image getCachedClosestAboveImage(Patch p, double mag) {
+		return mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag));
+	}
+	public Image getCachedClosestBelowImage(Patch p, double mag) {
+		return mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag));
+	}
+
 	public Image fetchImage(Patch p) {
 		return fetchImage(p, 1.0);
 	}
@@ -826,7 +838,7 @@ abstract public class Loader {
 					int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
 					//Utils.log2("closest mipmap level is " + lev);
 					if (0 != lev) {
-						mawt = mawts.getClosest(id, lev);
+						mawt = mawts.getClosestAbove(id, lev);
 						boolean newly_cached = false;
 						if (null == mawt) {
 							// reload existing scaled file
@@ -846,7 +858,7 @@ abstract public class Loader {
 					}
 				}
 				// 4 - check if any suitable level is cached (whithout mipmaps, it may be the large image)
-				mawt = mawts.getClosest(id, level);
+				mawt = mawts.getClosestAbove(id, level);
 				if (null != mawt) {
 					unlock();
 					//Utils.log2("returning from getClosest with level " + level);
@@ -1825,7 +1837,6 @@ abstract public class Loader {
 					final Thread[] threads = MultiThreading.newThreads();
 
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
-						final int si = ithread;
 						threads[ithread] = new Thread(new Runnable() {
 							public void run() {
 					///////////////////////////////
@@ -1911,10 +1922,10 @@ abstract public class Loader {
 		int first_bin = 0;
 		int last_bin = st.nBins -1;
 		for (int b=0; b<st.nBins; b++) {
-			if (st.min + st.binSize * b > min) break;
+			if (st.min + st.binSize * b > min) { first_bin = b; break; }
 		}
 		for (int b=last_bin; b>first_bin; b--) {
-			if (st.max - st.binSize * b <= max) break;
+			if (st.max - st.binSize * b <= max) { last_bin = b; break; }
 		}
 		for (int h=first_bin; h<=last_bin; h++) {
 			nn += st.histogram[h];
@@ -2941,11 +2952,11 @@ abstract public class Loader {
 	}
 
 	/** Throw away all awts and snaps that depend on this image, so that they will be recreated next time they are needed. */
-	public void deCache(final ImagePlus imp) {
+	public void decache(final ImagePlus imp) {
 		synchronized(db_lock) {
 			lock();
 			long[] ids = imps.getAll(imp);
-			Utils.log2("deCaching " + ids.length);
+			Utils.log2("decaching " + ids.length);
 			if (null == ids) return;
 			for (int i=0; i<ids.length; i++) {
 				mawts.remove(ids[i]);
@@ -3272,20 +3283,27 @@ abstract public class Loader {
 				startedWorking();
 				final Worker wo = this;
 				try {
-					
+
 					///////// Multithreading ///////
 					final AtomicInteger ai = new AtomicInteger(0);
-					final Thread[] threads = MultiThreading.newThreads();
+					final Thread[] threads = new Thread[1]; // MultiThreading.newThreads();
+
+					// USING one single thread, for the locking is so bad, to access
+					//  the imps and to releaseToFit, that it's not worth it: same images
+					//  are being reloaded many times just because they all don't fit in
+					//  at the same time.
 
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
-						final int si = ithread;
 						threads[ithread] = new Thread(new Runnable() {
 							public void run() {
 					///////////////////////////////
 
 					// when quited, rollback() and Display.repaint(layer)
 					for (int i = ai.getAndIncrement(); i < la.length; i = ai.getAndIncrement()) {
-						if (wo.hasQuitted()) return;
+						if (wo.hasQuitted()) {
+							break;
+						}
+						setTaskName("Homogenizing contrast for layer " + (i+1) + " of " + la.length);
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
@@ -3294,13 +3312,17 @@ abstract public class Loader {
 						}
 					}
 
-
-					/////////////////////////   - where are my lisp macros .. and no, mapping a function with reflection is not elegant, but a verbosity and constriction attack
+					/////////////////////////   - where are my lisp macros .. and no, mapping a function with reflection is not elegant, but rather a verbosity and constriction attack
 							}
 						});
 					}
 					MultiThreading.startAndJoin(threads);
 					/////////////////////////
+
+					if (wo.hasQuitted()) {
+						rollback();
+						for (int i=0; i<la.length; i++) Display.repaint(la[i]);
+					}
 
 				} catch (Exception e) {
 					new IJError(e);
@@ -3309,6 +3331,27 @@ abstract public class Loader {
 			}
 		};
 		Bureaucrat burro = new Bureaucrat(worker, la[0].getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al) {
+		if (null == al || al.size() < 2) return null;
+		final Patch[] pa = new Patch[al.size()];
+		al.toArray(pa);
+		Worker worker = new Worker("Homogenizing contrast") {
+			public void run() {
+				startedWorking();
+				final Worker wo = this;
+				try {
+					homogenizeContrast(pa[0].getLayer(), pa);
+				} catch (Exception e) {
+					new IJError(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, pa[0].getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -3425,31 +3468,35 @@ abstract public class Loader {
 			}
 			// 5 - compute common mean within min,max range
 			double target_mean = getMeanOfRange(stats, min, max);
-			Utils.log2("Loader min,max: " + min + ", " + max + ",   target mean: " + target_mean);
+			//Utils.log2("Loader min,max: " + min + ", " + max + ",   target mean: " + target_mean + "\nApplying to " + al_p2.size() + " images.");
 			// 6 - apply to all
 			for (i=al_p2.size()-1; i>-1; i--) {
 				Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
 				double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
 				p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-				p.putMinAndMax(fetchImagePlus(p, false));
+				ImagePlus imp = imps.get(p.getId());
+				if (null != imp) p.putMinAndMax(imp);
+				// else, it will be put when reloading the file
 			}
-
-			// 7 - flush away any existing awt images, so that they'll be recreated with the new min and max
+			// 7 - recreate mipmap files
+			if (isMipMapsEnabled()) {
+				ArrayList al = new ArrayList();
+				for (int k=0; k<pa.length; k++) al.add(pa[k]);
+				Thread task = generateMipMaps(al);
+				task.join();
+				// not threaded:
+				//for (int k=0; k<pa.length; k++) generateMipMaps(pa[k]);
+			}
+			// 8 - flush away any existing awt images, so that they'll be reloaded or recreated
 			synchronized (db_lock) {
 				lock();
 				for (i=0; i<pa.length; i++) {
 					mawts.removeAndFlush(pa[i].getId());
-					Utils.log2(i + "removing mawt for " + pa[i].getId());
+					Utils.log2(i + " removing mawt for " + pa[i].getId());
 				}
 				unlock();
 			}
-			// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more tha once for a few tiles
-			if (isMipMapsEnabled()) {
-				// recreate files
-				ArrayList al = new ArrayList();
-				for (int k=0; k<pa.length; k++) al.add(pa[k]);
-				generateMipMaps(al);
-			}
+			// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more than once for a few tiles
 			if (null != layer) Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 		} catch (Exception e) {
 			new IJError(e);

@@ -1602,7 +1602,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// select the proper tab, and scroll to visible
 			selectTab(displ);
 			canvas.setUpdateGraphics(true); // remake offscreen images
-			repaint(displ, 5);
+			repaint(displ, 5); // to show the border
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
@@ -1616,7 +1616,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	private void selectTab(Displayable displ) {
 		try {
 			Object ob_tab = ht_tabs.get(displ.getClass());
-			if (null == ob_tab || !tabs.getSelectedComponent().equals(ob_tab)) return;
+			if (null == ob_tab /*|| !tabs.getSelectedComponent().equals(ob_tab)*/) return; // disabled the "select only if the corresponding tab is visible" switch
 			if (!(displ instanceof LayerSet)) {
 				Method method = getClass().getDeclaredMethod("selectTab", new Class[]{displ.getClass()});
 				method.invoke(this, new Object[]{displ});
@@ -1792,6 +1792,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			return popup;
 		}
 
+
+		JMenu adjust_menu = new JMenu("Adjust");
+
 		if (null != active) {
 			if (!canvas.isTransforming()) {
 				if (active instanceof Profile) {
@@ -1910,6 +1913,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				item = new JMenuItem("Properties...");    item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Show centered"); item.addActionListener(this); popup.add(item);
 
+				popup.addSeparator();
+
 				if (! (active instanceof ZDisplayable)) {
 					ArrayList al_layers = layer.getParent().getLayers();
 					int i_layer = al_layers.indexOf(layer);
@@ -1921,6 +1926,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					item = new JMenuItem("Send to next layer"); item.addActionListener(this); popup.add(item);
 					if (1 == n_layers || n_layers -1 == i_layer || active.isLinked()) item.setEnabled(false);
 					else if (active instanceof Profile && !active.canSendTo(layer.getParent().next(layer))) item.setEnabled(false);
+
+
 					menu = new JMenu("Send linked group to...");
 					if (active.hasLinkedGroupWithinLayer(this.layer)) {
 						int i = 1;
@@ -1936,10 +1943,19 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						//Utils.log("Active's linked group not within layer.");
 					}
 					popup.add(menu);
+
+
+					item = new JMenuItem("Homogenize contrast (selected images)"); item.addActionListener(this); adjust_menu.add(item);
+					if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
+
 				}
-				popup.addSeparator();
 			}
 		}
+
+		popup.addSeparator();
+		item = new JMenuItem("Homogenize contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+		popup.add(adjust_menu);
+		popup.addSeparator();
 
 		if (!canvas.isTransforming()) {
 			try {
@@ -2754,6 +2770,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Snap")) {
 			if (!(active instanceof Patch)) return;
 			canvas.snap(getActive());
+		} else if (command.equals("Homogenize contrast (selected images)")) {
+			ArrayList al = selection.getSelected(Patch.class);
+			if (al.size() < 2) return;
+			getProject().getLoader().homogenizeContrast(al);
+		} else if (command.equals("Homogenize contrast layer-wise...")) {
+			// ask for range of layers
+			final GenericDialog gd = new GenericDialog("Choose range");
+			Utils.addLayerRangeChoices(this.layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			java.util.List list = layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1); // exclusive end
+			Layer[] la = new Layer[list.size()];
+			list.toArray(la);
+			project.getLoader().homogenizeContrast(la);
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
@@ -2891,12 +2921,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//}
 		// the above is overkill. Instead:
 		if (updated instanceof PatchStack) {
-			((PatchStack)updated).deCacheAll();
+			((PatchStack)updated).decacheAll();
 		}
 
 		// detect LUT changes: DONE at PatchStack, which is the active (virtual) image
-		//Utils.log2("calling deCache for " + updated);
-		//getProject().getLoader().deCache(updated);
+		//Utils.log2("calling decache for " + updated);
+		//getProject().getLoader().decache(updated);
 
 		//Utils.log2("imageUpdated: updated imp is " + updated.getTitle() + "\n\t and is last_temp: " + updated.equals(last_temp) + "\n\t and changes=" + updated.changes + " and class: " + updated.getClass());
 	}

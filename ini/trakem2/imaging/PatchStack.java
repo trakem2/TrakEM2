@@ -197,7 +197,7 @@ public class PatchStack extends ImagePlus {
 				patch[i].getSnapshot().remake(); // will cache the new snap and thus flush the old
 				*/
 				// just flush away all dependent images, will be recreated when needed on repaint
-				patch[i].getProject().getLoader().deCache(imp);
+				patch[i].getProject().getLoader().decache(imp);
 				Display.repaint(patch[i].getLayer(), patch[i], 0);
 				// reset
 				imp.changes = false;
@@ -393,8 +393,11 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public int getType() {
+		/*
 		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
 		return imp.getType();
+		*/
+		return patch[currentSlice-1].getType();
 	}
 
 	public int getBitDepth() {
@@ -603,6 +606,7 @@ public class PatchStack extends ImagePlus {
 
 	public synchronized void flush() {
 		// flush extra awts created if any
+		/* // this is not useful: it is creating images by calling getImage, and incurring in imp loading with fetchImagePlus
 		Loader loader = patch[0].getProject().getLoader();
 		for (int i=0; i<patch.length; i++) {
 			if (null == patch[i]) continue; // when closing from the Patch.remove(boolean() if isStack() ? TODO investigate
@@ -613,6 +617,7 @@ public class PatchStack extends ImagePlus {
 			// note 20070405: getImage() should always return null
 			if (imp.getStackSize() > 1) return; // done, for real stacks
 		}
+		*/
 	}
 
 	public Calibration getCalibration() {
@@ -654,14 +659,14 @@ public class PatchStack extends ImagePlus {
 	}
 
 	/** Remove all awts and snaps from the loader's cache, and repaint (which will remake as many as needed) */
-	public void deCacheAll() {
+	public void decacheAll() {
 		final HashSet hs = new HashSet(); // record already flushed imps, since there can be shared imps among Patch instances (for example in stacks)
 		final Loader loader = patch[currentSlice-1].getProject().getLoader();
 		for (int i=0; i<patch.length; i++) {
 			ImagePlus imp = loader.fetchImagePlus(patch[i]);
 			if (hs.contains(imp)) continue;
 			else if (null != imp) hs.add(imp);
-			loader.deCache(imp);
+			loader.decache(imp);
 			loader.flushMipMaps(patch[i].getId());
 			Display.repaint(patch[i].getLayer(), patch[i], 0);
 		}

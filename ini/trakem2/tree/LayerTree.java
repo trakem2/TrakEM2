@@ -145,7 +145,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 			// create a new Display
 			LayerThing thing = (LayerThing)selected_node.getUserObject();
 			DBObject ob = (DBObject)thing.getObject();
-			if (thing.getType().toLowerCase().equals("layer_set") && null == ((LayerSet)ob).getParent()) { // the top level LayerSet
+			if (thing.getType().toLowerCase().replace('_', ' ').equals("layer set") && null == ((LayerSet)ob).getParent()) { // the top level LayerSet
 				return;
 			}
 			new Display(ob.getProject(), thing.getType().toLowerCase().equals("layer") ? (Layer)ob : ((LayerSet)ob).getParent());

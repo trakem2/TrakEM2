@@ -306,8 +306,6 @@ public class FSLoader extends Loader {
 					}
 					imp = openImage(path);
 					preProcess(imp);
-					//Utils.log2("opened " + path);
-					//Utils.printCaller(this, 10);
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 						unlock();
@@ -335,15 +333,6 @@ public class FSLoader extends Loader {
 								imps.put(pa.getId(), imp);
 								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
 								pa.putMinAndMax(imp);
-								/* // old
-								if (create_snap) {
-									unlock();
-									Image awt = pa.createImage(imp); // will call cacheAWT
-									lock();
-									snaps.put(pa.getId(), Snapshot.createSnap(pa, awt, Snapshot.SCALE));
-									Display.repaintSnapshot(pa);
-								}
-								*/
 							}
 						}
 						// set proper active slice
@@ -354,18 +343,6 @@ public class FSLoader extends Loader {
 							// puts the Patch min and max values into the ImagePlus processor.
 						imps.put(p.getId(), imp);
 					}
-					// need to create the snapshot
-					//Utils.log2("create_snap: " + create_snap + ", " + slice);
-					/* // old
-					if (create_snap && null == slice) {
-						unlock();
-						Image awt = p.createImage(imp);
-						lock();
-						//The line below done at p.createImage() because it calls cacheAWT
-						//awts.put(p.getId(), awt);
-						snaps.put(p.getId(), Snapshot.createSnap(p, awt, Snapshot.SCALE)); //awt.getScaledInstance((int)Math.ceil(p.getWidth() * Snapshot.SCALE), (int)Math.ceil(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD));
-					}
-					*/
 				}
 			} catch (Exception e) {
 				new IJError(e);
@@ -418,8 +395,6 @@ public class FSLoader extends Loader {
 					}
 					imp = openImage(path);
 					preProcess(imp);
-					//Utils.log2("opened " + path);
-					//Utils.printCaller(this, 10);
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 						unlock();
@@ -445,15 +420,6 @@ public class FSLoader extends Loader {
 								imps.put(pa.getId(), imp);
 								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
 								pa.putMinAndMax(imp);
-								/* // old
-								if (create_snap) {
-									unlock();
-									Image awt = pa.createImage(imp); // will call cacheAWT
-									lock();
-									snaps.put(pa.getId(), Snapshot.createSnap(pa, awt, Snapshot.SCALE));
-									Display.repaintSnapshot(pa);
-								}
-								*/
 							}
 						}
 						// set proper active slice
@@ -467,18 +433,6 @@ public class FSLoader extends Loader {
 						imps.put(p.getId(), imp);
 						ip = imp.getProcessor();
 					}
-					// need to create the snapshot
-					//Utils.log2("create_snap: " + create_snap + ", " + slice);
-					/* // old
-					if (create_snap && null == slice) {
-						unlock();
-						Image awt = p.createImage(imp);
-						lock();
-						//The line below done at p.createImage() because it calls cacheAWT
-						//awts.put(p.getId(), awt);
-						snaps.put(p.getId(), Snapshot.createSnap(p, awt, Snapshot.SCALE)); //awt.getScaledInstance((int)Math.ceil(p.getWidth() * Snapshot.SCALE), (int)Math.ceil(p.getHeight() * Snapshot.SCALE), Snapshot.SCALE_METHOD));
-					}
-					*/
 				}
 
 			} catch (Exception e) {
@@ -979,20 +933,32 @@ public class FSLoader extends Loader {
 	 * Any equally named files will be overwritten.
 	 */
 	public boolean generateMipMaps(final Patch patch) {
+		//Utils.log2("mipmaps for " + patch);
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		if (null == dir_mipmaps) return false;
-		final ImageProcessor ip = fetchImageProcessor(patch);
-		final String filename = new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
-		int w = ip.getWidth();
-		int h = ip.getHeight();
-		// sigma = sqrt(2^level - 0.5^2)
-		//    where 0.5 is the estimated sigma for a full-scale image
-		//  which means sigma = 0.75 for the full-scale image (has level 0)
-		// prepare a 0.75 sigma image from the original
-		final ColorModel cm = ip.getColorModel();
-		int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
-		           //   but since we scale 50% relative the previous, it's always 0.75
+		synchronized (gm_lock) {
+			gm_lock();
+			if (hs_regenerating_mipmaps.contains(patch)) {
+				// already being done
+				gm_unlock();
+				return false;
+			}
+			hs_regenerating_mipmaps.add(patch);
+			gm_unlock();
+		}
+		boolean ok = true;
 		try {
+			final ImageProcessor ip = fetchImageProcessor(patch);
+			final String filename = new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
+			int w = ip.getWidth();
+			int h = ip.getHeight();
+			// sigma = sqrt(2^level - 0.5^2)
+			//    where 0.5 is the estimated sigma for a full-scale image
+			//  which means sigma = 0.75 for the full-scale image (has level 0)
+			// prepare a 0.75 sigma image from the original
+			final ColorModel cm = ip.getColorModel();
+			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
+				   //   but since we scale 50% relative the previous, it's always 0.75
 			if (ImagePlus.COLOR_RGB == patch.getType()) {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
@@ -1048,15 +1014,20 @@ public class FSLoader extends Loader {
 					// 5 - save as 8-bit jpeg
 					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range
 					ip2.setMinAndMax(patch.getMin(), patch.getMax());
-					ip2.setColorModel(cm);
+					ip2.setColorModel(cm); // the LUT
 					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f);
 				}
 			}
 		} catch (Exception e) {
 			new IJError(e);
-			return false;
+			ok = false; //can't return, need to unlock Patch first
 		}
-		return true;
+		synchronized (gm_lock) {
+			gm_lock();
+			hs_regenerating_mipmaps.remove(patch);
+			gm_unlock();
+		}
+		return ok;
 	}
 
 	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.*/
@@ -1087,7 +1058,7 @@ public class FSLoader extends Loader {
 					if (wo.hasQuitted()) {
 						return;
 					}
-					wo.setTaskName("Generating MipMaps " + k + "/" + size);
+					wo.setTaskName("Generating MipMaps " + (k+1) + "/" + size);
 					try {
 						if ( ! generateMipMaps(pa[k]) ) {
 							// some error ocurred
@@ -1288,6 +1259,19 @@ public class FSLoader extends Loader {
 
 	/** A temporary list of Patch instances for which a pyramid is being generated. */
 	final private HashSet hs_regenerating_mipmaps = new HashSet();
+	/** A lock for the generation of mipmaps. */
+	final private Object gm_lock = new Object();
+	private boolean gm_locked = false;
+	protected final void gm_lock() {
+		while (gm_locked) { try { gm_lock.wait(); } catch (InterruptedException ie) {} }
+		gm_locked = true;
+	}
+	protected final void gm_unlock() {
+		if (gm_locked) {
+			gm_locked = false;
+			gm_lock.notifyAll();
+		}
+	}
 
 	/** Loads the file containing the scaled image corresponding to the given level and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
@@ -1306,29 +1290,10 @@ public class FSLoader extends Loader {
 					public void run() {
 						this.setAsBackground(true);
 						this.startedWorking();
-						synchronized (db_lock) {
-							lock();
-							if (hs_regenerating_mipmaps.contains(patch)) {
-								// already being done, just wait
-								this.quit();
-								unlock();
-								return;
-							}
-							hs_regenerating_mipmaps.add(patch);
-							unlock();
-						}
-
-
-						try { 
+						try {
 							generateMipMaps(patch);
 						} catch (Exception e) {
 							new IJError(e);
-						}
-
-						synchronized (db_lock) {
-							lock();
-							hs_regenerating_mipmaps.remove(patch);
-							unlock();
 						}
 
 						Display.repaint(patch.getLayer(), patch, 0);

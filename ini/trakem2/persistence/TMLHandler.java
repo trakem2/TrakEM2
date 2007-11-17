@@ -197,10 +197,14 @@ public class TMLHandler extends DefaultHandler {
 		return new Object[]{root_tt, root_pt, root_lt, ht_pt_expanded};
 	}
 
+	private int counter = 0;
+
 	public void startElement(String namespace_URI, String local_name, String qualified_name, Attributes attributes) throws SAXException {
 		if (null == loader) return;
 
 		//Utils.log2("startElement: " + qualified_name);
+		this.counter++;
+		Utils.showStatus("Loading " + counter, false);
 
 		try {
 			// failsafe:
