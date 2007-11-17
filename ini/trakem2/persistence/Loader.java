@@ -495,16 +495,17 @@ abstract public class Loader {
 		if (64 == bits) return 0.68f; // 64-bit JVM
 		return 0.80f; // 32-bit JVM
 	}
+
 	/** Really available maximum memory, in bytes.
 	 *  By try and error I have found out that, at least in Linux:
-	 *  * 64-bit systems have a real maximum of 68% of the Xmx maximum heap memory value.
+	 *  * 64-bit systems have a real maximum of 68% of the Xmx maximum heap memory value, unless the aggressive heap option is used (but then the system is unreliable).
 	 *  * 32-bit systems have about 80% of the Xmx.
 	 */
-	static public final long MAX_MEMORY = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
-	
+	static protected long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
+
 	/** Measure wether there is at least 20% of available memory. */
 	protected boolean enoughFreeMemory() {
-		final long mem_in_use = (IJ.currentMemory() * 100) / MAX_MEMORY; // IJ.maxMemory();
+		final long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
 		if (mem_in_use < 80L) { // 80 % // this 100-20 could very well be the actual lost-in-hyperspace memory, which may be 20% for 32-bit and 32% in 64-bit systems
 			return true;
 		}
@@ -516,7 +517,7 @@ abstract public class Loader {
 		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
 		final long mem_in_use = IJ.currentMemory(); // in bytes
 		//Utils.log("max_memory: " + max_memory + "  mem_in_use: " + mem_in_use);
-		if (bytes < MAX_MEMORY - mem_in_use) {
+		if (bytes < max_memory - mem_in_use) {
 			return true;
 		} else {
 			return false;
@@ -545,12 +546,12 @@ abstract public class Loader {
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
 	public final boolean releaseToFit(long bytes) {
 		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
-		if (bytes > MAX_MEMORY) {
+		if (bytes > max_memory) {
 			Utils.showMessage("Can't fit " + bytes + " bytes in memory.");
 			return false;
 		}
 		boolean previous = massive_mode;
-		if (bytes > MAX_MEMORY / 4) setMassiveMode(true);
+		if (bytes > max_memory / 4) setMassiveMode(true);
 		int iterations = 30;
 		boolean result = true;
 		synchronized (db_lock) {
@@ -601,7 +602,7 @@ abstract public class Loader {
 	}
 
 	/** The minimal number of memory bytes that should always be free. */
-	public static final long MIN_FREE_BYTES = (long)(MAX_MEMORY * 0.2f);
+	public static final long MIN_FREE_BYTES = (long)(max_memory * 0.2f);
 
 	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
 	protected final void releaseMemory() {
@@ -3140,7 +3141,7 @@ abstract public class Loader {
 	}
 
 	public final void printMemState() {
-		Utils.log2(new StringBuffer("mem in use: ").append((IJ.currentMemory() * 100.0f) / MAX_MEMORY).append('%')
+		Utils.log2(new StringBuffer("mem in use: ").append((IJ.currentMemory() * 100.0f) / max_memory).append('%')
 		                    .append("\n\timps: ").append(imps.size())
 				    .append("\n\tmawts: ").append(mawts.size())
 			   .toString());

@@ -2667,7 +2667,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				Utils.showMessage("There are locked objects.");
 				return;
 			}
-			Utils.log2("step 1");
 			layer.getParent().startAlign(this);
 			layer.getParent().applyAlign(la_start, la_end, selection);
 		} else if (command.equals("Align stack slices")) {

@@ -258,6 +258,30 @@ public class FSLoader extends Loader {
 		return null;
 	}
 
+	/** Compute the number of bytes that the ImagePlus of a Patch will take. Assumes a large header of 1024 bytes. If the image is saved as jpeg the returned bytes will be incorrect, because a jpeg is always opened as a ColorProcessor and then transformed to 8-bit if all color channels are the same. */
+	private final long getMemorySize(final Patch p) {
+		long size = (long)(p.getWidth() * p.getHeight());
+		int bytes_per_pixel = 1;
+		switch (p.getType()) {
+			case ImagePlus.GRAY32:
+				bytes_per_pixel = 5; // 4 for the FloatProcessor, and 1 for the pixels8 to make an image
+				break;
+			case ImagePlus.GRAY16:
+				bytes_per_pixel = 3; // 2 for the ShortProcessor, and 1 for the pixels8
+			case ImagePlus.COLOR_RGB:
+				bytes_per_pixel = 4;
+				break;
+			case ImagePlus.GRAY8:
+			case ImagePlus.COLOR_256:
+				bytes_per_pixel = 1;
+				break;
+			default:
+				bytes_per_pixel = 5; // conservative
+				break;
+		}
+		return size * bytes_per_pixel + 1024;
+	}
+
 	public ImagePlus fetchImagePlus(Patch p) {
 		return fetchImagePlus(p, true);
 	}
@@ -269,7 +293,7 @@ public class FSLoader extends Loader {
 			String slice = null;
 			String path = null;
 			try {
-				path = getAbsolutePath(p);
+				path = getAbsolutePath(p); // this query could be very expensive if the hashtable is simply gigantic. Needs profiling.
 				int i_sl = -1;
 				if (null != path) i_sl = path.lastIndexOf("-----#slice=");
 				if (-1 != i_sl) {
@@ -304,7 +328,16 @@ public class FSLoader extends Loader {
 						// set path proper
 						path = path.substring(0, i_sl);
 					}
+
+					// Decouple the loading of the image from the lock
+					// but ensuring no memory availability problems
+					long n_bytes = getMemorySize(p);
+					max_memory -= n_bytes;
+					unlock();
 					imp = openImage(path);
+					lock();
+					max_memory += n_bytes;
+
 					preProcess(imp);
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
@@ -393,7 +426,16 @@ public class FSLoader extends Loader {
 						// set path proper
 						path = path.substring(0, i_sl);
 					}
+
+					// Decouple the loading of the image from the lock
+					// but ensuring no memory availability problems
+					long n_bytes = getMemorySize(p);
+					max_memory -= n_bytes;
+					unlock();
 					imp = openImage(path);
+					lock();
+					max_memory += n_bytes;
+
 					preProcess(imp);
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
