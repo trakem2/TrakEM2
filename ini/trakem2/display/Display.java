@@ -744,14 +744,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		else hs_panels.clear();
 		Iterator it = layer.getDisplayables().iterator();
 		while (it.hasNext()) {
-			add((Displayable)it.next(), false);
+			add((Displayable)it.next(), false, false);
 		}
 		// update the current Layer pointer in ZDisplayable objects
 		it = layer.getParent().getZDisplayables().iterator(); // the pipe and ball objects, that live in the LayerSet
 		while (it.hasNext()) {
 			ZDisplayable zd = (ZDisplayable)it.next();
 			zd.setLayer(layer); // the active layer
-			add(zd, false);
+			add(zd, false, false);
 		}
 		// see if a lot has to be reloaded, put the relevant ones at the end
 		project.getLoader().prepare(layer);
@@ -806,12 +806,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		else hs_panels.clear();
 		Iterator it = layer.getDisplayables().iterator();
 		while (it.hasNext()) {
-			add((Displayable)it.next(), false);
+			add((Displayable)it.next(), false, false);
 		}
 		it = layer.getParent().getZDisplayables().iterator(); // the pipes, that live in the LayerSet
 		while (it.hasNext()) {
-			add((Displayable)it.next(), false);
+			add((Displayable)it.next(), false, false);
 		}
+		navigator.repaint(true); // was not done when adding
 		updateComponent(tabs.getSelectedComponent());
 		// swing issues:
 		new Thread() {
@@ -1123,10 +1124,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display d = (Display)it.next();
 			if (d.layer.equals(layer)) {
 				if (front == d) {
-					d.add(displ, activate);
+					d.add(displ, activate, true);
 					front.frame.toFront();
 				} else {
-					d.add(displ, false);
+					d.add(displ, false, true);
 				}
 			}
 		}
@@ -1143,17 +1144,17 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display d = (Display)it.next();
 			if (set.contains(d.layer)) {
 				if (front == d) {
-					d.add(zdispl, true); // calling add(Displayable, boolean)
+					d.add(zdispl, true, true); // calling add(Displayable, boolean)
 					front.frame.toFront();
 				} else {
-					d.add(zdispl, false);
+					d.add(zdispl, false, true);
 				}
 			}
 		}
 	}
 
 	/** Add it to the proper panel, at the top, and set it active. */
-	private void add(Displayable d, boolean activate) {
+	private void add(Displayable d, boolean activate, boolean repaint_snapshot) {
 		DisplayablePanel dp = (DisplayablePanel)hs_panels.get(d);
 		if (null != dp) { // for ZDisplayable objects (TODO I think this is not used anymore)
 			dp.setActive(true);
@@ -1185,7 +1186,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			selection.clear();
 			selection.add(d);
 		}
-		navigator.repaint(true);
+		if (repaint_snapshot) navigator.repaint(true);
 	}
 
 	private void addToPanel(JPanel panel, int index, DisplayablePanel dp, boolean repaint) {
@@ -1244,7 +1245,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		selection.remove(displ); //if (displ == active) setActive(null);
 		layer.getParent().removeFromUndo(displ);
-		repaint(displ, 5);
+		repaint(displ, 5, true);
 	}
 
 	static public void remove(ZDisplayable zdispl) {
@@ -1260,47 +1261,52 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		repaint(layer, displ, null, extra);
 	}
 
-	/** Find the displays that show the given Layer, and repaint the given Displayable. */
 	static public void repaint(Layer layer, Displayable displ, Rectangle r, int extra) {
+		repaint(layer, displ, r, extra, true);
+	}
+
+	/** Find the displays that show the given Layer, and repaint the given Displayable. */
+	static public void repaint(Layer layer, Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
 		Iterator it = al_displays.iterator();
 		while (it.hasNext()) {
 			Display d = (Display)it.next();
 			if (layer.equals(d.layer)) {
-				if (null == r) d.repaint(displ, extra);
-				else d.repaint(displ, r, extra);
-				d.navigator.repaint(true); // everything
+				if (null == r) d.repaint(displ, extra, repaint_navigator);
+				else d.repaint(displ, r, extra, repaint_navigator);
 			}
 		}
 	}
 	/** Repaint as much as the bounding box around the given Displayable. */
-	private void repaint(Displayable displ, int extra) {
+	private void repaint(Displayable displ, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
 		if (!displ.equals(active)) canvas.setUpdateGraphics(true);
-		navigator.repaint(true); // everything
+		if (repaint_navigator) navigator.repaint(true); // everything
 		canvas.repaint(displ, extra);
 		DisplayablePanel dp = (DisplayablePanel)hs_panels.get(displ);
 		if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 	}
 
 	/** Repaint as much as the bounding box around the given Displayable. */
-	private void repaint(Displayable displ, Rectangle r, int extra) {
+	private void repaint(Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
 		if (!displ.equals(active)) canvas.setUpdateGraphics(true);
-		navigator.repaint(true); // everything
+		if (repaint_navigator) navigator.repaint(true); // everything
 		canvas.repaint(r, extra);
 		DisplayablePanel dp = (DisplayablePanel)hs_panels.get(displ);
 		if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 	}
 
-	/** Repaint the snapshot for the given Displayable both at the DisplayNavigator and on its panel. */
+	/** Repaint the snapshot for the given Displayable both at the DisplayNavigator and on its panel,and only if it has not been painted before. This method is intended for the loader to know when to paint a snap, to avoid overhead. */
 	static public void repaintSnapshot(Displayable displ) {
 		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
 			Display d = (Display)it.next();
 			if (d.layer.contains(displ)) {
-				DisplayablePanel dp = (DisplayablePanel)d.hs_panels.get(displ);
-				if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
-				d.navigator.repaint(displ);
+				if (!d.navigator.isPainted(displ)) {
+					DisplayablePanel dp = (DisplayablePanel)d.hs_panels.get(displ);
+					if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
+					d.navigator.repaint(displ);
+				}
 			}
 		}
 	}
@@ -1602,7 +1608,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// select the proper tab, and scroll to visible
 			selectTab(displ);
 			canvas.setUpdateGraphics(true); // remake offscreen images
-			repaint(displ, 5); // to show the border
+			repaint(displ, 5, false); // to show the border
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
@@ -2667,7 +2673,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				Utils.showMessage("There are locked objects.");
 				return;
 			}
-			Utils.log2("step 1");
 			layer.getParent().startAlign(this);
 			layer.getParent().applyAlign(la_start, la_end, selection);
 		} else if (command.equals("Align stack slices")) {

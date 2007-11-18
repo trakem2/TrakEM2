@@ -196,6 +196,8 @@ abstract public class Loader {
 			}
 		}.start();
 		*/
+
+		Utils.log2("MAX_MEMORY: " + max_memory);
 	}
 
 	/** When the loader has completed its initialization, it should return true on this method. */
@@ -390,23 +392,6 @@ abstract public class Loader {
 				if (null == imps.get(id)) { // the 'get' call already puts it at the end if there.
 					imps.put(id, imp);
 				}
-				/* // DEPRECATED
-				if (!massive_mode) { // don't if loading lots of images
-					if (null == awts.get(id)) {
-						unlock();
-						Image awt = p.createImage();
-						lock();
-						awts.put(id, awt);  // with adjusted channels. Will flush the Image if it existed and was different
-					}
-					if (null == snaps.get(id) && null != d.getLayer()) {
-						final Image image = awts.get(id);
-						unlock();
-						final Image snap = Snapshot.createSnap(p, image, Snapshot.SCALE);
-						lock();
-						snaps.put(id, snap);
-					}
-				}
-				*/
 			} else {
 				Utils.log("Loader.cache: don't know how to cache: " + d);
 			}
@@ -495,16 +480,17 @@ abstract public class Loader {
 		if (64 == bits) return 0.68f; // 64-bit JVM
 		return 0.80f; // 32-bit JVM
 	}
+
 	/** Really available maximum memory, in bytes.
 	 *  By try and error I have found out that, at least in Linux:
-	 *  * 64-bit systems have a real maximum of 68% of the Xmx maximum heap memory value.
+	 *  * 64-bit systems have a real maximum of 68% of the Xmx maximum heap memory value, unless the aggressive heap option is used (but then the system is unreliable).
 	 *  * 32-bit systems have about 80% of the Xmx.
 	 */
-	static public final long MAX_MEMORY = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
-	
+	static protected long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
+
 	/** Measure wether there is at least 20% of available memory. */
 	protected boolean enoughFreeMemory() {
-		final long mem_in_use = (IJ.currentMemory() * 100) / MAX_MEMORY; // IJ.maxMemory();
+		final long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
 		if (mem_in_use < 80L) { // 80 % // this 100-20 could very well be the actual lost-in-hyperspace memory, which may be 20% for 32-bit and 32% in 64-bit systems
 			return true;
 		}
@@ -516,7 +502,7 @@ abstract public class Loader {
 		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
 		final long mem_in_use = IJ.currentMemory(); // in bytes
 		//Utils.log("max_memory: " + max_memory + "  mem_in_use: " + mem_in_use);
-		if (bytes < MAX_MEMORY - mem_in_use) {
+		if (bytes < max_memory - mem_in_use) {
 			return true;
 		} else {
 			return false;
@@ -545,12 +531,12 @@ abstract public class Loader {
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
 	public final boolean releaseToFit(long bytes) {
 		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
-		if (bytes > MAX_MEMORY) {
+		if (bytes > max_memory) {
 			Utils.showMessage("Can't fit " + bytes + " bytes in memory.");
 			return false;
 		}
 		boolean previous = massive_mode;
-		if (bytes > MAX_MEMORY / 4) setMassiveMode(true);
+		if (bytes > max_memory / 4) setMassiveMode(true);
 		int iterations = 30;
 		boolean result = true;
 		synchronized (db_lock) {
@@ -601,7 +587,7 @@ abstract public class Loader {
 	}
 
 	/** The minimal number of memory bytes that should always be free. */
-	public static final long MIN_FREE_BYTES = (long)(MAX_MEMORY * 0.2f);
+	public static final long MIN_FREE_BYTES = (long)(max_memory * 0.2f);
 
 	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
 	protected final void releaseMemory() {
@@ -783,10 +769,45 @@ abstract public class Loader {
 	}
 
 	public Image getCachedClosestAboveImage(Patch p, double mag) {
-		return mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag));
+		Image awt = null;
+		synchronized (db_lock) {
+			lock();
+			awt = mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag));
+			unlock();
+		}
+		return awt;
 	}
+
 	public Image getCachedClosestBelowImage(Patch p, double mag) {
-		return mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag));
+		Image awt = null;
+		synchronized (db_lock) {
+			lock();
+			awt = mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag));
+			unlock();
+		}
+		return awt;
+	}
+
+	protected class PatchLoadingLock {
+		String key;
+		boolean loading = false;
+		PatchLoadingLock(String key) { this.key = key; }
+	}
+
+	private Hashtable ht_plocks = new Hashtable();
+
+	protected PatchLoadingLock getOrMakePatchLoadingLock(final Patch p, final int level) {
+		final String key = p.getId() + "." + level;
+		Object ob = ht_plocks.get(key);
+		if (null != ob) {
+			return (PatchLoadingLock)ob;
+		}
+		PatchLoadingLock pl = new PatchLoadingLock(key);
+		ht_plocks.put(key, pl);
+		return pl;
+	}
+	protected void removePatchLoadingLock(PatchLoadingLock pl) {
+		ht_plocks.remove(pl.key);
 	}
 
 	public Image fetchImage(Patch p) {
@@ -798,6 +819,8 @@ abstract public class Loader {
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 */
 	public Image fetchImage(final Patch p, double mag) {
+		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus callong lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
+
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag);
 
@@ -806,15 +829,18 @@ abstract public class Loader {
 		// SLOW, very slow ...
 
 		// find an equal or larger existing pyramid awt
+		Image mawt = null;
+		final long id = p.getId();
+		long n_bytes = 0;
+		PatchLoadingLock plock = null;
+
 		synchronized (db_lock) {
 			lock();
-			Image mawt = null;
 			try {
 				if (null == mawts) {
 					unlock();
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
-				final long id = p.getId();
 				if (level > 0 && isMipMapsEnabled()) {
 					// 1 - check if the exact level is cached
 					mawt = mawts.get(id, level);
@@ -825,38 +851,91 @@ abstract public class Loader {
 					}
 					//
 					releaseMemory();
-					// 2 - check if the exact file is present for the desired level
-					if (level > 0) mawt = fetchMipMapAWT(p, level);
-					if (null != mawt) {
-						mawts.put(id, mawt, level);
-						unlock();
-						//Utils.log2("returning exact mawt from file for level " + level);
-						Display.repaintSnapshot(p);
-						return mawt;
-					}
-					// 3 - else, load closest level to it but still giving a larger image
-					int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
-					//Utils.log2("closest mipmap level is " + lev);
-					if (0 != lev) {
-						mawt = mawts.getClosestAbove(id, lev);
-						boolean newly_cached = false;
-						if (null == mawt) {
-							// reload existing scaled file
-							mawt = fetchMipMapAWT(p, lev);
-							if (null != mawt) {
-								mawts.put(id, mawt, lev);
-								newly_cached = true; // means: cached was false, now it is
-							}
-						}
-						//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
+					plock = getOrMakePatchLoadingLock(p, level);
+				}
+				unlock();
+			} catch (Exception e) {
+				new IJError(e);
+			}
+		}
+
+		// 2 - check if the exact file is present for the desired level
+		if (level > 0 && isMipMapsEnabled()) {
+			synchronized (plock) {
+				while (plock.loading) try { p.wait(); } catch (InterruptedException ie) {};
+				plock.loading = true;
+
+				mawt = mawts.get(id, level);
+				if (null != mawt) {
+					synchronized (db_lock) { lock(); max_memory += n_bytes; unlock(); }
+					plock.loading = false;
+					plock.notifyAll();
+					return mawt; // was loaded by a different thread
+				}
+
+				// going to load:
+
+				synchronized (db_lock) {
+					lock();
+					n_bytes = estimateImageFileSize(p, level);
+					max_memory += n_bytes;
+					unlock();
+				}
+
+				mawt = fetchMipMapAWT(p, level);
+
+				synchronized (db_lock) {
+					try {
+						lock();
+						//removePatchLoadingLock(plock);
+						max_memory += n_bytes;
 						if (null != mawt) {
-							if (newly_cached) Display.repaintSnapshot(p);
+							mawts.put(id, mawt, level);
 							unlock();
-							//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
+							plock.loading = false;
+							plock.notifyAll();
+							//Utils.log2("returning exact mawt from file for level " + level);
+							Display.repaintSnapshot(p);
 							return mawt;
 						}
+						// 3 - else, load closest level to it but still giving a larger image
+						int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
+						//Utils.log2("closest mipmap level is " + lev);
+						if (0 != lev) {
+							mawt = mawts.getClosestAbove(id, lev);
+							boolean newly_cached = false;
+							if (null == mawt) {
+								// reload existing scaled file
+								mawt = fetchMipMapAWT2(p, lev);
+								if (null != mawt) {
+									mawts.put(id, mawt, lev);
+									newly_cached = true; // means: cached was false, now it is
+								}
+							}
+							//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
+							if (null != mawt) {
+								if (newly_cached) Display.repaintSnapshot(p);
+								unlock();
+								plock.loading = false;
+								plock.notifyAll();
+								//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
+								return mawt;
+							}
+						}
+						unlock();
+					} catch (Exception e) {
+						new IJError(e);
 					}
 				}
+				plock.loading = false;
+				plock.notifyAll();
+			}
+		}
+
+		synchronized (db_lock) {
+			try {
+				lock();
+
 				// 4 - check if any suitable level is cached (whithout mipmaps, it may be the large image)
 				mawt = mawts.getClosestAbove(id, level);
 				if (null != mawt) {
@@ -864,15 +943,22 @@ abstract public class Loader {
 					//Utils.log2("returning from getClosest with level " + level);
 					return mawt;
 				}
-				// 5 - else, fetch the ImageProcessor and make an image from it of the proper size and quality
 				unlock();
-				ImageProcessor ip = fetchImageProcessor(p);
+			} catch (Exception e) {
+				new IJError(e);
+			}
+		}
+
+		// 5 - else, fetch the ImageProcessor and make an image from it of the proper size and quality
+
+		ImageProcessor ip = fetchImageProcessor(p);
+
+		synchronized (db_lock) {
+			try {
 				lock();
-				ImagePlus imp;
 				if (null != ip && null != ip.getPixels()) {
 					// if NOT mag == 1.0 // but 0.75 also needs the 1.0 ... problem is, I can't cache level 1.5 or so
-					//mag = 1 / Math.pow(2, level); // correcting mag
-					//if (mag < 0.5001)
+					ImagePlus imp;
 					if (level < 0) {
 						imp = new ImagePlus("", Loader.scaleImage(new ImagePlus("", ip), level, p.getLayer().getParent().snapshotsQuality()));
 						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
@@ -896,8 +982,19 @@ abstract public class Loader {
 		}
 	}
 
+	/** Must be called within synchronized db_lock. */
+	private final Image fetchMipMapAWT2(final Patch p, final int level) {
+		final long size = estimateImageFileSize(p, level);
+		max_memory -= size;
+		unlock();
+		Image mawt = fetchMipMapAWT(p, level);
+		lock();
+		max_memory += size;
+		return mawt;
+	}
+
 	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
-	public ImagePlus fetchImagePlus(long id) {
+	public ImagePlus getCachedImagePlus(long id) {
 		synchronized(db_lock) {
 			ImagePlus imp = null;
 			lock();
@@ -3033,23 +3130,10 @@ abstract public class Loader {
 
 	/** Preprocess an image before TrakEM2 ever has a look at it with a system-wide defined preprocessor plugin, specified in the XML file and/or from within the Display properties dialog. Does not lock, and should always run within locking/unlocking statements. */
 	protected final void preProcess(final ImagePlus imp) {
-		if (null == preprocessor) {
-			/*
-			String username = System.getProperty("user.name");
-			if (username.equals("albert") || username.equals("cardona")) {
-				setPreprocessor("Preprocessor_Smooth");
-				if (null == preprocessor) {
-					Utils.log2("WARNING: Preprocessor_Smooth is not present.");
-					return;
-				}
-			} else {
-				return;
-			}*/
-			return;
-		}
+		if (null == preprocessor) return;
 		// access to WindowManager.setTempCurrentImage(...) is locked within the Loader
-		startSetTempCurrentImage(imp);
 		try {
+			startSetTempCurrentImage(imp);
 			IJ.redirectErrorMessages();
 			IJ.runPlugIn(preprocessor, "");
 		} catch (Exception e) {
@@ -3140,7 +3224,7 @@ abstract public class Loader {
 	}
 
 	public final void printMemState() {
-		Utils.log2(new StringBuffer("mem in use: ").append((IJ.currentMemory() * 100.0f) / MAX_MEMORY).append('%')
+		Utils.log2(new StringBuffer("mem in use: ").append((IJ.currentMemory() * 100.0f) / max_memory).append('%')
 		                    .append("\n\timps: ").append(imps.size())
 				    .append("\n\tmawts: ").append(mawts.size())
 			   .toString());
@@ -3157,7 +3241,7 @@ abstract public class Loader {
 		return opener.openImage(path);
 	}
 
-	/** Check if the snap or the awt exists to paint as a snap. */
+	/** Check if an awt exists to paint as a snap. */
 	public boolean isSnapPaintable(final long id) {
 		synchronized (db_lock) {
 			lock();
@@ -3503,5 +3587,14 @@ abstract public class Loader {
 			return false;
 		}
 		return true;
+	}
+
+	public long estimateImageFileSize(final Patch p, final int level) {
+		if (0 == level) {
+			return (long)(p.getWidth() * p.getHeight() * 5 + 1024); // conservative
+		}
+		// else, compute scale
+		final double scale = 1 / Math.pow(2, level);
+		return (long)(p.getWidth() * scale * p.getHeight() * scale * 5 + 1024); // conservative
 	}
 }
