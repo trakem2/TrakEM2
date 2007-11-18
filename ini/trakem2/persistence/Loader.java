@@ -862,7 +862,7 @@ abstract public class Loader {
 		// 2 - check if the exact file is present for the desired level
 		if (level > 0 && isMipMapsEnabled()) {
 			synchronized (plock) {
-				while (plock.loading) try { p.wait(); } catch (InterruptedException ie) {};
+				while (plock.loading) try { plock.wait(); } catch (InterruptedException ie) {};
 				plock.loading = true;
 
 				mawt = mawts.get(id, level);
