@@ -3130,7 +3130,7 @@ abstract public class Loader {
 
 	/** Preprocess an image before TrakEM2 ever has a look at it with a system-wide defined preprocessor plugin, specified in the XML file and/or from within the Display properties dialog. Does not lock, and should always run within locking/unlocking statements. */
 	protected final void preProcess(final ImagePlus imp) {
-		if (null == preprocessor) return;
+		if (null == preprocessor || null == imp) return;
 		// access to WindowManager.setTempCurrentImage(...) is locked within the Loader
 		try {
 			startSetTempCurrentImage(imp);
