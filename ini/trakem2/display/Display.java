@@ -3142,4 +3142,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		last_temp = temp;
 		//Utils.log2("currentSlice: " + temp.getCurrentSlice() + " for layer index " + layer.getParent().indexOf(layer));
 	}
+
+	/** Check if any display will paint the given Displayable at the given magnification. */
+	static public boolean willPaint(final Displayable displ, final double magnification) {
+		Rectangle box = null; ;
+		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
+			Display d = (Display)it.next();
+			if (d.canvas.getMagnification() != magnification) {
+				continue;
+			}
+			if (null == box) box = displ.getBoundingBox();
+			if (d.canvas.getSrcRect().intersects(box)) {
+				return true;
+			}
+		}
+		return false;
+	}
 }
