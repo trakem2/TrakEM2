@@ -228,6 +228,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				}
 
 				final ArrayList al = display.getLayer().getDisplayables();
+				final boolean are_snapshots_enabled = layer.getParent().areSnapshotsEnabled();
 				final int size = al.size();
 				boolean zd_done = false;
 				for (int i=0; i<size; i++) {
@@ -250,17 +251,22 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 							if (!zd.isVisible()) continue;
 							zd.getSnapshot().paintTo(graphics, display.getLayer(), scale);
 						}
+						// paint the label too!
+						d.paint(graphics, scale, false, 1, DisplayNavigator.this.layer);
 					} else if (c.equals(Patch.class)) {
-						Patch p = (Patch)d;
-						Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
-						if (null != img) {
-							d.paint(graphics, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
-							hs_painted.add(d);
+						if (are_snapshots_enabled) {
+							Patch p = (Patch)d;
+							Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
+							if (null != img) {
+								d.paint(graphics, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
+								hs_painted.add(d);
+							} else  {
+								Snapshot.paintAsBox(graphics, d);
+							}
 						} else {
 							Snapshot.paintAsBox(graphics, d);
 						}
 					} else {
-						//d.getSnapshot().paintTo(graphics, display.getLayer(), scale);
 						d.paint(graphics, scale, false, 1, DisplayNavigator.this.layer);
 					}
 				}

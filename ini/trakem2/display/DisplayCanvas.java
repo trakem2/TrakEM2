@@ -1912,8 +1912,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						// before painting black, which creates flickering, first determineif any area will be left unpainted.
 						// TODO: the sequence below has to separate two lists, and then use such lists to determine if any area is left unpainted by the images.
 						//
+
+						
+						
 						g1.setColor(Color.black);
 						g1.fillRect(0, 0, g_width, g_height);
+
+
+
 						//Utils.log2("reusing");
 					}
 
