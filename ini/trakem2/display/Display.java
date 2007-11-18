@@ -34,6 +34,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.Registration;
+import ini.trakem2.imaging.StitchingTEM;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.DNDInsertImage;
@@ -2774,7 +2775,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display3D.showVolume(((Patch)active));
 		} else if (command.equals("Snap")) {
 			if (!(active instanceof Patch)) return;
-			canvas.snap(getActive());
+			StitchingTEM.snap(getActive(), this);
 		} else if (command.equals("Homogenize contrast (selected images)")) {
 			ArrayList al = selection.getSelected(Patch.class);
 			if (al.size() < 2) return;
@@ -3046,7 +3047,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	static public void toolChanged(int tool) {
-		Utils.log2("int tool is " + tool);
+		//Utils.log2("int tool is " + tool);
 		if (ProjectToolbar.PEN == tool) {
 			// erase bounding boxes
 			for (Iterator it = al_displays.iterator(); it.hasNext(); ) {

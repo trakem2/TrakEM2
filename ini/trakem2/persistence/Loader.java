@@ -1140,6 +1140,30 @@ abstract public class Loader {
 		return importSequenceAsGrid(layer, dir, null);
 	}
 
+	/** Open one of the images to find out the dimensions, and get a good guess at what is the desirable scale for doing phase- and cross-correlations with about 512x512 images. */
+	private int getCCScaleGuess(final File images_dir, final String[] all_images) {
+		try {
+			if (null != all_images && all_images.length > 0) {
+				Utils.showStatus("Opening one image ... ");
+				String sdir = images_dir.getAbsolutePath().replace('\\', '/');
+				if (!sdir.endsWith("/")) sdir += "/";
+				ImagePlus imp = opener.openImage(sdir + all_images[0]);
+				if (null != imp) {
+					int w = imp.getWidth();
+					int h = imp.getHeight();
+					imp.flush();
+					imp = null;
+					int cc_scale = (int)((512.0 / (w > h ? w : h)) * 100);
+					if (cc_scale > 100) return 100;
+					return cc_scale;
+				}
+			}
+		} catch (Exception e) {
+			Utils.log2("Could not get an estimate for the optimal scale.");
+		}
+		return 25;
+	}
+
 	/** Import a sequence of images as a grid, and put them in the layer. If the directory (@param dir) is null, it'll be asked for. The image_file_names can be null, and in any case it's only the names, not the paths. */
 	public Bureaucrat importSequenceAsGrid(final Layer layer, String dir, final String[] image_file_names) {
 		try {
@@ -1214,7 +1238,7 @@ abstract public class Loader {
 		gd.addStringField("preprocess with: ", preprocessor); // the name of a plugin to use for preprocessing the images before importing, which implements PlugInFilter
 		gd.addCheckbox("use_cross-correlation", stitch_tiles);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
-		gd.addSlider("cc_scale (%):", 1, 100, 25);
+		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
 		gd.addCheckbox("homogenize_contrast", homogenize_contrast);
 		StitchingTEM.addStitchingRuleChoice(gd);
 		final Component[] c = {

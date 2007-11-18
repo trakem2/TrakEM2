@@ -1174,7 +1174,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** Used when there has been no real transformation (for example, a mouse click and release, but no drag. */
 	void discardLastUndo() {
 		if (0 == undo_queue.size()) return;
-		Utils.log2("discarding last undo!");
+		//Utils.log2("discarding last undo!");
 		undo_queue.removeLast();
 		current--;
 	}

@@ -514,9 +514,6 @@ public class Selection {
 			if (null != display && null == this.active) {
 				display.setActive((Displayable)queue.getLast());
 				this.active = display.getActive();
-				Utils.log2("calling display.setActive");
-			} else {
-				Utils.log2("not calling display.setActive");
 			}
 		} catch (Exception e) {
 			new IJError(e);

@@ -910,7 +910,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			selection.mouseReleased(x_p, y_p, x_d, y_d, x_r, y_r);
 			box.add(selection.getLinkedBox());
 			Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
-			snap(active); // will repaint whatever is appropriate (the visible linked group snapped along)
+			StitchingTEM.snap(active, display); // will repaint whatever is appropriate (the visible linked group snapped along)
 			// reset:
 			snapping = false;
 			return;
@@ -1790,94 +1790,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		display.updateInDatabase("srcRect"); // includes magnification
 	}
 
-	/** Works only for Patch instances at the moment. Implements Stephan Nufer's stitching functionality for semiautomated snap. */ // This method should be moved elsewhere
-	public void snap(Displayable d) {
-		Utils.log2("snapping...");
-		// snap patches only
-		if (null == d || !(d instanceof Patch)) return;
-		//Utils.log("Snapping " + d);
-		ArrayList al = d.getLayer().getIntersecting(d, Patch.class);
-		if (null == al || 0 == al.size()) return;
-		// remove from the intersecting group those Patch objects that are linked in the same layer (those linked that do not intersect simply return false on the al.remove(..) )
-		HashSet hs_linked = d.getLinkedGroup(new HashSet());
-		//Utils.log2("linked patches: " + hs_linked.size());
-		Layer layer = d.getLayer();
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable dob = (Displayable)it.next();
-			if (Patch.class.equals(dob.getClass()) && dob.getLayer().equals(layer)) {
-				al.remove(dob);
-			}
-		}
-		//Utils.log2("Overlaping images: " + al.size());
-		//for (Iterator it = al.iterator(); it.hasNext(); ) {
-		//	Utils.log2("going to test for: " + it.next().toString());
-		//}
-
-		// dragged Patch
-		final Patch p_dragged = (Patch)d;
-
-		/* // NO LONGER NECESSARY // check that all images are of the same size
-		double sw = p_dragged.getWidth();
-		double sh = p_dragged.getHeight();
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Patch p = (Patch)it.next();
-			if (p.getWidth() != sw || p.getHeight() != sh) {
-				//Utils.showMessage("Snapping: images must be of the same size.");
-				return;
-			}
-		}
-		*/
-		// start:
-		double[] best_pc = null;
-		try {
-			for (Iterator it = al.iterator(); it.hasNext(); ) {
-				final Patch p = (Patch)it.next();
-				final double[] pc = StitchingTEM.correlate(p, p_dragged, 1f, 0.25f, StitchingTEM.TOP_BOTTOM, 0, 0);
-				if (null == best_pc) best_pc = pc;
-				else {
-					// compare R: choose largest
-					if (pc[3] > best_pc[3]) {
-						best_pc = pc;
-					}
-				}
-			}
-		} catch (Exception e) {
-			new IJError(e);
-			return;
-		}
-		// now, relocate the Patch
-		double dx = best_pc[0] - p_dragged.getX(); // since the drag is and 'add' operation on the coords
-		double dy = best_pc[1] - p_dragged.getY(); //   and the dx,dy are relative to the matched patch
-		Rectangle box = p_dragged.getLinkedBox(true);
-		//Utils.log2("box is " + box);
-		p_dragged.translate(dx, dy, true);
-		Rectangle r = p_dragged.getLinkedBox(true);
-		//Utils.log2("dragged box is " + r);
-		box.add(r);
-		Selection selection = display.getSelection();
-		if (selection.contains(p_dragged)) {
-			//Utils.log2("going to update selection");
-			Display.updateSelection(display);
-		}
-		Display.repaint(p_dragged.getLayer().getParent()/*, box*/);
-		Utils.log2("Done snapping.");
-	}
-
-	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */
-	private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
-		Rectangle x_rect = dragging_ob.getBoundingBox();
-		Rectangle y_rect = overlapping_ob.getBoundingBox();
-		Rectangle overlap = x_rect.intersection(y_rect);
-		if (overlap.width / (double)overlap.height > 1) {
-			// horizontal stitch
-			if (y_rect.y < x_rect.y) return 3;
-			else return 1;
-		} else {
-			// vertical stitch
-			if (y_rect.x < x_rect.x) return 2;
-			else return 0;
-		}
-	}
 
 	public void setReceivesInput(boolean b) {
 		this.input_disabled = !b;

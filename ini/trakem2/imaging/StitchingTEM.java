@@ -33,7 +33,12 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Selection;
 import ini.trakem2.ControlWindow;
+import ini.trakem2.utils.Worker;
+import ini.trakem2.utils.Bureaucrat;
 
 import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.CrossCorrelation2D;
@@ -43,7 +48,7 @@ import mpi.fruitfly.math.General;
 
 import java.awt.Rectangle;
 import java.awt.Point;
-
+import java.awt.Image;
 import java.awt.image.BufferedImage;
 
 import java.util.ArrayList;
@@ -287,34 +292,42 @@ public class StitchingTEM {
 	/** @return FloatProcessor.
 	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */ // TODO param 'quality' is being ignored // TODO 2: there is a combination of options that ends up resulting in the actual ImageProcessor of the Patch being returned as is, which is DANGEROUS because it can potentially result in changes in the data.
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean quality, boolean ignore_patch_transform) {
-		final ImagePlus imp = p.getProject().getLoader().fetchImagePlus(p, false);
-		ImageProcessor ip = imp.getProcessor();
-
-		// compare and adjust
-		if (!ignore_patch_transform && p.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) { // if it's not only a translation:
-			final Rectangle b = p.getBoundingBox();
-			ip = ip.resize(b.width, b.height);
-			//Utils.log2("resizing stripe for patch: " + p);
-			// the above is only meant to correct for improperly acquired images at the microscope, the scale only.
-		}
-		// cut
-		if (null != roi) {
-			final Rectangle rb = roi.getBounds();
-			if (ip.getWidth() != rb.width || ip.getHeight() != rb.height) {
-				ip.setRoi(roi);
-				ip = ip.crop();
+		ImagePlus imp = null;
+		ImageProcessor ip = null;
+		if (p.getProject().getLoader().isMipMapsEnabled()) {
+			Image image = p.getProject().getLoader().fetchImage(p, scale);
+			// check that dimensions are correct. If anything, they'll be larger
+			if (Math.abs(p.getWidth() * scale - image.getWidth(null)) > 0.001 || Math.abs(p.getHeight() * scale - image.getHeight(null)) > 0.001) {
+				image = image.getScaledInstance((int)(p.getWidth() * scale), (int)(p.getHeight() * scale), Image.SCALE_AREA_AVERAGING); // slow but good quality
+			}
+			imp = new ImagePlus("s", image);
+			ip = imp.getProcessor();
+		} else {
+			imp = p.getProject().getLoader().fetchImagePlus(p, false);
+			ip = imp.getProcessor();
+			// compare and adjust
+			if (!ignore_patch_transform && p.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) { // if it's not only a translation:
+				final Rectangle b = p.getBoundingBox();
+				ip = ip.resize(b.width, b.height);
+				//Utils.log2("resizing stripe for patch: " + p);
+				// the above is only meant to correct for improperly acquired images at the microscope, the scale only.
+			}
+			// cut
+			if (null != roi) {
+				final Rectangle rb = roi.getBounds();
+				if (ip.getWidth() != rb.width || ip.getHeight() != rb.height) {
+					ip.setRoi(roi);
+					ip = ip.crop();
+				}
+			}
+			// scale
+			if (scale < 1) {
+				p.getProject().getLoader().releaseToFit((long)(ip.getWidth() * ip.getHeight() * 4 * 1.2)); // floats have 4 bytes, plus some java peripherals correction factor
+				ip = ip.convertToFloat();
+				ip.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.getPixels(), ip.getWidth(), ip.getHeight()), (float)Math.sqrt(0.25 / scale / scale - 0.25)).data); // scaling with area averaging is the same as a gaussian of sigma 0.5/scale and then resize with nearest neightbor So this line does the gaussian, and line below does the neares-neighbor scaling
+				ip = ip.resize((int)(ip.getWidth() * scale)); // scale mantaining aspect ratio
 			}
 		}
-		// scale
-		if (scale < 1) {
-			p.getProject().getLoader().releaseToFit((long)(ip.getWidth() * ip.getHeight() * 4 * 1.2)); // floats have 4 bytes, plus some java peripherals correction factor
-			ip = ip.convertToFloat();
-			ip.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.getPixels(), ip.getWidth(), ip.getHeight()), (float)Math.sqrt(0.25 / scale / scale - 0.25)).data); // scaling with area averaging is the same as a gaussian of sigma 0.5/scale and then resize with nearest neightbor So this line does the gaussian, and line below does the neares-neighbor scaling
-			ip = ip.resize((int)(ip.getWidth() * scale)); // scale mantaining aspect ratio
-		}
-
-		// debug
-		//new ImagePlus("stripe", ip.duplicate()).show();
 
 		// return a FloatProcessor
 		if (imp.getType() != ImagePlus.GRAY32) return ip.convertToFloat();
@@ -621,4 +634,98 @@ public class StitchingTEM {
 			st.flag = ERROR;
 		}
 	}
+
+	/** Works only for Patch instances at the moment. */
+	static public Bureaucrat snap(final Displayable d, final Display display) {
+		final Worker worker = new Worker("Snapping") {
+			public void run() {
+				startedWorking();
+				try {
+	
+
+		Utils.log2("snapping...");
+		// snap patches only
+		if (null == d || !(d instanceof Patch)) return;
+		//Utils.log("Snapping " + d);
+		ArrayList al = d.getLayer().getIntersecting(d, Patch.class);
+		if (null == al || 0 == al.size()) return;
+		// remove from the intersecting group those Patch objects that are linked in the same layer (those linked that do not intersect simply return false on the al.remove(..) )
+		HashSet hs_linked = d.getLinkedGroup(new HashSet());
+		//Utils.log2("linked patches: " + hs_linked.size());
+		Layer layer = d.getLayer();
+		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+			Displayable dob = (Displayable)it.next();
+			if (Patch.class.equals(dob.getClass()) && dob.getLayer().equals(layer)) {
+				al.remove(dob);
+			}
+		}
+		// dragged Patch
+		final Patch p_dragged = (Patch)d;
+
+		// start:
+		double[] best_pc = null;
+		try {
+			//  make a reasonable guess for the scale
+			float cc_scale = (float)(512.0 / (p_dragged.getWidth() > p_dragged.getHeight() ? p_dragged.getWidth() : p_dragged.getHeight()));
+			if (cc_scale > 1.0f) cc_scale = 1.0f;
+			//
+			for (Iterator it = al.iterator(); it.hasNext(); ) {
+				final Patch p = (Patch)it.next();
+				final double[] pc = StitchingTEM.correlate(p, p_dragged, 1f, cc_scale, StitchingTEM.TOP_BOTTOM, 0, 0);
+				if (null == best_pc) best_pc = pc;
+				else {
+					// compare R: choose largest
+					if (pc[3] > best_pc[3]) {
+						best_pc = pc;
+					}
+				}
+			}
+		} catch (Exception e) {
+			new IJError(e);
+			return;
+		}
+		// now, relocate the Patch
+		double dx = best_pc[0] - p_dragged.getX(); // since the drag is and 'add' operation on the coords
+		double dy = best_pc[1] - p_dragged.getY(); //   and the dx,dy are relative to the matched patch
+		Rectangle box = p_dragged.getLinkedBox(true);
+		//Utils.log2("box is " + box);
+		p_dragged.translate(dx, dy, true);
+		Rectangle r = p_dragged.getLinkedBox(true);
+		//Utils.log2("dragged box is " + r);
+		box.add(r);
+		Selection selection = display.getSelection();
+		if (selection.contains(p_dragged)) {
+			//Utils.log2("going to update selection");
+			Display.updateSelection(display);
+		}
+		Display.repaint(p_dragged.getLayer().getParent()/*, box*/);
+		Utils.log2("Done snapping.");
+
+				} catch (Exception e) {
+					new IJError(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, d.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */
+	private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
+		Rectangle x_rect = dragging_ob.getBoundingBox();
+		Rectangle y_rect = overlapping_ob.getBoundingBox();
+		Rectangle overlap = x_rect.intersection(y_rect);
+		if (overlap.width / (double)overlap.height > 1) {
+			// horizontal stitch
+			if (y_rect.y < x_rect.y) return 3;
+			else return 1;
+		} else {
+			// vertical stitch
+			if (y_rect.x < x_rect.x) return 2;
+			else return 0;
+		}
+	}
+
 }
