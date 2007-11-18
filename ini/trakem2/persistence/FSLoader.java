@@ -312,7 +312,7 @@ public class FSLoader extends Loader {
 
 
 		synchronized (plock) {
-			while (plock.loading) try { p.wait(); } catch (InterruptedException ie) {};
+			while (plock.loading) try { plock.wait(); } catch (InterruptedException ie) {};
 			plock.loading = true;
 
 			imp = imps.get(p.getId());
@@ -447,7 +447,7 @@ public class FSLoader extends Loader {
 
 
 		synchronized (plock) {
-			while (plock.loading) try { p.wait(); } catch (InterruptedException ie) {};
+			while (plock.loading) try { plock.wait(); } catch (InterruptedException ie) {};
 			plock.loading = true;
 
 			imp = imps.get(p.getId());
