@@ -32,6 +32,7 @@ import ini.trakem2.imaging.*;
 import java.awt.event.*;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferStrategy;
 import java.util.*;
@@ -43,9 +44,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private Display display;
 
 	private boolean update_graphics = false;
-	private Image offscreen1;
+	private Image offscreen, offscreen_a, offscreen_b;
 	private ArrayList al_top = new ArrayList();
-	private BufferedImage handPaintingOffscreen;
+
+	private Rectangle clipRect_a, clipRect_b;
 
 	private Rectangle box = null; // the bounding box of the active
 
@@ -190,9 +192,36 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				Displayable active = display.getActive();
 				int c_alphas = display.getDisplayChannelAlphas();
 
-				if (create_offscreen_data /*update_graphics*/ || (null == offscreen1 && !layer.isEmpty())) {
+				if (create_offscreen_data || null == offscreen) {
+					// paint on the offscreen image currently not used for painting the screen
+					synchronized (offscreen_lock) {
+						while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
+						offscreen_locked = true;
+
+						// recreate if canvas size has changed, otherwise reuse
+						if (offscreen_b == offscreen) {
+							// paint on a
+							if (null == offscreen_a || g_width != offscreen.getWidth(null) || g_height != offscreen.getHeight(null)) {
+								offscreen_a = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
+								offscreen_a.setAccelerationPriority(1.0f);
+							}
+							offscreen = offscreen_a;
+						} else {
+							// offscreen_a == offscreen, paint on b
+							if (null == offscreen_b || g_width != offscreen.getWidth(null) || g_height != offscreen.getHeight(null)) {
+								offscreen_b = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
+								offscreen_b.setAccelerationPriority(1.0f);
+							}
+							offscreen = offscreen_b;
+						}
+
+						offscreen_locked = false;
+						offscreen_lock.notifyAll();
+					}
+
 					if (quit) return;
-					createOffscreenData(layer, g_width, g_height, active, c_alphas); // the offscreen1 and the al_top_paint. Will fork and call a new repaint thread when done
+					this.offscreen_thread = new OffscreenThread(clipRect, layer, g_width, g_height, active, c_alphas);
+					this.offscreen_thread.start();
 				}
 
 				// call the paint(Graphics g) ATTENTION this is the only place where any of the repaint methods of the superclass are to be called (which will call the update(Graphics g), which will call the paint method.
@@ -206,11 +235,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				new IJError(e);
 			}
 			done = true;
-		}
-
-		public void createOffscreenData(final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
-			this.offscreen_thread = new OffscreenThread(layer, g_width, g_height, active, c_alphas);
-			this.offscreen_thread.start();
 		}
 	}
 
@@ -240,152 +264,119 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	/** The affine transform representing the srcRect displacement and the magnification. */
 	private final AffineTransform atc = new AffineTransform();
 
-	// can only paint if cancel_painting is false; otherwise, it stops
 	public void paint(final Graphics g) {
 		try {
-			//setRenderingHints((Graphics2D)g);
-			if (handPaintingOffscreen == null) {
+			display.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 
-				display.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+			// ensure proper positioning
+			g.translate(0, 0); // ints!
 
-				// the offscreen_thread should be null by now, after finishing repainting the offscreen images. So if it turns out to be non null this method can just return.
+			final Rectangle clipRect = g.getClipBounds();
 
-				// ensure proper positioning
-				g.translate(0, 0); // ints!
+			final Displayable active = display.getActive();
+			final int c_alphas = display.getDisplayChannelAlphas();
+			final int sr_width = (int) (srcRect.width * magnification) + 1; // to make it a ceil operation
+			final int sr_height = (int) (srcRect.height * magnification) + 1;
 
-				final Rectangle clipRect = g.getClipBounds();
+			final int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
+			final int g_height = getHeight();
 
-				//debug:
-				//Utils.log2("clipRect: " + clipRect);
+			final Roi roi = imp.getRoi();
 
-				final Displayable active = display.getActive();
-				final int c_alphas = display.getDisplayChannelAlphas();
-				final int sr_width = (int) (srcRect.width * magnification) + 1; // to make it a ceil operation
-				final int sr_height = (int) (srcRect.height * magnification) + 1;
+			final Selection selection = display.getSelection();
+			final Layer active_layer = display.getLayer();
 
-				final int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
-				final int g_height = getHeight();
+			final Graphics2D g2d = (Graphics2D)g;
 
-				final Roi roi = imp.getRoi();
+			Displayable[] di = null;
 
-				if (cancel_painting) {
-					display.setCursor(Cursor.getDefaultCursor());
-					return;
-				}
-
-				final Selection selection = display.getSelection();
-				final Layer active_layer = display.getLayer();
-
-				if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass().equals(AreaList.class) && ((AreaList)active).isFillPaint()) {
-					// no background paint if painting in fill_paint mode
-				} else {
-					synchronized (offscreen_lock) {
-						while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-						offscreen_locked = true;
-						if (null != offscreen1) { // can be null if there's only one Displayable object
-							g.drawImage(offscreen1, 0, 0, g_width, g_height, null); // getWidth() and getHeight() are from the java.awt.Canvas, i.e. the dimensions of the awt.Component!
-						//Utils.log2("^^^ painted offscreen1 at" + System.currentTimeMillis());
-						}
-						offscreen_locked = false;
-						offscreen_lock.notifyAll();
-					}
-				}
-
-				if (cancel_painting) {
-					display.setCursor(Cursor.getDefaultCursor());
-					return;
-				}
-
-				final Graphics2D g2d = (Graphics2D)g;
-
-				// prepare the canvas for the srcRect and magnification
-				final AffineTransform at_original = g2d.getTransform();
-				atc.setToIdentity();
-				atc.scale(magnification, magnification);
-				atc.translate(-srcRect.x, -srcRect.y);
-				at_original.preConcatenate(atc);
-				g2d.setTransform(at_original);
-
-				// always a stroke of 1.0, regardless of magnification
-				g2d.setStroke(this.stroke);
-
-				if (null != active) {
-					try {
-						if (!active.isOutOfRepaintingClip(magnification, srcRect, clipRect) || (active.isVisible() && ProjectToolbar.PEN == ProjectToolbar.getToolId())) { // ensure AreaList can be painted even when the brush hits outside the current bounding box
-							active.prePaint(g2d, magnification, true, c_alphas, active_layer);
-						}
-					} catch (Exception e) {
-						Utils.log2("Synchronization issues in painting the active");
-						e.printStackTrace();
-					}
-				}
-
-				if (cancel_painting) {
-					display.setCursor(Cursor.getDefaultCursor());
-					return;
-				}
-
-				// paint accumulated al_top
-				Displayable[] di = null;
+			if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass().equals(AreaList.class) && ((AreaList)active).isFillPaint()) {
+				// no background paint if painting in fill_paint mode and not erasing
+			} else {
 				synchronized (offscreen_lock) {
 					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-					if (al_top.size() > 0) {
-						di = new Displayable[al_top.size()];
-						al_top.toArray(di);
+					offscreen_locked = true;
+
+
+
+					if (null != offscreen) {
+						g.drawImage(offscreen, 0, 0, null);
+
+						Utils.log2(offscreen == offscreen_a ? "a" : "b");
 					}
+
+					// prepare the canvas for the srcRect and magnification
+					//final AffineTransform at_original = g2d.getTransform();
+					atc.setToIdentity();
+					atc.scale(magnification, magnification);
+					atc.translate(-srcRect.x, -srcRect.y);
+					g2d.setTransform(atc);
+
+					di = new Displayable[al_top.size()];
+					al_top.toArray(di);
+
 					offscreen_locked = false;
 					offscreen_lock.notifyAll();
 				}
-				if (null != di) {
-					for (int i=0; i<di.length; i++) {
-						if (cancel_painting) {
-							display.setCursor(Cursor.getDefaultCursor());
-							return;
-						}
-						final Displayable ob = di[i];
-						if (!ob.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-							ob.prePaint(g2d, magnification, false, c_alphas, active_layer);
-						}
-					}
-				}
-
-				// paint a pink frame around selected objects, and a white frame around the active object, and a big yellow frame with handles if transforming
-				if (null != selection && ProjectToolbar.getToolId() < ProjectToolbar.PENCIL) { // i.e. PENCIL, PEN and ALIGN
-					selection.paint(g, srcRect, magnification);
-				}
-
-				g2d.setTransform(new AffineTransform()); // reset to identity
-
-				final Align align = null != active_layer ? active_layer.getParent().getAlign() : null;
-				if (null != align) {
-					align.paint(active_layer, g, srcRect, magnification);
-				}
-
-				// paint brush outline for AreaList
-				if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass().equals(AreaList.class)) {
-					// reset stroke, always thickness of 1
-					g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
-					int brushSize = ProjectToolbar.getBrushSize();
-					g.setColor(active.getColor());
-					g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
-				}
-
-				// finally, paint non-srcRect areas
-				g.setColor(Color.gray);
-				g.fillRect(sr_width, 0, g_width - sr_width, g_height);
-				g.fillRect(0, sr_height, g_width, g_height - sr_height);
-
-				if (null != roi) {
-					// reset stroke, always thickness of 1
-					g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
-					roi.draw(g);
-				}
-
-				// restore cursor
-				display.setCursor(Cursor.getDefaultCursor());
-			} else {
-				g.drawImage(handPaintingOffscreen, 0, 0, null);
 			}
+
+			if (null != active) {
+				active.paint(g2d, magnification, true, c_alphas, active_layer);
+			}
+
+			if (null != di) {
+				for (int i=0; i<di.length; i++) {
+					if (cancel_painting) {
+						display.setCursor(Cursor.getDefaultCursor());
+						return;
+					}
+					di[i].paint(g2d, magnification, false, c_alphas, active_layer);
+				}
+			}
+
+			// always a stroke of 1.0, regardless of magnification
+			g2d.setStroke(this.stroke);
+
+			if (cancel_painting) {
+				display.setCursor(Cursor.getDefaultCursor());
+				return;
+			}
+
+			// paint a pink frame around selected objects, and a white frame around the active object
+			if (null != selection && ProjectToolbar.getToolId() < ProjectToolbar.PENCIL) { // i.e. PENCIL, PEN and ALIGN
+				selection.paint(g, srcRect, magnification);
+			}
+
+			g2d.setTransform(new AffineTransform()); // reset to identity
+
+			final Align align = null != active_layer ? active_layer.getParent().getAlign() : null;
+			if (null != align) {
+				align.paint(active_layer, g, srcRect, magnification);
+			}
+
+			// paint brush outline for AreaList
+			if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass().equals(AreaList.class)) {
+				// reset stroke, always thickness of 1
+				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+				int brushSize = ProjectToolbar.getBrushSize();
+				g.setColor(active.getColor());
+				g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
+			}
+
+			// TODO move to offscreen painting
+			// finally, paint non-srcRect areas
+			g.setColor(Color.gray);
+			g.fillRect(sr_width, 0, g_width - sr_width, g_height);
+			g.fillRect(0, sr_height, g_width, g_height - sr_height);
+
+			if (null != roi) {
+				// reset stroke, always thickness of 1
+				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+				roi.draw(g);
+			}
+
+			// restore cursor
+			display.setCursor(Cursor.getDefaultCursor());
 
 			// clean up
 			if (Thread.currentThread().equals(rt_old)) {
@@ -402,8 +393,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			if (null != freehandProfile) {
 				freehandProfile.paint(g, magnification, srcRect, true);
 				if(noCursor == null)
-					noCursor = Toolkit.getDefaultToolkit().createCustomCursor(new BufferedImage(1,1,BufferedImage.TYPE_BYTE_BINARY  /* does not exist in java 1.4.2  BITMASK*/), new Point(0,0), "noCursor");
+					noCursor = Toolkit.getDefaultToolkit().createCustomCursor(new BufferedImage(1,1,BufferedImage.TYPE_BYTE_BINARY), new Point(0,0), "noCursor");
 			}
+
 		} catch (Exception e) {
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
 			new IJError(e);
@@ -512,7 +504,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			return;
 		case Toolbar.HAND:
 			super.setupScroll(x_p, y_p); // offscreen coords.
-			display.repaintAll();
+			//display.repaintAll();
 			return;
 		}
 
@@ -536,13 +528,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		case ProjectToolbar.PENCIL:
 			if (active.isVisible() && active instanceof Profile) {
 				Profile prof = (Profile) active;
-				handPaintingOffscreen = null;
-				BufferedImage tmp = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_RGB);
-				setUpdateGraphics(true); // TODO this is most likely NOT necessary
-				Graphics g = tmp.getGraphics();
-				g.setClip(0, 0, getWidth(), getHeight());
-				paint(g);
-				handPaintingOffscreen = tmp;
 				this.freehandProfile = new FreeHandProfile(prof);
 				freehandProfile.mousePressed(x_p, y_p, srcRect, magnification);
 			} else {
@@ -862,7 +847,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case ProjectToolbar.PENCIL:
 				if (freehandProfile == null)
 					return; // starting painting out of the DisplayCanvas boarder
-				handPaintingOffscreen = null;
 				freehandProfile.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r, srcRect, magnification);
 				freehandProfile = null;
 				//repaint(true);
@@ -1858,7 +1842,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		private int g_height;
 		private Displayable active;
 		private int c_alphas;
-		OffscreenThread(final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
+		private Rectangle clipRect;
+		OffscreenThread(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
+			this.clipRect = clipRect;
 			this.layer = layer;
 			this.g_width = g_width;
 			this.g_height = g_height;
@@ -1870,183 +1856,136 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			//Utils.log2("offscreen canceled " + this.getId());
 			this.stop_offscreen_data = true;
 		}
+
 		public void run() {
 			try {
-				// clip must be ALL for the offscreen painting of Displayables!
-				Rectangle clipRect = null; // purposefully shadowing this class clipRect value, which must only be used for repainting, not for offscreen creation
 				final Loader loader = layer.getProject().getLoader();
 				// flag Loader to do massive flushing if needed
 				loader.setMassiveMode(true);
 
-				if (stop_offscreen_data) {
-					return;
-				}
+				if (stop_offscreen_data) return;
 
-				Graphics2D g1 = null;
+				// paint all to offscreen image
+				Graphics2D g = null;
+				Area background = null;
+
+				if (stop_offscreen_data) return;
+
+				//OffscreenLock lock = null;
 
 				synchronized (offscreen_lock) {
 					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
 					offscreen_locked = true;
-					boolean reusing = false;
-					al_top.clear();
-					if (null != offscreen1) {
-						if (offscreen1.getWidth(null) != g_width || offscreen1.getHeight(null) != g_height) {
-							//Utils.log2("gw,gh : " + g_width + ", " + g_height + "  ow, oh: " + offscreen1.getWidth(null) + ", " + offscreen1.getHeight(null));
-							offscreen1.flush();
-						} else {
-							reusing = true;
-						}
-					}
-					if (!reusing) {
-						// ensure there is enough memory for the offscreen images: one image plus the graphics object, of 24 bit depth, in bytes
-						loader.releaseToFit(g_width * g_height * 72); // * 24 * 3);
-						offscreen1 = new BufferedImage(g_width, g_height, BufferedImage.TYPE_INT_RGB);
-						//Utils.log2("created offscreen1");
-					}
 
-					//Utils.log2(label + " ugt Creating offs " +  + System.currentTimeMillis());
-					offscreen1.setAccelerationPriority(1.0f);
-					g1 = (Graphics2D) offscreen1.getGraphics(); // the cast is safe in terms of: never failed in any JVM so far (macosx, linux, freebsd; 1.4.2, 1.5.0). But it may fail in GCJ !
-
-					if (reusing) {
-						// before painting black, which creates flickering, first determineif any area will be left unpainted.
-						// TODO: the sequence below has to separate two lists, and then use such lists to determine if any area is left unpainted by the images.
-						//
-
-						
-						
-						g1.setColor(Color.black);
-						g1.fillRect(0, 0, g_width, g_height);
-
-
-
-						//Utils.log2("reusing");
-					}
+					g = (Graphics2D)offscreen.getGraphics();
 
 					// prepare the canvas for the srcRect and magnification
-					final AffineTransform at_original = g1.getTransform();
 					final AffineTransform atc = new AffineTransform();
 					atc.scale(magnification, magnification);
 					atc.translate(-srcRect.x, -srcRect.y);
-					at_original.preConcatenate(atc);
-					g1.setTransform(at_original);
-					//setRenderingHints(g1);
+					g.setTransform(atc);
+					//setRenderingHints(g);
 					// always a stroke of 1.0, regardless of magnification
-					g1.setStroke(stroke);
+					g.setStroke(stroke);
 
+					// Area to which each Patch will subtract from
+					background =  new Area(new Rectangle(0, 0, offscreen.getWidth(null), offscreen.getHeight(null)));
+					// bring the area to Layer space
+					background.transform(atc.createInverse());
+					boolean bkgd_painted = false;
+
+					al_top.clear();
+					boolean top = false;
+
+					// start
+					final ArrayList al = layer.getDisplayables();
+					final int n = al.size();
+					final ArrayList al_zdispl = layer.getParent().getZDisplayables();
+					final int m = al_zdispl.size();
+
+					// Assumes the Layer has its objects in order:
+					// 1 - Patches
+					// 2 - Profiles, Balls
+					// 3 - Pipes and ZDisplayables (from the parent LayerSet)
+					// 4 - DLabels
+
+					int i = 0;
+					while (i < n) {
+						if (stop_offscreen_data) {
+							offscreen_locked = false;
+							offscreen_lock.notifyAll();
+							return;
+						}
+						final Displayable d = (Displayable)al.get(i);
+						final Class c = d.getClass();
+						if (c.equals(DLabel.class) || c.equals(LayerSet.class)) {
+							break;
+						}
+						if (!c.equals(Patch.class)) {
+							if (!background.isEmpty()) {
+								// paint background
+								g.setColor(Color.black);
+								g.fill(background);
+								bkgd_painted = true;
+								Utils.log2("off is " + (offscreen == offscreen_a ?  "a" : "b"));
+							}
+						}
+						if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
+							if (c.equals(Patch.class)) background.subtract(new Area(d.getPerimeter()));
+							else if (d.equals(active)) top = true; // no Patch instances allowed on top
+							if (top) al_top.add(d);
+							else d.prePaint(g, magnification, false, c_alphas, layer);
+						}
+						i++;
+					}
+					// paint the ZDisplayables here, before the labels and LayerSets, if any
+					int j = 0;
+					while (j < m) {
+						if (stop_offscreen_data) {
+							offscreen_locked = false;
+							offscreen_lock.notifyAll();
+							return;
+						}
+						final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
+						if (!zd.isOutOfRepaintingClip(magnification, srcRect, null)) {
+							if (zd.equals(active)) top = true;
+							if (top) al_top.add(zd);
+							else zd.paint(g, magnification, false, c_alphas, layer);
+						}
+						j++;
+					}
+					// paint LayerSet and DLabel objects!
+					while (i < n) {
+						if (stop_offscreen_data) {
+							offscreen_locked = false;
+							offscreen_lock.notifyAll();
+							return;
+						}
+						final Displayable d = (Displayable) al.get(i);
+						if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
+							if (d.equals(active)) top = true;
+							if (top) al_top.add(d);
+							else d.paint(g, magnification, false, c_alphas, layer);
+						}
+						i++;
+					}
+
+					// there may be only Patch objects ..
+					if (!bkgd_painted) {
+						g.setColor(Color.black);
+						g.fill(background);
+					}
+
+					// only on success:
+					update_graphics = false;
+					loader.setMassiveMode(false);
 
 					offscreen_locked = false;
 					offscreen_lock.notifyAll();
 				}
-				// start
-				final ArrayList al = layer.getDisplayables();
-				final int n = al.size();
-				final ArrayList al_zdispl = layer.getParent().getZDisplayables();
-				final int m = al_zdispl.size();
 
-				// new way: assumes the Layer has its objects in order:
-				// 1 - Patches
-				// 2 - Profiles, Balls
-				// 3 - Pipes and ZDisplayables (from the parent LayerSet)
-				// 4 - DLabels
-				// So paint everything up to the active to offscreen1, then the rest to offscreen2.
-				final Graphics2D g_any = g1; // a pointer to switch between both offscreen images.
-				boolean top = false;
-
-				final Selection selection = display.getSelection();
-
-				Rectangle accum_box = null;
-				final Rectangle tmp = new Rectangle();
-
-				int i = 0;
-				while (i < n) {
-					if (stop_offscreen_data) {
-						return;
-					}
-					final Displayable d = (Displayable) al.get(i);
-					if (d.getClass().equals(DLabel.class) || d.getClass().equals(LayerSet.class)) {
-						break;
-					}
-					if (d != active) {
-						if (top) {
-							al_top.add(d);
-						} else {
-							if (!d.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-								d.prePaint(g_any, magnification, false, c_alphas, layer);
-								//Utils.log2("painted " + this.getId());
-								if (null == accum_box) {
-									accum_box = (Rectangle)d.getBoundingBox(tmp).clone();
-								} else {
-									accum_box.add(d.getBoundingBox(tmp));
-								}
-								if (0 == (i+1) % 10) {
-									final Rectangle accum_box2 = accum_box;
-									new Thread() { public void run() { new RepaintThread(DisplayCanvas.this, accum_box2, false); }}.start(); // the new thread prevents lock up, since a thread may be joining this thread if it's trying to quit it
-									accum_box = null;
-								}
-								// keep updating every 10th image
-								// This is like sending an event
-							}
-						}
-					} else {
-						if (i < n || 0 != m) {
-							top = true;
-						}
-					}
-					i++;
-				}
-				// paint the ZDisplayables here, before the labels and LayerSets, if any
-				int j = 0;
-				while (j < m) {
-					if (stop_offscreen_data) {
-						return;
-					}
-					final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
-					if (zd != active) {
-						if (top) {
-							al_top.add(zd);
-						} else {
-							if (!zd.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-								zd.paint(g_any, magnification, false, c_alphas, layer);
-							}
-						}
-					} else {
-						if (j < m || i < n) {
-							top = true;
-						}
-					}
-					j++;
-				}
-				// paint LayerSet and DLabel objects!
-				while (i < n) {
-					if (stop_offscreen_data) {
-						return;
-					}
-					final Displayable d = (Displayable) al.get(i);
-					if (d != active) {
-						if (top) {
-							al_top.add(d);
-						} else {
-							if (!d.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-								d.paint(g_any, magnification, false, c_alphas, layer);
-							}
-						}
-					} else {
-						if (i < n) {
-							top = true;
-						}
-					}
-					i++;
-				}
-
-				if (null != g1) g1.dispose(); // Kai Uwe Barthel does it (but I suspect it's automatic?)
-				// done
-				//Utils.log(label + " *** Done ugt " + System.currentTimeMillis());
-				// only on success:
-				update_graphics = false;
-				loader.setMassiveMode(false);
 				// signal that the offscreen image is done: repaint
-				new Thread() { public void run() { new RepaintThread(DisplayCanvas.this, null, false); }}.start(); // the new thread prevents lock up, since a thread may be joining this thread if it's trying to quit it
+				new Thread() { public void run() { new RepaintThread(DisplayCanvas.this, clipRect, false); }}.start(); // the new thread prevents lock up, since a thread may be joining this thread if it's trying to quit it
 
 			} catch (OutOfMemoryError oome) {
 				// so OutOfMemoryError won't generate locks

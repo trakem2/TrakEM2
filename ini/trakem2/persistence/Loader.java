@@ -3262,6 +3262,7 @@ abstract public class Loader {
 		}
 		// debug:
 		Utils.log2("opening image " + path);
+		//Utils.printCaller(this, 7);
 		return opener.openImage(path);
 	}
 

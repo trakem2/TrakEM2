@@ -329,8 +329,11 @@ public class StitchingTEM {
 			}
 		}
 
+		//Utils.log2("makeStripe: w,h " + ip.getWidth() + ", " + ip.getHeight());
+
 		// return a FloatProcessor
 		if (imp.getType() != ImagePlus.GRAY32) return ip.convertToFloat();
+
 		return ip;
 	}
 
@@ -421,7 +424,7 @@ public class StitchingTEM {
 			//try { Thread.sleep(1000000000); } catch (Exception e) {}
 			// increase for next iteration
 			overlap += 0.10; // increments of 10%
-		} while (R < min_R && overlap < 1.0);
+		} while (R < min_R && Math.abs(overlap - 1.0f) < 0.001f);
 
 		// Phase-correlation failed, fall back to cross-correlation with a safe overlap
 		overlap = percent_overlap * 2;
@@ -436,8 +439,10 @@ public class StitchingTEM {
 				roi2 = new Roi(0, 0, (int)(w2 * overlap), h2); // left
 				break;
 		}
-		ip1 = makeStripe(base, roi1, scale);
-		ip2 = makeStripe(moving, roi2, scale);
+		// use one third of the size used for phase-correlation though! Otherwise, it may take FOREVER
+		float scale_cc = (float)(scale / 3f);
+		ip1 = makeStripe(base, roi1, scale_cc);
+		ip2 = makeStripe(moving, roi2, scale_cc);
 
 		// gaussian blur them before cross-correlation
 		ip1.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip1.getPixels(), ip1.getWidth(), ip1.getHeight()), 1f).data);
@@ -462,15 +467,15 @@ public class StitchingTEM {
 			switch(direction) {
 				case TOP_BOTTOM:
 					// boundary checks:
-					if (cc_result[1]/scale > default_dy) success = ERROR;
-					x2 = base.getX() + cc_result[0]/scale;
-					y2 = base.getY() + roi1.getBounds().y + cc_result[1]/scale;
+					if (cc_result[1]/scale_cc > default_dy) success = ERROR;
+					x2 = base.getX() + cc_result[0]/scale_cc;
+					y2 = base.getY() + roi1.getBounds().y + cc_result[1]/scale_cc;
 					break;
 				case LEFT_RIGHT:
 					// boundary checks:
-					if (cc_result[0]/scale > default_dx) success = ERROR;
-					x2 = base.getX() + roi1.getBounds().x + cc_result[0]/scale;
-					y2 = base.getY() + cc_result[1]/scale;
+					if (cc_result[0]/scale_cc > default_dx) success = ERROR;
+					x2 = base.getX() + roi1.getBounds().x + cc_result[0]/scale_cc;
+					y2 = base.getY() + cc_result[1]/scale_cc;
 					break;
 			}
 			Utils.log2("CC R: " + cc_result[2] + " dx, dy: " + cc_result[0] + ", " + cc_result[1]);

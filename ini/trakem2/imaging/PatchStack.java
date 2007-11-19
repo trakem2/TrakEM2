@@ -584,8 +584,8 @@ public class PatchStack extends ImagePlus {
 			saveRoi();
 			roi = null;
 		}
-		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
-		imp.killRoi();
+		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().getCachedImagePlus(patch[currentSlice-1].getId()); // .fetchImagePlus(patch[currentSlice-1]);
+		if (null != imp) imp.killRoi();
 		//draw() // not needed
 	}
 
