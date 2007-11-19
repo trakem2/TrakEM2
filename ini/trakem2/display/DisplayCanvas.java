@@ -193,31 +193,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				int c_alphas = display.getDisplayChannelAlphas();
 
 				if (create_offscreen_data || null == offscreen) {
-					// paint on the offscreen image currently not used for painting the screen
-					synchronized (offscreen_lock) {
-						while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-						offscreen_locked = true;
-
-						// recreate if canvas size has changed, otherwise reuse
-						if (offscreen_b == offscreen) {
-							// paint on a
-							if (null == offscreen_a || g_width != offscreen.getWidth(null) || g_height != offscreen.getHeight(null)) {
-								offscreen_a = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
-								offscreen_a.setAccelerationPriority(1.0f);
-							}
-							offscreen = offscreen_a;
-						} else {
-							// offscreen_a == offscreen, paint on b
-							if (null == offscreen_b || g_width != offscreen.getWidth(null) || g_height != offscreen.getHeight(null)) {
-								offscreen_b = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
-								offscreen_b.setAccelerationPriority(1.0f);
-							}
-							offscreen = offscreen_b;
-						}
-
-						offscreen_locked = false;
-						offscreen_lock.notifyAll();
-					}
 
 					if (quit) return;
 					this.offscreen_thread = new OffscreenThread(clipRect, layer, g_width, g_height, active, c_alphas);
@@ -226,7 +201,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				// call the paint(Graphics g) ATTENTION this is the only place where any of the repaint methods of the superclass are to be called (which will call the update(Graphics g), which will call the paint method.
 				if (null == clipRect) DisplayCanvas.super.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
-				else DisplayCanvas.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
+				else {
+					// the clipRect is already in screen coords
+					DisplayCanvas.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
+				}
 
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("RepaintThread OutOfMemoryError: " + oome); // so OutOfMemoryError won't generate locks
@@ -272,6 +250,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			g.translate(0, 0); // ints!
 
 			final Rectangle clipRect = g.getClipBounds();
+			//Utils.log2("clip as offscreen: " + atc.createInverse().createTransformedShape(clipRect).getBounds());
 
 			final Displayable active = display.getActive();
 			final int c_alphas = display.getDisplayChannelAlphas();
@@ -297,8 +276,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
 					offscreen_locked = true;
 
-
-
 					if (null != offscreen) {
 						g.drawImage(offscreen, 0, 0, null);
 
@@ -306,11 +283,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 
 					// prepare the canvas for the srcRect and magnification
-					//final AffineTransform at_original = g2d.getTransform();
+					final AffineTransform at_original = g2d.getTransform();
 					atc.setToIdentity();
 					atc.scale(magnification, magnification);
 					atc.translate(-srcRect.x, -srcRect.y);
-					g2d.setTransform(atc);
+					at_original.preConcatenate(atc);
+					g2d.setTransform(at_original);
 
 					di = new Displayable[al_top.size()];
 					al_top.toArray(di);
@@ -738,17 +716,16 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		if (null != active && active.isVisible()) {
 			// prevent dragging beyond the layer limits
 			if (display.getLayer().contains(x_d, y_d, 1)) {
-				Rectangle box2, copy;
+				Rectangle box2;
 				switch (tool) {
 				case ProjectToolbar.SELECT:
 					selection.mouseDragged(x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 					box2 = selection.getLinkedBox();
-					copy = (Rectangle)box2.clone();
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
 					Display.repaint(display.getLayer(), box, Selection.PADDING);
-					// translate box for next mouse dragged iteration
-					box = copy;
+					// box for next mouse dragged iteration
+					box = box2;
 					break;
 				case ProjectToolbar.ALIGN:
 					break; // nothing
@@ -1877,19 +1854,44 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
 					offscreen_locked = true;
 
-					g = (Graphics2D)offscreen.getGraphics();
+					Image target = null;
+
+					// Paint on the offscreen image currently not used for painting the screen
+					// recreate if canvas size has changed, otherwise reuse
+					if (offscreen_b == offscreen) {
+						// paint on a
+						if (null == offscreen_a || g_width != offscreen_a.getWidth(null) || g_height != offscreen_a.getHeight(null)) {
+							if (null != offscreen_a) offscreen_a.flush();
+							offscreen_a = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
+							offscreen_a.setAccelerationPriority(1.0f);
+						}
+						target = offscreen_a;
+					} else {
+						// offscreen_a == offscreen, paint on b
+						if (null == offscreen_b || g_width != offscreen_b.getWidth(null) || g_height != offscreen_b.getHeight(null)) {
+							if (null != offscreen_b) offscreen_b.flush();
+							offscreen_b = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
+							offscreen_b.setAccelerationPriority(1.0f);
+						}
+						target = offscreen_b;
+					}
+
+					g = (Graphics2D)target.getGraphics();
 
 					// prepare the canvas for the srcRect and magnification
-					final AffineTransform atc = new AffineTransform();
+					final AffineTransform at_original = g.getTransform();
+					atc.setToIdentity();
 					atc.scale(magnification, magnification);
 					atc.translate(-srcRect.x, -srcRect.y);
-					g.setTransform(atc);
+					at_original.preConcatenate(atc);
+					g.setTransform(at_original);
+
 					//setRenderingHints(g);
 					// always a stroke of 1.0, regardless of magnification
 					g.setStroke(stroke);
 
 					// Area to which each Patch will subtract from
-					background =  new Area(new Rectangle(0, 0, offscreen.getWidth(null), offscreen.getHeight(null)));
+					background =  new Area(new Rectangle(0, 0, target.getWidth(null), target.getHeight(null)));
 					// bring the area to Layer space
 					background.transform(atc.createInverse());
 					boolean bkgd_painted = false;
@@ -1980,6 +1982,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					// only on success:
 					update_graphics = false;
 					loader.setMassiveMode(false);
+					offscreen = target;
 
 					offscreen_locked = false;
 					offscreen_lock.notifyAll();
