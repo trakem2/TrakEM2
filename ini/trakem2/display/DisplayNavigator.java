@@ -156,8 +156,10 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	private class UpdateGraphicsThread extends Thread {
 
 		private boolean quit = false;
+		private Rectangle clipRect;
 
-		UpdateGraphicsThread() {
+		UpdateGraphicsThread(Rectangle clipRect) {
+			this.clipRect = clipRect;
 			synchronized (updating_ob) {
 				while (updating) {
 					try {
@@ -228,6 +230,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				}
 
 				final ArrayList al = display.getLayer().getDisplayables();
+				final boolean are_snapshots_enabled = layer.getParent().areSnapshotsEnabled();
 				final int size = al.size();
 				boolean zd_done = false;
 				for (int i=0; i<size; i++) {
@@ -250,18 +253,23 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 							if (!zd.isVisible()) continue;
 							zd.getSnapshot().paintTo(graphics, display.getLayer(), scale);
 						}
+						// paint the label too!
+						d.paint(graphics, scale, false, 1, DisplayNavigator.this.layer);
 					} else if (c.equals(Patch.class)) {
-						Patch p = (Patch)d;
-						Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
-						if (null != img) {
-							d.paint(graphics, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
-							hs_painted.add(d);
+						if (are_snapshots_enabled) {
+							Patch p = (Patch)d;
+							Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
+							if (null != img) {
+								if (d.isVisible()) d.paint(graphics, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
+								hs_painted.add(d);
+							} else  {
+								Snapshot.paintAsBox(graphics, d);
+							}
 						} else {
 							Snapshot.paintAsBox(graphics, d);
 						}
 					} else {
-						//d.getSnapshot().paintTo(graphics, display.getLayer(), scale);
-						d.paint(graphics, scale, false, 1, DisplayNavigator.this.layer);
+						if (d.isVisible()) d.paint(graphics, scale, false, 1, DisplayNavigator.this.layer);
 					}
 				}
 				if (!zd_done) { // if no labels, ZDisplayables haven't been painted
@@ -278,7 +286,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					}
 				}
 				// finally, when done, call repaint (like sending an event)
-				new RepaintThread(null);
+				new RepaintThread(clipRect);
 			} catch (Exception e) {
 				new IJError(e);
 			}
@@ -341,7 +349,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 			Thread.yield(); // still the launcher thread
 			/* // blocks EDT !
 			if (redraw_displayables) {
-				new UpdateGraphicsThread();
+				new UpdateGraphicsThread(clipRect_);
 				redraw_displayables = false; // reset
 			}
 			*/
@@ -358,7 +366,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 			if (quit) return;
 			if (redraw_displayables) {
 				redraw_displayables = false; // reset
-				new UpdateGraphicsThread();
+				new UpdateGraphicsThread(clipRect);
 			}
 			/* Don't wait. When done, the thread will call another repaint thread
 			// now wait for the image to be done

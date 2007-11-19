@@ -488,6 +488,10 @@ abstract public class Loader {
 	 */
 	static protected long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
 
+	public long getMaxMemory() {
+		return max_memory;
+	}
+
 	/** Measure wether there is at least 20% of available memory. */
 	protected boolean enoughFreeMemory() {
 		final long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
@@ -537,31 +541,38 @@ abstract public class Loader {
 		}
 		boolean previous = massive_mode;
 		if (bytes > max_memory / 4) setMassiveMode(true);
-		int iterations = 30;
 		boolean result = true;
 		synchronized (db_lock) {
 			lock();
-			while (!enoughFreeMemory(bytes)) {
-				Utils.log2("rtf " + iterations);
-				releaseMemory(0.5D, true, bytes);
-				if (0 == imps.size() && 0 == mawts.size()) {
-					// wait for GC ...
-					try { Thread.sleep(1000); } catch (InterruptedException ie) {}
-					// release offscreen images (will leave the canvas labeled for remaking when necessary)
-					if (iterations < 20) Display.flushAll();
-				}
-				if (iterations < 0) {
-					Utils.log("Can't make room for " + bytes + " bytes in memory.");
-					result = false;
-					break;
-				}
-				Thread.yield(); // for the GC to run
-				try { Thread.sleep(500); } catch (InterruptedException ie) {}
-				iterations--;
-			}
+			result = releaseToFit2(bytes);
 			unlock();
 		}
 		setMassiveMode(previous);
+		return result;
+	}
+
+	// non-locking version
+	protected final boolean releaseToFit2(long bytes) {
+		boolean result = true;
+		int iterations = 30;
+		while (!enoughFreeMemory(bytes)) {
+			Utils.log2("rtf " + iterations);
+			releaseMemory(0.5D, true, bytes);
+			if (0 == imps.size() && 0 == mawts.size()) {
+				// wait for GC ...
+				try { Thread.sleep(1000); } catch (InterruptedException ie) {}
+				// release offscreen images (will leave the canvas labeled for remaking when necessary)
+				if (iterations < 20) Display.flushAll();
+			}
+			if (iterations < 0) {
+				Utils.log("Can't make room for " + bytes + " bytes in memory.");
+				result = false;
+				break;
+			}
+			Thread.yield(); // for the GC to run
+			try { Thread.sleep(200); } catch (InterruptedException ie) {}
+			iterations--;
+		}
 		return result;
 	}
 
@@ -867,7 +878,6 @@ abstract public class Loader {
 
 				mawt = mawts.get(id, level);
 				if (null != mawt) {
-					synchronized (db_lock) { lock(); max_memory += n_bytes; unlock(); }
 					plock.loading = false;
 					plock.notifyAll();
 					return mawt; // was loaded by a different thread
@@ -888,7 +898,7 @@ abstract public class Loader {
 					try {
 						lock();
 						//removePatchLoadingLock(plock);
-						max_memory += n_bytes;
+						max_memory -= n_bytes;
 						if (null != mawt) {
 							mawts.put(id, mawt, level);
 							unlock();
@@ -1140,6 +1150,30 @@ abstract public class Loader {
 		return importSequenceAsGrid(layer, dir, null);
 	}
 
+	/** Open one of the images to find out the dimensions, and get a good guess at what is the desirable scale for doing phase- and cross-correlations with about 512x512 images. */
+	private int getCCScaleGuess(final File images_dir, final String[] all_images) {
+		try {
+			if (null != all_images && all_images.length > 0) {
+				Utils.showStatus("Opening one image ... ");
+				String sdir = images_dir.getAbsolutePath().replace('\\', '/');
+				if (!sdir.endsWith("/")) sdir += "/";
+				ImagePlus imp = opener.openImage(sdir + all_images[0]);
+				if (null != imp) {
+					int w = imp.getWidth();
+					int h = imp.getHeight();
+					imp.flush();
+					imp = null;
+					int cc_scale = (int)((512.0 / (w > h ? w : h)) * 100);
+					if (cc_scale > 100) return 100;
+					return cc_scale;
+				}
+			}
+		} catch (Exception e) {
+			Utils.log2("Could not get an estimate for the optimal scale.");
+		}
+		return 25;
+	}
+
 	/** Import a sequence of images as a grid, and put them in the layer. If the directory (@param dir) is null, it'll be asked for. The image_file_names can be null, and in any case it's only the names, not the paths. */
 	public Bureaucrat importSequenceAsGrid(final Layer layer, String dir, final String[] image_file_names) {
 		try {
@@ -1214,7 +1248,7 @@ abstract public class Loader {
 		gd.addStringField("preprocess with: ", preprocessor); // the name of a plugin to use for preprocessing the images before importing, which implements PlugInFilter
 		gd.addCheckbox("use_cross-correlation", stitch_tiles);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
-		gd.addSlider("cc_scale (%):", 1, 100, 25);
+		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
 		gd.addCheckbox("homogenize_contrast", homogenize_contrast);
 		StitchingTEM.addStitchingRuleChoice(gd);
 		final Component[] c = {
@@ -3130,7 +3164,7 @@ abstract public class Loader {
 
 	/** Preprocess an image before TrakEM2 ever has a look at it with a system-wide defined preprocessor plugin, specified in the XML file and/or from within the Display properties dialog. Does not lock, and should always run within locking/unlocking statements. */
 	protected final void preProcess(final ImagePlus imp) {
-		if (null == preprocessor) return;
+		if (null == preprocessor || null == imp) return;
 		// access to WindowManager.setTempCurrentImage(...) is locked within the Loader
 		try {
 			startSetTempCurrentImage(imp);
@@ -3238,6 +3272,7 @@ abstract public class Loader {
 		}
 		// debug:
 		Utils.log2("opening image " + path);
+		//Utils.printCaller(this, 7);
 		return opener.openImage(path);
 	}
 

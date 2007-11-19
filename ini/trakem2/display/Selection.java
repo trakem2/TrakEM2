@@ -117,28 +117,30 @@ public class Selection {
 	public void paint(Graphics g, Rectangle srcRect, double magnification) {
 		// paint rectangle around selected Displayable elements
 		if (queue.isEmpty()) return;
-		g.setColor(Color.pink);
-		Displayable[] da = null;
-		synchronized (queue_lock) {
-			lock();
-			try {
-				da = new Displayable[queue.size()];
-				queue.toArray(da);
-			} catch (Exception e) {
-				new IJError(e);
-			} finally {
-				unlock();
+		if (!transforming) {
+			g.setColor(Color.pink);
+			Displayable[] da = null;
+			synchronized (queue_lock) {
+				lock();
+				try {
+					da = new Displayable[queue.size()];
+					queue.toArray(da);
+				} catch (Exception e) {
+					new IJError(e);
+				} finally {
+					unlock();
+				}
 			}
-		}
-		final Rectangle bbox = new Rectangle();
-		for (int i=0; i<da.length; i++) {
-			da[i].getBoundingBox(bbox);
-			if (da[i].equals(active)) {
-				g.setColor(Color.white);
-				g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
-				g.setColor(Color.pink);
-			} else {
-				g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+			final Rectangle bbox = new Rectangle();
+			for (int i=0; i<da.length; i++) {
+				da[i].getBoundingBox(bbox);
+				if (da[i].equals(active)) {
+					g.setColor(Color.white);
+					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+					g.setColor(Color.pink);
+				} else {
+					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+				}
 			}
 		}
 		//Utils.log2("transforming, dragging, rotating: " + transforming + "," + dragging + "," + rotating);
@@ -514,9 +516,6 @@ public class Selection {
 			if (null != display && null == this.active) {
 				display.setActive((Displayable)queue.getLast());
 				this.active = display.getActive();
-				Utils.log2("calling display.setActive");
-			} else {
-				Utils.log2("not calling display.setActive");
 			}
 		} catch (Exception e) {
 			new IJError(e);
@@ -764,20 +763,20 @@ public class Selection {
 		return (Rectangle)box.clone();
 	}
 
-	/** Returns the total box enclosing all selected objects and their linked objects within the current layer.*/
-	public Rectangle getLinkedBox() { // TODO has to change to query the Displayable directly
+	/** Returns the total box enclosing all selected objects and their linked objects within the current layer, or null if none are selected.*/
+	public Rectangle getLinkedBox() {
 		if (null == active) return null;
 		Rectangle b = active.getBoundingBox();
 		Layer layer = display.getLayer();
-		Rectangle r = new Rectangle();
+		Rectangle r = new Rectangle(); // for reuse
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			if (d.getLayer().equals(layer)) {
+			if (!d.equals(active) && d.getLayer().equals(layer)) {
 				b.add(d.getBoundingBox(r));
 			}
 		}
 		// include floater, whereever it is
-		b.add(floater.getBoundingBox(r));
+		if (transforming) b.add(floater.getBoundingBox(r));
 		return b;
 	}
 

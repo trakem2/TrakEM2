@@ -348,7 +348,7 @@ public abstract class Displayable extends DBObject {
 		return r;
 	}
 
-	/** Subclasses can override this method to provide the exact contour, otherwise it returns the transformed bounding box. */
+	/** Subclasses can override this method to provide the exact contour, otherwise it returns the transformed bounding box of the data. */
 	public Polygon getPerimeter() {
 		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
 			// return the bounding box as a polygon:
@@ -534,7 +534,7 @@ public abstract class Displayable extends DBObject {
 			return true;
 		}
 		Rectangle box = getBoundingBox(); // includes rotation
-		// 2 - check if out of clipRect
+		// 2 - check if out of clipRect (clipRect is in screen coords, whereas srcRect is in offscreen coords)
 		if (null != clipRect && null != srcRect) {
 			int screen_x = (int)((box.x -srcRect.x) * magnification);
 			int screen_y = (int)((box.y -srcRect.y) * magnification);

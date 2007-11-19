@@ -34,6 +34,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.Registration;
+import ini.trakem2.imaging.StitchingTEM;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.DNDInsertImage;
@@ -1277,6 +1278,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 	}
+
 	/** Repaint as much as the bounding box around the given Displayable. */
 	private void repaint(Displayable displ, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
@@ -1327,6 +1329,23 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		*/
 	}
+
+	static public void repaint(Layer layer, int extra, Rectangle r, boolean update_navigator) {
+		if (repaint_disabled) return;
+		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
+			Display d = (Display)it.next();
+			if (layer.equals(d.layer)) {
+				d.canvas.setUpdateGraphics(true);
+				d.canvas.repaint(r, extra);
+				if (update_navigator) {
+					d.navigator.repaint(true);
+					updateComponent(d.tabs.getSelectedComponent());
+				}
+			}
+		}
+	}
+
+
 	/** Repaint the given Rectangle in all Displays showing the layer, optionally updating the offscreen image (if any). */
 	static public void repaint(Layer layer, Rectangle r, int extra, boolean update_graphics) {
 		if (repaint_disabled) return;
@@ -2774,7 +2793,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display3D.showVolume(((Patch)active));
 		} else if (command.equals("Snap")) {
 			if (!(active instanceof Patch)) return;
-			canvas.snap(getActive());
+			StitchingTEM.snap(getActive(), this);
 		} else if (command.equals("Homogenize contrast (selected images)")) {
 			ArrayList al = selection.getSelected(Patch.class);
 			if (al.size() < 2) return;
@@ -3046,7 +3065,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	static public void toolChanged(int tool) {
-		Utils.log2("int tool is " + tool);
+		//Utils.log2("int tool is " + tool);
 		if (ProjectToolbar.PEN == tool) {
 			// erase bounding boxes
 			for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
@@ -3141,5 +3160,21 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//temp.getCalibration().pixelDepth = layer.getParent().getLayer(0).getThickness();
 		last_temp = temp;
 		//Utils.log2("currentSlice: " + temp.getCurrentSlice() + " for layer index " + layer.getParent().indexOf(layer));
+	}
+
+	/** Check if any display will paint the given Displayable at the given magnification. */
+	static public boolean willPaint(final Displayable displ, final double magnification) {
+		Rectangle box = null; ;
+		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
+			Display d = (Display)it.next();
+			if (d.canvas.getMagnification() != magnification) {
+				continue;
+			}
+			if (null == box) box = displ.getBoundingBox();
+			if (d.canvas.getSrcRect().intersects(box)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

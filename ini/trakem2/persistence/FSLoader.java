@@ -317,7 +317,6 @@ public class FSLoader extends Loader {
 
 			imp = imps.get(p.getId());
 			if (null != imp) {
-				synchronized (db_lock) { lock(); max_memory += n_bytes; unlock(); }
 				plock.loading = false;
 				plock.notifyAll();
 				return imp; // was loaded by a different thread
@@ -329,7 +328,8 @@ public class FSLoader extends Loader {
 			synchronized (db_lock) {
 				lock();
 				n_bytes = estimateImageFileSize(p, 0);
-				max_memory += n_bytes;
+				// not needed // releaseToFit2(n_bytes);
+				max_memory -= n_bytes;
 				unlock();
 			}
 
@@ -452,7 +452,6 @@ public class FSLoader extends Loader {
 
 			imp = imps.get(p.getId());
 			if (null != imp) {
-				synchronized (db_lock) { lock(); max_memory += n_bytes; unlock(); }
 				plock.loading = false;
 				plock.notifyAll();
 				return imp.getProcessor(); // was loaded by a different thread
@@ -460,11 +459,13 @@ public class FSLoader extends Loader {
 
 			// going to load:
 
+
 			// reserve memory:
 			synchronized (db_lock) {
 				lock();
 				n_bytes = estimateImageFileSize(p, 0);
-				max_memory += n_bytes;
+				// not needed // releaseToFit2(n_bytes);
+				max_memory -= n_bytes;
 				unlock();
 			}
 
@@ -695,7 +696,6 @@ public class FSLoader extends Loader {
 		final int i_slash = path.indexOf(File.separatorChar);
 		if ((!IJ.isWindows() && 0 != i_slash) || (IJ.isWindows() && 1 != path.indexOf(":/"))) {
 			// path is relative
-			//TODO too many calls//Utils.log2("Where are in and project_xml_path is  " + project_xml_path);
 			File fxml = new File(project_xml_path);
 			String parent_dir = fxml.getParent();
 			String tmp = parent_dir + "/" + path;

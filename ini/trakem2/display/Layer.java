@@ -355,6 +355,10 @@ public class Layer extends DBObject {
 		return (ArrayList)al_displayables.clone();
 	}
 
+	public int getNDisplayables() {
+		return al_displayables.size();
+	}
+
 	/** Returns a list of Displayable of class c only.*/
 	public ArrayList getDisplayables(final Class c) {
 		final ArrayList al = new ArrayList();

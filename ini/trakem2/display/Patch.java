@@ -303,7 +303,7 @@ public class Patch extends Displayable {
 
 	
 	/** Paint first whatever is available, then spawn a thread to load the proper image and paint it. */
-	public void prePaint(Graphics2D g, final double magnification, boolean active, int channels, Layer active_layer) {
+	public void prePaint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 
 		AffineTransform atp = this.at;
 
@@ -317,7 +317,7 @@ public class Patch extends Displayable {
 			boolean thread = false;
 			if (null == image) {
 				// fetch the proper image, nothing is cached
-				if (magnification <= 0.5) {
+				if (magnification <= 0.5001) {
 					// load the mipmap
 					image = project.getLoader().fetchImage(this, magnification);
 				} else {
@@ -335,9 +335,12 @@ public class Patch extends Displayable {
 					public void run() {
 						setPriority(Thread.NORM_PRIORITY);
 						try { Thread.sleep(50); } catch (InterruptedException ie) {}
-						// load the proper image
-						Patch.this.project.getLoader().fetchImage(Patch.this, magnification);
-						Display.repaint(Patch.this.layer, Patch.this, Patch.this.getBoundingBox(), 1, false); // not the navigator
+						// load the proper image only if really needed: (may have moved away fast)
+						if (Display.willPaint(Patch.this, magnification)) {
+							Thread.yield();
+							Patch.this.project.getLoader().fetchImage(Patch.this, magnification);
+							Display.repaint(Patch.this.layer, Patch.this, Patch.this.getBoundingBox(), 1, false); // not the navigator
+						}
 					}
 				};
 			}
