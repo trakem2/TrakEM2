@@ -1278,6 +1278,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 	}
+
 	/** Repaint as much as the bounding box around the given Displayable. */
 	private void repaint(Displayable displ, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
@@ -1328,6 +1329,23 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		*/
 	}
+
+	static public void repaint(Layer layer, int extra, Rectangle r, boolean update_navigator) {
+		if (repaint_disabled) return;
+		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
+			Display d = (Display)it.next();
+			if (layer.equals(d.layer)) {
+				d.canvas.setUpdateGraphics(true);
+				d.canvas.repaint(r, extra);
+				if (update_navigator) {
+					d.navigator.repaint(true);
+					updateComponent(d.tabs.getSelectedComponent());
+				}
+			}
+		}
+	}
+
+
 	/** Repaint the given Rectangle in all Displays showing the layer, optionally updating the offscreen image (if any). */
 	static public void repaint(Layer layer, Rectangle r, int extra, boolean update_graphics) {
 		if (repaint_disabled) return;

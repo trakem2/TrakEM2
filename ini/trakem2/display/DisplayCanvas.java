@@ -45,9 +45,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 	private boolean update_graphics = false;
 	private Image offscreen, offscreen_a, offscreen_b;
-	private ArrayList al_top = new ArrayList();
-
 	private Rectangle clipRect_a, clipRect_b;
+	private ArrayList al_top = new ArrayList();
 
 	private Rectangle box = null; // the bounding box of the active
 
@@ -723,7 +722,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					box2 = selection.getLinkedBox();
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
-					Display.repaint(display.getLayer(), box, Selection.PADDING);
+					Display.repaint(display.getLayer(), Selection.PADDING, box, false);
 					// box for next mouse dragged iteration
 					box = box2;
 					break;
@@ -882,7 +881,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case ProjectToolbar.SELECT:
 				selection.mouseReleased(x_p, y_p, x_d, y_d, x_r, y_r);
 				box.add(selection.getLinkedBox());
-				Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
+				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming()); // does not repaint the navigator
 				break;
 			case ProjectToolbar.PENCIL:
 			case ProjectToolbar.PEN:
@@ -1386,12 +1385,16 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		synchronized (offscreen_lock) {
 			while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
 			offscreen_locked = true;
-			/*
-			if (null != offscreen1) {
-				offscreen1.flush();
-				offscreen1 = null;
+			
+			offscreen = null;
+			if (null != offscreen_a) {
+				offscreen_a.flush();
+				offscreen_a = null;
 			}
-			*/
+			if (null != offscreen_b) {
+				offscreen_b.flush();
+				offscreen_b = null;
+			}
 			// reset for remaking if necessary TODO doesn't work in at least java 1.6 ?
 			update_graphics = true;
 
@@ -1855,6 +1858,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					offscreen_locked = true;
 
 					Image target = null;
+					Rectangle prev_clip = null;
 
 					// Paint on the offscreen image currently not used for painting the screen
 					// recreate if canvas size has changed, otherwise reuse
@@ -1866,6 +1870,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							offscreen_a.setAccelerationPriority(1.0f);
 						}
 						target = offscreen_a;
+						prev_clip = clipRect_b;
+						clipRect_a = clipRect; // update
 					} else {
 						// offscreen_a == offscreen, paint on b
 						if (null == offscreen_b || g_width != offscreen_b.getWidth(null) || g_height != offscreen_b.getHeight(null)) {
@@ -1874,6 +1880,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							offscreen_b.setAccelerationPriority(1.0f);
 						}
 						target = offscreen_b;
+						prev_clip = clipRect_a;
+						clipRect_b = clipRect; // update
+					}
+
+					// add the clip that was used in the other offscreen image, unless null (which would mean 'the entire area')
+					if (null != prev_clip) {
+						if (null != clipRect) clipRect.add(prev_clip);
 					}
 
 					g = (Graphics2D)target.getGraphics();
@@ -2012,8 +2025,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 	}
 
-
-	// added here to prevent flickering, but doesn't help
+	// added here to prevent flickering, but doesn't help. All it does is avoid a call to imp.redraw()
 	protected void scroll(int sx, int sy) {
 		int ox = xSrcStart + (int)(sx/magnification);  //convert to offscreen coordinates
 		int oy = ySrcStart + (int)(sy/magnification);
