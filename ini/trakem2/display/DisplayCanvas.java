@@ -302,7 +302,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					if (null != offscreen) {
 						g.drawImage(offscreen, 0, 0, null);
 
-						Utils.log2(offscreen == offscreen_a ? "a" : "b");
+						//Utils.log2(offscreen == offscreen_a ? "a" : "b");
 					}
 
 					// prepare the canvas for the srcRect and magnification
@@ -320,7 +320,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 			}
 
-			if (null != active) {
+			if (null != active && !active.getClass().equals(Patch.class)) {
 				active.paint(g2d, magnification, true, c_alphas, active_layer);
 			}
 
@@ -669,15 +669,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		if (0 != (flags & InputEvent.BUTTON2_MASK)) {
 			tool = Toolbar.HAND;
 		}
-		*/
+		*/ // so the above has been implemented as a temporary switch to the HAND tool at the mousePressed function.
 
 		switch (tool) {
 		case Toolbar.MAGNIFIER: // TODO : create a zooms-area tool
 			return;
 		case Toolbar.HAND:
 			update_graphics = true; // update the offscreen images.
-			/*super.*/scroll(me.getX(), me.getY());
-			//display.repaintAll(); // TODO this is overkill
+			scroll(me.getX(), me.getY());
 			display.getNavigator().repaint(false);
 			repaint(true);
 			return;
@@ -795,6 +794,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				ProjectToolbar.setTool(tmp_tool);
 				tmp_tool = -1;
 			}
+			if (!dragging2) repaint(true); // TEMPORARY just to allow fixing bad screen when simply cliking with the hand
 			return;
 		}
 
@@ -1921,19 +1921,20 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						if (c.equals(DLabel.class) || c.equals(LayerSet.class)) {
 							break;
 						}
-						if (!c.equals(Patch.class)) {
+						if (c.equals(Patch.class)) {
+							background.subtract(new Area(d.getPerimeter())); // must be outside because the clip could be limited to the active, for instance
+						} else {
 							if (!background.isEmpty()) {
 								// paint background
 								g.setColor(Color.black);
 								g.fill(background);
 								bkgd_painted = true;
-								Utils.log2("off is " + (offscreen == offscreen_a ?  "a" : "b"));
+								//Utils.log2("off is " + (offscreen == offscreen_a ?  "a" : "b"));
 							}
+							if (d.equals(active)) top = true; // no Patch instances allowed on top
 						}
 						if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
-							if (c.equals(Patch.class)) background.subtract(new Area(d.getPerimeter()));
-							else if (d.equals(active)) top = true; // no Patch instances allowed on top
-							if (top) al_top.add(d);
+							if (!c.equals(Patch.class) && top) al_top.add(d);
 							else d.prePaint(g, magnification, false, c_alphas, layer);
 						}
 						i++;
@@ -2006,5 +2007,20 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 			}
 		}
+	}
+
+
+	// added here to prevent flickering, but doesn't help
+	protected void scroll(int sx, int sy) {
+		int ox = xSrcStart + (int)(sx/magnification);  //convert to offscreen coordinates
+		int oy = ySrcStart + (int)(sy/magnification);
+		int newx = xSrcStart + (xMouseStart-ox);
+		int newy = ySrcStart + (yMouseStart-oy);
+		if (newx<0) newx = 0;
+		if (newy<0) newy = 0;
+		if ((newx+srcRect.width)>imageWidth) newx = imageWidth-srcRect.width;
+		if ((newy+srcRect.height)>imageHeight) newy = imageHeight-srcRect.height;
+		srcRect.x = newx;
+		srcRect.y = newy;
 	}
 }
