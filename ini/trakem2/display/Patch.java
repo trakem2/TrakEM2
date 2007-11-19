@@ -317,7 +317,7 @@ public class Patch extends Displayable {
 			boolean thread = false;
 			if (null == image) {
 				// fetch the proper image, nothing is cached
-				if (magnification <= 0.5) {
+				if (magnification <= 0.5001) {
 					// load the mipmap
 					image = project.getLoader().fetchImage(this, magnification);
 				} else {

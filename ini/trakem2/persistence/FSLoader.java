@@ -328,6 +328,7 @@ public class FSLoader extends Loader {
 			synchronized (db_lock) {
 				lock();
 				n_bytes = estimateImageFileSize(p, 0);
+				// not needed // releaseToFit2(n_bytes);
 				max_memory -= n_bytes;
 				unlock();
 			}
@@ -458,10 +459,12 @@ public class FSLoader extends Loader {
 
 			// going to load:
 
+
 			// reserve memory:
 			synchronized (db_lock) {
 				lock();
 				n_bytes = estimateImageFileSize(p, 0);
+				// not needed // releaseToFit2(n_bytes);
 				max_memory -= n_bytes;
 				unlock();
 			}

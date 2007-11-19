@@ -488,6 +488,10 @@ abstract public class Loader {
 	 */
 	static protected long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
 
+	public long getMaxMemory() {
+		return max_memory;
+	}
+
 	/** Measure wether there is at least 20% of available memory. */
 	protected boolean enoughFreeMemory() {
 		final long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
@@ -537,31 +541,38 @@ abstract public class Loader {
 		}
 		boolean previous = massive_mode;
 		if (bytes > max_memory / 4) setMassiveMode(true);
-		int iterations = 30;
 		boolean result = true;
 		synchronized (db_lock) {
 			lock();
-			while (!enoughFreeMemory(bytes)) {
-				Utils.log2("rtf " + iterations);
-				releaseMemory(0.5D, true, bytes);
-				if (0 == imps.size() && 0 == mawts.size()) {
-					// wait for GC ...
-					try { Thread.sleep(1000); } catch (InterruptedException ie) {}
-					// release offscreen images (will leave the canvas labeled for remaking when necessary)
-					if (iterations < 20) Display.flushAll();
-				}
-				if (iterations < 0) {
-					Utils.log("Can't make room for " + bytes + " bytes in memory.");
-					result = false;
-					break;
-				}
-				Thread.yield(); // for the GC to run
-				try { Thread.sleep(500); } catch (InterruptedException ie) {}
-				iterations--;
-			}
+			result = releaseToFit2(bytes);
 			unlock();
 		}
 		setMassiveMode(previous);
+		return result;
+	}
+
+	// non-locking version
+	protected final boolean releaseToFit2(long bytes) {
+		boolean result = true;
+		int iterations = 30;
+		while (!enoughFreeMemory(bytes)) {
+			Utils.log2("rtf " + iterations);
+			releaseMemory(0.5D, true, bytes);
+			if (0 == imps.size() && 0 == mawts.size()) {
+				// wait for GC ...
+				try { Thread.sleep(1000); } catch (InterruptedException ie) {}
+				// release offscreen images (will leave the canvas labeled for remaking when necessary)
+				if (iterations < 20) Display.flushAll();
+			}
+			if (iterations < 0) {
+				Utils.log("Can't make room for " + bytes + " bytes in memory.");
+				result = false;
+				break;
+			}
+			Thread.yield(); // for the GC to run
+			try { Thread.sleep(200); } catch (InterruptedException ie) {}
+			iterations--;
+		}
 		return result;
 	}
 
@@ -867,7 +878,6 @@ abstract public class Loader {
 
 				mawt = mawts.get(id, level);
 				if (null != mawt) {
-					synchronized (db_lock) { lock(); max_memory += n_bytes; unlock(); }
 					plock.loading = false;
 					plock.notifyAll();
 					return mawt; // was loaded by a different thread
@@ -888,7 +898,7 @@ abstract public class Loader {
 					try {
 						lock();
 						//removePatchLoadingLock(plock);
-						max_memory += n_bytes;
+						max_memory -= n_bytes;
 						if (null != mawt) {
 							mawts.put(id, mawt, level);
 							unlock();
