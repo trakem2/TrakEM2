@@ -117,28 +117,30 @@ public class Selection {
 	public void paint(Graphics g, Rectangle srcRect, double magnification) {
 		// paint rectangle around selected Displayable elements
 		if (queue.isEmpty()) return;
-		g.setColor(Color.pink);
-		Displayable[] da = null;
-		synchronized (queue_lock) {
-			lock();
-			try {
-				da = new Displayable[queue.size()];
-				queue.toArray(da);
-			} catch (Exception e) {
-				new IJError(e);
-			} finally {
-				unlock();
+		if (!transforming) {
+			g.setColor(Color.pink);
+			Displayable[] da = null;
+			synchronized (queue_lock) {
+				lock();
+				try {
+					da = new Displayable[queue.size()];
+					queue.toArray(da);
+				} catch (Exception e) {
+					new IJError(e);
+				} finally {
+					unlock();
+				}
 			}
-		}
-		final Rectangle bbox = new Rectangle();
-		for (int i=0; i<da.length; i++) {
-			da[i].getBoundingBox(bbox);
-			if (da[i].equals(active)) {
-				g.setColor(Color.white);
-				g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
-				g.setColor(Color.pink);
-			} else {
-				g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+			final Rectangle bbox = new Rectangle();
+			for (int i=0; i<da.length; i++) {
+				da[i].getBoundingBox(bbox);
+				if (da[i].equals(active)) {
+					g.setColor(Color.white);
+					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+					g.setColor(Color.pink);
+				} else {
+					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+				}
 			}
 		}
 		//Utils.log2("transforming, dragging, rotating: " + transforming + "," + dragging + "," + rotating);

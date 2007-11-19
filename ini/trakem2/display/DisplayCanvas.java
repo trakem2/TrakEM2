@@ -48,6 +48,21 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private Rectangle clipRect_a, clipRect_b;
 	private ArrayList al_top = new ArrayList();
 
+	public final class Lock {
+		boolean locked = false;
+		public final void lock() {
+			while (locked) try { this.wait(); } catch (InterruptedException ie) {}
+			locked = true;
+		}
+		public final void unlock() {
+			locked = false;
+			this.notifyAll();
+		}
+	}
+
+	private final Lock lock_a = new Lock();
+	private final Lock lock_b = new Lock();
+
 	private Rectangle box = null; // the bounding box of the active
 
 	private FakeImageWindow fake_win;
@@ -339,12 +354,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				g.setColor(active.getColor());
 				g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
 			}
-
-			// TODO move to offscreen painting
-			// finally, paint non-srcRect areas
-			g.setColor(Color.gray);
-			g.fillRect(sr_width, 0, g_width - sr_width, g_height);
-			g.fillRect(0, sr_height, g_width, g_height - sr_height);
 
 			if (null != roi) {
 				// reset stroke, always thickness of 1
@@ -1851,13 +1860,15 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				if (stop_offscreen_data) return;
 
-				//OffscreenLock lock = null;
+				Lock lock = null;
+				Image target = null;
+
+				long start = System.currentTimeMillis();
 
 				synchronized (offscreen_lock) {
 					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
 					offscreen_locked = true;
 
-					Image target = null;
 					Rectangle prev_clip = null;
 
 					// Paint on the offscreen image currently not used for painting the screen
@@ -1872,6 +1883,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						target = offscreen_a;
 						prev_clip = clipRect_b;
 						clipRect_a = clipRect; // update
+						lock = lock_a;
 					} else {
 						// offscreen_a == offscreen, paint on b
 						if (null == offscreen_b || g_width != offscreen_b.getWidth(null) || g_height != offscreen_b.getHeight(null)) {
@@ -1882,12 +1894,20 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						target = offscreen_b;
 						prev_clip = clipRect_a;
 						clipRect_b = clipRect; // update
+						lock = lock_b;
 					}
 
 					// add the clip that was used in the other offscreen image, unless null (which would mean 'the entire area')
 					if (null != prev_clip) {
 						if (null != clipRect) clipRect.add(prev_clip);
 					}
+
+					offscreen_locked = false;
+					offscreen_lock.notifyAll();
+				}
+
+				synchronized (lock) {
+					lock.lock();
 
 					g = (Graphics2D)target.getGraphics();
 
@@ -1909,6 +1929,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					background.transform(atc.createInverse());
 					boolean bkgd_painted = false;
 
+					// the non-srcRect areas
+					Rectangle r1 = new Rectangle(srcRect.x + srcRect.width, srcRect.y, (int)(target.getWidth(null) / magnification) - srcRect.width, (int)(target.getHeight(null) / magnification));
+					Rectangle r2 = new Rectangle(srcRect.x, srcRect.y + srcRect.height, srcRect.width, (int)(target.getHeight(null) / magnification) - srcRect.height);
+
+
 					al_top.clear();
 					boolean top = false;
 
@@ -1926,9 +1951,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 					int i = 0;
 					while (i < n) {
-						if (stop_offscreen_data) {
-							offscreen_locked = false;
-							offscreen_lock.notifyAll();
+						if (stop_offscreen_data && start - System.currentTimeMillis() > 100) {
+							//offscreen_locked = false;
+							//offscreen_lock.notifyAll();
+							lock.unlock();
 							return;
 						}
 						final Displayable d = (Displayable)al.get(i);
@@ -1940,6 +1966,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							background.subtract(new Area(d.getPerimeter())); // must be outside because the clip could be limited to the active, for instance
 						} else {
 							if (!background.isEmpty()) {
+								// subtract non-srcRect areas
+								background.subtract(new Area(r1));
+								background.subtract(new Area(r2));
 								// paint background
 								g.setColor(Color.black);
 								g.fill(background);
@@ -1957,9 +1986,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					// paint the ZDisplayables here, before the labels and LayerSets, if any
 					int j = 0;
 					while (j < m) {
-						if (stop_offscreen_data) {
-							offscreen_locked = false;
-							offscreen_lock.notifyAll();
+						if (stop_offscreen_data && start - System.currentTimeMillis() > 100) {
+							//offscreen_locked = false;
+							//offscreen_lock.notifyAll();
+							lock.unlock();
 							return;
 						}
 						final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
@@ -1972,9 +2002,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 					// paint LayerSet and DLabel objects!
 					while (i < n) {
-						if (stop_offscreen_data) {
-							offscreen_locked = false;
-							offscreen_lock.notifyAll();
+						if (stop_offscreen_data && start - System.currentTimeMillis() > 100) {
+							//offscreen_locked = false;
+							//offscreen_lock.notifyAll();
+							lock.unlock();
 							return;
 						}
 						final Displayable d = (Displayable) al.get(i);
@@ -1991,6 +2022,18 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						g.setColor(Color.black);
 						g.fill(background);
 					}
+
+					// finally, paint non-srcRect areas
+					g.setColor(Color.gray);
+					g.fill(r1);
+					g.fill(r2);
+
+					lock.unlock();
+				}
+
+				synchronized (offscreen_lock) {
+					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
+					offscreen_locked = true;
 
 					// only on success:
 					update_graphics = false;
