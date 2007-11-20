@@ -29,7 +29,7 @@ import ij.gui.*;
 import ij.io.*;
 import ij.measure.Calibration;
 import com.sun.image.codec.jpeg.*;
-import java.awt.image.BufferedImage;
+import java.awt.image.*;
 import java.awt.Graphics;
 import java.io.*;
 import java.util.zip.*;
@@ -75,23 +75,43 @@ public class ImageSaver {
 		if (quality < 0f) quality = 0f;
 		if (quality > 1f) quality = 1f;
 		// ok, onward
-		BufferedImage bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
+		// No need to make an RGB int[] image if a byte[] image with a LUT will do.
+		int image_type = BufferedImage.TYPE_INT_RGB;
+		if (ip.getClass().equals(ByteProcessor.class) || ip.getClass().equals(ShortProcessor.class) || ip.getClass().equals(FloatProcessor.class)) {
+			image_type = BufferedImage.TYPE_BYTE_GRAY;
+		}
+		BufferedImage bi = new BufferedImage(ip.getWidth(), ip.getHeight(), image_type);
 		try {
-			FileOutputStream  f  = new FileOutputStream(path);				
+			FileOutputStream f = new FileOutputStream(path);
 			Graphics g = bi.createGraphics();
 			g.drawImage(ip.createImage(), 0, 0, null);
-			g.dispose();			
+			g.dispose();
 			JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(f);
 			JPEGEncodeParam param = encoder.getDefaultJPEGEncodeParam(bi);
 			param.setQuality(quality, true);
 			encoder.encode(bi, param);
 			f.close();
-		}
-		catch (Exception e) {
+		} catch (Exception e) {
 			new IJError(e);
 			return false;
 		}
 		return true;
+	}
+
+	/** Open a jpeg image that is known to be grayscale.<br />
+	 *  This method avoids having to open it as int[] (4 times as big!) and then convert it to grayscale by looping through all its pixels and comparing if all three channels are the same (which, least you don't know, is what ImageJ 139j and before does).
+	 */
+	static public BufferedImage openGreyJpeg(final String path) {
+		try {
+			FileInputStream f = new FileInputStream(path);
+			JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, JPEGDecodeParam.COLOR_ID_GRAY));
+			return decoder.decodeAsBufferedImage();
+		} catch (FileNotFoundException fnfe) {
+			return null;
+		} catch (Exception e) {
+			new IJError(e);
+			return null;
+		}
 	}
 
 	/** Returns true on success.<br />

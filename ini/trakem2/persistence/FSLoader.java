@@ -1095,7 +1095,7 @@ public class FSLoader extends Loader {
 					// 4 - generate scaled image
 					fp = (FloatProcessor)fp.resize(w, h);
 					// 5 - save as 8-bit jpeg
-					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range
+					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
 					ip2.setMinAndMax(patch.getMin(), patch.getMax());
 					ip2.setColorModel(cm); // the LUT
 					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f);
@@ -1360,11 +1360,22 @@ public class FSLoader extends Loader {
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
 		try {
-			ImagePlus imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
-			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
-			if (null != imp) {
-				return patch.createImage(imp); // considers c_alphas
+			String path = dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
+			switch (patch.getType()) {
+				case ImagePlus.GRAY16:
+				case ImagePlus.GRAY8:
+				case ImagePlus.GRAY32:
+					Image img = ImageSaver.openGreyJpeg(path);
+					if (null != img) return img;
+					break;
+				default:
+					ImagePlus imp = opener.openImage(path);
+					if (null != imp) return patch.createImage(imp); // considers c_alphas
 			}
+			// if we got so far ...
+
+			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
+
 			// Regenerate in the case of not asking for an image under 64x64
 			double scale = 1 / Math.pow(2, level);
 			if (level > 0 && (patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
