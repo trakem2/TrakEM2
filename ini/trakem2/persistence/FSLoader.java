@@ -697,13 +697,10 @@ public class FSLoader extends Loader {
 			// path is relative
 			File fxml = new File(project_xml_path);
 			String parent_dir = fxml.getParent().replace('\\', '/');
-			String tmp = parent_dir + "/" + path;
-			if (new File(tmp).exists()) {
-				path = tmp;
-			} else {
-				// try *_images folder // TODO this needs to change, should test the same folder
-				final String dir = extractRelativeFolderPath(new File(project_xml_path));
-				if (null != dir) path = dir + "/" + path;
+			path = parent_dir + "/" + path;
+			if (!new File(path).exists()) {
+				Utils.log("Path for patch " + patch + " does not exist: " + path);
+				return null;
 			}
 		}
 		// reappend slice info if existent
