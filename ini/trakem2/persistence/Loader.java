@@ -1927,6 +1927,7 @@ abstract public class Loader {
 			new IJError(t);
 			rollback();
 			setMassiveMode(false); //massive_mode = false;
+			setMipMapsRegeneration(true);
 		}
 		finishedWorking();
 
