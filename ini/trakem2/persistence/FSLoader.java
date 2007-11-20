@@ -1076,12 +1076,13 @@ public class FSLoader extends Loader {
 					ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 					cp2.setMinAndMax(patch.getMin(), patch.getMax());
 					// 5 - save as jpeg
-					ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f);
+					ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f, false);
 				}
 			} else {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				FloatProcessor fp = (FloatProcessor)ip.convertToFloat();
+				final boolean as_grey = ImagePlus.COLOR_256 != patch.getType();
 				while (w >= 64 && h >= 64) { // not smaller than 32x32
 					// 1 - blur the previous image to 0.75 sigma
 					fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
@@ -1098,7 +1099,7 @@ public class FSLoader extends Loader {
 					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
 					ip2.setMinAndMax(patch.getMin(), patch.getMax());
 					ip2.setColorModel(cm); // the LUT
-					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f);
+					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey);
 				}
 			}
 		} catch (Exception e) {
@@ -1356,6 +1357,14 @@ public class FSLoader extends Loader {
 		}
 	}
 
+	/** Checks if the mipmap file for the Patch and closest upper level to the desired magnification exists. */
+	public boolean checkMipMapExists(Patch p, double magnification) {
+		if (null == dir_mipmaps) return false;
+		final int level = getMipMapLevel(magnification);
+		if (new File(dir_mipmaps + level + "/" + new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg").exists()) return true;
+		return false;
+	}
+
 	/** Loads the file containing the scaled image corresponding to the given level and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
@@ -1371,6 +1380,7 @@ public class FSLoader extends Loader {
 				default:
 					ImagePlus imp = opener.openImage(path);
 					if (null != imp) return patch.createImage(imp); // considers c_alphas
+					break;
 			}
 			// if we got so far ...
 

@@ -39,6 +39,7 @@ import ini.trakem2.display.Selection;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.persistence.Loader;
 
 import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.CrossCorrelation2D;
@@ -294,16 +295,18 @@ public class StitchingTEM {
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean quality, boolean ignore_patch_transform) {
 		ImagePlus imp = null;
 		ImageProcessor ip = null;
-		if (p.getProject().getLoader().isMipMapsEnabled()) {
+		Loader loader =  p.getProject().getLoader();
+		// check if using mipmaps and if there is a file for it. If there isn't, most likely this method is being called in an import sequence as grid procedure.
+		if (loader.isMipMapsEnabled() && loader.checkMipMapExists(p, scale)) {
 			Image image = p.getProject().getLoader().fetchImage(p, scale);
 			// check that dimensions are correct. If anything, they'll be larger
 			if (Math.abs(p.getWidth() * scale - image.getWidth(null)) > 0.001 || Math.abs(p.getHeight() * scale - image.getHeight(null)) > 0.001) {
-				image = image.getScaledInstance((int)(p.getWidth() * scale), (int)(p.getHeight() * scale), Image.SCALE_AREA_AVERAGING); // slow but good quality
+				image = image.getScaledInstance((int)(p.getWidth() * scale), (int)(p.getHeight() * scale), Image.SCALE_AREA_AVERAGING); // slow but good quality. Makes an RGB image, but it doesn't matter.
 			}
 			imp = new ImagePlus("s", image);
 			ip = imp.getProcessor();
 		} else {
-			imp = p.getProject().getLoader().fetchImagePlus(p, false);
+			imp = loader.fetchImagePlus(p, false);
 			ip = imp.getProcessor();
 			// compare and adjust
 			if (!ignore_patch_transform && p.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) { // if it's not only a translation:

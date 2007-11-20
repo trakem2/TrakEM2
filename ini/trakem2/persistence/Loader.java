@@ -3317,6 +3317,9 @@ abstract public class Loader {
 	/** Does nothing and returns null unless overriden. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
 
+	/** Does nothing and returns false unless overriden. */
+	public boolean checkMipMapExists(Patch p, double magnification) { return false; }
+
 	static public ImageProcessor scaleImage(final ImagePlus imp, double mag, final boolean quality) {
 		if (mag > 1) mag = 1;
 		ImageProcessor ip = imp.getProcessor();

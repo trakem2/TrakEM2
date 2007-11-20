@@ -65,7 +65,7 @@ public class ImageSaver {
 	/** Returns true on success.<br />
 	 *  Core functionality adapted from ij.plugin.JpegWriter class by Wayne Rasband.
 	 */
-	static public boolean saveAsJpeg(final ImageProcessor ip, final String path, float quality) {
+	static public boolean saveAsJpeg(final ImageProcessor ip, final String path, float quality, boolean as_grey) {
 		// safety checks
 		if (null == ip) {
 			Utils.log("Null ip, can't saveAsJpeg");
@@ -76,12 +76,19 @@ public class ImageSaver {
 		if (quality > 1f) quality = 1f;
 		// ok, onward
 		// No need to make an RGB int[] image if a byte[] image with a LUT will do.
+		/*
 		int image_type = BufferedImage.TYPE_INT_RGB;
 		if (ip.getClass().equals(ByteProcessor.class) || ip.getClass().equals(ShortProcessor.class) || ip.getClass().equals(FloatProcessor.class)) {
 			image_type = BufferedImage.TYPE_BYTE_GRAY;
 		}
-		BufferedImage bi = new BufferedImage(ip.getWidth(), ip.getHeight(), image_type);
+		*/
 		try {
+			BufferedImage bi = null;
+			if (as_grey) { // even better would be to make a raster directly from the byte[] array, and pass that to the encoder
+				bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, (IndexColorModel)ip.getColorModel());
+			} else {
+				bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
+			}
 			FileOutputStream f = new FileOutputStream(path);
 			Graphics g = bi.createGraphics();
 			g.drawImage(ip.createImage(), 0, 0, null);
