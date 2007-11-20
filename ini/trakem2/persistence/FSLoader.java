@@ -1343,14 +1343,18 @@ public class FSLoader extends Loader {
 
 	/** A temporary list of Patch instances for which a pyramid is being generated. */
 	final private HashSet hs_regenerating_mipmaps = new HashSet();
+
 	/** A lock for the generation of mipmaps. */
 	final private Object gm_lock = new Object();
 	private boolean gm_locked = false;
+
 	protected final void gm_lock() {
+		//Utils.printCaller(this, 7);
 		while (gm_locked) { try { gm_lock.wait(); } catch (InterruptedException ie) {} }
 		gm_locked = true;
 	}
 	protected final void gm_unlock() {
+		//Utils.printCaller(this, 7);
 		if (gm_locked) {
 			gm_locked = false;
 			gm_lock.notifyAll();
@@ -1369,6 +1373,9 @@ public class FSLoader extends Loader {
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
 		try {
+			// TODO should wait if the file is currently being generated
+			//  (it's somewhat handled by a double-try to open the jpeg image)
+
 			String path = dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:

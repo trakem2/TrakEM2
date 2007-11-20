@@ -110,15 +110,27 @@ public class ImageSaver {
 	 */
 	static public BufferedImage openGreyJpeg(final String path) {
 		try {
-			FileInputStream f = new FileInputStream(path);
-			JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, JPEGDecodeParam.COLOR_ID_GRAY));
-			return decoder.decodeAsBufferedImage();
+			return openGreyJpeg2(path);
 		} catch (FileNotFoundException fnfe) {
 			return null;
 		} catch (Exception e) {
-			new IJError(e);
+			Utils.log2("JPEG Decoder failed for " + path);
+			// the file might have been generated while trying to read it. So try once more
+			try {
+				Thread.sleep(100);
+				return openGreyJpeg2(path);
+			} catch (Exception e2) {
+				new IJError(e2);
+			}
 			return null;
 		}
+	}
+
+	static private BufferedImage openGreyJpeg2(final String path) throws Exception {
+		if (!new File(path).exists()) return null;
+		FileInputStream f = new FileInputStream(path);
+		JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, JPEGDecodeParam.COLOR_ID_GRAY));
+		return decoder.decodeAsBufferedImage();
 	}
 
 	/** Returns true on success.<br />

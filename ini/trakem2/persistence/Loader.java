@@ -1740,7 +1740,13 @@ abstract public class Loader {
 						rollback();
 						return;
 					}
-					ImagePlus imp = fetchImagePlus(pa[i]); // create the snap
+					ImagePlus imp = fetchImagePlus(pa[i]);
+					// speed-up trick: extract data from smaller image
+					if (imp.getWidth() > 1024) {
+						releaseToFit(1024, (int)((imp.getHeight() * 1024) / imp.getWidth()), imp.getType(), 1.1f);
+						// cheap and fast nearest-point resizing
+						imp = new ImagePlus(imp.getTitle(), imp.getProcessor().resize(1024));
+					}
 					if (-1 == type) type = imp.getType();
 					ImageStatistics i_st = imp.getStatistics();
 					// order by stdDev, from small to big
