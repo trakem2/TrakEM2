@@ -271,7 +271,7 @@ public class StitchingTEM {
 					patch[i].setLocation(tx, ty);
 				}
 
-				Utils.log2(i + ": Done patch " + patch[i]);
+				Utils.log2(i + ": Done patch " + patch[i]); //needs null check + " - " + (SUCCESS == R2[2] ? "success" : "failed"));
 			}
 
 			//
@@ -300,11 +300,29 @@ public class StitchingTEM {
 		if (loader.isMipMapsEnabled() && loader.checkMipMapExists(p, scale)) {
 			Image image = p.getProject().getLoader().fetchImage(p, scale);
 			// check that dimensions are correct. If anything, they'll be larger
+			//Utils.log2("patch w,h " + p.getWidth() + ", " + p.getHeight() + " fetched image w,h: " + image.getWidth(null) + ", " + image.getHeight(null));
 			if (Math.abs(p.getWidth() * scale - image.getWidth(null)) > 0.001 || Math.abs(p.getHeight() * scale - image.getHeight(null)) > 0.001) {
 				image = image.getScaledInstance((int)(p.getWidth() * scale), (int)(p.getHeight() * scale), Image.SCALE_AREA_AVERAGING); // slow but good quality. Makes an RGB image, but it doesn't matter.
+				//Utils.log2("   resizing, now image w,h: " + image.getWidth(null) + ", " + image.getHeight(null));
 			}
-			imp = new ImagePlus("s", image);
-			ip = imp.getProcessor();
+			try {
+				imp = new ImagePlus("s", image);
+				ip = imp.getProcessor();
+			} catch (Exception e) {
+				new IJError(e);
+			}
+			// cut
+			if (null != roi) {
+				// scale ROI!
+				Rectangle rb = roi.getBounds();
+				Roi roi2 = new Roi((int)(rb.x * scale), (int)(rb.y * scale), (int)(rb.width * scale), (int)(rb.height * scale));
+				rb = roi2.getBounds();
+				if (ip.getWidth() != rb.width || ip.getHeight() != rb.height) {
+					ip.setRoi(roi2);
+					ip = ip.crop();
+				}
+			}
+			//Utils.log2("scale: " + scale + "  ip w,h: " + ip.getWidth() + ", " + ip.getHeight());
 		} else {
 			imp = loader.fetchImagePlus(p, false);
 			ip = imp.getProcessor();
@@ -408,13 +426,13 @@ public class StitchingTEM {
 				switch(direction) {
 					case TOP_BOTTOM:
 						// boundary checks:
-						if (shift.y/scale > default_dy) success = ERROR;
+						//if (shift.y/scale > default_dy) success = ERROR;
 						x2 = base.getX() + shift.x/scale;
 						y2 = base.getY() + roi1.getBounds().y + shift.y/scale;
 						break;
 					case LEFT_RIGHT:
 						// boundary checks:
-						if (shift.x/scale > default_dx) success = ERROR;
+						//if (shift.x/scale > default_dx) success = ERROR;
 						x2 = base.getX() + roi1.getBounds().x + shift.x/scale;
 						y2 = base.getY() + shift.y/scale;
 						break;
@@ -470,13 +488,13 @@ public class StitchingTEM {
 			switch(direction) {
 				case TOP_BOTTOM:
 					// boundary checks:
-					if (cc_result[1]/scale_cc > default_dy) success = ERROR;
+					//if (cc_result[1]/scale_cc > default_dy) success = ERROR;
 					x2 = base.getX() + cc_result[0]/scale_cc;
 					y2 = base.getY() + roi1.getBounds().y + cc_result[1]/scale_cc;
 					break;
 				case LEFT_RIGHT:
 					// boundary checks:
-					if (cc_result[0]/scale_cc > default_dx) success = ERROR;
+					//if (cc_result[0]/scale_cc > default_dx) success = ERROR;
 					x2 = base.getX() + roi1.getBounds().x + cc_result[0]/scale_cc;
 					y2 = base.getY() + cc_result[1]/scale_cc;
 					break;
@@ -489,6 +507,9 @@ public class StitchingTEM {
 		// else both failed: return default values
 		Utils.log2("Using default");
 		return new double[]{default_dx, default_dy, ERROR, 0};
+
+
+		/// ABOVE: boundary checks don't work if default_dx,dy are zero! And may actually be harmful in anycase
 	}
 
 	/** Represents an statement of neighborhood between two Patches. */

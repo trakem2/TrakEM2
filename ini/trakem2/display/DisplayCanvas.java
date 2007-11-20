@@ -622,6 +622,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	public void mouseDragged(MouseEvent me) {
+		// ban if beyond bounds:
+		if (x_p < srcRect.x || y_p < srcRect.y || x_p > srcRect.x + srcRect.width || y_p > srcRect.y + srcRect.height) {
+			return;
+		}
 
 		if (popup || locked || null != display.getLayer().getParent().getAlign()) return;
 
@@ -754,6 +758,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		dragging = false;
 		if (popup) {
 			popup = false;
+			return;
+		}
+
+		// ban if beyond bounds:
+		if (x_p < srcRect.x || y_p < srcRect.y || x_p > srcRect.x + srcRect.width || y_p > srcRect.y + srcRect.height) {
 			return;
 		}
 
