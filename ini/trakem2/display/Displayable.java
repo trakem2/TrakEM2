@@ -1169,7 +1169,7 @@ public abstract class Displayable extends DBObject {
 		if (Double.isNaN(x) || Double.isNaN(y)) return;
 		Rectangle b = getBoundingBox(null);
 		this.translate(x - b.x, y - b.y, false); // do not affect linked Displayables
-		Utils.log2("setting new loc, args are: " + x + ", "+ y);
+		//Utils.log2("setting new loc, args are: " + x + ", "+ y);
 	}
 
 	/** Apply this Displayable's AffineTransform to the given point. */

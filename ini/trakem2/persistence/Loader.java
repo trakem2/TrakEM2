@@ -1662,7 +1662,8 @@ abstract public class Loader {
 				Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
 				addedPatchFrom(path, patch);
-				if (!homogenize_contrast) generateMipMaps(patch); // otherwise, it will be done again (and thus adds considerable delay for nothing)
+				if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
+				else generateMipMaps(patch);
 				//
 				layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
@@ -1840,6 +1841,13 @@ abstract public class Loader {
 					p.putMinAndMax(fetchImagePlus(p, false));
 				}
 
+				if (isMipMapsEnabled()) {
+					setTaskName("Regenerating snapshots.");
+					// recreate files
+					Utils.log2("Generating mipmaps for " + al.size() + " patches.");
+					Thread t = generateMipMaps(al);
+					if (null != t) try { t.join(); } catch (InterruptedException ie) {}
+				}
 				// 7 - flush away any existing awt images, so that they'll be recreated with the new min and max
 				synchronized (db_lock) {
 					lock();
@@ -1849,13 +1857,7 @@ abstract public class Loader {
 					}
 					unlock();
 				}
-				// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more tha once for a few tiles
-				if (isMipMapsEnabled()) {
-					setTaskName("Regenerating snapshots.");
-					// recreate files
-					Utils.log2("Generating mipmaps for " + al.size() + " patches.");
-					generateMipMaps(al);
-				}
+				setMipMapsRegeneration(true);
 				Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 			}
 		}
@@ -3297,6 +3299,14 @@ abstract public class Loader {
 			unlock();
 		}
 		return false;
+	}
+
+	/** If mipmaps regeneration is enabled or not. */
+	protected boolean mipmaps_regen = true;
+
+	// used to prevent generating them when, for example, importing a montage
+	protected void setMipMapsRegeneration(boolean b) {
+		mipmaps_regen = b;
 	}
 
 	/** Does nothing unless overriden. */

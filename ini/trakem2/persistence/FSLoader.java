@@ -1024,6 +1024,7 @@ public class FSLoader extends Loader {
 			if (hs_regenerating_mipmaps.contains(patch)) {
 				// already being done
 				gm_unlock();
+				Utils.log2("already being done");
 				return false;
 			}
 			hs_regenerating_mipmaps.add(patch);
@@ -1389,7 +1390,9 @@ public class FSLoader extends Loader {
 					if (null != imp) return patch.createImage(imp); // considers c_alphas
 					break;
 			}
-			// if we got so far ...
+
+			// if we got so far ... try to regenerate the mipmaps
+			if (!mipmaps_regen) return null;
 
 			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
 
