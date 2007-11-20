@@ -2859,9 +2859,13 @@ abstract public class Loader {
 				// try to get it from the original FileInfo
 				FileInfo fi = imp_stack.getOriginalFileInfo();
 				if (null != fi && null != fi.directory && null != fi.fileName) {
-					filepath = fi.directory + fi.fileName; // the fi.directory already ends in '/'  - potential MSWindows failing point
+					filepath = fi.directory.replace('\\', '/');
+					if (!filepath.endsWith("/")) filepath += '/';
+					filepath += fi.fileName;
 				}
 				Utils.log2("Getting filepath from FileInfo: " + filepath);
+			} else {
+				filepath = filepath.replace('\\', '/');
 			}
 
 			// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.

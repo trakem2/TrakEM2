@@ -693,11 +693,10 @@ public class FSLoader extends Loader {
 			slice = path.substring(i_sl);
 			path = path.substring(0, i_sl);
 		}
-		final int i_slash = path.indexOf(File.separatorChar);
-		if ((!IJ.isWindows() && 0 != i_slash) || (IJ.isWindows() && 1 != path.indexOf(":/"))) {
+		if ((!IJ.isWindows() && 0 != path.indexOf('/')) || (IJ.isWindows() && 1 != path.indexOf(":/"))) {
 			// path is relative
 			File fxml = new File(project_xml_path);
-			String parent_dir = fxml.getParent();
+			String parent_dir = fxml.getParent().replace('\\', '/');
 			String tmp = parent_dir + "/" + path;
 			if (new File(tmp).exists()) {
 				path = tmp;
@@ -853,7 +852,7 @@ public class FSLoader extends Loader {
 			DirectoryChooser dc = new DirectoryChooser("Folder to save images");
 			target_dir = dc.getDirectory();
 			if (null == target_dir) return null; // user canceled dialog
-			if (target_dir.length() -1 != target_dir.lastIndexOf(File.separatorChar)) {
+			if (target_dir.length() -1 != target_dir.lastIndexOf('/')) {
 				target_dir += "/";
 			}
 		}
