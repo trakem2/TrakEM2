@@ -486,27 +486,17 @@ abstract public class Loader {
 	 *  * 64-bit systems have a real maximum of 68% of the Xmx maximum heap memory value, unless the aggressive heap option is used (but then the system is unreliable).
 	 *  * 32-bit systems have about 80% of the Xmx.
 	 */
-	static protected long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
+	static protected long max_memory = (long)(IJ.maxMemory() - 50000000); // 50 M always free
+	//static protected long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
 
 	public long getMaxMemory() {
 		return max_memory;
 	}
 
-	/** Measure wether there is at least 20% of available memory. */
-	protected boolean enoughFreeMemory() {
-		final long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
-		if (mem_in_use < 80L) { // 80 % // this 100-20 could very well be the actual lost-in-hyperspace memory, which may be 20% for 32-bit and 32% in 64-bit systems
-			return true;
-		}
-		return false;
-	}
-
-	/** Measure whether there are at least 'bytes' free. */
-	protected boolean enoughFreeMemory(final long bytes) {
-		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
+	/** Measure whether there are at least 'n_bytes' free. */
+	protected boolean enoughFreeMemory(final long n_bytes) {
 		final long mem_in_use = IJ.currentMemory(); // in bytes
-		//Utils.log("max_memory: " + max_memory + "  mem_in_use: " + mem_in_use);
-		if (bytes < max_memory - mem_in_use) {
+		if (n_bytes < max_memory - mem_in_use) {
 			return true;
 		} else {
 			return false;
@@ -605,7 +595,7 @@ abstract public class Loader {
 		releaseMemory(0.5D, true, MIN_FREE_BYTES);
 	}
 
-	/** Release as much of the cache as necessary to make 'enoughFreeMemory()'.<br />
+	/** Release as much of the cache as necessary to make at least min_free_bytes free.<br />
 	*  The very last thing to remove is the stored awt.Image objects.<br />
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
 	*  NOT locked, however calls must take care of that.<br />
@@ -1539,7 +1529,7 @@ abstract public class Loader {
 		int largest_y = 0;
 		ImagePlus img = null;
 		// open the selected image, to use as reference for width and height
-		if (!enoughFreeMemory()) releaseMemory();
+		if (!enoughFreeMemory(MIN_FREE_BYTES)) releaseMemory();
 		dir = dir.replace('\\', '/'); // w1nd0wz safe
 		if (!dir.endsWith("/")) dir += "/";
 		String path = dir + first_image_name;
@@ -1591,7 +1581,7 @@ abstract public class Loader {
 					first_img = null; // release pointer
 				} else {
 					// open image
-					//if (!enoughFreeMemory()) releaseMemory(); // UNSAFE, doesn't wait for GC
+					//if (!enoughFreeMemory(MIN_FREE_BYTES)) releaseMemory(); // UNSAFE, doesn't wait for GC
 					releaseToFit(first_image_width, first_image_height, first_image_type, 1.5f);
 					try {
 						img = opener.openImage(path);
