@@ -1662,7 +1662,8 @@ abstract public class Loader {
 				Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
 				addedPatchFrom(path, patch);
-				if (!homogenize_contrast) generateMipMaps(patch); // otherwise, it will be done again (and thus adds considerable delay for nothing)
+				if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
+				else generateMipMaps(patch);
 				//
 				layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
@@ -1740,7 +1741,13 @@ abstract public class Loader {
 						rollback();
 						return;
 					}
-					ImagePlus imp = fetchImagePlus(pa[i]); // create the snap
+					ImagePlus imp = fetchImagePlus(pa[i]);
+					// speed-up trick: extract data from smaller image
+					if (imp.getWidth() > 1024) {
+						releaseToFit(1024, (int)((imp.getHeight() * 1024) / imp.getWidth()), imp.getType(), 1.1f);
+						// cheap and fast nearest-point resizing
+						imp = new ImagePlus(imp.getTitle(), imp.getProcessor().resize(1024));
+					}
 					if (-1 == type) type = imp.getType();
 					ImageStatistics i_st = imp.getStatistics();
 					// order by stdDev, from small to big
@@ -1834,6 +1841,13 @@ abstract public class Loader {
 					p.putMinAndMax(fetchImagePlus(p, false));
 				}
 
+				if (isMipMapsEnabled()) {
+					setTaskName("Regenerating snapshots.");
+					// recreate files
+					Utils.log2("Generating mipmaps for " + al.size() + " patches.");
+					Thread t = generateMipMaps(al);
+					if (null != t) try { t.join(); } catch (InterruptedException ie) {}
+				}
 				// 7 - flush away any existing awt images, so that they'll be recreated with the new min and max
 				synchronized (db_lock) {
 					lock();
@@ -1843,13 +1857,7 @@ abstract public class Loader {
 					}
 					unlock();
 				}
-				// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more tha once for a few tiles
-				if (isMipMapsEnabled()) {
-					setTaskName("Regenerating snapshots.");
-					// recreate files
-					Utils.log2("Generating mipmaps for " + al.size() + " patches.");
-					generateMipMaps(al);
-				}
+				setMipMapsRegeneration(true);
 				Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 			}
 		}
@@ -1919,6 +1927,7 @@ abstract public class Loader {
 			new IJError(t);
 			rollback();
 			setMassiveMode(false); //massive_mode = false;
+			setMipMapsRegeneration(true);
 		}
 		finishedWorking();
 
@@ -2859,9 +2868,13 @@ abstract public class Loader {
 				// try to get it from the original FileInfo
 				FileInfo fi = imp_stack.getOriginalFileInfo();
 				if (null != fi && null != fi.directory && null != fi.fileName) {
-					filepath = fi.directory + fi.fileName; // the fi.directory already ends in '/'  - potential MSWindows failing point
+					filepath = fi.directory.replace('\\', '/');
+					if (!filepath.endsWith("/")) filepath += '/';
+					filepath += fi.fileName;
 				}
 				Utils.log2("Getting filepath from FileInfo: " + filepath);
+			} else {
+				filepath = filepath.replace('\\', '/');
 			}
 
 			// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
@@ -3289,6 +3302,14 @@ abstract public class Loader {
 		return false;
 	}
 
+	/** If mipmaps regeneration is enabled or not. */
+	protected boolean mipmaps_regen = true;
+
+	// used to prevent generating them when, for example, importing a montage
+	protected void setMipMapsRegeneration(boolean b) {
+		mipmaps_regen = b;
+	}
+
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(boolean forget_dir_mipmaps) {}
 
@@ -3312,6 +3333,9 @@ abstract public class Loader {
 
 	/** Does nothing and returns null unless overriden. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
+
+	/** Does nothing and returns false unless overriden. */
+	public boolean checkMipMapExists(Patch p, double magnification) { return false; }
 
 	static public ImageProcessor scaleImage(final ImagePlus imp, double mag, final boolean quality) {
 		if (mag > 1) mag = 1;

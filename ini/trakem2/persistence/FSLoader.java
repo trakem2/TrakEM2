@@ -693,18 +693,14 @@ public class FSLoader extends Loader {
 			slice = path.substring(i_sl);
 			path = path.substring(0, i_sl);
 		}
-		final int i_slash = path.indexOf(File.separatorChar);
-		if ((!IJ.isWindows() && 0 != i_slash) || (IJ.isWindows() && 1 != path.indexOf(":/"))) {
+		if ((!IJ.isWindows() && 0 != path.indexOf('/')) || (IJ.isWindows() && 1 != path.indexOf(":/"))) {
 			// path is relative
 			File fxml = new File(project_xml_path);
-			String parent_dir = fxml.getParent();
-			String tmp = parent_dir + "/" + path;
-			if (new File(tmp).exists()) {
-				path = tmp;
-			} else {
-				// try *_images folder // TODO this needs to change, should test the same folder
-				final String dir = extractRelativeFolderPath(new File(project_xml_path));
-				if (null != dir) path = dir + "/" + path;
+			String parent_dir = fxml.getParent().replace('\\', '/');
+			path = parent_dir + "/" + path;
+			if (!new File(path).exists()) {
+				Utils.log("Path for patch " + patch + " does not exist: " + path);
+				return null;
 			}
 		}
 		// reappend slice info if existent
@@ -853,7 +849,7 @@ public class FSLoader extends Loader {
 			DirectoryChooser dc = new DirectoryChooser("Folder to save images");
 			target_dir = dc.getDirectory();
 			if (null == target_dir) return null; // user canceled dialog
-			if (target_dir.length() -1 != target_dir.lastIndexOf(File.separatorChar)) {
+			if (target_dir.length() -1 != target_dir.lastIndexOf('/')) {
 				target_dir += "/";
 			}
 		}
@@ -1028,6 +1024,7 @@ public class FSLoader extends Loader {
 			if (hs_regenerating_mipmaps.contains(patch)) {
 				// already being done
 				gm_unlock();
+				Utils.log2("already being done");
 				return false;
 			}
 			hs_regenerating_mipmaps.add(patch);
@@ -1080,12 +1077,13 @@ public class FSLoader extends Loader {
 					ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 					cp2.setMinAndMax(patch.getMin(), patch.getMax());
 					// 5 - save as jpeg
-					ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f);
+					ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f, false);
 				}
 			} else {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				FloatProcessor fp = (FloatProcessor)ip.convertToFloat();
+				final boolean as_grey = ImagePlus.COLOR_256 != patch.getType();
 				while (w >= 64 && h >= 64) { // not smaller than 32x32
 					// 1 - blur the previous image to 0.75 sigma
 					fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
@@ -1099,10 +1097,10 @@ public class FSLoader extends Loader {
 					// 4 - generate scaled image
 					fp = (FloatProcessor)fp.resize(w, h);
 					// 5 - save as 8-bit jpeg
-					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range
+					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
 					ip2.setMinAndMax(patch.getMin(), patch.getMax());
 					ip2.setColorModel(cm); // the LUT
-					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f);
+					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey);
 				}
 			}
 		} catch (Exception e) {
@@ -1346,29 +1344,58 @@ public class FSLoader extends Loader {
 
 	/** A temporary list of Patch instances for which a pyramid is being generated. */
 	final private HashSet hs_regenerating_mipmaps = new HashSet();
+
 	/** A lock for the generation of mipmaps. */
 	final private Object gm_lock = new Object();
 	private boolean gm_locked = false;
+
 	protected final void gm_lock() {
+		//Utils.printCaller(this, 7);
 		while (gm_locked) { try { gm_lock.wait(); } catch (InterruptedException ie) {} }
 		gm_locked = true;
 	}
 	protected final void gm_unlock() {
+		//Utils.printCaller(this, 7);
 		if (gm_locked) {
 			gm_locked = false;
 			gm_lock.notifyAll();
 		}
 	}
 
+	/** Checks if the mipmap file for the Patch and closest upper level to the desired magnification exists. */
+	public boolean checkMipMapExists(Patch p, double magnification) {
+		if (null == dir_mipmaps) return false;
+		final int level = getMipMapLevel(magnification);
+		if (new File(dir_mipmaps + level + "/" + new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg").exists()) return true;
+		return false;
+	}
+
 	/** Loads the file containing the scaled image corresponding to the given level and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
 		try {
-			ImagePlus imp = opener.openImage(dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
-			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
-			if (null != imp) {
-				return patch.createImage(imp); // considers c_alphas
+			// TODO should wait if the file is currently being generated
+			//  (it's somewhat handled by a double-try to open the jpeg image)
+
+			String path = dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
+			switch (patch.getType()) {
+				case ImagePlus.GRAY16:
+				case ImagePlus.GRAY8:
+				case ImagePlus.GRAY32:
+					Image img = ImageSaver.openGreyJpeg(path);
+					if (null != img) return img;
+					break;
+				default:
+					ImagePlus imp = opener.openImage(path);
+					if (null != imp) return patch.createImage(imp); // considers c_alphas
+					break;
 			}
+
+			// if we got so far ... try to regenerate the mipmaps
+			if (!mipmaps_regen) return null;
+
+			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
+
 			// Regenerate in the case of not asking for an image under 64x64
 			double scale = 1 / Math.pow(2, level);
 			if (level > 0 && (patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {

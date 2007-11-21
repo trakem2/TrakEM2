@@ -622,6 +622,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	public void mouseDragged(MouseEvent me) {
+		// ban if beyond bounds:
+		if (x_p < srcRect.x || y_p < srcRect.y || x_p > srcRect.x + srcRect.width || y_p > srcRect.y + srcRect.height) {
+			return;
+		}
 
 		if (popup || locked || null != display.getLayer().getParent().getAlign()) return;
 
@@ -754,6 +758,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		dragging = false;
 		if (popup) {
 			popup = false;
+			return;
+		}
+
+		// ban if beyond bounds:
+		if (x_p < srcRect.x || y_p < srcRect.y || x_p > srcRect.x + srcRect.width || y_p > srcRect.y + srcRect.height) {
 			return;
 		}
 
@@ -1882,7 +1891,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						}
 						target = offscreen_a;
 						prev_clip = clipRect_b;
-						clipRect_a = clipRect; // update
+						clipRect_a = null != clipRect ? (Rectangle)clipRect.clone() : null; // update
 						lock = lock_a;
 					} else {
 						// offscreen_a == offscreen, paint on b
@@ -1893,7 +1902,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						}
 						target = offscreen_b;
 						prev_clip = clipRect_a;
-						clipRect_b = clipRect; // update
+						clipRect_b = null != clipRect ? (Rectangle)clipRect.clone() : null; // update
 						lock = lock_b;
 					}
 
@@ -1929,10 +1938,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					background.transform(atc.createInverse());
 					boolean bkgd_painted = false;
 
-					// the non-srcRect areas
+					// the non-srcRect areas, in offscreen coords
 					Rectangle r1 = new Rectangle(srcRect.x + srcRect.width, srcRect.y, (int)(target.getWidth(null) / magnification) - srcRect.width, (int)(target.getHeight(null) / magnification));
 					Rectangle r2 = new Rectangle(srcRect.x, srcRect.y + srcRect.height, srcRect.width, (int)(target.getHeight(null) / magnification) - srcRect.height);
-
+					// subtract them from the clipRect
+					// TODO to avoid painting images and then the grey rect on top
+					
+					//if (offscreen_a == target) Utils.log2("clip: " + clipRect);
 
 					al_top.clear();
 					boolean top = false;

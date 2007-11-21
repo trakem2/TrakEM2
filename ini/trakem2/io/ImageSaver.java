@@ -29,7 +29,7 @@ import ij.gui.*;
 import ij.io.*;
 import ij.measure.Calibration;
 import com.sun.image.codec.jpeg.*;
-import java.awt.image.BufferedImage;
+import java.awt.image.*;
 import java.awt.Graphics;
 import java.io.*;
 import java.util.zip.*;
@@ -65,7 +65,7 @@ public class ImageSaver {
 	/** Returns true on success.<br />
 	 *  Core functionality adapted from ij.plugin.JpegWriter class by Wayne Rasband.
 	 */
-	static public boolean saveAsJpeg(final ImageProcessor ip, final String path, float quality) {
+	static public boolean saveAsJpeg(final ImageProcessor ip, final String path, float quality, boolean as_grey) {
 		// safety checks
 		if (null == ip) {
 			Utils.log("Null ip, can't saveAsJpeg");
@@ -75,23 +75,62 @@ public class ImageSaver {
 		if (quality < 0f) quality = 0f;
 		if (quality > 1f) quality = 1f;
 		// ok, onward
-		BufferedImage bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
+		// No need to make an RGB int[] image if a byte[] image with a LUT will do.
+		/*
+		int image_type = BufferedImage.TYPE_INT_RGB;
+		if (ip.getClass().equals(ByteProcessor.class) || ip.getClass().equals(ShortProcessor.class) || ip.getClass().equals(FloatProcessor.class)) {
+			image_type = BufferedImage.TYPE_BYTE_GRAY;
+		}
+		*/
 		try {
-			FileOutputStream  f  = new FileOutputStream(path);				
+			BufferedImage bi = null;
+			if (as_grey) { // even better would be to make a raster directly from the byte[] array, and pass that to the encoder
+				bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, (IndexColorModel)ip.getColorModel());
+			} else {
+				bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
+			}
+			FileOutputStream f = new FileOutputStream(path);
 			Graphics g = bi.createGraphics();
 			g.drawImage(ip.createImage(), 0, 0, null);
-			g.dispose();			
+			g.dispose();
 			JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(f);
 			JPEGEncodeParam param = encoder.getDefaultJPEGEncodeParam(bi);
 			param.setQuality(quality, true);
 			encoder.encode(bi, param);
 			f.close();
-		}
-		catch (Exception e) {
+		} catch (Exception e) {
 			new IJError(e);
 			return false;
 		}
 		return true;
+	}
+
+	/** Open a jpeg image that is known to be grayscale.<br />
+	 *  This method avoids having to open it as int[] (4 times as big!) and then convert it to grayscale by looping through all its pixels and comparing if all three channels are the same (which, least you don't know, is what ImageJ 139j and before does).
+	 */
+	static public BufferedImage openGreyJpeg(final String path) {
+		try {
+			return openGreyJpeg2(path);
+		} catch (FileNotFoundException fnfe) {
+			return null;
+		} catch (Exception e) {
+			Utils.log2("JPEG Decoder failed for " + path);
+			// the file might have been generated while trying to read it. So try once more
+			try {
+				Thread.sleep(100);
+				return openGreyJpeg2(path);
+			} catch (Exception e2) {
+				new IJError(e2);
+			}
+			return null;
+		}
+	}
+
+	static private BufferedImage openGreyJpeg2(final String path) throws Exception {
+		if (!new File(path).exists()) return null;
+		FileInputStream f = new FileInputStream(path);
+		JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, JPEGDecodeParam.COLOR_ID_GRAY));
+		return decoder.decodeAsBufferedImage();
 	}
 
 	/** Returns true on success.<br />
