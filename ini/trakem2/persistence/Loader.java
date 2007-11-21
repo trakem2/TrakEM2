@@ -567,24 +567,52 @@ abstract public class Loader {
 	}
 
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
-	static public final void runGC() {
+	public final int runGC() {
 		//Utils.printCaller("runGC", 4);
 		final long initial = IJ.currentMemory();
 		long now = initial;
-		final int max = 10;
+		final int max = 7;
 		long sleep = 50; // initial value
 		int iterations = 0;
 		do {
-			Runtime.getRuntime().runFinalization(); // enforce it
+			//Runtime.getRuntime().runFinalization(); // enforce it
 			//System.gc();
 			Thread.yield();
 			try { Thread.sleep(sleep); } catch (InterruptedException ie) {}
 			sleep += sleep; // incremental
 			now = IJ.currentMemory();
 			Utils.log("\titer " + iterations + "  initial: " + initial  + " now: " + now);
+			if (iterations > 2) {
+				// release 2% more
+				releaseMemory(0.5D, true, (long)((max_memory > 500 * 10e6) ? 300 * 10e6 : 50 * 10e6));
+				Utils.log2("\t  mawts: " + mawts.size() + "  imps: " + imps.size());
+			}
 			iterations++;
+			if (iterations > 6) {
+				System.gc(); // last 2 iterations, in the obvious face of it
+			}
 		} while (now >= initial && iterations < max);
 		Utils.log2("finished runGC");
+		if (iterations >= 7) {
+			//Utils.printCaller(this, 10);
+		}
+		return iterations + 1;
+	}
+
+	static public final void runGCAll() {
+		Loader[] lo = new Loader[v_loaders.size()];
+		v_loaders.toArray(lo);
+		for (int i=0; i<lo.length; i++) {
+			lo[i].runGC();
+		}
+	}
+
+	static public void printCacheStatus() {
+		Loader[] lo = new Loader[v_loaders.size()];
+		v_loaders.toArray(lo);
+		for (int i=0; i<lo.length; i++) {
+			Utils.log2("Loader " + i + " : mawts: " + lo[i].mawts.size() + "  imps: " + lo[i].imps.size());
+		}
 	}
 
 	/** The minimal number of memory bytes that should always be free. */

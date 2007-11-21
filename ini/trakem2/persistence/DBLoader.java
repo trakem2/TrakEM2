@@ -2041,7 +2041,7 @@ public class DBLoader extends Loader {
 		//if (null != awt) awt.flush();
 		mawts.removeAndFlush(patch.getId());
 		ImagePlus imp = imps.remove(patch.getId());
-		if (null != imp) flush(imp); // calls System.gc()
+		if (null != imp) flush(imp);
 	}
 
 	/*  Attribute methods ****************************************************************/

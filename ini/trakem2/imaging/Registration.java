@@ -260,7 +260,7 @@ public class Registration {
 			}
 		}
 
-		Loader.runGC();
+		Loader.runGCAll();
 		return result;
 	}
 
@@ -373,11 +373,11 @@ public class Registration {
 		// prepare both sets of features
 		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp);
 		ip1 = null;
-		Loader.runGC(); // cleanup
+		Loader.runGCAll(); // cleanup
 		final Vector<Feature> fs2 = getSIFTFeatures( ip2, sp );
 		// free all those temporary arrays
 		ip2 = null;
-		Loader.runGC();
+		Loader.runGCAll();
 		// compare in the order that image2 should be moved relative to imag1
 		final Vector< PointMatch > candidates = FloatArray2DSIFT.createMatches( fs2, fs1, 1.5f, null, Float.MAX_VALUE );
 		
@@ -552,7 +552,7 @@ public class Registration {
 		// no hope. The recursion prevents from lots of memory from ever being released.
 		// MWAHAHA so I made a non-recursive smart-ass version.
 		// It is somewhat disturbing that each SIFT match at max_size 1600 was using nearly 400 Mb, and all of them were NOT released because of the recursion.
-		Loader.runGC();
+		Loader.runGCAll();
 		base.getProject().getLoader().releaseToFit(Loader.MIN_FREE_BYTES * 20);
 
 		if (null != result) {
