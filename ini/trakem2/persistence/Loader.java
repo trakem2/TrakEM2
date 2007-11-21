@@ -428,7 +428,7 @@ abstract public class Loader {
 		synchronized (db_lock) {
 			lock();
 			ImagePlus imp = imps.remove(id);
-			if (null != imp) imp.flush(); // this looks totally unnecessary
+			flush(imp);
 			unlock();
 		}
 	}
@@ -438,7 +438,7 @@ abstract public class Loader {
 			lock();
 			for (int i=0; i<id.length; i++) {
 				ImagePlus imp = imps.remove(id[i]);
-				if (null != imp) imp.flush();
+				flush(imp);
 			}
 			unlock();
 		}
@@ -576,7 +576,7 @@ abstract public class Loader {
 		int iterations = 0;
 		do {
 			Runtime.getRuntime().runFinalization(); // enforce it
-			System.gc();
+			//System.gc();
 			Thread.yield();
 			try { Thread.sleep(sleep); } catch (InterruptedException ie) {}
 			sleep += sleep; // incremental
@@ -588,7 +588,7 @@ abstract public class Loader {
 	}
 
 	/** The minimal number of memory bytes that should always be free. */
-	public static final long MIN_FREE_BYTES = (long)(max_memory * 0.2f);
+	public static final long MIN_FREE_BYTES = max_memory > 1000000000 /*1 Gb*/ ? 150000000 /*150 Mb*/ : 50000000 /*50 Mb*/; // (long)(max_memory * 0.2f);
 
 	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
 	protected final void releaseMemory() {
@@ -614,9 +614,9 @@ abstract public class Loader {
 					if (0 != imps.size()) {
 						for (int i=imps.size()/2; i>-1; i--) {
 							ImagePlus imp = imps.removeFirst();
-							if (null != imp) imp.flush();
+							flush(imp);
 						}
-						System.gc();
+						//System.gc();
 						Thread.yield();
 						if (enoughFreeMemory(min_free_bytes)) return;
 					}
@@ -651,12 +651,12 @@ abstract public class Loader {
 						// up to 'a' of the ImagePlus cache:
 						for (int i=(int)(imps.size() * a); i>-1; i--) {
 							ImagePlus imp = imps.removeFirst();
-							if (null != imp) imp.flush();
+							flush(imp);
 						}
 					} else {
 						// just one:
 						ImagePlus imp = imps.removeFirst();
-						if (null != imp) imp.flush(); // will call System.gc() already
+						flush(imp);
 					}
 				}
 
@@ -703,7 +703,7 @@ abstract public class Loader {
 				if (null != imps) {
 					for (int i=imps.size()-1; i>-1; i--) {
 						ImagePlus imp = imps.remove(i);
-						if (null != imp) imp.flush();
+						flush(imp);
 					}
 					imps = null;
 				}
@@ -714,7 +714,7 @@ abstract public class Loader {
 					}
 					mawts = null;
 				}
-				System.gc();
+				//System.gc();
 			} catch (Exception e) {
 				unlock();
 				new IJError(e);
@@ -1151,7 +1151,7 @@ abstract public class Loader {
 				if (null != imp) {
 					int w = imp.getWidth();
 					int h = imp.getHeight();
-					imp.flush();
+					flush(imp);
 					imp = null;
 					int cc_scale = (int)((512.0 / (w > h ? w : h)) * 100);
 					if (cc_scale > 100) return 100;
@@ -1348,7 +1348,7 @@ abstract public class Loader {
 			} else {
 				// discard this image
 				Utils.log("Ignoring " + imp.getTitle() + " from " + path + " since the preprocessor " + preprocessor + " returned null on it.");
-				imp.flush();
+				flush(imp);
 				finishSetTempCurrentImage();
 				return null;
 			}
@@ -1356,7 +1356,7 @@ abstract public class Loader {
 			new IJError(e);
 			finishSetTempCurrentImage();
 			Utils.log("Ignoring " + imp.getTitle() + " from " + path + " since the preprocessor " + preprocessor + " throwed an Exception on it.");
-			imp.flush();
+			flush(imp);
 		}
 		return null;
 	}
@@ -2433,7 +2433,7 @@ abstract public class Loader {
 					imp = new ImagePlus(layer.getPrintableTitle(), bi);
 				}
 			} catch (OutOfMemoryError oome) {
-				if (null != imp) imp.flush();
+				if (null != imp) flush(imp);
 				imp = null;
 				Utils.log("Not enough memory to create the ImagePlus. Try scaling it down or not using the 'quality' flag.");
 			}
@@ -2441,7 +2441,7 @@ abstract public class Loader {
 		} catch (Exception e) {
 			if (ControlWindow.isGUIEnabled()) new IJError(e);
 			else e.printStackTrace();
-			if (null != imp) imp.flush();
+			if (null != imp) flush(imp);
 			imp = null;
 		} finally {
 			if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getDefaultCursor());
@@ -2552,7 +2552,7 @@ abstract public class Loader {
 			// 2 - create layer thumbnail, max 192x192
 			ImagePlus thumb = getFlatImage(layer[iz], srcRect, thumb_scale, c_alphas, type, clazz, false); // TODO should be true, but it's too much overhead at the moment
 			new FileSaver(thumb).saveAsJpeg(tile_dir + "/small.jpg");
-			thumb.flush();
+			flush(thumb);
 			thumb = null;
 			// 3 - fill directory with tiles
 			if (edge_length < 256) {
@@ -2672,7 +2672,7 @@ abstract public class Loader {
 		}
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
 			Utils.showMessage("Can't import image of zero width or height.");
-			imp.flush();
+			flush(imp);
 			return null;
 		}
 		last_opened_path = path;
@@ -2716,7 +2716,7 @@ abstract public class Loader {
 		if (null == imp) return null;
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
 			Utils.showMessage("Can't import image of zero width or height.");
-			imp.flush();
+			flush(imp);
 			return null;
 		}
 		last_opened_path = dir + "/" + next_file;
@@ -2808,7 +2808,7 @@ abstract public class Loader {
 				gd.showDialog();
 				if (gd.wasCanceled()) {
 					if (null == imp_stacks) { // flush only if it was not open before
-						imp_stack.flush();
+						flush(imp_stack);
 					}
 					return;
 				}
@@ -2823,7 +2823,7 @@ abstract public class Loader {
 					if (!(1 == first_layer.getParent().size() && first_layer.isEmpty())) {
 						YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The current layer's thickness is " + current_thickness + "\nwhich is " + (thickness < current_thickness ? "larger":"smaller") + " than\nthe desired " + thickness + " for each stack slice.\nAdjust current layer's thickness to " + thickness + " ?");
 						if (!yn.yesPressed()) {
-							if (null != imp_stack_) imp_stack.flush(); // was opened new
+							if (null != imp_stack_) flush(imp_stack); // was opened new
 							return;
 						}
 					} // else adjust silently
@@ -3645,5 +3645,52 @@ abstract public class Loader {
 		// else, compute scale
 		final double scale = 1 / Math.pow(2, level);
 		return (long)(p.getWidth() * scale * p.getHeight() * scale * 5 + 1024); // conservative
+	}
+
+	// Dummy class to provide access the notifyListeners from Image
+	static private final class ImagePlusAccess extends ImagePlus {
+		final int CLOSE = CLOSED; // from super class ImagePlus
+		final int OPEN = OPENED;
+		final int UPDATE = UPDATED;
+		private Vector<ij.ImageListener> my_listeners;
+		public ImagePlusAccess() {
+			super();
+			try {
+				java.lang.reflect.Field f = ImagePlus.class.getDeclaredField("listeners");
+				f.setAccessible(true);
+				this.my_listeners = (Vector<ij.ImageListener>)f.get(this);
+			} catch (Exception e) {
+				new IJError(e);
+			}
+		}
+		public final void notifyListeners(final ImagePlus imp, final int action) {
+			try {
+				for (ij.ImageListener listener : my_listeners) {
+					switch (action) {
+						case CLOSED:
+							listener.imageClosed(imp);
+							break;
+						case OPENED:
+							listener.imageOpened(imp);
+							break;
+						case UPDATED: 
+							listener.imageUpdated(imp);
+							break;
+					}
+				}
+			} catch (Exception e) {}
+		}
+	}
+	static private final ImagePlusAccess ipa = new ImagePlusAccess();
+
+	/** Workaround for ImageJ's ImagePlus.flush() method which calls the System.gc() unnecessarily.<br />
+	 * A null pointer as argument is accepted. */
+	static public final void flush(final ImagePlus imp) {
+		if (null == imp) return;
+		final Roi roi = imp.getRoi(); 
+		if (null != roi) roi.setImage(null);
+		final ImageProcessor ip = imp.getProcessor();
+		if (null != ip) ip.setPixels(null);
+		ipa.notifyListeners(imp, ipa.CLOSE);
 	}
 }

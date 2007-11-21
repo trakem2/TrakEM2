@@ -1489,7 +1489,7 @@ public class DBLoader extends Loader {
 						i_stream.close();
 						image = imp.getProcessor().createImage(); // must be independent so the ImagePlus can be flushed (this is unnecessary by the way, it amounts to the same, the ImagePlus.flush() does not flush the awt.Image)
 						snaps.put(id, image);
-						//imp.flush(); // no need! Look at ij/ImagePlus.java code
+						//flush(imp); // no need! Look at ij/ImagePlus.java code
 						//Utils.log("method db");
 					}
 				}
@@ -1977,7 +1977,7 @@ public class DBLoader extends Loader {
 				} else {
 					i_stream = createZippedStream(imp);
 					stmt_update_snap.setBinaryStream(1, i_stream, i_stream.available());
-					imp.flush();
+					flush(imp);
 				}
 				stmt_update_snap.setLong(2, patch.getId());
 				stmt_update_snap.executeUpdate();
@@ -2041,7 +2041,7 @@ public class DBLoader extends Loader {
 		//if (null != awt) awt.flush();
 		mawts.removeAndFlush(patch.getId());
 		ImagePlus imp = imps.remove(patch.getId());
-		if (null != imp) imp.flush(); // calls System.gc()
+		if (null != imp) flush(imp); // calls System.gc()
 	}
 
 	/*  Attribute methods ****************************************************************/
@@ -2705,7 +2705,7 @@ public class DBLoader extends Loader {
 					unlock();
 					return imp;
 				} else {
-					imp.flush(); // can't hurt
+					flush(imp); // can't hurt
 				}
 			}
 			// else, reload from database

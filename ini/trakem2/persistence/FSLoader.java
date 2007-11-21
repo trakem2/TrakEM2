@@ -668,9 +668,9 @@ public class FSLoader extends Loader {
 					if (imp.getStackSize() > 1) { // avoid calling gc() if unnecessary
 						if (null == imp.getProcessor()) {}
 						else if (null == imp.getProcessor().getPixels()) {}
-						else imp.flush();
+						else Loader.flush(imp);
 					} else {
-						imp.flush();
+						Loader.flush(imp);
 					}
 				}
 				unlock();

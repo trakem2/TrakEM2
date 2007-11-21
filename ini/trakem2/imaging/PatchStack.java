@@ -138,7 +138,7 @@ public class PatchStack extends ImagePlus {
 			Utils.log("PatchStack.rever2: original equals current. Not reverting.");
 			return;
 		}
-		current.flush();
+		Loader.flush(current);
 		loader.updateCache(p, original); //flush awt, remake awt, flush snap, remake snap
 		Rectangle box = p.getBoundingBox(null);
 		
@@ -604,21 +604,7 @@ public class PatchStack extends ImagePlus {
 		return imp.getFileInfo();
 	}
 
-	public synchronized void flush() {
-		// flush extra awts created if any
-		/* // this is not useful: it is creating images by calling getImage, and incurring in imp loading with fetchImagePlus
-		Loader loader = patch[0].getProject().getLoader();
-		for (int i=0; i<patch.length; i++) {
-			if (null == patch[i]) continue; // when closing from the Patch.remove(boolean() if isStack() ? TODO investigate
-			ImagePlus imp = loader.fetchImagePlus(patch[i]); // will be called repeatedly if the imp is a stack serving all or most of the PatchStack slices. But it's prevented below
-			Image awt = loader.fetchImage(patch[i]);
-			if (null == awt || null == imp || null == imp.getImage()) continue; // when closing from the Patch.remove(boolean() if isStack() ? TODO investigate
-			if (!awt.equals(imp.getImage())) imp.getImage().flush(); // omly if it's different
-			// note 20070405: getImage() should always return null
-			if (imp.getStackSize() > 1) return; // done, for real stacks
-		}
-		*/
-	}
+	public synchronized void flush() {}
 
 	public Calibration getCalibration() {
 		if (null != getGlobalCalibration()) {

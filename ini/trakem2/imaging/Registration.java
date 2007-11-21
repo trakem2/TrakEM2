@@ -293,10 +293,10 @@ public class Registration {
 			FloatProcessor fp1 = (FloatProcessor)imp1.getProcessor().convertToFloat();
 			FloatProcessor fp2 = (FloatProcessor)imp2.getProcessor().convertToFloat();
 			if (null == cached) { // created locally, flushed locally since there's no caching
-				imp1.flush();
+				Loader.flush(imp1);
 				imp1 = null;
 			}
-			imp2.flush(); // WARNING this may have to be removed if caching is enabled
+			Loader.flush(imp2); // WARNING this may have to be removed if caching is enabled
 			imp2 = null;
 
 			// ready to start

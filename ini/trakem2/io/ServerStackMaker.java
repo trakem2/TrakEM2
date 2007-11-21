@@ -31,6 +31,7 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.VirtualStack;
 import ini.trakem2.imaging.Registration;
+import ini.trakem2.persistence.Loader;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.Macro;
@@ -328,7 +329,7 @@ public class ServerStackMaker {
 					continue;
 				}
 				new ij.io.FileSaver(imp).saveAsTiff(stack_dir + task_title + "/" + imp.getTitle() + ".tif");
-				imp.flush();
+				Loader.flush(imp);
 				imp = null;
 			}
 			final String[] files = fdir.list(new FilenameFilter() {
