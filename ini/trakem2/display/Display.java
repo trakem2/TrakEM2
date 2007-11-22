@@ -1282,7 +1282,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Repaint as much as the bounding box around the given Displayable. */
 	private void repaint(Displayable displ, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
-		if (!displ.equals(active)) canvas.setUpdateGraphics(true);
+		if (displ.getClass().equals(Patch.class)) canvas.setUpdateGraphics(true);
+		else if (!displ.equals(active)) canvas.setUpdateGraphics(true);
 		if (repaint_navigator) navigator.repaint(true); // everything
 		canvas.repaint(displ, extra);
 		DisplayablePanel dp = (DisplayablePanel)hs_panels.get(displ);
@@ -1292,7 +1293,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Repaint as much as the bounding box around the given Displayable. */
 	private void repaint(Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
-		if (!displ.equals(active)) canvas.setUpdateGraphics(true);
+		if (displ.getClass().equals(Patch.class)) canvas.setUpdateGraphics(true);
+		else if (!displ.equals(active)) canvas.setUpdateGraphics(true);
 		if (repaint_navigator) navigator.repaint(true); // everything
 		canvas.repaint(r, extra);
 		DisplayablePanel dp = (DisplayablePanel)hs_panels.get(displ);
@@ -1583,10 +1585,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Used by the Selection exclusively. This method will change a lot in the near future, and may disappear in favor of getSelection().getActive() */
 	protected void setActive(Displayable displ) {
-		Utils.printCaller(this, 7);
+		//Utils.printCaller(this, 7);
 		if (null != displ && displ.equals(active)) {
 			// make sure the proper tab is selected.
 			selectTab(displ);
+			if (displ instanceof Patch) setTempCurrentImage(); // renew
 			//Utils.log2("Display.setActive : returning early");
 			return; // the same
 		}
@@ -1627,7 +1630,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			project.select(displ); // select the node in the corresponding tree, if any.
 			// select the proper tab, and scroll to visible
 			selectTab(displ);
-			canvas.setUpdateGraphics(true); // remake offscreen images
+			//canvas.setUpdateGraphics(true); // remake offscreen images
 			repaint(displ, 5, false); // to show the border
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
 		} else {
@@ -2944,14 +2947,21 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//if (updated instanceof PatchStack) {
 		//	updated.changes = 1
 		//}
+
+		Utils.log2("imageUpdated: " + updated + "  " + updated.getClass());
+
+		/* // never gets called (?)
 		// the above is overkill. Instead:
 		if (updated instanceof PatchStack) {
 			Patch p = ((PatchStack)updated).getCurrentPatch();
-			//p.setMinAndMax(updated.getMin(), updated.getMax()); // should be done already
+			ImageProcessor ip = updated.getProcessor();
+			p.setMinAndMax(ip.getMin(), ip.getMax());
+			Utils.log2("setting min and max: " + ip.getMin() + ", " + ip.getMax());
 			project.getLoader().decacheAWT(p.getId()); // including level 0, which will be editable
 			// on repaint, it will be recreated
 			//((PatchStack)updated).decacheAll(); // so that it will repaint with a newly created image
 		}
+		*/
 
 		// detect LUT changes: DONE at PatchStack, which is the active (virtual) image
 		//Utils.log2("calling decache for " + updated);
@@ -3125,8 +3135,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void setTempCurrentImage() {
-		//Utils.log2("Setting temp current image");
-		// synchronized:
+		Utils.log2("Setting temp current image: " + last_temp + " " + last_temp.getClass());
 		if (null != last_temp) last_temp.setSlice(layer.getParent().indexOf(layer) +1);
 		Loader.setTempCurrentImage(last_temp);
 	}

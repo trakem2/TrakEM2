@@ -161,7 +161,7 @@ public class PatchStack extends ImagePlus {
 
 	/** Reset temporary changes such as from dragging B&C sliders and so on, in the current slice (the current Patch). */
 	public void resetNonActive() {
-		Utils.debug("PatchStack: calling reset");
+		Utils.log2("PatchStack: calling reset");
 		// remake the awt for the patch, flush the previous awt
 		Loader loader = patch[currentSlice-1].getProject().getLoader();
 		for (int i=0; i<patch.length; i++) {
@@ -176,25 +176,24 @@ public class PatchStack extends ImagePlus {
 				case ImagePlus.GRAY32:
 					ip.resetMinAndMax(); break;
 			}
-			// do in sequential order:
-			patch[i].createImage(); // will cache the new and thus flush the old
-			patch[i].getSnapshot().remake(); // will cache the new snap and thus flush the old
-			Display.repaint(patch[i].getLayer(), patch[i], 0);
+			patch[i].setMinAndMax(ip.getMin(), ip.getMax());
+			patch[i].getProject().getLoader().decacheAWT(patch[i].getId());
+			Display.repaint(patch[i].getLayer(), patch[i], null, 0, true);
 		}
 	}
 
 	/** Store working copies and remake the awts and repaint. */
 	public void saveImages() {
-		Utils.debug("PatchStack: calling saveImages");
+		Utils.log2("PatchStack: calling saveImages");
 		if (!this.changes) {
-			Utils.debug("PatchStack.saveImages: nothing changed.");
+			Utils.log2("PatchStack.saveImages: nothing changed.");
 			return;
 		}
 		Loader loader = patch[currentSlice-1].getProject().getLoader();
 		Utils.showProgress(0);
 		for (int i=0; i<patch.length; i++) {
 			ImagePlus imp = loader.fetchImagePlus(patch[i]);
-			Utils.debug("PatchStack.saveImages: patch imp " + i + " has the imp.changes=" + imp.changes + " and the called[i]=" + called[i]);
+			Utils.log2("PatchStack.saveImages: patch imp " + i + " has the imp.changes=" + imp.changes + " and the called[i]=" + called[i]);
 			if (imp.changes || called[i]) {
 				patch[i].updateInDatabase("tiff_working"); // may be doing it twice, check TODO
 				/*
@@ -226,7 +225,7 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public void updateAndDraw() {
-		Utils.debug("PatchStack: calling updateAndDraw");
+		Utils.log2("PatchStack: calling updateAndDraw");
 		//Display.repaint(patch[currentSlice-1].getLayer(), patch[currentSlice-1], 0);
 		// TODO : notify listeners ?
 		//No, instead do it directly:
@@ -234,12 +233,12 @@ public class PatchStack extends ImagePlus {
 			saveImages(); //only those perhaps affected (can't really tell)
 			changes = false;
 		} else {
-			Utils.debug("PatchStack.updateAndDraw 'else'"); // BINGO
-			// just redraw
-			patch[currentSlice-1].createImage(); //flushes the old awt, and creates the new one.
-			Display.repaint(patch[currentSlice-1].getLayer(), patch[currentSlice-1], 0);
+			Utils.log2("PatchStack.updateAndDraw 'else'");
+			// decache (to force remaking) and redraw
+			patch[currentSlice-1].getProject().getLoader().decacheAWT(patch[currentSlice-1].getId());
+			Display.repaint(patch[currentSlice-1].getLayer(), patch[currentSlice-1], null, 0, true);
 			// reset the others if necessary
-			resetNonActive(); // TODO there must to be a better way, this is overkill because not all images over which a getProcessor() has been called will have been modified. It would be solved if imp.changes was accessed through a method instead, because then I could flag the proper imp as changed
+			//resetNonActive(); // TODO there must to be a better way, this is overkill because not all images over which a getProcessor() has been called will have been modified. It would be solved if imp.changes was accessed through a method instead, because then I could flag the proper imp as changed
 		}
 	}
 
@@ -329,8 +328,7 @@ public class PatchStack extends ImagePlus {
 		ImageProcessor ip = imp.getProcessor();
 		if (null!=this.roi) imp.setRoi(this.roi);
 		called[currentSlice-1] = true;
-		//patch[currentSlice-1].getProject().getLoader().releaseToFit(ip.getWidth() * ip.getHeight() * imp.getBitDepth() / 1024L);
-		return ip; // NO! no need anymore, if flushed the imp will be reloaded //let's give a copy to ImageJ
+		return ip;
 	}
 
 	public synchronized void trimProcessor() {

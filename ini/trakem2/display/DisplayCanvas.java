@@ -1846,8 +1846,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		private int c_alphas;
 		private Rectangle clipRect;
 		public long start;
-		private Lock lock;
-		private Image target;
 		OffscreenThread(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
 			this.clipRect = clipRect;
 			this.layer = layer;
@@ -1857,47 +1855,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			this.c_alphas = c_alphas;
 			this.start = System.currentTimeMillis();
 			//Utils.log2("offscreen created " + this.getId());
-
-			synchronized (offscreen_lock) {
-				while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-				offscreen_locked = true;
-
-				Rectangle prev_clip = null;
-
-				// Paint on the offscreen image currently not used for painting the screen
-				// recreate if canvas size has changed, otherwise reuse
-				if (offscreen_b == offscreen) {
-					// paint on a
-					if (null == offscreen_a || g_width != offscreen_a.getWidth(null) || g_height != offscreen_a.getHeight(null)) {
-						if (null != offscreen_a) offscreen_a.flush();
-						offscreen_a = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
-						offscreen_a.setAccelerationPriority(1.0f);
-					}
-					target = offscreen_a;
-					prev_clip = clipRect_b;
-					clipRect_a = null != clipRect ? (Rectangle)clipRect.clone() : null; // update
-					lock = lock_a;
-				} else {
-					// offscreen_a == offscreen, paint on b
-					if (null == offscreen_b || g_width != offscreen_b.getWidth(null) || g_height != offscreen_b.getHeight(null)) {
-						if (null != offscreen_b) offscreen_b.flush();
-						offscreen_b = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
-						offscreen_b.setAccelerationPriority(1.0f);
-					}
-					target = offscreen_b;
-					prev_clip = clipRect_a;
-					clipRect_b = null != clipRect ? (Rectangle)clipRect.clone() : null; // update
-					lock = lock_b;
-				}
-
-				// add the clip that was used in the other offscreen image, unless null (which would mean 'the entire area')
-				if (null != prev_clip) {
-					if (null != clipRect) clipRect.add(prev_clip);
-				}
-
-				offscreen_locked = false;
-				offscreen_lock.notifyAll();
-			}
 		}
 
 		public void cancel() {
@@ -1907,6 +1864,49 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		public void run() {
 			try {
+				Lock lock;
+				Image target;
+
+				synchronized (offscreen_lock) {
+					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
+					offscreen_locked = true;
+
+					Rectangle prev_clip = null;
+
+					// Paint on the offscreen image currently not used for painting the screen
+					// recreate if canvas size has changed, otherwise reuse
+					if (offscreen_b == offscreen) {
+						// paint on a
+						if (null == offscreen_a || g_width != offscreen_a.getWidth(null) || g_height != offscreen_a.getHeight(null)) {
+							if (null != offscreen_a) offscreen_a.flush();
+							offscreen_a = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
+							offscreen_a.setAccelerationPriority(1.0f);
+						}
+						target = offscreen_a;
+						prev_clip = clipRect_b;
+						clipRect_a = null != clipRect ? (Rectangle)clipRect.clone() : null; // update
+						lock = lock_a;
+					} else {
+						// offscreen_a == offscreen, paint on b
+						if (null == offscreen_b || g_width != offscreen_b.getWidth(null) || g_height != offscreen_b.getHeight(null)) {
+							if (null != offscreen_b) offscreen_b.flush();
+							offscreen_b = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
+							offscreen_b.setAccelerationPriority(1.0f);
+						}
+						target = offscreen_b;
+						prev_clip = clipRect_a;
+						clipRect_b = null != clipRect ? (Rectangle)clipRect.clone() : null; // update
+						lock = lock_b;
+					}
+
+					// add the clip that was used in the other offscreen image, unless null (which would mean 'the entire area')
+					if (null != prev_clip) {
+						if (null != clipRect) clipRect.add(prev_clip);
+					}
+
+					offscreen_locked = false;
+					offscreen_lock.notifyAll();
+				}
 				if (stop_offscreen_data) return;
 
 				final Loader loader = layer.getProject().getLoader();

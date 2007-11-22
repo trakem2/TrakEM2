@@ -801,15 +801,13 @@ abstract public class Loader {
 		}
 	}
 
-	/** Removes from the cache and returns it intact, unflushed. Returns null if not found. */
-	public Image decacheAWT(long id) {
-		Image awt = null;
+	/** Removes from the cache all awt images bond to the given id. */
+	public void decacheAWT(long id) {
 		synchronized (db_lock) {
 			lock();
 			mawts.removeAndFlush(id); // where are my lisp macros! Wrapping any function in a synch/lock/unlock could be done crudely with reflection, but what a pain
 			unlock();
 		}
-		return awt;
 	}
 
 	/** Transform mag to nearest scale level that delivers an equally sized or larger image.<br />

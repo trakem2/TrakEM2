@@ -136,6 +136,7 @@ public class Patch extends Displayable {
 		this.min = min;
 		this.max = max;
 		updateInDatabase("min_and_max");
+		Utils.log2("Patch.setMinAndMax: min,max " + min + "," + max);
 	}
 
 	public double getMin() { return min; }
@@ -151,7 +152,7 @@ public class Patch extends Displayable {
 		} else {
 			ip.setMinAndMax(min, max);
 		}
-		//Utils.log2("putMinAndMax: min,max " + min + "," + max);
+		//Utils.log2("Patch.putMinAndMax: min,max " + min + "," + max);
 	}
 
 	/** Returns the ImagePlus type of this Patch. */
@@ -247,7 +248,9 @@ public class Patch extends Displayable {
 	/** Just throws the cached image away if the alpha of the channels has changed. */
 	private final void checkChannels(int channels) {
 		if (this.channels != channels) {
+			getProject().getLoader().decacheAWT(this.id);
 			// more proper, so a snap with proper quality may be returned, or a smaller awt
+			/*
 			final Image awt = getProject().getLoader().decacheAWT(this.id);
 			if (null != awt) {
 				try {
@@ -262,6 +265,7 @@ public class Patch extends Displayable {
 					}.start(); // this flush may have interfered with paints in progress, so just repaint again
 				}
 			}
+			*/
 		}
 	}
 
