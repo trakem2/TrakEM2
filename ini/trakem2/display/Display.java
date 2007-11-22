@@ -3135,7 +3135,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void setTempCurrentImage() {
-		Utils.log2("Setting temp current image: " + last_temp + " " + last_temp.getClass());
+		Utils.log2("Setting temp current image: " + last_temp + " " + (null == last_temp ? null : last_temp.getClass());
 		if (null != last_temp) last_temp.setSlice(layer.getParent().indexOf(layer) +1);
 		Loader.setTempCurrentImage(last_temp);
 	}

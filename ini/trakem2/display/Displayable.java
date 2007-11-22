@@ -366,6 +366,24 @@ public abstract class Displayable extends DBObject {
 				   4);
 	}
 
+	/** Returns the perimeter enlarged in all directions by extra pixels.*/
+	public Polygon getPerimeter(final int extra) {
+		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
+			// return the bounding box as a polygon:
+			final Rectangle r = getBoundingBox();
+			return new Polygon(new int[]{r.x -extra, r.x+r.width +extra, r.x+r.width +extra, r.x -extra},
+					   new int[]{r.y -extra, r.y -extra, r.y+r.height +extra, r.y+r.height +extra},
+					   4);
+		}
+		// else, the rotated/sheared/scaled and translated bounding box:
+		final double[] po1 = new double[]{-extra,-extra,  width,-extra,  width+extra,height+extra,  -extra,height+extra};
+		final double[] po2 = new double[8];
+		this.at.transform(po1, 0, po2, 0, 4);
+		return new Polygon(new int[]{(int)po2[0], (int)po2[2], (int)po2[4], (int)po2[6]},
+				   new int[]{(int)po2[1], (int)po2[3], (int)po2[5], (int)po2[7]},
+				   4);
+	}
+
 	/** Test whether the given point falls within the perimeter of this Displayable, considering the position x,y. Used by the DisplayCanvas mouse events. */
 	public boolean contains(int x_p, int y_p) {
 		return getPerimeter().contains(x_p, y_p);
@@ -721,8 +739,6 @@ public abstract class Displayable extends DBObject {
 
 	/** Check if this perimeter's intersects that of the given Displayable. */
 	public boolean intersects(final Displayable d) {
-		//if (!this.getBoundingBox().intersects(d.getBoundingBox())) return false;
-		//return true;
 		final Polygon pol1 = getPerimeter();
 		final Polygon pol2 = d.getPerimeter();
 		for (int i=0; i<pol1.npoints; i++) {
@@ -731,6 +747,7 @@ public abstract class Displayable extends DBObject {
 			}
 		}
 		return false;
+		// or: return new Area(getPerimeter()).intersects(new Area(d.getPerimeter());
 	}
 
 	/** Returns the intersection of this Displayable's area with the given one. */
