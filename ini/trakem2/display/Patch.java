@@ -309,7 +309,6 @@ public class Patch extends Displayable {
 
 		checkChannels(channels);
 
-
 		Image image = project.getLoader().getCachedClosestAboveImage(this, magnification);
 		Thread higher = null;
 		if (null == image) {
