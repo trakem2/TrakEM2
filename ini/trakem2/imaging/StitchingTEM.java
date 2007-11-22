@@ -46,9 +46,13 @@ import mpi.fruitfly.registration.CrossCorrelation2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.math.General;
+import mpi.fruitfly.registration.Tile;
+import mpi.fruitfly.registration.Optimize;
+import mpi.fruitfly.registration.PointMatch;
+import mpi.fruitfly.registration.Point;
+import mpi.fruitfly.registration.TModel2D;
 
 import java.awt.Rectangle;
-import java.awt.Point;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 
@@ -92,7 +96,7 @@ public class StitchingTEM {
 	static public final int NETWORK_RULE = 1;
 
 	static public void addStitchingRuleChoice(GenericDialog gd) {
-		final String[] rules = new String[]{"Top left" /*, "Network"*/};
+		final String[] rules = new String[]{"Top left" /*, "Free"*/};
 		gd.addChoice("stitching_rule: ", rules, rules[0]);
 	}
 
@@ -149,9 +153,6 @@ public class StitchingTEM {
 				case StitchingTEM.TOP_LEFT_RULE:
 					StitchingTEM.stitchTopLeft(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap);
 					break;
-				case StitchingTEM.NETWORK_RULE:
-					StitchingTEM.stitchNetLike(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap);
-					break;
 				}
 			}
 		};
@@ -168,6 +169,11 @@ public class StitchingTEM {
 
 			double[] R1=null,
 				 R2=null;
+
+			// for minimization:
+			ArrayList<Tile> al_tiles = new ArrayList<Tile>();
+			// first patch-tile:
+			al_tiles.add(new Tile((float)patch[0].getWidth(), (float)patch[0].getHeight(), new TModel2D()));
 
 			for (int i=1; i<patch.length; i++) {
 				if (st.quit) {
@@ -261,18 +267,40 @@ public class StitchingTEM {
 					}
 				}
 
+				// for global minimization:
+				Tile prev_tile = al_tiles.get(prev_i);
+				Tile tile = new Tile((float)patch[i].getWidth(), (float)patch[i].getHeight(), new TModel2D());
+				al_tiles.add(tile);
+				mpi.fruitfly.registration.Point p1 = new mpi.fruitfly.registration.Point(new float[]{0f, 0f});
+				mpi.fruitfly.registration.Point p2 = new mpi.fruitfly.registration.Point(new float[]{(float)tx, (float)ty});
+				prev_tile.addMatch(new PointMatch(p1, p2, 1.0f));
+				tile.addMatch(new PointMatch(p2, p1, 1.0f));
+				prev_tile.addConnectedTile(tile);
+				tile.addConnectedTile(prev_tile);
+
 				// apply (and repaint)
-				if (ControlWindow.isGUIEnabled()) { // in a proper design, this would happen automatically when the transform is applied to the Patch
+				/* // nopt anymore, for minimization may be screwed
+				if (ControlWindow.isGUIEnabled()) {
 					Rectangle box = patch[i].getBoundingBox();
-					patch[i].setLocation(tx, ty);
+					patch[i].translate(tx, ty);
 					box.add(patch[i].getBoundingBox());
 					Display.repaint(patch[i].getLayer(), box, 1);
 				} else {
-					patch[i].setLocation(tx, ty);
+					patch[i].translate(tx, ty);
 				}
+				*/
 
-				Utils.log2(i + ": Done patch " + patch[i]); //needs null check + " - " + (SUCCESS == R2[2] ? "success" : "failed"));
+				Utils.log2(i + ": Done patch " + patch[i]);
 			}
+
+			ArrayList<Patch> al_patches = new ArrayList<Patch>();
+			for (int i=0; i<patch.length; i++) al_patches.add(patch[i]);
+			ArrayList<Tile> al_fixed_tiles = new ArrayList<Tile>();
+			al_fixed_tiles.add(al_tiles.get(0));
+
+			// ready for montage-wise minimization
+			Optimize.minimizeAll(al_tiles, al_patches, al_fixed_tiles, 50);
+			Display.repaint(patch[0].getLayer(), null, 0, true); // all
 
 			//
 			st.flag = DONE;
@@ -371,8 +399,8 @@ public class StitchingTEM {
 	 * @param scale For optimizing the speed of phase- and cross-correlation.
 	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found.
 	 * @Return a double[4] array containing:
-	 * 	- x2: absolute X position of the second Patch
-	 * 	- y2: absolute Y position of the second Patch
+	 * 	- x2: relative X position of the second Patch
+	 * 	- y2: relative Y position of the second Patch
 	 * 	- flag: ERROR or SUCCESS
 	 * 	- R: cross-correlation coefficient
 	 */
@@ -393,8 +421,8 @@ public class StitchingTEM {
 		Roi roi1=null,
 		    roi2=null;
 		float overlap = percent_overlap;
-		double x2 = default_dx,
-		       y2 = default_dy;
+		double dx = default_dx,
+		       dy = default_dy;
 		do {
 			// create rois for the stripes
 			switch(direction) {
@@ -417,9 +445,9 @@ public class StitchingTEM {
 			ip2.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip2.getPixels(), ip2.getWidth(), ip2.getHeight()), 1f).data);
 			//
 			pc = new PhaseCorrelation2D(ip1, ip2, limit, true, false, false); // with windowing
-			final Point shift = pc.computePhaseCorrelation();
+			final java.awt.Point shift = pc.computePhaseCorrelation();
 			final PhaseCorrelation2D.CrossCorrelationResult result = pc.getResult();
-			Utils.log2("overlap: " + overlap + " R: " + result.R + " shift: " + shift + " x2,y2: " + x2 + ", " + y2);
+			Utils.log2("overlap: " + overlap + " R: " + result.R + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
 			if (result.R >= min_R) {
 				// success
 				int success = SUCCESS;
@@ -427,18 +455,18 @@ public class StitchingTEM {
 					case TOP_BOTTOM:
 						// boundary checks:
 						//if (shift.y/scale > default_dy) success = ERROR;
-						x2 = base.getX() + shift.x/scale;
-						y2 = base.getY() + roi1.getBounds().y + shift.y/scale;
+						dx = shift.x/scale;
+						dy = roi1.getBounds().y + shift.y/scale;
 						break;
 					case LEFT_RIGHT:
 						// boundary checks:
 						//if (shift.x/scale > default_dx) success = ERROR;
-						x2 = base.getX() + roi1.getBounds().x + shift.x/scale;
-						y2 = base.getY() + shift.y/scale;
+						dx = roi1.getBounds().x + shift.x/scale;
+						dy = shift.y/scale;
 						break;
 				}
-				Utils.log2("R: " + result.R + " shift: " + shift + " x2,y2: " + x2 + ", " + y2);
-				return new double[]{x2, y2, success, result.R};
+				Utils.log2("R: " + result.R + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
+				return new double[]{dx, dy, success, result.R};
 			}
 			//new ImagePlus("roi1", ip1.duplicate()).show();
 			//new ImagePlus("roi2", ip2.duplicate()).show();
@@ -489,19 +517,19 @@ public class StitchingTEM {
 				case TOP_BOTTOM:
 					// boundary checks:
 					//if (cc_result[1]/scale_cc > default_dy) success = ERROR;
-					x2 = base.getX() + cc_result[0]/scale_cc;
-					y2 = base.getY() + roi1.getBounds().y + cc_result[1]/scale_cc;
+					dx = cc_result[0]/scale_cc;
+					dy = roi1.getBounds().y + cc_result[1]/scale_cc;
 					break;
 				case LEFT_RIGHT:
 					// boundary checks:
 					//if (cc_result[0]/scale_cc > default_dx) success = ERROR;
-					x2 = base.getX() + roi1.getBounds().x + cc_result[0]/scale_cc;
-					y2 = base.getY() + cc_result[1]/scale_cc;
+					dx = roi1.getBounds().x + cc_result[0]/scale_cc;
+					dy = cc_result[1]/scale_cc;
 					break;
 			}
 			Utils.log2("CC R: " + cc_result[2] + " dx, dy: " + cc_result[0] + ", " + cc_result[1]);
 			//Utils.log2("\trois: \t" + roi1 + "\n\t\t" + roi2);
-			return new double[]{x2, y2, success, cc_result[2]};
+			return new double[]{dx, dy, success, cc_result[2]};
 		}
 
 		// else both failed: return default values
@@ -510,158 +538,6 @@ public class StitchingTEM {
 
 
 		/// ABOVE: boundary checks don't work if default_dx,dy are zero! And may actually be harmful in anycase
-	}
-
-	/** Represents an statement of neighborhood between two Patches. */
-	static private class Bond {
-		Tile one, two;
-		/** TOP_BOTTOM or LEFT_RIGHT */
-		int type;
-		double[] cc;
-		boolean validated = false;
-		Bond(Tile one, Tile two, int type) {
-			this.type = type;
-			this.one = one;
-			this.two = two;
-			one.addBond(this);
-			two.addBond(this);
-		}
-		void correlate(float percent_overlap, float scale, double default_bottom_top_overlap, double default_left_right_overlap) {
-			this.cc = StitchingTEM.correlate(this.one.patch, this.two.patch, percent_overlap, scale, this.type, default_bottom_top_overlap, default_left_right_overlap);
-			// convert absolute location to relative location
-			final Rectangle b = one.patch.getBoundingBox();
-			cc[0] -= b.x;
-			cc[1] -= b.y;
-		}
-		/** Pull the second tile towards the first according to the dx,dy of the cc results.
-		 * Will drag along tiles bonded to the second tile if its bonds are already validated
-		 */
-		void pull() {
-			if (two.pulled) return; // some other bond was better at it (came first)
-			validated = true;
-			two.pulled = true;
-			final Rectangle ref = one.patch.getBoundingBox();
-			final Rectangle b1 = two.patch.getBoundingBox();
-			two.patch.setLocation(ref.x + cc[0], ref.y + cc[1]);
-			final Rectangle b2 = two.patch.getBoundingBox();
-			Utils.log2("using pull on bond: \n\tone: " + one.patch + "\n\ttwo: " + two.patch + "\n\tcc: " + cc[0] + "," + cc[1]);
-			// hashset of bonds visited in this round
-			final HashSet hs_bonds = new HashSet();
-			hs_bonds.add(this);
-			hs_bonds.add(two.patch);
-			// drag along the ones already pulled by the translation of the patch
-			two.translate(b2.x - b1.x, b2.y - b1.y, hs_bonds);
-		}
-		void translatePartner(Tile tile, double dx, double dy, HashSet hs_bonds) {
-			// if not validated or already used, ignore
-			if (!validated || hs_bonds.contains(this)) return;
-			// else propagate
-			hs_bonds.add(this);
-			if (one.equals(tile)) {
-				Utils.log2(toString() + "translating 'two' " + validated);
-				two.translate(dx, dy, hs_bonds);
-			} else if (two.equals(tile)) {
-				Utils.log2(toString() + "translating 'one' " + validated);
-				one.translate(-dx, -dy, hs_bonds); // inverse displacement
-			}
-		}
-		public String toString() {
-			return "bond " + one.toString() + " to " + two.toString();
-		}
-	}
-	static private class Tile {
-		Patch patch;
-		ArrayList al_bonds = new ArrayList();
-		boolean pulled = false;
-		Tile(Patch p) {
-			this.patch = p;
-		}
-		void addBond(Bond bond) {
-			al_bonds.add(bond);
-		}
-		void translate(double dx, double dy, HashSet hs_bonds) {
-			// use also the hs_bonds to check that the same patch 'two' is not translated after setting its location.
-			if (!hs_bonds.contains(patch)) {
-				patch.translate(dx, dy);
-				hs_bonds.add(patch);
-			}
-			Utils.log2("translating " + toString() + " by: " + dx + "," + dy);
-			for (Iterator it = al_bonds.iterator(); it.hasNext(); ) {
-				Bond bond = (Bond)it.next();
-				bond.translatePartner(this, dx, dy, hs_bonds);
-			}
-		}
-		public String toString() {
-			return patch.toString(); //.substring(53,58);
-		}
-	}
-
-	/** Stitching by using the best matching values first, and iterating over the network of matches. This method is desgined to work around the problem of lack of overlap of some neighboring tiles, which have to be aligned then according to they other neighbors. */
-	static private void stitchNetLike(final StitchingTEM st, final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap) {
-		try {
-			final Tile[] tile = new Tile[patch.length];
-			for (int i=0; i<tile.length; i++) {
-				tile[i] = new Tile(patch[i]);
-			}
-			final ArrayList al_bonds = new ArrayList();
-			Bond bond;
-			final ArrayList al_scores = new ArrayList();
-			final ArrayList al_i = new ArrayList();
-			int next = 0;
-			for (int i=0; i<patch.length; i++) {
-				// try with right, if not at end of row
-				if (0 != (i+1) % grid_width) {
-					bond = new Bond(tile[i], tile[i+1], LEFT_RIGHT);
-					bond.correlate(percent_overlap, scale, default_bottom_top_overlap, default_left_right_overlap);
-					al_bonds.add(bond);
-					al_scores.add(new Double(bond.cc[3]));
-					al_i.add(new Integer(next));
-					next++;
-				}
-				// try with bottom, if not at last row
-				if (i + grid_width < patch.length) {
-					bond = new Bond(tile[i], tile[i+grid_width], TOP_BOTTOM);
-					bond.correlate(percent_overlap, scale, default_bottom_top_overlap, default_left_right_overlap);
-					al_bonds.add(bond);
-					al_scores.add(new Double(bond.cc[3]));
-					al_i.add(new Integer(next));
-					next++;
-				}
-			}
-			// sort bonds by cc score
-			final double[] scores = new double[al_scores.size()];
-			final int[] index = new int[scores.length];
-			next = 0;
-			for (Iterator s = al_scores.iterator(), it = al_i.iterator(); s.hasNext(); ) {
-				scores[next] = ((Double)s.next()).doubleValue();
-				index[next] = ((Integer)it.next()).intValue();
-				next++;
-			}
-			Utils.log2("sorting bonds by cc score");
-			General.quicksort(scores, index, 0, scores.length-1);
-			Utils.log2("sorted.\nindex length is " + index.length);
-			// iterate bonds from highest to lowest score, applying and propagating the translations
-			final ArrayList al_bad_apples = new ArrayList();
-			for (int i=index.length-1; i>-1; i--) {
-				Bond b = (Bond)al_bonds.get(index[i]);
-				if (ERROR == b.cc[2]) {
-					al_bad_apples.add(b);
-					// above, failed ones have the R of the cross-correlation which can be accidentally high in low contrast situations
-					continue;
-				}
-				b.pull();
-			}
-			// fix the bad apples
-			for (Iterator it = al_bad_apples.iterator(); it.hasNext(); ) {
-				Bond b = (Bond)it.next();
-				b.pull();
-			}
-			//
-			st.flag = DONE;
-		} catch (Exception e) {
-			new IJError(e);
-			st.flag = ERROR;
-		}
 	}
 
 	/** Works only for Patch instances at the moment. */
@@ -693,14 +569,15 @@ public class StitchingTEM {
 
 		// start:
 		double[] best_pc = null;
+		Patch base = null;
 		try {
 			//  make a reasonable guess for the scale
 			float cc_scale = (float)(512.0 / (p_dragged.getWidth() > p_dragged.getHeight() ? p_dragged.getWidth() : p_dragged.getHeight()));
 			if (cc_scale > 1.0f) cc_scale = 1.0f;
 			//
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
-				final Patch p = (Patch)it.next();
-				final double[] pc = StitchingTEM.correlate(p, p_dragged, 1f, cc_scale, StitchingTEM.TOP_BOTTOM, 0, 0);
+				base = (Patch)it.next();
+				final double[] pc = StitchingTEM.correlate(base, p_dragged, 1f, cc_scale, StitchingTEM.TOP_BOTTOM, 0, 0);
 				if (null == best_pc) best_pc = pc;
 				else {
 					// compare R: choose largest
@@ -714,8 +591,8 @@ public class StitchingTEM {
 			return;
 		}
 		// now, relocate the Patch
-		double dx = best_pc[0] - p_dragged.getX(); // since the drag is and 'add' operation on the coords
-		double dy = best_pc[1] - p_dragged.getY(); //   and the dx,dy are relative to the matched patch
+		double dx = base.getX() + best_pc[0];
+		double dy = base.getY() + best_pc[1];
 		Rectangle box = p_dragged.getLinkedBox(true);
 		//Utils.log2("box is " + box);
 		p_dragged.translate(dx, dy, true);
@@ -742,6 +619,7 @@ public class StitchingTEM {
 	}
 
 	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */
+	/*
 	private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
 		Rectangle x_rect = dragging_ob.getBoundingBox();
 		Rectangle y_rect = overlapping_ob.getBoundingBox();
@@ -756,5 +634,5 @@ public class StitchingTEM {
 			else return 0;
 		}
 	}
-
+	*/
 }
