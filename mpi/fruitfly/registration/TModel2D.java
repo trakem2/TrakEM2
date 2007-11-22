@@ -55,8 +55,6 @@ public class TModel2D extends Model {
 		point[ 1 ] = temp_point[ 1 ];
 	}
 	
-
-
 	@Override
 	public boolean fit( PointMatch[] min_matches )
 	{
@@ -90,7 +88,7 @@ public class TModel2D extends Model {
 		for ( PointMatch m : matches )
 		{
 			float[] m_p1 = m.getP1().getL(); 
-			float[] m_p2 = m.getP2().getL(); 
+			float[] m_p2 = m.getP2().getW(); 
 			
 			xo1 += m_p1[ 0 ];
 			yo1 += m_p1[ 1 ];
@@ -102,11 +100,11 @@ public class TModel2D extends Model {
 		xo2 /= length;
 		yo2 /= length;
 
-		float dx = xo2 - xo1;
-		float dy = yo2 - yo1;
+		float dx = xo1 - xo2; // reversed, because the second will be moved relative to the first
+		float dy = yo1 - yo2;
 		
 		affine.setToIdentity();
-		affine.translate( dx, dy );
+		affine.translate( -dx, -dy );
 	}
 	
 	/**

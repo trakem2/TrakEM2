@@ -7,6 +7,7 @@ import mpi.fruitfly.registration.FloatArray2DSIFT;
 import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.ImageFilter;
+import mpi.fruitfly.registration.Feature;
 
 import imagescience.transform.*;
 import imagescience.image.Image;
@@ -240,8 +241,8 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 		ImageProcessor ip2;
 		ImageProcessor ip3 = null;
 		
-		Vector< FloatArray2DSIFT.Feature > fs1;
-		Vector< FloatArray2DSIFT.Feature > fs2;
+		Vector< Feature > fs1;
+		Vector< Feature > fs2;
 
 		ip2 = stack.getProcessor( 1 ).convertToFloat();
 		
