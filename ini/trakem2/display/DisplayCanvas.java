@@ -1330,7 +1330,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	 */
 	public void repaint(Rectangle r, int extra) {
 		if (null == r) {
-			Utils.log2("DisplayCanvas.repaint(Rectangle, int) warning: null r");
+			//Utils.log2("DisplayCanvas.repaint(Rectangle, int) warning: null r");
 			new RepaintThread(this, null, update_graphics); // repaint everything
 			return;
 		}

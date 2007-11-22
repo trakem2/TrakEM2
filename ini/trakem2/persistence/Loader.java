@@ -835,6 +835,7 @@ abstract public class Loader {
 		return mawts.contains(p.getId(), Loader.getMipMapLevel(mag));
 	}
 
+	/** Above or equal in size. */
 	public Image getCachedClosestAboveImage(Patch p, double mag) {
 		Image awt = null;
 		synchronized (db_lock) {
@@ -845,6 +846,7 @@ abstract public class Loader {
 		return awt;
 	}
 
+	/** Below, not equal. */
 	public Image getCachedClosestBelowImage(Patch p, double mag) {
 		Image awt = null;
 		synchronized (db_lock) {

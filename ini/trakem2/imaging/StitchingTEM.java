@@ -192,6 +192,13 @@ public class StitchingTEM {
 					prev_i = i -1;
 					prev = LEFT;
 				}
+
+				// for minimization:
+				Tile prev_tile = al_tiles.get(prev_i);
+				Tile tile = new Tile((float)patch[i].getWidth(), (float)patch[i].getHeight(), new TModel2D());
+				al_tiles.add(tile);
+
+
 				if (TOP == prev) {
 					// compare with top only
 					R1 = st.correlate(patch[prev_i], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
@@ -221,11 +228,10 @@ public class StitchingTEM {
 						tx = R1[0];
 						ty = R1[1];
 					} else {
-						final Rectangle b1 = patch[prev_i].getBoundingBox(null);
 						final Rectangle b2 = patch[i - grid_width].getBoundingBox(null);
 						// don't move: use default overlap
-						tx = b1.x;
-						ty = b1.y + b2.height - default_bottom_top_overlap;
+						tx = 0;
+						ty = b2.height - default_bottom_top_overlap;
 					}
 				} else { // LEFT
 					// the one on top, if any
@@ -234,52 +240,59 @@ public class StitchingTEM {
 							// top is good
 							if (SUCCESS == R2[2]) {
 								// combine left and top
-								tx = (R1[0] + R2[0]) / 2;
-								ty = (R1[1] + R2[1]) / 2;
+								//tx = (R1[0] + R2[0]) / 2;
+								//ty = (R1[1] + R2[1]) / 2;
+								addMatches(prev_tile, tile, R1[0], R1[1]);
+								addMatches(prev_tile, tile, R2[0], R2[1]);
 							} else {
 								// use top alone
-								tx = R1[0];
-								ty = R1[1];
+								//tx = R1[0];
+								//ty = R1[1];
+								addMatches(prev_tile, tile, R1[0], R1[1]);
 							}
 						} else {
 							// ignore top
 							if (SUCCESS == R2[2]) {
 								// use left alone
-								tx = R2[0];
-								ty = R2[1];
+								//tx = R2[0];
+								//ty = R2[1];
+								addMatches(prev_tile, tile, R2[0], R2[1]);
 							} else {
 								final Rectangle b1 = patch[prev_i].getBoundingBox(null);
 								final Rectangle b2 = patch[i - grid_width].getBoundingBox(null);
 								// left not trusted, top not trusted: use a combination of defaults for both
-								tx = b1.x + b1.width - default_left_right_overlap;
-								ty = b2.y + b2.height - default_bottom_top_overlap;
+								//tx = b1.width - default_left_right_overlap;
+								//ty = b2.height - default_bottom_top_overlap;
+								addMatches(prev_tile, tile, b1.width - default_left_right_overlap, 0);
+								addMatches(prev_tile, tile, 0, b2.height - default_bottom_top_overlap);
 							}
 						}
 					} else if (SUCCESS == R2[2]) {
 						// use left alone (top not applicable in top row)
-						tx = R2[0];
-						ty = R2[1];
+						//tx = R2[0];
+						//ty = R2[1];
+						addMatches(prev_tile, tile, R2[0], R2[1]);
 					} else {
 						final Rectangle b1 = patch[prev_i].getBoundingBox(null);
 						// left not trusted, and top not applicable: use default overlap with left tile
-						tx = b1.x + b1.width - default_left_right_overlap;
-						ty = b1.y;
+						//tx = b1.width - default_left_right_overlap;
+						//ty = 0;
+						addMatches(prev_tile, tile, b1.width - default_left_right_overlap, 0);
 					}
 				}
 
 				// for global minimization:
-				Tile prev_tile = al_tiles.get(prev_i);
-				Tile tile = new Tile((float)patch[i].getWidth(), (float)patch[i].getHeight(), new TModel2D());
-				al_tiles.add(tile);
-				mpi.fruitfly.registration.Point p1 = new mpi.fruitfly.registration.Point(new float[]{0f, 0f});
-				mpi.fruitfly.registration.Point p2 = new mpi.fruitfly.registration.Point(new float[]{(float)tx, (float)ty});
-				prev_tile.addMatch(new PointMatch(p1, p2, 1.0f));
-				tile.addMatch(new PointMatch(p2, p1, 1.0f));
+				/*
+				Point p1 = new Point(new float[]{0f, 0f});
+				Point p2 = new Point(new float[]{(float)tx, (float)ty});
+				prev_tile.addMatch(new PointMatch(p2, p1, 1.0f));
+				tile.addMatch(new PointMatch(p1, p2, 1.0f));
 				prev_tile.addConnectedTile(tile);
 				tile.addConnectedTile(prev_tile);
+				*/
 
 				// apply (and repaint)
-				/* // nopt anymore, for minimization may be screwed
+				/* // not anymore, for minimization may be screwed
 				if (ControlWindow.isGUIEnabled()) {
 					Rectangle box = patch[i].getBoundingBox();
 					patch[i].translate(tx, ty);
@@ -308,6 +321,16 @@ public class StitchingTEM {
 			new IJError(e);
 			st.flag = ERROR;
 		}
+	}
+
+	/** dx, dy is the position of t2 relative to the 0,0 of t1. */
+	static private final void addMatches(Tile t1, Tile t2, double dx, double dy) {
+		Point p1 = new Point(new float[]{0f, 0f});
+		Point p2 = new Point(new float[]{(float)dx, (float)dy});
+		t1.addMatch(new PointMatch(p2, p1, 1.0f));
+		t2.addMatch(new PointMatch(p1, p2, 1.0f));
+		t1.addConnectedTile(t1);
+		t2.addConnectedTile(t2);
 	}
 
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale) {

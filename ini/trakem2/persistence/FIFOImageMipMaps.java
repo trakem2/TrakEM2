@@ -167,12 +167,15 @@ public class FIFOImageMipMaps {
 		int index = -1;
 		for (int i=start; i<next; i++) {
 			if (id == ids[i]) {
+				/*
 				if (level == levels[i]) {
 					// if equal level as asked, just return it
 					im = images[i];
 					toTheEnd(i);
 					return im;
-				} else if (levels[i] > level) {
+				} else
+				*/
+				if (levels[i] > level) {
 					// if smaller image (larger level) than asked, choose the less smaller
 					if (levels[i] < lev) { // here going for the largest image (smaller level) that is still smaller, and thus its level larger, than the desired level
 						lev = levels[i];

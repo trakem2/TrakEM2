@@ -309,10 +309,10 @@ public class Patch extends Displayable {
 
 		checkChannels(channels);
 
-		Image image = project.getLoader().getCachedClosestAboveImage(this, magnification);
+		Image image = project.getLoader().getCachedClosestAboveImage(this, magnification); // above or equal
 		Thread higher = null;
 		if (null == image) {
-			image = project.getLoader().getCachedClosestBelowImage(this, magnification);
+			image = project.getLoader().getCachedClosestBelowImage(this, magnification); // below, not equal
 			boolean thread = false;
 			if (null == image) {
 				// fetch the proper image, nothing is cached
