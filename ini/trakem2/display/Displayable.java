@@ -371,12 +371,12 @@ public abstract class Displayable extends DBObject {
 		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
 			// return the bounding box as a polygon:
 			final Rectangle r = getBoundingBox();
-			return new Polygon(new int[]{r.x -extra, r.x+r.width +extra, r.x+r.width +extra, r.x -extra},
-					   new int[]{r.y -extra, r.y -extra, r.y+r.height +extra, r.y+r.height +extra},
+			return new Polygon(new int[]{r.x -extra, r.x+r.width , r.x+r.width , r.x -extra},
+					   new int[]{r.y -extra, r.y -extra, r.y+r.height , r.y+r.height },
 					   4);
 		}
 		// else, the rotated/sheared/scaled and translated bounding box:
-		final double[] po1 = new double[]{-extra,-extra,  width,-extra,  width+extra,height+extra,  -extra,height+extra};
+		final double[] po1 = new double[]{-extra,-extra,  width,-extra,  width,height,  -extra,height};
 		final double[] po2 = new double[8];
 		this.at.transform(po1, 0, po2, 0, 4);
 		return new Polygon(new int[]{(int)po2[0], (int)po2[2], (int)po2[4], (int)po2[6]},

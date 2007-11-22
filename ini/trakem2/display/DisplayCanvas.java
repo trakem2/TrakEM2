@@ -51,10 +51,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	public final class Lock {
 		boolean locked = false;
 		public final void lock() {
+			//Utils.printCaller(this, 7);
 			while (locked) try { this.wait(); } catch (InterruptedException ie) {}
 			locked = true;
 		}
 		public final void unlock() {
+			//Utils.printCaller(this, 7);
 			locked = false;
 			this.notifyAll();
 		}
@@ -129,7 +131,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	/** Master over the rt_old */
 	private final Lock rtl = new Lock();
 
-	//private int count = 0; // threads' tag
+	private int count = 0; // threads' tag
 
 	private long last_paint = 0;
 	private LinkedList paint_queue = new LinkedList();
@@ -145,44 +147,30 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		private final long start = System.currentTimeMillis();
 		private long rt_old_off_start = -1;
 
-		//private int label;
+		private int label;
 
 		private OffscreenThread offscreen_thread = null;
 
 		RepaintThread(DisplayCanvas dc, Rectangle clipRect, boolean create_offscreen_data) {
 			setPriority(Thread.NORM_PRIORITY);
 			this.create_offscreen_data = create_offscreen_data;
-			//label = count++;
-			//Utils.log2(label + " new rt");
+			label = count++;
+			Utils.log2(label + " new rt");
 			this.clipRect = clipRect;
 			this.dc =  dc;
 			synchronized (rtl) {
 				rtl.lock();
 
 				// merge clip with previous thread if it wasn't finished
-				if (null != rt_old) { // only if unfinished
-					// in any case, cancel previous thread
-					if (create_offscreen_data) {
-						// cancel previous creation of offscreen data (if any)
-						/*
-						if (null != rt_old.offscreen_thread) {
-							rt_old.offscreen_thread.cancel();
-							rt_old_off_start = rt_old.offscreen_thread.start;
-							// not needed any more //try { rt_old.offscreen_thread.join(); } catch (InterruptedException ie) {}
-							rt_old.offscreen_thread = null;
-						}
-						*/
-					}
-					if (!rt_old.done) {
-						rt_old.quit();
-						// merge clips
-						if (null != this.clipRect) {
-							if (null != rt_old.clipRect) this.clipRect.add(rt_old.clipRect);
-							else this.clipRect = null; // null means 'all'
-						}
+				if (null != rt_old && !rt_old.done) {
+					rt_old.quit();
+					// merge clips
+					if (null != this.clipRect) {
+						if (null != rt_old.clipRect) this.clipRect.add(rt_old.clipRect);
+						else this.clipRect = null; // null means 'all'
 					}
 				}
-				// register (this is why I synch with controler_ob2)
+				// register (this is why I synch with rtl)
 				rt_old = this;
 
 				//Utils.log2("RepaintThread clip: " + this.clipRect);
@@ -195,7 +183,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 
 		public void quit() {
-			//Utils.log2(label + "quit rt");
+			Utils.log2(label + " quit rt");
 			this.quit = true;
 		}
 
@@ -204,6 +192,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			synchronized (rtl) {
 				rtl.lock();
 				// if not enough time has passed, and it's not the last in the queue, then cancel
+				Utils.log(label + " canQuit: " + (now - last_paint));
 				if (now - last_paint < 100 && paint_queue.lastIndexOf(this) < paint_queue.size() -1) {
 					if (null != this.offscreen_thread) this.offscreen_thread.cancel();
 					rtl.unlock();
@@ -1894,8 +1883,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 
 		public void run() {
+			Lock lock = null;
 			try {
-				Lock lock;
 				Image target;
 
 				synchronized (offscreen_lock) {
@@ -2070,31 +2059,40 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						i++;
 					}
 
-					// create an Area object for each Displayable to paint
-					final ArrayList<Area> al_areas = new ArrayList<Area>();
-					for (Displayable d : al_paint) {
-						al_areas.add(new Area(d.getPerimeter(d.getClass().equals(Patch.class) ? -1 : 0)));
-					}
-					// extract from the area of a Displayable all the areas of Displayable objects above it
-					final int size = al_areas.size();
-					for (i=0; i<size; i++) {
-						// only for Patch objects (could do also filled AreaList objects, but there's no need)
-						if (!al_paint.get(i).getClass().equals(Patch.class)) break;
-						final Area area = al_areas.get(i);
-						for (j=i+1; j<size; j++) {
-							final Displayable d = al_paint.get(j);
-							final Class c = d.getClass();
-							if (c.equals(Patch.class) || (c.equals(AreaList.class) && (((AreaList)d).isFillPaint()))) {
-								area.subtract(al_areas.get(j));
+					final int size = al_paint.size();
+
+					if (size < 100) { // arbitrary!
+
+						// create an Area object for each Displayable to paint
+						final ArrayList<Area> al_areas = new ArrayList<Area>();
+						for (Displayable d : al_paint) {
+							al_areas.add(new Area(d.getPerimeter(d.getClass().equals(Patch.class) ? -1 : 0)));
+						}
+						// extract from the area of a Displayable all the areas of Displayable objects above it
+						for (i=0; i<size; i++) {
+							// only for Patch objects (could do also filled AreaList objects, but there's no need)
+							if (!al_paint.get(i).getClass().equals(Patch.class)) break;
+							final Area area = al_areas.get(i);
+							for (j=i+1; j<size; j++) {
+								final Displayable d = al_paint.get(j);
+								final Class c = d.getClass();
+								if (c.equals(Patch.class) || (c.equals(AreaList.class) && (((AreaList)d).isFillPaint()))) {
+									area.subtract(al_areas.get(j));
+								}
 							}
 						}
-					}
 
-					// Now paint all paintable objects, and only the area of each that shows
-					for (i=0; i<size; i++) {
-						g.setClip(al_areas.get(i));
-						Displayable d = al_paint.get(i);
-						d.prePaint(g, magnification, d.equals(active), c_alphas, layer);
+						// Now paint all paintable objects, and only the area of each that shows
+						for (i=0; i<size; i++) {
+							Displayable d = al_paint.get(i);
+							g.setClip(al_areas.get(i));
+							d.prePaint(g, magnification, d.equals(active), c_alphas, layer);
+						}
+					} else {
+						// just paint
+						for (Displayable d : al_paint) {
+							d.prePaint(g, magnification, d.equals(active), c_alphas, layer);
+						}
 					}
 
 					// there may be only Patch objects ..
@@ -2141,6 +2139,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						offscreen_lock.notifyAll();
 					}
 				}
+				synchronized (lock) { lock.unlock(); }
 			} catch (Exception e) {
 				new IJError(e);
 				synchronized (offscreen_lock) {
@@ -2149,6 +2148,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						offscreen_lock.notifyAll();
 					}
 				}
+				synchronized (lock) { lock.unlock(); }
 			}
 		}
 	}
