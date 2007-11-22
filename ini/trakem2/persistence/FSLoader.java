@@ -1116,7 +1116,7 @@ public class FSLoader extends Loader {
 	}
 
 	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.*/
-	public Bureaucrat generateMipMaps(final ArrayList al) {
+	public Bureaucrat generateMipMaps(final ArrayList al, final boolean overwrite) {
 		if (null == al || 0 == al.size()) return null;
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		final Worker worker = new Worker("Generating MipMaps") {
@@ -1145,6 +1145,24 @@ public class FSLoader extends Loader {
 					}
 					wo.setTaskName("Generating MipMaps " + (k+1) + "/" + size);
 					try {
+						boolean ow = overwrite;
+						if (!overwrite) {
+							// check if all the files exists. If one doesn't, then overwrite all anyway
+							int w = (int)pa[k].getWidth();
+							int h = (int)pa[k].getHeight();
+							int level = 0;
+							final String filename = new File(getAbsolutePath(pa[k])).getName() + "." + pa[k].getId() + ".jpg";
+							while (w >= 64 && h >= 64) {
+								w /= 2;
+								h /= 2;
+								level++;
+								if (!new File(dir_mipmaps + level + "/" + filename).exists()) {
+									ow = true;
+									break;
+								}
+							}
+						}
+						if (!ow) continue;
 						if ( ! generateMipMaps(pa[k]) ) {
 							// some error ocurred
 							Utils.log2("Could not generate mipmaps for patch " + pa[k]);

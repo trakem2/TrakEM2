@@ -94,6 +94,11 @@ public class PatchStack extends ImagePlus {
 		return null;
 	}
 
+	/** Returns the Patch corresponding to the current slice. */
+	public Patch getCurrentPatch() {
+		return patch[currentSlice-1];
+	}
+
 	public void setCurrentSlice(Patch p) {
 		// checks that it exists here first
 		for (int i=0; i<patch.length; i++) {

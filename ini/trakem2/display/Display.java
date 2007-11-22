@@ -1157,7 +1157,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Add it to the proper panel, at the top, and set it active. */
 	private void add(Displayable d, boolean activate, boolean repaint_snapshot) {
 		DisplayablePanel dp = (DisplayablePanel)hs_panels.get(d);
-		if (null != dp) { // for ZDisplayable objects (TODO I think this is not used anymore)
+		if (null != dp && activate) { // for ZDisplayable objects (TODO I think this is not used anymore)
 			dp.setActive(true);
 			//setActive(d);
 			selection.clear();
@@ -1583,6 +1583,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Used by the Selection exclusively. This method will change a lot in the near future, and may disappear in favor of getSelection().getActive() */
 	protected void setActive(Displayable displ) {
+		Utils.printCaller(this, 7);
 		if (null != displ && displ.equals(active)) {
 			// make sure the proper tab is selected.
 			selectTab(displ);
@@ -2945,7 +2946,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//}
 		// the above is overkill. Instead:
 		if (updated instanceof PatchStack) {
-			((PatchStack)updated).decacheAll();
+			Patch p = ((PatchStack)updated).getCurrentPatch();
+			//p.setMinAndMax(updated.getMin(), updated.getMax()); // should be done already
+			project.getLoader().decacheAWT(p.getId()); // including level 0, which will be editable
+			// on repaint, it will be recreated
+			//((PatchStack)updated).decacheAll(); // so that it will repaint with a newly created image
 		}
 
 		// detect LUT changes: DONE at PatchStack, which is the active (virtual) image

@@ -546,6 +546,16 @@ abstract public class Loader {
 		if (releaseMemory(0.5D, true, n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
 		// else, wait for GC
 		int iterations = 30;
+
+		while (iterations > 0) {
+			if (0 == imps.size() && 0 == mawts.size()) {
+				// wait for GC ...
+				System.gc();
+				try { Thread.sleep(300); } catch (InterruptedException ie) {}
+			}
+			iterations--;
+		}
+		/*
 		while (!enoughFreeMemory(n_bytes)) {
 			Utils.log2("rtf " + iterations);
 			System.gc();
@@ -562,6 +572,7 @@ abstract public class Loader {
 			}
 			iterations--;
 		}
+		*/
 		return true;
 	}
 
@@ -865,7 +876,7 @@ abstract public class Loader {
 
 	private Hashtable ht_plocks = new Hashtable();
 
-	protected PatchLoadingLock getOrMakePatchLoadingLock(final Patch p, final int level) {
+	protected final PatchLoadingLock getOrMakePatchLoadingLock(final Patch p, final int level) {
 		final String key = p.getId() + "." + level;
 		Object ob = ht_plocks.get(key);
 		if (null != ob) {
@@ -875,7 +886,7 @@ abstract public class Loader {
 		ht_plocks.put(key, pl);
 		return pl;
 	}
-	protected void removePatchLoadingLock(PatchLoadingLock pl) {
+	protected final void removePatchLoadingLock(PatchLoadingLock pl) {
 		ht_plocks.remove(pl.key);
 	}
 
@@ -888,7 +899,7 @@ abstract public class Loader {
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 */
 	public Image fetchImage(final Patch p, double mag) {
-		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus callong lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
+		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
 
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag);
@@ -1726,19 +1737,6 @@ abstract public class Loader {
 				layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
 				pall[i][j] = patch;
-				//ImageProcessor ip = img.getProcessor();
-				//ip.setInterpolate(true);
-				//Image snap = ip.resize((int)Math.ceil(img.getWidth() * Snapshot.SCALE), (int)Math.ceil(img.getHeight() * Snapshot.SCALE)).createImage();
-				//snaps.put(patch.getId(), snap);
-
-				// debug: does the snap exists?
-				/*
-				Image sn = snaps.get(patch.getId());
-				if (null != sn) {
-					Utils.log2("@@@  SNAP YES");
-				} else {
-					Utils.log2("@@@  SNAP NO");
-				}*/
 
 				al.add(patch);
 				if (ControlWindow.isGUIEnabled()) {
@@ -1793,6 +1791,7 @@ abstract public class Loader {
 				final ArrayList al_st = new ArrayList();
 				final ArrayList al_p = new ArrayList(); // list of Patch ordered by stdDev ASC
 				int type = -1;
+				releaseMemory(); // need some to operate
 				for (int i=0; i<pa.length; i++) {
 					if (this.quit) {
 						Display.repaint(layer);
@@ -1903,7 +1902,7 @@ abstract public class Loader {
 					setTaskName("Regenerating snapshots.");
 					// recreate files
 					Utils.log2("Generating mipmaps for " + al.size() + " patches.");
-					Thread t = generateMipMaps(al);
+					Thread t = generateMipMaps(al, false);
 					if (null != t) try { t.join(); } catch (InterruptedException ie) {}
 				}
 				// 7 - flush away any existing awt images, so that they'll be recreated with the new min and max
@@ -1970,10 +1969,12 @@ abstract public class Loader {
 		// update indexes
 		layer.updateInDatabase("stack_index"); // so its done once only
 		// create panels in all Displays showing this layer
+		/* // not needed anymore
 		Iterator it = al.iterator();
 		while (it.hasNext()) {
 			Display.add(layer, (Displayable)it.next(), false); // don't set it active, don't want to reload the ImagePlus!
 		}
+		*/
 		// update Displays
 		Display.update(layer);
 
@@ -2344,17 +2345,11 @@ abstract public class Loader {
 			}
 			Utils.log2("Loader.getFlatImage: using rectangle " + srcRect);
 			// estimate image size
-			long bytes = (long)((w * h * scaleP * scaleP * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
-			Utils.log2("Flat image estimated bytes: " + Long.toString(bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with proper area averaging)" : ""));
+			final long n_bytes = (long)((w * h * scaleP * scaleP * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
+			Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with proper area averaging)" : ""));
 
-			//synchronized (db_lock) {
-			//	lock();
-				releaseToFit(bytes); // locks on it's own
-			//	unlock();
-			//}
-			long curr = IJ.maxMemory() - IJ.currentMemory();
-			if (curr < bytes) {
-				Utils.showMessage("Not enough free RAM for a flat image: current is " + curr);
+			if (!releaseToFit(n_bytes)) { // locks on it's own
+				Utils.showMessage("Not enough free RAM for a flat image.");
 				return null;
 			}
 			// go
@@ -2473,11 +2468,8 @@ abstract public class Loader {
 				}
 			}
 			// ensure enough memory is available for the processor and a new awt from it
-			//synchronized (db_lock) {
-			//	lock();
-				releaseToFit((long)(bytes*2.3)); // locks on its own
-			//	unlock();
-			//}
+			releaseToFit((long)(n_bytes*2.3)); // locks on its own
+
 			try {
 				if (quality) {
 					Image scaled = null;
@@ -3380,8 +3372,13 @@ abstract public class Loader {
 	/** Does nothing unless overriden. */
 	public void removeMipMaps(final Patch patch) {}
 
+	/** Returns generateMipMaps(al, false). */
+	public Bureaucrat generateMipMaps(final ArrayList al) {
+		return generateMipMaps(al, false);
+	}
+
 	/** Does nothing and returns null unless overriden. */
-	public Bureaucrat generateMipMaps(final ArrayList al) { return null; }
+	public Bureaucrat generateMipMaps(final ArrayList al, boolean overwrite) { return null; }
 
 	/** Does nothing and returns false unless overriden. */
 	public boolean isMipMapsEnabled() { return false; }
