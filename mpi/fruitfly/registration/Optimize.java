@@ -110,7 +110,7 @@ public class Optimize {
 
 			++iteration;
 
-			//Display.repaint(layer, null, 0, false); // do the entire canvas, and do not update the navigator
+			if (0 == iteration / 1000) Display.repaint(layer, null, 0, false); // do the entire canvas, and do not update the navigator
 		}
 //		f.close();
 		
