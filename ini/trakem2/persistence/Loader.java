@@ -524,7 +524,6 @@ abstract public class Loader {
 
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
 	public final boolean releaseToFit(long bytes) {
-		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
 		if (bytes > max_memory) {
 			Utils.showMessage("Can't fit " + bytes + " bytes in memory.");
 			return false;
@@ -542,28 +541,28 @@ abstract public class Loader {
 	}
 
 	// non-locking version
-	protected final boolean releaseToFit2(long bytes) {
-		boolean result = true;
+	protected final boolean releaseToFit2(long n_bytes) {
+		if (enoughFreeMemory(n_bytes)) return true;
+		if (releaseMemory(0.5D, true, n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
+		// else, wait for GC
 		int iterations = 30;
-		while (!enoughFreeMemory(bytes)) {
+		while (!enoughFreeMemory(n_bytes)) {
 			Utils.log2("rtf " + iterations);
-			releaseMemory(0.5D, true, bytes);
-			if (0 == imps.size() && 0 == mawts.size()) {
-				// wait for GC ...
-				try { Thread.sleep(1000); } catch (InterruptedException ie) {}
-				// release offscreen images (will leave the canvas labeled for remaking when necessary)
-				if (iterations < 20) Display.flushAll();
-			}
-			if (iterations < 0) {
-				Utils.log("Can't make room for " + bytes + " bytes in memory.");
-				result = false;
-				break;
-			}
+			System.gc();
 			Thread.yield(); // for the GC to run
 			try { Thread.sleep(200); } catch (InterruptedException ie) {}
+			if (enoughFreeMemory(n_bytes)) return true;
+			if (0 == imps.size() && 0 == mawts.size()) {
+				// wait for GC ...
+				try { Thread.sleep(300); } catch (InterruptedException ie) {}
+			}
+			if (iterations < 0) {
+				Utils.log("Can't make room for " + n_bytes + " bytes in memory.");
+				return false;
+			}
 			iterations--;
 		}
-		return result;
+		return true;
 	}
 
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
@@ -582,14 +581,14 @@ abstract public class Loader {
 			sleep += sleep; // incremental
 			now = IJ.currentMemory();
 			Utils.log("\titer " + iterations + "  initial: " + initial  + " now: " + now);
-			if (iterations > 2) {
-				// release 2% more
-				releaseMemory(0.5D, true, (long)((max_memory > 500 * 10e6) ? 300 * 10e6 : 50 * 10e6));
+			if (iterations > 3) {
+				//System.gc();
+				Thread.yield();
 				Utils.log2("\t  mawts: " + mawts.size() + "  imps: " + imps.size());
 			}
 			iterations++;
-			if (iterations > 6) {
-				System.gc(); // last 2 iterations, in the obvious face of it
+			if (iterations > max - 2) {
+				//System.gc(); // last 2 iterations, in the obvious face of it
 			}
 		} while (now >= initial && iterations < max);
 		Utils.log2("finished runGC");
@@ -619,8 +618,31 @@ abstract public class Loader {
 	public static final long MIN_FREE_BYTES = max_memory > 1000000000 /*1 Gb*/ ? 150000000 /*150 Mb*/ : 50000000 /*50 Mb*/; // (long)(max_memory * 0.2f);
 
 	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
-	protected final void releaseMemory() {
-		releaseMemory(0.5D, true, MIN_FREE_BYTES);
+	protected final long releaseMemory() {
+		return releaseMemory(0.5D, true, MIN_FREE_BYTES);
+	}
+
+	private final long measureSize(final ImagePlus imp) {
+		if (null == imp) return 0;
+		final long size = imp.getWidth() * imp.getHeight();
+		switch (imp.getType()) {
+			case ImagePlus.GRAY16:
+				return size * 2 + 100;
+			case ImagePlus.GRAY32:
+			case ImagePlus.COLOR_RGB:
+				return size * 4 + 100; // some overhead, it's 16 but allowing for a lot more
+			case ImagePlus.GRAY8:
+				return size + 100;
+			case ImagePlus.COLOR_256:
+				return size + 868; // 100 + 3 * 256 (the LUT)
+		}
+		return 0;
+	}
+
+	/** Returns a lower-bound estimate: as if it was grayscale; plus some overhead. */
+	private final long measureSize(final Image img) {
+		if (null == img) return 0;
+		return img.getWidth(null) * img.getHeight(null) + 100;
 	}
 
 	/** Release as much of the cache as necessary to make at least min_free_bytes free.<br />
@@ -628,50 +650,60 @@ abstract public class Loader {
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
 	*  NOT locked, however calls must take care of that.<br />
 	*/
-	protected final void releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
+	protected final long releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
+		long released = 0;
 		try {
-			while (!enoughFreeMemory(min_free_bytes)) {
+			//while (!enoughFreeMemory(min_free_bytes)) {
+			while (released < min_free_bytes) {
+				if (enoughFreeMemory(min_free_bytes)) return released;
 				// release the cache of other loaders (up to 'a' of the ImagePlus cache of them if necessary)
 				if (massive_mode) {
 					// release others regardless of the 'release_others' boolean
-					releaseOthers(0.5D);
+					released += releaseOthers(0.5D);
 					// reset
-					//massive_mode = true; // NEEDS TESTING, a good debugger would tell me when is this variable changed... Or, set the value always with the method setMassiveMode
-					if (enoughFreeMemory(min_free_bytes)) return;
+					//if (enoughFreeMemory(min_free_bytes)) return released;
+					if (released >= min_free_bytes) return released;
 					// remove half of the imps
 					if (0 != imps.size()) {
 						for (int i=imps.size()/2; i>-1; i--) {
 							ImagePlus imp = imps.removeFirst();
+							released += measureSize(imp);
 							flush(imp);
 						}
 						//System.gc();
 						Thread.yield();
-						if (enoughFreeMemory(min_free_bytes)) return;
+						//if (enoughFreeMemory(min_free_bytes)) return;
+						if (released >= min_free_bytes) return released;
 					}
 					// finally, release snapshots
 					if (0 != mawts.size()) {
 						// release almost all snapshots (they're cheap to reload/recreate)
 						for (int i=(int)(mawts.size() * 0.25); i>-1; i--) {
 							Image mawt = mawts.removeFirst();
+							released += measureSize(mawt);
 							if (null != mawt) mawt.flush();
 						}
-						runGC();
-						if (enoughFreeMemory(min_free_bytes)) return;
+						if (released >= min_free_bytes) return released;
+						//runGC();
+						//if (enoughFreeMemory(min_free_bytes)) return;
 					}
 				} else {
 					if (release_others) {
-						releaseOthers(a);
-						if (enoughFreeMemory(min_free_bytes)) return;
+						released += releaseOthers(a);
+						//if (enoughFreeMemory(min_free_bytes)) return released;
+						if (released >= min_free_bytes) return released;
 					}
 					if (0 == imps.size()) {
 						// release half the cached awt images
 						if (0 != mawts.size()) {
 							for (int i=mawts.size()/3; i>-1; i--) {
 								Image im = mawts.removeFirst();
+								released += measureSize(im);
 								if (null != im) im.flush();
 							}
-							runGC();
-							if (enoughFreeMemory(min_free_bytes)) return;
+							//if (enoughFreeMemory(min_free_bytes)) return;
+							if (released >= min_free_bytes) return released;
+							//runGC();
 						}
 					}
 					// finally:
@@ -679,6 +711,7 @@ abstract public class Loader {
 						// up to 'a' of the ImagePlus cache:
 						for (int i=(int)(imps.size() * a); i>-1; i--) {
 							ImagePlus imp = imps.removeFirst();
+							released += measureSize(imp);
 							flush(imp);
 						}
 					} else {
@@ -690,33 +723,38 @@ abstract public class Loader {
 
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
+					Utils.log("Loader.releaseMemory: empty cache.");
+					/*
 					if (massive_mode) {
-						Utils.log("Loader.releaseMemory: last desperate attempt.");
-						runGC();
+						//Utils.log("Loader.releaseMemory: last desperate attempt.");
+						//runGC();
 					}
-					// in any case:
-					return;
+					*/
+					// in any case, can't release more:
+					return released;
 				}
 			}
 		} catch (Exception e) {
 			new IJError(e);
 		}
+		return released;
 	}
 
 	/** Release memory from other loaders. */
-	synchronized private void releaseOthers(double a) {
-		if (1 == v_loaders.size()) return;
-		if (a <= 0.0D || a > 1.0D) return;
+	private long releaseOthers(double a) {
+		if (1 == v_loaders.size()) return 0;
+		if (a <= 0.0D || a > 1.0D) return 0;
 		Iterator it = v_loaders.iterator();
+		long released = 0;
 		while (it.hasNext()) {
 			Loader loader = (Loader)it.next();
 			if (loader.equals(this)) continue;
 			else {
 				loader.setMassiveMode(false); // otherwise would loop back!
-				loader.releaseMemory(a, false, MIN_FREE_BYTES);
+				released += loader.releaseMemory(a, false, MIN_FREE_BYTES);
 			}
 		}
-		notify();
+		return released;
 	}
 
 	private void releaseAll() {
@@ -3717,8 +3755,8 @@ abstract public class Loader {
 		if (null == imp) return;
 		final Roi roi = imp.getRoi(); 
 		if (null != roi) roi.setImage(null);
-		final ImageProcessor ip = imp.getProcessor();
-		if (null != ip) ip.setPixels(null);
+		//final ImageProcessor ip = imp.getProcessor(); // the nullifying makes no difference, and in low memory situations some bona fide imagepluses may end up failing on the calling method because of lack of time to grab the processor etc.
+		//if (null != ip) ip.setPixels(null);
 		ipa.notifyListeners(imp, ipa.CLOSE);
 	}
 }

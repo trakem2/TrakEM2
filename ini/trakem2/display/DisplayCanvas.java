@@ -166,7 +166,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						if (null != rt_old.offscreen_thread) {
 							rt_old.stop_offscreen_data = true;
 							rt_old.offscreen_thread.cancel();
-							try { rt_old.offscreen_thread.join(); } catch (InterruptedException ie) {}
+							// not needed any more //try { rt_old.offscreen_thread.join(); } catch (InterruptedException ie) {}
 							rt_old.offscreen_thread = null;
 						}
 					}
