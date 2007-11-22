@@ -395,14 +395,13 @@ public class StitchingTEM {
 		this.flag = INTERRUPTED;
 	}
 
-	/** Returns the x,y position of the moving Patch plus a third value of 1 if successful, 0 if defaults where used (when both phase-correlation and cross-correlation fail).
-	 * @param scale For optimizing the speed of phase- and cross-correlation.
-	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found.
-	 * @Return a double[4] array containing:
-	 * 	- x2: relative X position of the second Patch
-	 * 	- y2: relative Y position of the second Patch
-	 * 	- flag: ERROR or SUCCESS
-	 * 	- R: cross-correlation coefficient
+	 /** @param scale For optimizing the speed of phase- and cross-correlation.<br />
+	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found.<br />
+	 * @Return a double[4] array containing:<br />
+	 * 	- x2: relative X position of the second Patch<br />
+	 * 	- y2: relative Y position of the second Patch<br />
+	 * 	- flag: ERROR or SUCCESS<br />
+	 * 	- R: cross-correlation coefficient<br />
 	 */
 	static public double[] correlate(final Patch base, final Patch moving, final float percent_overlap, final float scale, final int direction, final double default_dx, final double default_dy) {
 		PhaseCorrelation2D pc = null;
@@ -591,11 +590,14 @@ public class StitchingTEM {
 			return;
 		}
 		// now, relocate the Patch
-		double dx = base.getX() + best_pc[0];
-		double dy = base.getY() + best_pc[1];
+		double x2 = base.getX() + best_pc[0];
+		double y2 = base.getY() + best_pc[1];
 		Rectangle box = p_dragged.getLinkedBox(true);
 		//Utils.log2("box is " + box);
-		p_dragged.translate(dx, dy, true);
+		//p_dragged.setLocation(x2, y2); // wrong, does not consider linked objects
+		double dx = x2 - p_dragged.getX();
+		double dy = y2 - p_dragged.getY();
+		p_dragged.translate(dx, dy, false); // translates entire linked group
 		Rectangle r = p_dragged.getLinkedBox(true);
 		//Utils.log2("dragged box is " + r);
 		box.add(r);
