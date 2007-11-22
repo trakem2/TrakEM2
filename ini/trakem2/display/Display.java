@@ -960,11 +960,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			frame.setVisible(false);
 			//no need, and throws exception//frame.dispose();
 			if (null != active_imp_copy) {
-				active_imp_copy.flush(); // TODO inspect implications for other displays if this is the current or the copy (I think it's the copy) // Calls System.gc()
+				Loader.flush(active_imp_copy); // TODO inspect implications for other displays if this is the current or the copy (I think it's the copy)
 				active_imp_copy = null;
 			}
 			if (null != last_temp) {
-				last_temp.flush();
+				Loader.flush(last_temp);
 				last_temp = null;
 			}
 			//TEMPORARY W//WindowManager.setTempCurrentImage(null);
@@ -2967,7 +2967,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display d = (Display)it.next();
 			d.canvas.flush();
 		}
-		System.gc();
+		//System.gc();
 		Thread.yield();
 	}
 

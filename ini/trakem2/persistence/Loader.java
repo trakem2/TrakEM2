@@ -428,7 +428,7 @@ abstract public class Loader {
 		synchronized (db_lock) {
 			lock();
 			ImagePlus imp = imps.remove(id);
-			if (null != imp) imp.flush(); // this looks totally unnecessary
+			flush(imp);
 			unlock();
 		}
 	}
@@ -438,7 +438,7 @@ abstract public class Loader {
 			lock();
 			for (int i=0; i<id.length; i++) {
 				ImagePlus imp = imps.remove(id[i]);
-				if (null != imp) imp.flush();
+				flush(imp);
 			}
 			unlock();
 		}
@@ -486,27 +486,17 @@ abstract public class Loader {
 	 *  * 64-bit systems have a real maximum of 68% of the Xmx maximum heap memory value, unless the aggressive heap option is used (but then the system is unreliable).
 	 *  * 32-bit systems have about 80% of the Xmx.
 	 */
-	static protected long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
+	static protected long max_memory = (long)(IJ.maxMemory() - 50000000); // 50 M always free
+	//static protected long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
 
 	public long getMaxMemory() {
 		return max_memory;
 	}
 
-	/** Measure wether there is at least 20% of available memory. */
-	protected boolean enoughFreeMemory() {
-		final long mem_in_use = (IJ.currentMemory() * 100) / max_memory; // IJ.maxMemory();
-		if (mem_in_use < 80L) { // 80 % // this 100-20 could very well be the actual lost-in-hyperspace memory, which may be 20% for 32-bit and 32% in 64-bit systems
-			return true;
-		}
-		return false;
-	}
-
-	/** Measure whether there are at least 'bytes' free. */
-	protected boolean enoughFreeMemory(final long bytes) {
-		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
+	/** Measure whether there are at least 'n_bytes' free. */
+	protected boolean enoughFreeMemory(final long n_bytes) {
 		final long mem_in_use = IJ.currentMemory(); // in bytes
-		//Utils.log("max_memory: " + max_memory + "  mem_in_use: " + mem_in_use);
-		if (bytes < max_memory - mem_in_use) {
+		if (n_bytes < max_memory - mem_in_use) {
 			return true;
 		} else {
 			return false;
@@ -534,7 +524,6 @@ abstract public class Loader {
 
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
 	public final boolean releaseToFit(long bytes) {
-		//long max_memory = IJ.maxMemory() - 3000000L; // 3 Mb always free
 		if (bytes > max_memory) {
 			Utils.showMessage("Can't fit " + bytes + " bytes in memory.");
 			return false;
@@ -552,108 +541,169 @@ abstract public class Loader {
 	}
 
 	// non-locking version
-	protected final boolean releaseToFit2(long bytes) {
-		boolean result = true;
+	protected final boolean releaseToFit2(long n_bytes) {
+		if (enoughFreeMemory(n_bytes)) return true;
+		if (releaseMemory(0.5D, true, n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
+		// else, wait for GC
 		int iterations = 30;
-		while (!enoughFreeMemory(bytes)) {
+		while (!enoughFreeMemory(n_bytes)) {
 			Utils.log2("rtf " + iterations);
-			releaseMemory(0.5D, true, bytes);
-			if (0 == imps.size() && 0 == mawts.size()) {
-				// wait for GC ...
-				try { Thread.sleep(1000); } catch (InterruptedException ie) {}
-				// release offscreen images (will leave the canvas labeled for remaking when necessary)
-				if (iterations < 20) Display.flushAll();
-			}
-			if (iterations < 0) {
-				Utils.log("Can't make room for " + bytes + " bytes in memory.");
-				result = false;
-				break;
-			}
+			System.gc();
 			Thread.yield(); // for the GC to run
 			try { Thread.sleep(200); } catch (InterruptedException ie) {}
+			if (enoughFreeMemory(n_bytes)) return true;
+			if (0 == imps.size() && 0 == mawts.size()) {
+				// wait for GC ...
+				try { Thread.sleep(300); } catch (InterruptedException ie) {}
+			}
+			if (iterations < 0) {
+				Utils.log("Can't make room for " + n_bytes + " bytes in memory.");
+				return false;
+			}
 			iterations--;
 		}
-		return result;
+		return true;
 	}
 
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
-	static public final void runGC() {
+	public final int runGC() {
 		//Utils.printCaller("runGC", 4);
 		final long initial = IJ.currentMemory();
 		long now = initial;
-		final int max = 10;
+		final int max = 7;
 		long sleep = 50; // initial value
 		int iterations = 0;
 		do {
-			Runtime.getRuntime().runFinalization(); // enforce it
-			System.gc();
+			//Runtime.getRuntime().runFinalization(); // enforce it
+			//System.gc();
 			Thread.yield();
 			try { Thread.sleep(sleep); } catch (InterruptedException ie) {}
 			sleep += sleep; // incremental
 			now = IJ.currentMemory();
 			Utils.log("\titer " + iterations + "  initial: " + initial  + " now: " + now);
+			if (iterations > 3) {
+				//System.gc();
+				Thread.yield();
+				Utils.log2("\t  mawts: " + mawts.size() + "  imps: " + imps.size());
+			}
 			iterations++;
+			if (iterations > max - 2) {
+				//System.gc(); // last 2 iterations, in the obvious face of it
+			}
 		} while (now >= initial && iterations < max);
 		Utils.log2("finished runGC");
+		if (iterations >= 7) {
+			//Utils.printCaller(this, 10);
+		}
+		return iterations + 1;
+	}
+
+	static public final void runGCAll() {
+		Loader[] lo = new Loader[v_loaders.size()];
+		v_loaders.toArray(lo);
+		for (int i=0; i<lo.length; i++) {
+			lo[i].runGC();
+		}
+	}
+
+	static public void printCacheStatus() {
+		Loader[] lo = new Loader[v_loaders.size()];
+		v_loaders.toArray(lo);
+		for (int i=0; i<lo.length; i++) {
+			Utils.log2("Loader " + i + " : mawts: " + lo[i].mawts.size() + "  imps: " + lo[i].imps.size());
+		}
 	}
 
 	/** The minimal number of memory bytes that should always be free. */
-	public static final long MIN_FREE_BYTES = (long)(max_memory * 0.2f);
+	public static final long MIN_FREE_BYTES = max_memory > 1000000000 /*1 Gb*/ ? 150000000 /*150 Mb*/ : 50000000 /*50 Mb*/; // (long)(max_memory * 0.2f);
 
 	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
-	protected final void releaseMemory() {
-		releaseMemory(0.5D, true, MIN_FREE_BYTES);
+	protected final long releaseMemory() {
+		return releaseMemory(0.5D, true, MIN_FREE_BYTES);
 	}
 
-	/** Release as much of the cache as necessary to make 'enoughFreeMemory()'.<br />
+	private final long measureSize(final ImagePlus imp) {
+		if (null == imp) return 0;
+		final long size = imp.getWidth() * imp.getHeight();
+		switch (imp.getType()) {
+			case ImagePlus.GRAY16:
+				return size * 2 + 100;
+			case ImagePlus.GRAY32:
+			case ImagePlus.COLOR_RGB:
+				return size * 4 + 100; // some overhead, it's 16 but allowing for a lot more
+			case ImagePlus.GRAY8:
+				return size + 100;
+			case ImagePlus.COLOR_256:
+				return size + 868; // 100 + 3 * 256 (the LUT)
+		}
+		return 0;
+	}
+
+	/** Returns a lower-bound estimate: as if it was grayscale; plus some overhead. */
+	private final long measureSize(final Image img) {
+		if (null == img) return 0;
+		return img.getWidth(null) * img.getHeight(null) + 100;
+	}
+
+	/** Release as much of the cache as necessary to make at least min_free_bytes free.<br />
 	*  The very last thing to remove is the stored awt.Image objects.<br />
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
 	*  NOT locked, however calls must take care of that.<br />
 	*/
-	protected final void releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
+	protected final long releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
+		long released = 0;
 		try {
-			while (!enoughFreeMemory(min_free_bytes)) {
+			//while (!enoughFreeMemory(min_free_bytes)) {
+			while (released < min_free_bytes) {
+				if (enoughFreeMemory(min_free_bytes)) return released;
 				// release the cache of other loaders (up to 'a' of the ImagePlus cache of them if necessary)
 				if (massive_mode) {
 					// release others regardless of the 'release_others' boolean
-					releaseOthers(0.5D);
+					released += releaseOthers(0.5D);
 					// reset
-					//massive_mode = true; // NEEDS TESTING, a good debugger would tell me when is this variable changed... Or, set the value always with the method setMassiveMode
-					if (enoughFreeMemory(min_free_bytes)) return;
+					//if (enoughFreeMemory(min_free_bytes)) return released;
+					if (released >= min_free_bytes) return released;
 					// remove half of the imps
 					if (0 != imps.size()) {
 						for (int i=imps.size()/2; i>-1; i--) {
 							ImagePlus imp = imps.removeFirst();
-							if (null != imp) imp.flush();
+							released += measureSize(imp);
+							flush(imp);
 						}
-						System.gc();
+						//System.gc();
 						Thread.yield();
-						if (enoughFreeMemory(min_free_bytes)) return;
+						//if (enoughFreeMemory(min_free_bytes)) return;
+						if (released >= min_free_bytes) return released;
 					}
 					// finally, release snapshots
 					if (0 != mawts.size()) {
 						// release almost all snapshots (they're cheap to reload/recreate)
 						for (int i=(int)(mawts.size() * 0.25); i>-1; i--) {
 							Image mawt = mawts.removeFirst();
+							released += measureSize(mawt);
 							if (null != mawt) mawt.flush();
 						}
-						runGC();
-						if (enoughFreeMemory(min_free_bytes)) return;
+						if (released >= min_free_bytes) return released;
+						//runGC();
+						//if (enoughFreeMemory(min_free_bytes)) return;
 					}
 				} else {
 					if (release_others) {
-						releaseOthers(a);
-						if (enoughFreeMemory(min_free_bytes)) return;
+						released += releaseOthers(a);
+						//if (enoughFreeMemory(min_free_bytes)) return released;
+						if (released >= min_free_bytes) return released;
 					}
 					if (0 == imps.size()) {
 						// release half the cached awt images
 						if (0 != mawts.size()) {
 							for (int i=mawts.size()/3; i>-1; i--) {
 								Image im = mawts.removeFirst();
+								released += measureSize(im);
 								if (null != im) im.flush();
 							}
-							runGC();
-							if (enoughFreeMemory(min_free_bytes)) return;
+							//if (enoughFreeMemory(min_free_bytes)) return;
+							if (released >= min_free_bytes) return released;
+							//runGC();
 						}
 					}
 					// finally:
@@ -661,44 +711,50 @@ abstract public class Loader {
 						// up to 'a' of the ImagePlus cache:
 						for (int i=(int)(imps.size() * a); i>-1; i--) {
 							ImagePlus imp = imps.removeFirst();
-							if (null != imp) imp.flush();
+							released += measureSize(imp);
+							flush(imp);
 						}
 					} else {
 						// just one:
 						ImagePlus imp = imps.removeFirst();
-						if (null != imp) imp.flush(); // will call System.gc() already
+						flush(imp);
 					}
 				}
 
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
+					Utils.log("Loader.releaseMemory: empty cache.");
+					/*
 					if (massive_mode) {
-						Utils.log("Loader.releaseMemory: last desperate attempt.");
-						runGC();
+						//Utils.log("Loader.releaseMemory: last desperate attempt.");
+						//runGC();
 					}
-					// in any case:
-					return;
+					*/
+					// in any case, can't release more:
+					return released;
 				}
 			}
 		} catch (Exception e) {
 			new IJError(e);
 		}
+		return released;
 	}
 
 	/** Release memory from other loaders. */
-	synchronized private void releaseOthers(double a) {
-		if (1 == v_loaders.size()) return;
-		if (a <= 0.0D || a > 1.0D) return;
+	private long releaseOthers(double a) {
+		if (1 == v_loaders.size()) return 0;
+		if (a <= 0.0D || a > 1.0D) return 0;
 		Iterator it = v_loaders.iterator();
+		long released = 0;
 		while (it.hasNext()) {
 			Loader loader = (Loader)it.next();
 			if (loader.equals(this)) continue;
 			else {
 				loader.setMassiveMode(false); // otherwise would loop back!
-				loader.releaseMemory(a, false, MIN_FREE_BYTES);
+				released += loader.releaseMemory(a, false, MIN_FREE_BYTES);
 			}
 		}
-		notify();
+		return released;
 	}
 
 	private void releaseAll() {
@@ -713,7 +769,7 @@ abstract public class Loader {
 				if (null != imps) {
 					for (int i=imps.size()-1; i>-1; i--) {
 						ImagePlus imp = imps.remove(i);
-						if (null != imp) imp.flush();
+						flush(imp);
 					}
 					imps = null;
 				}
@@ -724,7 +780,7 @@ abstract public class Loader {
 					}
 					mawts = null;
 				}
-				System.gc();
+				//System.gc();
 			} catch (Exception e) {
 				unlock();
 				new IJError(e);
@@ -1161,7 +1217,7 @@ abstract public class Loader {
 				if (null != imp) {
 					int w = imp.getWidth();
 					int h = imp.getHeight();
-					imp.flush();
+					flush(imp);
 					imp = null;
 					int cc_scale = (int)((512.0 / (w > h ? w : h)) * 100);
 					if (cc_scale > 100) return 100;
@@ -1358,7 +1414,7 @@ abstract public class Loader {
 			} else {
 				// discard this image
 				Utils.log("Ignoring " + imp.getTitle() + " from " + path + " since the preprocessor " + preprocessor + " returned null on it.");
-				imp.flush();
+				flush(imp);
 				finishSetTempCurrentImage();
 				return null;
 			}
@@ -1366,7 +1422,7 @@ abstract public class Loader {
 			new IJError(e);
 			finishSetTempCurrentImage();
 			Utils.log("Ignoring " + imp.getTitle() + " from " + path + " since the preprocessor " + preprocessor + " throwed an Exception on it.");
-			imp.flush();
+			flush(imp);
 		}
 		return null;
 	}
@@ -1539,7 +1595,7 @@ abstract public class Loader {
 		int largest_y = 0;
 		ImagePlus img = null;
 		// open the selected image, to use as reference for width and height
-		if (!enoughFreeMemory()) releaseMemory();
+		if (!enoughFreeMemory(MIN_FREE_BYTES)) releaseMemory();
 		dir = dir.replace('\\', '/'); // w1nd0wz safe
 		if (!dir.endsWith("/")) dir += "/";
 		String path = dir + first_image_name;
@@ -1591,7 +1647,7 @@ abstract public class Loader {
 					first_img = null; // release pointer
 				} else {
 					// open image
-					//if (!enoughFreeMemory()) releaseMemory(); // UNSAFE, doesn't wait for GC
+					//if (!enoughFreeMemory(MIN_FREE_BYTES)) releaseMemory(); // UNSAFE, doesn't wait for GC
 					releaseToFit(first_image_width, first_image_height, first_image_type, 1.5f);
 					try {
 						img = opener.openImage(path);
@@ -2443,7 +2499,7 @@ abstract public class Loader {
 					imp = new ImagePlus(layer.getPrintableTitle(), bi);
 				}
 			} catch (OutOfMemoryError oome) {
-				if (null != imp) imp.flush();
+				if (null != imp) flush(imp);
 				imp = null;
 				Utils.log("Not enough memory to create the ImagePlus. Try scaling it down or not using the 'quality' flag.");
 			}
@@ -2451,7 +2507,7 @@ abstract public class Loader {
 		} catch (Exception e) {
 			if (ControlWindow.isGUIEnabled()) new IJError(e);
 			else e.printStackTrace();
-			if (null != imp) imp.flush();
+			if (null != imp) flush(imp);
 			imp = null;
 		} finally {
 			if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getDefaultCursor());
@@ -2562,7 +2618,7 @@ abstract public class Loader {
 			// 2 - create layer thumbnail, max 192x192
 			ImagePlus thumb = getFlatImage(layer[iz], srcRect, thumb_scale, c_alphas, type, clazz, false); // TODO should be true, but it's too much overhead at the moment
 			new FileSaver(thumb).saveAsJpeg(tile_dir + "/small.jpg");
-			thumb.flush();
+			flush(thumb);
 			thumb = null;
 			// 3 - fill directory with tiles
 			if (edge_length < 256) {
@@ -2682,7 +2738,7 @@ abstract public class Loader {
 		}
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
 			Utils.showMessage("Can't import image of zero width or height.");
-			imp.flush();
+			flush(imp);
 			return null;
 		}
 		last_opened_path = path;
@@ -2726,7 +2782,7 @@ abstract public class Loader {
 		if (null == imp) return null;
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
 			Utils.showMessage("Can't import image of zero width or height.");
-			imp.flush();
+			flush(imp);
 			return null;
 		}
 		last_opened_path = dir + "/" + next_file;
@@ -2818,7 +2874,7 @@ abstract public class Loader {
 				gd.showDialog();
 				if (gd.wasCanceled()) {
 					if (null == imp_stacks) { // flush only if it was not open before
-						imp_stack.flush();
+						flush(imp_stack);
 					}
 					return;
 				}
@@ -2833,7 +2889,7 @@ abstract public class Loader {
 					if (!(1 == first_layer.getParent().size() && first_layer.isEmpty())) {
 						YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The current layer's thickness is " + current_thickness + "\nwhich is " + (thickness < current_thickness ? "larger":"smaller") + " than\nthe desired " + thickness + " for each stack slice.\nAdjust current layer's thickness to " + thickness + " ?");
 						if (!yn.yesPressed()) {
-							if (null != imp_stack_) imp_stack.flush(); // was opened new
+							if (null != imp_stack_) flush(imp_stack); // was opened new
 							return;
 						}
 					} // else adjust silently
@@ -3655,5 +3711,52 @@ abstract public class Loader {
 		// else, compute scale
 		final double scale = 1 / Math.pow(2, level);
 		return (long)(p.getWidth() * scale * p.getHeight() * scale * 5 + 1024); // conservative
+	}
+
+	// Dummy class to provide access the notifyListeners from Image
+	static private final class ImagePlusAccess extends ImagePlus {
+		final int CLOSE = CLOSED; // from super class ImagePlus
+		final int OPEN = OPENED;
+		final int UPDATE = UPDATED;
+		private Vector<ij.ImageListener> my_listeners;
+		public ImagePlusAccess() {
+			super();
+			try {
+				java.lang.reflect.Field f = ImagePlus.class.getDeclaredField("listeners");
+				f.setAccessible(true);
+				this.my_listeners = (Vector<ij.ImageListener>)f.get(this);
+			} catch (Exception e) {
+				new IJError(e);
+			}
+		}
+		public final void notifyListeners(final ImagePlus imp, final int action) {
+			try {
+				for (ij.ImageListener listener : my_listeners) {
+					switch (action) {
+						case CLOSED:
+							listener.imageClosed(imp);
+							break;
+						case OPENED:
+							listener.imageOpened(imp);
+							break;
+						case UPDATED: 
+							listener.imageUpdated(imp);
+							break;
+					}
+				}
+			} catch (Exception e) {}
+		}
+	}
+	static private final ImagePlusAccess ipa = new ImagePlusAccess();
+
+	/** Workaround for ImageJ's ImagePlus.flush() method which calls the System.gc() unnecessarily.<br />
+	 * A null pointer as argument is accepted. */
+	static public final void flush(final ImagePlus imp) {
+		if (null == imp) return;
+		final Roi roi = imp.getRoi(); 
+		if (null != roi) roi.setImage(null);
+		//final ImageProcessor ip = imp.getProcessor(); // the nullifying makes no difference, and in low memory situations some bona fide imagepluses may end up failing on the calling method because of lack of time to grab the processor etc.
+		//if (null != ip) ip.setPixels(null);
+		ipa.notifyListeners(imp, ipa.CLOSE);
 	}
 }

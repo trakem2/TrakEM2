@@ -293,10 +293,9 @@ public class FloatArray2DScaleOctave
 		this.d = null;
 		this.l = null;
 		this.l1 = null;
-		System.gc();
 	}
-	
-	
+
+
 	/**
 	 * downsample {@link src} by simply using every second pixel into
 	 * {@link dst}

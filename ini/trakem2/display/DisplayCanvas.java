@@ -130,7 +130,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private final Object controler_ob2 = new Object();
 	private boolean controling2 = false;
 
-	private int count = 0; // threads' tag
+	//private int count = 0; // threads' tag
 
 	/** A thread to manage the onset of creation of offscreen images, and when done it calls the proper repaint */
 	private class RepaintThread extends Thread {
@@ -141,15 +141,16 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		private boolean done = false;
 		private boolean stop_offscreen_data = false;
 		private boolean create_offscreen_data;
+		private final long start = System.currentTimeMillis();
 
-		private int label;
+		//private int label;
 
-		OffscreenThread offscreen_thread = null;
+		private OffscreenThread offscreen_thread = null;
 
 		RepaintThread(DisplayCanvas dc, Rectangle clipRect, boolean create_offscreen_data) {
 			setPriority(Thread.NORM_PRIORITY);
 			this.create_offscreen_data = create_offscreen_data;
-			label = count++;
+			//label = count++;
 			//Utils.log2(label + " new rt");
 			this.clipRect = clipRect;
 			this.dc =  dc;
@@ -165,7 +166,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						if (null != rt_old.offscreen_thread) {
 							rt_old.stop_offscreen_data = true;
 							rt_old.offscreen_thread.cancel();
-							try { rt_old.offscreen_thread.join(); } catch (InterruptedException ie) {}
+							// not needed any more //try { rt_old.offscreen_thread.join(); } catch (InterruptedException ie) {}
 							rt_old.offscreen_thread = null;
 						}
 					}
@@ -193,6 +194,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			//Utils.log2(label + "quit rt");
 			this.quit = true;
 			this.stop_offscreen_data = true;
+			if (null != this.offscreen_thread) this.offscreen_thread.cancel();
 		}
 
 		public void run() {
@@ -208,7 +210,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				if (create_offscreen_data || null == offscreen) {
 
-					if (quit) return;
+					if (quit && start - System.currentTimeMillis() > 100) return;
 					this.offscreen_thread = new OffscreenThread(clipRect, layer, g_width, g_height, active, c_alphas);
 					this.offscreen_thread.start();
 				}
@@ -1919,6 +1921,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					lock.lock();
 
 					g = (Graphics2D)target.getGraphics();
+					// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
+					//    BUT IT SHOULD BE HERE TODO
 
 					// prepare the canvas for the srcRect and magnification
 					final AffineTransform at_original = g.getTransform();
