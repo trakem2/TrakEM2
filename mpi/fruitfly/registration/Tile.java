@@ -74,7 +74,7 @@ public class Tile
 	}
 	
 	/**
-	 * Add one matches
+	 * Add one match
 	 *  
 	 * @param match
 	 * @return true if the list changed as a result of the call.
