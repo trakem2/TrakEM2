@@ -159,12 +159,16 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			this.clipRect = clipRect;
 			this.dc =  dc;
 
-			while (paint_queue.size() > 10) {
-				RepaintThread rt = (RepaintThread)paint_queue.remove(0);
+			int size = paint_queue.size(); // since it may change
+			while (size > 10) {
 				try {
-					rt.quit();
-					if (null != rt.offscreen_thread) rt.offscreen_thread.kill();
+					RepaintThread rt = (RepaintThread)paint_queue.remove(0);
+					if (null != rt) {
+						rt.quit();
+						if (null != rt.offscreen_thread) rt.offscreen_thread.kill();
+					}
 				} catch (Exception e) {}
+				size--;
 			}
 			paint_queue.add(this);
 
