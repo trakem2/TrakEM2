@@ -193,7 +193,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				rtl.lock();
 				// if not enough time has passed, and it's not the last in the queue, then cancel
 				p(label + " canQuit: " + (now - last_paint));
-				if (now - last_paint < min_time && paint_queue.lastIndexOf(this) < paint_queue.size() -1) {
+				if (now - last_paint < 20 && paint_queue.lastIndexOf(this) < paint_queue.size() -1) {
 					if (null != this.offscreen_thread) this.offscreen_thread.cancel();
 					rtl.unlock();
 					p(label + " canQuit yes");
@@ -1860,7 +1860,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	/** Minimum time an offscreen thread will run before it can be quit. */
-	static private final int min_time = 0;
+	static private final int min_time = 50;
 
 	private class OffscreenThread extends Thread {
 		private boolean stop_offscreen_data = false;
