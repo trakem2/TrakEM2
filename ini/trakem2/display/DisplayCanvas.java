@@ -135,7 +135,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private AtomicInteger counter = new AtomicInteger(0); // threads' tag
 
 	private long last_paint = 0;
-	private LinkedList paint_queue = new LinkedList();
+	private java.util.List paint_queue = Collections.synchronizedList(new LinkedList());
 
 	/** A thread to manage the onset of creation of offscreen images, and when done it calls the proper repaint */
 	private class RepaintThread extends Thread {
@@ -158,6 +158,16 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			p(label + " new rt");
 			this.clipRect = clipRect;
 			this.dc =  dc;
+
+			while (paint_queue.size() > 10) {
+				RepaintThread rt = (RepaintThread)paint_queue.remove(0);
+				try {
+					rt.quit();
+					if (null != rt.offscreen_thread) rt.offscreen_thread.kill();
+				} catch (Exception e) {}
+			}
+			paint_queue.add(this);
+
 			synchronized (rtl) {
 				rtl.lock();
 
@@ -175,8 +185,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				//Utils.log2("RepaintThread clip: " + this.clipRect);
 
-				paint_queue.add(this);
-
 				rtl.unlock();
 			}
 			start();
@@ -189,17 +197,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		private final boolean canQuit() {
 			final long now = System.currentTimeMillis();
-			synchronized (rtl) {
-				rtl.lock();
-				// if not enough time has passed, and it's not the last in the queue, then cancel
-				p(label + " canQuit: " + (now - last_paint));
-				if (now - last_paint < 20 && paint_queue.lastIndexOf(this) < paint_queue.size() -1) {
-					if (null != this.offscreen_thread) this.offscreen_thread.cancel();
-					rtl.unlock();
-					p(label + " canQuit yes");
-					return true;
-				}
-				rtl.unlock();
+			// if not enough time has passed, and it's not the last in the queue, then cancel
+			p(label + " canQuit: " + (now - last_paint));
+			if (now - last_paint < 20 && paint_queue.lastIndexOf(this) < paint_queue.size() -1) {
+				if (null != this.offscreen_thread) this.offscreen_thread.cancel();
+				p(label + " canQuit yes");
+				return true;
 			}
 			return false;
 		}
@@ -239,16 +242,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 
 				p(label + " painting");
-
-				synchronized (rtl) {
-					rtl.lock();
-					// cleanup the queue up to this, but making sure this is there at all
-					if (paint_queue.contains(this)) {
-						while (!paint_queue.removeFirst().equals(this)) {}
-						paint_queue.remove(this); // should be the first
-					}
-					rtl.unlock();
-				}
 
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("RepaintThread OutOfMemoryError: " + oome); // so OutOfMemoryError won't generate locks
@@ -1880,6 +1873,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			this.active = active;
 			this.c_alphas = c_alphas;
 			this.start = System.currentTimeMillis();
+		}
+
+		public void kill() {
+			start = Long.MAX_VALUE; // so that tests will be true
+			this.stop_offscreen_data = true;
 		}
 
 		public void cancel() {
