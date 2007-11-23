@@ -193,7 +193,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				rtl.lock();
 				// if not enough time has passed, and it's not the last in the queue, then cancel
 				p(label + " canQuit: " + (now - last_paint));
-				if (now - last_paint < 100 && paint_queue.lastIndexOf(this) < paint_queue.size() -1) {
+				if (now - last_paint < min_time && paint_queue.lastIndexOf(this) < paint_queue.size() -1) {
 					if (null != this.offscreen_thread) this.offscreen_thread.cancel();
 					rtl.unlock();
 					p(label + " canQuit yes");
@@ -1860,7 +1860,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	/** Minimum time an offscreen thread will run before it can be quit. */
-	static private final int min_time = 100;
+	static private final int min_time = 0;
 
 	private class OffscreenThread extends Thread {
 		private boolean stop_offscreen_data = false;
@@ -2073,6 +2073,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						for (Displayable d : al_paint) {
 							al_areas.add(new Area(d.getPerimeter(d.getClass().equals(Patch.class) ? -1 : 0)));
 						}
+
+						if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
+							lock.unlock();
+							return;
+						}
+
 						// extract from the area of a Displayable all the areas of Displayable objects above it
 						for (i=0; i<size; i++) {
 							// only for Patch objects (could do also filled AreaList objects, but there's no need)
@@ -2087,8 +2093,17 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							}
 						}
 
+						if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
+							lock.unlock();
+							return;
+						}
+
 						// Now paint all paintable objects, and only the area of each that shows
 						for (i=0; i<size; i++) {
+							if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
+								lock.unlock();
+								return;
+							}
 							Displayable d = al_paint.get(i);
 							g.setClip(al_areas.get(i));
 							d.prePaint(g, magnification, d.equals(active), c_alphas, layer);
@@ -2096,6 +2111,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					} else {
 						// just paint
 						for (Displayable d : al_paint) {
+							if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
+								lock.unlock();
+								return;
+							}
 							d.prePaint(g, magnification, d.equals(active), c_alphas, layer);
 						}
 					}

@@ -187,6 +187,8 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 
 		/** paint all snapshots, scaled, to an offscreen awt.Image */
 		public void run() {
+			try { Thread.sleep(20); } catch (InterruptedException ie) {}
+			if (quit) return;
 			// block only while modifying the image pointer
 			synchronized (updating_ob) {
 				while (updating) {
@@ -207,9 +209,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				updating_ob.notifyAll();
 			}
 			try {
-				if (quit) {
-					return;
-				}
+				if (quit) return;
 
 				//g2d.getRenderingHints().put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 				//g2d.getRenderingHints().put(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
@@ -225,9 +225,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 
 				graphics.scale(scale, scale);
 
-				if (quit) {
-					return;
-				}
+				if (quit) return;
 
 				final ArrayList al = display.getLayer().getDisplayables();
 				final boolean are_snapshots_enabled = layer.getParent().areSnapshotsEnabled();
@@ -363,6 +361,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		}
 
 		public void run() {
+			try { Thread.sleep(10); } catch (InterruptedException ie) {}
 			if (quit) return;
 			if (redraw_displayables) {
 				redraw_displayables = false; // reset
