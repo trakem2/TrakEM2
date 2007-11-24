@@ -564,8 +564,10 @@ public class StitchingTEM {
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Patch base = (Patch)it.next();
 				final double[] pc = StitchingTEM.correlate(base, p_dragged, 1f, cc_scale, StitchingTEM.TOP_BOTTOM, 0, 0);
-				if (null == best_pc) best_pc = pc;
-				else {
+				if (null == best_pc) {
+					best_pc = pc;
+					best = base;
+				} else {
 					// compare R: choose largest
 					if (pc[3] > best_pc[3]) {
 						best_pc = pc;
