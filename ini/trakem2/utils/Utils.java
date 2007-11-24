@@ -70,6 +70,9 @@ public class Utils implements ij.plugin.PlugIn {
 	static public boolean debug_clip = false; //clip for repainting
 	static public boolean debug_thing = false;
 
+	/** The error to use in floating-point or double floating point literal comparisons. */
+	static public final double FL_ERROR = 0.0000001;
+
 	static public void debug(String msg) {
 		if (debug) IJ.log(msg);
 	}

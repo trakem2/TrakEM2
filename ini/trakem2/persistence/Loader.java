@@ -553,6 +553,7 @@ abstract public class Loader {
 				System.gc();
 				try { Thread.sleep(300); } catch (InterruptedException ie) {}
 			}
+			if (enoughFreeMemory(n_bytes)) return true;
 			iterations--;
 		}
 		/*

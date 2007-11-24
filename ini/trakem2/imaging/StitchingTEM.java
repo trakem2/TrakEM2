@@ -555,20 +555,21 @@ public class StitchingTEM {
 
 		// start:
 		double[] best_pc = null;
-		Patch base = null;
+		Patch best = null;
 		try {
 			//  make a reasonable guess for the scale
 			float cc_scale = (float)(512.0 / (p_dragged.getWidth() > p_dragged.getHeight() ? p_dragged.getWidth() : p_dragged.getHeight()));
 			if (cc_scale > 1.0f) cc_scale = 1.0f;
 			//
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
-				base = (Patch)it.next();
+				Patch base = (Patch)it.next();
 				final double[] pc = StitchingTEM.correlate(base, p_dragged, 1f, cc_scale, StitchingTEM.TOP_BOTTOM, 0, 0);
 				if (null == best_pc) best_pc = pc;
 				else {
 					// compare R: choose largest
 					if (pc[3] > best_pc[3]) {
 						best_pc = pc;
+						best = base;
 					}
 				}
 			}
@@ -577,8 +578,8 @@ public class StitchingTEM {
 			return;
 		}
 		// now, relocate the Patch
-		double x2 = base.getX() + best_pc[0];
-		double y2 = base.getY() + best_pc[1];
+		double x2 = best.getX() + best_pc[0];
+		double y2 = best.getY() + best_pc[1];
 		Rectangle box = p_dragged.getLinkedBox(true);
 		//Utils.log2("box is " + box);
 		//p_dragged.setLocation(x2, y2); // wrong, does not consider linked objects

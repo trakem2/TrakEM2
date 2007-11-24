@@ -2006,9 +2006,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						if (c.equals(DLabel.class) || c.equals(LayerSet.class)) {
 							break;
 						}
+						/*
 						if (c.equals(Patch.class)) {
-							background.subtract(new Area(d.getPerimeter())); // must be outside because the clip could be limited to the active, for instance
+							if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter())); // must be outside because the clip could be limited to the active, for instance
 						} else {
+						// above, too expensive to do it for all
+						*/
+						if (!c.equals(Patch.class)) {
+							/* // has to be done later to avoid problems with transparent patches
 							if (!background.isEmpty()) {
 								// subtract non-srcRect areas
 								background.subtract(new Area(r1));
@@ -2019,14 +2024,25 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 								bkgd_painted = true;
 								//Utils.log2("off is " + (offscreen == offscreen_a ?  "a" : "b"));
 							}
+							*/
 							if (d.equals(active)) top = true; // no Patch instances allowed on top
 						}
 						if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
+							if (c.equals(Patch.class)) {
+								if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter())); // this only works because the clip is given to be null
+								al_paint.add(d);
+							} else {
+								if (top) al_top.add(d);
+								else al_paint.add(d);
+							}
+
+							/*
 							if (!c.equals(Patch.class) && top) al_top.add(d);
 							else {
 								al_paint.add(d);
 								//d.prePaint(g, magnification, false, c_alphas, layer);
 							}
+							*/
 						}
 						i++;
 					}
@@ -2066,6 +2082,18 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						i++;
 					}
 
+					// paint background
+					if (!background.isEmpty()) {
+						// subtract non-srcRect areas
+						background.subtract(new Area(r1));
+						background.subtract(new Area(r2));
+						// paint background
+						g.setColor(Color.black);
+						g.fill(background);
+						bkgd_painted = true;
+						//Utils.log2("off is " + (offscreen == offscreen_a ?  "a" : "b"));
+					}
+
 					final int size = al_paint.size();
 
 					if (size < 100) { // arbitrary!
@@ -2089,7 +2117,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							for (j=i+1; j<size; j++) {
 								final Displayable d = al_paint.get(j);
 								final Class c = d.getClass();
-								if (c.equals(Patch.class) || (c.equals(AreaList.class) && (((AreaList)d).isFillPaint()))) {
+								if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR && (c.equals(Patch.class) || (c.equals(AreaList.class) && (((AreaList)d).isFillPaint())))) {
 									area.subtract(al_areas.get(j));
 								}
 							}
