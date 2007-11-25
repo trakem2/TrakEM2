@@ -260,7 +260,7 @@ public class Registration {
 			}
 		}
 
-		Loader.runGCAll();
+		//Loader.runGCAll();
 		return result;
 	}
 
@@ -351,7 +351,7 @@ public class Registration {
 	 * - the AffineTransform defining the registration of the second image relative to the first.
 	 *
 	 * The given @param fs1 may be null, in which case it will be generated from the first ImagePlus. It is here so that caching is possible.
-	 * @param initial_sigma is adjustable, so that high magnification steps can be skipped for noisy or highly variable datasets, which show most similarity at coarser, lower magnifiation levels.
+	 * @param initial_sigma is adjustable, so that high magnification steps can be skipped for noisy or highly variable datasets, which show most similarity at coarser, lower magnification levels.
 	 *
 	 * Returns null if the model is not significant.
 	 */
@@ -373,11 +373,11 @@ public class Registration {
 		// prepare both sets of features
 		if (null == fs1) fs1 = getSIFTFeatures(ip1, sp);
 		ip1 = null;
-		Loader.runGCAll(); // cleanup
+		//Loader.runGCAll(); // cleanup
 		final Vector<Feature> fs2 = getSIFTFeatures( ip2, sp );
 		// free all those temporary arrays
 		ip2 = null;
-		Loader.runGCAll();
+		//Loader.runGCAll();
 		// compare in the order that image2 should be moved relative to imag1
 		final Vector< PointMatch > candidates = FloatArray2DSIFT.createMatches( fs2, fs1, 1.5f, null, Float.MAX_VALUE );
 		
@@ -537,7 +537,7 @@ public class Registration {
 	}
 
 	/** The @param fs_base is the vector of features of the base Patch, and can be null -in which case it will be computed. */
-	static private Object[] registerWithSIFTLandmarks(final Patch base, final Patch moving, final Registration.SIFTParameters sp, final Vector<Feature> fs_base) {
+	static public Object[] registerWithSIFTLandmarks(final Patch base, final Patch moving, final Registration.SIFTParameters sp, final Vector<Feature> fs_base) {
 
 		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 
@@ -552,8 +552,8 @@ public class Registration {
 		// no hope. The recursion prevents from lots of memory from ever being released.
 		// MWAHAHA so I made a non-recursive smart-ass version.
 		// It is somewhat disturbing that each SIFT match at max_size 1600 was using nearly 400 Mb, and all of them were NOT released because of the recursion.
-		Loader.runGCAll();
-		base.getProject().getLoader().releaseToFit(Loader.MIN_FREE_BYTES * 20);
+		//Loader.runGCAll();
+		//base.getProject().getLoader().releaseToFit(Loader.MIN_FREE_BYTES * 20);
 
 		if (null != result) {
 			AffineTransform at_moving = moving.getAffineTransform();
@@ -653,21 +653,23 @@ public class Registration {
 		// test rotation first TODO
 
 		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
-		if (pc[3] < 0.25f) {
+		if (pc[2] != StitchingTEM.SUCCESS) {
 			// R is too low to be trusted
 			Utils.log("Bad R coefficient, skipping " + moving);
-			// set the moving to the same position as the base
-			pc[0] = base.getX();
-			pc[1] = base.getY();
+			return; // don't move
 		}
 		Utils.log2("BASE: x, y " + base.getX() + " , " + base.getY() + "\n\t pc x,y: " + pc[0] + ", " + pc[1]);
+		double x2 = base.getX() + pc[0];
+		double y2 = base.getY() + pc[1];
+
+		Rectangle box = moving.getBoundingBox();
+
 		if (ControlWindow.isGUIEnabled()) {
-			Rectangle box = moving.getBoundingBox();
-			moving.setLocation(pc[0], pc[1]);
+			moving.translate(x2 - box.x, y2 - box.y); // considers links
 			box.add(moving.getBoundingBox());
 			Display.repaint(moving.getLayer(), box, 1);
 		} else {
-			moving.setLocation(pc[0], pc[1]);
+			moving.translate(x2 - box.x, y2 - box.y); // considers links
 		}
 		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
 	}

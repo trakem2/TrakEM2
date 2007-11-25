@@ -131,15 +131,17 @@ public class Selection {
 					unlock();
 				}
 			}
-			final Rectangle bbox = new Rectangle();
+			//final Rectangle bbox = new Rectangle();
 			for (int i=0; i<da.length; i++) {
-				da[i].getBoundingBox(bbox);
+				//da[i].getBoundingBox(bbox);
 				if (da[i].equals(active)) {
 					g.setColor(Color.white);
-					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+					//g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+					g.drawPolygon(da[i].getPerimeter());
 					g.setColor(Color.pink);
 				} else {
-					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+					g.drawPolygon(da[i].getPerimeter());
+					//g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
 				}
 			}
 		}

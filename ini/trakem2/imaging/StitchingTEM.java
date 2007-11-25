@@ -51,14 +51,17 @@ import mpi.fruitfly.registration.Optimize;
 import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.Point;
 import mpi.fruitfly.registration.TModel2D;
+import mpi.fruitfly.registration.TRModel2D;
 
 import java.awt.Rectangle;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
+import java.awt.geom.Point2D;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Vector;
 import java.awt.geom.AffineTransform;
 
 
@@ -88,7 +91,7 @@ public class StitchingTEM {
 	private boolean quit = false;
 
 
-	static private final int SUCCESS = 3;
+	static public final int SUCCESS = 3;
 	static public final int TOP_BOTTOM = 4;
 	static public final int LEFT_RIGHT = 5;
 
@@ -536,10 +539,10 @@ public class StitchingTEM {
 
 		Utils.log2("snapping...");
 		// snap patches only
-		if (null == d || !(d instanceof Patch)) return;
+		if (null == d || !(d instanceof Patch)) { finishedWorking(); return; }
 		//Utils.log("Snapping " + d);
 		ArrayList al = d.getLayer().getIntersecting(d, Patch.class);
-		if (null == al || 0 == al.size()) return;
+		if (null == al || 0 == al.size()) { finishedWorking(); return; }
 		// remove from the intersecting group those Patch objects that are linked in the same layer (those linked that do not intersect simply return false on the al.remove(..) )
 		HashSet hs_linked = d.getLinkedGroup(new HashSet());
 		//Utils.log2("linked patches: " + hs_linked.size());
@@ -553,13 +556,16 @@ public class StitchingTEM {
 		// dragged Patch
 		final Patch p_dragged = (Patch)d;
 
+		//  make a reasonable guess for the scale
+		float cc_scale = (float)(512.0 / (p_dragged.getWidth() > p_dragged.getHeight() ? p_dragged.getWidth() : p_dragged.getHeight()));
+		if (cc_scale > 1.0f) cc_scale = 1.0f;
+
+		// With Phase-correlation (thus limited to non-rotated Patch instances)
+
 		// start:
 		double[] best_pc = null;
 		Patch best = null;
 		try {
-			//  make a reasonable guess for the scale
-			float cc_scale = (float)(512.0 / (p_dragged.getWidth() > p_dragged.getHeight() ? p_dragged.getWidth() : p_dragged.getHeight()));
-			if (cc_scale > 1.0f) cc_scale = 1.0f;
 			//
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Patch base = (Patch)it.next();
@@ -588,6 +594,22 @@ public class StitchingTEM {
 		double dx = x2 - p_dragged.getX();
 		double dy = y2 - p_dragged.getY();
 		p_dragged.translate(dx, dy, false); // translates entire linked group
+
+		// With SIFT (free) fix rotation
+		if (! best.getAffineTransform().isIdentity() && best.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) {
+			Registration.SIFTParameters sp = new Registration.SIFTParameters(p_dragged.getProject());
+			sp.scale = cc_scale;
+			Object[] result = Registration.registerWithSIFTLandmarks(best, p_dragged, sp, null);
+			if (null != result) {
+				AffineTransform at_result = (AffineTransform)result[2];
+				p_dragged.transform(p_dragged.getAffineTransformCopy().createInverse());
+				at_result.preConcatenate(best.getAffineTransformCopy());
+				p_dragged.transform(at_result);
+			}
+		}
+
+		// repaint:
+
 		Rectangle r = p_dragged.getLinkedBox(true);
 		//Utils.log2("dragged box is " + r);
 		box.add(r);
@@ -599,6 +621,7 @@ public class StitchingTEM {
 		Display.repaint(p_dragged.getLayer().getParent()/*, box*/);
 		Utils.log2("Done snapping.");
 
+
 				} catch (Exception e) {
 					new IJError(e);
 				}
@@ -608,6 +631,18 @@ public class StitchingTEM {
 		Bureaucrat burro = new Bureaucrat(worker, d.getProject());
 		burro.goHaveBreakfast();
 		return burro;
+	}
+
+	/** Transforms the given point @param po by the AffineTransform of the given @param patch .*/
+	static private mpi.fruitfly.registration.Point transform(final Patch patch, final mpi.fruitfly.registration.Point po) {
+		float[] local = po.getL();
+		Point2D.Double pd = patch.transformPoint(local[0], local[1]);
+		return new mpi.fruitfly.registration.Point(new float[]{(float)pd.x, (float)pd.y});
+	}
+	static private mpi.fruitfly.registration.Point inverseTransform(final Patch patch, final mpi.fruitfly.registration.Point po) {
+		float[] l = po.getL();
+		Point2D.Double pd = patch.inverseTransformPoint(l[0], l[1]);
+		return new mpi.fruitfly.registration.Point(new float[]{(float)pd.x, (float)pd.y});
 	}
 
 	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */

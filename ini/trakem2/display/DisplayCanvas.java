@@ -2029,7 +2029,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						}
 						if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
 							if (c.equals(Patch.class)) {
-								if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter())); // this only works because the clip is given to be null
+								if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter(0,0,1,1))); // this only works because the clip is given to be null
 								al_paint.add(d);
 							} else {
 								if (top) al_top.add(d);
@@ -2101,7 +2101,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						// create an Area object for each Displayable to paint
 						final ArrayList<Area> al_areas = new ArrayList<Area>();
 						for (Displayable d : al_paint) {
-							al_areas.add(new Area(d.getPerimeter(d.getClass().equals(Patch.class) ? -1 : 0)));
+							al_areas.add(new Area(d.getPerimeter()));
 						}
 
 						if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {

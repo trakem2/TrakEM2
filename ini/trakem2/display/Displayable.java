@@ -366,17 +366,17 @@ public abstract class Displayable extends DBObject {
 				   4);
 	}
 
-	/** Returns the perimeter enlarged in all directions by extra pixels.*/
-	public Polygon getPerimeter(final int extra) {
+	/** Returns the perimeter enlarged in all West, North, East and South directions, in pixels.*/
+	public Polygon getPerimeter(final int w, final int n, final int e, final int s) {
 		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
 			// return the bounding box as a polygon:
 			final Rectangle r = getBoundingBox();
-			return new Polygon(new int[]{r.x -extra, r.x+r.width +extra+extra, r.x+r.width +extra+extra, r.x -extra},
-					   new int[]{r.y -extra, r.y -extra, r.y+r.height +extra+extra, r.y+r.height +extra+extra},
+			return new Polygon(new int[]{r.x -w, r.x+r.width +w+e, r.x+r.width +w+e, r.x -w},
+					   new int[]{r.y -n, r.y -n, r.y+r.height +n+s, r.y+r.height +n+s},
 					   4);
 		}
 		// else, the rotated/sheared/scaled and translated bounding box:
-		final double[] po1 = new double[]{-extra,-extra,  width+extra+extra,-extra,  width+extra+extra,height+extra+extra,  -extra,height+extra+extra};
+		final double[] po1 = new double[]{-w,-n,  width+w+e,-n,  width+w+e,height+n+s,  -w,height+n+s};
 		final double[] po2 = new double[8];
 		this.at.transform(po1, 0, po2, 0, 4);
 		return new Polygon(new int[]{(int)po2[0], (int)po2[2], (int)po2[4], (int)po2[6]},
@@ -1233,5 +1233,20 @@ public abstract class Displayable extends DBObject {
 			p3[1][i] = p2b[j+1];
 		}
 		return p3;
+	}
+
+	/** Apply the given affine to this and all its linked objects. */
+	public void transform(final AffineTransform at) throws java.awt.geom.NoninvertibleTransformException {
+		AffineTransform at_original = this.getAffineTransformCopy();
+		// 1 - apply to all the inverse of this Displayable's affine
+		// 2 - then apply the given transform
+		// 3 - then preConcatenate this original
+		AffineTransform inverse = this.at.createInverse();
+		for (Iterator it = getLinkedGroup(new HashSet()).iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			d.at.concatenate(inverse);
+			d.at.concatenate(at);
+			d.at.concatenate(at_original);
+		}
 	}
 }
