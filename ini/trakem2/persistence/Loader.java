@@ -3033,11 +3033,8 @@ abstract public class Loader {
 
 	/** Exports to an XML file chosen by the user. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
 	public String saveAs(Project project) {
-		// kludge:
 		String default_dir = null;
-		if (this.getClass().equals(FSLoader.class)) {
-			default_dir = ((FSLoader)this).getStorageFolder();
-		}
+		default_dir = getStorageFolder();
 		// Select a file to export to
 		File fxml = Utils.chooseFile(default_dir, null, ".xml");
 		if (null == fxml) return null;
@@ -3749,5 +3746,19 @@ abstract public class Loader {
 		//final ImageProcessor ip = imp.getProcessor(); // the nullifying makes no difference, and in low memory situations some bona fide imagepluses may end up failing on the calling method because of lack of time to grab the processor etc.
 		//if (null != ip) ip.setPixels(null);
 		ipa.notifyListeners(imp, ipa.CLOSE);
+	}
+
+	/** Returns the user's home folder unless overriden. */
+	public String getStorageFolder() { return System.getProperty("user.home").replace('\\', '/'); }
+
+	public Patch addNewImage(ImagePlus imp) {
+		String filename = imp.getTitle();
+		if (!filename.toLowerCase().endsWith(".tif")) filename += ".tif";
+		String path = getStorageFolder() + "/" + filename;
+		new FileSaver(imp).saveAsTiff(path);
+		Patch pa = new Patch(Project.findProject(this), imp.getTitle(), 0, 0, imp);
+		addedPatchFrom(path, pa);
+		if (isMipMapsEnabled()) generateMipMaps(pa);
+		return pa;
 	}
 }

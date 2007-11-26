@@ -254,6 +254,7 @@ public abstract class Displayable extends DBObject {
 		return layer;
 	}
 
+	/** Does not accept null or zero-length titles. */
 	public void setTitle(String title) {
 		if (null == title || 0 == title.length()) return;
 		this.title = title;
@@ -854,8 +855,7 @@ public abstract class Displayable extends DBObject {
 		boolean visible1 = gd.getNextBoolean();
 		boolean locked1 = gd.getNextBoolean();
 		if (!title.equals(title1)) {
-			this.title = title1;
-			updateInDatabase("title");
+			setTitle(title1); // will update the panel
 		}
 		final Rectangle b = getBoundingBox(null); // previous
 		if (x1 != b.x || y1 != b.y) {

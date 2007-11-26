@@ -140,7 +140,7 @@ public class FSLoader extends Loader {
 	}
 
 	public String getStorageFolder() {
-		if (null == dir_storage) return null;
+		if (null == dir_storage) return super.getStorageFolder(); // the user's home
 		return dir_storage.toString(); // a copy
 	}
 
@@ -1019,6 +1019,11 @@ public class FSLoader extends Loader {
 		//Utils.log2("mipmaps for " + patch);
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		if (null == dir_mipmaps) return false;
+		final String path = getAbsolutePath(patch);
+		if (null == path) {
+			Utils.log2("generateMipMaps: cannot find path for Patch " + patch);
+			return false;
+		}
 		synchronized (gm_lock) {
 			gm_lock();
 			if (hs_regenerating_mipmaps.contains(patch)) {
@@ -1033,7 +1038,7 @@ public class FSLoader extends Loader {
 		boolean ok = true;
 		try {
 			final ImageProcessor ip = fetchImageProcessor(patch);
-			final String filename = new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
+			final String filename = new File(path).getName() + "." + patch.getId() + ".jpg";
 			int w = ip.getWidth();
 			int h = ip.getHeight();
 			// sigma = sqrt(2^level - 0.5^2)
