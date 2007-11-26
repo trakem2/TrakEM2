@@ -1097,7 +1097,7 @@ public abstract class Displayable extends DBObject {
 		return (AffineTransform)at.clone();
 	}
 
-	/** Sets the matrix values of the given AffineTransform to this Displayable's AffineTransform. */
+	/** Sets the matrix values of this Displayable's AffineTransform to those of the given AffineTransform. */
 	public void setAffineTransform(AffineTransform at) {
 		this.at.setTransform(at);
 		updateInDatabase("transform");
@@ -1236,17 +1236,12 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Apply the given affine to this and all its linked objects. */
-	public void transform(final AffineTransform at) throws java.awt.geom.NoninvertibleTransformException {
-		AffineTransform at_original = this.getAffineTransformCopy();
-		// 1 - apply to all the inverse of this Displayable's affine
-		// 2 - then apply the given transform
-		// 3 - then preConcatenate this original
-		AffineTransform inverse = this.at.createInverse();
+	public void transform(final AffineTransform at) {
 		for (Iterator it = getLinkedGroup(new HashSet()).iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			d.at.concatenate(inverse);
 			d.at.concatenate(at);
-			d.at.concatenate(at_original);
+			d.updateInDatabase("transform");
+			//Utils.log("applying transform to " + d);
 		}
 	}
 }

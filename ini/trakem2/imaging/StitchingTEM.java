@@ -593,7 +593,7 @@ public class StitchingTEM {
 		//p_dragged.setLocation(x2, y2); // wrong, does not consider linked objects
 		double dx = x2 - p_dragged.getX();
 		double dy = y2 - p_dragged.getY();
-		p_dragged.translate(dx, dy, false); // translates entire linked group
+		p_dragged.translate(dx, dy, true); // translates entire linked group
 
 		// With SIFT (free) fix rotation
 		if (! best.getAffineTransform().isIdentity() && best.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) {
@@ -602,7 +602,9 @@ public class StitchingTEM {
 			Object[] result = Registration.registerWithSIFTLandmarks(best, p_dragged, sp, null);
 			if (null != result) {
 				AffineTransform at_result = (AffineTransform)result[2];
+				// subtract the transform of the dragged patch to all in the linked group
 				p_dragged.transform(p_dragged.getAffineTransformCopy().createInverse());
+				// apply the new trasform to all in the linked group
 				at_result.preConcatenate(best.getAffineTransformCopy());
 				p_dragged.transform(at_result);
 			}
