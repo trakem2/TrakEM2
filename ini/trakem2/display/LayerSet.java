@@ -691,12 +691,13 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return -1;
 	}
 
+	/** Find a layer by index, or null if none. */
 	public Layer getLayer(int i) {
 		if (i >=0 && i < al_layers.size()) return (Layer)al_layers.get(i);
 		return null;
 	}
 
-	/** Find the layer with the given id. */
+	/** Find a layer with the given id, or null if none. */
 	public Layer getLayer(long id) {
 		Iterator it = al_layers.iterator();
 		while (it.hasNext()) {
@@ -706,6 +707,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return null;
 	}
 
+	/** Returns the first layer found with the given Z coordinate, rounded to seventh decimal precision, or null if none found. */
 	public Layer getLayer(double z) {
 		Iterator it = al_layers.iterator();
 		double error = 0.0000001; // TODO adjust to an optimal

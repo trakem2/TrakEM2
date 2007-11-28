@@ -61,7 +61,7 @@ import java.util.Vector;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.4q 2007-11-22";
+	static public String version = "0.4r 2007-11-26";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -575,14 +575,18 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Returns null or the selected directory and file. */
 	static public String[] selectFile(String title_msg) {
-		OpenDialog od = new OpenDialog("Select image file", OpenDialog.getDefaultDirectory(), null);
+		OpenDialog od = new OpenDialog("Select file", OpenDialog.getDefaultDirectory(), null);
 		String file = od.getFileName();
 		if (null == file || file.toLowerCase().startsWith("null")) return null;
 		String dir = od.getDirectory();
-
-		File f = new File(dir + "/" + file); // I'd use File.separator, but in Windows it fails
-		if (!f.exists()) {
-			Utils.showMessage("File " + dir + "/" + file  + " does not exist.");
+		File f = null;
+		if (null != dir) {
+			dir = dir.replace('\\', '/');
+			if (!dir.endsWith("/")) dir += "/";
+			f = new File(dir + "/" + file); // I'd use File.separator, but in Windows it fails
+		}
+		if (null == dir || !f.exists()) {
+			Utils.log2("No proper file selected.");
 			return null;
 		}
 		return new String[]{dir, file};
@@ -767,6 +771,20 @@ public class Utils implements ij.plugin.PlugIn {
 				if (index < cstart.getSelectedIndex()) cstart.select(index);
 			}
 		});
+	}
+
+	static public void addLayerChoice(final String label, final Layer selected, final GenericDialog gd) {
+		final String[] layers = new String[selected.getParent().size()];
+		final ArrayList al_layer_titles =  new ArrayList();
+		int i = 0;
+		for (Iterator it = selected.getParent().getLayers().iterator(); it.hasNext(); ) {
+			layers[i] = selected.getProject().findLayerThing((Layer)it.next()).toString();
+			al_layer_titles.add(layers[i]);
+			i++;
+		}
+		final int i_layer = selected.getParent().indexOf(selected);
+		gd.addChoice(label, layers, layers[i_layer]);
+
 	}
 
 	/** Converts the ImageProcessor to an ImageProcessor of the given type, or the same if of equal type. */

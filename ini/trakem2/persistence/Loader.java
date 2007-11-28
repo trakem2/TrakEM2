@@ -1762,6 +1762,9 @@ abstract public class Loader {
 			layer.moveBottom(pa[j]);
 		}
 
+		// make picture
+		getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
+
 		// optimize repaints: all to background image
 		Display.clearSelection(layer);
 
@@ -1908,6 +1911,9 @@ abstract public class Loader {
 				}
 				setMipMapsRegeneration(true);
 				Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
+
+				// make picture
+				getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
 			}
 		}
 
@@ -1936,6 +1942,9 @@ abstract public class Loader {
 				layer.getParent().undoOneStep();
 			}
 			ControlWindow.endWaitingCursor();
+
+			// make picture
+			getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
 		}
 
 		// link with images on top, bottom, left and right.
@@ -2000,8 +2009,9 @@ abstract public class Loader {
 	 * Layers will be automatically created as needed. <br />
 	 * The text file can contain comments that start with the # sign.<br />
 	 * Images will be imported in parallel, using as many cores as your machine has.<br />
+	 * The @param calibration transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
 	 */
-	public Bureaucrat importImages(final LayerSet layer_set, final String base_dir, final String abs_text_file_path, final String column_separator, final double layer_thickness) {
+	public Bureaucrat importImages(final Layer base_layer, final String abs_text_file_path, final String column_separator, final double layer_thickness, final double calibration) {
 		// check parameters
 		if (null == abs_text_file_path || null == column_separator) {
 			return null;
@@ -2018,14 +2028,17 @@ abstract public class Loader {
 						finishedWorking();
 						return;
 					}
-					// 2 - fix base dir path if necessary
-					String bdir_ = base_dir.replace('\\', '/');
-					if (null != bdir_ && bdir_.endsWith("/")) bdir_ += "/";
-					final String bdir = bdir_;
+					final String sep2 = column_separator + column_separator;
+					// 2 - set a base dir path if necessary
+					final String[] base_dir = new String[]{null, null}; // second item will work as flag if the dialog to ask for a directory is canceled in any of the threads.
 
 					///////// Multithreading ///////
 					final AtomicInteger ai = new AtomicInteger(0);
 					final Thread[] threads = MultiThreading.newThreads();
+
+					final Lock lock = new Lock();
+					final LayerSet layer_set = base_layer.getParent();
+					final double z_zero = base_layer.getZ();
 
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
 						threads[ithread] = new Thread(new Runnable() {
@@ -2036,10 +2049,14 @@ abstract public class Loader {
 					for (int i = ai.getAndIncrement(); i < lines.length; i = ai.getAndIncrement()) {
 						if (wo.hasQuitted()) return;
 						// process line
-						String line = lines[i].replace('\\','/').trim(); // first thing is the backslash removal, before they get processed
+						String line = lines[i].replace('\\','/').trim(); // first thing is the backslash removal, before they get processed at all
 						int ic = line.indexOf('#');
 						if (-1 != ic) line = line.substring(0, ic); // remove comment at end of line if any
 						if (0 == line.length() || '#' == line.charAt(0)) continue;
+						// reduce line, so that separators are really unique
+						while (-1 != line.indexOf(sep2)) {
+							line = line.replaceAll(sep2, column_separator);
+						}
 						String[] column = line.split(column_separator);
 						if (column.length < 4) {
 							Utils.log("Less than 4 columns: can't import from line " + i + " : "  + line);
@@ -2057,11 +2074,40 @@ abstract public class Loader {
 							Utils.log("Non-numeric value in a numeric column at line " + i + " : " + line);
 							continue;
 						}
-						if (0 != layer_thickness) z *= layer_thickness;
-						// open image
+						x *=  calibration;
+						y *=  calibration;
+						z = z * calibration + z_zero;
+						// obtain path
 						String path = column[0].trim();
 						if (0 == path.length()) continue;
-						if (null != bdir) path = bdir + path;
+						// check if path is relative
+						if ((!IJ.isWindows() && '/' != path.charAt(0)) || (IJ.isWindows() && 1 != path.indexOf(":/"))) {
+							synchronized (lock) {
+								lock.lock();
+								if ("QUIT".equals(base_dir[1])) {
+									// dialog to ask for directory was quitted
+									lock.unlock();
+									return;
+								}
+								//  path is relative.
+								if (null == base_dir[0]) { // may not be null if another thread that got the lock first set it to non-null
+									//  Ask for source directory
+									DirectoryChooser dc = new DirectoryChooser("Choose source directory");
+									String dir = dc.getDirectory();
+									if (null == dir) {
+										// quit all threads
+										base_dir[1] = "QUIT";
+										lock.unlock();
+										return;
+									}
+									// else, set the base dir
+									base_dir[0] = dir.replace('\\', '/');
+									if (!base_dir[0].endsWith("/")) base_dir[0] += "/";
+								}
+								lock.unlock();
+							}
+						}
+						if (null != base_dir[0]) path = base_dir[0] + path;
 						File f = new File(path);
 						if (!f.exists()) {
 							Utils.log("No file found for path " + path);
@@ -2078,14 +2124,34 @@ abstract public class Loader {
 							continue;
 						}
 						// add Patch and generate its mipmaps
-						Layer layer = layer_set.getLayer(z, layer_thickness, true); // will create a new Layer if necessary
-						Patch patch = new Patch(layer.getProject(), imp.getTitle(), x, y, imp);
-						addedPatchFrom(path, patch);
-						if (!generateMipMaps(patch)) {
-							Utils.log("Failed to generate mipmaps for " + patch);
+						Patch patch = null;
+						Layer layer = null;
+						synchronized (lock) {
+							try {
+								lock.lock();
+								layer = layer_set.getLayer(z, layer_thickness, true); // will create a new Layer if necessary
+								patch = new Patch(layer.getProject(), imp.getTitle(), x, y, imp);
+								addedPatchFrom(path, patch);
+								lock.unlock();
+							} catch (Exception e) {
+								new IJError(e);
+							}
 						}
-						layer.add(patch, true);
-						decacheImagePlus(patch.getId()); // no point in keeping it around
+						if (null != patch) {
+							if (!generateMipMaps(patch)) {
+								Utils.log("Failed to generate mipmaps for " + patch);
+							}
+							synchronized (lock) {
+								try {
+									lock.lock();
+									layer.add(patch, true);
+									lock.unlock();
+								} catch (Exception e) {
+									new IJError(e);
+								}
+							}
+							decacheImagePlus(patch.getId()); // no point in keeping it around
+						}
 					}
 
 					/////////////////////////
@@ -2101,7 +2167,7 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, layer_set.getProject());
+		Bureaucrat burro = new Bureaucrat(worker, base_layer.getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}

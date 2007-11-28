@@ -39,6 +39,8 @@ import java.util.*;
 import java.awt.Cursor;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import ini.trakem2.utils.Lock;
+
 
 public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
@@ -48,20 +50,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private Image offscreen, offscreen_a, offscreen_b;
 	private Rectangle clipRect_a, clipRect_b;
 	private ArrayList al_top = new ArrayList();
-
-	public final class Lock {
-		boolean locked = false;
-		public final void lock() {
-			//Utils.printCaller(this, 7);
-			while (locked) try { this.wait(); } catch (InterruptedException ie) {}
-			locked = true;
-		}
-		public final void unlock() {
-			//Utils.printCaller(this, 7);
-			locked = false;
-			this.notifyAll();
-		}
-	}
 
 	private final Lock lock_a = new Lock();
 	private final Lock lock_b = new Lock();
@@ -1419,7 +1407,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		synchronized (rtl) {
 			rtl.lock();
 			if (null != rt_old) {
+				Thread t = rt_old.offscreen_thread;
 				rt_old.quit();
+				if (null != t) try { t.join(); } catch (InterruptedException ie) {}
 			}
 			rtl.unlock();
 		}
