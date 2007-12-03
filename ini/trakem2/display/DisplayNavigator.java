@@ -26,6 +26,7 @@ package ini.trakem2.display;
 import javax.swing.JPanel;
 import java.awt.Image;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
@@ -54,16 +55,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	private Rectangle srcRect;
 	private int x_p, y_p;
 	private int new_x_old=0, new_y_old=0;
-	/* // TODO
-	private RepaintThread rt;
-	private Object repainting_ob = new Object();
-	private boolean repainting = false;
-	private UpdateGraphicsThread ugt;
-	private updating_ob = new Object();
-	private boolean updating = false;
-	*/
 
-	private RepaintThread rt = null;
 	private UpdateGraphicsThread ugt = null;
 	private final Object updating_ob = new Object();
 	private boolean updating = false;
@@ -109,7 +101,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		// magic cocktel:
 		//this.invalidate();
 		//this.validate();  // possible cause of infinite loops with infinite threads
-		new RepaintThread(null);
+		RT.paint(null);
 	}
 
 	public void repaint(boolean update_graphics) {
@@ -126,13 +118,13 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		r.y = (int)(r.y * scale);
 		r.width = (int)Math.ceil(r.width * scale);
 		r.height = (int)Math.ceil(r.height * scale);
-		new RepaintThread(r);
+		RT.paint(r);
 	}
 
 	/** Overridden to multithread. TrakEM2 does not call this method directly ever. */
 	public void repaint(int x, int y, int width, int height) {
 		if (display.getCanvas().isDragging()) return;
-		new RepaintThread(new Rectangle(x, y, width, height));
+		RT.paint(new Rectangle(x, y, width, height));
 	}
 
 	/** Box is given in offscreen canvas coords. */
@@ -140,12 +132,12 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		if (display.getCanvas().isDragging()) return;
 		// bring box to the scale
 		Rectangle b = new Rectangle((int)(box.x * scale), (int)(box.y * scale), (int)Math.ceil(box.width * scale), (int)Math.ceil(box.height * scale));
-		new RepaintThread(b);
+		RT.paint(b);
 	}
 
 	/* // saved as unoverridden to make sure there are no infinite thread loops when calling super in buggy JVMs
 	public void repaint(long ms, int x, int y, int width, int height) {
-		new RepaintThread(new Rectangle(x, y, width, height));
+		RT.paint(new Rectangle(x, y, width, height));
 	}
 	*/
 
@@ -284,7 +276,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					}
 				}
 				// finally, when done, call repaint (like sending an event)
-				new RepaintThread(clipRect);
+				RT.paint(clipRect);
 			} catch (Exception e) {
 				new IJError(e);
 			}
@@ -319,72 +311,36 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	private final Object control_lock = new Object();
 	private boolean controling = false;
 
-	//private final RepaintThread RT = new RepaintThread();
-
-	private class RepaintThread extends Thread {
-
-		private boolean quit = true;
-		private Rectangle clipRect = null;
-
-		RepaintThread(Rectangle clipRect_) {
-			//Utils.printCaller(this, 8);
-			synchronized (control_lock) {
-				while (controling) { try { control_lock.wait(); } catch (InterruptedException ie) {}}
-				controling = true;
-				if (null != rt) {
-					rt.quit = true;
-					Thread.yield();
-					// accumulate clipRect. A null clipRect means the entire area
-					if (null != clipRect) {
-						if (null == clipRect_) clipRect = new Rectangle(0, 0, FIXED_WIDTH, height);
-						else clipRect.add(clipRect_);
+	private final AbstractRepaintThread RT = new AbstractRepaintThread(this) {
+		protected void cancelOffs() {
+			// cancel previous offscreen threads (will finish only if they have run for long enough)
+			synchronized (lock_offs) {
+				lock_offs.lock();
+				try {
+					int size = offs.size();
+					while (size > 0) {
+						UpdateGraphicsThread ot = (UpdateGraphicsThread)offs.remove(0);
+						ot.quit();
+						size--;
 					}
-				} else {
-					clipRect = clipRect_;
+				} catch (Exception e) {
+					e.printStackTrace(); // should never happen
 				}
-				rt = this;
-				controling = false;
-				control_lock.notifyAll();
+				lock_offs.unlock();
 			}
-			Thread.yield(); // still the launcher thread
-			/* // blocks EDT !
-			if (redraw_displayables) {
-				new UpdateGraphicsThread(clipRect_);
-				redraw_displayables = false; // reset
-			}
-			*/
-			quit = false;
-			setPriority(Thread.NORM_PRIORITY);
-			start();
 		}
-
-		public void quit() {
-			quit = true;
-		}
-
-		public void run() {
-			try { Thread.sleep(10); } catch (InterruptedException ie) {}
-			if (quit) return;
-			if (redraw_displayables) {
-				redraw_displayables = false; // reset
-				new UpdateGraphicsThread(clipRect);
+		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
+			cancelOffs();
+			// issue new offscreen thread
+			final UpdateGraphicsThread off = new UpdateGraphicsThread(clipRect);
+			// store to be canceled if necessary
+			synchronized (lock_offs) {
+				lock_offs.lock();
+				offs.add(off);
+				lock_offs.unlock();
 			}
-			/* Don't wait. When done, the thread will call another repaint thread
-			// now wait for the image to be done
-			synchronized (updating_ob) {
-				while (updating) {
-					if (quit) return;
-					try {
-						updating_ob.wait();
-					} catch (InterruptedException ie) {}
-				}
-			}
-			*/
-			// this is the only place where the real, super repaint is to be called directly
-			if (null == clipRect) DisplayNavigator.super.repaint(0, 0, 0, FIXED_WIDTH, height); // calling super.repaint() causes infinite loops of RepaintThread instances, for unknown reasons in the IBM-1.4.2-ppc. The method long, int, int, int, int exists in the JComponent and holds ...
-			else DisplayNavigator.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
 		}
-	}
+	};
 
 	private boolean drag = false;
 
@@ -440,7 +396,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 			while (updating) try { updating_ob.wait(); } catch (InterruptedException ie) {}
 			updating = true;
 			if (null != ugt) ugt.quit();
-			if (null != rt) rt.quit();
+			RT.quit();
 			updating = false;
 			updating_ob.notifyAll();
 		}

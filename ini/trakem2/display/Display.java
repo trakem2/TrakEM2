@@ -1436,14 +1436,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	static private boolean repaint_disabled = false;
 
-	/** Set a flag to enable/disable repainting of all Display instances. If setting the flag to false, current UpdateGraphics threads are quitted.*/
+	/** Set a flag to enable/disable repainting of all Display instances. */
 	static protected void setRepaint(boolean b) {
-		if (!b) {
-			for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-				Display d = (Display)it.next();
-				d.canvas.cancelRepaints(); // will quit all UpdateGraphics threads
-			}
-		}
 		repaint_disabled = !b;
 	}
 

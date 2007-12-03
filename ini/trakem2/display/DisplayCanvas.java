@@ -117,107 +117,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		this.paint(g);
 	}
 
-	/** Master over the rt_old */
-	private final Lock rtl = new Lock();
-
 	private AtomicInteger counter = new AtomicInteger(0); // threads' tag
 
 	private long last_paint = 0;
 
-	private final RepaintThread RT = new RepaintThread(this);
-	
-private class RepaintThread extends Thread {
-
-	final private Lock lock_event = new Lock();
-	final private Lock lock_paint = new Lock();
-	final protected Lock lock_offs = new Lock();
-	private boolean quit = false;
-	protected java.util.List offs = new LinkedList();
-	private java.util.List events = new LinkedList();
-	private Component target;
-
-	public RepaintThread(Component target) {
-		this.target = target;
-		setPriority(Thread.NORM_PRIORITY);
-		start();
-	}
-
-	private class PaintEvent {
-		Rectangle clipRect;
-		boolean update_graphics;
-		PaintEvent(Rectangle clipRect, boolean update_graphics) {
-			this.clipRect = clipRect;
-			this.update_graphics = update_graphics; // java is sooo verbose... this class is just a tuple!
-		}
-	}
-
-	/** Queue a new request for painting. */
-	public void paint(Rectangle clipRect, boolean update_graphics) {
-		// queue the event
-		synchronized (lock_event) {
-			lock_event.lock();
-			events.add(new PaintEvent(clipRect, update_graphics));
-			lock_event.unlock();
-		}
-		// signal a repaint request
-		synchronized (lock_paint) {
-			lock_paint.notifyAll();
-		}
-	}
-
-	public void quit() {
-		this.quit = true;
-		synchronized (lock_paint) {
-			lock_paint.notifyAll();
-		}
-	}
-
-	public void run() {
-		while (!quit) {
-			// wait until anyone issues a repaint event
-			synchronized (lock_paint) {
-				try { lock_paint.wait(); } catch (InterruptedException ie) {}
-			}
-
-			if (quit) return; // finish
-
-			// wait a bit to catch fast subsequent events
-			try { Thread.sleep(10); } catch (InterruptedException ie) {}
-
-			// obtain all events up to now and clear the event queue
-			PaintEvent[] pe = null;
-			synchronized (lock_event) {
-				lock_event.lock();
-				pe = new PaintEvent[events.size()];
-				events.toArray(pe);
-				events.clear();
-				lock_event.unlock();
-			}
-
-			// obtain repaint parameters from merged events
-			Rectangle clipRect = pe[0].clipRect;
-			boolean update_graphics = pe[0].update_graphics;
-			for (int i=1; i<pe.length; i++) {
-				if (null != clipRect) {
-					if (null == pe[i].clipRect) clipRect = null; // all
-					else clipRect.add(pe[i].clipRect);
-				} // else 'null' clipRect means repaint the entire canvas
-				if (!update_graphics) update_graphics = pe[i].update_graphics;
-			}
-
-			final int g_width = target.getWidth();
-			final int g_height = target.getHeight();
-
-			// issue an offscreen thread if necessary
-			if (update_graphics) {
-				handleUpdateGraphics(target, clipRect);
-			}
-			// repaint
-			if (null == clipRect) target.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
-			else target.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
-		}
-	}
-		public void handleUpdateGraphics(Component target, Rectangle clipRect) {
+	private final AbstractRepaintThread RT = new AbstractRepaintThread(this) {
+		protected void cancelOffs() {
 			// cancel previous offscreen threads (will finish only if they have run for long enough)
 			synchronized (lock_offs) {
 				lock_offs.lock();
@@ -233,6 +138,9 @@ private class RepaintThread extends Thread {
 				}
 				lock_offs.unlock();
 			}
+		}
+		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
+			cancelOffs();
 			// issue new offscreen thread
 			final OffscreenThread off = new OffscreenThread(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getChannelAlphas());
 			off.start();
@@ -243,9 +151,7 @@ private class RepaintThread extends Thread {
 				lock_offs.unlock();
 			}
 		}
-	}
-
-
+	};
 
 	private final void setRenderingHints(final Graphics2D g) {
 		/* // so slow!! Particularly the first one.
@@ -406,15 +312,7 @@ private class RepaintThread extends Thread {
 	}
 
 	public void waitForRepaint() {
-		Thread t = null;
-		synchronized (rtl) {
-			rtl.lock();
-			//t = rt_old; // TODO!!
-			rtl.unlock();
-		}
-		if (null != t) try {
-			t.join();
-		} catch (InterruptedException ie) {}
+		RT.waitForOffs();
 	}
 
 	/** Paints a handle on the screen coords. Adapted from ij.gui.Roi class. */
@@ -1394,31 +1292,10 @@ private class RepaintThread extends Thread {
 		update_graphics = b;
 	}
 
-	protected void cancelRepaints() {
-		synchronized (rtl) {
-			rtl.lock();
-			//if (null != rt_old) rt_old.quit(); // TODO
-			rtl.unlock();
-		}
-	}
-
 	/** Release offscreen images and stop threads. */
 	public void flush() {
-		cancelRepaints();
 		// cleanup update graphics thread if any
-		synchronized (rtl) {
-			rtl.lock();
-			//if (null != rt_old) {
-				/*
-				Thread t = rt_old.offscreen_thread;
-				rt_old.quit();
-				try { rt_old.join(); } catch (InterruptedException ie) {}
-				if (null != t) try { t.join(); } catch (InterruptedException ie) {}
-				*/
-				RT.quit();
-			//}
-			rtl.unlock();
-		}
+		RT.quit();
 		synchronized (offscreen_lock) {
 			while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
 			offscreen_locked = true;
