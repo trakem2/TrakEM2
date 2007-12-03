@@ -176,7 +176,9 @@ public class StitchingTEM {
 			// for minimization:
 			ArrayList<Tile> al_tiles = new ArrayList<Tile>();
 			// first patch-tile:
-			al_tiles.add(new Tile((float)patch[0].getWidth(), (float)patch[0].getHeight(), new TModel2D()));
+			TModel2D first_tile_model = new TModel2D();
+			first_tile_model.getAffine().setTransform( patch[ 0  ].getAffineTransform() );
+			al_tiles.add(new Tile((float)patch[0].getWidth(), (float)patch[0].getHeight(), first_tile_model ));
 
 			for (int i=1; i<patch.length; i++) {
 				if (st.quit) {
