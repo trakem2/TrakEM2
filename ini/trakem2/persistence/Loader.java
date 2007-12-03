@@ -1763,7 +1763,7 @@ abstract public class Loader {
 		}
 
 		// make picture
-		getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
+		//getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
 
 		// optimize repaints: all to background image
 		Display.clearSelection(layer);
@@ -1913,7 +1913,7 @@ abstract public class Loader {
 				Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 
 				// make picture
-				getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
+				//getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
 			}
 		}
 
@@ -1944,7 +1944,7 @@ abstract public class Loader {
 			ControlWindow.endWaitingCursor();
 
 			// make picture
-			getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
+			//getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
 		}
 
 		// link with images on top, bottom, left and right.
@@ -2039,6 +2039,7 @@ abstract public class Loader {
 					final Lock lock = new Lock();
 					final LayerSet layer_set = base_layer.getParent();
 					final double z_zero = base_layer.getZ();
+					final AtomicInteger n_imported = new AtomicInteger(0);
 
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
 						threads[ithread] = new Thread(new Runnable() {
@@ -2152,6 +2153,8 @@ abstract public class Loader {
 							}
 							decacheImagePlus(patch.getId()); // no point in keeping it around
 						}
+						
+						wo.setTaskName("Imported " + n_imported.getAndIncrement() + "/" + lines.length);
 					}
 
 					/////////////////////////

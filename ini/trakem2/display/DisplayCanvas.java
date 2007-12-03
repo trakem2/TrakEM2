@@ -147,8 +147,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			this.clipRect = clipRect;
 			this.dc =  dc;
 
+			// kill away excessive threads
 			int size = paint_queue.size(); // since it may change
-			while (size > 10) {
+			while (size > 3) {
 				try {
 					RepaintThread rt = (RepaintThread)paint_queue.remove(0);
 					if (null != rt) {
@@ -179,7 +180,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				rtl.unlock();
 			}
-			start();
+
+			Thread.yield();
+			if (!quit) start();
 		}
 
 		public void quit() {
@@ -191,7 +194,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			final long now = System.currentTimeMillis();
 			// if not enough time has passed, and it's not the last in the queue, then cancel
 			p(label + " canQuit: " + (now - last_paint));
-			if (now - last_paint < 20 && paint_queue.lastIndexOf(this) < paint_queue.size() -1) {
+			if (now - last_paint < 100 && paint_queue.lastIndexOf(this) < paint_queue.size() -1) {
 				if (null != this.offscreen_thread) this.offscreen_thread.cancel();
 				p(label + " canQuit yes");
 				return true;
@@ -1409,6 +1412,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			if (null != rt_old) {
 				Thread t = rt_old.offscreen_thread;
 				rt_old.quit();
+				try { rt_old.join(); } catch (InterruptedException ie) {}
 				if (null != t) try { t.join(); } catch (InterruptedException ie) {}
 			}
 			rtl.unlock();
@@ -1850,7 +1854,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	/** Minimum time an offscreen thread will run before it can be quit. */
-	static private final int min_time = 50;
+	static private final int min_time = 100;
 
 	private class OffscreenThread extends Thread {
 		private boolean stop_offscreen_data = false;
@@ -1883,282 +1887,145 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 
 		public void run() {
-			Lock lock = null;
 			try {
-				Image target;
-
-				synchronized (offscreen_lock) {
-					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-					offscreen_locked = true;
-
-					Rectangle prev_clip = null;
-
-					// Paint on the offscreen image currently not used for painting the screen
-					// recreate if canvas size has changed, otherwise reuse
-					if (offscreen_b == offscreen) {
-						// paint on a
-						if (null == offscreen_a || g_width != offscreen_a.getWidth(null) || g_height != offscreen_a.getHeight(null)) {
-							if (null != offscreen_a) offscreen_a.flush();
-							offscreen_a = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
-							offscreen_a.setAccelerationPriority(1.0f);
-						}
-						target = offscreen_a;
-						prev_clip = clipRect_b;
-						clipRect_a = null != clipRect ? (Rectangle)clipRect.clone() : null; // update
-						lock = lock_a;
-					} else {
-						// offscreen_a == offscreen, paint on b
-						if (null == offscreen_b || g_width != offscreen_b.getWidth(null) || g_height != offscreen_b.getHeight(null)) {
-							if (null != offscreen_b) offscreen_b.flush();
-							offscreen_b = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
-							offscreen_b.setAccelerationPriority(1.0f);
-						}
-						target = offscreen_b;
-						prev_clip = clipRect_a;
-						clipRect_b = null != clipRect ? (Rectangle)clipRect.clone() : null; // update
-						lock = lock_b;
-					}
-
-					// add the clip that was used in the other offscreen image, unless null (which would mean 'the entire area')
-					if (null != prev_clip) {
-						if (null != clipRect) clipRect.add(prev_clip);
-					}
-
-					offscreen_locked = false;
-					offscreen_lock.notifyAll();
-				}
-				if (stop_offscreen_data) return;
+				if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) return;
 
 				final Loader loader = layer.getProject().getLoader();
 				// flag Loader to do massive flushing if needed
 				loader.setMassiveMode(true);
 
-				// paint all to offscreen image
-				Graphics2D g = null;
-				Area background = null;
+				// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
 
-				if (stop_offscreen_data) return;
+				// prepare the canvas for the srcRect and magnification
+				AffineTransform atc = new AffineTransform();
+				atc.scale(magnification, magnification);
+				atc.translate(-srcRect.x, -srcRect.y);
 
-				synchronized (lock) {
-					lock.lock();
+				// Area to which each Patch will subtract from
+				final Area background =  new Area(new Rectangle(0, 0, g_width, g_height));
+				// bring the area to Layer space
+				background.transform(atc.createInverse());
+				boolean bkgd_painted = false;
 
-					g = (Graphics2D)target.getGraphics();
-					// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
+				// the non-srcRect areas, in offscreen coords
+				final Rectangle r1 = new Rectangle(srcRect.x + srcRect.width, srcRect.y, (int)(g_width / magnification) - srcRect.width, (int)(g_height / magnification));
+				final Rectangle r2 = new Rectangle(srcRect.x, srcRect.y + srcRect.height, srcRect.width, (int)(g_height / magnification) - srcRect.height);
 
-					// prepare the canvas for the srcRect and magnification
-					final AffineTransform at_original = g.getTransform();
-					atc.setToIdentity();
-					atc.scale(magnification, magnification);
-					atc.translate(-srcRect.x, -srcRect.y);
-					at_original.preConcatenate(atc);
-					g.setTransform(at_original);
+				final ArrayList<Displayable> al_top = new ArrayList<Displayable>();
+				boolean top = false;
 
-					//setRenderingHints(g);
-					// always a stroke of 1.0, regardless of magnification
-					g.setStroke(stroke);
+				final ArrayList<Displayable> al_paint = new ArrayList<Displayable>();
 
-					// Area to which each Patch will subtract from
-					background =  new Area(new Rectangle(0, 0, target.getWidth(null), target.getHeight(null)));
-					// bring the area to Layer space
-					background.transform(atc.createInverse());
-					boolean bkgd_painted = false;
+				// start
+				final ArrayList al = layer.getDisplayables();
+				final int n = al.size();
+				final ArrayList al_zdispl = layer.getParent().getZDisplayables();
+				final int m = al_zdispl.size();
 
-					// the non-srcRect areas, in offscreen coords
-					Rectangle r1 = new Rectangle(srcRect.x + srcRect.width, srcRect.y, (int)(target.getWidth(null) / magnification) - srcRect.width, (int)(target.getHeight(null) / magnification));
-					Rectangle r2 = new Rectangle(srcRect.x, srcRect.y + srcRect.height, srcRect.width, (int)(target.getHeight(null) / magnification) - srcRect.height);
-					// subtract them from the clipRect
-					// TODO to avoid painting images and then the grey rect on top
-					
-					//if (offscreen_a == target) Utils.log2("clip: " + clipRect);
+				// Assumes the Layer has its objects in order:
+				// 1 - Patches
+				// 2 - Profiles, Balls
+				// 3 - Pipes and ZDisplayables (from the parent LayerSet)
+				// 4 - DLabels
 
-					al_top.clear();
-					boolean top = false;
-
-					final ArrayList<Displayable> al_paint = new ArrayList<Displayable>();
-
-					// start
-					final ArrayList al = layer.getDisplayables();
-					final int n = al.size();
-					final ArrayList al_zdispl = layer.getParent().getZDisplayables();
-					final int m = al_zdispl.size();
-
-					// Assumes the Layer has its objects in order:
-					// 1 - Patches
-					// 2 - Profiles, Balls
-					// 3 - Pipes and ZDisplayables (from the parent LayerSet)
-					// 4 - DLabels
-
-					int i = 0;
-					while (i < n) {
-						if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
-							lock.unlock();
-							return;
-						}
-						final Displayable d = (Displayable)al.get(i);
-						final Class c = d.getClass();
-						if (c.equals(DLabel.class) || c.equals(LayerSet.class)) {
-							break;
-						}
-						/*
+				int i = 0;
+				while (i < n) {
+					if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
+						return;
+					}
+					final Displayable d = (Displayable)al.get(i);
+					final Class c = d.getClass();
+					if (c.equals(DLabel.class) || c.equals(LayerSet.class)) {
+						break;
+					}
+					if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
 						if (c.equals(Patch.class)) {
-							if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter())); // must be outside because the clip could be limited to the active, for instance
+							if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter(0,0,1,1))); // this only works because the clip is given to be null
+							al_paint.add(d);
 						} else {
-						// above, too expensive to do it for all
-						*/
-						if (!c.equals(Patch.class)) {
-							/* // has to be done later to avoid problems with transparent patches
-							if (!background.isEmpty()) {
-								// subtract non-srcRect areas
-								background.subtract(new Area(r1));
-								background.subtract(new Area(r2));
-								// paint background
-								g.setColor(Color.black);
-								g.fill(background);
-								bkgd_painted = true;
-								//Utils.log2("off is " + (offscreen == offscreen_a ?  "a" : "b"));
-							}
-							*/
-							if (d.equals(active)) top = true; // no Patch instances allowed on top
-						}
-						if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
-							if (c.equals(Patch.class)) {
-								if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter(0,0,1,1))); // this only works because the clip is given to be null
-								al_paint.add(d);
-							} else {
-								if (top) al_top.add(d);
-								else al_paint.add(d);
-							}
-
-							/*
-							if (!c.equals(Patch.class) && top) al_top.add(d);
-							else {
-								al_paint.add(d);
-								//d.prePaint(g, magnification, false, c_alphas, layer);
-							}
-							*/
-						}
-						i++;
-					}
-					// paint the ZDisplayables here, before the labels and LayerSets, if any
-					int j = 0;
-					while (j < m) {
-						if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
-							lock.unlock();
-							return;
-						}
-						final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
-						if (!zd.isOutOfRepaintingClip(magnification, srcRect, null)) {
-							if (zd.equals(active)) top = true;
-							if (top) al_top.add(zd);
-							else {
-								//zd.paint(g, magnification, false, c_alphas, layer);
-								al_paint.add(zd);
-							}
-						}
-						j++;
-					}
-					// paint LayerSet and DLabel objects!
-					while (i < n) {
-						if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
-							lock.unlock();
-							return;
-						}
-						final Displayable d = (Displayable) al.get(i);
-						if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
-							if (d.equals(active)) top = true;
+							if (!top && d.equals(active)) top = true; // no Patch on al_top ever
 							if (top) al_top.add(d);
-							else {
-								//d.paint(g, magnification, false, c_alphas, layer);
-								al_paint.add(d);
-							}
+							else al_paint.add(d);
 						}
-						i++;
 					}
+					i++;
+				}
+				// paint the ZDisplayables here, before the labels and LayerSets, if any
+				int j = 0;
+				while (j < m) {
+					if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
+						return;
+					}
+					final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
+					if (!zd.isOutOfRepaintingClip(magnification, srcRect, null)) {
+						if (zd.equals(active)) top = true;
+						if (top) al_top.add(zd);
+						else {
+							al_paint.add(zd);
+						}
+					}
+					j++;
+				}
+				// paint LayerSet and DLabel objects!
+				while (i < n) {
+					if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
+						return;
+					}
+					final Displayable d = (Displayable) al.get(i);
+					if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
+						if (d.equals(active)) top = true;
+						if (top) al_top.add(d);
+						else {
+							al_paint.add(d);
+						}
+					}
+					i++;
+				}
 
+				if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
+					return;
+				}
+
+				// create new graphics
+				layer.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
+				final Image target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
+				final Graphics2D g = (Graphics2D)target.getGraphics();
+
+				g.setTransform(atc); //at_original);
+
+				//setRenderingHints(g);
+				// always a stroke of 1.0, regardless of magnification
+				g.setStroke(stroke);
+
+				if (!background.isEmpty()) {
+					// subtract non-srcRect areas
+					background.subtract(new Area(r1));
+					background.subtract(new Area(r2));
 					// paint background
-					if (!background.isEmpty()) {
-						// subtract non-srcRect areas
-						background.subtract(new Area(r1));
-						background.subtract(new Area(r2));
-						// paint background
-						g.setColor(Color.black);
-						g.fill(background);
-						bkgd_painted = true;
-						//Utils.log2("off is " + (offscreen == offscreen_a ?  "a" : "b"));
+					g.setColor(Color.black);
+					g.fill(background);
+					bkgd_painted = true;
+					//Utils.log2("off is " + (offscreen == offscreen_a ?  "a" : "b"));
+				}
+
+				for (Displayable d : al_paint) {
+					// don't stop: avoid half-backed images
+					if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
+						//lock.unlock();
+						g.dispose();
+						target.flush();
+						return;
 					}
+					d.prePaint(g, magnification, d.equals(active), c_alphas, layer);
+				}
 
-					final int size = al_paint.size();
-
-					if (size < 100) { // arbitrary!
-
-						// create an Area object for each Displayable to paint
-						final ArrayList<Area> al_areas = new ArrayList<Area>();
-						for (Displayable d : al_paint) {
-							al_areas.add(new Area(d.getPerimeter()));
-						}
-
-						if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
-							lock.unlock();
-							return;
-						}
-
-						// extract from the area of a Displayable all the areas of Displayable objects above it
-						for (i=0; i<size; i++) {
-							// only for Patch objects (could do also filled AreaList objects, but there's no need)
-							if (!al_paint.get(i).getClass().equals(Patch.class)) break;
-							final Area area = al_areas.get(i);
-							for (j=i+1; j<size; j++) {
-								final Displayable d = al_paint.get(j);
-								final Class c = d.getClass();
-								if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR && (c.equals(Patch.class) || (c.equals(AreaList.class) && (((AreaList)d).isFillPaint())))) {
-									area.subtract(al_areas.get(j));
-								}
-							}
-						}
-
-						if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
-							lock.unlock();
-							return;
-						}
-
-						// Now paint all paintable objects, and only the area of each that shows
-						for (i=0; i<size; i++) {
-							if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
-								lock.unlock();
-								return;
-							}
-							Displayable d = al_paint.get(i);
-							g.setClip(al_areas.get(i));
-							d.prePaint(g, magnification, d.equals(active), c_alphas, layer);
-						}
-					} else {
-						// just paint
-						for (Displayable d : al_paint) {
-							if (stop_offscreen_data && start - System.currentTimeMillis() > min_time) {
-								lock.unlock();
-								return;
-							}
-							d.prePaint(g, magnification, d.equals(active), c_alphas, layer);
-						}
-					}
-
-					// there may be only Patch objects ..
-					if (!bkgd_painted) {
-						g.setColor(Color.black);
-						g.setClip(background);
-						g.fill(background);
-					}
-
-					// finally, paint non-srcRect areas
-					if (r1.width > 0 || r1.height > 0 || r2.width > 0 || r2.height > 0) {
-						g.setColor(Color.gray);
-						g.setClip(r1);
-						g.fill(r1);
-						g.setClip(r2);
-						g.fill(r2);
-					}
-
-					lock.unlock();
+				// finally, paint non-srcRect areas
+				if (r1.width > 0 || r1.height > 0 || r2.width > 0 || r2.height > 0) {
+					g.setColor(Color.gray);
+					g.setClip(r1);
+					g.fill(r1);
+					g.setClip(r2);
+					g.fill(r2);
 				}
 
 				synchronized (offscreen_lock) {
@@ -2168,12 +2035,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					// only on success:
 					update_graphics = false;
 					loader.setMassiveMode(false);
+					if (null != offscreen) offscreen.flush();
 					offscreen = target;
+					DisplayCanvas.this.al_top = al_top;
 
 					offscreen_locked = false;
 					offscreen_lock.notifyAll();
 				}
-
 
 				// signal that the offscreen image is done: repaint
 				new Thread() {
@@ -2192,7 +2060,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						offscreen_lock.notifyAll();
 					}
 				}
-				synchronized (lock) { lock.unlock(); }
 			} catch (Exception e) {
 				new IJError(e);
 				synchronized (offscreen_lock) {
@@ -2201,13 +2068,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						offscreen_lock.notifyAll();
 					}
 				}
-				synchronized (lock) { lock.unlock(); }
 			}
 		}
 	}
 
 	private final void p(final String msg) {
-		//Utils.log2(msg);
+		Utils.log2(msg);
 	}
 
 	// added here to prevent flickering, but doesn't help. All it does is avoid a call to imp.redraw()

@@ -2596,7 +2596,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			gd.addMessage("Choose a layer to act as the zero for the Z coordinates:");
 			Utils.addLayerChoice("Base layer", layer, gd);
 			gd.addChoice("Column separator: ", separators, separators[0]);
-			gd.addNumericField("Layer thickness: ", 0.06, 2);
+			gd.addNumericField("Layer thickness: ", 60, 2); // default: 60 nm
 			gd.addNumericField("Calibration (data to pixels): ", 1, 2);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
