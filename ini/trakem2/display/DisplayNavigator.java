@@ -319,6 +319,8 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	private final Object control_lock = new Object();
 	private boolean controling = false;
 
+	//private final RepaintThread RT = new R
+
 	private class RepaintThread extends Thread {
 
 		private boolean quit = true;
