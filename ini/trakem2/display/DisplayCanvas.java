@@ -61,7 +61,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private FreeHandProfile freehandProfile = null;
 	private Robot r;// used for setting the mouse pointer
 
-	private RepaintThread rt_old = null;
+	//private RepaintThread rt_old = null;
 	/** Any painting operation should wait on this object, set the controling flag to true, and when done set controling to false and controler.notifyAll(). */
 	private final Object controler_ob = new Object();
 	private boolean controling = false;
@@ -124,7 +124,23 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 	private long last_paint = 0;
 
-	private final RepaintThread RT = new RepaintThread();
+	private final RepaintThread RT = new RepaintThread(this);
+	
+private class RepaintThread extends Thread {
+
+	final private Lock lock_event = new Lock();
+	final private Lock lock_paint = new Lock();
+	final protected Lock lock_offs = new Lock();
+	private boolean quit = false;
+	protected java.util.List offs = new LinkedList();
+	private java.util.List events = new LinkedList();
+	private Component target;
+
+	public RepaintThread(Component target) {
+		this.target = target;
+		setPriority(Thread.NORM_PRIORITY);
+		start();
+	}
 
 	private class PaintEvent {
 		Rectangle clipRect;
@@ -135,109 +151,100 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 	}
 
-	private class RepaintThread extends Thread {
-		final private Lock lock_event = new Lock();
-		final private Lock lock_paint = new Lock();
-		final private Lock lock_offs = new Lock();
-		private boolean quit = false;
-		private java.util.List offs = new LinkedList();
-		private java.util.List events = new LinkedList();
-
-		public RepaintThread() {
-			setPriority(Thread.NORM_PRIORITY);
-			start();
+	/** Queue a new request for painting. */
+	public void paint(Rectangle clipRect, boolean update_graphics) {
+		// queue the event
+		synchronized (lock_event) {
+			lock_event.lock();
+			events.add(new PaintEvent(clipRect, update_graphics));
+			lock_event.unlock();
 		}
+		// signal a repaint request
+		synchronized (lock_paint) {
+			lock_paint.notifyAll();
+		}
+	}
 
-		/** Queue a new request for painting. */
-		public void paint(Rectangle clipRect, boolean update_graphics) {
-			// queue the event
+	public void quit() {
+		this.quit = true;
+		synchronized (lock_paint) {
+			lock_paint.notifyAll();
+		}
+	}
+
+	public void run() {
+		while (!quit) {
+			// wait until anyone issues a repaint event
+			synchronized (lock_paint) {
+				try { lock_paint.wait(); } catch (InterruptedException ie) {}
+			}
+
+			if (quit) return; // finish
+
+			// wait a bit to catch fast subsequent events
+			try { Thread.sleep(10); } catch (InterruptedException ie) {}
+
+			// obtain all events up to now and clear the event queue
+			PaintEvent[] pe = null;
 			synchronized (lock_event) {
 				lock_event.lock();
-				events.add(new PaintEvent(clipRect, update_graphics));
+				pe = new PaintEvent[events.size()];
+				events.toArray(pe);
+				events.clear();
 				lock_event.unlock();
 			}
-			// signal a repaint request
-			synchronized (lock_paint) {
-				lock_paint.notifyAll();
+
+			// obtain repaint parameters from merged events
+			Rectangle clipRect = pe[0].clipRect;
+			boolean update_graphics = pe[0].update_graphics;
+			for (int i=1; i<pe.length; i++) {
+				if (null != clipRect) {
+					if (null == pe[i].clipRect) clipRect = null; // all
+					else clipRect.add(pe[i].clipRect);
+				} // else 'null' clipRect means repaint the entire canvas
+				if (!update_graphics) update_graphics = pe[i].update_graphics;
 			}
-		}
 
-		public void quit() {
-			this.quit = true;
-			synchronized (lock_paint) {
-				lock_paint.notifyAll();
+			final int g_width = target.getWidth();
+			final int g_height = target.getHeight();
+
+			// issue an offscreen thread if necessary
+			if (update_graphics) {
+				handleUpdateGraphics(target, clipRect);
 			}
+			// repaint
+			if (null == clipRect) target.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
+			else target.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
 		}
-
-		public void run() {
-			while (!quit) {
-				// wait until anyone issues a repaint event
-				synchronized (lock_paint) {
-					try { lock_paint.wait(); } catch (InterruptedException ie) {}
-				}
-
-				if (quit) return; // finish
-
-				// wait a bit to catch fast subsequent events
-				try { Thread.sleep(10); } catch (InterruptedException ie) {}
-
-				// obtain all events up to now and clear the event queue
-				PaintEvent[] pe = null;
-				synchronized (lock_event) {
-					lock_event.lock();
-					pe = new PaintEvent[events.size()];
-					events.toArray(pe);
-					events.clear();
-					lock_event.unlock();
-				}
-
-				// obtain repaint parameters from merged events
-				Rectangle clipRect = pe[0].clipRect;
-				boolean update_graphics = pe[0].update_graphics;
-				for (int i=1; i<pe.length; i++) {
-					if (null != clipRect) {
-						if (null == pe[i].clipRect) clipRect = null; // all
-						else clipRect.add(pe[i].clipRect);
-					} // else 'null' clipRect means repaint the entire canvas
-					if (!update_graphics) update_graphics = pe[i].update_graphics;
-				}
-
-				final int g_width = getWidth();
-				final int g_height = getHeight();
-
-				// issue an offscreen thread if necessary
-				if (update_graphics) {
-					// cancel previous offscreen threads (will finish only if they have run for long enough)
-					synchronized (lock_offs) {
-						lock_offs.lock();
-						try {
-							int size = offs.size();
-							while (size > 0) {
-								OffscreenThread ot = (OffscreenThread)offs.remove(0);
-								ot.cancel();
-								size--;
-							}
-						} catch (Exception e) {
-							e.printStackTrace(); // should never happen
-						}
-						lock_offs.unlock();
+	}
+		public void handleUpdateGraphics(Component target, Rectangle clipRect) {
+			// cancel previous offscreen threads (will finish only if they have run for long enough)
+			synchronized (lock_offs) {
+				lock_offs.lock();
+				try {
+					int size = offs.size();
+					while (size > 0) {
+						OffscreenThread ot = (OffscreenThread)offs.remove(0);
+						ot.cancel();
+						size--;
 					}
-					// issue new offscreen thread
-					final OffscreenThread off = new OffscreenThread(clipRect, display.getLayer(), g_width, g_height, display.getActive(), display.getChannelAlphas());
-					off.start();
-					// store to be canceled if necessary
-					synchronized (lock_offs) {
-						lock_offs.lock();
-						offs.add(off);
-						lock_offs.unlock();
-					}
+				} catch (Exception e) {
+					e.printStackTrace(); // should never happen
 				}
-				// repaint
-				if (null == clipRect) DisplayCanvas.super.repaint(0, 0, 0, g_width, g_height); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
-				else DisplayCanvas.super.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
+				lock_offs.unlock();
+			}
+			// issue new offscreen thread
+			final OffscreenThread off = new OffscreenThread(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getChannelAlphas());
+			off.start();
+			// store to be canceled if necessary
+			synchronized (lock_offs) {
+				lock_offs.lock();
+				offs.add(off);
+				lock_offs.unlock();
 			}
 		}
 	}
+
 
 
 	private final void setRenderingHints(final Graphics2D g) {
@@ -374,15 +381,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			// restore cursor
 			display.setCursor(Cursor.getDefaultCursor());
 
-			// clean up
-			if (Thread.currentThread().equals(rt_old)) {
-				synchronized (rtl) {
-					rtl.lock();
-					rt_old = null;
-					rtl.unlock();
-				}
-			}
-
 			// Mathias code:
 			if (null != freehandProfile) {
 				freehandProfile.paint(g, magnification, srcRect, true);
@@ -411,7 +409,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		Thread t = null;
 		synchronized (rtl) {
 			rtl.lock();
-			t = rt_old;
+			//t = rt_old; // TODO!!
 			rtl.unlock();
 		}
 		if (null != t) try {
@@ -1399,7 +1397,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	protected void cancelRepaints() {
 		synchronized (rtl) {
 			rtl.lock();
-			if (null != rt_old) rt_old.quit();
+			//if (null != rt_old) rt_old.quit(); // TODO
 			rtl.unlock();
 		}
 	}
@@ -1410,7 +1408,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		// cleanup update graphics thread if any
 		synchronized (rtl) {
 			rtl.lock();
-			if (null != rt_old) {
+			//if (null != rt_old) {
 				/*
 				Thread t = rt_old.offscreen_thread;
 				rt_old.quit();
@@ -1418,7 +1416,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if (null != t) try { t.join(); } catch (InterruptedException ie) {}
 				*/
 				RT.quit();
-			}
+			//}
 			rtl.unlock();
 		}
 		synchronized (offscreen_lock) {
