@@ -24,9 +24,10 @@ package ini.trakem2.display;
 
 import java.awt.Component;
 import java.awt.Rectangle;
-import ini.trakem2.utils.Lock;
 import java.util.LinkedList;
 import java.util.ArrayList;
+import ini.trakem2.utils.Lock;
+import ini.trakem2.utils.Utils;
 
 public abstract class AbstractRepaintThread extends Thread {
 
@@ -108,7 +109,10 @@ public abstract class AbstractRepaintThread extends Thread {
 					events.clear();
 					lock_event.unlock();
 				}
-				if (null == pe || 0 == pe.length) continue; // no events?
+				if (null == pe || 0 == pe.length) {
+					Utils.log2("No repaint events (?)");
+					continue;
+				}
 
 				// obtain repaint parameters from merged events
 				Rectangle clipRect = pe[0].clipRect;
