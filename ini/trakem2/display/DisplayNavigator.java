@@ -56,7 +56,6 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	private int x_p, y_p;
 	private int new_x_old=0, new_y_old=0;
 
-	private UpdateGraphicsThread ugt = null;
 	private final Object updating_ob = new Object();
 	private boolean updating = false;
 
@@ -145,9 +144,8 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		paint(g);
 	}
 
-	private class UpdateGraphicsThread extends Thread {
+	private class UpdateGraphicsThread extends AbstractOffscreenThread {
 
-		private boolean quit = false;
 		private Rectangle clipRect;
 
 		UpdateGraphicsThread(Rectangle clipRect) {
@@ -160,10 +158,6 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					} catch (InterruptedException ie) {}
 				}
 				updating = true;
-				if (null != ugt) {
-					ugt.quit = true;
-				}
-				ugt = this;
 				quit = false;
 				updating = false;
 				updating_ob.notifyAll();
@@ -171,10 +165,6 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 			Thread.yield();
 			setPriority(Thread.NORM_PRIORITY);
 			start();
-		}
-
-		public void quit() {
-			quit = true;
 		}
 
 		/** paint all snapshots, scaled, to an offscreen awt.Image */
@@ -307,40 +297,16 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		g.drawRect((int)(srcRect.x * scale) +1, (int)(srcRect.y * scale) +1, gw, gh);
 	}
 
-
-	private final Object control_lock = new Object();
-	private boolean controling = false;
-
 	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this) {
-		protected void cancelOffs() {
-			// cancel previous offscreen threads (will finish only if they have run for long enough)
-			synchronized (lock_offs) {
-				lock_offs.lock();
-				try {
-					int size = offs.size();
-					while (size > 0) {
-						UpdateGraphicsThread ot = (UpdateGraphicsThread)offs.remove(0);
-						ot.quit();
-						size--;
-					}
-				} catch (Exception e) {
-					e.printStackTrace(); // should never happen
-				}
-				lock_offs.unlock();
-			}
-		}
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
 			try {
+				// Signal previous offscreen threads to quit
 				cancelOffs();
 				// issue new offscreen thread
 				final UpdateGraphicsThread off = new UpdateGraphicsThread(clipRect);
 				// store to be canceled if necessary
-				synchronized (lock_offs) {
-					lock_offs.lock();
-					try { offs.add(off); } catch (Exception ee) { ee.printStackTrace(); }
-					lock_offs.unlock();
-				}
+				add(off);
 			} catch (Exception e) {
 				new IJError(e);
 			}
@@ -400,7 +366,6 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		synchronized (updating_ob) {
 			while (updating) try { updating_ob.wait(); } catch (InterruptedException ie) {}
 			updating = true;
-			if (null != ugt) ugt.quit();
 			RT.quit();
 			updating = false;
 			updating_ob.notifyAll();

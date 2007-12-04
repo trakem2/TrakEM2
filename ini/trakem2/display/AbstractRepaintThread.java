@@ -33,9 +33,9 @@ public abstract class AbstractRepaintThread extends Thread {
 
 	final private Lock lock_event = new Lock();
 	final private Lock lock_paint = new Lock();
-	final protected Lock lock_offs = new Lock();
+	final private Lock lock_offs = new Lock();
 	private boolean quit = false;
-	protected java.util.List<Thread> offs = new LinkedList<Thread>();
+	private java.util.List<AbstractOffscreenThread> offs = new LinkedList<AbstractOffscreenThread>();
 	private java.util.List<PaintEvent> events = new LinkedList<PaintEvent>();
 	private Component target;
 
@@ -73,6 +73,7 @@ public abstract class AbstractRepaintThread extends Thread {
 		}
 	}
 
+	/** Will gracefully kill this thread by breaking its infinite wait-for-event loop, and also call cancel on all registered offscreen threads. */
 	public void quit() {
 		this.quit = true;
 		// notify and finish
@@ -82,7 +83,32 @@ public abstract class AbstractRepaintThread extends Thread {
 	}
 
 	/** Cancel all offscreen threads. */
-	abstract protected void cancelOffs();
+	protected void cancelOffs() {
+		// cancel previous offscreen threads (will finish only if they have run for long enough)
+		synchronized (lock_offs) {
+			lock_offs.lock();
+			try {
+				int size = offs.size();
+				while (size > 0) {
+					AbstractOffscreenThread off = offs.remove(0);
+					off.cancel();
+					size--;
+				}
+			} catch (Exception e) {
+				e.printStackTrace(); // should never happen
+			}
+			lock_offs.unlock();
+		}
+	}
+
+	/** Add a new offscreen thread to the list, for its eventual cancelation if necessary. */
+	protected void add(AbstractOffscreenThread off) {
+		synchronized (lock_offs) {
+			lock_offs.lock();
+			try { offs.add(off); } catch (Exception ee) { ee.printStackTrace(); }
+			lock_offs.unlock();
+		}
+	}
 
 	public void run() {
 		while (!quit) {
@@ -93,7 +119,7 @@ public abstract class AbstractRepaintThread extends Thread {
 				}
 
 				if (quit) {
-					cancelOffs();
+					cancelOffs(); // here and not in the quit() method, so that if the quit keyword is modified by any means, registered offscreen threads will still be canceled.
 					return; // finish
 				}
 
