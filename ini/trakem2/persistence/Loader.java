@@ -2199,6 +2199,8 @@ abstract public class Loader {
 
 	/** Set massive mode if not much is cached of the new layer given for loading. */
 	public void prepare(Layer layer) {
+		/* // this piece of ancient code is doing more harm than good
+
 		ArrayList al = layer.getDisplayables();
 		long[] ids = new long[al.size()];
 		int next = 0;
@@ -2211,17 +2213,6 @@ abstract public class Loader {
 
 		int n_cached = 0;
 		double area = 0;
-		/* // ignoring, usage will decide, don't slow down layer switching anymore
-		Image snap = null; // snaps are flushed the latest
-		for (int i=0; i<next; i++) {
-			awts.get(ids[i]); // put at the end if there
-			imps.get(ids[i]); // put at the end if there
-			if (null != (snap = snaps.get(ids[i]))) { // put the existing (cached) ImagePlus at the end, so they'll be flushed latest
-				area += (snap.getWidth(null) / Snapshot.SCALE) * (snap.getHeight(null) / Snapshot.SCALE);
-				n_cached++;
-			}
-		}
-		*/
 		if (0 == next) return; // no need
 		else if (n_cached > 0) { // make no assumptions on image compression, assume 8-bit though
 			long estimate = (long)(((area / n_cached) * next * 8) / 1024.0D); // 'next' is total
@@ -2229,6 +2220,8 @@ abstract public class Loader {
 				setMassiveMode(true);//massive_mode = true;
 			}
 		} else setMassiveMode(false); //massive_mode = true; // nothing loaded, so no clue, set it to load fast by flushing fast.
+
+		*/
 	}
 
 	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */

@@ -121,6 +121,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 	private long last_paint = 0;
 
+	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this) {
 		protected void cancelOffs() {
 			// cancel previous offscreen threads (will finish only if they have run for long enough)
@@ -141,14 +142,18 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
 			cancelOffs();
-			// issue new offscreen thread
-			final OffscreenThread off = new OffscreenThread(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getChannelAlphas());
-			off.start();
-			// store to be canceled if necessary
-			synchronized (lock_offs) {
-				lock_offs.lock();
-				offs.add(off);
-				lock_offs.unlock();
+			try {
+				// issue new offscreen thread
+				final OffscreenThread off = new OffscreenThread(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getChannelAlphas());
+				off.start();
+				// store to be canceled if necessary
+				synchronized (lock_offs) {
+					lock_offs.lock();
+					try { offs.add(off); } catch (Exception ee) { ee.printStackTrace(); }
+					lock_offs.unlock();
+				}
+			} catch (Exception e) {
+				new IJError(e);
 			}
 		}
 	};
@@ -1969,7 +1974,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	private final void p(final String msg) {
-		Utils.log2(msg);
+		//Utils.log2(msg);
 	}
 
 	// added here to prevent flickering, but doesn't help. All it does is avoid a call to imp.redraw()

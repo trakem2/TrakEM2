@@ -311,6 +311,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	private final Object control_lock = new Object();
 	private boolean controling = false;
 
+	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this) {
 		protected void cancelOffs() {
 			// cancel previous offscreen threads (will finish only if they have run for long enough)
@@ -330,14 +331,18 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 			}
 		}
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
-			cancelOffs();
-			// issue new offscreen thread
-			final UpdateGraphicsThread off = new UpdateGraphicsThread(clipRect);
-			// store to be canceled if necessary
-			synchronized (lock_offs) {
-				lock_offs.lock();
-				offs.add(off);
-				lock_offs.unlock();
+			try {
+				cancelOffs();
+				// issue new offscreen thread
+				final UpdateGraphicsThread off = new UpdateGraphicsThread(clipRect);
+				// store to be canceled if necessary
+				synchronized (lock_offs) {
+					lock_offs.lock();
+					try { offs.add(off); } catch (Exception ee) { ee.printStackTrace(); }
+					lock_offs.unlock();
+				}
+			} catch (Exception e) {
+				new IJError(e);
 			}
 		}
 	};
