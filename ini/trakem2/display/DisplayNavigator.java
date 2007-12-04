@@ -276,7 +276,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					}
 				}
 				// finally, when done, call repaint (like sending an event)
-				RT.paint(clipRect);
+				RT.paint(clipRect, false);
 			} catch (Exception e) {
 				new IJError(e);
 			}

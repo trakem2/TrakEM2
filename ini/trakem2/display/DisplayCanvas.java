@@ -141,8 +141,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 		}
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
-			cancelOffs();
 			try {
+				cancelOffs();
 				// issue new offscreen thread
 				final OffscreenThread off = new OffscreenThread(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getChannelAlphas());
 				off.start();
