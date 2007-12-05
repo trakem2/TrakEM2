@@ -110,6 +110,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -3187,6 +3188,9 @@ abstract public class Loader {
 	/** Returns null unless overriden. This is intended for FSLoader projects. */
 	public String getPath(final Patch patch) { return null; }
 
+	/** Returns null unless overriden. This is intended for FSLoader projects. */
+	public String getAbsolutePath(final Patch patch) { return null; }
+
 	/** Does nothing unless overriden. */
 	public void setupMenuItems(final JMenu menu, final Project project) {}
 
@@ -3381,13 +3385,27 @@ abstract public class Loader {
 	/** Fixes paths before presenting them to the file system, in an OS-dependent manner. */
 	protected final ImagePlus openImage(String path) {
 		// supporting samba networks
-		if (IJ.isWindows() && path.startsWith("//")) {
+		if (path.startsWith("//")) {
 			path = path.replace('/', '\\');
 		}
 		// debug:
 		Utils.log2("opening image " + path);
 		//Utils.printCaller(this, 7);
 		return opener.openImage(path);
+	}
+
+	/** Equivalent to File.getName() */
+	protected final String getFileName(Patch p) {
+		final String path = getAbsolutePath(p); // with -----#slice removed
+		if (null == path) return null;
+		int i = path.length() -1;
+		while (i > -1) {
+			if ('/' == path.charAt(i)) {
+				break;
+			}
+			i--;
+		}
+		return path.substring(i+1);
 	}
 
 	/** Check if an awt exists to paint as a snap. */

@@ -238,7 +238,7 @@ public class DTDParser {
 	}
 
 	/** Parses a chunk of text into a hierarchy of TemplateThing instances, the roots of which are in the returned array. */
-	static private TemplateThing[] parseDTD(StringBuffer data) {
+	static public TemplateThing[] parseDTD(StringBuffer data) {
 		// debug:
 		// Utils.log(data.toString());
 

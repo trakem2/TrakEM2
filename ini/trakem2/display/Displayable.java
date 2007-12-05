@@ -1067,7 +1067,12 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Performs a deep copy of this object. */
-	abstract public Object clone();
+	public Object clone() {
+		return clone(this.project);
+	}
+
+	/** Performs a deep copy of this object but assigning to it the given project. */
+	abstract public Displayable clone(Project pr);
 
 	public LayerSet getLayerSet() {
 		if (null != layer) return layer.getParent();

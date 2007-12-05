@@ -591,8 +591,8 @@ public class Patch extends Displayable {
 		;
 	}
 
-	/** Performs a deep copy of this object, without the links, unlocked and visible; the image will be duplicated and asked to be saved; if not saved this method returns null. */
-	public Object clone() {
+	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. */
+	public Displayable clone(Project project) {
 		final Patch copy = new Patch(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.alpha = this.alpha;
@@ -600,30 +600,8 @@ public class Patch extends Displayable {
 		copy.channels = this.channels;
 		copy.min = this.min;
 		copy.max = this.max;
-		// duplicate the image
-		final ImagePlus imp = project.getLoader().fetchImagePlus(this);
-		if (null == imp) return null;
-		final ImagePlus imp_copy = new ImagePlus(imp.getTitle(), imp.getProcessor().duplicate());
-		copy.project.getLoader().cache(copy, imp_copy);
-		//
 		copy.addToDatabase();
-		try {
-			if (!copy.updateInDatabase("tiff_working")) { // save the image somewhere, as a copy with a timestamp
-				// ask to save the image somewhere
-				java.io.File f = Utils.chooseFile(imp.getTitle(), null); // prevents overwriting
-				if (null == f) return null;
-				else {
-					String path =  project.getLoader().exportImage(copy, f.getAbsolutePath(), true);
-					if (null == path) return null;
-				}
-			}
-			// the snapshot has been already created in the Displayable constructor, but needs updating
-			snapshot.remake();
-		} catch (Exception e) {
-			new IJError(e);
-			return null;
-		}
-
+		project.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 		return copy;
 	}
 }

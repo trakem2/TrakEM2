@@ -682,7 +682,7 @@ public class FSLoader extends Loader {
 		return true;
 	}
 
-	private String getAbsolutePath(final Patch patch) {
+	public String getAbsolutePath(final Patch patch) {
 		Object ob = ht_paths.get(patch);
 		if (null == ob) return null;
 		String path = (String)ob;
@@ -693,7 +693,7 @@ public class FSLoader extends Loader {
 			slice = path.substring(i_sl);
 			path = path.substring(0, i_sl);
 		}
-		if ((!IJ.isWindows() && 0 != path.indexOf('/')) || (IJ.isWindows() && 1 != path.indexOf(":/"))) {
+		if (((!IJ.isWindows() && 0 != path.indexOf('/')) || (IJ.isWindows() && 1 != path.indexOf(":/"))) && 0 != path.indexOf("http://") && 0 != path.indexOf("//")) { // "//" is for Samba networks (since the \\ has been converted to // before)
 			// path is relative
 			File fxml = new File(project_xml_path);
 			String parent_dir = fxml.getParent().replace('\\', '/');
@@ -881,7 +881,7 @@ public class FSLoader extends Loader {
 				String iname = vs.getFileName(i);
 				patch_path = vs_dir + iname;
 				releaseMemory();
-				imp_patch_i = opener.openImage(vs_dir, iname);
+				imp_patch_i = openImage(patch_path);
 			} else {
 				ImageProcessor ip = imp_stack.getStack().getProcessor(i);
 				if (as_copy) ip = ip.duplicate();
@@ -1400,7 +1400,7 @@ public class FSLoader extends Loader {
 			// TODO should wait if the file is currently being generated
 			//  (it's somewhat handled by a double-try to open the jpeg image)
 
-			String path = dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg";
+			String path = dir_mipmaps + level + "/" + getFileName(patch) + "." + patch.getId() + ".jpg";
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:
 				case ImagePlus.GRAY8:

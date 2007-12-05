@@ -1502,7 +1502,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public Object clone() {
+	public Displayable clone(Project project) {
 		final Pipe copy = new Pipe(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data

@@ -369,7 +369,7 @@ public class Dissector extends ZDisplayable {
 	}
 
 	/** Returns a deep copy. */
-	public Object clone() {
+	public Displayable clone(Project project) {
 		// TODO
 		Utils.log2("Cloning a Dissector not implemented yet.");
 		return null;

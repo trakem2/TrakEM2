@@ -2034,6 +2034,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			popup.add(menu);
 			menu = new JMenu("Project");
 			this.project.getLoader().setupMenuItems(menu, this.getProject());
+			item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
+			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
 			if (menu.getItemCount() > 0) popup.add(menu);
 			menu = new JMenu("Selection");
 			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
@@ -2842,6 +2844,22 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Layer[] la = new Layer[list.size()];
 			list.toArray(la);
 			project.getLoader().homogenizeContrast(la);
+		} else if (command.equals("Create subproject")) {
+			Roi roi = canvas.getFakeImagePlus().getRoi();
+			if (null == roi) return;
+			Layer first, last;
+			if (1 == layer.getParent().size()) {
+				first = last = layer;
+			} else {
+				GenericDialog gd = new GenericDialog("Choose layer range");
+				Utils.addLayerRangeChoices(layer, gd);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				first = layer.getParent().getLayer(gd.getNextChoiceIndex());
+				last = layer.getParent().getLayer(gd.getNextChoiceIndex());
+			}
+			Project sub = getProject().createSubproject(roi.getBounds(), first, last);
+			new Display(sub, sub.getRootLayerSet().getLayer(0));
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}

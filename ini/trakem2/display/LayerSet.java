@@ -810,8 +810,9 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return -1 != al_zdispl.indexOf(zdispl);
 	}
 
+	/** Returns a copy of the layer list. */
 	public ArrayList getLayers() {
-		return al_layers;
+		return (ArrayList)al_layers.clone(); // for and integrity and safety
 	}
 
 	public boolean isDeletable() {
@@ -1366,9 +1367,31 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return true;
 	}
 
-	/** Always returns null. */
-	public Object clone() {
-		return null;
+	public Displayable clone(Project project) {
+		return clone(project, (Layer)al_layers.get(0), (Layer)al_layers.get(al_layers.size()-1), new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight())), false);
+	}
+
+	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle. */
+	public Displayable clone(Project project, Layer first, Layer last, Rectangle roi, boolean add_to_tree) {
+		// obtain a LayerSet
+		LayerSet target = null;
+		if (null == this.layer) {
+			// copy into the exisiting root layer set
+			target = project.getRootLayerSet();
+			target.setDimensions(roi.width, roi.height, LayerSet.NORTHWEST);
+		} else {
+			target = new LayerSet(project, getTitle(), 0, 0, null, layer_width, layer_height);
+		}
+		target.setCalibration(getCalibrationCopy());
+		// copy into the target LayerSet the range of layers
+		final java.util.List al = ((ArrayList)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
+		for (Iterator it = al.iterator(); it.hasNext(); ) {
+			Layer source = (Layer)it.next();
+			Layer copy = source.clone(project, target, roi);
+			target.addSilently(copy);
+			if (add_to_tree) project.getLayerTree().addLayer(target, copy);
+		}
+		return (Displayable)target;
 	}
 
 	public LayerStack makeLayerStack(Display display) {
@@ -1387,7 +1410,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	public int getPixelsDimension() { return max_dimension; }
 	public void setPixelsDimension(int d) {
-
+		// TODO
 	}
 
 	public void setPixelsVirtualizationEnabled(boolean b) { this.virtualization_enabled = b; }

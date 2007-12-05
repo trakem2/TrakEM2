@@ -709,7 +709,7 @@ public class Ball extends ZDisplayable {
 	}
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public Object clone() {
+	public Displayable clone(Project project) {
 		final Ball copy = new Ball(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
 		// links are left null
 		// The data:

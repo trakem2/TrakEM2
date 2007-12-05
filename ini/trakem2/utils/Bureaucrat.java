@@ -36,6 +36,7 @@ public class Bureaucrat extends Thread {
 
 	/** Registers itself in the project loader job queue. */
 	public Bureaucrat(Worker worker, Project project) {
+		Utils.printCaller(this, 4);
 		this.worker = worker;
 		this.project = project;
 		onset = System.currentTimeMillis();

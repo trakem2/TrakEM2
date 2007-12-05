@@ -393,10 +393,22 @@ public class Layer extends DBObject {
 
 	/** Find the Displayable objects that contains the point. */
 	public ArrayList find(int x, int y) {
-		ArrayList al = new ArrayList();
+		final ArrayList al = new ArrayList();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Displayable d = (Displayable)al_displayables.get(i);
 			if (d.contains(x, y)) {
+				al.add(d);
+			}
+		}
+		return al;
+	}
+
+	/** Find the Displayable objects that intersect with the rectangle. */
+	public ArrayList find(final Rectangle r) {
+		final ArrayList al = new ArrayList();
+		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			if (d.getBoundingBox().intersects(r)) {
 				al.add(d);
 			}
 		}
@@ -616,12 +628,26 @@ public class Layer extends DBObject {
 
 	/** Preconcatenate the given AffineTransform to all Displayable objects of class c, without respecting their links. */
 	public void apply(final Class c, final AffineTransform at) {
+		boolean all = c.equals(Displayable.class);
 		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 			final Displayable d = (Displayable)it.next();
-			if (d.getClass().equals(c)) {
+			if (all || d.getClass().equals(c)) {
 				d.getAffineTransform().preConcatenate(at);
 				d.updateInDatabase("transform");
 			}
 		}
+	}
+
+	/** Make a copy of this layer into the given LayerSet, enclosing only Displayable objects within the roi, and translating them for that roi x,y. */
+	public Layer clone(final Project pr, LayerSet ls, final Rectangle roi) {
+		final Layer clone = new Layer(pr, z, thickness, ls);
+		for (Iterator it = find(roi).iterator(); it.hasNext(); ) {
+			Displayable copy = ((Displayable)it.next()).clone(pr);
+			if (null != copy) clone.addSilently(copy); // Dissector.clone is not implemented yet, and LayerSet can't be cloned so far
+		}
+		final AffineTransform transform = new AffineTransform();
+		transform.translate(-roi.x, -roi.y);
+		clone.apply(Displayable.class, transform);
+		return clone;
 	}
 }

@@ -33,6 +33,7 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.DBLoader;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.tree.DTDParser;
 import ini.trakem2.tree.DNDTree;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.tree.LayerTree;
@@ -272,8 +273,14 @@ public class Project extends DBObject {
 		return project;
 	}
 
+
 	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for. */
 	static public Project newFSProject(String arg) {
+		return newFSProject(arg, null);
+	}
+
+	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for; if template_root is not null that is used; else, a template file is asked for. */
+	static public Project newFSProject(String arg, TemplateThing template_root) {
 		if (Utils.wrongImageJVersion()) return null;
 		try {
 			DirectoryChooser dc = new DirectoryChooser("Select storage folder");
@@ -281,7 +288,7 @@ public class Project extends DBObject {
 			if (null == dir_project) return null;
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
-			Project project = createNewProject(loader, arg == null || !arg.equals("blank"));
+			Project project = createNewProject(loader, arg == null || !arg.equals("blank"), template_root);
 			// help the helpless users:
 			if (null != project && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Creating automatic Display.");
@@ -303,6 +310,15 @@ public class Project extends DBObject {
 			new IJError(e);
 		}
 		return null;
+	}
+
+	/** Create a new Project using the given project as template. This means the DTD of the given project is copied, as well as the storage and mipmaps folders; everything else is empty in the new project. */
+	static public Project newFSProject(Project pr) {
+		StringBuffer sb = new StringBuffer();
+		pr.exportDTD(sb, new HashSet(), "");
+		TemplateThing[] roots = DTDParser.parseDTD(sb);
+		FSLoader loader = new FSLoader(pr.getLoader().getStorageFolder());
+		return Project.createNewProject(loader, false, roots[0]);
 	}
 
 	/** Opens a project from an .xml file. If the path is null it'll be asked for.*/
@@ -389,10 +405,13 @@ public class Project extends DBObject {
 	}
 
 	static private Project createNewProject(Loader loader, boolean ask_for_template) {
+		return createNewProject(loader, ask_for_template, null);
+	}
+
+	static private Project createNewProject(Loader loader, boolean ask_for_template, TemplateThing template_root) {
 		Project project = new Project(loader);
 		// ask for an XML properties file that defines the Thing objects that can be created
 		// (the XML file will be parsed into a TemplateTree filled with TemplateThing objects)
-		TemplateThing template_root = null;
 		//Utils.log2("ask_for_template: " + ask_for_template);
 		if (ask_for_template) template_root = project.loader.askForXMLTemplate(project);
 		if (null == template_root) {
@@ -865,5 +884,13 @@ public class Project extends DBObject {
 
 	public boolean isInputEnabled() {
 		return !input_disabled;
+	}
+
+	/** Create a new subproject for the given layer range and ROI. */
+	public Project createSubproject(final Rectangle roi, final Layer first, final Layer last) {
+		// make a new project using the given one as template
+		final Project pr = Project.newFSProject(first.getProject());
+		first.getParent().clone(pr, first, last, roi, true); // this is a "clone into" operation
+		return pr;
 	}
 }

@@ -809,7 +809,7 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public Object clone() {
+	public  Displayable clone(Project project) {
 		final ArrayList al_ul = new ArrayList();
 		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
 			al_ul.add(new Long(((Long)it.next()).longValue())); // clones of the Long that wrap layer ids
