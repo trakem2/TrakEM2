@@ -130,7 +130,9 @@ public class ImageSaver {
 		if (!new File(path).exists()) return null;
 		FileInputStream f = new FileInputStream(path);
 		JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, JPEGDecodeParam.COLOR_ID_GRAY));
-		return decoder.decodeAsBufferedImage();
+		BufferedImage bi = decoder.decodeAsBufferedImage();
+		f.close();
+		return bi;
 	}
 
 	/** Returns true on success.<br />
