@@ -2165,6 +2165,9 @@ abstract public class Loader {
 					MultiThreading.startAndJoin(threads);
 					/////////////////////////
 
+					base_layer.getParent().setMinimumDimensions();
+					Display.repaint(base_layer.getParent());
+
 				} catch (Exception e) {
 					new IJError(e);
 				}
