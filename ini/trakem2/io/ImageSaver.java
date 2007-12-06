@@ -44,7 +44,7 @@ public class ImageSaver {
 	/** Will create parent directories if they don't exist.<br />
 	 *  Returns false if the path is unusable.
 	 */
-	static private boolean checkPath(final String path) {
+	static private final boolean checkPath(final String path) {
 		if (null == path) {
 			Utils.log("Null path, can't save.");
 			return false;
@@ -65,7 +65,7 @@ public class ImageSaver {
 	/** Returns true on success.<br />
 	 *  Core functionality adapted from ij.plugin.JpegWriter class by Wayne Rasband.
 	 */
-	static public boolean saveAsJpeg(final ImageProcessor ip, final String path, float quality, boolean as_grey) {
+	static public final boolean saveAsJpeg(final ImageProcessor ip, final String path, float quality, boolean as_grey) {
 		// safety checks
 		if (null == ip) {
 			Utils.log("Null ip, can't saveAsJpeg");
@@ -89,12 +89,12 @@ public class ImageSaver {
 			} else {
 				bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
 			}
-			FileOutputStream f = new FileOutputStream(path);
-			Graphics g = bi.createGraphics();
+			final FileOutputStream f = new FileOutputStream(path);
+			final Graphics g = bi.createGraphics();
 			g.drawImage(ip.createImage(), 0, 0, null);
 			g.dispose();
-			JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(f);
-			JPEGEncodeParam param = encoder.getDefaultJPEGEncodeParam(bi);
+			final JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(f);
+			final JPEGEncodeParam param = encoder.getDefaultJPEGEncodeParam(bi);
 			param.setQuality(quality, true);
 			encoder.encode(bi, param);
 			f.close();
@@ -108,7 +108,7 @@ public class ImageSaver {
 	/** Open a jpeg image that is known to be grayscale.<br />
 	 *  This method avoids having to open it as int[] (4 times as big!) and then convert it to grayscale by looping through all its pixels and comparing if all three channels are the same (which, least you don't know, is what ImageJ 139j and before does).
 	 */
-	static public BufferedImage openGreyJpeg(final String path) {
+	static public final BufferedImage openGreyJpeg(final String path) {
 		try {
 			return openGreyJpeg2(path);
 		} catch (FileNotFoundException fnfe) {
@@ -117,7 +117,7 @@ public class ImageSaver {
 			Utils.log2("JPEG Decoder failed for " + path);
 			// the file might have been generated while trying to read it. So try once more
 			try {
-				Thread.sleep(100);
+				Thread.sleep(50);
 				return openGreyJpeg2(path);
 			} catch (Exception e2) {
 				new IJError(e2);
@@ -126,11 +126,11 @@ public class ImageSaver {
 		}
 	}
 
-	static private BufferedImage openGreyJpeg2(final String path) throws Exception {
+	static private final BufferedImage openGreyJpeg2(final String path) throws Exception {
 		if (!new File(path).exists()) return null;
 		FileInputStream f = new FileInputStream(path);
-		JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, JPEGDecodeParam.COLOR_ID_GRAY));
-		BufferedImage bi = decoder.decodeAsBufferedImage();
+		final JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, JPEGDecodeParam.COLOR_ID_GRAY));
+		final BufferedImage bi = decoder.decodeAsBufferedImage();
 		f.close();
 		return bi;
 	}
@@ -138,7 +138,7 @@ public class ImageSaver {
 	/** Returns true on success.<br />
 	 *  Core functionality adapted from ij.io.FileSaver class by Wayne Rasband.
 	 */
-	static public boolean saveAsZip(final ImagePlus imp, String path) {
+	static public final boolean saveAsZip(final ImagePlus imp, String path) {
 		// safety checks
 		if (null == imp) {
 			Utils.log("Null imp, can't saveAsZip");
@@ -172,9 +172,9 @@ public class ImageSaver {
 	}
 
 	/** Returns a string containing information about the specified  image. */
-	static public String getDescriptionString(final ImagePlus imp, final FileInfo fi) {
-		Calibration cal = imp.getCalibration();
-		StringBuffer sb = new StringBuffer(100);
+	static public final String getDescriptionString(final ImagePlus imp, final FileInfo fi) {
+		final Calibration cal = imp.getCalibration();
+		final StringBuffer sb = new StringBuffer(100);
 		sb.append("ImageJ="+ImageJ.VERSION+"\n");
 		if (fi.nImages>1 && fi.fileType!=FileInfo.RGB48)
 			sb.append("images="+fi.nImages+"\n");
@@ -221,11 +221,11 @@ public class ImageSaver {
 		}
 		
 		// get min and max display values
-		ImageProcessor ip = imp.getProcessor();
-		double min = ip.getMin();
-		double max = ip.getMax();
-		int type = imp.getType();
-		boolean enhancedLut = (type==ImagePlus.GRAY8 || type==ImagePlus.COLOR_256) && (min!=0.0 || max !=255.0);
+		final ImageProcessor ip = imp.getProcessor();
+		final double min = ip.getMin();
+		final double max = ip.getMax();
+		final int type = imp.getType();
+		final boolean enhancedLut = (type==ImagePlus.GRAY8 || type==ImagePlus.COLOR_256) && (min!=0.0 || max !=255.0);
 		if (enhancedLut || type==ImagePlus.GRAY16 || type==ImagePlus.GRAY32) {
 			sb.append("min="+min+"\n");
 			sb.append("max="+max+"\n");
