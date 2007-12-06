@@ -103,19 +103,14 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.lang.reflect.Method;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.HashSet;
+import java.util.Set;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Vector;
 import java.util.zip.ZipEntry;
@@ -2017,6 +2012,25 @@ abstract public class Loader {
 		if (null == abs_text_file_path || null == column_separator) {
 			return null;
 		}
+		GenericDialog gd = new GenericDialog("Options");
+		gd.addMessage("For all touched layers:");
+		gd.addCheckbox("Homogenize histograms", true);
+		gd.addCheckbox("Register tiles", true);
+		gd.addCheckbox("With overlapping tiles only", true);
+		final Component[] c = {
+			(Component)gd.getCheckboxes().get(2)
+		};
+		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(1), c, null);
+		gd.addCheckbox("Register all layers", true);
+		gd.showDialog();
+		if (gd.wasCanceled()) return null;
+		final boolean homogenize_contrast = gd.getNextBoolean();
+		final boolean register_tiles = gd.getNextBoolean();
+		final boolean overlapping_only = gd.getNextBoolean();
+		final boolean register_layers = gd.getNextBoolean();
+		final Set touched_layers = Collections.synchronizedSet(new HashSet());
+		gd = null;
+
 		final Worker worker = new Worker("Importing images") {
 			public void run() {
 				startedWorking();
@@ -2132,6 +2146,7 @@ abstract public class Loader {
 							try {
 								lock.lock();
 								layer = layer_set.getLayer(z, layer_thickness, true); // will create a new Layer if necessary
+								touched_layers.add(layer);
 								patch = new Patch(layer.getProject(), imp.getTitle(), x, y, imp);
 								addedPatchFrom(path, patch);
 								lock.unlock();
@@ -2167,6 +2182,22 @@ abstract public class Loader {
 
 					base_layer.getParent().setMinimumDimensions();
 					Display.repaint(base_layer.getParent());
+
+					final Layer[] la = new Layer[touched_layers.size()];
+					touched_layers.toArray(la);
+
+					if (homogenize_contrast) {
+						Thread t = homogenizeContrast(la); // multithreaded
+						if (null != t) t.join();
+					}
+					if (register_tiles) {
+						Registration.registerTilesSIFT(la, overlapping_only);
+					}
+					if (register_layers) {
+						LayerSet ls = base_layer.getParent();
+						Thread t = Registration.registerLayers(ls, 0, 0, ls.size()-1, false);
+						if (null != t) t.join();
+					}
 
 				} catch (Exception e) {
 					new IJError(e);

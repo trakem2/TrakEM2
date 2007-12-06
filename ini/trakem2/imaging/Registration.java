@@ -118,7 +118,7 @@ public class Registration {
 	 */
 	static public Bureaucrat registerLayers(final LayerSet layer_set, final int first, final int start, final int last, final boolean propagate) {
 		// check preconditions
-		if (null == layer_set || first > start || first > last || start > last || last > layer_set.size()) {
+		if (null == layer_set || first > start || first > last || start > last || last >= layer_set.size()) {
 			Utils.log2("Registration.registerLayers: invalid parameters: " + layer_set + ", first: " + first + ", start: " + start + ", last" + last);
 			return null;
 		}
@@ -672,5 +672,20 @@ public class Registration {
 			moving.translate(x2 - box.x, y2 - box.y); // considers links
 		}
 		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
+	}
+
+	/** Single-threaded: one layer after the other, to avoid memory saturation. The feature finding with SIFT is multithreaded.
+	 * If position_as_hint is true, then each tile will only try to find feature correspondences
+	 * with overlapping tiles.
+	 *
+	 */
+	static public void registerTilesSIFT(final Layer[] layer, final boolean overlapping_only) {
+		// for each layer
+		//    1 - find potential tile correspondences (all, or overlapping_only)
+		//        - if no matches, then
+		//            - if overlapping_only, preserve relative position to neighboring tiles
+		//            - else ? (Discard tile somehow)
+		//    2 - apply optimizer
+		Utils.log("registerTilesSIFT: not implemented yet.");
 	}
 }
