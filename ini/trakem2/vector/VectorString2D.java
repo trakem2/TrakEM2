@@ -274,11 +274,17 @@ public class VectorString2D {
 
 		// see whether the subsampling terminated too early, and fill with a line of points.
 		// TODO this is sort of a patch. Why didn't j overcome the last point is not resolved.
-		dist1 = Math.sqrt((x[0] - ps_x[j-1])*(x[0] - ps_x[j-1]) + (y[0] - ps_y[j-1])*(y[0] - ps_y[j-1]));
+		double lastx = x[0];
+		double lasty = y[0];
+		if (!closed) {
+			lastx = x[p_length -1];
+			lasty = y[p_length -1];
+		}
+		dist1 = Math.sqrt((lastx - ps_x[j-1])*(lastx - ps_x[j-1]) + (lasty - ps_y[j-1])*(lasty - ps_y[j-1]));
 		if (dist1 > delta*1.2) {
 			// TODO needs revision
 			System.out.println("resampling terminated too early. Why?");
-			angleXY = Utils.getAngle(x[0] - ps_x[j-1], y[0] - ps_y[j-1]);
+			angleXY = Utils.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
 			dx = Math.cos(angleXY) * delta;
 			dy = Math.sin(angleXY) * delta;
 			while (dist1 > delta*1.2) {//added 1.2 to prevent last point from being generated too close to the first point
@@ -297,11 +303,11 @@ public class VectorString2D {
 				v_x[j] = dx;
 				v_y[j] = dy;
 				j++;
-				dist1 = Math.sqrt((x[0] - ps_x[j-1])*(x[0] - ps_x[j-1]) + (y[0] - ps_y[j-1])*(y[0] - ps_y[j-1]));
+				dist1 = Math.sqrt((lastx - ps_x[j-1])*(lastx - ps_x[j-1]) + (lasty - ps_y[j-1])*(lasty - ps_y[j-1]));
 			}
 		}
-		// set vector 0 to be the vector from the last point to the first
-		angleXY = Utils.getAngle(x[0] - ps_x[j-1], y[0] - ps_y[j-1]);
+		// set vector 0 to be the vector from the last point to the first // TODO also for non-closed?
+		angleXY = Utils.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
 		//v_x[0] = Math.cos(angle) * delta;
 		//v_y[0] = Math.sin(angle) * delta; // can't use delta, it may be too long and thus overtake the first point!
 		v_x[0] = Math.cos(angleXY) * dist1;
