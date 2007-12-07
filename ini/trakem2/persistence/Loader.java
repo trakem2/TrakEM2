@@ -2187,13 +2187,16 @@ abstract public class Loader {
 					touched_layers.toArray(la);
 
 					if (homogenize_contrast) {
+						// layer-wise (layer order is irrelevant):
 						Thread t = homogenizeContrast(la); // multithreaded
 						if (null != t) t.join();
 					}
 					if (register_tiles) {
+						// layer-wise (within a layer; thus layer order is irrelevant):
 						Registration.registerTilesSIFT(la, overlapping_only);
 					}
 					if (register_layers) {
+						// sequential, from first to last:
 						LayerSet ls = base_layer.getParent();
 						Thread t = Registration.registerLayers(ls, 0, 0, ls.size()-1, false);
 						if (null != t) t.join();

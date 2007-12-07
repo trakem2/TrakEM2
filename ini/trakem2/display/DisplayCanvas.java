@@ -147,7 +147,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	public void setMagnification(double mag) {
 		// ensure a stroke of thickness 1.0 regardless of magnification
 		this.stroke = new BasicStroke((float)(1.0/mag), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
-		super.setMagnification(mag);
+		// FIXES MAG TO ImageCanvas.zoomLevel LIMITS!!
+		//super.setMagnification(mag);
+		// So, manually:
+		this.magnification = mag;
+		imp.setTitle(imp.getTitle());
 	}
 
 	/** Paint lines always with a thickness of 1 pixel. This stroke is modified when the magnification is changed, to compensate. */
@@ -942,7 +946,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		// there's no call to the non-exisiting ImageWindow
 		if (magnification >= 32)
 			return;
-		double newMag = getHigherZoomLevel(magnification);
+		double newMag = getHigherZoomLevel2(magnification);
 		int newWidth = (int) (imageWidth * newMag);
 		int newHeight = (int) (imageHeight * newMag);
 		/*
@@ -995,9 +999,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	 * the window smaller.
 	 */
 	private void zoomOut2(int x, int y) {
-		if (magnification <= 0.03125)
-			return;
-		double newMag = getLowerZoomLevel(magnification);
+		//if (magnification <= 0.03125)
+		//	return;
+		double newMag = getLowerZoomLevel2(magnification);
 		if (imageWidth * newMag > dstWidth) {
 			int w = (int) Math.round(dstWidth / newMag);
 			if (w * newMag < dstWidth)
@@ -1033,6 +1037,47 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		// repaint();
 		display.updateInDatabase("srcRect");
 	}
+
+	/** The minimum amout of pixels allowed for width or height when zooming out. */
+	static private final int MIN_DIMENSION = 10; // pixels
+
+	/** Enable zooming out up to the point where the display becomes 10 pixels in width or height. */
+	private double getLowerZoomLevel2(final double currentMag) {
+		// if it is 1/72 or lower, then:
+		if (Math.abs(currentMag - 1/72.0) < 0.00000001 || currentMag < 1/72.0) { // lowest zoomLevel in ImageCanvas is 1/72.0
+			// find nearest power of two under currentMag
+			// start at level 7, which is 1/128
+			int level = 7;
+			double scale = currentMag;
+			while (scale * srcRect.width > MIN_DIMENSION && scale * srcRect.height > MIN_DIMENSION) {
+				scale = 1 / Math.pow(2, level);
+				// if not equal and actually smaller, break:
+				if (Math.abs(scale - currentMag) != 0.00000001 && scale < currentMag) break;
+				level++;
+			}
+			return scale;
+		} else {
+			return ImageCanvas.getLowerZoomLevel(currentMag); 
+		}
+	}
+	private double getHigherZoomLevel2(final double currentMag) {
+		// if it is not 1/72 and its lower, then:
+		if (Math.abs(currentMag - 1/72.0) > 0.00000001 && currentMag < 1/72.0) { // lowest zoomLevel in ImageCanvas is 1/72.0
+			// find nearest power of two above currentMag
+			// start at level 14, which is 0.00006103515625 (0.006 %)
+			int level = 14; // this value may be increased in the future
+			double scale = currentMag;
+			while (level >= 0) {
+				scale = 1 / Math.pow(2, level);
+				if (scale > currentMag) break;
+				level--;
+			}
+			return scale;
+		} else {
+			return ImageCanvas.getHigherZoomLevel(currentMag);
+		}
+	}
+
 
 	/*
 	 * // OBSOLETE: modified ij.gui.ImageCanvas directly

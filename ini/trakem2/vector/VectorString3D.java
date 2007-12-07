@@ -51,13 +51,13 @@ public class VectorString3D {
 
 	public Object clone() {
 		try {
-			return new VectorString3D(clone(x, length), clone(y, length), clone(z, length), closed);
+			return new VectorString3D(resize(x, length), resize(y, length), resize(z, length), closed);
 		} catch (Exception e) {
 			return null;
 		}
 	}
 
-	static private final double[] clone(final double[] a, final int length) {
+	static private final double[] resize(final double[] a, final int length) {
 		final double[] b = new double[length];
 		System.arraycopy(a, 0, b, 0, length);
 		return b;
@@ -124,12 +124,12 @@ public class VectorString3D {
 			this.vz[i] = zval;
 		}
 		final void resize(final int new_length) {
-			this.rx = VectorString3D.clone(this.rx, new_length);
-			this.ry = VectorString3D.clone(this.ry, new_length);
-			this.rz = VectorString3D.clone(this.rz, new_length);
-			this.vx = VectorString3D.clone(this.vx, new_length);
-			this.vy = VectorString3D.clone(this.vy, new_length);
-			this.vz = VectorString3D.clone(this.vz, new_length);
+			this.rx = VectorString3D.resize(this.rx, new_length);
+			this.ry = VectorString3D.resize(this.ry, new_length);
+			this.rz = VectorString3D.resize(this.rz, new_length);
+			this.vx = VectorString3D.resize(this.vx, new_length);
+			this.vy = VectorString3D.resize(this.vy, new_length);
+			this.vz = VectorString3D.resize(this.vz, new_length);
 		}
 		final double x(final int i) { return rx[i]; }
 		final double y(final int i) { return ry[i]; }
