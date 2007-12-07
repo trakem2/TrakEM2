@@ -448,8 +448,8 @@ public class Editions2D {
 		final double[] v_y2 = sv2.v_y;
 		final int n_editions = editions.length;
 		// the points to create. There is one point for each edition, plus the starting point.
-		final double[] x = new double[n_editions +1];
-		final double[] y = new double[n_editions +1]; 
+		final double[] x = new double[n_editions]; // +1];
+		final double[] y = new double[n_editions]; // +1]; 
 		//starting point: a weighted average between both starting points
 		x[0] = (sv1.x[0] * (1-alpha) + sv2.x[0] * alpha);
 		y[0] = (sv1.y[0] * (1-alpha) + sv2.y[0] * alpha);
@@ -509,7 +509,7 @@ public class Editions2D {
 			next++;
 		}
 
-		Utils.log2("editions length: " + editions.length + "\nx,y length: " + x.length + ", " + y.length);
+		//Utils.log2("editions length: " + editions.length + "\nx,y length: " + x.length + ", " + y.length);
 
 
 		// return packed:
@@ -614,8 +614,8 @@ public class Editions2D {
 			final ArrayList<Point3f> triangles = new ArrayList();
 			// the sequence of editions defines the edges
 			final int[][] editions = ed.editions;
-			int e_start = 1;
-			if (MUTATION == editions[0][0]) e_start = 0;
+			int e_start = 0; // was 1
+			//if (MUTATION == editions[0][0]) e_start = 0; // apparently I have fixed old errors elsewhere
 			int i1, j1;
 			int i=0,
 			    j=0;
@@ -669,7 +669,7 @@ public class Editions2D {
 			} else {
 				// Orthogonal match: both are interpolated and thus have the same amount of points,
 				//  	which correspond to each other 1:1
-				for (int k=0; k<a.length-1; k++) {
+				for (int k=0; k<a.length-1; k++) { // should be a.length-1, but for some reason the last point is set to 0,0,z and is superfluous
 					i1 = k+1;
 					j1 = i1;
 					// a quad, split into two triangles:
