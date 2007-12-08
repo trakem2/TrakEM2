@@ -61,7 +61,7 @@ import java.util.Vector;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.4t 2007-12-05";
+	static public String version = "0.4u 2007-12-07";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -805,5 +805,13 @@ public class Utils implements ij.plugin.PlugIn {
 			default:
 				return null;
 		}
+	}
+
+	/** Will make a new double[] array, then fit in it as many points from the given array as possible according to the desired new length. If the new length is shorter that a.length, it will shrink and crop from the end; if larger, the extra spaces will be set with zeros. */
+	static public double[] copy(final double[] a, final int new_length) {
+		final double[] b = new double[new_length];
+		final int len = a.length > new_length ? new_length : a.length; 
+		System.arraycopy(a, 0, b, 0, len);
+		return b;
 	}
 }

@@ -2585,41 +2585,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Import sequence as grid...")) {
 			project.getLoader().importSequenceAsGrid(layer);
 		} else if (command.equals("Import from text file...")) {
-			String[] file = Utils.selectFile("Select text file");
-			if (null == file) return;
-			GenericDialog gd = new GenericDialog("Options");
-			String[] separators = new String[]{"tab", "space", "coma (,)"};
-			gd.addMessage("Choose a layer to act as the zero for the Z coordinates:");
-			Utils.addLayerChoice("Base layer", layer, gd);
-			gd.addChoice("Column separator: ", separators, separators[0]);
-			gd.addNumericField("Layer thickness: ", 60, 2); // default: 60 nm
-			gd.addNumericField("Calibration (data to pixels): ", 1, 2);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			double thickness = gd.getNextNumber();
-			if (thickness < 0 || Double.isNaN(thickness)) {
-				Utils.log("Improper layer thickness value.");
-				return;
-			}
-			double calibration = gd.getNextNumber();
-			if (0 == calibration || Double.isNaN(calibration)) {
-				Utils.log("Imporper calibration value.");
-				return;
-			}
-			Layer base_layer = layer.getParent().getLayer(gd.getNextChoiceIndex());
-			String sep = "\t";
-			switch (gd.getNextChoiceIndex()) {
-				case 1:
-					sep = " ";
-					break;
-				case 2:
-					sep = ",";
-					break;
-				default:
-					break;
-			}
-			// good to go:
-			project.getLoader().importImages(base_layer, file[0] + file[1], sep, thickness, calibration);
+			project.getLoader().importImages(layer);
 		} else if (command.equals("Make flat image...")) {
 			// if there's a ROI, just use that as cropping rectangle
 			Rectangle srcRect = null;

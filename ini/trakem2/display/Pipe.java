@@ -1534,14 +1534,14 @@ public class Pipe extends ZDisplayable {
 			for (int j=0; j<parallels; j++) { //there are 12+12 triangles for each joint //it's upt to 12+1 because first point is repeated at the end
 				// first triangle in the quad
 				list.add(new Point3f((float)(all_points[i][j][0] * scale), (float)(all_points[i][j][1] * scale), (float)(all_points[i][j][2] * scale)));
-				list.add(new Point3f((float)(all_points[i+1][j][0] * scale), (float)(all_points[i+1][j][1] * scale), (float)(all_points[i+1][j][2] * scale)));
 				list.add(new Point3f((float)(all_points[i][j+1][0] * scale), (float)(all_points[i][j+1][1] * scale), (float)(all_points[i][j+1][2] * scale)));
+				list.add(new Point3f((float)(all_points[i+1][j][0] * scale), (float)(all_points[i+1][j][1] * scale), (float)(all_points[i+1][j][2] * scale)));
 
 				// second triangle in the quad
 
 				list.add(new Point3f((float)(all_points[i+1][j][0] * scale), (float)(all_points[i+1][j][1] * scale), (float)(all_points[i+1][j][2] * scale)));
-				list.add(new Point3f((float)(all_points[i+1][j+1][0] * scale), (float)(all_points[i+1][j+1][1] * scale), (float)(all_points[i+1][j+1][2] * scale)));
 				list.add(new Point3f((float)(all_points[i][j+1][0] * scale), (float)(all_points[i][j+1][1] * scale), (float)(all_points[i][j+1][2] * scale)));
+				list.add(new Point3f((float)(all_points[i+1][j+1][0] * scale), (float)(all_points[i+1][j+1][1] * scale), (float)(all_points[i+1][j+1][2] * scale)));
 			}
 		}
 		return list;
@@ -1568,7 +1568,7 @@ public class Pipe extends ZDisplayable {
 			p_width_i = (double[])ob[5];
 		}
 
-		final int n = p_i[0].length;
+		int n = p_i[0].length;
 		final int mm = n_points;
 		final double[] z_values = new double[n];
 		final int interval_points = n / (mm-1);
@@ -1590,20 +1590,6 @@ public class Pipe extends ZDisplayable {
 			}
 			c++;
 		}
-		/*
-		for (int j=0; j<mm-1; j++) {
-			z_val = layer_set.getLayer(p_layer[j]).getZ();
-			z_val_next = layer_set.getLayer(p_layer[j+1]).getZ();
-			z_diff = z_val_next - z_val;
-			delta = z_diff/interval_points;
-			z_values[c] = z_val + delta;
-			for (int k=1; k<interval_points; k++) {
-				c++;
-				z_values[c] = z_values[c-1] + delta;
-			}
-			c++;
-		}
-		*/
 		//setting last point
 		z_values[n-1] = layer_set.getLayer(p_layer[mm-1]).getZ();
 
@@ -1629,6 +1615,19 @@ public class Pipe extends ZDisplayable {
 			}
 		}
 		*/
+
+		// testing 3D resample again
+		try {
+			ini.trakem2.vector.VectorString3D vs = new ini.trakem2.vector.VectorString3D(px, py, pz, false);
+			vs.resample(vs.getAverageDelta());
+			px = vs.getX();
+			py = vs.getY();
+			pz = vs.getZ();
+			n = vs.length();
+		} catch (Exception e) {
+			new IJError(e);
+		}
+
 
 
 		double[][][] all_points = new double[n+2][parallels+1][3];

@@ -1996,37 +1996,87 @@ abstract public class Loader {
 		return burro;
 	}
 
+	public Bureaucrat importImages(final Layer ref_layer) {
+		return importImages(ref_layer, null, null, 0, 0);
+	}
+
 	/** Import images from the given text file, which is expected to contain 4 columns:<br />
 	 * - column 1: image file path (if base_dir is not null, it will be prepended)<br />
 	 * - column 2: x coord<br />
 	 * - column 3: y coord<br />
 	 * - column 4: z coord (layer_thickness will be multiplied to it if not zero)<br />
 	 * 
-	 * Layers will be automatically created as needed. <br />
+	 * Layers will be automatically created as needed inside the LayerSet to which the given ref_layer belongs.. <br />
 	 * The text file can contain comments that start with the # sign.<br />
 	 * Images will be imported in parallel, using as many cores as your machine has.<br />
 	 * The @param calibration transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
 	 */
-	public Bureaucrat importImages(final Layer base_layer, final String abs_text_file_path, final String column_separator, final double layer_thickness, final double calibration) {
-		// check parameters
-		if (null == abs_text_file_path || null == column_separator) {
-			return null;
+	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_) {
+		// check parameters: ask for good ones if necessary
+		if (null == abs_text_file_path_) {
+			String[] file = Utils.selectFile("Select text file");
+			if (null == file) return null; // user canceled dialog
+			abs_text_file_path_ = file[0] + file[1];
 		}
+		if (null == ref_layer || null == column_separator_ || 0 == column_separator_.length() || Double.isNaN(layer_thickness_) || layer_thickness_ <= 0 || Double.isNaN(calibration_) || calibration_ <= 0) {
+			GenericDialog gdd = new GenericDialog("Options");
+			String[] separators = new String[]{"tab", "space", "coma (,)"};
+			gdd.addMessage("Choose a layer to act as the zero for the Z coordinates:");
+			Utils.addLayerChoice("Base layer", ref_layer, gdd);
+			gdd.addChoice("Column separator: ", separators, separators[0]);
+			gdd.addNumericField("Layer thickness: ", 60, 2); // default: 60 nm
+			gdd.addNumericField("Calibration (data to pixels): ", 1, 2);
+			gdd.showDialog();
+			if (gdd.wasCanceled()) return null;
+			layer_thickness_ = gdd.getNextNumber();
+			if (layer_thickness_ < 0 || Double.isNaN(layer_thickness_)) {
+				Utils.log("Improper layer thickness value.");
+				return null;
+			}
+			calibration_ = gdd.getNextNumber();
+			if (0 == calibration_ || Double.isNaN(calibration_)) {
+				Utils.log("Improper calibration value.");
+				return null;
+			}
+			ref_layer = ref_layer.getParent().getLayer(gdd.getNextChoiceIndex());
+			column_separator_ = "\t";
+			switch (gdd.getNextChoiceIndex()) {
+				case 1:
+					column_separator_ = " ";
+					break;
+				case 2:
+					column_separator_ = ",";
+					break;
+				default:
+					break;
+			}
+		}
+
+		// make vars accessible from inner threads:
+		final Layer base_layer = ref_layer;
+		final String abs_text_file_path = abs_text_file_path_;
+		final String column_separator = column_separator_;
+		final double layer_thickness = layer_thickness_;
+		final double calibration = calibration_;
+
+
 		GenericDialog gd = new GenericDialog("Options");
 		gd.addMessage("For all touched layers:");
-		gd.addCheckbox("Homogenize histograms", true);
-		gd.addCheckbox("Register tiles", true);
-		gd.addCheckbox("With overlapping tiles only", true);
+		gd.addCheckbox("Homogenize histograms", false);
+		/*
+		gd.addCheckbox("Register tiles", false);
+		gd.addCheckbox("With overlapping tiles only", true); // TODO could also use near tiles, defining near as "within a radius of one image width from the center of the tile"
 		final Component[] c = {
 			(Component)gd.getCheckboxes().get(2)
 		};
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(1), c, null);
-		gd.addCheckbox("Register all layers", true);
+		*/
+		gd.addCheckbox("Register all layers", false);
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		final boolean homogenize_contrast = gd.getNextBoolean();
-		final boolean register_tiles = gd.getNextBoolean();
-		final boolean overlapping_only = gd.getNextBoolean();
+		//final boolean register_tiles = gd.getNextBoolean();
+		//final boolean overlapping_only = gd.getNextBoolean();
 		final boolean register_layers = gd.getNextBoolean();
 		final Set touched_layers = Collections.synchronizedSet(new HashSet());
 		gd = null;
@@ -2134,6 +2184,7 @@ abstract public class Loader {
 							releaseMemory(); //ensures a usable minimum is free
 							unlock();
 						}
+						/* */
 						ImagePlus imp = opener.openImage(path);
 						if (null == imp) {
 							Utils.log("Ignoring unopenable image from " + path);
@@ -2191,10 +2242,12 @@ abstract public class Loader {
 						Thread t = homogenizeContrast(la); // multithreaded
 						if (null != t) t.join();
 					}
+					/* // not ready yet
 					if (register_tiles) {
 						// layer-wise (within a layer; thus layer order is irrelevant):
 						Registration.registerTilesSIFT(la, overlapping_only);
 					}
+					*/
 					if (register_layers) {
 						// sequential, from first to last:
 						LayerSet ls = base_layer.getParent();

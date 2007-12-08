@@ -38,7 +38,7 @@ public class VectorString3D {
 
 	private boolean closed = false;
 
-	// DANGER: the orientation of the curve can't be checked like in 2D.
+	// DANGER: the orientation of the curve can't be checked like in 2D. There is no up and down in the 3D space.
 
 	public VectorString3D(double[] x, double[] y, double[] z, boolean closed) throws Exception {
 		if (!(x.length == y.length && x.length == z.length)) throw new Exception("x,y,z must have the same length.");
@@ -51,16 +51,10 @@ public class VectorString3D {
 
 	public Object clone() {
 		try {
-			return new VectorString3D(resize(x, length), resize(y, length), resize(z, length), closed);
+			return new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), closed);
 		} catch (Exception e) {
 			return null;
 		}
-	}
-
-	static private final double[] resize(final double[] a, final int length) {
-		final double[] b = new double[length];
-		System.arraycopy(a, 0, b, 0, length);
-		return b;
 	}
 
 	/** Return the average point interdistance. */
@@ -80,6 +74,22 @@ public class VectorString3D {
 		}
 		this.delta = delta; // store for checking purposes
 		this.resample();
+	}
+
+	public int length() {
+		return this.length;
+	}
+
+	public double[] getX() { return x; }
+	public double[] getY() { return y; }
+	public double[] getZ() { return z; }
+
+	public void debug() {
+		Utils.log2("#### " + getClass().getName() + " ####");
+		for (int i=0; i<x.length; i++) {
+			Utils.log2( i + ": " + x[i] + "," + y[i] + ", " + z[i]);
+		}
+		Utils.log2("#### END ####");
 	}
 
 
@@ -124,12 +134,12 @@ public class VectorString3D {
 			this.vz[i] = zval;
 		}
 		final void resize(final int new_length) {
-			this.rx = VectorString3D.resize(this.rx, new_length);
-			this.ry = VectorString3D.resize(this.ry, new_length);
-			this.rz = VectorString3D.resize(this.rz, new_length);
-			this.vx = VectorString3D.resize(this.vx, new_length);
-			this.vy = VectorString3D.resize(this.vy, new_length);
-			this.vz = VectorString3D.resize(this.vz, new_length);
+			this.rx = Utils.copy(this.rx, new_length);
+			this.ry = Utils.copy(this.ry, new_length);
+			this.rz = Utils.copy(this.rz, new_length);
+			this.vx = Utils.copy(this.vx, new_length);
+			this.vy = Utils.copy(this.vy, new_length);
+			this.vz = Utils.copy(this.vz, new_length);
 		}
 		final double x(final int i) { return rx[i]; }
 		final double y(final int i) { return ry[i]; }
@@ -139,6 +149,15 @@ public class VectorString3D {
 			return Math.sqrt(Math.pow(x - rx[i], 2)
 				       + Math.pow(y - ry[i], 2)
 				       + Math.pow(z - rz[i], 2));
+		}
+		final void put(final VectorString3D vs, final int length) {
+			vs.x = Utils.copy(this.rx, length); // crop away empty slots
+			vs.y = Utils.copy(this.ry, length);
+			vs.z = Utils.copy(this.rz, length);
+			vs.vx = Utils.copy(this.vx, length);
+			vs.vy = Utils.copy(this.vy, length);
+			vs.vz = Utils.copy(this.vz, length);
+			vs.length = length;
 		}
 	}
 
@@ -217,6 +236,7 @@ public class VectorString3D {
 
 		// first resampled point is the same as point zero
 		r.setP(0, x[0], y[0], z[0]);
+		// the first vector is 0,0,0 unless the path is closed, in which case it contains the vector from last-to-first.
 
 		// index over x,y,z
 		int i = 1;
@@ -233,15 +253,20 @@ public class VectorString3D {
 		for (next_ahead = 0; next_ahead < MAX_AHEAD; next_ahead++) ve[next_ahead] = new Vector(0, 0, 0);
 		final int[] ahead = new int[MAX_AHEAD];
 
+		try {
+
 		// start infinite loop
 		for (;prev_i <= i;) {
-			if (prev_i > i) break;
+			if (prev_i > i || (!closed && i == this.length -1)) break;
 			// get distances of MAX_POINTs ahead from the previous point
 			next_ahead = 0;
 			for (t=0; t<MAX_AHEAD; t++) {
 				s = i + t;
 				// fix 's' if it goes over the end
-				if (s > this.length) s = this.length -1; // the last
+				if (s >= this.length) {
+					if (closed) s -= this.length;
+					else break;
+				}
 				dist_ahead = r.distance(j-1, x[s], y[s], z[s]);
 				if (dist_ahead < MAX_DISTANCE) {
 					ahead[next_ahead] = s;
@@ -260,7 +285,7 @@ public class VectorString3D {
 				//correct for point overtaking the not-close-enough point ahead in terms of 'delta_p' as it is represented in MAX_DISTANCE, but overtaken by the 'delta' used for subsampling:
 				if (dist1 <= delta) {
 					//look for a point ahead that is over distance delta from the previous j, so that it will lay ahead of the current j
-					for (u=i; u<=this.length; u++) {
+					for (u=i; u<this.length; u++) {
 						dist2 = Math.sqrt(Math.pow(x[u] - r.x(j-1), 2)
 								+ Math.pow(y[u] - r.y(j-1), 2)
 								+ Math.pow(z[u] - r.z(j-1), 2));
@@ -321,7 +346,10 @@ public class VectorString3D {
 				prev_i = i;
 				if (i == ii) {
 					i = ahead[next_ahead-1] +1; //the one after the last.
-					if (i >= this.length) i = i - this.length; // this.length is the length of the x,y,z, the original points
+					if (i >= this.length) {
+						if (closed) i = i - this.length; // this.length is the length of the x,y,z, the original points
+						else i = this.length -1;
+					}
 				} else {
 					i = ii;
 				}
@@ -330,17 +358,36 @@ public class VectorString3D {
 			j += 1;
 		} // end of for loop
 
-		// see whether the subsampling terminated too early, and fill with a line of points.
+		} catch (Exception e) {
+			e.printStackTrace();
+			Utils.log2("Some data: x,y,z .length = " + x.length + "," + y.length + "," + z.length
+				 + "\nj=" + j + ", i=" + i + ", prev_i=" + prev_i
+					);
+		}
+
+
 		dist_ahead = r.distance(j-1, x[this.length-1], y[this.length-1], z[this.length-1]);
+
+		//Utils.log2("delta: " + delta + "\nlast point: " + x[x.length-1] + ", " + y[y.length-1] + ", " + z[z.length-1]);
+		//Utils.log2("last resampled point: x,y,z " + r.x(j-1) + ", " + r.y(j-1) + ", " + r.z(j-1));
+		//Utils.log2("distance: " + dist_ahead);
+
+		// see whether the subsampling terminated too early, and fill with a line of points.
+		final int last_i = closed ? 0 : this.length -1;
 		if (dist_ahead > delta*1.2) {
 			System.out.println("resampling terminated too early. Why?");
-			vector.set(1,1,1); // just in case it had very low values, and to reduce floating-point garbage math error
-			vector.setLength(delta);
 			while (dist_ahead > delta*1.2) {
+				// make a vector from the last resampled point to the last point
+				vector.set(x[last_i] - r.x(j-1), y[last_i] - r.y(j-1), z[last_i] - r.z(j-1));
+				// resize it to length delta
+				vector.setLength(delta);
 				vector.put(j, r);
 				j++;
-				dist_ahead = r.distance(j-1, x[this.length-1], y[this.length-1], z[this.length-1]);
+				dist_ahead = r.distance(j-1, x[last_i], y[last_i], z[last_i]);
 			}
 		}
+		// done!
+		r.put(this, j); // j acts as length of resampled points and vectors
+		// vector at zero is left as 0,0 which makes no sense. Should be the last point that has no vector, or has it only in the event that the list of points is declared as closed: a vector to the first point. Doesn't really matter though, as long as it's clear: as of right now, the first point has no vector unless the path is closed, in which case it contains the vector from the last-to-first.
 	}
 }

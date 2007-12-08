@@ -280,6 +280,9 @@ public class LayerThing extends DBObject implements Thing {
 			item = new JMenuItem("Import sequence as grid...");
 			item.addActionListener(listener);
 			al_items.add(item);
+			item = new JMenuItem("Import from text file...");
+			item.addActionListener(listener);
+			al_items.add(item);
 		}
 
 		// add a delete to all except the root LayerSet

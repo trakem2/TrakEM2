@@ -329,6 +329,11 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 					Layer layer = (Layer)thing.getObject();
 					layer.getProject().getLoader().importSequenceAsGrid(layer);
 				}
+			} else if (command.equals("Import from text file...")) {
+				if (thing.getObject() instanceof Layer) {
+					Layer layer = (Layer)thing.getObject();
+					layer.getProject().getLoader().importImages(layer);
+				}
 			} else if (command.equals("Resize LayerSet...")) {
 				if (thing.getObject() instanceof LayerSet) {
 					LayerSet ls = (LayerSet)thing.getObject();
