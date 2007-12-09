@@ -1597,32 +1597,13 @@ public class Pipe extends ZDisplayable {
 		double[] py = p_i[1];
 		double[] pz = z_values;
 
-		/** Testing 3D resample*/
-		/* // doesn't work, indexoutofbounds exception
-		if (true) {
-			SV sv = null;
-			try {
-				sv = new SV(p_i[0], p_i[1], z_values, 0);
-			} catch (Exception e) {
-				new IJError(e);
-			}
-			if (null != sv) {
-				sv.resample(sv.getAverageDelta());
-				px = sv.getX();
-				py = sv.getY();
-				pz = sv.getZ();
-				n = sv.getLength();
-			}
-		}
-		*/
-
-		// testing 3D resample again
+		// Resampling to get a smoother pipe
 		try {
 			ini.trakem2.vector.VectorString3D vs = new ini.trakem2.vector.VectorString3D(px, py, pz, false);
 			vs.resample(vs.getAverageDelta());
-			px = vs.getX();
-			py = vs.getY();
-			pz = vs.getZ();
+			px = vs.getPoints(0);
+			py = vs.getPoints(1);
+			pz = vs.getPoints(2);
 			n = vs.length();
 		} catch (Exception e) {
 			new IJError(e);

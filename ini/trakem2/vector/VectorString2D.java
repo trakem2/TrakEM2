@@ -26,20 +26,20 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
 /** String of vectors. */
-public class VectorString2D {
+public class VectorString2D implements VectorString {
 
 	// all private to the package: accessible from Editions class
-	double[] x; // points
-	double[] y;
-	double[] v_x = null; // vectors, after resampling
-	double[] v_y = null;
+	private double[] x; // points
+	private double[] y;
+	private double[] v_x = null; // vectors, after resampling
+	private double[] v_y = null;
 	/** The length of the x,y and v_x, v_y resampled points (the actual arrays may be a bit longer) */
-	int length;
+	private int length;
 	/** The point interdistance after resampling. */
-	double delta = 0; // the delta used for resampling
+	private double delta = 0; // the delta used for resampling
 	/** The Z coordinate of the entire planar curve represented by this VectorString2D. */
-	double z;
-	boolean closed;
+	private double z;
+	private boolean closed;
 
 	/** Construct a new String of Vectors from the given points and desired resampling point interdistance 'delta'. */
 	public VectorString2D(double[] x, double[] y, double z, boolean closed) throws Exception {
@@ -67,9 +67,38 @@ public class VectorString2D {
 		}
 	}
 
-	public double[] getX() { return x; }
-	public double[] getY() { return y; }
-	public int getLength() { return length; }
+	public int length() { return length; }
+
+	public double[] getPoints(final int dim) {
+		switch (dim) {
+			case 0: return x;
+			case 1: return y;
+		}
+		return null;
+	}
+	public double[] getVectors(final int dim) {
+		switch (dim) {
+			case 0: return v_x;
+			case 1: return v_y;
+		}
+		return null;
+	}
+	public double getPoint(final int dim, final int i) {
+		switch (dim) {
+			case 0: return x[i];
+			case 1: return y[i];
+			case 2: return z;
+		}
+		return 0;
+	}
+	public double getVector(final int dim, final int i) {
+		switch (dim) {
+			case 0: return v_x[i];
+			case 1: return v_y[i];
+		}
+		return 0;
+	}
+	public boolean isClosed() { return closed; }
 
 	public double getAverageDelta() { // equivalent to C's getAndSetAveragePointInterdistance function
 		double d = 0;
@@ -349,5 +378,53 @@ public class VectorString2D {
 			return recalculate(w, length, sum);
 		}
 		return w;
+	}
+
+	public void reorder(final int new_zero) { // this function is optimized for speed: no array duplications beyond minimally necessary, and no superfluous method calls.
+		int i, j;
+		// copying
+		double[] tmp = new double[this.length];
+		double[] src;
+		// x
+		src = x;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		x = tmp;
+		tmp = src;
+		// y
+		src = y;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		y = tmp;
+		tmp = src;
+		// v_x
+		src = v_x;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		v_x = tmp;
+		tmp = src;
+		// v_y
+		src = v_y;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		v_y = tmp;
+		tmp = src;
+
+		// equivalent would be:
+		//System.arraycopy(src, new_zero, tmp, 0, m - new_zero);
+		//System.arraycopy(src, 0, tmp, m - new_zero, new_zero);
+		//sv2.x = tmp;
+		//tmp = src;
+
+		// release
+		tmp = null;
+	}
+
+	/** Subtracts vs2 vector j to this vector i and returns its length, without changing any data. */
+	public double getDiffVectorLength(final int i, final int j, final VectorString vs2) {
+		final VectorString2D vs = (VectorString2D)vs2;
+		final double dx = v_x[i] - vs.v_x[j];
+		final double dy = v_y[i] - vs.v_y[j];
+		return Math.sqrt(dx*dx + dy*dy);
 	}
 }

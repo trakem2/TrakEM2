@@ -54,7 +54,7 @@ import ini.trakem2.tree.Thing;
 import ini.trakem2.tree.ProjectThing;
 import javax.vecmath.Point3f;
 import ini.trakem2.vector.VectorString2D;
-import ini.trakem2.vector.Editions2D;
+import ini.trakem2.vector.SkinMaker;
 import java.util.Arrays;
 import ini.trakem2.utils.IJError;
 
@@ -1596,10 +1596,9 @@ public class Profile extends Displayable {
 						y[k] *= scale;
 					}
 				}
-				// with automatic delta
 				sv[i] = new VectorString2D(x, y, p[i].layer.getZ(), p[i].closed);
 			}
-			return Editions2D.generateTriangles(sv, -1, -1, closed);
+			return SkinMaker.generateTriangles(sv, -1, -1, closed);
 		} catch (Exception e) {
 			new IJError(e);
 		}

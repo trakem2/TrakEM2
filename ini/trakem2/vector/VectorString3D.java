@@ -25,7 +25,7 @@ package ini.trakem2.vector;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
-public class VectorString3D {
+public class VectorString3D implements VectorString {
 
 	/** Points. */
 	private double[] x, y, z;
@@ -76,13 +76,40 @@ public class VectorString3D {
 		this.resample();
 	}
 
-	public int length() {
-		return this.length;
+	public int length() { return length; }
+	public double[] getPoints(final int dim) {
+		switch (dim) {
+			case 0: return x;
+			case 1: return y;
+			case 2: return z;
+		}
+		return null;
 	}
-
-	public double[] getX() { return x; }
-	public double[] getY() { return y; }
-	public double[] getZ() { return z; }
+	public double[] getVectors(final int dim) {
+		switch (dim) {
+			case 0: return vx;
+			case 1: return vy;
+			case 2: return vz;
+		}
+		return null;
+	}
+	public double getPoint(final int dim, final int i) {
+		switch (dim) {
+			case 0: return x[i];
+			case 1: return y[i];
+			case 2: return z[i];
+		}
+		return 0;
+	}
+	public double getVector(final int dim, final int i) {
+		switch (dim) {
+			case 0: return vx[i];
+			case 1: return vy[i];
+			case 2: return vy[i];
+		}
+		return 0;
+	}
+	public boolean isClosed() { return closed; }
 
 	public void debug() {
 		Utils.log2("#### " + getClass().getName() + " ####");
@@ -389,5 +416,58 @@ public class VectorString3D {
 		// done!
 		r.put(this, j); // j acts as length of resampled points and vectors
 		// vector at zero is left as 0,0 which makes no sense. Should be the last point that has no vector, or has it only in the event that the list of points is declared as closed: a vector to the first point. Doesn't really matter though, as long as it's clear: as of right now, the first point has no vector unless the path is closed, in which case it contains the vector from the last-to-first.
+	}
+
+	/** Reorder the arrays so that the index zero becomes new_zero -the arrays are circular. */
+	public void reorder(final int new_zero) {
+		int i, j;
+		// copying
+		double[] tmp = new double[this.length];
+		double[] src;
+		// x
+		src = x;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		x = tmp;
+		tmp = src;
+		// y
+		src = y;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		y = tmp;
+		tmp = src;
+		// z
+		src = z;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		z = tmp;
+		tmp = src;
+		// vx
+		src = vx;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		vx = tmp;
+		tmp = src;
+		// vy
+		src = vy;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		vy = tmp;
+		tmp = src;
+		// vz
+		src = vz;
+		for (i=0, j=new_zero; j<length; i++, j++) { tmp[i] = src[j]; }
+		for (j=0; j<new_zero; i++, j++) { tmp[i] = src[j]; }
+		vz = tmp;
+		tmp = src;
+	}
+
+	/** Subtracts vs2 vector j to this vector i and returns its length, without changing any data. */
+	public double getDiffVectorLength(final int i, final int j, final VectorString vs2) {
+		final VectorString3D vs = (VectorString3D)vs2;
+		final double dx = vx[i] - vs.vx[j];
+		final double dy = vy[i] - vs.vy[j];
+		final double dz = vz[i] - vs.vz[j];
+		return Math.sqrt(dx*dx + dy*dy + dz*dz);
 	}
 }
