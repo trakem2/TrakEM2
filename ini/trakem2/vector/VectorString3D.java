@@ -125,6 +125,14 @@ public class VectorString3D implements VectorString {
 		}
 		return 0;
 	}
+	public double getRelativeVector(final int dim, final int i) {
+		switch (dim) {
+			case 0: return rvx[i];
+			case 1: return rvy[i];
+			case 2: return rvy[i];
+		}
+		return 0;
+	}
 	public boolean isClosed() { return closed; }
 
 	public void debug() {
@@ -517,7 +525,11 @@ public class VectorString3D implements VectorString {
 			final double dx = rvx[i] - vs.rvx[j];
 			final double dy = rvy[i] - vs.rvy[j];
 			final double dz = rvz[i] - vs.rvz[j];
-			return Math.sqrt(dx*dx + dy*dy + dz*dz);
+			final double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+			if (i == j) {  // j > i-3 && j < i+3) {
+				Utils.log2("rel: i,j,dist "+ i + ", " + j + ", " + dist + " dx,dy,dz: " + dx + ", " + dy + ", " + dz);
+			}
+			return dist;
 		}
 	}
 
@@ -578,45 +590,26 @@ public class VectorString3D implements VectorString {
 			rvz[i] = vz[i-1] + wz;
 			*/
 			// simplifying:
-			rvx[i] = vx[i] + Math.sqrt(vx[i-1]*vx[i-1] + vy[i-1]*vy[i-1] + vz[i-1]*vz[i-1]) - vx[i-1];
+			//rvx[i] = vx[i] + Math.sqrt(vx[i-1]*vx[i-1] + vy[i-1]*vy[i-1] + vz[i-1]*vz[i-1]) - vx[i-1];
+			// the line above fails: looks like it hides an error somewhere
+			rvx[i] = vx[i] + delta - vx[i-1]; // all vectors are of length delta
 			rvy[i] = vy[i] - vy[i-1];
 			rvz[i] = vz[i] - vz[i-1];
 		}
+		Utils.log2("relative used delta " + delta);
 	}
 
-	/** Makes the bounding box of all points fit inside a cube of sides 1,1,1, preserving aspect ratio of course. Does not make any sense to call this method AFTER resampling.
+	/** Expand or shrink the points in this 3D path so that the average point interdistance becomes delta.
 	 *
-	 * This method is intended to enhance the comparison of two paths in 3D space which may be similar but differ greatly in dimensions.
+	 * This method is intended to enhance the comparison of two paths in 3D space which may be similar but differ greatly in dimensions; for example, secondary lineage tracts in 3rd instar Drosophila larvae versus adult.
 	 */
-	public void normalize() throws Exception {
+	public void equalize(final double target_delta) {
 		if (length < 2) return;
-		// find current boundaries
-		double min_x=Double.MAX_VALUE, max_x=0,
-		       min_y=Double.MAX_VALUE, max_y=0,
-		       min_z=Double.MAX_VALUE, max_z=0;
+		final double scale = target_delta / getAverageDelta();
 		for (int i=0; i<length; i++) {
-			if (x[i] < min_x) min_x = x[i];
-			if (y[i] < min_y) min_y = y[i];
-			if (z[i] < min_z) min_z = z[i];
-			if (x[i] > max_x) max_x = x[i];
-			if (y[i] > max_y) max_y = y[i];
-			if (z[i] > max_z) max_z = z[i];
-		}
-		// determine maximum scale to fit even the largest one
-		final double[] s = new double[] {
-			max_x - min_x,
-			max_y - min_y,
-			max_z - min_z
-		};
-		Arrays.sort(s);
-		double K = s[2]; // the largest
-		if (0 == K) K = s[1];
-		if (0 == K) K = s[0];
-		if (0 == K) throw new Exception("Can't normalize: all possible scales are zero.");
-		for (int i=0; i<length; i++) {
-			x[i] /= K;
-			y[i] /= K;
-			z[i] /= K;
+			x[i] *= scale;
+			y[i] *= scale;
+			z[i] *= scale;
 		}
 	}
 }

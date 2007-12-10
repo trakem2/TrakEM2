@@ -66,6 +66,22 @@ public class Editions {
 
 		final int n = vs1.length();
 		final int m = vs2.length();
+
+		this.distance = matrix[n][m];
+
+		// let's see the matrix
+		/*
+		final StringBuffer sb = new StringBuffer();
+		for (int f=0; f<n+1; f++) {
+			for (int g=0; g<m+1; g++) {
+				sb.append(matrix[f][g]).append('\t');
+			}
+			sb.append('\n');
+		}
+		Utils.saveToFile(new java.io.File("/home/albert/Desktop/matrix.txt"), sb.toString());
+		*/
+
+
 		final int initial_length = (int)Math.sqrt((n*n) + (m*m));
 		int i = 0;
 		int ed_length = initial_length;
@@ -152,8 +168,6 @@ public class Editions {
 				editions[next -1 -i] = temp;
 			}
 		}
-		// set
-		this.distance = matrix[n][m];
 	}
 
 	static private final int[][] resizeAndFillEditionsCopy(final int[][] editions, final int ed_length, final int new_length) {
