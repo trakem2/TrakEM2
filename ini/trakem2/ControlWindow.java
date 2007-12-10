@@ -330,7 +330,7 @@ public class ControlWindow {
 						}
 					}
 					if (null == project) return;
-					project.getProjectTree().rename(project.getProjectThing());
+					project.getProjectTree().rename(project.getRootProjectThing());
 				}
 			}
 		}

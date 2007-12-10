@@ -142,7 +142,7 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 				if (tet.getType().equals(old_name)) tet.rename(new_name);
 			}
 			// and update the ProjectThing objects in the tree and its dependant Displayable objects in the open Displays
-			tt.getProject().getProjectThing().updateType(new_name);
+			tt.getProject().getRootProjectThing().updateType(new_name);
 			// tell the project about it
 			tt.getProject().updateTypeName(old_name, new_name);
 			// repaint both trees (will update the type names)
@@ -150,7 +150,7 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 			tt.getProject().getProjectTree().updateUI();
 		} else if (command.equals("Delete...")) {
 			// find dependent objects, if any, that have the same type of parent chain
-			HashSet hs = tt.getProject().getProjectThing().collectSimilarThings(tt, new HashSet());
+			HashSet hs = tt.getProject().getRootProjectThing().collectSimilarThings(tt, new HashSet());
 			YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Remove type?", "Really remove type '" + tt.getType() + "'" + ((null != tt.getChildren() && 0 != tt.getChildren().size()) ? " and its children" : "") + (0 == hs.size() ? "" : " from parent " + tt.getParent().getType() + ",\nand its " + hs.size() + " existing instance" + (1 == hs.size() ? "" : "s") + " in the project tree?"));
 			if (!yn.yesPressed()) return;
 			// else, proceed to delete:

@@ -1488,4 +1488,24 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		updateInDatabase("snapshots_quality");
 		// TODO should remake all snapshots
 	}
+
+	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c. */
+	public ArrayList get(final Class c) {
+		return get(new ArrayList(), c);
+	}
+
+	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c, which are stored in the given ArrayList; returns the same ArrayList, or a new one if its null. */
+	public ArrayList get(ArrayList all, final Class c) {
+		if (null == all) all = new ArrayList();
+		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
+			Layer layer = (Layer)it.next();
+			all.addAll(layer.getDisplayables(c));
+			ArrayList al_ls = layer.getDisplayables(LayerSet.class);
+			for (Iterator i2 = al_ls.iterator(); i2.hasNext(); ) {
+				LayerSet ls = (LayerSet)i2.next();
+				ls.get(all, c);
+			}
+		}
+		return all;
+	}
 }

@@ -1600,10 +1600,12 @@ public class Pipe extends ZDisplayable {
 		// Resampling to get a smoother pipe
 		try {
 			ini.trakem2.vector.VectorString3D vs = new ini.trakem2.vector.VectorString3D(px, py, pz, false);
+			vs.addDependent(p_width_i);
 			vs.resample(vs.getAverageDelta());
 			px = vs.getPoints(0);
 			py = vs.getPoints(1);
 			pz = vs.getPoints(2);
+			p_width_i = vs.getDependent(0);
 			n = vs.length();
 		} catch (Exception e) {
 			new IJError(e);

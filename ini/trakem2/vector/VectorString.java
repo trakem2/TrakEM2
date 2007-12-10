@@ -41,5 +41,4 @@ public interface VectorString {
 	public double getVector(int dim, int i);
 	public boolean isClosed();
 	public double getDiffVectorLength(int i, int j, VectorString vs);
-
 }

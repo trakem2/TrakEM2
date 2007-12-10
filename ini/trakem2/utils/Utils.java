@@ -629,11 +629,11 @@ public class Utils implements ij.plugin.PlugIn {
 		return s;
 	}
 
-	static public String openTextFile(final String path) {
+	static public final String openTextFile(final String path) {
 		if (null == path || !new File(path).exists()) return null;
-		StringBuffer sb = new StringBuffer();
+		final StringBuffer sb = new StringBuffer();
 		try {
-			BufferedReader r = new BufferedReader(new FileReader(path));
+			final BufferedReader r = new BufferedReader(new FileReader(path));
 			while (true) {
 				String s = r.readLine();
 				if (null == s) break;
@@ -648,7 +648,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Returns the file found at path as an array of lines, or null if not found. */
-	static public String[] openTextFileLines(final String path) {
+	static public final String[] openTextFileLines(final String path) {
 		if (null == path || !new File(path).exists()) return null;
 		final ArrayList al = new ArrayList();
 		try {
@@ -663,24 +663,24 @@ public class Utils implements ij.plugin.PlugIn {
 			new IJError(e);
 			return null;
 		}
-		String[] sal = new String[al.size()];
+		final String[] sal = new String[al.size()];
 		al.toArray(sal);
 		return sal;
 	}
 
 	/** The cosinus between two vectors (in polar coordinates), by means of the dot product. */
-	static public double getCos(final double x1, final double y1, final double x2, final double y2) {
+	static public final double getCos(final double x1, final double y1, final double x2, final double y2) {
 		return (x1 * x2 + y1 * y2) / (Math.sqrt(x1*x1 + y1*y1) * Math.sqrt(x2*x2 + y2*y2));
 	}
 
-	static public String removeExtension(final String path) {
+	static public final String removeExtension(final String path) {
 		final int i_dot = path.lastIndexOf('.');
 		if (-1 == i_dot || i_dot + 4 != path.length()) return path;
 		else return path.substring(0, i_dot);
 	}
 
 	/** A helper for GenericDialog checkboxes to control other the enabled state of other GUI elements in the same dialog. */
-	static public void addEnablerListener(final Checkbox master, final Component[] enable, final Component[] disable) {
+	static public final void addEnablerListener(final Checkbox master, final Component[] enable, final Component[] disable) {
 		master.addItemListener(new ItemListener() {
 			public void itemStateChanged(ItemEvent ie) {
 				if (ie.getStateChange() == ItemEvent.SELECTED) {
@@ -700,7 +700,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static private int n_CPUs = 0;
 
-	static public int getCPUCount() {
+	static public final int getCPUCount() {
 		if (0 != n_CPUs) return n_CPUs;
 		if (IJ.isWindows()) return 1; // no clue
 		// POSIX systems, attempt to count CPUs from /proc/stat
@@ -727,15 +727,15 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
-	static public boolean wrongImageJVersion() {
+	static public final boolean wrongImageJVersion() {
 		boolean b = IJ.versionLessThan("1.37g");
 		if (b) Utils.showMessage("TrakEM2 requires ImageJ 1.37g or above.");
 		return b;
 	}
 
-	static public boolean java3d = isJava3DInstalled();
+	static public final boolean java3d = isJava3DInstalled();
 
-	static private boolean isJava3DInstalled() {
+	static private final boolean isJava3DInstalled() {
 		try {
 			Class p3f = Class.forName("javax.vecmath.Point3f");
 		} catch (ClassNotFoundException cnfe) {
@@ -744,7 +744,7 @@ public class Utils implements ij.plugin.PlugIn {
 		return true;
 	}
 
-	static public void addLayerRangeChoices(final Layer selected, final GenericDialog gd) {
+	static public final void addLayerRangeChoices(final Layer selected, final GenericDialog gd) {
 		final String[] layers = new String[selected.getParent().size()];
 		final ArrayList al_layer_titles =  new ArrayList();
 		int i = 0;
@@ -773,7 +773,7 @@ public class Utils implements ij.plugin.PlugIn {
 		});
 	}
 
-	static public void addLayerChoice(final String label, final Layer selected, final GenericDialog gd) {
+	static public final void addLayerChoice(final String label, final Layer selected, final GenericDialog gd) {
 		final String[] layers = new String[selected.getParent().size()];
 		final ArrayList al_layer_titles =  new ArrayList();
 		int i = 0;
@@ -808,7 +808,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Will make a new double[] array, then fit in it as many points from the given array as possible according to the desired new length. If the new length is shorter that a.length, it will shrink and crop from the end; if larger, the extra spaces will be set with zeros. */
-	static public double[] copy(final double[] a, final int new_length) {
+	static public final double[] copy(final double[] a, final int new_length) {
 		final double[] b = new double[new_length];
 		final int len = a.length > new_length ? new_length : a.length; 
 		System.arraycopy(a, 0, b, 0, len);

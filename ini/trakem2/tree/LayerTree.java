@@ -224,7 +224,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 					}
 					// now update all profile's Z ordering in the ProjectTree
 					final Project project = Project.getInstance(this);
-					ProjectThing root_pt = project.getProjectThing();
+					ProjectThing root_pt = project.getRootProjectThing();
 					ArrayList al_pl = root_pt.findChildrenOfType("profile_list");
 					for (Iterator it = al_pl.iterator(); it.hasNext(); ) {
 						ProjectThing pt = (ProjectThing)it.next();

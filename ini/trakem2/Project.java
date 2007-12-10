@@ -661,7 +661,7 @@ public class Project extends DBObject {
 		return null != pob ? (ProjectThing)pob : null;
 	}
 
-	public ProjectThing getProjectThing() {
+	public ProjectThing getRootProjectThing() {
 		return root_pt;
 	}
 

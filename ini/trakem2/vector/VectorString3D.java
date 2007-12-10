@@ -31,12 +31,17 @@ public class VectorString3D implements VectorString {
 	private double[] x, y, z;
 	/** Vectors, after resampling. */
 	private double[] vx, vy, vz;
+	/** Relative vectors, after calling 'relative()'. */
+	private double[] rvx, rvy, rvz;
 	/** Length of points and vectors - since arrays may be a little longer. */
 	private int length = 0;
 	/** The point interdistance after resampling. */
 	private double delta = 0;
 
 	private boolean closed = false;
+
+	/** Dependent arrays that will get resampled along. */
+	private double[][] dep;
 
 	// DANGER: the orientation of the curve can't be checked like in 2D. There is no up and down in the 3D space.
 
@@ -49,12 +54,22 @@ public class VectorString3D implements VectorString {
 		this.closed = closed;
 	}
 
-	public Object clone() {
-		try {
-			return new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), closed);
-		} catch (Exception e) {
-			return null;
+	/** Add an array that will get resampled along; must be of the same length as the value returned by length() */
+	public void addDependent(final double[] a) throws Exception {
+		if (a.length != this.length) throw new Exception("Dependent array must be of the same size as thevalue returned by length()");
+		if (null == dep) {
+			dep = new double[1][];
+			dep[0] = a;
+		} else {
+			// resize and append
+			double[][] dep2 = new double[dep.length + 1][];
+			for (int i=0; i<dep.length; i++) dep2[i] = dep[i];
+			dep2[dep.length] = a;
+			dep = dep2;
 		}
+	}
+	public double[] getDependent(final int i) {
+		return dep[i];
 	}
 
 	/** Return the average point interdistance. */
@@ -124,9 +139,10 @@ public class VectorString3D implements VectorString {
 
 		private double[] rx, ry, rz,
 				 vx, vy, vz;
+		private double[][] dep;
 
 		/** Initialize with a starting length. */
-		ResamplingData(final int length) {
+		ResamplingData(final int length, final double[][] dep) {
 			// resampled points
 			rx = new double[length];
 			ry = new double[length];
@@ -135,6 +151,8 @@ public class VectorString3D implements VectorString {
 			vx = new double[length];
 			vy = new double[length];
 			vz = new double[length];
+			// dependents
+			if (null != dep) this.dep = new double[dep.length][length];
 		}
 		/** Arrays are enlarged if necessary.*/
 		final void setP(final int i, final double xval, final double yval, final double zval) {
@@ -167,6 +185,11 @@ public class VectorString3D implements VectorString {
 			this.vx = Utils.copy(this.vx, new_length);
 			this.vy = Utils.copy(this.vy, new_length);
 			this.vz = Utils.copy(this.vz, new_length);
+			if (null != dep) {
+				// java doesn't have generators! ARGH
+				double[][] dep2 = new double[dep.length][];
+				for (int i=0; i<dep.length; i++) dep2[i] = Utils.copy(dep[i], new_length);
+			}
 		}
 		final double x(final int i) { return rx[i]; }
 		final double y(final int i) { return ry[i]; }
@@ -185,6 +208,16 @@ public class VectorString3D implements VectorString {
 			vs.vy = Utils.copy(this.vy, length);
 			vs.vz = Utils.copy(this.vz, length);
 			vs.length = length;
+		}
+		final void setDeps(final int i, final double[][] src_dep, final int[] ahead, final double[] weight, final int len) {
+			if (null == dep) return;
+			if (i >= rx.length) resize(i+10);
+			//
+			for (int k=0; k<dep.length; k++) {
+				for (int j=0; j<len; j++) {
+					dep[k][i] += src_dep[k][ahead[j]] * weight[j];
+				}
+			} // above, the ahead and weight arrays (which have the same length) could be of larger length than the given 'len', thus len is used.
 		}
 	}
 
@@ -258,7 +291,7 @@ public class VectorString3D implements VectorString {
 		final double MAX_DISTANCE = 2.5 * delta;
 
 		// convenient data carrier and editor
-		final ResamplingData r = new ResamplingData(this.length);
+		final ResamplingData r = new ResamplingData(this.length, this.dep);
 		final Vector vector = new Vector(0, 0, 0);
 
 		// first resampled point is the same as point zero
@@ -308,6 +341,7 @@ public class VectorString3D implements VectorString {
 				dist1 = vector.length();
 				vector.setLength(delta);
 				vector.put(j, r);
+				if (null != dep) r.setDeps(j, dep, new int[]{i}, new double[]{1.0}, 1);
 
 				//correct for point overtaking the not-close-enough point ahead in terms of 'delta_p' as it is represented in MAX_DISTANCE, but overtaken by the 'delta' used for subsampling:
 				if (dist1 <= delta) {
@@ -358,6 +392,7 @@ public class VectorString3D implements VectorString {
 				}
 				// set
 				vector.put(j, r);
+				if (null != dep) r.setDeps(j, dep, ahead, w, next_ahead);
 				// BEWARE that the vector remains "dirty": its length is not set to what it should
 
 				// find the first point that is right ahead of the newly added point
@@ -469,5 +504,43 @@ public class VectorString3D implements VectorString {
 		final double dy = vy[i] - vs.vy[j];
 		final double dz = vz[i] - vs.vz[j];
 		return Math.sqrt(dx*dx + dy*dy + dz*dz);
+	}
+
+	public Object clone() {
+		try {
+			final VectorString3D vs = new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), closed);
+			vs.delta = delta;
+			if (null != vx) vs.vx = Utils.copy(vx, length);
+			if (null != vy) vs.vy = Utils.copy(vy, length);
+			if (null != vz) vs.vz = Utils.copy(vz, length);
+			if (null != rvx) vs.rvx = Utils.copy(rvx, length);
+			if (null != rvy) vs.rvy = Utils.copy(rvy, length);
+			if (null != rvz) vs.rvz = Utils.copy(rvz, length);
+			return vs;
+		} catch (Exception e) {
+			new IJError(e);
+		}
+		return null;
+	}
+
+	/** Create the relative vectors, that is, the differences of one vector to the next. In this way, vectors represent changes in the path and are independent of the actual path orientation in space. */
+	public void relative() {
+		// create vectors if not there yet
+		if (null == vx || null == vy || null == vz) {
+			resample(getAverageDelta());
+		}
+		rvx = new double[length];
+		rvy = new double[length];
+		rvz = new double[length];
+		if (closed) { // last to first
+			rvx[0] = vx[length-1] - vx[0];
+			rvy[0] = vy[length-1] - vy[0];
+			rvz[0] = vz[length-1] - vz[0];
+		}
+		for (int i=1; i<length; i++) {
+			rvx[i] = vx[i] - vx[i-1];
+			rvy[i] = vy[i] - vy[i-1];
+			rvz[i] = vz[i] - vz[i-1];
+		}
 	}
 }
