@@ -29,6 +29,7 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Vector3;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -1599,7 +1600,7 @@ public class Pipe extends ZDisplayable {
 
 		// Resampling to get a smoother pipe
 		try {
-			ini.trakem2.vector.VectorString3D vs = new ini.trakem2.vector.VectorString3D(px, py, pz, false);
+			VectorString3D vs = new VectorString3D(px, py, pz, false);
 			vs.addDependent(p_width_i);
 			vs.resample(vs.getAverageDelta());
 			px = vs.getPoints(0);
@@ -1778,5 +1779,59 @@ public class Pipe extends ZDisplayable {
 		}
 
 		return new Object[]{p, p_l, p_r, p_i, p_width, p_width_i};
+	}
+
+	public VectorString3D asVectorString3D() {
+		// local pointers, since they may be transformed
+		double[][] p = this.p;
+		double[][] p_r = this.p_r;
+		double[][] p_l = this.p_l;
+		double[][] p_i = this.p_i;
+		double[] p_width = this.p_width;
+		double[] p_width_i = this.p_width_i;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			p = (double[][])ob[0];
+			p_l = (double[][])ob[1];
+			p_r = (double[][])ob[2];
+			p_i = (double[][])ob[3];
+			p_width = (double[])ob[4];
+			p_width_i = (double[])ob[5];
+		}
+
+		final int n = p_i[0].length;
+		final int mm = n_points;
+		final double[] z_values = new double[n];
+		final int interval_points = n / (mm-1);
+		double z_val = 0;
+		double z_val_next = 0;
+		double z_diff = 0;
+		int c = 0;
+		double delta = 0;
+
+		for (int j=0; j<mm-1; j++) {
+			z_val = layer_set.getLayer(p_layer[j]).getZ();
+			z_val_next = layer_set.getLayer(p_layer[j+1]).getZ();
+			z_diff = z_val_next - z_val;
+			delta = z_diff/interval_points;
+			z_values[c] = (0 == j ? z_val : z_values[c-1]) + delta;
+			for (int k=1; k<interval_points; k++) {
+				c++;
+				z_values[c] = z_values[c-1] + delta;
+			}
+			c++;
+		}
+		//setting last point
+		z_values[n-1] = layer_set.getLayer(p_layer[mm-1]).getZ();
+
+		final double[] px = p_i[0];
+		final double[] py = p_i[1];
+		final double[] pz = z_values;
+		VectorString3D vs = null;
+		try {
+			vs = new VectorString3D(px, py, pz, false);
+			vs.addDependent(p_width_i);
+		} catch (Exception e) { new IJError(e); }
+		return vs;
 	}
 }

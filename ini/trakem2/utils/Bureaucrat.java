@@ -28,30 +28,37 @@ import ini.trakem2.Project;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Utils;
 
-/** Sets a Worker thread to work, and waits until it finishes, blocking all user interface input until then, except for zoom and pan. */
+/** Sets a Worker thread to work, and waits until it finishes, blocking all user interface input until then, except for zoom and pan, for all given projects. */
 public class Bureaucrat extends Thread {
 	private Worker worker;
 	private long onset;
-	private Project project;
+	private Project[] project;
 
 	/** Registers itself in the project loader job queue. */
 	public Bureaucrat(Worker worker, Project project) {
-		Utils.printCaller(this, 4);
+		this(worker, new Project[]{project});
+	}
+	public Bureaucrat(Worker worker, Project[] project) {
 		this.worker = worker;
 		this.project = project;
 		onset = System.currentTimeMillis();
-		project.setReceivesInput(false);
+		for (int i=0; i<project.length; i++) {
+			project[i].setReceivesInput(false);
+			project[i].getLoader().addJob(this);
+		}
 		setPriority(Thread.NORM_PRIORITY);
-		project.getLoader().addJob(this);
 	}
+
 	/** Sets the worker to work and monitors it until it finishes.*/
 	public void goHaveBreakfast() {
 		worker.start();
 		start();
 	}
 	private void cleanup() {
-		project.getLoader().removeJob(this);
-		project.setReceivesInput(true);
+		for (int i=0; i<project.length; i++) {
+			project[i].getLoader().removeJob(this);
+			project[i].setReceivesInput(true);
+		}
 	}
 	public void run() {
 		// wait until worker starts

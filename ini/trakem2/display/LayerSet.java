@@ -1497,6 +1497,13 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c, which are stored in the given ArrayList; returns the same ArrayList, or a new one if its null. */
 	public ArrayList get(ArrayList all, final Class c) {
 		if (null == all) all = new ArrayList();
+		if (Displayable.class.equals(c)) all.addAll(al_zdispl);
+		else {
+			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ){
+				Object ob = it.next();
+				if (ob.getClass().equals(c)) all.add(ob);
+			}
+		}
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
 			all.addAll(layer.getDisplayables(c));

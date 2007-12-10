@@ -192,7 +192,7 @@ public class Search {
 	private JScrollPane makeTable(TableModel model) {
 		JTable table = new JTable(model);
 		//java 1.6.0 only!! //table.setAutoCreateRowSorter(true);
-		table.addMouseListener(new DisplayableListListener(table));
+		table.addMouseListener(new DisplayableListListener());
 		JScrollPane jsp = new JScrollPane(table);
 		jsp.setPreferredSize(new Dimension(500, 500));
 		return jsp;
@@ -215,10 +215,6 @@ public class Search {
 
 	/** Listen to double clicks in the table rows. */
 	private class DisplayableListListener extends MouseAdapter {
-		private JTable table;
-		DisplayableListListener(JTable table) {
-			this.table = table;
-		}
 		public void mousePressed(MouseEvent me) {
 			if (2 != me.getClickCount()) return;
 			Object source = me.getSource();
@@ -229,7 +225,7 @@ public class Search {
 			// Ah, a "model" ... since when a model holds the DATA (!!), same with JTree, how lame.
 			Object ob = ((DisplayableTableModel)table.getModel()).getDisplayableAt(table.rowAtPoint(me.getPoint()));
 			if (ob instanceof Displayable) {
-				Displayable displ = ((Displayable)ob);
+				Displayable displ = (Displayable)ob;
 				Display.setFront(displ.getLayer(), displ);
 			} else if (ob instanceof Layer) {
 				Display.setFront((Layer)ob, null);

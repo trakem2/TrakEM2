@@ -1872,6 +1872,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						if (it.next().getClass().equals(AreaList.class)) n++;
 					}
 					if (n < 2) item.setEnabled(false);
+				} else if (active instanceof Pipe) {
+					item = new JMenuItem("Identify..."); item.addActionListener(this); popup.add(item);
 				}
 			}
 			if (canvas.isTransforming()) {
@@ -2787,6 +2789,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				selection.updateTransform(ali);
 				repaint(ali.getLayerSet(), ali, 0);
 			}
+		} else if (command.equals("Identify...")) {
+			// for pipes only for now
+			if (!(active instanceof Pipe)) return;
+			ini.trakem2.vector.Compare.findSimilar((Pipe)active);
 		} else if (command.equals("View orthoslices")) {
 			if (!(active instanceof Patch)) return;
 			Display3D.showOrthoslices(((Patch)active));

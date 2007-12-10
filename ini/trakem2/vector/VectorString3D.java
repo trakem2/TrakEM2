@@ -24,6 +24,7 @@ package ini.trakem2.vector;
 
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import java.util.Arrays;
 
 public class VectorString3D implements VectorString {
 
@@ -208,6 +209,7 @@ public class VectorString3D implements VectorString {
 			vs.vy = Utils.copy(this.vy, length);
 			vs.vz = Utils.copy(this.vz, length);
 			vs.length = length;
+			if (null != dep) vs.dep = dep;
 		}
 		final void setDeps(final int i, final double[][] src_dep, final int[] ahead, final double[] weight, final int len) {
 			if (null == dep) return;
@@ -500,10 +502,19 @@ public class VectorString3D implements VectorString {
 	/** Subtracts vs2 vector j to this vector i and returns its length, without changing any data. */
 	public double getDiffVectorLength(final int i, final int j, final VectorString vs2) {
 		final VectorString3D vs = (VectorString3D)vs2;
-		final double dx = vx[i] - vs.vx[j];
-		final double dy = vy[i] - vs.vy[j];
-		final double dz = vz[i] - vs.vz[j];
-		return Math.sqrt(dx*dx + dy*dy + dz*dz);
+		if (null == rvx || null == rvy || null == rvz) {
+			// use absolute vectors
+			final double dx = vx[i] - vs.vx[j];
+			final double dy = vy[i] - vs.vy[j];
+			final double dz = vz[i] - vs.vz[j];
+			return Math.sqrt(dx*dx + dy*dy + dz*dz);
+		} else {
+			// use relative vectors
+			final double dx = rvx[i] - vs.rvx[j];
+			final double dy = rvy[i] - vs.rvy[j];
+			final double dz = rvz[i] - vs.rvz[j];
+			return Math.sqrt(dx*dx + dy*dy + dz*dz);
+		}
 	}
 
 	public Object clone() {
@@ -532,15 +543,53 @@ public class VectorString3D implements VectorString {
 		rvx = new double[length];
 		rvy = new double[length];
 		rvz = new double[length];
+		// the first vector:
 		if (closed) { // last to first
 			rvx[0] = vx[length-1] - vx[0];
 			rvy[0] = vy[length-1] - vy[0];
 			rvz[0] = vz[length-1] - vz[0];
-		}
+		} // else, as open curve the first vector remains 0,0,0
+		// fill in the rest:
 		for (int i=1; i<length; i++) {
 			rvx[i] = vx[i] - vx[i-1];
 			rvy[i] = vy[i] - vy[i-1];
 			rvz[i] = vz[i] - vz[i-1];
+		}
+	}
+
+	/** Makes the bounding box of all points fit inside a cube of sides 1,1,1, preserving aspect ratio of course. Does not make any sense to call this method AFTER resampling.
+	 *
+	 * This method is intended to enhance the comparison of two paths in 3D space which may be similar but differ greatly in dimensions.
+	 */
+	public void normalize() throws Exception {
+		if (length < 2) return;
+		// find current boundaries
+		double min_x=Double.MAX_VALUE, max_x=0,
+		       min_y=Double.MAX_VALUE, max_y=0,
+		       min_z=Double.MAX_VALUE, max_z=0;
+		for (int i=0; i<length; i++) {
+			if (x[i] < min_x) min_x = x[i];
+			if (y[i] < min_y) min_y = y[i];
+			if (z[i] < min_z) min_z = z[i];
+			if (x[i] > max_x) max_x = x[i];
+			if (y[i] > max_y) max_y = y[i];
+			if (z[i] > max_z) max_z = z[i];
+		}
+		// determine maximum scale to fit even the largest one
+		final double[] s = new double[] {
+			max_x - min_x,
+			max_y - min_y,
+			max_z - min_z
+		};
+		Arrays.sort(s);
+		double K = s[2]; // the largest
+		if (0 == K) K = s[1];
+		if (0 == K) K = s[0];
+		if (0 == K) throw new Exception("Can't normalize: all possible scales are zero.");
+		for (int i=0; i<length; i++) {
+			x[i] /= K;
+			y[i] /= K;
+			z[i] /= K;
 		}
 	}
 }

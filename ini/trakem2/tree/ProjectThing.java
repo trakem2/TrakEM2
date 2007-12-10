@@ -313,10 +313,15 @@ public class ProjectThing extends DBObject implements Thing {
 			}
 		} else {
 			try {
-				Method setTitle = object.getClass().getDeclaredMethod("setTitle", new Class[]{String.class});
-				if (null != setTitle) {
+				Method setTitle = null;
+				if (object instanceof Displayable) {
+					((Displayable)object).setTitle(title);
+				} else {
+					setTitle = object.getClass().getDeclaredMethod("setTitle", new Class[]{String.class});
 					setTitle.invoke(object, new Object[]{title});
 				}
+			} catch (NoSuchMethodException nsme) {
+				Utils.log("No such method: setTitle, for object " + object);
 			} catch (Exception e) {
 				Utils.log("ProjectThing.setTitle: no such method setTitle or can't access it, in the object " + object);
 				new IJError(e);
