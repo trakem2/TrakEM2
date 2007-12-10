@@ -190,6 +190,7 @@ public class VectorString3D implements VectorString {
 				// java doesn't have generators! ARGH
 				double[][] dep2 = new double[dep.length][];
 				for (int i=0; i<dep.length; i++) dep2[i] = Utils.copy(dep[i], new_length);
+				dep = dep2;
 			}
 		}
 		final double x(final int i) { return rx[i]; }
@@ -209,7 +210,10 @@ public class VectorString3D implements VectorString {
 			vs.vy = Utils.copy(this.vy, length);
 			vs.vz = Utils.copy(this.vz, length);
 			vs.length = length;
-			if (null != dep) vs.dep = dep;
+			if (null != dep) {
+				vs.dep = new double[dep.length][];
+				for (int i=0; i<dep.length; i++) vs.dep[i] = Utils.copy(dep[i], length);
+			}
 		}
 		final void setDeps(final int i, final double[][] src_dep, final int[] ahead, final double[] weight, final int len) {
 			if (null == dep) return;
@@ -500,8 +504,8 @@ public class VectorString3D implements VectorString {
 	}
 
 	/** Subtracts vs2 vector j to this vector i and returns its length, without changing any data. */
-	public double getDiffVectorLength(final int i, final int j, final VectorString vs2) {
-		final VectorString3D vs = (VectorString3D)vs2;
+	public double getDiffVectorLength(final int i, final int j, final VectorString vsb) {
+		final VectorString3D vs = (VectorString3D)vsb;
 		if (null == rvx || null == rvy || null == rvz) {
 			// use absolute vectors
 			final double dx = vx[i] - vs.vx[j];
@@ -543,15 +547,38 @@ public class VectorString3D implements VectorString {
 		rvx = new double[length];
 		rvy = new double[length];
 		rvz = new double[length];
+
+
+		// TODO 2: also, it should test both orientations and select the best
+
+		// TODO: there is a mistake. Both vectors, i and i-1, have to be rotated so that vector i becomes aligned with whatever axis, as long as all vectors get aligned to the same. In this way then one truly stores differences only. An easy approach is to store the angle difference, since then it will be a scalar value independent of the orientation of the vectors. As long as the angle is represented with a vector, fine.
+		// Another alternative is, if both vectors are rotated, then the first is always on the axis and the second has the "difference" information already as is.
+		// So for a vector c1,c2,c3 of length L, I want it as L,0,0 (for example) and then the second vector, as rotated, is the one to use as relative.
+		// So: v[i-1], vL, and v[i]; then v[i-1] + W = vL, so W = vL - v[i-1], and then the diff vector is v[i] + W
+
+		//double wx, wy, wz; // the W
+		//double vLx; // vLy = vLz = 0
+
 		// the first vector:
 		if (closed) { // last to first
 			rvx[0] = vx[length-1] - vx[0];
-			rvy[0] = vy[length-1] - vy[0];
+			rvy[0] = vy[length-1] - vy[0]; // TODO this one is not yet properly relative
 			rvz[0] = vz[length-1] - vz[0];
 		} // else, as open curve the first vector remains 0,0,0
 		// fill in the rest:
 		for (int i=1; i<length; i++) {
-			rvx[i] = vx[i] - vx[i-1];
+			/*
+			vLx = Math.sqrt(vx[i-1]*vx[i-1] + vy[i-1]*vy[i-1] + vz[i-1]*vz[i-1]);
+			wx = vLx - vx[i-1];
+			wy = - vy[i-1];
+			wz = - vz[i-1];
+
+			rvx[i] = vx[i-1] + wx;
+			rvy[i] = vy[i-1] + wy;
+			rvz[i] = vz[i-1] + wz;
+			*/
+			// simplifying:
+			rvx[i] = vx[i] + Math.sqrt(vx[i-1]*vx[i-1] + vy[i-1]*vy[i-1] + vz[i-1]*vz[i-1]) - vx[i-1];
 			rvy[i] = vy[i] - vy[i-1];
 			rvz[i] = vz[i] - vz[i-1];
 		}

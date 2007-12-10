@@ -1486,7 +1486,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public void setSnapshotsQuality(boolean b) {
 		this.snapshots_quality = b;
 		updateInDatabase("snapshots_quality");
-		// TODO should remake all snapshots
+		// TODO this is obsolete
 	}
 
 	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c. */
