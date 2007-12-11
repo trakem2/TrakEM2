@@ -455,8 +455,35 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** remove_trailing_zeros will leave at least one zero after the comma if appropriate. */
-	static public String cutNumber(double d, int n_decimals, boolean remove_trailing_zeros) {
+	static public String cutNumber(final double d, final int n_decimals, final boolean remove_trailing_zeros) {
 		String num = new Double(d).toString();
+		int i_e = num.indexOf("E-");
+		if (-1 != i_e) {
+			final int exp = Integer.parseInt(num.substring(i_e+2));
+			if (n_decimals < exp) {
+				final StringBuffer sb = new StringBuffer("0.");
+				int count = n_decimals;
+				while (count > 0) {
+					sb.append('0');
+					count--;
+				}
+				return sb.toString(); // returns 0.000... as many zeros as desired n_decimals
+			}
+			// else move comma
+			StringBuffer sb = new StringBuffer("0.");
+			int count = exp -1;
+			while (count > 0) {
+				sb.append('0');
+				count--;
+			}
+			sb.append(num.charAt(0)); // the single number before the comma
+			// up to here there are 'exp' number of decimals appended
+			int i_end = 2 + n_decimals - exp;
+			if (i_end > i_e) i_end = i_e; // there arent' that ,any, so cut
+			sb.append(num.substring(2, i_end)); // all numbers after the comma
+			return sb.toString();
+		}
+		// else, there is no scientific notation to worry about
 		int i_dot = num.indexOf('.');
 		StringBuffer sb = new StringBuffer(num.substring(0, i_dot+1));
 		for (int i=i_dot+1; i < (n_decimals + i_dot + 1) && i < num.length(); i++) {

@@ -282,10 +282,17 @@ public class VectorString3D implements VectorString {
 		final void put(final int i, final ResamplingData r) {
 			r.setPV(i, r.x(i-1) + this.x, r.y(i-1) + this.y, r.z(i-1) + this.z, this.x, this.y, this.z);
 		}
+		/** As row. */
 		final void put(final double[] d) {
 			d[0] = x;
 			d[1] = y;
 			d[2] = z;
+		}
+		/** As column. */
+		final void put(final double[][] d, final int col) {
+			d[0][col] = x;
+			d[1][col] = y;
+			d[2][col] = z;
 		}
 		final void put(final int i, final double[] x, final double[] y, final double[] z) {
 			x[i] = this.x;
@@ -547,7 +554,25 @@ public class VectorString3D implements VectorString {
 			final double dx = vx[i] - vs.vx[j];
 			final double dy = vy[i] - vs.vy[j];
 			final double dz = vz[i] - vs.vz[j];
+
+			if (i == j){
+				double leni = Math.sqrt(vx[i]*vx[i]
+						      + vy[i]*vy[i]
+						      + vz[i]*vz[i]);
+				double lenj = Math.sqrt(vs.vx[j]*vs.vx[j]
+						      + vs.vy[j]*vs.vy[j]
+						      + vs.vz[j]*vs.vz[j]);
+
+				/*
+				Utils.log2("i: " + i + " len: " + leni + "\t\tj: " + j + " len:" + lenj
+					+ "\n\t" + vx[i] + "\t\t\t" +  vs.vx[j]
+					+ "\n\t" + vy[i] + "\t\t\t" +  vs.vy[j]
+					+ "\n\t" + vz[i] + "\t\t\t" +  vs.vz[j]);
+				*/
+			}
+
 			return Math.sqrt(dx*dx + dy*dy + dz*dz);
+
 		} else {
 			// use relative vectors
 			final double dx = rvx[i] - vs.rvx[j];
@@ -563,10 +588,12 @@ public class VectorString3D implements VectorString {
 						      + vs.rvy[j]*vs.rvy[j]
 						      + vs.rvz[j]*vs.rvz[j]);
 
+				/*
 				Utils.log2("i: " + i + " len: " + leni + "\t\tj: " + j + " len:" + lenj
 					+ "\n\t" + rvx[i] + "\t\t\t" +  vs.rvx[j]
 					+ "\n\t" + rvy[i] + "\t\t\t" +  vs.rvy[j]
 					+ "\n\t" + rvz[i] + "\t\t\t" +  vs.rvz[j]);
+				*/
 			}
 			return dist;
 		}
@@ -623,7 +650,6 @@ public class VectorString3D implements VectorString {
 			// so the axis of rotation is the cross product of {L,0,0} and i-1
 			// (a1; a2; a3) x (b1; b2; b3) = (a2b3 - a3b2; a3b1 - a1b3; a1b2 - a2b1)
 			//Vector axis = new Vector(0 - 0, 0 - delta * vz[i-1], delta * vy[i-1] - 0);
-			/*
 			Vector vL = new Vector(delta, 0, 0);
 			vL.normalize();		// this line can be reduced to new Vector(1,0,0);
 			Vector vA = new Vector(vx[i-1], vy[i-1], vz[i-1]);
@@ -633,35 +659,37 @@ public class VectorString3D implements VectorString {
 			Vector vQQ = vQ.getCrossProduct(vL);
 			vQQ.normalize();
 
+			// the matrices expect the vectors as columns, not as rows! ARGH! Solved.
+
 			// now, vQ,vL,vQQ define an orthogonal system
 			// (vQ'; vL'; vQ' x vL')
 			double[][] m1 = new double[3][3];
-			vQ.put(m1[0]);
-			vL.put(m1[1]);
-			vQQ.put(m1[2]);
+			vQ.put(m1, 0);
+			vL.put(m1, 1);
+			vQQ.put(m1, 2);
 			Matrix mat1 = new Matrix(m1);
 
 			// (vQ'; vA'; vQ' x vA')^T            // Johannes wrote vB to mean vA. For me vB is the second vector
 			double[][] m2 = new double[3][3];
-			vQ.put(m2[0]);
-			vA.put(m2[1]);
+			vQ.put(m2, 0);
+			vA.put(m2, 1);
 			Vector vQ2 = vQ.getCrossProduct(vA);
 			vQ2.normalize();
-			vQ2.put(m2[2]);
+			vQ2.put(m2, 2);
 			Matrix mat2 = new Matrix(m2).transpose();
 
 			Matrix R = mat1.times(mat2);
-			Matrix vB = new Matrix(new double[]{vx[i], vy[i], vz[i]}, 1); // one dimensional matrix
+			// the difference vector as a one-dimensional matrix
+			Matrix vB = new Matrix(new double[]{vx[i] - vx[i-1], vy[i] - vy[i-1], vz[i] - vz[i-1]}, 1);
 			Matrix vB_rot = R.transpose().times(vB.transpose());  //  3x3 times 3x1, hence the transposing of the 1x3 vector so that the inner lengths are the same
 			double[][] arr = vB_rot.getArray();
 			rvx[i] = arr[0][0];
 			rvy[i] = arr[1][0];
 			rvz[i] = arr[2][0];
-			Utils.log2("rv{x,y,z}[" + i + "]= " + rvx[i] + ", " + rvy[i] + ", " + rvz[i]);
-			*/
+			//Utils.log2("rv{x,y,z}[" + i + "]= " + rvx[i] + ", " + rvy[i] + ", " + rvz[i]);
 
 
-			// The above doesn't work. So:
+			/*
 			Vector3D ref = new Vector3D(1,0,0); // WARNING with a 1,1,1 and then normalize() the results are very different (?)
 			Vector3D v1 = new Vector3D(vx[i-1], vy[i-1], vz[i-1]);
 			v1.normalize();
@@ -677,8 +705,11 @@ public class VectorString3D implements VectorString {
 			rvx[i] = r.x;
 			rvy[i] = r.y;
 			rvz[i] = r.z;
+
+			*/
+
 			//check:
-			r.normalize();
+			//r.normalize();
 			// angles are identical! GOOD!// Utils.log2("Angle before: " + Math.acos(v1.dotProduct(v2)) + " Angle after:" + Math.acos(ref.dotProduct(r)));
 
 			// even easier: why not just the angle between the consecutive normalized vectors?

@@ -1661,7 +1661,7 @@ public class Pipe extends ZDisplayable {
 				 thus responsible for soft shiftings at joints where z values change
 				-Adding 1 to the z value will produce the same plane whatever the z value, thus avoiding soft shiftings at joints where z values are different
 				-Then, the third allows for very fine control of the direction that the ortogonal vector takes: simply manipulating the x coord of v3_PR, voilà.
-							   
+
 			*/
 
 			// BELOW if-else statements needed to correct the orientation of vectors, so there's no discontinuity
