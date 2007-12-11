@@ -2872,14 +2872,19 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			public void run() {
 				startedWorking();
 				try {
+		///
 
 		Rectangle srcRect = canvas.getSrcRect();
 		int x = srcRect.x + srcRect.width / 2;
 		int y = srcRect.y + srcRect.height/ 2;
 		Patch p = project.getLoader().importImage(project, x, y);
-		if (null == p) return;
+		if (null == p) {
+			finishedWorking();
+			return;
+		}
 		layer.add(p); // will add it to the proper Displays
 
+		///
 				} catch (Exception e) {
 					new IJError(e);
 				}
@@ -2901,7 +2906,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		int x = srcRect.x + srcRect.width / 2;// - imp.getWidth() / 2;
 		int y = srcRect.y + srcRect.height/ 2;// - imp.getHeight()/ 2;
 		Patch p = project.getLoader().importNextImage(project, x, y);
-		if (null == p) return;
+		if (null == p) {
+			finishedWorking();
+			return;
+		}
 		layer.add(p); // will add it to the proper Displays
 
 				} catch (Exception e) {

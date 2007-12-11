@@ -2980,6 +2980,7 @@ abstract public class Loader {
 				gd.addChoice("choose stack: ", list, list[0]);
 				gd.showDialog();
 				if (gd.wasCanceled()) {
+					finishedWorking();
 					return;
 				}
 				int i_choice = gd.getNextChoiceIndex();
@@ -2992,6 +2993,7 @@ abstract public class Loader {
 		}
 		// check:
 		if (null == imp_stack) {
+			finishedWorking();
 			return;
 		}
 
@@ -3000,7 +3002,10 @@ abstract public class Loader {
 		// check if it's amira labels stack to prevent missimports
 		if (null != props && -1 != props.indexOf("Materials {")) {
 			YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Warning", "You are importing a stack of Amira labels as a regular image stack. Continue?");
-			if (!yn.yesPressed()) return;
+			if (!yn.yesPressed()) {
+				finishedWorking();
+				return;
+			}
 		}
 
 		String dir = imp_stack.getFileInfo().directory;
@@ -3026,6 +3031,7 @@ abstract public class Loader {
 				if (null == imp_stacks) { // flush only if it was not open before
 					flush(imp_stack);
 				}
+				finishedWorking();
 				return;
 			}
 			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
@@ -3040,6 +3046,7 @@ abstract public class Loader {
 					YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The current layer's thickness is " + current_thickness + "\nwhich is " + (thickness < current_thickness ? "larger":"smaller") + " than\nthe desired " + thickness + " for each stack slice.\nAdjust current layer's thickness to " + thickness + " ?");
 					if (!yn.yesPressed()) {
 						if (null != imp_stack_) flush(imp_stack); // was opened new
+						finishedWorking();
 						return;
 					}
 				} // else adjust silently
@@ -3049,6 +3056,7 @@ abstract public class Loader {
 
 		if (null == imp_stack.getStack()) {
 			Utils.showMessage("Not a stack.");
+			finishedWorking();
 			return;
 		}
 
@@ -3111,8 +3119,8 @@ abstract public class Loader {
 		// it is safe not to flush the imp_stack, because all its resources are being used anyway (all the ImageProcessor), and it has no awt.Image. Unless it's being shown in ImageJ, and then it will be flushed on its own when the user closes its window.
 				} catch (Exception e) {
 					new IJError(e);
-					return;
 				}
+				finishedWorking();
 			}
 		};
 		Bureaucrat burro = new Bureaucrat(worker, first_layer.getProject());
