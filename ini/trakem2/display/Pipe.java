@@ -1524,11 +1524,11 @@ public class Pipe extends ZDisplayable {
 		return copy;
 	}
 
-	public List generateTriangles(double scale, int parallels) {
+	public List generateTriangles(double scale, int parallels, int resample) {
 		// check minimum requirements.
 		if (parallels < 3) parallels = 3;
 		//
-		double[][][] all_points = generateJoints(parallels);
+		double[][][] all_points = generateJoints(parallels, resample);
 		int n = all_points.length;
 		List list = new ArrayList();
 		for (int i=0; i<n-1; i++) { //minus one since last is made with previous
@@ -1549,7 +1549,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** From my former program, A_3D_Editing.java and Pipe.java  */
-	private double[][][] generateJoints(final int parallels) {
+	private double[][][] generateJoints(final int parallels, final int resample) {
 		if (-1 == n_points) setupForDisplay();
 		
 		// local pointers, since they may be transformed
@@ -1602,7 +1602,7 @@ public class Pipe extends ZDisplayable {
 		try {
 			VectorString3D vs = new VectorString3D(px, py, pz, false);
 			vs.addDependent(p_width_i);
-			vs.resample(vs.getAverageDelta());
+			vs.resample(vs.getAverageDelta() * resample);
 			px = vs.getPoints(0);
 			py = vs.getPoints(1);
 			pz = vs.getPoints(2);

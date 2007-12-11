@@ -607,7 +607,8 @@ public class Display3D {
 			double[][][] globe = Ball.generateGlobe(12, 12);
 			triangles = ((Ball)displ).generateTriangles(scale, globe);
 		} else if (displ instanceof Pipe) {
-			triangles = ((Pipe)displ).generateTriangles(scale, 12);
+			// adjustResampling();  // fails horribly, needs first to correct mesh-generation code
+			triangles = ((Pipe)displ).generateTriangles(scale, 12, 1 /*resample*/);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 		}
@@ -677,7 +678,8 @@ public class Display3D {
 		return thread;
 	}
 
-	private final void adjustResampling() {
+	// This method has the exclusivity in adjusting the resampling value.
+	synchronized private final void adjustResampling() {
 		if (resample > 0) return;
 		final GenericDialog gd = new GenericDialog("Resample");
 		gd.addSlider("Resample: ", 1, 20, -1 != resample ? resample : DEFAULT_RESAMPLE);

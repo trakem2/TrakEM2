@@ -24,7 +24,10 @@ package ini.trakem2.vector;
 
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Vector3D;
 import java.util.Arrays;
+import java.util.Random;
+import Jama.Matrix;
 
 public class VectorString3D implements VectorString {
 
@@ -235,7 +238,7 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
-	private class Vector {
+	static private class Vector {
 		private double x, y, z;
 		private double length;
 		Vector(final double x, final double y, final double z) {
@@ -248,10 +251,11 @@ public class VectorString3D implements VectorString {
 			this.length = computeLength();
 		}
 		final void normalize() {
+			if (0 == length) return;
 			this.x /= length;
 			this.y /= length;
 			this.z /= length;
-			this.length = computeLength();
+			this.length = computeLength(); // should be 1
 		}
 		final double computeLength() {
 			return Math.sqrt(x*x + y*y + z*z);
@@ -277,6 +281,22 @@ public class VectorString3D implements VectorString {
 		}
 		final void put(final int i, final ResamplingData r) {
 			r.setPV(i, r.x(i-1) + this.x, r.y(i-1) + this.y, r.z(i-1) + this.z, this.x, this.y, this.z);
+		}
+		final void put(final double[] d) {
+			d[0] = x;
+			d[1] = y;
+			d[2] = z;
+		}
+		final void put(final int i, final double[] x, final double[] y, final double[] z) {
+			x[i] = this.x;
+			y[i] = this.y;
+			z[i] = this.z;
+		}
+		final Vector getCrossProduct(final Vector v) {
+			// (a1; a2; a3) x (b1; b2; b3) = (a2b3 - a3b2; a3b1 - a1b3; a1b2 - a2b1)
+			return new Vector(y * v.z - z * v.y,
+					  z * v.x - x * v.z,
+					  x * v.y - y * v.x);
 		}
 	}
 
@@ -357,6 +377,8 @@ public class VectorString3D implements VectorString {
 				vector.put(j, r);
 				if (null != dep) r.setDeps(j, dep, new int[]{i}, new double[]{1.0}, 1);
 
+				//Utils.log2("j: " + j + " (ZERO)  " + vector.computeLength() + "  " + vector.length());
+
 				//correct for point overtaking the not-close-enough point ahead in terms of 'delta_p' as it is represented in MAX_DISTANCE, but overtaken by the 'delta' used for subsampling:
 				if (dist1 <= delta) {
 					//look for a point ahead that is over distance delta from the previous j, so that it will lay ahead of the current j
@@ -402,12 +424,18 @@ public class VectorString3D implements VectorString {
 					if (iu >= this.length) iu -= this.length;
 					ve[u].set(x[iu] - r.x(j-1), y[iu] - r.y(j-1), z[iu] - r.z(j-1));
 					ve[u].setLength(w[u] * delta);
-					vector.add(ve[u], false);
+					vector.add(ve[u], u == next_ahead-1); // compute the length only on the last iteration
+				}
+				// correct potential errors
+				if (Math.abs(vector.length() - delta) > 0.00000001) {
+					vector.setLength(delta);
 				}
 				// set
 				vector.put(j, r);
 				if (null != dep) r.setDeps(j, dep, ahead, w, next_ahead);
-				// BEWARE that the vector remains "dirty": its length is not set to what it should
+
+				//Utils.log2("j: " + j + "  (" + next_ahead + ")   " + vector.computeLength() + "  " + vector.length());
+
 
 				// find the first point that is right ahead of the newly added point
 				// so: loop through points that lay within MAX_DISTANCE, and find the first one that is right past delta.
@@ -526,8 +554,19 @@ public class VectorString3D implements VectorString {
 			final double dy = rvy[i] - vs.rvy[j];
 			final double dz = rvz[i] - vs.rvz[j];
 			final double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-			if (i == j) {  // j > i-3 && j < i+3) {
-				Utils.log2("rel: i,j,dist "+ i + ", " + j + ", " + dist + " dx,dy,dz: " + dx + ", " + dy + ", " + dz);
+			if (j == i) /*(j > i-2 && j < i+2)*/ {
+				//Utils.log2("rel: i,j,dist "+ i + ", " + j + ", " + dist + " dx,dy,dz: " + dx + ", " + dy + ", " + dz);
+				double leni = Math.sqrt(rvx[i]*rvx[i]
+						      + rvy[i]*rvy[i]
+						      + rvz[i]*rvz[i]);
+				double lenj = Math.sqrt(vs.rvx[j]*vs.rvx[j]
+						      + vs.rvy[j]*vs.rvy[j]
+						      + vs.rvz[j]*vs.rvz[j]);
+
+				Utils.log2("i: " + i + " len: " + leni + "\t\tj: " + j + " len:" + lenj
+					+ "\n\t" + rvx[i] + "\t\t\t" +  vs.rvx[j]
+					+ "\n\t" + rvy[i] + "\t\t\t" +  vs.rvy[j]
+					+ "\n\t" + rvz[i] + "\t\t\t" +  vs.rvz[j]);
 			}
 			return dist;
 		}
@@ -573,28 +612,79 @@ public class VectorString3D implements VectorString {
 
 		// the first vector:
 		if (closed) { // last to first
-			rvx[0] = vx[length-1] - vx[0];
-			rvy[0] = vy[length-1] - vy[0]; // TODO this one is not yet properly relative
-			rvz[0] = vz[length-1] - vz[0];
+			rvx[0] = vx[0] + delta - vx[length-1];
+			rvy[0] = vy[0] - vy[length-1];
+			rvz[0] = vz[0] - vz[length-1];
 		} // else, as open curve the first vector remains 0,0,0
 		// fill in the rest:
 		for (int i=1; i<length; i++) {
+			// So: Johannes Schindelin said: vector Y is the rotated, X is the original
+			// Y = A + R * (X - A)    where R is a rotation matrix (A is the displacement vector, 0,0,0 in this case)
+			// so the axis of rotation is the cross product of {L,0,0} and i-1
+			// (a1; a2; a3) x (b1; b2; b3) = (a2b3 - a3b2; a3b1 - a1b3; a1b2 - a2b1)
+			//Vector axis = new Vector(0 - 0, 0 - delta * vz[i-1], delta * vy[i-1] - 0);
 			/*
-			vLx = Math.sqrt(vx[i-1]*vx[i-1] + vy[i-1]*vy[i-1] + vz[i-1]*vz[i-1]);
-			wx = vLx - vx[i-1];
-			wy = - vy[i-1];
-			wz = - vz[i-1];
+			Vector vL = new Vector(delta, 0, 0);
+			vL.normalize();		// this line can be reduced to new Vector(1,0,0);
+			Vector vA = new Vector(vx[i-1], vy[i-1], vz[i-1]);
+			vA.normalize();
+			Vector vQ = vA.getCrossProduct(vL); // new Vector(0, - delta * vz[i-1], delta * vy[i-1]); // cross product of vL and vA, i.e. a vector perpendicular to it
+			vQ.normalize();
+			Vector vQQ = vQ.getCrossProduct(vL);
+			vQQ.normalize();
 
-			rvx[i] = vx[i-1] + wx;
-			rvy[i] = vy[i-1] + wy;
-			rvz[i] = vz[i-1] + wz;
+			// now, vQ,vL,vQQ define an orthogonal system
+			// (vQ'; vL'; vQ' x vL')
+			double[][] m1 = new double[3][3];
+			vQ.put(m1[0]);
+			vL.put(m1[1]);
+			vQQ.put(m1[2]);
+			Matrix mat1 = new Matrix(m1);
+
+			// (vQ'; vA'; vQ' x vA')^T            // Johannes wrote vB to mean vA. For me vB is the second vector
+			double[][] m2 = new double[3][3];
+			vQ.put(m2[0]);
+			vA.put(m2[1]);
+			Vector vQ2 = vQ.getCrossProduct(vA);
+			vQ2.normalize();
+			vQ2.put(m2[2]);
+			Matrix mat2 = new Matrix(m2).transpose();
+
+			Matrix R = mat1.times(mat2);
+			Matrix vB = new Matrix(new double[]{vx[i], vy[i], vz[i]}, 1); // one dimensional matrix
+			Matrix vB_rot = R.transpose().times(vB.transpose());  //  3x3 times 3x1, hence the transposing of the 1x3 vector so that the inner lengths are the same
+			double[][] arr = vB_rot.getArray();
+			rvx[i] = arr[0][0];
+			rvy[i] = arr[1][0];
+			rvz[i] = arr[2][0];
+			Utils.log2("rv{x,y,z}[" + i + "]= " + rvx[i] + ", " + rvy[i] + ", " + rvz[i]);
 			*/
-			// simplifying:
-			//rvx[i] = vx[i] + Math.sqrt(vx[i-1]*vx[i-1] + vy[i-1]*vy[i-1] + vz[i-1]*vz[i-1]) - vx[i-1];
-			// the line above fails: looks like it hides an error somewhere
-			rvx[i] = vx[i] + delta - vx[i-1]; // all vectors are of length delta
-			rvy[i] = vy[i] - vy[i-1];
-			rvz[i] = vz[i] - vz[i-1];
+
+
+			// The above doesn't work. So:
+			Vector3D ref = new Vector3D(1,0,0); // WARNING with a 1,1,1 and then normalize() the results are very different (?)
+			Vector3D v1 = new Vector3D(vx[i-1], vy[i-1], vz[i-1]);
+			v1.normalize();
+			Vector3D v2 = new Vector3D(vx[i] - vx[i-1], vy[i] - vy[i-1], vz[i] - vz[i-1]); // the vector of differences
+			v2.normalize();
+			Vector3D axis = ref.crossProduct(v1);
+			double angle = Math.acos(ref.dotProduct(v1));
+			double sin = Math.sin(-angle); // rotate minus the angle
+			double cos = Math.cos(-angle);
+			Vector3D r = v2.rotateAroundAxis(axis, sin, cos); // will normalize axis
+			r.normalize();
+			r.scale(delta);
+			rvx[i] = r.x;
+			rvy[i] = r.y;
+			rvz[i] = r.z;
+			//check:
+			r.normalize();
+			// angles are identical! GOOD!// Utils.log2("Angle before: " + Math.acos(v1.dotProduct(v2)) + " Angle after:" + Math.acos(ref.dotProduct(r)));
+
+			// even easier: why not just the angle between the consecutive normalized vectors?
+			// NO: because the vector can pivot in 3D, keeping the same angle but being different
+
+
 		}
 		Utils.log2("relative used delta " + delta);
 	}
@@ -611,5 +701,35 @@ public class VectorString3D implements VectorString {
 			y[i] *= scale;
 			z[i] *= scale;
 		}
+	}
+
+	static public VectorString3D createRandom(final int length, final double delta, final boolean closed) throws Exception {
+		Utils.log2("Creating random with length " + length + " and delta " + delta);
+		double[] x = new double[length];
+		double[] y = new double[length];
+		double[] z = new double[length];
+		Random rand = new Random(69997); // fixed seed, so that when length is equal the generated sequence is also equal
+		Vector v = new Vector(0,0,0);
+		for (int i=0; i<length; i++) {
+			v.set(rand.nextDouble()*2 -1, rand.nextDouble()*2 -1, rand.nextDouble()*2 -1); // random values in the range [-1,1]
+			v.setLength(delta);
+			v.put(i, x, y, z);
+		}
+		final VectorString3D vs = new VectorString3D(x, y, z, closed);
+		vs.delta = delta;
+		vs.vx = new double[length];
+		vs.vy = new double[length];
+		vs.vz = new double[length];
+		for (int i=1; i<length; i++) {
+			vs.vx[i] = vs.x[i] - vs.x[i-1];
+			vs.vy[i] = vs.y[i] - vs.y[i-1];
+			vs.vz[i] = vs.z[i] - vs.z[i-1];
+		}
+		if (closed) {
+			vs.vx[0] = vs.x[0] - vs.x[length-1];
+			vs.vy[0] = vs.y[0] - vs.y[length-1];
+			vs.vz[0] = vs.z[0] - vs.z[length-1];
+		}
+		return vs;
 	}
 }

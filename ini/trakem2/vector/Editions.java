@@ -57,6 +57,21 @@ public class Editions {
 	public int length() { return editions.length; }
 	public int[][] getEditions() { return editions; }
 
+	/** A mutation is considered an equal or near equal, and thus does not count. Only deletions and insertions count towards scoring the similarity. */
+	public double getSimilarity() {
+		int non_mut = 0;
+		for (int i=0; i<editions.length; i++) {
+			switch (editions[i][0]) {
+				case DELETION:
+				case INSERTION:
+					non_mut++;
+					break;
+			}
+		}
+		Utils.log2("non_mut: " + non_mut + "  total: " + editions.length);
+		return 1.0 - ( (double)non_mut / Math.max(vs1.length(), vs2.length()) );
+	}
+
 	final private void init() {
 		// equalize point interdistance in both strings of vectors and create the actual vectors
 		vs1.resample(delta);
