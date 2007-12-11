@@ -25,6 +25,9 @@ package ini.trakem2.vector;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Vector3D;
+
+import ij.measure.Calibration;
+
 import java.util.Arrays;
 import java.util.Random;
 import Jama.Matrix;
@@ -43,6 +46,8 @@ public class VectorString3D implements VectorString {
 	private double delta = 0;
 
 	private boolean closed = false;
+
+	private Calibration cal = null;
 
 	/** Dependent arrays that will get resampled along. */
 	private double[][] dep;
@@ -762,5 +767,28 @@ public class VectorString3D implements VectorString {
 			vs.vz[0] = vs.z[0] - vs.z[length-1];
 		}
 		return vs;
+	}
+
+	/** Scale to match cal.pixelWidth, cal.pixelHeight and cal.pixelDepth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. */
+	public void calibrate(final Calibration cal) {
+		if (null == cal) return;
+		this.cal = cal;
+		for (int i=0; i<x.length; i++) {
+			x[i] *= cal.pixelWidth;
+			y[i] *= cal.pixelHeight;
+			// TODO z is obtained from the layer, which is already set in pixel coordinates // z[i] *= cal.pixelDepth;
+			// That has to change eventually.
+		}
+		// reset vectors
+		vx = vy = vz = null;
+		rvx = rvy = rvz = null;
+		delta = 0;
+	}
+
+	public boolean isCalibrated() {
+		return null != this.cal;
+	}
+	public Calibration getCalibrationCopy() {
+		return null == this.cal ? null : this.cal.copy();
 	}
 }

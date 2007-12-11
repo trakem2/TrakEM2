@@ -2862,7 +2862,11 @@ abstract public class Loader {
 			OpenDialog od = new OpenDialog("Import image", "");
 			String name = od.getFileName();
 			if (null == name || 0 == name.length()) return null;
-			path = od.getDirectory() + "/" + name;
+			String dir = od.getDirectory().replace('\\', '/');
+			if (!dir.endsWith("/")) dir += "/";
+			path = dir + name;
+		} else {
+			path = path.replace('\\', '/');
 		}
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		final ImagePlus imp = opener.openImage(path);

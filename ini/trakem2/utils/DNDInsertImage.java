@@ -99,7 +99,8 @@ public class DNDInsertImage implements DropTargetListener {
 				Iterator iterator = ((List)data).iterator();
 				while(iterator.hasNext()) {
 					File f = (File)iterator.next();
-					importImageFile(f, f.getCanonicalPath(), point);
+					String path = f.getCanonicalPath().replace('\\', '/');
+					importImageFile(f, path, point);
 				}
 			}
 		} catch(Exception e) {
