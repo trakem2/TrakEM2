@@ -35,6 +35,7 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
+import ini.trakem2.vector.Compare;
 
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject {
@@ -608,6 +609,7 @@ public abstract class Displayable extends DBObject {
 		if (super.remove(check) && layer.remove(this)) {
 			unlink();
 			Search.remove(this);
+			Compare.remove(this);
 			return true;
 		}
 		Utils.log("Failed to remove " + this.getClass().getName() + " " + this);
