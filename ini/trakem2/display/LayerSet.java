@@ -88,7 +88,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	private double rot_x;
 	private double rot_y;
 	private double rot_z; // should be equivalent to the Displayable.rot
-	private ArrayList al_layers = new ArrayList();
+	private final ArrayList al_layers = new ArrayList();
 	private Layer active_layer;
 	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
 	private Layer parent = null;
@@ -179,7 +179,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** For reconstruction purposes: set the active layer to the ZDisplayable objects. Recurses through LayerSets in the children layers. */
-	public void setup() {
+	synchronized public void setup() {
 		if (0 == al_zdispl.size()) return;
 		Iterator it = al_zdispl.iterator();
 		if (null == active_layer && 0 != al_layers.size()) {
@@ -226,7 +226,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Add a new Layer silently, ordering by z as well.*/
-	public void addSilently(DBObject layer) {
+	synchronized public void addSilently(DBObject layer) {
 		if (null == layer || al_layers.contains(layer)) return;
 		try {
 			Iterator it = al_layers.iterator();
@@ -250,7 +250,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Add a new Layer, inserted according to its Z. */
-	public void add(Layer layer) {
+	synchronized public void add(Layer layer) {
 		if (-1 != al_layers.indexOf(layer)) return;
 		double z = layer.getZ();
 		/*
@@ -289,13 +289,13 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		//debug();
 	}
 
-	private void debug() {
+	synchronized private void debug() {
 		Utils.log("LayerSet debug:");
 		for (int i=0; i<al_layers.size(); i++)
 			Utils.log(i + " : " + ((Layer)al_layers.get(i)).getZ());
 	}
 
-	public void setActiveLayer(Layer layer) {
+	synchronized public void setActiveLayer(Layer layer) {
 		if (null == layer || layer == active_layer || -1 == al_layers.indexOf(layer)) return;
 		active_layer = layer;
 		updateInDatabase("active_layer_id");
@@ -317,7 +317,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		updateInDatabase("parent_id");
 	}
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
+	synchronized public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
 		if (ProjectToolbar.SELECT != ProjectToolbar.getToolId()) return;
 		Display.setActive(me, this);
 		if (2 == me.getClickCount() && al_layers.size() > 0) {
@@ -385,7 +385,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public double getRotY() { return rot_y; }
 	public double getRotZ() { return rot_z; }
 
-	public int size() {
+	synchronized public int size() {
 		return al_layers.size();
 	}
 
@@ -403,7 +403,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Used by the Loader after loading blindly a lot of Patches. Will crop the canvas to the minimum size possible. */
-	public boolean setMinimumDimensions() {
+	synchronized public boolean setMinimumDimensions() {
 		// add a big undo step, and also below translate previous undo steps
 		final Hashtable ht_undo = new Hashtable();
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
@@ -523,7 +523,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns false if any Displayables are being partially or totally cropped away. */
-	public boolean setDimensions(double layer_width, double layer_height, int anchor) {
+	synchronized public boolean setDimensions(double layer_width, double layer_height, int anchor) {
 		// check preconditions
 		if (Double.isNaN(layer_width) || Double.isNaN(layer_height)) { Utils.log("LayerSet.setDimensions: NaNs! Not adjusting."); return false; }
 		if (layer_width <=0 || layer_height <= 0) { Utils.showMessage("LayerSet: can't accept zero or a minus for layer width or height"); return false; }
@@ -613,7 +613,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return true;
 	}
 
-	public boolean remove(boolean check) {
+	synchronized public boolean remove(boolean check) {
 		if (check) {
 			if (!Utils.check("Really delete " + this.toString() + (null != al_layers && al_layers.size() > 0 ? " and all its children?" : ""))) return false;
 		}
@@ -636,14 +636,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Remove a child. Does not destroy it or delete it from the database. */
-	public void remove(Layer layer) {
+	synchronized public void remove(Layer layer) {
 		if (null == layer || -1 == al_layers.indexOf(layer)) return;
 		al_layers.remove(layer);
 		Display.updateLayerScroller(this);
 		Display.updateTitle(this);
 	}
 
-	public Layer next(Layer layer) {
+	synchronized public Layer next(Layer layer) {
 		int i = al_layers.indexOf(layer);
 		if (-1 == i) {
 			Utils.log("LayerSet.next: no such Layer " + layer);
@@ -653,7 +653,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		else return (Layer)al_layers.get(i+1);
 	}
 
-	public Layer previous(Layer layer) {
+	synchronized public Layer previous(Layer layer) {
 		int i = al_layers.indexOf(layer);
 		if (-1 == i) {
 			Utils.log("LayerSet.previous: no such Layer " + layer);
@@ -684,7 +684,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return given;
 	}
 
-	public int getLayerIndex(long id) {
+	synchronized public int getLayerIndex(long id) {
 		for (int i=al_layers.size()-1; i>-1; i--) {
 			if (((Layer)al_layers.get(i)).getId() == id) return i;
 		}
@@ -692,13 +692,13 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Find a layer by index, or null if none. */
-	public Layer getLayer(int i) {
+	synchronized public Layer getLayer(int i) {
 		if (i >=0 && i < al_layers.size()) return (Layer)al_layers.get(i);
 		return null;
 	}
 
 	/** Find a layer with the given id, or null if none. */
-	public Layer getLayer(long id) {
+	synchronized public Layer getLayer(long id) {
 		Iterator it = al_layers.iterator();
 		while (it.hasNext()) {
 			Layer layer = (Layer)it.next();
@@ -708,7 +708,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns the first layer found with the given Z coordinate, rounded to seventh decimal precision, or null if none found. */
-	public Layer getLayer(double z) {
+	synchronized public Layer getLayer(double z) {
 		Iterator it = al_layers.iterator();
 		double error = 0.0000001; // TODO adjust to an optimal
 		while (it.hasNext()) {
@@ -721,7 +721,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns null if none has the given z and thickness. If 'create' is true and no layer is found, a new one with the given Z is created and added to the LayerTree. */
-	public Layer getLayer(double z, double thickness, boolean create) {
+	synchronized public Layer getLayer(double z, double thickness, boolean create) {
 		Iterator it = al_layers.iterator();
 		Layer layer = null;
 		double error = 0.0000001; // TODO adjust to an optimal
@@ -742,7 +742,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Add a Displayable to be painted in all Layers, such as a Pipe. */
-	public void add(ZDisplayable zdispl) {
+	synchronized public void add(ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) {
 			Utils.log2("LayerSet: not adding zdispl");
 			return;
@@ -758,7 +758,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Used for reconstruction purposes, avoids repainting or updating. */
-	public void addSilently(ZDisplayable zdispl) {
+	synchronized public void addSilently(ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) return;
 		try {
 			if (null == active_layer && 0 != al_layers.size()) {
@@ -776,17 +776,18 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Remove a child. Does not destroy the child nor remove it from the database, only from the Display. */
-	public boolean remove(ZDisplayable zdispl) {
+	synchronized public boolean remove(ZDisplayable zdispl) {
 		if (null == zdispl || null == al_zdispl || -1 == al_zdispl.indexOf(zdispl)) return false;
 		al_zdispl.remove(zdispl);
 		Display.remove(zdispl);
 		return true;
 	}
 
-	public ArrayList getZDisplayables() { return (ArrayList)al_zdispl.clone(); }
+	/** Returns a copy of the list of ZDisplayable objects. */
+	synchronized public ArrayList getZDisplayables() { return (ArrayList)al_zdispl.clone(); }
 
 	/** Returns a list of ZDisplayable of class c only.*/
-	public ArrayList getZDisplayables(final Class c) {
+	synchronized public ArrayList getZDisplayables(final Class c) {
 		final ArrayList al = new ArrayList();
 		if (null == c) return al;
 		if (c.equals(Displayable.class) || c.equals(ZDisplayable.class)) {
@@ -800,18 +801,18 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return al;
 	}
 
-	public boolean contains(Layer layer) {
+	synchronized public boolean contains(Layer layer) {
 		if (null == layer) return false;
 		return -1 != al_layers.indexOf(layer);
 	}
 
-	public boolean contains(Displayable zdispl) {
+	synchronized public boolean contains(Displayable zdispl) {
 		if (null == zdispl) return false;
 		return -1 != al_zdispl.indexOf(zdispl);
 	}
 
 	/** Returns a copy of the layer list. */
-	public ArrayList getLayers() {
+	synchronized public ArrayList getLayers() {
 		return (ArrayList)al_layers.clone(); // for and integrity and safety
 	}
 
@@ -823,14 +824,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public void setAlpha(float alpha) { return; }
 
 	/** Move the given Displayable to the next layer if possible. */
-	public void moveDown(Layer layer, Displayable d) {
+	synchronized public void moveDown(Layer layer, Displayable d) {
 		int i = al_layers.indexOf(layer);
 		if (al_layers.size() -1 == i || -1 == i) return;
 		layer.remove(d);
 		((Layer)(al_layers.get(i +1))).add(d);
 	}
 	/** Move the given Displayable to the previous layer if possible. */
-	public void moveUp(Layer layer, Displayable d) {
+	synchronized public void moveUp(Layer layer, Displayable d) {
 		int i = al_layers.indexOf(layer);
 		if (0 == i || -1 == i) return;
 		layer.remove(d);
@@ -858,7 +859,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Find ZDisplayable objects that contain the point x,y in the given layer. */
-	public ArrayList findZDisplayables(Layer layer, int x, int y) {
+	synchronized public ArrayList findZDisplayables(Layer layer, int x, int y) {
 		ArrayList al = new ArrayList();
 		Iterator it = al_zdispl.iterator();
 		while (it.hasNext()) {
@@ -869,7 +870,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 
-	public void setVisible(String type, boolean visible, boolean repaint) {
+	synchronized public void setVisible(String type, boolean visible, boolean repaint) {
 		type = type.toLowerCase();
 		try {
 			project.getLoader().startLargeUpdate();
@@ -899,7 +900,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 	}
 	/** Returns true if any of the ZDisplayable objects are of the given class. */
-	public boolean contains(Class c) {
+	synchronized public boolean contains(Class c) {
 		Iterator it = al_zdispl.iterator();
 		while (it.hasNext()) {
 			if (it.next().getClass().equals(c)) return true;
@@ -907,7 +908,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return false;
 	}
 	/** Check in all layers. */
-	public boolean containsDisplayable(Class c) {
+	synchronized public boolean containsDisplayable(Class c) {
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer la = (Layer)it.next();
 			if (la.contains(c)) return true;
@@ -916,13 +917,13 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns the distance from the first layer's Z to the last layer's Z. */
-	public double getDepth() {
+	synchronized public double getDepth() {
 		if (null == al_layers || al_layers.isEmpty()) return 0;
 		return ((Layer)al_layers.get(al_layers.size() -1)).getZ() - ((Layer)al_layers.get(0)).getZ();
 	}
 
 	/** Return all the Displayable objects from all the layers of this LayerSet. Does not include the ZDisplayables. */
-	public ArrayList getDisplayables() {
+	synchronized public ArrayList getDisplayables() {
 		final ArrayList al = new ArrayList();
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
@@ -931,7 +932,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return al;
 	}
 	/** Return all the Displayable objects from all the layers of this LayerSet of the given class. Does not include the ZDisplayables. */
-	public ArrayList getDisplayables(Class c) {
+	synchronized public ArrayList getDisplayables(Class c) {
 		final ArrayList al = new ArrayList();
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
@@ -941,11 +942,11 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** From zero to size-1. */
-	public int indexOf(Layer layer) {
+	synchronized public int indexOf(Layer layer) {
 		return al_layers.indexOf(layer);
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	synchronized public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		sb_body.append(indent).append("<t2_layer_set \n");
 		String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
@@ -1032,7 +1033,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Creates an undo step that contains transformations for all Displayable objects of this LayerSet */
-	public void createUndoStep() {
+	synchronized public void createUndoStep() {
 		final Hashtable ht_undo = new Hashtable();
 		for (Iterator lit = al_layers.iterator(); lit.hasNext(); ) {
 			Layer la = (Layer)lit.next();
@@ -1182,7 +1183,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		current--;
 	}
 
-	public void destroy() {
+	synchronized public void destroy() {
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
 			layer.destroy();
@@ -1192,7 +1193,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			zd.destroy();
 		}
 		this.al_layers.clear();
-		this.al_layers = null;
 		this.al_zdispl.clear();
 		this.al_zdispl = null;
 		this.undo_queue.clear();
@@ -1233,14 +1233,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Used by the Layer.setZ method. */
-	protected void reposition(Layer layer) {
+	synchronized protected void reposition(Layer layer) {
 		if (null == layer || !al_layers.contains(layer)) return;
 		al_layers.remove(layer);
 		addSilently(layer);
 	}
 
 	/** Get up to 'n' layers before and after the given layers. */
-	public ArrayList getNeighborLayers(final Layer layer, final int n) {
+	synchronized public ArrayList getNeighborLayers(final Layer layer, final int n) {
 		final int i_layer = al_layers.indexOf(layer);
 		final ArrayList al = new ArrayList();
 		if (-1 == i_layer) return al;
@@ -1295,12 +1295,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		ht_regis_props.put("rg_ignore_squared_angles", gd.getNextBoolean() ? new Double(1) : new Double(0));
 	}
 
-	public boolean isTop(ZDisplayable zd) {
+	synchronized public boolean isTop(ZDisplayable zd) {
 		if (null != zd && al_zdispl.size() > 0 && al_zdispl.indexOf(zd) == al_zdispl.size() -1) return true;
 		return false;
 	}
 
-	public boolean isBottom(ZDisplayable zd) {
+	synchronized public boolean isBottom(ZDisplayable zd) {
 		if (null != zd && al_zdispl.size() > 0 && al_zdispl.indexOf(zd) == 0) return true;
 		return false;
 	}
@@ -1317,7 +1317,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Change z position in the layered stack, which defines the painting order. */ // the BOTTOM of the stack is the first element in the al_zdispl array
-	protected void move(final int place, final Displayable d) {
+	synchronized protected void move(final int place, final Displayable d) {
 		if (d instanceof ZDisplayable) {
 			int i = al_zdispl.indexOf(d);
 			if (-1 == i) {
@@ -1354,25 +1354,25 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 	}
 
-	public int indexOf(ZDisplayable zd) {
+	synchronized public int indexOf(ZDisplayable zd) {
 		int k = al_zdispl.indexOf(zd);
 		if (-1 == k) return -1;
 		return al_zdispl.size() - k -1;
 	}
 
-	public boolean isEmptyAt(Layer la) {
+	synchronized public boolean isEmptyAt(Layer la) {
 		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
 			if (((ZDisplayable)it.next()).paintsAt(la)) return false;
 		}
 		return true;
 	}
 
-	public Displayable clone(Project project) {
+	synchronized public Displayable clone(Project project) {
 		return clone(project, (Layer)al_layers.get(0), (Layer)al_layers.get(al_layers.size()-1), new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight())), false);
 	}
 
 	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle. */
-	public Displayable clone(Project project, Layer first, Layer last, Rectangle roi, boolean add_to_tree) {
+	synchronized public Displayable clone(Project project, Layer first, Layer last, Rectangle roi, boolean add_to_tree) {
 		// obtain a LayerSet
 		LayerSet target = null;
 		if (null == this.layer) {
@@ -1495,7 +1495,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c, which are stored in the given ArrayList; returns the same ArrayList, or a new one if its null. */
-	public ArrayList get(ArrayList all, final Class c) {
+	synchronized public ArrayList get(ArrayList all, final Class c) {
 		if (null == all) all = new ArrayList();
 		if (Displayable.class.equals(c)) all.addAll(al_zdispl);
 		else {
