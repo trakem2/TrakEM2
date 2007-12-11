@@ -2867,22 +2867,52 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		updateInDatabase("scroll_step");
 	}
 
-	protected void importImage() {
+	protected Bureaucrat importImage() {
+		Worker worker = new Worker("Import image") {  /// all this verbosity is what happens when functions are not first class citizens. I could abstract it away by passing a string name "importImage" and invoking it with reflection, but that is an even bigger PAIN
+			public void run() {
+				startedWorking();
+				try {
+
 		Rectangle srcRect = canvas.getSrcRect();
 		int x = srcRect.x + srcRect.width / 2;
 		int y = srcRect.y + srcRect.height/ 2;
 		Patch p = project.getLoader().importImage(project, x, y);
 		if (null == p) return;
 		layer.add(p); // will add it to the proper Displays
+
+				} catch (Exception e) {
+					new IJError(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, getProject());
+		burro.goHaveBreakfast();
+		return burro;
 	}
 
-	protected void importNextImage() {
+	protected Bureaucrat importNextImage() {
+		Worker worker = new Worker("Import image") {  /// all this verbosity is what happens when functions are not first class citizens. I could abstract it away by passing a string name "importImage" and invoking it with reflection, but that is an even bigger PAIN
+			public void run() {
+				startedWorking();
+				try {
+
 		Rectangle srcRect = canvas.getSrcRect();
 		int x = srcRect.x + srcRect.width / 2;// - imp.getWidth() / 2;
 		int y = srcRect.y + srcRect.height/ 2;// - imp.getHeight()/ 2;
 		Patch p = project.getLoader().importNextImage(project, x, y);
 		if (null == p) return;
 		layer.add(p); // will add it to the proper Displays
+
+				} catch (Exception e) {
+					new IJError(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, getProject());
+		burro.goHaveBreakfast();
+		return burro;
 	}
 
 

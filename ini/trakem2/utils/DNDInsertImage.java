@@ -66,48 +66,62 @@ public class DNDInsertImage implements DropTargetListener {
 	public void dragExit(DropTargetEvent e) {}
 	public void dragOver(DropTargetDragEvent e) {}
 	public void dropActionChanged(DropTargetDragEvent e) {}
-	public void drop(DropTargetDropEvent dtde)  {
+	public void drop(final DropTargetDropEvent dtde)  {
+		if (!display.getProject().isInputEnabled()) return;
+
+		Worker worker = new Worker("Dropping image") {
+			public void run() {
+				startedWorking();
+				try {
+
 		dtde.acceptDrop(DnDConstants.ACTION_COPY);
 		Point point = dtde.getLocation();
 		point.x = display.getCanvas().offScreenX(point.x);
 		point.y = display.getCanvas().offScreenY(point.y);
-		try  {
-			Transferable t = dtde.getTransferable();
-			DataFlavor[] flavors = t.getTransferDataFlavors();
-			int success = 0;
-			for (int i=0; i<flavors.length; i++) {
-				if (!flavors[i].getRepresentationClass().equals(String.class)) continue;
-				Object ob = t.getTransferData(flavors[i]);
-				if (!(ob instanceof String)) continue;
-				String s = ob.toString().trim();
 
-				BufferedReader br = new BufferedReader(new StringReader(s));
-				String tmp;
-				while (null != (tmp = br.readLine())) {
-					tmp = java.net.URLDecoder.decode(tmp, "UTF-8");
-					if (tmp.startsWith("file://")) {
-						tmp = tmp.substring(7);
-					}
-					File f = new File(tmp);
-					if (importImageFile(f, tmp, point)) success++;
+		Transferable t = dtde.getTransferable();
+		DataFlavor[] flavors = t.getTransferDataFlavors();
+		int success = 0;
+		for (int i=0; i<flavors.length; i++) {
+			if (!flavors[i].getRepresentationClass().equals(String.class)) continue;
+			Object ob = t.getTransferData(flavors[i]);
+			if (!(ob instanceof String)) continue;
+			String s = ob.toString().trim();
+
+			BufferedReader br = new BufferedReader(new StringReader(s));
+			String tmp;
+			while (null != (tmp = br.readLine())) {
+				tmp = java.net.URLDecoder.decode(tmp, "UTF-8");
+				if (tmp.startsWith("file://")) {
+					tmp = tmp.substring(7);
 				}
-				break;
+				File f = new File(tmp);
+				if (importImageFile(f, tmp, point)) success++;
 			}
-			if (0 == success && t.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
-				// from ij.plugin.DragAndDrop class by Wayne Rasband
-				Object data = t.getTransferData(DataFlavor.javaFileListFlavor);
-				Iterator iterator = ((List)data).iterator();
-				while(iterator.hasNext()) {
-					File f = (File)iterator.next();
-					String path = f.getCanonicalPath().replace('\\', '/');
-					importImageFile(f, path, point);
-				}
+			break;
+		}
+		if (0 == success && t.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+			// from ij.plugin.DragAndDrop class by Wayne Rasband
+			Object data = t.getTransferData(DataFlavor.javaFileListFlavor);
+			Iterator iterator = ((List)data).iterator();
+			while(iterator.hasNext()) {
+				File f = (File)iterator.next();
+				String path = f.getCanonicalPath().replace('\\', '/');
+				importImageFile(f, path, point);
 			}
-		} catch(Exception e) {
-			    dtde.dropComplete(false);
-			    return;
 		}
 		dtde.dropComplete(true);
+
+
+				} catch (Exception e) {
+			    		dtde.dropComplete(false);
+					new IJError(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, display.getProject());
+		burro.goHaveBreakfast();
 	}
 
 	private boolean importImageFile(File f, String path, Point point) throws Exception {

@@ -2936,176 +2936,188 @@ abstract public class Loader {
 		return p;
 	}
 
-	public void importStack(Layer first_layer, ImagePlus imp_stack_, boolean ask_for_data) {
-		importStack(first_layer, imp_stack_, ask_for_data, null);
+	public Bureaucrat importStack(Layer first_layer, ImagePlus imp_stack_, boolean ask_for_data) {
+		return importStack(first_layer, imp_stack_, ask_for_data, null);
 	}
 	/** Imports an image stack from a multitiff file and places each slice in the proper layer, creating new layers as it goes. If the given stack is null, popup a file dialog to choose one*/
-	public void importStack(Layer first_layer, ImagePlus imp_stack_, boolean ask_for_data, String filepath) {
-		Utils.log2("Loader.importStack filepath: " + filepath);
-		if (null == first_layer) return;
+	public Bureaucrat importStack(final Layer first_layer, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
+		Utils.log2("Loader.importStack filepath: " + filepath_);
+		if (null == first_layer) return null;
+
+		Worker worker = new Worker("import stack") {
+			public void run() {
+				startedWorking();
+				try {
+
+
+		String filepath = filepath_;
 		/* On drag and drop the stack is not null! */ //Utils.log2("imp_stack_ is " + imp_stack_);
-		try {
-			ImagePlus[] imp_stacks = null;
-			if (null == imp_stack_) {
-				imp_stacks = Utils.findOpenStacks();
+		ImagePlus[] imp_stacks = null;
+		if (null == imp_stack_) {
+			imp_stacks = Utils.findOpenStacks();
+		} else {
+			imp_stacks = new ImagePlus[]{imp_stack_};
+		}
+		ImagePlus imp_stack = null;
+		// ask to open a stack if it's null
+		if (null == imp_stacks) {
+			imp_stack = first_layer.getProject().getLoader().openStack();
+		} else {
+			// if there's only one, use that one
+			if (1 == imp_stacks.length) {
+				//YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Select?", "Import the stack " + imp_stacks[0].getTitle() + " ?");
+				//if (!yn.yesPressed()) return; // TODO a layer may be left created..
+				imp_stack = imp_stacks[0];
 			} else {
-				imp_stacks = new ImagePlus[]{imp_stack_};
-			}
-			ImagePlus imp_stack = null;
-			// ask to open a stack if it's null
-			if (null == imp_stacks) {
-				imp_stack = first_layer.getProject().getLoader().openStack();
-			} else {
-				// if there's only one, use that one
-				if (1 == imp_stacks.length) {
-					//YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Select?", "Import the stack " + imp_stacks[0].getTitle() + " ?");
-					//if (!yn.yesPressed()) return; // TODO a layer may be left created..
-					imp_stack = imp_stacks[0];
-				} else {
-					// choose one from the list
-					GenericDialog gd = new GenericDialog("Choose one");
-					gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
-					String[] list = new String[imp_stacks.length +1];
-					for (int i=0; i<list.length -1; i++) {
-						list[i] = imp_stacks[i].getTitle();
-					}
-					list[list.length-1] = "[  Open stack...  ]";
-					gd.addChoice("choose stack: ", list, list[0]);
-					gd.showDialog();
-					if (gd.wasCanceled()) {
-						return;
-					}
-					int i_choice = gd.getNextChoiceIndex();
-					if (list.length-1 == i_choice) { // the open... command
-						imp_stack = first_layer.getProject().getLoader().openStack();
-					} else {
-						imp_stack = imp_stacks[i_choice];
-					}
+				// choose one from the list
+				GenericDialog gd = new GenericDialog("Choose one");
+				gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
+				String[] list = new String[imp_stacks.length +1];
+				for (int i=0; i<list.length -1; i++) {
+					list[i] = imp_stacks[i].getTitle();
 				}
-			}
-			// check:
-			if (null == imp_stack) {
-				return;
-			}
-
-			final String props = (String)imp_stack.getProperty("Info");
-
-			// check if it's amira labels stack to prevent missimports
-			if (null != props && -1 != props.indexOf("Materials {")) {
-				YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Warning", "You are importing a stack of Amira labels as a regular image stack. Continue?");
-				if (!yn.yesPressed()) return;
-			}
-
-			String dir = imp_stack.getFileInfo().directory;
-			double layer_width = first_layer.getLayerWidth();
-			double layer_height= first_layer.getLayerHeight();
-			double current_thickness = first_layer.getThickness();
-			double thickness = current_thickness;
-			boolean expand_layer_set = false;
-			boolean lock_stack = false;
-			int anchor = LayerSet.NORTHWEST; //default
-			if (ask_for_data) {
-				// ask for slice separation in pixels
-				GenericDialog gd = new GenericDialog("Slice separation?");
-				gd.addMessage("Please enter the slice thickness, in pixels");
-				gd.addNumericField("slice thickness: ", imp_stack.getCalibration().pixelDepth / imp_stack.getCalibration().pixelHeight, 3); // assuming pixelWidth == pixelHeight
-				if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
-					gd.addCheckbox("Resize canvas to fit stack", true);
-					gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
-				}
-				gd.addCheckbox("Lock stack", false);
+				list[list.length-1] = "[  Open stack...  ]";
+				gd.addChoice("choose stack: ", list, list[0]);
 				gd.showDialog();
 				if (gd.wasCanceled()) {
-					if (null == imp_stacks) { // flush only if it was not open before
-						flush(imp_stack);
-					}
 					return;
 				}
-				if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
-					expand_layer_set = gd.getNextBoolean();
-					anchor = gd.getNextChoiceIndex();
-				}
-				lock_stack = gd.getNextBoolean();
-				thickness = gd.getNextNumber();
-				// check provided thickness with that of the first layer:
-				if (thickness != current_thickness) {
-					if (!(1 == first_layer.getParent().size() && first_layer.isEmpty())) {
-						YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The current layer's thickness is " + current_thickness + "\nwhich is " + (thickness < current_thickness ? "larger":"smaller") + " than\nthe desired " + thickness + " for each stack slice.\nAdjust current layer's thickness to " + thickness + " ?");
-						if (!yn.yesPressed()) {
-							if (null != imp_stack_) flush(imp_stack); // was opened new
-							return;
-						}
-					} // else adjust silently
-					first_layer.setThickness(thickness);
+				int i_choice = gd.getNextChoiceIndex();
+				if (list.length-1 == i_choice) { // the open... command
+					imp_stack = first_layer.getProject().getLoader().openStack();
+				} else {
+					imp_stack = imp_stacks[i_choice];
 				}
 			}
-
-			if (null == imp_stack.getStack()) {
-				Utils.showMessage("Not a stack.");
-				return;
-			}
-
-			// WARNING: there are fundamental issues with calibration, because the Layer thickness is disconnected from the Calibration pixelDepth
-
-			// set LayerSet calibration if there is no calibration
-			boolean calibrate = true;
-			if (ask_for_data && first_layer.getParent().isCalibrated()) {
-				YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the stack calibration values?");
-				if (!yn.yesPressed()) {
-					calibrate = false;
-				}
-			}
-			if (calibrate) {
-				first_layer.getParent().setCalibration(imp_stack.getCalibration());
-			}
-
-			if (layer_width < imp_stack.getWidth() || layer_height < imp_stack.getHeight()) {
-				expand_layer_set = true;
-			}
-
-			if (null == filepath) {
-				// try to get it from the original FileInfo
-				FileInfo fi = imp_stack.getOriginalFileInfo();
-				if (null != fi && null != fi.directory && null != fi.fileName) {
-					filepath = fi.directory.replace('\\', '/');
-					if (!filepath.endsWith("/")) filepath += '/';
-					filepath += fi.fileName;
-				}
-				Utils.log2("Getting filepath from FileInfo: " + filepath);
-			} else {
-				filepath = filepath.replace('\\', '/');
-			}
-
-			// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
-			Patch last_patch = this.importStackAsPatches(first_layer.getProject(), first_layer, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
-			if (null != last_patch) last_patch.setLocked(lock_stack);
-
-			if (expand_layer_set) {
-				last_patch.getLayer().getParent().setMinimumDimensions();
-			}
-
-			Utils.log2("props: " + props);
-
-			// check if it's an amira stack, then ask to import labels
-			if (null != props && -1 == props.indexOf("Materials {") && -1 != props.indexOf("CoordType")) {
-				YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Amira Importer", "Import labels as well?");
-				if (yn.yesPressed()) {
-					// select labels
-					ArrayList al = AmiraImporter.importAmiraLabels(first_layer, last_patch.getX(), last_patch.getY(), imp_stack.getOriginalFileInfo().directory);
-					if (null != al) {
-						// import all created AreaList as nodes in the ProjectTree under a new imported_segmentations node
-						first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), al);
-						// link them to the images
-						// TODO
-					}
-				}
-			}
-
-			// it is safe not to flush the imp_stack, because all its resources are being used anyway (all the ImageProcessor), and it has no awt.Image. Unless it's being shown in ImageJ, and then it will be flushed on its own when the user closes its window.
-		} catch (Exception e) {
-			new IJError(e);
+		}
+		// check:
+		if (null == imp_stack) {
 			return;
 		}
+
+		final String props = (String)imp_stack.getProperty("Info");
+
+		// check if it's amira labels stack to prevent missimports
+		if (null != props && -1 != props.indexOf("Materials {")) {
+			YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Warning", "You are importing a stack of Amira labels as a regular image stack. Continue?");
+			if (!yn.yesPressed()) return;
+		}
+
+		String dir = imp_stack.getFileInfo().directory;
+		double layer_width = first_layer.getLayerWidth();
+		double layer_height= first_layer.getLayerHeight();
+		double current_thickness = first_layer.getThickness();
+		double thickness = current_thickness;
+		boolean expand_layer_set = false;
+		boolean lock_stack = false;
+		int anchor = LayerSet.NORTHWEST; //default
+		if (ask_for_data) {
+			// ask for slice separation in pixels
+			GenericDialog gd = new GenericDialog("Slice separation?");
+			gd.addMessage("Please enter the slice thickness, in pixels");
+			gd.addNumericField("slice thickness: ", imp_stack.getCalibration().pixelDepth / imp_stack.getCalibration().pixelHeight, 3); // assuming pixelWidth == pixelHeight
+			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
+				gd.addCheckbox("Resize canvas to fit stack", true);
+				gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
+			}
+			gd.addCheckbox("Lock stack", false);
+			gd.showDialog();
+			if (gd.wasCanceled()) {
+				if (null == imp_stacks) { // flush only if it was not open before
+					flush(imp_stack);
+				}
+				return;
+			}
+			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
+				expand_layer_set = gd.getNextBoolean();
+				anchor = gd.getNextChoiceIndex();
+			}
+			lock_stack = gd.getNextBoolean();
+			thickness = gd.getNextNumber();
+			// check provided thickness with that of the first layer:
+			if (thickness != current_thickness) {
+				if (!(1 == first_layer.getParent().size() && first_layer.isEmpty())) {
+					YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The current layer's thickness is " + current_thickness + "\nwhich is " + (thickness < current_thickness ? "larger":"smaller") + " than\nthe desired " + thickness + " for each stack slice.\nAdjust current layer's thickness to " + thickness + " ?");
+					if (!yn.yesPressed()) {
+						if (null != imp_stack_) flush(imp_stack); // was opened new
+						return;
+					}
+				} // else adjust silently
+				first_layer.setThickness(thickness);
+			}
+		}
+
+		if (null == imp_stack.getStack()) {
+			Utils.showMessage("Not a stack.");
+			return;
+		}
+
+		// WARNING: there are fundamental issues with calibration, because the Layer thickness is disconnected from the Calibration pixelDepth
+
+		// set LayerSet calibration if there is no calibration
+		boolean calibrate = true;
+		if (ask_for_data && first_layer.getParent().isCalibrated()) {
+			YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the stack calibration values?");
+			if (!yn.yesPressed()) {
+				calibrate = false;
+			}
+		}
+		if (calibrate) {
+			first_layer.getParent().setCalibration(imp_stack.getCalibration());
+		}
+
+		if (layer_width < imp_stack.getWidth() || layer_height < imp_stack.getHeight()) {
+			expand_layer_set = true;
+		}
+
+		if (null == filepath) {
+			// try to get it from the original FileInfo
+			FileInfo fi = imp_stack.getOriginalFileInfo();
+			if (null != fi && null != fi.directory && null != fi.fileName) {
+				filepath = fi.directory.replace('\\', '/');
+				if (!filepath.endsWith("/")) filepath += '/';
+				filepath += fi.fileName;
+			}
+			Utils.log2("Getting filepath from FileInfo: " + filepath);
+		} else {
+			filepath = filepath.replace('\\', '/');
+		}
+
+		// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
+		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
+		if (null != last_patch) last_patch.setLocked(lock_stack);
+
+		if (expand_layer_set) {
+			last_patch.getLayer().getParent().setMinimumDimensions();
+		}
+
+		Utils.log2("props: " + props);
+
+		// check if it's an amira stack, then ask to import labels
+		if (null != props && -1 == props.indexOf("Materials {") && -1 != props.indexOf("CoordType")) {
+			YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Amira Importer", "Import labels as well?");
+			if (yn.yesPressed()) {
+				// select labels
+				ArrayList al = AmiraImporter.importAmiraLabels(first_layer, last_patch.getX(), last_patch.getY(), imp_stack.getOriginalFileInfo().directory);
+				if (null != al) {
+					// import all created AreaList as nodes in the ProjectTree under a new imported_segmentations node
+					first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), al);
+					// link them to the images
+					// TODO
+				}
+			}
+		}
+
+		// it is safe not to flush the imp_stack, because all its resources are being used anyway (all the ImageProcessor), and it has no awt.Image. Unless it's being shown in ImageJ, and then it will be flushed on its own when the user closes its window.
+				} catch (Exception e) {
+					new IJError(e);
+					return;
+				}
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, first_layer.getProject());
+		burro.goHaveBreakfast();
+		return burro;
 	}
 
 	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath);
