@@ -1459,6 +1459,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		return frame.getBounds();
 	}
 
+	public Point getLocation() {
+		return frame.getLocation();
+	}
+
+	public void setLocation(Point p) {
+		this.frame.setLocation(p);
+	}
+
 	public Displayable getActive() {
 		return active; //TODO this should return selection.active !!
 	}

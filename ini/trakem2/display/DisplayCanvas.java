@@ -1027,7 +1027,17 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			 * // Albert: imp.getWindow().pack();
 			 */
 		}
-		display.pack();
+
+		// pack display only if dimensions overflow
+		Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+		Rectangle rd = display.getBounds();
+		if (screen.width < rd.width || screen.height < rd.height) {
+			display.pack();
+			Point p = display.getLocation();
+			if (p.x < 0 || p.x > screen.width) p.x = 0;
+			if (p.y < 0 || p.y > screen.height) p.y = 0;
+			display.setLocation(p);
+		}
 
 		setMagnification(newMag);
 		display.repaintAll2(); // this repaint includes this canvas's repaint
