@@ -260,14 +260,14 @@ public class Ball extends ZDisplayable {
 					if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer().getId()) {
 						removePoint(index);
 						index = -1; // to prevent saving in the database twice
-						repaint();
+						repaint(false);
 						return;
 					}
 				} else index = -1; // disable if not in the front layer (so a new point will be added)
 			}
 			if (-1 == index) {
 				index = addPoint(x_p, y_p, mag, layer_id);
-				repaint();
+				repaint(false);
 			}
 		}
 	}
@@ -296,7 +296,7 @@ public class Ball extends ZDisplayable {
 				} else {
 					dragPoint(index, x_d - x_d_old, y_d - y_d_old);
 				}
-				repaint();
+				repaint(false);
 			}
 		}
 	}
@@ -315,6 +315,7 @@ public class Ball extends ZDisplayable {
 
 		// reset
 		index = -1;
+		repaint(true);
 	}
 
 	private void calculateBoundingBox(boolean adjust_position) {
@@ -338,10 +339,6 @@ public class Ball extends ZDisplayable {
 		this.height = max_y - min_y;
 
 		if (adjust_position) {
-			// forget it if there is no transform or the transform type is not ONLY a translation
-			if (this.at.isIdentity()) { // || this.at.getType() != AffineTransform.TYPE_TRANSLATION) {
-				return;
-			}
 			// now readjust points to make min_x,min_y be the x,y
 			for (int i=0; i<n_points; i++) {
 				p[0][i] -= min_x;	p[1][i] -= min_y;
@@ -362,11 +359,17 @@ public class Ball extends ZDisplayable {
 	}
 
 
-	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
 	public void repaint() {
+		repaint(true);
+	}
+
+	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
+	public void repaint(boolean repaint_navigator) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
+		Rectangle box = getBoundingBox(null);
 		calculateBoundingBox(true);
-		Display.repaint(layer_set, this, 5);
+		box.add(getBoundingBox(null));
+		Display.repaint(layer_set, this, box, 5, repaint_navigator);
 	}
 
 	/**Make this object ready to be painted.*/

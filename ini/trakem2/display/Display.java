@@ -1312,7 +1312,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (repaint_navigator) navigator.repaint(true); // everything
 		canvas.repaint(r, extra);
 		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(displ);
-		if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
+		if (repaint_navigator && null != dp) dp.repaint(); // is null when creating it, or after deleting it
 	}
 
 	/** Repaint the snapshot for the given Displayable both at the DisplayNavigator and on its panel,and only if it has not been painted before. This method is intended for the loader to know when to paint a snap, to avoid overhead. */
@@ -1394,16 +1394,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		repaint(set, displ, null, extra);
 	}
 
-	/** Repaint the Displayable in every Display that shows a Layer belonging to the given LayerSet. */
 	static public void repaint(LayerSet set, Displayable displ, Rectangle r, int extra) {
+		repaint(set, displ, r, extra, true);
+	}
+
+	/** Repaint the Displayable in every Display that shows a Layer belonging to the given LayerSet. */
+	static public void repaint(LayerSet set, Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
 		Iterator it = al_displays.iterator();
 		while (it.hasNext()) {
 			Display d = (Display)it.next();
 			if (set.contains(d.layer)) {
 				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
-				if (null != dp) dp.repaint();
-				d.navigator.repaint(true);
+				if (repaint_navigator && null != dp) dp.repaint();
+				if (repaint_navigator) d.navigator.repaint(true);
 				if (!displ.equals(d.active)) d.setUpdateGraphics(true); // safeguard
 				// paint the given box or the actual Displayable's box
 				if (null != r) d.canvas.repaint(r, extra);

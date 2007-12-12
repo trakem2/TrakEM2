@@ -652,7 +652,7 @@ public class Pipe extends ZDisplayable {
 					//delete point
 					removePoint(index);
 					index = index_r = index_l = -1;
-					repaint();
+					repaint(false);
 					return;
 				} else if (me.isAltDown()) {
 					resetControlPoints(index);
@@ -685,7 +685,7 @@ public class Pipe extends ZDisplayable {
 				} else {
 					generateInterpolatedPoints(0.05);
 				}
-				repaint();
+				repaint(false);
 				return;
 			}
 		}
@@ -721,7 +721,7 @@ public class Pipe extends ZDisplayable {
 					dragControlPoint(index, x_d, y_d, p_l, p_r, true);
 				}
 				generateInterpolatedPoints(0.05);
-				repaint();
+				repaint(false);
 				return;
 			}
 
@@ -729,13 +729,13 @@ public class Pipe extends ZDisplayable {
 			if (-1 != index_r) {
 				dragControlPoint(index_r, x_d, y_d, p_r, p_l, is_new_point); //((index_r != n_points-1)?false:true)); //last point gets its 2 control points dragged symetrically
 				generateInterpolatedPoints(0.05);
-				repaint();
+				repaint(false);
 				return;
 			}
 			if (-1 != index_l) {
 				dragControlPoint(index_l, x_d, y_d, p_l, p_r, is_new_point); //((index_l != n_points-1)?false:true)); //last point gets its 2 control points dragged symetrically
 				generateInterpolatedPoints(0.05);
-				repaint();
+				repaint(false);
 				return;
 			}
 		}
@@ -853,13 +853,17 @@ public class Pipe extends ZDisplayable {
 		n_points = -1; // flag that points exist but are not loaded
 	}
 
-	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
 	public void repaint() {
+		repaint(true);
+	}
+
+	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
+	public void repaint(boolean repaint_navigator) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
 		calculateBoundingBox(true);
 		box.add(getBoundingBox(null));
-		Display.repaint(layer_set, this, box, 5);
+		Display.repaint(layer_set, this, box, 5, repaint_navigator);
 	}
 
 	/**Make this object ready to be painted.*/
