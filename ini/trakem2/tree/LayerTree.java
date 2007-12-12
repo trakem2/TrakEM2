@@ -148,7 +148,8 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 			if (thing.getType().toLowerCase().replace('_', ' ').equals("layer set") && null == ((LayerSet)ob).getParent()) { // the top level LayerSet
 				return;
 			}
-			new Display(ob.getProject(), thing.getType().toLowerCase().equals("layer") ? (Layer)ob : ((LayerSet)ob).getParent());
+			//new Display(ob.getProject(), thing.getType().toLowerCase().equals("layer") ? (Layer)ob : ((LayerSet)ob).getParent());
+			Display.createDisplay(ob.getProject(), thing.getType().toLowerCase().equals("layer") ? (Layer)ob : ((LayerSet)ob).getParent());
 			return;
 		} else if (me.isPopupTrigger() /*|| me.isControlDown()*/ || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) {
 			JPopupMenu popup = getPopupMenu(selected_node);

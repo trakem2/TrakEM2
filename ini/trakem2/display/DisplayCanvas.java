@@ -1040,7 +1040,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	static private final int MIN_DIMENSION = 10; // pixels
 
 	/** Enable zooming out up to the point where the display becomes 10 pixels in width or height. */
-	private double getLowerZoomLevel2(final double currentMag) {
+	protected double getLowerZoomLevel2(final double currentMag) {
 		// if it is 1/72 or lower, then:
 		if (Math.abs(currentMag - 1/72.0) < 0.00000001 || currentMag < 1/72.0) { // lowest zoomLevel in ImageCanvas is 1/72.0
 			// find nearest power of two under currentMag
@@ -1058,7 +1058,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			return ImageCanvas.getLowerZoomLevel(currentMag); 
 		}
 	}
-	private double getHigherZoomLevel2(final double currentMag) {
+	protected double getHigherZoomLevel2(final double currentMag) {
 		// if it is not 1/72 and its lower, then:
 		if (Math.abs(currentMag - 1/72.0) > 0.00000001 && currentMag < 1/72.0) { // lowest zoomLevel in ImageCanvas is 1/72.0
 			// find nearest power of two above currentMag
