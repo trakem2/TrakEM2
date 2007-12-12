@@ -220,7 +220,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 			g2d.setStroke(this.stroke);
 
-			if (null != active && !active.getClass().equals(Patch.class)) {
+			if (null != active && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
 				active.paint(g2d, magnification, true, c_alphas, active_layer);
 			}
 

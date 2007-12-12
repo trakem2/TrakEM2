@@ -221,11 +221,13 @@ public class DLabel extends Displayable {
 	 * This method is overriden so that the x,y, which underlies the text, is translated upward by the height to generate a box that encloses the text and not just sits under it. */
 	public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
-		if (this.at.isIdentity()) {
-			r.x = 0;
-			r.y = 0;
-			r.width = (int)this.width;
-			r.height = -(int)this.height;
+		r.x = 0;
+		r.y = 0;
+		r.width = (int)this.width;
+		r.height = -(int)this.height;
+		if (this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
+			r.x += (int)this.at.getTranslateX();
+			r.y += (int)this.at.getTranslateY();
 		} else {
 			// transform points
 			final double[] d1 = new double[]{0, 0, width, 0, width, -height, 0, -height};
@@ -245,6 +247,40 @@ public class DLabel extends Displayable {
 			r.height = (int)(max_y - min_y);
 		}
 		return r;
+	}
+	public Polygon getPerimeter() {
+		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
+			// return the bounding box as a polygon:
+			final Rectangle r = getBoundingBox();
+			return new Polygon(new int[]{r.x, r.x+r.width, r.x+r.width, r.x},
+					   new int[]{r.y, r.y, r.y+r.height, r.y+r.height},
+					   4);
+		}
+		// else, the rotated/sheared/scaled and translated bounding box:
+		final double[] po1 = new double[]{0,0,  width,0,  width,-height,  0,-height};
+		final double[] po2 = new double[8];
+		this.at.transform(po1, 0, po2, 0, 4);
+		return new Polygon(new int[]{(int)po2[0], (int)po2[2], (int)po2[4], (int)po2[6]},
+				   new int[]{(int)po2[1], (int)po2[3], (int)po2[5], (int)po2[7]},
+				   4);
+	}
+
+	/** Returns the perimeter enlarged in all West, North, East and South directions, in pixels.*/
+	public Polygon getPerimeter(final int w, final int n, final int e, final int s) {
+		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
+			// return the bounding box as a polygon:
+			final Rectangle r = getBoundingBox();
+			return new Polygon(new int[]{r.x -w, r.x+r.width +w+e, r.x+r.width +w+e, r.x -w},
+					   new int[]{r.y -n, r.y -n, r.y+r.height +n+s, r.y+r.height +n+s},
+					   4);
+		}
+		// else, the rotated/sheared/scaled and translated bounding box:
+		final double[] po1 = new double[]{-w,-n,  width+w+e,-n,  width+w+e,-height+n+s,  -w,-height+n+s};
+		final double[] po2 = new double[8];
+		this.at.transform(po1, 0, po2, 0, 4);
+		return new Polygon(new int[]{(int)po2[0], (int)po2[2], (int)po2[4], (int)po2[6]},
+				   new int[]{(int)po2[1], (int)po2[3], (int)po2[5], (int)po2[7]},
+				   4);
 	}
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
