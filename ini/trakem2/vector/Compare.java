@@ -342,4 +342,12 @@ public class Compare {
 			model.remove(displ);
 		}
 	}
+
+	static public void destroy() {
+		if (null != frame) {
+			frame.setVisible(false);
+			frame.dispose();
+		}
+		frame = null;
+	}
 }

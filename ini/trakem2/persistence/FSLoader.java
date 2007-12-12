@@ -723,6 +723,12 @@ public class FSLoader extends Loader {
 	private final void updatePatchPath(final Patch patch, String path) { // reversed order in purpose, relative to addedPatchFrom
 		// avoid W1nd0ws nightmares
 		path = path.replace('\\', '/'); // replacing with chars, in place
+		// remove double slashes that a user may have slipped in
+		final int start = IJ.isWindows() ? 3 : 1;
+		while (-1 != path.indexOf("//", start)) {
+			// avoid the potential C:// of windows and the starting // of a samba network
+			path = path.substring(0, start) + path.substring(start).replace("//", "/");
+		}
 		// if path is absolute, try to make it relative
 		path = makeRelativePath(path);
 		// store

@@ -32,6 +32,7 @@ import ini.trakem2.tree.TemplateTree;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.vector.Compare;
 
 import javax.swing.*;
 import java.awt.*;
@@ -93,6 +94,7 @@ public class ControlWindow {
 	};
 
 	static private void destroy() {
+		Compare.destroy();
 		if (null != ht_projects) {
 			// destroy open projects, release memory
 			Enumeration e = ht_projects.keys();

@@ -246,6 +246,8 @@ public class VectorString3D implements VectorString {
 	static private class Vector {
 		private double x, y, z;
 		private double length;
+		// 0 coords and 0 length, virtue of the 'calloc'
+		Vector() {}
 		Vector(final double x, final double y, final double z) {
 			set(x, y, z);
 		}
@@ -343,7 +345,7 @@ public class VectorString3D implements VectorString {
 
 		// convenient data carrier and editor
 		final ResamplingData r = new ResamplingData(this.length, this.dep);
-		final Vector vector = new Vector(0, 0, 0);
+		final Vector vector = new Vector();
 
 		// first resampled point is the same as point zero
 		r.setP(0, x[0], y[0], z[0]);
@@ -361,7 +363,7 @@ public class VectorString3D implements VectorString {
 		final double[] distances = new double[MAX_AHEAD];
 		final Vector[] ve = new Vector[MAX_AHEAD];
 		int next_ahead;
-		for (next_ahead = 0; next_ahead < MAX_AHEAD; next_ahead++) ve[next_ahead] = new Vector(0, 0, 0);
+		for (next_ahead = 0; next_ahead < MAX_AHEAD; next_ahead++) ve[next_ahead] = new Vector();
 		final int[] ahead = new int[MAX_AHEAD];
 
 		try {
@@ -656,15 +658,11 @@ public class VectorString3D implements VectorString {
 		// fill in the rest:
 
 
-		final Vector vL = new Vector(0,0,0);
-		final Vector vA = new Vector(0,0,0);
-		final Vector vQ = new Vector(0,0,0);
-		final Vector vQQ = new Vector(0,0,0);
-		final Vector vQ2 = new Vector(0,0,0);
-		final Matrix mat1 = new Matrix(new double[3][3]);
-		final Matrix mat2 = new Matrix(new double[3][3]);
-		final double[][] m1 = mat1.getArray(); // the internal
-		final double[][] m2 = mat2.getArray();
+		final Vector vL = new Vector();
+		final Vector vA = new Vector();
+		final Vector vQ = new Vector();
+		final Vector vQQ = new Vector();
+		final Vector vQ2 = new Vector();
 
 		for (int i=1; i<length; i++) {
 			// So: Johannes Schindelin said: vector Y is the rotated, X is the original
@@ -677,25 +675,28 @@ public class VectorString3D implements VectorString {
 			vA.set(vx[i-1], vy[i-1], vz[i-1]);
 			vA.normalize();
 			vQ.setCrossProduct(vA, vL);
-			vQ.normalize();
+			//vQ.normalize(); // no need: the cross product of two normalized vectors is also a normalized vector
 			vQQ.setCrossProduct(vQ, vL);
-			vQQ.normalize();
+			//vQQ.normalize(); // no need
 
 			// the matrices expect the vectors as columns, not as rows! ARGH! Solved.
 
 			// now, vQ,vL,vQQ define an orthogonal system
 			// (vQ'; vL'; vQ' x vL')
+			double[][] m1 = new double[3][3];
 			vQ.put(m1, 0);
 			vL.put(m1, 1);
 			vQQ.put(m1, 2);
+			Matrix mat1 = new Matrix(m1);
 
 			// (vQ'; vA'; vQ' x vA')^T            // Johannes wrote vB to mean vA. For me vB is the second vector
+			double[][] m2 = new double[3][3];
 			vQ.put(m2, 0);
 			vA.put(m2, 1);
 			vQ2.setCrossProduct(vQ, vA);
-			vQ2.normalize();
+			//vQ2.normalize(); // no need
 			vQ2.put(m2, 2);
-			mat2.transpose();
+			Matrix mat2 = new Matrix(m2).transpose();
 
 			final Matrix R = mat1.times(mat2);
 			// the difference vector as a one-dimensional matrix
@@ -729,7 +730,7 @@ public class VectorString3D implements VectorString {
 		double[] y = new double[length];
 		double[] z = new double[length];
 		Random rand = new Random(69997); // fixed seed, so that when length is equal the generated sequence is also equal
-		Vector v = new Vector(0,0,0);
+		Vector v = new Vector();
 		for (int i=0; i<length; i++) {
 			v.set(rand.nextDouble()*2 -1, rand.nextDouble()*2 -1, rand.nextDouble()*2 -1); // random values in the range [-1,1]
 			v.setLength(delta);
