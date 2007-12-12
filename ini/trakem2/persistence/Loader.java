@@ -3164,7 +3164,7 @@ abstract public class Loader {
 			// 3 - save XML file
 			if (Utils.saveToFile(fxml, sb_header.toString() + sb_body.toString())) {
 				this.changes = false;
-				path = fxml.getAbsolutePath();
+				path = fxml.getAbsolutePath().replace('\\', '/');
 			} else {
 				Utils.log2("Failed to save XML file.");
 				return null;
@@ -3954,5 +3954,9 @@ abstract public class Loader {
 		addedPatchFrom(path, pa);
 		if (isMipMapsEnabled()) generateMipMaps(pa);
 		return pa;
+	}
+
+	public String makeProjectName() {
+		return "Project";
 	}
 }

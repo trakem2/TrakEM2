@@ -132,6 +132,8 @@ public class ControlWindow {
 	/** Beware that this method is asynchronous, as it delegates the launching to the SwingUtilities.invokeLater method to avoid havoc with Swing components. */
 	static public void add(final Project project, final TemplateTree template_tree, final ProjectTree thing_tree, final LayerTree layer_tree) {
 
+		final Runnable[] other = new Runnable[2];
+
 		final Runnable gui_thread = new Runnable() {
 			public void run() {
 
@@ -142,7 +144,7 @@ public class ControlWindow {
 
 		if (null == frame) {
 			if (!hooked) {
-				Runtime.getRuntime().addShutdownHook(new Thread() { // necessary to disconnect properly from the database instead of with an EOF
+				Runtime.getRuntime().addShutdownHook(new Thread() { // necessary to disconnect properly from the database instead of with an EOF, and also to ask to save changes for FSLoader projects.
 					public void run() {
 						// threaded quit???// if (null != IJ.getInstance() && !IJ.getInstance().quitting()) IJ.getInstance().quit(); // to ensure the Project offers a YesNoDialog, not a YesNoCancelDialog
 						ControlWindow.destroy();
@@ -180,32 +182,30 @@ public class ControlWindow {
 		final JScrollPane scroll_template = new JScrollPane(template_tree);
 		scroll_template.setBackground(Color.white);
 		scroll_template.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEmptyBorder(0,5,0,5), "Template"));
-		scroll_template.setMinimumSize(new Dimension(300, 100));
+		scroll_template.setMinimumSize(new Dimension(0, 100));
 		scroll_template.setPreferredSize(new Dimension(300, 400));
 
 		// create a scrolling pane for the thing_tree
 		final JScrollPane scroll_things   = new JScrollPane(thing_tree);
 		scroll_things.setBackground(Color.white);
 		scroll_things.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEmptyBorder(0,5,0,5), "Project Objects"));
-		scroll_things.setMinimumSize(new Dimension(300, 100));
+		scroll_things.setMinimumSize(new Dimension(0, 100));
 		scroll_things.setPreferredSize(new Dimension(300, 400));
 
 		// create a scrolling pane for the layer_tree
 		final JScrollPane scroll_layers = new JScrollPane(layer_tree);
 		scroll_layers.setBackground(Color.white);
 		scroll_layers.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEmptyBorder(0,5,0,5), "Layers"));
-		scroll_layers.setMinimumSize(new Dimension(300, 100));
+		scroll_layers.setMinimumSize(new Dimension(0, 100));
 		scroll_layers.setPreferredSize(new Dimension(300, 400));
 
 		// make a new tab for the project
 		final JSplitPane left = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scroll_template, scroll_things);
 		left.setBackground(Color.white);
 		left.setPreferredSize(new Dimension(600, 400));
-		left.setDividerLocation(0.5D);
 		final JSplitPane tab = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, scroll_layers);
 		tab.setBackground(Color.white);
 		tab.setPreferredSize(new Dimension(900, 400));
-		tab.setDividerLocation(0.66D);
 
 		// add the tab, titled with the project title
 		tabs.addTab(project.toString(), instance.makeCloseIcon(), tab);
@@ -221,28 +221,47 @@ public class ControlWindow {
 			frame.setVisible(true);
 			frame.toFront();
 		}
-		// now set minimum size again, after showing it (stupid Java), so they are shown correctly (opened) but can be completely collapsed to the sides. This thread patches the lack of respect for the setDividerLocation method.
-		//new Thread() {
-		//	public void run() {
-				try { Thread.sleep(500); } catch (Exception e) {}
-				scroll_template.setMinimumSize(new Dimension(0, 100));
-				scroll_things.setMinimumSize(new Dimension(0, 100));
-				scroll_layers.setMinimumSize(new Dimension(0, 100));
-				left.setDividerLocation(0.5D);
-				tab.setDividerLocation(0.66D);
-		//	}
-		//}.start();
+		Rectangle bounds = frame.getBounds();
+		if (bounds.width < 200) {
+			frame.setSize(new Dimension(200, bounds.height > 100 ? bounds.height : 100));
+			frame.pack();
+		}
+		// now set minimum size again, after showing it (stupid Java), so they are shown correctly (opened) but can be completely collapsed to the sides.
+		try { Thread.sleep(100); } catch (Exception e) {}
+		//scroll_template.setMinimumSize(new Dimension(0, 100));
+		//scroll_things.setMinimumSize(new Dimension(0, 100));
+		//scroll_layers.setMinimumSize(new Dimension(0, 100));
+		tab.setDividerLocation(0.66D); // first, so that left is visible! setDividerLocation depends on the dimensions as they are when painted on the screen
+		left.setDividerLocation(0.5D);
+
 		// select the SELECT tool if it's the first open project
 		if (1 == ht_projects.size() && gui_enabled) {
 			ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		}
+
+		// so wait until the setDividerLocation of the 'tab' has finished, then do the left one
+		other[0] = new Runnable() {
+			public void run() {
+				tab.setDividerLocation(0.66D);
+			}
+		};
+		other[1] = new Runnable() {
+			public void run() {
+				left.setDividerLocation(0.5D);
+			}
+		};
+		// FINALLY! WHAT DEGREE OF IDIOCY POSSESSED SWING DEVELOPERS?
 
 			}};
 		// I hate java: can't call invokeLater from the EventDispatch thread
 		new Thread() {
 			public void run() {
 				try {
-					SwingUtilities.invokeLater(gui_thread);
+					SwingUtilities.invokeAndWait(gui_thread);
+					for (int i=0; i<other.length; i++) {
+						SwingUtilities.invokeAndWait(other[i]);
+					}
+					Utils.log2("done");
 				} catch (Exception e) { new IJError(e); }
 			}
 		}.start();

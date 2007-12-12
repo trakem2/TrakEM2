@@ -187,7 +187,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/**Increase the size of the arrays by 5.*/
-	private void enlargeArrays() {
+	synchronized private void enlargeArrays() {
 		//catch length
 		int length = p[0].length;
 		//make copies
@@ -214,7 +214,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/**Find a point in an array, with a precision dependent on the magnification. Only points in the current layer are found, the rest are ignored.*/
-	protected int findPoint(double[][] a, int x_p, int y_p, double magnification) {
+	synchronized protected int findPoint(double[][] a, int x_p, int y_p, double magnification) {
 		int index = -1;
 		double d = (7.0D / magnification);
 		double min_dist = Double.MAX_VALUE;
@@ -231,7 +231,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/**Remove a point from the bezier backbone and its two associated control points.*/
-	protected void removePoint(int index) {
+	synchronized protected void removePoint(int index) {
 		// check preconditions:
 		if (index < 0) {
 			return;
@@ -300,7 +300,7 @@ public class Pipe extends ZDisplayable {
 		p_adjusted[1][index] = p[1][index] + hypothenusa * Math.cos(angle);
 	}
 	/**Add a point either at the end or between two existing points, with accuracy depending on magnification. The width of the new point is that of the closest point after which it is inserted.*/
-	protected int addPoint(int x_p, int y_p, double magnification, double bezier_finess, long layer_id) {
+	synchronized protected int addPoint(int x_p, int y_p, double magnification, double bezier_finess, long layer_id) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		//lookup closest interpolated point and then get the closest clicked point to it
 		int index = findClosestPoint(x_p, y_p, magnification, bezier_finess);
@@ -401,7 +401,7 @@ public class Pipe extends ZDisplayable {
 		return index;
 	}
 	/**Find the closest point to an interpolated point with precision depending upon magnification.*/
-	protected int findClosestPoint(int x_p, int y_p, double magnification, double bezier_finess) {
+	synchronized protected int findClosestPoint(int x_p, int y_p, double magnification, double bezier_finess) {
 		int index = -1;
 		double distance_sq = Double.MAX_VALUE;
 		double distance_sq_i;
@@ -427,7 +427,7 @@ public class Pipe extends ZDisplayable {
 		}
 		return index;
 	}
-	protected void generateInterpolatedPoints(double bezier_finess) {
+	synchronized protected void generateInterpolatedPoints(double bezier_finess) {
 		if (0 == n_points) {
 			return;
 		}
@@ -497,6 +497,7 @@ public class Pipe extends ZDisplayable {
 		}
 	}
 
+	// synchronizing to protect n_points ... need to wrap it in a lock
 	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
@@ -516,6 +517,7 @@ public class Pipe extends ZDisplayable {
 		}
 
 		// local pointers, since they may be transformed
+		int n_points = this.n_points;
 		double[][] p = this.p;
 		double[][] p_r = this.p_r;
 		double[][] p_l = this.p_l;
@@ -525,6 +527,7 @@ public class Pipe extends ZDisplayable {
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
+			n_points = p[0].length;
 			p_l = (double[][])ob[1];
 			p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];
@@ -592,12 +595,22 @@ public class Pipe extends ZDisplayable {
 				int la = j * 20 -1;
 				if (0 != j) fi = (j * 20) - 10; // 10 is half a segment
 				if (n_points -1 != j) la += 10; // same //= j * 20 + 9;
-				if (la +1 >= r_side_x.length) la--; // quick fix
+				if (la >= r_side_x.length) la = r_side_x.length-2; // quick fix. -2 so that the k+1 below can work
 				if (fi > la) fi = la;
+
+				try {
 
 				for (int k=fi; k<=la; k++) {
 					g.drawLine((int)r_side_x[k], (int)r_side_y[k], (int)r_side_x[k+1], (int)r_side_y[k+1]);
 					g.drawLine((int)l_side_x[k], (int)l_side_y[k], (int)l_side_x[k+1], (int)l_side_y[k+1]);
+				}
+
+				} catch (Exception ee) {
+					Utils.log2("Pipe paint failed with: fi=" + fi + " la=" + la + " n_points=" + n_points + " r_side_x.length=" + r_side_x.length);
+					// WARNING still something is wrong with the synchronization over the arrays ... despite this error being patched with the line above:
+					// if (la >= r_side_x.length) r_side_x.length-2; // quick fix
+					// 
+					// ADDING the synchronized keyword to many methods involving n_points did not fix it; neither to crop arrays and get the new n_points from the getTransformedData() returned p array.
 				}
 			}
 		}
@@ -766,7 +779,7 @@ public class Pipe extends ZDisplayable {
 		index = index_r = index_l = -1;
 	}
 
-	protected void calculateBoundingBox(final boolean adjust_position) {
+	synchronized protected void calculateBoundingBox(final boolean adjust_position) {
 		double min_x = Double.MAX_VALUE;
 		double min_y = Double.MAX_VALUE;
 		double max_x = 0.0D;
@@ -818,7 +831,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/**Release all memory resources taken by this object.*/
-	public void destroy() {
+	synchronized public void destroy() {
 		super.destroy();
 		p = null;
 		p_l = null;
@@ -829,6 +842,16 @@ public class Pipe extends ZDisplayable {
 		p_width_i = null;
 	}
 
+	/**Release memory resources used by this object: namely the arrays of points, which can be reloaded with a call to setupForDisplay()*/
+	synchronized public void flush() {
+		p = null;
+		p_l = null;
+		p_r = null;
+		p_i = null;
+		p_width = null;
+		p_layer = null;
+		n_points = -1; // flag that points exist but are not loaded
+	}
 
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
 	public void repaint() {
@@ -840,7 +863,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/**Make this object ready to be painted.*/
-	private void setupForDisplay() {
+	synchronized private void setupForDisplay() {
 		// load points
 		if (null == p || null == p_l || null == p_r) {
 			ArrayList al = project.getLoader().fetchPipePoints(id);
@@ -868,22 +891,13 @@ public class Pipe extends ZDisplayable {
 			generateInterpolatedPoints(0.05); //TODO adjust this or make it read the value from the Project perhaps.
 		}
 	}
-	/**Release memory resources used by this object: namely the arrays of points, which can be reloaded with a call to setupForDisplay()*/
-	public void flush() {
-		p = null;
-		p_l = null;
-		p_r = null;
-		p_i = null;
-		p_width = null;
-		p_layer = null;
-		n_points = -1; // flag that points exist but are not loaded
-	}
 
 	/** The exact perimeter of this profile, in integer precision. */
-	public Polygon getPerimeter() {
+	synchronized public Polygon getPerimeter() {
 		if (null == p_i || p_i[0].length < 2) return new Polygon();  // meaning: if there aren't any interpolated points
 
 		// local pointers, since they may be transformed
+		int n_points = this.n_points;
 		double[][] p = this.p;
 		double[][] p_r = this.p_r;
 		double[][] p_l = this.p_l;
@@ -893,6 +907,7 @@ public class Pipe extends ZDisplayable {
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
+			n_points = p[0].length;
 			p_l = (double[][])ob[1];
 			p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];
@@ -941,10 +956,11 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Writes the data of this object as a Pipe object in the .shapes file represented by the 'data' StringBuffer. */
-	public void toShapesFile(StringBuffer data, String group, String color, double z_scale) {
+	synchronized public void toShapesFile(StringBuffer data, String group, String color, double z_scale) {
 		if (-1 == n_points) setupForDisplay(); // reload
 		final char l = '\n';
 		// local pointers, since they may be transformed
+		int n_points = this.n_points;
 		double[][] p = this.p;
 		double[][] p_r = this.p_r;
 		double[][] p_l = this.p_l;
@@ -952,6 +968,7 @@ public class Pipe extends ZDisplayable {
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
+			n_points = p[0].length;
 			p_l = (double[][])ob[1];
 			p_r = (double[][])ob[2];
 			p_width = (double[])ob[4];
@@ -977,7 +994,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Return the list of query statements needed to insert all the points in the database. */
-	public String[] getPointsForSQL() {
+	synchronized public String[] getPointsForSQL() {
 		String[] sql = new String[n_points];
 		for (int i=0; i<n_points; i++) {
 			StringBuffer sb = new StringBuffer("INSERT INTO ab_pipe_points (pipe_id, index, x, y, x_r, y_r, x_l, y_l, width, layer_id) VALUES (");
@@ -998,7 +1015,7 @@ public class Pipe extends ZDisplayable {
 		return sql;
 	}
 
-	public String getUpdatePointForSQL(int index) {
+	synchronized public String getUpdatePointForSQL(int index) {
 		if (index < 0 || index > n_points-1) return null;
 
 		StringBuffer sb = new StringBuffer("UPDATE ab_pipe_points SET ");
@@ -1136,6 +1153,7 @@ public class Pipe extends ZDisplayable {
 		if (n_points <= 1) return null;
 
 		// local pointers, since they may be transformed
+		int n_points = this.n_points;
 		double[][] p = this.p;
 		double[][] p_r = this.p_r;
 		double[][] p_l = this.p_l;
@@ -1144,6 +1162,7 @@ public class Pipe extends ZDisplayable {
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
+			n_points = p[0].length;
 			p_l = (double[][])ob[1];
 			p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];
@@ -1282,7 +1301,7 @@ public class Pipe extends ZDisplayable {
 		return la;
 	}
 
-	public void exportSVG(StringBuffer data, double z_scale, String indent) {
+	synchronized public void exportSVG(StringBuffer data, double z_scale, String indent) {
 		String in = indent + "\t";
 		if (-1 == n_points) setupForDisplay(); // reload
 		if (0 == n_points) return;
@@ -1443,7 +1462,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Exports data, the tag is not opened nor closed. */
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	synchronized public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		sb_body.append(indent).append("<t2_pipe\n");
 		String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
@@ -1488,7 +1507,7 @@ public class Pipe extends ZDisplayable {
 		;
 	}
 
-	public double[][][] generateMesh(double scale) {
+	synchronized public double[][][] generateMesh(double scale) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return null;
 		// at any given segment (bezier curve defined by 4 points):
@@ -1503,7 +1522,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public Displayable clone(Project project) {
+	synchronized public Displayable clone(Project project) {
 		final Pipe copy = new Pipe(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
@@ -1524,7 +1543,7 @@ public class Pipe extends ZDisplayable {
 		return copy;
 	}
 
-	public List generateTriangles(double scale, int parallels, int resample) {
+	synchronized public List generateTriangles(double scale, int parallels, int resample) {
 		// check minimum requirements.
 		if (parallels < 3) parallels = 3;
 		//
@@ -1553,6 +1572,7 @@ public class Pipe extends ZDisplayable {
 		if (-1 == n_points) setupForDisplay();
 		
 		// local pointers, since they may be transformed
+		int n_points = this.n_points;
 		double[][] p = this.p;
 		double[][] p_r = this.p_r;
 		double[][] p_l = this.p_l;
@@ -1562,6 +1582,7 @@ public class Pipe extends ZDisplayable {
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
+			n_points = p[0].length;
 			p_l = (double[][])ob[1];
 			p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];
@@ -1748,11 +1769,16 @@ public class Pipe extends ZDisplayable {
 		return result;
 	}
 
-	private Object[] getTransformedData() {
-		final double[][] p = transformPoints(this.p);
-		final double[][] p_l = transformPoints(this.p_l);
-		final double[][] p_r = transformPoints(this.p_r);
-		final double[][] p_i = transformPoints(this.p_i);
+	synchronized private Object[] getTransformedData() {
+		final int n_points = this.n_points;
+		final double[][] p = transformPoints(this.p, n_points);
+		final double[][] p_l = transformPoints(this.p_l, n_points);
+		final double[][] p_r = transformPoints(this.p_r, n_points);
+		final double[][] p_i = transformPoints(this.p_i, this.p_i[0].length); // whatever length it has
+		final double[] p_width = new double[n_points]; // first contains the data, then the transformed data
+		System.arraycopy(this.p_width, 0, p_width, 0, n_points);
+		final double[] p_width_i = new double[this.p_width_i.length]; // first contains the data, then the transformed data
+		System.arraycopy(this.p_width_i, 0, p_width_i, 0, p_width_i.length);
 		// p_width: same rule as for Ball: average of x and y
 		double[][] pw = new double[2][n_points];
 		for (int i=0; i<n_points; i++) {
@@ -1760,7 +1786,7 @@ public class Pipe extends ZDisplayable {
 			pw[1][i] = this.p[1][i] + p_width[i];
 		}
 		pw = transformPoints(pw);
-		final double[] p_width = new double[n_points];
+		//final double[] p_width = new double[n_points];
 		for (int i=0; i<n_points; i++) {
 			// plain average of differences in X and Y axis, relative to the transformed points.
 			p_width[i] = (Math.abs(pw[0][i] - p[0][i]) + Math.abs(pw[1][i] - p[1][i])) / 2;
@@ -1772,7 +1798,7 @@ public class Pipe extends ZDisplayable {
 			pwi[1][i] = this.p_i[1][i] + p_width_i[i];
 		}
 		pwi = transformPoints(pwi);
-		final double[] p_width_i = new double[p_i[0].length];
+		//final double[] p_width_i = new double[p_i[0].length];
 		for (int i=0; i<p_i[0].length; i++) {
 			// plain average of differences in X and Y axis, relative to the transformed points.
 			p_width_i[i] = (Math.abs(pwi[0][i] - p_i[0][i]) + Math.abs(pwi[1][i] - p_i[1][i])) / 2;
@@ -1781,8 +1807,9 @@ public class Pipe extends ZDisplayable {
 		return new Object[]{p, p_l, p_r, p_i, p_width, p_width_i};
 	}
 
-	public VectorString3D asVectorString3D() {
+	synchronized public VectorString3D asVectorString3D() {
 		// local pointers, since they may be transformed
+		int n_points = this.n_points;
 		double[][] p = this.p;
 		double[][] p_r = this.p_r;
 		double[][] p_l = this.p_l;
@@ -1792,6 +1819,7 @@ public class Pipe extends ZDisplayable {
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
+			n_points = p[0].length;
 			p_l = (double[][])ob[1];
 			p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];

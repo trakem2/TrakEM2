@@ -1223,10 +1223,16 @@ public abstract class Displayable extends DBObject {
 		return new Area(r).createTransformedArea(this.at).getBounds();
 	}
 
-	/** Returns the argument if this Displayable's AffineTransform is the identity; otherwise returns a new double[][] with all points from @param p transformed according to the AffineTransform. The  double[][] array provided as argument is expected to be of type [2][length], i.e. two arrays describing x and y, and it is left intact.  */
+	/** Returns the argument if this Displayable's AffineTransform is the identity; otherwise returns a new double[][] with all points from @param p transformed according to the AffineTransform. The  double[][] array provided as argument is expected to be of type [2][length], i.e. two arrays describing x and y, and it is left intact.
+	*/
 	public double[][] transformPoints(final double[][] p) {
+		return transformPoints(p, p[0].length);
+	}
+
+	/** Will crop second dimension of the given array at the given length. */
+	protected double[][] transformPoints(final double[][] p, final int length) {
 		if (this.at.isIdentity()) return p;
-		final int length = p[0].length;
+		//final int length = p[0].length;
 		final double[] p2a = new double[length * 2];
 		for (int i=0, j=0; i<length; i++, j+=2) {
 			p2a[j] = p[0][i];

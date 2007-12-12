@@ -153,7 +153,9 @@ public class FSLoader extends Loader {
 							null);
 			String file = od.getFileName();
 			if (null == file || file.toLowerCase().startsWith("null")) return null;
-			this.project_xml_path = od.getDirectory() + "/" + file;
+			String dir = od.getDirectory();
+			if (!dir.endsWith("/")) dir += "/";
+			this.project_xml_path = dir + file;
 		} else {
 			this.project_xml_path = path;
 		}
@@ -1480,5 +1482,13 @@ public class FSLoader extends Loader {
 		}
 
 		return size * bytes_per_pixel + 1024;
+	}
+
+	public String makeProjectName() {
+		if (null == project_xml_path || 0 == project_xml_path.length()) return super.makeProjectName();
+		final int i_dot = project_xml_path.lastIndexOf('.');
+		if (-1 == i_dot) return project_xml_path;
+		if (0 == i_dot) return super.makeProjectName();
+		return project_xml_path.substring(0, i_dot);
 	}
 }
