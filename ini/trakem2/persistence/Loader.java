@@ -3198,6 +3198,7 @@ abstract public class Loader {
 		} catch (Exception e) {
 			new IJError(e);
 		}
+		ControlWindow.updateTitle(project);
 		return path;
 	}
 

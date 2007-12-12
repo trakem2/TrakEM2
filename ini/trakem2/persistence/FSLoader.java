@@ -763,6 +763,7 @@ public class FSLoader extends Loader {
 			if (null == xml_path) return null;
 			else {
 				this.project_xml_path = xml_path;
+				ControlWindow.updateTitle(project);
 				return this.project_xml_path;
 			}
 		} else {
@@ -778,6 +779,7 @@ public class FSLoader extends Loader {
 			this.project_xml_path = path;
 			Utils.log2("After saveAs, new xml path is: " + path);
 		}
+		ControlWindow.updateTitle(project);
 		return path;
 	}
 
@@ -1486,9 +1488,10 @@ public class FSLoader extends Loader {
 
 	public String makeProjectName() {
 		if (null == project_xml_path || 0 == project_xml_path.length()) return super.makeProjectName();
-		final int i_dot = project_xml_path.lastIndexOf('.');
-		if (-1 == i_dot) return project_xml_path;
+		final String name = new File(project_xml_path).getName();
+		final int i_dot = name.lastIndexOf('.');
+		if (-1 == i_dot) return name;
 		if (0 == i_dot) return super.makeProjectName();
-		return project_xml_path.substring(0, i_dot);
+		return name.substring(0, i_dot);
 	}
 }
