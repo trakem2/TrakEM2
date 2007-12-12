@@ -131,42 +131,43 @@ public class Selection {
 					unlock();
 				}
 			}
-			//final Rectangle bbox = new Rectangle();
+			final Rectangle bbox = new Rectangle();
 			for (int i=0; i<da.length; i++) {
-				//da[i].getBoundingBox(bbox);
+				da[i].getBoundingBox(bbox);
 				if (da[i].equals(active)) {
 					g.setColor(Color.white);
-					//g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
-					g.drawPolygon(da[i].getPerimeter());
+					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+					//g.drawPolygon(da[i].getPerimeter());
 					g.setColor(Color.pink);
 				} else {
-					g.drawPolygon(da[i].getPerimeter());
-					//g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
+					//g.drawPolygon(da[i].getPerimeter());
+					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
 				}
 			}
 		}
 		//Utils.log2("transforming, dragging, rotating: " + transforming + "," + dragging + "," + rotating);
 		if (transforming && !rotating) {
 			//Utils.log("box painting: " + box);
-			g.setColor(Color.yellow);
 			final Graphics2D g2d = (Graphics2D)g;
 			final Stroke original_stroke = g2d.getStroke();
-			//g2d.setStroke(new BasicStroke(5)); // no need  , BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-			
-			// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
-			float[] dashPattern = { 30, 10, 10, 10 };
-			g2d.setStroke(new BasicStroke((float)(2/magnification), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
 
-			// paint box
-			g.drawRect(box.x, box.y, box.width, box.height);
-			//restore Graphics object
-			g2d.setStroke(original_stroke);
-			// paint handles for scaling (boxes) and rotating (circles), and floater
 			AffineTransform original = g2d.getTransform();
 			g2d.setTransform(new AffineTransform());
+
+			// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
+			float mag = (float)magnification;
+			float[] dashPattern = { 30, 10, 10, 10 };
+			g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
+			g.setColor(Color.yellow);
+			// paint box
+			//g.drawRect(box.x, box.y, box.width, box.height);
+			g2d.draw(original.createTransformedShape(this.box));
+			g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+			// paint handles for scaling (boxes) and rotating (circles), and floater
 			for (int i=0; i<handles.length; i++) {
 				handles[i].paint(g, srcRect, magnification);
 			}
+			g2d.setStroke(original_stroke);
 			g2d.setTransform(original);
 		}
 

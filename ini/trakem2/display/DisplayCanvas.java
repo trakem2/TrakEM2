@@ -157,10 +157,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	/** Paint lines always with a thickness of 1 pixel. This stroke is modified when the magnification is changed, to compensate. */
 	private BasicStroke stroke = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
 
-	private final void resetStroke() {
-		this.stroke = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
-	}
-
 	/** The affine transform representing the srcRect displacement and the magnification. */
 	private final AffineTransform atc = new AffineTransform();
 
@@ -222,6 +218,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 			}
 
+			g2d.setStroke(this.stroke);
+
 			if (null != active && !active.getClass().equals(Patch.class)) {
 				active.paint(g2d, magnification, true, c_alphas, active_layer);
 			}
@@ -233,7 +231,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 
 			// always a stroke of 1.0, regardless of magnification
-			g2d.setStroke(this.stroke);
+			//g2d.setStroke(this.stroke);
 
 			// paint a pink frame around selected objects, and a white frame around the active object
 			if (null != selection && ProjectToolbar.getToolId() < ProjectToolbar.PENCIL) { // i.e. PENCIL, PEN and ALIGN
@@ -1884,7 +1882,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				g.setTransform(atc); //at_original);
 
 				//setRenderingHints(g);
-				// always a stroke of 1.0, regardless of magnification
+				// always a stroke of 1.0, regardless of magnification; the stroke below corrects for that
 				g.setStroke(stroke);
 
 				// paint:

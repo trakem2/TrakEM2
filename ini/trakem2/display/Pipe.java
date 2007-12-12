@@ -216,7 +216,8 @@ public class Pipe extends ZDisplayable {
 	/**Find a point in an array, with a precision dependent on the magnification. Only points in the current layer are found, the rest are ignored.*/
 	synchronized protected int findPoint(double[][] a, int x_p, int y_p, double magnification) {
 		int index = -1;
-		double d = (7.0D / magnification);
+		double d = (10.0D / magnification);
+		if (d < 2) d = 2;
 		double min_dist = Double.MAX_VALUE;
 		long i_layer = Display.getFrontLayer(this.project).getId();
 		for (int i=0; i<n_points; i++) {
@@ -224,7 +225,6 @@ public class Pipe extends ZDisplayable {
 			if (i_layer == p_layer[i] && dist <= d && dist <= min_dist) {
 				min_dist = dist;
 				index = i;
-				
 			}
 		}
 		return index;
