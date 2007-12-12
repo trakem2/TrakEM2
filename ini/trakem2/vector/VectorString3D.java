@@ -310,6 +310,11 @@ public class VectorString3D implements VectorString {
 					  z * v.x - x * v.z,
 					  x * v.y - y * v.x);
 		}
+		final void setCrossProduct(final Vector v, final Vector w) {
+			this.x = v.y * w.z - v.z * w.y;
+			this.y = v.z * w.x - v.x * w.z;
+			this.z = v.x * w.y - v.y * w.x;
+		}
 	}
 
 	private final void recalculate(final double[] w, final int length, final double sum_) {
@@ -649,80 +654,59 @@ public class VectorString3D implements VectorString {
 			rvz[0] = vz[0] - vz[length-1];
 		} // else, as open curve the first vector remains 0,0,0
 		// fill in the rest:
+
+
+		final Vector vL = new Vector(0,0,0);
+		final Vector vA = new Vector(0,0,0);
+		final Vector vQ = new Vector(0,0,0);
+		final Vector vQQ = new Vector(0,0,0);
+		final Vector vQ2 = new Vector(0,0,0);
+		final Matrix mat1 = new Matrix(new double[3][3]);
+		final Matrix mat2 = new Matrix(new double[3][3]);
+		final double[][] m1 = mat1.getArray(); // the internal
+		final double[][] m2 = mat2.getArray();
+
 		for (int i=1; i<length; i++) {
 			// So: Johannes Schindelin said: vector Y is the rotated, X is the original
 			// Y = A + R * (X - A)    where R is a rotation matrix (A is the displacement vector, 0,0,0 in this case)
 			// so the axis of rotation is the cross product of {L,0,0} and i-1
 			// (a1; a2; a3) x (b1; b2; b3) = (a2b3 - a3b2; a3b1 - a1b3; a1b2 - a2b1)
 			//Vector axis = new Vector(0 - 0, 0 - delta * vz[i-1], delta * vy[i-1] - 0);
-			Vector vL = new Vector(delta, 0, 0);
+			vL.set(delta, 0, 0);
 			vL.normalize();		// this line can be reduced to new Vector(1,0,0);
-			Vector vA = new Vector(vx[i-1], vy[i-1], vz[i-1]);
+			vA.set(vx[i-1], vy[i-1], vz[i-1]);
 			vA.normalize();
-			Vector vQ = vA.getCrossProduct(vL); // new Vector(0, - delta * vz[i-1], delta * vy[i-1]); // cross product of vL and vA, i.e. a vector perpendicular to it
+			vQ.setCrossProduct(vA, vL);
 			vQ.normalize();
-			Vector vQQ = vQ.getCrossProduct(vL);
+			vQQ.setCrossProduct(vQ, vL);
 			vQQ.normalize();
 
 			// the matrices expect the vectors as columns, not as rows! ARGH! Solved.
 
 			// now, vQ,vL,vQQ define an orthogonal system
 			// (vQ'; vL'; vQ' x vL')
-			double[][] m1 = new double[3][3];
 			vQ.put(m1, 0);
 			vL.put(m1, 1);
 			vQQ.put(m1, 2);
-			Matrix mat1 = new Matrix(m1);
 
 			// (vQ'; vA'; vQ' x vA')^T            // Johannes wrote vB to mean vA. For me vB is the second vector
-			double[][] m2 = new double[3][3];
 			vQ.put(m2, 0);
 			vA.put(m2, 1);
-			Vector vQ2 = vQ.getCrossProduct(vA);
+			vQ2.setCrossProduct(vQ, vA);
 			vQ2.normalize();
 			vQ2.put(m2, 2);
-			Matrix mat2 = new Matrix(m2).transpose();
+			mat2.transpose();
 
-			Matrix R = mat1.times(mat2);
+			final Matrix R = mat1.times(mat2);
 			// the difference vector as a one-dimensional matrix
-			Matrix vB = new Matrix(new double[]{vx[i] - vx[i-1], vy[i] - vy[i-1], vz[i] - vz[i-1]}, 1);
-			Matrix vB_rot = R.transpose().times(vB.transpose());  //  3x3 times 3x1, hence the transposing of the 1x3 vector so that the inner lengths are the same
+			final Matrix vB = new Matrix(new double[]{vx[i] - vx[i-1], vy[i] - vy[i-1], vz[i] - vz[i-1]}, 1);
+			final Matrix vB_rot = R.transpose().times(vB.transpose());  //  3x3 times 3x1, hence the transposing of the 1x3 vector so that the inner lengths are the same
 			double[][] arr = vB_rot.getArray();
 			rvx[i] = arr[0][0];
 			rvy[i] = arr[1][0];
 			rvz[i] = arr[2][0];
 			//Utils.log2("rv{x,y,z}[" + i + "]= " + rvx[i] + ", " + rvy[i] + ", " + rvz[i]);
-
-
-			/*
-			Vector3D ref = new Vector3D(1,0,0); // WARNING with a 1,1,1 and then normalize() the results are very different (?)
-			Vector3D v1 = new Vector3D(vx[i-1], vy[i-1], vz[i-1]);
-			v1.normalize();
-			Vector3D v2 = new Vector3D(vx[i] - vx[i-1], vy[i] - vy[i-1], vz[i] - vz[i-1]); // the vector of differences
-			v2.normalize();
-			Vector3D axis = ref.crossProduct(v1);
-			double angle = Math.acos(ref.dotProduct(v1));
-			double sin = Math.sin(-angle); // rotate minus the angle
-			double cos = Math.cos(-angle);
-			Vector3D r = v2.rotateAroundAxis(axis, sin, cos); // will normalize axis
-			r.normalize();
-			r.scale(delta);
-			rvx[i] = r.x;
-			rvy[i] = r.y;
-			rvz[i] = r.z;
-
-			*/
-
-			//check:
-			//r.normalize();
-			// angles are identical! GOOD!// Utils.log2("Angle before: " + Math.acos(v1.dotProduct(v2)) + " Angle after:" + Math.acos(ref.dotProduct(r)));
-
-			// even easier: why not just the angle between the consecutive normalized vectors?
-			// NO: because the vector can pivot in 3D, keeping the same angle but being different
-
-
 		}
-		Utils.log2("relative used delta " + delta);
 	}
 
 	/** Expand or shrink the points in this 3D path so that the average point interdistance becomes delta.
