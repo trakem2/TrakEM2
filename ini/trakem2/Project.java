@@ -526,7 +526,9 @@ public class Project extends DBObject {
 
 	public String toString() {
 		if (null == title || title.equals("Project")) {
-			return loader.makeProjectName(); // can't use this.id, because the id system is project-centric and thus all FSLoader projects would have the same id.
+			try {
+				return loader.makeProjectName(); // can't use this.id, because the id system is project-centric and thus all FSLoader projects would have the same id.
+			} catch (Exception e) { Utils.log2("Swing again."); }
 		}
 		return title;
 	}

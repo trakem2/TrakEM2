@@ -988,7 +988,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			//TEMPORARY W//WindowManager.setTempCurrentImage(null);
 			active = null;
 			if (null != selection) selection.clear();
-			Utils.log2("destroying selection");
+			//Utils.log2("destroying selection");
 
 			// below, need for SetLayerThread threads to quit if any.
 			setting_layer = false;
