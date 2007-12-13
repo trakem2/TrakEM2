@@ -1417,8 +1417,8 @@ public class FSLoader extends Loader {
 					if (null != imp) return patch.createImage(imp); // considers c_alphas
 					//img = patch.adjustChannels(Toolkit.getDefaultToolkit().createImage(path)); // doesn't work
 					//img = patch.adjustChannels(ImageSaver.openColorJpeg(path)); // doesn't work
-					Utils.log2("color jpeg path: "+ path);
-					Utils.log2("exists ? " + new File(path).exists());
+					//Utils.log2("color jpeg path: "+ path);
+					//Utils.log2("exists ? " + new File(path).exists());
 					break;
 			}
 			if (null != img) return img;

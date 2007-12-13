@@ -263,7 +263,7 @@ public class ControlWindow {
 					for (int i=0; i<other.length; i++) {
 						SwingUtilities.invokeAndWait(other[i]);
 					}
-					Utils.log2("done");
+					//Utils.log2("done");
 				} catch (Exception e) { new IJError(e); }
 			}
 		}.start();

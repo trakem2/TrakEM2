@@ -2977,7 +2977,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				c_alphas = (l<<24) + (r<<16) + (g<<8) + a;
 				break;
 		}
-		Utils.log2("c_alphas: " + c_alphas);
+		//Utils.log2("c_alphas: " + c_alphas);
 		//canvas.setUpdateGraphics(true);
 		canvas.repaint(true);
 		updateInDatabase("c_alphas");
