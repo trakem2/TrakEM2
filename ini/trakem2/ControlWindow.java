@@ -180,6 +180,13 @@ public class ControlWindow {
 			javax.swing.ToolTipManager.sharedInstance().setLightWeightPopupEnabled(false);
 		}
 
+		// create the tab
+		final JSplitPane tab = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+		// store the tab linked to the project (before setting the trees, so that they won't get repainted and get in trouble not being able to get a project title if the project has no name)
+		if (null == ht_projects) ht_projects = new Hashtable();
+		ht_projects.put(project, tab);
+
+
 		// create a scrolling pane for the template_tree
 		final JScrollPane scroll_template = new JScrollPane(template_tree);
 		scroll_template.setBackground(Color.white);
@@ -205,17 +212,16 @@ public class ControlWindow {
 		final JSplitPane left = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scroll_template, scroll_things);
 		left.setBackground(Color.white);
 		left.setPreferredSize(new Dimension(600, 400));
-		final JSplitPane tab = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, scroll_layers);
+
+		// setup the tab
 		tab.setBackground(Color.white);
+		tab.setLeftComponent(left);
+		tab.setRightComponent(scroll_layers);
 		tab.setPreferredSize(new Dimension(900, 400));
 
 		// add the tab, titled with the project title
 		tabs.addTab(project.toString(), instance.makeCloseIcon(), tab);
 		tabs.setSelectedIndex(tabs.getTabCount() -1);
-
-		// store the tab linked to the project
-		if (null == ht_projects) ht_projects = new Hashtable();
-		ht_projects.put(project, tab);
 
 		// the frame is created ANYWAY, it is just not made visible if !gui_enabled
 		if (!frame.isVisible() && gui_enabled) {
@@ -473,6 +479,7 @@ public class ControlWindow {
 
 	/** Returns -1 if not found. */
 	static public int getTabIndex(final Project project) {
+		if (null == project || null == ht_projects) return -1;
 		Component tab = (Component)ht_projects.get(project);
 		if (null == tab) return -1;
 		return tabs.indexOfComponent(tab);
