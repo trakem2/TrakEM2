@@ -23,7 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
-import ij.*;
+import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.io.FileSaver;
 import ij.process.ImageProcessor;
@@ -36,6 +36,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
 
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.DirectColorModel;
 import java.awt.image.IndexColorModel;
@@ -244,36 +245,56 @@ public class Patch extends Displayable {
 
 	static final public DirectColorModel DCM = new DirectColorModel(24, 0xff0000, 0xff00, 0xff);
 
-
 	/** Just throws the cached image away if the alpha of the channels has changed. */
-	private final void checkChannels(int channels) {
-		if (this.channels != channels) {
-			getProject().getLoader().decacheAWT(this.id);
-			// more proper, so a snap with proper quality may be returned, or a smaller awt
-			/*
-			final Image awt = getProject().getLoader().decacheAWT(this.id);
-			if (null != awt) {
-				try {
-					awt.flush();
-				} catch (Exception e) {
-					new Thread() {
-						public void run() {
-							setPriority(Thread.NORM_PRIORITY);
-							try { Thread.sleep(10); } catch (InterruptedException ie) {}
-							Display.repaint(layer, Patch.this, 0);
-						}
-					}.start(); // this flush may have interfered with paints in progress, so just repaint again
-				}
-			}
-			*/
+	private final void checkChannels(int channels, double magnification) {
+		//Utils.log("checkChannels called: this.channels = " + this.channels + "  channels = " + channels);
+		if (this.channels != channels && (ImagePlus.COLOR_RGB == this.type || ImagePlus.COLOR_256 == this.type)) {
+			final int old_channels = this.channels;
+			this.channels = channels; // before, so if any gets recreated it's done right
+			getProject().getLoader().adjustChannels(this, old_channels);
 		}
+	}
+
+	/** Takes an image and scales its channels according to the values packed in this.channels.
+	 *  This method is intended for fixing RGB images which are loaded from jpegs (the mipmaps), and which
+	 *  have then the full colorization of the original image present in their pixels array.
+	 *  Otherwise the channel opacity scaling makes no sense.
+	 *  If 0xffffffff == this.channels the awt is returned as is.
+	 *  If the awt is null returns null.
+	 */
+	public final Image adjustChannels(final Image awt) {
+		if (0xffffffff == this.channels || null == awt) return awt;
+		BufferedImage bi = null;
+		// reuse if possible
+		if (awt instanceof BufferedImage) bi = (BufferedImage)awt;
+		else {
+			bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+			bi.getGraphics().drawImage(awt, 0, 0, null);
+		}
+		// extract channel values
+		final float cr = ((channels&0xff0000)>>16) / 255.0f;
+		final float cg = ((channels&0xff00)>>8) / 255.0f;
+		final float cb = (channels&0xff) / 255.0f;
+		// extract pixels
+		final int[] pixels = bi.getRGB(0, 0, bi.getWidth(), bi.getHeight(), null, 0, 1);
+		// scale them according to channel opacities
+		int p;
+		for (int i=0; i<pixels.length; i++) {
+			p = pixels[i];
+			pixels[i] =  (((int)(((p&0xff0000)>>16) * cr))<<16)
+				+ (((int)(((p&0xff00)>>8) * cg))<<8)
+				+   (int) ((p&0xff) * cb);
+		}
+		// replace pixels
+		bi.setRGB(0, 0, bi.getWidth(), bi.getHeight(), pixels, 0, 1);
+		return bi;
 	}
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
 
 		AffineTransform atp = this.at;
 
-		checkChannels(channels);
+		checkChannels(channels, magnification);
 
 		final Image image = project.getLoader().fetchImage(this, magnification);
 
@@ -311,7 +332,7 @@ public class Patch extends Displayable {
 
 		AffineTransform atp = this.at;
 
-		checkChannels(channels);
+		checkChannels(channels, magnification);
 
 		Image image = project.getLoader().getCachedClosestAboveImage(this, magnification); // above or equal
 		Thread higher = null;

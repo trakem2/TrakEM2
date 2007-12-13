@@ -32,7 +32,7 @@ package ini.trakem2.utils;
  *      lock.unlock();<br />
  *  }<br />
  */
-public final class Lock {
+public class Lock {
 	private boolean locked = false;
 	public final void lock() {
 		//Utils.printCaller(this, 7);

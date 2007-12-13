@@ -25,6 +25,7 @@ package ini.trakem2.persistence;
 
 import ini.trakem2.utils.IJError;
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.awt.Image;
 
 public class FIFOImageMipMaps {
@@ -43,6 +44,25 @@ public class FIFOImageMipMaps {
 		this.levels = new int[initial_size];
 		start = 0;
 		next = 0;
+	}
+
+	/** Replace or put. */
+	public void replace(final long id, final Image image, final int level) {
+		try {
+			if (null == image) throw new Exception("FIFOImageMap: null image!");
+		} catch (Exception e) {
+			new IJError(e);
+			return;
+		}
+		for (int i=start; i<next; i++) {
+			if (id == ids[i] && level == levels[i]) {
+				images[i].flush();
+				images[i] = image;
+				return;
+			}
+		}
+		// else, put (should not happen ever)
+		put(id, image, level);
 	}
 
 	/** No duplicates allowed: if the id exists it's sended to the end and the image is first flushed (if different), then updated with the new one provided. */
@@ -286,6 +306,17 @@ public class FIFOImageMipMaps {
 			}
 		}
 		return al;
+	}
+
+	public Hashtable<Integer,Image> getAll(final long id) {
+		final Hashtable<Integer,Image> ht = new Hashtable<Integer,Image>();
+		int i = start;
+		for (; i<next; i++) {
+			if (id == ids[i]) {
+				ht.put(levels[i], images[i]);
+			}
+		}
+		return ht;
 	}
 
 	/** Remove and flush away all images that share the same id. */

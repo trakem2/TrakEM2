@@ -63,6 +63,7 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.image.ColorModel;
@@ -314,13 +315,11 @@ public class FSLoader extends Loader {
 
 
 		synchronized (plock) {
-			while (plock.loading) try { plock.wait(); } catch (InterruptedException ie) {};
-			plock.loading = true;
+			plock.lock();
 
 			imp = imps.get(p.getId());
 			if (null != imp) {
-				plock.loading = false;
-				plock.notifyAll();
+				plock.unlock();
 				return imp; // was loaded by a different thread
 			}
 
@@ -346,8 +345,7 @@ public class FSLoader extends Loader {
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 						unlock();
-						plock.loading = false;
-						plock.notifyAll();
+						plock.unlock();
 						return null; // not removing the plock ?
 					}
 					// update all clients of the stack, if any
@@ -388,8 +386,7 @@ public class FSLoader extends Loader {
 					new IJError(e);
 				}
 				unlock();
-				plock.loading = false;
-				plock.notifyAll();
+				plock.unlock();
 				return imp;
 				//Utils.log2("A2 returning " + imp + " for path " + path + slice);
 			}
@@ -449,13 +446,11 @@ public class FSLoader extends Loader {
 
 
 		synchronized (plock) {
-			while (plock.loading) try { plock.wait(); } catch (InterruptedException ie) {};
-			plock.loading = true;
+			plock.lock();
 
 			imp = imps.get(p.getId());
 			if (null != imp) {
-				plock.loading = false;
-				plock.notifyAll();
+				plock.unlock();
 				return imp.getProcessor(); // was loaded by a different thread
 			}
 
@@ -482,8 +477,7 @@ public class FSLoader extends Loader {
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 						unlock();
-						plock.loading = false;
-						plock.notifyAll();
+						plock.unlock();
 						return null; // not removing the plock ?
 					}
 					// update all clients of the stack, if any
@@ -526,8 +520,7 @@ public class FSLoader extends Loader {
 					new IJError(e);
 				}
 				unlock();
-				plock.loading = false;
-				plock.notifyAll();
+				plock.unlock();
 				return ip;
 				//Utils.log2("A2 returning " + imp + " for path " + path + slice);
 			}
@@ -684,6 +677,7 @@ public class FSLoader extends Loader {
 		return true;
 	}
 
+	/** With slice info appended at the end if it exists. */
 	public String getAbsolutePath(final Patch patch) {
 		Object ob = ht_paths.get(patch);
 		if (null == ob) return null;
@@ -1411,18 +1405,23 @@ public class FSLoader extends Loader {
 			//  (it's somewhat handled by a double-try to open the jpeg image)
 
 			String path = dir_mipmaps + level + "/" + getFileName(patch) + "." + patch.getId() + ".jpg";
+			Image img = null;
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:
 				case ImagePlus.GRAY8:
 				case ImagePlus.GRAY32:
-					Image img = ImageSaver.openGreyJpeg(path);
-					if (null != img) return img;
+					img = ImageSaver.openGreyJpeg(path);
 					break;
 				default:
 					ImagePlus imp = opener.openImage(path);
 					if (null != imp) return patch.createImage(imp); // considers c_alphas
+					//img = patch.adjustChannels(Toolkit.getDefaultToolkit().createImage(path)); // doesn't work
+					//img = patch.adjustChannels(ImageSaver.openColorJpeg(path)); // doesn't work
+					Utils.log2("color jpeg path: "+ path);
+					Utils.log2("exists ? " + new File(path).exists());
 					break;
 			}
+			if (null != img) return img;
 
 			// if we got so far ... try to regenerate the mipmaps
 			if (!mipmaps_regen) return null;

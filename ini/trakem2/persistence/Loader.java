@@ -108,6 +108,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Collections;
@@ -856,25 +857,23 @@ abstract public class Loader {
 		return awt;
 	}
 
-	protected class PatchLoadingLock {
+	protected class PatchLoadingLock extends Lock {
 		String key;
-		boolean loading = false;
 		PatchLoadingLock(String key) { this.key = key; }
 	}
 
-	private Hashtable ht_plocks = new Hashtable();
+	/** Table of dynamic locks, a single one per Patch if any. */
+	private Hashtable<String,PatchLoadingLock> ht_plocks = new Hashtable<String,PatchLoadingLock>();
 
 	protected final PatchLoadingLock getOrMakePatchLoadingLock(final Patch p, final int level) {
 		final String key = p.getId() + "." + level;
-		Object ob = ht_plocks.get(key);
-		if (null != ob) {
-			return (PatchLoadingLock)ob;
-		}
-		PatchLoadingLock pl = new PatchLoadingLock(key);
-		ht_plocks.put(key, pl);
-		return pl;
+		PatchLoadingLock plock = ht_plocks.get(key);
+		if (null != plock) return plock;
+		plock = new PatchLoadingLock(key);
+		ht_plocks.put(key, plock);
+		return plock;
 	}
-	protected final void removePatchLoadingLock(PatchLoadingLock pl) {
+	protected final void removePatchLoadingLock(final PatchLoadingLock pl) {
 		ht_plocks.remove(pl.key);
 	}
 
@@ -930,13 +929,11 @@ abstract public class Loader {
 		// 2 - check if the exact file is present for the desired level
 		if (level > 0 && isMipMapsEnabled()) {
 			synchronized (plock) {
-				while (plock.loading) try { plock.wait(); } catch (InterruptedException ie) {};
-				plock.loading = true;
+				plock.lock();
 
 				mawt = mawts.get(id, level);
 				if (null != mawt) {
-					plock.loading = false;
-					plock.notifyAll();
+					plock.unlock();
 					return mawt; // was loaded by a different thread
 				}
 
@@ -954,13 +951,11 @@ abstract public class Loader {
 				synchronized (db_lock) {
 					try {
 						lock();
-						//removePatchLoadingLock(plock);
 						max_memory -= n_bytes;
 						if (null != mawt) {
 							mawts.put(id, mawt, level);
 							unlock();
-							plock.loading = false;
-							plock.notifyAll();
+							plock.unlock();
 							//Utils.log2("returning exact mawt from file for level " + level);
 							Display.repaintSnapshot(p);
 							return mawt;
@@ -983,19 +978,18 @@ abstract public class Loader {
 							if (null != mawt) {
 								if (newly_cached) Display.repaintSnapshot(p);
 								unlock();
-								plock.loading = false;
-								plock.notifyAll();
+								plock.unlock();
 								//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
 								return mawt;
 							}
 						}
-						unlock();
 					} catch (Exception e) {
 						new IJError(e);
 					}
+					removePatchLoadingLock(plock);
+					unlock();
 				}
-				plock.loading = false;
-				plock.notifyAll();
+				plock.unlock();
 			}
 		}
 
@@ -3509,9 +3503,9 @@ abstract public class Loader {
 		return opener.openImage(path);
 	}
 
-	/** Equivalent to File.getName() */
+	/** Equivalent to File.getName(), does not subtract the slice info from it.*/
 	protected final String getFileName(Patch p) {
-		final String path = getAbsolutePath(p); // with -----#slice removed
+		final String path = getAbsolutePath(p);
 		if (null == path) return null;
 		int i = path.length() -1;
 		while (i > -1) {
@@ -3575,6 +3569,52 @@ abstract public class Loader {
 
 	/** Does nothing and returns false unless overriden. */
 	public boolean checkMipMapExists(Patch p, double magnification) { return false; }
+
+	public void adjustChannels(final Patch p, final int old_channels) {
+		if (0xff == old_channels) {
+			// reuse any loaded mipmaps
+			Hashtable<Integer,Image> ht = null;
+			synchronized (db_lock) {
+				lock();
+				ht = mawts.getAll(p.getId());
+				unlock();
+			}
+			for (Map.Entry<Integer,Image> entry : ht.entrySet()) {
+				// key is level, value is awt
+				final int level = entry.getKey();
+				PatchLoadingLock plock = null;
+				synchronized (db_lock) {
+					lock();
+					plock = getOrMakePatchLoadingLock(p, level);
+					unlock();
+				}
+				synchronized (plock) {
+					plock.lock(); // block loading of this file
+					Image awt = null;
+					try {
+						awt = p.adjustChannels(entry.getValue());
+					} catch (Exception e) {
+						new IJError(e);
+					}
+					synchronized (db_lock) {
+						lock();
+						mawts.replace(p.getId(), awt, level);
+						removePatchLoadingLock(plock);
+						unlock();
+					}
+					plock.unlock();
+				}
+			}
+		} else {
+			// flush away any loaded mipmap for the id
+			synchronized (db_lock) {
+				lock();
+				mawts.removeAndFlush(p.getId());
+				unlock();
+			}
+			// when reloaded, the channels will be adjusted
+		}
+	}
 
 	static public ImageProcessor scaleImage(final ImagePlus imp, double mag, final boolean quality) {
 		if (mag > 1) mag = 1;
@@ -3958,6 +3998,6 @@ abstract public class Loader {
 	}
 
 	public String makeProjectName() {
-		return "Project";
+		return "Untitled " + ControlWindow.getTabIndex(Project.findProject(this));
 	}
 }

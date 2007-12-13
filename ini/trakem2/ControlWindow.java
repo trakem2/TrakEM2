@@ -470,4 +470,11 @@ public class ControlWindow {
 		ini.trakem2.display.Display.setCursorToAll(c);
 		if (null != frame && frame.isVisible()) frame.setCursor(c); // the ControlWindow frame
 	}
+
+	/** Returns -1 if not found. */
+	static public int getTabIndex(final Project project) {
+		Component tab = (Component)ht_projects.get(project);
+		if (null == tab) return -1;
+		return tabs.indexOfComponent(tab);
+	}
 }

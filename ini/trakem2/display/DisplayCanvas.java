@@ -125,7 +125,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// Signal previous offscreen threads to quit
 				cancelOffs();
 				// issue new offscreen thread
-				final OffscreenThread off = new OffscreenThread(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getChannelAlphas());
+				final OffscreenThread off = new OffscreenThread(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getDisplayChannelAlphas());
 				// store to be canceled if necessary
 				add(off);
 			} catch (Exception e) {
@@ -219,7 +219,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 
 			g2d.setStroke(this.stroke);
+			
 
+			// paint the active unless it's a Patch (since it's been painted offscreen already)
 			if (null != active && !active.getClass().equals(Patch.class) && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
 				active.paint(g2d, magnification, true, c_alphas, active_layer);
 			}
@@ -1909,6 +1911,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					g.fill(background);
 					bkgd_painted = true;
 				}
+
+				//Utils.log2("offscreen painting: " + al_paint.size());
 
 				i = 0;
 				for (Displayable d : al_paint) {

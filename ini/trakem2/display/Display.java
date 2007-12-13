@@ -389,8 +389,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
 		double magnification = 0.25;
 		Point p = new Point(0, 0);
-		int c_alphas = 0x00FFFFFF;
-		int c_alphas_state = 0xFFFFFFFF;
+		int c_alphas = 0xffffffff;
+		int c_alphas_state = 0xffffffff;
 		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
 			String key = (String)e.nextElement();
 			String data = (String)ht_attributes.get(key);
@@ -409,13 +409,17 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			} else if (key.equals("y")) {
 				p.y = Integer.parseInt(data);
 			} else if (key.equals("c_alphas")) {
-				c_alphas = Integer.parseInt(data);
+				try {
+					c_alphas = Integer.parseInt(data);
+				} catch (Exception ex) {
+					c_alphas = 0xffffffff;
+				}
 			} else if (key.equals("c_alphas_state")) {
 				try {
 					c_alphas_state = Integer.parseInt(data);
 				} catch (Exception ex) {
 					new IJError(ex);
-					c_alphas_state = 1;
+					c_alphas_state = 0xffffffff;
 				}
 			} else if (key.equals("scroll_step")) {
 				try {
@@ -628,7 +632,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// restore canvas
 			canvas.setup(mag, srcRect);
 			// restore visibility of each channel
-			int cs = ((Integer)props[5]).intValue();
+			int cs = ((Integer)props[5]).intValue(); // aka c_alphas_state
 			int[] sel = new int[4];
 			sel[0] = ((cs&0xff000000)>>24);
 			sel[1] = ((cs&0xff0000)>>16);
@@ -2222,7 +2226,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			else
 				scale = " (" + Utils.d2s(percent,1) + "%)";
 		}
-		String title = (layer.getParent().indexOf(layer) + 1) + "/" + layer.getParent().size() +" " + (null == layer.getTitle() ? "" : layer.getTitle()) + scale;
+		String title = (layer.getParent().indexOf(layer) + 1) + "/" + layer.getParent().size() +" " + (null == layer.getTitle() ? "" : layer.getTitle()) + scale + " -- " + getProject().toString();
 		frame.setTitle(title);
 		// fix the title for the FakeImageWindow and thus the WindowManager listing in the menus
 		canvas.getFakeImagePlus().setTitle(title);
@@ -2973,6 +2977,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				c_alphas = (l<<24) + (r<<16) + (g<<8) + a;
 				break;
 		}
+		Utils.log2("c_alphas: " + c_alphas);
 		//canvas.setUpdateGraphics(true);
 		canvas.repaint(true);
 		updateInDatabase("c_alphas");
@@ -3125,6 +3130,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			 .append(indent).append("<!ATTLIST t2_display srcrect_width NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_display srcrect_height NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_display scroll_step NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display c_alphas NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display c_alphas_state NMTOKEN #REQUIRED>\n")
 		;
 	}
 	/** Export all displays of the given project as XML entries. */

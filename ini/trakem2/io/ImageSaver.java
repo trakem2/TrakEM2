@@ -77,7 +77,7 @@ public class ImageSaver {
 		// ok, onward
 		// No need to make an RGB int[] image if a byte[] image with a LUT will do.
 		/*
-		int image_type = BufferedImage.TYPE_INT_RGB;
+		int image_type = BufferedImage.TYPE_INT_ARGB;
 		if (ip.getClass().equals(ByteProcessor.class) || ip.getClass().equals(ShortProcessor.class) || ip.getClass().equals(FloatProcessor.class)) {
 			image_type = BufferedImage.TYPE_BYTE_GRAY;
 		}
@@ -109,8 +109,22 @@ public class ImageSaver {
 	 *  This method avoids having to open it as int[] (4 times as big!) and then convert it to grayscale by looping through all its pixels and comparing if all three channels are the same (which, least you don't know, is what ImageJ 139j and before does).
 	 */
 	static public final BufferedImage openGreyJpeg(final String path) {
+		return openJpeg(path, JPEGDecodeParam.COLOR_ID_GRAY);
+	}
+
+	/* // ERROR:
+	 * java.lang.IllegalArgumentException: NumComponents not in sync with COLOR_ID
+	 * uh?
+	 */
+	/*
+	static public final BufferedImage openColorJpeg(final String path) throws Exception {
+		return openJpeg(path, JPEGDecodeParam.COLOR_ID_RGB);
+	}
+	*/
+
+	static private final BufferedImage openJpeg(final String path, final int color_id) {
 		try {
-			return openGreyJpeg2(path);
+			return openJpeg2(path, color_id);
 		} catch (FileNotFoundException fnfe) {
 			return null;
 		} catch (Exception e) {
@@ -118,7 +132,7 @@ public class ImageSaver {
 			// the file might have been generated while trying to read it. So try once more
 			try {
 				Thread.sleep(50);
-				return openGreyJpeg2(path);
+				return openJpeg2(path, color_id);
 			} catch (Exception e2) {
 				new IJError(e2);
 			}
@@ -126,10 +140,10 @@ public class ImageSaver {
 		}
 	}
 
-	static private final BufferedImage openGreyJpeg2(final String path) throws Exception {
+	static private final BufferedImage openJpeg2(final String path, final int color_id) throws Exception {
 		if (!new File(path).exists()) return null;
 		FileInputStream f = new FileInputStream(path);
-		final JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, JPEGDecodeParam.COLOR_ID_GRAY));
+		final JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, color_id));
 		final BufferedImage bi = decoder.decodeAsBufferedImage();
 		f.close();
 		return bi;

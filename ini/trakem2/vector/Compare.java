@@ -55,7 +55,6 @@ public class Compare {
 		all = (Project[])projects.toArray(all); // does not use 'all', only to read class
 		Project[] ref = null;
 		GenericDialog gd = new GenericDialog("Choose");
-		int choice = 0;
 		if (all.length > 1) {
 			gd.addMessage("Choose a project to search into");
 			String[] options = new String[all.length + 1];
@@ -78,12 +77,12 @@ public class Compare {
 		boolean ignore_calibration = gd.getNextBoolean();
 
 		if (all.length > 1) {
-			choice = gd.getNextChoiceIndex();
+			int choice = gd.getNextChoiceIndex();
 			if (0 == choice) {
 				ref = all;
 			} else {
 				ref = new Project[1];
-				ref[0] = all[choice+1];
+				ref[0] = all[choice-1];
 			}
 		}
 		return findSimilar(pipe, ref, ignore_orientation, ignore_calibration);
@@ -234,7 +233,7 @@ public class Compare {
 					if (null == ob) return;
 					Displayable displ = ht_tabs.get(ob);
 					if (null == displ) return;
-					label.setText(Project.getName(displ.getClass()) + ": " + displ.getProject().findProjectThing(displ).getTitle());
+					label.setText(displ.getProject().toString() + ": " + displ.getProject().findProjectThing(displ).getTitle() + " " + Project.getName(displ.getClass()));
 				}
 			};
 			JPanel all = new JPanel();
@@ -275,21 +274,24 @@ public class Compare {
 		}
 		public String getColumnName(int col) {
 			switch (col) {
-				case 0: return "Match";
-				case 1: return "Similarity";
-				case 2: return "Distance";
+				case 0: return "Project";
+				case 1: return "Match";
+				case 2: return "Similarity";
+				case 3: return "Distance";
 				default: return "";
 			}
 		}
 		public int getRowCount() { return v_obs.size(); }
-		public int getColumnCount() { return 3; }
+		public int getColumnCount() { return 4; }
 		public Object getValueAt(int row, int col) {
 			switch (col) {
 				case 0:
+					return v_obs.get(row).getProject().toString();
+				case 1:
 					Displayable d = v_obs.get(row);
 					return d.getProject().findProjectThing(d).getTitle();
-				case 1: return Utils.cutNumber(Math.floor(v_eds.get(row).getSimilarity() * 10000) / 100, 2) + " %";
-				case 2: return Utils.cutNumber(v_scores.get(row).doubleValue(), 2);
+				case 2: return Utils.cutNumber(Math.floor(v_eds.get(row).getSimilarity() * 10000) / 100, 2) + " %";
+				case 3: return Utils.cutNumber(v_scores.get(row).doubleValue(), 2);
 				default: return "";
 			}
 		}
