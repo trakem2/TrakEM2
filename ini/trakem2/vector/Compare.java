@@ -117,6 +117,10 @@ public class Compare {
 		/* 2 */ final double delta = vs.getAverageDelta(); // after calibration!
 		/* 3 */ vs.resample(delta);
 		/* 4 */ if (ignore_orientation) vs.relative();
+
+		final VectorString3D vs_reverse = vs.makeReversedCopy();
+
+		// array of pipes to test 'vs' and 'vs_reverse' against:
 		final Pipe[] p = new Pipe[al.size()];
 		final Match[] match = new Match[p.length];
 		al.toArray(p);
@@ -135,10 +139,24 @@ public class Compare {
 				/* 1 */ if (!ignore_calibration && null != cal) v.calibrate(cal);
 				/* 2 */ v.resample(delta);
 				/* 3 */ if (ignore_orientation) v.relative(); // vectors of consecutive differences
+
+				// test 'vs'
 				Editions ed = new Editions(vs, v, delta, false);
 				double score = ed.getDistance();
 				Utils.log2("Score: " + score + "  similarity: " + ed.getSimilarity());
-				match[k] = new Match(p[k], ed, score);
+
+				// test 'vs_reverse'
+				Editions ed_rev = new Editions(vs_reverse, v, delta, false);
+				double score_rev = ed_rev.getDistance();
+				Utils.log2("Score (reversed): " + score_rev + "  similarity: " + ed_rev.getSimilarity());
+
+				// choose smallest distance
+				if (ed.distance() < ed_rev.distance()) {
+					match[k] = new Match(p[k], ed, score);
+				} else {
+					match[k] = new Match(p[k], ed_rev, score_rev);
+				}
+
 			} catch (Exception e) {
 				new IJError(e);
 			}

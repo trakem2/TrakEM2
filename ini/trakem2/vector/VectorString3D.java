@@ -47,6 +47,8 @@ public class VectorString3D implements VectorString {
 
 	private boolean closed = false;
 
+	private boolean is_reversed = false;
+
 	private Calibration cal = null;
 
 	/** Dependent arrays that will get resampled along. */
@@ -628,6 +630,24 @@ public class VectorString3D implements VectorString {
 		return null;
 	}
 
+	public VectorString3D makeReversedCopy() {
+		try {
+			final VectorString3D vs = new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), closed);
+			vs.reverse();
+			if (delta != 0 && null != vx) {
+				vs.delta = this.delta;
+				vs.resample();
+				if (null != rvx) {
+					vs.relative();
+				}
+			}
+			return vs;
+		} catch (Exception e) {
+			new IJError(e);
+		}
+		return null;
+	}
+
 	/** Create the relative vectors, that is, the differences of one vector to the next. In this way, vectors represent changes in the path and are independent of the actual path orientation in space. */
 	public void relative() {
 		// create vectors if not there yet
@@ -775,5 +795,26 @@ public class VectorString3D implements VectorString {
 	}
 	public Calibration getCalibrationCopy() {
 		return null == this.cal ? null : this.cal.copy();
+	}
+
+	/** Invert the order of points. Will clear all vector arrays if any! */
+	public void reverse() {
+		this.is_reversed = !this.is_reversed; // may be re-reversed
+		// reverse point arrays
+		Utils.reverse(x);
+		Utils.reverse(y);
+		Utils.reverse(z);
+		// eliminate vector data
+		delta = 0;
+		if (null != vx || null != vy || null != vz) {
+			vx = vy = vz = null;
+		}
+		if (null != rvx || null != rvy || null != rvz) {
+			rvx = rvy = rvz = null;
+		}
+	}
+
+	public void isReversed() {
+		return this.is_reversed;
 	}
 }
