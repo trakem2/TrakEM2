@@ -147,6 +147,10 @@ abstract public class Loader {
 	/** Keep track of whether there are any unsaved changes.*/
 	protected boolean changes = false;
 
+
+	static public final int ERROR_PATH_NOT_FOUND = Integer.MAX_VALUE;
+
+
 	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_BINARY);
 	static {
 		Graphics2D g = NOT_FOUND.createGraphics();
@@ -963,7 +967,7 @@ abstract public class Loader {
 						// 3 - else, load closest level to it but still giving a larger image
 						int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
 						//Utils.log2("closest mipmap level is " + lev);
-						if (0 != lev) {
+						if (lev > 0) {
 							mawt = mawts.getClosestAbove(id, lev);
 							boolean newly_cached = false;
 							if (null == mawt) {
@@ -973,6 +977,7 @@ abstract public class Loader {
 									mawts.put(id, mawt, lev);
 									newly_cached = true; // means: cached was false, now it is
 								}
+								// else if null, the file did not exist or could not be regenerated or regeneration is off
 							}
 							//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
 							if (null != mawt) {
@@ -982,14 +987,16 @@ abstract public class Loader {
 								//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
 								return mawt;
 							}
+						} else if (ERROR_PATH_NOT_FOUND == lev) {
+							mawt = NOT_FOUND;
 						}
 					} catch (Exception e) {
 						new IJError(e);
 					}
 					removePatchLoadingLock(plock);
 					unlock();
+					plock.unlock();
 				}
-				plock.unlock();
 			}
 		}
 
@@ -1000,8 +1007,8 @@ abstract public class Loader {
 				// 4 - check if any suitable level is cached (whithout mipmaps, it may be the large image)
 				mawt = mawts.getClosestAbove(id, level);
 				if (null != mawt) {
-					unlock();
 					//Utils.log2("returning from getClosest with level " + level);
+					unlock();
 					return mawt;
 				}
 				unlock();
@@ -3493,6 +3500,7 @@ abstract public class Loader {
 
 	/** Fixes paths before presenting them to the file system, in an OS-dependent manner. */
 	protected final ImagePlus openImage(String path) {
+		if (null == path) return null;
 		// supporting samba networks
 		if (path.startsWith("//")) {
 			path = path.replace('/', '\\');

@@ -575,7 +575,7 @@ public class FSLoader extends Loader {
 					}
 					boolean overwrite = null != path;
 					if (overwrite) {
-						Utils.printCaller(this, 10);
+						//Utils.printCaller(this, 10);
 						YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "Overwrite '" + p.getTitle() + "'\nat " + path + "' ?");
 						if (yn.cancelPressed()) {
 							return false;
@@ -696,6 +696,7 @@ public class FSLoader extends Loader {
 			path = parent_dir + "/" + path;
 			if (!new File(path).exists()) {
 				Utils.log("Path for patch " + patch + " does not exist: " + path);
+				//Utils.printCaller(this, 7);
 				return null;
 			}
 		}
@@ -1346,11 +1347,15 @@ public class FSLoader extends Loader {
 		return null != dir_mipmaps;
 	}
 
-	/** Return the closest level to @param level that exists as a file. */
+	/** Return the closest level to @param level that exists as a file.
+	 *  If no valid path is found for the patch, returns ERROR_PATH_NOT_FOUND.
+	 */
 	public int getClosestMipMapLevel(final Patch patch, int level) {
 		if (null == dir_mipmaps) return 0;
 		try {
-			final String filename = new File(getAbsolutePath(patch)).getName() + ".jpg";
+			final String path = getAbsolutePath(patch);
+			if (null == path) return ERROR_PATH_NOT_FOUND;
+			final String filename = new File(path).getName() + ".jpg";
 			while (true) {
 				File f = new File(dir_mipmaps + level + "/" + filename);
 				if (f.exists()) {
@@ -1404,7 +1409,9 @@ public class FSLoader extends Loader {
 			// TODO should wait if the file is currently being generated
 			//  (it's somewhat handled by a double-try to open the jpeg image)
 
-			String path = dir_mipmaps + level + "/" + getFileName(patch) + "." + patch.getId() + ".jpg";
+			final String filepath = getFileName(patch);
+			if (null == filepath) return null;
+			String path = dir_mipmaps + level + "/" + filepath + "." + patch.getId() + ".jpg";
 			Image img = null;
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:

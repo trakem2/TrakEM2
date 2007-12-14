@@ -34,6 +34,7 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.Loader;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -353,7 +354,7 @@ public class Patch extends Displayable {
 				// painting a smaller image, will need to repaint with the proper one
 				thread = true;
 			}
-			if (thread) {
+			if (thread && !Loader.NOT_FOUND.equals(image)) {
 				// use the lower resolution image, but spawn a thread to load and paint the proper one on loading it.
 				higher = new Thread() {
 					public void run() {

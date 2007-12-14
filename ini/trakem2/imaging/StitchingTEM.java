@@ -533,8 +533,20 @@ public class StitchingTEM {
 		/// ABOVE: boundary checks don't work if default_dx,dy are zero! And may actually be harmful in anycase
 	}
 
-	/** Works only for Patch instances at the moment. */
-	static public Bureaucrat snap(final Displayable d, final Display display) {
+	/** For Patch class only at the moment; if the given Displayable is not a Patch this function return null.  */
+	static public Bureaucrat snap(final Displayable d, Display display) {
+		if (!(d instanceof Patch)) return null;
+		return snap(d, null, display);
+	}
+
+	/** Works only for Patch instances at the moment.
+	 *  Will snap against the best matching Patch in ArrayList al.
+	 *  If the given list of patches to match against is null, it will look for intersecting patches
+	 *  within the same layer.
+	 *  Any Patch objects linked to the given Patch 'd' will be removed from the list.
+	 *  The Display can be null; if not, the selection will be updated.
+	 */
+	static public Bureaucrat snap(final Displayable d, final ArrayList<Patch> al_, final Display display) {
 		final Worker worker = new Worker("Snapping") {
 			public void run() {
 				startedWorking();
@@ -545,16 +557,19 @@ public class StitchingTEM {
 		// snap patches only
 		if (null == d || !(d instanceof Patch)) { finishedWorking(); return; }
 		//Utils.log("Snapping " + d);
-		ArrayList al = d.getLayer().getIntersecting(d, Patch.class);
-		if (null == al || 0 == al.size()) { finishedWorking(); return; }
-		// remove from the intersecting group those Patch objects that are linked in the same layer (those linked that do not intersect simply return false on the al.remove(..) )
-		HashSet hs_linked = d.getLinkedGroup(new HashSet());
-		//Utils.log2("linked patches: " + hs_linked.size());
-		Layer layer = d.getLayer();
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable dob = (Displayable)it.next();
-			if (Patch.class.equals(dob.getClass()) && dob.getLayer().equals(layer)) {
-				al.remove(dob);
+		ArrayList al = al_;
+		if (null == al) {
+			al = d.getLayer().getIntersecting(d, Patch.class);
+			if (null == al || 0 == al.size()) { finishedWorking(); return; }
+			// remove from the intersecting group those Patch objects that are linked in the same layer (those linked that do not intersect simply return false on the al.remove(..) )
+			HashSet hs_linked = d.getLinkedGroup(new HashSet());
+			//Utils.log2("linked patches: " + hs_linked.size());
+			Layer layer = d.getLayer();
+			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+				Displayable dob = (Displayable)it.next();
+				if (Patch.class.equals(dob.getClass()) && dob.getLayer().equals(layer)) {
+					al.remove(dob);
+				}
 			}
 		}
 		// dragged Patch
@@ -619,10 +634,12 @@ public class StitchingTEM {
 		Rectangle r = p_dragged.getLinkedBox(true);
 		//Utils.log2("dragged box is " + r);
 		box.add(r);
-		Selection selection = display.getSelection();
-		if (selection.contains(p_dragged)) {
-			//Utils.log2("going to update selection");
-			Display.updateSelection(display);
+		if (null != display) {
+			Selection selection = display.getSelection();
+			if (selection.contains(p_dragged)) {
+				//Utils.log2("going to update selection");
+				Display.updateSelection(display);
+			}
 		}
 		Display.repaint(p_dragged.getLayer().getParent()/*, box*/);
 		Utils.log2("Done snapping.");
