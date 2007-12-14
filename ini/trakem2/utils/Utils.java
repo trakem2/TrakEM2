@@ -844,7 +844,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Reverse in place an array of doubles. */
 	static public final void reverse(final double[] a) {
-		for (int left=0, int right=a.length-1; left<right; left++, right--) {
+		for (int left=0, right=a.length-1; left<right; left++, right--) {
 			double tmp = a[left];
 			a[left] = a[right];
 			a[right] = tmp;

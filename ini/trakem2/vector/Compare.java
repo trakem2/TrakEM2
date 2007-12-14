@@ -151,7 +151,7 @@ public class Compare {
 				Utils.log2("Score (reversed): " + score_rev + "  similarity: " + ed_rev.getSimilarity());
 
 				// choose smallest distance
-				if (ed.distance() < ed_rev.distance()) {
+				if (ed.getDistance() < ed_rev.getDistance()) {
 					match[k] = new Match(p[k], ed, score);
 				} else {
 					match[k] = new Match(p[k], ed_rev, score_rev);

@@ -814,7 +814,7 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
-	public void isReversed() {
+	public boolean isReversed() {
 		return this.is_reversed;
 	}
 }
