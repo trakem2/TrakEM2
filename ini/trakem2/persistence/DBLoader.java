@@ -3016,7 +3016,7 @@ public class DBLoader extends Loader {
 					if (null != thing) ptree.setExpandedSilently(thing, true);
 				}
 			}
-			ptree.updateUI();
+			ptree.updateUILater();
 		} catch (Exception e) {
 			new IJError(e);
 		}

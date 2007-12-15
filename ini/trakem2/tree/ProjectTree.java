@@ -130,7 +130,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		thing.setTitle(gd.getNextString());
-		this.updateUI();
+		this.updateUILater();
 	}
 
 
@@ -193,7 +193,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				if (obd instanceof Project) { ((Project)obd).remove(true); return; } // shortcut to remove everything regardless.
 				if (!thing.remove(true)) return;
 				((DefaultTreeModel)this.getModel()).removeNodeFromParent(selected_node);
-				this.updateUI();
+				this.updateUILater();
 			} else if (command.equals("Rename...")) {
 				//if (!Project.isBasicType(thing.getType())) {
 					rename(thing);
@@ -250,7 +250,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		if (!thing.remove(check)) return;
 		((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
 		if (remove_empty_parents) removeProjectThingLadder(parent, levels);
-		this.updateUI();
+		this.updateUILater();
 	}
 
 	/** Recursive as long as levels is above zero. Levels defines the number of possibly emtpy parent levels to remove. */

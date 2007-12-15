@@ -190,6 +190,10 @@ public class FakeImagePlus extends ImagePlus {
 		super.setCalibration(cal);
 	}
 
+	public Calibration getCalibration() {
+		return display.getLayer().getParent().getCalibrationCopy();
+	}
+
 	/** Forward kill roi to the last_temp of the associated Display. */
 	public void killRoi() {
 		if (null!=roi) {

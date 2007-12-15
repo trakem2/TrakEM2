@@ -302,7 +302,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	}
 
 	/** Deselects whatever node is selected in the tree, and tries to select the one that contains the given object. */
-	static public void selectNode(Object ob, JTree tree) {
+	static public void selectNode(final Object ob, final JTree tree) {
 		if (null == ob) {
 			Utils.log("DNDTree.selectNode: null ob?");
 			return;
@@ -311,19 +311,27 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		tree.setSelectionPath(null);
 		// check first:
 		if (null == ob) return;
-		DefaultMutableTreeNode node = DNDTree.findNode(ob, tree);
-		if (null != node) {
-			TreePath path = new TreePath(node.getPath());
-			try {
-			tree.scrollPathToVisible(path);
-			} catch (Exception e) {
-				Utils.log2("Error in DNDTree.selectNode tree.scrollPathToVisible(path). Java is buggy, see for yourself: " + e);
+		final DefaultMutableTreeNode node = DNDTree.findNode(ob, tree);
+		final Runnable run = new Runnable() {
+			public void run() {
+				if (null != node) {
+					TreePath path = new TreePath(node.getPath());
+					try {
+						tree.scrollPathToVisible(path); // involves repaint, so must be set through invokeAndWait. Why it doesn't do so automatically is beyond me.
+					} catch (Exception e) {
+						Utils.log2("Error in DNDTree.selectNode tree.scrollPathToVisible(path). Java is buggy, see for yourself: " + e);
+					}
+					tree.setSelectionPath(path);
+				} else {
+					// Not found. But also occurs when adding a new profile/pipe/ball, because it is called 'setActive' on before adding it to the project tree.
+					//Utils.log("DNDTree.selectNode: not found for ob: " + ob);
+				}
+			}};
+		new Thread() {
+			public void run() {
+				SwingUtilities.invokeLater(run);
 			}
-			tree.setSelectionPath(path);
-		} else {
-			// Not found. But also occurs when adding a new profile/pipe/ball, because it is called 'setActive' on before adding it to the project tree.
-			//Utils.log("DNDTree.selectNode: not found for ob: " + ob);
-		}
+		}.start(); // can't even do it from the EventDispatchThread! Pitiful!
 	}
 
 	public void destroy() {
@@ -331,26 +339,14 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		this.dtth = null;
 	}
 
-	private void superUpdateUI() {
-		super.updateUI();
-	}
-
 	/** Overriding to fix synchronization issues: the path changes while the multithreaded swing attempts to repaint it, so we wait. */
-	public void updateUI() {
-		/*
-		java.lang.reflect.Method m1 = null;
-		try {
-			m1 = super.getClass().getMethod("updateUI"); // exists in JComponent, from which JTree inherits
-		} catch (NoSuchMethodException nsme) {}
-		final java.lang.reflect.Method method = m1; // loops and loops ..
-		*/
-
+	public void updateUILater() {
 		final DNDTree tree = this;
 		final Runnable updater = new Runnable() {
 			public void run() {
 				try { Thread.sleep(200); } catch (InterruptedException ie) {}
 				try {
-					tree.superUpdateUI();
+					tree.updateUI();
 				} catch (Exception e) {
 					//Utils.log2("updateUI failed at " + Utils.faultyLine(e));
 					new ini.trakem2.utils.IJError(e);
@@ -362,29 +358,12 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 			public void run() {
 				// avoiding "can't call invokeAndWait from the EventDispatch thread" error
 				try {
-					javax.swing.SwingUtilities.invokeAndWait(updater);
+					javax.swing.SwingUtilities.invokeLater(updater);
 				} catch (Exception e) {
 					Utils.log2("ERROR: " + e);
 				}
 			}
 		}.start();
-
-
-		/*
-		// just catch it
-		try {
-			super.updateUI();
-		} catch (Exception e) {
-			Utils.log2("updateUI failed for " + this.getClass().getName());
-			// try again once:
-			try {
-				Thread.sleep(100);
-				super.updateUI();
-			} catch (Exception e2) {
-				Utils.log2("updateUI failed a second time.");
-			}
-		}
-		*/
 	}
 
 	/** Rebuilds the part of the tree under the given node, one level deep only, for reordering purposes. */
@@ -428,7 +407,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 				Utils.log2(it.next().toString());
 			}
 		}
-		this.updateUI();
+		this.updateUILater();
 		// restore viewport position
 		if (null != point) {
 			((JScrollPane)c).getViewport().setViewPosition(point);
@@ -527,7 +506,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	protected DefaultMutableTreeNode addChild(Thing child, DefaultMutableTreeNode parent_node) {
 		DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(child);
 		((DefaultTreeModel)getModel()).insertNodeInto(node_child, parent_node, parent_node.getChildCount());
-		updateUI();
+		updateUILater();
 		return node_child;
 	}
 }

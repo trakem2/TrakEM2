@@ -146,8 +146,8 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 			// tell the project about it
 			tt.getProject().updateTypeName(old_name, new_name);
 			// repaint both trees (will update the type names)
-			updateUI();
-			tt.getProject().getProjectTree().updateUI();
+			updateUILater();
+			tt.getProject().getProjectTree().updateUILater();
 		} else if (command.equals("Delete...")) {
 			// find dependent objects, if any, that have the same type of parent chain
 			HashSet hs = tt.getProject().getRootProjectThing().collectSimilarThings(tt, new HashSet());
@@ -195,8 +195,8 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 				Utils.log2("avoiding 2");
 			}
 			// update trees
-			this.updateUI();
-			project_tree.updateUI();
+			this.updateUILater();
+			project_tree.updateUILater();
 		} else if (command.equals("Export XML template...")) {
 			/*
 			GenericDialog gd = ControlWindow.makeGenericDialog("Doc Name");
@@ -301,7 +301,7 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 				}
 				*/
 			}
-			this.updateUI();
+			this.updateUILater();
 		}
 	}
 

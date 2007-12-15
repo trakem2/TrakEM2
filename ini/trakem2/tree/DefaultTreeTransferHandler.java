@@ -156,11 +156,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 					return false;
 				}
 				// repaint the attribute node
-				try {
-					target.updateUI();
-				} catch (Exception eu) {
-					Utils.log2("updateUI failed at " + this.getClass().getName() + ".executeDrop");
-				}
+				target.updateUILater();
 				//don't change the nodes of the tree
 				return true;
 			}

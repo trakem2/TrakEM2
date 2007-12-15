@@ -232,7 +232,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 						pt.fixZOrdering();
 						project.getProjectTree().updateList(pt);
 					}
-					project.getProjectTree().updateUI();
+					project.getProjectTree().updateUILater();
 					//Display.updateLayerScroller((LayerSet)((DefaultMutableTreeNode)getModel().getRoot()).getUserObject());
 				} else if (command.equals("Delete...")) {
 					// TODO
@@ -298,7 +298,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				if (null == thing.getParent()) return; // can't remove the root LayerSet
 				if (thing.remove(true)) {
 					((DefaultTreeModel)this.getModel()).removeNodeFromParent(selected_node);
-					this.updateUI();
+					this.updateUILater();
 				}
 			} else if (command.equals("Import stack...")) {
 
@@ -522,7 +522,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 		if (null == node) { Utils.log2("LayerTree.remove(Layer): node not found"); return false; }
 		if (thing.remove(check)) {
 			((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
-			this.updateUI();
+			this.updateUILater();
 		}
 		return true;
 	}
@@ -622,7 +622,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				Utils.log2(it.next().toString());
 			}
 		}
-		this.updateUI();
+		this.updateUILater();
 
 		// restore viewport position
 		if (null != point) {

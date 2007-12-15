@@ -374,7 +374,7 @@ public class Project extends DBObject {
 					ht_exp.put(new TreePath(nd.getPath()), expanded);
 				}
 			}
-			project.project_tree.updateUI(); // very important!!
+			project.project_tree.updateUILater(); // very important!!
 		} catch (Exception e) {
 			new IJError(e);
 		}

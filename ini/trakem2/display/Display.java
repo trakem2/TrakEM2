@@ -805,7 +805,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		project.getLoader().setMassiveMode(false); // resetting if it was set true
 
 		// update the coloring in the ProjectTree
-		project.getProjectTree().updateUI();
+		project.getProjectTree().updateUILater();
 		
 		//
 		createTempCurrentImage();
@@ -954,8 +954,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// update the coloring in the ProjectTree and LayerTree
 			if (!project.isBeingDestroyed()) {
 				try {
-					project.getProjectTree().updateUI();
-					project.getLayerTree().updateUI();
+					project.getProjectTree().updateUILater();
+					project.getLayerTree().updateUILater();
 				} catch (Exception e) {
 					Utils.log2("updateUI failed at Display.destroy()");
 				}
@@ -999,7 +999,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 			// repaint layer tree (to update the label color)
 			try {
-				project.getLayerTree().updateUI(); // works only after setting the front above
+				project.getLayerTree().updateUILater(); // works only after setting the front above
 			} catch (Exception e) {} // ignore swing sync bullshit when closing everything too fast
 			// remove the drag and drop listener
 			dnd.destroy();
