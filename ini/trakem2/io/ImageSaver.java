@@ -31,8 +31,10 @@ import ij.measure.Calibration;
 import com.sun.image.codec.jpeg.*;
 import java.awt.image.*;
 import java.awt.Graphics;
+import java.awt.Image;
 import java.io.*;
 import java.util.zip.*;
+import javax.imageio.ImageIO;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
@@ -257,4 +259,68 @@ public class ImageSaver {
 		sb.append((char)0);
 		return new String(sb);
 	}
+
+	/** Save a jpeg including the alpha channel if it has one. */
+	static public final void saveJpegAlpha(final Image awt, final String path) {
+		try {
+			if (awt instanceof BufferedImage) {
+				ImageIO.write((BufferedImage)awt, "jpeg", new File(path));
+			} else {
+				final BufferedImage bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+				bi.createGraphics().drawImage(awt, 0, 0, null);
+				ImageIO.write(bi, "jpeg", new File(path));
+			}
+		} catch (FileNotFoundException fnfe) {
+			Utils.log2("saveJpegAlpha: Path not found: " + path);
+		} catch (Exception e) {
+			new IJError(e);
+		}
+	}
+
+	/** Open a jpeg file including the alpha channel if it has one. */
+	static public BufferedImage openJpegAlpha(final String path) {
+		try {
+			return ImageIO.read(new File(path));
+		} catch (FileNotFoundException fnfe) {
+			Utils.log2("openJpegAlpha: Path not found: " + path);
+		} catch (Exception e) {
+			new IJError(e);
+		}
+		return null;
+	}
+
+	static public final void debugAlpha() {
+		// create an image with an alpha channel
+		BufferedImage bi = new BufferedImage(512, 512, BufferedImage.TYPE_INT_ARGB);
+		// get an image without alpha channel to paste into it
+		Image baboon = new ij.io.Opener().openImage("http://rsb.info.nih.gov/ij/images/baboon.jpg").getProcessor().createImage();
+		bi.createGraphics().drawImage(baboon, 0, 0, null);
+		// create a fading alpha channel
+		int[] ramp = (int[])ij.gui.NewImage.createRGBImage("ramp", 512, 512, 1, ij.gui.NewImage.FILL_RAMP).getProcessor().getPixels();
+		// insert fading alpha ramp into the image
+		bi.getAlphaRaster().setPixels(0, 0, 512, 512, ramp);
+		// save the image
+		String path = "/home/albert/temp/baboonramp.jpg";
+		saveJpegAlpha(bi, path);
+		// open the image
+		Image awt = openJpegAlpha(path);
+		// show it in a canvas that has some background
+		// so that if the alpha was read from the jpeg file, it is readily visible
+		javax.swing.JFrame frame = new javax.swing.JFrame("test alpha");
+		final Image background = frame.getGraphicsConfiguration().createCompatibleImage(512, 512);
+		final Image some = new ij.io.Opener().openImage("http://rsb.info.nih.gov/ij/images/bridge.gif").getProcessor().createImage();
+		java.awt.Graphics g = background.getGraphics();
+		g.drawImage(some, 0, 0, null);
+		g.drawImage(awt, 0, 0, null);
+		java.awt.Canvas canvas = new java.awt.Canvas() {
+			public void paint(Graphics g) {
+				g.drawImage(background, 0, 0, null);
+			}
+		};
+		canvas.setSize(512, 512);
+		frame.getContentPane().add(canvas);
+		frame.pack();
+		frame.setVisible(true);
+	}
+
 }
