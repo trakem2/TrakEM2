@@ -76,6 +76,7 @@ public class SkinMaker {
 			if (i == n) {
 				i = 0; // zero, so the starting vector is applied.
 			}
+				// TODO both  these if statements may be wrong for open curves!
 			if (j == m) {
 				j = 0;
 			}

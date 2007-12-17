@@ -1312,34 +1312,40 @@ public class FSLoader extends Loader {
 	/** Gets data from the Patch and forks a new Thread to do the file removal. */
 	public void removeMipMaps(final Patch p) {
 		if (null == dir_mipmaps) return;
-		// remove the files
-		final int width = (int)p.getWidth();
-		final int height = (int)p.getHeight();
-		final String filename = new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg";
-		new Thread() {
-			public void run() {
+		try {
+			// remove the files
+			final int width = (int)p.getWidth();
+			final int height = (int)p.getHeight();
+			String path = getAbsolutePath(p);
+			if (null == path) return; // missing file
+			final String filename = new File(path).getName() + "." + p.getId() + ".jpg";
+			new Thread() {
+				public void run() {
 
-		int w = width;
-		int h = height;
-		int k = 0; // the level
-		while (w >= 64 && h >= 64) { // not smaller than 32x32
-			w /= 2;
-			h /= 2;
-			k++;
-			File f = new File(dir_mipmaps + k + "/" + filename);
-			if (f.exists()) {
-				try {
-					if (!f.delete()) {
-						Utils.log2("Could not remove file " + f.getAbsolutePath());
+			int w = width;
+			int h = height;
+			int k = 0; // the level
+			while (w >= 64 && h >= 64) { // not smaller than 32x32
+				w /= 2;
+				h /= 2;
+				k++;
+				File f = new File(dir_mipmaps + k + "/" + filename);
+				if (f.exists()) {
+					try {
+						if (!f.delete()) {
+							Utils.log2("Could not remove file " + f.getAbsolutePath());
+						}
+					} catch (Exception e) {
+						new IJError(e);
 					}
-				} catch (Exception e) {
-					new IJError(e);
 				}
 			}
-		}
 
-			}
-		}.start();
+				}
+			}.start();
+		} catch (Exception e) {
+			new IJError(e);
+		}
 	}
 
 	/** Checks whether this Loader is using a directory of image pyramids for each Patch or not. */

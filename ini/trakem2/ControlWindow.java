@@ -297,20 +297,19 @@ public class ControlWindow {
 
 	static public void remove(final Project project) {
 		if (null == tabs || null == ht_projects) return;
+		if (null == instance) return;
 		if (ht_projects.containsKey(project)) {
-			SwingUtilities.invokeLater(new Runnable() {
-				public void run() {
-					if (null == instance) return;
-					synchronized (instance) {
-						JSplitPane tab = (JSplitPane)ht_projects.get(project);
-						tabs.remove(tab);
-						ht_projects.remove(project);
-						if (0 == tabs.getTabCount()) {
-							destroy();
-						}
-					}
-				}
-			});
+			int n_tabs = 0;
+			synchronized (instance) {
+				JSplitPane tab = (JSplitPane)ht_projects.get(project);
+				tabs.remove(tab);
+				ht_projects.remove(project);
+				n_tabs = tabs.getTabCount();
+			}
+			// close the ControlWindow if no projects remain open.
+			if (0 == n_tabs) {
+				destroy();
+			}
 		}
 	}
 
@@ -334,53 +333,41 @@ public class ControlWindow {
 
 	private static class TabListener extends MouseAdapter {
 		public void mouseReleased(MouseEvent me) {
+			if (me.isConsumed()) return;
+			Icon icon = null;
+			Component comp = null;
 			synchronized (instance) {
-				if (me.isConsumed()) return;
 				int i_tab = tabs.getSelectedIndex();
-				Component comp = tabs.getComponentAt(i_tab);
-				Icon icon = tabs.getIconAt(i_tab);
-				if (icon instanceof CloseIcon) {
-					CloseIcon ci = (CloseIcon)icon;
-					if (ci.contains(me.getX(), me.getY())) {
-						// find the project
-						Enumeration e = ht_projects.keys();
-						Project project = null;
-						while (e.hasMoreElements()) {
-							project = (Project)e.nextElement();
-							if (comp.equals(ht_projects.get(project))) {
-								break;
-							}
+				comp = tabs.getComponentAt(i_tab);
+				icon = tabs.getIconAt(i_tab);
+			}
+			if (icon instanceof CloseIcon) {
+				CloseIcon ci = (CloseIcon)icon;
+				// find the project
+				Project project = null;
+				synchronized (instance) {
+					Enumeration e = ht_projects.keys();
+					while (e.hasMoreElements()) {
+						project = (Project)e.nextElement();
+						if (comp.equals(ht_projects.get(project))) {
+							break;
 						}
-						if (null == project) return;
-						// ask for confirmation
-						if (!Utils.check("Close the project " + project.toString() + " ?")) {
-							return;
-						}
-						// proceed to close:
-						if (project.destroy()) {
-							ci.flush();
-							if (null != ht_projects) {  // may have been destroyed already
-								ht_projects.remove(project);
-								// done at project.destroy() //tabs.remove(i_tab);
-								if (0 == tabs.getTabCount()) {
-									instance.destroy();
-								}
-							}
-						}
-					} else if (2 == me.getClickCount()) {
-						// pop dialog to rename the project
-						// find the project
-						Enumeration e = ht_projects.keys();
-						Project project = null;
-						while (e.hasMoreElements()) {
-							project = (Project)e.nextElement();
-							if (comp.equals(ht_projects.get(project))) {
-								break;
-							}
-						}
-						if (null == project) return;
-						project.getProjectTree().rename(project.getRootProjectThing());
 					}
+				}
+				if (ci.contains(me.getX(), me.getY())) {
+					if (null == project) return;
+					// ask for confirmation before closing
+					if (!Utils.check("Close the project " + project.toString() + " ?")) {
+						return;
+					}
+					// proceed to close:
+					if (project.destroy()) { // will call ControlWindow.remove(project)
+						ci.flush();
+					}
+				} else if (2 == me.getClickCount()) {
+					// pop dialog to rename the project
+					if (null == project) return;
+					project.getProjectTree().rename(project.getRootProjectThing());
 				}
 			}
 		}

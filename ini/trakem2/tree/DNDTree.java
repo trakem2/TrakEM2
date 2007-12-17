@@ -339,7 +339,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		this.dtth = null;
 	}
 
-	/** Overriding to fix synchronization issues: the path changes while the multithreaded swing attempts to repaint it, so we wait. */
+	/** Overriding to fix synchronization issues: the path changes while the multithreaded swing attempts to repaint it, so we "invoke later". Hilarious. */
 	public void updateUILater() {
 		final DNDTree tree = this;
 		final Runnable updater = new Runnable() {

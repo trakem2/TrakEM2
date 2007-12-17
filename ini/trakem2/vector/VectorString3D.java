@@ -253,6 +253,15 @@ public class VectorString3D implements VectorString {
 		Vector(final double x, final double y, final double z) {
 			set(x, y, z);
 		}
+		Vector(final Vector v) {
+			this.x = v.x;
+			this.y = v.y;
+			this.z = v.z;
+			this.length = v.length;
+		}
+		final public Object clone() {
+			return new Vector(this);
+		}
 		final void set(final double x, final double y, final double z) {
 			this.x = x;
 			this.y = y;
@@ -261,6 +270,8 @@ public class VectorString3D implements VectorString {
 		}
 		final void normalize() {
 			if (0 == length) return;
+			// check if length is already 1
+			if (Math.abs(1 - length) < 0.00000001) return; // already normalized
 			this.x /= length;
 			this.y /= length;
 			this.z /= length;
@@ -318,6 +329,46 @@ public class VectorString3D implements VectorString {
 			this.x = v.y * w.z - v.z * w.y;
 			this.y = v.z * w.x - v.x * w.z;
 			this.z = v.x * w.y - v.y * w.x;
+		}
+		/** Change coordinate system. */
+		final void changeRef(final Vector v_delta, final Vector v_i1, final Vector v_new1) { // this vector works like new2
+			// ortogonal system 1: the target
+			// (a1'; a2'; a3')
+			Vector a2 = new Vector(  v_new1   );  // vL
+			a2.normalize();
+			Vector a1 = a2.getCrossProduct(v_i1); // vQ
+			a1.normalize();
+			Vector a3 = a2.getCrossProduct(a1);
+			// no need //a3.normalize();
+
+			final double[][] m1 = new double[3][3];
+			a1.put(m1, 0);
+			a2.put(m1, 1);
+			a3.put(m1, 2);
+			final Matrix mat1 = new Matrix(m1);
+
+			// ortogonal system 2: the current
+			// (a1'; b2'; b3')
+			Vector b2 = new Vector(  v_delta  ); // vA
+			b2.normalize();
+			Vector b3 = a1.getCrossProduct(b2); // vQ2
+
+			final double[][] m2 = new double[3][3];
+			a1.put(m2, 0);
+			b2.put(m2, 1);
+			b3.put(m2, 2);
+			final Matrix mat2 = new Matrix(m2).transpose();
+
+			final Matrix R = mat1.times(mat2);
+			final Matrix mthis = new Matrix(new double[]{this.x, this.y, this.z}, 1);
+			// The rotated vector as a one-dim matrix
+			// (i.e. the rescued difference vector as a one-dimensional matrix)
+			final Matrix v_rot = R.transpose().times(mthis.transpose()); // 3x3 times 3x1, hence the transposing of the 1x3
+			final double[][] arr = v_rot.getArray();
+			// done!
+			this.x = arr[0][0];
+			this.y = arr[1][0];
+			this.z = arr[2][0];
 		}
 	}
 
@@ -683,6 +734,8 @@ public class VectorString3D implements VectorString {
 		final Vector vQ = new Vector();
 		final Vector vQQ = new Vector();
 		final Vector vQ2 = new Vector();
+		final double[][] m1 = new double[3][3];
+		final double[][] m2 = new double[3][3];
 
 		for (int i=1; i<length; i++) {
 			// So: Johannes Schindelin said: vector Y is the rotated, X is the original
@@ -703,14 +756,12 @@ public class VectorString3D implements VectorString {
 
 			// now, vQ,vL,vQQ define an orthogonal system
 			// (vQ'; vL'; vQ' x vL')
-			double[][] m1 = new double[3][3];
 			vQ.put(m1, 0);
 			vL.put(m1, 1);
 			vQQ.put(m1, 2);
 			Matrix mat1 = new Matrix(m1);
 
 			// (vQ'; vA'; vQ' x vA')^T            // Johannes wrote vB to mean vA. For me vB is the second vector
-			double[][] m2 = new double[3][3];
 			vQ.put(m2, 0);
 			vA.put(m2, 1);
 			vQ2.setCrossProduct(vQ, vA);
@@ -816,5 +867,121 @@ public class VectorString3D implements VectorString {
 
 	public boolean isReversed() {
 		return this.is_reversed;
+	}
+
+	/** Create an interpolated VectorString3D between this and the given one, with the proper weight 'alpha' which must be 0 &lt;= weight &lt;= 1 (otherwise returns null) */
+	public VectorString3D createInterpolated(final VectorString3D other, final Editions ed, final double alpha) throws Exception {
+		// check deltas: must be equal
+		if (Math.abs(this.delta - other.delta) > 0.00000001) {
+			throw new Exception("deltas are not the same: this.delta=" + this.delta + "  other.delta=" + other.delta);
+		}
+		// check nonsense weight
+		if (alpha < 0 || alpha > 1) return null;
+		// if 0 or 1, the limits, the returned VectorString3D will be equal to this one or to the other, but relative to this one in position.
+
+		// else, make a proper intermediate curve
+		double[] vx1 = this.vx;
+		double[] vy1 = this.vy;
+		double[] vz1 = this.vz;
+		double[] vx2 = other.vx;
+		double[] vy2 = other.vy;
+		double[] vz2 = other.vz;
+		boolean relative = false;
+		if (null != this.rvx && null != other.rvx) {
+			// both are relative
+			vx1 = this.rvx;
+			vy1 = this.rvy;
+			vz1 = this.rvz;
+			vx2 = other.rvx;
+			vy2 = other.rvy;
+			vz2 = other.rvz;
+			relative = true;
+		}
+
+		final int[][] editions = ed.getEditions();
+		final int n_editions = ed.length(); // == Math.max(this.length, other.length)
+		final double[] px = new double[n_editions];
+		final double[] py = new double[n_editions];
+		final double[] pz = new double[n_editions];
+
+		// first point: an average of both starting points
+		px[0] = (this.x[0] * (1-alpha) + other.x[0] * alpha);
+		py[0] = (this.y[0] * (1-alpha) + other.y[0] * alpha);
+		pz[0] = (this.z[0] * (1-alpha) + other.z[0] * alpha);
+
+		int start = 0;
+		int end = n_editions;
+		if (Editions.INSERTION == editions[0][0] || Editions.DELETION == editions[0][0]) {
+			start = 1;
+		}
+
+		final int n = this.length();
+		final int m = other.length();
+
+		int i,j;
+		int next=0;
+		double vs_x=0, vs_y=0, vs_z=0;
+		final Vector v = new Vector();
+		final Vector v_newref = new Vector();
+		final Vector v_delta = new Vector(this.delta, 0, 0);
+		final Vector v_i1 = new Vector();
+		final double[] d = new double[3];
+		for (int e=start; e<end; e++) {
+			i = editions[e][1];
+			j = editions[e][2];
+			// check for deletions and insertions at the lower-right edges of the matrix:
+			if (i == n) {
+				i = 0; // zero, so the starting vector is applied.
+			}
+				// TODO both  these if statements may be wrong for open curves!
+			if (j == m) {
+				j = 0;
+			}
+			// do:
+			switch (editions[e][0]) {
+				case Editions.INSERTION:
+					vs_x = vx2[j] * alpha;
+					vs_y = vy2[j] * alpha;
+					vs_z = vz2[j] * alpha;
+					break;
+				case Editions.DELETION:
+					vs_x = vx1[i] * (1.0 - alpha);
+					vs_y = vy1[i] * (1.0 - alpha);
+					vs_z = vz1[i] * (1.0 - alpha);
+					break;
+				case Editions.MUTATION:
+					vs_x = vx1[i] * (1.0 - alpha) + vx2[j] * alpha;
+					vs_y = vy1[i] * (1.0 - alpha) + vy2[j] * alpha;
+					vs_y = vz1[i] * (1.0 - alpha) + vz2[j] * alpha;
+					break;
+				default:
+					// using same vectors as last edition
+					Utils.log2("\nIgnoring unknown edition " + editions[e][0]);
+					break;
+			}
+			// store the point
+			if (relative) {
+				if (0 == i) {
+					// ?
+				} else {
+					// must inverse rotate the vector, so that instead of the difference relative to (delta,0,0)
+					// it becomes the difference relative to (vx1,vy1,vz1)-1, i.e. absolute again in relation to this VectorString3D
+					v_newref.set(vx1[i], vy1[i], vz1[i]);
+					v_i1.set(vx1[i-1], vy1[i-1], vz1[i-1]);
+					v.set(vs_x, vs_y, vs_z);
+					v.changeRef(v_delta, v_i1, v_newref);
+					v.put(d);
+					vs_x = vx1[i-1] + d[0]; // making the difference vector be an absolute vector relative to this (uf!)
+					vs_y = vy1[i-1] + d[1]; 
+					vs_z = vz1[i-1] + d[2];
+				}
+			}
+			px[next+1] = px[next] + vs_x;
+			py[next+1] = py[next] + vs_y;
+			py[next+1] = py[next] + vs_z;
+			// advance
+			next++;
+		}
+		return new VectorString3D(px, py, pz, this.closed);
 	}
 }

@@ -1163,6 +1163,7 @@ public class Pipe extends ZDisplayable {
 		double[][] p_l = this.p_l;
 		double[][] p_i = this.p_i;
 		double[] p_width = this.p_width;
+		double[] p_width_i = this.p_width_i;
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];

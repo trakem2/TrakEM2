@@ -260,7 +260,7 @@ public class ImageSaver {
 		return new String(sb);
 	}
 
-	/** Save a jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
+	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
 	static public final void saveJpegAlpha(final Image awt, final String path) {
 		try {
 			if (awt instanceof BufferedImage) {
