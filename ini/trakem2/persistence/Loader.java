@@ -1929,7 +1929,6 @@ abstract public class Loader {
 					rollback();
 					ControlWindow.endWaitingCursor();
 					Display.repaint(layer);
-					rollback();
 					return;
 				}
 				try { Thread.sleep(1000); } catch (InterruptedException ie) {}
@@ -3507,7 +3506,7 @@ abstract public class Loader {
 		}
 		// debug:
 		Utils.log2("opening image " + path);
-		//Utils.printCaller(this, 7);
+		Utils.printCaller(this, 25);
 		return opener.openImage(path);
 	}
 
@@ -3912,10 +3911,10 @@ abstract public class Loader {
 			if (isMipMapsEnabled()) {
 				ArrayList al = new ArrayList();
 				for (int k=0; k<pa.length; k++) al.add(pa[k]);
-				Thread task = generateMipMaps(al);
+				Thread task = generateMipMaps(al, true); // yes, overwrite files!
 				task.join();
 				// not threaded:
-				//for (int k=0; k<pa.length; k++) generateMipMaps(pa[k]);
+				//for (int k=0; k<pa.length; k++) generateMipMaps(pa[k], true);
 			}
 			// 8 - flush away any existing awt images, so that they'll be reloaded or recreated
 			synchronized (db_lock) {

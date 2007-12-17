@@ -630,8 +630,11 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public Calibration getLocalCalibration() {
+		/* // never ! The calibration of the active image is ignored. The LayerSet calibration is what counts. Plus this method ends up loading the image when selecting it!
 		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
 		return imp.getCalibration();
+		*/
+		return patch[currentSlice-1].getLayer().getParent().getCalibrationCopy();
 	}
 
 	public void copy(boolean cut) {
