@@ -56,6 +56,8 @@ public class Editions {
 	public double getDistance() { return distance; }
 	public int length() { return editions.length; }
 	public int[][] getEditions() { return editions; }
+	public VectorString getVS1() { return vs1; }
+	public VectorString getVS2() { return vs2; }
 
 	/** A mutation is considered an equal or near equal, and thus does not count. Only deletions and insertions count towards scoring the similarity. */
 	public double getSimilarity() {

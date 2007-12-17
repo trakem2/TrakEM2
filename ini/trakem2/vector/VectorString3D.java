@@ -869,6 +869,12 @@ public class VectorString3D implements VectorString {
 		return this.is_reversed;
 	}
 
+	static public VectorString3D createInterpolated(final Editions ed, final double alpha) throws Exception {
+		VectorString3D vs1 = (VectorString3D)ed.getVS1();
+		VectorString3D vs2 = (VectorString3D)ed.getVS2();
+		return vs1.createInterpolated(vs2, ed, alpha);
+	}
+
 	/** Create an interpolated VectorString3D between this and the given one, with the proper weight 'alpha' which must be 0 &lt;= weight &lt;= 1 (otherwise returns null) */
 	public VectorString3D createInterpolated(final VectorString3D other, final Editions ed, final double alpha) throws Exception {
 		// check deltas: must be equal
@@ -918,7 +924,7 @@ public class VectorString3D implements VectorString {
 		final int n = this.length();
 		final int m = other.length();
 
-		int i,j;
+		int i=0,j=0;
 		int next=0;
 		double vs_x=0, vs_y=0, vs_z=0;
 		final Vector v = new Vector();
@@ -926,17 +932,25 @@ public class VectorString3D implements VectorString {
 		final Vector v_delta = new Vector(this.delta, 0, 0);
 		final Vector v_i1 = new Vector();
 		final double[] d = new double[3];
+
+
+		try {
+
 		for (int e=start; e<end; e++) {
 			i = editions[e][1];
 			j = editions[e][2];
 			// check for deletions and insertions at the lower-right edges of the matrix:
-			if (i == n) {
-				i = 0; // zero, so the starting vector is applied.
+			if (closed) {
+				if (i == n) i = 0; // zero, so the starting vector is applied. 
+				if (j == m) j = 0;
+			} else {
+				if (i == n) i -= 1;
+				if (j == m) j -= 1;
 			}
-				// TODO both  these if statements may be wrong for open curves!
-			if (j == m) {
-				j = 0;
-			}
+
+			// TODO: add dependents!
+
+
 			// do:
 			switch (editions[e][0]) {
 				case Editions.INSERTION:
@@ -976,12 +990,25 @@ public class VectorString3D implements VectorString {
 					vs_z = vz1[i-1] + d[2];
 				}
 			}
+			if (next+1 == px.length) {
+				Utils.log2("breaking early");
+				break;
+			}
+
 			px[next+1] = px[next] + vs_x;
 			py[next+1] = py[next] + vs_y;
 			py[next+1] = py[next] + vs_z;
 			// advance
 			next++;
 		}
+
+		
+		} catch (Exception e) {
+			new IJError(e);
+			Utils.log2("next: " + next + " length: " + px.length + " i,j: " + i + ", " + j);
+		}
+
+
 		return new VectorString3D(px, py, pz, this.closed);
 	}
 }

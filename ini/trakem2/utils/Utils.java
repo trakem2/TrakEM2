@@ -49,6 +49,8 @@ import java.awt.MenuItem;
 import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
+import java.awt.event.MouseEvent;
+import java.awt.Event;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -61,7 +63,7 @@ import java.util.Vector;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.4w 2007-12-13";
+	static public String version = "0.4x 2007-12-17";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -849,5 +851,10 @@ public class Utils implements ij.plugin.PlugIn {
 			a[left] = a[right];
 			a[right] = tmp;
 		}
+	}
+
+	/** OS-agnostic diagnosis of whether the click was for the contextual popup menu. */
+	static public final boolean isPopupTrigger(final MouseEvent me) {
+		return me.isPopupTrigger() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK);
 	}
 }

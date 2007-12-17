@@ -3,6 +3,7 @@ package ini.trakem2.display;
 import ini.trakem2.tree.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.vector.VectorString3D;
 
 import ij.ImageStack;
 import ij.ImagePlus;
@@ -591,7 +592,7 @@ public class Display3D {
 		Thread thread = new Thread() {
 			public void run() {
 				setPriority(Thread.NORM_PRIORITY);
-				while (v_threads.size() >= MAX_THREADS) {
+				while (v_threads.size() >= MAX_THREADS) { // this is crude. Could do much better now ... much better! Properly queued tasks.
 					try { Thread.sleep(400); } catch (InterruptedException ie) {}
 				}
 				v_threads.add(this);
@@ -643,7 +644,7 @@ public class Display3D {
 			lock();
 			try {
 				// craft a unique title (id is always unique)
-				String title = null == displ ? pt.toString() : displ.getTitle() + " #" + displ.getId();
+				String title = null == displ ? pt.toString() + " #" + pt.getId() : displ.getTitle() + " #" + displ.getId();
 				if (ht_pt_meshes.contains(pt)) {
 					// remove content from universe
 					universe.removeContent(title);
@@ -666,6 +667,55 @@ public class Display3D {
 
 		Utils.log2(pt.toString() + " n points: " + triangles.size());
 
+				} catch (Exception e) {
+					new IJError(e);
+				} finally {
+					v_threads.remove(this);
+				}
+
+			} // end of run
+		};
+		thread.start();
+		return thread;
+	}
+
+	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
+	static public Thread addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color) {
+		final Display3D d3d = Display3D.get(ref_ls);
+		final double scale = d3d.scale;
+		final double width = d3d.width;
+		Thread thread = new Thread() {
+			public void run() {
+				setPriority(Thread.NORM_PRIORITY);
+				while (v_threads.size() >= MAX_THREADS) { // this is crude. Could do much better now ... much better! Properly queued tasks.
+					try { Thread.sleep(400); } catch (InterruptedException ie) {}
+				}
+				v_threads.add(this);
+				try {
+		/////
+
+		// temporary:
+		double[] wi = new double[vs.length()];
+		Arrays.fill(wi, 2.0);
+		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12), scale);
+		// add to 3D view (synchronized)
+		synchronized (d3d.u_lock) {
+			d3d.lock();
+			try {
+				// ensure proper default transform
+				d3d.universe.resetView();
+				//
+				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
+				Content ct = d3d.universe.getContent(title);
+				// no need, it's default //ct.setTransparency(1f);
+				ct.toggleLock();
+			} catch (Exception e) {
+				new IJError(e);
+			}
+			d3d.unlock();
+		}
+
+		/////
 				} catch (Exception e) {
 					new IJError(e);
 				} finally {

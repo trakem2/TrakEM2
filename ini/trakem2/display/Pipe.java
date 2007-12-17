@@ -1553,17 +1553,22 @@ public class Pipe extends ZDisplayable {
 		if (parallels < 3) parallels = 3;
 		//
 		double[][][] all_points = generateJoints(parallels, resample);
+		return Pipe.generateTriangles(all_points, scale);
+	}
+
+	/** Accepts an arrays as that returned from methods generateJoints and makeTube: first dimension is the list of points, second dimension is the number of vertices defining the circular cross section of the tube, and third dimension is the x,y,z of each vertex. */
+	static public List generateTriangles(final double[][][] all_points, final double scale) {
 		int n = all_points.length;
+		final int parallels = all_points[0].length -1;
 		List list = new ArrayList();
 		for (int i=0; i<n-1; i++) { //minus one since last is made with previous
-			for (int j=0; j<parallels; j++) { //there are 12+12 triangles for each joint //it's upt to 12+1 because first point is repeated at the end
+			for (int j=0; j<parallels; j++) { //there are 12+12 triangles for each joint //it's up to 12+1 because first point is repeated at the end
 				// first triangle in the quad
 				list.add(new Point3f((float)(all_points[i][j][0] * scale), (float)(all_points[i][j][1] * scale), (float)(all_points[i][j][2] * scale)));
 				list.add(new Point3f((float)(all_points[i][j+1][0] * scale), (float)(all_points[i][j+1][1] * scale), (float)(all_points[i][j+1][2] * scale)));
 				list.add(new Point3f((float)(all_points[i+1][j][0] * scale), (float)(all_points[i+1][j][1] * scale), (float)(all_points[i+1][j][2] * scale)));
 
 				// second triangle in the quad
-
 				list.add(new Point3f((float)(all_points[i+1][j][0] * scale), (float)(all_points[i+1][j][1] * scale), (float)(all_points[i+1][j][2] * scale)));
 				list.add(new Point3f((float)(all_points[i][j+1][0] * scale), (float)(all_points[i][j+1][1] * scale), (float)(all_points[i][j+1][2] * scale)));
 				list.add(new Point3f((float)(all_points[i+1][j+1][0] * scale), (float)(all_points[i+1][j+1][1] * scale), (float)(all_points[i+1][j+1][2] * scale)));
@@ -1620,9 +1625,13 @@ public class Pipe extends ZDisplayable {
 		//setting last point
 		z_values[n-1] = layer_set.getLayer(p_layer[mm-1]).getZ();
 
-		double[] px = p_i[0];
-		double[] py = p_i[1];
-		double[] pz = z_values;
+
+		return makeTube(p_i[0], p_i[1], z_values, p_width_i, resample, parallels);
+	}
+
+	static public double[][][] makeTube(double[] px, double[] py, double[] pz, double[] p_width_i, final int resample, final int parallels) {
+
+		int n = px.length;
 
 		// Resampling to get a smoother pipe
 		try {
@@ -1749,10 +1758,10 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** From my former program, A_3D_Editing.java and Pipe.java */
-	private Vector3 rotate_v_around_axis(Vector3 v, Vector3 axis, double sin, double cos) {
+	static private Vector3 rotate_v_around_axis(final Vector3 v, final Vector3 axis, final double sin, final double cos) {
 
-		Vector3 result = new Vector3();
-		Vector3 r = axis.normalize(axis);
+		final Vector3 result = new Vector3();
+		final Vector3 r = axis.normalize(axis);
 
 		result.set((cos + (1-cos) * r.x * r.x) * v.x + ((1-cos) * r.x * r.y - r.z * sin) * v.y + ((1-cos) * r.x * r.z + r.y * sin) * v.z,
 		           ((1-cos) * r.x * r.y + r.z * sin) * v.x + (cos + (1-cos) * r.y * r.y) * v.y + ((1-cos) * r.y * r.z - r.x * sin) * v.z,

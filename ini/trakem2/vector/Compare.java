@@ -244,6 +244,7 @@ public class Compare {
 			});
 			tabs = new JTabbedPane();
 			tabs.setPreferredSize(new Dimension(350,250));
+			// a listener to change the label text when the tab is selected
 			ChangeListener tabs_listener =  new ChangeListener() {
 				public void stateChanged(ChangeEvent ce) {
 					if (null == frame || null == ht_tabs || null == tabs || null == label) return; // the event fires during instantiation ... pffff!
@@ -314,7 +315,10 @@ public class Compare {
 			}
 		}
 		public Displayable getDisplayableAt(int row) {
-			return (Displayable)v_obs.get(row);
+			return v_obs.get(row);
+		}
+		public Editions getEditionsAt(int row) {
+			return v_eds.get(row);
 		}
 		public boolean isCellEditable(int row, int col) {
 			return false;
@@ -340,15 +344,50 @@ public class Compare {
 
 	static private class ComparatorTableListener extends MouseAdapter {
 		public void mousePressed(MouseEvent me) {
-			if (2 != me.getClickCount()) return;
-			Object source = me.getSource();
-			JTable table = (JTable)source;
-			Object ob = ((ComparatorTableModel)table.getModel()).getDisplayableAt(table.rowAtPoint(me.getPoint()));
-			if (ob instanceof Displayable) {
-				Displayable displ = (Displayable)ob;
-				Display.setFront(displ.getLayer(), displ);
-			} else {
-				Utils.log2("Comparator: unhandable table selection: " + ob);
+			final Object source = me.getSource();
+			final JTable table = (JTable)source;
+			final ComparatorTableModel model = (ComparatorTableModel)table.getModel();
+			if (2 == me.getClickCount()) {
+				Object ob = model.getDisplayableAt(table.rowAtPoint(me.getPoint()));
+				if (ob instanceof Displayable) {
+					Displayable displ = (Displayable)ob;
+					Display.setFront(displ.getLayer(), displ);
+				} else {
+					Utils.log2("Comparator: unhandable table selection: " + ob);
+				}
+				return;
+			}
+			if (Utils.isPopupTrigger(me)) {
+				if (true) {
+					Utils.log2("WAIT a couple of days.");
+					return;
+				}
+
+				final int[] sel = table.getSelectedRows();
+				JPopupMenu popup = new JPopupMenu();
+				final String interp3D = "Show interpolated in 3D";
+				ActionListener listener = new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						final String command = ae.getActionCommand();
+						if (command.equals(interp3D)) {
+							// for now, use the first selected only
+							try {
+								Editions ed = model.getEditionsAt(sel[0]);
+								VectorString3D vs = VectorString3D.createInterpolated(ed, 0.5);
+								Pipe master = (Pipe)ht_tabs.get((JScrollPane)tabs.getSelectedComponent());
+								Pipe match = (Pipe)model.getDisplayableAt(sel[0]);
+
+								Display3D.addMesh(master.getLayerSet(), vs, "Interpolated #" + master.getId() + " + #" + match.getId(), master.getColor());
+
+							} catch (Exception e) {
+								new IJError(e);
+							}
+						}
+					}
+				};
+				JMenuItem item = new JMenuItem(interp3D); popup.add(item); item.addActionListener(listener);
+				if (0 == sel.length) item.setEnabled(false);
+				popup.show(table, me.getX(), me.getY());
 			}
 		}
 	}
