@@ -2593,20 +2593,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			layer.getParent().setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
 		} else if (command.equals("Autoresize canvas/LayerSet")) {
 			layer.getParent().setMinimumDimensions();
-			//frame.pack(); // not even this solves the unresizable JPanel problem
-		} /* OBSOLETE *//* else if (command.equals("Rotate Layer/LayerSet...")) {
-			GenericDialog gd = new GenericDialog("Rotate LayerSet");
-			gd.addChoice("Rotate: ", LayerSet.ROTATIONS, LayerSet.ROTATIONS[0]);
-			gd.addCheckbox("All Layers", false);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			int direction = LayerSet.R90 + gd.getNextChoiceIndex();
-			if (gd.getNextBoolean()) {
-				layer.getParent().rotate(direction);
-			} else {
-				layer.rotate(direction, true, true);
-			}
-		} */else if (command.equals("Import image")) {
+		} else if (command.equals("Import image")) {
 			importImage();
 		} else if (command.equals("Import next image")) {
 			importNextImage();

@@ -404,20 +404,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	/** Used by the Loader after loading blindly a lot of Patches. Will crop the canvas to the minimum size possible. */
 	synchronized public boolean setMinimumDimensions() {
-		// add a big undo step, and also below translate previous undo steps
-		final Hashtable ht_undo = new Hashtable();
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			for (Iterator dit = ((Layer)it.next()).getDisplayables().iterator(); dit.hasNext(); ) {
-				Displayable d = (Displayable)dit.next();
-				ht_undo.put(d, d.getAffineTransformCopy());
-			}
-		}
-		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ){
-			ZDisplayable zd = (ZDisplayable)it.next();
-			ht_undo.put(zd, zd.getAffineTransform());
-		}
-		addUndoStep(ht_undo);
-
 		// find current x,y,width,height that crops the canvas without cropping away any Displayable
 		double x = Double.NaN;
 		double y = Double.NaN;
@@ -428,7 +414,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		double txe = 0;
 		double tye = 0;
 		// collect all Displayable and ZDisplayable objects
-		ArrayList al = new ArrayList();
+		final ArrayList al = new ArrayList();
 		for (int i=al_layers.size() -1; i>-1; i--) {
 			al.addAll(((Layer)al_layers.get(i)).getDisplayables());
 		}
@@ -460,12 +446,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 
 		// translate
-		project.getLoader().startLargeUpdate();
-		try {
-			final AffineTransform at2 = new AffineTransform();
-			at2.translate(-x, -y);
-			//Utils.log2("translating all displayables by " + x + "," + y);
-			if (x != 0 || y != 0) {
+		if (0 != x || 0 != y) {
+			project.getLoader().startLargeUpdate();
+			try {
+				final AffineTransform at2 = new AffineTransform();
+				at2.translate(-x, -y);
+				//Utils.log2("translating all displayables by " + x + "," + y);
 				for (Iterator it = al.iterator(); it.hasNext(); ) {
 					//((Displayable)it.next()).translate(-x, -y, false); // drag regardless of getting off current LayerSet bounds
 					// optimized to avoid creating so many AffineTransform instances:
@@ -475,20 +461,20 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 					//Utils.log2("AFTER: " + d.getBoundingBox());
 					d.updateInDatabase("transform");
 				}
-			}
-			// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
-			for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
-				Hashtable ht = (Hashtable)it.next();
-				for (Iterator hi = ht.values().iterator(); hi.hasNext(); ) {
-					AffineTransform at = (AffineTransform)hi.next();
-					at.preConcatenate(at2);
+				// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
+				for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
+					Hashtable ht = (Hashtable)it.next();
+					for (Iterator hi = ht.values().iterator(); hi.hasNext(); ) {
+						AffineTransform at = (AffineTransform)hi.next();
+						at.preConcatenate(at2);
+					}
 				}
+				project.getLoader().commitLargeUpdate();
+			} catch (Exception e) {
+				new IJError(e);
+				project.getLoader().rollback();
+				return false; //TODO no notice to the user ...
 			}
-			project.getLoader().commitLargeUpdate();
-		} catch (Exception e) {
-			new IJError(e);
-			project.getLoader().rollback();
-			return false; //TODO no notice to the user ...
 		}
 
 		//Utils.log("x,y  xe,ye : " + x + "," + y + "  " + xe + "," + ye);
