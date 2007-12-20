@@ -1294,7 +1294,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	/** Repaint everything, updating offscreen graphics if so specified. */
-	public void repaint(boolean update_graphics) {
+	public void repaint(final boolean update_graphics) {
 		this.update_graphics = update_graphics | this.update_graphics;
 		RT.paint(null, update_graphics);
 	}

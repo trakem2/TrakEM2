@@ -100,7 +100,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		// magic cocktel:
 		//this.invalidate();
 		//this.validate();  // possible cause of infinite loops with infinite threads
-		RT.paint(null);
+		RT.paint(null, redraw_displayables);
 	}
 
 	public void repaint(boolean update_graphics) {
@@ -117,13 +117,13 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		r.y = (int)(r.y * scale);
 		r.width = (int)Math.ceil(r.width * scale);
 		r.height = (int)Math.ceil(r.height * scale);
-		RT.paint(r);
+		RT.paint(r, redraw_displayables);
 	}
 
 	/** Overridden to multithread. TrakEM2 does not call this method directly ever. */
 	public void repaint(int x, int y, int width, int height) {
 		if (display.getCanvas().isDragging()) return;
-		RT.paint(new Rectangle(x, y, width, height));
+		RT.paint(new Rectangle(x, y, width, height), redraw_displayables);
 	}
 
 	/** Box is given in offscreen canvas coords. */
@@ -131,10 +131,10 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		if (display.getCanvas().isDragging()) return;
 		// bring box to the scale
 		Rectangle b = new Rectangle((int)(box.x * scale), (int)(box.y * scale), (int)Math.ceil(box.width * scale), (int)Math.ceil(box.height * scale));
-		RT.paint(b);
+		RT.paint(b, redraw_displayables);
 	}
 
-	/* // saved as unoverridden to make sure there are no infinite thread loops when calling super in buggy JVMs
+	/* // saved as not overridden to make sure there are no infinite thread loops when calling super in buggy JVMs
 	public void repaint(long ms, int x, int y, int width, int height) {
 		RT.paint(new Rectangle(x, y, width, height));
 	}
@@ -169,45 +169,28 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 
 		/** paint all snapshots, scaled, to an offscreen awt.Image */
 		public void run() {
-			try { Thread.sleep(20); } catch (InterruptedException ie) {}
+			try { Thread.sleep(10); } catch (InterruptedException ie) {}
 			if (quit) return;
-			// block only while modifying the image pointer
-			synchronized (updating_ob) {
-				while (updating) {
-					try { updating_ob.wait(); } catch (InterruptedException ie) {}
-				}
-				updating = true;
+			final BufferedImage target = new BufferedImage(FIXED_WIDTH, height, BufferedImage.TYPE_INT_ARGB);
+			try {
 				if (quit) {
-					updating = false;
-					updating_ob.notifyAll();
+					target.flush();
 					return;
 				}
-				height = DisplayNavigator.super.getHeight();
-				if (null == image) {
-					image = new BufferedImage(FIXED_WIDTH, height, BufferedImage.TYPE_INT_ARGB); // looks very crappy with RGB images// BufferedImage.TYPE_BYTE_INDEXED);
-					// for efficiency with large montages, the Display should be queried to find out if any RGB image is present TODO same with the snapshot background one
-				}
-				updating = false;
-				updating_ob.notifyAll();
-			}
-			try {
-				if (quit) return;
 
 				//g2d.getRenderingHints().put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 				//g2d.getRenderingHints().put(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
 				//Rectangle clipRect = g.getClipBounds();
 
-				final Graphics2D graphics = image.createGraphics();
+				final Graphics2D g = target.createGraphics();
 				// paint background as black
-				graphics.setColor(Color.black);
-				graphics.fillRect(0, 0, DisplayNavigator.super.getWidth(), DisplayNavigator.super.getHeight());
+				g.setColor(Color.black);
+				g.fillRect(0, 0, DisplayNavigator.super.getWidth(), DisplayNavigator.super.getHeight());
 				// set a scaled stroke, or 0.4 if too small
-				if (scale >= 0.4D) graphics.setStroke(new BasicStroke((float)scale));
-				else graphics.setStroke(new BasicStroke(0.4f));
+				if (scale >= 0.4D) g.setStroke(new BasicStroke((float)scale));
+				else g.setStroke(new BasicStroke(0.4f));
 
-				graphics.scale(scale, scale);
-
-				if (quit) return;
+				g.scale(scale, scale);
 
 				final ArrayList al = display.getLayer().getDisplayables();
 				final boolean are_snapshots_enabled = layer.getParent().areSnapshotsEnabled();
@@ -215,57 +198,78 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				boolean zd_done = false;
 				for (int i=0; i<size; i++) {
 					if (quit) {
+						g.dispose();
+						target.flush();
 						return;
 					}
 					final Displayable d = (Displayable)al.get(i);
 					//if (d.isOutOfRepaintingClip(clip, scale)) continue; // needed at least for the visibility
 					if (!d.isVisible()) continue; // TODO proper clipRect for this navigator image may be necessary (lots of changes needed in the lines above reltive to filling the black background, etc)
-					Class c = d.getClass();
+					final Class c = d.getClass();
 					if (!zd_done && c.equals(DLabel.class)) {
 						zd_done = true;
 						// paint ZDisplayables before the labels
-						Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
+						final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
 						while (itz.hasNext()) {
 							if (quit) {
+								g.dispose();
+								target.flush();
 								return;
 							}
 							ZDisplayable zd = (ZDisplayable)itz.next();
 							if (!zd.isVisible()) continue;
-							zd.getSnapshot().paintTo(graphics, display.getLayer(), scale);
+							zd.getSnapshot().paintTo(g, display.getLayer(), scale);
 						}
 						// paint the label too!
-						d.paint(graphics, scale, false, 1, DisplayNavigator.this.layer);
+						d.paint(g, scale, false, 1, DisplayNavigator.this.layer);
 					} else if (c.equals(Patch.class)) {
 						if (are_snapshots_enabled) {
 							Patch p = (Patch)d;
 							Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
 							if (null != img) {
-								if (d.isVisible()) d.paint(graphics, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
+								if (d.isVisible()) d.paint(g, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
 								hs_painted.add(d);
 							} else  {
-								Snapshot.paintAsBox(graphics, d);
+								Snapshot.paintAsBox(g, d);
 							}
 						} else {
-							Snapshot.paintAsBox(graphics, d);
+							Snapshot.paintAsBox(g, d);
 						}
 					} else {
-						if (d.isVisible()) d.paint(graphics, scale, false, 1, DisplayNavigator.this.layer);
+						if (d.isVisible()) d.paint(g, scale, false, 1, DisplayNavigator.this.layer);
 					}
 				}
 				if (!zd_done) { // if no labels, ZDisplayables haven't been painted
 					zd_done = true;
 					// paint ZDisplayables before the labels
-					Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
+					final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
 					while (itz.hasNext()) {
 						if (quit) {
+							g.dispose();
+							target.flush();
 							return;
 						}
 						ZDisplayable zd = (ZDisplayable)itz.next();
 						if (!zd.isVisible()) continue;
-						zd.getSnapshot().paintTo(graphics, display.getLayer(), scale);
+						zd.getSnapshot().paintTo(g, display.getLayer(), scale);
 					}
 				}
 				// finally, when done, call repaint (like sending an event)
+
+				// block only while modifying the image pointer
+				synchronized (updating_ob) {
+					while (updating) {
+						try { updating_ob.wait(); } catch (InterruptedException ie) {}
+					}
+					updating = true;
+
+					height = DisplayNavigator.super.getHeight();
+					DisplayNavigator.this.image = target;
+					redraw_displayables = false;
+
+					updating = false;
+					updating_ob.notifyAll();
+				}
 				RT.paint(clipRect, false);
 			} catch (Exception e) {
 				new IJError(e);
