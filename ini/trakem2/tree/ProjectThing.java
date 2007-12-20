@@ -629,7 +629,7 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		if (null != al_children && 0 != al_children.size()) {
 			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				((ProjectThing)it.next()).updateTitle();
+				((ProjectThing)it.next()).updateTitle(old_type);
 			}
 		}
 	}
