@@ -4009,7 +4009,7 @@ abstract public class Loader {
 	}
 
 
-	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if there is more than one CPU core available. */
+	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if there is more than one CPU core available, and will use only those extra cores. */
 	static public ParallelImageLoader preLoad(final List<Patch> patches, final double magnification) {
 		final int n_threads = Runtime.getRuntime().availableProcessors();
 		if (1 == n_threads) return null;
@@ -4030,10 +4030,10 @@ abstract public class Loader {
 			this.patches = patches;
 			start();
 		}
-		public void quit() {
+		public final void quit() {
 			this.quit = true;
 		}
-		public void run() {
+		public final void run() {
 			final int level = Loader.getMipMapLevel(magnification);
 			int max = 0;
 			final Loader loader = patches.get(0).getProject().getLoader();
@@ -4051,8 +4051,8 @@ abstract public class Loader {
 			}
 			// find out how many can be loaded without overflowing perceived available memory (i.e. the value returned by IJ.currentMemory()
 			// preload
-			final Patch[] paa = new Patch[patches.size()];
-			final Patch[] pa = patches.toArray(paa); // !@#$%^ not like in ArrayList, we luv consistency uh?
+			final Patch[] pa = new Patch[patches.size()];
+			patches.toArray(pa);
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < n_threads; ++ithread) {
 				new Thread() {
