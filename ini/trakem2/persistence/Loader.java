@@ -4060,7 +4060,7 @@ abstract public class Loader {
 						try {
 			for (int k = ai.getAndIncrement(); k < pa.length; k = ai.getAndIncrement()) {
 				if (quit) return;
-				pa[k].getProject().getLoader().fetchImage(pa[k], magnification);
+				loader.fetchImage(pa[k], magnification);
 			}
 						} catch (Exception e) {
 							new IJError(e);

@@ -618,7 +618,11 @@ public class ProjectThing extends DBObject implements Thing {
 
 	/** Recursive into children and object (to update it's DisplayablePanel title). Does not affect the database. */
 	public void updateTitle() {
-		if (this.object instanceof String) this.object = template.getType();
+		updateTitle(null);
+	}
+
+	private void updateTitle(final String old_type) {
+		if (this.object instanceof String && this.object.equals(old_type)) this.object = template.getType(); // Set the object to be the template type (a String) unless this thing had a name given to it, which is stored also in the object pointer.
 		else if (this.object instanceof Displayable) {
 			Displayable d = (Displayable)this.object;
 			Display.updateTitle(d.getLayer(), d);
@@ -631,14 +635,14 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Recursive into children, changes the type column in the ab_things table. Only if the given 'type' is equal to this instance's template type, the type will be updated in the database and the title will be updated wherever it shows. */
-	public void updateType(String type) {
-		if (type.equals(template.getType())) {
+	public void updateType(final String new_type, final String old_type) {
+		if (new_type.equals(template.getType())) {
 			updateInDatabase("type");
-			updateTitle();
+			updateTitle(old_type);
 		}
 		if (null == al_children || al_children.isEmpty()) return;
 		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			((ProjectThing)it.next()).updateType(type);
+			((ProjectThing)it.next()).updateType(new_type, old_type);
 		}
 	}
 

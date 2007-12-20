@@ -142,7 +142,7 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 				if (tet.getType().equals(old_name)) tet.rename(new_name);
 			}
 			// and update the ProjectThing objects in the tree and its dependant Displayable objects in the open Displays
-			tt.getProject().getRootProjectThing().updateType(new_name);
+			tt.getProject().getRootProjectThing().updateType(new_name, old_name);
 			// tell the project about it
 			tt.getProject().updateTypeName(old_name, new_name);
 			// repaint both trees (will update the type names)

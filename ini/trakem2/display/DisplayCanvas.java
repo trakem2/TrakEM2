@@ -1927,7 +1927,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				i = 0;
 				for (Displayable d : al_paint) {
 					if (quit && canQuit()) {
-						//lock.unlock();
 						if (null != preloader) preloader.quit();
 						g.dispose();
 						target.flush();
