@@ -871,13 +871,14 @@ public class AreaList extends ZDisplayable {
 					thickness = la.getThickness();
 				}
 				final ImageProcessor ip = new ByteProcessor(w, h);
-				ip.setColor(Color.white);
+				//ip.setColor(Color.white);
+				ip.setValue(255); // same thing as ip.setColor
 				//final AffineTransform atK = new AffineTransform();
 				//atK.scale(K, K);
 				area = area.createTransformedArea(at2); //atK);
 				ShapeRoi roi = new ShapeRoi(area);
 				ip.setRoi(roi);
-				ip.fill(roi.getMask()); // should be automatic!
+				ip.fill(roi.getMask()); // argh, should be automatic!
 				stack.addSlice(la.getZ() + "", ip);
 				n--;
 			} else if (null != stack) {
@@ -889,10 +890,11 @@ public class AreaList extends ZDisplayable {
 		// zero-pad stack
 		stack = zeroPad(stack);
 
-		ImagePlus imp = new ImagePlus("", stack);
+		ImagePlus imp = new ImagePlus("", stack); // Calibration MUST BE 1, i.e. default, since marchingcubes.MCCube will try to correct for it.
 		imp.getCalibration().pixelDepth = thickness * scale; // no need to factor in resampling
 		//debug:
 		//imp.show();
+		Utils.log2("Stack dimensions: " + imp.getWidth() + ", " + imp.getHeight() + ", " + imp.getStack().getSize());
 		// end of generating byte[] arrays
 		// Now marching cubes
 		final Triangulator tri = new MCTriangulator();

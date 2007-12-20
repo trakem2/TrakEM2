@@ -495,7 +495,7 @@ abstract public class Loader {
 	}
 
 	/** Measure whether there are at least 'n_bytes' free. */
-	protected boolean enoughFreeMemory(final long n_bytes) {
+	static final protected boolean enoughFreeMemory(final long n_bytes) {
 		final long mem_in_use = IJ.currentMemory(); // in bytes
 		if (n_bytes < max_memory - mem_in_use) {
 			return true;
@@ -3723,7 +3723,7 @@ abstract public class Loader {
 					//  at the same time.
 
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
-						threads[ithread] = new Thread(new Runnable() {
+						threads[ithread] = new Thread() {
 							public void run() {
 					///////////////////////////////
 
@@ -3743,7 +3743,7 @@ abstract public class Loader {
 
 					/////////////////////////   - where are my lisp macros .. and no, mapping a function with reflection is not elegant, but rather a verbosity and constriction attack
 							}
-						});
+						};
 					}
 					MultiThreading.startAndJoin(threads);
 					/////////////////////////
@@ -4006,5 +4006,68 @@ abstract public class Loader {
 
 	public String makeProjectName() {
 		return "Untitled " + ControlWindow.getTabIndex(Project.findProject(this));
+	}
+
+
+	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if there is more than one CPU core available. */
+	static public ParallelImageLoader preLoad(final List<Patch> patches, final double magnification) {
+		final int n_threads = Runtime.getRuntime().availableProcessors();
+		if (1 == n_threads) return null;
+		if (null == patches || 0 == patches.size()) return null;
+		return new ParallelImageLoader(patches, magnification, n_threads);
+	}
+
+	/** A closure that executes in parallel, but Java doesn't have those. */
+	static public class ParallelImageLoader extends Thread {
+		private List<Patch> patches;
+		private double magnification;
+		private boolean quit = false;
+		private int n_threads;
+		public ParallelImageLoader(final List<Patch> patches, final double magnification, final int n_threads) {
+			if (null == patches || 0 == patches.size()) return;
+			this.magnification = magnification;
+			this.n_threads = n_threads;
+			this.patches = patches;
+			start();
+		}
+		public void quit() {
+			this.quit = true;
+		}
+		public void run() {
+			final int level = Loader.getMipMapLevel(magnification);
+			int max = 0;
+			final Loader loader = patches.get(0).getProject().getLoader();
+			for (Patch patch : patches) {
+				if (!Loader.enoughFreeMemory(loader.estimateImageFileSize(patch, level))) break;
+				//else, preload this patch mipmap
+				max++;
+			}
+			if (0 == max) return;
+			// else, go for the parallel preloading
+			if (patches.size() != max) {
+				this.patches = patches.subList(0, max);
+			} else {
+				this.patches = patches;
+			}
+			// find out how many can be loaded without overflowing perceived available memory (i.e. the value returned by IJ.currentMemory()
+			// preload
+			final Patch[] paa = new Patch[patches.size()];
+			final Patch[] pa = patches.toArray(paa); // !@#$%^ not like in ArrayList, we luv consistency uh?
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < n_threads; ++ithread) {
+				new Thread() {
+					public void run() {
+						try {
+			for (int k = ai.getAndIncrement(); k < pa.length; k = ai.getAndIncrement()) {
+				if (quit) return;
+				pa[k].getProject().getLoader().fetchImage(pa[k], magnification);
+			}
+						} catch (Exception e) {
+							new IJError(e);
+						}
+					}
+				}.start(); // don't join it
+			}
+		}
 	}
 }

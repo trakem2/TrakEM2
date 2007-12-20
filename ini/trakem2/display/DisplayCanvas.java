@@ -1816,6 +1816,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				final ArrayList<Displayable> al_paint = new ArrayList<Displayable>();
 
+				final ArrayList<Patch> al_patches = new ArrayList<Patch>();
+
 				// start
 				final ArrayList al = layer.getDisplayables();
 				final int n = al.size();
@@ -1842,6 +1844,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						if (c.equals(Patch.class)) {
 							if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter(0,0,1,1))); // this only works because the clip is given to be null
 							al_paint.add(d);
+							al_patches.add((Patch)d);
 						} else {
 							if (!top && d.equals(active)) top = true; // no Patch on al_top ever
 							if (top) al_top.add(d);
@@ -1850,10 +1853,15 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 					i++;
 				}
+
+				// preload as many as possible
+				final Loader.ParallelImageLoader preloader = Loader.preLoad(al_patches, magnification);
+
 				// paint the ZDisplayables here, before the labels and LayerSets, if any
 				int j = 0;
 				while (j < m) {
 					if (quit && 0 == n % 10 && canQuit()) {
+						if (null != preloader) preloader.quit();
 						return;
 					}
 					final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
@@ -1869,6 +1877,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// paint LayerSet and DLabel objects!
 				while (i < n) {
 					if (quit && 0 == n % 10 && canQuit()) {
+						if (null != preloader) preloader.quit();
 						return;
 					}
 					final Displayable d = (Displayable) al.get(i);
@@ -1883,6 +1892,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 
 				if (quit && canQuit()) {
+					if (null != preloader) preloader.quit();
 					return;
 				}
 
@@ -1918,6 +1928,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				for (Displayable d : al_paint) {
 					if (quit && canQuit()) {
 						//lock.unlock();
+						if (null != preloader) preloader.quit();
 						g.dispose();
 						target.flush();
 						return;
