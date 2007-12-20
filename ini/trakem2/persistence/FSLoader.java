@@ -1401,23 +1401,25 @@ public class FSLoader extends Loader {
 	}
 
 	/** Checks if the mipmap file for the Patch and closest upper level to the desired magnification exists. */
-	public boolean checkMipMapExists(Patch p, double magnification) {
+	public boolean checkMipMapFileExists(final Patch p, final double magnification) {
 		if (null == dir_mipmaps) return false;
 		final int level = getMipMapLevel(magnification);
 		if (new File(dir_mipmaps + level + "/" + new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg").exists()) return true;
 		return false;
 	}
 
-	/** Loads the file containing the scaled image corresponding to the given level and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
+	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) return null;
 		try {
 			// TODO should wait if the file is currently being generated
 			//  (it's somewhat handled by a double-try to open the jpeg image)
 
+			final int max_level = getHighestMipMapLevel(patch);
+
 			final String filepath = getFileName(patch);
 			if (null == filepath) return null;
-			String path = dir_mipmaps + level + "/" + filepath + "." + patch.getId() + ".jpg";
+			String path = dir_mipmaps + ( level > max_level ? max_level : level ) + "/" + filepath + "." + patch.getId() + ".jpg";
 			Image img = null;
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:

@@ -806,6 +806,7 @@ abstract public class Loader {
 	}
 
 	/** Transform mag to nearest scale level that delivers an equally sized or larger image.<br />
+	 *  Requires 0 &lt; mag &lt;= 1.0<br />
 	 *  Returns -1 if the magnification is NaN or negative or zero.<br />
 	 *  As explanation:<br />
 	 *  mag = 1 / Math.pow(2, level) <br />
@@ -3575,7 +3576,7 @@ abstract public class Loader {
 	protected Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
 
 	/** Does nothing and returns false unless overriden. */
-	public boolean checkMipMapExists(Patch p, double magnification) { return false; }
+	public boolean checkMipMapFileExists(Patch p, double magnification) { return false; }
 
 	public void adjustChannels(final Patch p, final int old_channels) {
 		if (0xff == old_channels) {
@@ -4009,11 +4010,11 @@ abstract public class Loader {
 	}
 
 
-	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if there is more than one CPU core available, and will use only those extra cores. */
+	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if (1) there is more than one CPU core available [and only the extra ones will be used], and (2) there is more than 1 image to preload. */
 	static public ParallelImageLoader preLoad(final List<Patch> patches, final double magnification) {
 		final int n_threads = Runtime.getRuntime().availableProcessors();
 		if (1 == n_threads) return null;
-		if (null == patches || 0 == patches.size()) return null;
+		if (null == patches || patches.size() < 2) return null;
 		return new ParallelImageLoader(patches, magnification, n_threads);
 	}
 
@@ -4024,6 +4025,7 @@ abstract public class Loader {
 		private boolean quit = false;
 		private int n_threads;
 		public ParallelImageLoader(final List<Patch> patches, final double magnification, final int n_threads) {
+			setPriority(Thread.NORM_PRIORITY);
 			if (null == patches || 0 == patches.size()) return;
 			this.magnification = magnification;
 			this.n_threads = n_threads;
@@ -4058,6 +4060,8 @@ abstract public class Loader {
 				new Thread() {
 					public void run() {
 						try {
+							setPriority(Thread.NORM_PRIORITY -1);
+
 			for (int k = ai.getAndIncrement(); k < pa.length; k = ai.getAndIncrement()) {
 				if (quit) return;
 				loader.fetchImage(pa[k], magnification);
@@ -4069,5 +4073,19 @@ abstract public class Loader {
 				}.start(); // don't join it
 			}
 		}
+	}
+
+	/** Returns the highest mipmap level for which a mipmap image may have been generated given the dimensions of the Patch. The minimum that this method may return is zero. */
+	public final int getHighestMipMapLevel(final Patch p) {
+		// TODO the level value could be computed analytically, not numerically like below
+		int level = 0;
+		int w = (int)p.getWidth();
+		int h = (int)p.getHeight();
+		while (w >= 64 && h >= 64) {
+			w /= 2;
+			h /= 2;
+			level++;
+		}
+		return level;
 	}
 }

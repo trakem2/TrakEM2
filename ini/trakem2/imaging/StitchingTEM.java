@@ -319,7 +319,7 @@ public class StitchingTEM {
 		ImageProcessor ip = null;
 		Loader loader =  p.getProject().getLoader();
 		// check if using mipmaps and if there is a file for it. If there isn't, most likely this method is being called in an import sequence as grid procedure.
-		if (loader.isMipMapsEnabled() && loader.checkMipMapExists(p, scale)) {
+		if (loader.isMipMapsEnabled() && loader.checkMipMapFileExists(p, scale)) {
 			Image image = p.getProject().getLoader().fetchImage(p, scale);
 			// check that dimensions are correct. If anything, they'll be larger
 			//Utils.log2("patch w,h " + p.getWidth() + ", " + p.getHeight() + " fetched image w,h: " + image.getWidth(null) + ", " + image.getHeight(null));
