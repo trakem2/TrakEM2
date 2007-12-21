@@ -836,8 +836,13 @@ abstract public class Loader {
 	}
 
 	/** Returns true if there is a cached awt image for the given mag and Patch id. */
-	public boolean isCached(Patch p, double mag) {
-		return mawts.contains(p.getId(), Loader.getMipMapLevel(mag));
+	public boolean isCached(final Patch p, final double mag) {
+		synchronized (db_lock) {
+			lock();
+			boolean b = mawts.contains(p.getId(), Loader.getMipMapLevel(mag));
+			unlock();
+			return b;
+		}
 	}
 
 	/** Above or equal in size. */
@@ -936,7 +941,11 @@ abstract public class Loader {
 			synchronized (plock) {
 				plock.lock();
 
-				mawt = mawts.get(id, level);
+				synchronized (db_lock) {
+					lock();
+					mawt = mawts.get(id, level);
+					unlock();
+				}
 				if (null != mawt) {
 					plock.unlock();
 					return mawt; // was loaded by a different thread
