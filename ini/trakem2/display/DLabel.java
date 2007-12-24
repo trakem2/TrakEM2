@@ -474,7 +474,6 @@ public class DLabel extends Displayable {
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
 	public Displayable clone(Project project) {
 		final DLabel copy = new DLabel(project, project.getLoader().getNextId(), title, width, height, type, font.getName(), font.getStyle(), font.getSize(), false, (AffineTransform)this.at.clone());
-		snapshot.remake();
 		copy.alpha = this.alpha;
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.visible = true;

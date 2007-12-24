@@ -62,7 +62,6 @@ import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Profile;
-import ini.trakem2.display.Snapshot;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.tree.*;
@@ -412,8 +411,6 @@ abstract public class Loader {
 			unlock();
 		}
 		patch.createImage(imp); // create from the cached new imp, and cache the new awt
-		// will lock on its own
-		patch.getSnapshot().remake(); // create from the cached new awt, and cache the new snap
 	}
 
 	/** Cache any ImagePlus, as long as a unique id is assigned to it there won't be problems; you can obtain a unique id from method getNextId() .*/
@@ -524,12 +521,12 @@ abstract public class Loader {
 	}
 
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
-	public final boolean releaseToFit(long bytes) {
+	public final boolean releaseToFit(final long bytes) {
 		if (bytes > max_memory) {
 			Utils.log("Can't fit " + bytes + " bytes in memory.");
 			return false;
 		}
-		boolean previous = massive_mode;
+		final boolean previous = massive_mode;
 		if (bytes > max_memory / 4) setMassiveMode(true);
 		boolean result = true;
 		synchronized (db_lock) {
@@ -2898,7 +2895,6 @@ abstract public class Loader {
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(last_opened_path, p);
 		if (isMipMapsEnabled()) generateMipMaps(p);
-		if (ControlWindow.isGUIEnabled()) p.getSnapshot().remake(); // must be done AFTER setting the path
 		return p;
 	}
 	public Patch importNextImage(Project project, double x, double y) {
@@ -2942,7 +2938,6 @@ abstract public class Loader {
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(last_opened_path, p);
 		if (isMipMapsEnabled()) generateMipMaps(p);
-		p.getSnapshot().remake(); // must be done AFTER setting the path
 		return p;
 	}
 
@@ -3146,6 +3141,7 @@ abstract public class Loader {
 
 	/** Exports the project and its images (optional); if export_images is true, it will be asked for confirmation anyway -beware: for FSLoader, images are not exported since it doesn't own them; only their path.*/
 	protected String export(final Project project, final File fxml, boolean export_images) {
+		releaseToFit(MIN_FREE_BYTES);
 		String path = null;
 		if (null == project || null == fxml) return null;
 		try {
@@ -3221,6 +3217,7 @@ abstract public class Loader {
 
 	/** Exports to an XML file chosen by the user. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
 	public String saveAs(Project project) {
+		releaseToFit(MIN_FREE_BYTES);
 		String default_dir = null;
 		default_dir = getStorageFolder();
 		// Select a file to export to

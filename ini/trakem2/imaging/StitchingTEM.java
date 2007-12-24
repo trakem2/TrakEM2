@@ -401,7 +401,8 @@ public class StitchingTEM {
 		PhaseCorrelation2D pc = null;
 		double R = -2;
 		final int limit = 5; // number of peaks to check in the PhaseCorrelation results
-		final float min_R = 0.5f;
+		final float min_R = 0.70f; // minimum R for phase-correlation to be considered good
+					// half this min_R will be considered good for cross-correlation
 		// Iterate until PhaseCorrelation correlation coeficient R is over 0.5, or there's no more
 		// image overlap to feed
 		ImageProcessor ip1, ip2;
@@ -577,6 +578,7 @@ public class StitchingTEM {
 
 		//  make a reasonable guess for the scale
 		float cc_scale = (float)(512.0 / (p_dragged.getWidth() > p_dragged.getHeight() ? p_dragged.getWidth() : p_dragged.getHeight()));
+		cc_scale = (float)   ( ((int)(cc_scale * 10000)) / 10000 );
 		if (cc_scale > 1.0f) cc_scale = 1.0f;
 
 		// With Phase-correlation (thus limited to non-rotated Patch instances)

@@ -198,7 +198,6 @@ public class PatchStack extends ImagePlus {
 				patch[i].updateInDatabase("tiff_working"); // may be doing it twice, check TODO
 				/*
 				patch[i].createImage(); //flushes the old awt, and creates the new one, and stores it in the cache.
-				patch[i].getSnapshot().remake(); // will cache the new snap and thus flush the old
 				*/
 				// just flush away all dependent images, will be recreated when needed on repaint
 				patch[i].getProject().getLoader().decache(imp);
@@ -253,7 +252,6 @@ public class PatchStack extends ImagePlus {
 	public void updateImage() {
 		Utils.log2("PS: Update image");
 		patch[currentSlice-1].createImage(); //flushes the old awt, and creates the new one.
-		patch[currentSlice-1].getSnapshot().remake(); // will cache the new snap and thus flush the old
 		Display.repaint(patch[currentSlice-1].getLayer(), patch[currentSlice-1], 0);
 	}
 

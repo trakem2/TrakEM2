@@ -41,7 +41,6 @@ import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Profile;
-import ini.trakem2.display.Snapshot;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.tree.Attribute;

@@ -44,7 +44,6 @@ import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Profile;
-import ini.trakem2.display.Snapshot;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.tree.Attribute;
 import ini.trakem2.tree.LayerThing;
@@ -1430,104 +1429,6 @@ public class DBLoader extends Loader {
 			return al;
 		}
 	}
-
-	/* // DEPRECATED, now using mipmaps
-	public Image fetchSnapshot(Patch p) {
-		synchronized (db_lock) {
-			lock();
-			// see if cached:
-			long id = p.getId();
-			Image snap = snaps.get(id);
-			if (null != snap) {
-				unlock();
-				//Utils.log("method snap");
-				return snap;
-			}
-
-			releaseMemory();
-
-			// see if the Displayable AWT image is cached:
-			Image awt = awts.get(id);
-			if (null != awt) {
-				Image image = Snapshot.createSnap(p, awt, Snapshot.SCALE);
-				snaps.put(id, image);
-				unlock();
-				//Utils.log("method awt");
-				return image;
-			}
-			// see if the ImagePlus is cached:
-			ImagePlus imp = imps.get(id);
-			if (null != imp) {
-				unlock();
-				Image image = p.createImage(); // with adjusted channels, calls the ImagePlus
-				lock();
-				awts.put(id, image);
-				image = Snapshot.createSnap(p, image, Snapshot.SCALE);
-				snaps.put(id, image);
-
-				unlock();
-				//Utils.log("method imp");
-				return image;
-			}
-
-			// finally, reload if it exists in the database:
-
-			//connect if disconnected
-			if (!connectToDatabase()) {
-				unlock();
-				return NOT_FOUND;
-			}
-
-			Image image = null;
-			InputStream i_stream = null;
-			try {
-				ResultSet r = connection.prepareStatement("SELECT tiff_snapshot FROM ab_patches WHERE id=" + id).executeQuery();
-				if (r.next()) {
-					i_stream = r.getBinaryStream(1); //"tiff_snapshot");
-					if (null != i_stream) { // else return null, will be made new.
-						imp = unzipTiff(i_stream, "s");
-						i_stream.close();
-						image = imp.getProcessor().createImage(); // must be independent so the ImagePlus can be flushed (this is unnecessary by the way, it amounts to the same, the ImagePlus.flush() does not flush the awt.Image)
-						snaps.put(id, image);
-						//flush(imp); // no need! Look at ij/ImagePlus.java code
-						//Utils.log("method db");
-					}
-				}
-				r.close();
-			} catch (Exception e) {
-				unlock();
-				new IJError(e);
-				if (null != i_stream) {
-					try { i_stream.close(); } catch (Exception ie) { new IJError(ie); }
-				}
-				return NOT_FOUND;
-			}
-
-			// if it doesn't exist (because of some error), create it and save it
-			try {
-				if (null == image) {
-					unlock(); // !!
-					image = p.createImage(); // with adjusted channels
-					//imp = fetchImagePlus(p); // what for?
-					lock();
-					awts.put(id, image);
-					image = Snapshot.createSnap(p, image, Snapshot.SCALE);
-					snaps.put(id, image);
-					unlock(); // for the updateInDatabase method to lock on its own
-					p.updateInDatabase("tiff_snapshot");
-					//Utils.log("method recreate");
-					return image;
-				}
-			} catch (Exception e) {
-				unlock();
-				return NOT_FOUND;
-			}
-
-			unlock();
-			return image;
-		}
-	}
-	*/
 
 	/** Recursive. Place all Layer (but not LayerSet) objects with a key as Long(id). */
 	private void unpackLayers(LayerThing root, Hashtable hs) {

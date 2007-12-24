@@ -745,20 +745,16 @@ public class Profile extends Displayable {
 		if (ProjectToolbar.PEN == tool) {
 			//generate interpolated points
 			generateInterpolatedPoints(0.05);
-			repaint(); //needed at least for the removePoint, and also for repainting the DisplayablePanel (with the snapshot) and the DisplayNavigator // TODO this may be redundant with below
+			repaint(); //needed at least for the removePoint, and also for repainting the DisplayablePanel and the DisplayNavigator // TODO this may be redundant with below
 		}
 
 		//update points in database if there was any change
 		if (-1 != index || -1 != index_r || -1 != index_l) {
 			updateInDatabase("points");
 			updateInDatabase("transform+dimensions"); //was: dimensions
-			//remake snapshot
-			snapshot.remake();
-			//repaint snapshot
 			Display.repaint(layer, this); // the DisplayablePanel
 		} else if (x_r != x_p || y_r != y_p) {
 			updateInDatabase("transform+dimensions");
-			//repaint snapshot
 			Display.repaint(layer, this); // the DisplayablePanel
 		}
 		// reset helper vars
@@ -1439,8 +1435,6 @@ public class Profile extends Displayable {
 		copy.p_i = new double[][]{(double[])this.p_i[0].clone(), (double[])this.p_i[1].clone()};
 		// add
 		copy.addToDatabase();
-		// the snapshot has been already created in the Displayable constructor, but needs updating
-		snapshot.remake();
 
 		return copy;
 	}

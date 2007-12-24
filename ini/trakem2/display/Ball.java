@@ -725,8 +725,6 @@ public class Ball extends ZDisplayable {
 		// add
 		copy.layer = this.layer;
 		copy.addToDatabase();
-		// the snapshot has been already created in the Displayable constructor, but needs updating
-		snapshot.remake();
 		Display.repaint(layer_set, this, 5);
 
 		return copy;

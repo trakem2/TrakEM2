@@ -772,7 +772,7 @@ public class Pipe extends ZDisplayable {
 			updateInDatabase("dimensions");
 		}
 
-		Display.repaint(layer, this, 5); // the entire Displayable object, snapshot included.
+		Display.repaint(layer, this, 5); // the entire Displayable object
 
 		// reset
 		is_new_point = false;
@@ -1542,8 +1542,6 @@ public class Pipe extends ZDisplayable {
 		// add
 		copy.layer = this.layer;
 		copy.addToDatabase();
-		// the snapshot has been already created in the Displayable constructor, but needs updating
-		snapshot.remake();
 
 		return copy;
 	}

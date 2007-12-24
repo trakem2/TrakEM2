@@ -35,6 +35,7 @@ import ij.ImageStack;
 
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.Decoder;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -111,6 +112,31 @@ public class AreaList extends ZDisplayable {
 		this.color = color;
 		for (Iterator it = al_ul.iterator(); it.hasNext(); ) {
 			ht_areas.put(it.next(), AreaList.UNLOADED); // assumes al_ul contains only Long instances wrapping layer_id long values
+		}
+	}
+
+	/** Reconstruct from t2 format. */
+	public AreaList(Project project, final char[] src, final int first, final int last) {
+		super(project, src, first, last);
+		// TODO decode style
+		//
+		// decode areas and their paths
+		// needs to: repeatedly call Decoder.findChild until there are no more
+		int start = first;
+		while (true) {
+			// find area chunk
+			int[] se = Decoder.findNextChildRange(src, start, last);
+			if (null == se) break;
+			start = se[1]+2; // next start is one char past the closing parenthesis
+			long layer_id = Decoder.getLong(Decoder.LAYER_ID, src, se[0], se[1], Long.MIN_VALUE);
+			// find path chunks within area
+			int startpath = se[0];
+			while (true) {
+				int[] se_path = Decoder.findNextChildRange(src, startpath, se[1]);
+				if (null == se_path) break;
+				int[] se_atom = Decoder.findAtomRange(Decoder.PATH, src, se_path[0], se_path[1]);
+				// parse .. TODO
+			}
 		}
 	}
 
@@ -509,6 +535,55 @@ public class AreaList extends ZDisplayable {
 			}
 		}
 	}
+	/** Exports the given area as a list of SVG path elements with integers only. Only reads SEG_MOVETO, SEG_LINETO and SEG_CLOSE elements, all others ignored (but could be just as easily saved in the SVG path). */
+	private void exportAreaT2(final StringBuffer sb, final String indent, final Area area) {
+		// I could add detectors for straight lines and thus avoid saving so many points.
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			float[] coords = new float[6];
+			int seg_type = pit.currentSegment(coords);
+			int x0=0, y0=0;
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+					x0 = (int)coords[0];
+					y0 = (int)coords[1];
+					sb.append(indent).append("(path '(M ").append(x0).append(' ').append(y0);
+					break;
+				case PathIterator.SEG_LINETO:
+					sb.append(" L ").append((int)coords[0]).append(' ').append((int)coords[1]);
+					break;
+				case PathIterator.SEG_CLOSE:
+					// no need to make a line to the first point
+					sb.append(" z))\n");
+					break;
+				default:
+					Utils.log2("WARNING: AreaList.exportArea unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				return;
+			}
+		}
+	}
+
+	public void exportT2(final StringBuffer sb_body, final String indent, final Object any) {
+		sb_body.append(indent).append("(area_list\n");
+		final String in = indent + " ";
+		super.exportT2(sb_body, in, any);
+		sb_body.append(in).append("fill_paint '").append(fill_paint).append('\n');
+		final String[] RGB= Utils.getHexRGBColor(color);
+		sb_body.append(in).append("style '(stroke:none;fill-opacity:").append(alpha).append(";fill:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";)\n");
+		sb_body.append(indent).append('\n');
+		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long lid = ((Long)entry.getKey()).longValue();
+			Area area = (Area)entry.getValue();
+			sb_body.append(in).append("(area layer_id '").append(lid).append('\n');
+			exportAreaT2(sb_body, in + " ", area);
+			sb_body.append(')');
+		}
+		sb_body.append(')');
+	}
 
 	/** Returns an ArrayList of ArrayList of Point as value with all paths for the Area of the given layer_id. */
 	public ArrayList getPaths(long layer_id) {
@@ -572,33 +647,27 @@ public class AreaList extends ZDisplayable {
 		while (-1 != svg_path.indexOf("  ")) {
 			svg_path = svg_path.replaceAll("  "," "); // make all spaces be single
 		}
-		int i_M = svg_path.indexOf('M');
-		int i_L = svg_path.indexOf('L');
-		/*
-		String[] s = svg_path.substring(i_M+2, i_L-1).split(" ");
-		int x0 = Integer.parseInt(s[0]);
-		int y0 = Integer.parseInt(s[1]);
-		gp.moveTo(x0, y0);
-		int i_L_old = i_L;
-		i_L = svg_path.indexOf('L', i_L+1);
-		while (-1 != i_L) {
-			s = svg_path.substring(i_L_old+2, i_L-1).split(" ");
-			gp.lineTo(Integer.parseInt(s[0]), Integer.parseInt(s[1]));
-			i_L_old = i_L;
-			i_L = svg_path.indexOf('L', i_L_old+1);
-		}
-		*/
-		// the above works, but generates thousands of String objects (slows down a lot)
+		final char[] data = new char[svg_path.length()];
+		svg_path.getChars(0, data.length, data, 0);
+		parse(gp, data);
+	}
 
-		// start fast reading
-		final char[] data = new char[svg_path.length() + 2]; // padding for the "first = last +2" in readXY
-		svg_path.getChars(0, data.length -2, data, 0);
-		if ('z' != data[data.length-3]) {
+	/** Assumes first char is 'M' and last char is a 'z'*/
+	private void parse(final GeneralPath gp, final char[] data) {
+		if ('z' != data[data.length-1]) {
 			Utils.log("AreaList: no closing z, ignoring sub path");
 			return;
 		}
-		data[data.length-3] = 'L'; // replacing the closing z for an L, since we read backwards
+		data[data.length-1] = 'L'; // replacing the closing z for an L, since we read backwards
 		final int[] xy = new int[2];
+		int i_L = -1;
+		// find first L
+		for (int i=0; i<data.length; i++) {
+			if ('L' == data[i]) {
+				i_L = i;
+				break;
+			}
+		}
 		readXY(data, i_L, xy);
 		final int x0 = xy[0];
 		final int y0 = xy[1];
@@ -612,8 +681,10 @@ public class AreaList extends ZDisplayable {
 		gp.lineTo(x0, y0); //TODO unnecessary?
 		gp.closePath();
 	}
+
 	/** Assumes all read chars will be digits except for the separator (single white space char), and won't fail (but generate ugly results) when any char is not a digit. */
 	private final int readXY(final char[] data, int first, final int[] xy) { // final method: inline
+		if (first >= data.length) return -1;
 		int last = first;
 		char c = data[first];
 		while ('L' != c) {
@@ -625,6 +696,7 @@ public class AreaList extends ZDisplayable {
 
 		// skip the L and the white space separating <y> and L
 		last -= 2;
+		if (last < 0) return -1;
 		c = data[last];
 
 		// the 'y'
@@ -822,7 +894,6 @@ public class AreaList extends ZDisplayable {
 		// add
 		copy.layer = this.layer; // this does not add it to any layer, just sets the 'current' layer pointer
 		copy.addToDatabase();
-		snapshot.remake();
 		//
 		return copy;
 	}

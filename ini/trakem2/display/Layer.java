@@ -170,7 +170,7 @@ public class Layer extends DBObject {
 		add(displ, update_displays, true);
 	}
 
-	synchronized public void add(Displayable displ, boolean update_displays, boolean update_db) {
+	public void add(Displayable displ, boolean update_displays, boolean update_db) {
 		if (null == displ || -1 != al_displayables.indexOf(displ)) return;
 
 		int i=-1, j=-1;
@@ -233,7 +233,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Used for reconstruction purposes. Assumes the displ are given in the proper order! */
-	synchronized public void addSilently(DBObject displ) { // why DBObject and not Displayable ?? TODO
+	public void addSilently(DBObject displ) { // why DBObject and not Displayable ?? TODO
 		if (null == displ || -1 != al_displayables.indexOf(displ)) return;
 		try {
 			((Displayable)displ).setLayer(this, false);
@@ -245,7 +245,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Remove the Layer only if it's empty. */
-	synchronized public boolean remove(Displayable displ) {
+	public boolean remove(Displayable displ) {
 		if (null == displ || null == al_displayables || -1 == al_displayables.indexOf(displ)) return false;
 		al_displayables.remove(displ);
 		Display.remove(this, displ);
@@ -273,7 +273,7 @@ public class Layer extends DBObject {
 	public double getThickness() { return thickness; }
 
 	/** Remove this layer and all its contents from the project. */
-	synchronized public boolean remove(boolean check) {
+	public boolean remove(boolean check) {
 		try {
 			if (check && !Utils.check("Really delete " + this.toString() + " and all its children?")) return false;
 			// destroy the Display objects that show this layer
@@ -325,12 +325,12 @@ public class Layer extends DBObject {
 		return x >= inset && y >= inset && x <= parent.getLayerWidth() - inset && y <= parent.getLayerHeight() - inset;
 	}
 
-	synchronized public boolean contains(Displayable displ) {
+	public boolean contains(Displayable displ) {
 		return -1 != al_displayables.indexOf(displ);
 	}
 
 	/** Returns true if any of the Displayable objects are of the given class. */
-	synchronized public boolean contains(Class c) {
+	public boolean contains(Class c) {
 		Iterator it = al_displayables.iterator();
 		while (it.hasNext()) {
 			if (it.next().getClass().equals(c)) return true;
@@ -339,7 +339,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Count instances of the given Class. */
-	synchronized public int count(Class c) {
+	public int count(Class c) {
 		int n = 0;
 		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 			if (it.next().getClass().equals(c)) n++;
@@ -347,20 +347,20 @@ public class Layer extends DBObject {
 		return n;
 	}
 
-	synchronized public boolean isEmpty() {
+	public boolean isEmpty() {
 		return 0 == al_displayables.size() && parent.isEmptyAt(this); // check for ZDisplayable painting here as well
 	}
 
-	synchronized public ArrayList getDisplayables() {
+	public ArrayList getDisplayables() {
 		return (ArrayList)al_displayables.clone();
 	}
 
-	synchronized public int getNDisplayables() {
+	public int getNDisplayables() {
 		return al_displayables.size();
 	}
 
 	/** Returns a list of Displayable of class c only.*/
-	synchronized public ArrayList getDisplayables(final Class c) {
+	public ArrayList getDisplayables(final Class c) {
 		final ArrayList al = new ArrayList();
 		if (null == c) return al;
 		if (c.equals(Displayable.class)) {
@@ -374,7 +374,7 @@ public class Layer extends DBObject {
 		return al;
 	}
 
-	synchronized public Displayable get(final long id) {
+	public Displayable get(final long id) {
 		for (int i=al_displayables.size() -1; i>-1; i--) {
 			Displayable d = (Displayable)al_displayables.get(i);
 			if (d.getId() == id) {
@@ -392,7 +392,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Find the Displayable objects that contains the point. */
-	synchronized public ArrayList find(int x, int y) {
+	public ArrayList find(int x, int y) {
 		final ArrayList al = new ArrayList();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Displayable d = (Displayable)al_displayables.get(i);
@@ -404,7 +404,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Find the Displayable objects that intersect with the rectangle. */
-	synchronized public ArrayList find(final Rectangle r) {
+	public ArrayList find(final Rectangle r) {
 		final ArrayList al = new ArrayList();
 		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
@@ -416,7 +416,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Find the Displayable objects of class 'target' whose bounding box intersects the given Displayable (which is itself not included if present in this very Layer). */
-	synchronized public ArrayList getIntersecting(Displayable d, Class target) {
+	public ArrayList getIntersecting(Displayable d, Class target) {
 		ArrayList al = new ArrayList();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Object ob = al_displayables.get(i);
@@ -432,12 +432,12 @@ public class Layer extends DBObject {
 	}
 
 	/** Returns -1 if not found. */
-	synchronized public int indexOf(Displayable d) {
+	public int indexOf(Displayable d) {
 		return al_displayables.indexOf(d);
 	}
 
 	/** Within its own class only. */ // 'up' is at the last element of the ArrayList (since when painting, the first one gets painted first, and thus gets buried the most while the last paints last, on top)
-	synchronized public void moveUp(Displayable d) {
+	public void moveUp(Displayable d) {
 		int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || al_displayables.size() -1 == i) return;
 		if (al_displayables.get(i+1).getClass().equals(d.getClass())) {
@@ -450,7 +450,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Within its own class only. */
-	synchronized public void moveDown(Displayable d) {
+	public void moveDown(Displayable d) {
 		int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || 0 == i) return;
 		if (al_displayables.get(i-1).getClass().equals(d.getClass())) {
@@ -463,7 +463,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Within its own class only. */
-	synchronized public void moveTop(Displayable d) { // yes I could have made several lists and make my live easier. Whatever
+	public void moveTop(Displayable d) { // yes I could have made several lists and make my live easier. Whatever
 		int i = al_displayables.indexOf(d);
 		int size = al_displayables.size();
 		if (null == d || -1 == i || size -1 == i) return;
@@ -489,7 +489,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Within its own class only. */
-	synchronized public void moveBottom(Displayable d) {
+	public void moveBottom(Displayable d) {
 		int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || 0 == i) return;
 		Class c = d.getClass();
@@ -513,7 +513,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Within its own class only. */
-	synchronized public boolean isTop(Displayable d) {
+	public boolean isTop(Displayable d) {
 		int i = al_displayables.indexOf(d);
 		int size = al_displayables.size();
 		if (size -1 == i) return true;
@@ -521,7 +521,7 @@ public class Layer extends DBObject {
 		return true;
 	} // these two methods will throw an Exception if the Displayable is not found (-1 == i) (the null.getClass() *should* throw it)
 	/** Within its own class only. */
-	synchronized public boolean isBottom(Displayable d) {
+	public boolean isBottom(Displayable d) {
 		int i = al_displayables.indexOf(d);
 		if (0 == i) return true;
 		if (al_displayables.get(i-1).getClass().equals(d.getClass())) return false;
@@ -529,7 +529,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Get the index of the given Displayable relative to the rest of its class. Beware that the order of the al_displayables is bottom at zero, top at last, but the relative index returned here is inverted: top at zero, bottom at last -to match the tabs' vertical orientation in a Display.*/
-	synchronized public int relativeIndexOf(Displayable d) {
+	public int relativeIndexOf(Displayable d) {
 		int k = al_displayables.indexOf(d);
 		if (-1 == k) return -1;
 		Class c = d.getClass();
@@ -549,7 +549,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Note: Non-recursive into embedded LayerSet objects. */
-	synchronized public void setVisible(String type, boolean visible, boolean repaint) {
+	public void setVisible(String type, boolean visible, boolean repaint) {
 		type = type.toLowerCase();
 		Iterator it = al_displayables.iterator();
 		while (it.hasNext()) {
@@ -564,7 +564,7 @@ public class Layer extends DBObject {
 		}
 	}
 
-	synchronized public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		String in = indent + "\t";
 		// 1 - open tag
 		sb_body.append(indent).append("<t2_layer oid=\"").append(id).append("\"\n")
@@ -604,7 +604,7 @@ public class Layer extends DBObject {
 		return lt.getTitle(); //lt.toString();
 	}
 
-	synchronized public void destroy() {
+	public void destroy() {
 		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			d.destroy();
@@ -612,7 +612,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Returns null if no Displayable objects of class c exist. */
-	synchronized public Rectangle getMinimalBoundingBox(Class c) {
+	public Rectangle getMinimalBoundingBox(final Class c) {
 		Rectangle box = null;
 		Rectangle tmp = new Rectangle();
 		for (Iterator it = getDisplayables(c).iterator(); it.hasNext(); ) {
@@ -627,7 +627,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Preconcatenate the given AffineTransform to all Displayable objects of class c, without respecting their links. */
-	synchronized public void apply(final Class c, final AffineTransform at) {
+	public void apply(final Class c, final AffineTransform at) {
 		boolean all = c.equals(Displayable.class);
 		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 			final Displayable d = (Displayable)it.next();
@@ -639,7 +639,7 @@ public class Layer extends DBObject {
 	}
 
 	/** Make a copy of this layer into the given LayerSet, enclosing only Displayable objects within the roi, and translating them for that roi x,y. */
-	synchronized public Layer clone(final Project pr, LayerSet ls, final Rectangle roi) {
+	public Layer clone(final Project pr, LayerSet ls, final Rectangle roi) {
 		final Layer clone = new Layer(pr, z, thickness, ls);
 		for (Iterator it = find(roi).iterator(); it.hasNext(); ) {
 			Displayable copy = ((Displayable)it.next()).clone(pr);

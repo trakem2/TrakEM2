@@ -706,7 +706,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				final Rectangle ba = pa.getBoundingBox();
 				size += (long)(ba.width * ba.height);
 			}
-			if (size > 10000000) canvas.setInitialMagnification(Snapshot.SCALE); // 10 Mb
+			if (size > 10000000) canvas.setInitialMagnification(0.25); // 10 Mb
 			else {
 				this.frame.setSize(new Dimension((int)(screen.width * 0.66), (int)(screen.height * 0.66)));
 			}
@@ -1838,9 +1838,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (!aligning || selection.isEmpty() || !selection.contains(Profile.class)) item.setEnabled(false);
 			item = new JMenuItem("Align stack slices"); item.addActionListener(this); popup.add(item);
 			if (selection.isEmpty() || ! (getActive().getClass().equals(Patch.class) && ((Patch)getActive()).isStack())) item.setEnabled(false);
-			item = new JMenuItem("Align layers (layer-based)"); item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Align layers (layer-wise)"); item.addActionListener(this); popup.add(item);
 			if (1 == layer.getParent().size()) item.setEnabled(false);
-			item = new JMenuItem("Align layers (tile-based global minimization)"); item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Align layers (tile-wise global minimization)"); item.addActionListener(this); popup.add(item);
 			if (1 == layer.getParent().size()) item.setEnabled(false);
 			return popup;
 		}
@@ -2531,7 +2531,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			patch.updateInDatabase("tiff_working"); //saves the cached one above.
 			canvas.repaint(active, 5);
 			navigator.repaint(true);
-			patch.getSnapshot().remake();
 			((JPanel)ht_panels.get(patch)).repaint();
 		} else if (command.equals("Undo transforms")) {
 			if (canvas.isTransforming()) return;
@@ -2733,9 +2732,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}
 			}
-		} else if (command.equals("Align layers (layer-based)")) {
+		} else if (command.equals("Align layers (layer-wise)")) {
 			Registration.registerLayers(layer, Registration.LAYER_SIFT);
-		} else if (command.equals("Align layers (tile-based global minimization)")) {
+		} else if (command.equals("Align layers (tile-wise global minimization)")) {
 			Registration.registerLayers(layer, Registration.GLOBAL_MINIMIZATION);
 		} else if (command.equals("Adjust registration properties...")) {
 			layer.getParent().adjustRegistrationProperties();
