@@ -122,7 +122,7 @@ public class StitchingTEM {
 	 *
 	 * @return A new Thread in which the work is done, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
 	 */
-	public Thread stitch(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean use_masks, final int stitching_rule) {
+	public Thread stitch(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean optimize, final int stitching_rule) {
 		// start
 		this.flag = WORKING;
 		// check preconditions
@@ -154,7 +154,7 @@ public class StitchingTEM {
 			public void run() {
 				switch (stitching_rule) {
 				case StitchingTEM.TOP_LEFT_RULE:
-					StitchingTEM.stitchTopLeft(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap);
+					StitchingTEM.stitchTopLeft(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap, optimize);
 					break;
 				}
 			}
@@ -163,7 +163,7 @@ public class StitchingTEM {
 		return thread;
 	}
 
-	static private void stitchTopLeft(final StitchingTEM st, final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap) {
+	static private void stitchTopLeft(final StitchingTEM st, final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean optimize) {
 		try {
 			final int LEFT = 0, TOP = 1;
 
@@ -227,15 +227,25 @@ public class StitchingTEM {
 				// boundary limits: don't move by more than the small dimension of the stripe
 				int max_abs_delta; // TODO: only the dx for left (and the dy for top) should be compared and found to be smaller or equal; the other dimension should be unbounded -for example, for manually acquired, grossly out-of-grid tiles.
 
+				final Rectangle box = new Rectangle();
+				final Rectangle box2 = new Rectangle();
 				// check and apply: falls back to default overlaps when getting bad results
 				if (TOP == prev) {
 					if (SUCCESS == R1[2]) {
 						// trust top
-						addMatches(tile_top, tile, R1[0], R1[1]);
+						if (optimize) addMatches(tile_top, tile, R1[0], R1[1]);
+						else {
+							patch[i - grid_width].getBoundingBox(box);
+							patch[i].setLocation(box.x + R1[0], box.y + R1[1]);
+						}
 					} else {
 						final Rectangle b2 = patch[i - grid_width].getBoundingBox(null);
 						// don't move: use default overlap
-						addMatches(tile_top, tile, 0, b2.height - default_bottom_top_overlap);
+						if (optimize) addMatches(tile_top, tile, 0, b2.height - default_bottom_top_overlap);
+						else {
+							patch[i - grid_width].getBoundingBox(box);
+							patch[i].setLocation(box.x, box.y + b2.height - default_bottom_top_overlap);
+						}
 					}
 				} else { // LEFT
 					// the one on top, if any
@@ -244,46 +254,74 @@ public class StitchingTEM {
 							// top is good
 							if (SUCCESS == R2[2]) {
 								// combine left and top
-								addMatches(tile_left, tile, R2[0], R2[1]);
-								addMatches(tile_top, tile, R1[0], R1[1]);
+								if (optimize) {
+									addMatches(tile_left, tile, R2[0], R2[1]);
+									addMatches(tile_top, tile, R1[0], R1[1]);
+								} else {
+									patch[i-1].getBoundingBox(box);
+									patch[i - grid_width].getBoundingBox(box2);
+									patch[i].setLocation((box.x + R1[0] + box2.x + R2[0]) / 2, (box.y + R1[1] + box2.y + R2[1]) / 2);
+								}
 							} else {
 								// use top alone
-								addMatches(tile_top, tile, R1[0], R1[1]);
+								if (optimize) addMatches(tile_top, tile, R1[0], R1[1]);
+								else {
+									patch[i - grid_width].getBoundingBox(box);
+									patch[i].setLocation(box.x + R1[0], box.y + R1[1]);
+								}
 							}
 						} else {
 							// ignore top
 							if (SUCCESS == R2[2]) {
 								// use left alone
-								addMatches(tile_left, tile, R2[0], R2[1]);
+								if (optimize) addMatches(tile_left, tile, R2[0], R2[1]);
+								else {
+									patch[i-1].getBoundingBox(box);
+									patch[i].setLocation(box.x + R2[0], box.y + R2[1]);
+								}
 							} else {
-								final Rectangle b1 = patch[prev_i].getBoundingBox(null);
-								final Rectangle b2 = patch[i - grid_width].getBoundingBox(null);
+								patch[prev_i].getBoundingBox(box);
+								patch[i - grid_width].getBoundingBox(box2);
 								// left not trusted, top not trusted: use a combination of defaults for both
-								addMatches(tile_left, tile, b1.width - default_left_right_overlap, 0);
-								addMatches(tile_top, tile, 0, b2.height - default_bottom_top_overlap);
+								if (optimize) {
+									addMatches(tile_left, tile, box.width - default_left_right_overlap, 0);
+									addMatches(tile_top, tile, 0, box2.height - default_bottom_top_overlap);
+								} else {
+									patch[i].setLocation(box.x + box.width - default_left_right_overlap, box2.y + box2.height - default_bottom_top_overlap);
+								}
 							}
 						}
 					} else if (SUCCESS == R2[2]) {
 						// use left alone (top not applicable in top row)
-						addMatches(tile_left, tile, R2[0], R2[1]);
+						if (optimize) addMatches(tile_left, tile, R2[0], R2[1]);
+						else {
+							patch[i-1].getBoundingBox(box);
+							patch[i].setLocation(box.x + R2[0], box.y + R2[1]);
+						}
 					} else {
-						final Rectangle b1 = patch[prev_i].getBoundingBox(null);
+						patch[prev_i].getBoundingBox(box);
 						// left not trusted, and top not applicable: use default overlap with left tile
-						addMatches(tile_left, tile, b1.width - default_left_right_overlap, 0);
+						if (optimize) addMatches(tile_left, tile, box.width - default_left_right_overlap, 0);
+						else {
+							patch[i].setLocation(box.x + box.width - default_left_right_overlap, box.y);
+						}
 					}
 				}
 
+				if (!optimize) Display.repaint(patch[i].getLayer(), patch[i], null, 0, false);
 				Utils.log2(i + ": Done patch " + patch[i]);
 			}
 
-			// run optimization
-			ArrayList<Patch> al_patches = new ArrayList<Patch>();
-			for (int i=0; i<patch.length; i++) al_patches.add(patch[i]);
-			ArrayList<Tile> al_fixed_tiles = new ArrayList<Tile>();
-			al_fixed_tiles.add(al_tiles.get(0));
+			if (optimize) {
+				// run optimization
+				ArrayList<Patch> al_patches = new ArrayList<Patch>();
+				for (int i=0; i<patch.length; i++) al_patches.add(patch[i]);
+				ArrayList<Tile> al_fixed_tiles = new ArrayList<Tile>();
+				al_fixed_tiles.add(al_tiles.get(0));
 
-			// ready for montage-wise minimization
-			Optimize.minimizeAll(al_tiles, al_patches, al_fixed_tiles, 50);
+				// ready for montage-wise minimization
+				Optimize.minimizeAll(al_tiles, al_patches, al_fixed_tiles, 50);
+			}
 			Display.repaint(patch[0].getLayer(), null, 0, true); // all
 
 			//
