@@ -1,6 +1,8 @@
 
 package ini.trakem2.persistence;
 
+import ini.trakem2.tree.TemplateThing;
+import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.Utils;
 import java.awt.geom.AffineTransform;
 
@@ -63,11 +65,16 @@ public class Decoder {
 						j++;
 						if (i+j > last) return null;
 						if ('(' == src[i+j]) {
+							//start
+							int count = 0; // enable parenthesis within
 							se[0] = i+j +1;
 							for (; j<=last; j++) {
-								if (')' == src[i+j]) {
-									se[1] = i+j -1;
-									return se; // returning atom range excluding the parentheses
+								if ('(' == src[i+j]) count++;
+								else if (')' == src[i+j]) {
+									if (0 == count) {
+										se[1] = i+j -1;
+										return se; // returning atom range excluding the parentheses
+									} else count--;
 								}
 							}
 							// End reached without closing parenthesis: error!
@@ -195,7 +202,6 @@ public class Decoder {
 		return String.valueOf(src, se[0], se[1]); // a new char[] array is created
 	}
 
-	// all possible atoms
 	static public final char[] ID = "id".toCharArray();
 	static public final char[] OID = "oid".toCharArray();
 	static public final char[] WIDTH = "width".toCharArray();
@@ -207,4 +213,48 @@ public class Decoder {
 	static public final char[] LAYER_ID = "layer_id".toCharArray();
 	static public final char[] PATH = "path".toCharArray();
 
+	/** Reconstructs a project from the given .t2 file, using the given loader.
+	* Returns 4 objects packed in an array:
+	 <pre>
+	 [0] = root TemplateThing
+	 [1] = root ProjectThing (contains Project instance)
+	 [2] = root LayerThing (contains the top-level LayerSet)
+	 [3] = expanded states of all ProjectThing objects
+	 </pre>
+	 * <br />
+	 * Also, triggers the reconstruction of links and assignment of Displayable objects to their layer.
+	 *
+	 * The above is the exact same data returned by the TMLandler.getProjectData() method, which parses XML files containing TrakEM2 projects.
+	 */
+	static public final Object[] read(final String path, final FSLoader loader) {
+		if (!path.toLowerCase().endsWith(".t2")) {
+			Utils.log2("Ignoring file without .t2 extension: " + path);
+			return null;
+		}
+		// load file
+		final char[] src = Utils.openTextFileChars(path);
+		// 1 - find template description
+		int[] se_template = findAtomRange("template".toCharArray(), src, 0, src.length);
+		if (null == se_template) {
+			Utils.log2("Could not find the template node");
+			return null;
+		}
+		TemplateThing tt_root = parseTemplate(src, se_template[0], se_template[1]);
+
+
+		// Need a generic parser
+
+
+
+		return null; // TODO
+	}
+
+	static public TemplateThing parseTemplate(final char[] src, final int first, final int last) {
+		int[] se = null;
+		while (null != (se = findNextChildRange(src, first, last))) {
+			// parse TemplateThing: create it, and store into hashtable along with the se of its elem atom, if any.
+		}
+
+		return null; // TODO
+	}
 }

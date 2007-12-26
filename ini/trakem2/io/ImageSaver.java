@@ -322,8 +322,8 @@ public class ImageSaver {
 		frame.pack();
 		frame.setVisible(true);
 
-		// TODO: check if 8-bit images can also be jpegs with an alpha channel
-		// TODO: check if ImagePlus preserves the alpha channel as well
+		// 1) check if 8-bit images can also be jpegs with an alpha channel: they can't
+		// 2) TODO: check if ImagePlus preserves the alpha channel as well
 	}
 
 }

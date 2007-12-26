@@ -334,6 +334,7 @@ public class Patch extends Displayable {
 					image = project.getLoader().fetchImage(this, 0.25);
 					thread = true;
 				}
+				// TODO to be non-blocking, this should paint a black square with a "loading..." legend in it or something, then fire a later repaint thread like below. So don't wait!
 			} else {
 				// painting a smaller image, will need to repaint with the proper one
 				thread = true;
@@ -347,6 +348,7 @@ public class Patch extends Displayable {
 						// load the proper image only if really needed: (may have moved away fast)
 						if (Display.willPaint(Patch.this, magnification)) {
 							Thread.yield();
+							// load image:
 							Patch.this.project.getLoader().fetchImage(Patch.this, magnification);
 							Display.repaint(Patch.this.layer, Patch.this, Patch.this.getBoundingBox(), 1, false); // not the navigator
 						}

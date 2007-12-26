@@ -2775,7 +2775,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				}
 			}
 			//
-			project.getLoader().setPreprocessor(gd.getNextString());
+			final String prepro = gd.getNextString();
+			if (!project.getLoader().setPreprocessor(prepro)) {
+				Utils.showMessage("Could NOT set the preprocessor to " + prepro);
+			}
 			//
 			layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
 			layer.getParent().setPixelsDimension((int)gd.getNextNumber());

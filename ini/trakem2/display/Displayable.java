@@ -978,21 +978,18 @@ public abstract class Displayable extends DBObject {
 			.append(in).append("width '").append(width).append('\n')
 			.append(in).append("height '").append(height).append('\n')
 			.append(in).append("transform '(").append(a[0]).append(' ')
-								.append(a[1]).append(' ')
-								.append(a[2]).append(' ')
-								.append(a[3]).append(' ')
-								.append(a[4]).append(' ')
-								.append(a[5]).append(")\n")
+							  .append(a[1]).append(' ')
+							  .append(a[2]).append(' ')
+							  .append(a[3]).append(' ')
+							  .append(a[4]).append(' ')
+							  .append(a[5]).append(")\n")
 		;
 		// the default is obvious, so just store the value if necessary
 		if (locked) sb_body.append(in).append("locked 'true\n");
 		if (!visible) sb_body.append(in).append("visible 'false\n");
 		// 'style' is taken care in subclasses
 		if (null != title && title.length() > 0) {
-			String title = this.title;
-			if (-1 != title.indexOf('(')) title = title.replace('(', '[');
-			if (-1 != title.indexOf(')')) title = title.replace(')', ']');
-			sb_body.append(in).append("title '(").append(title).append(")\n"); // embed in parenthesis to avoid potential parsing-related characters or spaces
+			sb_body.append(in).append("title '(").append(title).append(")\n"); // embed in parenthesis to avoid potential parsing-related characters (such as quotes or parenthesis) or spaces or tabs
 		}
 		if (null != hs_linked && 0 != hs_linked.size()) {
 			sb_body.append(in).append("links '(");

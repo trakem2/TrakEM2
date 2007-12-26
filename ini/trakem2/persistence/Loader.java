@@ -3208,6 +3208,18 @@ abstract public class Loader {
 		return path;
 	}
 
+	static public long countObjects(final LayerSet ls) {
+		// estimate total number of bytes: large estimate is 500 bytes of xml text for each object
+		int count = 1; // the given LayerSet itself
+		for (Layer la : (ArrayList<Layer>)ls.getLayers()) {
+			count += la.getNDisplayables();
+			for (LayerSet ls2 : (ArrayList<LayerSet>)la.getDisplayables(LayerSet.class)) {
+				count += countObjects(ls2);
+			}
+		}
+		return count;
+	}
+
 	/** Calls saveAs() unless overriden. Returns full path to the xml file. */
 	public String save(Project project) { // yes the project is the same project pointer, which for some reason I never committed myself to place it in the Loader class as a field.
 		String path = saveAs(project);
@@ -3217,7 +3229,8 @@ abstract public class Loader {
 
 	/** Exports to an XML file chosen by the user. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
 	public String saveAs(Project project) {
-		releaseToFit(MIN_FREE_BYTES);
+		long size = countObjects(project.getRootLayerSet()) * 500;
+		releaseToFit(size > MIN_FREE_BYTES ? size : MIN_FREE_BYTES);
 		String default_dir = null;
 		default_dir = getStorageFolder();
 		// Select a file to export to
@@ -3371,10 +3384,10 @@ abstract public class Loader {
 
 	protected String preprocessor = null;
 
-	public void setPreprocessor(String plugin_class_name) {
+	public boolean setPreprocessor(String plugin_class_name) {
 		if (null == plugin_class_name || 0 == plugin_class_name.length()) {
 			this.preprocessor = null;
-			return;
+			return false;
 		}
 		// just for the sake of it:
 		plugin_class_name = plugin_class_name.replace(' ', '_');
@@ -3393,9 +3406,11 @@ abstract public class Loader {
 		} catch (Exception e) {
 			e.printStackTrace();
 			Utils.showMessageT("Plug in " + plugin_class_name + " is invalid: ImageJ has thrown an exception when testing it with a null image.");
+			return false;
 		} finally {
 			finishSetTempCurrentImage();
 		}
+		return true;
 	}
 
 	public String getPreprocessor() {

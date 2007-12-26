@@ -338,8 +338,8 @@ public class StitchingTEM {
 		Point p2 = new Point(new float[]{(float)dx, (float)dy});
 		t1.addMatch(new PointMatch(p2, p1, 1.0f));
 		t2.addMatch(new PointMatch(p1, p2, 1.0f));
-		t1.addConnectedTile(t1);
-		t2.addConnectedTile(t2);
+		t1.addConnectedTile(t2);
+		t2.addConnectedTile(t1);
 	}
 
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale) {

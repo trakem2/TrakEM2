@@ -89,11 +89,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import javax.swing.KeyStroke;
 
-import org.xml.sax.helpers.DefaultHandler;
-import org.xml.sax.SAXException;
-import org.xml.sax.SAXParseException;
 import org.xml.sax.InputSource;
-import org.xml.sax.Attributes;
 
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.SAXParser;
@@ -112,7 +108,7 @@ public class FSLoader extends Loader {
 	private Hashtable ht_dbo = null;
 	private Hashtable ht_paths = null;
 	/** For saving and overwriting. */
-	private String project_xml_path = null;
+	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
 	private String dir_mipmaps = null;
 	/** Path to the directory the user provided when creating the project. */
@@ -135,8 +131,8 @@ public class FSLoader extends Loader {
 	}
 
 	public String getProjectXMLPath() {
-		if (null == project_xml_path) return null;
-		return project_xml_path.toString(); // a copy of it
+		if (null == project_file_path) return null;
+		return project_file_path.toString(); // a copy of it
 	}
 
 	public String getStorageFolder() {
@@ -145,66 +141,71 @@ public class FSLoader extends Loader {
 	}
 
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */
-	public Object[] openXMLProject(final String path) {
+	public Object[] openFSProject(final String path) {
 		if (null == path) {
 			String user = System.getProperty("user.name");
-			OpenDialog od = new OpenDialog("Select Project",
-							(user.equals("albert") || user.equals("cardona")) ? "/home/" + user + "/temp" : OpenDialog.getDefaultDirectory(),
-							null);
+			OpenDialog od = new OpenDialog("Select Project", OpenDialog.getDefaultDirectory(), null);
 			String file = od.getFileName();
 			if (null == file || file.toLowerCase().startsWith("null")) return null;
 			String dir = od.getDirectory();
 			if (!dir.endsWith("/")) dir += "/";
-			this.project_xml_path = dir + file;
+			this.project_file_path = dir + file;
 		} else {
-			this.project_xml_path = path;
+			this.project_file_path = path;
 		}
-
+		// check if any of the open projects uses the same file path, and refuse to open if so:
 		for (Iterator it = v_loaders.iterator(); it.hasNext(); ) {
 			Loader lo = (Loader)it.next();
-			if (lo instanceof FSLoader && ((FSLoader)lo).project_xml_path.equals(this.project_xml_path)) {
+			if (lo instanceof FSLoader && ((FSLoader)lo).project_file_path.equals(this.project_file_path)) {
 				Utils.showMessage("The project is already open.");
 				return null;
 			}
 		}
 
-		// parse file:
-		InputStream i_stream = null;
-		TMLHandler handler = new TMLHandler(this.project_xml_path, this);
-		if (handler.isUnreadable()) {
-			handler = null;
-		} else {
-			try {
-				SAXParserFactory factory = SAXParserFactory.newInstance();
-				factory.setValidating(true);
-				SAXParser parser = factory.newSAXParser();
-				i_stream = new BufferedInputStream(new FileInputStream(this.project_xml_path));
-				InputSource input_source = new InputSource(i_stream);
-				setMassiveMode(true);
-				parser.parse(input_source, handler);
-			} catch (java.io.FileNotFoundException fnfe) {
-				Utils.log("ERROR: File not found: " + path);
+		Object[] data = null;
+
+		// parse file, according to expected format as indicated by the extension:
+		if (this.project_file_path.toLowerCase().endsWith(".xml")) {
+			InputStream i_stream = null;
+			TMLHandler handler = new TMLHandler(this.project_file_path, this);
+			if (handler.isUnreadable()) {
 				handler = null;
-			} catch (Exception e) {
-				new IJError(e);
-				handler = null;
-			} finally {
-				setMassiveMode(false);
-				if (null != i_stream) {
-					try {
-						i_stream.close();
-					} catch (Exception e) {
-						new IJError(e);
+			} else {
+				try {
+					SAXParserFactory factory = SAXParserFactory.newInstance();
+					factory.setValidating(true);
+					SAXParser parser = factory.newSAXParser();
+					i_stream = new BufferedInputStream(new FileInputStream(this.project_file_path));
+					InputSource input_source = new InputSource(i_stream);
+					setMassiveMode(true);
+					parser.parse(input_source, handler);
+				} catch (java.io.FileNotFoundException fnfe) {
+					Utils.log("ERROR: File not found: " + path);
+					handler = null;
+				} catch (Exception e) {
+					new IJError(e);
+					handler = null;
+				} finally {
+					setMassiveMode(false);
+					if (null != i_stream) {
+						try {
+							i_stream.close();
+						} catch (Exception e) {
+							new IJError(e);
+						}
 					}
 				}
 			}
-		}
-		if (null == handler) {
-			Utils.showMessage("Error when reading the project .xml file.");
-			return null;
+			if (null == handler) {
+				Utils.showMessage("Error when reading the project .xml file.");
+				return null;
+			}
+
+			data = handler.getProjectData();
+		} else if (this.project_file_path.toLowerCase().endsWith(".t2")) {
+			data = Decoder.read(this.project_file_path, this);
 		}
 
-		Object[] data = handler.getProjectData();
 		if (null == data) {
 			Utils.showMessage("Error when parsing the project .xml file.");
 			return null;
@@ -603,8 +604,8 @@ public class FSLoader extends Loader {
 						path = super.exportImage(p, path, true);
 						Utils.log2("Saved original " + ht_paths.get(p) + "\n\t at: " + path);
 						// make path relative if possible
-						if (null != project_xml_path) { // project may be unsaved
-							File fxml = new File(project_xml_path);
+						if (null != project_file_path) { // project may be unsaved
+							File fxml = new File(project_file_path);
 							String parent_dir = fxml.getParent().replace('\\', '/');
 							if (!parent_dir.endsWith("/")) parent_dir += "/";
 							if (0 == path.indexOf((String)ht_paths.get(p))) {
@@ -690,7 +691,7 @@ public class FSLoader extends Loader {
 		}
 		if (((!IJ.isWindows() && 0 != path.indexOf('/')) || (IJ.isWindows() && 1 != path.indexOf(":/"))) && 0 != path.indexOf("http://") && 0 != path.indexOf("//")) { // "//" is for Samba networks (since the \\ has been converted to // before)
 			// path is relative
-			File fxml = new File(project_xml_path);
+			File fxml = new File(project_file_path);
 			String parent_dir = fxml.getParent().replace('\\', '/');
 			path = parent_dir + "/" + path;
 			if (!new File(path).exists()) {
@@ -736,13 +737,13 @@ public class FSLoader extends Loader {
 		if (null == ob) {
 			// means, the image has no related source file
 			if (null == path) {
-				if (null == project_xml_path) {
-					this.project_xml_path = save(patch.getProject());
-					if (null == project_xml_path) {
+				if (null == project_file_path) {
+					this.project_file_path = save(patch.getProject());
+					if (null == project_file_path) {
 						return null;
 					}
 				}
-				path = makePatchesDir(new File(project_xml_path)) + "/" + patch.getTitle().replace(' ', '_');
+				path = makePatchesDir(new File(project_file_path)) + "/" + patch.getTitle().replace(' ', '_');
 			}
 			path = super.exportImage(patch, path, overwrite);
 			// record
@@ -758,16 +759,16 @@ public class FSLoader extends Loader {
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
 	public String save(Project project) {
-		if (null == project_xml_path) {
+		if (null == project_file_path) {
 			String xml_path = super.saveAs(project);
 			if (null == xml_path) return null;
 			else {
-				this.project_xml_path = xml_path;
+				this.project_file_path = xml_path;
 				ControlWindow.updateTitle(project);
-				return this.project_xml_path;
+				return this.project_file_path;
 			}
 		} else {
-			File fxml = new File(project_xml_path);
+			File fxml = new File(project_file_path);
 			return super.export(project, fxml, false);
 		}
 	}
@@ -776,7 +777,7 @@ public class FSLoader extends Loader {
 		String path = super.saveAs(project);
 		if (null != path) {
 			// update the xml path to point to the new one
-			this.project_xml_path = path;
+			this.project_file_path = path;
 			Utils.log2("After saveAs, new xml path is: " + path);
 		}
 		ControlWindow.updateTitle(project);
@@ -789,11 +790,11 @@ public class FSLoader extends Loader {
 		if (null == ob) return null;
 		return (String)ob;
 	}
-	/** Takes the given path and tries to makes it relative to this instance's project_xml_path, if possible. Otherwise returns the argument as is. */
+	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
 	private String makeRelativePath(String path) {
-		if (null == project_xml_path) {
+		if (null == project_file_path) {
 			//unsaved project//
-			//Utils.log2("WARNING: null project_xml_path at makeRelativePath");
+			//Utils.log2("WARNING: null project_file_path at makeRelativePath");
 			return path;
 		}
 		if (null == path) {
@@ -816,7 +817,7 @@ public class FSLoader extends Loader {
 			return path; // already relative
 		}
 		// the long and verbose way, to be cross-platform
-		File xf = new File(project_xml_path);
+		File xf = new File(project_file_path);
 		if (new File(path).getParentFile().equals(xf.getParentFile())) {
 			path = path.substring(xf.getParent().length());
 			// remove prepended file separator, if any, to label the path as relative
@@ -947,7 +948,7 @@ public class FSLoader extends Loader {
 		}
 		if (null == this.dir_storage) {
 			// select the directory where the xml file lives.
-			File fdir = new File(this.project_xml_path);
+			File fdir = new File(this.project_file_path);
 			this.dir_storage = fdir.getParent().replace('\\', '/');
 			if (null == this.dir_storage && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Asking user for a storage folder."); // tip for headless runners whose program gets "stuck"
@@ -1241,8 +1242,8 @@ public class FSLoader extends Loader {
 					return true;
 				}
 				// else can't use it
-			} else if (null != project_xml_path) {
-				File fxml = new File(project_xml_path);
+			} else if (null != project_file_path) {
+				File fxml = new File(project_file_path);
 				File fparent = fxml.getParentFile();
 				if (null != fparent && fparent.isDirectory()) {
 					File f = new File(fparent.getAbsolutePath().replace('\\', '/') + "/" + fxml.getName() + ".mipmaps");
@@ -1506,8 +1507,8 @@ public class FSLoader extends Loader {
 	}
 
 	public String makeProjectName() {
-		if (null == project_xml_path || 0 == project_xml_path.length()) return super.makeProjectName();
-		final String name = new File(project_xml_path).getName();
+		if (null == project_file_path || 0 == project_file_path.length()) return super.makeProjectName();
+		final String name = new File(project_file_path).getName();
 		final int i_dot = name.lastIndexOf('.');
 		if (-1 == i_dot) return name;
 		if (0 == i_dot) return super.makeProjectName();

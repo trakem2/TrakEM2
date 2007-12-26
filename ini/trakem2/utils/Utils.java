@@ -697,6 +697,24 @@ public class Utils implements ij.plugin.PlugIn {
 		return sal;
 	}
 
+	static public final char[] openTextFileChars(final String path) {
+		File f = null;
+		if (null == path || !(f = new File(path)).exists()) {
+			Utils.log("File not found: " + path);
+			return null;
+		}
+		final char[] src = new char[(int)f.length()]; // assumes file is small enough to fit in integer range!
+		try {
+			BufferedReader r = new BufferedReader(new FileReader(path));
+			r.read(src, 0, src.length);
+			r.close();
+		} catch (Exception e) {
+			new IJError(e);
+			return null;
+		}
+		return src;
+	}
+
 	/** The cosinus between two vectors (in polar coordinates), by means of the dot product. */
 	static public final double getCos(final double x1, final double y1, final double x2, final double y2) {
 		return (x1 * x2 + y1 * y2) / (Math.sqrt(x1*x1 + y1*y1) * Math.sqrt(x2*x2 + y2*y2));

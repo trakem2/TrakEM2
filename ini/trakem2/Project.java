@@ -325,11 +325,11 @@ public class Project extends DBObject {
 	static public Project openFSProject(final String path) {
 		if (Utils.wrongImageJVersion()) return null;
 		final FSLoader loader = new FSLoader();
-		final Object[] data = loader.openXMLProject(path);
+		final Object[] data = loader.openFSProject(path);
 		if (null == data) {
 			return null;
 		}
-		Macro.setOptions("xml_path=" + loader.getProjectXMLPath()); // TODO gets overwritten by the file dialog, but still, the value is the same. Only the key is different.
+		//Macro.setOptions("xml_path=" + loader.getProjectXMLPath()); // TODO gets overwritten by the file dialog, but still, the value is the same. Only the key is different.
 		final TemplateThing root_tt = (TemplateThing)data[0];
 		final ProjectThing root_pt = (ProjectThing)data[1];
 		final LayerThing root_lt = (LayerThing)data[2];
