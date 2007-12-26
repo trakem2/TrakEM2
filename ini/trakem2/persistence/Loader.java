@@ -163,10 +163,10 @@ abstract public class Loader {
 
 
 	// What I need is not provided: a LinkedHashMap with a method to do 'removeFirst' or remove(0) !!! To call my_map.entrySet().iterator() to delete the the first element of a LinkedHashMap is just too much calling for an operation that has to be blazing fast. So I create a double list setup with arrays. The variables are not static because each loader could be connected to a different database, and each database has its own set of unique ids. Memory from other loaders is free by the releaseOthers(double) method.
-	protected FIFOImagePlusMap imps = new FIFOImagePlusMap(50);
-	protected FIFOImageMipMaps mawts = new FIFOImageMipMaps(50);
+	transient protected FIFOImagePlusMap imps = new FIFOImagePlusMap(50);
+	transient protected FIFOImageMipMaps mawts = new FIFOImageMipMaps(50);
 
-	static protected Vector v_loaders = null; // Vector: synchronized
+	static transient protected Vector v_loaders = null; // Vector: synchronized
 
 	protected Loader() {
 		// register
@@ -3837,7 +3837,7 @@ abstract public class Loader {
 				if (-1 == type) type = imp.getType();
 				releaseToFit(imp.getWidth() * imp.getHeight() * (ImagePlus.COLOR_RGB == type ? 4 : 1));
 				ImageStatistics i_st = imp.getStatistics();
-				// order by stdDev, from small to big
+				// insert ordered by stdDev, from small to big
 				int q = 0;
 				for (Iterator it = al_st.iterator(); it.hasNext(); ) {
 					ImageStatistics st = (ImageStatistics)it.next();
@@ -3856,15 +3856,17 @@ abstract public class Loader {
 			// 2 - discard the first and last 25% (TODO: a proper histogram clustering analysis and histogram examination should apply here)
 			if (pa.length > 3) { // under 4 images, use them all
 				int i=0;
-				while (i <= pa.length * 0.25) {
+				final int quarter = pa.length / 4;
+				while (i < quarter) {
 					al_p.remove(i);
 					i++;
 				}
-				int count = i;
-				i = pa.length -1 -count;
-				while (i > (pa.length* 0.75) - count) {
-					al_p.remove(i);
-					i--;
+				i = 0;
+				int last = al_p.size() -1;
+				while (i < quarter) {       // I know that it can be done better, but this is CLEAR
+					al_p.remove(last); // why doesn't ArrayList have a removeLast() method ?? And why is removeRange() 'protected' ??
+					last--;
+					i++;
 				}
 			}
 			// 3 - compute common histogram for the middle 50% images
@@ -3918,16 +3920,22 @@ abstract public class Loader {
 				}
 			}
 			// 5 - compute common mean within min,max range
-			double target_mean = getMeanOfRange(stats, min, max);
+			final double target_mean = getMeanOfRange(stats, min, max);
 			//Utils.log2("Loader min,max: " + min + ", " + max + ",   target mean: " + target_mean + "\nApplying to " + al_p2.size() + " images.");
 			// 6 - apply to all
 			for (i=al_p2.size()-1; i>-1; i--) {
 				Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
 				double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
 				p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-				ImagePlus imp = imps.get(p.getId());
-				if (null != imp) p.putMinAndMax(imp);
-				// else, it will be put when reloading the file
+				synchronized (db_lock) {
+					lock();
+					try {
+						ImagePlus imp = imps.get(p.getId());
+						if (null != imp) p.putMinAndMax(imp);
+						// else, it will be put when reloading the file
+					} catch (Exception e) { new IJError(e); }
+					unlock();
+				}
 			}
 			// 7 - recreate mipmap files
 			if (isMipMapsEnabled()) {
