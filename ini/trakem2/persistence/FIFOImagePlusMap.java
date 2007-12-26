@@ -24,6 +24,7 @@ package ini.trakem2.persistence;
 
 
 import ij.ImagePlus;
+import java.util.ArrayList;
 
 public class FIFOImagePlusMap {
 
@@ -34,6 +35,10 @@ public class FIFOImagePlusMap {
 	private final int inc = 50;
 
 	public FIFOImagePlusMap(int initial_size) {
+		reset(initial_size);
+	}
+
+	private final void reset(int initial_size) {
 		if (initial_size < 0) initial_size = inc;
 		this.images = new ImagePlus[initial_size];
 		this.ids = new long[initial_size];
@@ -150,6 +155,16 @@ public class FIFOImagePlusMap {
 			i++;
 		}
 		return im;
+	}
+
+	/** Removes and returns all images, and shrinks arrays. */
+	public ArrayList<ImagePlus> removeAll() {
+		final ArrayList<ImagePlus> al = new ArrayList<ImagePlus>();
+		for (int i=start; i<next; i++) {
+			al.add(images[i]);
+		}
+		reset(0);
+		return al;
 	}
 
 	/** Remove the given index and return it, returns null if outside range. The underlying arrays are untouched besides nullifying the proper pointer if the given 'i' is the first element of the arrays. */

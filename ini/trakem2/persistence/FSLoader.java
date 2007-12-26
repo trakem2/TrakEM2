@@ -657,7 +657,7 @@ public class FSLoader extends Loader {
 				Patch p = (Patch)ob;
 				removeMipMaps(p);
 				ht_paths.remove(ob); // after removeMipMaps !
-				mawts.remove(loid);
+				mawts.removeAndFlush(loid);
 				ImagePlus imp = imps.remove(loid);
 				if (null != imp) {
 					if (imp.getStackSize() > 1) { // avoid calling gc() if unnecessary

@@ -225,7 +225,7 @@ abstract public class Loader {
 			return; // no need to do anything else
 		}
 		Utils.showStatus("Releasing all memory ...");
-		releaseAll();
+		destroyCache();
 		if (null != v_loaders) {
 			v_loaders.remove(this); // sync issues when deleting two loaders consecutively
 			if (0 == v_loaders.size()) v_loaders = null;
@@ -664,7 +664,6 @@ abstract public class Loader {
 					// release others regardless of the 'release_others' boolean
 					released += releaseOthers(0.5D);
 					// reset
-					//if (enoughFreeMemory(min_free_bytes)) return released;
 					if (released >= min_free_bytes) return released;
 					// remove half of the imps
 					if (0 != imps.size()) {
@@ -673,9 +672,7 @@ abstract public class Loader {
 							released += measureSize(imp);
 							flush(imp);
 						}
-						//System.gc();
 						Thread.yield();
-						//if (enoughFreeMemory(min_free_bytes)) return;
 						if (released >= min_free_bytes) return released;
 					}
 					// finally, release snapshots
@@ -687,13 +684,10 @@ abstract public class Loader {
 							if (null != mawt) mawt.flush();
 						}
 						if (released >= min_free_bytes) return released;
-						//runGC();
-						//if (enoughFreeMemory(min_free_bytes)) return;
 					}
 				} else {
 					if (release_others) {
 						released += releaseOthers(a);
-						//if (enoughFreeMemory(min_free_bytes)) return released;
 						if (released >= min_free_bytes) return released;
 					}
 					if (0 == imps.size()) {
@@ -704,9 +698,7 @@ abstract public class Loader {
 								released += measureSize(im);
 								if (null != im) im.flush();
 							}
-							//if (enoughFreeMemory(min_free_bytes)) return;
 							if (released >= min_free_bytes) return released;
-							//runGC();
 						}
 					}
 					// finally:
@@ -727,12 +719,6 @@ abstract public class Loader {
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
 					Utils.log("Loader.releaseMemory: empty cache.");
-					/*
-					if (massive_mode) {
-						//Utils.log("Loader.releaseMemory: last desperate attempt.");
-						//runGC();
-					}
-					*/
 					// in any case, can't release more:
 					return released;
 				}
@@ -760,7 +746,23 @@ abstract public class Loader {
 		return released;
 	}
 
-	private void releaseAll() {
+	/** Empties the caches. */
+	public void releaseAll() {
+		synchronized (db_lock) {
+			lock();
+			try {
+				for (ImagePlus imp : imps.removeAll()) {
+					flush(imp);
+				}
+				mawts.removeAndFlushAll();
+			} catch (Exception e) {
+				new IJError(e);
+			}
+			unlock();
+		}
+	}
+
+	private void destroyCache() {
 		synchronized (db_lock) {
 			lock();
 			// second catch, this time locked:
@@ -770,20 +772,14 @@ abstract public class Loader {
 			}
 			try {
 				if (null != imps) {
-					for (int i=imps.size()-1; i>-1; i--) {
-						ImagePlus imp = imps.remove(i);
+					for (ImagePlus imp : imps.removeAll()) {
 						flush(imp);
 					}
 					imps = null;
 				}
 				if (null != mawts) {
-					for (int i=mawts.size()-1; i>-1; i--) {
-						Image mawt = mawts.remove(i);
-						if (null != mawt) mawt.flush();
-					}
-					mawts = null;
+					mawts.removeAndFlushAll();
 				}
-				//System.gc();
 			} catch (Exception e) {
 				unlock();
 				new IJError(e);
@@ -3343,7 +3339,7 @@ abstract public class Loader {
 			Utils.log2("decaching " + ids.length);
 			if (null == ids) return;
 			for (int i=0; i<ids.length; i++) {
-				mawts.remove(ids[i]);
+				mawts.removeAndFlush(ids[i]);
 			}
 			unlock();
 		}
@@ -4013,7 +4009,7 @@ abstract public class Loader {
 	 * A null pointer as argument is accepted. */
 	static public final void flush(final ImagePlus imp) {
 		if (null == imp) return;
-		final Roi roi = imp.getRoi(); 
+		final Roi roi = imp.getRoi();
 		if (null != roi) roi.setImage(null);
 		//final ImageProcessor ip = imp.getProcessor(); // the nullifying makes no difference, and in low memory situations some bona fide imagepluses may end up failing on the calling method because of lack of time to grab the processor etc.
 		//if (null != ip) ip.setPixels(null);

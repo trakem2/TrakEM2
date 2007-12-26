@@ -38,6 +38,10 @@ public class FIFOImageMipMaps {
 	private final int inc = 50;
 
 	public FIFOImageMipMaps(int initial_size) {
+		reset(initial_size);
+	}
+
+	private final void reset(int initial_size) {
 		if (initial_size < 0) initial_size = inc;
 		this.images = new Image[initial_size];
 		this.ids = new long[initial_size];
@@ -255,6 +259,14 @@ public class FIFOImageMipMaps {
 			i++;
 		}
 		return im;
+	}
+
+	/** Removes and flushes all images, and shrinks arrays. */
+	public void removeAndFlushAll() {
+		for (int i=start; i<next; i++) {
+			images[i].flush();
+		}
+		reset(0);
 	}
 
 	/** Remove all awts associated with a level different than 0 (that means all scaled down versions) for any id. */
