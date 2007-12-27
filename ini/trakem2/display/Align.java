@@ -29,13 +29,16 @@ import ini.trakem2.imaging.Registration;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.tree.Thing;
+import java.awt.geom.AffineTransform;
 import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Point;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -53,7 +56,7 @@ public class Align {
 		this.display = display;
 	}
 
-	/** Accepts offscreen coordinates. */
+	/** Accepts offscreen coordinates only. */
 	public void mousePressed(Layer layer, MouseEvent me, int x_p, int y_p) {
 		// check preconditions
 		if (null == layer || x_p < 0 || y_p < 0 || x_p > layer.getLayerWidth() || y_p > layer.getLayerHeight()) return;
@@ -118,6 +121,7 @@ public class Align {
 		/** Draws a point with it's ordinal number next to it. */
 		void paint(Graphics g, Rectangle srcRect, double mag, Color color) {
 			int i = 1;
+			Utils.log2("graphics transform: " + ((Graphics2D)g).getTransform());
 			g.setFont(new Font("SansSerif", Font.BOLD, 14));
 			for (Iterator it = landmarks.iterator(); it.hasNext(); ) {
 				Point p = (Point)it.next();
@@ -173,7 +177,6 @@ public class Align {
 			Utils.showMessage("Please add an equal number of landmark points!\nThere are:\n\t" + l1.size() + " landmarks in layer " + l1.layer + "\n\t" + l2.size() + " landmarks in layer " + l2.layer);
 			return;
 		}
-		// go!
 
 		// select objects under landmarks and their linked ones
 		HashSet hs1 = l1.getDisplayables();
@@ -216,69 +219,65 @@ public class Align {
 			display.getLayer().getParent().cancelAlign(); // [convoluted way of] repainting and destroying itself after being applied
 			return;
 		}
-		// setup an undo
-		Hashtable ht = new Hashtable();
-		/*for (Iterator it = hs1.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			ht.put(d, d.getTransform());
-		}*/ // only second layer will be affected
+
+		// preconditions OK
+
+		// setup an undo for the second layer
+		final Hashtable ht = new Hashtable();
 		for (Iterator it = hs2.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			ht.put(d, d.getAffineTransformCopy());
 		}
 		l1.layer.getParent().addUndoStep(ht);
+
 		ArrayList base_points = new ArrayList();
 		ArrayList target_points = new ArrayList();
 		for (int i=l1.size()-1; i>-1; i--) {
 			base_points.add(l1.get(i));
 			target_points.add(l2.get(i));
 		}
-		double[] data = crunchLandmarks(base_points, target_points);
+
+		final double[] data = crunchLandmarks(base_points, target_points);
 		double dx = data[0];
 		double dy = data[1];
 		double angle = data[2];
 		double xo = data[3];
 		double yo = data[4];
-		// transforming those of the second layer only
-		boolean translate = true;
-		boolean rotate = true;
-		if (0 == angle) {
-			for (Iterator it = hs2.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				d.translate(dx, dy, false);
+
+		// create an AffineTransform out of it
+
+		final AffineTransform at = new AffineTransform();
+		at.translate(dx, dy);
+		at.rotate(angle, xo, yo);
+
+		// apply to all in the affected linked group of the second layer
+		for (Iterator it = hs2.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			d.getAffineTransform().concatenate(at);
+		}
+
+		// propagate to all layers after the second one
+		LayerSet ls = l1.layer.getParent();
+		int index1 = ls.indexOf(l1.layer); // the base layer
+		int index2 = ls.indexOf(l2.layer); // the one being registered
+		List list = null;
+		if (index1 < index2) {
+			// propagate towards the end
+			if (index2 < ls.size() -1) {
+				list = ls.getLayers().subList(index2+1, ls.size()); // end is exclusive
 			}
 		} else {
-			for (Iterator it = hs2.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				if (translate) {
-					d.translate(dx, dy, false);
-				}
-				/*
-				if (scale) {
-					//
-				}
-				*/
-				if (rotate) {
-					d.rotate(angle, xo, yo, false);
-				}
+			// propagate towards the beginning
+			if (index1 > 0) {
+				list = ls.getLayers().subList(0, index1); // end is exclusive
 			}
 		}
-		ini.trakem2.Project p = l1.layer.getProject();
-		String log = "Aligned target=[" + p.findLayerThing(l2.layer).getTitle() + " z=" + l2.layer.getZ() + "] to base=[" + p.findLayerThing(l1.layer).getTitle() + " z=" + l1.layer.getZ() + "] with angle=" + angle + " xo=" + xo + " yo=" + yo + " dx=" + dx + " dy=" + dy;
-		Utils.log(log);
-		ij.IJ.write(log);
-
-		// Stephan Preibisch's Cepstrum implementation for image registration
-		if (post_register && l1.layer.contains(Patch.class) && l2.layer.contains(Patch.class)) {
-			final LayerSet ls = display.getLayer().getParent();
-			final double max_rot = ls.getRegistrationProperty("rg_max_rot").doubleValue();
-			final double max_displacement = ls.getRegistrationProperty("rg_max_displacement").doubleValue();
-			final double scale = ls.getRegistrationProperty("rg_scale").doubleValue();
-			final boolean ignore_squared_angles = (ls.getRegistrationProperty("rg_ignore_squared_angles").equals(new Double(1)));
-			final boolean enhance_edges = (ls.getRegistrationProperty("rg_enhance_edges").equals(new Double(1)));
-			//TODO this entire method needs revision // Registration.registerLayers(l1.layer, l2.layer, max_rot, max_displacement, scale, ignore_squared_angles, enhance_edges);
-			Utils.log2("Align: under reconstruction.");
+		for (Iterator it = list.iterator(); it.hasNext(); ) {
+			Layer layer = (Layer)it.next();
+			layer.apply(Displayable.class, at);
+			Display.repaint(layer);
 		}
+		// what about ZDisplayable ? Will not be affected if they are not linking Displayable objects present in the two layers involved. TODO
 
 		// end
 		Display.updateSelection();
@@ -287,6 +286,10 @@ public class Align {
 
 	/** Returns dx, dy, rot, xo, yo from the two sets of points, where xo,yo is the center of rotation */
 	public double[] crunchLandmarks(final ArrayList base, final ArrayList target) {
+		if (target.size() > base.size()) {
+			Utils.log2("Expecting at least as many base landmarks as target ones.");
+			return null;
+		}
 		if (1 == base.size()) {
 			// if one point per layer, just translate the second to the first
 			Point p1 = (Point)base.get(0);

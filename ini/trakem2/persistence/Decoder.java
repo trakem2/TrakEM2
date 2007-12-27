@@ -6,7 +6,13 @@ import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.Utils;
 import java.awt.geom.AffineTransform;
 
-/** An admitedly naive decoder for the t2 lispy format, aiming at avoiding String instantiations. */
+/** An admitedly naive decoder for the t2 lispy format, aiming at avoiding String instantiations.
+ *
+ * "Any sufficiently complicated C or Fortran program contains an ad hoc, informally-specified, bug-ridden, slow implementation of half of Common Lisp."
+ *
+ * Getting there, no worries Mr. Greenspun.
+ *
+ */
 public class Decoder {
 
 	/** Wether @param c is space, tab or line break. */

@@ -2736,8 +2736,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Registration.registerLayers(layer, Registration.LAYER_SIFT);
 		} else if (command.equals("Align layers (tile-wise global minimization)")) {
 			Registration.registerLayers(layer, Registration.GLOBAL_MINIMIZATION);
-		} else if (command.equals("Adjust registration properties...")) {
-			layer.getParent().adjustRegistrationProperties();
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
 			GenericDialog gd = new GenericDialog("Properties", this.frame);
 			//gd.addNumericField("layer_scroll_step: ", this.scroll_step, 0);

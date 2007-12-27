@@ -112,9 +112,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
 	private Align align = null;
 
-	/** The properties of the registration, including max_rot and max_displacement.*/
-	private Hashtable ht_regis_props = null;
-
 	/** The scaling applied to the Layers when painting them for presentation as a LayerStack. If -1, automatic mode (default) */
 	private double virtual_scale = -1;
 	/** The maximum size of either width or height when virtuzaling pixel access to the layers.*/
@@ -1237,48 +1234,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		for (int i=start; i<i_layer; i++) al.add(al_layers.get(i));
 		for (int i=i_layer+1; i<= i_layer + n || i < end; i++) al.add(al_layers.get(i));
 		return al;
-	}
-
-	/** May return null if the property does not exist, and fires up a dialog for adjustRegistrationProperties() if no properties are set at all. */
-	public Double getRegistrationProperty(final String prop) {
-		if (null == this.ht_regis_props) {
-			adjustRegistrationProperties();
-		}
-		Object ob = ht_regis_props.get(prop);
-		if (ob instanceof Double) return (Double)ob;
-		return null;
-	}
-
-	public void adjustRegistrationProperties() {
-		if (null == ht_regis_props) ht_regis_props = new Hashtable();
-		double max_rot = (null == ht_regis_props.get("rg_max_rot") ? 30 : ((Double)ht_regis_props.get("rg_max_rot")).doubleValue());
-		double max_displacement = (null == ht_regis_props.get("rg_max_displacement") ? -1 : ((Double)ht_regis_props.get("rg_max_displacement")).doubleValue());
-		double scale = (null == ht_regis_props.get("rg_scale") ? 0.25 : ((Double)ht_regis_props.get("rg_scale")).doubleValue());
-		boolean ignore_square_angles = (null == ht_regis_props.get("rg_ignore_squared_angles") ? false : 0 != ((Double)ht_regis_props.get("rg_ignore_squared_angles")).doubleValue());
-		boolean enhance_edges = (null == ht_regis_props.get("rg_enhance_edges") ? false : 0 != ((Double)ht_regis_props.get("rg_enhance_edges")).doubleValue());
-		final GenericDialog gd = new GenericDialog("Registration");
-		gd.addSlider("Maximum rotation: ", 0, 180, max_rot);
-		gd.addNumericField("Maximum displacement: ", max_displacement, 2);
-		gd.addMessage("[-1 means unlimited]");
-		gd.addNumericField("Scale: ", scale, 2);
-		gd.addCheckbox("Ignore angles 0, 90, 180", ignore_square_angles);
-		gd.addCheckbox("Enhance edges", enhance_edges);
-		gd.showDialog();
-		if (gd.wasCanceled()) return;
-		max_rot = ((java.awt.Scrollbar)gd.getSliders().get(0)).getValue();
-		ht_regis_props.put("rg_max_rot", new Double(max_rot));
-		max_displacement = gd.getNextNumber();
-		if (max_displacement < -1) {
-			Utils.showMessage("Invalid maximum displacement valid: must be between -1 (meaning unlimited) and any positive number");
-			adjustRegistrationProperties();
-			return;
-		}
-		ht_regis_props.put("rg_max_displacement", new Double(max_displacement));
-		scale = gd.getNextNumber();
-		if (scale < 0)  {
-		} else if (scale > 1) scale = 1;
-		ht_regis_props.put("rg_scale", new Double(scale));
-		ht_regis_props.put("rg_ignore_squared_angles", gd.getNextBoolean() ? new Double(1) : new Double(0));
 	}
 
 	synchronized public boolean isTop(ZDisplayable zd) {
