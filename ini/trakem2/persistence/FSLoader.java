@@ -559,7 +559,7 @@ public class FSLoader extends Loader {
 
 	public boolean updateInDatabase(DBObject ob, String key) {
 		setChanged(true);
-		if (ob instanceof Patch) {
+		if (ob.getClass().equals(Patch.class)) {
 			try {
 				Patch p = (Patch)ob;
 				if (key.equals("tiff_working")) {
@@ -660,10 +660,10 @@ public class FSLoader extends Loader {
 				mawts.removeAndFlush(loid);
 				ImagePlus imp = imps.remove(loid);
 				if (null != imp) {
-					if (imp.getStackSize() > 1) { // avoid calling gc() if unnecessary
+					if (imp.getStackSize() > 1) {
 						if (null == imp.getProcessor()) {}
 						else if (null == imp.getProcessor().getPixels()) {}
-						else Loader.flush(imp);
+						else Loader.flush(imp); // only once
 					} else {
 						Loader.flush(imp);
 					}

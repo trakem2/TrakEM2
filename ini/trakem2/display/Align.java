@@ -247,16 +247,17 @@ public class Align {
 		// create an AffineTransform out of it
 
 		final AffineTransform at = new AffineTransform();
-		at.translate(dx, dy);
 		at.rotate(angle, xo, yo);
+		at.translate(dx, dy); // inverse order than it should, since we are preconcatenating
 
 		// apply to all in the affected linked group of the second layer
 		for (Iterator it = hs2.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			d.getAffineTransform().concatenate(at);
+			d.getAffineTransform().preConcatenate(at);
 		}
 
 		// propagate to all layers after the second one
+		// 	TODO this may easily be in conflict with ZDisplayable and also with links across layers
 		LayerSet ls = l1.layer.getParent();
 		int index1 = ls.indexOf(l1.layer); // the base layer
 		int index2 = ls.indexOf(l2.layer); // the one being registered
@@ -330,11 +331,10 @@ public class Align {
 				y1 = p1.y - yo1; // x2
 				x2 = p2.x - xo2 + dx; // y1
 				y2 = p2.y - yo2 + dy; // y2
-				sum1 += x1 * y2 - y1 * x2; //   x1 * y2 - x2 * y1 // assuming p1 is x1,x2, and p2 is y1,y2
+				sum1 += x1 * y2 - y1 * x2; //   x1 * y2 - x2 * y1 // assuming p1 is x1,x2, and p2 is y1,y2  (since Johannes represented points as vectors, in columns)
 				sum2 += x1 * x2 + y1 * y2; //   x1 * y1 + x2 * y2
 			}
 			double angle = Math.atan2(-sum1,sum2);
-			angle = Math.toDegrees(angle);
 			return new double[]{dx, dy, angle, xo1, yo1};
 		}
 	}
