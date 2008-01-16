@@ -1456,4 +1456,21 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 		return all;
 	}
+
+	/** Returns the region defined by the rectangle as an image in the type and format specified.
+	 *  The type is either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB.
+	 *  The format is either Layer.IMAGEPROCESSOR, Layer.PIXELARRAY or Layer.BUFFEREDIMAGE.
+	 */
+	public Object grab(final Rectangle r, final double scale, final int type, final int format) {
+		Utils.log2("LayerSet.grab not implemented yet");
+		switch (format) {
+			case Layer.IMAGEPROCESSOR:
+				break;
+			case Layer.PIXELARRAY:
+				break;
+			case Layer.BUFFEREDIMAGE:
+				break;
+		}
+		return null;
+	}
 }

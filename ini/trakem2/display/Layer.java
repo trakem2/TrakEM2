@@ -650,4 +650,25 @@ public class Layer extends DBObject {
 		clone.apply(Displayable.class, transform);
 		return clone;
 	}
+
+	static public final int IMAGEPROCESSOR = 0;
+	static public final int PIXELS = 1;
+	static public final int BUFFEREDIMAGE = 2;
+
+	/** Returns the region defined by the rectangle as an image in the type and format specified.
+	 *  The type is either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB.
+	 *  The format is either Layer.IMAGEPROCESSOR, Layer.PIXELARRAY or Layer.BUFFEREDIMAGE.
+	 */
+	public Object grab(final Rectangle r, final double scale, final int type, final int format) {
+		Utils.log2("Layer.grab not implemented yet");
+		switch (format) {
+			case IMAGEPROCESSOR:
+				break;
+			case PIXELARRAY:
+				break;
+			case BUFFEREDIMAGE:
+				break;
+		}
+		return null;
+	}
 }
