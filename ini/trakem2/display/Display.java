@@ -2009,6 +2009,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 		popup.addSeparator();
 		item = new JMenuItem("Homogenize contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Set Min and Max..."); item.addActionListener(this); adjust_menu.add(item);
 		popup.add(adjust_menu);
 		popup.addSeparator();
 
@@ -2833,6 +2834,54 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Layer[] la = new Layer[list.size()];
 			list.toArray(la);
 			project.getLoader().homogenizeContrast(la);
+		} else if (command.equals("Set Min and Max...")) {
+			final GenericDialog gd = new GenericDialog("Choices");
+			gd.addMessage("Either process all images of all layers\nwithin the selected range,\nor check the box for using selected images only.");
+			Utils.addLayerRangeChoices(this.layer, gd);
+			gd.addCheckbox("use_selected_images_only", false);
+			gd.addMessage("-------");
+			gd.addNumericField("min: ", 0, 2);
+			gd.addNumericField("max: ", 255, 2);
+			gd.addCheckbox("drift_mean", true);
+			gd.addMessage("Or let each image find its optimal:");
+			gd.addCheckbox("independent", false);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			boolean use_selected_images = gd.getNextBoolean();
+			double min = gd.getNextNumber();
+			double max = gd.getNextNumber();
+			if (Double.isNaN(min) || Double.isNaN(max) || min < 0 || max < min) {
+				Utils.showMessage("Improper min and max values.");
+				return;
+			}
+			boolean drift_hist_peak = gd.getNextBoolean();
+			boolean independent = gd.getNextBoolean();
+			Utils.log2("Di Using: " + min + ", " + max + ", " + drift_hist_peak + " use_selected_images: " + use_selected_images);
+			if (use_selected_images) {
+				ArrayList al_images = selection.getSelected(Patch.class);
+				if (al_images.size() < 1) {
+					Utils.log2("You need at least 2 images selected.");
+					return;
+				}
+				if (independent) {
+					project.getLoader().optimizeContrast(al_images);
+				} else {
+					project.getLoader().homogenizeContrast(al_images, min, max, drift_hist_peak);
+				}
+			} else {
+				java.util.List list = list = layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1); // exclusive end
+				Layer[] la = new Layer[list.size()];
+				list.toArray(la);
+				if (independent) {
+					ArrayList al_images = new ArrayList();
+					for (int i=0; i<la.length; i++) {
+						al_images.addAll(la[i].getDisplayables(Patch.class));
+					}
+					project.getLoader().optimizeContrast(al_images);
+				} else {
+					project.getLoader().homogenizeContrast(la, min, max, drift_hist_peak);
+				}
+			}
 		} else if (command.equals("Create subproject")) {
 			Roi roi = canvas.getFakeImagePlus().getRoi();
 			if (null == roi) return;

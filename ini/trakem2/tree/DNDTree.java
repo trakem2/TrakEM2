@@ -348,7 +348,6 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 				try {
 					tree.updateUI();
 				} catch (Exception e) {
-					//Utils.log2("updateUI failed at " + Utils.faultyLine(e));
 					new ini.trakem2.utils.IJError(e);
 				}
 			}

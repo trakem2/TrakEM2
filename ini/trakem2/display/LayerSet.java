@@ -25,6 +25,8 @@ package ini.trakem2.display;
 
 import ij.gui.GenericDialog;
 import ij.measure.Calibration;
+import ij.ImagePlus;
+import ij.ImageStack;
 
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
@@ -41,6 +43,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
@@ -1430,15 +1433,16 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		// TODO this is obsolete
 	}
 
-	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c. */
+	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c. Includes the ZDisplayables. */
 	public ArrayList get(final Class c) {
 		return get(new ArrayList(), c);
 	}
 
-	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c, which are stored in the given ArrayList; returns the same ArrayList, or a new one if its null. */
+	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c, which are stored in the given ArrayList; returns the same ArrayList, or a new one if its null. Includes the ZDisplayables. */
 	synchronized public ArrayList get(ArrayList all, final Class c) {
 		if (null == all) all = new ArrayList();
-		if (Displayable.class.equals(c)) all.addAll(al_zdispl);
+		// check whether to include all the ZDisplayable objects
+		if (Displayable.class.equals(c) || ZDisplayable.class.equals(c)) all.addAll(al_zdispl);
 		else {
 			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ){
 				Object ob = it.next();
@@ -1459,17 +1463,23 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	/** Returns the region defined by the rectangle as an image in the type and format specified.
 	 *  The type is either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB.
-	 *  The format is either Layer.IMAGEPROCESSOR, Layer.PIXELARRAY or Layer.BUFFEREDIMAGE.
+	 *  The format is either Layer.IMAGE (an array) or Layer.ImagePlus (it returns an ImagePlus containing an ImageStack), from which any ImageProcessor or pixel arrays can be retrieved trivially.
 	 */
-	public Object grab(final Rectangle r, final double scale, final int type, final int format) {
+	public Object grab(final int first, final int last, final Rectangle r, final double scale, final Class c, final int format, final int type) {
 		Utils.log2("LayerSet.grab not implemented yet");
-		switch (format) {
-			case Layer.IMAGEPROCESSOR:
-				break;
-			case Layer.PIXELARRAY:
-				break;
-			case Layer.BUFFEREDIMAGE:
-				break;
+		if (Layer.IMAGEPLUS == format) {
+			final ImageStack stack = new ImageStack(r.width, r.height);
+			for (int i=first; i<=last; i++) {
+				final ImagePlus imp = project.getLoader().getFlatImage((Layer)al_layers.get(i), r, scale, 1, type, c, null, true);
+				stack.addSlice(imp.getTitle(), imp.getProcessor());
+			}
+			return new ImagePlus("Stack " + first + "-" + last, stack);
+		} else if (Layer.IMAGE == format) {
+			final Image[] image = new Image[last - first + 1];
+			for (int i=first, j=0; i<=last; i++, j++) {
+				image[j] = project.getLoader().getFlatAWTImage((Layer)al_layers.get(i), r, scale, 1, type, c, null, true);
+			}
+			return image;
 		}
 		return null;
 	}

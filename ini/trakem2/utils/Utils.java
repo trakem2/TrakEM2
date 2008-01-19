@@ -179,14 +179,6 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
-	static public String faultyLine(Exception e) {
-		StackTraceElement[] elems = new Exception().getStackTrace();
-		if (elems.length > 2) {
-			return elems[2].getClassName() + "." + elems[2].getMethodName() + " - " + elems[2].getFileName() + ":" + elems[2].getLineNumber();
-		}
-		return "[unknown: stack too short]";
-	}
-
 	/** Fix ImageJ's MenuBar to disactivate all non-desired commands.*/
 	/*
 	static public void fixMenuBar() {

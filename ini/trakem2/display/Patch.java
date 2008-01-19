@@ -531,7 +531,7 @@ public class Patch extends Displayable {
 			//Utils.log2("p id=" + id + "  path2: " + path2);
 			// path2 will be null if the file exists already
 		}
-		sb_body.append(indent).append("<t2_patch \n");
+		sb_body.append(indent).append("<t2_patch\n");
 		String rel_path = null;
 		if (null != path && path.equals(path2)) { // this happens when a DB project is exported. It may be a different path when it's a FS loader
 			//Utils.log2("p id=" + id + "  path==path2");

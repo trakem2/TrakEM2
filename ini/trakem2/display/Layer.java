@@ -24,6 +24,8 @@ package ini.trakem2.display;
 
 
 import ij.gui.GenericDialog;
+import ij.ImagePlus;
+
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
@@ -39,6 +41,7 @@ import java.util.Iterator;
 
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.Image;
 
 public class Layer extends DBObject {
 
@@ -652,22 +655,27 @@ public class Layer extends DBObject {
 	}
 
 	static public final int IMAGEPROCESSOR = 0;
-	static public final int PIXELS = 1;
-	static public final int BUFFEREDIMAGE = 2;
+	static public final int PIXELARRAY = 1;
+	static public final int IMAGE = 2;
+	static public final int IMAGEPLUS = 3;
 
 	/** Returns the region defined by the rectangle as an image in the type and format specified.
 	 *  The type is either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB.
-	 *  The format is either Layer.IMAGEPROCESSOR, Layer.PIXELARRAY or Layer.BUFFEREDIMAGE.
+	 *  The format is either Layer.IMAGEPROCESSOR, Layer.IMAGEPLUS, Layer.PIXELARRAY or Layer.IMAGE.
 	 */
-	public Object grab(final Rectangle r, final double scale, final int type, final int format) {
-		Utils.log2("Layer.grab not implemented yet");
-		switch (format) {
-			case IMAGEPROCESSOR:
-				break;
-			case PIXELARRAY:
-				break;
-			case BUFFEREDIMAGE:
-				break;
+	public Object grab(final Rectangle r, final double scale, final Class c, final int format, final int type) {
+		if (IMAGE == format) {
+			return project.getLoader().getFlatAWTImage(this, r, scale, 1, type, c, null, true);
+		} else {
+			final ImagePlus imp = project.getLoader().getFlatImage(this, r, scale, 1, type, c, null, true);
+			switch (format) {
+				case IMAGEPLUS:
+					return imp;
+				case IMAGEPROCESSOR:
+					return imp.getProcessor();
+				case PIXELARRAY:
+					return imp.getProcessor().getPixels();
+			}
 		}
 		return null;
 	}
