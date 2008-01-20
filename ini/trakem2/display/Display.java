@@ -50,6 +50,7 @@ import java.awt.event.*;
 import java.util.*;
 import java.lang.reflect.Method;
 import java.io.File;
+import java.io.Writer;
 
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public class Display extends DBObject implements ActionListener, ImageListener {
@@ -3171,14 +3172,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		;
 	}
 	/** Export all displays of the given project as XML entries. */
-	static public void exportXML(Project project, StringBuffer sb_body, String indent, Object any) {
-		String in = indent + "\t";
+	static public void exportXML(final Project project, final Writer writer, final String indent, final Object any) throws Exception {
+		final StringBuffer sb_body = new StringBuffer();
+		final String in = indent + "\t";
 		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+			final Display d = (Display)it.next();
 			if (!d.project.equals(project)) continue;
-			Rectangle r = d.frame.getBounds();
-			Rectangle srcRect = d.canvas.getSrcRect();
-			double magnification = d.canvas.getMagnification();
+			final Rectangle r = d.frame.getBounds();
+			final Rectangle srcRect = d.canvas.getSrcRect();
+			final double magnification = d.canvas.getMagnification();
 			sb_body.append(indent).append("<t2_display id=\"").append(d.id).append("\"\n")
 			       .append(in).append("layer_id=\"").append(d.layer.getId()).append("\"\n")
 			       .append(in).append("c_alphas=\"").append(d.c_alphas).append("\"\n")
@@ -3194,6 +3196,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			;
 			sb_body.append(indent).append("/>\n");
 		}
+		writer.write(sb_body.toString());
 	}
 
 	static public void toolChanged(String tool_name) {

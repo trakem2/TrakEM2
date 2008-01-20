@@ -932,9 +932,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return al_layers.indexOf(layer);
 	}
 
-	synchronized public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	synchronized public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
+		final StringBuffer sb_body = new StringBuffer();
 		sb_body.append(indent).append("<t2_layer_set \n");
-		String in = indent + "\t";
+		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		sb_body.append(in).append("layer_width=\"").append(layer_width).append("\"\n")
 		       .append(in).append("layer_height=\"").append(layer_height).append("\"\n")
@@ -961,21 +962,29 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			       .append(in).append("/>\n")
 			;
 		}
-		// export Layer and ZDisplayable objects
+		writer.write(sb_body.toString());
+		// export ZDisplayable objects
 		if (null != al_zdispl) {
 			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
 				ZDisplayable zd = (ZDisplayable)it.next();
 				// don't include in the XML file if the object is empty
-				if (!zd.isDeletable()) zd.exportXML(sb_body, in, any);
+				if (!zd.isDeletable()) {
+					sb_body.setLength(0);
+					zd.exportXML(sb_body, in, any);
+					writer.write(sb_body.toString()); // each separately, for they can be huge
+				}
 			}
 		}
+		// export Layer and contained Displayable objects
 		if (null != al_layers) {
 			Utils.log("LayerSet " + id + " is saving " + al_layers.size() + " layers.");
 			for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
+				sb_body.setLength(0);
 				((Layer)it.next()).exportXML(sb_body, in, any);
+				writer.write(sb_body.toString());
 			}
 		}
-		sb_body.append(indent).append("</t2_layer_set>\n");
+		writer.write("</t2_layer_set>\n");
 	}
 
 	/** Includes the !ELEMENT */

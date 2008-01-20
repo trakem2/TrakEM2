@@ -102,6 +102,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -3162,7 +3163,7 @@ abstract public class Loader {
 				else export_images = false; // 'no' option
 			}
 			// 1 - get headers in DTD format
-			final StringBuffer sb_header = new StringBuffer("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
+			StringBuffer sb_header = new StringBuffer("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
 
 			final HashSet hs = new HashSet();
 			project.exportDTD(sb_header, hs, "\t");
@@ -3174,16 +3175,19 @@ abstract public class Loader {
 			if (export_images) {
 				patches_dir = makePatchesDir(fxml);
 			}
-			final StringBuffer sb_body = new StringBuffer();
-			project.exportXML(sb_body, "", patches_dir);
-
-			// 3 - save XML file
-			if (Utils.saveToFile(fxml, sb_header.toString() + sb_body.toString())) {
+			java.io.Writer writer = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(fxml)), "8859_1");
+			try {
+				writer.write(sb_header.toString());
+				sb_header = null;
+				project.exportXML(writer, "", patches_dir);
 				this.changes = false;
-				path = fxml.getAbsolutePath().replace('\\', '/');
-			} else {
-				Utils.log2("Failed to save XML file.");
-				return null;
+				writer.flush(); // make sure all buffered chars are written
+			} catch (Exception e) {
+				Utils.log("FAILED to save the file at " + fxml);
+				path = null;
+			} finally {
+				writer.close();
+				writer = null;
 			}
 
 			// Remove the patches_dir if empty (can happen when doing a "save" on a FSLoader project if no new Patch have been created that have no path.

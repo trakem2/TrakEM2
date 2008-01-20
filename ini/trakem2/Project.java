@@ -779,7 +779,8 @@ public class Project extends DBObject {
 	}
 
 	/** Export the main trakem2 tag wrapping four hierarchies (the project tag, the ProjectTree, and the Top Level LayerSet the latter including all Displayable objects) and a list of displays. */
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	public void exportXML(final java.io.Writer writer, String indent, Object any) throws Exception {
+		StringBuffer sb_body = new StringBuffer();
 		// 1 - opening tag
 		sb_body.append(indent).append("<trakem2>\n");
 		String in = indent + "\t";
@@ -797,12 +798,15 @@ public class Project extends DBObject {
 			}
 		}
 		sb_body.append(in).append("</project>\n");
+		writer.write(sb_body.toString());
+		sb_body.setLength(0);
+		sb_body = null;
 		// 4 - export LayerSet hierarchy of Layer, LayerSet and Displayable objects
-		layer_set.exportXML(sb_body, in, any);
+		layer_set.exportXML(writer, in, any);
 		// 5 - export Display objects
-		Display.exportXML(this, sb_body, in, any);
+		Display.exportXML(this, writer, in, any);
 		// 6 - closing tag
-		sb_body.append(indent).append("</trakem2>\n");
+		writer.write("</trakem2>\n");
 	}
 
 	/** Export a complete DTD listing to export the project as XML. */
