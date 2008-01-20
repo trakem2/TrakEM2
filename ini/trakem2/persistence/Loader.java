@@ -1188,6 +1188,7 @@ abstract public class Loader {
 		}
 		ImagePlus imp_stack = null;
 		try {
+			IJ.redirectErrorMessages();
 			imp_stack = opener.openImage(f.getCanonicalPath());
 		} catch (Exception e) {
 			new IJError(e);
@@ -1218,6 +1219,7 @@ abstract public class Loader {
 				Utils.showStatus("Opening one image ... ");
 				String sdir = images_dir.getAbsolutePath().replace('\\', '/');
 				if (!sdir.endsWith("/")) sdir += "/";
+				IJ.redirectErrorMessages();
 				ImagePlus imp = opener.openImage(sdir + all_images[0]);
 				if (null != imp) {
 					int w = imp.getWidth();
@@ -1604,6 +1606,7 @@ abstract public class Loader {
 		dir = dir.replace('\\', '/'); // w1nd0wz safe
 		if (!dir.endsWith("/")) dir += "/";
 		String path = dir + first_image_name;
+		IJ.redirectErrorMessages();
 		ImagePlus first_img = opener.openImage(path);
 		if (null == first_img) {
 			Utils.log("Selected image to open first is null.");
@@ -1655,6 +1658,7 @@ abstract public class Loader {
 					//if (!enoughFreeMemory(MIN_FREE_BYTES)) releaseMemory(); // UNSAFE, doesn't wait for GC
 					releaseToFit(first_image_width, first_image_height, first_image_type, 1.5f);
 					try {
+						IJ.redirectErrorMessages();
 						img = opener.openImage(path);
 					} catch (OutOfMemoryError oome) {
 						printMemState();
@@ -2188,6 +2192,7 @@ abstract public class Loader {
 							unlock();
 						}
 						/* */
+						IJ.redirectErrorMessages();
 						ImagePlus imp = opener.openImage(path);
 						if (null == imp) {
 							Utils.log("Ignoring unopenable image from " + path);
@@ -2879,6 +2884,7 @@ abstract public class Loader {
 			path = path.replace('\\', '/');
 		}
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
+		IJ.redirectErrorMessages();
 		final ImagePlus imp = opener.openImage(path);
 		if (null == imp) return null;
 		preProcess(imp);
@@ -2929,6 +2935,7 @@ abstract public class Loader {
 			return null;
 		}
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
+		IJ.redirectErrorMessages();
 		ImagePlus imp = opener.openImage(dir_name, next_file);
 		preProcess(imp);
 		if (null == imp) return null;
@@ -3532,6 +3539,7 @@ abstract public class Loader {
 		// debug:
 		Utils.log2("opening image " + path);
 		//Utils.printCaller(this, 25);
+		IJ.redirectErrorMessages();
 		return opener.openImage(path);
 	}
 

@@ -28,13 +28,16 @@ import ij.process.*;
 import ij.gui.*;
 import ij.io.*;
 import ij.measure.Calibration;
+
 import com.sun.image.codec.jpeg.*;
 import java.awt.image.*;
 import java.awt.Graphics;
 import java.awt.Image;
 import java.io.*;
+import java.net.URL;
 import java.util.zip.*;
 import javax.imageio.ImageIO;
+
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
@@ -143,11 +146,17 @@ public class ImageSaver {
 	}
 
 	static private final BufferedImage openJpeg2(final String path, final int color_id) throws Exception {
-		if (!new File(path).exists()) return null;
-		FileInputStream f = new FileInputStream(path);
-		final JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(f, JPEGCodec.getDefaultJPEGEncodeParam(1, color_id));
+		InputStream stream = null;
+		if (Utils.isURL(path)) {
+			stream = new URL(path).openStream();
+		} else if (new File(path).exists()) {
+			stream = new FileInputStream(path);
+		} else {
+			return null;
+		}
+		final JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(stream, JPEGCodec.getDefaultJPEGEncodeParam(1, color_id));
 		final BufferedImage bi = decoder.decodeAsBufferedImage();
-		f.close();
+		stream.close();
 		return bi;
 	}
 

@@ -719,7 +719,7 @@ public class FSLoader extends Loader {
 		// avoid W1nd0ws nightmares
 		path = path.replace('\\', '/'); // replacing with chars, in place
 		// remove double slashes that a user may have slipped in
-		final int start = IJ.isWindows() ? 3 : 1;
+		final int start = Utils.isURL(path) ? 6 : (IJ.isWindows() ? 3 : 1);
 		while (-1 != path.indexOf("//", start)) {
 			// avoid the potential C:// of windows and the starting // of a samba network
 			path = path.substring(0, start) + path.substring(start).replace("//", "/");
@@ -965,12 +965,18 @@ public class FSLoader extends Loader {
 		//
 		ob = ht_attributes.get("mipmaps_folder");
 		if (null != ob) {
-			File f = new File((String)ob);
-			if (f.exists() && f.isDirectory()) {
+			if (Utils.isURL((String)ob)) {
 				this.dir_mipmaps = (String)ob;
 				this.dir_mipmaps.replace('\\', '/'); // let Windows users survive
+				// TODO must disable input somehow, so that images are not edited.
 			} else {
-				Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
+				File f = new File((String)ob);
+				if (f.exists() && f.isDirectory()) {
+					this.dir_mipmaps = (String)ob;
+					this.dir_mipmaps.replace('\\', '/'); // let Windows users survive
+				} else {
+					Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
+				}
 			}
 		}
 		if (null == this.dir_mipmaps) {
@@ -1023,7 +1029,7 @@ public class FSLoader extends Loader {
 	public boolean generateMipMaps(final Patch patch) {
 		//Utils.log2("mipmaps for " + patch);
 		if (null == dir_mipmaps) createMipMapsDir(null);
-		if (null == dir_mipmaps) return false;
+		if (null == dir_mipmaps || Utils.isURL(dir_mipmaps)) return false;
 		final String path = getAbsolutePath(patch);
 		if (null == path) {
 			Utils.log2("generateMipMaps: cannot find path for Patch " + patch);
@@ -1129,6 +1135,10 @@ public class FSLoader extends Loader {
 	public Bureaucrat generateMipMaps(final ArrayList al, final boolean overwrite) {
 		if (null == al || 0 == al.size()) return null;
 		if (null == dir_mipmaps) createMipMapsDir(null);
+		if (Utils.isURL(dir_mipmaps)) {
+			Utils.log("Mipmaps folder is an URL, can't save files into it.");
+			return null;
+		}
 		final Worker worker = new Worker("Generating MipMaps") {
 			public void run() {
 				this.setAsBackground(true);
@@ -1204,7 +1214,11 @@ public class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			final String path = dir_mipmaps + level;
-			File file = new File(path);
+			if (Utils.isURL(dir_mipmaps)) {
+				unlock();
+				return path;
+			}
+			final File file = new File(path);
 			if (file.exists() && file.isDirectory()) {
 				unlock();
 				return path;
@@ -1243,8 +1257,8 @@ public class FSLoader extends Loader {
 				}
 				// else can't use it
 			} else if (null != project_file_path) {
-				File fxml = new File(project_file_path);
-				File fparent = fxml.getParentFile();
+				final File fxml = new File(project_file_path);
+				final File fparent = fxml.getParentFile();
 				if (null != fparent && fparent.isDirectory()) {
 					File f = new File(fparent.getAbsolutePath().replace('\\', '/') + "/" + fxml.getName() + ".mipmaps");
 					try {
@@ -1257,13 +1271,13 @@ public class FSLoader extends Loader {
 				}
 			}
 			// else,  ask for a new folder
-			DirectoryChooser dc = new DirectoryChooser("Select MipMaps parent directory");
+			final DirectoryChooser dc = new DirectoryChooser("Select MipMaps parent directory");
 			parent_path = dc.getDirectory();
 			if (null == parent_path) return false;
 			if (!parent_path.endsWith("/")) parent_path += "/";
 		}
 		// examine parent path
-		File file = new File(parent_path);
+		final File file = new File(parent_path);
 		if (file.exists()) {
 			if (file.isDirectory()) {
 				// all OK
@@ -1362,17 +1376,34 @@ public class FSLoader extends Loader {
 			final String path = getAbsolutePath(patch);
 			if (null == path) return ERROR_PATH_NOT_FOUND;
 			final String filename = new File(path).getName() + ".jpg";
-			while (true) {
-				File f = new File(dir_mipmaps + level + "/" + filename);
-				if (f.exists()) {
-					return level;
+			if (Utils.isURL(dir_mipmaps)) {
+				if (level <= 0) return 0;
+				// choose the smallest dimension
+				final double dim = patch.getWidth() < patch.getHeight() ? patch.getWidth() : patch.getHeight();
+				// find max level that keeps dim over 64 pixels
+				int lev = 1;
+				while (true) {
+					if ((dim * (1 / Math.pow(2, lev))) < 64) {
+						lev--; // the previous one
+						break;
+					}
+					lev++;
 				}
-				// stop at 50% images (there are no mipmaps for level 0)
-				if (level <= 1) {
-					return 0;
+				if (level > lev) return lev;
+				return level;
+			} else {
+				while (true) {
+					File f = new File(dir_mipmaps + level + "/" + filename);
+					if (f.exists()) {
+						return level;
+					}
+					// stop at 50% images (there are no mipmaps for level 0)
+					if (level <= 1) {
+						return 0;
+					}
+					// try the next level
+					level--;
 				}
-				// try the next level
-				level--;
 			}
 		} catch (Exception e) {
 			new IJError(e);
@@ -1404,6 +1435,7 @@ public class FSLoader extends Loader {
 	public boolean checkMipMapFileExists(final Patch p, final double magnification) {
 		if (null == dir_mipmaps) return false;
 		final int level = getMipMapLevel(magnification);
+		if (Utils.isURL(dir_mipmaps)) return true; // just assume that it does
 		if (new File(dir_mipmaps + level + "/" + new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg").exists()) return true;
 		return false;
 	}
@@ -1428,7 +1460,8 @@ public class FSLoader extends Loader {
 					img = ImageSaver.openGreyJpeg(path);
 					break;
 				default:
-					ImagePlus imp = opener.openImage(path);
+					IJ.redirectErrorMessages();
+					ImagePlus imp = opener.openImage(path); // considers URL as well
 					if (null != imp) return patch.createImage(imp); // considers c_alphas
 					//img = patch.adjustChannels(Toolkit.getDefaultToolkit().createImage(path)); // doesn't work
 					//img = patch.adjustChannels(ImageSaver.openColorJpeg(path)); // doesn't work
