@@ -240,17 +240,19 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				selection.paint(g, srcRect, magnification);
 			}
 
-			g2d.setTransform(new AffineTransform()); // reset to identity
+			// reset to identity
+			g2d.setTransform(new AffineTransform());
+			// reset to 1.0 thickness
+			g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
 
 			final Align align = null != active_layer ? active_layer.getParent().getAlign() : null;
 			if (null != align) {
-				align.paint(active_layer, g, srcRect, magnification);
+				align.paint(active_layer, g2d, srcRect, magnification);
 			}
 
 			// paint brush outline for AreaList
 			if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass().equals(AreaList.class)) {
 				// reset stroke, always thickness of 1
-				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
 				int brushSize = ProjectToolbar.getBrushSize();
 				g.setColor(active.getColor());
 				g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
@@ -258,7 +260,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 			if (null != roi) {
 				// reset stroke, always thickness of 1
-				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
 				roi.draw(g);
 			}
 

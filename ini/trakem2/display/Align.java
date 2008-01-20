@@ -34,7 +34,6 @@ import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.util.ArrayList;
@@ -79,7 +78,7 @@ public class Align {
 		}
 	}
 
-	public void paint(Layer layer, Graphics g, Rectangle srcRect, double mag) {
+	public void paint(Layer layer, Graphics2D g, Rectangle srcRect, double mag) {
 		if (null != l1 && l1.layer.equals(layer)) l1.paint(g, srcRect, mag, Color.yellow);
 		if (null != l2 && l2.layer.equals(layer)) l2.paint(g, srcRect, mag, Color.magenta);
 	}
@@ -119,9 +118,8 @@ public class Align {
 			return (Point)landmarks.get(i);
 		}
 		/** Draws a point with it's ordinal number next to it. */
-		void paint(Graphics g, Rectangle srcRect, double mag, Color color) {
+		void paint(Graphics2D g, Rectangle srcRect, double mag, Color color) {
 			int i = 1;
-			Utils.log2("graphics transform: " + ((Graphics2D)g).getTransform());
 			g.setFont(new Font("SansSerif", Font.BOLD, 14));
 			for (Iterator it = landmarks.iterator(); it.hasNext(); ) {
 				Point p = (Point)it.next();
