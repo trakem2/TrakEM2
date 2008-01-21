@@ -6,7 +6,7 @@ import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.Utils;
 import java.awt.geom.AffineTransform;
 
-/** An admitedly naive decoder for the t2 lispy format, aiming at avoiding String instantiations.
+/** An admitedly naive decoder for the t2 lispy format, aiming at avoiding String instantiations and enabling parallel object creation.
  *
  * "Any sufficiently complicated C or Fortran program contains an ad hoc, informally-specified, bug-ridden, slow implementation of half of Common Lisp."
  *
@@ -240,12 +240,12 @@ public class Decoder {
 		// load file
 		final char[] src = Utils.openTextFileChars(path);
 		// 1 - find template description
-		int[] se_template = findAtomRange("template".toCharArray(), src, 0, src.length);
-		if (null == se_template) {
+		int[] se = findAtomRange("template".toCharArray(), src, 0, src.length);
+		if (null == se) {
 			Utils.log2("Could not find the template node");
 			return null;
 		}
-		TemplateThing tt_root = parseTemplate(src, se_template[0], se_template[1]);
+		final TemplateThing tt_root = parseTemplate(src, se[0], se[1]);
 
 
 		// Need a generic parser
@@ -258,7 +258,7 @@ public class Decoder {
 	static public TemplateThing parseTemplate(final char[] src, final int first, final int last) {
 		int[] se = null;
 		while (null != (se = findNextChildRange(src, first, last))) {
-			// parse TemplateThing: create it, and store into hashtable along with the se of its elem atom, if any.
+			// parse TemplateThing: create it, and store into hashtable along with the 'se' of its elem atom, if any.
 		}
 
 		return null; // TODO

@@ -3180,8 +3180,9 @@ abstract public class Loader {
 				writer.write(sb_header.toString());
 				sb_header = null;
 				project.exportXML(writer, "", patches_dir);
-				this.changes = false;
 				writer.flush(); // make sure all buffered chars are written
+				this.changes = false;
+				path = fxml.getAbsolutePath().replace('\\', '/');
 			} catch (Exception e) {
 				Utils.log("FAILED to save the file at " + fxml);
 				path = null;
