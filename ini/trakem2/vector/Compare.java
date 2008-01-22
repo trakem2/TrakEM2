@@ -107,6 +107,7 @@ public class Compare {
 
 		if (0 == al.size()) {
 			Utils.log("No other pipes found to compare with.");
+			finishedWorking();
 			return;
 		}
 

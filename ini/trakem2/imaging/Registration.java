@@ -678,6 +678,8 @@ public class Registration {
 	 * If position_as_hint is true, then each tile will only try to find feature correspondences
 	 * with overlapping tiles.
 	 *
+	 * NOT IMPLEMENTED YET (aka exists as a plugin only, needs porting)
+	 *
 	 */
 	static public void registerTilesSIFT(final Layer[] layer, final boolean overlapping_only) {
 		// for each layer

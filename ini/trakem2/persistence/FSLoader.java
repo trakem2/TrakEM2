@@ -699,6 +699,8 @@ public class FSLoader extends Loader {
 				//Utils.printCaller(this, 7);
 				return null;
 			}
+			// TODO: ideally one could wedge in here an 'is relative' cause even for http:// project_file_path so that a project file with all relative paths (including the mipmaps_folder) could be given as is.
+			// Only the dir_storage would have to always be local.
 		}
 		// reappend slice info if existent
 		if (null != slice) path += slice;
@@ -951,7 +953,7 @@ public class FSLoader extends Loader {
 			File fdir = new File(this.project_file_path);
 			this.dir_storage = fdir.getParent().replace('\\', '/');
 			if (null == this.dir_storage && ControlWindow.isGUIEnabled()) {
-				Utils.log2("Asking user for a storage folder."); // tip for headless runners whose program gets "stuck"
+				Utils.log2("Asking user for a storage folder in a dialog."); // tip for headless runners whose program gets "stuck"
 				DirectoryChooser dc = new DirectoryChooser("REQUIRED: select storage folder");
 				this.dir_storage = dc.getDirectory();
 			}

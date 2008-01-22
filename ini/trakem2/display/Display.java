@@ -1644,7 +1644,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				}
 			/*}*/
 			// erase "decorations" of the previosuly active while it's still the active (so no offscreen image remaking needed)
-			if (null != active) canvas.repaint(active, 4);
+			if (null != active) {
+				canvas.repaint(selection.getBox(), 4);
+			}
 		}
 		active = displ;
 		// activate the new active
