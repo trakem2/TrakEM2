@@ -91,7 +91,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	private double rot_x;
 	private double rot_y;
 	private double rot_z; // should be equivalent to the Displayable.rot
-	private final ArrayList al_layers = new ArrayList();
+	private final ArrayList<Layer> al_layers = new ArrayList<Layer>();
 	private Layer active_layer;
 	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
 	private Layer parent = null;
@@ -226,23 +226,22 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Add a new Layer silently, ordering by z as well.*/
-	synchronized public void addSilently(DBObject layer) {
+	synchronized public void addSilently(final Layer layer) {
 		if (null == layer || al_layers.contains(layer)) return;
 		try {
-			Iterator it = al_layers.iterator();
-			double z = ((Layer)layer).getZ();
+			double z = layer.getZ();
 			int i = 0;
-			while (it.hasNext()) {
-				if (! (((Layer)it.next()).getZ() < z)) {
+			for (Layer la : al_layers) {
+				if (! (la.getZ() < z) ) {
 					al_layers.add(i, layer);
-					((Layer)layer).setParentSilently(this);
+					layer.setParentSilently(this);
 					return;
 				}
 				i++;
 			}
 			// else, add at the end
 			al_layers.add(layer);
-			((Layer)layer).setParentSilently(this);
+			layer.setParentSilently(this);
 		} catch (Exception e) {
 			Utils.log("LayerSet.addSilently: Not a Layer, not adding DBObject id=" + layer.getId());
 			return;
@@ -684,7 +683,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Find a layer with the given id, or null if none. */
-	synchronized public Layer getLayer(long id) {
+	synchronized public Layer getLayer(final long id) {
 		Iterator it = al_layers.iterator();
 		while (it.hasNext()) {
 			Layer layer = (Layer)it.next();
@@ -694,7 +693,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns the first layer found with the given Z coordinate, rounded to seventh decimal precision, or null if none found. */
-	synchronized public Layer getLayer(double z) {
+	synchronized public Layer getLayer(final double z) {
 		Iterator it = al_layers.iterator();
 		double error = 0.0000001; // TODO adjust to an optimal
 		while (it.hasNext()) {
@@ -704,6 +703,19 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			}
 		}
 		return null;
+	}
+
+	synchronized public Layer getNearestLayer(final double z) {
+		double min_dist = Double.MAX_VALUE;
+		Layer closest = null;
+		for (Layer layer : al_layers) {
+			double dist = Math.abs(layer.getZ() - z);
+			if (dist < min_dist) {
+				min_dist = dist;
+				closest = layer;
+			}
+		}
+		return closest;
 	}
 
 	/** Returns null if none has the given z and thickness. If 'create' is true and no layer is found, a new one with the given Z is created and added to the LayerTree. */
@@ -798,8 +810,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns a copy of the layer list. */
-	synchronized public ArrayList getLayers() {
-		return (ArrayList)al_layers.clone(); // for and integrity and safety
+	synchronized public ArrayList<Layer> getLayers() {
+		return (ArrayList<Layer>)al_layers.clone(); // for and integrity and safety
 	}
 
 	public boolean isDeletable() {
@@ -1475,9 +1487,13 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	 *  The format is either Layer.IMAGE (an array) or Layer.ImagePlus (it returns an ImagePlus containing an ImageStack), from which any ImageProcessor or pixel arrays can be retrieved trivially.
 	 */
 	public Object grab(final int first, final int last, final Rectangle r, final double scale, final Class c, final int format, final int type) {
-		Utils.log2("LayerSet.grab not implemented yet");
+		// check that it will fit in memory
+		if (!project.getLoader().releaseToFit(r.width, r.height, type, 1.1f)) {
+			Utils.log("LayerSet.grab: Cannot fit an image stack of " + (long)(r.width*r.height*(ImagePlus.GRAY8==type?1:4)*1.1) + " bytes in memory.");
+			return null;
+		}
 		if (Layer.IMAGEPLUS == format) {
-			final ImageStack stack = new ImageStack(r.width, r.height);
+			final ImageStack stack = new ImageStack((int)Math.ceil(r.width*scale), (int)Math.ceil(r.height*scale));
 			for (int i=first; i<=last; i++) {
 				final ImagePlus imp = project.getLoader().getFlatImage((Layer)al_layers.get(i), r, scale, 1, type, c, null, true);
 				stack.addSlice(imp.getTitle(), imp.getProcessor());

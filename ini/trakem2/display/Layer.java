@@ -664,6 +664,11 @@ public class Layer extends DBObject {
 	 *  The format is either Layer.IMAGEPROCESSOR, Layer.IMAGEPLUS, Layer.PIXELARRAY or Layer.IMAGE.
 	 */
 	public Object grab(final Rectangle r, final double scale, final Class c, final int format, final int type) {
+		// check that it will fit in memory
+		if (!project.getLoader().releaseToFit(r.width, r.height, type, 1.1f)) {
+			Utils.log("Layer.grab: Cannot fit a flat image of " + (long)(r.width*r.height*(ImagePlus.GRAY8==type?1:4)*1.1) + " bytes in memory.");
+			return null;
+		}
 		if (IMAGE == format) {
 			return project.getLoader().getFlatAWTImage(this, r, scale, 1, type, c, null, true);
 		} else {
