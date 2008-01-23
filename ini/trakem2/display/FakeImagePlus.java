@@ -199,7 +199,8 @@ public class FakeImagePlus extends ImagePlus {
 		if (null!=roi) {
 			saveRoi();
 			roi = null;
-			getProcessor().resetRoi();
+			ImageProcessor ip = getProcessor();
+			if (null != ip) ip.resetRoi();
 		}
 		ImagePlus last_temp = display.getLastTemp();
 		//Utils.log2("Last temp is " + last_temp.getClass());

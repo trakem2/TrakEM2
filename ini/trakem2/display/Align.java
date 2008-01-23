@@ -220,11 +220,24 @@ public class Align {
 
 		// preconditions OK
 
-		// setup an undo for the second layer
+		final LayerSet ls = l1.layer.getParent();
+		final int index1 = ls.indexOf(l1.layer); // the base layer
+		final int index2 = ls.indexOf(l2.layer); // the one being registered
+		int start = (index1 < index2 ? index2       : 0      );
+		int end   = (index1 < index2 ? ls.size() -1 : index2 );
+		final List<Layer> las = ls.getLayers().subList(start, end+1); // exclusive end
+
+		// setup an undo for the second and later layers
 		final Hashtable ht = new Hashtable();
 		for (Iterator it = hs2.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			ht.put(d, d.getAffineTransformCopy());
+		}
+		for (Layer la : las) {
+			for (Iterator it = la.getDisplayables().iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				ht.put(d, d.getAffineTransformCopy());
+			}
 		}
 		l1.layer.getParent().addUndoStep(ht);
 
@@ -256,9 +269,6 @@ public class Align {
 
 		// propagate to all layers after the second one
 		// 	TODO this may easily be in conflict with ZDisplayable and also with links across layers
-		LayerSet ls = l1.layer.getParent();
-		int index1 = ls.indexOf(l1.layer); // the base layer
-		int index2 = ls.indexOf(l2.layer); // the one being registered
 		List list = null;
 		if (index1 < index2) {
 			// propagate towards the end
