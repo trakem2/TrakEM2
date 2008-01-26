@@ -175,7 +175,11 @@ public class FSLoader extends Loader {
 					SAXParserFactory factory = SAXParserFactory.newInstance();
 					factory.setValidating(true);
 					SAXParser parser = factory.newSAXParser();
-					i_stream = new BufferedInputStream(new FileInputStream(this.project_file_path));
+					if (isURL(this.project_file_path)) {
+						i_stream = new java.net.URL(this.project_file_path).openStream();
+					} else {
+						i_stream = new BufferedInputStream(new FileInputStream(this.project_file_path));
+					}
 					InputSource input_source = new InputSource(i_stream);
 					setMassiveMode(true);
 					parser.parse(input_source, handler);

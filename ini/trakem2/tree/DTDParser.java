@@ -1,6 +1,7 @@
 
 package ini.trakem2.tree;
 
+import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.utils.*;
 
 import java.io.*;
@@ -21,12 +22,18 @@ public class DTDParser {
 	/** Parses the tags of a .dtd file. Returns the TemplateThing roots. */
 	static public TemplateThing[] parseDTDFile(String dtd_path) {
 		// fetch file
-		File f = new File(dtd_path);
-		if (!f.exists()) return null;
 		BufferedReader dis = null;
 		StringBuffer data = new StringBuffer();
 		try {
-			dis = new BufferedReader(new InputStreamReader(new FileInputStream(dtd_path)));
+			InputStream i_stream;
+			if (FSLoader.isURL(dtd_path)) {
+				i_stream = new java.net.URL(dtd_path).openStream();
+			} else {
+				File f = new File(dtd_path);
+				if (!f.exists()) return null;
+				i_stream = new FileInputStream(dtd_path);
+			}
+			dis = new BufferedReader(new InputStreamReader(i_stream));
 			String tmp;
 			while (null != (tmp = dis.readLine())) {
 				data.append(tmp);
@@ -45,12 +52,18 @@ public class DTDParser {
 	/** Parses a !DOCTYPE chunk from an .xml file, if any. Returns the TemplateThing roots. Assumes there is only one continuous DOCTYPE clause and the root template thing, the layer_set and the display are part of the project tag. */
 	static public TemplateThing[] parseXMLFile(String xml_path) {
 		// fetch file
-		File f = new File(xml_path);
-		if (!f.exists()) return null;
 		BufferedReader dis = null;
 		StringBuffer data = new StringBuffer();
 		try {
-			dis = new BufferedReader(new InputStreamReader(new FileInputStream(xml_path)));
+			InputStream i_stream;
+			if (FSLoader.isURL(xml_path)) {
+				i_stream = new java.net.URL(xml_path).openStream();
+			} else {
+				File f = new File(xml_path);
+				if (!f.exists()) return null;
+				i_stream = new FileInputStream(xml_path);
+			}
+			dis = new BufferedReader(new InputStreamReader(i_stream));
 			String tmp;
 			while (null != (tmp = dis.readLine())) {
 				int i_doc = tmp.indexOf("<!DOCTYPE ");
