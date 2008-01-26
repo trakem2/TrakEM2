@@ -4256,7 +4256,7 @@ abstract public class Loader {
 	}
 
 	/** Returns the highest mipmap level for which a mipmap image may have been generated given the dimensions of the Patch. The minimum that this method may return is zero. */
-	public final int getHighestMipMapLevel(final Patch p) {
+	public static final int getHighestMipMapLevel(final Patch p) {
 		// TODO the level value could be computed analytically, not numerically like below
 		int level = 0;
 		int w = (int)p.getWidth();

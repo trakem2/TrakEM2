@@ -868,8 +868,4 @@ public class Utils implements ij.plugin.PlugIn {
 		return me.isPopupTrigger() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK);
 	}
 
-	public static final boolean isURL(final String path) {
-		return null != path && 0 == path.indexOf("http://");
-	}
-
 }

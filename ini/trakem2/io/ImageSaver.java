@@ -40,6 +40,7 @@ import javax.imageio.ImageIO;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.persistence.FSLoader;
 
 /** Provides the necessary thread-safe image file saver utilities. */
 public class ImageSaver {
@@ -147,7 +148,7 @@ public class ImageSaver {
 
 	static private final BufferedImage openJpeg2(final String path, final int color_id) throws Exception {
 		InputStream stream = null;
-		if (Utils.isURL(path)) {
+		if (FSLoader.isURL(path)) {
 			stream = new URL(path).openStream();
 		} else if (new File(path).exists()) {
 			stream = new FileInputStream(path);

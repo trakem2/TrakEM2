@@ -677,7 +677,7 @@ public class FSLoader extends Loader {
 		return true;
 	}
 
-	/** With slice info appended at the end if it exists. */
+	/** With slice info appended at the end; only if it exists, otherwise null. */
 	public String getAbsolutePath(final Patch patch) {
 		Object ob = ht_paths.get(patch);
 		if (null == ob) return null;
@@ -689,22 +689,29 @@ public class FSLoader extends Loader {
 			slice = path.substring(i_sl);
 			path = path.substring(0, i_sl);
 		}
-		if (((!IJ.isWindows() && 0 != path.indexOf('/')) || (IJ.isWindows() && 1 != path.indexOf(":/"))) && 0 != path.indexOf("http://") && 0 != path.indexOf("//")) { // "//" is for Samba networks (since the \\ has been converted to // before)
-			// path is relative
-			File fxml = new File(project_file_path);
-			String parent_dir = fxml.getParent().replace('\\', '/');
-			path = parent_dir + "/" + path;
-			if (!new File(path).exists()) {
+		if (isRelativePath(path)) {
+			// path is relative: preprend the parent folder of the xml file
+			path = getParentFolder() + path;
+			if (!isURL(path) && !new File(path).exists()) {
 				Utils.log("Path for patch " + patch + " does not exist: " + path);
-				//Utils.printCaller(this, 7);
 				return null;
 			}
-			// TODO: ideally one could wedge in here an 'is relative' cause even for http:// project_file_path so that a project file with all relative paths (including the mipmaps_folder) could be given as is.
-			// Only the dir_storage would have to always be local.
+			// else assume that it exists
 		}
 		// reappend slice info if existent
 		if (null != slice) path += slice;
 		return path;
+	}
+
+	public static final boolean isURL(final String path) {
+		return null != path && 0 == path.indexOf("http://");
+	}
+
+	public static final boolean isRelativePath(final String path) {
+		if (((!IJ.isWindows() && 0 != path.indexOf('/')) || (IJ.isWindows() && 1 != path.indexOf(":/"))) && 0 != path.indexOf("http://") && 0 != path.indexOf("//")) { // "//" is for Samba networks (since the \\ has been converted to // before)
+			return true;
+		}
+		return false;
 	}
 
 	/** All backslashes are converted to slashes to avoid havoc in MSWindows. */
@@ -721,7 +728,7 @@ public class FSLoader extends Loader {
 		// avoid W1nd0ws nightmares
 		path = path.replace('\\', '/'); // replacing with chars, in place
 		// remove double slashes that a user may have slipped in
-		final int start = Utils.isURL(path) ? 6 : (IJ.isWindows() ? 3 : 1);
+		final int start = isURL(path) ? 6 : (IJ.isWindows() ? 3 : 1);
 		while (-1 != path.indexOf("//", start)) {
 			// avoid the potential C:// of windows and the starting // of a samba network
 			path = path.substring(0, start) + path.substring(start).replace("//", "/");
@@ -795,12 +802,10 @@ public class FSLoader extends Loader {
 	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
 	private String makeRelativePath(String path) {
 		if (null == project_file_path) {
-			//unsaved project//
-			//Utils.log2("WARNING: null project_file_path at makeRelativePath");
+			//unsaved project
 			return path;
 		}
 		if (null == path) {
-			//Utils.log2("WARNING: null path at makeRelativePath");
 			return null;
 		}
 		// fix W1nd0ws paths
@@ -813,17 +818,20 @@ public class FSLoader extends Loader {
 			path = path.substring(0, isl);
 		}
 		//
-		if (! (path.startsWith("/") || 1 == path.indexOf(":/"))) {
-			//Utils.log2("already relative");
+		if (isRelativePath(path)) {
+			// already relative
 			if (-1 != isl) path += slice;
-			return path; // already relative
+			return path;
 		}
-		// the long and verbose way, to be cross-platform
+		// the long and verbose way, to be cross-platform. Should work with URLs just the same.
 		File xf = new File(project_file_path);
-		if (new File(path).getParentFile().equals(xf.getParentFile())) {
+		File fpath = new File(path);
+		if (fpath.getParentFile().equals(xf.getParentFile())) {
 			path = path.substring(xf.getParent().length());
 			// remove prepended file separator, if any, to label the path as relative
 			if (0 == path.indexOf('/')) path = path.substring(1);
+		} else if (fpath.equals(xf.getParentFile())) {
+			return "";
 		}
 		if (-1 != isl) path += slice;
 		//Utils.log("made relative path: " + path);
@@ -940,21 +948,29 @@ public class FSLoader extends Loader {
 		// or renaming directories, etc.
 		ob = ht_attributes.get("storage_folder");
 		if (null != ob) {
-			File f = new File((String)ob);
-			if (f.exists() && f.isDirectory()) {
-				this.dir_storage = (String)ob;
-				this.dir_storage.replace('\\', '/'); // let Windows users survive
+			String sf = ((String)ob).replace('\\', '/');
+			if (isRelativePath(sf)) {
+				sf = getParentFolder() + sf;
+			}
+			if (isURL(sf)) {
+				// can't be an URL
+				Utils.log2("Can't have an URL as the path of a storage folder.");
 			} else {
-				Utils.log2("storage_folder was not found or is invalid: " + ob);
+				File f = new File(sf);
+				if (f.exists() && f.isDirectory()) {
+					this.dir_storage = sf;
+				} else {
+					Utils.log2("storage_folder was not found or is invalid: " + ob);
+				}
 			}
 		}
 		if (null == this.dir_storage) {
 			// select the directory where the xml file lives.
-			File fdir = new File(this.project_file_path);
-			this.dir_storage = fdir.getParent().replace('\\', '/');
+			this.dir_storage = getParentFolder();
+			if (null == this.dir_storage || isURL(this.dir_storage)) this.dir_storage = null;
 			if (null == this.dir_storage && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Asking user for a storage folder in a dialog."); // tip for headless runners whose program gets "stuck"
-				DirectoryChooser dc = new DirectoryChooser("REQUIRED: select storage folder");
+				DirectoryChooser dc = new DirectoryChooser("REQUIRED: select a storage folder");
 				this.dir_storage = dc.getDirectory();
 			}
 			if (null == this.dir_storage) {
@@ -962,20 +978,24 @@ public class FSLoader extends Loader {
 				this.dir_storage = System.getProperty("user.home").replace('\\', '/');
 			}
 		}
+		Utils.log2("storage folder is " + this.dir_storage);
 		// fix
 		if (null != this.dir_storage && !this.dir_storage.endsWith("/")) this.dir_storage += "/";
 		//
 		ob = ht_attributes.get("mipmaps_folder");
 		if (null != ob) {
-			if (Utils.isURL((String)ob)) {
-				this.dir_mipmaps = (String)ob;
-				this.dir_mipmaps.replace('\\', '/'); // let Windows users survive
+			String mf = ((String)ob).replace('\\', '/');
+			if (isRelativePath(mf)) {
+				mf = getParentFolder() + mf;
+			}
+			Utils.log2("mf is " + mf);
+			if (isURL(mf)) {
+				this.dir_mipmaps = mf;
 				// TODO must disable input somehow, so that images are not edited.
 			} else {
-				File f = new File((String)ob);
+				File f = new File(mf);
 				if (f.exists() && f.isDirectory()) {
-					this.dir_mipmaps = (String)ob;
-					this.dir_mipmaps.replace('\\', '/'); // let Windows users survive
+					this.dir_mipmaps = mf;
 				} else {
 					Utils.log2("mipmaps_folder was not found or is invalid: " + ob);
 				}
@@ -1011,8 +1031,15 @@ public class FSLoader extends Loader {
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
 	public void insertXMLOptions(StringBuffer sb_body, String indent) {
 		if (null != preprocessor) sb_body.append(indent).append("preprocessor=\"").append(preprocessor).append("\"\n");
-		if (null != dir_mipmaps) sb_body.append(indent).append("mipmaps_folder=\"").append(dir_mipmaps).append("\"\n");
-		if (null != dir_storage) sb_body.append(indent).append("storage_folder=\"").append(dir_storage).append("\"\n");
+		if (null != dir_mipmaps) sb_body.append(indent).append("mipmaps_folder=\"").append(makeRelativePath(dir_mipmaps)).append("\"\n");
+		if (null != dir_storage) sb_body.append(indent).append("storage_folder=\"").append(makeRelativePath(dir_storage)).append("\"\n");
+		Utils.log2("dir_storage is: " + dir_storage);
+		Utils.log2("relative dir_storage: " + makeRelativePath(dir_storage));
+	}
+
+	/** Return the path to the folder containing the project XML file. */
+	private final String getParentFolder() {
+		return this.project_file_path.substring(0, this.project_file_path.lastIndexOf('/')+1);
 	}
 
 	/* ************** MIPMAPS **********************/
@@ -1031,7 +1058,7 @@ public class FSLoader extends Loader {
 	public boolean generateMipMaps(final Patch patch) {
 		//Utils.log2("mipmaps for " + patch);
 		if (null == dir_mipmaps) createMipMapsDir(null);
-		if (null == dir_mipmaps || Utils.isURL(dir_mipmaps)) return false;
+		if (null == dir_mipmaps || isURL(dir_mipmaps)) return false;
 		final String path = getAbsolutePath(patch);
 		if (null == path) {
 			Utils.log2("generateMipMaps: cannot find path for Patch " + patch);
@@ -1137,7 +1164,7 @@ public class FSLoader extends Loader {
 	public Bureaucrat generateMipMaps(final ArrayList al, final boolean overwrite) {
 		if (null == al || 0 == al.size()) return null;
 		if (null == dir_mipmaps) createMipMapsDir(null);
-		if (Utils.isURL(dir_mipmaps)) {
+		if (isURL(dir_mipmaps)) {
 			Utils.log("Mipmaps folder is an URL, can't save files into it.");
 			return null;
 		}
@@ -1216,7 +1243,7 @@ public class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			final String path = dir_mipmaps + level;
-			if (Utils.isURL(dir_mipmaps)) {
+			if (isURL(dir_mipmaps)) {
 				unlock();
 				return path;
 			}
@@ -1378,7 +1405,7 @@ public class FSLoader extends Loader {
 			final String path = getAbsolutePath(patch);
 			if (null == path) return ERROR_PATH_NOT_FOUND;
 			final String filename = new File(path).getName() + ".jpg";
-			if (Utils.isURL(dir_mipmaps)) {
+			if (isURL(dir_mipmaps)) {
 				if (level <= 0) return 0;
 				// choose the smallest dimension
 				final double dim = patch.getWidth() < patch.getHeight() ? patch.getWidth() : patch.getHeight();
@@ -1437,7 +1464,7 @@ public class FSLoader extends Loader {
 	public boolean checkMipMapFileExists(final Patch p, final double magnification) {
 		if (null == dir_mipmaps) return false;
 		final int level = getMipMapLevel(magnification);
-		if (Utils.isURL(dir_mipmaps)) return true; // just assume that it does
+		if (isURL(dir_mipmaps)) return true; // just assume that it does
 		if (new File(dir_mipmaps + level + "/" + new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg").exists()) return true;
 		return false;
 	}
