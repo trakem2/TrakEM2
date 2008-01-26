@@ -1714,8 +1714,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Select the proper tab, and also scroll it to show the given Displayable -unless it's a LayerSet, and unless the proper tab is already showing. */
 	private void selectTab(Displayable displ) {
 		try {
-			Object ob_tab = ht_tabs.get(displ.getClass());
-			if (null == ob_tab /*|| !tabs.getSelectedComponent().equals(ob_tab)*/) return; // disabled the "select only if the corresponding tab is visible" switch
 			if (!(displ instanceof LayerSet)) {
 				Method method = getClass().getDeclaredMethod("selectTab", new Class[]{displ.getClass()});
 				method.invoke(this, new Object[]{displ});
