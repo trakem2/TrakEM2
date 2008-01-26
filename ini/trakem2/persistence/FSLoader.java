@@ -982,9 +982,9 @@ public class FSLoader extends Loader {
 				this.dir_storage = System.getProperty("user.home").replace('\\', '/');
 			}
 		}
-		Utils.log2("storage folder is " + this.dir_storage);
 		// fix
 		if (null != this.dir_storage && !this.dir_storage.endsWith("/")) this.dir_storage += "/";
+		Utils.log2("storage folder is " + this.dir_storage);
 		//
 		ob = ht_attributes.get("mipmaps_folder");
 		if (null != ob) {
@@ -992,7 +992,6 @@ public class FSLoader extends Loader {
 			if (isRelativePath(mf)) {
 				mf = getParentFolder() + mf;
 			}
-			Utils.log2("mf is " + mf);
 			if (isURL(mf)) {
 				this.dir_mipmaps = mf;
 				// TODO must disable input somehow, so that images are not edited.
@@ -1030,6 +1029,7 @@ public class FSLoader extends Loader {
 		}
 		// fix
 		if (null != this.dir_mipmaps && !this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
+		Utils.log2("mipmaps folder is " + this.dir_mipmaps);
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
