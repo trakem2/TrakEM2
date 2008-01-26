@@ -56,23 +56,10 @@ import java.util.Iterator;
 import java.util.Map;
 import javax.swing.tree.*;
 import javax.swing.JTree;
-import javax.swing.UIManager;
 import java.awt.Rectangle;
 
 /** The top-level class in control. */
 public class Project extends DBObject {
-
-	/* Why it doesn't set the proper Look and Feel is a mistery
-	static {
-		// look and feel:
-		try {
-			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-			//UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
-		} catch (Exception e) {
-			Utils.log("Failed to set System Look and Feel");
-		}
-	}
-	*/
 
 	/* // using virtual frame buffer instead, since the trees are needed
 	public static final boolean headless = isHeadless();
@@ -630,39 +617,40 @@ public class Project extends DBObject {
 		return false;
 	}
 
-	/** Find the node in any tree with a Thing that contains the given object, and set it selected/highlighted. */
-	public void select(Object ob) {
-		if (ob instanceof ZDisplayable || ob instanceof Profile) {
-			select(ob, project_tree);
-		} else if (ob instanceof Layer || ob instanceof LayerSet) {
-			select(ob, layer_tree);
-		}
-		// else do nothing.
+
+	/** Find the node in the layer tree with a Thing that contains the given object, and set it selected/highlighted, deselecting everything else first. */
+	public void select(final Layer layer) {
+		select(layer, layer_tree);
+	}
+	/** Find the node in any tree with a Thing that contains the given Displayable, and set it selected/highlighted, deselecting everything else first. */
+	public void select(final Displayable d) {
+		if (d.getClass().equals(LayerSet.class)) select(d, layer_tree);
+		else select(d, project_tree);
 	}
 
-	private void select(Object ob, JTree tree) {
+	private final void select(final Object ob, final JTree tree) {
 		// Find the Thing that contains the object
-		Thing root_thing = (Thing)((DefaultMutableTreeNode)tree.getModel().getRoot()).getUserObject();
-		Thing child_thing = root_thing.findChild(ob);
+		final Thing root_thing = (Thing)((DefaultMutableTreeNode)tree.getModel().getRoot()).getUserObject();
+		final Thing child_thing = root_thing.findChild(ob);
 		// find the node that contains the Thing, and select it
 		DNDTree.selectNode(child_thing, tree);
 	}
 
 	/** Find the ProjectThing instance with the given id. */
-	public ProjectThing find(long id) {
+	public ProjectThing find(final long id) {
 		// can't be the Project itself
 		return root_pt.findChild(id);
 	}
 
 	/** Find a LayerThing that contains the given object. */
-	public LayerThing findLayerThing(Object ob) {
-		Object lob = root_lt.findChild(ob);
+	public LayerThing findLayerThing(final Object ob) {
+		final Object lob = root_lt.findChild(ob);
 		return null != lob ? (LayerThing)lob : null;
 	}
 
 	/** Find a ProjectThing that contains the given object. */
-	public ProjectThing findProjectThing(Object ob) {
-		Object pob = root_pt.findChild(ob);
+	public ProjectThing findProjectThing(final Object ob) {
+		final Object pob = root_pt.findChild(ob);
 		return null != pob ? (ProjectThing)pob : null;
 	}
 
@@ -675,7 +663,7 @@ public class Project extends DBObject {
 	}
 
 	/** Returns the title of the enclosing abstract node in the ProjectTree.*/
-	public String getParentTitle(Displayable d) {
+	public String getParentTitle(final Displayable d) {
 		try {
 			ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
 			ProjectThing parent = (ProjectThing)thing.getParent();
@@ -691,11 +679,11 @@ public class Project extends DBObject {
 	}
 
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */
-	public String getMeaningfulTitle(Displayable d) {
+	public String getMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
 		ProjectThing parent = (ProjectThing)thing.getParent();
-		String title = thing.getType() + " #" + d.getId();
+		String title = new StringBuffer(thing.getType() != d.getTitle() ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
 		while (null != parent) {
 			Object ob = parent.getObject();
 			String type = parent.getType();

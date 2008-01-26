@@ -1487,16 +1487,31 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	 *  The format is either Layer.IMAGE (an array) or Layer.ImagePlus (it returns an ImagePlus containing an ImageStack), from which any ImageProcessor or pixel arrays can be retrieved trivially.
 	 */
 	public Object grab(final int first, final int last, final Rectangle r, final double scale, final Class c, final int format, final int type) {
+		// check preconditions
+		if (first < 0 || first > last || last >= al_layers.size()) {
+			Utils.log("Invalid first and/or last layers.");
+			return null;
+		}
 		// check that it will fit in memory
 		if (!project.getLoader().releaseToFit(r.width, r.height, type, 1.1f)) {
 			Utils.log("LayerSet.grab: Cannot fit an image stack of " + (long)(r.width*r.height*(ImagePlus.GRAY8==type?1:4)*1.1) + " bytes in memory.");
 			return null;
 		}
 		if (Layer.IMAGEPLUS == format) {
-			final ImageStack stack = new ImageStack((int)Math.ceil(r.width*scale), (int)Math.ceil(r.height*scale));
+			ImageStack stack = new ImageStack((int)Math.ceil(r.width*scale), (int)Math.ceil(r.height*scale));
 			for (int i=first; i<=last; i++) {
-				final ImagePlus imp = project.getLoader().getFlatImage((Layer)al_layers.get(i), r, scale, 1, type, c, null, true);
-				stack.addSlice(imp.getTitle(), imp.getProcessor());
+				Layer la = (Layer)al_layers.get(i);
+				Utils.log2("c is " + c);
+				ImagePlus imp = project.getLoader().getFlatImage(la, r, scale, 1, type, c, null, true);
+				if (null != imp) try {
+					stack.addSlice(imp.getTitle(), imp.getProcessor().getPixels());
+				} catch (IllegalArgumentException iae) {
+					new IJError(iae);
+				} else Utils.log("LayerSet.grab: Ignoring layer " + la);
+			}
+			if (0 == stack.getSize()) {
+				Utils.log("LayerSet.grab: could not make slices.");
+				return null;
 			}
 			return new ImagePlus("Stack " + first + "-" + last, stack);
 		} else if (Layer.IMAGE == format) {

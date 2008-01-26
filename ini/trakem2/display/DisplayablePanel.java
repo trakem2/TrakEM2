@@ -96,12 +96,13 @@ public class DisplayablePanel extends JPanel implements MouseListener, ItemListe
 	private String makeUpdatedTitle() {
 		if (null == d) Utils.log("null d");
 		else if (null == d.getTitle()) Utils.log("null title");
-		if (d instanceof Patch) {
+		final Class c = d.getClass();
+		if (c.equals(Patch.class)) {
 			return d.getTitle();
-		} else if (d instanceof DLabel) {
-			return d.getTitle().replaceAll("\n", " ");
+		} else if (c.equals(DLabel.class)) {
+			return d.getTitle().replace('\n', ' ');
 		} else {
-			// gather name of the enclosing object
+			// gather name of the enclosing object in the project tree
 			return d.getProject().getMeaningfulTitle(d);
 		}
 	}

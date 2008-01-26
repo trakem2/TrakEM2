@@ -282,9 +282,10 @@ public class Patch extends Displayable {
 		checkChannels(channels, magnification);
 
 		final Image image = project.getLoader().fetchImage(this, magnification);
+		//Utils.log2("Patch " + id + " painted image " + image);
 
 		if (null == image) {
-			Utils.log2("Patch.paint: null image, returning");
+			//Utils.log2("Patch.paint: null image, returning");
 			return; // TEMPORARY from lazy repaints after closing a Project
 		}
 

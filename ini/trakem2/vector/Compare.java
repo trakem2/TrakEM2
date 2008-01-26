@@ -253,11 +253,12 @@ public class Compare {
 					if (null == ob) return;
 					Displayable displ = ht_tabs.get(ob);
 					if (null == displ) return;
-					label.setText(displ.getProject().toString() + ": " + displ.getProject().findProjectThing(displ).getTitle() + " " + Project.getName(displ.getClass()));
+					label.setText(displ.getProject().toString() + ": " + displ.getProject().getMeaningfulTitle(displ) + " [" + Project.getName(displ.getClass()) + "]");
 				}
 			};
 			JPanel all = new JPanel();
 			label = new JLabel("None compared.");
+			label.setMaximumSize(new Dimension(1000, 45));
 			label.addMouseListener(new MouseAdapter() {
 				public void mousePressed(MouseEvent me) {
 					if (2 != me.getClickCount()) return;
@@ -309,7 +310,8 @@ public class Compare {
 					return v_obs.get(row).getProject().toString();
 				case 1:
 					Displayable d = v_obs.get(row);
-					return d.getProject().findProjectThing(d).getTitle();
+					//return d.getProject().findProjectThing(d).getTitle();
+					return d.getProject().getMeaningfulTitle(d);
 				case 2: return Utils.cutNumber(Math.floor(v_eds.get(row).getSimilarity() * 10000) / 100, 2) + " %";
 				case 3: return Utils.cutNumber(v_scores.get(row).doubleValue(), 2);
 				default: return "";

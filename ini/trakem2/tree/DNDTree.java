@@ -262,12 +262,12 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	*/
 
 	/** Find the node in the tree that contains the given Thing.*/
-	static public DefaultMutableTreeNode findNode(Object thing_ob, JTree tree) {
+	static public DefaultMutableTreeNode findNode(final Object thing_ob, final JTree tree) {
 		if (null != thing_ob) {
 			// find which node contains the thing_ob
 			DefaultMutableTreeNode node = (DefaultMutableTreeNode)tree.getModel().getRoot();
 			if (node.getUserObject().equals(thing_ob)) return node; // the root itself
-			Enumeration e = node.depthFirstEnumeration();
+			final Enumeration e = node.depthFirstEnumeration();
 			while (e.hasMoreElements()) {
 				node = (DefaultMutableTreeNode)e.nextElement();
 				if (node.getUserObject().equals(thing_ob)) {
@@ -280,7 +280,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	}
 
 	/** Find the node in the tree that contains a Thing which contains the given project_ob. */
-	static public DefaultMutableTreeNode findNode2(Object project_ob, JTree tree) {
+	static public DefaultMutableTreeNode findNode2(final Object project_ob, final JTree tree) {
 		if (null != project_ob) {
 			DefaultMutableTreeNode node = (DefaultMutableTreeNode)tree.getModel().getRoot();
 			// check if it's the root itself
@@ -311,11 +311,11 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		tree.setSelectionPath(null);
 		// check first:
 		if (null == ob) return;
-		final DefaultMutableTreeNode node = DNDTree.findNode(ob, tree);
 		final Runnable run = new Runnable() {
 			public void run() {
+				final DefaultMutableTreeNode node = DNDTree.findNode(ob, tree);
 				if (null != node) {
-					TreePath path = new TreePath(node.getPath());
+					final TreePath path = new TreePath(node.getPath());
 					try {
 						tree.scrollPathToVisible(path); // involves repaint, so must be set through invokeAndWait. Why it doesn't do so automatically is beyond me.
 					} catch (Exception e) {
@@ -344,7 +344,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		final DNDTree tree = this;
 		final Runnable updater = new Runnable() {
 			public void run() {
-				try { Thread.sleep(200); } catch (InterruptedException ie) {}
+				//try { Thread.sleep(200); } catch (InterruptedException ie) {}
 				try {
 					tree.updateUI();
 				} catch (Exception e) {

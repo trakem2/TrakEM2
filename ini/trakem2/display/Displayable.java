@@ -226,7 +226,7 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-		//Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
+		Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
 	}
 
 	/** If the painting is expensive, children classes can override this method to provide first a coarse painting, and then call repaint on their own again once the desired graphics are ready. */

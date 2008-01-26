@@ -761,8 +761,9 @@ public class Selection {
 		rotating = false;
 	}
 
-	/** Returns a copy of the box enclosing all selected ob.*/
+	/** Returns a copy of the box enclosing all selected ob, or null if none.*/
 	public Rectangle getBox() {
+		if (null == box) return null;
 		return (Rectangle)box.clone();
 	}
 

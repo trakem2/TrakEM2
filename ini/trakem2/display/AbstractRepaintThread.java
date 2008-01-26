@@ -55,12 +55,12 @@ public abstract class AbstractRepaintThread extends Thread {
 	}
 
 	/** Queue a new request for painting, updating offscreen graphics. */
-	public final void paint(Rectangle clipRect) {
+	public final void paint(final Rectangle clipRect) {
 		paint(clipRect, true);
 	}
 
 	/** Queue a new request for painting. */
-	public void paint(Rectangle clipRect, boolean update_graphics) {
+	public void paint(final Rectangle clipRect, final boolean update_graphics) {
 		//Utils.printCaller(this, 7);
 		// queue the event
 		synchronized (lock_event) {

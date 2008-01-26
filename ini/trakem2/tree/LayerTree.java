@@ -219,9 +219,9 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 					}
 					for (Iterator it = hs_parents.iterator(); it.hasNext(); ) {
 						updateList((LayerSet)it.next());
-						try {
-							Thread.sleep(100); // swing swing my dear!
-						} catch (InterruptedException ie) {}
+						//try {
+						//	Thread.sleep(100); // swing swing my dear!
+						//} catch (InterruptedException ie) {}
 					}
 					// now update all profile's Z ordering in the ProjectTree
 					final Project project = Project.getInstance(this);
