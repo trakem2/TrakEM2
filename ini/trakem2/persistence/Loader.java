@@ -2738,10 +2738,13 @@ abstract public class Loader {
 		// create 'z' directories if they don't exist: check and ask!
 
 		// start with the highest scale level
-		int[] best = determineClosestPowerOfTwo(srcRect.width > srcRect.height ? srcRect.width : srcRect.height);
-		int edge_length = best[0];
+		final int[] best = determineClosestPowerOfTwo(srcRect.width > srcRect.height ? srcRect.width : srcRect.height);
+		final int edge_length = best[0];
 		final int n_edge_tiles = edge_length / 256;
+		Utils.log2("srcRect: " + srcRect);
 		Utils.log2("edge_length, n_edge_tiles, best[1] " + best[0] + ", " + n_edge_tiles + ", " + best[1]);
+
+
 		// thumbnail dimensions
 		LayerSet ls = layer[0].getParent();
 		double ratio = ls.getLayerWidth() / ls.getLayerHeight();
@@ -2774,7 +2777,7 @@ abstract public class Loader {
 				Utils.log("Created directory " + fdir);
 			}
 			// if the directory exists already just reuse it, overwritting its files if so.
-			final String tmp = fdir.getAbsolutePath();
+			final String tmp = fdir.getAbsolutePath().replace('\\','/');
 			if (!tile_dir.equals(tmp)) Utils.log("\tWARNING: directory will not be in the standard location.");
 			// debug:
 			Utils.log2("tile_dir: " + tile_dir + "\ntmp: " + tmp);
@@ -2859,8 +2862,8 @@ abstract public class Loader {
 		ImageSaver.saveAsJpeg(imp.getProcessor(), file_path, jpeg_quality, ImagePlus.COLOR_RGB != type);
 	}
 
-	/** Find the closest, but larger, power of 2 number for the given edge size */
-	private int[] determineClosestPowerOfTwo(int edge) {
+	/** Find the closest, but larger, power of 2 number for the given edge size; the base root may be any of {1,2,3,5}. */
+	private int[] determineClosestPowerOfTwo(final int edge) {
 		int[] starter = new int[]{1, 2, 3, 5}; // I love primer numbers
 		int[] larger = new int[starter.length]; System.arraycopy(starter, 0, larger, 0, starter.length); // I hate java's obscene verbosity
 		for (int i=0; i<larger.length; i++) {

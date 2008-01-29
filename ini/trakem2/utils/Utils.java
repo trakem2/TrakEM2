@@ -85,14 +85,6 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Intended for the user to see. */
 	static public void log(final String msg) {
-		// print caller if possible
-		/* Freezes ImageJ !
-		StackTraceElement[] elems = new Exception().getStackTrace();
-		if (elems.length >= 3) {
-			log( "LOG: " + elems[2].getClassName() + "   " + elems[2].getFileName() + " at line " + elems[2].getLineNumber() + ":" + elems[2].getClassName() + "." + elems[2].getMethodName() + "()\n" + msg);
-		}
-		*/
-
 		/*
 		new Thread() {
 			public void run() {
@@ -101,11 +93,19 @@ public class Utils implements ij.plugin.PlugIn {
 		}.start();
 		*/
 
+		/*
+		if (ControlWindow.isGUIEnabled()) {
+			IJ.log(msg);
+		} else {
+			System.out.println(msg);
+		}
+		*/
+
 		// for now:
 		System.out.println(msg);
 	}
 
-	/** Intended for developers. */
+	/** Intended for developers: prints to terminal. */
 	static public void log2(String msg) {
 		System.out.println(msg);
 	}
