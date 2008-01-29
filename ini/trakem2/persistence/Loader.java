@@ -806,9 +806,9 @@ abstract public class Loader {
 	 *  mag = 1 / Math.pow(2, level) <br />
 	 *  so that 100% is 0, 50% is 1, 25% is 2, and so on, but represented in values between 0 and 1.
 	 */
-	static protected final int getMipMapLevel(double mag) {
+	static protected final int getMipMapLevel(final double mag) {
 		// check parameters
-		if (mag > 1) mag = 1;
+		if (mag > 1) return 0; // there is no level for mag > 1, so use mag = 1
 		if (mag <= 0 || Double.isNaN(mag)) return -1; //error signal
 		//
 		int level = 0;
@@ -2676,6 +2676,10 @@ abstract public class Loader {
 		return null;
 	}
 
+	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type) {
+		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, null);
+	}
+
 	/** Generate 256x256 tiles, as many as necessary, to cover the given srcRect, starting at max_scale. Designed to be slow but memory-capable.
 	 *
 	 * filename = z + "/" + row + "_" + column + "_" + s + ".jpg";
@@ -2698,34 +2702,35 @@ abstract public class Loader {
 	 *
 	 * Returns the watcher thread, for joining purposes, or null if the dialog is canceled or preconditions ar enot passed.
 	 */
-	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type) {
+	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type, String target_dir) {
 		if (null == layer || 0 == layer.length) return null;
 		// choose target directory
-		DirectoryChooser dc = new DirectoryChooser("Choose target directory");
-		String dir_ = dc.getDirectory();
-		if (null == dir_) return null;
-		dir_ = dir_.replace('\\', '/'); // Windows fixing
-		if (!dir_.endsWith("/")) dir_ += "/"; // Windows users may suffer here
+		if (null == target_dir) {
+			DirectoryChooser dc = new DirectoryChooser("Choose target directory");
+			target_dir = dc.getDirectory();
+			if (null == target_dir) return null;
+		}
+		target_dir = target_dir.replace('\\', '/'); // Windows fixing
+		if (!target_dir.endsWith("/")) target_dir += "/"; // Windows users may suffer here
 
 		if (max_scale_ > 1) {
 			Utils.log("Prescaled Tiles: using max scale of 1.0");
 			max_scale_ = 1; // no point
 		}
 
-		final String dir = dir_;
+		final String dir = target_dir;
 		final double max_scale = max_scale_;
-		final int jpeg_quality = ij.plugin.JpegWriter.getQuality();
+		final float jpeg_quality = ij.plugin.JpegWriter.getQuality() / 100.0f;
+		Utils.log("Using jpeg quality: " + jpeg_quality);
 
 		Worker worker = new Worker("Creating prescaled tiles") {
-			public void cleanup() {
-				ij.plugin.JpegWriter.setQuality(jpeg_quality);
+			private void cleanup() {
+				finishedWorking();
 			}
 			public void run() {
 				startedWorking();
 
 		try {
-
-		ij.plugin.JpegWriter.setQuality(85); // 75 %
 
 		// project name
 		String pname = layer[0].getProject().getTitle();
@@ -2776,14 +2781,15 @@ abstract public class Loader {
 			tile_dir = tmp;
 			if (!tile_dir.endsWith("/")) tile_dir += "/"; // Windows users may suffer here
 			// 2 - create layer thumbnail, max 192x192
-			ImagePlus thumb = getFlatImage(layer[iz], srcRect, thumb_scale, c_alphas, type, clazz, false); // TODO should be true, but it's too much overhead at the moment
-			new FileSaver(thumb).saveAsJpeg(tile_dir + "/small.jpg");
+			ImagePlus thumb = getFlatImage(layer[iz], srcRect, thumb_scale, c_alphas, type, clazz, true);
+			// thread-unsafe! //new FileSaver(thumb).saveAsJpeg(tile_dir + "/small.jpg");
+			ImageSaver.saveAsJpeg(thumb.getProcessor(), tile_dir + "/small.jpg", jpeg_quality, ImagePlus.COLOR_RGB != type);
 			flush(thumb);
 			thumb = null;
 			// 3 - fill directory with tiles
 			if (edge_length < 256) {
 				// create single tile per layer
-				makeTile(layer[iz], srcRect, max_scale, c_alphas, type, clazz, tile_dir + "0_0_0.jpg");
+				makeTile(layer[iz], srcRect, max_scale, c_alphas, type, clazz, jpeg_quality, tile_dir + "0_0_0.jpg");
 			} else {
 				// create piramid of tiles
 				double scale = max_scale;
@@ -2793,12 +2799,16 @@ abstract public class Loader {
 					int tile_side = (int)(256/scale); // 0 < scale <= 1, so no precision lost
 					for (int row=0; row<n_et; row++) {
 						for (int col=0; col<n_et; col++) {
+							if (this.quit) {
+								cleanup();
+								return;
+							}
 							Rectangle tile_src = new Rectangle(srcRect.x + tile_side*row, srcRect.y + tile_side*col, tile_side, tile_side); // in absolute coords, magnification later.
 							// crop bounds
 							if (tile_src.x + tile_src.width > srcRect.x + srcRect.width) tile_src.width = srcRect.x + srcRect.width - tile_src.x;
 							if (tile_src.y + tile_src.height > srcRect.x + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 							// negative tile sizes will be made into black tiles
-							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, new StringBuffer(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I inversed it.
+							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, jpeg_quality, new StringBuffer(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I inversed it.
 						}
 					}
 					scale_pow++;
@@ -2823,7 +2833,7 @@ abstract public class Loader {
 	}
 
 	/** Will overwrite if the file path exists. */
-	private void makeTile(Layer layer, Rectangle srcRect, double mag, int c_alphas, int type, Class clazz, String file_path) throws Exception {
+	private void makeTile(Layer layer, Rectangle srcRect, double mag, int c_alphas, int type, Class clazz, final float jpeg_quality, String file_path) throws Exception {
 		ImagePlus imp = null;
 		if (srcRect.width > 0 && srcRect.height > 0) {
 			imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz, null, true); // with quality
@@ -2845,7 +2855,8 @@ abstract public class Loader {
 		}
 		// debug
 		//Utils.log("would save: " + srcRect + " at " + file_path);
-		new FileSaver(imp).saveAsJpeg(file_path);
+		// thread-unsafe! //new FileSaver(imp).saveAsJpeg(file_path);
+		ImageSaver.saveAsJpeg(imp.getProcessor(), file_path, jpeg_quality, ImagePlus.COLOR_RGB != type);
 	}
 
 	/** Find the closest, but larger, power of 2 number for the given edge size */

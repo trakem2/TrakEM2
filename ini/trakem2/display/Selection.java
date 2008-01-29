@@ -796,7 +796,7 @@ public class Selection {
 	}
 
 	/** Lock / unlock all selected objects. */
-	public void setLocked(boolean b) {
+	public void setLocked(final boolean b) {
 		if (null == active) return; // empty
 		for (Iterator it = queue.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
@@ -810,12 +810,12 @@ public class Selection {
 		return 0 == queue.size(); // active must always exists if selection is not empty
 	}
 
-	public boolean contains(Displayable d) {
+	public boolean contains(final Displayable d) {
 		return queue.contains(d);
 	}
 
 	/** Returns true if selection contains any items of the given class.*/
-	public boolean contains(Class c) {
+	public boolean contains(final Class c) {
 		if (null == c) return false;
 		if (c.equals(Displayable.class) && queue.size() > 0) return true;
 		for (Iterator it = queue.iterator(); it.hasNext(); ) {
@@ -886,7 +886,7 @@ public class Selection {
 	}
 
 	/** Update the bounding box of the whole selection. */
-	public void updateTransform(Displayable d) {
+	public void updateTransform(final Displayable d) {
 		if (null == d) {
 			Utils.log2("Selection.updateTransform warning: null Displayable");
 			return;
@@ -931,7 +931,7 @@ public class Selection {
 		resetBox();
 	}
 
-	/** Returns all selected Displayables (and not their linked ones). */
+	/** Returns a copy of the list of all selected Displayables (and not their linked ones). */
 	public ArrayList getSelected() {
 		final ArrayList al = new ArrayList();
 		for (Iterator it = queue.iterator(); it.hasNext(); ) {
@@ -940,7 +940,7 @@ public class Selection {
 		return al;
 	}
 
-	/** Returns all selected Displayables (and not their linked ones) of the given class. */
+	/** Returns a copy of the list of all selected Displayables (and not their linked ones) of the given class. */
 	public ArrayList getSelected(final Class c) {
 		final ArrayList al = new ArrayList();
 		if (null == c || c.equals(Displayable.class) || c.equals(ZDisplayable.class)) {

@@ -825,21 +825,34 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		updateTitle(); // to show the new 'z'
 		// select the Layer in the LayerTree
 		project.select(this.layer); // does so in a separate thread
-		// update active Displayable
-		Displayable last_active = this.active;
-		selection.clear();
+		// update active Displayable:
+
+		// deselect all except ZDisplayables
+		final ArrayList sel = selection.getSelected();
+		final Displayable last_active = this.active;
+		int sel_next = -1;
+		for (Iterator it = sel.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			if (!(d instanceof ZDisplayable)) {
+				it.remove();
+				selection.remove(d);
+				if (d.equals(last_active) && sel.size() > 0) {
+					// select the last one of the remaining, if any
+					sel_next = sel.size()-1;
+				}
+			}
+		}
+		if (-1 != sel_next && sel.size() > 0) select((Displayable)sel.get(sel_next), true);
+		else if (null != last_active && last_active.getClass().equals(Patch.class) && null != last_temp && last_temp instanceof PatchStack) {
+			Displayable d = ((PatchStack)last_temp).getPatch(layer, (Patch)active);
+			if (null != d) selection.add(d);
+		}
+		// TODO last_temp doesn't remain the PatchStack // Utils.log2("last_temp is: " + last_temp.getClass().getName());
 
 		// repaint everything
 		navigator.repaint(true);
 		canvas.repaint(true);
 
-		// reselect patches (from a stack) and ZDislayables if appropriate
-		if (last_active instanceof ZDisplayable) {
-			selection.add(last_active);
-		} else if (last_active instanceof Patch && null != last_temp && last_temp instanceof PatchStack) {
-			Displayable d = ((PatchStack)last_temp).getPatch(layer, (Patch)active); // TODO this is wrong, should be the next patch
-			if (null != d) selection.add(d);
-		}
 		// repaint tabs (hard as hell)
 		updateComponent(tabs);
 		// @#$%^! The above works half the times, so explicit repaint as well:
@@ -1288,25 +1301,27 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void remove(final Displayable displ) {
-		if (displ instanceof Patch) {
-			panel_patches.remove((Component)ht_panels.remove(displ));
-			updateComponent(panel_patches);
-		} else if (displ instanceof Profile) {
-			Component c = (Component)ht_panels.remove(displ);
-			if (null == c) Utils.log("null dp !");
-			panel_profiles.remove(c);
-			updateComponent(panel_profiles);
-		} else if (displ instanceof ZDisplayable) {
-			panel_zdispl.remove((Component)ht_panels.remove(displ));
-			updateComponent(panel_zdispl);
-		} else if (displ instanceof DLabel) {
-			panel_labels.remove((Component)ht_panels.remove(displ));
-			updateComponent(panel_labels);
+		Object ob = ht_panels.remove(displ);
+		if (null != ob) {
+			Component c = (Component)ob;
+			if (displ.getClass().equals(Patch.class)) {
+				panel_patches.remove(c);
+				updateComponent(panel_patches);
+			} else if (displ instanceof ZDisplayable) {
+				panel_zdispl.remove(c);
+				updateComponent(panel_zdispl);
+			} else if (displ.getClass().equals(DLabel.class)) {
+				panel_labels.remove(c);
+				updateComponent(panel_labels);
+			} else if (displ.getClass().equals(Profile.class)) {
+				panel_profiles.remove(c);
+				updateComponent(panel_profiles);
+			}
 		}
 		if (null == active || !selection.contains(displ)) {
 			canvas.setUpdateGraphics(true);
 		}
-		selection.remove(displ); //if (displ == active) setActive(null);
+		selection.remove(displ);
 		layer.getParent().removeFromUndo(displ);
 		repaint(displ, 5, true);
 	}
@@ -2222,10 +2237,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void scrollToShow(JScrollPane scroll, DisplayablePanel dp) {
-		if(null == dp) {
-			Utils.log2("Display.scrollToShow: null DisplayablePanel ??");
-			return;
-		}
+		if (null == dp) return;
 		JViewport view = scroll.getViewport();
 		Point current = view.getViewPosition();
 		Dimension extent = view.getExtentSize();
@@ -3195,7 +3207,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (d.equals(calling_display)) continue;
 			if (d.layer.contains(displ) || (displ instanceof ZDisplayable && d.layer.getParent().contains((ZDisplayable)displ))) {
 				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
-				dp.updateVisibilityCheckbox();
+				if (null != dp) dp.updateVisibilityCheckbox();
 			}
 		}
 	}

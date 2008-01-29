@@ -258,7 +258,6 @@ public class Compare {
 			};
 			JPanel all = new JPanel();
 			label = new JLabel("None compared.");
-			label.setMaximumSize(new Dimension(1000, 45));
 			label.addMouseListener(new MouseAdapter() {
 				public void mousePressed(MouseEvent me) {
 					if (2 != me.getClickCount()) return;
@@ -269,6 +268,7 @@ public class Compare {
 			BoxLayout bl = new BoxLayout(all, BoxLayout.Y_AXIS);
 			JPanel plabel = new JPanel();
 			plabel.setBorder(new LineBorder(Color.black, 1, true));
+			plabel.setMaximumSize(new Dimension(1000, 50));
 			plabel.add(label);
 			all.setLayout(bl);
 			all.add(plabel);

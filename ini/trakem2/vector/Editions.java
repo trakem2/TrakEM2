@@ -70,7 +70,7 @@ public class Editions {
 					break;
 			}
 		}
-		Utils.log2("non_mut: " + non_mut + "  total: " + editions.length);
+		//Utils.log2("non_mut: " + non_mut + "  total: " + editions.length);
 		return 1.0 - ( (double)non_mut / Math.max(vs1.length(), vs2.length()) );
 	}
 
