@@ -781,4 +781,12 @@ public class Display3D {
 		Display3D d3d = (Display3D)ob;
 		return d3d.addMesh(d.getProject().findProjectThing(d), d);
 	}
+
+	/*
+	static public final double computeTriangleArea() {
+		return 0.5 *  Math.sqrt(Math.pow(xA*yB + xB*yC + xC*yA, 2) +
+					Math.pow(yA*zB + yB*zC + yC*zA, 2) +
+					Math.pow(zA*xB + zB*xC + zC*xA, 2));
+	}
+	*/
 }

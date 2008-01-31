@@ -235,9 +235,9 @@ public class TMLHandler extends DefaultHandler {
 					return;
 				}
 				// Create the project
-				this.project = new Project(Long.parseLong((String)ht_attributes.get("id")), (String)ht_attributes.get("title"));
+				this.project = new Project(Long.parseLong((String)ht_attributes.remove("id")), (String)ht_attributes.remove("title"));
 				this.project.setTempLoader(this.loader); // temp, but will be the same anyway
-				((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
+				this.project.parseXMLOptions(ht_attributes);
 				this.project.addToDatabase(); // register id
 				// Add all unique TemplateThing types to the project
 				for (Iterator it = root_tt.getUniqueTypes(new Hashtable()).values().iterator(); it.hasNext(); ) {

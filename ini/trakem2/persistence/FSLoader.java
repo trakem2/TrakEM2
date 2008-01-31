@@ -945,12 +945,14 @@ public class FSLoader extends Loader {
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
 	public void parseXMLOptions(final Hashtable ht_attributes) {
-		Object ob = ht_attributes.get("preprocessor");
-		if (null != ob) setPreprocessor((String)ob);
+		Object ob = ht_attributes.remove("preprocessor");
+		if (null != ob) {
+			setPreprocessor((String)ob);
+		}
 		// Adding some logic to support old projects which lack a storage folder and a mipmaps folder
 		// and also to prevent errors such as those created when manualy tinkering with the XML file
 		// or renaming directories, etc.
-		ob = ht_attributes.get("storage_folder");
+		ob = ht_attributes.remove("storage_folder");
 		if (null != ob) {
 			String sf = ((String)ob).replace('\\', '/');
 			if (isRelativePath(sf)) {
@@ -986,7 +988,7 @@ public class FSLoader extends Loader {
 		if (null != this.dir_storage && !this.dir_storage.endsWith("/")) this.dir_storage += "/";
 		Utils.log2("storage folder is " + this.dir_storage);
 		//
-		ob = ht_attributes.get("mipmaps_folder");
+		ob = ht_attributes.remove("mipmaps_folder");
 		if (null != ob) {
 			String mf = ((String)ob).replace('\\', '/');
 			if (isRelativePath(mf)) {

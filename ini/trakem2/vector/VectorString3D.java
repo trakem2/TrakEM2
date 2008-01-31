@@ -31,6 +31,9 @@ import ij.measure.Calibration;
 import java.util.Arrays;
 import java.util.Random;
 import Jama.Matrix;
+import javax.media.j3d.Transform3D;
+import javax.vecmath.Point3d;
+import javax.vecmath.Vector3d;
 
 public class VectorString3D implements VectorString {
 
@@ -45,9 +48,14 @@ public class VectorString3D implements VectorString {
 	/** The point interdistance after resampling. */
 	private double delta = 0;
 
-	private boolean closed = false;
-
-	private boolean is_reversed = false;
+	/** Bits: 000CRXYZ where C=closed, R=reversed, X=mirrored in X, Y=mirrored in Y, Z=mirrored in Z. */
+	private byte tags = 0;
+	// masks
+	static public final byte CLOSED = (1<<4);
+	static public final byte REVERSED = (1<<3);
+	static public final byte MIRROR_X = (1<<2);
+	static public final byte MIRROR_Y = (1<<1);
+	static public final byte MIRROR_Z = 1;
 
 	private Calibration cal = null;
 
@@ -62,7 +70,7 @@ public class VectorString3D implements VectorString {
 		this.x = x;
 		this.y = y;
 		this.z = z;
-		this.closed = closed;
+		if (closed) this.tags ^= CLOSED;
 	}
 
 	/** Add an array that will get resampled along; must be of the same length as the value returned by length() */
@@ -143,7 +151,10 @@ public class VectorString3D implements VectorString {
 		}
 		return 0;
 	}
-	public boolean isClosed() { return closed; }
+
+	public final boolean isClosed() {
+		return 0 != (tags & CLOSED);
+	}
 
 	public void debug() {
 		Utils.log2("#### " + getClass().getName() + " ####");
@@ -423,14 +434,14 @@ public class VectorString3D implements VectorString {
 
 		// start infinite loop
 		for (;prev_i <= i;) {
-			if (prev_i > i || (!closed && i == this.length -1)) break;
+			if (prev_i > i || (!isClosed() && i == this.length -1)) break;
 			// get distances of MAX_POINTs ahead from the previous point
 			next_ahead = 0;
 			for (t=0; t<MAX_AHEAD; t++) {
 				s = i + t;
 				// fix 's' if it goes over the end
 				if (s >= this.length) {
-					if (closed) s -= this.length;
+					if (isClosed()) s -= this.length;
 					else break;
 				}
 				dist_ahead = r.distance(j-1, x[s], y[s], z[s]);
@@ -523,7 +534,7 @@ public class VectorString3D implements VectorString {
 				if (i == ii) {
 					i = ahead[next_ahead-1] +1; //the one after the last.
 					if (i >= this.length) {
-						if (closed) i = i - this.length; // this.length is the length of the x,y,z, the original points
+						if (isClosed()) i = i - this.length; // this.length is the length of the x,y,z, the original points
 						else i = this.length -1;
 					}
 				} else {
@@ -549,7 +560,7 @@ public class VectorString3D implements VectorString {
 		//Utils.log2("distance: " + dist_ahead);
 
 		// see whether the subsampling terminated too early, and fill with a line of points.
-		final int last_i = closed ? 0 : this.length -1;
+		final int last_i = isClosed() ? 0 : this.length -1;
 		if (dist_ahead > delta*1.2) {
 			System.out.println("resampling terminated too early. Why?");
 			while (dist_ahead > delta*1.2) {
@@ -666,7 +677,7 @@ public class VectorString3D implements VectorString {
 
 	public Object clone() {
 		try {
-			final VectorString3D vs = new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), closed);
+			final VectorString3D vs = new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), isClosed());
 			vs.delta = delta;
 			if (null != vx) vs.vx = Utils.copy(vx, length);
 			if (null != vy) vs.vy = Utils.copy(vy, length);
@@ -674,6 +685,7 @@ public class VectorString3D implements VectorString {
 			if (null != rvx) vs.rvx = Utils.copy(rvx, length);
 			if (null != rvy) vs.rvy = Utils.copy(rvy, length);
 			if (null != rvz) vs.rvz = Utils.copy(rvz, length);
+			vs.tags = this.tags;
 			return vs;
 		} catch (Exception e) {
 			new IJError(e);
@@ -683,7 +695,7 @@ public class VectorString3D implements VectorString {
 
 	public VectorString3D makeReversedCopy() {
 		try {
-			final VectorString3D vs = new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), closed);
+			final VectorString3D vs = new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), isClosed());
 			vs.reverse();
 			if (delta != 0 && null != vx) {
 				vs.delta = this.delta;
@@ -721,7 +733,7 @@ public class VectorString3D implements VectorString {
 		//double vLx; // vLy = vLz = 0
 
 		// the first vector:
-		if (closed) { // last to first
+		if (isClosed()) { // last to first
 			rvx[0] = vx[0] + delta - vx[length-1];
 			rvy[0] = vy[0] - vy[length-1];
 			rvz[0] = vz[0] - vz[length-1];
@@ -850,7 +862,7 @@ public class VectorString3D implements VectorString {
 
 	/** Invert the order of points. Will clear all vector arrays if any! */
 	public void reverse() {
-		this.is_reversed = !this.is_reversed; // may be re-reversed
+		tags ^= REVERSED; // may be re-reversed
 		// reverse point arrays
 		Utils.reverse(x);
 		Utils.reverse(y);
@@ -866,7 +878,7 @@ public class VectorString3D implements VectorString {
 	}
 
 	public boolean isReversed() {
-		return this.is_reversed;
+		return 0 != (this.tags & REVERSED);
 	}
 
 	static public VectorString3D createInterpolated(final Editions ed, final double alpha) throws Exception {
@@ -940,7 +952,7 @@ public class VectorString3D implements VectorString {
 			i = editions[e][1];
 			j = editions[e][2];
 			// check for deletions and insertions at the lower-right edges of the matrix:
-			if (closed) {
+			if (isClosed()) {
 				if (i == n) i = 0; // zero, so the starting vector is applied. 
 				if (j == m) j = 0;
 			} else {
@@ -1009,6 +1021,44 @@ public class VectorString3D implements VectorString {
 		}
 
 
-		return new VectorString3D(px, py, pz, this.closed);
+		return new VectorString3D(px, py, pz, isClosed());
 	}
+
+	/** Where axis is any of VectorString.X_AXIS, .Y_AXIS or .Z_AXIS,
+	    and the mirroring is done relative to the local 0,0 of this VectorString. */
+	public void mirror(final int axis) {
+		final Transform3D t = new Transform3D();
+		switch(axis) {
+			case VectorString.X_AXIS:
+				t.setScale(new Vector3d(-1, 1, 1));
+				tags ^= MIRROR_X;
+				break;
+			case VectorString.Y_AXIS:
+				t.setScale(new Vector3d(1, -1, 1));
+				tags ^= MIRROR_Y;
+				break;
+			case VectorString.Z_AXIS:
+				t.setScale(new Vector3d(1, 1, -1));
+				tags ^= MIRROR_Z;
+				break;
+			default:
+				return;
+		}
+		final Point3d p = new Point3d();
+		transform(vx, vy, vz, t, p);
+		if (null != this.rvx) transform(rvx, rvy, rvz, t, p);
+	}
+
+	private final void transform(final double[] x, final double[] y, final double[] z, final Transform3D t, final Point3d p) {
+		for (int i=0; i<length; i++) {
+			p.x = x[i];	p.y = y[i];	p.z = z[i];
+			t.transform(p);
+			x[i] = p.x;	y[i] = p.y;	z[i] = p.z;
+		}
+	}
+
+	public boolean isMirroredX() { return 0 != (tags & MIRROR_X); }
+	public boolean isMirroredY() { return 0 != (tags & MIRROR_Y); }
+	public boolean isMirroredZ() { return 0 != (tags & MIRROR_Z); }
+	public byte getTags() { return tags; }
 }

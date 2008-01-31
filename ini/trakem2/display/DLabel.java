@@ -221,13 +221,11 @@ public class DLabel extends Displayable {
 	 * This method is overriden so that the x,y, which underlies the text, is translated upward by the height to generate a box that encloses the text and not just sits under it. */
 	public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
-		r.x = 0;
-		r.y = 0;
-		r.width = (int)this.width;
-		r.height = -(int)this.height;
 		if (this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
-			r.x += (int)this.at.getTranslateX();
-			r.y += (int)this.at.getTranslateY();
+			r.x = (int)this.at.getTranslateX();
+			r.y = (int)(this.at.getTranslateY() - this.height);
+			r.width = (int)this.width;
+			r.height = (int)this.height;
 		} else {
 			// transform points
 			final double[] d1 = new double[]{0, 0, width, 0, width, -height, 0, -height};

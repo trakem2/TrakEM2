@@ -32,6 +32,8 @@ import ij.gui.GenericDialog;
 import ij.measure.Calibration;
 
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Checkbox;
 import java.awt.Dimension;
 import java.awt.event.*;
 import java.awt.Container;
@@ -68,6 +70,8 @@ public class Compare {
 			ref[0] = all[0];
 		}
 		gd.addCheckbox("Ignore orientation", true);
+		gd.addCheckbox("Mirror", false);
+		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getCheckboxes().get(1)}, null);
 		gd.addCheckbox("Ignore calibration", false);
 
 		gd.showDialog();
@@ -75,6 +79,7 @@ public class Compare {
 
 		boolean ignore_orientation = gd.getNextBoolean();
 		boolean ignore_calibration = gd.getNextBoolean();
+		boolean mirror = gd.getNextBoolean();
 
 		if (all.length > 1) {
 			int choice = gd.getNextChoiceIndex();
@@ -85,11 +90,11 @@ public class Compare {
 				ref[0] = all[choice-1];
 			}
 		}
-		return findSimilar(pipe, ref, ignore_orientation, ignore_calibration);
+		return findSimilar(pipe, ref, ignore_orientation, ignore_calibration, mirror);
 	}
 
 	/** Compare the given pipe with other pipes in the given standard project. WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
-	static public final Bureaucrat findSimilar(final Pipe pipe, final Project[] ref, final boolean ignore_orientation, final boolean ignore_calibration) {
+	static public final Bureaucrat findSimilar(final Pipe pipe, final Project[] ref, final boolean ignore_orientation, final boolean ignore_calibration, final boolean mirror) {
 		final Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
@@ -117,7 +122,11 @@ public class Compare {
 		/* 1 */ if (!ignore_calibration && null != cal) vs.calibrate(cal);
 		/* 2 */ final double delta = vs.getAverageDelta(); // after calibration!
 		/* 3 */ vs.resample(delta);
-		/* 4 */ if (ignore_orientation) vs.relative();
+		/* 4 */ 
+		if (ignore_orientation) {
+			if (mirror) vs.mirror(VectorString.X_AXIS);
+			vs.relative();
+		}
 
 		final VectorString3D vs_reverse = vs.makeReversedCopy();
 

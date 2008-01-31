@@ -57,7 +57,7 @@ public class Selection {
 	private final Object queue_lock = new Object();
 	private boolean queue_locked = false;
 	/** All selected objects plus their links. */
-	private final HashSet hs = new HashSet();
+	private final HashSet<Displayable> hs = new HashSet<Displayable>();
 	private Displayable active = null;
 	private boolean transforming = false;
 	private Rectangle box = null;
@@ -296,8 +296,7 @@ public class Selection {
 			double px = (double)box.width / (double)box_old.width;
 			double py = (double)box.height / (double)box_old.height;
 			// displacement: specific of each element of the selection and their links, depending on where they are.
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+			for (Displayable d : hs) {
 				d.scale(px, py, anchor_x, anchor_y, false); // false because the linked ones are already included in the HashSet
 			}
 
@@ -327,8 +326,7 @@ public class Selection {
 		if (zc < 0) {
 			delta = -delta;
 		}
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (Displayable d : hs) {
 			d.rotate(delta, floater.x, floater.y, false); // false because the linked ones are already included in the HashSet
 		}
 	}
@@ -709,6 +707,7 @@ public class Selection {
 		if (box.x <= x_p && box.y <= y_p && box.x + box.width >= x_p && box.y + box.height >= y_p) {
 			dragging = true;
 		}
+		Utils.log2("Selection step 0 " + dragging);
 	}
 	public void mouseDragged(int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		this.x_d = x_d;
@@ -722,8 +721,8 @@ public class Selection {
 			grabbed.drag(dx, dy);
 		} else if (dragging) {
 			// drag all selected and linked
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				((Displayable)it.next()).translate(dx, dy, false); // false because the linked ones are already included in the HashSet
+			for (Displayable d : hs) {
+				d.translate(dx, dy, false); // false because the linked ones are already included in the HashSet
 			}
 			//and the box!
 			box.x += dx;

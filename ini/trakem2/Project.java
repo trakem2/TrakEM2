@@ -97,6 +97,8 @@ public class Project extends DBObject {
 
 	private String title = "Project"; // default  // TODO should be an attribute in the ProjectThing that holds it
 
+	private final Hashtable<String,String> ht_props = new Hashtable<String,String>();
+
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
 		super(loader);
@@ -777,6 +779,10 @@ public class Project extends DBObject {
 		       .append(in).append("\tid=\"").append(id).append("\"\n")
 		       .append(in).append("\ttitle=\"").append(title).append("\"\n");
 		loader.insertXMLOptions(sb_body, in + "\t");
+		for (Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry prop = (Map.Entry)it.next();
+			sb_body.append(in).append('\t').append((String)prop.getKey()).append("=\"").append((String)prop.getValue()).append("\"\n");
+		}
 		sb_body.append(in).append(">\n");
 		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
 		if (null != root_pt.getChildren()) {
@@ -809,6 +815,10 @@ public class Project extends DBObject {
 		sb_header.append(indent).append("<!ATTLIST project preprocessor NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project mipmaps_folder NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project storage_folder NMTOKEN #REQUIRED>\n");
+		for (Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry prop = (Map.Entry)it.next();
+			sb_header.append(indent).append("<!ATTLIST project ").append((String)prop.getKey()).append(" NMTOKEN #REQUIRED>\n");
+		}
 		root_tt.exportDTD(sb_header, hs, indent);
 		// 3 - export all project objects DTD in the Top Level LayerSet
 		Layer.exportDTD(sb_header, hs, indent);
@@ -843,7 +853,7 @@ public class Project extends DBObject {
 	}
 
 	/** Returns a user-understandable name for the given class. */
-	static public String getName(Class c) {
+	static public String getName(final Class c) {
 		String name = c.getName();
 		name = name.substring(name.lastIndexOf('.') + 1);
 		if (name.equals("DLabel")) return "Label";
@@ -889,5 +899,51 @@ public class Project extends DBObject {
 		final Project pr = Project.newFSProject(first.getProject());
 		first.getParent().clone(pr, first, last, roi, true); // this is a "clone into" operation
 		return pr;
+	}
+
+	public void parseXMLOptions(final Hashtable ht_attributes) {
+		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
+		// all keys that remain are properties
+		ht_props.putAll(ht_attributes);
+		for (Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry prop = (Map.Entry)it.next();
+			Utils.log2("parsed: " + prop.getKey() + "=" + prop.getValue());
+		}
+
+	}
+	public String getProperty(final String key) {
+		return (String)ht_props.get(key);
+	}
+	private final boolean addBox(final GenericDialog gd, final Class c) {
+		final String name = Project.getName(c);
+		final boolean link = "true".equals(ht_props.get(name.toLowerCase() + "_nolinks"));
+		gd.addCheckbox(name, link);
+		return link;
+	}
+	private final void setLinkProp(final boolean before, final boolean after, final Class c) {
+		if (before) {
+			if (!after) ht_props.remove(Project.getName(c).toLowerCase()+"_nolinks");
+		} else if (after) {
+			ht_props.put(Project.getName(c).toLowerCase()+"_nolinks", "true");
+		}
+		// setting to false would have no meaning, so the link prop is removed
+	}
+	public void adjustProperties() {
+		// should be more generic, but for now it'll do
+		GenericDialog gd = new GenericDialog("Properties");
+		gd.addMessage("Ignore image linking for:");
+		boolean link_labels = addBox(gd, DLabel.class);
+		boolean link_arealist = addBox(gd, AreaList.class);
+		boolean link_pipes = addBox(gd, Pipe.class);
+		boolean link_balls = addBox(gd, Ball.class);
+		boolean link_dissectors = addBox(gd, Dissector.class);
+		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		setLinkProp(link_labels, gd.getNextBoolean(), DLabel.class);
+		setLinkProp(link_arealist, gd.getNextBoolean(), AreaList.class);
+		setLinkProp(link_pipes, gd.getNextBoolean(), Pipe.class);
+		setLinkProp(link_balls, gd.getNextBoolean(), Ball.class);
+		setLinkProp(link_dissectors, gd.getNextBoolean(), Dissector.class);
 	}
 }

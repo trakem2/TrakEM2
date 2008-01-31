@@ -682,8 +682,10 @@ public abstract class Displayable extends DBObject {
 	}
 
 
-	/** Link the Patch objects that lay underneath the bounding box of this profile, so that they cannot be dragged independently. */
+	/** Link the Patch objects that lay underneath the bounding box of this Displayable, so that they cannot be dragged independently. */
 	public void linkPatches() {
+		final String prop = project.getProperty(Project.getName(this.getClass()).toLowerCase() + "_nolinks");
+		if (null != prop && prop.equals("true")) return;
 		// find the patches that don't lay under other profiles of this profile's linking group, and make sure they are unlinked. This will unlink any Patch objects under this Profile:
 		unlinkAll(Patch.class);
 

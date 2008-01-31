@@ -867,5 +867,4 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final boolean isPopupTrigger(final MouseEvent me) {
 		return me.isPopupTrigger() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK);
 	}
-
 }

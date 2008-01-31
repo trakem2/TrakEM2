@@ -2140,6 +2140,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			popup.add(menu);
 			menu = new JMenu("Project");
 			this.project.getLoader().setupMenuItems(menu, this.getProject());
+			item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
 			if (menu.getItemCount() > 0) popup.add(menu);
@@ -2971,6 +2972,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 			Project sub = getProject().createSubproject(roi.getBounds(), first, last);
 			new Display(sub, sub.getRootLayerSet().getLayer(0));
+		} else if (command.equals("Project properties...")) {
+			project.adjustProperties();
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}

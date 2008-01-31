@@ -30,6 +30,10 @@ import ini.trakem2.utils.IJError;
 
 public interface VectorString {
 
+	static public final int X_AXIS = 0;
+	static public final int Y_AXIS = 1;
+	static public final int Z_AXIS = 2;
+
 	public void resample(double delta);
 	public void reorder(int min_j);
 	public int length();
