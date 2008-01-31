@@ -1045,7 +1045,8 @@ public class VectorString3D implements VectorString {
 				return;
 		}
 		final Point3d p = new Point3d();
-		transform(vx, vy, vz, t, p);
+		transform(x, y, z, t, p);
+		if (null != this.vx) transform(vx, vy, vz, t, p);
 		if (null != this.rvx) transform(rvx, rvy, rvz, t, p);
 	}
 

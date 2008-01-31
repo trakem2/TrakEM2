@@ -1039,8 +1039,6 @@ public class FSLoader extends Loader {
 		if (null != preprocessor) sb_body.append(indent).append("preprocessor=\"").append(preprocessor).append("\"\n");
 		if (null != dir_mipmaps) sb_body.append(indent).append("mipmaps_folder=\"").append(makeRelativePath(dir_mipmaps)).append("\"\n");
 		if (null != dir_storage) sb_body.append(indent).append("storage_folder=\"").append(makeRelativePath(dir_storage)).append("\"\n");
-		Utils.log2("dir_storage is: " + dir_storage);
-		Utils.log2("relative dir_storage: " + makeRelativePath(dir_storage));
 	}
 
 	/** Return the path to the folder containing the project XML file. */

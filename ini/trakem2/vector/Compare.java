@@ -244,7 +244,7 @@ public class Compare {
 		if (null == frame) {
 			frame = new JFrame("Comparator");
 			frame.addWindowListener(new WindowAdapter() {
-				public void windowClosing() {
+				public void windowClosing(WindowEvent we) {
 					ht_tabs.clear();
 					label = null;
 					tabs = null;
@@ -252,6 +252,7 @@ public class Compare {
 					ht_tabs = null;
 				}
 			});
+			if (null == ht_tabs) ht_tabs = new Hashtable<JScrollPane,Displayable>();
 			tabs = new JTabbedPane();
 			tabs.setPreferredSize(new Dimension(350,250));
 			// a listener to change the label text when the tab is selected
