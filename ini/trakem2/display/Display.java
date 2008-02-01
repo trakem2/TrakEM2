@@ -1542,8 +1542,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		select(d, false);
 	}
 
-	/** Select/deselect accordingly to the current state and the shift key. */
-	public void select(Displayable d, boolean shift_down) {
+	/** Select/deselect accordingly to the current state and the shift key; called through SwingUtilities.invokeLater. */
+	public void select(final Displayable d, final boolean shift_down) {
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+
 		if (null == d) {
 			//Utils.log2("Display.select: clearing selection");
 			canvas.setUpdateGraphics(true);
@@ -1568,17 +1571,18 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			//Utils.log2("Display.select: adding to an existing selection");
 			selection.add(d);
 		}
+			}});
 	}
 
-	public void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, final Class c) {
+	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, final Class c) {
 		choose(screen_x_p, screen_y_p, x_p, y_p, false, c);
 	}
-	public void choose(int screen_x_p, int screen_y_p, int x_p, int y_p) {
+	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p) {
 		choose(screen_x_p, screen_y_p, x_p, y_p, false, null);
 	}
 
-	/** Find a Displayable to add to the selection under the given point (which is in offscreen coords). */
-	public void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, boolean shift_down, Class c) {
+	/** Find a Displayable to add to the selection under the given point (which is in offscreen coords); will use a popup menu to give the user a range of Displayable objects to select from. */
+	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, boolean shift_down, Class c) {
 		//Utils.log("Display.choose: x,y " + x_p + "," + y_p);
 		ArrayList al = layer.find(x_p, y_p);
 		al.addAll(layer.getParent().findZDisplayables(layer, x_p, y_p));

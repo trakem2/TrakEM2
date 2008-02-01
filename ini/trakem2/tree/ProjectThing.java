@@ -494,7 +494,7 @@ public class ProjectThing extends DBObject implements Thing {
 		if (null == child || null == child.object || null == al_children || !al_children.contains(child) || !Project.isBasicType(child.getType())) {
 			return null;
 		}
-		Displayable displ = (Displayable)((Displayable)child.object).clone();
+		final Displayable displ = (Displayable)((Displayable)child.object).clone();
 		ProjectThing pt = null;
 		try {
 			pt = new ProjectThing(child.template, project, displ);
