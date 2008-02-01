@@ -406,7 +406,7 @@ public class ProjectThing extends DBObject implements Thing {
 		addPopupItem("Measure", listener, al_items);
 
 		addPopupItem("Show in 3D", listener, al_items);
-		addPopupItem("Export 3D...", listener, al_items);
+		//addPopupItem("Export 3D...", listener, al_items);
 
 		if (template.getType().equals("project")) {
 			if (project.getLoader() instanceof DBLoader) {

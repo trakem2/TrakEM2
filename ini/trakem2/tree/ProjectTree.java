@@ -205,7 +205,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				}
 			} else if (command.equals("Measure")) {
 				thing.measure();
-			} else if (command.equals("Export 3D...")) {
+			}/* else if (command.equals("Export 3D...")) {
 				GenericDialog gd = ControlWindow.makeGenericDialog("Export 3D");
 				String[] choice = new String[]{".svg [preserves links and hierarchical grouping]", ".shapes [limited to one profile per layer per profile_list]"};
 				gd.addChoice("Export to: ", choice, choice[0]);
@@ -221,7 +221,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 						new Render(thing).save(z_scale);
 						break;
 				}
-			} else if (command.equals("Export project...") || command.equals("Save as...")) { // "Save as..." is for a FS project
+			}*/ else if (command.equals("Export project...") || command.equals("Save as...")) { // "Save as..." is for a FS project
 				Utils.log2("Calling export project at " + System.currentTimeMillis());
 				thing.getProject().getLoader().saveAs(thing.getProject());
 			} else if (command.equals("Save")) {
