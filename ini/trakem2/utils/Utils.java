@@ -51,6 +51,7 @@ import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
 import java.awt.Event;
+import javax.swing.SwingUtilities;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -83,26 +84,127 @@ public class Utils implements ij.plugin.PlugIn {
 		if (debug_mouse) IJ.log(msg);
 	}
 
+	/** Avoid waiting on the AWT thread repainting ImageJ's log window. */
+	static private class LogDispatcher extends Thread {
+		private final StringBuffer cache = new StringBuffer();
+		private boolean loading = false;
+		private boolean go = true;
+		public LogDispatcher() {
+			setPriority(Thread.NORM_PRIORITY-1);
+			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
+			start();
+		}
+		public final void quit() {
+			go = false;
+			synchronized (this) { notify(); }
+		}
+		public final void log(final String msg) {
+			try {
+				synchronized (cache) {
+					loading = true; // no need to synch, variable setting is atomic
+					if (0 != cache.length()) cache.append('\n');
+					cache.append(msg);
+					loading = false;
+				}
+				Thread.yield();
+				if (loading) return;
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			try {
+				synchronized (this) { notify(); }
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		public void run() {
+			while (go) {
+				try {
+					synchronized (this) { wait(); }
+					synchronized (cache) {
+						if (0 != cache.length()) IJ.log(cache.toString());
+						cache.setLength(0);
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+	static private LogDispatcher logger = new LogDispatcher();
+
+	/** Avoid waiting on the AWT thread repainting ImageJ's status bar.
+	    Waits 100 ms before printing the status message; if too many status messages are being sent, the last one overrides all. */
+	static private final class StatusDispatcher extends Thread {
+		private String msg = null;
+		private boolean loading = false;
+		private boolean go = true;
+		public StatusDispatcher() {
+			setPriority(Thread.NORM_PRIORITY-1);
+			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
+			start();
+		}
+		public final void quit() {
+			go = false;
+			synchronized (this) { notify(); }
+		}
+		public final void showStatus(final String msg) {
+			try {
+				synchronized (this) {
+					this.msg = msg;
+					notify();
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		public void run() {
+			while (go) {
+				try {
+					// first part ensures it gets printed even if the notify was issued while not waiting
+					synchronized (this) {
+						if (null != msg) {
+							IJ.showStatus(msg);
+							msg = null;
+						}
+						wait();
+					}
+					// allow some time for overwriting of msg
+					Thread.sleep(100);
+					// print the msg if necessary
+					synchronized (this) {
+						if (null != msg) {
+							IJ.showStatus(msg);
+							msg = null;
+						}
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+	static private StatusDispatcher status = new StatusDispatcher();
+
+	/** Initialize house keeping threads. */
+	static public void setup(final ControlWindow master) { // the ControlWindow acts as a switch: nobody cna controls this because the CW constructor is private
+		if (null == status) status = new StatusDispatcher();
+		if (null == logger) logger = new LogDispatcher();
+	}
+
+	/** Destroy house keeping threads. */
+	static public void destroy(final ControlWindow master) {
+		if (null != status) { status.quit(); status = null; }
+		if (null != logger) { logger.quit(); logger = null; }
+	}
+
 	/** Intended for the user to see. */
 	static public void log(final String msg) {
-		/*
-		new Thread() {
-			public void run() {
-				IJ.log(msg);
-			}
-		}.start();
-		*/
-
-		/*
 		if (ControlWindow.isGUIEnabled()) {
-			IJ.log(msg);
+			logger.log(msg);
 		} else {
 			System.out.println(msg);
 		}
-		*/
-
-		// for now:
-		System.out.println(msg);
 	}
 
 	/** Intended for developers: prints to terminal. */
@@ -179,49 +281,10 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
-	/** Fix ImageJ's MenuBar to disactivate all non-desired commands.*/
-	/*
-	static public void fixMenuBar() {
-		//One could consider deleting the commands from the hashtable as well.
-
-		HashSet disabled_commands = new HashSet();
-		disabled_commands.add("16-bit");
-		disabled_commands.add("32-bit");
-		disabled_commands.add("8-bit Color");
-		disabled_commands.add("HSB Stack");
-		disabled_commands.add("RGB Stack");
-		disabled_commands.add("Size...");
-		disabled_commands.add("Canvas Size...");
-
-		MenuBar menu_bar = Menus.getMenuBar();
-		int n_menus = menu_bar.getMenuCount();
-		for (int i=0; i<n_menus;i++) {
-			Menu menu = menu_bar.getMenu(i);
-			disableUndesiredCommands(menu, disabled_commands);
-		}
-	}
-	*/
-
-	/*
-	static private void disableUndesiredCommands(Menu menu, HashSet disabled_commands) {
-		int n_menuitems = menu.getItemCount();
-		for (int i=0; i<n_menuitems; i++) {
-			MenuItem menu_item = menu.getItem(i);
-			String command = menu_item.getActionCommand();
-			if (menu_item instanceof Menu) {
-				disableUndesiredCommands((Menu)menu_item, disabled_commands);
-			}
-			if (disabled_commands.contains(command)) {
-				menu_item.setEnabled(false);
-			}
-		}
-	}
-	*/
-
 	/**Restore ImageJ's MenuBar*/
 	static public void restoreMenuBar() {
 		MenuBar menu_bar = Menus.getMenuBar();
-		int n_menus = menu_bar.getMenuCount();
+		final int n_menus = menu_bar.getMenuCount();
 		for (int i=0; i<n_menus;i++) {
 			Menu menu = menu_bar.getMenu(i);
 			restoreMenu(menu);
@@ -230,8 +293,8 @@ public class Utils implements ij.plugin.PlugIn {
 		//WindowManager.getCurrentWindow().setMenuBar(menu_bar);
 	}
 
-	static private void restoreMenu(Menu menu) {
-		int n_menuitems = menu.getItemCount();
+	static private void restoreMenu(final Menu menu) {
+		final int n_menuitems = menu.getItemCount();
 		for (int i=0; i<n_menuitems; i++) {
 			MenuItem menu_item = menu.getItem(i);
 			if (menu_item instanceof Menu) {
@@ -256,72 +319,32 @@ public class Utils implements ij.plugin.PlugIn {
 		}.start();
 	}
 
-	/* // I don't get it
-	static private class StatusThread extends Thread {
-		private String msg = null;
-		public StatusThread() {
-			this.setPriority(Thread.NORM_PRIORITY);
-			start();
-		}
-		public void run() {
-			while (true) {
-				Utils.log2("waiting");
-				synchronized(this) { try { wait(); } catch(InterruptedException ie) { continue; } }
-				Utils.log2("printing");
-				String msg = this.msg;
-				if (null == msg) continue;
-				if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled()) {
-					System.out.println(msg);
-				} else {
-					IJ.showStatus(msg);
-				}
-			}
-		}
-		synchronized public void print(String msg) {
-			this.msg = msg;
-			Utils.log2("msg arrived");
-			notifyAll();
-			Utils.log2("msg notified");
-		}
-	}
-
-	static private StatusThread status_thread = null;
-	*/
-
-
-	static public void showStatus(String msg, boolean focus) {
-
-		/*
-		if (null == status_thread || status_thread.isAlive()) status_thread = new StatusThread();
-		status_thread.print(msg);
-		*/
-
+	static public final void showStatus(final String msg, final boolean focus) {
 		// blocks input tremendously!
 		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled()) {
 			System.out.println(msg);
 			return;
 		}
-		if (focus) {
-			IJ.getInstance().toFront();
-		}
-		IJ.showStatus(msg);
-		// temporarily:
-		//log(msg);
+		if (focus) IJ.getInstance().toFront();
+
+		//IJ.showStatus(msg);
+		status.showStatus(msg);
 	}
 
-	static public void showStatus(String msg) {
+	static public final void showStatus(final String msg) {
 		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled()) {
 			System.out.println(msg);
 			return;
 		}
 		IJ.getInstance().toFront();
-		IJ.showStatus(msg);
+		//IJ.showStatus(msg);
+		status.showStatus(msg);
 	}
 
 	static private double last_progress = 0;
 	static private int last_percent = 0;
 
-	static public void showProgress(double p) {
+	static public final void showProgress(final double p) {
 		//IJ.showProgress(p); // never happens, can't repaint even though they are different threads
 		if (0 == p) {
 			last_progress = 0; // reset
@@ -866,5 +889,17 @@ public class Utils implements ij.plugin.PlugIn {
 	/** OS-agnostic diagnosis of whether the click was for the contextual popup menu. */
 	static public final boolean isPopupTrigger(final MouseEvent me) {
 		return me.isPopupTrigger() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK);
+	}
+
+	/** Repaint the given Component on the swing repaint thread (aka "SwingUtilities.invokeLater"). */
+	static public final void updateComponent(final Component c) {
+		//c.invalidate();
+		//c.validate();
+		// ALL that was needed: to put it into the swing repaint queue ... couldn't they JUST SAY SO
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				c.repaint();
+			}
+		});
 	}
 }

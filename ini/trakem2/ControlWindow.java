@@ -74,6 +74,7 @@ public class ControlWindow {
 		if (null != ij.gui.Toolbar.getInstance()) {
 			ij.gui.Toolbar.getInstance().addMouseListener(tool_listener);
 		}
+		synchronized (this) { Utils.setup(this); }
 	}
 
 	/** Prevents ControlWindow from displaying projects.*/
@@ -138,6 +139,7 @@ public class ControlWindow {
 			if (null != tool_listener && null != ij.gui.Toolbar.getInstance()) {
 				ij.gui.Toolbar.getInstance().removeMouseListener(tool_listener);
 			}
+			Utils.destroy(instance);
 			instance = null;
 		}
 	}

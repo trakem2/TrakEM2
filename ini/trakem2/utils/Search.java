@@ -170,7 +170,7 @@ public class Search {
 		final Vector v_txt = new Vector();
 		for (Iterator it = al.iterator(); it.hasNext(); ) {
 			final DBObject dbo = (DBObject)it.next();
-			final String title = dbo.getTitle();
+			final String title =  (dbo instanceof Displayable ? dbo.getProject().getMeaningfulTitle((Displayable)dbo) : dbo.getTitle());
 			if (null == title || !pat.matcher(title).matches()) {
 				continue;
 			}
@@ -283,9 +283,7 @@ public class Search {
 			}
 		}
 		if (repaint) {
-			instance.search_frame.invalidate();
-			instance.search_frame.validate();
-			instance.search_frame.repaint();
+			Utils.updateComponent(instance.search_frame);
 			instance.search_tabs.setSelectedIndex(selected);
 		}
 	}
@@ -299,9 +297,7 @@ public class Search {
 		JTable table = (JTable)((JScrollPane)c).getViewport().getComponent(0);
 		DisplayableTableModel data = (DisplayableTableModel)table.getModel();
 		if (data.contains(ob)) {
-			instance.search_frame.invalidate();
-			instance.search_frame.validate();
-			instance.search_frame.repaint();
+			Utils.updateComponent(instance.search_frame);
 		}
 	}
 }

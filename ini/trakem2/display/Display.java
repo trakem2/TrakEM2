@@ -285,8 +285,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 							}
 
 							d.updateTab(p, label, al);
-							updateComponent(d.tabs.getSelectedComponent());
-							Utils.log2("updated tab: " + p + "  with " + al.size() + "  objects.");
+							Utils.updateComponent(d.tabs.getSelectedComponent());
+							//Utils.log2("updated tab: " + p + "  with " + al.size() + "  objects.");
 						//}
 
 						if (null != d.active) {
@@ -749,7 +749,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 
-		updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
+		Utils.updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
 
 		
 		((FakeImagePlus)canvas.getFakeImagePlus()).setCalibrationSuper(layer.getParent().getCalibrationCopy());
@@ -854,14 +854,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		canvas.repaint(true);
 
 		// repaint tabs (hard as hell)
-		updateComponent(tabs);
+		Utils.updateComponent(tabs);
 		// @#$%^! The above works half the times, so explicit repaint as well:
 		Component c = tabs.getSelectedComponent();
 		if (null == c) {
 			c = scroll_patches;
 			tabs.setSelectedComponent(scroll_patches);
 		}
-		updateComponent(c);
+		Utils.updateComponent(c);
 
 		project.getLoader().setMassiveMode(false); // resetting if it was set true
 
@@ -893,7 +893,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			add((Displayable)it.next(), false, false);
 		}
 		navigator.repaint(true); // was not done when adding
-		updateComponent(tabs.getSelectedComponent());
+		Utils.updateComponent(tabs.getSelectedComponent());
 		// swing issues:
 		new Thread() {
 			public void run() {
@@ -910,9 +910,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		c.add(new JLabel("No " + label + "."));
 		// magic cocktail:
 		if (tabs.getSelectedComponent().equals(c)) {
-			c.invalidate();
-			c.validate();
-			c.repaint();
+			Utils.updateComponent(c);
 		}
 	}
 
@@ -1129,7 +1127,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (repaint_disabled) return;
 		navigator.repaint(true);
 		canvas.repaint(true);
-		updateComponent(tabs);
+		Utils.updateComponent(tabs);
 		updateTitle();
 	}
 
@@ -1147,7 +1145,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display d = (Display)it.next();
 			if (d.getLayer().getParent().equals(set)) {
 				d.navigator.repaint(true);
-				d.updateComponent(d.tabs);
+				Utils.updateComponent(d.tabs);
 			}
 		}
 	}
@@ -1157,7 +1155,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Display d = (Display)it.next();
 			if (d.getLayer().equals(layer)) {
 				d.navigator.repaint(true);
-				d.updateComponent(d.tabs);
+				Utils.updateComponent(d.tabs);
 			}
 		}
 	}
@@ -1277,16 +1275,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		panel.add(dp, index);
 		if (repaint) {
-			tabs.invalidate();
-			tabs.validate();
-			tabs.repaint();
+			Utils.updateComponent(tabs);
 		}
-	}
-
-	static private void updateComponent(Component c) {
-		c.invalidate();
-		c.validate();
-		c.repaint();
 	}
 
 	/** Find the displays that show the given Layer, and remove the given Displayable from the GUI. */
@@ -1306,16 +1296,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Component c = (Component)ob;
 			if (displ.getClass().equals(Patch.class)) {
 				panel_patches.remove(c);
-				updateComponent(panel_patches);
+				Utils.updateComponent(panel_patches);
 			} else if (displ instanceof ZDisplayable) {
 				panel_zdispl.remove(c);
-				updateComponent(panel_zdispl);
+				Utils.updateComponent(panel_zdispl);
 			} else if (displ.getClass().equals(DLabel.class)) {
 				panel_labels.remove(c);
-				updateComponent(panel_labels);
+				Utils.updateComponent(panel_labels);
 			} else if (displ.getClass().equals(Profile.class)) {
 				panel_profiles.remove(c);
-				updateComponent(panel_profiles);
+				Utils.updateComponent(panel_profiles);
 			}
 		}
 		if (null == active || !selection.contains(displ)) {
@@ -1403,7 +1393,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				d.canvas.setUpdateGraphics(true);
 				d.canvas.repaint(r, extra);
 				d.navigator.repaint(true); // everything
-				updateComponent(d.tabs.getSelectedComponent());
+				Utils.updateComponent(d.tabs.getSelectedComponent());
 			}
 		}
 		*/
@@ -1418,7 +1408,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				d.canvas.repaint(r, extra);
 				if (update_navigator) {
 					d.navigator.repaint(true);
-					updateComponent(d.tabs.getSelectedComponent());
+					Utils.updateComponent(d.tabs.getSelectedComponent());
 				}
 			}
 		}
@@ -1434,7 +1424,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				d.canvas.setUpdateGraphics(update_graphics);
 				d.canvas.repaint(r, extra);
 				d.navigator.repaint(update_graphics);
-				if (update_graphics) updateComponent(d.tabs.getSelectedComponent());
+				if (update_graphics) Utils.updateComponent(d.tabs.getSelectedComponent());
 			}
 		}
 	}
@@ -1724,7 +1714,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
-			updateComponent(tabs.getSelectedComponent());
+			Utils.updateComponent(tabs.getSelectedComponent());
 		}
 		createTempCurrentImage();
 		setTempCurrentImage();
@@ -2369,7 +2359,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			DisplayablePanel dp = (DisplayablePanel)e.nextElement();
 			dp.remake();
 		}
-		updateComponent(tabs.getSelectedComponent());
+		Utils.updateComponent(tabs.getSelectedComponent());
 	}
 
 	static public void updatePanel(Layer layer, Displayable displ) {
@@ -2397,7 +2387,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null == c) return;
 		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(d);
 		dp.remake();
-		updateComponent(c);
+		Utils.updateComponent(c);
 	}
 
 	static public void updatePanelIndex(Layer layer, Displayable displ) {
@@ -2432,7 +2422,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null == dp) return; // may be half-baked, wait
 		c.remove(dp);
 		c.add(dp, i); // java and its fabulous consistency
-		updateComponent(c);
+		Utils.updateComponent(c);
 	}
 
 	/** Repair possibly missing panels and other components by simply resetting the same Layer */
@@ -3105,7 +3095,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (channel != channels[i]) channels[i].setActive(false);
 			else channel.setActive(true);
 		}
-		updateComponent(panel_channels);
+		Utils.updateComponent(panel_channels);
 		transp_slider.setValue((int)(channel.getAlpha() * 100));
 	}
 

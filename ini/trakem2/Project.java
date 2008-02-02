@@ -473,6 +473,11 @@ public class Project extends DBObject {
 			}
 		}
 		al_open_projects.remove(this);
+		// flush all memory
+		if (null != loader) { // the last project is destroyed twice for some reason, if several are open. This is a PATCH
+			loader.destroy(); // and disconnect
+			loader = null;
+		}
 		ControlWindow.remove(this);
 		if (null != template_tree) template_tree.destroy();
 		if (null != project_tree) project_tree.destroy();
@@ -480,11 +485,6 @@ public class Project extends DBObject {
 		this.template_tree = null; // flag to mean: we're closing
 		// close all open Displays
 		Display.close(this);
-		// flush all memory
-		if (null != loader) { // the last project is destroyed twice for some reason, if several are open. This is a PATCH
-			loader.destroy(); // and disconnect
-			loader = null;
-		}
 		return true;
 	}
 

@@ -26,6 +26,7 @@ import java.awt.Component;
 import java.awt.Rectangle;
 import java.util.LinkedList;
 import java.util.ArrayList;
+import javax.swing.SwingUtilities;
 import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.Utils;
 
@@ -158,8 +159,14 @@ public abstract class AbstractRepaintThread extends Thread {
 				}
 
 				// repaint
-				if (null == clipRect) target.repaint(0, 0, 0, target.getWidth(), target.getHeight()); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
-				else target.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
+				final Rectangle clipRect_ = clipRect; // we luv java
+				// should be better, but it's worse with SwingUtilities
+				//SwingUtilities.invokeLater(new Runnable() {
+				//	public void run() {
+						if (null == clipRect_) target.repaint(0, 0, 0, target.getWidth(), target.getHeight()); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
+						else target.repaint(0, clipRect_.x, clipRect_.y, clipRect_.width, clipRect_.height);
+				//	}
+				//});
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
