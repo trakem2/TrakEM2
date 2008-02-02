@@ -285,7 +285,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 							}
 
 							d.updateTab(p, label, al);
-							Utils.updateComponent(d.tabs.getSelectedComponent());
+							//Utils.updateComponent(d.tabs.getSelectedComponent());
 							//Utils.log2("updated tab: " + p + "  with " + al.size() + "  objects.");
 						//}
 
@@ -1764,18 +1764,37 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final Container tab, final String label, final ArrayList al) {
-		try { SwingUtilities.invokeAndWait(new Runnable() { public void run() {
-			tab.removeAll();
-			if (0 == al.size()) tab.add(new JLabel("No " + label + "."));
-			else {
+		try { SwingUtilities.invokeLater(new Runnable() { public void run() {
+			if (0 == al.size()) {
+				tab.removeAll();
+				tab.add(new JLabel("No " + label + "."));
+			} else {
+				Component[] comp = tab.getComponents();
+				int next = 0;
+				if (1 == comp.length && comp[0].getClass().equals(JLabel.class)) {
+					next = 1;
+					tab.remove(0);
+				}
 				for (Iterator it = al.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
-					DisplayablePanel dp = new DisplayablePanel(Display.this, d);
-					tab.add(dp);
+					DisplayablePanel dp = null;
+					if (next < comp.length) {
+						dp = (DisplayablePanel)comp[next++]; // recycling panels
+						dp.set(d);
+					} else {
+						dp = new DisplayablePanel(Display.this, d);
+						tab.add(dp);
+					}
 					ht_panels.put(d, dp);
 				}
+				if (next < comp.length) {
+					// remove from the end, to avoid potential repaints of other panels
+					for (int i=comp.length-1; i>=next; i--) {
+						tab.remove(i);
+					}
+				}
 			}
-		}});} catch (Exception ie) {}
+		}});} catch (Exception e) { e.printStackTrace(); }
 	}
 
 	static public void setActive(Object event, Displayable displ) {

@@ -72,7 +72,14 @@ public class DisplayablePanel extends JPanel implements MouseListener, ItemListe
 		sp.remake();
 	}
 
-	public void setActive(boolean active) {
+	/** For instance-recycling purposes. */
+	public void set(final Displayable d) {
+		this.d = d;
+		title.setText(makeUpdatedTitle());
+		sp.set(d);
+	}
+
+	public void setActive(final boolean active) {
 		if (active) {
 			setBackground(Color.cyan);
 		} else {
@@ -80,7 +87,7 @@ public class DisplayablePanel extends JPanel implements MouseListener, ItemListe
 		}
 	}
 
-	public void paint(Graphics g) {
+	public void paint(final Graphics g) {
 		if (display.isSelected(d)) {
 			if (null != display.getActive() && display.getActive().equals(d)) { // can be null when initializing ... because swing is designed with built-in async
 				setBackground(Color.cyan);

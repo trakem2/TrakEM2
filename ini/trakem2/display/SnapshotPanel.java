@@ -44,9 +44,19 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 		remake();
 	}
 
-	/** Redefine dimensions. */
+	public void set(final Displayable d) {
+		if (this.d.getLayer().getParent().equals(d.getLayer().getParent())) {
+			this.d = d;
+			repaint();
+		} else {
+			this.d = d;
+			remake();
+		}
+	}
+
+	/** Redefine dimensions, which are defined by the LayerSet dimensions. */
 	public void remake() {
-		int width = (int)(FIXED_HEIGHT / d.getLayer().getLayerHeight() * d.getLayer().getLayerWidth());
+		final int width = (int)(FIXED_HEIGHT / d.getLayer().getLayerHeight() * d.getLayer().getLayerWidth());
 		Dimension dim = new Dimension(width, FIXED_HEIGHT);
 		setMinimumSize(dim);
 		setMaximumSize(dim);
