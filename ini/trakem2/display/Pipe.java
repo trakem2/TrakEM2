@@ -788,9 +788,9 @@ public class Pipe extends ZDisplayable {
 			this.width = this.height = 0;
 			return;
 		}
-		// get perimeter of the tube
-		Polygon pol = getPerimeter();
-		if (0 != pol.npoints) {
+		// get perimeter of the tube, without the transform
+		final Polygon pol = Pipe.getRawPerimeter(p_i, p_width_i);
+		if (null != pol && 0 != pol.npoints) {
 			// check the tube
 			for (int i=0; i<pol.npoints; i++) {
 				if (pol.xpoints[i] < min_x) min_x = pol.xpoints[i];
@@ -857,7 +857,7 @@ public class Pipe extends ZDisplayable {
 		repaint(true);
 	}
 
-	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
+	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */
 	public void repaint(boolean repaint_navigator) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
@@ -896,35 +896,14 @@ public class Pipe extends ZDisplayable {
 		}
 	}
 
-	/** The exact perimeter of this profile, in integer precision. */
-	synchronized public Polygon getPerimeter() {
-		if (null == p_i || p_i[0].length < 2) return new Polygon();  // meaning: if there aren't any interpolated points
-
-		// local pointers, since they may be transformed
-		int n_points = this.n_points;
-		double[][] p = this.p;
-		double[][] p_r = this.p_r;
-		double[][] p_l = this.p_l;
-		double[][] p_i = this.p_i;
-		double[] p_width = this.p_width;
-		double[] p_width_i = this.p_width_i;
-		if (!this.at.isIdentity()) {
-			final Object[] ob = getTransformedData();
-			p = (double[][])ob[0];
-			n_points = p[0].length;
-			p_l = (double[][])ob[1];
-			p_r = (double[][])ob[2];
-			p_i = (double[][])ob[3];
-			p_width = (double[])ob[4];
-			p_width_i = (double[])ob[5];
-		}
-
+	static private final Polygon getRawPerimeter(final double[][] p_i, final double[] p_width_i) {
+		final int n = p_i[0].length; // the number of interpolated points
+		if (n < 2) return null;
 		double angle = 0;
 		final double a0 = Math.toRadians(0);
 		final double a90 = Math.toRadians(90);
 		final double a180 = Math.toRadians(180);
 		final double a270 = Math.toRadians(270);
-		int n = p_i[0].length; // the number of interpolated points
 		double[] r_side_x = new double[n];
 		double[] r_side_y = new double[n];
 		double[] l_side_x = new double[n];
@@ -957,6 +936,31 @@ public class Pipe extends ZDisplayable {
 			pol_y[n + j] = (int)l_side_y[m -j];
 		}
 		return new Polygon(pol_x, pol_y, pol_x.length);
+	}
+
+	/** The exact perimeter of this pipe, in integer precision. */
+	synchronized public Polygon getPerimeter() {
+		if (null == p_i || p_i[0].length < 2) return new Polygon();  // meaning: if there aren't any interpolated points
+
+		// local pointers, since they may be transformed
+		int n_points = this.n_points;
+		//double[][] p = this.p;
+		//double[][] p_r = this.p_r;
+		//double[][] p_l = this.p_l;
+		double[][] p_i = this.p_i;
+		//double[] p_width = this.p_width;
+		double[] p_width_i = this.p_width_i;
+		if (!this.at.isIdentity()) {
+			final Object[] ob = getTransformedData();
+			//p = (double[][])ob[0];
+			n_points = p[0].length;
+			//p_l = (double[][])ob[1];
+			//p_r = (double[][])ob[2];
+			p_i = (double[][])ob[3];
+			//p_width = (double[])ob[4];
+			p_width_i = (double[])ob[5];
+		}
+		return Pipe.getRawPerimeter(p_i, p_width_i);
 	}
 
 	/** Writes the data of this object as a Pipe object in the .shapes file represented by the 'data' StringBuffer. */
