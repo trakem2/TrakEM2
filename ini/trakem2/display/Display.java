@@ -1653,7 +1653,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				//grab the chosen Displayable object
 				Displayable d = d_chooser.getChosen();
 				//Utils.log("Chosen: " + d.toString());
-				if (null == d) { Utils.log("Display.choose: returning a null!"); }
+				if (null == d) { Utils.log2("Display.choose: returning a null!"); }
 				select(d, shift_down);
 				pop.setVisible(false);
 			}
@@ -1706,7 +1706,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			final Object ob = ht_panels.get(displ);
 			if (null != ob) ((DisplayablePanel)ob).setActive(true);
 			updateInDatabase("active_displayable_id");
-			project.select(displ); // select the node in the corresponding tree, if any.
+			if (!displ.getClass().equals(Patch.class)) project.select(displ); // select the node in the corresponding tree, if any.
 			// select the proper tab, and scroll to visible
 			selectTab(displ);
 			//canvas.setUpdateGraphics(true); // remake offscreen images
@@ -1728,7 +1728,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				method.invoke(this, new Object[]{displ});
 			}
 		} catch (Exception e) {
-			Utils.log("Display.setActive(" + displ + "): " + e);
+			Utils.log2("Display.setActive(" + displ + "): " + e);
 		}
 	}
 
@@ -1764,16 +1764,18 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final Container tab, final String label, final ArrayList al) {
-		tab.removeAll();
-		if (0 == al.size()) tab.add(new JLabel("No " + label + "."));
-		else {
-			for (Iterator it = al.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				DisplayablePanel dp = new DisplayablePanel(this, d);
-				tab.add(dp);
-				ht_panels.put(d, dp);
+		try { SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+			tab.removeAll();
+			if (0 == al.size()) tab.add(new JLabel("No " + label + "."));
+			else {
+				for (Iterator it = al.iterator(); it.hasNext(); ) {
+					Displayable d = (Displayable)it.next();
+					DisplayablePanel dp = new DisplayablePanel(Display.this, d);
+					tab.add(dp);
+					ht_panels.put(d, dp);
+				}
 			}
-		}
+		}});} catch (Exception ie) {}
 	}
 
 	static public void setActive(Object event, Displayable displ) {
@@ -2198,8 +2200,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Check if a panel for the given Displayable is at least partially visible in the JScrollPane */
 	private boolean isPartiallyWithinViewport(JScrollPane scroll, DisplayablePanel dp) {
 		if(null == dp) {
-			Utils.log("Display.isPartiallyWithinViewport: null DisplayablePanel ??");
-			return false;
+			//Utils.log2("Display.isPartiallyWithinViewport: null DisplayablePanel ??");
+			return false; // to fast for you baby
 		}
 		JViewport view = scroll.getViewport();
 		java.awt.Dimension dimensions = view.getExtentSize();
@@ -3314,7 +3316,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (hs.contains(d.layer)) continue;
 			hs.add(d.layer);
 			if (null == d || null == d.selection) {
-				Utils.log("d is : "+ d + " d.selection is " + d.selection);
+				Utils.log2("d is : "+ d + " d.selection is " + d.selection);
 			} else {
 				d.selection.update(); // recomputes box
 			}

@@ -1106,7 +1106,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 	private Rectangle old_brush_box = null;
 
-	public void mouseMoved(MouseEvent me) {
+	public void mouseMoved(final MouseEvent me) {
 		if (input_disabled || display.getSelection().isDragging()) return;
 		//if (dragging) {
 		//	display.getSelection().mouseMoved();
@@ -1117,10 +1117,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		// set xMouse. yMouse
 		super.mouseMoved(me);
 
-		Displayable active = display.getActive();
+		final Displayable active = display.getActive();
 
 		// only when no mouse buttons are down
-		int flags = me.getModifiers(); // override, the super fails for some reason
+		final int flags = me.getModifiers(); // override, the super fails for some reason
 		if (0 == (flags & InputEvent.BUTTON1_MASK)
 		/* && 0 == (flags & InputEvent.BUTTON2_MASK) */ // this is the alt key down ..
 		 && 0 == (flags & InputEvent.BUTTON3_MASK)

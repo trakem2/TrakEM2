@@ -200,7 +200,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Intended for the user to see. */
 	static public void log(final String msg) {
-		if (ControlWindow.isGUIEnabled()) {
+		if (ControlWindow.isGUIEnabled() && null != logger) {
 			logger.log(msg);
 		} else {
 			System.out.println(msg);
@@ -321,7 +321,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public final void showStatus(final String msg, final boolean focus) {
 		// blocks input tremendously!
-		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled()) {
+		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled() || null == status) {
 			System.out.println(msg);
 			return;
 		}
@@ -332,13 +332,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final void showStatus(final String msg) {
-		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled()) {
-			System.out.println(msg);
-			return;
-		}
-		IJ.getInstance().toFront();
-		//IJ.showStatus(msg);
-		status.showStatus(msg);
+		showStatus(msg, true);
 	}
 
 	static private double last_progress = 0;

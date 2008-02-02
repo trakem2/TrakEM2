@@ -304,7 +304,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	/** Deselects whatever node is selected in the tree, and tries to select the one that contains the given object. */
 	static public void selectNode(final Object ob, final JTree tree) {
 		if (null == ob) {
-			Utils.log("DNDTree.selectNode: null ob?");
+			Utils.log2("DNDTree.selectNode: null ob?");
 			return;
 		}
 		// deselect whatever is selected
