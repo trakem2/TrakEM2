@@ -3247,8 +3247,8 @@ abstract public class Loader {
 		int count = 1; // the given LayerSet itself
 		for (Layer la : (ArrayList<Layer>)ls.getLayers()) {
 			count += la.getNDisplayables();
-			for (LayerSet ls2 : (ArrayList<LayerSet>)la.getDisplayables(LayerSet.class)) {
-				count += countObjects(ls2);
+			for (Object ls2 : la.getDisplayables(LayerSet.class)) { // can't cast ArrayList<Displayable> to ArrayList<LayerSet> ????
+				count += countObjects((LayerSet)ls2);
 			}
 		}
 		return count;

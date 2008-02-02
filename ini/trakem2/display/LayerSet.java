@@ -92,11 +92,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	private double rot_y;
 	private double rot_z; // should be equivalent to the Displayable.rot
 	private final ArrayList<Layer> al_layers = new ArrayList<Layer>();
-	private Layer active_layer;
 	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
 	private Layer parent = null;
 	/** A LayerSet can contain Displayables that are show in every single Layer, such as Pipe objects. */
-	private ArrayList al_zdispl = new ArrayList();
+	private ArrayList<ZDisplayable> al_zdispl = new ArrayList<ZDisplayable>();
 
 	private boolean snapshots_enabled = true;
 
@@ -180,20 +179,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	/** For reconstruction purposes: set the active layer to the ZDisplayable objects. Recurses through LayerSets in the children layers. */
 	synchronized public void setup() {
-		if (0 == al_zdispl.size()) return;
-		Iterator it = al_zdispl.iterator();
-		if (null == active_layer && 0 != al_layers.size()) {
-			active_layer = (Layer)al_layers.get(0);
-		}
-		while (it.hasNext()) {
-			ZDisplayable zd = (ZDisplayable)it.next();
-			zd.setLayer(active_layer);
-		}
-		it = al_layers.iterator();
-		while (it.hasNext()) {
-			Layer layer = (Layer)it.next();
-			Iterator itl = layer.getDisplayables().iterator();
-			while (itl.hasNext()) {
+		final Layer la0 = al_layers.get(0);
+		for (ZDisplayable zd : al_zdispl) zd.setLayer(la0); // just any Layer
+		for (Layer layer : al_layers) {
+			for (Iterator itl = layer.getDisplayables().iterator(); itl.hasNext(); ) {
 				Object ob = itl.next();
 				if (ob instanceof LayerSet) {
 					((LayerSet)ob).setup();
@@ -249,25 +238,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Add a new Layer, inserted according to its Z. */
-	synchronized public void add(Layer layer) {
+	synchronized public void add(final Layer layer) {
 		if (-1 != al_layers.indexOf(layer)) return;
-		double z = layer.getZ();
-		/*
-		int i = 0;
-		Iterator it = al_layers.iterator();
-		while (it.hasNext()) {
-			Layer l = (Layer)it.next();
-			if (l.getZ() < z) { i++; continue; }
-			else {
-				al_layers.add(i, layer);
-				layer.setParent(this);
-				setActiveLayer(layer);
-				//debug();
-				return;
-			}
-		}
-		*/
-		int n = al_layers.size();
+		final double z = layer.getZ();
+		final int n = al_layers.size();
 		int i = 0;
 		for (; i<n; i++) {
 			Layer l = (Layer)al_layers.get(i);
@@ -279,11 +253,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		} else {
 			al_layers.add(layer);
 		}
-
-		// else, add at the end
 		layer.setParent(this);
-		/////al_layers.add(layer);
-		setActiveLayer(layer);
 		Display.updateLayerScroller(this);
 		//debug();
 	}
@@ -292,12 +262,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		Utils.log("LayerSet debug:");
 		for (int i=0; i<al_layers.size(); i++)
 			Utils.log(i + " : " + ((Layer)al_layers.get(i)).getZ());
-	}
-
-	synchronized public void setActiveLayer(Layer layer) {
-		if (null == layer || layer == active_layer || -1 == al_layers.indexOf(layer)) return;
-		active_layer = layer;
-		updateInDatabase("active_layer_id");
 	}
 
 	public Layer getParent() {
@@ -320,8 +284,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (ProjectToolbar.SELECT != ProjectToolbar.getToolId()) return;
 		Display.setActive(me, this);
 		if (2 == me.getClickCount() && al_layers.size() > 0) {
-			if (null == active_layer) active_layer = (Layer)al_layers.get(0);
-			new Display(project, active_layer);
+			new Display(project, al_layers.get(0));
 		}
 	}
 
@@ -377,7 +340,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 	}
 
-	public Layer getActiveLayer() {return active_layer; } 
 	public double getLayerWidth() { return layer_width; }
 	public double getLayerHeight() { return layer_height; }
 	public double getRotX() { return rot_x; }
@@ -740,17 +702,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Add a Displayable to be painted in all Layers, such as a Pipe. */
-	synchronized public void add(ZDisplayable zdispl) {
+	synchronized public void add(final ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) {
 			Utils.log2("LayerSet: not adding zdispl");
 			return;
 		}
 		al_zdispl.add(0, zdispl); // at the top
 		zdispl.setLayerSet(this);
-		if (null == active_layer && 0 != al_layers.size()) {
-			active_layer = (Layer)al_layers.get(0);
-		} // This can fail (and in the addSilently as well) if one can add zdispl objects while no Layer has been created. But the ProjectThing.createChild prevents this situation.
-		zdispl.setLayer(active_layer);
+		// The line below can fail (and in the addSilently as well) if one can add zdispl objects while no Layer has been created. But the ProjectThing.createChild prevents this situation.
+		zdispl.setLayer(al_layers.get(0));
 		zdispl.updateInDatabase("layer_set_id"); // TODO: update stack index?
 		Display.add(this, zdispl);
 	}
@@ -759,10 +719,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	synchronized public void addSilently(ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) return;
 		try {
-			if (null == active_layer && 0 != al_layers.size()) {
-				active_layer = (Layer)al_layers.get(0);
-			}
-			zdispl.setLayer(active_layer);
+			zdispl.setLayer(0 == al_layers.size() ? null : al_layers.get(0));
 			zdispl.setLayerSet(this, false);
 			//Utils.log2("setLayerSet to ZDipl id=" + zdispl.getId());
 			al_zdispl.add(zdispl);
@@ -782,7 +739,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns a copy of the list of ZDisplayable objects. */
-	synchronized public ArrayList getZDisplayables() { return (ArrayList)al_zdispl.clone(); }
+	synchronized public ArrayList<ZDisplayable> getZDisplayables() { return (ArrayList<ZDisplayable>)al_zdispl.clone(); }
 
 	/** Returns a list of ZDisplayable of class c only.*/
 	synchronized public ArrayList getZDisplayables(final Class c) {
@@ -811,7 +768,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	/** Returns a copy of the layer list. */
 	synchronized public ArrayList<Layer> getLayers() {
-		return (ArrayList<Layer>)al_layers.clone(); // for and integrity and safety
+		return (ArrayList<Layer>)al_layers.clone(); // for integrity and safety, return a copy.
 	}
 
 	public boolean isDeletable() {

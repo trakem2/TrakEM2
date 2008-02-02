@@ -505,6 +505,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 			// gather initial box (for repainting purposes)
 			box = selection.getLinkedBox();
+			Utils.log2("MP: set box to " + box);
 			selection.mousePressed(x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
@@ -632,6 +633,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					Display.repaint(display.getLayer(), Selection.PADDING, box, false);
 					// box for next mouse dragged iteration
 					box = box2;
+			Utils.log2("MD: set box to " + box);
 					break;
 				case ProjectToolbar.ALIGN:
 					break; // nothing
@@ -792,6 +794,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			switch(tool) {
 			case ProjectToolbar.SELECT:
 				selection.mouseReleased(x_p, y_p, x_d, y_d, x_r, y_r);
+			Utils.log2("MR: box is " + box);
 				box.add(selection.getLinkedBox());
 				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming()); // does not repaint the navigator
 				break;

@@ -2058,16 +2058,14 @@ public class DBLoader extends Loader {
 	/*  LayerSet methods ****************************************************************/
 
 	private void addToDatabase(LayerSet layer_set) throws Exception {
-		connection.prepareStatement(new StringBuffer("INSERT INTO ab_layer_sets (id, project_id, parent_layer_id, active_layer_id, layer_width, layer_height, rot_x, rot_y, rot_z) VALUES (").append(layer_set.getId()).append(',').append(layer_set.getProject().getId()).append(',').append(null == layer_set.getParent() ? -1 : layer_set.getParent().getId()).append(',').append(null == layer_set.getActiveLayer() ? -1 : layer_set.getActiveLayer().getId()).append(',').append(layer_set.getLayerWidth()).append(',').append(layer_set.getLayerHeight()).append(',').append(layer_set.getRotX()).append(',').append(layer_set.getRotY()).append(',').append(layer_set.getRotZ()).append(')').toString()).executeUpdate();
+		connection.prepareStatement(new StringBuffer("INSERT INTO ab_layer_sets (id, project_id, parent_layer_id, layer_width, layer_height, rot_x, rot_y, rot_z) VALUES (").append(layer_set.getId()).append(',').append(layer_set.getProject().getId()).append(',').append(null == layer_set.getParent() ? -1 : layer_set.getParent().getId()).append(',').append(layer_set.getLayerWidth()).append(',').append(layer_set.getLayerHeight()).append(',').append(layer_set.getRotX()).append(',').append(layer_set.getRotY()).append(',').append(layer_set.getRotZ()).append(')').toString()).executeUpdate();
 		// also:
 		addToDatabase((Displayable)layer_set);
 	}
 
 	private void updateInDatabase(LayerSet layer_set, String key) throws Exception {
 		StringBuffer sb = new StringBuffer("UPDATE ab_layer_sets SET ");
-		if (key.equals("active_layer_id")) {
-			sb.append("active_layer_id=").append(layer_set.getActiveLayer().getId());
-		} else if (key.equals("parent_id")) {
+		if (key.equals("parent_id")) {
 			sb.append("parent_id=").append(layer_set.getParent().getId());
 		} else if (key.startsWith("rot")) {
 			sb.append("rot_x=").append(layer_set.getRotX()).append(", rot_y=").append(layer_set.getRotY()).append(", rot_z=").append(layer_set.getRotZ());

@@ -106,7 +106,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	private int scroll_step = 1;
 
 	/** Keep track of all existing Display objects. */
-	static private ArrayList al_displays = new ArrayList();
+	static private ArrayList<Display> al_displays = new ArrayList<Display>();
 	/** The currently focused Display, if any. */
 	static private Display front = null;
 
@@ -116,9 +116,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static private WindowAdapter window_listener = new WindowAdapter() {
 		/** Unregister the closed Display. */
 		public void windowClosing(WindowEvent we) {
-			Object source = we.getSource();
-			Iterator it = al_displays.iterator();
-			while (it.hasNext()) {
+			final Object source = we.getSource();
+			for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
 				Display d = (Display)it.next();
 				if (source.equals(d.frame)) {
 					it.remove();
@@ -131,10 +130,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		/** Set the source Display as front. */
 		public void windowActivated(WindowEvent we) {
 			// find which was it to make it be the front
-			Object source = we.getSource();
-			Iterator it = al_displays.iterator();
-			while (it.hasNext()) {
-				Display d = (Display)it.next();
+			final Object source = we.getSource();
+			for (Display d : al_displays) {
 				if (source.equals(d.frame)) {
 					front = d;
 					// set toolbar
@@ -162,10 +159,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		/** Call a pack() when the window is maximized to fit the canvas correctly. */
 		public void windowStateChanged(WindowEvent we) {
-			Object source = we.getSource();
-			Iterator it = al_displays.iterator();
-			while (it.hasNext()) {
-				Display d = (Display)it.next();
+			final Object source = we.getSource();
+			for (Display d : al_displays) {
 				d.frame.pack();
 				break;
 			}
@@ -225,10 +220,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null != d) d.updateInDatabase("position");
 		}
 		private Display getDisplaySource(ComponentEvent ce) {
-			Object source = ce.getSource();
-			Iterator it = al_displays.iterator();
-			while (it.hasNext()) {
-				Display d = (Display)it.next();
+			final Object source = ce.getSource();
+			for (Display d : al_displays) {
 				if (source.equals(d.frame)) {
 					return d;
 				}
@@ -240,10 +233,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static private ChangeListener tabs_listener = new ChangeListener() {
 		/** Listen to tab changes. */
 		public void stateChanged(ChangeEvent ce) {
-			Object source = ce.getSource();
-			Iterator it = al_displays.iterator();
-			while (it.hasNext()) {
-				Display d = (Display)it.next();
+			final Object source = ce.getSource();
+			for (Display d : al_displays) {
 				if (source.equals(d.tabs)) {
 					// creating tabs fires the event!!!
 					if (null == d.frame || null == d.canvas) return;
@@ -389,7 +380,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		setLayer(layer);
 		this.layer = layer; // after, or it doesn't update properly
 		al_displays.add(this);
-		layer.getParent().setActiveLayer(layer);
 		addToDatabase();
 	}
 
@@ -411,7 +401,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		setLayer(layer);
 		this.layer = layer; // after set layer!
 		al_displays.add(this);
-		layer.getParent().setActiveLayer(layer);
 		addToDatabase();
 	}
 
@@ -709,7 +698,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		this.frame.setVisible(true);
 		ProjectToolbar.setProjectToolbar(); // doesn't get it through events
 
-		Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+		final Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
 
 		if (null != props) {
 			// fix positioning outside the screen (dual to single monitor)
@@ -718,7 +707,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 
 		// fix excessive size
-		Rectangle box = this.frame.getBounds();
+		final Rectangle box = this.frame.getBounds();
 		int x = box.x;
 		int y = box.y;
 		int width = box.width;
@@ -763,12 +752,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 
 		// Set the minimum size of the tabbed pane on the left, so it can be completely collapsed now that it has been properly displayed. This is a patch to the lack of respect for the setDividerLocation method.
-		new Thread() {
+		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
-				try { Thread.sleep(500); } catch (Exception e) {} // should use invokeLater instead
 				tabs.setMinimumSize(new Dimension(0, 100));
 			}
-		}.run();
+		});
 	}
 
 	public JPanel getCanvasPanel() {
@@ -790,9 +778,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		this.layer = layer;
 		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 
-		// empty the tabs, except channels
+		// update the current Layer pointer in ZDisplayable objects
+		for (Iterator it = layer.getParent().getZDisplayables().iterator(); it.hasNext(); ) {
+			((ZDisplayable)it.next()).setLayer(layer); // the active layer
+		}
 
-		// empty only the visible tab
+		// update only the visible tab
 		switch (tabs.getSelectedIndex()) {
 			case 0:
 				ht_panels.clear();
@@ -815,11 +806,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				break;
 		}
 
-		// update the current Layer pointer in ZDisplayable objects
-		for (Iterator it = layer.getParent().getZDisplayables().iterator(); it.hasNext(); ) {
-			ZDisplayable zd = (ZDisplayable)it.next();
-			zd.setLayer(layer); // the active layer
-		}
 		// see if a lot has to be reloaded, put the relevant ones at the end
 		project.getLoader().prepare(layer);
 		updateTitle(); // to show the new 'z'
@@ -951,10 +937,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Mark the canvas for updating the offscreen images if the given Displayable is NOT the active. */ // Used by the Displayable.setVisible for example.
-	static public void setUpdateGraphics(Layer layer, Displayable displ) {
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+	static public void setUpdateGraphics(final Layer layer, final Displayable displ) {
+		for (Display d : al_displays) {
 			if (layer.equals(d.layer) && d.active != displ) {
 				d.canvas.setUpdateGraphics(true);
 			}
@@ -962,10 +946,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Flag the DisplayCanvas of Displays showing the given Layer to update their offscreen images.*/
-	static public void setUpdateGraphics(Layer layer, boolean update) {
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+	static public void setUpdateGraphics(final Layer layer, final boolean update) {
+		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
 				d.canvas.setUpdateGraphics(update);
 			}
@@ -978,10 +960,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Find all Display instances that contain the layer and repaint them. */
-	static public void update(Layer layer) {
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+	static public void update(final Layer layer) {
+		for (Display d : al_displays) {
 			if (d.isShowing(layer)) {
 				d.repaintAll();
 			}
@@ -989,10 +969,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint. */
-	static public void update(LayerSet set) {
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+	static public void update(final LayerSet set) {
+		for (Display d : al_displays) {
 			if (set.contains(d.layer)) {
 				d.updateSnapshots();
 				d.canvas.setDimensions(set.getLayerWidth(), set.getLayerHeight());
@@ -1067,11 +1045,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Find all Display instances that contain a Layer of the given project and close them without removing the Display entries from the database. */
-	static synchronized public void close(Project project) {
+	static synchronized public void close(final Project project) {
 		/* // concurrent modifications if more than 1 Display are being removed asynchronously
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.getLayer().getProject().equals(project)) {
 				it.remove();
 				d.destroy();
@@ -1089,9 +1065,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Find all Display instances that contain the layer and close them and remove the Display from the database. */
-	static public void close(Layer layer) {
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
+	static public void close(final Layer layer) {
+		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
 			Display d = (Display)it.next();
 			if (d.isShowing(layer)) {
 				d.remove(false);
@@ -1139,20 +1114,18 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		updateTitle();
 	}
 
-	static public void repaintSnapshots(LayerSet set) {
+	static public void repaintSnapshots(final LayerSet set) {
 		if (repaint_disabled) return;
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ){
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.getLayer().getParent().equals(set)) {
 				d.navigator.repaint(true);
 				Utils.updateComponent(d.tabs);
 			}
 		}
 	}
-	static public void repaintSnapshots(Layer layer) {
+	static public void repaintSnapshots(final Layer layer) {
 		if (repaint_disabled) return;
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ){
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.getLayer().equals(layer)) {
 				d.navigator.repaint(true);
 				Utils.updateComponent(d.tabs);
@@ -1198,11 +1171,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Find the displays that show the given Layer, and add the given Displayable to the GUI and sets it active only in the front Display and only if 'activate' is true. */
 	static public void add(final Layer layer, final Displayable displ, final boolean activate) {
-		final Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			final Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.layer.equals(layer)) {
-				if (front == d) {
+				if (front.equals(d)) {
 					d.add(displ, activate, true);
 					front.frame.toFront();
 				} else {
@@ -1218,12 +1189,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Add the ZDisplayable to all Displays that show a Layer belonging to the given LayerSet. */
 	static public void add(final LayerSet set, final ZDisplayable zdispl) {
-		final Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (set.contains(d.layer)) {
-				if (front == d) {
-					d.add(zdispl, true, true); // calling add(Displayable, boolean)
+				if (front.equals(d)) {
+					zdispl.setLayer(d.layer); // the active one
+					d.add(zdispl, true, true); // calling add(Displayable, boolean, boolean)
 					front.frame.toFront();
 				} else {
 					d.add(zdispl, false, true);
@@ -1280,10 +1250,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Find the displays that show the given Layer, and remove the given Displayable from the GUI. */
-	static public void remove(Layer layer, Displayable displ) {
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+	static public void remove(final Layer layer, final Displayable displ) {
+		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
 				d.remove(displ);
 			}
@@ -1317,8 +1285,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	static public void remove(ZDisplayable zdispl) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (zdispl.getLayerSet().equals(d.layer.getParent())) {
 				d.remove((Displayable)zdispl);
 			}
@@ -1336,9 +1303,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Find the displays that show the given Layer, and repaint the given Displayable. */
 	static public void repaint(Layer layer, Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
 		if (repaint_disabled) return;
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
 				if (null == r) d.repaint(displ, extra, repaint_navigator);
 				else d.repaint(displ, r, extra, repaint_navigator);
@@ -1370,8 +1335,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Repaint the snapshot for the given Displayable both at the DisplayNavigator and on its panel,and only if it has not been painted before. This method is intended for the loader to know when to paint a snap, to avoid overhead. */
 	static public void repaintSnapshot(Displayable displ) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.layer.contains(displ)) {
 				if (!d.navigator.isPainted(displ)) {
 					DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
@@ -1385,24 +1349,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Repaint the given Rectangle in all Displays showing the layer, updating the offscreen image if any. */
 	static public void repaint(Layer layer, Rectangle r, int extra) {
 		repaint(layer, r, extra, true);
-		/*
-		if (repaint_disabled) return;
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
-			if (layer.equals(d.layer)) {
-				d.canvas.setUpdateGraphics(true);
-				d.canvas.repaint(r, extra);
-				d.navigator.repaint(true); // everything
-				Utils.updateComponent(d.tabs.getSelectedComponent());
-			}
-		}
-		*/
 	}
 
-	static public void repaint(Layer layer, int extra, Rectangle r, boolean update_navigator) {
+	static public void repaint(final Layer layer, final int extra, final Rectangle r, final boolean update_navigator) {
 		if (repaint_disabled) return;
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
 				d.canvas.setUpdateGraphics(true);
 				d.canvas.repaint(r, extra);
@@ -1416,10 +1367,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 
 	/** Repaint the given Rectangle in all Displays showing the layer, optionally updating the offscreen image (if any). */
-	static public void repaint(Layer layer, Rectangle r, int extra, boolean update_graphics) {
+	static public void repaint(final Layer layer, final Rectangle r, final int extra, final boolean update_graphics) {
 		if (repaint_disabled) return;
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
 				d.canvas.setUpdateGraphics(update_graphics);
 				d.canvas.repaint(r, extra);
@@ -1430,11 +1380,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Repaint the DisplayablePanel (and DisplayNavigator) only for the given Displayable, in all Displays showing the given Layer. */
-	static public void repaint(Layer layer, Displayable displ) {
+	static public void repaint(final Layer layer, final Displayable displ) {
 		if (repaint_disabled) return;
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
 				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
 				if (null != dp) dp.repaint();
@@ -1452,11 +1400,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Repaint the Displayable in every Display that shows a Layer belonging to the given LayerSet. */
-	static public void repaint(LayerSet set, Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
+	static public void repaint(final LayerSet set, final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator) {
 		if (repaint_disabled) return;
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (set.contains(d.layer)) {
 				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
 				if (repaint_navigator && null != dp) dp.repaint();
@@ -1470,11 +1416,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Repaint the entire LayerSet, in all Displays showing a Layer of it.*/
-	static public void repaint(LayerSet set) {
+	static public void repaint(final LayerSet set) {
 		if (repaint_disabled) return;
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (set.contains(d.layer)) {
 				d.navigator.repaint(true);
 				d.canvas.repaint(true);
@@ -1482,11 +1426,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 	}
 	/** Repaint the given box in the LayerSet, in all Displays showing a Layer of it.*/
-	static public void repaint(LayerSet set, Rectangle box) {
+	static public void repaint(final LayerSet set, final Rectangle box) {
 		if (repaint_disabled) return;
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (set.contains(d.layer)) {
 				d.navigator.repaint(box);
 				d.canvas.repaint(box, 0, true);
@@ -1494,10 +1436,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 	}
 	/** Repaint the entire Layer, in all Displays showing it, including the tabs.*/
-	static public void repaint(Layer layer) {
+	static public void repaint(final Layer layer) {
 		if (repaint_disabled) return;
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
 				d.navigator.repaint(true);
 				d.canvas.repaint(true);
@@ -1532,11 +1473,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		select(d, false);
 	}
 
-	/** Select/deselect accordingly to the current state and the shift key; called through SwingUtilities.invokeLater. */
+	/** Select/deselect accordingly to the current state and the shift key. */
 	public void select(final Displayable d, final boolean shift_down) {
-		SwingUtilities.invokeLater(new Runnable() {
-			public void run() {
-
+		if (null != active && !d.equals(active) && !active.getClass().equals(Patch.class)) {
+			active.linkPatches();
+		}
 		if (null == d) {
 			//Utils.log2("Display.select: clearing selection");
 			canvas.setUpdateGraphics(true);
@@ -1561,7 +1502,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			//Utils.log2("Display.select: adding to an existing selection");
 			selection.add(d);
 		}
-			}});
+		// update the image shown to ImageJ
+		createTempCurrentImage();
+		setTempCurrentImage();
 	}
 
 	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, final Class c) {
@@ -1660,47 +1603,25 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}.start();
 	}
 
-	/** Used by the Selection exclusively. This method will change a lot in the near future, and may disappear in favor of getSelection().getActive() */
-	protected void setActive(Displayable displ) {
-		//Utils.printCaller(this, 7);
-		if (null != displ && displ.equals(active)) {
+	/** Used by the Selection exclusively. This method will change a lot in the near future, and may disappear in favor of getSelection().getActive(). All this method does is update GUI components related to the currently active and the newly active Displayable; called through SwingUtilities.invokeLater. */
+	protected void setActive(final Displayable displ) {
+		final Displayable prev_active = this.active;
+		this.active = displ;
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+
+		if (null != displ && displ.equals(prev_active)) {
 			// make sure the proper tab is selected.
 			selectTab(displ);
 			if (displ instanceof Patch) setTempCurrentImage(); // renew
-			//Utils.log2("Display.setActive : returning early");
 			return; // the same
 		}
 		// deactivate previously active
-		if (null != active) {
-			//  DON'T, so as long as a new Patch not belonging to the last_temp is selected, the same ImagePlus is presented to ImageJ
-			//if (active instanceof Patch) {
-			//	WindowManager.setTempCurrentImage(null);
-			//}
-			/* // DISABLED, will be handled at saving time TODO what about DBLoader projects?
-			if (active.isDeletable()) {
-				// don't keep empty objects around
-				if (active instanceof Profile || active instanceof Pipe || active instanceof Ball || active instanceof AreaList) { // will call back Display.remove(any)
-					project.removeProjectThing(active, false);
-					// can't call Displayable.remove(boolean) directly because the Project.removeProjectThing will do so on its ProjectThing and any children.
-				} else {
-					// text labels (for now the only type)
-					active.remove(false);
-				}
-			} else {
-			*/
-				final Object ob = ht_panels.get(active);
-				if (null != ob) ((DisplayablePanel)ob).setActive(false);
-				// link Patch objects underneath if it's not a Patch itself
-				if (null != active && !(active instanceof Patch)) {
-					active.linkPatches();
-				}
-			/*}*/
-			// erase "decorations" of the previosuly active while it's still the active (so no offscreen image remaking needed)
-			if (null != active) {
-				canvas.repaint(selection.getBox(), 4);
-			}
+		if (null != prev_active) {
+			final Object ob = ht_panels.get(prev_active);
+			if (null != ob) ((DisplayablePanel)ob).setActive(false);
+			// erase "decorations" of the previosuly active
+			if (null != prev_active) canvas.repaint(selection.getBox(), 4);
 		}
-		active = displ;
 		// activate the new active
 		if (null != displ) {
 			final Object ob = ht_panels.get(displ);
@@ -1709,15 +1630,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (!displ.getClass().equals(Patch.class)) project.select(displ); // select the node in the corresponding tree, if any.
 			// select the proper tab, and scroll to visible
 			selectTab(displ);
-			//canvas.setUpdateGraphics(true); // remake offscreen images
 			repaint(displ, 5, false); // to show the border
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
 			Utils.updateComponent(tabs.getSelectedComponent());
 		}
-		createTempCurrentImage();
-		setTempCurrentImage();
+		}});
 	}
 
 	/** Select the proper tab, and also scroll it to show the given Displayable -unless it's a LayerSet, and unless the proper tab is already showing. */
@@ -1797,12 +1716,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}});} catch (Exception e) { e.printStackTrace(); }
 	}
 
-	static public void setActive(Object event, Displayable displ) {
+	static public void setActive(final Object event, final Displayable displ) {
 		if (!(event instanceof InputEvent)) return;
 		// find which Display
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.isOrigin((InputEvent)event)) {
 				d.setActive(displ);
 				break;
@@ -1816,18 +1733,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Find whether any Display is transforming the given Displayable. */
-	static public boolean isTransforming(Displayable displ) {
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+	static public boolean isTransforming(final Displayable displ) {
+		for (Display d : al_displays) {
 			if (null != d.active && d.active.equals(displ) && d.canvas.isTransforming()) return true;
 		}
 		return false;
 	}
 
-	static public boolean isAligning(LayerSet set) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+	static public boolean isAligning(final LayerSet set) {
+		for (Display d : al_displays) {
 			if (d.layer.getParent().equals(set) && set.isAligning()) {
 				return true;
 			}
@@ -1836,12 +1750,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Set the front Display to transform the Displayable only if no other canvas is transforming it. */
-	static public void setTransforming(Displayable displ) {
+	static public void setTransforming(final Displayable displ) {
 		if (null == front) return;
 		if (front.active != displ) return;
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.active.equals(displ)) {
 				if (d.canvas.isTransforming()) {
 					Utils.showMessage("Already transforming " + displ.getTitle());
@@ -1851,15 +1763,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		front.canvas.setTransforming(true);
 	}
-
-	/** Finish transforming the given Displayable */ // TODO RETHINK what can be transformed? Only Patches ? Why not profiles as well ? And Labels ?
-	/*
-	static public void endTransform(Displayable displ) {
-		if (null == front) return;
-		if (front.active != displ) return;
-		front.canvas.setTransforming(false);
-	}
-	*/
 
 	/** Check whether the source of the event is located in this instance.*/
 	private boolean isOrigin(InputEvent event) {
@@ -1878,11 +1781,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Get the layer of an open Display of the given Project, or null if none.*/
-	static public Layer getFrontLayer(Project project) {
+	static public Layer getFrontLayer(final Project project) {
 		if (front.project.equals(project)) return front.layer;
 		// else, find an open Display for the given Project, if any
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.project.equals(project)) {
 				d.frame.toFront();
 				return d.layer;
@@ -2279,8 +2181,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Update the title of the given Displayable in its DisplayablePanel, if any. */
 	static public void updateTitle(final Layer layer, final Displayable displ) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
 				((DisplayablePanel)d.ht_panels.get(displ)).updateTitle();
 			}
@@ -2288,16 +2189,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	static public void updateTitle(final Layer layer) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.layer.equals(layer)) {
 				d.updateTitle();
 			}
 		}
 	}
 	static public void updateTitle(final LayerSet ls) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.layer.getParent().equals(ls)) {
 				d.updateTitle();
 			}
@@ -2355,8 +2254,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	static public void updateLayerScroller(LayerSet set) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.layer.getParent().equals(set)) {
 				d.updateLayerScroller(d.layer);
 			}
@@ -2383,11 +2281,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Utils.updateComponent(tabs.getSelectedComponent());
 	}
 
-	static public void updatePanel(Layer layer, Displayable displ) {
+	static public void updatePanel(Layer layer, final Displayable displ) {
 		if (null == layer && null != front) layer = front.layer; // the front layer
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.layer.equals(layer)) {
 				d.updatePanel(displ);
 			}
@@ -2411,17 +2307,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Utils.updateComponent(c);
 	}
 
-	static public void updatePanelIndex(Layer layer, Displayable displ) {
-		Iterator it = al_displays.iterator();
-		while (it.hasNext()) {
-			Display d = (Display)it.next();
+	static public void updatePanelIndex(final Layer layer, final Displayable displ) {
+		for (Display d : al_displays) {
 			if (d.layer.equals(layer) || displ instanceof ZDisplayable) {
 				d.updatePanelIndex(displ);
 			}
 		}
 	}
 
-	private void updatePanelIndex(Displayable d) {
+	private void updatePanelIndex(final Displayable d) {
 		// find first of the kind, then remove and insert its panel
 		int i = 0;
 		JPanel c = null;
@@ -2995,9 +2889,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Update in all displays the Transform for the given Displayable if it's selected. */
-	static public void updateTransform(Displayable displ) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+	static public void updateTransform(final Displayable displ) {
+		for (Display d : al_displays) {
 			if (d.selection.contains(displ)) d.selection.updateTransform(displ);
 		}
 	}
@@ -3194,8 +3087,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Release memory captured by the offscreen images */
 	static public void flushAll() {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			d.canvas.flush();
 		}
 		//System.gc();
@@ -3208,8 +3100,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	static public void setCursorToAll(final Cursor c) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			d.frame.setCursor(c);
 		}
 	}
@@ -3219,9 +3110,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Used by the Displayable to update the visibility checkbox in other Displays. */
-	static protected void updateVisibilityCheckbox(Layer layer, Displayable displ, Display calling_display) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+	static protected void updateVisibilityCheckbox(final Layer layer, final Displayable displ, final Display calling_display) {
+		for (Display d : al_displays) {
 			if (d.equals(calling_display)) continue;
 			if (d.layer.contains(displ) || (displ instanceof ZDisplayable && d.layer.getParent().contains((ZDisplayable)displ))) {
 				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
@@ -3235,9 +3125,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Toggle user input; pan and zoom are always enabled though.*/
-	static public void setReceivesInput(Project project, boolean b) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+	static public void setReceivesInput(final Project project, final boolean b) {
+		for (Display d : al_displays) {
 			if (d.project.equals(project)) d.canvas.setReceivesInput(b);
 		}
 	}
@@ -3265,8 +3154,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void exportXML(final Project project, final Writer writer, final String indent, final Object any) throws Exception {
 		final StringBuffer sb_body = new StringBuffer();
 		final String in = indent + "\t";
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			final Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (!d.project.equals(project)) continue;
 			final Rectangle r = d.frame.getBounds();
 			final Rectangle srcRect = d.canvas.getSrcRect();
@@ -3289,22 +3177,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		writer.write(sb_body.toString());
 	}
 
-	static public void toolChanged(String tool_name) {
+	static public void toolChanged(final String tool_name) {
 		Utils.log2("tool name: " + tool_name);
 		if (!tool_name.equals("ALIGN")) {
-			for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-				Display d = (Display)it.next();
+			for (Display d : al_displays) {
 				d.layer.getParent().cancelAlign();
 			}
 		}
 	}
 
-	static public void toolChanged(int tool) {
+	static public void toolChanged(final int tool) {
 		//Utils.log2("int tool is " + tool);
 		if (ProjectToolbar.PEN == tool) {
 			// erase bounding boxes
-			for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-				Display d = (Display)it.next();
+			for (Display d : al_displays) {
 				if (null != d.active) d.repaint(d.layer, d.selection.getBox(), 2);
 			}
 		}
@@ -3328,10 +3214,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void updateSelection() {
 		Display.updateSelection(null);
 	}
-	static public void updateSelection(Display calling) {
-		HashSet hs = new HashSet();
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+	static public void updateSelection(final Display calling) {
+		final HashSet hs = new HashSet();
+		for (Display d : al_displays) {
 			if (hs.contains(d.layer)) continue;
 			hs.add(d.layer);
 			if (null == d || null == d.selection) {
@@ -3347,9 +3232,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 	}
 
-	static public void clearSelection(Layer layer) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+	static public void clearSelection(final Layer layer) {
+		for (Display d : al_displays) {
 			if (d.layer.equals(layer)) d.selection.clear();
 		}
 	}
@@ -3399,8 +3283,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Check if any display will paint the given Displayable at the given magnification. */
 	static public boolean willPaint(final Displayable displ, final double magnification) {
 		Rectangle box = null; ;
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Display d : al_displays) {
 			if (d.canvas.getMagnification() != magnification) {
 				continue;
 			}

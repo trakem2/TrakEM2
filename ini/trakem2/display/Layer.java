@@ -45,7 +45,7 @@ import java.awt.Image;
 
 public class Layer extends DBObject {
 
-	private final ArrayList al_displayables = new ArrayList();
+	private final ArrayList<Displayable> al_displayables = new ArrayList<Displayable>();
 
 	private double z;
 	private double thickness;
@@ -236,11 +236,11 @@ public class Layer extends DBObject {
 	}
 
 	/** Used for reconstruction purposes. Assumes the displ are given in the proper order! */
-	public void addSilently(DBObject displ) { // why DBObject and not Displayable ?? TODO
+	public void addSilently(final DBObject displ) { // why DBObject and not Displayable ?? TODO
 		if (null == displ || -1 != al_displayables.indexOf(displ)) return;
 		try {
 			((Displayable)displ).setLayer(this, false);
-			al_displayables.add(displ);
+			al_displayables.add((Displayable)displ);
 		} catch (Exception e) {
 			Utils.log("Layer.addSilently: Not a Displayable/LayerSet, not adding DBObject id=" + displ.getId());
 			return;
@@ -317,35 +317,34 @@ public class Layer extends DBObject {
 		updateInDatabase("z");
 	}
 
-	public void setThickness(double thickness) {
+	public void setThickness(final double thickness) {
 		if (Double.isNaN(thickness) || thickness == this.thickness) return;
 		this.thickness = thickness;
 		updateInDatabase("thickness");
 	}
 
-	public boolean contains(int x, int y, int inset) {
+	public boolean contains(final int x, final int y, int inset) {
 		if (inset < 0) inset = -inset;
 		return x >= inset && y >= inset && x <= parent.getLayerWidth() - inset && y <= parent.getLayerHeight() - inset;
 	}
 
-	public boolean contains(Displayable displ) {
+	public boolean contains(final Displayable displ) {
 		return -1 != al_displayables.indexOf(displ);
 	}
 
 	/** Returns true if any of the Displayable objects are of the given class. */
-	public boolean contains(Class c) {
-		Iterator it = al_displayables.iterator();
-		while (it.hasNext()) {
-			if (it.next().getClass().equals(c)) return true;
+	public boolean contains(final Class c) {
+		for (Object ob : al_displayables) {
+			if (ob.getClass().equals(c)) return true;
 		}
 		return false;
 	}
 
 	/** Count instances of the given Class. */
-	public int count(Class c) {
+	public int count(final Class c) {
 		int n = 0;
-		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
-			if (it.next().getClass().equals(c)) n++;
+		for (Object ob : al_displayables) {
+			if (ob.getClass().equals(c)) n++;
 		}
 		return n;
 	}
@@ -354,8 +353,9 @@ public class Layer extends DBObject {
 		return 0 == al_displayables.size() && parent.isEmptyAt(this); // check for ZDisplayable painting here as well
 	}
 
-	public ArrayList getDisplayables() {
-		return (ArrayList)al_displayables.clone();
+	/** Returns a copy of the list of Displayable objects.*/
+	public ArrayList<Displayable> getDisplayables() {
+		return (ArrayList<Displayable>)al_displayables.clone();
 	}
 
 	public int getNDisplayables() {
@@ -363,26 +363,22 @@ public class Layer extends DBObject {
 	}
 
 	/** Returns a list of Displayable of class c only.*/
-	public ArrayList getDisplayables(final Class c) {
-		final ArrayList al = new ArrayList();
+	public ArrayList<Displayable> getDisplayables(final Class c) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (null == c) return al;
 		if (c.equals(Displayable.class)) {
 			al.addAll(al_displayables);
 			return al;
 		}
-		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if (c.equals(ob.getClass())) al.add(ob);
+		for (Object ob : al_displayables) {
+			if (c.equals(ob.getClass())) al.add((Displayable)ob); // cast only the few added, not all as it would in looping with  Displayabe d : al_displayables
 		}
 		return al;
 	}
 
 	public Displayable get(final long id) {
-		for (int i=al_displayables.size() -1; i>-1; i--) {
-			Displayable d = (Displayable)al_displayables.get(i);
-			if (d.getId() == id) {
-				return d;
-			}
+		for (Displayable d : al_displayables) {
+			if (d.getId() == id) return d;
 		}
 		return null;
 	}
@@ -395,8 +391,8 @@ public class Layer extends DBObject {
 	}
 
 	/** Find the Displayable objects that contains the point. */
-	public ArrayList find(int x, int y) {
-		final ArrayList al = new ArrayList();
+	public ArrayList<Displayable> find(int x, int y) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Displayable d = (Displayable)al_displayables.get(i);
 			if (d.contains(x, y)) {
@@ -407,10 +403,9 @@ public class Layer extends DBObject {
 	}
 
 	/** Find the Displayable objects that intersect with the rectangle. */
-	public ArrayList find(final Rectangle r) {
-		final ArrayList al = new ArrayList();
-		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+	public ArrayList<Displayable> find(final Rectangle r) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (Displayable d : al_displayables) {
 			if (d.getBoundingBox().intersects(r)) {
 				al.add(d);
 			}
@@ -419,8 +414,8 @@ public class Layer extends DBObject {
 	}
 
 	/** Find the Displayable objects of class 'target' whose bounding box intersects the given Displayable (which is itself not included if present in this very Layer). */
-	public ArrayList getIntersecting(Displayable d, Class target) {
-		ArrayList al = new ArrayList();
+	public ArrayList<Displayable> getIntersecting(final Displayable d, final Class target) {
+		ArrayList<Displayable> al = new ArrayList();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Object ob = al_displayables.get(i);
 			if (!ob.getClass().equals(target)) continue;
@@ -458,7 +453,7 @@ public class Layer extends DBObject {
 		if (null == d || -1 == i || 0 == i) return;
 		if (al_displayables.get(i-1).getClass().equals(d.getClass())) {
 			//swap
-			Object o = al_displayables.remove(i-1);
+			Displayable o = al_displayables.remove(i-1);
 			al_displayables.add(i, o);
 		}
 		updateInDatabase("stack_index");

@@ -56,6 +56,7 @@ public abstract class ZDisplayable extends Displayable {
 		if (null != data) {
 			// construct a dummy layerset
 			this.layer_set = new LayerSet(project, Long.parseLong((String)data));
+			// TODO fix this hack
 		}
 	}
 
