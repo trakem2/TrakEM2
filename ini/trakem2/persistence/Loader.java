@@ -720,7 +720,7 @@ abstract public class Loader {
 
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
-					Utils.log("Loader.releaseMemory: empty cache.");
+					Utils.log2("Loader.releaseMemory: empty cache.");
 					// in any case, can't release more:
 					return released;
 				}
@@ -4299,7 +4299,7 @@ abstract public class Loader {
 								break;
 							}
 							for (; i<tu.length && i<queue.size(); i++) {
-								tu[i] = queue.remove(0);
+								tu[i] = queue.remove(len-1); // start removing from the end, since those are the latest additions, hence the ones the user wants to see immediately.
 							}
 							for (; i<tu.length; i++) {
 								tu[i] = null;
