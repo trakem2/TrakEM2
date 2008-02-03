@@ -169,7 +169,7 @@ public class Utils implements ij.plugin.PlugIn {
 						}
 						wait();
 					}
-					// allow some time for overwriting of msg
+					// allow some time for overwriting of messages
 					Thread.sleep(100);
 					// print the msg if necessary
 					synchronized (this) {
@@ -251,30 +251,30 @@ public class Utils implements ij.plugin.PlugIn {
 	static public void printCaller(Object called_object) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
-			log("Stack trace too short! No useful info");
+			log2("Stack trace too short! No useful info");
 		} else {
-			log( "#### START TRACE ####\nObject " + called_object.getClass().getName() + " called at: " + elems[1].getFileName() + " " + elems[1].getLineNumber() + ": " + elems[1].getMethodName() + "()\n    by: " + elems[2].getClassName() + " " + elems[2].getLineNumber() + ": " + elems[2].getMethodName() + "()");
-			log("==== END ====");
+			log2( "#### START TRACE ####\nObject " + called_object.getClass().getName() + " called at: " + elems[1].getFileName() + " " + elems[1].getLineNumber() + ": " + elems[1].getMethodName() + "()\n    by: " + elems[2].getClassName() + " " + elems[2].getLineNumber() + ": " + elems[2].getMethodName() + "()");
+			log2("==== END ====");
 		}
 	}
 
 	static public void printCaller(Object called_object, int lines) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
-			log("Stack trace too short! No useful info");
+			log2("Stack trace too short! No useful info");
 		} else {
-			log( "#### START TRACE ####\nObject " + called_object.getClass().getName() + " called at: " + elems[1].getFileName() + " " + elems[1].getLineNumber() + ": " + elems[1].getMethodName() + "()\n    by: " + elems[2].getClassName() + " " + elems[2].getLineNumber() + ": " + elems[2].getMethodName() + "()");
+			log2( "#### START TRACE ####\nObject " + called_object.getClass().getName() + " called at: " + elems[1].getFileName() + " " + elems[1].getLineNumber() + ": " + elems[1].getMethodName() + "()\n    by: " + elems[2].getClassName() + " " + elems[2].getLineNumber() + ": " + elems[2].getMethodName() + "()");
 			for (int i=3; i<lines+2 && i<elems.length; i++) {
-				log("\tby: " + elems[i].getClassName() + " " + elems[i].getLineNumber() + ": " + elems[i].getMethodName() + "()");
+				log2("\tby: " + elems[i].getClassName() + " " + elems[i].getLineNumber() + ": " + elems[i].getMethodName() + "()");
 			}
-			log("==== END ====");
+			log2("==== END ====");
 		}
 	}
 
 	static public String caller(Object called) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
-			log("Stack trace too short! No useful info");
+			log2("Stack trace too short! No useful info");
 			return null;
 		} else {
 			return elems[2].getClassName();

@@ -481,6 +481,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			ImagePlus.addImageListener(d);
 			al_displays.add(d);
 			d.updateTitle();
+			// force a repaint if a prePaint was done TODO this should be properly managed with repaints using always the invokeLater, but then it's DOG SLOW
+			if (d.canvas.getMagnification() > 0.499) {
+				SwingUtilities.invokeLater(new Runnable() { public void run() { d.repaint(d.layer); }});
+			}
 		}
 		ht_later.clear();
 		ht_later = null;

@@ -439,7 +439,7 @@ public class ProjectThing extends DBObject implements Thing {
 			((Displayable)object).setVisible(b);
 		}
 		if (null != al_children) {
-			Iterator it = al_children.iterator();
+			final Iterator it = al_children.iterator();
 			while (it.hasNext()) {
 				((ProjectThing)it.next()).setVisible(b);
 			}

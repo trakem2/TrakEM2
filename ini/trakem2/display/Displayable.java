@@ -495,17 +495,8 @@ public abstract class Displayable extends DBObject {
 
 	public boolean isVisible() { return this.visible; }
 
-	public void setVisible(boolean visible) {
-		//Utils.printCaller(this, 10);
-		//Utils.log2("visible is set to be: " + visible);
-		if (this.visible == visible) return;
-		this.visible = visible;
-		Display.setUpdateGraphics(layer, this);
-		Display.repaint(layer, this, 5);
-		updateInDatabase("visible");
-		Display.updateVisibilityCheckbox(layer, this, null); // overkill, but makes my life easy
-		//Utils.log2("visible is now: " + visible);
-		//Utils.log2("called setV " + visible + System.currentTimeMillis());
+	public final void setVisible(boolean visible) {
+		setVisible(visible, true);
 	}
 
 	public void setVisible(boolean visible, boolean repaint) {
@@ -517,7 +508,6 @@ public abstract class Displayable extends DBObject {
 		}
 		updateInDatabase("visible");
 		Display.updateVisibilityCheckbox(layer, this, null); // overkill, but makes my life easy
-		//Utils.log2("called setV2 " + visible + System.currentTimeMillis());
 	}
 
 	/** Repaint this Displayable in all Display instances that are showing it. */

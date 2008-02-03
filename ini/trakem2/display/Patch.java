@@ -321,7 +321,7 @@ public class Patch extends Displayable {
 		checkChannels(channels, magnification);
 
 		Image image = project.getLoader().getCachedClosestAboveImage(this, magnification); // above or equal
-		Runnable higher = null;
+		//Runnable higher = null;
 		if (null == image) {
 			image = project.getLoader().getCachedClosestBelowImage(this, magnification); // below, not equal
 			boolean thread = false;
@@ -342,6 +342,7 @@ public class Patch extends Displayable {
 			}
 			if (thread && !Loader.NOT_FOUND.equals(image)) {
 				// use the lower resolution image, but spawn a thread to load and paint the proper one on loading it.
+				/*
 				higher = new Runnable() {
 					public void run() {
 						//setPriority(Thread.NORM_PRIORITY);
@@ -355,6 +356,8 @@ public class Patch extends Displayable {
 						}
 					}
 				};
+				*/
+				Loader.preload(this, magnification, true);
 			}
 		}
 
@@ -385,7 +388,13 @@ public class Patch extends Displayable {
 			g.setComposite(original_composite);
 		}
 
-		if (null != higher) javax.swing.SwingUtilities.invokeLater(higher);
+		/*
+		if (null != higher) {
+			// Should work best, but results in horrible second-long stalls of the display. The low-res painting can never take place.
+			//javax.swing.SwingUtilities.invokeLater(higher);
+			new Thread(higher).start();
+		}
+		*/
 	}
 
 	/** A method to paint, simply (to a flat image for example); no magnification or srcRect are considered. */

@@ -198,11 +198,6 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				//if (!Project.isBasicType(thing.getType())) {
 					rename(thing);
 				//}
-			} else if (command.equals("Show centered in Display")) {
-				if (thing.getObject() instanceof Displayable) {
-					Displayable dob = (Displayable)thing.getObject();
-					Display.showCentered(dob.getLayer(), dob);
-				}
 			} else if (command.equals("Measure")) {
 				thing.measure();
 			}/* else if (command.equals("Export 3D...")) {

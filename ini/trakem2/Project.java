@@ -457,8 +457,11 @@ public class Project extends DBObject {
 		return "project";
 	}
 
-	public void save() {
-		loader.save(this);
+	public String save() {
+		Utils.log("Saving project " + this + " ...");
+		String path = loader.save(this);
+		Utils.log("... done.");
+		return path;
 	}
 
 	public boolean destroy() {

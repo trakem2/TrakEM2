@@ -114,6 +114,7 @@ import java.util.Set;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Vector;
+import java.util.LinkedHashSet;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -732,9 +733,9 @@ abstract public class Loader {
 
 	/** Release memory from other loaders. */
 	private long releaseOthers(double a) {
-		if (1 == v_loaders.size()) return 0;
+		if (null == v_loaders || 1 == v_loaders.size()) return 0;
 		if (a <= 0.0D || a > 1.0D) return 0;
-		Iterator it = v_loaders.iterator();
+		final Iterator it = v_loaders.iterator();
 		long released = 0;
 		while (it.hasNext()) {
 			Loader loader = (Loader)it.next();
@@ -2711,7 +2712,7 @@ abstract public class Loader {
 			if (null == target_dir) return null;
 		}
 		target_dir = target_dir.replace('\\', '/'); // Windows fixing
-		if (!target_dir.endsWith("/")) target_dir += "/"; // Windows users may suffer here
+		if (!target_dir.endsWith("/")) target_dir += "/";
 
 		if (max_scale_ > 1) {
 			Utils.log("Prescaled Tiles: using max scale of 1.0");
@@ -4205,69 +4206,195 @@ abstract public class Loader {
 
 
 	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if (1) there is more than one CPU core available [and only the extra ones will be used], and (2) there is more than 1 image to preload. */
-	static public ParallelImageLoader preLoad(final List<Patch> patches, final double magnification) {
-		final int n_threads = Runtime.getRuntime().availableProcessors();
-		if (1 == n_threads) return null;
-		if (null == patches || patches.size() < 2) return null;
-		return new ParallelImageLoader(patches, magnification, n_threads);
+
+	static private ImageLoaderThread[] imageloader = new ImageLoaderThread[Runtime.getRuntime().availableProcessors()-1];
+	static {
+		for (int i=0; i<imageloader.length; i++) {
+			imageloader[i] = new ImageLoaderThread();
+		}
+	}
+	static private final Preloader preloader = new Preloader();
+
+	// Java is pathetically low level.
+	static private final class Tuple {
+		Patch patch;
+		double mag;
+		boolean repaint;
+		Tuple(final Patch patch, final double mag, final boolean repaint) {
+			this.patch = patch;
+			this.mag = mag;
+			this.repaint = repaint;
+		}
+		public boolean equals(final Object ob) {
+			if (!ob.getClass().equals(Tuple.class)) return false;
+			final Tuple tu = (Tuple)ob;
+			return patch.equals(tu.patch) && mag == tu.mag && repaint == tu.repaint;
+		}
 	}
 
-	/** A closure that executes in parallel, but Java doesn't have those. */
-	static public class ParallelImageLoader extends Thread {
-		private List<Patch> patches;
-		private double magnification;
-		private boolean quit = false;
-		private int n_threads;
-		public ParallelImageLoader(final List<Patch> patches, final double magnification, final int n_threads) {
+	/** Manages available CPU cores for loading images in the background. */
+	static private class Preloader extends Thread {
+		private final ArrayList<Tuple> queue = new ArrayList<Tuple>();
+		private boolean go = true;
+		/** Controls access to the queue. */
+		private final Lock lock = new Lock();
+		private final Lock lock2 = new Lock();
+		Preloader() {
 			setPriority(Thread.NORM_PRIORITY);
-			if (null == patches || 0 == patches.size()) return;
-			this.magnification = magnification;
-			this.n_threads = n_threads;
-			this.patches = patches;
 			start();
 		}
-		public final void quit() {
-			this.quit = true;
+		public final void add(final Patch patch, final double mag, final boolean repaint) {
+			if (patch.getProject().getLoader().isCached(patch, mag)) {
+				if (repaint && Display.willPaint(patch, mag)) {
+					Display.repaint(patch.getLayer(), patch, patch.getBoundingBox(null), 1, false); // not the navigator
+				}
+				return;
+			}
+			boolean preload = false;
+			synchronized (lock) {
+				lock.lock();
+				final Tuple tu = new Tuple(patch, mag, repaint);
+				if (!queue.contains(tu)) {
+					queue.add(tu);
+					preload = true;
+				}
+				lock.unlock();
+			}
+			if (preload) synchronized (lock2) { lock2.unlock(); }
 		}
-		public final void run() {
-			final int level = Loader.getMipMapLevel(magnification);
-			int max = 0;
-			final Loader loader = patches.get(0).getProject().getLoader();
-			for (Patch patch : patches) {
-				if (!Loader.enoughFreeMemory(loader.estimateImageFileSize(patch, level))) break;
-				//else, preload this patch mipmap
-				max++;
+		public final void add(final ArrayList<Patch> patches, final double mag) {
+			int len = 0;
+			synchronized (lock) {
+				lock.lock();
+				for (Patch p : patches) {
+					if (p.getProject().getLoader().isCached(p, mag)) continue;
+					final Tuple tu = new Tuple(p, mag, false);
+					if (queue.contains(tu)) continue;
+					queue.add(tu);
+				}
+				len = queue.size();
+				lock.unlock();
 			}
-			if (0 == max) return;
-			// else, go for the parallel preloading
-			if (patches.size() != max) {
-				this.patches = patches.subList(0, max);
-			} else {
-				this.patches = patches;
+			if (len > 0) synchronized (lock2) { lock2.unlock(); }
+		}
+		public final void remove(final ArrayList<Patch> patches, final double mag) {
+			synchronized (lock) {
+				lock.lock();
+				for (Patch p : patches) {
+					queue.remove(new Tuple(p, mag, false));
+				}
+				lock.unlock();
 			}
-			// find out how many can be loaded without overflowing perceived available memory (i.e. the value returned by IJ.currentMemory()
-			// preload
-			final Patch[] pa = new Patch[patches.size()];
-			patches.toArray(pa);
-			final AtomicInteger ai = new AtomicInteger(0);
-			for (int ithread = 0; ithread < n_threads; ++ithread) {
-				new Thread() {
-					public void run() {
-						try {
-							setPriority(Thread.NORM_PRIORITY -1);
-
-			for (int k = ai.getAndIncrement(); k < pa.length; k = ai.getAndIncrement()) {
-				if (quit) return;
-				loader.fetchImage(pa[k], magnification);
-			}
-						} catch (Exception e) {
-							new IJError(e);
+		}
+		public void run() {
+			final Tuple[] tu = new Tuple[imageloader.length];
+			while (go) {
+				try {
+					synchronized (lock2) { lock2.lock(); }
+					// read out a group of imageloader.length patches to load
+					while (true) {
+						synchronized (lock) {
+							lock.lock();
+							int i = 0;
+							int len = queue.size();
+							if (0 == len) {
+								lock.unlock();
+								break;
+							}
+							for (; i<tu.length && i<queue.size(); i++) {
+								tu[i] = queue.remove(0);
+							}
+							for (; i<tu.length; i++) {
+								tu[i] = null;
+							}
+							lock.unlock();
+						}
+						// changes may occur now to the queue, so work on the tu array
+						for (int i=0; i<imageloader.length; i++) {
+							if (null != tu[i] && null != tu[i].patch) {
+								// don't load if it was asked to be repainted but it is no longer necessary because it doesn't show on any Display
+								if (!tu[i].repaint || (tu[i].repaint && Display.willPaint(tu[i].patch, tu[i].mag))) {
+									imageloader[i].load(tu[i].patch, tu[i].mag, tu[i].repaint);
+								}
+							}
 						}
 					}
-				}.start(); // don't join it
+				} catch (Exception e) {
+					e.printStackTrace();
+					synchronized (lock) { lock.unlock(); } // just in case ...
+				}
 			}
 		}
 	}
+
+	static public final void preload(final Patch patch, final double magnification, final boolean repaint) {
+		preloader.add(patch, magnification, repaint);
+	}
+	static public final void preload(final ArrayList<Patch> patches, final double magnification) {
+		preloader.add(patches, magnification);
+	}
+	static public final void quitPreloading(final ArrayList<Patch> patches, final double magnification) {
+		preloader.remove(patches, magnification);
+	}
+
+	static private class ImageLoaderThread extends Thread {
+		/** Controls access to Patch etc. */
+		private final Lock lock = new Lock();
+		/** Limits access to the load method while a previous image is being worked on. */
+		private final Lock lock2 = new Lock();
+		private Patch patch = null;
+		private double mag = 1.0;
+		private boolean repaint = false;
+		private boolean go = true;
+		public ImageLoaderThread() {
+			setPriority(Thread.NORM_PRIORITY);
+			start();
+		}
+		/** Sets the given Patch to be loaded, and returns. A second call to this method will wait until the first call has finished, indicating the Thread is busy loading the previous image. */
+		public final void load(final Patch p, final double mag, final boolean repaint) {
+			synchronized (lock) {
+				try {
+					lock.lock();
+					this.patch = p;
+					this.mag = mag;
+					this.repaint = repaint;
+					if (null != patch) {
+						synchronized (lock2) {
+							try { lock2.unlock(); } catch (Exception e) { e.printStackTrace(); }
+						}
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		public void run() {
+			while (go) {
+				Patch p = null;
+				synchronized (lock2) {
+					try {
+						lock2.lock();
+						p = this.patch;
+					} catch (Exception e) {}
+				}
+				if (null != p) {
+					try {
+						p.getProject().getLoader().fetchImage(p, mag);
+						if (repaint) {
+							Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
+						}
+						p = null;
+					} catch (Exception e) { e.printStackTrace(); }
+				}
+				// signal done
+				try {
+					synchronized (lock) { lock.unlock(); }
+				} catch (Exception e) {}
+			}
+		}
+	}
+
+
 
 	/** Returns the highest mipmap level for which a mipmap image may have been generated given the dimensions of the Patch. The minimum that this method may return is zero. */
 	public static final int getHighestMipMapLevel(final Patch p) {

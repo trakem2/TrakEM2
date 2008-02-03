@@ -88,6 +88,7 @@ public class ImageSaver {
 			image_type = BufferedImage.TYPE_BYTE_GRAY;
 		}
 		*/
+		FileOutputStream f = null;
 		try {
 			BufferedImage bi = null;
 			if (as_grey) { // even better would be to make a raster directly from the byte[] array, and pass that to the encoder
@@ -95,7 +96,7 @@ public class ImageSaver {
 			} else {
 				bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
 			}
-			final FileOutputStream f = new FileOutputStream(path);
+			f = new FileOutputStream(path);
 			final Graphics g = bi.createGraphics();
 			g.drawImage(ip.createImage(), 0, 0, null);
 			g.dispose();
@@ -105,6 +106,9 @@ public class ImageSaver {
 			encoder.encode(bi, param);
 			f.close();
 		} catch (Exception e) {
+			if (null != f) {
+				try { f.close(); } catch (Exception ee) {}
+			}
 			new IJError(e);
 			return false;
 		}
@@ -128,37 +132,51 @@ public class ImageSaver {
 	}
 	*/
 
+	// Convoluted method to make sure all possibilities of opening and closing the stream are considered.
 	static private final BufferedImage openJpeg(final String path, final int color_id) {
+		InputStream stream = null;
+		BufferedImage bi = null;
 		try {
-			return openJpeg2(path, color_id);
+
+			// 1 - create a stream if possible
+			stream = openStream(path);
+			if (null == stream) return null;
+
+			// 2 - open it as a BufferedImage
+			bi = openJpeg2(stream, color_id);
+
 		} catch (FileNotFoundException fnfe) {
-			return null;
+			bi = null;
 		} catch (Exception e) {
-			Utils.log2("JPEG Decoder failed for " + path);
 			// the file might have been generated while trying to read it. So try once more
 			try {
+				Utils.log2("JPEG Decoder failed for " + path);
 				Thread.sleep(50);
-				return openJpeg2(path, color_id);
+				// reopen stream
+				if (null != stream) { try { stream.close(); } catch (Exception ee) {} }
+				stream = openStream(path);
+				// decode
+				if (null != stream) bi = openJpeg2(stream, color_id);
 			} catch (Exception e2) {
 				new IJError(e2);
 			}
-			return null;
+		} finally {
+			if (null != stream) { try { stream.close(); } catch (Exception e) {} }
 		}
+		return bi;
 	}
 
-	static private final BufferedImage openJpeg2(final String path, final int color_id) throws Exception {
-		InputStream stream = null;
+	static private final InputStream openStream(final String path) throws Exception {
 		if (FSLoader.isURL(path)) {
-			stream = new URL(path).openStream();
+			return new URL(path).openStream();
 		} else if (new File(path).exists()) {
-			stream = new FileInputStream(path);
-		} else {
-			return null;
+			return new FileInputStream(path);
 		}
-		final JPEGImageDecoder decoder = JPEGCodec.createJPEGDecoder(stream, JPEGCodec.getDefaultJPEGEncodeParam(1, color_id));
-		final BufferedImage bi = decoder.decodeAsBufferedImage();
-		stream.close();
-		return bi;
+		return null;
+	}
+
+	static private final BufferedImage openJpeg2(final InputStream stream, final int color_id) throws Exception {
+		return JPEGCodec.createJPEGDecoder(stream, JPEGCodec.getDefaultJPEGEncodeParam(1, color_id)).decodeAsBufferedImage();
 	}
 
 	/** Returns true on success.<br />

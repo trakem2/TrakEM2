@@ -946,7 +946,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 		// export Layer and contained Displayable objects
 		if (null != al_layers) {
-			Utils.log("LayerSet " + id + " is saving " + al_layers.size() + " layers.");
+			//Utils.log("LayerSet " + id + " is saving " + al_layers.size() + " layers.");
 			for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 				sb_body.setLength(0);
 				((Layer)it.next()).exportXML(sb_body, in, any);

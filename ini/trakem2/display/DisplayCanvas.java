@@ -1859,13 +1859,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 
 				// preload as many as possible
-				final Loader.ParallelImageLoader preloader = Loader.preLoad(al_patches, magnification);
+				Loader.preload(al_patches, magnification);
 
 				// paint the ZDisplayables here, before the labels and LayerSets, if any
 				int j = 0;
 				while (j < m) {
 					if (quit && 0 == n % 10 && canQuit()) {
-						if (null != preloader) preloader.quit();
+						Loader.quitPreloading(al_patches, magnification);
 						return;
 					}
 					final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
@@ -1881,7 +1881,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// paint LayerSet and DLabel objects!
 				while (i < n) {
 					if (quit && 0 == n % 10 && canQuit()) {
-						if (null != preloader) preloader.quit();
+						Loader.quitPreloading(al_patches, magnification);
 						return;
 					}
 					final Displayable d = (Displayable) al.get(i);
@@ -1896,7 +1896,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 
 				if (quit && canQuit()) {
-					if (null != preloader) preloader.quit();
+					Loader.quitPreloading(al_patches, magnification);
 					return;
 				}
 
@@ -1931,7 +1931,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				i = 0;
 				for (Displayable d : al_paint) {
 					if (quit && canQuit()) {
-						if (null != preloader) preloader.quit();
+						Loader.quitPreloading(al_patches, magnification);
 						g.dispose();
 						target.flush();
 						return;
