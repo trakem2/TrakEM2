@@ -3291,7 +3291,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (d.canvas.getMagnification() != magnification) {
 				continue;
 			}
-			if (null == box) box = displ.getBoundingBox();
+			if (null == box) box = displ.getBoundingBox(null);
 			if (d.canvas.getSrcRect().intersects(box)) {
 				return true;
 			}

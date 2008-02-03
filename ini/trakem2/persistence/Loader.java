@@ -4244,10 +4244,7 @@ abstract public class Loader {
 			start();
 		}
 		public final void add(final Patch patch, final double mag, final boolean repaint) {
-			if (patch.getProject().getLoader().isCached(patch, mag)) {
-				if (repaint && Display.willPaint(patch, mag)) {
-					Display.repaint(patch.getLayer(), patch, patch.getBoundingBox(null), 1, false); // not the navigator
-				}
+			if (patch.getProject().getLoader().isCached(patch, mag) && (!repaint || (repaint && !Display.willPaint(patch, mag)))) {
 				return;
 			}
 			boolean preload = false;
@@ -4312,12 +4309,11 @@ abstract public class Loader {
 						// changes may occur now to the queue, so work on the tu array
 						for (int i=0; i<imageloader.length; i++) {
 							if (null != tu[i] && null != tu[i].patch) {
-								// don't load if it was asked to be repainted but it is no longer necessary because it doesn't show on any Display
-								if (!tu[i].repaint || (tu[i].repaint && Display.willPaint(tu[i].patch, tu[i].mag))) {
-									imageloader[i].load(tu[i].patch, tu[i].mag, tu[i].repaint);
-								}
+								imageloader[i].load(tu[i].patch, tu[i].mag, tu[i].repaint);
 							}
 						}
+						// Ideally, there would be one paraller primer thead for each imageloader thread, because the ImageLoaderThread.load function locks if the thread is still loading the previous image.
+						// As it is now, should not waste time at all as long as images are all the same sizes.
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -4371,17 +4367,30 @@ abstract public class Loader {
 		public void run() {
 			while (go) {
 				Patch p = null;
+				double mag = 1.0;
+				boolean repaint = false;
 				synchronized (lock2) {
 					try {
+						// wait until there's a Patch to preload.
 						lock2.lock();
+						// ready: catch locally
 						p = this.patch;
+						mag = this.mag;
+						repaint = this.repaint;
 					} catch (Exception e) {}
 				}
 				if (null != p) {
 					try {
-						p.getProject().getLoader().fetchImage(p, mag);
 						if (repaint) {
-							Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
+							// wait a bit in case the user has browsed past
+							Thread.yield();
+							try { sleep(50); } catch (InterruptedException ie) {}
+							if (Display.willPaint(p, mag)) {
+								p.getProject().getLoader().fetchImage(p, mag);
+								Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
+							}
+						} else {
+							p.getProject().getLoader().fetchImage(p, mag);
 						}
 						p = null;
 					} catch (Exception e) { e.printStackTrace(); }
