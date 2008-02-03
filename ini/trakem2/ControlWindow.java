@@ -33,6 +33,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.vector.Compare;
+import ini.trakem2.persistence.Loader;
 
 import javax.swing.*;
 import java.awt.*;
@@ -74,7 +75,10 @@ public class ControlWindow {
 		if (null != ij.gui.Toolbar.getInstance()) {
 			ij.gui.Toolbar.getInstance().addMouseListener(tool_listener);
 		}
-		synchronized (this) { Utils.setup(this); }
+		synchronized (this) {
+			Utils.setup(this);
+			Loader.setupPreloader(this);
+		}
 	}
 
 	/** Prevents ControlWindow from displaying projects.*/
@@ -140,6 +144,7 @@ public class ControlWindow {
 				ij.gui.Toolbar.getInstance().removeMouseListener(tool_listener);
 			}
 			Utils.destroy(instance);
+			Loader.destroyPreloader(instance);
 			instance = null;
 		}
 	}

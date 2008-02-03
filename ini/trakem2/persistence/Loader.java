@@ -4207,13 +4207,28 @@ abstract public class Loader {
 
 	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if (1) there is more than one CPU core available [and only the extra ones will be used], and (2) there is more than 1 image to preload. */
 
-	static private ImageLoaderThread[] imageloader = new ImageLoaderThread[Runtime.getRuntime().availableProcessors()-1];
-	static {
-		for (int i=0; i<imageloader.length; i++) {
-			imageloader[i] = new ImageLoaderThread();
+	static private ImageLoaderThread[] imageloader = null; 
+	static private Preloader preloader = null;
+
+	static public final void setupPreloader(final ControlWindow master) {
+		if (null == imageloader) {
+			imageloader = new ImageLoaderThread[Runtime.getRuntime().availableProcessors()-1];
+			for (int i=0; i<imageloader.length; i++) {
+				imageloader[i] = new ImageLoaderThread();
+			}
+		}
+		if (null == preloader) preloader = new Preloader();
+	}
+	static public final void destroyPreloader(final ControlWindow master) {
+		if (null != preloader) { preloader.quit(); preloader = null; }
+		if (null != imageloader) {
+			for (int i=0; i<imageloader.length; i++) {
+				if (null != imageloader[i]) { imageloader[i].quit(); }
+			}
+			imageloader = null;
 		}
 	}
-	static private final Preloader preloader = new Preloader();
+
 
 	// Java is pathetically low level.
 	static private final class Tuple {
@@ -4242,6 +4257,11 @@ abstract public class Loader {
 		Preloader() {
 			setPriority(Thread.NORM_PRIORITY);
 			start();
+		}
+		public final void quit() {
+			this.go = false;
+			synchronized (lock) { lock.lock(); queue.clear(); lock.unlock(); }
+			synchronized (lock2) { lock2.unlock(); }
 		}
 		public final void add(final Patch patch, final double mag, final boolean repaint) {
 			if (patch.getProject().getLoader().isCached(patch, mag) && (!repaint || (repaint && !Display.willPaint(patch, mag)))) {
@@ -4346,6 +4366,11 @@ abstract public class Loader {
 			setPriority(Thread.NORM_PRIORITY);
 			start();
 		}
+		public final void quit() {
+			this.go = false;
+			synchronized (lock) { try { this.patch = null; lock.unlock(); } catch (Exception e) {} }
+			synchronized (lock2) { lock2.unlock(); }
+		}
 		/** Sets the given Patch to be loaded, and returns. A second call to this method will wait until the first call has finished, indicating the Thread is busy loading the previous image. */
 		public final void load(final Patch p, final double mag, final boolean repaint) {
 			synchronized (lock) {
@@ -4373,7 +4398,7 @@ abstract public class Loader {
 					try {
 						// wait until there's a Patch to preload.
 						lock2.lock();
-						// ready: catch locally
+						// ready: catch locally (no need to synch on lock because it can't change, considering the load method.
 						p = this.patch;
 						mag = this.mag;
 						repaint = this.repaint;
