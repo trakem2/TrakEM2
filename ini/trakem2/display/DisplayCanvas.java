@@ -274,7 +274,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 
 			final long now = System.currentTimeMillis();
-			p("interval: " + (now - last_paint));
+			//p("interval: " + (now - last_paint));
 			last_paint = now;
 
 		} catch (Exception e) {
@@ -965,7 +965,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		 */
 
 		// Instead, set the size that of the JPanel
-		Rectangle rb = display.getCanvasPanel().getBounds(null);
+		final Rectangle rb = display.getCanvasPanel().getBounds(null);
 		super.setDrawingSize(rb.width, rb.height);
 		// .. and adjust the srcRect to the new dimensions
 		int w = (int) Math.round(dstWidth / newMag);
@@ -980,7 +980,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			h = imageHeight;
 		x = offScreenX(x);
 		y = offScreenY(y);
-		Rectangle r = new Rectangle(x - w / 2, y - h / 2, w, h);
+		final Rectangle r = new Rectangle(x - w / 2, y - h / 2, w, h);
 		if (r.x < 0)
 			r.x = 0;
 		if (r.y < 0)
@@ -1714,13 +1714,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		return this.imp;
 	}
 
-	/*
-	public void focusGained(FocusEvent e) {
-	}
-	public void focusLost(FocusEvent e) {
-	}
-	*/
-
 	/** Key/Mouse bindings like:
 	 * - ij.gui.StackWindow: wheel to scroll slices (in this case Layers)
 	 * - Inkscape: control+wheel to zoom (apple+wheel in macosx, since control+wheel zooms desktop)
@@ -1784,7 +1777,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		public final boolean canQuit() {
 			final long now = System.currentTimeMillis();
 			if (now - start > min_time && now - last_paint < min_time) {
-				p(label + " off canQuit yes");
+				//p(label + " off canQuit yes");
 				return true;
 			}
 			return false;

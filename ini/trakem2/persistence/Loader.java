@@ -2748,23 +2748,21 @@ abstract public class Loader {
 
 		// thumbnail dimensions
 		LayerSet ls = layer[0].getParent();
-		double ratio = ls.getLayerWidth() / ls.getLayerHeight();
+		double ratio = srcRect.width / (double)srcRect.height;
 		double thumb_scale = 1.0;
 		if (ratio >= 1) {
 			// width is larger or equal than height
-			//int tw = 192;
-			//int th = (int)(192 / ratio);
-			thumb_scale = 192 / ls.getLayerWidth();
+			thumb_scale = 192.0 / srcRect.width;
 		} else {
-			//tw = (int)(192 * ratio);
-			//th = 192;
-			thumb_scale = 192 / ls.getLayerHeight();
+			thumb_scale = 192.0 / srcRect.height;
 		}
+
 		for (int iz=0; iz<layer.length; iz++) {
 			if (this.quit) {
 				cleanup();
 				return;
 			}
+
 			// 1 - create a directory 'z' named as the layer's Z coordinate
 			String tile_dir = dir + layer[iz].getParent().indexOf(layer[iz]);
 			File fdir = new File(tile_dir);
@@ -2783,15 +2781,16 @@ abstract public class Loader {
 			// debug:
 			Utils.log2("tile_dir: " + tile_dir + "\ntmp: " + tmp);
 			tile_dir = tmp;
-			if (!tile_dir.endsWith("/")) tile_dir += "/"; // Windows users may suffer here
+			if (!tile_dir.endsWith("/")) tile_dir += "/";
+
 			// 2 - create layer thumbnail, max 192x192
 			ImagePlus thumb = getFlatImage(layer[iz], srcRect, thumb_scale, c_alphas, type, clazz, true);
-			// thread-unsafe! //new FileSaver(thumb).saveAsJpeg(tile_dir + "/small.jpg");
-			ImageSaver.saveAsJpeg(thumb.getProcessor(), tile_dir + "/small.jpg", jpeg_quality, ImagePlus.COLOR_RGB != type);
+			ImageSaver.saveAsJpeg(thumb.getProcessor(), tile_dir + "small.jpg", jpeg_quality, ImagePlus.COLOR_RGB != type);
 			flush(thumb);
 			thumb = null;
+
 			// 3 - fill directory with tiles
-			if (edge_length < 256) {
+			if (edge_length < 256) { // edge_length is the largest length of the 256x256 tile map that covers an area equal or larger than the desired srcRect (because all tiles have to be 256x256 in size)
 				// create single tile per layer
 				makeTile(layer[iz], srcRect, max_scale, c_alphas, type, clazz, jpeg_quality, tile_dir + "0_0_0.jpg");
 			} else {
@@ -2799,7 +2798,7 @@ abstract public class Loader {
 				double scale = max_scale;
 				int scale_pow = 0;
 				int n_et = n_edge_tiles; // cached for local modifications in the loop, works as loop controler
-				while (n_et >= best[1]) {
+				while (n_et >= best[1]) { // best[1] is the minimal root found, i.e. 1,2,3,4,5 from hich then powers of two were taken to make up for the edge_length
 					int tile_side = (int)(256/scale); // 0 < scale <= 1, so no precision lost
 					for (int row=0; row<n_et; row++) {
 						for (int col=0; col<n_et; col++) {
@@ -2807,11 +2806,15 @@ abstract public class Loader {
 								cleanup();
 								return;
 							}
-							Rectangle tile_src = new Rectangle(srcRect.x + tile_side*row, srcRect.y + tile_side*col, tile_side, tile_side); // in absolute coords, magnification later.
+							Rectangle tile_src = new Rectangle(srcRect.x + tile_side*row,
+									                   srcRect.y + tile_side*col,
+											   tile_side,
+											   tile_side); // in absolute coords, magnification later.
 							// crop bounds
 							if (tile_src.x + tile_src.width > srcRect.x + srcRect.width) tile_src.width = srcRect.x + srcRect.width - tile_src.x;
-							if (tile_src.y + tile_src.height > srcRect.x + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
+							if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 							// negative tile sizes will be made into black tiles
+							// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
 							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, jpeg_quality, new StringBuffer(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I inversed it.
 						}
 					}
@@ -2859,7 +2862,6 @@ abstract public class Loader {
 		}
 		// debug
 		//Utils.log("would save: " + srcRect + " at " + file_path);
-		// thread-unsafe! //new FileSaver(imp).saveAsJpeg(file_path);
 		ImageSaver.saveAsJpeg(imp.getProcessor(), file_path, jpeg_quality, ImagePlus.COLOR_RGB != type);
 	}
 
@@ -4298,7 +4300,7 @@ abstract public class Loader {
 			synchronized (lock) {
 				lock.lock();
 				for (Patch p : patches) {
-					queue.remove(new Tuple(p, mag, false));
+					queue.remove(new Tuple(p, mag, false)); // remove the first occurrence only., so later additions of the same will be fine.
 				}
 				lock.unlock();
 			}
