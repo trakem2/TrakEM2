@@ -69,7 +69,7 @@ public class FreeHandProfile {
 		this.profile = profile;
 	}
 
-	public void mousePressed(int x_p, int y_p, Rectangle srcRect, double mag) {
+	public void mousePressed(int x_p, int y_p) {
 		// array initialisation
 		// mousePosition[0] = x_p;
 		// mousePosition[1] = y_p;
@@ -146,7 +146,7 @@ public class FreeHandProfile {
 		lastBezierIndex = 0;
 	}
 
-	public void mouseDragged(MouseEvent me, int x_d, int y_d, double dx, double dy, Rectangle srcRect, double mag) {
+	public void mouseDragged(MouseEvent me, int x_d, int y_d, double dx, double dy) {
 		mouseVelocity[0] = dx / MOUSE_MASS + (1 - 1d / MOUSE_MASS) * mouseVelocity[0];
 		mouseVelocity[1] = dy / MOUSE_MASS + (1 - 1d / MOUSE_MASS) * mouseVelocity[1];
 		mousePosition[0] += mouseVelocity[0];
@@ -163,8 +163,7 @@ public class FreeHandProfile {
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect,
-			double mag) {
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 
 		adjustNewBezierEndPoint();
 		double[][] targetPoints = calculateMouseSamples(lastBezierIndex, nPoints - 1);

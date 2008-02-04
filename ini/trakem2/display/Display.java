@@ -2535,7 +2535,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				Utils.log2("Display \"Transform\": null active!");
 				return;
 			}
-			//TODO//active.handleDoubleClick(); //this is badly named
 			canvas.setTransforming(true);
 		} else if (command.equals("Apply transform")) {
 			if (null == active) return;

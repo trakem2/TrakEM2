@@ -1104,62 +1104,6 @@ public class Profile extends Displayable {
 		this.generateInterpolatedPoints(0.05);
 	}
 
-	public void rotateData(int direction) {
-		boolean flushed = false;
-		if (-1 == n_points) {
-			setupForDisplay(); //reload
-			flushed = true;
-		}
-		if (0 == n_points) return;
-		double tmp;
-		for (int i=0; i<n_points; i++) {
-			switch (direction) {
-				case LayerSet.R90:
-					tmp = p[0][i]; // tmp is x0
-					p[0][i] = height - p[1][i]; // x1 = height - y0
-					p[1][i] = tmp; // y1 = x0
-					tmp = p_r[0][i];
-					p_r[0][i] = height - p_r[1][i];
-					p_r[1][i] = tmp;
-					tmp = p_l[0][i];
-					p_l[0][i] = height - p_l[1][i];
-					p_l[1][i] = tmp;
-					break;
-				case LayerSet.R270:
-					tmp = p[0][i];
-					p[0][i] = p[1][i]; 
-					p[1][i] = width - tmp;
-					tmp = p_r[0][i];
-					p_r[0][i] = p_r[1][i];
-					p_r[1][i] = width - tmp;
-					tmp = p_l[0][i];
-					p_l[0][i] = p_l[1][i];
-					p_l[1][i] = width - tmp;
-					break;
-				case LayerSet.FLIP_HORIZONTAL:
-					p[0][i] = width - p[0][i];
-					p_r[0][i] = width - p_r[0][i];
-					p_l[0][i] = width - p_l[0][i];
-					break;
-				case LayerSet.FLIP_VERTICAL:
-					p[1][i] = height - p[1][i];
-					p_r[1][i] = height - p_r[1][i];
-					p_l[1][i] = height - p_l[1][i];
-					break;
-			}
-		}
-
-		// debug:
-		//for (int i=0; i<n_points; i++) {
-		//	System.out.println("x1,y1: " + p[0][i] + " , " + p[1][i]);
-		//}
-
-		updateInDatabase("points");
-		generateInterpolatedPoints(0.05);
-		// restore loaded state
-		if (flushed) flush();
-	}
-
 	public int getNearestPointIndex(double x_p, double y_p) {
 		int ret = -1;
 		double minDist = Double.POSITIVE_INFINITY;

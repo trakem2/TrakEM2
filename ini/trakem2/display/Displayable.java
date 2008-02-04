@@ -429,22 +429,7 @@ public abstract class Displayable extends DBObject {
 		return hs;
 	}
 
-	@Deprecated
-	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
-		Utils.log2("Deprecated mousePressed method for " + this.getClass());
-	}
-
-	@Deprecated
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
-		Utils.log2("DeprecaPressedted mouseDragged method for " + this.getClass());
-	}
-
-	@Deprecated
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
-		Utils.log2("Deprecated mouseReleased method for " + this.getClass());
-	}
-
-	public void mousePressed(MouseEvent me, int x_p, int y_p) {
+	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		Utils.log2("mousePressed not implemented yet for " + this.getClass().getName());
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
@@ -773,16 +758,8 @@ public abstract class Displayable extends DBObject {
 		return true;
 	}
 
-	public void handleDoubleClick() {
-		Display.setTransforming(this);
-	}
-
 	/** Does nothing unless overriden. */
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {}
-
-	/** Possible directions are LayerSet.R90, .R270, .FLIP_VERTICAL and .FLIP_HORIZONTAL. */
-	@Deprecated
-	public void rotateData(int direction) {}  // DLabel and LayerSet do NOT do anything
 
 	/** Does nothing unless overriden. Used for profile, pipe and ball points when preventing dragging beyond the screen, to snap to cursor when this reenters. */
 	public void snapTo(int cx, int cy, int x_p, int y_p) {}

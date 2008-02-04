@@ -385,7 +385,7 @@ public class Dissector extends ZDisplayable {
 	/** The selected label in the active item. */
 	private int index = -1;
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
+	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
 
@@ -444,7 +444,7 @@ public class Dissector extends ZDisplayable {
 		al_items.add(this.item);
 	}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
 
@@ -474,7 +474,7 @@ public class Dissector extends ZDisplayable {
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		this.item = null;
 		this.index = -1;
 		calculateBoundingBox();

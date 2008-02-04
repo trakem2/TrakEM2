@@ -409,7 +409,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			if (active.isVisible() && active instanceof Profile) {
 				Profile prof = (Profile) active;
 				this.freehandProfile = new FreeHandProfile(prof);
-				freehandProfile.mousePressed(x_p, y_p, srcRect, magnification);
+				freehandProfile.mousePressed(x_p, y_p);
 			} else {
 				Utils.showMessage("Select a profile first.");
 			}
@@ -510,7 +510,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
 			box = active.getBoundingBox();
-			active.mousePressed(me, x_p, y_p, srcRect, magnification);
+			active.mousePressed(me, x_p, y_p, magnification);
 			break;
 		}
 		//Utils.log("locked: " + locked + " popup: " + popup + " input_disabled2: " + input_disabled2);
@@ -588,7 +588,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				return; // starting painting out of the DisplayCanvas border
 			double dx = x_d - x_d_old;
 			double dy = y_d - y_d_old;
-			freehandProfile.mouseDragged(me, x_d, y_d, dx, dy, srcRect, magnification);
+			freehandProfile.mouseDragged(me, x_d, y_d, dx, dy);
 			repaint();
 			// Point screenLocation = getLocationOnScreen();
 			// mousePos[0] += screenLocation.x;
@@ -638,7 +638,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				case ProjectToolbar.ALIGN:
 					break; // nothing
 				default:
-					active.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old, srcRect, magnification);
+					active.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 					// the line above must repaint on its own
 					break;
 				}
@@ -737,7 +737,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case ProjectToolbar.PENCIL:
 				if (freehandProfile == null)
 					return; // starting painting out of the DisplayCanvas boarder
-				freehandProfile.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r, srcRect, magnification);
+				freehandProfile.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 				freehandProfile = null;
 				//repaint(true);
 				Selection selection = display.getSelection();
@@ -800,7 +800,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				break;
 			case ProjectToolbar.PENCIL:
 			case ProjectToolbar.PEN:
-				active.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r, srcRect, magnification); // active, not selection (Selection only handles transforms, not active's data editions)
+				active.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r); // active, not selection (Selection only handles transforms, not active's data editions)
 				// update active's bounding box
 				selection.updateTransform(active);
 				box.add(selection.getBox());

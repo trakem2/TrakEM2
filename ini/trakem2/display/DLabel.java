@@ -281,14 +281,11 @@ public class DLabel extends Displayable {
 				   4);
 	}
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
-	}
+	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
-	}
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
-		//repaint snapshot
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		Display.repaint(layer, this); // the DisplayablePanel
 	}
 
@@ -388,10 +385,6 @@ public class DLabel extends Displayable {
 			try { Thread.sleep(200); } catch (Exception e) {}
 			frame.toFront();
 		}
-	}
-
-	public void handleDoubleClick() {
-		edit();
 	}
 
 	/** */

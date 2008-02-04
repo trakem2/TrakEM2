@@ -629,7 +629,7 @@ public class Pipe extends ZDisplayable {
 	static private int index, index_l, index_r;
 	static private boolean is_new_point = false;
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
+	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
@@ -691,7 +691,7 @@ public class Pipe extends ZDisplayable {
 		}
 	}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -741,7 +741,7 @@ public class Pipe extends ZDisplayable {
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 
 		final int tool = ProjectToolbar.getToolId();
 
@@ -1390,55 +1390,6 @@ public class Pipe extends ZDisplayable {
 		b[start][2] = layer_set.getLayer(p_layer[n_points-1]).getZ();
 		b[start][3] = p_width[n_points-1];
 		return b;
-	}
-
-	public void rotateData(int direction) {
-		boolean flushed = false;
-		if (-1 == n_points) {
-			setupForDisplay(); //reload
-			flushed = true;
-		}
-		if (0 == n_points) return;
-		double tmp;
-		for (int i=0; i<n_points; i++) {
-			switch (direction) {
-				case LayerSet.R90:
-					tmp = p[0][i];
-					p[0][i] = height - p[1][i]; 
-					p[1][i] = tmp;
-					tmp = p_r[0][i];
-					p_r[0][i] = height - p_r[1][i];
-					p_r[1][i] = tmp;
-					tmp = p_l[0][i];
-					p_l[0][i] = height - p_l[1][i];
-					p_l[1][i] = tmp;
-					break;
-				case LayerSet.R270:
-					tmp = p[0][i];
-					p[0][i] = p[1][i]; 
-					p[1][i] = width - tmp;
-					tmp = p_r[0][i];
-					p_r[0][i] = p_r[1][i];
-					p_r[1][i] = width - tmp;
-					tmp = p_l[0][i];
-					p_l[0][i] = p_l[1][i];
-					p_l[1][i] = width - tmp;
-					break;
-				case LayerSet.FLIP_HORIZONTAL:
-					p[0][i] = width - p[0][i];
-					p_r[0][i] = width - p_r[0][i];
-					p_l[0][i] = width - p_l[0][i];
-					break;
-				case LayerSet.FLIP_VERTICAL:
-					p[1][i] = height - p[1][i];
-					p_r[1][i] = height - p_r[1][i];
-					p_l[1][i] = height - p_l[1][i];
-					break;
-			}
-		}
-		updateInDatabase("points");
-		// restore loaded state
-		if (flushed) flush();
 	}
 
 	/** x,y is the cursor position in offscreen coordinates. */
