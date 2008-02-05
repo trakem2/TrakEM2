@@ -46,6 +46,9 @@ import java.awt.Component;
 import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
+import java.awt.geom.NoninvertibleTransformException;
 import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
@@ -64,7 +67,7 @@ import java.util.Vector;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.5c 2008-02-01";
+	static public String version = "0.5d 2008-02-05";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -866,5 +869,24 @@ public class Utils implements ij.plugin.PlugIn {
 				c.repaint();
 			}
 		});
+	}
+
+	static public final Point2D.Double transform(final AffineTransform affine, final double x, final double y) {
+		final Point2D.Double pSrc = new Point2D.Double(x, y);
+		if (affine.isIdentity()) return pSrc;
+		final Point2D.Double pDst = new Point2D.Double();
+		affine.transform(pSrc, pDst);
+		return pDst;
+	}
+	static public final Point2D.Double inverseTransform(final AffineTransform affine, final double x, final double y) {
+		final Point2D.Double pSrc = new Point2D.Double(x, y);
+		if (affine.isIdentity()) return pSrc;
+		final Point2D.Double pDst = new Point2D.Double();
+		try {
+			affine.createInverse().transform(pSrc, pDst);
+		} catch (NoninvertibleTransformException nite) {
+			new IJError(nite);
+		}
+		return pDst;
 	}
 }

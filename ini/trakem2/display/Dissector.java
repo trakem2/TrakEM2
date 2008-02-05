@@ -40,6 +40,8 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.event.MouseEvent;
+import java.awt.BasicStroke;
+import java.awt.Stroke;
 
 
 /** Implements the Double Dissector method with scale-invariant grouped labels.
@@ -50,7 +52,7 @@ import java.awt.event.MouseEvent;
 public class Dissector extends ZDisplayable {
 
 	/** The list of items to count. */
-	private ArrayList al_items = new ArrayList();
+	private ArrayList<Item> al_items = new ArrayList<Item>();
 
 	/** One element to count.
 	 * Each item contains one or more x,y,layer_id entries.
@@ -115,21 +117,17 @@ public class Dissector extends ZDisplayable {
 				p[1][0] = y;
 				p_layer[0] = lid;
 				n_points = 1;
-				Utils.log2(tag + " trivial case");
 				return 0;
 			}
 			// check if there is already a point for the given layer
 			for (int i=0; i<n_points; i++)
 				if (lid == p_layer[i]) {
-					Utils.log2(tag + " already here");
 					return -1;
 				}
 
 			final int il = layer_set.indexOf(layer);
 			if (layer_set.indexOf(layer_set.getLayer(p_layer[n_points-1])) == il -1) {
 				// check if new point is within radius of the found point
-				Utils.log2(tag + "  point: " + x + ", " + y);
-				Utils.log2(tag + "  last: " + p[0][n_points-1] + ", " + p[0][n_points-1] + "  radius: " + radius);
 				if (p[0][n_points-1] + radius >= x && p[0][n_points-1] - radius <= x
 				 && p[1][n_points-1] + radius >= y && p[1][n_points-1] - radius <= y) {
 					// ok
@@ -148,7 +146,6 @@ public class Dissector extends ZDisplayable {
 				p[1][n_points] = y;
 				p_layer[n_points] = lid;
 				n_points++;
-				Utils.log2("appending at the end, returning index = " + (n_points-1));
 				return n_points-1;
 			}
 			if (layer_set.indexOf(layer_set.getLayer(p_layer[0])) == il +1) {
@@ -192,32 +189,40 @@ public class Dissector extends ZDisplayable {
 			p = p2;
 			p_layer = l2;
 		}
-		final void paint(final Graphics2D g, final double magnification, final Layer layer) {
+		// Expects graphics in with an identity transform
+		final void paint(final Graphics2D g, final AffineTransform aff, final Layer layer) {
 			final int i_current = layer_set.getLayerIndex(layer.getId());
 			int ii;
 			final int M_radius = radius;
 			final int EXTRA = 2;
-			boolean paint_current = false;
 			int paint_i = -1;
 			for (int i=0; i<n_points; i++) {
 				ii = layer_set.getLayerIndex(p_layer[i]);
 				if (ii == i_current -1) g.setColor(Color.red);
 				else if (ii == i_current) {
-					paint_current = true;
 					paint_i = i;
 					continue; // paint it last, on top of all
 				}
 				else if (ii == i_current + 1) g.setColor(Color.blue);
 				else continue; // don't paint. Should just return, since points are in order
-				final Point2D.Double po = transformPoint(p[0][i], p[1][i]);
+				// Convert point from local to world coordinates
+				//Point2D.Double po = transformPoint(p[0][i], p[1][i]);
+				// Convert point from world to screen coordinates
+				//po = Utils.transform(gt, po.x, po.y);
+				final Point2D.Double po = Utils.transform(aff, p[0][i], p[1][i]);
 				final int px = (int)po.x;
 				final int py = (int)po.y;
 				g.drawOval(px - M_radius, py - M_radius, M_radius+M_radius, M_radius+M_radius);
 				g.drawString(Integer.toString(tag), px + M_radius + EXTRA, py + M_radius);
 			}
-			if (paint_current) {
+			// paint current:
+			if (-1 != paint_i) {
 				g.setColor(color); // the color of the Dissector
-				final Point2D.Double po = transformPoint(p[0][paint_i], p[1][paint_i]);
+				// Convert point to world coordinates
+				//Point2D.Double po = transformPoint(p[0][paint_i], p[1][paint_i]);
+				// Convert point to screen coordinates
+				//po = Utils.transform(gt, po.x, po.y);
+				final Point2D.Double po = Utils.transform(aff, p[0][paint_i], p[1][paint_i]);
 				final int px = (int)po.x;
 				final int py = (int)po.y;
 				g.drawRect(px - M_radius, py - M_radius, M_radius+M_radius, M_radius+M_radius);
@@ -328,17 +333,28 @@ public class Dissector extends ZDisplayable {
 	}
 
 	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			((Item)it.next()).paint(g, magnification, active_layer);
+		// remove graphics transform
+		final AffineTransform gt = g.getTransform();
+		g.setTransform(new AffineTransform()); // identity
+		final Stroke stroke = g.getStroke();
+		g.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+		final AffineTransform aff = new AffineTransform(gt);
+		aff.concatenate(this.at);
+
+		for (Item item : al_items) {
+			item.paint(g, aff, active_layer);
 		}
+
+		// restore
+		g.setTransform(gt);
+		g.setStroke(stroke);
 	}
 
 	public Layer getFirstLayer() {
 		double min_z = Double.MAX_VALUE;
 		Layer min_la = this.layer; // so a null pointer is not returned
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item tmp = (Item)it.next();
-			Layer la = tmp.getFirstLayer();
+		for (Item item : al_items) {
+			Layer la = item.getFirstLayer();
 			if (null != la && la.getZ() < min_z) {
 				min_z = la.getZ();
 				min_la = la;
@@ -350,9 +366,8 @@ public class Dissector extends ZDisplayable {
 	public void linkPatches() {
 		if (0 == al_items.size()) return;
 		unlinkAll(Patch.class);
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item tmp = (Item)it.next();
-			tmp.linkPatches();
+		for (Item item : al_items) {
+			item.linkPatches();
 		}
 	}
 
@@ -361,9 +376,8 @@ public class Dissector extends ZDisplayable {
 		Point2D.Double po = inverseTransformPoint(x, y);
 		x = (int)po.x;
 		y = (int)po.y;
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item tmp = (Item)it.next();
-			if (-1 != tmp.find(lid, x, y)) return true;
+		for (Item item : al_items) {
+			if (-1 != item.find(lid, x, y)) return true;
 		}
 		return false;
 	}
@@ -400,8 +414,7 @@ public class Dissector extends ZDisplayable {
 		}
 
 		// find if the click is within radius of an existing point for the current layer
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item tmp = (Item)it.next();
+		for (Item tmp : al_items) {
 			index = tmp.find(lid, x_p, y_p);
 			if (-1 != index) {
 				this.item = tmp;
@@ -423,8 +436,7 @@ public class Dissector extends ZDisplayable {
 		// else try to add a point to a suitable item
 		// Find an item in the previous or the next layer,
 		//     which falls within radius of the clicked point
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item tmp = (Item)it.next();
+		for (Item tmp : al_items) {
 			index = tmp.add(x_p, y_p, la);
 			if (-1 != index) {
 				this.item = tmp;
@@ -433,12 +445,11 @@ public class Dissector extends ZDisplayable {
 		}
 		// could not be added to an existing item, so creating a new item with a new point in it
 		int max_tag = 0;
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item tmp = (Item)it.next();
+		for (Item tmp : al_items) {
 			if (tmp.tag > max_tag) max_tag = tmp.tag;
 		}
-		int radius = 8;
-		if (al_items.size() > 0) radius = ((Item)al_items.get(al_items.size()-1)).radius;
+		int radius = 8; //default
+		if (al_items.size() > 0) radius = al_items.get(al_items.size()-1).radius;
 		this.item = new Item(max_tag+1, radius, x_p, y_p, la);
 		index = 0;
 		al_items.add(this.item);
@@ -483,10 +494,9 @@ public class Dissector extends ZDisplayable {
 	/** Make points as local as possible, and set the width and height. */
 	private void calculateBoundingBox() {
 		Rectangle box = null;
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item tmp = (Item)it.next();
-			if (null == box) box = tmp.getBoundingBox();
-			else box.add(tmp.getBoundingBox());
+		for (Item item : al_items) {
+			if (null == box) box = item.getBoundingBox();
+			else box.add(item.getBoundingBox());
 		}
 		// edit the AffineTransform
 		this.translate(box.x, box.y, false);
@@ -494,9 +504,8 @@ public class Dissector extends ZDisplayable {
 		this.width = box.width;
 		this.height = box.height;
 		// apply new x,y position to all items
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item tmp = (Item)it.next();
-			tmp.translateAll(-box.x, -box.y);
+		for (Item item : al_items) {
+			item.translateAll(-box.x, -box.y);
 		}
 	}
 
@@ -520,9 +529,8 @@ public class Dissector extends ZDisplayable {
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
 		sb_body.append(indent).append(">\n");
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			Item tmp = (Item)it.next();
-			tmp.exportXML(sb_body, in);
+		for (Item item : al_items) {
+			item.exportXML(sb_body, in);
 		}
 		sb_body.append(indent).append("</t2_dissector>\n");
 	}
@@ -543,5 +551,10 @@ public class Dissector extends ZDisplayable {
 			((Item)it.next()).putData(sb);
 		}
 		return sb.toString();
+	}
+
+	/** Always paint as box. TODO paint as the area of an associated ROI. */
+	public void paintSnapshot(final Graphics2D g, final double mag) {
+		paintAsBox(g);
 	}
 }

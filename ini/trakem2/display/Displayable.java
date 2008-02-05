@@ -1166,7 +1166,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Scales this instance only, no linked ones, relative to the anchor point. */
 	private void scale2(double sx, double sy, double xo, double yo) {
-		// TODO check if this works as you expected---it took a while to find out, that the bounding box is already included in x0 and y0 ;)
+		// It took a while to find out, that the bounding box is already included in x0 and y0 ;)
 		// Stephan Saalfeld AffineTransform magic as usual (thanks!):
 
 		final AffineTransform at2 = new AffineTransform();

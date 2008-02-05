@@ -633,7 +633,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					Display.repaint(display.getLayer(), Selection.PADDING, box, false);
 					// box for next mouse dragged iteration
 					box = box2;
-			Utils.log2("MD: set box to " + box);
 					break;
 				case ProjectToolbar.ALIGN:
 					break; // nothing
@@ -794,7 +793,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			switch(tool) {
 			case ProjectToolbar.SELECT:
 				selection.mouseReleased(x_p, y_p, x_d, y_d, x_r, y_r);
-			Utils.log2("MR: box is " + box);
 				box.add(selection.getLinkedBox());
 				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming()); // does not repaint the navigator
 				break;

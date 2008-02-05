@@ -208,7 +208,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					final Class c = d.getClass();
 					if (!zd_done && c.equals(DLabel.class)) {
 						zd_done = true;
-						// paint ZDisplayables before the labels
+						// paint ZDisplayables before the labels (i.e. text labels on top)
 						final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
 						while (itz.hasNext()) {
 							if (quit) {
