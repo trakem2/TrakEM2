@@ -458,8 +458,9 @@ public class Project extends DBObject {
 	}
 
 	public String save() {
-		Utils.log("Saving project " + this + " ...");
-		String path = loader.save(this);
+		Utils.logAll("Saving project " + this + " ...");
+		Thread.yield(); // let it repaint the log window
+		String path = loader.save(this); // TODO: put in a bkgd task, and show a progress bar
 		Utils.log("... done.");
 		return path;
 	}
@@ -931,6 +932,15 @@ public class Project extends DBObject {
 		}
 		// setting to false would have no meaning, so the link prop is removed
 	}
+	/** Returns true if there were any changes. */
+	private final boolean adjustProp(final String prop, final boolean before, final boolean after) {
+		if (before) {
+			if (!after) ht_props.remove(prop);
+		} else if (after) {
+			ht_props.put(prop, "true");
+		}
+		return before != after;
+	}
 	public void adjustProperties() {
 		// should be more generic, but for now it'll do
 		GenericDialog gd = new GenericDialog("Properties");
@@ -940,6 +950,8 @@ public class Project extends DBObject {
 		boolean link_pipes = addBox(gd, Pipe.class);
 		boolean link_balls = addBox(gd, Ball.class);
 		boolean link_dissectors = addBox(gd, Dissector.class);
+		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
+		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
 		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
@@ -948,5 +960,8 @@ public class Project extends DBObject {
 		setLinkProp(link_pipes, gd.getNextBoolean(), Pipe.class);
 		setLinkProp(link_balls, gd.getNextBoolean(), Ball.class);
 		setLinkProp(link_dissectors, gd.getNextBoolean(), Dissector.class);
+		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
+			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
+		}
 	}
 }

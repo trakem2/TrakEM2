@@ -333,21 +333,26 @@ public class Dissector extends ZDisplayable {
 	}
 
 	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+		AffineTransform gt = null;
+		Stroke stroke = null;
+		AffineTransform aff = this.at;
 		// remove graphics transform
-		final AffineTransform gt = g.getTransform();
-		g.setTransform(new AffineTransform()); // identity
-		final Stroke stroke = g.getStroke();
-		g.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
-		final AffineTransform aff = new AffineTransform(gt);
-		aff.concatenate(this.at);
+		if (!"true".equals(getProject().getProperty("dissector_zoom"))) {
+			gt = g.getTransform();
+			g.setTransform(new AffineTransform()); // identity
+			stroke = g.getStroke();
+			g.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+			aff = new AffineTransform(gt);
+			aff.concatenate(this.at);
+		}
 
 		for (Item item : al_items) {
 			item.paint(g, aff, active_layer);
 		}
 
 		// restore
-		g.setTransform(gt);
-		g.setStroke(stroke);
+		if (null != gt) g.setTransform(gt);
+		if (null != stroke) g.setStroke(stroke);
 	}
 
 	public Layer getFirstLayer() {

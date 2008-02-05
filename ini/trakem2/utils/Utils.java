@@ -210,6 +210,17 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
+	/** Print in all printable places: log window, System.out.println, and status bar.*/
+	static public void logAll(final String msg) {
+		if (!ControlWindow.isGUIEnabled()) {
+			System.out.println(msg);
+			return;
+		}
+		System.out.println(msg);
+		if (null != logger) logger.log(msg);
+		if (null != status) status.showStatus(msg);
+	}
+
 	/** Intended for developers: prints to terminal. */
 	static public void log2(String msg) {
 		System.out.println(msg);
