@@ -1442,6 +1442,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			break;
 		}
 
+		if (used) {
+			ke.consume(); // otherwise ImageJ would use it!
+			return;
+		}
+
 		if (input_disabled) {
 			if (KeyEvent.VK_ESCAPE == keyCode) {
 				// cancel last job if any
@@ -1471,17 +1476,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			display.previousLayer(ke.getModifiers()); // repaints as well
 			ke.consume();
 			return;
-			/*
-			 * used = true; break;
-			 */
 		case '>':
 		case '.': // select next Layer down
 			display.nextLayer(ke.getModifiers());
 			ke.consume();
 			return;
-			/*
-			 * used = true; break;
-			 */
 		}
 
 		if (null != imp.getRoi()) {
@@ -1493,12 +1492,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		if (display.isReadOnly()) {
 			ke.consume();
 			display.repaintAll();
-			return;
-		}
-
-		if (used) {
-			ke.consume(); // otherwise ImageJ would use it!
-			// repaint();
 			return;
 		}
 

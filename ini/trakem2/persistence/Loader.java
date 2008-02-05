@@ -467,27 +467,8 @@ abstract public class Loader {
 
 	///////////////////
 
-	static private final float OSFRACTION = computeOSFraction();
-	static private final float computeOSFraction() {
-		int bits = 32;
-		try {
-			// 32 or 64 bit?
-			bits = Integer.parseInt(System.getProperty("sun.arch.data.model"));
-		} catch (Exception e) {
-			new IJError(e);
-			return 0.68f; // conservative
-		}
-		if (64 == bits) return 0.68f; // 64-bit JVM
-		return 0.80f; // 32-bit JVM
-	}
-
-	/** Really available maximum memory, in bytes.
-	 *  By try and error I have found out that, at least in Linux:
-	 *  * 64-bit systems have a real maximum of 68% of the Xmx maximum heap memory value, unless the aggressive heap option is used (but then the system is unreliable).
-	 *  * 32-bit systems have about 80% of the Xmx.
-	 */
+	/** Really available maximum memory, in bytes.  */
 	static protected long max_memory = (long)(IJ.maxMemory() - 50000000); // 50 M always free
-	//static protected long max_memory = (long)((IJ.maxMemory() * OSFRACTION) - 3000000); // 3 M always free
 
 	public long getMaxMemory() {
 		return max_memory;
@@ -556,24 +537,6 @@ abstract public class Loader {
 			if (enoughFreeMemory(n_bytes)) return true;
 			iterations--;
 		}
-		/*
-		while (!enoughFreeMemory(n_bytes)) {
-			Utils.log2("rtf " + iterations);
-			System.gc();
-			Thread.yield(); // for the GC to run
-			try { Thread.sleep(200); } catch (InterruptedException ie) {}
-			if (enoughFreeMemory(n_bytes)) return true;
-			if (0 == imps.size() && 0 == mawts.size()) {
-				// wait for GC ...
-				try { Thread.sleep(300); } catch (InterruptedException ie) {}
-			}
-			if (iterations < 0) {
-				Utils.log("Can't make room for " + n_bytes + " bytes in memory.");
-				return false;
-			}
-			iterations--;
-		}
-		*/
 		return true;
 	}
 
@@ -2795,7 +2758,7 @@ abstract public class Loader {
 				makeTile(layer[iz], srcRect, max_scale, c_alphas, type, clazz, jpeg_quality, tile_dir + "0_0_0.jpg");
 			} else {
 				// create piramid of tiles
-				double scale = max_scale;
+				double scale = 1; //max_scale; // WARNING if scale is different than 1, it will FAIL to set the next scale properly.
 				int scale_pow = 0;
 				int n_et = n_edge_tiles; // cached for local modifications in the loop, works as loop controler
 				while (n_et >= best[1]) { // best[1] is the minimal root found, i.e. 1,2,3,4,5 from hich then powers of two were taken to make up for the edge_length
@@ -4320,7 +4283,7 @@ abstract public class Loader {
 								lock.unlock();
 								break;
 							}
-							for (; i<tu.length && i<queue.size(); i++) {
+							for (; i<tu.length && i<len; i++, len--) {
 								tu[i] = queue.remove(len-1); // start removing from the end, since those are the latest additions, hence the ones the user wants to see immediately.
 							}
 							for (; i<tu.length; i++) {

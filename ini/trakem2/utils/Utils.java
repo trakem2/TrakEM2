@@ -320,14 +320,12 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final void showStatus(final String msg, final boolean focus) {
-		// blocks input tremendously!
 		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled() || null == status) {
 			System.out.println(msg);
 			return;
 		}
 		if (focus) IJ.getInstance().toFront();
 
-		//IJ.showStatus(msg);
 		status.showStatus(msg);
 	}
 
@@ -356,35 +354,8 @@ public class Utils implements ij.plugin.PlugIn {
 		last_progress = p;
 	}
 
-	/**Tells whether enough memory is free; used to know whether more stuff can be loaded or some has to be released first. The min_free is the minimum percentage that should be free, for example for 25% it would be 25. */
-	/*
-	static public boolean enoughFreeMemory(long min_free) {
-		// calculate memory in use as percentage of max.
-		long mem_in_use = (IJ.currentMemory() * 100) / IJ.maxMemory();
-		if (Utils.debug_sql) log("Memory in use: " + mem_in_use + " %");
-		if (mem_in_use > (100L - min_free)) {
-			return false;
-		} else {
-			return true;
-		}
-	}
-	*/
-
-	/** Tells whether the given 'size' for an image is openable in the currently available memory minus 3%. */
-	/*
-	static public boolean canFitInFreeMemory(long size) {
-		long max_memory = IJ.maxMemory() - 3L;
-		long mem_in_use = (IJ.currentMemory() * 100) / max_memory;
-		if (size < max_memory - mem_in_use) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-	*/
-
 	static public void debugDialog() {
-		// note: all this could nicely be done using reflection, so adding another boolean variable would be atuomatically added here (filtering by the prefix "debug").
+		// note: all this could nicely be done using reflection, so adding another boolean variable would be automatically added here (filtering by the prefix "debug").
 		GenericDialog gd = new GenericDialog("Debug:");
 		gd.addCheckbox("debug", debug);
 		gd.addCheckbox("debug mouse", debug_mouse);

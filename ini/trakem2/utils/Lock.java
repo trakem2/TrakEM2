@@ -28,7 +28,11 @@ package ini.trakem2.utils;
  *  final Lock lock = new Lock();<br />
  *  synchronized (lock) {<br />
  *      lock.lock();<br />
- *      ... (do whatever needs be synchronized on this lock) ...<br />
+ *      try {<br />
+ *      	... (do whatever needs be synchronized on this lock) ...<br />
+ *      } catch (Exception e) {<br />
+ *      	e.printStackTrace();<br />
+ *      }<br />
  *      lock.unlock();<br />
  *  }<br />
  */
