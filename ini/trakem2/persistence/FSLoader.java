@@ -150,7 +150,18 @@ public class FSLoader extends Loader {
 	}
 
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */
-	public Object[] openFSProject(final String path) {
+	public Object[] openFSProject(String path) {
+		// clean path of double-slashes, safely (and painfully)
+		path = path.replace('\\','/');
+		path = path.trim();
+		int itwo = path.indexOf("//");
+		while (-1 != itwo) {
+			if (0 == itwo) continue; // samba disk
+			if (5 == itwo  && "http:".equals(path.substring(0, 5))) continue;
+			path = path.substring(0, itwo) + path.substring(itwo+1);
+			itwo = path.indexOf("//", itwo+1);
+		}
+		//
 		Utils.log2("Loader.openFSProject: path is " + path);
 		if (null == path) {
 			String user = System.getProperty("user.name");

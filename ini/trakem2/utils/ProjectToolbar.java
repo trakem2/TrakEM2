@@ -173,7 +173,9 @@ public class ProjectToolbar implements MouseListener {
 				return;
 			} catch (Exception e) {
 				//e.printStackTrace();
-				Utils.log("Failed to restore ImageJ toolbar");
+				if (null != IJ.getInstance() && IJ.getInstance().quitting()) {
+					Utils.log("Failed to restore ImageJ toolbar");
+				}
 			}
 		}
 		if (null != startup_macros) {
