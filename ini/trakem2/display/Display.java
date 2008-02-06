@@ -1479,7 +1479,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Select/deselect accordingly to the current state and the shift key. */
 	public void select(final Displayable d, final boolean shift_down) {
-		if (null != active && !d.equals(active) && !active.getClass().equals(Patch.class)) {
+		if (null != active && !active.equals(d) && !active.getClass().equals(Patch.class)) {
+			// active is being deselected, so link underlying patches
 			active.linkPatches();
 		}
 		if (null == d) {

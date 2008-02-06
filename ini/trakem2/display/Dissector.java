@@ -418,14 +418,19 @@ public class Dissector extends ZDisplayable {
 			y_p = (int)p.y;
 		}
 
+		final boolean is_zoom_invariant = "true".equals(project.getProperty("dissector_zoom"));
+
 		// find if the click is within radius of an existing point for the current layer
 		for (Item tmp : al_items) {
-			index = tmp.find(lid, x_p, y_p);
+			index = tmp.find(lid, x_p, y_p); //, mag, is_zoom_invariant);
 			if (-1 != index) {
 				this.item = tmp;
 				break;
 			}
 		}
+
+		// TODO: if zoom invariant, should check for nearest point. Or nearest point anyway, when deleting
+		// (but also for adding a new one?)
 
 		if (-1 != index) {
 			if (me.isShiftDown() && me.isControlDown()) {

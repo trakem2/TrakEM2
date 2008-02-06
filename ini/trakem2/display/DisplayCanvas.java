@@ -1933,6 +1933,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					g.fill(r2);
 				}
 
+				// TODO: check
+				Thread.yield();
+				if (quit) {
+					g.dispose();
+					target.flush();
+					return;
+				}
+
 				synchronized (offscreen_lock) {
 					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
 					offscreen_locked = true;
