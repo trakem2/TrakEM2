@@ -4154,6 +4154,9 @@ abstract public class Loader {
 	/** Returns the user's home folder unless overriden. */
 	public String getStorageFolder() { return System.getProperty("user.home").replace('\\', '/'); }
 
+	/** Returns null unless overriden. */
+	public String getMipMapsFolder() { return null; }
+
 	public Patch addNewImage(ImagePlus imp) {
 		String filename = imp.getTitle();
 		if (!filename.toLowerCase().endsWith(".tif")) filename += ".tif";

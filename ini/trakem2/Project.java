@@ -302,12 +302,14 @@ public class Project extends DBObject {
 	}
 
 	/** Create a new Project using the given project as template. This means the DTD of the given project is copied, as well as the storage and mipmaps folders; everything else is empty in the new project. */
-	static public Project newFSProject(Project pr) {
+	static public Project newFSProject(final Project pr) {
 		StringBuffer sb = new StringBuffer();
 		pr.exportDTD(sb, new HashSet(), "");
-		TemplateThing[] roots = DTDParser.parseDTD(sb);
-		FSLoader loader = new FSLoader(pr.getLoader().getStorageFolder());
-		return Project.createNewProject(loader, false, roots[0]);
+		TemplateThing[] roots = DTDParser.parseDTD(sb); // should write a TemplateThing.duplicate() ... but then ids may collide, etc.
+		FSLoader loader = new FSLoader(pr.getLoader());
+		Project new_project = Project.createNewProject(loader, false, roots[0]);
+		new_project.ht_props.putAll(pr.ht_props);
+		return new_project;
 	}
 
 	/** Opens a project from an .xml file. If the path is null it'll be asked for.*/

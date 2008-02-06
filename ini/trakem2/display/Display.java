@@ -2871,7 +2871,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		} else if (command.equals("Create subproject")) {
 			Roi roi = canvas.getFakeImagePlus().getRoi();
-			if (null == roi) return;
+			if (null == roi) return; // the menu item is not active unless there is a ROI
 			Layer first, last;
 			if (1 == layer.getParent().size()) {
 				first = last = layer;

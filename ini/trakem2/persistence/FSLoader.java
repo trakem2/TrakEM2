@@ -122,12 +122,21 @@ public class FSLoader extends Loader {
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
 
-	public FSLoader(String dir_storage) {
+	public FSLoader(final String storage_folder) {
 		this();
-		if (null == dir_storage) return;
-		if (!dir_storage.endsWith("/")) dir_storage += "/";
-		this.dir_storage = dir_storage;
-		createMipMapsDir(dir_storage);
+		if (null == storage_folder) this.dir_storage = super.getStorageFolder(); // home dir
+		else this.dir_storage = storage_folder;
+		if (!this.dir_storage.endsWith("/")) this.dir_storage += "/";
+		createMipMapsDir(this.dir_storage);
+	}
+
+	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders.*/
+	public FSLoader(final Loader source) {
+		this();
+		this.dir_storage = source.getStorageFolder(); // can never be null
+		this.dir_mipmaps = source.getMipMapsFolder();
+		if (null == this.dir_mipmaps) createMipMapsDir(this.dir_storage);
+		setPreprocessor(source.getPreprocessor());
 	}
 
 	public String getProjectXMLPath() {
@@ -142,6 +151,7 @@ public class FSLoader extends Loader {
 
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */
 	public Object[] openFSProject(final String path) {
+		Utils.log2("Loader.openFSProject: path is " + path);
 		if (null == path) {
 			String user = System.getProperty("user.name");
 			OpenDialog od = new OpenDialog("Select Project", OpenDialog.getDefaultDirectory(), null);
@@ -150,8 +160,10 @@ public class FSLoader extends Loader {
 			String dir = od.getDirectory();
 			if (!dir.endsWith("/")) dir += "/";
 			this.project_file_path = dir + file;
+			Utils.log2("project file path 1: " + this.project_file_path);
 		} else {
 			this.project_file_path = path;
+			Utils.log2("project file path 2: " + this.project_file_path);
 		}
 		// check if any of the open projects uses the same file path, and refuse to open if so:
 		for (Iterator it = v_loaders.iterator(); it.hasNext(); ) {
@@ -546,13 +558,18 @@ public class FSLoader extends Loader {
 		super.prepare(layer);
 	}
 
-	/* GENERIC, from DBObject calls. Records the id of the object in the Hashtable ht_dbo. */
-	public boolean addToDatabase(DBObject ob) {
+	/* GENERIC, from DBObject calls. Records the id of the object in the Hashtable ht_dbo.
+	 * Always returns true, but the object is not added if another object with identical id is already registered.
+	 * */
+	public boolean addToDatabase(final DBObject ob) {
 		// cheap version: keep in memory in a hashtable
 		synchronized (db_lock) {
 			lock();
 			setChanged(true);
-			Long lid = new Long(ob.getId());
+			final Long lid = new Long(ob.getId());
+			// TODO doesn't scale at all, plus it's doing two table lookups
+			//   It's a major source of slowness in adding new objects (such as when reading a file)
+			//   particularly if the table has more than 10000 elements (the TEM Dresden dataset has over 115000)
 			if (!ht_dbo.contains(lid)) {
 				ht_dbo.put(lid, ob);
 			}
@@ -561,7 +578,7 @@ public class FSLoader extends Loader {
 		return true;
 	}
 
-	public boolean updateInDatabase(DBObject ob, String key) {
+	public boolean updateInDatabase(final DBObject ob, final String key) {
 		setChanged(true);
 		if (ob.getClass().equals(Patch.class)) {
 			try {
@@ -645,7 +662,7 @@ public class FSLoader extends Loader {
 		return true;
 	}
 
-	public boolean removeFromDatabase(DBObject ob) {
+	public boolean removeFromDatabase(final DBObject ob) {
 		synchronized (db_lock) {
 			lock();
 			setChanged(true);

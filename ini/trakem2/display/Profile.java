@@ -600,7 +600,7 @@ public class Profile extends Displayable {
 	static private boolean is_new_point = false;
 
 	/**Execute the mousePressed MouseEvent on this Profile.*/
-	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
+	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
@@ -682,7 +682,7 @@ public class Profile extends Displayable {
 	}
 
 	/**Execute the mouseDragged MouseEvent on this Profile.*/
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, Rectangle srcRect, double mag) {
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old, double mag) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -740,7 +740,7 @@ public class Profile extends Displayable {
 	}
 
 	/**Execute the mouseReleased MouseEvent on this Profile.*/
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, Rectangle srcRect, double mag) {
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r, double mag) {
 		int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN == tool) {
 			//generate interpolated points
