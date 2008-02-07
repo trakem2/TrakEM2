@@ -4180,7 +4180,9 @@ abstract public class Loader {
 
 	static public final void setupPreloader(final ControlWindow master) {
 		if (null == imageloader) {
-			imageloader = new ImageLoaderThread[Runtime.getRuntime().availableProcessors()-1];
+			int n = Runtime.getRuntime().availableProcessors()-1;
+			if (0 == n) n = 1; // !@#$%^
+			imageloader = new ImageLoaderThread[n];
 			for (int i=0; i<imageloader.length; i++) {
 				imageloader[i] = new ImageLoaderThread();
 			}
