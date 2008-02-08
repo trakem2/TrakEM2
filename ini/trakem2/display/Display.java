@@ -1548,13 +1548,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					}
 					// else, choose among the many
 				}
-				choose(screen_x_p, screen_y_p, al, shift_down);
+				choose(screen_x_p, screen_y_p, al, shift_down, x_p, y_p);
 			}
 			//Utils.log("choose many: set active to " + active);
 		}
 	}
 
-	private void choose(final int screen_x_p, final int screen_y_p, final ArrayList al, final boolean shift_down) {
+	private void choose(final int screen_x_p, final int screen_y_p, final ArrayList al, final boolean shift_down, final int x_p, final int y_p) {
 		// show a popup on the canvas to choose
 		new Thread() {
 			public void run() {
@@ -1590,6 +1590,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				if (null == d) { Utils.log2("Display.choose: returning a null!"); }
 				select(d, shift_down);
 				pop.setVisible(false);
+
+				// fix selection bug: never receives mouseReleased event when the popup shows
+				selection.mouseReleased(x_p, y_p, x_p, y_p, x_p, y_p);
 			}
 		}.start();
 	}
@@ -3017,7 +3020,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		     +  (channels[3].isSelected() ? 255 : 0);
 	}
 
-	/** Show the layer in the front Display, or a new Display if the front Display is showing a layer from a different LayerSet. */
+	/** Show the layer in the front Display, or in a new Display if the front Display is showing a layer from a different LayerSet. */
 	static public void showFront(final Layer layer) {
 		Display display = front;
 		if (null == display || !display.layer.getParent().equals(layer.getParent())) {

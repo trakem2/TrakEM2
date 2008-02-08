@@ -252,14 +252,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 			// paint brush outline for AreaList
 			if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass().equals(AreaList.class)) {
-				// reset stroke, always thickness of 1
 				int brushSize = ProjectToolbar.getBrushSize();
 				g.setColor(active.getColor());
 				g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
 			}
 
 			if (null != roi) {
-				// reset stroke, always thickness of 1
 				roi.draw(g);
 			}
 
@@ -755,7 +753,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// pass the mouse event to superclass ImageCanvas.
 				super.mouseReleased(me);
 				repaint();
-				// return;
+				// return; // replaced by #SET_ROI
 		}
 
 		// must be done here, for now the ROI is complete
@@ -772,7 +770,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		if (tool >= ProjectToolbar.SELECT) {
 			if (null != roi) imp.killRoi();
-		} else return;
+		} else return; // #SET_ROI
 
 		Displayable active = display.getActive();
 
@@ -1108,10 +1106,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private Rectangle old_brush_box = null;
 
 	public void mouseMoved(final MouseEvent me) {
-		mouse_in = true; // fix enter/exited bug
 		if (input_disabled || display.getSelection().isDragging()) return;
 
-		// set xMouse. yMouse
+		// set xMouse, yMouse
 		super.mouseMoved(me);
 
 		final Displayable active = display.getActive();

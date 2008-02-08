@@ -707,7 +707,6 @@ public class Selection {
 		if (box.x <= x_p && box.y <= y_p && box.x + box.width >= x_p && box.y + box.height >= y_p) {
 			dragging = true;
 		}
-		Utils.log2("Selection step 0 " + dragging);
 	}
 	public void mouseDragged(int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		this.x_d = x_d;
