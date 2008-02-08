@@ -293,7 +293,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				return;
 			} else if (command.equals("Show centered in Display")) {
 				LayerSet ls = (LayerSet)thing.getObject();
-				Display.showCentered(ls.getParent(), ls);
+				Display.showCentered(ls.getParent(), ls, false, false);
 			} else if (command.equals("Delete...")) {
 				if (null == thing.getParent()) return; // can't remove the root LayerSet
 				if (thing.remove(true)) {

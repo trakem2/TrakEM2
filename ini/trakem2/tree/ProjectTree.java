@@ -107,7 +107,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			if (obd instanceof Displayable) {
 				// additionaly, get the front Display (or make a new one if none) and show in it the layer in which the Displayable object is contained.
 				Displayable displ = (Displayable)obd;
-				Display.setFront(displ.getLayer(), displ);
+				Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
 			}
 			return;
 		} else if (me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
@@ -181,7 +181,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				Object obd = thing.getObject();
 				if (obd instanceof Displayable) {
 					Displayable displ = (Displayable)obd;
-					Display.showCentered(displ.getLayer(), displ);
+					Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
 				}
 			} else if (command.equals("Show in 3D")) {
 				ini.trakem2.display.Display3D.show(thing);

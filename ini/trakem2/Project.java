@@ -460,10 +460,8 @@ public class Project extends DBObject {
 	}
 
 	public String save() {
-		Utils.logAll("Saving project " + this + " ...");
 		Thread.yield(); // let it repaint the log window
 		String path = loader.save(this); // TODO: put in a bkgd task, and show a progress bar
-		Utils.log("... done.");
 		return path;
 	}
 

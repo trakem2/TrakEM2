@@ -59,6 +59,7 @@ import javax.swing.SwingUtilities;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Vector;
+import java.util.Calendar;
 
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
@@ -899,5 +900,21 @@ public class Utils implements ij.plugin.PlugIn {
 			new IJError(nite);
 		}
 		return pDst;
+	}
+
+	/** Returns the time as HH:MM:SS */
+	static public final String now() {
+		/* Java time management is retarded. */
+		final Calendar c = Calendar.getInstance();
+		final int hour = c.get(Calendar.HOUR_OF_DAY);
+		final int min = c.get(Calendar.MINUTE);
+		final int sec = c.get(Calendar.SECOND);
+		final StringBuffer sb = new StringBuffer();
+		if (hour < 10) sb.append('0');
+		sb.append(hour).append(':');
+		if (min < 10) sb.append('0');
+		sb.append(min).append(':');
+		if (sec < 10) sb.append(0);
+		return sb.append(sec).toString();
 	}
 }

@@ -226,9 +226,9 @@ public class Search {
 			Object ob = ((DisplayableTableModel)table.getModel()).getDisplayableAt(table.rowAtPoint(me.getPoint()));
 			if (ob instanceof Displayable) {
 				Displayable displ = (Displayable)ob;
-				Display.setFront(displ.getLayer(), displ);
+				Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
 			} else if (ob instanceof Layer) {
-				Display.setFront((Layer)ob, null);
+				Display.showFront((Layer)ob);
 			} else {
 				Utils.log2("Search: Unhandable table selection: " + ob);
 			}

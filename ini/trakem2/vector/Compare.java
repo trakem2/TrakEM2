@@ -272,7 +272,7 @@ public class Compare {
 				public void mousePressed(MouseEvent me) {
 					if (2 != me.getClickCount()) return;
 					Displayable displ = ht_tabs.get(tabs.getSelectedComponent());
-					Display.setFront(displ.getLayer(), displ);
+					Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
 				}
 			});
 			BoxLayout bl = new BoxLayout(all, BoxLayout.Y_AXIS);
@@ -364,7 +364,7 @@ public class Compare {
 				Object ob = model.getDisplayableAt(table.rowAtPoint(me.getPoint()));
 				if (ob instanceof Displayable) {
 					Displayable displ = (Displayable)ob;
-					Display.setFront(displ.getLayer(), displ);
+					Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
 				} else {
 					Utils.log2("Comparator: unhandable table selection: " + ob);
 				}

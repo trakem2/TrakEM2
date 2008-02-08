@@ -1108,12 +1108,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private Rectangle old_brush_box = null;
 
 	public void mouseMoved(final MouseEvent me) {
+		mouse_in = true; // fix enter/exited bug
 		if (input_disabled || display.getSelection().isDragging()) return;
-		//if (dragging) {
-		//	display.getSelection().mouseMoved();
-		//} else {
-			//super.mouseMoved(me);
-		//}
 
 		// set xMouse. yMouse
 		super.mouseMoved(me);

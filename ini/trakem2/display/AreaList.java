@@ -309,7 +309,7 @@ public class AreaList extends ZDisplayable {
 			area = (Area)ob;
 		}
 		// check if empty. If so, remove
-		Rectangle bounds = area.getBounds();
+		Rectangle bounds = area.getBounds(); // TODO this can fail if the layer changes suddenly while painting
 		if (0 == bounds.width && 0 == bounds.height) {
 			ht_areas.remove(new Long(lid));
 			Utils.log("removing empty area");

@@ -1,0 +1,52 @@
+TrakEM2
+-------
+
+Copyright 2005, 2006, 2007 Albert Cardona and Rodney Douglas.
+
+Contact: acardona at ini phys ethz ch
+
+To compile the source you need:
+- A java system compliant with Java 1.5.0 (Sun Microsystems), but 1.6.0 is STRONGLY recommended.
+- ImageJ 1.37g or higher from http://rsb.info.nih.gov/ij/upgrade/
+- The PostgreSQL JDBC driver, from http://jdbc.postgresql.org/download/postgresql-8.1-405.jdbc3.jar
+- A number of jars (precompiled for java 1.6.0):
+	http://www.ini.uzh.ch/~acardona/jars/edu_mines_jtk.jar
+	http://www.ini.uzh.ch/~acardona/jars/ImageJ_3D_Viewer.jar
+	http://www.ini.uzh.ch/~acardona/jars/AmiraMesh_.jar
+	http://www.ini.uzh.ch/~acardona/jars/jzlib-1.0.7.jar
+	http://www.ini.uzh.ch/~acardona/jars/Jama-1.0.2.jar
+
+You can get the latest source code from the git repository at:
+	http://repo.or.cz/w/trakem2.git
+
+It is strongly recommended to use Java 1.6.0 whenever possible, since repainting speed is much higher.
+
+To compile, use a script similar to:
+
+	$ javac -classpath ij.jar:$(find . -name "*.jar" -printf "%h/%f:"):. $(find . -name "*.java" -printf "%h/%f ")
+
+You can then create a jar file using:
+
+	$ jar cf TrakEM2_.jar plugins.config $(find . -name "*.class" -printf "%h/%f ")
+
+
+
+which can be placed in the ImageJ plugins folder and will appear as a menu:
+Plugins
+   |
+   --- TrakEM2
+          |
+	  --- New Project (from template)
+	  --- New Project (blank)
+	  --- Open Project
+
+
+A postgresql database is OPTIONAL: as of version 0.3g, XML / file system -based projects are also available.
+
+In an XML project, images exist in your folders wherever you choose, and then the entire project details (segmentations, labels, transformations of the images, etc) live in a single .xml file.
+
+For database projects, a PostgreSQL database (7.4.* or 8.1.3 or above) is required. 
+Get PostgreSQL from http://www.postgresql.org
+
+
+Have fun! Beer and comments to acardona at ini phys ethz ch

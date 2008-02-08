@@ -799,7 +799,8 @@ public class FSLoader extends Loader {
 	}
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
-	public String save(Project project) {
+	public String save(final Project project) {
+		Utils.logAll(Utils.now() + " Saving " + project);
 		if (null == project_file_path) {
 			String xml_path = super.saveAs(project);
 			if (null == xml_path) return null;
