@@ -25,13 +25,13 @@ show:
 	echo $(JAVACOPTSJARS)
 
 $(TARGET): plugins.config $(CLASSES)
-	jar cvf $@ $(JAVAS)
+	jar cvf $@ $^
 
 $(CLASSES): %.class: %.java
 	javac -O $(JAVACOPTS) $(JAVAS)
 
 $(SIFT_TARGET): $(SIFT_CLASSES)
-	jar cvf $@ $(SIFT_JAVAS)
+	jar cvf $@ $^
 
 $(SIFT_CLASSES): %.class: %.java
 	javac -O $(JAVACOPTS) $(SIFT_JAVAS)
