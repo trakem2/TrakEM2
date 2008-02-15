@@ -903,7 +903,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	synchronized public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
 		final StringBuffer sb_body = new StringBuffer();
-		sb_body.append(indent).append("<t2_layer_set \n");
+		sb_body.append(indent).append("<t2_layer_set\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		sb_body.append(in).append("layer_width=\"").append(layer_width).append("\"\n")

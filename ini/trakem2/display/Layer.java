@@ -163,6 +163,8 @@ public class Layer extends DBObject {
 	}
 
 	public String toString() {
+		if (null == parent) return "z=" + Utils.cutNumber(z, 4);
+		//return "z=" + Utils.cutNumber(z / parent.getCalibration().pixelDepth * z !!!?? I don't have the actual depth to correct with.
 		return "z=" + Utils.cutNumber(z, 4);
 	}
 

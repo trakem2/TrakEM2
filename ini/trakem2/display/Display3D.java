@@ -36,6 +36,7 @@ import javax.vecmath.Point3f;
 import javax.vecmath.Color3f;
 import javax.vecmath.Vector3f;
 import javax.media.j3d.View;
+import javax.media.j3d.Transform3D;
 
 import ij3d.ImageWindow3D;
 import ij3d.Image3DUniverse;
@@ -52,7 +53,7 @@ public class Display3D {
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
 	private Hashtable ht_pt_meshes = new Hashtable();
 
-	private Image3DUniverse universe;
+	private Display3DUniverse universe;
 
 	private Object u_lock = new Object();
 	private boolean u_locked = false;
@@ -72,15 +73,127 @@ public class Display3D {
 	/** Defaults to parallel projection. */
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
-		this.universe = new Image3DUniverse(512, 512); // size of the initial canvas, not the universe itself
+		this.universe = new Display3DUniverse(512, 512); // size of the initial canvas, not the universe itself
 		this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
 		computeScale(ls);
 		this.win = new ImageWindow3D("3D Viewer", this.universe);
 		this.win.addWindowListener(new IW3DListener(ls));
 		this.win.setMenuBar(new Image3DMenubar(universe));
+		this.universe.setWindow(win);
 		// register
 		Display3D.ht_layer_sets.put(ls, this);
 	}
+
+	private class Display3DUniverse extends Image3DUniverse {
+		boolean offscreen = true;
+		Display3DUniverse(int w, int h) {
+			super(w, h);
+			offscreen = "true".equals(System.getProperty("j3d.noOffScreen"));
+		}
+		void setWindow(ImageWindow3D win) {
+			this.win = win;
+		}
+
+		/** The transforms given as arguments are applied to the following transform groups,
+		 *  each one in control of the named property:
+		 *
+		 *  scaleTG contains rotationsTG
+		 *  rotationsTG contains translateTG
+		 *  translateTG contains centerTG
+		 *  centerTG contains the whole scene.
+		 */
+		public ImagePlus makeSnapshot(final Transform3D scale, final Transform3D rotate, final Transform3D translate, final Transform3D center) {
+			// freeze view
+			try {
+				getCanvas().getView().stopView();
+			} catch (Exception e) {
+				e.printStackTrace();
+				return null;
+			}
+
+			ImagePlus imp = null;
+
+			try {
+				// record current transform
+				Transform3D s = new Transform3D();	scaleTG.getTransform(s);
+				Transform3D r = new Transform3D();	rotationsTG.getTransform(r);
+				Transform3D t = new Transform3D();	translateTG.getTransform(t);
+				Transform3D c = new Transform3D();	centerTG.getTransform(c);
+
+				// set transforms
+				getViewingPlatform().setNominalViewingTransform();
+				Transform3D tg = null;
+				if (null != scale) {
+					scaleTG.setTransform(scale);
+					transformChanged(-1, scaleTG);
+				}
+				if (null != rotate) {
+					rotationsTG.setTransform(rotate);
+					transformChanged(-1, rotationsTG);
+				}
+				if (null != translate) {
+					translateTG.setTransform(translate);
+					transformChanged(-1, translateTG);
+				}
+				if (null != center) {
+					centerTG.setTransform(center);
+					transformChanged(-1, centerTG);
+				}
+
+				// capture
+				getCanvas().getView().renderOnce();
+				try { Thread.currentThread().sleep(100); } catch (Exception e) { e.printStackTrace(); }
+
+				// bring window to front
+				if (!offscreen) {
+					win.toFront();
+					Utils.sleep(300);
+				}
+
+				// capture from offscreen or from a screenshot -hence needs toFront()
+				win.updateImagePlus();
+				imp = new ImagePlus("snapshot", win.getImagePlus().getProcessor().duplicate());
+
+				// restore
+				scaleTG.setTransform(s);	transformChanged(-1, scaleTG);
+				rotationsTG.setTransform(r);	transformChanged(-1, rotationsTG);
+				translateTG.setTransform(t);	transformChanged(-1, translateTG);
+				centerTG.setTransform(c);	transformChanged(-1, centerTG);
+			} catch (Exception ee) {
+				ee.printStackTrace();
+			} finally {
+				// resume view
+				getCanvas().getView().startView();
+				getCanvas().getView().repaint(); // the above doesn't
+			}
+
+			return imp;
+		}
+	}
+
+	public Display3DUniverse getUniverse() {
+		return universe;
+	}
+
+	public ImagePlus makeSnapshot(final Transform3D scale, final Transform3D rotate, final Transform3D translate, final Transform3D center) {
+		return universe.makeSnapshot(scale, rotate, translate, center);
+	}
+
+	public ImagePlus makeSnapshotXY() {
+		// default view
+		return universe.makeSnapshot(new Transform3D(), new Transform3D(), new Transform3D(), new Transform3D());
+	}
+	public ImagePlus makeSnapshotZX() {
+		Transform3D rot = new Transform3D();
+		rot.rotX(Math.PI/2); // 90 degrees counterclockwise
+		return universe.makeSnapshot(new Transform3D(), rot, new Transform3D(), new Transform3D());
+	}
+	public ImagePlus makeSnapshotYZ() {
+		Transform3D rot = new Transform3D();
+		rot.rotY(Math.PI/2); // 90 degrees counterclockwise
+		return universe.makeSnapshot(new Transform3D(), rot, new Transform3D(), new Transform3D());
+	}
+
 
 	private final void lock() {
 		//Utils.log("entering lock");
@@ -103,95 +216,6 @@ public class Display3D {
 		}
 		public void windowClosing(WindowEvent we) {
 			ht_layer_sets.remove(ls);
-		}
-	}
-
-	private class D3DMenuBar extends MenuBar implements ActionListener, ItemListener {
-		CheckboxMenuItem perspective;
-		Menu selection;
-		D3DMenuBar() {
-			Menu file = new Menu("File");
-			this.add(file);
-			addItem("Export all (.obj)", file);
-			addItem("Export all (.dxf)", file);
-			file.addSeparator();
-			addItem("Export selected (.obj)", file);
-			addItem("Export selected (.dxf)", file);
-
-			Menu main = new Menu("Viewer");
-			this.add(main);
-			addItem("Reset view", main);
-			main.addSeparator();
-			addItem("Start animation", main);
-			addItem("Stop animation", main);
-			main.addSeparator();
-			addItem("Start recording", main);
-			addItem("Stop recording", main);
-			main.addSeparator();
-			perspective = new CheckboxMenuItem("Perspective Projection", false);
-			perspective.addItemListener(this);
-			main.add(perspective);
-
-			selection = new Menu("Selected: none");
-			this.add(selection);
-			addItem("Remove from view", selection);
-		}
-		private void addItem(String command, Menu menu) {
-			MenuItem item = new MenuItem(command);
-			item.addActionListener(this);
-			menu.add(item);
-		}
-		public void itemStateChanged(ItemEvent e) {
-			if(e.getSource() == perspective) {
-				int policy = perspective.getState() 
-							? View.PERSPECTIVE_PROJECTION 
-							: View.PARALLEL_PROJECTION;
-				universe.getViewer().getView().setProjectionPolicy(policy);
-			}
-		}
-		public void actionPerformed(ActionEvent ae) {
-			final String command = ae.getActionCommand();
-			if (command.equals("Reset view")) {
-				universe.resetView();
-			} else if (command.equals("Start recording")) {
-				universe.startRecording();
-			} else if (command.equals("Stop recording")) {
-				ImagePlus movie = universe.stopRecording();
-				if (null != movie) movie.show();
-			} else if (command.equals("Start animation")) {
-				universe.startAnimation();
-			} else if (command.equals("Stop animation")) {
-				universe.pauseAnimation();
-			} else if (command.equals("Remove from view")) {
-				// find the ProjectThing with the given id
-				if (null == selected) return;
-				ProjectThing pt = find(selected);
-				if (null != pt) {
-					synchronized (u_lock) {
-						lock();
-						try {
-							Displayable displ = (Displayable)pt.getObject();
-							universe.removeContent(displ.getTitle() + " #" + displ.getId());
-						} catch (Exception e) {
-							new IJError(e);
-						}
-						unlock();
-					}
-					setSelected(null);
-					ht_pt_meshes.remove(pt);
-				}
-			} else if (command.startsWith("Export all")) {
-				export(null, command.substring(13, 16));
-			} else if (command.startsWith("Export selected")) {
-				ProjectThing pt = find(selected);
-				if (null != pt) export(pt, command.substring(18, 21));
-			} else {
-				Utils.log2("Display3D.menubar: Don't know what to do with command '" + command + "'");
-			}
-		}
-		final void setSelected(String name) {
-			if (null == name) name = "none";
-			selection.setLabel("Selected: " + name);
 		}
 	}
 
@@ -252,6 +276,11 @@ public class Display3D {
 			new IJError(e);
 		}
 		return null;
+	}
+
+	/** Get the Display3D instance that exists for the given LayerSet, if any. */
+	static public Display3D getDisplay(final LayerSet ls) {
+		return (Display3D)ht_layer_sets.get(ls);
 	}
 
 	static public void setWaitingCursor() {

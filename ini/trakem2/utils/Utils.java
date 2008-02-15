@@ -917,4 +917,8 @@ public class Utils implements ij.plugin.PlugIn {
 		if (sec < 10) sb.append(0);
 		return sb.append(sec).toString();
 	}
+
+	static public final void sleep(final long miliseconds) {
+		try { Thread.currentThread().sleep(miliseconds); } catch (Exception e) { e.printStackTrace(); }
+	}
 }

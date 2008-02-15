@@ -359,6 +359,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Creates a new Display with adjusted magnification to fit in the screen. */
 	static public void createDisplay(final Project project, final Layer layer) {
+		// Swing is ... horrible?
 		new Thread() { public void run() { SwingUtilities.invokeLater(new Runnable() { public void run() {
 			Display display = new Display(project, layer);
 			ij.gui.GUI.center(display.frame);
@@ -370,6 +371,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (mag > 1.0) mag = 1.0;
 			display.getCanvas().setup(mag, srcRect);
 			display.updateTitle();
+			ij.gui.GUI.center(display.frame);
 		}});}}.start();
 	}
 
