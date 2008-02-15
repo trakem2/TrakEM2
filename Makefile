@@ -12,6 +12,7 @@ JAVACOPTS=-classpath ../ij.jar$(CPSEP)$(JAVACOPTSJARS) -target 1.5 -source 1.5
 
 JAVAS=$(wildcard ini/*/*.java ini/*/*/*.java mpi/*/*/*.java  mpi/*/*/*/*.java)
 CLASSES=$(patsubst %.java,%.class,$(JAVAS))
+ALL_CLASSES=$(patsubst %.java,%*.class,$(JAVAS))
 TARGET=TrakEM2_.jar
 
 # does not work yet...
@@ -22,10 +23,10 @@ SIFT_TARGET=SIFT_Matcher_new.jar
 all: $(TARGET)
 
 show:
-	echo $(JAVACOPTSJARS)
+	echo $(ALL_CLASSES)
 
 $(TARGET): plugins.config $(CLASSES)
-	jar cvf $@ $^
+	jar cvf $@ $< $(ALL_CLASSES)
 
 $(CLASSES): %.class: %.java
 	javac -O $(JAVACOPTS) $(JAVAS)
