@@ -188,7 +188,7 @@ public class DTDParser {
 				for (Iterator it = ht_attr.values().iterator(); it.hasNext(); ) {
 					Attribute attr = (Attribute)it.next();
 					attr.createAttribute(parent);
-					Utils.log2(parent.getType() + "  new attr: " + attr.name);
+					//Utils.log2(parent.getType() + "  new attr: " + attr.name);
 				}
 			}
 

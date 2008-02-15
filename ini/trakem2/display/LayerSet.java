@@ -1397,7 +1397,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				new IJError(e);
 			}
 		}
-		Utils.log2("Restored LayerSet calibration: " + calibration);
+		//Utils.log2("Restored LayerSet calibration: " + calibration);
 	}
 
 	/** For creating snapshots, using a very slow but much better scaling algorithm (the Image.SCALE_AREA_AVERAGING method). */

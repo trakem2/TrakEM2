@@ -49,7 +49,10 @@ public class Compare {
 	static private JLabel label = null;
 	static private JTabbedPane tabs = null;
 	static private JFrame frame = null;
-	static private Hashtable<JScrollPane,Displayable> ht_tabs = new Hashtable<JScrollPane,Displayable>();
+	static private Hashtable<JScrollPane,Displayable> ht_tabs = null;
+	static private KeyListener kl = null;
+
+	private Compare() {}
 
 	static public final Bureaucrat findSimilar(final Pipe pipe) {
 		Set projects = ControlWindow.getProjects();
@@ -233,6 +236,7 @@ public class Compare {
 		ComparatorTableModel model = new ComparatorTableModel(v_obs, v_eds, v_scores);
 		JTable table = new JTable(model);
 		table.addMouseListener(new ComparatorTableListener());
+		table.addKeyListener(kl);
 		JScrollPane jsp = new JScrollPane(table);
 		ht_tabs.put(jsp, displ); // before adding the tab, so that the listener can find it
 		tabs.addTab(displ.getProject().findProjectThing(displ).getTitle(), jsp);
@@ -240,16 +244,30 @@ public class Compare {
 		frame.pack();
 	}
 
+	static private void tryCloseTab(KeyEvent ke) {
+		switch (ke.getKeyCode()) {
+			case KeyEvent.VK_W:
+				if (!ke.isControlDown()) return;
+				int ntabs = tabs.getTabCount();
+				if (0 == ntabs) {
+					destroy();
+					return;
+				}
+				int sel = tabs.getSelectedIndex();
+				ht_tabs.remove(tabs.getComponentAt(sel));
+				tabs.remove(sel);
+				return;
+			default:
+				return;
+		}
+	}
+
 	static private final void makeGUI() {
 		if (null == frame) {
 			frame = new JFrame("Comparator");
 			frame.addWindowListener(new WindowAdapter() {
 				public void windowClosing(WindowEvent we) {
-					ht_tabs.clear();
-					label = null;
-					tabs = null;
-					frame = null;
-					ht_tabs = null;
+					destroy();
 				}
 			});
 			if (null == ht_tabs) ht_tabs = new Hashtable<JScrollPane,Displayable>();
@@ -266,6 +284,12 @@ public class Compare {
 					label.setText(displ.getProject().toString() + ": " + displ.getProject().getMeaningfulTitle(displ) + " [" + Project.getName(displ.getClass()) + "]");
 				}
 			};
+			kl = new KeyAdapter() {
+				public void keyPressed(KeyEvent ke) {
+					tryCloseTab(ke);
+				}
+			};
+			tabs.addKeyListener(kl);
 			JPanel all = new JPanel();
 			label = new JLabel("None compared.");
 			label.addMouseListener(new MouseAdapter() {
@@ -278,6 +302,7 @@ public class Compare {
 			BoxLayout bl = new BoxLayout(all, BoxLayout.Y_AXIS);
 			JPanel plabel = new JPanel();
 			plabel.setBorder(new LineBorder(Color.black, 1, true));
+			plabel.setMinimumSize(new Dimension(400, 50));
 			plabel.setMaximumSize(new Dimension(1000, 50));
 			plabel.add(label);
 			all.setLayout(bl);
@@ -419,6 +444,12 @@ public class Compare {
 		if (null != frame) {
 			frame.setVisible(false);
 			frame.dispose();
+			ht_tabs.clear();
+			label = null;
+			tabs = null;
+			frame = null;
+			ht_tabs = null;
+			kl = null;
 		}
 		frame = null;
 	}
