@@ -32,14 +32,14 @@ public class DisplayableTitleLabel extends JLabel {
 
 	private String short_text;
 
-	public DisplayableTitleLabel(String text) {
+	public DisplayableTitleLabel(final String text) {
 		makeShortText(text);
 		super.setText(short_text);
 	}
 
-	private void makeShortText(String text) {
-		if (text.length() > 17) {
-			short_text = text.substring(0, 17) + "...";
+	private final void makeShortText(final String text) {
+		if (text.length() > 25) {
+			short_text = text.substring(0, 13) + "..." + text.substring(text.length()-9);
 			super.setToolTipText(text);
 		} else {
 			short_text = text;
@@ -47,7 +47,7 @@ public class DisplayableTitleLabel extends JLabel {
 		}
 	}
 
-	public void setText(String text) {
+	public void setText(final String text) {
 		if (null != text && text.length() > 0) {
 			makeShortText(text);
 			super.setText(short_text);
