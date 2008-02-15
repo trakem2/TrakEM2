@@ -360,7 +360,7 @@ public class DLabel extends Displayable {
 			} else {
 				//label.setTitle("  "); // double space
 				// delete the empty label
-				label.remove(true);
+				label.remove(false);
 			}
 			dispose();
 			Display.repaint(layer, label, 1);

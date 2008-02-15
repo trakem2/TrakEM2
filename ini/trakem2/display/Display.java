@@ -358,17 +358,19 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Creates a new Display with adjusted magnification to fit in the screen. */
-	static public void createDisplay(Project project, Layer layer) {
-		Display display = new Display(project, layer);
-		ij.gui.GUI.center(display.frame);
-		Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-		Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
-		double mag = screen.width / layer.getLayerWidth();
-		if (mag * layer.getLayerHeight() > screen.height) mag = screen.height / layer.getLayerHeight();
-		mag = display.canvas.getLowerZoomLevel2(mag);
-		if (mag > 1.0) mag = 1.0;
-		display.getCanvas().setup(mag, srcRect);
-		display.updateTitle();
+	static public void createDisplay(final Project project, final Layer layer) {
+		new Thread() { public void run() { SwingUtilities.invokeLater(new Runnable() { public void run() {
+			Display display = new Display(project, layer);
+			ij.gui.GUI.center(display.frame);
+			Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+			Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
+			double mag = screen.width / layer.getLayerWidth();
+			if (mag * layer.getLayerHeight() > screen.height) mag = screen.height / layer.getLayerHeight();
+			mag = display.canvas.getLowerZoomLevel2(mag);
+			if (mag > 1.0) mag = 1.0;
+			display.getCanvas().setup(mag, srcRect);
+			display.updateTitle();
+		}});}}.start();
 	}
 
 	/** A new Display from scratch, to show the given Layer. */

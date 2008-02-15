@@ -281,13 +281,18 @@ public class Project extends DBObject {
 			// help the helpless users:
 			if (null != project && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Creating automatic Display.");
+				// add a default layer
 				Layer layer = new Layer(project, 0, 1, project.layer_set);
 				project.layer_set.add(layer);
 				project.layer_tree.addLayer(project.layer_set, layer);
+				// create display
+				/*
 				Display display = new Display(project, layer);
 				Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
 				display.getCanvas().setup(0.25, srcRect);
 				display.updateTitle();
+				*/
+				Display.createDisplay(project, layer);
 			}
 			try {
 				Thread.sleep(200); // waiting cheaply for asynchronous swing calls
@@ -393,7 +398,7 @@ public class Project extends DBObject {
 			}.start();
 		} else {
 			// help the helpless users
-			new Display(project, project.layer_set.getLayer(0));
+			Display.createDisplay(project, project.layer_set.getLayer(0));
 		}
 		return project;
 	}
