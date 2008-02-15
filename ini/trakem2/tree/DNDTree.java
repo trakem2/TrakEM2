@@ -482,15 +482,13 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		thing.updateInDatabase(new StringBuffer("expanded='").append(isExpanded(thing)).append('\'').toString());
 	}
 
-	//abstract public void exportXML(final StringBuffer sb_body, String indent);
-
 	public String getInfo() {
 		DefaultMutableTreeNode node = (DefaultMutableTreeNode)this.getModel().getRoot();
 		int n_basic = 0, n_abstract = 0;
 		for (Enumeration e = node.depthFirstEnumeration(); e.hasMoreElements(); ) {
 			DefaultMutableTreeNode child = (DefaultMutableTreeNode)e.nextElement();
-			Thing thing = (Thing)child.getUserObject();
-			if (Project.isBasicType(thing.getType())) n_basic++;
+			Object ob = child.getUserObject();
+			if (ob instanceof Thing && Project.isBasicType(((Thing)ob).getType())) n_basic++;
 			else n_abstract++;
 		}
 		return this.getClass().getName() + ": \n\tAbstract nodes: " + n_abstract + "\n\tBasic nodes: " + n_basic + "\n";

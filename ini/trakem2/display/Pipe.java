@@ -1829,4 +1829,13 @@ public class Pipe extends ZDisplayable {
 		} catch (Exception e) { new IJError(e); }
 		return vs;
 	}
+
+	public String getInfo() {
+		if (-1 == n_points) setupForDisplay(); //reload
+		// measure length
+		VectorString3D vs = asVectorString3D();
+		vs.calibrate(this.layer_set.getCalibration());
+		double len = vs.computeLength(); // no resampling
+		return new StringBuffer("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
+	}
 }

@@ -118,7 +118,7 @@ public class Search {
 		public Object getValueAt(int row, int col) {
 			if (0 == col) return Project.getName(v_obs.get(row).getClass());
 			else if (1 == col) return ((DBObject)v_obs.get(row)).getShortTitle();
-			else if (2 == col) return ((DBObject)v_obs.get(row)).getTitle();//v_txt.get(row).toString();
+			else if (2 == col) return ((DBObject)v_obs.get(row)).getTitle().replace('\n', ' ');//v_txt.get(row).toString();
 			else return "";
 		}
 		public Displayable getDisplayableAt(int row) {

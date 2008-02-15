@@ -503,7 +503,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 			// gather initial box (for repainting purposes)
 			box = selection.getLinkedBox();
-			Utils.log2("MP: set box to " + box);
 			selection.mousePressed(x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool

@@ -439,8 +439,7 @@ public class ProjectThing extends DBObject implements Thing {
 			((Displayable)object).setVisible(b);
 		}
 		if (null != al_children) {
-			final Iterator it = al_children.iterator();
-			while (it.hasNext()) {
+			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
 				((ProjectThing)it.next()).setVisible(b);
 			}
 		}
@@ -772,9 +771,9 @@ public class ProjectThing extends DBObject implements Thing {
 		return sb.toString();
 	}
 
-	private void getInfo(HashSet hs, StringBuffer info) {
+	/** Accumulate info recursively from all children nodes. */
+	private final void getInfo(HashSet hs, final StringBuffer info) {
 		if (null == hs) hs = new HashSet();
-		if (null == info) info = new StringBuffer();
 		if (hs.contains(this)) return;
 		hs.add(this);
 		info.append('\n').append(getNodeInfo());

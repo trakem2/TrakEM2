@@ -1062,4 +1062,13 @@ public class VectorString3D implements VectorString {
 	public boolean isMirroredY() { return 0 != (tags & MIRROR_Y); }
 	public boolean isMirroredZ() { return 0 != (tags & MIRROR_Z); }
 	public byte getTags() { return tags; }
+
+	/** The physical length of this sequence of points. */
+	public double computeLength() {
+		double len = 0;
+		for (int i=1; i<length; i++) {
+			len += Math.sqrt(Math.pow(x[i] - x[i-1], 2) + Math.pow(y[i] - y[i-1], 2) + Math.pow(z[i] - z[i-1], 2));
+		}
+		return len;
+	}
 }
