@@ -515,7 +515,7 @@ public class FSLoader extends Loader {
 						for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
 							Map.Entry entry = (Map.Entry)it.next();
 							String str = (String)entry.getValue(); // this is like calling getPath(p)
-							Utils.log2("processing " + str);
+							//Utils.log2("processing " + str);
 							if (0 != str.indexOf(rel_path)) {
 								Utils.log2("SKIP str is: " + str + "\t but path is: " + rel_path);
 								continue; // get only those whose path is identical, of course!

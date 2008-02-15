@@ -391,6 +391,9 @@ public class Project extends DBObject {
 					}
 				}
 			}.start();
+		} else {
+			// help the helpless users
+			new Display(project, project.layer_set.getLayer(0));
 		}
 		return project;
 	}
