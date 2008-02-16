@@ -55,9 +55,7 @@ public class Display3D {
 
 	private Display3DUniverse universe;
 
-	private Object u_lock = new Object();
-	private boolean u_locked = false;
-
+	private Lock u_lock = new Lock();
 
 	private ImageWindow3D win;
 	private LayerSet layer_set;
@@ -101,6 +99,8 @@ public class Display3D {
 		 *  rotationsTG contains translateTG
 		 *  translateTG contains centerTG
 		 *  centerTG contains the whole scene.
+		 *
+		 *  Any null arg implies the default transform for that parameter.
 		 */
 		public ImagePlus makeSnapshot(final Transform3D scale, final Transform3D rotate, final Transform3D translate, final Transform3D center) {
 			// freeze view
@@ -141,6 +141,11 @@ public class Display3D {
 				}
 
 				// capture
+				// 1. Pre-render: renders the previous position,
+				//    prior to acknowledging that any transforms have changed.
+				getCanvas().getView().renderOnce();
+				Utils.sleep(100);
+				// 2. Actual render with the new conditions.
 				getCanvas().getView().renderOnce();
 				Utils.sleep(100);
 
@@ -164,10 +169,21 @@ public class Display3D {
 			} finally {
 				// resume view
 				getCanvas().getView().startView();
-				getCanvas().getView().repaint(); // the above doesn't
 			}
 
 			return imp;
+		}
+
+		/** Print the current transform of each TransformGroup in charge of scaling, rotation, translation, and centering. */
+		public void printTransforms() {
+			Transform3D s = new Transform3D();	scaleTG.getTransform(s);
+			Transform3D r = new Transform3D();	rotationsTG.getTransform(r);
+			Transform3D t = new Transform3D();	translateTG.getTransform(t);
+			Transform3D c = new Transform3D();	centerTG.getTransform(c);
+			Utils.log2("Current scaleTG transform: " + s);
+			Utils.log2("Current rotationsTG transform: " + r);
+			Utils.log2("Current translateTG transform: " + t);
+			Utils.log2("Current centerTG transform: " + c);
 		}
 	}
 
@@ -175,38 +191,58 @@ public class Display3D {
 		return universe;
 	}
 
+	/* Take a snapshot know-it-all mode. Each Transform3D given as argument gets assigned to the (nearly) homonimous TransformGroup, which have the following relationships:
+	 *
+	 *  scaleTG contains rotationsTG
+	 *  rotationsTG contains translateTG
+	 *  translateTG contains centerTG
+	 *  centerTG contains the whole scene, with all meshes, etc.
+	 *
+	 *  Any null arguments imply the current transform in the open Display3D.
+	 *
+	 *  By default, a newly created Display3D has the scale and center transforms modified to make the scene fit nicely centered (and a bit scaled down) in the given Display3D window. The translate and rotate transforms are set to identity.
+	 *
+	 *  The TransformGroup instances may be reached like this:
+	 *
+	 *  LayerSet layer_set = Display.getFrontLayer().getParent();
+	 *  Display3D d3d = Display3D.getDisplay(layer_set);
+	 *  TransformGroup scaleTG = d3d.getUniverse().getGlobalScale();
+	 *  TransformGroup rotationsTG = d3d.getUniverse().getGlobalRotate();
+	 *  TransformGroup translateTG = d3d.getUniverse().getGlobalTranslate();
+	 *  TransformGroup centerTG = d3d.getUniverse().getCenterTG();
+	 *
+	 *  ... and the Transform3D from each may be read out indirectly like this:
+	 *
+	 *  Transform3D t_scale = new Transform3D();
+	 *  scaleTG.getTransform(t_scale);
+	 *  ...
+	 *
+	 * WARNING: if your java3d setup does not support offscreen rendering, the Display3D window will be brought to the front and a screen snapshot cropped to it to perform the snapshot capture. Don't cover the Display3D window with any other windows (not even an screen saver).
+	 *
+	 */
 	public ImagePlus makeSnapshot(final Transform3D scale, final Transform3D rotate, final Transform3D translate, final Transform3D center) {
 		return universe.makeSnapshot(scale, rotate, translate, center);
 	}
 
+	/** Uses current scaling, translation and centering transforms! */
 	public ImagePlus makeSnapshotXY() {
 		// default view
-		return universe.makeSnapshot(new Transform3D(), new Transform3D(), new Transform3D(), new Transform3D());
+		return universe.makeSnapshot(null, new Transform3D(), null, null);
 	}
-	public ImagePlus makeSnapshotZX() {
+	/** Uses current scaling, translation and centering transforms! */
+	public ImagePlus makeSnapshotXZ() {
 		Transform3D rot = new Transform3D();
-		rot.rotX(Math.PI/2); // 90 degrees counterclockwise
-		return universe.makeSnapshot(new Transform3D(), rot, new Transform3D(), new Transform3D());
+		rot.rotX(-Math.PI/2); // 90 degrees clockwise
+		return universe.makeSnapshot(null, rot, null, null);
 	}
+	/** Uses current scaling, translation and centering transforms! */
 	public ImagePlus makeSnapshotYZ() {
-		Transform3D rot = new Transform3D();
-		rot.rotY(Math.PI/2); // 90 degrees counterclockwise
-		return universe.makeSnapshot(new Transform3D(), rot, new Transform3D(), new Transform3D());
-	}
-
-
-	private final void lock() {
-		//Utils.log("entering lock");
-		while (u_locked) { try { u_lock.wait(); } catch (InterruptedException ie) {} }
-		u_locked = true;
-		//Utils.log("\tlocked");
-	}
-	private final void unlock() {
-		if (u_locked) {
-			//Utils.log("unlocking");
-			u_locked = false;
-			u_lock.notifyAll();
-		}
+		Transform3D rot1 = new Transform3D();
+		rot1.rotX(-Math.PI/2);
+		Transform3D rot2 = new Transform3D();
+		rot2.rotZ(-Math.PI/2); // 90 degrees clockwise
+		rot1.mul(rot2);
+		return universe.makeSnapshot(null, rot1, null, null);
 	}
 
 	private class IW3DListener extends WindowAdapter {
@@ -670,7 +706,7 @@ public class Display3D {
 		}
 		// add to 3D view (synchronized)
 		synchronized (u_lock) {
-			lock();
+			u_lock.lock();
 			try {
 				// craft a unique title (id is always unique)
 				String title = null == displ ? pt.toString() + " #" + pt.getId() : displ.getTitle() + " #" + displ.getId();
@@ -691,7 +727,7 @@ public class Display3D {
 			} catch (Exception e) {
 				new IJError(e);
 			}
-			unlock();
+			u_lock.unlock();
 		}
 
 		Utils.log2(pt.toString() + " n points: " + triangles.size());
@@ -729,7 +765,7 @@ public class Display3D {
 		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12), scale);
 		// add to 3D view (synchronized)
 		synchronized (d3d.u_lock) {
-			d3d.lock();
+			d3d.u_lock.lock();
 			try {
 				// ensure proper default transform
 				d3d.universe.resetView();
@@ -741,7 +777,7 @@ public class Display3D {
 			} catch (Exception e) {
 				new IJError(e);
 			}
-			d3d.unlock();
+			d3d.u_lock.unlock();
 		}
 
 		/////

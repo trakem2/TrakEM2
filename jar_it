@@ -2,6 +2,9 @@ rm -f TrakEM2_.jar
 jar cf TrakEM2_.jar plugins.config $(find ./ini/ -name "*.class" -printf "%h/%f ") $(find ./mpi/ -name "*.class" -printf "%h/%f ")
 mv -f TrakEM2_.jar ..
 find . -name "*.class" -exec rm -f {} \;
+WD=`pwd`
 cd ..
 rm -f TrakEM2-src.zip
 zip -r TrakEM2-src.zip TrakEM2-src/plugins.config TrakEM2-src/README $(find ./TrakEM2-src/ini/ -name "*.java" -printf "%h/%f ") $(find ./TrakEM2-src/mpi/ -name "*.java" -printf "%h/%f ")
+cd $WD
+sh info.sh
