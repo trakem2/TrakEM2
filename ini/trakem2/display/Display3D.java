@@ -85,10 +85,10 @@ public class Display3D {
 	}
 
 	private class Display3DUniverse extends Image3DUniverse {
-		boolean offscreen = true;
+		boolean noOffscreen = true;
 		Display3DUniverse(int w, int h) {
 			super(w, h);
-			offscreen = "true".equals(System.getProperty("j3d.noOffScreen"));
+			noOffscreen = "true".equals(System.getProperty("j3d.noOffScreen"));
 		}
 		void setWindow(ImageWindow3D win) {
 			this.win = win;
@@ -142,10 +142,10 @@ public class Display3D {
 
 				// capture
 				getCanvas().getView().renderOnce();
-				try { Thread.currentThread().sleep(100); } catch (Exception e) { e.printStackTrace(); }
+				Utils.sleep(100);
 
 				// bring window to front
-				if (!offscreen) {
+				if (noOffscreen) {
 					win.toFront();
 					Utils.sleep(300);
 				}
