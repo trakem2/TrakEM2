@@ -282,7 +282,7 @@ public class Display3D {
 			width *= scale;
 			height = MAX_DIMENSION;
 		}
-		Utils.log2("scale, width, height: " + scale + ", " + width + ", " + height);
+		//Utils.log2("scale, width, height: " + scale + ", " + width + ", " + height);
 	}
 
 	/** Get an existing Display3D for the given LayerSet, or create a new one for it (and cache it). */
@@ -331,8 +331,12 @@ public class Display3D {
 		}
 	}
 
-	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one.*/
 	static public void show(ProjectThing pt) {
+		show(pt, false, -1);
+	}
+
+	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one. If true == wait && -1 != resample, then the method returns only when the mesh/es have been added. */
+	static public void show(ProjectThing pt, boolean wait, int resample) {
 		try {
 			// scan the given ProjectThing for 3D-viewable items not present in the ht_meshes
 			// So: find arealist, pipe, ball, and profile_list types
@@ -346,12 +350,6 @@ public class Display3D {
 				// obtain the Displayable object under the node
 				ProjectThing child = (ProjectThing)it.next();
 				Object obc = child.getObject();
-				/*
-				if (obc.equals("profile_list")) {
-					Utils.log("Display3D can't handle profile lists at the moment.");
-					continue;
-				}
-				*/
 				Displayable displ = obc.getClass().equals(String.class) ? null : (Displayable)obc;
 				if (null != displ) {
 					if (displ.getClass().equals(Profile.class)) {
@@ -363,7 +361,7 @@ public class Display3D {
 						continue;
 					}
 				}
-				StopWatch sw = new StopWatch();
+				//StopWatch sw = new StopWatch();
 				// obtain the containing LayerSet
 				Display3D d3d = null;
 				if (null != displ) d3d = Display3D.get(displ.getLayerSet());
@@ -382,9 +380,13 @@ public class Display3D {
 					continue; // already here
 				}
 				setWaitingCursor(); // the above may be creating a display
-				sw.elapsed("after creating and/or retrieving Display3D");
-				d3d.addMesh(child, displ);
-				sw.elapsed("after creating mesh");
+				//sw.elapsed("after creating and/or retrieving Display3D");
+				Thread t = d3d.addMesh(child, displ, resample);
+				if (wait && -1 != d3d.resample) {
+					Utils.log("joining...");
+					try { t.join(); } catch (Exception e) { e.printStackTrace(); }
+				}
+				//sw.elapsed("after creating mesh");
 			}
 		} catch (Exception e) {
 			new IJError(e);
@@ -604,15 +606,21 @@ public class Display3D {
 		Object ob = pt.getObject();
 		if (!(ob instanceof Displayable)) return;
 		Displayable displ = (Displayable)ob;
-		Object d3ob = ht_layer_sets.get(displ.getLayerSet());
+		Object d3ob = ht_layer_sets.get(displ.getLayerSet()); // TODO profile_list is going to fail here
 		if (null == d3ob) {
 			// there is no Display3D showing the pt to remove
+			Utils.log2("No Display3D contains ProjectThing: " + pt);
 			return;
 		}
 		Display3D d3d = (Display3D)d3ob;
 		Object ob_mesh = d3d.ht_pt_meshes.remove(pt);
-		if (null == ob_mesh) return; // not contained here
-		d3d.universe.removeContent(displ.getTitle()); // WARNING if the title changes, problems: will need a table of pt vs title as it was when added to the universe. At the moment titles are not editable for basic types, but this may change in the future.
+		if (null == ob_mesh) {
+			Utils.log2("No mesh contained within " + d3d + " for ProjectThing " + pt);
+			return; // not contained here
+		}
+		String title = displ.getTitle() + " #" + displ.getId();
+		//Utils.log(d3d.universe.contains(title) + ": Universe contains " + displ);
+		d3d.universe.removeContent(title); // WARNING if the title changes, problems: will need a table of pt vs title as it was when added to the universe. At the moment titles are not editable for basic types, but this may change in the future. TODO the future is here: titles are editable for basic types.
 	}
 
 	static private void writeTrianglesDXF(final StringBuffer sb, final List triangles, final String the_group, final String the_color) {
@@ -652,7 +660,7 @@ public class Display3D {
 	static private final Vector v_threads = new Vector(MAX_THREADS); // synchronized
 
 	/** Creates a mesh for the given Displayable in a separate Thread. */
-	private Thread addMesh(final ProjectThing pt, final Displayable displ) {
+	private Thread addMesh(final ProjectThing pt, final Displayable displ, final int resample) {
 		final double scale = this.scale;
 		Thread thread = new Thread() {
 			public void run() {
@@ -666,15 +674,17 @@ public class Display3D {
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
 		List triangles = null;
 		if (displ instanceof AreaList) {
-			adjustResampling();
-			triangles = ((AreaList)displ).generateTriangles(scale, resample);
+			int rs = resample;
+			if (-1 == resample) rs = Display3D.this.resample = adjustResampling(); // will adjust this.resample, and return it (even if it's a default value)
+			else rs = Display3D.this.resample;
+			triangles = ((AreaList)displ).generateTriangles(scale, rs);
 			//triangles = removeNonManifold(triangles);
 		} else if (displ instanceof Ball) {
 			double[][][] globe = Ball.generateGlobe(12, 12);
 			triangles = ((Ball)displ).generateTriangles(scale, globe);
 		} else if (displ instanceof Pipe) {
 			// adjustResampling();  // fails horribly, needs first to correct mesh-generation code
-			triangles = ((Pipe)displ).generateTriangles(scale, 12, 1 /*resample*/);
+			triangles = ((Pipe)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 		}
@@ -794,16 +804,17 @@ public class Display3D {
 	}
 
 	// This method has the exclusivity in adjusting the resampling value.
-	synchronized private final void adjustResampling() {
-		if (resample > 0) return;
+	synchronized private final int adjustResampling() {
+		if (resample > 0) return resample;
 		final GenericDialog gd = new GenericDialog("Resample");
 		gd.addSlider("Resample: ", 1, 20, -1 != resample ? resample : DEFAULT_RESAMPLE);
 		gd.showDialog();
 		if (gd.wasCanceled()) {
 			resample = -1 != resample ? resample : DEFAULT_RESAMPLE; // current or default value
-			return;
+			return resample;
 		}
 		resample = ((java.awt.Scrollbar)gd.getSliders().get(0)).getValue();
+		return resample;
 	}
 
 	/** Checks if there is any Display3D instance currently showing the given Displayable. */
@@ -844,7 +855,7 @@ public class Display3D {
 		Object ob = ht_layer_sets.get(layer.getParent());
 		if (null == ob) return null;
 		Display3D d3d = (Display3D)ob;
-		return d3d.addMesh(d.getProject().findProjectThing(d), d);
+		return d3d.addMesh(d.getProject().findProjectThing(d), d, d3d.resample);
 	}
 
 	/*

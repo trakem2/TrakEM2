@@ -936,7 +936,7 @@ public class AreaList extends ZDisplayable {
 			Area area = getArea(la);
 			if (null != area) {
 				if (null == stack) {
-					Utils.log("0 - creating stack with  w,h : " + w + ", " + h);
+					//Utils.log2("0 - creating stack with  w,h : " + w + ", " + h);
 					stack = new ImageStack(w, h);
 					z = (float)la.getZ(); // z of the first layer
 					thickness = la.getThickness();
