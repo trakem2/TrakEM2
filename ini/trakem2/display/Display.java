@@ -1873,7 +1873,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					if (!active.isOnlyLinkedTo(Patch.class, active.getLayer())) {
 						item.setEnabled(false);
 					}
-					item = new JMenuItem("Snap"); item.addActionListener(this); popup.add(item);
+					int n_sel_patches = selection.getSelected(Patch.class).size(); 
+					if (1 == n_sel_patches) {
+						item = new JMenuItem("Snap"); item.addActionListener(this); popup.add(item);
+					} else if (n_sel_patches > 1) {
+						item = new JMenuItem("Montage"); item.addActionListener(this); popup.add(item);
+					}
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
 					HashSet hs = active.getLinked(Patch.class);
 					if (null == hs || 0 == hs.size()) item.setEnabled(false);
@@ -2802,6 +2807,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Snap")) {
 			if (!(active instanceof Patch)) return;
 			StitchingTEM.snap(getActive(), this);
+		} else if (command.equals("Montage")) {
+			if (!(active instanceof Patch)) {
+				Utils.showMessage("Please select only images.");
+				return;
+			}
+			for (Object ob : selection.getSelected()) {
+				if (!(ob instanceof Patch)) {
+					Utils.showMessage("Please select only images.\nCurrently, a " + Project.getName(ob.getClass()) + " is also selected.");
+					return;
+				}
+			}
+			HashSet hs = new HashSet();
+			hs.addAll(selection.getSelected(Patch.class));
+			Registration.registerTilesSIFT(hs, (Patch)active);
 		} else if (command.equals("Homogenize contrast (selected images)")) {
 			ArrayList al = selection.getSelected(Patch.class);
 			if (al.size() < 2) return;
