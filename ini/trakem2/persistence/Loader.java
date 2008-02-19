@@ -2190,8 +2190,8 @@ abstract public class Loader {
 							}
 							decacheImagePlus(patch.getId()); // no point in keeping it around
 						}
-						
-						wo.setTaskName("Imported " + n_imported.getAndIncrement() + "/" + lines.length);
+
+						wo.setTaskName("Imported " + (n_imported.getAndIncrement() + 1) + "/" + lines.length);
 					}
 
 					/////////////////////////
@@ -2200,6 +2200,12 @@ abstract public class Loader {
 					}
 					MultiThreading.startAndJoin(threads);
 					/////////////////////////
+
+					if (0 == n_imported.get()) {
+						Utils.log("No images imported.");
+						finishedWorking();
+						return;
+					}
 
 					base_layer.getParent().setMinimumDimensions();
 					Display.repaint(base_layer.getParent());
