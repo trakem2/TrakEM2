@@ -838,7 +838,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		if (-1 != sel_next && sel.size() > 0) select((Displayable)sel.get(sel_next), true);
 		else if (null != last_active && last_active.getClass().equals(Patch.class) && null != last_temp && last_temp instanceof PatchStack) {
-			Displayable d = ((PatchStack)last_temp).getPatch(layer, (Patch)active);
+			Displayable d = ((PatchStack)last_temp).getPatch(layer, (Patch)last_active);
 			if (null != d) selection.add(d);
 		}
 		// TODO last_temp doesn't remain the PatchStack // Utils.log2("last_temp is: " + last_temp.getClass().getName());

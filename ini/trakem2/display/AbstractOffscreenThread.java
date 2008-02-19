@@ -27,6 +27,7 @@ package ini.trakem2.display;
 public abstract class AbstractOffscreenThread extends Thread {
 
 	protected boolean quit = false;
+	protected final long time = System.currentTimeMillis();
 
 	public void cancel() {
 		this.quit = true;

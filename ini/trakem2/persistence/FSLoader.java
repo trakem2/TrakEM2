@@ -665,10 +665,8 @@ public class FSLoader extends Loader {
 			setChanged(true);
 			// remove from the hashtable
 			final long loid = ob.getId();
-			Utils.log2("removing " + ob);
+			Utils.log2("removing " + Project.getName(ob.getClass()) + " " + ob);
 			if (ob instanceof Patch) {
-				Utils.log2("removing patch " + ob);
-				Utils.log2("");
 				// STRATEGY change: images are not owned by the FSLoader.
 				Patch p = (Patch)ob;
 				removeMipMaps(p);

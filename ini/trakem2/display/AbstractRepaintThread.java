@@ -39,6 +39,7 @@ public abstract class AbstractRepaintThread extends Thread {
 	private java.util.List<AbstractOffscreenThread> offs = new LinkedList<AbstractOffscreenThread>();
 	private java.util.List<PaintEvent> events = new LinkedList<PaintEvent>();
 	private Component target;
+	private long latest_off = 0;
 
 	public AbstractRepaintThread(Component target) {
 		this.target = target;
@@ -58,6 +59,21 @@ public abstract class AbstractRepaintThread extends Thread {
 	/** Queue a new request for painting, updating offscreen graphics. */
 	public final void paint(final Rectangle clipRect) {
 		paint(clipRect, true);
+	}
+
+	/** Accept paint request only if the time is later that latest recorded paint event from an offscreen thread.*/
+	public final void paintFromOff(final Rectangle clipRect, final long time) {
+		// 
+		synchronized (lock_offs) {
+			lock_offs.lock();
+			if (time < latest_off) {
+				lock_offs.unlock();
+				return;
+			}
+			latest_off = time;
+			lock_offs.unlock();
+		}
+		paint(clipRect, false);
 	}
 
 	/** Queue a new request for painting. */
