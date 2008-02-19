@@ -113,9 +113,14 @@ public class Patch extends Displayable {
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
-	/** Fetches the image plus from the cache. Be warned: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache. */
+	/** Fetches the ImagePlus from the cache. Be warned: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache. */
 	public ImagePlus getImagePlus() {
 		return this.project.getLoader().fetchImagePlus(this);
+	}
+
+	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I adivse you to call this method everytime you need the processor. */
+	public ImageProcessor getImageProcessor() {
+		return this.project.getLoader().fetchImageProcessor(this);
 	}
 
 	/** Boundary checks on min and max, given the image type. */

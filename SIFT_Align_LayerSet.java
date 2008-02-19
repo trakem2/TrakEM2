@@ -788,7 +788,9 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 			featureSets2.clear();
 			tiles2.clear();
 			
-			patches2.addAll( layer.getDisplayables( Patch.class ) );
+			ArrayList tmp = new ArrayList();
+			tmp.addAll(layer.getDisplayables( Patch.class ));
+			patches2.addAll( tmp ); // I hate generics. Incovertible types? Not at all!
 
 			// extract SIFT-features in all patches
 			// TODO store the feature sets on disk, each of them might be in the magnitude of 10MB large

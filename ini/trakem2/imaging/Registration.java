@@ -30,6 +30,11 @@ import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.ImageFilter;
+import mpi.fruitfly.registration.Tile;
+import mpi.fruitfly.registration.Model;
+import mpi.fruitfly.registration.TModel2D;
+import mpi.fruitfly.registration.TRModel2D;
+import mpi.fruitfly.analysis.FitLine;
 
 import ini.trakem2.Project;
 import ini.trakem2.display.*;
@@ -44,9 +49,13 @@ import ij.gui.GenericDialog;
 import ij.gui.Roi;
 
 import java.awt.Point;
+import java.awt.geom.Point2D;
 import java.awt.Rectangle;
 import java.util.*;
 import java.awt.geom.AffineTransform;
+import java.io.File;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Accessor methods to Stephan Preibisch's FFT-based registration,
@@ -276,11 +285,11 @@ public class Registration {
 			Vector<Feature> fs1 = null;
 			AffineTransform at_accum = null;
 			if (null == cached) {
-				System.out.println( "cached is null in Registration.java:277" );
+				Utils.log2( "cached is null in Registration.java:277" );
 				box1 = layer1.getMinimalBoundingBox(Patch.class);
-				System.out.println( "layer1.getminimalBoundingBox succeeded with " + box1 );
+				Utils.log2( "layer1.getminimalBoundingBox succeeded with " + box1 );
 				imp1 = layer1.getProject().getLoader().getFlatImage(layer1, box1, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
-				System.out.println( "layer1.getProject().getLoader().getFlatImage succeeded with " + imp1 );				
+				Utils.log2( "layer1.getProject().getLoader().getFlatImage succeeded with " + imp1 );				
 			} else {
 				imp1 = (ImagePlus)cached[0];
 				box1 = (Rectangle)cached[1];
@@ -645,6 +654,10 @@ public class Registration {
 
 			return true;
 		}
+		/** Returns the size in bytes of a Feature object. */
+		public long getFeatureObjectSize() {
+			return FloatArray2DSIFT.getFeatureObjectSize(fdsize, fdbins);
+		}
 	}
 
 	static private void correlate(final Patch base, final Patch moving, final float scale) {
@@ -678,16 +691,977 @@ public class Registration {
 	 * If position_as_hint is true, then each tile will only try to find feature correspondences
 	 * with overlapping tiles.
 	 *
-	 * NOT IMPLEMENTED YET (aka exists as a plugin only, needs porting)
+	 * Assumes all layers belong to the same project, and are CONTINUOUS in Z space.
+	 *
+	 * Will show a dialog for SIFT parameters setup.
+	 *
+	 * Ported from Stephan Saalfeld's SIFT_Align_LayerSet.java plugin
 	 *
 	 */
-	static public void registerTilesSIFT(final Layer[] layer, final boolean overlapping_only) {
-		// for each layer
-		//    1 - find potential tile correspondences (all, or overlapping_only)
-		//        - if no matches, then
-		//            - if overlapping_only, preserve relative position to neighboring tiles
-		//            - else ? (Discard tile somehow)
-		//    2 - apply optimizer
-		Utils.log("registerTilesSIFT: not implemented yet.");
+	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean overlapping_only) {
+		if (null == layer || 0 == layer.length) return null;
+
+		Worker worker = new Worker("Free tile registration") {
+			public void run() {
+				startedWorking();
+				try {
+
+		final LayerSet set = layer[0].getParent();
+
+		final String[] dimensions = { "translation", "translation and rotation" };
+		int dimension_ = 1;
+
+		// steps
+		int steps_ = 3;
+		// initial sigma
+		float initial_sigma_ = 1.6f;
+		// feature descriptor size
+		int fdsize_ = 8;
+		// feature descriptor orientation bins
+		int fdbins_ = 8;
+		// size restrictions for scale octaves, use octaves < max_size and > min_size only
+		int min_size_ = 64;
+		int max_size_ = 512;
+		// minimal allowed alignment error in px
+		float min_epsilon_ = 1.0f;
+		// maximal allowed alignment error in px
+		float max_epsilon_ = 10.0f;
+		// minimal allowed alignment error in px (across sections)
+		float cs_min_epsilon_ = 1.0f;
+		// maximal allowed alignment error in px (across sections)
+		float cs_max_epsilon_ = 50.0f;
+		float min_inlier_ratio_ = 0.05f;
+		float scale_ = 1.0f;
+		/**
+		 * true if the layer is roughly aligned
+		 * that means, topology and present overlapping will be incorporated
+		 */
+		boolean is_prealigned_ = overlapping_only;
+
+		// Simple setup
+		GenericDialog gds = new GenericDialog("Setup");
+		gds.addNumericField("maximum_image_size :", max_size_, 0);
+		gds.addNumericField("maximal_alignment_error :", max_epsilon_, 2);
+		gds.addCheckbox("Advanced setup", false);
+		gds.showDialog();
+		if (gds.wasCanceled()) {
+			finishedWorking();
+			return;
+		}
+		max_size_ = (int)gds.getNextNumber();
+		max_epsilon_ = (float)gds.getNextNumber();
+		boolean advanced_setup = gds.getNextBoolean();
+		
+		// adjust advanced options:
+		if (advanced_setup) {
+			GenericDialog gd = new GenericDialog( "Align stack" );
+			gd.addMessage("Options for cross-layer registration:");
+			gd.addNumericField( "steps_per_scale_octave :", steps_, 0 );
+			gd.addNumericField( "initial_gaussian_blur :", initial_sigma_, 2 );
+			gd.addNumericField( "feature_descriptor_size :", fdsize_, 0 );
+			gd.addNumericField( "feature_descriptor_orientation_bins :", fdbins_, 0 );
+			gd.addNumericField( "minimum_image_size :", min_size_, 0 );
+			gd.addNumericField( "maximum_image_size :", max_size_, 0 );
+			gd.addNumericField( "minimal_alignment_error :", min_epsilon_, 2 );
+			gd.addNumericField( "maximal_alignment_error :", max_epsilon_, 2 );
+			gd.addNumericField( "cs_minimal_alignment_error :", cs_min_epsilon_, 2 );
+			gd.addNumericField( "cs_maximal_alignment_error :", cs_max_epsilon_, 2 );
+			gd.addNumericField( "inlier_ratio :", min_inlier_ratio_, 2 );
+			gd.addChoice( "transformations_to_be_optimized :", dimensions, dimensions[ dimension_ ] );
+			gd.addCheckbox( "layers_are_roughly_prealigned_already", is_prealigned_ );
+			gd.showDialog();
+			if (gd.wasCanceled()) {
+				finishedWorking();
+				return;
+			}
+
+			steps_ = ( int )gd.getNextNumber();
+			initial_sigma_ = ( float )gd.getNextNumber();
+			fdsize_ = ( int )gd.getNextNumber();
+			fdbins_ = ( int )gd.getNextNumber();
+			min_size_ = ( int )gd.getNextNumber();
+			max_size_ = ( int )gd.getNextNumber();
+			min_epsilon_ = ( float )gd.getNextNumber();
+			max_epsilon_ = ( float )gd.getNextNumber();
+			cs_min_epsilon_ = ( float )gd.getNextNumber();
+			cs_max_epsilon_ = ( float )gd.getNextNumber();
+			min_inlier_ratio_ = ( float )gd.getNextNumber();
+			dimension_ = gd.getNextChoiceIndex();
+			is_prealigned_ = gd.getNextBoolean();
+		}
+
+		// J jate java.
+		final int steps = steps_;
+		final float initial_sigma = initial_sigma_;
+		final int fdsize = fdsize_;
+		final int fdbins = fdbins_;
+		final int min_size = min_size_;
+		final int max_size = max_size_;
+		final float min_epsilon = min_epsilon_;
+		final float max_epsilon = max_epsilon_;
+		final float cs_min_epsilon = cs_min_epsilon_;
+		final float cs_max_epsilon = cs_max_epsilon_;
+		final float min_inlier_ratio = min_inlier_ratio_;
+		final int dimension = dimension_;
+		final boolean is_prealigned = is_prealigned_;
+
+		// ask for SIFT parameters
+		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject());
+		if (advanced_setup) {
+			if (!sp_gross_interlayer.setup()) {
+				finishedWorking();
+				return;
+			}
+		}
+
+		// start:
+
+		final ArrayList< Layer > layers = new ArrayList< Layer >();
+		for (int k=0; k<layer.length; k++) {
+			layers.add( layer[k] );
+		}
+		final ArrayList< Vector< Feature > > featureSets1 = new ArrayList< Vector< Feature > >();
+		final ArrayList< Vector< Feature > > featureSets2 = new ArrayList< Vector< Feature > >();
+
+
+		final ArrayList< Patch > patches1 = new ArrayList< Patch >();
+		final ArrayList< Tile > tiles1 = new ArrayList< Tile >();
+		final ArrayList< Patch > patches2 = new ArrayList< Patch >();
+		final ArrayList< Tile > tiles2 = new ArrayList< Tile >();
+
+		final Thread[] threads = MultiThreading.newThreads();
+		final FloatArray2DSIFT[] sift = new FloatArray2DSIFT[ threads.length ];
+		for ( int k=0; k < threads.length; k++ )
+			sift[ k ] = new FloatArray2DSIFT( fdsize, fdbins );
+		
+		// roughly, we expect about 1000 features per 512x512 image
+		final long feature_size = (long)((max_size * max_size) / (512 * 512) * 1000 * sift[0].getFeatureObjectSize() * 1.5);
+
+		final ArrayList< Tile > all_tiles = new ArrayList< Tile >();
+		final ArrayList< Patch > all_patches = new ArrayList< Patch >();
+
+		final ArrayList< Tile > fixed_tiles = new ArrayList< Tile >();
+
+		Layer previous_layer = null;
+
+		// the storage folder for serialized features
+		final Loader loader = set.getProject().getLoader();
+		String storage_folder_ = loader.getStorageFolder() + "features.ser/";
+		File sdir = new File(storage_folder_);
+		if (!sdir.exists()) {
+			try {
+				sdir.mkdir();
+			} catch (Exception e) {
+				storage_folder_ = null; // can't store
+			}
+		}
+		final String storage_folder = storage_folder_;
+
+
+		for ( Layer layer : layers )
+		{
+			final ArrayList< Tile > layer_fixed_tiles = new ArrayList< Tile >();
+
+			Utils.log( "###############\nStarting layer " + ( set.indexOf( layer ) + 1 ) + " of " + set.size() + "\n###############" );
+
+			// ignore empty layers
+			if ( !layer.contains( Patch.class ) )
+			{
+				Utils.log( "Ignoring empty layer." );
+				continue;
+			}
+
+			if ( null != previous_layer )
+			{
+				featureSets1.clear();
+				featureSets1.addAll( featureSets2 );
+
+				patches1.clear();
+				patches1.addAll( patches2 );
+
+				tiles1.clear();
+				tiles1.addAll( tiles2 );
+			}
+
+			patches2.clear();
+			featureSets2.clear();
+			tiles2.clear();
+
+			ArrayList tmp = new ArrayList();
+			tmp.addAll(layer.getDisplayables( Patch.class ));
+			patches2.addAll( tmp ); // I hate generics. Incovertible types? Not at all!
+
+			// extract SIFT-features in all patches
+			// TODO store the feature sets on disk, each of them might be in the magnitude of 10MB large
+
+			final AtomicInteger ai = new AtomicInteger( 0 ); // from 0 to patches2.length
+			final int num_pa2 = patches2.size();
+
+			final Patch[] pa2 = new Patch[ num_pa2 ];
+			patches2.toArray( pa2 );
+			final Vector[] fsets = new Vector[ num_pa2 ];
+			final Tile[] tls = new Tile[ num_pa2 ];
+
+			// multi threaded version
+
+			for (int ithread = 0; ithread < threads.length; ++ithread)
+			{
+				final int si = ithread;
+				threads[ ithread ] = new Thread( new Runnable()
+				{
+					public void run()
+					{
+						for ( int k = ai.getAndIncrement(); k < num_pa2; k = ai.getAndIncrement() )
+						{
+
+				Utils.log2("k is " + k);
+				Patch patch = pa2[ k ];
+				if (null == patch) Utils.log2("patch is null");
+				Utils.log2("patch is " + patch);
+				
+				Vector< Feature > fs = loader.retrieve( patch, storage_folder );
+				if (null == fs)
+				{
+					final ImageProcessor ip = patch.getImageProcessor();
+					if (null == ip) Utils.log2("ip is null");
+					
+					FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( ip.convertToByte( true ) );
+					if (null == fa) Utils.log2("fa is null");
+					
+					set.getProject().getLoader().releaseToFit(ip.getWidth() * ip.getHeight() * 96L + feature_size);
+
+					ImageFilter.enhance( fa, 1.0f );
+					fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
+					if (null == fa) Utils.log2("fa is null");
+					
+					long start_time = System.currentTimeMillis();
+					System.out.print( "processing SIFT ..." );
+
+					sift[si].init( fa, steps, initial_sigma, min_size, max_size );
+					fs = sift[si].run( max_size );
+
+					Collections.sort( fs );
+
+					loader.store( patch, fs, storage_folder );
+					Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
+				}
+
+				Utils.log2( fs.size() + " features identified and processed" );
+
+				Model model;
+
+				if ( 0 == dimension )
+					model = new TModel2D(); // translation only
+				else
+					model = new TRModel2D(); // both translation and rotation
+
+				model.getAffine().setTransform( patch.getAffineTransform() );
+				//Tile tile = new Tile( ( float )fa.width, ( float )fa.height, model );
+				Tile tile = new Tile( ( float )patch.getWidth(), ( float )patch.getHeight(), model );
+
+				//tiles2.add( tile );
+				tls[ k ] = tile;
+
+				//featureSets2.add( fs );
+				fsets[ k ] = fs;
+
+						}
+					}
+				} );
+			}
+
+			MultiThreading.startAndJoin(threads);
+
+			//#################################################################
+
+
+			for ( int k = 0; k < num_pa2; k++ )
+			{
+				if ( fsets[ k ] == null ) Utils.log2( "Feature set " + k + " is null." );
+				featureSets2.add( fsets[ k ] );
+				tiles2.add( tls[ k ] );
+			}
+
+			// identify correspondences and inspect connectivity
+			int num_patches = patches2.size();
+			for ( int i = 0; i < num_patches; ++i )
+			{
+				Patch current_patch = patches2.get( i );
+				Tile current_tile = tiles2.get( i );
+				for ( int j = i + 1; j < num_patches; ++j )
+				{
+					Patch other_patch = patches2.get( j );
+					Tile other_tile = tiles2.get( j );
+					if ( !is_prealigned || current_patch.intersects( other_patch ) )
+					{
+						long start_time = System.currentTimeMillis();
+						System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
+						Vector< PointMatch > correspondences = FloatArray2DSIFT.createMatches(
+									featureSets2.get( i ),
+									featureSets2.get( j ),
+									1.25f,
+									null,
+									Float.MAX_VALUE );
+						Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
+						
+						Utils.log( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
+						
+						final Vector< PointMatch > inliers = new Vector< PointMatch >();
+						
+						TRModel2D model = TRModel2D.estimateBestModel(
+								correspondences,
+								inliers,
+								min_epsilon,
+								max_epsilon,
+								min_inlier_ratio );
+						
+						if ( model != null ) // that implies that inliers is not empty
+							current_tile.connect( other_tile, inliers );
+					}
+				}
+			}
+
+			// identify connected graphs
+			ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( tiles2 );
+			Utils.log2( graphs.size() + " graphs detected." );
+			
+			if ( is_prealigned && graphs.size() > 1 )
+			{
+				/**
+				 * We have to trust the given alignment.  Try to add synthetic
+				 * correspondences to disconnected graphs having overlapping
+				 * tiles.
+				 */
+				Utils.log2( "Synthetically connecting graphs using the given alignment." );
+				
+				Registration.connectDisconnectedGraphs( graphs, tiles2, patches2 );
+				
+				/**
+				 * check the connectivity graphs again.  Hopefully there is
+				 * only one graph now.  If not, we still have to fix one tile
+				 * per graph, regardless if it is only one or several oth them.
+				 */
+				graphs = Tile.identifyConnectedGraphs( tiles2 );
+				Utils.log2( graphs.size() + " graphs detected after synthetic connection." );
+			}
+			
+			// fix one tile per graph, meanwhile update the tiles
+			for ( ArrayList< Tile > graph : graphs )
+			{
+				Tile fixed = null;
+				int max_num_matches = 0;
+				for ( Tile tile : graph )
+				{
+					tile.update();
+					int num_matches = tile.getNumMatches();
+					if ( max_num_matches < num_matches )
+					{
+						max_num_matches = num_matches;
+						fixed = tile;
+					}
+				}
+				layer_fixed_tiles.add( fixed );
+			}
+			
+			// update all tiles, for error and distance correction
+			for ( Tile tile : tiles2 ) tile.update();
+			
+			// optimize the pose of all tiles in the current layer
+			minimizeAll( tiles2, patches2, layer_fixed_tiles, set, max_epsilon );
+			
+			// repaint all Displays showing a Layer of the edited LayerSet
+			Display.update( set );
+
+			// store for global minimization
+			all_tiles.addAll( tiles2 );
+			all_patches.addAll( patches2 );
+
+			if ( null != previous_layer )
+			{
+				/**
+				 * Coarse registration
+				 * 
+				 * TODO Think about re-using the correspondences identified
+				 *  during coarse registration for the tiles.  That introduces
+				 *  the following issues:
+				 *  
+				 *  - coordinate transfer of snapshot-coordinates to
+				 *    layer-coordinates in both layers
+				 *  - identification of the closest tiles in both layers
+				 *    (whose centers are closest to the layer-coordinate of the
+				 *    detection)
+				 *  - appropriate weight for the correspondence
+				 *  - if this is the sole correpondence of a tile, minimization
+				 *    as well as model estimation of higher order models than
+				 *    translation will fail because of missing information
+				 *    -> How to handle this, how to handle this for
+				 *       graph-connectivity?
+				 */
+				
+				/**
+				 * returns an Object[] with
+				 *   [0] AffineTransform that transforms layer towards previous_layer
+				 *   [1] bounding box of previous_layer in world coordinates
+				 *   [2] bounding box of layer in world coordinates
+				 *   [3] true correspondences with p1 in layer and p2 in previous_layer,
+				 *       both in the local coordinate frames defined by box1 and box2 and
+				 *       scaled with sp_gross_interlayer.scale
+				 */
+				Object[] ob = Registration.registerSIFT( previous_layer, layer, null, sp_gross_interlayer );
+				int original_max_size = sp_gross_interlayer.max_size;
+				float original_max_epsilon = sp_gross_interlayer.max_epsilon;
+				while (null == ob || null == ob[0]) {
+					int next_max_size = sp_gross_interlayer.max_size;
+					float next_max_epsilon = sp_gross_interlayer.max_epsilon;
+					// need to recurse up both the max size and the maximal alignment error
+					if (next_max_epsilon < 300) {
+						next_max_epsilon += 100;
+					}
+					Rectangle rfit1 = previous_layer.getMinimalBoundingBox(Patch.class);
+					Rectangle rfit2 = layer.getMinimalBoundingBox(Patch.class);
+					if (next_max_size < rfit1.width || next_max_size < rfit1.height
+					 || next_max_size < rfit2.width || next_max_size < rfit2.height) {
+						next_max_size += 1024;
+					} else {
+						// fail completely
+						Utils.log2("FAILED to align layers " + set.indexOf(previous_layer) + " and " + set.indexOf(layer));
+						// Need to fall back to totally unguided double-layer registration
+						// TODO
+						//
+						break;
+					}
+					sp_gross_interlayer.max_size = next_max_size;
+					sp_gross_interlayer.max_epsilon = next_max_epsilon;
+					ob = Registration.registerSIFT(previous_layer, layer, null, sp_gross_interlayer);
+				}
+				// fix back modified parameters
+				sp_gross_interlayer.max_size = original_max_size;
+				sp_gross_interlayer.max_epsilon = original_max_epsilon;
+
+				if ( null != ob && null != ob[ 0 ] )
+				{
+					// defensive programming ... ;)
+					AffineTransform at = ( AffineTransform )ob[ 0 ];
+					Rectangle previous_layer_box = ( Rectangle )ob[ 1 ];
+					Rectangle layer_box = ( Rectangle )ob[ 2 ];
+					Vector< PointMatch > inliers = ( Vector< PointMatch > )ob[ 3 ];
+					
+					/**
+					 * Find the closest tiles in both layers for each of the
+					 * inliers and append a correponding nail to it
+					 */
+					for ( PointMatch inlier : inliers )
+					{
+						// transfer the coordinates to actual world coordinates 
+						float[] previous_layer_coords = inlier.getP2().getL();
+						previous_layer_coords[ 0 ] = previous_layer_coords[ 0 ] / sp_gross_interlayer.scale + previous_layer_box.x;
+						previous_layer_coords[ 1 ] = previous_layer_coords[ 1 ] / sp_gross_interlayer.scale + previous_layer_box.y;
+						
+						float[] layer_coords = inlier.getP1().getL();
+						layer_coords[ 0 ] = layer_coords[ 0 ] / sp_gross_interlayer.scale + layer_box.x;
+						layer_coords[ 1 ] = layer_coords[ 1 ] / sp_gross_interlayer.scale + layer_box.y;
+						
+						// find the tile whose center is closest to the points in previous_layer
+						Tile previous_layer_closest_tile = null;
+						float previous_layer_min_d = Float.MAX_VALUE;
+						for ( Tile tile : tiles1 )
+						{
+							tile.update();
+							float[] tw = tile.getWC();
+							float dx = tw[ 0 ] - previous_layer_coords[ 0 ];
+							dx *= dx;
+							float dy = tw[ 1 ] - previous_layer_coords[ 1 ];
+							dy *= dy;
+							
+							float d = ( float )Math.sqrt( dx + dy );
+							if ( d < previous_layer_min_d )
+							{
+								previous_layer_min_d = d;
+								previous_layer_closest_tile = tile;
+							}
+						}
+						
+						Utils.log2( "Tile " + tiles1.indexOf( previous_layer_closest_tile ) + " is closest in previous layer:" );
+						Utils.log2( "  distance: " + previous_layer_min_d );
+						
+						
+						// find the tile whose center is closest to the points in layer
+						Tile layer_closest_tile = null;
+						float layer_min_d = Float.MAX_VALUE;
+						for ( Tile tile : tiles2 )
+						{
+							tile.update();
+							float[] tw = tile.getWC();
+							float dx = tw[ 0 ] - layer_coords[ 0 ];
+							dx *= dx;
+							float dy = tw[ 1 ] - layer_coords[ 1 ];
+							dy *= dy;
+							
+							float d = ( float )Math.sqrt( dx + dy );
+							if ( d < layer_min_d )
+							{
+								layer_min_d = d;
+								layer_closest_tile = tile;
+							}
+						}
+						
+						Utils.log2( "Tile " + tiles2.indexOf( layer_closest_tile ) + " is closest in layer:" );
+						Utils.log2( "  distance: " + layer_min_d );
+						
+						if ( previous_layer_closest_tile != null && layer_closest_tile != null )
+						{
+//							Utils.log2( "world coordinates in previous layer: " + previous_layer_coords[ 0 ] + ", " + previous_layer_coords[ 1 ] );
+//							Utils.log2( "world coordinates in layer: " + layer_coords[ 0 ] + ", " + layer_coords[ 1 ] );
+							
+							// transfer the world coordinates to local tile coordinates
+							previous_layer_closest_tile.getModel().applyInverseInPlace( previous_layer_coords );
+							layer_closest_tile.getModel().applyInverseInPlace( layer_coords );
+							
+//							Utils.log2( "local coordinates in previous layer: " + previous_layer_coords[ 0 ] + ", " + previous_layer_coords[ 1 ] );
+//							Utils.log2( "local coordinates in layer: " + layer_coords[ 0 ] + ", " + layer_coords[ 1 ] );
+							
+							// create PointMatch for both tiles
+							mpi.fruitfly.registration.Point previous_layer_point = new mpi.fruitfly.registration.Point( previous_layer_coords );
+							mpi.fruitfly.registration.Point layer_point = new mpi.fruitfly.registration.Point( layer_coords );
+							
+							previous_layer_closest_tile.addMatch(
+									new PointMatch(
+											previous_layer_point,
+											layer_point,
+											inlier.getWeight() / sp_gross_interlayer.scale ) );
+							layer_closest_tile.addMatch(
+									new PointMatch(
+											layer_point,
+											previous_layer_point,
+											inlier.getWeight() / sp_gross_interlayer.scale ) );
+							
+							previous_layer_closest_tile.addConnectedTile( layer_closest_tile );
+							layer_closest_tile.addConnectedTile( previous_layer_closest_tile );
+						}
+					}
+					
+					TRModel2D model = new TRModel2D();
+					model.getAffine().setTransform( at );
+					for ( Tile tile : tiles2 )
+						( ( TRModel2D )tile.getModel() ).preConcatenate( model );
+				
+					// repaint all Displays showing a Layer of the edited LayerSet
+					Display.update( layer );
+				}
+				Registration.identifyCrossLayerCorrespondences(
+						tiles1,
+						patches1,
+						featureSets1,
+						tiles2,
+						patches2,
+						featureSets2,
+						( null != ob && null != ob[ 0 ] ),
+						cs_min_epsilon,
+						cs_max_epsilon,
+						min_inlier_ratio);
+				
+				// check the connectivity graphs
+				ArrayList< Tile > both_layer_tiles = new ArrayList< Tile >();
+				both_layer_tiles.addAll( tiles1 );
+				both_layer_tiles.addAll( tiles2 );
+				graphs = Tile.identifyConnectedGraphs( both_layer_tiles );
+				
+				Utils.log2( graphs.size() + " cross-section graphs detected." );
+				
+//				if ( graphs.size() > 1 && ( null != ob && null != ob[ 0 ] ) )
+//				{
+//					/**
+//					 * We have to trust the given alignment.  Try to add synthetic
+//					 * correspondences to disconnected graphs having overlapping
+//					 * tiles.
+//					 */
+//					ArrayList< Patch > both_layer_patches = new ArrayList< Patch >();
+//					both_layer_patches.addAll( patches1 );
+//					both_layer_patches.addAll( patches2 );
+//					this.connectDisconnectedGraphs( graphs, both_layer_tiles, both_layer_patches );
+//					
+//					/**
+//					 * check the connectivity graphs again.  Hopefully there is
+//					 * only one graph now.  If not, we still have to fix one tile
+//					 * per graph, regardless if it is only one or several of them.
+//					 */
+//					graphs = Tile.identifyConnectedGraphs( tiles2 );
+//					Utils.log2( graphs.size() + " cross-section graphs detected after synthetic connection." );
+//				}
+			}
+
+			previous_layer = layer;
+		}
+	
+		// find the global nail
+		/**
+		 * One tile per connected graph has to be fixed to make the problem
+		 * solvable, otherwise it is ill defined and has an infinite number
+		 * of solutions.
+		 */
+		
+		ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( all_tiles );
+		Utils.log2( graphs.size() + " global graphs detected." );
+		
+		fixed_tiles.clear();
+		// fix one tile per graph, meanwhile update the tiles
+		for ( ArrayList< Tile > graph : graphs )
+		{
+			Tile fixed = null;
+			int max_num_matches = 0;
+			for ( Tile tile : graph )
+			{
+				tile.update();
+				int num_matches = tile.getNumMatches();
+				if ( max_num_matches < num_matches )
+				{
+					max_num_matches = num_matches;
+					fixed = tile;
+				}
+			}
+			fixed_tiles.add( fixed );
+		}
+		
+		// again, for error and distance correction
+		for ( Tile tile : all_tiles ) tile.update();
+
+		// global minimization
+		Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, cs_max_epsilon );
+
+		// update selection internals in all open Displays
+		Display.updateSelection( Display.getFront() );
+
+		// repaint all Displays showing a Layer of the edited LayerSet
+		Display.update( set );
+
+
+				} catch (Exception e) {
+					e.printStackTrace();
+				} finally {
+					finishedWorking();
+				}
+			}};
+
+		Bureaucrat burro = new Bureaucrat(worker, layer[0].getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	/**
+	 * Interconnect disconnected graphs with synthetically added correspondences.
+	 * This implies the tiles to be prealigned.
+	 * 
+	 * May fail if the disconnected graphs do not overlap at all.
+	 * 
+	 * @param graphs
+	 * @param tiles
+	 * @param patches
+	 */
+	static private final void connectDisconnectedGraphs(
+			final List< ArrayList< Tile > > graphs,
+			final List< Tile > tiles,
+			final List< Patch > patches )
+	{
+		/**
+		 * We have to trust the given alignment.  Try to add synthetic
+		 * correspondences to disconnected graphs having overlapping
+		 * tiles.
+		 */
+		Utils.log2( "Synthetically connecting graphs using the given alignment." );
+		
+		ArrayList< Tile > empty_tiles = new ArrayList< Tile >();
+		for ( ArrayList< Tile > graph : graphs )
+		{
+			if ( graph.size() == 1 )
+			{
+				/**
+				 *  This is a single unconnected tile.
+				 */
+				empty_tiles.add( graph.get( 0 ) );
+			}
+		}
+		for ( ArrayList< Tile > graph : graphs )
+		{
+			for ( Tile tile : graph )
+			{
+				boolean is_empty = empty_tiles.contains( tile );
+				Patch patch = patches.get( tiles.indexOf( tile ) );
+				final Rectangle r = patch.getBoundingBox();
+				// check this patch against each patch of the other graphs
+				for ( ArrayList< Tile > other_graph : graphs )
+				{
+					if ( other_graph.equals( graph ) ) continue;
+					for ( Tile other_tile : other_graph )
+					{
+						Patch other_patch = patches.get( tiles.indexOf( other_tile ) );
+						if ( patch.intersects( other_patch ) )
+						{
+							/**
+							 * TODO get a proper intersection polygon instead
+							 *   of the intersection of bounding boxes.
+							 *   
+							 *   - Where to add the faked nails then?
+							 */
+							final Rectangle rp = other_patch.getBoundingBox().intersection( r );
+							int xp1 = rp.x;
+							int yp1 = rp.y;
+							int xp2 = rp.x + rp.width;
+							int yp2 = rp.y + rp.height;
+							Point2D.Double dcp1 = patch.inverseTransformPoint( xp1, yp1 );
+							Point2D.Double dcp2 = patch.inverseTransformPoint( xp2, yp2 );
+							Point2D.Double dp1 = other_patch.inverseTransformPoint( xp1, yp1 );
+							Point2D.Double dp2 = other_patch.inverseTransformPoint( xp2, yp2 );
+							mpi.fruitfly.registration.Point cp1 = new mpi.fruitfly.registration.Point(
+									new float[]{ ( float )dcp1.x, ( float )dcp1.y } );
+							mpi.fruitfly.registration.Point cp2 = new mpi.fruitfly.registration.Point(
+									new float[]{ ( float )dcp2.x, ( float )dcp2.y } );
+							mpi.fruitfly.registration.Point p1 = new mpi.fruitfly.registration.Point(
+									new float[]{ ( float )dp1.x, ( float )dp1.y } );
+							mpi.fruitfly.registration.Point p2 = new mpi.fruitfly.registration.Point(
+									new float[]{ ( float )dp2.x, ( float )dp2.y } );
+							ArrayList< PointMatch > a1 = new ArrayList<PointMatch>();
+							a1.add( new PointMatch( cp1, p1, 1.0f ) );
+							a1.add( new PointMatch( cp2, p2, 1.0f ) );
+							tile.addMatches( a1 );
+							ArrayList< PointMatch > a2 = new ArrayList<PointMatch>();
+							if ( is_empty )
+							{
+								/**
+								 * very low weight instead of 0.0
+								 * 
+								 * TODO nothing could lead to disconntected graphs that were
+								 *   connected by one empty tile only...
+								 */
+								a2.add( new PointMatch( p1, cp1, 0.1f ) );
+								a2.add( new PointMatch( p2, cp2, 0.1f ) );
+							}
+							else
+							{
+								a2.add( new PointMatch( p1, cp1, 1.0f ) );
+								a2.add( new PointMatch( p2, cp2, 1.0f ) );
+							}
+							other_tile.addMatches( a2 );
+							
+							// and tell them that they are connected now
+							tile.addConnectedTile( other_tile );
+							other_tile.addConnectedTile( tile );
+						}
+					}
+				}
+			}							
+		}
+	}
+
+	static private class TrendObserver
+	{
+		public int i;			// iteration
+		public double v;		// value
+		public double d;		// first derivative
+		public double m;		// mean
+		public double var;		// variance
+		public double std;		// standard-deviation
+		
+		public void add( double new_value )
+		{
+			if ( i == 0 )
+			{
+				i = 1;
+				v = new_value;
+				d = 0.0;
+				m = v;
+				var = 0.0;
+				std = 0.0;
+			}
+			else
+			{
+				d = new_value - v;
+				v = new_value;
+				m = ( v + m * ( double )i++ ) / ( double )i;
+				double tmp = v - m;
+				var += tmp * tmp / ( double )i;
+				std = Math.sqrt( var );
+			}
+		}
+	}
+
+	/**
+	 * minimize the overall displacement of a set of tiles, propagate the
+	 * estimated models to a corresponding set of patches and redraw
+	 * 
+	 * @param tiles
+	 * @param patches
+	 * @param fixed_tiles do not touch these tiles
+	 * @param update_this
+	 * 
+	 * TODO revise convergence check
+	 *   particularly for unguided minimization, it is hard to identify
+	 *   convergence due to presence of local minima
+	 *   
+	 *   Johannes Schindelin suggested to start from a good guess, which is
+	 *   e.g. the propagated unoptimized pose of a tile relative to its
+	 *   connected tile that was already identified during RANSAC
+	 *   correpondence check.  Thank you, Johannes, great hint!
+	 */
+	static private final void minimizeAll(
+			final List< Tile > tiles,
+			final List< Patch > patches,
+			final List< Tile > fixed_tiles,
+			final LayerSet set,
+			float max_error )
+	{
+		int num_patches = patches.size();
+
+		double od = Double.MAX_VALUE;
+		double dd = Double.MAX_VALUE;
+		double min_d = Double.MAX_VALUE;
+		double max_d = Double.MIN_VALUE;
+		int iteration = 1;
+		int cc = 0;
+		double[] dall = new double[100];
+		int next = 0;
+		// debug:
+		//TrendObserver observer = new TrendObserver();
+		
+		while ( next < 100000 )  // safety check
+		{
+			for ( int i = 0; i < num_patches; ++i )
+			{
+				Tile tile = tiles.get( i );
+				if ( fixed_tiles.contains( tile ) ) continue;
+				tile.update();
+				tile.minimizeModel();
+				tile.update();
+				patches.get( i ).getAffineTransform().setTransform( tile.getModel().getAffine() );
+			}
+			double cd = 0.0;
+			min_d = Double.MAX_VALUE;
+			max_d = Double.MIN_VALUE;
+			for ( Tile t : tiles )
+			{
+				t.update();
+				double d = t.getDistance();
+				if ( d < min_d ) min_d = d;
+				if ( d > max_d ) max_d = d;
+				cd += d;
+			}
+			cd /= tiles.size();
+			dd = Math.abs( od - cd );
+			od = cd;
+			if (0 == next % 100) Utils.showStatus( "displacement: " + Utils.cutNumber( od, 3) + " [" + Utils.cutNumber( min_d, 3 ) + "; " + Utils.cutNumber( max_d, 3 ) + "] after " + iteration + " iterations");
+			
+			//observer.add( od );			
+			//Utils.log( observer.i + " " + observer.v + " " + observer.d + " " + observer.m + " " + observer.std );
+			
+			//cc = d < 0.00025 ? cc + 1 : 0;
+			cc = dd < 0.001 ? cc + 1 : 0;
+
+			if (dall.length  == next) {
+				double[] dall2 = new double[dall.length + 100];
+				System.arraycopy(dall, 0, dall2, 0, dall.length);
+				dall = dall2;
+			}
+			dall[next++] = dd;
+			
+			// cut the last 'n'
+			if (next > 100) { // wait until completing at least 'n' iterations
+				double[] dn = new double[100];
+				System.arraycopy(dall, dall.length - 100, dn, 0, 100);
+				// fit curve
+				double[] ft = FitLine.fitLine(dn);
+				// ft[1] StdDev
+				// ft[2] m (slope)
+				//if ( Math.abs( ft[ 1 ] ) < 0.001 )
+
+				// TODO revise convergence check or start from better guesses
+				if ( od < max_error && ft[ 2 ] >= 0.0 )
+				{
+					Utils.log2( "Exiting at iteration " + next + " with slope " + Utils.cutNumber( ft[ 2 ], 3 ) );
+					break;
+				}
+
+			}
+
+			if (0 == next % 100) Display.update( set );
+
+			++iteration;
+		}
+
+		Display.update( set );
+		
+		Utils.log( "Successfully optimized configuration of " + tiles.size() + " tiles:" );
+		Utils.log( "  average displacement: " + Utils.cutNumber( od, 3 ) + "px" );
+		Utils.log( "  minimal displacement: " + Utils.cutNumber( min_d, 3 ) + "px" );
+		Utils.log( "  maximal displacement: " + Utils.cutNumber( max_d, 3 ) + "px" );
+	}
+
+	/**
+	 * Identify point correspondences from two sets of tiles, patches and SIFT-features.
+	 * 
+	 * @note List< List< Feature > > should work but doesn't.
+	 *  Java "generics" are the crappiest bullshit I have ever seen.
+	 *  They should hire a linguist!
+	 * 
+	 * @param tiles1
+	 * @param patches1
+	 * @param tiles2
+	 * @param patches2
+	 */
+	static private final void identifyCrossLayerCorrespondences(
+			List< Tile > tiles1,
+			List< Patch > patches1,
+			List< Vector< Feature > > featureSets1,
+			List< Tile > tiles2,
+			List< Patch > patches2,
+			List< Vector< Feature > > featureSets2,
+			boolean is_prealigned,
+			float cs_min_epsilon,
+			float cs_max_epsilon,
+			float min_inlier_ratio)
+	{
+		int num_patches2 = patches2.size();
+		int num_patches1 = patches1.size();
+		for ( int i = 0; i < num_patches2; ++i )
+		{
+			Patch current_patch = patches2.get( i );
+			Tile current_tile = tiles2.get( i );
+			for ( int j = 0; j < num_patches1; ++j )
+			{
+				Patch other_patch = patches1.get( j );
+				Tile other_tile = tiles1.get( j );
+				if ( !is_prealigned || current_patch.intersects( other_patch ) )
+				{
+					long start_time = System.currentTimeMillis();
+					System.out.print( "identifying correspondences using brute force ..." );
+					Vector< PointMatch > candidates = FloatArray2DSIFT.createMatches(
+								featureSets2.get( i ),
+								featureSets1.get( j ),
+								1.25f,
+								null,
+								Float.MAX_VALUE );
+					Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
+					
+					Utils.log( "Tiles " + i + " and " + j + " have " + candidates.size() + " potentially corresponding features." );
+					
+					final Vector< PointMatch > inliers = new Vector< PointMatch >();
+					
+					TRModel2D mo = TRModel2D.estimateBestModel(
+							candidates,
+							inliers,
+							cs_min_epsilon,
+							cs_max_epsilon,
+							min_inlier_ratio);
+
+					if ( mo != null )
+					{
+						Utils.log( inliers.size() + " of them are good." );
+						current_tile.connect( other_tile, inliers );								
+					}
+					else
+					{
+						Utils.log( "None of them is good." );
+					}
+				}
+			}
+		}
 	}
 }

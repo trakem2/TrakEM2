@@ -2035,21 +2035,18 @@ abstract public class Loader {
 		GenericDialog gd = new GenericDialog("Options");
 		gd.addMessage("For all touched layers:");
 		gd.addCheckbox("Homogenize histograms", false);
-		/*
-		gd.addCheckbox("Register tiles", false);
+		gd.addCheckbox("Register tiles and layers", false);
 		gd.addCheckbox("With overlapping tiles only", true); // TODO could also use near tiles, defining near as "within a radius of one image width from the center of the tile"
-		final Component[] c = {
+		final Component[] c_enable = {
 			(Component)gd.getCheckboxes().get(2)
 		};
-		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(1), c, null);
-		*/
-		gd.addCheckbox("Register all layers", false);
+		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(1), c_enable, null);
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		final boolean homogenize_contrast = gd.getNextBoolean();
-		//final boolean register_tiles = gd.getNextBoolean();
-		//final boolean overlapping_only = gd.getNextBoolean();
-		final boolean register_layers = gd.getNextBoolean();
+		final boolean register_tiles = gd.getNextBoolean();
+		final boolean overlapping_only = gd.getNextBoolean();
+		final int layer_subset = gd.getNextChoiceIndex();
 		final Set touched_layers = Collections.synchronizedSet(new HashSet());
 		gd = null;
 
@@ -2215,16 +2212,12 @@ abstract public class Loader {
 						Thread t = homogenizeContrast(la); // multithreaded
 						if (null != t) t.join();
 					}
-					/* // not ready yet
 					if (register_tiles) {
-						// layer-wise (within a layer; thus layer order is irrelevant):
-						Registration.registerTilesSIFT(la, overlapping_only);
-					}
-					*/
-					if (register_layers) {
-						// sequential, from first to last:
+						// sequential, from first to last layer
 						LayerSet ls = base_layer.getParent();
-						Thread t = Registration.registerLayers(ls, 0, 0, ls.size()-1, false);
+						Layer[] zla = new Layer[ls.size()];
+						for (int i=0; i<ls.size(); i++) zla[i] = ls.getLayer(i);
+						Thread t = Registration.registerTilesSIFT(zla, overlapping_only);
 						if (null != t) t.join();
 					}
 

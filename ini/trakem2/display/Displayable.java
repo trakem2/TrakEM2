@@ -710,7 +710,7 @@ public abstract class Displayable extends DBObject {
 		final Polygon pol2 = d.getPerimeter();
 		for (int i=0; i<pol1.npoints; i++) {
 			if (pol2.contains(pol1.xpoints[i], pol1.ypoints[i])) {
-				return true;
+				return true; // works even if any 2 points are simply overlapping
 			}
 		}
 		return false;
