@@ -701,10 +701,12 @@ public class Registration {
 	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean overlapping_only) {
 		if (null == layer || 0 == layer.length) return null;
 
-		Worker worker = new Worker("Free tile registration") {
+		final Worker worker_ = new Worker("Free tile registration") {
 			public void run() {
 				startedWorking();
 				try {
+
+		final Worker worker = this; // J jate java
 
 		final LayerSet set = layer[0].getParent();
 
@@ -860,6 +862,7 @@ public class Registration {
 
 		for ( Layer layer : layers )
 		{
+			if (hasQuitted()) return;
 			final ArrayList< Tile > layer_fixed_tiles = new ArrayList< Tile >();
 
 			Utils.log( "###############\nStarting layer " + ( set.indexOf( layer ) + 1 ) + " of " + set.size() + "\n###############" );
@@ -914,6 +917,7 @@ public class Registration {
 						for ( int k = ai.getAndIncrement(); k < num_pa2; k = ai.getAndIncrement() )
 						{
 
+				if (worker.hasQuitted()) return;
 				Utils.log2("k is " + k);
 				Patch patch = pa2[ k ];
 				if (null == patch) Utils.log2("patch is null");
@@ -971,6 +975,7 @@ public class Registration {
 			}
 
 			MultiThreading.startAndJoin(threads);
+			if (hasQuitted()) return;
 
 			//#################################################################
 
@@ -986,10 +991,12 @@ public class Registration {
 			int num_patches = patches2.size();
 			for ( int i = 0; i < num_patches; ++i )
 			{
+				if (hasQuitted()) return;
 				Patch current_patch = patches2.get( i );
 				Tile current_tile = tiles2.get( i );
 				for ( int j = i + 1; j < num_patches; ++j )
 				{
+					if (hasQuitted()) return;
 					Patch other_patch = patches2.get( j );
 					Tile other_tile = tiles2.get( j );
 					if ( !is_prealigned || current_patch.intersects( other_patch ) )
@@ -1007,7 +1014,7 @@ public class Registration {
 						Utils.log( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
 						
 						final Vector< PointMatch > inliers = new Vector< PointMatch >();
-						
+
 						TRModel2D model = TRModel2D.estimateBestModel(
 								correspondences,
 								inliers,
@@ -1067,7 +1074,7 @@ public class Registration {
 			for ( Tile tile : tiles2 ) tile.update();
 			
 			// optimize the pose of all tiles in the current layer
-			minimizeAll( tiles2, patches2, layer_fixed_tiles, set, max_epsilon );
+			minimizeAll( tiles2, patches2, layer_fixed_tiles, set, max_epsilon, worker );
 			
 			// repaint all Displays showing a Layer of the edited LayerSet
 			Display.update( set );
@@ -1258,7 +1265,8 @@ public class Registration {
 						( null != ob && null != ob[ 0 ] ),
 						cs_min_epsilon,
 						cs_max_epsilon,
-						min_inlier_ratio);
+						min_inlier_ratio,
+						worker);
 				
 				// check the connectivity graphs
 				ArrayList< Tile > both_layer_tiles = new ArrayList< Tile >();
@@ -1326,7 +1334,7 @@ public class Registration {
 		for ( Tile tile : all_tiles ) tile.update();
 
 		// global minimization
-		Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, cs_max_epsilon );
+		Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, cs_max_epsilon, worker );
 
 		// update selection internals in all open Displays
 		Display.updateSelection( Display.getFront() );
@@ -1342,7 +1350,7 @@ public class Registration {
 				}
 			}};
 
-		Bureaucrat burro = new Bureaucrat(worker, layer[0].getProject());
+		Bureaucrat burro = new Bureaucrat(worker_, layer[0].getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -1507,7 +1515,8 @@ public class Registration {
 			final List< Patch > patches,
 			final List< Tile > fixed_tiles,
 			final LayerSet set,
-			float max_error )
+			float max_error,
+			Worker worker)
 	{
 		int num_patches = patches.size();
 
@@ -1524,6 +1533,7 @@ public class Registration {
 		
 		while ( next < 100000 )  // safety check
 		{
+			if (worker.hasQuitted()) return;
 			for ( int i = 0; i < num_patches; ++i )
 			{
 				Tile tile = tiles.get( i );
@@ -1616,16 +1626,19 @@ public class Registration {
 			boolean is_prealigned,
 			float cs_min_epsilon,
 			float cs_max_epsilon,
-			float min_inlier_ratio)
+			float min_inlier_ratio,
+			Worker worker)
 	{
 		int num_patches2 = patches2.size();
 		int num_patches1 = patches1.size();
 		for ( int i = 0; i < num_patches2; ++i )
 		{
+			if (worker.hasQuitted()) return;
 			Patch current_patch = patches2.get( i );
 			Tile current_tile = tiles2.get( i );
 			for ( int j = 0; j < num_patches1; ++j )
 			{
+				if (worker.hasQuitted()) return;
 				Patch other_patch = patches1.get( j );
 				Tile other_tile = tiles1.get( j );
 				if ( !is_prealigned || current_patch.intersects( other_patch ) )

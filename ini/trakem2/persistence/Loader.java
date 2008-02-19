@@ -2035,7 +2035,7 @@ abstract public class Loader {
 		GenericDialog gd = new GenericDialog("Options");
 		gd.addMessage("For all touched layers:");
 		gd.addCheckbox("Homogenize histograms", false);
-		gd.addCheckbox("Register tiles and layers", false);
+		gd.addCheckbox("Register tiles and layers", true);
 		gd.addCheckbox("With overlapping tiles only", true); // TODO could also use near tiles, defining near as "within a radius of one image width from the center of the tile"
 		final Component[] c_enable = {
 			(Component)gd.getCheckboxes().get(2)
@@ -3476,8 +3476,9 @@ abstract public class Loader {
 		}
 		return popup_jobs;
 	}
-	/** Names as generated for popup menu items in the getJobsPopup method. If the name is null, it will cancel the last one. */
-	public void quitJob(String name) {
+	/** Names as generated for popup menu items in the getJobsPopup method. If the name is null, it will cancel the last one. Runs in a separate thread so that it can immediately return. */
+	public void quitJob(final String name) {
+		new Thread () { public void run() { setPriority(Thread.NORM_PRIORITY);
 		Object ob = null;
 		synchronized (popup_lock) {
 			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
@@ -3503,6 +3504,7 @@ abstract public class Loader {
 			popup_lock.notifyAll();
 		}
 		Utils.showStatus("Job canceled.");
+		}}.start();
 	}
 
 	public final void printMemState() {
