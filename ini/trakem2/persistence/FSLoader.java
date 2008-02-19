@@ -104,8 +104,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
 public class FSLoader extends Loader {
 
-	/** Contains all project objects that call addToDatabase */
-	private Hashtable ht_dbo = null;
+	/** Largest id seen so far. */
+	private long max_id = -1;
 	private Hashtable ht_paths = null;
 	/** For saving and overwriting. */
 	private String project_file_path = null;
@@ -117,7 +117,6 @@ public class FSLoader extends Loader {
 
 	public FSLoader() {
 		super(); // register
-		ht_dbo = new Hashtable();
 		ht_paths = new Hashtable();
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
@@ -243,7 +242,7 @@ public class FSLoader extends Loader {
 	}
 
 	public boolean isReady() {
-		return null != ht_dbo;
+		return null != ht_paths;
 	}
 
 	public void destroy() {
@@ -254,22 +253,13 @@ public class FSLoader extends Loader {
 	/** Get the next unique id, not shared by any other object within the same project. */
 	public long getNextId() {
 		// examine the hastable for existing ids
+		long nid = -1;
 		synchronized (db_lock) {
 			lock();
-			int n = ht_dbo.size();
-			if (0 != n) {
-				long[] ids = new long[ht_dbo.size()];
-				int i = 0;
-				for (Enumeration e = ht_dbo.keys(); e.hasMoreElements(); i++) {
-					ids[i] = ((Long)e.nextElement()).longValue();
-				}
-				Arrays.sort(ids);
-				unlock();
-				return ids[n-1] + 1;
-			}
+			nid = max_id + 1;
 			unlock();
 		}
-		return 1;
+		return nid;
 	}
 
 	public double[][][] fetchBezierArrays(long id) { // profiles are loaded in full from the XML file
@@ -570,19 +560,15 @@ public class FSLoader extends Loader {
 	}
 
 	/* GENERIC, from DBObject calls. Records the id of the object in the Hashtable ht_dbo.
-	 * Always returns true, but the object is not added if another object with identical id is already registered.
-	 * */
+	 * Always returns true. Does not check if another object has the same id.
+	 */
 	public boolean addToDatabase(final DBObject ob) {
-		// cheap version: keep in memory in a hashtable
 		synchronized (db_lock) {
 			lock();
 			setChanged(true);
-			final Long lid = new Long(ob.getId());
-			// TODO doesn't scale at all, plus it's doing two table lookups
-			//   It's a major source of slowness in adding new objects (such as when reading a file)
-			//   particularly if the table has more than 10000 elements (the TEM Dresden dataset has over 115000)
-			if (!ht_dbo.contains(lid)) {
-				ht_dbo.put(lid, ob);
+			final long id = ob.getId();
+			if (id > max_id) {
+				max_id = id;
 			}
 			unlock();
 		}
@@ -678,9 +664,7 @@ public class FSLoader extends Loader {
 			lock();
 			setChanged(true);
 			// remove from the hashtable
-			long loid = ob.getId();
-			Long lid = new Long(loid);
-			ht_dbo.remove(lid);
+			final long loid = ob.getId();
 			Utils.log2("removing " + ob);
 			if (ob instanceof Patch) {
 				Utils.log2("removing patch " + ob);
@@ -690,7 +674,7 @@ public class FSLoader extends Loader {
 				removeMipMaps(p);
 				ht_paths.remove(ob); // after removeMipMaps !
 				mawts.removeAndFlush(loid);
-				ImagePlus imp = imps.remove(loid);
+				final ImagePlus imp = imps.remove(loid);
 				if (null != imp) {
 					if (imp.getStackSize() > 1) {
 						if (null == imp.getProcessor()) {}

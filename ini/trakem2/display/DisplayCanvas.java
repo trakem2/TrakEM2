@@ -503,6 +503,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 			// gather initial box (for repainting purposes)
 			box = selection.getLinkedBox();
+			Utils.log2("press:" + box.toString());
 			selection.mousePressed(x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
@@ -626,6 +627,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					selection.mouseDragged(x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 					box2 = selection.getLinkedBox();
 					box.add(box2);
+			Utils.log2("drag: " + box.toString());
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
 					Display.repaint(display.getLayer(), Selection.PADDING, box, false);
 					// box for next mouse dragged iteration

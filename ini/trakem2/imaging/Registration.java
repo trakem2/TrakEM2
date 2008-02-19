@@ -910,28 +910,13 @@ public class Registration {
 			}
 			
 			// fix one tile per graph, meanwhile update the tiles
-			for ( ArrayList< Tile > graph : graphs )
-			{
-				Tile fixed = null;
-				int max_num_matches = 0;
-				for ( Tile tile : graph )
-				{
-					tile.update();
-					int num_matches = tile.getNumMatches();
-					if ( max_num_matches < num_matches )
-					{
-						max_num_matches = num_matches;
-						fixed = tile;
-					}
-				}
-				layer_fixed_tiles.add( fixed );
-			}
-			
+			layer_fixed_tiles.addAll(Registration.pickFixedTiles(graphs));
+
 			// update all tiles, for error and distance correction
 			for ( Tile tile : tiles2 ) tile.update();
 			
 			// optimize the pose of all tiles in the current layer
-			minimizeAll( tiles2, patches2, layer_fixed_tiles, set, sp.max_epsilon, worker );
+			Registration.minimizeAll( tiles2, patches2, layer_fixed_tiles, set, sp.max_epsilon, worker );
 			
 			// repaint all Displays showing a Layer of the edited LayerSet
 			Display.update( set );
@@ -1169,7 +1154,7 @@ public class Registration {
 		fixed_tiles.clear();
 		// fix one tile per graph, meanwhile update the tiles
 		fixed_tiles.addAll(Registration.pickFixedTiles(graphs));
-		
+
 		// again, for error and distance correction
 		for ( Tile tile : all_tiles ) tile.update();
 
@@ -1623,7 +1608,9 @@ public class Registration {
 		}
 	}
 
-	/** Will find a fixed tile for each graph, and Will also update each tile. */
+	/** Will find a fixed tile for each graph, and Will also update each tile.
+	 *  Returns the array of fixed tiles, at one per graph.
+	 */
 	static private ArrayList<Tile> pickFixedTiles(ArrayList<ArrayList<Tile>> graphs) {
 		final ArrayList<Tile> fixed_tiles = new ArrayList<Tile>();
 		// fix one tile per graph, meanwhile update the tiles
