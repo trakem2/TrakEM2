@@ -2214,11 +2214,13 @@ abstract public class Loader {
 					touched_layers.toArray(la);
 
 					if (homogenize_contrast) {
+						setTaskName("");
 						// layer-wise (layer order is irrelevant):
 						Thread t = homogenizeContrast(la); // multithreaded
 						if (null != t) t.join();
 					}
 					if (register_tiles) {
+						wo.setTaskName("Registering tiles.");
 						// sequential, from first to last layer
 						LayerSet ls = base_layer.getParent();
 						Layer[] zla = new Layer[ls.size()];

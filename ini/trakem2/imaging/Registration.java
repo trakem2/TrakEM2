@@ -597,6 +597,7 @@ public class Registration {
 		public float initial_sigma = 1.6f;
 		public int fdsize = 8;
 		public int fdbins = 8;
+		/** size restrictions for scale octaves, use octaves < max_size and > min_size only */
 		public int min_size = 64;
 		public int max_size = 1024;
 		/** Maximal initial drift of landmark relative to its matching landmark in the other image, to consider when searching.  Also used as increment for epsilon when there was no sufficient model found.*/
@@ -605,12 +606,31 @@ public class Registration {
 		/** Minimal percent of good landmarks found */
 		public float min_inlier_ratio = 0.05f;
 
+		/** A message to show within the dialog, at the top, for information purposes. */
+		public String msg = null;
+		/** Minimal allowed alignment error in px (across sections) */
+		public float cs_min_epsilon = 1.0f;
+		/** Maximal allowed alignment error in px (across sections) */
+		public float cs_max_epsilon = 50.0f;
+		/** 0 means only translation, 1 means both translation and rotation. */
+		public int dimension = 1;
+		/** Whether to show options for cross-layer registration or not in the dialog. */
+		public boolean cross_layer = false;
+		public boolean layers_prealigned = false;
+
 		public SIFTParameters(Project project) {
 			this.project = project;
 		}
 
+		public SIFTParameters(Project project, String msg, boolean cross_layer) {
+			this(project);
+			this.msg = msg;
+			this.cross_layer = cross_layer;
+		}
+
 		public void print() {
 			Utils.log2(new StringBuffer("SIFTParameters:\n")
+				   .append(null != msg ? "\tmsg:" + msg + "\n" : "")
 				   .append("\tscale: ").append(scale).append('\n')
 				   .append("\tsteps per scale octave: ").append(steps).append('\n')
 				   .append("\tinitial gaussian blur: ").append(initial_sigma).append('\n') 
@@ -626,6 +646,7 @@ public class Registration {
 
 		public boolean setup() {
 			final GenericDialog gd = new GenericDialog("Options");
+			if (null != msg) gd.addMessage(msg);
 			gd.addSlider("scale (%):", 1, 100, scale*100);
 			gd.addNumericField("steps_per_scale_octave :", steps, 0);
 			gd.addNumericField("initial_gaussian_blur :", initial_sigma, 2);
@@ -635,7 +656,14 @@ public class Registration {
 			gd.addNumericField("maximum_image_size :", max_size, 0);
 			gd.addNumericField("minimal_alignment_error :", min_epsilon, 2);
 			gd.addNumericField("maximal_alignment_error :", max_epsilon, 2);
+			if (cross_layer) {
+				gd.addNumericField("cs_min_epsilon :", cs_min_epsilon, 2);
+				gd.addNumericField("cs_max_epsilon :", cs_max_epsilon, 2);
+				gd.addCheckbox("layers_are_prealigned :", layers_prealigned);
+			}
 			gd.addNumericField("minimal_inlier_ratio :", min_inlier_ratio, 2);
+			final String[] regtype = new String[]{"translation only", "translation and rotation"};
+			gd.addChoice("registration_type :", regtype, regtype[dimension]);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 			this.scale = (float)gd.getNextNumber() / 100;
@@ -647,7 +675,13 @@ public class Registration {
 			this.max_size = (int)gd.getNextNumber();
 			this.min_epsilon = (float)gd.getNextNumber();
 			this.max_epsilon = (float)gd.getNextNumber();
+			if (cross_layer) {
+				this.cs_min_epsilon = (float)gd.getNextNumber();
+				this.cs_max_epsilon = (float)gd.getNextNumber();
+				this.layers_prealigned = gd.getNextBoolean();
+			}
 			this.min_inlier_ratio = (float)gd.getNextNumber();
+			this.dimension = gd.getNextChoiceIndex();
 
 			// debug:
 			print();
@@ -713,102 +747,47 @@ public class Registration {
 		final String[] dimensions = { "translation", "translation and rotation" };
 		int dimension_ = 1;
 
-		// steps
-		int steps_ = 3;
-		// initial sigma
-		float initial_sigma_ = 1.6f;
-		// feature descriptor size
-		int fdsize_ = 8;
-		// feature descriptor orientation bins
-		int fdbins_ = 8;
-		// size restrictions for scale octaves, use octaves < max_size and > min_size only
-		int min_size_ = 64;
-		int max_size_ = 512;
-		// minimal allowed alignment error in px
-		float min_epsilon_ = 1.0f;
-		// maximal allowed alignment error in px
-		float max_epsilon_ = 10.0f;
-		// minimal allowed alignment error in px (across sections)
-		float cs_min_epsilon_ = 1.0f;
-		// maximal allowed alignment error in px (across sections)
-		float cs_max_epsilon_ = 50.0f;
-		float min_inlier_ratio_ = 0.05f;
-		float scale_ = 1.0f;
-		/**
-		 * true if the layer is roughly aligned
-		 * that means, topology and present overlapping will be incorporated
-		 */
-		boolean is_prealigned_ = overlapping_only;
+		// Parameters for tile-to-tile registration
+		final SIFTParameters sp = new SIFTParameters(set.getProject(), "Options for tile-to-tile registration", false);
+		sp.steps = 3;
+		sp.initial_sigma = 1.6f;
+		sp.fdsize = 8;
+		sp.fdbins = 8;
+		sp.min_size = 64;
+		sp.max_size = 512;
+		sp.min_epsilon = 1.0f;
+		sp.max_epsilon = 10.0f;
+		sp.cs_min_epsilon = 1.0f;
+		sp.cs_max_epsilon = 50.0f;
+		sp.min_inlier_ratio = 0.05f;
+		sp.scale = 1.0f;
+		sp.layers_prealigned = overlapping_only;
 
 		// Simple setup
 		GenericDialog gds = new GenericDialog("Setup");
-		gds.addNumericField("maximum_image_size :", max_size_, 0);
-		gds.addNumericField("maximal_alignment_error :", max_epsilon_, 2);
+		gds.addNumericField("maximum_image_size :", sp.max_size, 0);
+		gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
+		gds.addCheckbox("Layers_are_roughly_prealigned", sp.layers_prealigned);
 		gds.addCheckbox("Advanced setup", false);
 		gds.showDialog();
 		if (gds.wasCanceled()) {
 			finishedWorking();
 			return;
 		}
-		max_size_ = (int)gds.getNextNumber();
-		max_epsilon_ = (float)gds.getNextNumber();
+		sp.max_size = (int)gds.getNextNumber();
+		sp.max_epsilon = (float)gds.getNextNumber();
+		sp.layers_prealigned = gds.getNextBoolean();
 		boolean advanced_setup = gds.getNextBoolean();
-		
-		// adjust advanced options:
+
 		if (advanced_setup) {
-			GenericDialog gd = new GenericDialog( "Align stack" );
-			gd.addMessage("Options for cross-layer registration:");
-			gd.addNumericField( "steps_per_scale_octave :", steps_, 0 );
-			gd.addNumericField( "initial_gaussian_blur :", initial_sigma_, 2 );
-			gd.addNumericField( "feature_descriptor_size :", fdsize_, 0 );
-			gd.addNumericField( "feature_descriptor_orientation_bins :", fdbins_, 0 );
-			gd.addNumericField( "minimum_image_size :", min_size_, 0 );
-			gd.addNumericField( "maximum_image_size :", max_size_, 0 );
-			gd.addNumericField( "minimal_alignment_error :", min_epsilon_, 2 );
-			gd.addNumericField( "maximal_alignment_error :", max_epsilon_, 2 );
-			gd.addNumericField( "cs_minimal_alignment_error :", cs_min_epsilon_, 2 );
-			gd.addNumericField( "cs_maximal_alignment_error :", cs_max_epsilon_, 2 );
-			gd.addNumericField( "inlier_ratio :", min_inlier_ratio_, 2 );
-			gd.addChoice( "transformations_to_be_optimized :", dimensions, dimensions[ dimension_ ] );
-			gd.addCheckbox( "layers_are_roughly_prealigned_already", is_prealigned_ );
-			gd.showDialog();
-			if (gd.wasCanceled()) {
+			if (!sp.setup()) {
 				finishedWorking();
 				return;
 			}
-
-			steps_ = ( int )gd.getNextNumber();
-			initial_sigma_ = ( float )gd.getNextNumber();
-			fdsize_ = ( int )gd.getNextNumber();
-			fdbins_ = ( int )gd.getNextNumber();
-			min_size_ = ( int )gd.getNextNumber();
-			max_size_ = ( int )gd.getNextNumber();
-			min_epsilon_ = ( float )gd.getNextNumber();
-			max_epsilon_ = ( float )gd.getNextNumber();
-			cs_min_epsilon_ = ( float )gd.getNextNumber();
-			cs_max_epsilon_ = ( float )gd.getNextNumber();
-			min_inlier_ratio_ = ( float )gd.getNextNumber();
-			dimension_ = gd.getNextChoiceIndex();
-			is_prealigned_ = gd.getNextBoolean();
 		}
 
-		// J jate java.
-		final int steps = steps_;
-		final float initial_sigma = initial_sigma_;
-		final int fdsize = fdsize_;
-		final int fdbins = fdbins_;
-		final int min_size = min_size_;
-		final int max_size = max_size_;
-		final float min_epsilon = min_epsilon_;
-		final float max_epsilon = max_epsilon_;
-		final float cs_min_epsilon = cs_min_epsilon_;
-		final float cs_max_epsilon = cs_max_epsilon_;
-		final float min_inlier_ratio = min_inlier_ratio_;
-		final int dimension = dimension_;
-		final boolean is_prealigned = is_prealigned_;
-
-		// ask for SIFT parameters
-		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject());
+		// for inter-layer registration
+		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), "Options for coarse layer registration", true);
 		if (advanced_setup) {
 			if (!sp_gross_interlayer.setup()) {
 				finishedWorking();
@@ -830,14 +809,6 @@ public class Registration {
 		final ArrayList< Tile > tiles1 = new ArrayList< Tile >();
 		final ArrayList< Patch > patches2 = new ArrayList< Patch >();
 		final ArrayList< Tile > tiles2 = new ArrayList< Tile >();
-
-		final Thread[] threads = MultiThreading.newThreads();
-		final FloatArray2DSIFT[] sift = new FloatArray2DSIFT[ threads.length ];
-		for ( int k=0; k < threads.length; k++ )
-			sift[ k ] = new FloatArray2DSIFT( fdsize, fdbins );
-		
-		// roughly, we expect about 1000 features per 512x512 image
-		final long feature_size = (long)((max_size * max_size) / (512 * 512) * 1000 * sift[0].getFeatureObjectSize() * 1.5);
 
 		final ArrayList< Tile > all_tiles = new ArrayList< Tile >();
 		final ArrayList< Patch > all_patches = new ArrayList< Patch >();
@@ -895,94 +866,18 @@ public class Registration {
 			patches2.addAll( tmp ); // I hate generics. Incovertible types? Not at all!
 
 			// extract SIFT-features in all patches
-			// TODO store the feature sets on disk, each of them might be in the magnitude of 10MB large
+			//  (multi threaded version)
+			final Vector[] fsets = new Vector[ patches2.size() ];
+			final Tile[] tls = new Tile[ fsets.length ];
+			Registration.generateTilesAndFeatures(patches2, tls, fsets, sp, worker);
 
-			final AtomicInteger ai = new AtomicInteger( 0 ); // from 0 to patches2.length
-			final int num_pa2 = patches2.size();
-
-			final Patch[] pa2 = new Patch[ num_pa2 ];
-			patches2.toArray( pa2 );
-			final Vector[] fsets = new Vector[ num_pa2 ];
-			final Tile[] tls = new Tile[ num_pa2 ];
-
-			// multi threaded version
-
-			for (int ithread = 0; ithread < threads.length; ++ithread)
-			{
-				final int si = ithread;
-				threads[ ithread ] = new Thread( new Runnable()
-				{
-					public void run()
-					{
-						for ( int k = ai.getAndIncrement(); k < num_pa2; k = ai.getAndIncrement() )
-						{
-
-				if (worker.hasQuitted()) return;
-				Utils.log2("k is " + k);
-				Patch patch = pa2[ k ];
-				if (null == patch) Utils.log2("patch is null");
-				Utils.log2("patch is " + patch);
-				
-				Vector< Feature > fs = loader.retrieve( patch, storage_folder );
-				if (null == fs)
-				{
-					final ImageProcessor ip = patch.getImageProcessor();
-					if (null == ip) Utils.log2("ip is null");
-					
-					FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D( ip.convertToByte( true ) );
-					if (null == fa) Utils.log2("fa is null");
-					
-					set.getProject().getLoader().releaseToFit(ip.getWidth() * ip.getHeight() * 96L + feature_size);
-
-					ImageFilter.enhance( fa, 1.0f );
-					fa = ImageFilter.computeGaussianFastMirror( fa, ( float )Math.sqrt( initial_sigma * initial_sigma - 0.25 ) );
-					if (null == fa) Utils.log2("fa is null");
-					
-					long start_time = System.currentTimeMillis();
-					System.out.print( "processing SIFT ..." );
-
-					sift[si].init( fa, steps, initial_sigma, min_size, max_size );
-					fs = sift[si].run( max_size );
-
-					Collections.sort( fs );
-
-					loader.store( patch, fs, storage_folder );
-					Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
-				}
-
-				Utils.log2( fs.size() + " features identified and processed" );
-
-				Model model;
-
-				if ( 0 == dimension )
-					model = new TModel2D(); // translation only
-				else
-					model = new TRModel2D(); // both translation and rotation
-
-				model.getAffine().setTransform( patch.getAffineTransform() );
-				//Tile tile = new Tile( ( float )fa.width, ( float )fa.height, model );
-				Tile tile = new Tile( ( float )patch.getWidth(), ( float )patch.getHeight(), model );
-
-				//tiles2.add( tile );
-				tls[ k ] = tile;
-
-				//featureSets2.add( fs );
-				fsets[ k ] = fs;
-
-						}
-					}
-				} );
-			}
-
-			MultiThreading.startAndJoin(threads);
 			if (hasQuitted()) return;
 
 			//#################################################################
 
 
-			for ( int k = 0; k < num_pa2; k++ )
+			for ( int k = 0; k < fsets.length; k++ )
 			{
-				if ( fsets[ k ] == null ) Utils.log2( "Feature set " + k + " is null." );
 				featureSets2.add( fsets[ k ] );
 				tiles2.add( tls[ k ] );
 			}
@@ -999,7 +894,7 @@ public class Registration {
 					if (hasQuitted()) return;
 					Patch other_patch = patches2.get( j );
 					Tile other_tile = tiles2.get( j );
-					if ( !is_prealigned || current_patch.intersects( other_patch ) )
+					if ( !sp.layers_prealigned || current_patch.intersects( other_patch ) )
 					{
 						long start_time = System.currentTimeMillis();
 						System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
@@ -1018,9 +913,9 @@ public class Registration {
 						TRModel2D model = TRModel2D.estimateBestModel(
 								correspondences,
 								inliers,
-								min_epsilon,
-								max_epsilon,
-								min_inlier_ratio );
+								sp.min_epsilon,
+								sp.max_epsilon,
+								sp.min_inlier_ratio );
 						
 						if ( model != null ) // that implies that inliers is not empty
 							current_tile.connect( other_tile, inliers );
@@ -1032,7 +927,7 @@ public class Registration {
 			ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( tiles2 );
 			Utils.log2( graphs.size() + " graphs detected." );
 			
-			if ( is_prealigned && graphs.size() > 1 )
+			if ( sp.layers_prealigned && graphs.size() > 1 )
 			{
 				/**
 				 * We have to trust the given alignment.  Try to add synthetic
@@ -1074,7 +969,7 @@ public class Registration {
 			for ( Tile tile : tiles2 ) tile.update();
 			
 			// optimize the pose of all tiles in the current layer
-			minimizeAll( tiles2, patches2, layer_fixed_tiles, set, max_epsilon, worker );
+			minimizeAll( tiles2, patches2, layer_fixed_tiles, set, sp.max_epsilon, worker );
 			
 			// repaint all Displays showing a Layer of the edited LayerSet
 			Display.update( set );
@@ -1263,9 +1158,7 @@ public class Registration {
 						patches2,
 						featureSets2,
 						( null != ob && null != ob[ 0 ] ),
-						cs_min_epsilon,
-						cs_max_epsilon,
-						min_inlier_ratio,
+						sp,
 						worker);
 				
 				// check the connectivity graphs
@@ -1334,7 +1227,7 @@ public class Registration {
 		for ( Tile tile : all_tiles ) tile.update();
 
 		// global minimization
-		Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, cs_max_epsilon, worker );
+		Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, sp.cs_max_epsilon, worker );
 
 		// update selection internals in all open Displays
 		Display.updateSelection( Display.getFront() );
@@ -1624,9 +1517,7 @@ public class Registration {
 			List< Patch > patches2,
 			List< Vector< Feature > > featureSets2,
 			boolean is_prealigned,
-			float cs_min_epsilon,
-			float cs_max_epsilon,
-			float min_inlier_ratio,
+			final SIFTParameters sp,
 			Worker worker)
 	{
 		int num_patches2 = patches2.size();
@@ -1660,9 +1551,9 @@ public class Registration {
 					TRModel2D mo = TRModel2D.estimateBestModel(
 							candidates,
 							inliers,
-							cs_min_epsilon,
-							cs_max_epsilon,
-							min_inlier_ratio);
+							sp.cs_min_epsilon,
+							sp.cs_max_epsilon,
+							sp.min_inlier_ratio);
 
 					if ( mo != null )
 					{
@@ -1676,5 +1567,98 @@ public class Registration {
 				}
 			}
 		}
+	}
+
+	/** Freely register all-to-all the given set of patches. */
+	static public Bureaucrat registerTilesSIFT(final HashSet<Patch> patches) {
+		if (null == patches || patches.size() < 2) return null;
+
+		final LayerSet set = patches.iterator().next().getLayerSet();
+		final Worker worker_ = new Worker("Free tile registration") {
+			public void run() {
+				startedWorking();
+				try {
+		//////
+		final Worker worker = this; // J jate java
+		final SIFTParameters sp = new SIFTParameters(set.getProject());
+		if (!sp.setup()) {
+			finishedWorking();
+			return;
+		}
+
+		//////
+				} catch (Exception e) {
+					e.printStackTrace();
+				} finally {
+					finishedWorking();
+				}
+			}};
+
+		Bureaucrat burro = new Bureaucrat(worker_, set.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	/** Generates a Tile and a Vector of Features for each given patch, and puts them into the given arrays,
+	 *  in the same order.
+	 *  Multithreaded, runs in as many available CPU cores as possible.
+	 */
+	static private void generateTilesAndFeatures(final ArrayList<Patch> patches, final Tile[] tls, final Vector[] fsets, final SIFTParameters sp, final Worker worker) {
+		final Thread[] threads = MultiThreading.newThreads();
+		// roughly, we expect about 1000 features per 512x512 image
+		final long feature_size = (long)((sp.max_size * sp.max_size) / (512 * 512) * 1000 * FloatArray2DSIFT.getFeatureObjectSize(sp.fdsize, sp.fdbins) * 1.5);
+		final AtomicInteger ai = new AtomicInteger( 0 ); // from 0 to patches2.length
+		final int num_pa = patches.size();
+		final Patch[] pa = new Patch[ num_pa ];
+		patches.toArray( pa );
+		// the storage folder for serialized features
+		final Loader loader = pa[0].getProject().getLoader();
+		String storage_folder_ = loader.getStorageFolder() + "features.ser/";
+		File sdir = new File(storage_folder_);
+		if (!sdir.exists()) {
+			try {
+				sdir.mkdir();
+			} catch (Exception e) {
+				storage_folder_ = null; // can't store
+			}
+		}
+		final String storage_folder = storage_folder_;
+
+		for (int ithread = 0; ithread < threads.length; ++ithread) {
+			final int si = ithread;
+			threads[ ithread ] = new Thread(new Runnable() {
+				public void run() {
+					final FloatArray2DSIFT sift = new FloatArray2DSIFT(sp.fdsize, sp.fdbins);
+					for (int k = ai.getAndIncrement(); k < num_pa; k = ai.getAndIncrement()) {
+						if (worker.hasQuitted()) return;
+						//
+						final Patch patch = pa[k];
+						// Extract features
+						Vector<Feature> fs = loader.retrieve(patch, storage_folder);
+						if (null == fs) {
+							final ImageProcessor ip = patch.getImageProcessor();
+							FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToByte(true));
+							loader.releaseToFit(ip.getWidth() * ip.getHeight() * 96L + feature_size);
+							ImageFilter.enhance(fa, 1.0f);
+							fa = ImageFilter.computeGaussianFastMirror(fa, (float)Math.sqrt(sp.initial_sigma * sp.initial_sigma - 0.25));
+							sift.init(fa, sp.steps, sp.initial_sigma, sp.min_size, sp.max_size);
+							fs = sift.run(sp.max_size);
+							Collections.sort(fs);
+							loader.store(patch, fs, storage_folder);
+						}
+						fsets[k] = fs;
+						Utils.log2(fs.size() + " features");
+						// Create Tile
+						Model model;
+						if (0 == sp.dimension) model = new TModel2D(); // translation only
+						else model = new TRModel2D(); // both translation and rotation
+						model.getAffine().setTransform(patch.getAffineTransform());
+						tls[k] = new Tile((float)patch.getWidth(), (float)patch.getHeight(), model);
+
+					}
+				}
+			});
+		}
+		MultiThreading.startAndJoin(threads);
 	}
 }
