@@ -883,45 +883,7 @@ public class Registration {
 			}
 
 			// identify correspondences and inspect connectivity
-			int num_patches = patches2.size();
-			for ( int i = 0; i < num_patches; ++i )
-			{
-				if (hasQuitted()) return;
-				Patch current_patch = patches2.get( i );
-				Tile current_tile = tiles2.get( i );
-				for ( int j = i + 1; j < num_patches; ++j )
-				{
-					if (hasQuitted()) return;
-					Patch other_patch = patches2.get( j );
-					Tile other_tile = tiles2.get( j );
-					if ( !sp.layers_prealigned || current_patch.intersects( other_patch ) )
-					{
-						long start_time = System.currentTimeMillis();
-						System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
-						Vector< PointMatch > correspondences = FloatArray2DSIFT.createMatches(
-									featureSets2.get( i ),
-									featureSets2.get( j ),
-									1.25f,
-									null,
-									Float.MAX_VALUE );
-						Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
-						
-						Utils.log( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
-						
-						final Vector< PointMatch > inliers = new Vector< PointMatch >();
-
-						TRModel2D model = TRModel2D.estimateBestModel(
-								correspondences,
-								inliers,
-								sp.min_epsilon,
-								sp.max_epsilon,
-								sp.min_inlier_ratio );
-						
-						if ( model != null ) // that implies that inliers is not empty
-							current_tile.connect( other_tile, inliers );
-					}
-				}
-			}
+			Registration.connectTiles(patches2, tiles2, featureSets2, sp, worker);
 
 			// identify connected graphs
 			ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( tiles2 );
@@ -981,7 +943,7 @@ public class Registration {
 			if ( null != previous_layer )
 			{
 				/**
-				 * Coarse registration
+				 *  1 - Coarse registration
 				 * 
 				 * TODO Think about re-using the correspondences identified
 				 *  during coarse registration for the tiles.  That introduces
@@ -1206,22 +1168,7 @@ public class Registration {
 		
 		fixed_tiles.clear();
 		// fix one tile per graph, meanwhile update the tiles
-		for ( ArrayList< Tile > graph : graphs )
-		{
-			Tile fixed = null;
-			int max_num_matches = 0;
-			for ( Tile tile : graph )
-			{
-				tile.update();
-				int num_matches = tile.getNumMatches();
-				if ( max_num_matches < num_matches )
-				{
-					max_num_matches = num_matches;
-					fixed = tile;
-				}
-			}
-			fixed_tiles.add( fixed );
-		}
+		fixed_tiles.addAll(Registration.pickFixedTiles(graphs));
 		
 		// again, for error and distance correction
 		for ( Tile tile : all_tiles ) tile.update();
@@ -1569,36 +1516,6 @@ public class Registration {
 		}
 	}
 
-	/** Freely register all-to-all the given set of patches. */
-	static public Bureaucrat registerTilesSIFT(final HashSet<Patch> patches) {
-		if (null == patches || patches.size() < 2) return null;
-
-		final LayerSet set = patches.iterator().next().getLayerSet();
-		final Worker worker_ = new Worker("Free tile registration") {
-			public void run() {
-				startedWorking();
-				try {
-		//////
-		final Worker worker = this; // J jate java
-		final SIFTParameters sp = new SIFTParameters(set.getProject());
-		if (!sp.setup()) {
-			finishedWorking();
-			return;
-		}
-
-		//////
-				} catch (Exception e) {
-					e.printStackTrace();
-				} finally {
-					finishedWorking();
-				}
-			}};
-
-		Bureaucrat burro = new Bureaucrat(worker_, set.getProject());
-		burro.goHaveBreakfast();
-		return burro;
-	}
-
 	/** Generates a Tile and a Vector of Features for each given patch, and puts them into the given arrays,
 	 *  in the same order.
 	 *  Multithreaded, runs in as many available CPU cores as possible.
@@ -1661,4 +1578,136 @@ public class Registration {
 		}
 		MultiThreading.startAndJoin(threads);
 	}
+
+	/** Test all to all or all to overlapping only, and make appropriate connections between tiles. */
+	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, final ArrayList< Vector< Feature > > featureSets, final SIFTParameters sp, final Worker worker) {
+		// TODO: multithread this, but careful to synchronize current_tile.connect method
+		final int num_patches = patches.size();
+		for ( int i = 0; i < num_patches; ++i )
+		{
+			if (worker.hasQuitted()) return;
+			final Patch current_patch = patches.get( i );
+			final Tile current_tile = tiles.get( i );
+			for ( int j = i + 1; j < num_patches; ++j )
+			{
+				if (worker.hasQuitted()) return;
+				final Patch other_patch = patches.get( j );
+				final Tile other_tile = tiles.get( j );
+				if ( !sp.layers_prealigned || current_patch.intersects( other_patch ) )
+				{
+					long start_time = System.currentTimeMillis();
+					System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
+					Vector< PointMatch > correspondences = FloatArray2DSIFT.createMatches(
+								featureSets.get( i ),
+								featureSets.get( j ),
+								1.25f,
+								null,
+								Float.MAX_VALUE );
+					Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
+					
+					Utils.log( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
+					
+					final Vector< PointMatch > inliers = new Vector< PointMatch >();
+
+					TRModel2D model = TRModel2D.estimateBestModel(
+							correspondences,
+							inliers,
+							sp.min_epsilon,
+							sp.max_epsilon,
+							sp.min_inlier_ratio );
+					
+					if ( model != null ) // that implies that inliers is not empty
+						current_tile.connect( other_tile, inliers );
+				}
+			}
+		}
+	}
+
+	/** Will find a fixed tile for each graph, and Will also update each tile. */
+	static private ArrayList<Tile> pickFixedTiles(ArrayList<ArrayList<Tile>> graphs) {
+		final ArrayList<Tile> fixed_tiles = new ArrayList<Tile>();
+		// fix one tile per graph, meanwhile update the tiles
+		for (ArrayList<Tile> graph : graphs) {
+			Tile fixed = null;
+			int max_num_matches = 0;
+			for (Tile tile : graph) {
+				tile.update();
+				int num_matches = tile.getNumMatches();
+				if (max_num_matches < num_matches) {
+					max_num_matches = num_matches;
+					fixed = tile;
+				}
+			}
+			fixed_tiles.add(fixed);
+		}
+		return fixed_tiles;
+	}
+
+	/** Freely register all-to-all the given set of patches; optionally provide a fixed Patch. */
+	static public Bureaucrat registerTilesSIFT(final HashSet<Patch> hs_patches, final Patch fixed) {
+		if (null == hs_patches || hs_patches.size() < 2) return null;
+
+		final LayerSet set = hs_patches.iterator().next().getLayerSet();
+		final Worker worker_ = new Worker("Free tile registration") {
+			public void run() {
+				startedWorking();
+				try {
+		//////
+		final Worker worker = this; // J jate java
+		final SIFTParameters sp = new SIFTParameters(set.getProject());
+		if (!sp.setup()) {
+			finishedWorking();
+			return;
+		}
+
+		// java noise: filling datastructures
+		final ArrayList<Patch> patches = new ArrayList<Patch>();
+		patches.addAll(hs_patches);
+		final Tile[] tls = new Tile[patches.size()];
+		final Vector[] fsets = new Vector[tls.length];
+
+		Registration.generateTilesAndFeatures(patches, tls, fsets, sp, worker);
+
+		// java noise: filling datastructures
+		final ArrayList<Tile> tiles = new ArrayList<Tile>();
+		final ArrayList<Vector<Feature>> featureSets = new ArrayList<Vector<Feature>>();
+		for (int k=0; k<tls.length; k++) {
+			tiles.add(tls[k]);
+			featureSets.add(fsets[k]);
+		}
+
+		Registration.connectTiles(patches, tiles, featureSets, sp, worker);
+
+		ArrayList<ArrayList<Tile>> graphs = Tile.identifyConnectedGraphs(tiles);
+		Utils.log2(graphs.size() + " graphs detected.");
+
+		final ArrayList<Tile> fixed_tiles = new ArrayList<Tile>();
+		int i = patches.indexOf(fixed);
+
+		if (null != fixed && -1 != i && 1 == graphs.size()) {
+			fixed_tiles.add(tls[i]);
+		} else {
+			// find one tile per graph to nail down
+			fixed_tiles.addAll(Registration.pickFixedTiles(graphs));
+		}
+
+		// again, for error and distance correction
+		for ( Tile tile : tiles ) tile.update();
+
+		// global minimization
+		Registration.minimizeAll(tiles, patches, fixed_tiles, patches.get(0).getLayerSet(), sp.cs_max_epsilon, worker);
+
+		//////
+				} catch (Exception e) {
+					e.printStackTrace();
+				} finally {
+					finishedWorking();
+				}
+			}};
+
+		Bureaucrat burro = new Bureaucrat(worker_, set.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
 }

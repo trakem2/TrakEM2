@@ -969,6 +969,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Find all Display instances that contain the layer and repaint them. */
 	static public void update(final Layer layer) {
+		if (null == layer) return;
 		for (Display d : al_displays) {
 			if (d.isShowing(layer)) {
 				d.repaintAll();
@@ -978,6 +979,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint. */
 	static public void update(final LayerSet set) {
+		if (null == set) return;
 		for (Display d : al_displays) {
 			if (set.contains(d.layer)) {
 				d.updateSnapshots();
