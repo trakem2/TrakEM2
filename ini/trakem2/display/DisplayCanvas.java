@@ -627,6 +627,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					box2 = selection.getLinkedBox();
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
+			Utils.log2("md: " + box.toString());
 					Display.repaint(display.getLayer(), Selection.PADDING, box, false);
 					// box for next mouse dragged iteration
 					box = box2;
@@ -1206,11 +1207,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		display.getNavigator().repaint(false);
 	}
 
-	private long last_repaint = -1;
-
-	private Rectangle last_clip = null;
-
-	 /** Repaint as much as the bounding box around the given Displayable. If the Displayable is null, the entire canvas is repainted, remaking the offscreen images. */
+	/** Repaint as much as the bounding box around the given Displayable. If the Displayable is null, the entire canvas is repainted, remaking the offscreen images. */
 	public void repaint(Displayable d) {
 		repaint(d, 0);
 	}
@@ -1226,9 +1223,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			r.x = (int) ((r.x - srcRect.x) * magnification) - extra;
 			r.y = (int) ((r.y - srcRect.y) * magnification) - extra;
 			r.width = (int) Math.ceil(r.width * magnification) + extra + extra;
-			r.height = (int) Math.ceil(r.height * magnification) + extra
-					+ extra;
-			//repaint(r.x, r.y, r.width, r.height);
+			r.height = (int) Math.ceil(r.height * magnification) + extra + extra;
 			RT.paint(r, update_graphics);
 		} else {
 			// everything
@@ -1242,8 +1237,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	 */
 	// it is assumed that the linked objects are close to each other, otherwise
 	// the clip rectangle grows enormously.
-	public void repaint(HashSet hs) {
-		Iterator it = hs.iterator();
+	public void repaint(final HashSet hs) {
+		if (null == hs) return;
+		final Iterator it = hs.iterator();
 		int count = 0;
 		Rectangle r = new Rectangle();
 		while (it.hasNext()) {
@@ -1264,14 +1260,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	 * srcRect and magnification of this DisplayCanvas. The Rectangle is not
 	 * modified.
 	 */
-	public void repaint(Rectangle r, int extra) {
+	public void repaint(final Rectangle r, final int extra) {
 		if (null == r) {
 			//Utils.log2("DisplayCanvas.repaint(Rectangle, int) warning: null r");
 			RT.paint(null, update_graphics);
 			return;
 		}
 		// repaint((int) ((r.x - srcRect.x) * magnification) - extra, (int) ((r.y - srcRect.y) * magnification) - extra, (int) Math .ceil(r.width * magnification) + extra + extra, (int) Math.ceil(r.height * magnification) + extra + extra);
-		RT.paint(new Rectangle((int) ((r.x - srcRect.x) * magnification) - extra, (int) ((r.y - srcRect.y) * magnification) - extra, (int) Math .ceil(r.width * magnification) + extra + extra, (int) Math.ceil(r.height * magnification) + extra + extra), update_graphics);
+		RT.paint(new Rectangle((int) ((r.x - srcRect.x) * magnification) - extra, (int) ((r.y - srcRect.y) * magnification) - extra, (int) Math.ceil(r.width * magnification) + extra + extra, (int) Math.ceil(r.height * magnification) + extra + extra), update_graphics);
 	}
 
 	/**

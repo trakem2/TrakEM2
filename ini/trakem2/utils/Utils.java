@@ -68,7 +68,7 @@ import java.util.Calendar;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.5f 2008-02-07";
+	static public String version = "0.5g 2008-02-19";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -787,19 +787,24 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final void addLayerRangeChoices(final Layer selected, final GenericDialog gd) {
-		final String[] layers = new String[selected.getParent().size()];
+		Utils.addLayerRangeChoices(selected, selected, gd);
+	}
+
+	static public final void addLayerRangeChoices(final Layer first, final Layer last, final GenericDialog gd) {
+		final String[] layers = new String[first.getParent().size()];
 		final ArrayList al_layer_titles =  new ArrayList();
 		int i = 0;
-		for (Iterator it = selected.getParent().getLayers().iterator(); it.hasNext(); ) {
-			layers[i] = selected.getProject().findLayerThing((Layer)it.next()).toString();
+		for (Iterator it = first.getParent().getLayers().iterator(); it.hasNext(); ) {
+			layers[i] = first.getProject().findLayerThing((Layer)it.next()).toString();
 			al_layer_titles.add(layers[i]);
 			i++;
 		}
-		final int i_layer = selected.getParent().indexOf(selected);
-		gd.addChoice("Start: ", layers, layers[i_layer]);
+		final int i_first = first.getParent().indexOf(first);
+		final int i_last = last.getParent().indexOf(last);
+		gd.addChoice("Start: ", layers, layers[i_first]);
 		final Vector v = gd.getChoices();
 		final Choice cstart = (Choice)v.get(v.size()-1);
-		gd.addChoice("End: ", layers, layers[i_layer]);
+		gd.addChoice("End: ", layers, layers[i_last]);
 		final Choice cend = (Choice)v.get(v.size()-1);
 		cstart.addItemListener(new ItemListener() {
 			public void itemStateChanged(ItemEvent ie) {

@@ -167,6 +167,7 @@ public abstract class AbstractRepaintThread extends Thread {
 						else clipRect.add(pe[i].clipRect);
 					} // else 'null' clipRect means repaint the entire canvas
 					if (!update_graphics) update_graphics = pe[i].update_graphics;
+					else if (null == clipRect) break;
 				}
 
 				// issue an offscreen thread if necessary
@@ -176,6 +177,7 @@ public abstract class AbstractRepaintThread extends Thread {
 
 				// repaint
 				final Rectangle clipRect_ = clipRect; // we luv java
+				Utils.log2("re: " + clipRect_);
 				// should be better, but it's worse with SwingUtilities
 				//SwingUtilities.invokeLater(new Runnable() {
 				//	public void run() {

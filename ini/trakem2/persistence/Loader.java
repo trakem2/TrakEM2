@@ -2222,13 +2222,32 @@ abstract public class Loader {
 					if (register_tiles) {
 						wo.setTaskName("Registering tiles.");
 						// sequential, from first to last layer
+						Layer first = la[0];
+						Layer last = la[0];
+						// order touched layers by Z coord
+						for (int i=1; i<la.length; i++) {
+							if (la[i].getZ() < first.getZ()) first = la[i];
+							if (la[i].getZ() > last.getZ()) last = la[i];
+						}
 						LayerSet ls = base_layer.getParent();
-						Layer[] zla = new Layer[ls.size()];
-						for (int i=0; i<ls.size(); i++) zla[i] = ls.getLayer(i);
+						List<Layer> las = ls.getLayers().subList(ls.indexOf(first), ls.indexOf(last)+1);
+						// decide if processing all or just the touched ones or what range
+						if (ls.size() != las.size()) {
+							GenericDialog gd = new GenericDialog("Layer Range");
+							gd.addMessage("Apply registration to layers:");
+							Utils.addLayerRangeChoices(first, last, gd);
+							gd.showDialog();
+							if (gd.wasCanceled()) {
+								finishedWorking();
+								return;
+							}
+							las = ls.getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1);
+						}
+						Layer[] zla = new Layer[las.size()];
+						for (int i=0; i<las.size(); i++) zla[i] = las.get(i);
 						Thread t = Registration.registerTilesSIFT(zla, overlapping_only);
 						if (null != t) t.join();
 					}
-
 				} catch (Exception e) {
 					new IJError(e);
 				}
