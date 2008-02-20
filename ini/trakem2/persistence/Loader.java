@@ -2244,7 +2244,7 @@ abstract public class Loader {
 							las = ls.getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1);
 						}
 						Layer[] zla = new Layer[las.size()];
-						for (int i=0; i<las.size(); i++) zla[i] = las.get(i);
+						zla = las.toArray(zla);
 						Thread t = Registration.registerTilesSIFT(zla, overlapping_only);
 						if (null != t) t.join();
 					}

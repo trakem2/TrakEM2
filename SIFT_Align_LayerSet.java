@@ -1016,7 +1016,7 @@ public class SIFT_Align_LayerSet implements PlugIn, KeyListener
 				graphs = Tile.identifyConnectedGraphs( tiles2 );
 				System.out.println( graphs.size() + " graphs detected after synthetic connection." );
 			}
-			
+
 			// fix one tile per graph, meanwhile update the tiles
 			for ( ArrayList< Tile > graph : graphs )
 			{

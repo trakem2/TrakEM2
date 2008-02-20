@@ -103,19 +103,28 @@ public class Registration {
 		final GenericDialog gd = new GenericDialog("Choose first and last");
 		gd.addMessage("Choose first and last layers to register:");
 		Utils.addLayerRangeChoices(layer, gd); /// $#%! where are my lisp macros
-		gd.addCheckbox("Propagate last transform: ", true);
+		switch (kind) {
+			case LAYER_SIFT:
+				gd.addCheckbox("Propagate last transform: ", true);
+				break;
+			case GLOBAL_MINIMIZATION:
+				gd.addCheckbox("Tiles are rougly registered: ", false);
+				break;
+		}
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		final int i_first = gd.getNextChoiceIndex();
 		final int i_start = layer.getParent().indexOf(layer);
 		final int i_last = gd.getNextChoiceIndex();
-		final boolean propagate = gd.getNextBoolean();
+		final boolean option = gd.getNextBoolean();
 		switch (kind) {
 			case GLOBAL_MINIMIZATION:
-				// TODO
-				break;
+				List<Layer> lla = layer.getParent().getLayers().subList(i_first, i_last +1);
+				Layer[] la = new Layer[lla.size()];
+				la = lla.toArray(la);
+				return registerTilesSIFT(la, option);
 			case LAYER_SIFT:
-				return registerLayers(layer.getParent(), i_first, i_start, i_last, propagate);
+				return registerLayers(layer.getParent(), i_first, i_start, i_last, option);
 		}
 		return null;
 	}

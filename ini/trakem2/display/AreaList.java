@@ -764,8 +764,7 @@ public class AreaList extends ZDisplayable {
 
 	public boolean paintsAt(final Layer layer) {
 		if (!super.paintsAt(layer)) return false;
-		if (null != ht_areas.get(new Long(layer.getId()))) return true;
-		return false;
+		return null != ht_areas.get(new Long(layer.getId()));
 	}
 
 	/** Dynamic loading from the database. */
@@ -1011,7 +1010,7 @@ public class AreaList extends ZDisplayable {
 		return st;
 	}
 
-	/** Directly place an Area for the specified layer. Does not make it local, you should call calculateBoundingBox() after setting an area. */
+	/** Directly place an Area for the specified layer. Keep in mind it will be added in this AreaList coordinate space, not the overall LayerSet coordinate space. Does not make it local, you should call calculateBoundingBox() after setting an area. */
 	public void setArea(long layer_id, Area area) {
 		if (null == area) return;
 		ht_areas.put(new Long(layer_id), area);
