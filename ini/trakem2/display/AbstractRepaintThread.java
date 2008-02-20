@@ -177,7 +177,7 @@ public abstract class AbstractRepaintThread extends Thread {
 
 				// repaint
 				final Rectangle clipRect_ = clipRect; // we luv java
-				Utils.log2("re: " + clipRect_);
+				//Utils.log2("re: " + clipRect_);
 				// should be better, but it's worse with SwingUtilities
 				//SwingUtilities.invokeLater(new Runnable() {
 				//	public void run() {

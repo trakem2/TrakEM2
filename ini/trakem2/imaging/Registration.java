@@ -54,6 +54,7 @@ import java.awt.Rectangle;
 import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.io.File;
+import java.io.Serializable;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -598,8 +599,8 @@ public class Registration {
 		return result;
 	}
 
-	static public class SIFTParameters {
-		Project project = null;
+	static public class SIFTParameters implements Serializable {
+		transient Project project = null; // not in serialized object
 		// filled with default values
 		public float scale = 1.0f;
 		public int steps = 3;
@@ -626,6 +627,9 @@ public class Registration {
 		/** Whether to show options for cross-layer registration or not in the dialog. */
 		public boolean cross_layer = false;
 		public boolean layers_prealigned = false;
+
+		/** Plain constructor for Serialization to work properly. */
+		public SIFTParameters() {}
 
 		public SIFTParameters(Project project) {
 			this.project = project;
@@ -698,8 +702,21 @@ public class Registration {
 			return true;
 		}
 		/** Returns the size in bytes of a Feature object. */
-		public long getFeatureObjectSize() {
+		public final long getFeatureObjectSize() {
 			return FloatArray2DSIFT.getFeatureObjectSize(fdsize, fdbins);
+		}
+		/** Compare parameters relevant for creating features and return true if all coincide. */
+		public final boolean sameFeatures(final Registration.SIFTParameters sp) {
+			if (max_size == sp.max_size
+			 && scale == sp.scale
+			 && min_size == sp.min_size
+			 && fdbins == sp.fdbins
+			 && fdsize == sp.fdsize
+			 && initial_sigma == sp.initial_sigma
+			 && steps == sp.steps) {
+				return true;
+			}
+			return false;
 		}
 	}
 
@@ -812,6 +829,7 @@ public class Registration {
 		}
 		final ArrayList< Vector< Feature > > featureSets1 = new ArrayList< Vector< Feature > >();
 		final ArrayList< Vector< Feature > > featureSets2 = new ArrayList< Vector< Feature > >();
+		Vector<Feature>[] fsets1=null, fsets2=null;
 
 
 		final ArrayList< Patch > patches1 = new ArrayList< Patch >();
@@ -858,6 +876,7 @@ public class Registration {
 			{
 				featureSets1.clear();
 				featureSets1.addAll( featureSets2 );
+				fsets1 = fsets2;
 
 				patches1.clear();
 				patches1.addAll( patches2 );
@@ -876,23 +895,24 @@ public class Registration {
 
 			// extract SIFT-features in all patches
 			//  (multi threaded version)
-			final Vector[] fsets = new Vector[ patches2.size() ];
-			final Tile[] tls = new Tile[ fsets.length ];
-			Registration.generateTilesAndFeatures(patches2, tls, fsets, sp, worker);
+			// "generic array creation" error ? //fsets2 = new Vector<Feature>[ patches2.size() ];
+			fsets2 = (Vector<Feature>[])new Vector[ patches2.size() ];
+			final Tile[] tls = new Tile[ fsets2.length ];
+			Registration.generateTilesAndFeatures(patches2, tls, fsets2, sp, storage_folder, worker);
 
 			if (hasQuitted()) return;
 
 			//#################################################################
 
 
-			for ( int k = 0; k < fsets.length; k++ )
+			for ( int k = 0; k < fsets2.length; k++ )
 			{
-				featureSets2.add( fsets[ k ] );
+				featureSets2.add( fsets2[ k ] );
 				tiles2.add( tls[ k ] );
 			}
 
 			// identify correspondences and inspect connectivity
-			Registration.connectTiles(patches2, tiles2, featureSets2, sp, worker);
+			Registration.connectTiles(patches2, tiles2, /*featureSets2*/ fsets2, sp, storage_folder, worker);
 
 			// identify connected graphs
 			ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( tiles2 );
@@ -1109,12 +1129,13 @@ public class Registration {
 				Registration.identifyCrossLayerCorrespondences(
 						tiles1,
 						patches1,
-						featureSets1,
+						fsets1 /*featureSets1*/,
 						tiles2,
 						patches2,
-						featureSets2,
+						fsets2 /*featureSets2*/,
 						( null != ob && null != ob[ 0 ] ),
 						sp,
+						storage_folder,
 						worker);
 				
 				// check the connectivity graphs
@@ -1453,12 +1474,13 @@ public class Registration {
 	static private final void identifyCrossLayerCorrespondences(
 			List< Tile > tiles1,
 			List< Patch > patches1,
-			List< Vector< Feature > > featureSets1,
+			Vector<Feature>[] fsets1, //List< Vector< Feature > > featureSets1,
 			List< Tile > tiles2,
 			List< Patch > patches2,
-			List< Vector< Feature > > featureSets2,
+			Vector<Feature>[] fsets2, //List< Vector< Feature > > featureSets2,
 			boolean is_prealigned,
 			final SIFTParameters sp,
+			final String storage_folder,
 			Worker worker)
 	{
 		int num_patches2 = patches2.size();
@@ -1466,8 +1488,9 @@ public class Registration {
 		for ( int i = 0; i < num_patches2; ++i )
 		{
 			if (worker.hasQuitted()) return;
-			Patch current_patch = patches2.get( i );
-			Tile current_tile = tiles2.get( i );
+			final Patch current_patch = patches2.get( i );
+			final Tile current_tile = tiles2.get( i );
+			final Vector<Feature> fsi = (null == fsets2[i] ? Registration.deserialize(current_patch, storage_folder, sp) : fsets2[i]);
 			for ( int j = 0; j < num_patches1; ++j )
 			{
 				if (worker.hasQuitted()) return;
@@ -1478,8 +1501,8 @@ public class Registration {
 					long start_time = System.currentTimeMillis();
 					System.out.print( "identifying correspondences using brute force ..." );
 					Vector< PointMatch > candidates = FloatArray2DSIFT.createMatches(
-								featureSets2.get( i ),
-								featureSets1.get( j ),
+								fsi, //featureSets2.get( i ),
+								(null == fsets1[j] ? Registration.deserialize(other_patch, storage_folder, sp) : fsets1[j]), //featureSets1.get( j ),
 								1.25f,
 								null,
 								Float.MAX_VALUE );
@@ -1513,8 +1536,9 @@ public class Registration {
 	/** Generates a Tile and a Vector of Features for each given patch, and puts them into the given arrays,
 	 *  in the same order.
 	 *  Multithreaded, runs in as many available CPU cores as possible.
+	 *  Will write to fsets only in the event that features cannot be serialized to disk.
 	 */
-	static private void generateTilesAndFeatures(final ArrayList<Patch> patches, final Tile[] tls, final Vector[] fsets, final SIFTParameters sp, final Worker worker) {
+	static private void generateTilesAndFeatures(final ArrayList<Patch> patches, final Tile[] tls, final Vector[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
 		final Thread[] threads = MultiThreading.newThreads();
 		// roughly, we expect about 1000 features per 512x512 image
 		final long feature_size = (long)((sp.max_size * sp.max_size) / (512 * 512) * 1000 * FloatArray2DSIFT.getFeatureObjectSize(sp.fdsize, sp.fdbins) * 1.5);
@@ -1522,18 +1546,8 @@ public class Registration {
 		final int num_pa = patches.size();
 		final Patch[] pa = new Patch[ num_pa ];
 		patches.toArray( pa );
-		// the storage folder for serialized features
+
 		final Loader loader = pa[0].getProject().getLoader();
-		String storage_folder_ = loader.getStorageFolder() + "features.ser/";
-		File sdir = new File(storage_folder_);
-		if (!sdir.exists()) {
-			try {
-				sdir.mkdir();
-			} catch (Exception e) {
-				storage_folder_ = null; // can't store
-			}
-		}
-		final String storage_folder = storage_folder_;
 
 		for (int ithread = 0; ithread < threads.length; ++ithread) {
 			final int si = ithread;
@@ -1545,7 +1559,7 @@ public class Registration {
 						//
 						final Patch patch = pa[k];
 						// Extract features
-						Vector<Feature> fs = loader.retrieve(patch, storage_folder);
+						Vector<Feature> fs = Registration.deserialize(patch, storage_folder, sp);
 						if (null == fs) {
 							final ImageProcessor ip = patch.getImageProcessor();
 							FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToByte(true));
@@ -1555,9 +1569,14 @@ public class Registration {
 							sift.init(fa, sp.steps, sp.initial_sigma, sp.min_size, sp.max_size);
 							fs = sift.run(sp.max_size);
 							Collections.sort(fs);
-							loader.store(patch, fs, storage_folder);
+							// store in the array only if serialization fails, such as when impossible to write to disk
+							if (!Registration.serialize(patch, fs, sp, storage_folder)) {
+								fsets[k] = fs;
+							} else fsets[k] = null;
+						} else {
+							// don't store
+							fsets[k] = null;
 						}
-						fsets[k] = fs;
 						Utils.log2(fs.size() + " features");
 						// Create Tile
 						Model model;
@@ -1574,7 +1593,7 @@ public class Registration {
 	}
 
 	/** Test all to all or all to overlapping only, and make appropriate connections between tiles. */
-	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, final ArrayList< Vector< Feature > > featureSets, final SIFTParameters sp, final Worker worker) {
+	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, Vector<Feature>[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
 		// TODO: multithread this, but careful to synchronize current_tile.connect method
 		final int num_patches = patches.size();
 		for ( int i = 0; i < num_patches; ++i )
@@ -1582,6 +1601,7 @@ public class Registration {
 			if (worker.hasQuitted()) return;
 			final Patch current_patch = patches.get( i );
 			final Tile current_tile = tiles.get( i );
+			final Vector<Feature> fsi = (null == fsets[i] ? Registration.deserialize(current_patch, storage_folder, sp) : fsets[i]);
 			for ( int j = i + 1; j < num_patches; ++j )
 			{
 				if (worker.hasQuitted()) return;
@@ -1592,8 +1612,8 @@ public class Registration {
 					long start_time = System.currentTimeMillis();
 					System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
 					Vector< PointMatch > correspondences = FloatArray2DSIFT.createMatches(
-								featureSets.get( i ),
-								featureSets.get( j ),
+								fsi, // featureSets.get( i ),
+								(null == fsets[j] ? Registration.deserialize(other_patch, storage_folder, sp) : fsets[j]), //featureSets.get( j ),
 								1.25f,
 								null,
 								Float.MAX_VALUE );
@@ -1656,23 +1676,36 @@ public class Registration {
 			return;
 		}
 
+		// the storage folder for serialized features
+		String storage_folder = set.getProject().getLoader().getStorageFolder() + "features.ser/";
+		File sdir = new File(storage_folder);
+		if (!sdir.exists()) {
+			try {
+				sdir.mkdir();
+			} catch (Exception e) {
+				storage_folder = null; // can't store
+			}
+		}
+
 		// java noise: filling datastructures
 		final ArrayList<Patch> patches = new ArrayList<Patch>();
 		patches.addAll(hs_patches);
-		final Tile[] tls = new Tile[patches.size()];
-		final Vector[] fsets = new Vector[tls.length];
+		Tile[] tls = new Tile[patches.size()];
+		Vector[] fsets = new Vector[tls.length];
 
-		Registration.generateTilesAndFeatures(patches, tls, fsets, sp, worker);
+		Registration.generateTilesAndFeatures(patches, tls, fsets, sp, storage_folder, worker);
 
 		// java noise: filling datastructures
 		final ArrayList<Tile> tiles = new ArrayList<Tile>();
-		final ArrayList<Vector<Feature>> featureSets = new ArrayList<Vector<Feature>>();
+		//ArrayList<Vector<Feature>> featureSets = new ArrayList<Vector<Feature>>();
 		for (int k=0; k<tls.length; k++) {
 			tiles.add(tls[k]);
-			featureSets.add(fsets[k]);
+			//featureSets.add(fsets[k]);
 		}
 
-		Registration.connectTiles(patches, tiles, featureSets, sp, worker);
+		Registration.connectTiles(patches, tiles, /*featureSets*/ fsets, sp, storage_folder, worker);
+
+		//featureSets = null;
 
 		ArrayList<ArrayList<Tile>> graphs = Tile.identifyConnectedGraphs(tiles);
 		Utils.log2(graphs.size() + " graphs detected.");
@@ -1704,6 +1737,39 @@ public class Registration {
 		Bureaucrat burro = new Bureaucrat(worker_, set.getProject());
 		burro.goHaveBreakfast();
 		return burro;
+	}
+
+	/** A tuple. */
+	static final class Features implements Serializable {
+		Registration.SIFTParameters sp;
+		Vector<Feature> v;
+		Features(final Registration.SIFTParameters sp, final Vector<Feature> v) {
+			this.sp = sp;
+			this.v = v;
+		}
+	}
+
+	static private boolean serialize(final Patch p, final Vector<Feature> v, final Registration.SIFTParameters sp, final String storage_folder) {
+		if (null == storage_folder) return false;
+		final Features fe = new Features(sp, v);
+		return p.getProject().getLoader().serialize(fe, new StringBuffer(storage_folder).append("features_").append(p.getId()).append(".ser").toString());
+	}
+
+	/** Retrieve the features only if saved with the exact same relevant SIFT parameters. */
+	static private Vector<Feature> deserialize(final Patch p, final String storage_folder, final Registration.SIFTParameters sp) {
+		if (null == storage_folder) return null;
+		final Object ob = p.getProject().getLoader().deserialize(new StringBuffer(storage_folder).append("features_").append(p.getId()).append(".ser").toString());
+		if (null != ob) {
+			try {
+				final Features fe = (Features)ob;
+				if (sp.sameFeatures(fe.sp) && null != fe.v) {
+					return fe.v;
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		return null;
 	}
 
 }

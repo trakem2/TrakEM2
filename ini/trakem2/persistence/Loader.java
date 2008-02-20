@@ -3712,16 +3712,11 @@ abstract public class Loader {
 
 	/* =========================== */
 
-	/** Serializes the given vector of Feature instances and stores it in a file whose name is "features_" + p.getId() + ".ser". <br /> Returns false on failure. */
-	public boolean store(final Patch p, final Vector<Feature> v, String storage_folder) {
+	/** Serializes the given object into the path. Returns false on failure. */
+	public boolean serialize(final Object ob, final String path) {
 		try {
-			// make shallow copy to prevent any problems when writing.
-			Vector<Feature> v2 = (Vector<Feature>)v.clone();
-			// make the path Windows-safe
-			storage_folder.replace('\\', '/');
-			if (!storage_folder.endsWith("/")) storage_folder += "/";
-			ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(storage_folder + "features_" + p.getId() + ".ser"));
-			out.writeObject(v2);
+			final ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(path));
+			out.writeObject(ob);
 			out.close();
 			return true;
 		} catch (Exception e) {
@@ -3729,18 +3724,14 @@ abstract public class Loader {
 		}
 		return false;
 	}
-	/** Attempts to find a file containing the serialized Vector of Feature instances generated for the given Patch. <br />Returns null if no suitable file is found, or an error occurs while deserializing. */
-	public Vector<Feature> retrieve(final Patch p, String storage_folder) {
+	/** Attempts to find a file containing a serialized object. Returns null if no suitable file is found, or an error occurs while deserializing. */
+	public Object deserialize(final String path) {
 		try {
-			// make the path Windows-safe
-			storage_folder.replace('\\', '/');
-			if (!storage_folder.endsWith("/")) storage_folder += "/";
-			final String path = storage_folder + "features_" + p.getId() + ".ser";
 			if (!new File(path).exists()) return null;
-			ObjectInputStream in = new ObjectInputStream(new FileInputStream(path));
-			Vector<Feature> v = (Vector<Feature>)in.readObject();
+			final ObjectInputStream in = new ObjectInputStream(new FileInputStream(path));
+			final Object ob = in.readObject();
 			in.close();
-			return v;
+			return ob;
 		} catch (Exception e) {
 			new IJError(e);
 		}

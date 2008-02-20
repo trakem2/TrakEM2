@@ -627,7 +627,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					box2 = selection.getLinkedBox();
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
-			Utils.log2("md: " + box.toString());
+			//TODO//Utils.log2("md: " + box.toString());
 					Display.repaint(display.getLayer(), Selection.PADDING, box, false);
 					// box for next mouse dragged iteration
 					box = box2;
