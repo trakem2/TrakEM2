@@ -241,7 +241,7 @@ public class Patch extends Displayable {
 		if (this.channels != channels && (ImagePlus.COLOR_RGB == this.type || ImagePlus.COLOR_256 == this.type)) {
 			final int old_channels = this.channels;
 			this.channels = channels; // before, so if any gets recreated it's done right
-			getProject().getLoader().adjustChannels(this, old_channels);
+			project.getLoader().adjustChannels(this, old_channels);
 		}
 	}
 

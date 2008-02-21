@@ -1362,7 +1362,9 @@ public class FSLoader extends Loader {
 		if (null == dir_mipmaps) return;
 		synchronized (db_lock) {
 			lock();
-			mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
+			try {
+				mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
+			} catch (Exception e) { e.printStackTrace(); }
 			unlock();
 		}
 	}

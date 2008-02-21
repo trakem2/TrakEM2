@@ -141,55 +141,51 @@ public class FIFOImageMipMaps {
 
 	/** A call to this method puts the element at the end of the list, and returns it. Returns null if not found. */
 	public Image get(final long id, final int level) {
-		// find the id
-		int i = start;
-		for (; i<next; i++) {
+		// find the id, from the end
+		if (start == next) return null; // empty
+		int i = next-1;
+		for (; i>=start; i--) {
 			if (id == ids[i] && level == levels[i]) {
 				break;
 			}
 		}
-		if (i == next) return null; // not found
-		Image im = images[i];
+		if (i < start) return null; // not found
+
 		// put the found id at the end, move the others forward.
-		next--;
-		while (i < next) {
-			ids[i] = ids[i+1];
-			images[i] = images[i+1];
-			levels[i] = levels[i+1];
-			i++;
-		}
-		next++;
-		ids[i] = id; // it's the same one, otherwise it would not have been found
-		images[i] = im;
-		levels[i] = level; // it's the same one, otherwise it would not have been found
-		return im;
+		return images[toTheEnd(i)];
 	}
 
-	private final void toTheEnd(final int index) {
-		Image im = images[index];
-		int level = levels[index];
-		long id = ids[index];
+	/** Returns the last index, where the given index was put. */
+	private final int toTheEnd(final int index) {
+		final Image im = images[index];
+		final int level = levels[index];
+		final long id = ids[index];
+
+		//StringBuffer sb1 = new StringBuffer("Before: ");
+		//for (int i=start; i<next; i++) sb1.append(ids[i]).append(' ');
+
 		// put the found id at the end, move the others forward.
-		next--;
-		int i = index;
-		while (i < next) {
-			ids[i] = ids[i+1];
-			images[i] = images[i+1];
-			levels[i] = levels[i+1];
-			i++;
-		}
-		next++;
-		ids[i] = id;
-		images[i] = im;
-		levels[i] = level;
+		final int len = (next - start) - index - 1;
+		System.arraycopy(ids, index+1, ids, index, len);
+		System.arraycopy(images, index+1, images, index, len);
+		System.arraycopy(levels, index+1, levels, index, len);
+		ids[next-1] = id;
+		images[next-1] = im;
+		levels[next-1] = level;
+
+		//sb1.append("\nAfter: ");
+		//for (int i=start; i<next; i++) sb1.append(ids[i]).append(' ');
+		//ini.trakem2.utils.Utils.log2(sb1.toString());
+
+		return next -1;
 	}
 
 	/** Find the cached image of the given level or its closest but smaller one, or null if none found. */
 	public Image getClosestBelow(final long id, final int level) {
-		Image im = null;
 		int lev = Integer.MAX_VALUE;
 		int index = -1;
-		for (int i=start; i<next; i++) {
+		//for (int i=start; i<next; i++) {
+		for (int i=next-1; i>=start; i--) { // images are more likely to be close to the end
 			if (id == ids[i]) {
 				/*
 				if (level == levels[i]) {
@@ -204,39 +200,35 @@ public class FIFOImageMipMaps {
 					if (levels[i] < lev) { // here going for the largest image (smaller level) that is still smaller, and thus its level larger, than the desired level
 						lev = levels[i];
 						index = i;
-						im = images[i];
 					}
 				}
 			}
 		}
-		if (-1 != index) toTheEnd(index);
-		return im;
+		if (-1 == index) return null;
+		return images[toTheEnd(index)];
 	}
 
 	/** Find the cached image of the given level or its closest but larger one, or null if none found. */
 	public Image getClosestAbove(final long id, final int level) {
-		Image im = null;
 		int lev = -1;
 		int index = -1;
-		for (int i=start; i<next; i++) {
+		//for (int i=start; i<next; i++) {
+		for (int i=next-1; i>=start; i--) { // images are more likely to be close to the end
 			if (id == ids[i]) {
 				if (level == levels[i]) {
 					// if equal level as asked, just return it
-					im = images[i];
-					toTheEnd(i);
-					return im;
+					return images[toTheEnd(i)];
 				} else if (levels[i] < level) {
 					// if larger image (smaller level) than asked, choose the less larger
 					if (levels[i] > lev) { // here going for the smallest image (larger level) that is still larger, and thus its level smaller, than the desired level
 						lev = levels[i];
 						index = i;
-						im = images[i];
 					}
 				}
 			}
 		}
-		if (-1 != index) toTheEnd(index);
-		return im;
+		if (-1 == index) return null;
+		return images[toTheEnd(index)];
 	}
 
 	/** Remove the Image if found and returns it, without flushing it. Returns null if not found. */
@@ -288,11 +280,10 @@ public class FIFOImageMipMaps {
 	/** Remove all awts associated with a level different than 0 (that means all scaled down versions) for the given id. */
 	public void removePyramid(final long id) {
 		int end = next;
-		for (int i=start+1; i<end; i++) {
+		for (int i=start; i<end; i++) {
 			if (i == next) break;
 			if (0 != levels[i] && id == ids[i]) {
-				Image awt = remove(i); // may modify start and/or next
-				awt.flush();
+				remove(i).flush(); // may modify start and/or next
 				if (i != start) { // start may keep moving forward
 					end--;
 					i--;
@@ -320,6 +311,7 @@ public class FIFOImageMipMaps {
 		return al;
 	}
 
+	/** Returns a table of level keys and image values that share the same id (that is, belong to the same Patch). */
 	public Hashtable<Integer,Image> getAll(final long id) {
 		final Hashtable<Integer,Image> ht = new Hashtable<Integer,Image>();
 		int i = start;
@@ -381,7 +373,7 @@ public class FIFOImageMipMaps {
 
 	/** Checks if there's any image at all for the given id. */
 	public boolean contains(final long id) {
-		for (int i=0; i<next; i++) {
+		for (int i=next-1; i>=start; i--) {
 			if (id == ids[i]) return true;
 		}
 		return false;
@@ -389,7 +381,7 @@ public class FIFOImageMipMaps {
 
 	/** Checks if there's any image for the given id and level. */
 	public boolean contains(final long id, final int level) {
-		for (int i=0; i<next; i++) {
+		for (int i=next-1; i>=start; i--) {
 			if (id == ids[i] && level == levels[i]) return true;
 		}
 		return false;
@@ -402,6 +394,5 @@ public class FIFOImageMipMaps {
 			System.out.println(i + " id: " + ids[i] + " level: " + levels[i]);
 		}
 	}
-
 }
 

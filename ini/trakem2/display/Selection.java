@@ -765,7 +765,7 @@ public class Selection {
 		return (Rectangle)box.clone();
 	}
 
-	/** Returns the total box enclosing all selected objects and their linked objects within the current layer, or null if none are selected.*/
+	/** Returns the total box enclosing all selected objects and their linked objects within the current layer, or null if none are selected. Includes the position of the floater, when transforming.*/
 	public Rectangle getLinkedBox() {
 		if (null == active) return null;
 		Rectangle b = active.getBoundingBox();

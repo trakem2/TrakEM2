@@ -164,7 +164,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			synchronized (lock_paint) {
 				lock_paint.lock();
 			}
-			display.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+			//display.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 
 			// ensure proper positioning
 			g.translate(0, 0); // ints!
@@ -262,7 +262,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 
 			// restore cursor
-			display.setCursor(Cursor.getDefaultCursor());
+			//display.setCursor(Cursor.getDefaultCursor());
 
 			// Mathias code:
 			if (null != freehandProfile) {
@@ -280,11 +280,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			IJError.print(e);
 		} finally {
 			// restore cursor
+			/*
 			if (null == freehandProfile) {
 				setCursor(Cursor.getDefaultCursor());
 			} else {
 				setCursor(noCursor);
 			}
+			*/
 			synchronized (lock_paint) {
 				lock_paint.unlock();
 			}
@@ -1779,7 +1781,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				final Area background =  new Area(new Rectangle(0, 0, g_width, g_height));
 				// bring the area to Layer space
 				background.transform(atc.createInverse());
-				boolean bkgd_painted = false;
 
 				// the non-srcRect areas, in offscreen coords
 				final Rectangle r1 = new Rectangle(srcRect.x + srcRect.width, srcRect.y, (int)(g_width / magnification) - srcRect.width, (int)(g_height / magnification));
@@ -1893,7 +1894,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					// paint background
 					g.setColor(Color.black);
 					g.fill(background);
-					bkgd_painted = true;
 				}
 
 				//Utils.log2("offscreen painting: " + al_paint.size());
