@@ -81,31 +81,29 @@ public class FIFOImageMipMaps {
 		// check if exists already, if so, send it to the end
 		for (int i=start; i<next; i++) {
 			if (id == ids[i] && level == levels[i]) {
-				Image im = images[i];
-				// put the found id at the end, move the others forward.
-				next--;
-				while (i < next) {
-					ids[i] = ids[i+1];
-					images[i] = images[i+1];
-					levels[i] = levels[i+1];
-					i++;
+				final Image im = images[toTheEnd(i)];
+				if (im != null && !im.equals(image)) {
+					im.flush();
+					images[next-1] = image; // next-1 is the last slot, where id/level are now
 				}
-				next++;
-				ids[i] = id;
-				if (im != null && !image.equals(im)) im.flush();
-				images[i] = image;
-				levels[i] = level;
 				return;
 			}
 		}
 		// clean up empty entries at the beggining
 		if (0 != start) {
+			/*
 			next -= start;
 			for (int i=0; i<next; i++) {
 				ids[i] = ids[start + i];
 				images[i] = images[start + i];
 				levels[i] = levels[start + i];
 			}
+			start = 0;
+			*/
+			next -= start;
+			System.arraycopy(ids, start, ids, 0, next); // next works as length
+			System.arraycopy(levels, start, levels, 0, next);
+			System.arraycopy(images, start, images, 0, next);
 			start = 0;
 		}
 		// adjust arrays
@@ -165,7 +163,7 @@ public class FIFOImageMipMaps {
 		//for (int i=start; i<next; i++) sb1.append(ids[i]).append(' ');
 
 		// put the found id at the end, move the others forward.
-		final int len = (next - start) - index - 1;
+		final int len = next - index - 1;
 		System.arraycopy(ids, index+1, ids, index, len);
 		System.arraycopy(images, index+1, images, index, len);
 		System.arraycopy(levels, index+1, levels, index, len);

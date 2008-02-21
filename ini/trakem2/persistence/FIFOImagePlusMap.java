@@ -46,7 +46,7 @@ public class FIFOImagePlusMap {
 		next = 0;
 	}
 
-	/** No duplicates allowed: if the id exists it's sended to the end and the image is updated with the one provided as argmument; the old one is NOT flushed. */ // Only the Loader can flush an ImagePlus
+	/** No duplicates allowed: if the id exists it's sended to the end and the image is updated with the one provided as argument; the old one is NOT flushed. */ // Only the Loader can flush an ImagePlus
 	public void put(long id, ImagePlus image) {
 		/*System.out.println("putting: id=" + id + "  im = " + image);
 		if (null == image) {
@@ -55,28 +55,23 @@ public class FIFOImagePlusMap {
 		// check if exists already, if so, send if to the end
 		for (int i=start; i<next; i++) {
 			if (id == ids[i]) {
-				long idd = ids[i];
-				ImagePlus im = images[i];
-				// put the found id at the end, move the others forward.
-				next--;
-				while (i < next) {
-					ids[i] = ids[i+1];
-					images[i] = images[i+1];
-					i++;
-				}
-				next++;
-				ids[i] = idd;
-				images[i] = image; // the new one
+				images[toTheEnd(i)] = image; // update pointer
 				return;
 			}
 		}
 		// clean up empty entries at the beggining
 		if (0 != start) {
+			/*
 			next -= start;
 			for (int i=0; i<next; i++) {
 				ids[i] = ids[start + i];
 				images[i] = images[start + i];
 			}
+			start = 0;
+			*/
+			next -= start;
+			System.arraycopy(ids, start, ids, 0, next); // next works as length
+			System.arraycopy(images, start, images, 0, next);
 			start = 0;
 		}
 		// adjust arrays
@@ -115,25 +110,30 @@ public class FIFOImagePlusMap {
 			}
 		}
 		if (i == next) return null;
-		ImagePlus im = images[i];
-		/*System.out.println("im is " + im + " for i=" + i);
-		if (null == im) {
-			for (int j=start; j<next; j++) {
-				System.out.println("\tid=" + ids[j] + "  " + images[j]);
-			}
-		}*/
+
+		return images[toTheEnd(i)];
+	}
+
+	/** Returns the last index, where the given index was put. */
+	private final int toTheEnd(final int index) {
+		final ImagePlus imp = images[index];
+		final long id = ids[index];
+
+		//StringBuffer sb1 = new StringBuffer("Before: ");
+		//for (int i=start; i<next; i++) sb1.append(ids[i]).append(' ');
 
 		// put the found id at the end, move the others forward.
-		next--;
-		while (i < next) {
-			ids[i] = ids[i+1];
-			images[i] = images[i+1];
-			i++;
-		}
-		next++;
-		ids[i] = idd;
-		images[i] = im;
-		return im;
+		final int len = next - index - 1;
+		System.arraycopy(ids, index+1, ids, index, len);
+		System.arraycopy(images, index+1, images, index, len);
+		ids[next-1] = id;
+		images[next-1] = imp;
+
+		//sb1.append("\nAfter: ");
+		//for (int i=start; i<next; i++) sb1.append(ids[i]).append(' ');
+		//ini.trakem2.utils.Utils.log2(sb1.toString());
+
+		return next -1;
 	}
 
 	/** Remove the ImagePlus if found and returns it, without flushing it. Returns null if not found. */
