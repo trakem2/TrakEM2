@@ -209,7 +209,7 @@ public class FSLoader extends Loader {
 					Utils.log("ERROR: File not found: " + path);
 					handler = null;
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 					handler = null;
 				} finally {
 					setMassiveMode(false);
@@ -217,7 +217,7 @@ public class FSLoader extends Loader {
 						try {
 							i_stream.close();
 						} catch (Exception e) {
-							new IJError(e);
+							IJError.print(e);
 						}
 					}
 				}
@@ -325,7 +325,7 @@ public class FSLoader extends Loader {
 				plock = getOrMakePatchLoadingLock(p, 0);
 				unlock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				return null;
 			}
 		}
@@ -400,7 +400,7 @@ public class FSLoader extends Loader {
 					removePatchLoadingLock(plock);
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				unlock();
 				plock.unlock();
@@ -456,7 +456,7 @@ public class FSLoader extends Loader {
 				plock = getOrMakePatchLoadingLock(p, 0);
 				unlock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				return null;
 			}
 		}
@@ -534,7 +534,7 @@ public class FSLoader extends Loader {
 					removePatchLoadingLock(plock);
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				unlock();
 				plock.unlock();
@@ -652,7 +652,7 @@ public class FSLoader extends Loader {
 					}
 				}
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				return false;
 			}
 		}
@@ -1164,7 +1164,7 @@ public class FSLoader extends Loader {
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			ok = false; //can't return, need to unlock Patch first
 		}
 		synchronized (gm_lock) {
@@ -1232,7 +1232,7 @@ public class FSLoader extends Loader {
 							Utils.log2("Could not generate mipmaps for patch " + pa[k]);
 						}
 					} catch (Exception e) {
-						new IJError(e);
+						IJError.print(e);
 					}
 				}
 
@@ -1242,7 +1242,7 @@ public class FSLoader extends Loader {
 				MultiThreading.startAndJoin(threads);
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 
 				this.finishedWorking();
@@ -1273,7 +1273,7 @@ public class FSLoader extends Loader {
 				unlock();
 				return path;
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			unlock();
 		}
@@ -1332,7 +1332,7 @@ public class FSLoader extends Loader {
 						f.mkdir();
 					}
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 					return false;
 				}
 			} else {
@@ -1394,7 +1394,7 @@ public class FSLoader extends Loader {
 							Utils.log2("Could not remove file " + f.getAbsolutePath());
 						}
 					} catch (Exception e) {
-						new IJError(e);
+						IJError.print(e);
 					}
 				}
 			}
@@ -1402,7 +1402,7 @@ public class FSLoader extends Loader {
 				}
 			}.start();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -1450,7 +1450,7 @@ public class FSLoader extends Loader {
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return 0;
 	}
@@ -1531,7 +1531,7 @@ public class FSLoader extends Loader {
 						try {
 							generateMipMaps(patch);
 						} catch (Exception e) {
-							new IJError(e);
+							IJError.print(e);
 						}
 
 						Display.repaint(patch.getLayer(), patch, 0);
@@ -1544,7 +1544,7 @@ public class FSLoader extends Loader {
 				return null;
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}

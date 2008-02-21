@@ -238,7 +238,7 @@ public class Registration {
 			layer_set.setMinimumDimensions();
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		layer_set.getProject().getLoader().setMassiveMode(massive_mode);
 
@@ -359,7 +359,7 @@ public class Registration {
 			// no need // Display.repaint(layer2, null, 0);
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -474,7 +474,7 @@ public class Registration {
 					// ensure there are no negative numbers in the x,y
 					base_slice.getLayer().getParent().setMinimumDimensions();
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -827,8 +827,13 @@ public class Registration {
 		for (int k=0; k<layer.length; k++) {
 			layers.add( layer[k] );
 		}
-		final ArrayList< Vector< Feature > > featureSets1 = new ArrayList< Vector< Feature > >();
-		final ArrayList< Vector< Feature > > featureSets2 = new ArrayList< Vector< Feature > >();
+
+		//final ArrayList< Vector< Feature > > featureSets1 = new ArrayList< Vector< Feature > >();
+		//final ArrayList< Vector< Feature > > featureSets2 = new ArrayList< Vector< Feature > >();
+		//
+		// fsets1, fsets2 used to be featureSets1, featureSets2
+		// The elements of these arrays may be null, or may be not.
+		// When null, the feature set is assumed to have been serialized and thus is retrieved from there.
 		Vector<Feature>[] fsets1=null, fsets2=null;
 
 
@@ -874,8 +879,8 @@ public class Registration {
 
 			if ( null != previous_layer )
 			{
-				featureSets1.clear();
-				featureSets1.addAll( featureSets2 );
+				//featureSets1.clear();
+				//featureSets1.addAll( featureSets2 );
 				fsets1 = fsets2;
 
 				patches1.clear();
@@ -886,7 +891,7 @@ public class Registration {
 			}
 
 			patches2.clear();
-			featureSets2.clear();
+			//featureSets2.clear();
 			tiles2.clear();
 
 			ArrayList tmp = new ArrayList();
@@ -907,7 +912,7 @@ public class Registration {
 
 			for ( int k = 0; k < fsets2.length; k++ )
 			{
-				featureSets2.add( fsets2[ k ] );
+				//featureSets2.add( fsets2[ k ] );
 				tiles2.add( tls[ k ] );
 			}
 

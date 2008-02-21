@@ -63,7 +63,8 @@ public abstract class AbstractRepaintThread extends Thread {
 
 	/** Accept paint request only if the time is later that latest recorded paint event from an offscreen thread.*/
 	public final void paintFromOff(final Rectangle clipRect, final long time) {
-		// 
+		//
+		/*
 		synchronized (lock_offs) {
 			lock_offs.lock();
 			if (time < latest_off) {
@@ -73,6 +74,7 @@ public abstract class AbstractRepaintThread extends Thread {
 			latest_off = time;
 			lock_offs.unlock();
 		}
+		*/
 		paint(clipRect, false);
 	}
 
@@ -149,7 +151,7 @@ public abstract class AbstractRepaintThread extends Thread {
 				synchronized (lock_event) {
 					lock_event.lock();
 					pe = new PaintEvent[events.size()];
-					events.toArray(pe);
+					pe = events.toArray(pe);
 					events.clear();
 					lock_event.unlock();
 				}

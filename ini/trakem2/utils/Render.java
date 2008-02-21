@@ -382,7 +382,7 @@ public class Render {
 			dos.writeBytes(contents);
 			dos.flush();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			Utils.log("ERROR: Most likely did NOT save your file.");
 		}
 	}
@@ -428,7 +428,7 @@ public class Render {
 			dos.writeBytes(contents);
 			dos.flush();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			Utils.log("ERROR: Most likely did NOT save your file.");
 		}
 	}

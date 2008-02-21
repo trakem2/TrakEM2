@@ -210,7 +210,7 @@ public class Project extends DBObject {
 			project.root_pt.setup();
 		} catch (Exception e) {
 			Utils.showMessage("Failed to retrieve the Thing tree for the project.");
-			new IJError(e); 
+			IJError.print(e); 
 			project.destroy();
 			return null;
 		}
@@ -247,7 +247,7 @@ public class Project extends DBObject {
 			project.root_lt = root_layer_thing;
 		} catch (Exception e) {
 			Utils.showMessage("Failed to retrieve the Layer tree for the project.");
-			new IJError(e);
+			IJError.print(e);
 			project.destroy();
 			return null;
 		}
@@ -301,7 +301,7 @@ public class Project extends DBObject {
 			}
 			return project;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -372,7 +372,7 @@ public class Project extends DBObject {
 			}
 			project.project_tree.updateUILater(); // very important!!
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		// open any stored displays
 		final Bureaucrat burro = Display.openLater();
@@ -429,7 +429,7 @@ public class Project extends DBObject {
 		// create the project Thing, to be root of the whole project thing tree
 		try {
 			project.root_pt= new ProjectThing(project_template, project, project);
-		} catch (Exception e) { new IJError(e); }
+		} catch (Exception e) { IJError.print(e); }
 		// create the user objects tree
 		project.project_tree = new ProjectTree(project, project.root_pt);
 		// create the layer's tree
@@ -440,7 +440,7 @@ public class Project extends DBObject {
 			project.layer_tree = new LayerTree(project, project.root_lt);
 		} catch (Exception e) {
 			project.remove();
-			new IJError(e);
+			IJError.print(e);
 		}
 		// create the project control window, containing the trees in a double JSplitPane
 		ControlWindow.add(project, project.template_tree, project.project_tree, project.layer_tree); // beware that this call is asynchronous, dispatched by the SwingUtilities.invokeLater to avoid havok with Swing components.
@@ -689,7 +689,7 @@ public class Project extends DBObject {
 				Utils.log2("null ob for parent " + parent + " of " + d);
 			}
 			return parent.getObject().toString(); // the abstract thing should be enclosing a String object
-		} catch (Exception e) { new IJError(e); return null; }
+		} catch (Exception e) { IJError.print(e); return null; }
 	}
 
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */

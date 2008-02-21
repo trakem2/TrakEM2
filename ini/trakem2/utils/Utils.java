@@ -627,7 +627,7 @@ public class Utils implements ij.plugin.PlugIn {
 			dos.write(contents, 0, contents.length());
 			dos.flush();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			Utils.showMessage("ERROR: Most likely did NOT save your file.");
 			return false;
 		}
@@ -665,7 +665,7 @@ public class Utils implements ij.plugin.PlugIn {
         		}
 			r.close();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		return sb.toString();
@@ -684,7 +684,7 @@ public class Utils implements ij.plugin.PlugIn {
         		}
 			r.close();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		final String[] sal = new String[al.size()];
@@ -704,7 +704,7 @@ public class Utils implements ij.plugin.PlugIn {
 			r.read(src, 0, src.length);
 			r.close();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		return src;
@@ -902,7 +902,7 @@ public class Utils implements ij.plugin.PlugIn {
 		try {
 			affine.createInverse().transform(pSrc, pDst);
 		} catch (NoninvertibleTransformException nite) {
-			new IJError(nite);
+			IJError.print(nite);
 		}
 		return pDst;
 	}

@@ -76,7 +76,7 @@ public class ImageFileFilter implements FilenameFilter {
 				return false;
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 
 		if (null != code) {

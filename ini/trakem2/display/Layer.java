@@ -297,7 +297,7 @@ public class Layer extends DBObject {
 			/*can't ever be null//if (null != parent) */
 			parent.remove(this);
 			removeFromDatabase();
-		} catch (Exception e) { new IJError(e); return false; }
+		} catch (Exception e) { IJError.print(e); return false; }
 		return true;
 	}
 

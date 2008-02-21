@@ -272,7 +272,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				}
 				RT.paintFromOff(clipRect, this.time);
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 	}
@@ -312,7 +312,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 				// store to be canceled if necessary
 				add(off);
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 	};

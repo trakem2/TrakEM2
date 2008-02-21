@@ -87,7 +87,7 @@ public class LayerStack extends ImageStack {
 				else box.add(r);
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			// set box to everything
 			box = layer_set.get2DBounds();
 		}

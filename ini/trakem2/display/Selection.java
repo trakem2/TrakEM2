@@ -126,7 +126,7 @@ public class Selection {
 					da = new Displayable[queue.size()];
 					queue.toArray(da);
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				} finally {
 					unlock();
 				}
@@ -424,7 +424,7 @@ public class Selection {
 					display.setActive(d);
 				}
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			} finally {
 				unlock();
 			}
@@ -472,7 +472,7 @@ public class Selection {
 			// finally:
 			if (null != display) display.setActive(d);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -519,7 +519,7 @@ public class Selection {
 				this.active = display.getActive();
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -549,7 +549,7 @@ public class Selection {
 					}
 				}
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			} finally {
 				display.getProject().getLoader().commitLargeUpdate();
 			}
@@ -559,7 +559,7 @@ public class Selection {
 			//Display.repaint(display.getLayer(), box, 0);
 			Display.updateSelection(); // from all displays
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			if (queue_locked) unlock();
 		}}
@@ -623,7 +623,7 @@ public class Selection {
 			// reposition handles
 			setHandles(box);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -655,7 +655,7 @@ public class Selection {
 			if (null != display) display.setActive(null);
 			this.box = null;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -860,7 +860,7 @@ public class Selection {
 			}
 			hs.addAll(hsl); // hs is final, can't just assign
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -898,7 +898,7 @@ public class Selection {
 			}
 			resetBox();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}

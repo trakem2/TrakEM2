@@ -423,7 +423,7 @@ public class AreaList extends ZDisplayable {
 					try {
 						slash = slash.createTransformedArea(at.createInverse());
 					} catch (NoninvertibleTransformException nite) {
-						new IJError(nite);
+						IJError.print(nite);
 					}
 				}
 				if (0 == (flags & alt)) {
@@ -856,7 +856,7 @@ public class AreaList extends ZDisplayable {
 			try {
 				area = area.createTransformedArea(this.at.createInverse());
 			} catch (NoninvertibleTransformException nte) {
-				new IJError(nte);
+				IJError.print(nte);
 				// do what?
 			}
 			Object this_area = this.ht_areas.get(entry.getKey());

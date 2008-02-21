@@ -232,7 +232,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				return;
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -283,7 +283,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		try {
 			new_thing = new ProjectThing(((ProjectThing)child.getParent()).getChildTemplate(child.getType()), original.getProject(), copy);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		DefaultMutableTreeNode child_node = (DefaultMutableTreeNode)findNode(child, this);
@@ -372,7 +372,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				addChild(one, node_pt_is);
 				//Utils.log2("one parent : " + one.getParent());
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 		DNDTree.expandNode(this, DNDTree.findNode(pt_is, this));

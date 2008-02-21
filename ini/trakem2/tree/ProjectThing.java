@@ -268,7 +268,7 @@ public class ProjectThing extends DBObject implements Thing {
 			} catch (ClassNotFoundException cnfe) {
 				Utils.log("ImageJ_3D_Viewer.jar not installed.");
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 		// remove the Thing itself
@@ -324,7 +324,7 @@ public class ProjectThing extends DBObject implements Thing {
 				Utils.log("No such method: setTitle, for object " + object);
 			} catch (Exception e) {
 				Utils.log("ProjectThing.setTitle: no such method setTitle or can't access it, in the object " + object);
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 	}
@@ -468,7 +468,7 @@ public class ProjectThing extends DBObject implements Thing {
 		try {
 			pt = new ProjectThing(tt, project, ob);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		// add it here as child
@@ -511,7 +511,7 @@ public class ProjectThing extends DBObject implements Thing {
 			// set the copy as selected in the front Display, if any
 			if (null != Display.getFront()) Display.getFront().select(displ);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		// the cloned object has already added itself to the same Layer or LayerSet as the original

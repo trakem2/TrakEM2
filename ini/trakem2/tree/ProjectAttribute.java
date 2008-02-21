@@ -74,7 +74,7 @@ public class ProjectAttribute extends DBObject implements Attribute { // stupid 
 			Utils.log("ProjectAttribute.setup: " + title + ": not an id number in object _|_" + object.toString() + "_|_");
 			this.object = null; // so, empty
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 

@@ -29,6 +29,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.ProjectTree;
 
@@ -348,7 +349,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 				try {
 					tree.updateUI();
 				} catch (Exception e) {
-					new ini.trakem2.utils.IJError(e);
+					IJError.print(e);
 				}
 			}
 		};

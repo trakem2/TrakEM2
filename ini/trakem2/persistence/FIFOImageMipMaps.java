@@ -55,7 +55,7 @@ public class FIFOImageMipMaps {
 		try {
 			if (null == image) throw new Exception("FIFOImageMap: null image!");
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return;
 		}
 		for (int i=start; i<next; i++) {
@@ -75,7 +75,7 @@ public class FIFOImageMipMaps {
 		try {
 			if (null == image) throw new Exception("FIFOImageMap: null image!");
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return;
 		}
 		// check if exists already, if so, send it to the end

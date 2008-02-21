@@ -265,7 +265,7 @@ public class TMLHandler extends DefaultHandler {
 				al_open.add(thing);
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			skip = true;
 		}
 	}
@@ -357,7 +357,7 @@ public class TMLHandler extends DefaultHandler {
 			}
 			return pt;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		// default:
 		return null;
@@ -517,7 +517,7 @@ public class TMLHandler extends DefaultHandler {
 				Utils.log2("TMLHandler Unknown type: " + type);
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		// default:
 		return null;

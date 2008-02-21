@@ -521,7 +521,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 			this.scrollPathToVisible(treePath);
 			this.setSelectionPath(treePath);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -584,7 +584,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				this.scrollPathToVisible(treePath);
 				this.setSelectionPath(treePath);
 			}
-		} catch (Exception e) { new IJError(e); }
+		} catch (Exception e) { IJError.print(e); }
 	}
 
 	public void destroy() {

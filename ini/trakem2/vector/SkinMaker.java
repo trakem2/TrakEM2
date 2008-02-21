@@ -174,7 +174,7 @@ public class SkinMaker {
 			return al_matches;
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}

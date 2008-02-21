@@ -432,7 +432,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				}
 				project.getLoader().commitLargeUpdate();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				project.getLoader().rollback();
 				return false; //TODO no notice to the user ...
 			}
@@ -725,7 +725,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			al_zdispl.add(zdispl);
 		} catch (Exception e) {
 			Utils.log("LayerSet.addSilently: not adding Zdisplayable with id=" + zdispl.getId());
-			new IJError(e);
+			IJError.print(e);
 			return;
 		}
 	}
@@ -846,7 +846,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			project.getLoader().commitLargeUpdate();
 		}
@@ -1116,7 +1116,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			}
 			project.getLoader().commitLargeUpdate();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			Utils.log("Rolling back");
 			project.getLoader().rollback();
 		}
@@ -1394,7 +1394,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				}
 			} catch (Exception e) {
 				Utils.log2("LayerSet.restoreCalibration, key/value failed:" + key + "=\"" + value +"\"");
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 		//Utils.log2("Restored LayerSet calibration: " + calibration);
@@ -1463,7 +1463,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				if (null != imp) try {
 					stack.addSlice(imp.getTitle(), imp.getProcessor().getPixels());
 				} catch (IllegalArgumentException iae) {
-					new IJError(iae);
+					IJError.print(iae);
 				} else Utils.log("LayerSet.grab: Ignoring layer " + la);
 			}
 			if (0 == stack.getSize()) {

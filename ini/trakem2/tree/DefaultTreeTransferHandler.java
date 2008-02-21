@@ -300,7 +300,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 			}
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return false;
 		}
 

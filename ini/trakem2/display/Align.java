@@ -56,7 +56,7 @@ public class Align {
 	}
 
 	/** Accepts offscreen coordinates only. */
-	public void mousePressed(Layer layer, MouseEvent me, int x_p, int y_p) {
+	public void mousePressed(Layer layer, MouseEvent me, int x_p, int y_p, double magnification) {
 		// check preconditions
 		if (null == layer || x_p < 0 || y_p < 0 || x_p > layer.getLayerWidth() || y_p > layer.getLayerHeight()) return;
 		// create landmark sets if not there
@@ -64,13 +64,13 @@ public class Align {
 			l1 = new Landmark(layer);
 			l1.add(x_p, y_p);
 		} else if (l1.layer.equals(layer)) {
-			if (me.isShiftDown()) l1.remove(x_p, y_p);
+			if (me.isShiftDown() && me.isControlDown()) l1.remove(x_p, y_p, magnification);
 			else l1.add(x_p, y_p);
 		} else if (null == l2) {
 			l2 = new Landmark(layer);
 			l2.add(x_p, y_p);
 		} else if (l2.layer.equals(layer)) {
-			if (me.isShiftDown()) l2.remove(x_p, y_p);
+			if (me.isShiftDown() && me.isControlDown()) l2.remove(x_p, y_p, magnification);
 			else l2.add(x_p, y_p);
 		} else {
 			// ignore, different layer
@@ -102,16 +102,21 @@ public class Align {
 				if (p.x == x && p.y == y) return;
 			}
 			landmarks.add(new Point(x, y));
-			Display.repaint(layer); // TODO optimize this!
+			Display.repaint(layer);
 		}
-		void remove(int x, int y) {
+		/** Remove closest point, if closer than a certain threshold. */
+		void remove(int x, int y, double mag) {
+			double max = 10 / mag;
+			if (max < 1) max = 1;
+			Point closest = null;
 			for (Iterator it = landmarks.iterator(); it.hasNext(); ) {
 				Point p = (Point)it.next();
-				if (p.x == x && p.y == y) {
-					it.remove();
-					return;
+				if (Math.abs(p.x - x) < max && Math.abs(p.y - y) < max) {
+					closest = p;
 				}
 			}
+			if (null != closest) landmarks.remove(closest);
+			Display.repaint(layer);
 		}
 		Point get(int i) {
 			if (i < 0 || i > landmarks.size()) return null;
@@ -462,7 +467,7 @@ public class Align {
 			// done!
 			ls.getProject().getLoader().commitLargeUpdate();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			ls.getProject().getLoader().rollback();
 			ls.undoOneStep();
 		}

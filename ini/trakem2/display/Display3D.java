@@ -309,7 +309,7 @@ public class Display3D {
 			}
 			return (Display3D)ob;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -389,7 +389,7 @@ public class Display3D {
 				//sw.elapsed("after creating mesh");
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			doneWaiting();
 		}
@@ -735,7 +735,7 @@ public class Display3D {
 				ct.setTransparency(1f - alpha);
 				ct.toggleLock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			u_lock.unlock();
 		}
@@ -743,7 +743,7 @@ public class Display3D {
 		Utils.log2(pt.toString() + " n points: " + triangles.size());
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				} finally {
 					v_threads.remove(this);
 				}
@@ -785,14 +785,14 @@ public class Display3D {
 				// no need, it's default //ct.setTransparency(1f);
 				ct.toggleLock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			d3d.u_lock.unlock();
 		}
 
 		/////
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				} finally {
 					v_threads.remove(this);
 				}

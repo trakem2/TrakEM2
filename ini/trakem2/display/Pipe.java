@@ -1597,7 +1597,7 @@ public class Pipe extends ZDisplayable {
 			p_width_i = vs.getDependent(0);
 			n = vs.length();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 
 
@@ -1826,7 +1826,7 @@ public class Pipe extends ZDisplayable {
 		try {
 			vs = new VectorString3D(px, py, pz, false);
 			vs.addDependent(p_width_i);
-		} catch (Exception e) { new IJError(e); }
+		} catch (Exception e) { IJError.print(e); }
 		return vs;
 	}
 

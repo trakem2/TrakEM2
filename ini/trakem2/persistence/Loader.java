@@ -368,7 +368,7 @@ abstract public class Loader {
 			//ij.IJ.redirectErrorMessages();
 			//imp = new Opener().openTiff(i_stream, title);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		return imp;
@@ -689,7 +689,7 @@ abstract public class Loader {
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return released;
 	}
@@ -721,7 +721,7 @@ abstract public class Loader {
 				}
 				mawts.removeAndFlushAll();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			unlock();
 		}
@@ -747,7 +747,7 @@ abstract public class Loader {
 				}
 			} catch (Exception e) {
 				unlock();
-				new IJError(e);
+				IJError.print(e);
 				return;
 			}
 			unlock();
@@ -890,7 +890,7 @@ abstract public class Loader {
 				}
 				unlock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 
@@ -959,7 +959,7 @@ abstract public class Loader {
 							mawt = NOT_FOUND;
 						}
 					} catch (Exception e) {
-						new IJError(e);
+						IJError.print(e);
 					}
 					removePatchLoadingLock(plock);
 					unlock();
@@ -981,7 +981,7 @@ abstract public class Loader {
 				}
 				unlock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 
@@ -1011,7 +1011,7 @@ abstract public class Loader {
 				}
 
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			unlock();
 			return NOT_FOUND;
@@ -1117,7 +1117,7 @@ abstract public class Loader {
 				if (null != i_stream) i_stream.close();
 			} catch (IOException ioe) {
 				Utils.log("Loader: Attempt to clean up streams failed.");
-				new IJError(ioe);
+				IJError.print(ioe);
 			}
 			return null;
 		}
@@ -1156,7 +1156,7 @@ abstract public class Loader {
 			IJ.redirectErrorMessages();
 			imp_stack = opener.openImage(f.getCanonicalPath());
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		if (null == imp_stack) {
@@ -1368,7 +1368,7 @@ abstract public class Loader {
 		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -1391,7 +1391,7 @@ abstract public class Loader {
 				return null;
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			finishSetTempCurrentImage();
 			Utils.log("Ignoring " + imp.getTitle() + " from " + path + " since the preprocessor " + preprocessor + " throwed an Exception on it.");
 			flush(imp);
@@ -1509,7 +1509,7 @@ abstract public class Loader {
 		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -1555,7 +1555,7 @@ abstract public class Loader {
 				}
 				finishSetTempCurrentImage();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				finishSetTempCurrentImage();
 				Utils.showMessageT("Plug in " + preprocessor + " is invalid: ImageJ has trhown an exception when testing it with a null image.");
 				return;
@@ -1952,7 +1952,7 @@ abstract public class Loader {
 
 		//debug:
 		} catch (Throwable t) {
-			new IJError(t);
+			IJError.print(t);
 			rollback();
 			setMassiveMode(false); //massive_mode = false;
 			setMipMapsRegeneration(true);
@@ -2172,7 +2172,7 @@ abstract public class Loader {
 								addedPatchFrom(path, patch);
 								lock.unlock();
 							} catch (Exception e) {
-								new IJError(e);
+								IJError.print(e);
 							}
 						}
 						if (null != patch) {
@@ -2185,7 +2185,7 @@ abstract public class Loader {
 									layer.add(patch, true);
 									lock.unlock();
 								} catch (Exception e) {
-									new IJError(e);
+									IJError.print(e);
 								}
 							}
 							decacheImagePlus(patch.getId()); // no point in keeping it around
@@ -2249,7 +2249,7 @@ abstract public class Loader {
 						if (null != t) t.join();
 					}
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -2395,7 +2395,7 @@ abstract public class Loader {
 			}
 			if (null != imp) imp.show();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			finishedWorking();
 		}};
@@ -2422,10 +2422,10 @@ abstract public class Loader {
 			new FileSaver(imp).saveAsZip(file.getAbsolutePath());
 		} catch (OutOfMemoryError oome) {
 			Utils.log2("Not enough memory. Could not save image for " + file_name);
-			new IJError(oome);
+			IJError.print(oome);
 		} catch (Exception e) {
 			Utils.log2("Could not save image for " + file_name);
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -2648,7 +2648,7 @@ abstract public class Loader {
 			}
 
 		} catch (Exception e) {
-			if (ControlWindow.isGUIEnabled()) new IJError(e);
+			if (ControlWindow.isGUIEnabled()) IJError.print(e);
 			else e.printStackTrace();
 			//if (null != imp) flush(imp);
 			//imp = null;
@@ -2808,7 +2808,7 @@ abstract public class Loader {
 			}
 		}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		cleanup();
 		finishedWorking();
@@ -3139,7 +3139,7 @@ abstract public class Loader {
 
 		// it is safe not to flush the imp_stack, because all its resources are being used anyway (all the ImageProcessor), and it has no awt.Image. Unless it's being shown in ImageJ, and then it will be flushed on its own when the user closes its window.
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -3215,14 +3215,14 @@ abstract public class Loader {
 							fpd.delete();
 						} catch (Exception e) {
 							Utils.log2("Could not delete empty directory " + patches_dir);
-							new IJError(e);
+							IJError.print(e);
 						}
 					}
 				}
 			}
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		ControlWindow.updateTitle(project);
 		return path;
@@ -3270,7 +3270,7 @@ abstract public class Loader {
 			}
 			return patches_dir + "_images";
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 	}
@@ -3292,7 +3292,7 @@ abstract public class Loader {
 		try {
 			dir.mkdir();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			Utils.showMessage("Could not create a directory for the images.");
 			return null;
 		}
@@ -3321,7 +3321,7 @@ abstract public class Loader {
 				}
 			} catch (Exception e) {
 				Utils.log("Could not save an image for Patch #" + patch.getId() + " at: " + path);
-				new IJError(e);
+				IJError.print(e);
 				unlock();
 				return null;
 			}
@@ -3446,7 +3446,7 @@ abstract public class Loader {
 			IJ.redirectErrorMessages();
 			IJ.runPlugIn(preprocessor, "");
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			finishSetTempCurrentImage();
 		}
@@ -3646,7 +3646,7 @@ abstract public class Loader {
 					try {
 						awt = p.adjustChannels(entry.getValue());
 					} catch (Exception e) {
-						new IJError(e);
+						IJError.print(e);
 					}
 					synchronized (db_lock) {
 						lock();
@@ -3720,7 +3720,7 @@ abstract public class Loader {
 			out.close();
 			return true;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return false;
 	}
@@ -3733,7 +3733,7 @@ abstract public class Loader {
 			in.close();
 			return ob;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -3837,7 +3837,7 @@ abstract public class Loader {
 					}
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -3902,7 +3902,7 @@ abstract public class Loader {
 					}
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -3927,7 +3927,7 @@ abstract public class Loader {
 				try {
 					homogenizeContrast(pa[0].getLayer(), pa, min, max, drift_hist_peak);
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -4077,7 +4077,7 @@ abstract public class Loader {
 						ImagePlus imp = imps.get(p.getId());
 						if (null != imp) p.putMinAndMax(imp);
 						// else, it will be put when reloading the file
-					} catch (Exception e) { new IJError(e); }
+					} catch (Exception e) { IJError.print(e); }
 					unlock();
 				}
 			}
@@ -4102,7 +4102,7 @@ abstract public class Loader {
 			// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more than once for a few tiles
 			if (null != layer) Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return false;
 		}
 		return true;
@@ -4130,7 +4130,7 @@ abstract public class Loader {
 				f.setAccessible(true);
 				this.my_listeners = (Vector<ij.ImageListener>)f.get(this);
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 		public final void notifyListeners(final ImagePlus imp, final int action) {

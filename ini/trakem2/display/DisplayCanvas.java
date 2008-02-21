@@ -64,8 +64,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private final Object controler_ob = new Object();
 	private boolean controling = false;
 
-	private final Object offscreen_lock = new Object();
-	private boolean offscreen_locked = false;
+	private final Lock offscreen_lock = new Lock();
 
 	private Cursor noCursor;
 
@@ -129,7 +128,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// store to be canceled if necessary
 				add(off);
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 	};
@@ -194,27 +193,28 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// no background paint if painting in fill_paint mode and not erasing
 			} else {
 				synchronized (offscreen_lock) {
-					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-					offscreen_locked = true;
+					offscreen_lock.lock();
+					try {
 
-					if (null != offscreen) {
-						g.drawImage(offscreen, 0, 0, null);
+						if (null != offscreen) {
+							g.drawImage(offscreen, 0, 0, null);
 
+						}
+
+						// prepare the canvas for the srcRect and magnification
+						final AffineTransform at_original = g2d.getTransform();
+						atc.setToIdentity();
+						atc.scale(magnification, magnification);
+						atc.translate(-srcRect.x, -srcRect.y);
+						at_original.preConcatenate(atc);
+						g2d.setTransform(at_original);
+
+						di = new Displayable[al_top.size()];
+						al_top.toArray(di);
+					} catch (Exception e) {
+						e.printStackTrace();
 					}
-
-					// prepare the canvas for the srcRect and magnification
-					final AffineTransform at_original = g2d.getTransform();
-					atc.setToIdentity();
-					atc.scale(magnification, magnification);
-					atc.translate(-srcRect.x, -srcRect.y);
-					at_original.preConcatenate(atc);
-					g2d.setTransform(at_original);
-
-					di = new Displayable[al_top.size()];
-					al_top.toArray(di);
-
-					offscreen_locked = false;
-					offscreen_lock.notifyAll();
+					offscreen_lock.unlock();
 				}
 			}
 
@@ -277,7 +277,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		} catch (Exception e) {
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			// restore cursor
 			if (null == freehandProfile) {
@@ -483,7 +483,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			if (!set.isAligning()) {
 				set.startAlign(display);
 			}
-			set.getAlign().mousePressed(display.getLayer(), me, x_p, y_p);
+			set.getAlign().mousePressed(display.getLayer(), me, x_p, y_p, magnification);
 			return;
 		}
 
@@ -1316,15 +1316,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		// cleanup update graphics thread if any
 		RT.quit();
 		synchronized (offscreen_lock) {
-			while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-			offscreen_locked = true;
-			
+			offscreen_lock.lock();
+
 			offscreen = null;
 			// reset for remaking if necessary TODO doesn't work in at least java 1.6 ?
 			update_graphics = true;
 
-			offscreen_locked = false;
-			offscreen_lock.notifyAll();
+			offscreen_lock.unlock();
 		}
 	}
 
@@ -1387,7 +1385,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			Utils.log("Display displ.:  " + display.getLayer().getDisplayables().size());
 			ke.consume();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			return;
 		}
@@ -1930,40 +1928,31 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 
 				synchronized (offscreen_lock) {
-					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-					offscreen_locked = true;
+					offscreen_lock.lock();
+					try {
+						// only on success:
+						update_graphics = false;
+						loader.setMassiveMode(false);
+						if (null != offscreen) offscreen.flush();
+						offscreen = target;
+						DisplayCanvas.this.al_top = al_top;
 
-					// only on success:
-					update_graphics = false;
-					loader.setMassiveMode(false);
-					if (null != offscreen) offscreen.flush();
-					offscreen = target;
-					DisplayCanvas.this.al_top = al_top;
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
 
-					offscreen_locked = false;
-					offscreen_lock.notifyAll();
+					offscreen_lock.unlock();
 				}
 
 				// Repaint!
 				RT.paintFromOff(clipRect, this.time);
 
+
 			} catch (OutOfMemoryError oome) {
 				// so OutOfMemoryError won't generate locks
-				new IJError(oome);
-				synchronized (offscreen_lock) {
-					if (offscreen_locked) {
-						offscreen_locked = false;
-						offscreen_lock.notifyAll();
-					}
-				}
+				IJError.print(oome);
 			} catch (Exception e) {
-				new IJError(e);
-				synchronized (offscreen_lock) {
-					if (offscreen_locked) {
-						offscreen_locked = false;
-						offscreen_lock.notifyAll();
-					}
-				}
+				IJError.print(e);
 			}
 		}
 	}

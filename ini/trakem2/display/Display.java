@@ -340,7 +340,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					updateInDatabase("layer_id"); // not being done at the setLayer method to avoid thread locking design problems (the setLayer is used when reconstructing from the database)
 					Thread.yield();
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				} finally {
 					// cleanup (removal of reference necessary for join() calls to this thread to succeed)
 					if (this.equals(set_layer_thread)) {
@@ -447,14 +447,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				try {
 					c_alphas_state = Integer.parseInt(data);
 				} catch (Exception ex) {
-					new IJError(ex);
+					IJError.print(ex);
 					c_alphas_state = 0xffffffff;
 				}
 			} else if (key.equals("scroll_step")) {
 				try {
 					setScrollStep(Integer.parseInt(data));
 				} catch (Exception ex) {
-					new IJError(ex);
+					IJError.print(ex);
 					setScrollStep(1);
 				}
 			}
@@ -495,7 +495,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null != front) front.getProject().select(front.layer);
 
 				} catch (Throwable t) {
-					new IJError(t);
+					IJError.print(t);
 				} finally {
 					finishedWorking();
 				}
@@ -1946,7 +1946,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					} else if (!(active instanceof DLabel)) { // can't delete elements from the trees (Profile, Pipe, LayerSet)
 						item.setEnabled(false);
 					}
-				} catch (Exception e) { new IJError(e); item.setEnabled(false); }
+				} catch (Exception e) { IJError.print(e); item.setEnabled(false); }
 
 				if (active instanceof Patch) {
 					item = new JMenuItem("Undo");   item.addActionListener(this); popup.add(item);
@@ -2042,7 +2042,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				item = new JMenuItem("Unhide all images"); item.addActionListener(this); menu.add(item);
 				if (none) item.setEnabled(false);
 				popup.add(menu);
-			} catch (Exception e) { new IJError(e); }
+			} catch (Exception e) { IJError.print(e); }
 
 			menu = new JMenu("Import");
 			item = new JMenuItem("Import image"); item.addActionListener(this); menu.add(item);
@@ -2459,13 +2459,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			try {
 				active.unlinkAll(Patch.class);
 				updateSelection();//selection.update();
-			} catch (Exception e) { new IJError(e); }
+			} catch (Exception e) { IJError.print(e); }
 		} else if (command.equals("Send to next layer")) {
 			try {
 				// unlink Patch instances
 				active.unlinkAll(Patch.class);
 				updateSelection();//selection.update();
-			} catch (Exception e) { new IJError(e); }
+			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveDown(layer, active); // will repaint whatever appropriate layers
 			selection.moveDown();
 		} else if (command.equals("Send to previous layer")) {
@@ -2473,7 +2473,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				// unlink Patch instances
 				active.unlinkAll(Patch.class);
 				updateSelection();//selection.update();
-			} catch (Exception e) { new IJError(e); }
+			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveUp(layer, active); // will repaint whatever appropriate layers
 			selection.moveUp();
 		} else if (command.equals("Show centered")) {
@@ -2954,7 +2954,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 		///
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -2981,7 +2981,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		layer.add(p); // will add it to the proper Displays
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}

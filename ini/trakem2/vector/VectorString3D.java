@@ -688,7 +688,7 @@ public class VectorString3D implements VectorString {
 			vs.tags = this.tags;
 			return vs;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -706,7 +706,7 @@ public class VectorString3D implements VectorString {
 			}
 			return vs;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -1016,7 +1016,7 @@ public class VectorString3D implements VectorString {
 
 		
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			Utils.log2("next: " + next + " length: " + px.length + " i,j: " + i + ", " + j);
 		}
 

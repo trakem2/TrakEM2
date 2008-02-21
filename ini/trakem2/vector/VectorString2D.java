@@ -62,7 +62,7 @@ public class VectorString2D implements VectorString {
 		try {
 			return new VectorString2D(x2, y2, z, closed);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 	}

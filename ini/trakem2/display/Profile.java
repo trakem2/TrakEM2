@@ -1539,7 +1539,7 @@ public class Profile extends Displayable {
 			}
 			return SkinMaker.generateTriangles(sv, -1, -1, closed);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}

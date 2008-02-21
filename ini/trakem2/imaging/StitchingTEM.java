@@ -327,7 +327,7 @@ public class StitchingTEM {
 			//
 			st.flag = DONE;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			st.flag = ERROR;
 		}
 	}
@@ -369,7 +369,7 @@ public class StitchingTEM {
 				imp = new ImagePlus("s", image);
 				ip = imp.getProcessor();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			// cut
 			if (null != roi) {
@@ -641,7 +641,7 @@ public class StitchingTEM {
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return;
 		}
 		// now, relocate the Patch
@@ -686,7 +686,7 @@ public class StitchingTEM {
 
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}

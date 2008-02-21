@@ -171,7 +171,7 @@ public class Compare {
 				}
 
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 				////
@@ -195,7 +195,7 @@ public class Compare {
 		addTab(pipe, v_obs, v_eds, v_scores);
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				} finally {
 					finishedWorking();
 				}
@@ -418,7 +418,7 @@ public class Compare {
 								Display3D.addMesh(master.getLayerSet(), vs, "Interpolated #" + master.getId() + " + #" + match.getId(), master.getColor());
 
 							} catch (Exception e) {
-								new IJError(e);
+								IJError.print(e);
 							}
 						}
 					}

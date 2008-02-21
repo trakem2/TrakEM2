@@ -39,11 +39,11 @@ public class DTDParser {
 				data.append(tmp);
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			try {
 				dis.close();
-			} catch (Exception e) { new IJError(e); }
+			} catch (Exception e) { IJError.print(e); }
 		}
 
 		return parseDTD(data);
@@ -89,11 +89,11 @@ public class DTDParser {
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			try {
 				dis.close();
-			} catch (Exception e) { new IJError(e); }
+			} catch (Exception e) { IJError.print(e); }
 		}
 
 		if (0 == data.length()) return null;

@@ -1202,7 +1202,7 @@ public abstract class Displayable extends DBObject {
 		try {
 			this.at.createInverse().transform(pSrc, pDst);
 		} catch (NoninvertibleTransformException nite) {
-			new IJError(nite);
+			IJError.print(nite);
 		}
 		return pDst;
 	}
