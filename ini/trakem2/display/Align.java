@@ -286,10 +286,12 @@ public class Align {
 				list = ls.getLayers().subList(0, index1); // end is exclusive
 			}
 		}
-		for (Iterator it = list.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
-			layer.apply(Displayable.class, at);
-			Display.repaint(layer);
+		if (null != list) {
+			for (Iterator it = list.iterator(); it.hasNext(); ) {
+				Layer layer = (Layer)it.next();
+				layer.apply(Displayable.class, at);
+				Display.repaint(layer);
+			}
 		}
 		// what about ZDisplayable ? Will not be affected if they are not linking Displayable objects present in the two layers involved. TODO
 
