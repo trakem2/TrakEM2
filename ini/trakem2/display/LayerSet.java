@@ -1443,7 +1443,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	 *  The type is either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB.
 	 *  The format is either Layer.IMAGE (an array) or Layer.ImagePlus (it returns an ImagePlus containing an ImageStack), from which any ImageProcessor or pixel arrays can be retrieved trivially.
 	 */
-	public Object grab(final int first, final int last, final Rectangle r, final double scale, final Class c, final int format, final int type) {
+	public Object grab(final int first, final int last, final Rectangle r, final double scale, final Class c, final int c_alphas, final int format, final int type) {
 		// check preconditions
 		if (first < 0 || first > last || last >= al_layers.size()) {
 			Utils.log("Invalid first and/or last layers.");
@@ -1459,7 +1459,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			for (int i=first; i<=last; i++) {
 				Layer la = (Layer)al_layers.get(i);
 				Utils.log2("c is " + c);
-				ImagePlus imp = project.getLoader().getFlatImage(la, r, scale, 1, type, c, null, true);
+				ImagePlus imp = project.getLoader().getFlatImage(la, r, scale, c_alphas, type, c, null, true);
 				if (null != imp) try {
 					stack.addSlice(imp.getTitle(), imp.getProcessor().getPixels());
 				} catch (IllegalArgumentException iae) {
@@ -1474,7 +1474,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		} else if (Layer.IMAGE == format) {
 			final Image[] image = new Image[last - first + 1];
 			for (int i=first, j=0; i<=last; i++, j++) {
-				image[j] = project.getLoader().getFlatAWTImage((Layer)al_layers.get(i), r, scale, 1, type, c, null, true);
+				image[j] = project.getLoader().getFlatAWTImage((Layer)al_layers.get(i), r, scale, c_alphas, type, c, null, true);
 			}
 			return image;
 		}
