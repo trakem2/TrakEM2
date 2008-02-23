@@ -1275,15 +1275,16 @@ abstract public class Loader {
 		gd.addCheckbox("link images", link_images);
 		gd.addStringField("preprocess with: ", preprocessor); // the name of a plugin to use for preprocessing the images before importing, which implements PlugInFilter
 		gd.addCheckbox("use_cross-correlation", stitch_tiles);
+		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
 		gd.addCheckbox("homogenize_contrast", homogenize_contrast);
-		StitchingTEM.addStitchingRuleChoice(gd);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
 			(Component)gd.getSliders().get(gd.getSliders().size()-1),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1)
+			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
+			(Component)gd.getChoices().get(gd.getChoices().size()-1)
 		};
 		// enable the checkbox to control the slider and its associated numeric field:
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size()-2), c, null);
@@ -1315,6 +1316,12 @@ abstract public class Loader {
 		float cc_scale = (float)gd.getNextNumber() / 100f;
 		homogenize_contrast = gd.getNextBoolean();
 		int stitching_rule = gd.getNextChoiceIndex();
+
+		// Ensure tiles overlap if using SIFT
+		if (StitchingTEM.FREE_RULE == stitching_rule) {
+			if (bt_overlap <= 0) bt_overlap = 1;
+			if (lr_overlap <= 0) lr_overlap = 1;
+		}
 
 		String[] file_names = null;
 		if (null == image_file_names) {
@@ -1443,15 +1450,16 @@ abstract public class Loader {
 		gd.addCheckbox("link_images", false);
 		gd.addStringField("Preprocess with: ", ""); // the name of a plugin to use for preprocessing the images before importing, which implements Preprocess
 		gd.addCheckbox("use_cross-correlation", false);
+		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, 25);
 		gd.addCheckbox("homogenize_contrast", true);
-		StitchingTEM.addStitchingRuleChoice(gd);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
 			(Component)gd.getSliders().get(gd.getSliders().size()-1),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1)
+			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
+			(Component)gd.getChoices().get(gd.getChoices().size()-1)
 		};
 		// enable the checkbox to control the slider and its associated numeric field:
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size()-1), c, null);
@@ -1482,6 +1490,12 @@ abstract public class Loader {
 		float cc_scale = (float)gd.getNextNumber() / 100f;
 		boolean homogenize_contrast = gd.getNextBoolean();
 		int stitching_rule = gd.getNextChoiceIndex();
+
+		// Ensure tiles overlap if using SIFT
+		if (StitchingTEM.FREE_RULE == stitching_rule) {
+			if (bt_overlap <= 0) bt_overlap = 1;
+			if (lr_overlap <= 0) lr_overlap = 1;
+		}
 
 		//start magic
 		//get ImageJ-openable files that comply with the convention
@@ -1892,27 +1906,8 @@ abstract public class Loader {
 			layer.getParent().createUndoStep(layer);
 			// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 			if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
-			ControlWindow.startWaitingCursor();
-			final StitchingTEM st = new StitchingTEM();
-			Thread thread = st.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true, stitching_rule);
-			while (StitchingTEM.WORKING == st.getStatus()) {
-				if (this.quit) {
-					st.quit();
-					rollback();
-					ControlWindow.endWaitingCursor();
-					Display.repaint(layer);
-					return;
-				}
-				try { Thread.sleep(1000); } catch (InterruptedException ie) {}
-			}
-			if (StitchingTEM.ERROR == st.getStatus()) {
-				Utils.log("Cross-correlation FAILED");
-				layer.getParent().undoOneStep();
-			}
-			ControlWindow.endWaitingCursor();
-
-			// make picture
-			//getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
+			Bureaucrat task = StitchingTEM.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true, stitching_rule);
+			if (null != task) try { task.join(); } catch (Exception e) {}
 		}
 
 		// link with images on top, bottom, left and right.

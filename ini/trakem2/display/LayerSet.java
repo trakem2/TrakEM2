@@ -999,10 +999,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** Creates an undo step that contains transformations for all Displayable objects of this LayerSet */
 	synchronized public void createUndoStep() {
 		final Hashtable ht_undo = new Hashtable();
-		for (Iterator lit = al_layers.iterator(); lit.hasNext(); ) {
-			Layer la = (Layer)lit.next();
-			for (Iterator dit = la.getDisplayables().iterator(); dit.hasNext(); ) {
-				Displayable d = (Displayable)dit.next();
+		for (Layer la : al_layers) {
+			for (Displayable d : layer.getDisplayables()) {
 				ht_undo.put(d, d.getAffineTransformCopy());
 			}
 		}
@@ -1013,8 +1011,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public void createUndoStep(final Layer layer) {
 		if (null == layer) return;
 		final Hashtable ht_undo = new Hashtable();
-		for (Iterator dit = layer.getDisplayables().iterator(); dit.hasNext(); ) {
-			Displayable d = (Displayable)dit.next();
+		for (Displayable d : layer.getDisplayables()) {
 			ht_undo.put(d, d.getAffineTransformCopy());
 		}
 		addUndoStep(ht_undo);

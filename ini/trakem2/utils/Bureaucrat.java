@@ -69,6 +69,7 @@ public class Bureaucrat extends Thread {
 				return;
 			}
 		}
+		ControlWindow.startWaitingCursor();
 		int sandwitch = 1000; // one second, will get slower over time
 		Utils.showStatus("Started processing: " + worker.getTaskName(), !worker.onBackground());
 		while (worker.isWorking() && !worker.hasQuitted()) {
@@ -85,6 +86,7 @@ public class Bureaucrat extends Thread {
 				sandwitch = 60000; // every minute
 			}
 		}
+		ControlWindow.endWaitingCursor();
 		Utils.showStatus("Done " + worker.getTaskName(), !worker.onBackground());
 		cleanup();
 	}

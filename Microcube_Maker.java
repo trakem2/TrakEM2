@@ -116,6 +116,16 @@ public class Microcube_Maker {
 			p("Could not save microcube from " + ob);
 			return;
 		}
+		
+		// TODO: re-register, with proper enlarged sizes and subsequent crop to ensure there are no black areas in the downloaded microcube.
+		// One way to do it:
+		//  - first cut stack
+		//  - register
+		//  - calculate enlarged box, and crop that from the original for each layer.
+		// Another way to do it:
+		//  - cut a bit more than will be needed
+		//  - register
+		//  - calculate enlarged box, crop that from the original - because black areas may still creep in
 
 		// done!
 		project.destroy();

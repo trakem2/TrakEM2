@@ -70,8 +70,8 @@ import java.awt.geom.AffineTransform;
  *  - grid width
  *  - known percent overlap
  *
- *  This class will return the x,y of each image in the optimal montage,
- *  by applying cross correlation between neighboring images.
+ *  This class will attempt to find the optimal montage,
+ *  by applying phase-correlation, and/or cross-correlation, and/or SIFT-based correlation) between neighboring images.
  *  
  *  The method is oriented to images acquired with Transmission Electron Miscrospy,
  *  where the acquistion of each image elastically deforms the sample, and thus
@@ -87,23 +87,17 @@ public class StitchingTEM {
 	static public final int ERROR = 1;
 	static public final int INTERRUPTED = 2;
 
-	private int flag = WORKING;
-	private boolean quit = false;
-
-
 	static public final int SUCCESS = 3;
 	static public final int TOP_BOTTOM = 4;
 	static public final int LEFT_RIGHT = 5;
 
 	static public final int TOP_LEFT_RULE = 0;
-	static public final int NETWORK_RULE = 1;
+	static public final int FREE_RULE = 1;
 
 	static public void addStitchingRuleChoice(GenericDialog gd) {
-		final String[] rules = new String[]{"Top left" /*, "Free"*/};
+		final String[] rules = new String[]{"Top left", "Free"};
 		gd.addChoice("stitching_rule: ", rules, rules[0]);
 	}
-
-	public StitchingTEM() {}
 
 	/** Returns the same Patch instances with their coordinates modified; the top-left image is assumed to be the first one, and thus serves as reference; so, after the first image, coordinates are ignored for each specific Patch.
 	 *
@@ -116,54 +110,48 @@ public class StitchingTEM {
 	 *
 	 * The scale is used to make the images smaller when doing cross-correlation. If larger than 1, it gets put back to 1.
 	 *
-	 * Rotation of the images is NOT considered by the cross correlation.
+	 * Rotation of the images is NOT considered by the TOP_LEFT_RULE (phase- and cross-correlation),
+	 * but it can be for the FREE_RULE (SIFT).
 	 * 
-	 * All this method does is translate patches along the X and Y axes, nothing else.
-	 *
-	 * @return A new Thread in which the work is done, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
+	 * @return A new Bureaucrat Thread, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
 	 */
-	public Thread stitch(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean optimize, final int stitching_rule) {
-		// start
-		this.flag = WORKING;
+	static public Bureaucrat stitch(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean optimize, final int stitching_rule) {
 		// check preconditions
 		if (null == patch || grid_width < 1 || percent_overlap <= 0) {
-			flag = ERROR;
 			return null;
 		}
 		if (patch.length < 2) {
-			flag = DONE;
 			return null;
 		}
 
 		// compare Patch dimensions: later code needs all to be equal
-		//double w = patch[0].getWidth();
-		//double h = patch[0].getHeight();
 		Rectangle b0 = patch[0].getBoundingBox(null);
 		for (int i=1; i<patch.length; i++) {
 			Rectangle bi = patch[i].getBoundingBox(null);
-			//if (patch[i].getWidth() != w || patch[i].getHeight() != h)
 			if (bi.width != b0.width || bi.height != b0.height) {
-				flag = ERROR;
 				Utils.log2("Stitching: dimensions' missmatch.\n\tAll images MUST have the same dimensions."); // i.e. all Patches, actually (meaning, all Patch objects must have the same width and the same height).
 				return null;
 			}
 		}
 
-		final StitchingTEM st = this;
-		Thread thread = new Thread() {
-			public void run() {
-				switch (stitching_rule) {
-				case StitchingTEM.TOP_LEFT_RULE:
-					StitchingTEM.stitchTopLeft(st, patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap, optimize);
-					break;
-				}
-			}
-		};
-		thread.start();
-		return thread;
+		Utils.log2("patch layer: " + patch[0].getLayer());
+		patch[0].getLayerSet().createUndoStep(patch[0].getLayer());
+
+		switch (stitching_rule) {
+			case StitchingTEM.TOP_LEFT_RULE:
+				return StitchingTEM.stitchTopLeft(patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap, optimize);
+			case StitchingTEM.FREE_RULE:
+				HashSet<Patch> hs = new HashSet<Patch>();
+				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
+				return Registration.registerTilesSIFT(hs, patch[0], null, true);
+		}
+		return null;
 	}
 
-	static private void stitchTopLeft(final StitchingTEM st, final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean optimize) {
+	static private Bureaucrat stitchTopLeft(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean optimize) {
+		final Worker worker = new Worker("Stitching") {
+			public void run() {
+
 		try {
 			final int LEFT = 0, TOP = 1;
 
@@ -181,7 +169,7 @@ public class StitchingTEM {
 			al_tiles.add(new Tile((float)patch[0].getWidth(), (float)patch[0].getHeight(), first_tile_model ));
 
 			for (int i=1; i<patch.length; i++) {
-				if (st.quit) {
+				if (hasQuitted()) {
 					return;
 				}
 
@@ -208,16 +196,16 @@ public class StitchingTEM {
 
 				if (TOP == prev) {
 					// compare with top only
-					R1 = st.correlate(patch[prev_i], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
+					R1 = correlate(patch[prev_i], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
 					R2 = null;
 					tile_top = al_tiles.get(i - grid_width);
 				} else {
 					// the one on the left
-					R2 = st.correlate(patch[prev_i], patch[i], percent_overlap, scale, LEFT_RIGHT, default_dx, default_dy);
+					R2 = correlate(patch[prev_i], patch[i], percent_overlap, scale, LEFT_RIGHT, default_dx, default_dy);
 					tile_left = al_tiles.get(i - 1);
 					// the one above
 					if (i - grid_width > -1) {
-						R1 = st.correlate(patch[i - grid_width], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
+						R1 = correlate(patch[i - grid_width], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
 						tile_top = al_tiles.get(i - grid_width);
 					} else {
 						R1 = null;
@@ -325,11 +313,14 @@ public class StitchingTEM {
 			Display.repaint(patch[0].getLayer(), null, 0, true); // all
 
 			//
-			st.flag = DONE;
 		} catch (Exception e) {
 			IJError.print(e);
-			st.flag = ERROR;
 		}
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, patch[0].getProject());
+		burro.goHaveBreakfast();
+		return burro;
 	}
 
 	/** dx, dy is the position of t2 relative to the 0,0 of t1. */
@@ -416,15 +407,6 @@ public class StitchingTEM {
 		if (imp.getType() != ImagePlus.GRAY32) return ip.convertToFloat();
 
 		return ip;
-	}
-
-	public int getStatus() {
-		return flag;
-	}
-
-	public void quit() {
-		this.quit = true;
-		this.flag = INTERRUPTED;
 	}
 
 	 /** @param scale For optimizing the speed of phase- and cross-correlation.<br />

@@ -672,11 +672,11 @@ public class Registration {
 			if (cross_layer) {
 				gd.addNumericField("cs_min_epsilon :", cs_min_epsilon, 2);
 				gd.addNumericField("cs_max_epsilon :", cs_max_epsilon, 2);
-				gd.addCheckbox("layers_are_prealigned :", layers_prealigned);
 			}
 			gd.addNumericField("minimal_inlier_ratio :", min_inlier_ratio, 2);
 			final String[] regtype = new String[]{"translation only", "translation and rotation"};
 			gd.addChoice("registration_type :", regtype, regtype[dimension]);
+			gd.addCheckbox("tiles_are_prealigned :", layers_prealigned);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 			this.scale = (float)gd.getNextNumber() / 100;
@@ -691,10 +691,10 @@ public class Registration {
 			if (cross_layer) {
 				this.cs_min_epsilon = (float)gd.getNextNumber();
 				this.cs_max_epsilon = (float)gd.getNextNumber();
-				this.layers_prealigned = gd.getNextBoolean();
 			}
 			this.min_inlier_ratio = (float)gd.getNextNumber();
 			this.dimension = gd.getNextChoiceIndex();
+			this.layers_prealigned = gd.getNextBoolean();
 
 			// debug:
 			print();
@@ -1495,7 +1495,7 @@ public class Registration {
 			if (worker.hasQuitted()) return;
 			final Patch current_patch = patches2.get( i );
 			final Tile current_tile = tiles2.get( i );
-			final Vector<Feature> fsi = (null == fsets2[i] ? Registration.deserialize(current_patch, storage_folder, sp) : fsets2[i]);
+			final Vector<Feature> fsi = (null == fsets2[i] ? Registration.deserialize(current_patch, sp,  storage_folder) : fsets2[i]);
 			for ( int j = 0; j < num_patches1; ++j )
 			{
 				if (worker.hasQuitted()) return;
@@ -1507,7 +1507,7 @@ public class Registration {
 					System.out.print( "identifying correspondences using brute force ..." );
 					Vector< PointMatch > candidates = FloatArray2DSIFT.createMatches(
 								fsi, //featureSets2.get( i ),
-								(null == fsets1[j] ? Registration.deserialize(other_patch, storage_folder, sp) : fsets1[j]), //featureSets1.get( j ),
+								(null == fsets1[j] ? Registration.deserialize(other_patch, sp, storage_folder) : fsets1[j]), //featureSets1.get( j ),
 								1.25f,
 								null,
 								Float.MAX_VALUE );
@@ -1564,7 +1564,7 @@ public class Registration {
 						//
 						final Patch patch = pa[k];
 						// Extract features
-						Vector<Feature> fs = Registration.deserialize(patch, storage_folder, sp);
+						Vector<Feature> fs = Registration.deserialize(patch, sp, storage_folder);
 						if (null == fs) {
 							final ImageProcessor ip = patch.getImageProcessor();
 							FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToByte(true));
@@ -1606,7 +1606,7 @@ public class Registration {
 			if (worker.hasQuitted()) return;
 			final Patch current_patch = patches.get( i );
 			final Tile current_tile = tiles.get( i );
-			final Vector<Feature> fsi = (null == fsets[i] ? Registration.deserialize(current_patch, storage_folder, sp) : fsets[i]);
+			final Vector<Feature> fsi = (null == fsets[i] ? Registration.deserialize(current_patch, sp, storage_folder) : fsets[i]);
 			for ( int j = i + 1; j < num_patches; ++j )
 			{
 				if (worker.hasQuitted()) return;
@@ -1618,7 +1618,7 @@ public class Registration {
 					System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
 					Vector< PointMatch > correspondences = FloatArray2DSIFT.createMatches(
 								fsi, // featureSets.get( i ),
-								(null == fsets[j] ? Registration.deserialize(other_patch, storage_folder, sp) : fsets[j]), //featureSets.get( j ),
+								(null == fsets[j] ? Registration.deserialize(other_patch, sp, storage_folder) : fsets[j]), //featureSets.get( j ),
 								1.25f,
 								null,
 								Float.MAX_VALUE );
@@ -1665,7 +1665,7 @@ public class Registration {
 	}
 
 	/** Freely register all-to-all the given set of patches; optionally provide a fixed Patch. */
-	static public Bureaucrat registerTilesSIFT(final HashSet<Patch> hs_patches, final Patch fixed) {
+	static public Bureaucrat registerTilesSIFT(final HashSet<Patch> hs_patches, final Patch fixed, final Registration.SIFTParameters sp_, final boolean overlapping_only) {
 		if (null == hs_patches || hs_patches.size() < 2) return null;
 
 		final LayerSet set = hs_patches.iterator().next().getLayerSet();
@@ -1675,10 +1675,16 @@ public class Registration {
 				try {
 		//////
 		final Worker worker = this; // J jate java
-		final SIFTParameters sp = new SIFTParameters(set.getProject());
-		if (!sp.setup()) {
-			finishedWorking();
-			return;
+		SIFTParameters sp = sp_;
+		if (null == sp) {
+			sp = new SIFTParameters(set.getProject());
+			sp.layers_prealigned = overlapping_only;
+			if (!sp.setup()) {
+				finishedWorking();
+				return;
+			}
+		} else {
+			sp.layers_prealigned = overlapping_only;
 		}
 
 		// the storage folder for serialized features
@@ -1754,14 +1760,14 @@ public class Registration {
 		}
 	}
 
-	static private boolean serialize(final Patch p, final Vector<Feature> v, final Registration.SIFTParameters sp, final String storage_folder) {
+	static public boolean serialize(final Patch p, final Vector<Feature> v, final Registration.SIFTParameters sp, final String storage_folder) {
 		if (null == storage_folder) return false;
 		final Features fe = new Features(sp, v);
 		return p.getProject().getLoader().serialize(fe, new StringBuffer(storage_folder).append("features_").append(p.getId()).append(".ser").toString());
 	}
 
 	/** Retrieve the features only if saved with the exact same relevant SIFT parameters. */
-	static private Vector<Feature> deserialize(final Patch p, final String storage_folder, final Registration.SIFTParameters sp) {
+	static public Vector<Feature> deserialize(final Patch p, final Registration.SIFTParameters sp, final String storage_folder) {
 		if (null == storage_folder) return null;
 		final Object ob = p.getProject().getLoader().deserialize(new StringBuffer(storage_folder).append("features_").append(p.getId()).append(".ser").toString());
 		if (null != ob) {
