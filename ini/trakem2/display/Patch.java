@@ -590,8 +590,8 @@ public class Patch extends Displayable {
 	}
 
 	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. */
-	public Displayable clone(Project project) {
-		final Patch copy = new Patch(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
+	public Displayable clone(Project pr) {
+		final Patch copy = new Patch(pr, pr.getLoader().getNextId(), null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.alpha = this.alpha;
 		copy.visible = true;
@@ -599,7 +599,7 @@ public class Patch extends Displayable {
 		copy.min = this.min;
 		copy.max = this.max;
 		copy.addToDatabase();
-		project.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
+		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 		return copy;
 	}
 

@@ -176,12 +176,9 @@ public class FSLoader extends Loader {
 			Utils.log2("project file path 2: " + this.project_file_path);
 		}
 		// check if any of the open projects uses the same file path, and refuse to open if so:
-		for (Iterator it = v_loaders.iterator(); it.hasNext(); ) {
-			Loader lo = (Loader)it.next();
-			if (lo instanceof FSLoader && ((FSLoader)lo).project_file_path.equals(this.project_file_path)) {
-				Utils.showMessage("The project is already open.");
-				return null;
-			}
+		if (null != FSLoader.getOpenProject(project_file_path)) {
+			Utils.showMessage("The project is already open.");
+			return null;
 		}
 
 		Object[] data = null;
@@ -239,6 +236,16 @@ public class FSLoader extends Loader {
 		// else, good
 		super.v_loaders.add(this);
 		return data;
+	}
+
+	static public Project getOpenProject(final String project_file_path) {
+		Loader[] lo = (Loader[])v_loaders.toArray(new Loader[0]); // atomic way to get the list of loaders
+		for (int i=0; i<lo.length; i++) {
+			if (lo[i] instanceof FSLoader && ((FSLoader)lo[i]).project_file_path.equals(project_file_path)) {
+				return Project.findProject(lo[i]);
+			}
+		}
+		return null;
 	}
 
 	public boolean isReady() {

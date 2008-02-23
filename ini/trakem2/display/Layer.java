@@ -41,6 +41,7 @@ import java.util.Iterator;
 
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.Image;
 
 public class Layer extends DBObject {
@@ -378,6 +379,22 @@ public class Layer extends DBObject {
 		return al;
 	}
 
+	/** Returns a list of all Displayable of class c that intersect the given roi. */
+	public ArrayList<Displayable> getDisplayables(final Class c, final Rectangle roi) {
+		final ArrayList<Displayable> al = getDisplayables(c);
+		final Area aroi = new Area(roi);
+		for (Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
+			Displayable d = it.next();
+			Area area = new Area(d.getPerimeter());
+			area.intersect(aroi);
+			Rectangle b = area.getBounds();
+			if (0 == b.width || 0 == b.height) {
+				it.remove();
+			}
+		}
+		return al;
+	}
+
 	public Displayable get(final long id) {
 		for (Displayable d : al_displayables) {
 			if (d.getId() == id) return d;
@@ -643,7 +660,7 @@ public class Layer extends DBObject {
 		final Layer clone = new Layer(pr, z, thickness, ls);
 		for (Iterator it = find(roi).iterator(); it.hasNext(); ) {
 			Displayable copy = ((Displayable)it.next()).clone(pr);
-			if (null != copy) clone.addSilently(copy); // Dissector.clone is not implemented yet, and LayerSet can't be cloned so far
+			if (null != copy) clone.addSilently(copy); // Dissector.clone is not implemented yet
 		}
 		final AffineTransform transform = new AffineTransform();
 		transform.translate(-roi.x, -roi.y);
