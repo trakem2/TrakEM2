@@ -1348,14 +1348,18 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Repaint the given Rectangle in all Displays showing the layer, updating the offscreen image if any. */
 	static public void repaint(Layer layer, Rectangle r, int extra) {
-		repaint(layer, r, extra, true);
+		repaint(layer, extra, r, true, true);
 	}
 
 	static public void repaint(final Layer layer, final int extra, final Rectangle r, final boolean update_navigator) {
+		repaint(layer, extra, r, update_navigator, true);
+	}
+
+	static public void repaint(final Layer layer, final int extra, final Rectangle r, final boolean update_navigator, final boolean update_graphics) {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
-				d.canvas.setUpdateGraphics(true);
+				d.canvas.setUpdateGraphics(update_graphics);
 				d.canvas.repaint(r, extra);
 				if (update_navigator) {
 					d.navigator.repaint(true);
@@ -1404,10 +1408,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
 			if (set.contains(d.layer)) {
-				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
-				if (repaint_navigator && null != dp) dp.repaint();
-				if (repaint_navigator) d.navigator.repaint(true);
-				if (!displ.equals(d.active)) d.setUpdateGraphics(true); // safeguard
+				if (repaint_navigator) {
+					DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+					if (null != dp) dp.repaint();
+					d.navigator.repaint(true);
+				}
+				if (null == displ || !displ.equals(d.active)) d.setUpdateGraphics(true); // safeguard
 				// paint the given box or the actual Displayable's box
 				if (null != r) d.canvas.repaint(r, extra);
 				else d.canvas.repaint(displ, extra);

@@ -629,7 +629,7 @@ public class Profile extends Displayable {
 					removePoint(index);
 					index = index_r = index_l = -1;
 					generateInterpolatedPoints(0.05);
-					repaint();
+					repaint(false);
 					return;
 				} else if (me.isAltDown()) {
 					resetControlPoints(index);
@@ -641,7 +641,7 @@ public class Profile extends Displayable {
 					}
 					toggleClosed();
 					generateInterpolatedPoints(0.05);
-					repaint();
+					repaint(false);
 					return;
 				} else if (0 == index && n_points > 1 && !closed) {
 					//close curve, reset left control point of the first point and set it up for dragging
@@ -652,7 +652,7 @@ public class Profile extends Displayable {
 					index = -1;
 					index_r = -1;
 					index_l = 0; //the first one
-					repaint();
+					repaint(false);
 					return;
 				}
 			}
@@ -675,7 +675,7 @@ public class Profile extends Displayable {
 					index_r = index_l;
 					index_l = -1;
 				}
-				repaint();
+				repaint(false);
 				return;
 			}
 		}
@@ -710,7 +710,7 @@ public class Profile extends Displayable {
 					dragControlPoint(index, x_d, y_d, p_l, p_r, true);
 				}
 				generateInterpolatedPoints(0.05);
-				repaint();
+				repaint(false);
 				return;
 			}
 
@@ -718,13 +718,13 @@ public class Profile extends Displayable {
 			if (-1 != index_r) {
 				dragControlPoint(index_r, x_d, y_d, p_r, p_l, is_new_point);
 				generateInterpolatedPoints(0.05);
-				repaint();
+				repaint(false);
 				return;
 			}
 			if (-1 != index_l) {
 				dragControlPoint(index_l, x_d, y_d, p_l, p_r, is_new_point);
 				generateInterpolatedPoints(0.05);
-				repaint();
+				repaint(false);
 				return;
 			}
 
@@ -733,7 +733,7 @@ public class Profile extends Displayable {
 				int dx = x_d - x_d_old;
 				int dy = y_d - y_d_old;
 				this.at.translate(dx, dy);
-				repaint();
+				repaint(false);
 				return;
 			}
 		}
@@ -814,13 +814,17 @@ public class Profile extends Displayable {
 	}
 
 
-	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
 	public void repaint() {
+		repaint(true);
+	}
+
+	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
+	public void repaint(boolean repaint_navigator) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
 		calculateBoundingBox();
 		box.add(getBoundingBox(null));
-		Display.repaint(layer, this, box, 5);
+		Display.repaint(layer, this, box, 5, repaint_navigator);
 	}
 
 	/**Check if the given point (usually from a MOUSE_PRESSED MouseEvent) is contained within the boundaries of this object. The point is expected as local coordinates. */

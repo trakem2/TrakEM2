@@ -772,7 +772,8 @@ public class Pipe extends ZDisplayable {
 			updateInDatabase("dimensions");
 		}
 
-		Display.repaint(layer, this, 5); // the entire Displayable object
+		//Display.repaint(layer, this, 5); // the entire Displayable object
+		repaint(true);
 
 		// reset
 		is_new_point = false;

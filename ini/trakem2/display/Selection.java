@@ -957,8 +957,54 @@ public class Selection {
 	}
 
 	/** Returns the set of all Displayable objects affected by this selection, that is, the selected ones and their linked ones.*/
-	public Set getAffected() {
-		return (Set)hs.clone();
+	public Set<Displayable> getAffected() {
+		return (Set<Displayable>)hs.clone();
+	}
+
+	/** Returns the set of all Displayable objects of the given class affected by this selection, that is, among the selected ones and their linked ones. */
+	public Set<Displayable> getAffected(final Class c) {
+		HashSet<Displayable> copy = new HashSet<Displayable>();
+		synchronized (queue_lock) {
+			lock();
+			if (Displayable.class.equals(c) && hs.size() > 0) {
+				copy.addAll(hs);
+				unlock();
+				return copy;
+			}
+			boolean zd = ZDisplayable.class.equals(c);
+			for (Displayable d : this.hs) {
+				if (zd && d instanceof ZDisplayable) {
+					copy.add(d);
+				} else if (d.getClass().equals(c)) {
+					hs.add(d);
+				}
+			}
+			unlock();
+		}
+		return hs;
+	}
+
+	/** If any of the selected or linked is of Class c. */
+	public boolean containsAffected(final Class c) {
+		synchronized (queue_lock) {
+			lock();
+			if (Displayable.class.equals(c) && hs.size() > 0) {
+				unlock();
+				return true;
+			}
+			boolean zd = ZDisplayable.class.equals(c);
+			for (Displayable d : hs) {
+				if (zd && d instanceof ZDisplayable) {
+					unlock();
+					return true;
+				} else if (d.getClass().equals(c)) {
+					unlock();
+					return true;
+				}
+			}
+			unlock();
+		}
+		return false;
 	}
 
 	/** Send all selected components to the previous layer. */

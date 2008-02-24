@@ -439,7 +439,7 @@ public class AreaList extends ZDisplayable {
 				if (null != r_old) r.add(r_old);
 				r_old = copy;
 
-				Display.repaint(Display.getFrontLayer(), 3, r, false); // repaint only the last added slash
+				Display.repaint(Display.getFrontLayer(), 3, r, false, false); // repaint only the last added slash
 
 				// reset
 				atb.setToIdentity();

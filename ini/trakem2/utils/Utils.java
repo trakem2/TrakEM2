@@ -175,6 +175,7 @@ public class Utils implements ij.plugin.PlugIn {
 					}
 					// allow some time for overwriting of messages
 					Thread.sleep(100);
+					/* // should not be needed
 					// print the msg if necessary
 					synchronized (this) {
 						if (null != msg) {
@@ -182,6 +183,7 @@ public class Utils implements ij.plugin.PlugIn {
 							msg = null;
 						}
 					}
+					*/
 				} catch (Exception e) {
 					e.printStackTrace();
 				}

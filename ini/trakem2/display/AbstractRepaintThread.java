@@ -62,7 +62,7 @@ public abstract class AbstractRepaintThread extends Thread {
 	}
 
 	/** Accept paint request only if the time is later that latest recorded paint event from an offscreen thread.*/
-	public final void paintFromOff(final Rectangle clipRect, final long time) {
+	public void paintFromOff(final Rectangle clipRect, final long time) {
 		//
 		/*
 		synchronized (lock_offs) {
@@ -80,7 +80,7 @@ public abstract class AbstractRepaintThread extends Thread {
 
 	/** Queue a new request for painting. */
 	public void paint(final Rectangle clipRect, final boolean update_graphics) {
-		//Utils.printCaller(this, 7);
+		if (update_graphics) Utils.printCaller(this, 7);
 		// queue the event
 		synchronized (lock_event) {
 			lock_event.lock();
@@ -134,8 +134,10 @@ public abstract class AbstractRepaintThread extends Thread {
 		while (!quit) {
 			try {
 				// wait until anyone issues a repaint event
-				synchronized (lock_paint) {
-					try { lock_paint.wait(); } catch (InterruptedException ie) {}
+				if (0 == events.size()) {
+					synchronized (lock_paint) {
+						try { lock_paint.wait(); } catch (InterruptedException ie) {}
+					}
 				}
 
 				if (quit) {
@@ -144,6 +146,7 @@ public abstract class AbstractRepaintThread extends Thread {
 				}
 
 				// wait a bit to catch fast subsequent events
+				// 	10 miliseconds
 				try { Thread.sleep(10); } catch (InterruptedException ie) {}
 
 				// obtain all events up to now and clear the event queue
@@ -155,7 +158,7 @@ public abstract class AbstractRepaintThread extends Thread {
 					events.clear();
 					lock_event.unlock();
 				}
-				if (null == pe || 0 == pe.length) {
+				if (0 == pe.length) {
 					Utils.log2("No repaint events (?)");
 					continue;
 				}

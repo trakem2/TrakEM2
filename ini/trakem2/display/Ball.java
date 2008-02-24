@@ -145,7 +145,7 @@ public class Ball extends ZDisplayable {
 			}
 		}
 
-		calculateBoundingBox(true);
+		//later! Otherwise can't repaint properly//calculateBoundingBox(true);
 
 		//update in database
 		updateInDatabase("points");
@@ -309,7 +309,7 @@ public class Ball extends ZDisplayable {
 			updateInDatabase("points"); // delete and add all again. TEMPORARY
 		}
 		if (-1 != index) {
-			calculateBoundingBox(true);
+			//later!//calculateBoundingBox(true);
 			updateInDatabase("transform+dimensions");
 		}
 

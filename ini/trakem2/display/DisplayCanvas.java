@@ -131,6 +131,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				IJError.print(e);
 			}
 		}
+		public void paintFromOff(final Rectangle clipRect, final long time) {
+			// WARNING this is just a patch
+			Utils.log("paintFromOff");
+			super.paintFromOff(display.getSelection().contains(Patch.class) ? null : clipRect, time);
+		}
 	};
 
 	private final void setRenderingHints(final Graphics2D g) {
@@ -368,7 +373,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		// pan with middle mouse like in inkscape
 		/* // works, but can't use it: the alt button then is useless (so no erasing with areas, and so on)
-		if (0 != (flags & InputEvent.BUTTON2_MASK)) {
+		if (0 != (flags & InputEvent.BUTTON2_MASK))
 		*/
 		if (me.getButton() == MouseEvent.BUTTON2) {
 			tmp_tool = tool;
@@ -559,10 +564,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		case Toolbar.MAGNIFIER: // TODO : create a zooms-area tool
 			return;
 		case Toolbar.HAND:
-			update_graphics = true; // update the offscreen images.
+			int srx = srcRect.x,
+			    sry = srcRect.y;
 			scroll(me.getX(), me.getY());
-			display.getNavigator().repaint(false);
-			repaint(true);
+			if (0 != srx - srcRect.x || 0 != sry - srcRect.y) {
+				update_graphics = true; // update the offscreen images.
+				display.getNavigator().repaint(false);
+				repaint(true);
+			}
 			return;
 		}
 
@@ -630,7 +639,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
 			//TODO//Utils.log2("md: " + box.toString());
-					Display.repaint(display.getLayer(), Selection.PADDING, box, false);
+					Display.repaint(display.getLayer(), Selection.PADDING, box, false, active.isLinked() || active.getClass().equals(Patch.class));
 					// box for next mouse dragged iteration
 					box = box2;
 					break;
@@ -794,17 +803,20 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case ProjectToolbar.SELECT:
 				selection.mouseReleased(x_p, y_p, x_d, y_d, x_r, y_r);
 				box.add(selection.getLinkedBox());
-				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming()); // does not repaint the navigator
+				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass().equals(Patch.class)); // does not repaint the navigator
 				break;
 			case ProjectToolbar.PENCIL:
 			case ProjectToolbar.PEN:
+				Utils.log2("mr 1: " + update_graphics);
 				active.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r); // active, not selection (Selection only handles transforms, not active's data editions)
+				Utils.log2("mr  2: " + update_graphics);
 				// update active's bounding box
 				selection.updateTransform(active);
 				box.add(selection.getBox());
-				if (!active.getClass().equals(AreaList.class)) Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
+				//if (!active.getClass().equals(AreaList.class)) Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
 				// TODO: this last repaint call is unnecessary, if the box was properly repainted on mouse drag for Profile etc.
-				else if (null != old_brush_box) {
+				//else 
+				if (null != old_brush_box) {
 					repaint(old_brush_box, 0, false);
 					old_brush_box = null; // from mouseMoved
 				}
@@ -1756,7 +1768,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		public final boolean canQuit() {
 			final long now = System.currentTimeMillis();
 			if (now - start > min_time && now - last_paint < min_time) {
-				//p(label + " off canQuit yes");
+				Utils.log2(label + " off canQuit yes");
 				return true;
 			}
 			return false;
@@ -1955,10 +1967,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				IJError.print(e);
 			}
 		}
-	}
-
-	private final void p(final String msg) {
-		//Utils.log2(msg);
 	}
 
 	// added here to prevent flickering, but doesn't help. All it does is avoid a call to imp.redraw()
