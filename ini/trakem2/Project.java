@@ -317,8 +317,10 @@ public class Project extends DBObject {
 		return new_project;
 	}
 
-	/** Opens a project from an .xml file. If the path is null it'll be asked for.*/
-	static public Project openFSProject(final String path) {
+	/** Opens a project from an .xml file. If the path is null it'll be asked for.
+	 *  Only one project may be opened at a time.
+	 */
+	synchronized static public Project openFSProject(final String path) {
 		if (Utils.wrongImageJVersion()) return null;
 		final FSLoader loader = new FSLoader();
 		final Object[] data = loader.openFSProject(path);

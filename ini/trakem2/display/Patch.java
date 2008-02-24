@@ -186,11 +186,8 @@ public class Patch extends Displayable {
 	/** @param c contains the current Display 'channels' value (the transparencies of each channel). This method creates a new color image in which each channel (R, G, B) has the corresponding alpha (in fact, opacity) specified in the 'c'. This alpha is independent of the alpha of the whole Patch. The method updates the Loader cache with the newly created image. The argument 'imp' is optional: if null, it will be retrieved from the loader.<br />
 	 * For non-color images, a standard image is returned regardless of the @param c
 	 */
-	private Image adjustChannels(int c, boolean force, ImagePlus imp) {
-		if (null == imp) imp = project.getLoader().fetchImagePlus(this, false); // calling create_snap will end up calling this method adjustChannels twice, which is ludicrous, so 'false'
-		// the method fetchImage above has set the min and max already on the image
-		//Utils.log2("Patch " + this + "   imp: slice is " + imp.getCurrentSlice());
-		//Utils.printCaller(this, 12);
+	private Image adjustChannels(final int c, final boolean force, ImagePlus imp) {
+		if (null == imp) imp = project.getLoader().fetchImagePlus(this);
 		ImageProcessor ip = imp.getProcessor();
 		if (null == ip) return null; // fixing synch problems when deleting a Patch
 		Image awt = null;

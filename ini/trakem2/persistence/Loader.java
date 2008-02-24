@@ -1041,7 +1041,6 @@ abstract public class Loader {
 	}
 
 	abstract public ImagePlus fetchImagePlus(Patch p);
-	abstract public ImagePlus fetchImagePlus(Patch p, boolean create_snap);
 	/** Returns null unless overriden. */
 	public ImageProcessor fetchImageProcessor(Patch p) { return null; }
 
@@ -1873,7 +1872,7 @@ abstract public class Loader {
 					Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
 					double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
 					p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-					p.putMinAndMax(fetchImagePlus(p, false));
+					p.putMinAndMax(fetchImagePlus(p));
 				}
 
 				if (isMipMapsEnabled()) {
@@ -3293,7 +3292,7 @@ abstract public class Loader {
 		if (null == path || (!overwrite && new File(path).exists())) return null;
 		synchronized(db_lock) {
 			try {
-				ImagePlus imp = fetchImagePlus(patch, false); // locks on its own
+				ImagePlus imp = fetchImagePlus(patch); // locks on its own
 				lock();
 				if (null == imp) {
 					// something went wrong

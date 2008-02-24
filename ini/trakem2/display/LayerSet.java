@@ -1478,4 +1478,13 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 		return null;
 	}
+
+	public Displayable findDisplayable(final long id) {
+		for (Layer la : al_layers) {
+			for (Displayable d : la.getDisplayables()) {
+				if (d.getId() == id) return d;
+			}
+		}
+		return null;
+	}
 }

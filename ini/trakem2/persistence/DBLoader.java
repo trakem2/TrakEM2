@@ -2589,11 +2589,6 @@ public class DBLoader extends Loader {
 	}
 
 	public ImagePlus fetchImagePlus(Patch p) {
-		return fetchImagePlus(p, true);
-	}
-
-	/** Create snap is ignored here. */
-	public ImagePlus fetchImagePlus(Patch p, boolean create_snap) {
 		synchronized (db_lock) {
 			lock();
 			long id = p.getId();

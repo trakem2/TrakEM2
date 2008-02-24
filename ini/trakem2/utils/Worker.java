@@ -22,6 +22,10 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
+import ini.trakem2.ControlWindow;
+import ij.IJ;
+
+
 public abstract class Worker extends Thread {
 	private String task_name;
 	private boolean working = false;

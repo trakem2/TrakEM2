@@ -106,7 +106,7 @@ public class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;
-	private Hashtable<Long,String> ht_paths = null;
+	private final Hashtable<Long,String> ht_paths = new Hashtable<Long,String>();
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
@@ -114,10 +114,8 @@ public class FSLoader extends Loader {
 	/** Path to the directory the user provided when creating the project. */
 	private String dir_storage = null;
 
-
 	public FSLoader() {
 		super(); // register
-		ht_paths = new Hashtable<Long,String>();
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
 
@@ -176,7 +174,7 @@ public class FSLoader extends Loader {
 			Utils.log2("project file path 2: " + this.project_file_path);
 		}
 		// check if any of the open projects uses the same file path, and refuse to open if so:
-		if (null != FSLoader.getOpenProject(project_file_path)) {
+		if (null != FSLoader.getOpenProject(project_file_path, this)) {
 			Utils.showMessage("The project is already open.");
 			return null;
 		}
@@ -238,15 +236,21 @@ public class FSLoader extends Loader {
 		return data;
 	}
 
-	static public Project getOpenProject(final String project_file_path) {
+	// Only one thread at a time may access this method.
+	synchronized static private final Project getOpenProject(final String project_file_path, final Loader caller) {
 		if (null == v_loaders) return null;
-		Loader[] lo = (Loader[])v_loaders.toArray(new Loader[0]); // atomic way to get the list of loaders
+		final Loader[] lo = (Loader[])v_loaders.toArray(new Loader[0]); // atomic way to get the list of loaders
 		for (int i=0; i<lo.length; i++) {
+			if (lo[i].equals(caller)) continue;
 			if (lo[i] instanceof FSLoader && ((FSLoader)lo[i]).project_file_path.equals(project_file_path)) {
 				return Project.findProject(lo[i]);
 			}
 		}
 		return null;
+	}
+
+	static public final Project getOpenProject(final String project_file_path) {
+		return getOpenProject(project_file_path, null);
 	}
 
 	public boolean isReady() {
@@ -286,140 +290,17 @@ public class FSLoader extends Loader {
 		return null;
 	}
 
-	public ImagePlus fetchImagePlus(Patch p) {
-		return fetchImagePlus(p, true);
-	}
-
-	public ImagePlus fetchImagePlus(Patch p, boolean create_snap) {
-		ImagePlus imp = null;
-		String slice = null;
-		String path = null;
-		long n_bytes = 0;
-		PatchLoadingLock plock = null;
-		synchronized (db_lock) {
-			lock();
-			imp = imps.get(p.getId());
-			try {
-				path = getAbsolutePath(p);
-				int i_sl = -1;
-				if (null != path) i_sl = path.lastIndexOf("-----#slice=");
-				if (-1 != i_sl) {
-					// activate proper slice
-					if (null != imp) {
-						// check that the stack is large enough (user may have changed it)
-						final int ia = Integer.parseInt(path.substring(i_sl + 12));
-						if (ia <= imp.getNSlices()) {
-							imp.setSlice(ia);
-							unlock();
-							return imp;
-						} else {
-							unlock();
-							return null; // beyond bonds!
-						}
-					}
-				}
-				// for non-stack images
-				if (null != imp) {
-					unlock();
-					return imp;
-				}
-				releaseMemory(); // ensure there is a minimum % of free memory
-				if (-1 != i_sl) {
-					slice = path.substring(i_sl);
-					// set path proper
-					path = path.substring(0, i_sl);
-				}
-
-				plock = getOrMakePatchLoadingLock(p, 0);
-				unlock();
-			} catch (Exception e) {
-				IJError.print(e);
-				return null;
-			}
-		}
-
-
-		synchronized (plock) {
-			plock.lock();
-
-			imp = imps.get(p.getId());
-			if (null != imp) {
-				plock.unlock();
-				return imp; // was loaded by a different thread
-			}
-
-			// going to load:
-
-			// reserve memory:
-			synchronized (db_lock) {
-				lock();
-				n_bytes = estimateImageFileSize(p, 0);
-				// not needed // releaseToFit2(n_bytes);
-				max_memory -= n_bytes;
-				unlock();
-			}
-
-			imp = openImage(path);
-			preProcess(imp);
-
-			synchronized (db_lock) {
-				try {
-					lock();
-					max_memory += n_bytes;
-
-					if (null == imp) {
-						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
-						unlock();
-						plock.unlock();
-						return null; // not removing the plock ?
-					}
-					// update all clients of the stack, if any
-					if (null != slice) {
-						String rel_path = getPath(p); // possibly relative
-						int r_isl = rel_path.lastIndexOf("-----#slice");
-						if (-1 != r_isl) rel_path = rel_path.substring(0, r_isl); // should always happen
-						for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
-							Map.Entry entry = (Map.Entry)it.next();
-							String str = (String)entry.getValue(); // this is like calling getPath(p)
-							//Utils.log2("processing " + str);
-							if (0 != str.indexOf(rel_path)) {
-								Utils.log2("SKIP str is: " + str + "\t but path is: " + rel_path);
-								continue; // get only those whose path is identical, of course!
-							}
-							int isl = str.lastIndexOf("-----#slice=");
-							if (-1 != isl) {
-								//int i_slice = Integer.parseInt(str.substring(isl + 12));
-								Patch pa = (Patch)entry.getKey();
-								imps.put(pa.getId(), imp);
-								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
-								pa.putMinAndMax(imp);
-							}
-						}
-						// set proper active slice
-						int ia = Integer.parseInt(slice.substring(12));
-						imp.setSlice(ia);
-					} else {
-						// for non-stack images
-						p.putMinAndMax(imp); // non-destructive contrast: min and max
-							// puts the Patch min and max values into the ImagePlus processor.
-						imps.put(p.getId(), imp);
-					}
-					// imp is cached, so:
-					removePatchLoadingLock(plock);
-
-				} catch (Exception e) {
-					IJError.print(e);
-				}
-				unlock();
-				plock.unlock();
-				return imp;
-				//Utils.log2("A2 returning " + imp + " for path " + path + slice);
-			}
-		}
+	public ImagePlus fetchImagePlus(final Patch p) {
+		return (ImagePlus)fetchImage(p, Layer.IMAGEPLUS);
 	}
 
 	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example. */
 	public ImageProcessor fetchImageProcessor(final Patch p) {
+		return (ImageProcessor)fetchImage(p, Layer.IMAGEPROCESSOR);
+	}
+
+	/** So far accepts Layer.IMAGEPLUS and Layer.IMAGEPROCESSOR as format. */
+	public Object fetchImage(final Patch p, final int format) {
 		ImagePlus imp = null;
 		ImageProcessor ip = null;
 		String slice = null;
@@ -440,9 +321,18 @@ public class FSLoader extends Loader {
 						final int ia = Integer.parseInt(path.substring(i_sl + 12));
 						if (ia <= imp.getNSlices()) {
 							imp.setSlice(ia);
-							ip = imp.getStack().getProcessor(ia);
-							unlock();
-							return ip;
+							switch (format) {
+								case Layer.IMAGEPROCESSOR:
+									ip = imp.getStack().getProcessor(ia);
+									unlock();
+									return ip;
+								case Layer.IMAGEPLUS:
+									unlock();
+									return imp;
+								default:
+									Utils.log("FSLoader.fetchImage: Unknown format " + format);
+									return null;
+							}
 						} else {
 							unlock();
 							return null; // beyond bonds!
@@ -452,7 +342,15 @@ public class FSLoader extends Loader {
 				// for non-stack images
 				if (null != imp) {
 					unlock();
-					return imp.getProcessor();
+					switch (format) {
+						case Layer.IMAGEPROCESSOR:
+							return imp.getProcessor();
+						case Layer.IMAGEPLUS:
+							return imp;
+						default:
+							Utils.log("FSLoader.fetchImage: Unknown format " + format);
+							return null;
+					}
 				}
 				releaseMemory(); // ensure there is a minimum % of free memory
 				if (-1 != i_sl) {
@@ -475,8 +373,17 @@ public class FSLoader extends Loader {
 
 			imp = imps.get(p.getId());
 			if (null != imp) {
+				// was loaded by a different thread
 				plock.unlock();
-				return imp.getProcessor(); // was loaded by a different thread
+				switch (format) {
+					case Layer.IMAGEPROCESSOR:
+						return imp.getProcessor();
+					case Layer.IMAGEPLUS:
+						return imp;
+					default:
+						Utils.log("FSLoader.fetchImage: Unknown format " + format);
+						return null;
+				}
 			}
 
 			// going to load:
@@ -501,9 +408,10 @@ public class FSLoader extends Loader {
 
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
+						removePatchLoadingLock(plock);
 						unlock();
 						plock.unlock();
-						return null; // not removing the plock ?
+						return null;
 					}
 					// update all clients of the stack, if any
 					if (null != slice) {
@@ -521,22 +429,28 @@ public class FSLoader extends Loader {
 							int isl = str.lastIndexOf("-----#slice=");
 							if (-1 != isl) {
 								//int i_slice = Integer.parseInt(str.substring(isl + 12));
-								Patch pa = (Patch)entry.getKey();
-								imps.put(pa.getId(), imp);
+								long lid = ((Long)entry.getKey()).longValue(); // really, J jate java
+								imps.put(lid, imp);
 								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
-								pa.putMinAndMax(imp);
+								// kludge, but what else short of a gigantic hashtable
+								try {
+									final Patch pa = (Patch)p.getLayerSet().findDisplayable(lid);
+									pa.putMinAndMax(imp);
+								} catch (Exception e) {
+									e.printStackTrace();
+								}
 							}
 						}
 						// set proper active slice
 						int ia = Integer.parseInt(slice.substring(12));
 						imp.setSlice(ia);
-						ip = imp.getStack().getProcessor(ia);
+						if (Layer.IMAGEPROCESSOR == format) ip = imp.getStack().getProcessor(ia); // otherwise creates one new for nothing
 					} else {
 						// for non-stack images
 						p.putMinAndMax(imp); // non-destructive contrast: min and max
 							// puts the Patch min and max values into the ImagePlus processor.
 						imps.put(p.getId(), imp);
-						ip = imp.getProcessor();
+						if (Layer.IMAGEPROCESSOR == format) ip = imp.getProcessor();
 					}
 					// imp is cached, so:
 					removePatchLoadingLock(plock);
@@ -546,8 +460,16 @@ public class FSLoader extends Loader {
 				}
 				unlock();
 				plock.unlock();
-				return ip;
-				//Utils.log2("A2 returning " + imp + " for path " + path + slice);
+				switch (format) {
+					case Layer.IMAGEPROCESSOR:
+						return ip; // not imp.getProcessor because after unlocking the slice may have changed for stacks.
+					case Layer.IMAGEPLUS:
+						return imp;
+					default:
+						Utils.log("FSLoader.fetchImage: Unknown format " + format);
+						return null;
+
+				}
 			}
 		}
 	}
@@ -762,7 +684,7 @@ public class FSLoader extends Loader {
 		//Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
 	}
 
-	/** Overriding superclass method;  if a path for the given Patch exists in the ht_paths Hashtable, it will be returned (meaning, the image exists already); if not, then an attempt is made to save it in the given path. The overwrite flag is used in the second case, to avoid creating a new image every time the Patch pixels are edited. The original image is never overwritten in any case. */
+	/** Overriding superclass method; if a path for the given Patch exists in the ht_paths Hashtable, it will be returned (meaning, the image exists already); if not, then an attempt is made to save it in the given path. The overwrite flag is used in the second case, to avoid creating a new image every time the Patch pixels are edited. The original image is never overwritten in any case. */
 	public String exportImage(Patch patch, String path, boolean overwrite) {
 		Object ob = ht_paths.get(patch.getId());
 		if (null == ob) {
@@ -819,9 +741,9 @@ public class FSLoader extends Loader {
 	/** Returns the stored path for the given Patch image, which may be relative.*/
 	public String getPath(final Patch patch) {
 		final Object ob = ht_paths.get(patch.getId());
-		if (null == ob) return null;
-		return (String)ob;
+		return (String)ob; // casting a null is ok
 	}
+
 	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
 	private String makeRelativePath(String path) {
 		if (null == project_file_path) {
@@ -1581,7 +1503,7 @@ public class FSLoader extends Loader {
 			case ImagePlus.GRAY8:
 			case ImagePlus.COLOR_256:
 				bytes_per_pixel = 1;
-				// check jpeg, which can only encode RGB ( take care of above) and 8-bit and 8-bit color images:
+				// check jpeg, which can only encode RGB (taken care of above) and 8-bit and 8-bit color images:
 				String path = (String)ht_paths.get(p.getId());
 				if (null != path && path.endsWith(".jpg")) bytes_per_pixel = 5; //4 for the int[] and 1 for the byte[]
 				break;

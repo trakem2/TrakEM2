@@ -1142,7 +1142,7 @@ public class Registration {
 						sp,
 						storage_folder,
 						worker);
-				
+
 				// check the connectivity graphs
 				ArrayList< Tile > both_layer_tiles = new ArrayList< Tile >();
 				both_layer_tiles.addAll( tiles1 );

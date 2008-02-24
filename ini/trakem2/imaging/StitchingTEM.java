@@ -375,7 +375,7 @@ public class StitchingTEM {
 			}
 			//Utils.log2("scale: " + scale + "  ip w,h: " + ip.getWidth() + ", " + ip.getHeight());
 		} else {
-			imp = loader.fetchImagePlus(p, false);
+			imp = loader.fetchImagePlus(p);
 			ip = imp.getProcessor();
 			// compare and adjust
 			if (!ignore_patch_transform && p.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) { // if it's not only a translation:
