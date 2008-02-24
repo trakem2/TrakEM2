@@ -133,7 +133,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 		public void paintFromOff(final Rectangle clipRect, final long time) {
 			// WARNING this is just a patch
-			Utils.log("paintFromOff");
+			//Utils.log("paintFromOff");
 			super.paintFromOff(display.getSelection().contains(Patch.class) ? null : clipRect, time);
 		}
 	};
@@ -807,9 +807,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				break;
 			case ProjectToolbar.PENCIL:
 			case ProjectToolbar.PEN:
-				Utils.log2("mr 1: " + update_graphics);
 				active.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r); // active, not selection (Selection only handles transforms, not active's data editions)
-				Utils.log2("mr  2: " + update_graphics);
 				// update active's bounding box
 				selection.updateTransform(active);
 				box.add(selection.getBox());
@@ -1768,9 +1766,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		public final boolean canQuit() {
 			final long now = System.currentTimeMillis();
 			if (now - start > min_time && now - last_paint < min_time) {
-				Utils.log2(label + " off canQuit yes");
+				//Utils.log2(label + " off canQuit yes");
 				return true;
 			}
+			//Utils.log2(label + " off canQuit NO");
 			return false;
 		}
 
@@ -1931,9 +1930,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					g.fill(r2);
 				}
 
-				// TODO: check
 				Thread.yield();
-				if (quit) {
+
+				if (quit && canQuit()) {
 					g.dispose();
 					target.flush();
 					return;
@@ -1956,6 +1955,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					offscreen_lock.unlock();
 				}
 
+				//Utils.log2(label + " called RT.paintFromOff");
 				// Repaint!
 				RT.paintFromOff(clipRect, this.time);
 
