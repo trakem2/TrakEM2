@@ -106,7 +106,7 @@ public class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;
-	private Hashtable ht_paths = null;
+	private Hashtable<Long,String> ht_paths = null;
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
@@ -117,7 +117,7 @@ public class FSLoader extends Loader {
 
 	public FSLoader() {
 		super(); // register
-		ht_paths = new Hashtable();
+		ht_paths = new Hashtable<Long,String>();
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
 
@@ -239,6 +239,7 @@ public class FSLoader extends Loader {
 	}
 
 	static public Project getOpenProject(final String project_file_path) {
+		if (null == v_loaders) return null;
 		Loader[] lo = (Loader[])v_loaders.toArray(new Loader[0]); // atomic way to get the list of loaders
 		for (int i=0; i<lo.length; i++) {
 			if (lo[i] instanceof FSLoader && ((FSLoader)lo[i]).project_file_path.equals(project_file_path)) {
@@ -627,13 +628,13 @@ public class FSLoader extends Loader {
 						}
 						path += System.currentTimeMillis() + ".tif";
 						path = super.exportImage(p, path, true);
-						Utils.log2("Saved original " + ht_paths.get(p) + "\n\t at: " + path);
+						Utils.log2("Saved original " + ht_paths.get(p.getId()) + "\n\t at: " + path);
 						// make path relative if possible
 						if (null != project_file_path) { // project may be unsaved
 							File fxml = new File(project_file_path);
 							String parent_dir = fxml.getParent().replace('\\', '/');
 							if (!parent_dir.endsWith("/")) parent_dir += "/";
-							if (0 == path.indexOf((String)ht_paths.get(p))) {
+							if (0 == path.indexOf((String)ht_paths.get(p.getId()))) {
 								path = path.substring(path.length());
 							}
 						}
@@ -677,7 +678,7 @@ public class FSLoader extends Loader {
 				// STRATEGY change: images are not owned by the FSLoader.
 				Patch p = (Patch)ob;
 				removeMipMaps(p);
-				ht_paths.remove(ob); // after removeMipMaps !
+				ht_paths.remove(p.getId()); // after removeMipMaps !
 				mawts.removeAndFlush(loid);
 				final ImagePlus imp = imps.remove(loid);
 				if (null != imp) {
@@ -700,7 +701,7 @@ public class FSLoader extends Loader {
 
 	/** With slice info appended at the end; only if it exists, otherwise null. */
 	public String getAbsolutePath(final Patch patch) {
-		Object ob = ht_paths.get(patch);
+		Object ob = ht_paths.get(patch.getId());
 		if (null == ob) return null;
 		String path = (String)ob;
 		// substract slice info if there
@@ -757,13 +758,13 @@ public class FSLoader extends Loader {
 		// if path is absolute, try to make it relative
 		path = makeRelativePath(path);
 		// store
-		ht_paths.put(patch, path);
-		//Utils.log2("Updated patch path " + ht_paths.get(patch) + " for patch " + patch);
+		ht_paths.put(patch.getId(), path);
+		//Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
 	}
 
 	/** Overriding superclass method;  if a path for the given Patch exists in the ht_paths Hashtable, it will be returned (meaning, the image exists already); if not, then an attempt is made to save it in the given path. The overwrite flag is used in the second case, to avoid creating a new image every time the Patch pixels are edited. The original image is never overwritten in any case. */
 	public String exportImage(Patch patch, String path, boolean overwrite) {
-		Object ob = ht_paths.get(patch);
+		Object ob = ht_paths.get(patch.getId());
 		if (null == ob) {
 			// means, the image has no related source file
 			if (null == path) {
@@ -817,7 +818,7 @@ public class FSLoader extends Loader {
 
 	/** Returns the stored path for the given Patch image, which may be relative.*/
 	public String getPath(final Patch patch) {
-		final Object ob = ht_paths.get(patch);
+		final Object ob = ht_paths.get(patch.getId());
 		if (null == ob) return null;
 		return (String)ob;
 	}
@@ -1581,7 +1582,7 @@ public class FSLoader extends Loader {
 			case ImagePlus.COLOR_256:
 				bytes_per_pixel = 1;
 				// check jpeg, which can only encode RGB ( take care of above) and 8-bit and 8-bit color images:
-				String path = (String)ht_paths.get(p);
+				String path = (String)ht_paths.get(p.getId());
 				if (null != path && path.endsWith(".jpg")) bytes_per_pixel = 5; //4 for the int[] and 1 for the byte[]
 				break;
 			default:

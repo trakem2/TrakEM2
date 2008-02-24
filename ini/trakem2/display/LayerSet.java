@@ -1458,7 +1458,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				Utils.log2("c is " + c);
 				ImagePlus imp = project.getLoader().getFlatImage(la, r, scale, c_alphas, type, c, null, true);
 				if (null != imp) try {
-					stack.addSlice(imp.getTitle(), imp.getProcessor().getPixels());
+					//if (0 == stack.getSize()) stack.setColorModel(imp.getProcessor().getColorModel());
+					stack.addSlice(imp.getTitle(), imp.getProcessor()); //.getPixels());
 				} catch (IllegalArgumentException iae) {
 					IJError.print(iae);
 				} else Utils.log("LayerSet.grab: Ignoring layer " + la);

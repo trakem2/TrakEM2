@@ -28,7 +28,7 @@ public abstract class Worker extends Thread {
 	protected boolean quit = false;
 	private boolean background = false;
 	public Worker(String task_name) {
-		this(task_name, false);
+		this(task_name, !ControlWindow.isGUIEnabled() || null == IJ.getInstance());
 	}
 	public Worker(String task_name, boolean headless_mode) {
 		super((headless_mode ? "Run$_": "") +  "Worker"); // the Run$_ tag is for ImageJ to properly grant it Macro.getOptions()
