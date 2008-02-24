@@ -650,7 +650,7 @@ public class Selection {
 		try {
 			lock();
 			// set null active before clearing so that borders can be repainted
-			if (null != display) {
+			if (null != display && queue.size() > 0) {
 				display.setActive(null);
 				display.repaint(display.getLayer(), 5, box, false);
 			}

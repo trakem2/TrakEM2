@@ -80,7 +80,7 @@ public abstract class AbstractRepaintThread extends Thread {
 
 	/** Queue a new request for painting. */
 	public void paint(final Rectangle clipRect, final boolean update_graphics) {
-		//if (update_graphics) Utils.printCaller(this, 7);
+		//if (update_graphics) Utils.printCaller(this, 12);
 		// queue the event
 		synchronized (lock_event) {
 			lock_event.lock();

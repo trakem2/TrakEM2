@@ -206,4 +206,6 @@ public class FakeImagePlus extends ImagePlus {
 		//Utils.log2("Last temp is " + last_temp.getClass());
 		if (null != last_temp && !last_temp.equals(this)) last_temp.killRoi();
 	}
+
+	public synchronized void setSlice(int slice) {}
 }

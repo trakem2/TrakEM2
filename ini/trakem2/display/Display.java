@@ -1279,9 +1279,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null == active || !selection.contains(displ)) {
 			canvas.setUpdateGraphics(true);
 		}
-		selection.remove(displ);
 		layer.getParent().removeFromUndo(displ);
-		repaint(displ, 5, true);
+		repaint(displ, null, 5, true, false);
+		selection.remove(displ);
 	}
 
 	static public void remove(ZDisplayable zdispl) {
@@ -1305,36 +1305,28 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
-				if (null == r) d.repaint(displ, extra, repaint_navigator);
-				else d.repaint(displ, r, extra, repaint_navigator);
+				d.repaint(displ, r, extra, repaint_navigator, false);
 			}
 		}
 	}
 
-	/** Repaint as much as the bounding box around the given Displayable. */
-	private void repaint(Displayable displ, int extra, boolean repaint_navigator) {
-		if (repaint_disabled) return;
-		if (displ.getClass().equals(Patch.class)) canvas.setUpdateGraphics(true);
-		else if (!displ.equals(active)) canvas.setUpdateGraphics(true);
-		if (repaint_navigator) navigator.repaint(true); // everything
-		canvas.repaint(displ, extra);
-		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(displ);
-		if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
-	}
-
-	/** Repaint as much as the bounding box around the given Displayable. */
-	private void repaint(Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
-		if (repaint_disabled) return;
-		if (displ.getClass().equals(Patch.class)) canvas.setUpdateGraphics(true);
-		else if (!displ.equals(active)) canvas.setUpdateGraphics(true);
-		if (repaint_navigator) navigator.repaint(true); // everything
-		canvas.repaint(r, extra);
-		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(displ);
-		if (repaint_navigator && null != dp) dp.repaint(); // is null when creating it, or after deleting it
+	/** Repaint as much as the bounding box around the given Displayable, or the r if not null. */
+	private void repaint(Displayable displ, Rectangle r, int extra, boolean repaint_navigator, boolean update_graphics) {
+		if (repaint_disabled || null == displ) return;
+		if (update_graphics || displ.getClass().equals(Patch.class) || !displ.equals(active)) {
+			canvas.setUpdateGraphics(true);
+		}
+		if (null != r) canvas.repaint(r, extra);
+		else canvas.repaint(displ, extra);
+		if (repaint_navigator) {
+			DisplayablePanel dp = (DisplayablePanel)ht_panels.get(displ);
+			if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
+			navigator.repaint(true); // everything
+		}
 	}
 
 	/** Repaint the snapshot for the given Displayable both at the DisplayNavigator and on its panel,and only if it has not been painted before. This method is intended for the loader to know when to paint a snap, to avoid overhead. */
-	static public void repaintSnapshot(Displayable displ) {
+	static public void repaintSnapshot(final Displayable displ) {
 		for (Display d : al_displays) {
 			if (d.layer.contains(displ)) {
 				if (!d.navigator.isPainted(displ)) {
@@ -1640,13 +1632,39 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (!displ.getClass().equals(Patch.class)) project.select(displ); // select the node in the corresponding tree, if any.
 			// select the proper tab, and scroll to visible
 			selectTab(displ);
-			repaint(displ, 5, false); // to show the border
+			boolean update_graphics = null == prev_active || paintsBelow(prev_active, displ); // or if it's an image, but that's by default in the repaint method
+			repaint(displ, null, 5, false, update_graphics); // to show the border, and to repaint out of the background image
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
 			Utils.updateComponent(tabs.getSelectedComponent());
 		}
 		}});
+	}
+
+	/** If the other paints under the base. */
+	public boolean paintsBelow(Displayable base, Displayable other) {
+		boolean zd_base = base instanceof ZDisplayable;
+		boolean zd_other = other instanceof ZDisplayable;
+		if (zd_other) {
+			if (base instanceof DLabel) return true; // zd paints under label
+			if (!zd_base) return false; // any zd paints over a mere displ if not a label
+			else {
+				// both zd, compare indices
+				ArrayList<ZDisplayable> al = other.getLayerSet().getZDisplayables();
+				return al.indexOf(base) > al.indexOf(other);
+			}
+		} else {
+			if (!zd_base) {
+				// both displ, compare indices
+				ArrayList<Displayable> al = other.getLayer().getDisplayables();
+				return al.indexOf(base) > al.indexOf(other);
+			} else {
+				// base is zd, other is d
+				if (other instanceof DLabel) return false;
+				return true;
+			}
+		}
 	}
 
 	/** Select the proper tab, and also scroll it to show the given Displayable -unless it's a LayerSet, and unless the proper tab is already showing. */
@@ -2772,7 +2790,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 			//
 			final String prepro = gd.getNextString();
-			if (!project.getLoader().setPreprocessor(prepro)) {
+			if (!project.getLoader().setPreprocessor(prepro.trim())) {
 				Utils.showMessage("Could NOT set the preprocessor to " + prepro);
 			}
 			//
@@ -3287,7 +3305,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private void setTempCurrentImage() {
 		//Utils.log2("Setting temp current image: " + last_temp + " " + (null == last_temp ? null : last_temp.getClass()));
-		if (null != last_temp) last_temp.setSlice(layer.getParent().indexOf(layer) +1);
+		if (null != last_temp) {
+			//Utils.log2("last_temp.class == " + last_temp.getClass());
+			last_temp.setSlice(layer.getParent().indexOf(layer) +1);
+		}
 		Loader.setTempCurrentImage(last_temp);
 	}
 

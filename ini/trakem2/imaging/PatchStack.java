@@ -519,7 +519,7 @@ public class PatchStack extends ImagePlus {
 			//no need//updateAndRepaintWindow();
 			return;
 		}
-		if (index>= 1 && index <=patch.length) {
+		if (index>= 1 && index <= patch.length) {
 			Roi roi = getRoi();
 			if (null != roi) roi.endPaste();
 			currentSlice = index;

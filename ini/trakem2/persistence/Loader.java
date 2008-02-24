@@ -3390,7 +3390,7 @@ abstract public class Loader {
 	public boolean setPreprocessor(String plugin_class_name) {
 		if (null == plugin_class_name || 0 == plugin_class_name.length()) {
 			this.preprocessor = null;
-			return false;
+			return true;
 		}
 		// just for the sake of it:
 		plugin_class_name = plugin_class_name.replace(' ', '_');
