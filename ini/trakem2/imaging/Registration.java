@@ -626,7 +626,7 @@ public class Registration {
 		public int dimension = 1;
 		/** Whether to show options for cross-layer registration or not in the dialog. */
 		public boolean cross_layer = false;
-		public boolean layers_prealigned = false;
+		public boolean tiles_prealigned = false;
 
 		/** Plain constructor for Serialization to work properly. */
 		public SIFTParameters() {}
@@ -676,7 +676,7 @@ public class Registration {
 			gd.addNumericField("minimal_inlier_ratio :", min_inlier_ratio, 2);
 			final String[] regtype = new String[]{"translation only", "translation and rotation"};
 			gd.addChoice("registration_type :", regtype, regtype[dimension]);
-			gd.addCheckbox("tiles_are_prealigned :", layers_prealigned);
+			gd.addCheckbox("tiles_are_prealigned", tiles_prealigned);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 			this.scale = (float)gd.getNextNumber() / 100;
@@ -694,7 +694,7 @@ public class Registration {
 			}
 			this.min_inlier_ratio = (float)gd.getNextNumber();
 			this.dimension = gd.getNextChoiceIndex();
-			this.layers_prealigned = gd.getNextBoolean();
+			this.tiles_prealigned = gd.getNextBoolean();
 
 			// debug:
 			print();
@@ -787,13 +787,13 @@ public class Registration {
 		sp.cs_max_epsilon = 50.0f;
 		sp.min_inlier_ratio = 0.05f;
 		sp.scale = 1.0f;
-		sp.layers_prealigned = overlapping_only;
+		sp.tiles_prealigned = overlapping_only;
 
 		// Simple setup
 		GenericDialog gds = new GenericDialog("Setup");
 		gds.addNumericField("maximum_image_size :", sp.max_size, 0);
 		gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
-		gds.addCheckbox("Layers_are_roughly_prealigned", sp.layers_prealigned);
+		gds.addCheckbox("Layers_are_roughly_prealigned", sp.tiles_prealigned);
 		gds.addCheckbox("Advanced setup", false);
 		gds.showDialog();
 		if (gds.wasCanceled()) {
@@ -802,7 +802,7 @@ public class Registration {
 		}
 		sp.max_size = (int)gds.getNextNumber();
 		sp.max_epsilon = (float)gds.getNextNumber();
-		sp.layers_prealigned = gds.getNextBoolean();
+		sp.tiles_prealigned = gds.getNextBoolean();
 		boolean advanced_setup = gds.getNextBoolean();
 
 		if (advanced_setup) {
@@ -923,7 +923,7 @@ public class Registration {
 			ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( tiles2 );
 			Utils.log2( graphs.size() + " graphs detected." );
 			
-			if ( sp.layers_prealigned && graphs.size() > 1 )
+			if ( sp.tiles_prealigned && graphs.size() > 1 )
 			{
 				/**
 				 * We have to trust the given alignment.  Try to add synthetic
@@ -1612,7 +1612,7 @@ public class Registration {
 				if (worker.hasQuitted()) return;
 				final Patch other_patch = patches.get( j );
 				final Tile other_tile = tiles.get( j );
-				if ( !sp.layers_prealigned || current_patch.intersects( other_patch ) )
+				if ( !sp.tiles_prealigned || current_patch.intersects( other_patch ) )
 				{
 					long start_time = System.currentTimeMillis();
 					System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
@@ -1678,13 +1678,13 @@ public class Registration {
 		SIFTParameters sp = sp_;
 		if (null == sp) {
 			sp = new SIFTParameters(set.getProject());
-			sp.layers_prealigned = overlapping_only;
+			sp.tiles_prealigned = overlapping_only;
 			if (!sp.setup()) {
 				finishedWorking();
 				return;
 			}
 		} else {
-			sp.layers_prealigned = overlapping_only;
+			sp.tiles_prealigned = overlapping_only;
 		}
 
 		// the storage folder for serialized features

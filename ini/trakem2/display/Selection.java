@@ -649,10 +649,14 @@ public class Selection {
 		synchronized (queue_lock) {
 		try {
 			lock();
+			// set null active before clearing so that borders can be repainted
+			if (null != display) {
+				display.setActive(null);
+				display.repaint(display.getLayer(), 5, box, false);
+			}
 			this.queue.clear();
 			this.hs.clear();
 			this.active = null;
-			if (null != display) display.setActive(null);
 			this.box = null;
 		} catch (Exception e) {
 			IJError.print(e);

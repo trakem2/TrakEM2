@@ -1623,8 +1623,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null != prev_active) {
 			final Object ob = ht_panels.get(prev_active);
 			if (null != ob) ((DisplayablePanel)ob).setActive(false);
-			// erase "decorations" of the previosuly active
-			if (null != prev_active) canvas.repaint(selection.getBox(), 4);
+			// erase "decorations" of the previously active
+			canvas.repaint(selection.getBox(), 4);
 		}
 		// activate the new active
 		if (null != displ) {
