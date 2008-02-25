@@ -1749,7 +1749,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		private Displayable active;
 		private int c_alphas;
 		private Rectangle clipRect;
-		public long start;
 		public final int label = counter.getAndIncrement();
 		OffscreenThread(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
 			this.clipRect = clipRect;
@@ -1758,14 +1757,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			this.g_height = g_height;
 			this.active = active;
 			this.c_alphas = c_alphas;
-			this.start = System.currentTimeMillis();
 			setPriority(Thread.NORM_PRIORITY);
 			start();
 		}
 
 		public final boolean canQuit() {
 			final long now = System.currentTimeMillis();
-			if (now - start > min_time && now - last_paint < min_time) {
+			if (now - this.start > min_time && now - last_paint < min_time) {
 				//Utils.log2(label + " off canQuit yes");
 				return true;
 			}
@@ -1957,7 +1955,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				//Utils.log2(label + " called RT.paintFromOff");
 				// Repaint!
-				RT.paintFromOff(clipRect, this.time);
+				RT.paintFromOff(clipRect, this.start);
 
 
 			} catch (OutOfMemoryError oome) {

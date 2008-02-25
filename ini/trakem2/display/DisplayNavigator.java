@@ -270,7 +270,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					updating = false;
 					updating_ob.notifyAll();
 				}
-				RT.paintFromOff(clipRect, this.time);
+				RT.paintFromOff(clipRect, this.start);
 			} catch (Exception e) {
 				IJError.print(e);
 			}
