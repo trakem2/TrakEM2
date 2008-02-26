@@ -467,9 +467,24 @@ public class Compare {
 
 		// find intersection point
 		Point3d origin = VectorString3D.findOrigin(new VectorString3D[]{ped, dl, ml});
+
+
+		Point3d origin1 = VectorString3D.findOrigin(new VectorString3D[]{ped1, dl1, ml1});
+
+		Point3d origin2 = VectorString3D.findOrigin(new VectorString3D[]{ped2, dl1, ml1});
+
 		*/
 
 		// we trust the peduncle vector
 		
 	}
+
+	// X = medial
+	// Y = dorsal
+	// Z = peduncle
+	/*
+	static public void compare(VectorString3D ml, VectorString3D dl, VectorString3D ped) {
+		Point3d[] o = VectorString3D.createOrigin(new VectorString3D[]{ml, dl, ped});
+	}
+	*/
 }

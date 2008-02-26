@@ -114,6 +114,14 @@ public class Project extends DBObject {
 		this.project = this;
 	}
 
+	static public Project getProject(final String title) {
+		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
+			Project pr = (Project)it.next();
+			if (pr.title.equals(title)) return pr;
+		}
+		return null;
+	}
+
 	/** Create a new PostgreSQL-based TrakEM2 project. */
 	static public Project newDBProject() {
 		if (Utils.wrongImageJVersion()) return null;

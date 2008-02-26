@@ -37,6 +37,7 @@ import Jama.Matrix;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Matrix3d;
 import java.awt.Color;
 
 
@@ -1100,10 +1101,16 @@ public class VectorString3D implements VectorString {
 			       + Math.pow(z1 - z2, 2));
 	}
 
-	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates. */
-	static public Vector3d[] createOrigin(VectorString3D vs1, VectorString3D vs2, VectorString3D vs3) {
+	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates.
+	 *
+	 * Expects:
+	 *   X, Y, Z
+	 *   where Z is the one to trust the most, Y the second most trusted, and X only for orientation.
+	 *   ZY define the plane, the direction of the perpendicular of which is given by the X.
+	 */
+	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z) {
 		// Aproximate a origin of coordinates
-		VectorString3D[] vs = new VectorString3D[]{vs1, vs2, vs3};
+		VectorString3D[] vs = new VectorString3D[]{z, y, x};
 		ArrayList<Point3d> ps = new ArrayList<Point3d>();
 		int[] dir = new int[]{1, 1, 1};
 
@@ -1140,14 +1147,14 @@ public class VectorString3D implements VectorString {
 		for (Point3d p : ps) origin.add(p);
 
 		// aproximate a vector for each axis
-		Vector3d v1 = vs1.makeAverageNormalizedVector(); // v1 is peduncle
-		Vector3d v2 = vs2.makeAverageNormalizedVector(); // v2 is dorsal lobe
-		Vector3d v3 = vs3.makeAverageNormalizedVector(); // v3 is medial lobe
+		Vector3d vz = z.makeAverageNormalizedVector(); // v1 is peduncle
+		Vector3d vy = y.makeAverageNormalizedVector(); // v2 is dorsal lobe
+		Vector3d vx = x.makeAverageNormalizedVector(); // v3 is medial lobe
 
 		// adjust orientation, so vectors point away from the origin towards the other end of the vectorstring
-		v1.scale(dir[0]);
-		v2.scale(dir[1]);
-		v3.scale(dir[2]);
+		vz.scale(dir[0]);
+		vy.scale(dir[1]);
+		vx.scale(dir[2]);
 
 		Utils.log2("dir[0]=" + dir[0]);
 		Utils.log2("dir[1]=" + dir[1]);
@@ -1155,24 +1162,24 @@ public class VectorString3D implements VectorString {
 
 		// compute medial vector: perpendicular to the plane made by peduncle and dorsal lobe
 		Vector3d vc_medial = new Vector3d();
-		vc_medial.cross(v1, v2);
+		vc_medial.cross(vz, vy);
 		// check orientation:
 		Vector3d vc_med = new Vector3d(vc_medial);
-		vc_med.add(v3); // adding the actual medial lobe vector
+		vc_med.add(vx); // adding the actual medial lobe vector
 		// if the sum is smaller, then it means it should be inverted (it was the other side)
-		if (vc_med.length() < v3.length()) {
+		if (vc_med.length() < vx.length()) {
 			vc_medial.scale(-1);
-			Utils.log2("inverting cp v3");
+			Utils.log2("inverting cp vx");
 		}
 
 		// compute dorsal vector: perpedicular to the plane made by v1 and vc_medial
 		Vector3d vc_dorsal = new Vector3d();
-		vc_dorsal.cross(v1, vc_medial);
+		vc_dorsal.cross(vz, vc_medial);
 		// check orientation
 		Vector3d vc_dor = new Vector3d(vc_dorsal);
-		vc_dor.add(v2);
+		vc_dor.add(vy);
 		// if the sum is smaller, invert
-		if (vc_dor.length() < v2.length()) {
+		if (vc_dor.length() < vy.length()) {
 			vc_dorsal.scale(-1);
 			Utils.log2("inverting cp v2");
 		}
@@ -1186,16 +1193,54 @@ public class VectorString3D implements VectorString {
 		//  vc_dorsal
 
 		return new Vector3d[]{
-			v1,
-			vc_medial,
-			vc_dorsal,
-			origin
+			vc_medial, // X axis
+			vc_dorsal, // Y axis
+			vz,        // Z axis
+			origin     // x,y,z origin of coordinates
 		};
 	}
 
 	static private double distance(VectorString3D vs1, int i, VectorString3D vs2, int j) {
 		return distance(vs1.x[i], vs1.y[i], vs1.z[i],
 				vs2.x[j], vs2.y[j], vs2.z[j]);
+	}
+
+	static public Transform3D createOriginRotationTransform(final Vector3d[] o) {
+		final Matrix3d rotm = new Matrix3d(
+				o[0].x, o[1].x, o[2].x,
+				o[0].y, o[1].y, o[2].y,
+				o[0].z, o[1].z, o[2].z
+		);
+		final Transform3D rot = new Transform3D(rotm, new Vector3d(), 1.0);
+		rot.invert();
+		return rot;
+	}
+
+	public void translate(final Vector3d v) {
+		for (int i=0; i<length; i++) {
+			x[i] += v.x;
+			y[i] += v.y;
+			z[i] += v.z;
+		}
+		// vx, vy, vz not affected by translations, of course.
+	}
+
+	public void transform(final Transform3D t) {
+		final Point3d p = new Point3d();
+		if (null != x) transform(t, x, y, z, length, p);
+		if (null != vx) transform(t, vx, vy, vz, length, p);
+	}
+
+	static private void transform(final Transform3D t, final double[] x, final double[] y, final double[] z, int length, final Point3d p) {
+		for (int i=0; i<length; i++) {
+			p.x = x[i];
+			p.y = y[i];
+			p.z = z[i];
+			t.transform(p);
+			x[i] = p.x;
+			y[i] = p.y;
+			z[i] = p.z;
+		}
 	}
 
 	static public void testCreateOrigin(LayerSet ls, VectorString3D vs1, VectorString3D vs2, VectorString3D vs3) {
@@ -1213,10 +1258,55 @@ public class VectorString3D implements VectorString {
 			System.out.println("v1:" + o[0]);
 			System.out.println("v2:" + o[1]);
 			System.out.println("v3:" + o[2]);
+
+			// create matrix:
+			Matrix3d rotm = new Matrix3d(
+					o[0].x, o[1].x, o[2].x,
+					o[0].y, o[1].y, o[2].y,
+					o[0].z, o[1].z, o[2].z
+			);
+			Transform3D rot = new Transform3D(rotm, new Vector3d(), 1.0);
+			rot.invert();
+			// DOESN'T WORK // Transform3D trans =  new Transform3D(new Matrix3d(1, 0, 0, 0, 1, 0, 0, 0, 1), new Vector3d(-o[3].x, -o[3].y, -o[3].z), 1.0);
+
+			System.out.println("o3: " + o[3].toString());
+
+			// test:
+			for (int i=0; i<3; i++) {
+				o[i].x += o[3].x;
+				o[i].y += o[3].y;
+				o[i].z += o[3].z;
+			}
+
+			for (int i=0; i<3; i++) {
+				o[i].sub(o[3]); // can't use translation matrix: doesn't work
+				//trans.transform(o[i]);
+				rot.transform(o[i]);
+			}
+
+			System.out.println("v1:" + o[0]); // expect: 1, 0, 0
+			System.out.println("v2:" + o[1]); // expect: 0, 1, 0
+			System.out.println("v3:" + o[2]); // expect: 0, 0, 1
+
+
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
+
+	static private void p(String msg) {
+		System.out.println(msg);
+	}
+
+	static private void transform(Transform3D trans, Transform3D rot, Vector3d v) {
+		trans.transform(v);
+		//p("trans v: " + v);
+		rot.transform(v);
+		//p("rot v: " + v);
+	}
+
+
 	static private VectorString3D makeVSFromP(Vector3d p, Vector3d origin) throws Exception {
 		double[] x1 = new double[20];
 		double[] y1 = new double[20];
