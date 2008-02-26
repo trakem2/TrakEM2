@@ -1100,6 +1100,7 @@ public class VectorString3D implements VectorString {
 			       + Math.pow(z1 - z2, 2));
 	}
 
+	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates. */
 	static public Vector3d[] createOrigin(VectorString3D vs1, VectorString3D vs2, VectorString3D vs3) {
 		// Aproximate a origin of coordinates
 		VectorString3D[] vs = new VectorString3D[]{vs1, vs2, vs3};
@@ -1129,7 +1130,7 @@ public class VectorString3D implements VectorString {
 				// WARNING: we don't check for the case where it contradicts
 			}
 		}
-		Point3d origin = new Point3d();
+		Vector3d origin = new Vector3d();
 		final int len = ps.size();
 		for (Point3d p : ps) {
 			p.x /= len;
@@ -1187,7 +1188,8 @@ public class VectorString3D implements VectorString {
 		return new Vector3d[]{
 			v1,
 			vc_medial,
-			vc_dorsal
+			vc_dorsal,
+			origin
 		};
 	}
 
@@ -1205,9 +1207,9 @@ public class VectorString3D implements VectorString {
 			vs3.resample(delta);
 			//
 			Vector3d[] o = createOrigin(vs1, vs2, vs3);
-			Display3D.addMesh(ls, makeVSFromP(o[0]), "v1", Color.green);
-			Display3D.addMesh(ls, makeVSFromP(o[1]), "v2", Color.orange);
-			Display3D.addMesh(ls, makeVSFromP(o[2]), "v3", Color.red);
+			Display3D.addMesh(ls, makeVSFromP(o[0], o[3]), "v1", Color.green);
+			Display3D.addMesh(ls, makeVSFromP(o[1], o[3]), "v2", Color.orange);
+			Display3D.addMesh(ls, makeVSFromP(o[2], o[3]), "v3", Color.red);
 			System.out.println("v1:" + o[0]);
 			System.out.println("v2:" + o[1]);
 			System.out.println("v3:" + o[2]);
@@ -1215,17 +1217,23 @@ public class VectorString3D implements VectorString {
 			e.printStackTrace();
 		}
 	}
-	static private VectorString3D makeVSFromP(Vector3d p) throws Exception {
+	static private VectorString3D makeVSFromP(Vector3d p, Vector3d origin) throws Exception {
 		double[] x1 = new double[20];
 		double[] y1 = new double[20];
 		double[] z1 = new double[20];
-		x1[0] = p.x;
-		y1[0] = p.y;
-		z1[0] = p.z;
+		double K = 10;
+		x1[0] = p.x * K;
+		y1[0] = p.y * K;
+		z1[0] = p.z * K;
 		for (int i=1; i<x1.length; i++) {
-			x1[i] = p.x + x1[i-1];
-			y1[i] = p.y + y1[i-1];
-			z1[i] = p.z + z1[i-1];
+			x1[i] = p.x * K + x1[i-1];
+			y1[i] = p.y * K + y1[i-1];
+			z1[i] = p.z * K + z1[i-1];
+		}
+		for (int i=0; i<x1.length; i++) {
+			x1[i] += origin.x;
+			y1[i] += origin.y;
+			z1[i] += origin.z;
 		}
 		return new VectorString3D(x1, y1, z1, false);
 	}
