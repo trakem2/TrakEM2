@@ -25,15 +25,20 @@ package ini.trakem2.vector;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Vector3D;
+import ini.trakem2.display.Display3D;
+import ini.trakem2.display.LayerSet;
 
 import ij.measure.Calibration;
 
 import java.util.Arrays;
 import java.util.Random;
+import java.util.ArrayList;
 import Jama.Matrix;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
+import java.awt.Color;
+
 
 public class VectorString3D implements VectorString {
 
@@ -256,7 +261,7 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
-	static private class Vector {
+	static class Vector {
 		private double x, y, z;
 		private double length;
 		// 0 coords and 0 length, virtue of the 'calloc'
@@ -380,6 +385,9 @@ public class VectorString3D implements VectorString {
 			this.x = arr[0][0];
 			this.y = arr[1][0];
 			this.z = arr[2][0];
+		}
+		Point3d asPoint3d() {
+			return new Point3d(x, y, z);
 		}
 	}
 
@@ -1070,5 +1078,155 @@ public class VectorString3D implements VectorString {
 			len += Math.sqrt(Math.pow(x[i] - x[i-1], 2) + Math.pow(y[i] - y[i-1], 2) + Math.pow(z[i] - z[i-1], 2));
 		}
 		return len;
+	}
+
+	/** Returns a normalized average vector, or null if not resampled. */
+	private Vector3d makeAverageNormalizedVector() {
+		if (null == vx || null == vy || null == vz) return null;
+		final Vector3d v = new Vector3d();
+		for (int i=0; i<length; i++) {
+			v.x += vx[i];
+			v.y += vy[i];
+			v.z += vz[i];
+		}
+		v.normalize();
+		return v;
+	}
+
+	static public double distance(double x1, double y1, double z1,
+			              double x2, double y2, double z2) {
+		return Math.sqrt(Math.pow(x1 - x2, 2)
+			       + Math.pow(y1 - y2, 2)
+			       + Math.pow(z1 - z2, 2));
+	}
+
+	static public Vector3d[] createOrigin(VectorString3D vs1, VectorString3D vs2, VectorString3D vs3) {
+		// Aproximate a origin of coordinates
+		VectorString3D[] vs = new VectorString3D[]{vs1, vs2, vs3};
+		ArrayList<Point3d> ps = new ArrayList<Point3d>();
+		int[] dir = new int[]{1, 1, 1};
+
+		for (int i=0; i<vs.length; i++) {
+			for (int k=i+1; k<vs.length; k++) {
+				double min_dist = Double.MAX_VALUE;
+				int ia=0, ib=0;
+				for (int a=0; a<vs[i].length(); a++) {
+					for (int b=0; b<vs[k].length(); b++) {
+						double d = distance(vs[i], a, vs[k], b);
+						if (d < min_dist) {
+							min_dist = d;
+							ia = a;
+							ib = b;
+						}
+					}
+				}
+				ps.add(new Point3d((vs[i].x[ia] + vs[k].x[ib])/2,
+						  (vs[i].y[ia] + vs[k].y[ib])/2,
+						  (vs[i].z[ia] + vs[k].z[ib])/2));
+				// determine orientation of the VectorString3D relative to the origin
+				if (ia > vs[i].length()/2) dir[i] = -1;
+				if (ib > vs[k].length()/2) dir[k] = -1;
+				// WARNING: we don't check for the case where it contradicts
+			}
+		}
+		Point3d origin = new Point3d();
+		final int len = ps.size();
+		for (Point3d p : ps) {
+			p.x /= len;
+			p.y /= len;
+			p.z /= len;
+		}
+		for (Point3d p : ps) origin.add(p);
+
+		// aproximate a vector for each axis
+		Vector3d v1 = vs1.makeAverageNormalizedVector(); // v1 is peduncle
+		Vector3d v2 = vs2.makeAverageNormalizedVector(); // v2 is dorsal lobe
+		Vector3d v3 = vs3.makeAverageNormalizedVector(); // v3 is medial lobe
+
+		// adjust orientation, so vectors point away from the origin towards the other end of the vectorstring
+		v1.scale(dir[0]);
+		v2.scale(dir[1]);
+		v3.scale(dir[2]);
+
+		Utils.log2("dir[0]=" + dir[0]);
+		Utils.log2("dir[1]=" + dir[1]);
+		Utils.log2("dir[2]=" + dir[2]);
+
+		// compute medial vector: perpendicular to the plane made by peduncle and dorsal lobe
+		Vector3d vc_medial = new Vector3d();
+		vc_medial.cross(v1, v2);
+		// check orientation:
+		Vector3d vc_med = new Vector3d(vc_medial);
+		vc_med.add(v3); // adding the actual medial lobe vector
+		// if the sum is smaller, then it means it should be inverted (it was the other side)
+		if (vc_med.length() < v3.length()) {
+			vc_medial.scale(-1);
+			Utils.log2("inverting cp v3");
+		}
+
+		// compute dorsal vector: perpedicular to the plane made by v1 and vc_medial
+		Vector3d vc_dorsal = new Vector3d();
+		vc_dorsal.cross(v1, vc_medial);
+		// check orientation
+		Vector3d vc_dor = new Vector3d(vc_dorsal);
+		vc_dor.add(v2);
+		// if the sum is smaller, invert
+		if (vc_dor.length() < v2.length()) {
+			vc_dorsal.scale(-1);
+			Utils.log2("inverting cp v2");
+		}
+
+		vc_medial.normalize();
+		vc_dorsal.normalize();
+
+		// SO, finally, the three vectors are
+		//  v1
+		//  vc_medial
+		//  vc_dorsal
+
+		return new Vector3d[]{
+			v1,
+			vc_medial,
+			vc_dorsal
+		};
+	}
+
+	static private double distance(VectorString3D vs1, int i, VectorString3D vs2, int j) {
+		return distance(vs1.x[i], vs1.y[i], vs1.z[i],
+				vs2.x[j], vs2.y[j], vs2.z[j]);
+	}
+
+	static public void testCreateOrigin(LayerSet ls, VectorString3D vs1, VectorString3D vs2, VectorString3D vs3) {
+		try {
+			// create vectors
+			double delta = (vs1.getAverageDelta() + vs2.getAverageDelta() + vs3.getAverageDelta()) / 3;
+			vs1.resample(delta);
+			vs2.resample(delta);
+			vs3.resample(delta);
+			//
+			Vector3d[] o = createOrigin(vs1, vs2, vs3);
+			Display3D.addMesh(ls, makeVSFromP(o[0]), "v1", Color.green);
+			Display3D.addMesh(ls, makeVSFromP(o[1]), "v2", Color.orange);
+			Display3D.addMesh(ls, makeVSFromP(o[2]), "v3", Color.red);
+			System.out.println("v1:" + o[0]);
+			System.out.println("v2:" + o[1]);
+			System.out.println("v3:" + o[2]);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	static private VectorString3D makeVSFromP(Vector3d p) throws Exception {
+		double[] x1 = new double[20];
+		double[] y1 = new double[20];
+		double[] z1 = new double[20];
+		x1[0] = p.x;
+		y1[0] = p.y;
+		z1[0] = p.z;
+		for (int i=1; i<x1.length; i++) {
+			x1[i] = p.x + x1[i-1];
+			y1[i] = p.y + y1[i-1];
+			z1[i] = p.z + z1[i-1];
+		}
+		return new VectorString3D(x1, y1, z1, false);
 	}
 }

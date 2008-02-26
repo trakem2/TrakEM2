@@ -1279,4 +1279,9 @@ public abstract class Displayable extends DBObject {
 			paintAsBox(g);
 		}
 	}
+
+	public DBObject findById(final long id) {
+		if (this.id == id) return this;
+		return null;
+	}
 }

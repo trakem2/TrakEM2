@@ -1596,6 +1596,7 @@ public class Pipe extends ZDisplayable {
 			py = vs.getPoints(1);
 			pz = vs.getPoints(2);
 			p_width_i = vs.getDependent(0);
+			Utils.log("lengths:  " + px.length + ", " + py.length + ", " + pz.length + ", " + p_width_i.length);
 			n = vs.length();
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1621,6 +1622,7 @@ public class Pipe extends ZDisplayable {
 		double sinn, coss;
 		int half_parallels = parallels/2;
 		for (int i=0; i<n-1; i++) {
+			//Utils.log2(i + " : " + px[i] + ", " + py[i] + ", " + pz[i]);
 			//First vector: from one realpoint to the next
 			//v3_P12 = new Vector3(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i], z_values[i+1] - z_values[i]);
 			v3_P12 = new Vector3(px[i+1] - px[i], py[i+1] - py[i], pz[i+1] - pz[i]);
@@ -1686,7 +1688,12 @@ public class Pipe extends ZDisplayable {
 				*/
 
 				v3_PR = v3_PR.normalize(v3_PR);
-				v3_PR = v3_PR.scale(p_width_i[i], v3_PR);
+				if (null == v3_PR) {
+					Utils.log2("vp_3r is null: most likely a point was repeated in the list, and thus the vector has length zero.");
+				}
+				v3_PR = v3_PR.scale(
+						p_width_i[i],
+						v3_PR);
 
 				circle[0] = v3_PR;
 				for (int q=1; q<parallels; q++) {

@@ -658,6 +658,12 @@ public class Project extends DBObject {
 		return root_pt.findChild(id);
 	}
 
+	public DBObject findById(final long id) {
+		DBObject dbo = layer_set.findById(id);
+		if (null != dbo) return dbo;
+		return root_pt.findChild(id); // could call findObject(id), but all objects must exist in layer sets anyway.
+	}
+
 	/** Find a LayerThing that contains the given object. */
 	public LayerThing findLayerThing(final Object ob) {
 		final Object lob = root_lt.findChild(ob);

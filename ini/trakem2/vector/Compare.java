@@ -453,4 +453,23 @@ public class Compare {
 		}
 		frame = null;
 	}
+
+	static public void tmp() {
+		/*
+		VectorString3D ped;
+		VectorString3D dl;
+		VectorString3D ml;
+
+		double delta = (ped.getAverageDelta() + dl.getAverageDelta() + ml.getAverageDelta()) / 3;
+		ped.resample(delta);
+		dl.resample(delta);
+		ml.ped(delta);
+
+		// find intersection point
+		Point3d origin = VectorString3D.findOrigin(new VectorString3D[]{ped, dl, ml});
+		*/
+
+		// we trust the peduncle vector
+		
+	}
 }

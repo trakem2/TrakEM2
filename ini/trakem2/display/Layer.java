@@ -698,4 +698,12 @@ public class Layer extends DBObject {
 		}
 		return null;
 	}
+
+	public DBObject findById(final long id) {
+		if (this.id == id) return this;
+		for (Displayable d : al_displayables) {
+			if (d.getId() == id) return d;
+		}
+		return null;
+	}
 }

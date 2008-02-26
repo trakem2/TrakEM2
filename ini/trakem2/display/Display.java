@@ -2030,13 +2030,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 
-		popup.addSeparator();
-		item = new JMenuItem("Homogenize contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
-		item = new JMenuItem("Set Min and Max..."); item.addActionListener(this); adjust_menu.add(item);
-		popup.add(adjust_menu);
-		popup.addSeparator();
 
 		if (!canvas.isTransforming()) {
+			popup.addSeparator();
+			item = new JMenuItem("Homogenize contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Set Min and Max..."); item.addActionListener(this); adjust_menu.add(item);
+			popup.add(adjust_menu);
+			popup.addSeparator();
+
 			try {
 				menu = new JMenu("Hide/Unhide");
 				boolean none = ! layer.getParent().containsDisplayable(DLabel.class);

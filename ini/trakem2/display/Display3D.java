@@ -656,7 +656,7 @@ public class Display3D {
 		}
 	}
 
-	static private final int MAX_THREADS = Runtime.getRuntime().availableProcessors();
+	static private final int MAX_THREADS = 1; //Runtime.getRuntime().availableProcessors();
 	static private final Vector v_threads = new Vector(MAX_THREADS); // synchronized
 
 	/** Creates a mesh for the given Displayable in a separate Thread. */
@@ -770,7 +770,8 @@ public class Display3D {
 		/////
 
 		// temporary:
-		double[] wi = new double[vs.length()];
+		double[] wi = new double[vs.getPoints(0).length];
+		Utils.log("len: " + wi.length + vs.getPoints(0).length + vs.getPoints(1).length);
 		Arrays.fill(wi, 2.0);
 		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12), scale);
 		// add to 3D view (synchronized)
@@ -780,6 +781,7 @@ public class Display3D {
 				// ensure proper default transform
 				d3d.universe.resetView();
 				//
+				Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
 				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
 				Content ct = d3d.universe.getContent(title);
 				// no need, it's default //ct.setTransparency(1f);

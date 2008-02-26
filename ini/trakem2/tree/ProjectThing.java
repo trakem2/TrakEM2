@@ -542,6 +542,21 @@ public class ProjectThing extends DBObject implements Thing {
 		return null;
 	}
 
+	/** Recursive search for the object with the given id. */
+	public DBObject findObject(long id) {
+		if (id == this.id) return this;
+		if (null != object && object instanceof DBObject) {
+			DBObject dbo = (DBObject)object;
+			if (dbo.getId() == id) return dbo;
+		}
+		if (null == al_children) return null;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			DBObject dbo = ((ProjectThing)it.next()).findObject(id);
+			if (null != dbo) return dbo;
+		}
+		return null;
+	}
+
 	/** Call on children things, and on itself if it contains a basic data type directly. */
 	public void measure() {
 		Utils.showMessage("Not implemented yet.");

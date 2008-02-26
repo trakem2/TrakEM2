@@ -1487,4 +1487,16 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 		return null;
 	}
+
+	public DBObject findById(final long id) {
+		if (this.id == id) return this;
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.getId() == id) return zd;
+		}
+		for (Layer la : al_layers) {
+			DBObject dbo = la.findById(id);
+			if (null != dbo) return dbo;
+		}
+		return null;
+	}
 }
