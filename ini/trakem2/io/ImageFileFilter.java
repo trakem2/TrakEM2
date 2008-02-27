@@ -71,7 +71,7 @@ public class ImageFileFilter implements FilenameFilter {
 	private boolean accept0(File dir, String name) {
 		// skip directories
 		try {
-			final File file = new File(dir.getCanonicalPath() + "/" + name);
+			final File file = new File(dir.getCanonicalPath().replace('\\', '/') + "/" + name);
 			if (file.isDirectory() || file.isHidden() || name.equals(".") || name.equals("..")) {
 				return false;
 			}

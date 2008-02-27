@@ -277,11 +277,11 @@ public class FSLoader extends Loader {
 
 	/** Get the next unique id, not shared by any other object within the same project. */
 	public long getNextId() {
-		// examine the hastable for existing ids
 		long nid = -1;
 		synchronized (db_lock) {
 			lock();
 			nid = max_id + 1;
+			max_id = nid;
 			unlock();
 		}
 		return nid;
