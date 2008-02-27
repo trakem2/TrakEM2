@@ -55,11 +55,11 @@ public class Compare {
 	private Compare() {}
 
 	static public final Bureaucrat findSimilar(final Pipe pipe) {
-		Set projects = ControlWindow.getProjects();
-		Project[] all = new Project[projects.size()];
-		all = (Project[])projects.toArray(all); // does not use 'all', only to read class
+		ArrayList<Project> pro = Project.getProjects();
+		Project[] all = new Project[pro.size()];
+		pro.toArray(all);
 		Project[] ref = null;
-		GenericDialog gd = new GenericDialog("Choose");
+		GenericDialog gd = new GenericDialog("Identify");
 		if (all.length > 1) {
 			gd.addMessage("Choose a project to search into");
 			String[] options = new String[all.length + 1];
@@ -76,7 +76,6 @@ public class Compare {
 		gd.addCheckbox("Mirror", false);
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getCheckboxes().get(1)}, null);
 		gd.addCheckbox("Ignore calibration", false);
-
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 
@@ -94,6 +93,75 @@ public class Compare {
 			}
 		}
 		return findSimilar(pipe, ref, ignore_orientation, ignore_calibration, mirror);
+
+	}
+
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe) {
+		ArrayList<Project> pro = Project.getProjects();
+		Project[] all = new Project[pro.size()];
+		pro.toArray(all);
+		Project[] ref = null;
+		GenericDialog gd = new GenericDialog("Indentify with axes");
+		if (all.length > 1) {
+			gd.addMessage("Choose a project to search into");
+			String[] options = new String[all.length + 1];
+			options[0] = "[-- ALL --]";
+			for (int i=0; i<all.length; i++) {
+				options[i+1] = all[i].toString();
+			}
+			gd.addChoice("Project: ", options, options[0]);
+		} else {
+			ref = new Project[1];
+			ref[0] = all[0];
+		}
+
+		gd.addMessage("Will search for a match to:");
+		gd.addMessage(pipe.getProject().getMeaningfulTitle(pipe));
+
+		ArrayList<ZDisplayable> pipes = pipe.getLayerSet().getZDisplayables(Pipe.class);
+		final String[] pipe_names = new String[pipes.size()];
+		int next = 0;
+
+		final String[][] presets = {{"medial lobe", "dorsal lobe", "peduncle"}};
+		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
+		gd.addChoice("Presets: ", preset_names, preset_names[0]);
+
+		int sx = 0,
+		    sy = 0,
+		    sz = 0,
+		    tx = 0,
+		    ty = 0,
+		    tz = 0;
+
+		// automatically find for the first preset
+		for (ZDisplayable zd : pipes) {
+			pipe_names[next] = zd.getProject().getMeaningfulTitle(zd);
+			final String lc = pipe_names[next].toLowerCase();
+			if (lc.contains(presets[0][0])) {
+				sx = tx = next;
+			} else if (lc.contains(presets[0][1])) {
+				sy = ty = next;
+			} else if (lc.contains(presets[0][2])) {
+				sz = tz = next;
+			}
+			next++;
+		}
+
+		gd.addMessage("Source project \"" + pipe.getProject().getTitle() + ":\"");
+		gd.addChoice("X: ", pipe_names, pipe_names[sx]);
+		gd.addChoice("Y: ", pipe_names, pipe_names[sy]);
+		gd.addChoice("Z: ", pipe_names, pipe_names[sz]);
+
+		gd.addMessage("Reference project:");
+		gd.addChoice("X: ", pipe_names, pipe_names[tx]);
+		gd.addChoice("Y: ", pipe_names, pipe_names[ty]);
+		gd.addChoice("Z: ", pipe_names, pipe_names[tz]);
+
+		gd.showDialog();
+		if (gd.wasCanceled()) return null;
+
+
+		return null;
 	}
 
 	/** Compare the given pipe with other pipes in the given standard project. WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
@@ -453,38 +521,4 @@ public class Compare {
 		}
 		frame = null;
 	}
-
-	static public void tmp() {
-		/*
-		VectorString3D ped;
-		VectorString3D dl;
-		VectorString3D ml;
-
-		double delta = (ped.getAverageDelta() + dl.getAverageDelta() + ml.getAverageDelta()) / 3;
-		ped.resample(delta);
-		dl.resample(delta);
-		ml.ped(delta);
-
-		// find intersection point
-		Point3d origin = VectorString3D.findOrigin(new VectorString3D[]{ped, dl, ml});
-
-
-		Point3d origin1 = VectorString3D.findOrigin(new VectorString3D[]{ped1, dl1, ml1});
-
-		Point3d origin2 = VectorString3D.findOrigin(new VectorString3D[]{ped2, dl1, ml1});
-
-		*/
-
-		// we trust the peduncle vector
-		
-	}
-
-	// X = medial
-	// Y = dorsal
-	// Z = peduncle
-	/*
-	static public void compare(VectorString3D ml, VectorString3D dl, VectorString3D ped) {
-		Point3d[] o = VectorString3D.createOrigin(new VectorString3D[]{ml, dl, ped});
-	}
-	*/
 }

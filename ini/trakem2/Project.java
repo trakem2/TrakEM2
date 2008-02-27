@@ -47,6 +47,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -70,7 +71,7 @@ public class Project extends DBObject {
 	*/
 
 	/** Keep track of all open projects. */
-	static private ArrayList al_open_projects = new ArrayList();
+	static private ArrayList<Project> al_open_projects = new ArrayList<Project>();
 
 	private Loader loader;
 
@@ -120,6 +121,11 @@ public class Project extends DBObject {
 			if (pr.title.equals(title)) return pr;
 		}
 		return null;
+	}
+
+	/** Return a copy of the list of all open projects. */
+	static public ArrayList<Project> getProjects() {
+		return (ArrayList<Project>)al_open_projects.clone();
 	}
 
 	/** Create a new PostgreSQL-based TrakEM2 project. */
@@ -276,13 +282,20 @@ public class Project extends DBObject {
 		return newFSProject(arg, null);
 	}
 
-	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for; if template_root is not null that is used; else, a template file is asked for. */
 	static public Project newFSProject(String arg, TemplateThing template_root) {
+		return newFSProject(arg, null, null);
+	}
+
+	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for; if template_root is not null that is used; else, a template file is asked for. */
+	static public Project newFSProject(String arg, TemplateThing template_root, String storage_folder) {
 		if (Utils.wrongImageJVersion()) return null;
 		try {
-			DirectoryChooser dc = new DirectoryChooser("Select storage folder");
-			String dir_project = dc.getDirectory();
-			if (null == dir_project) return null;
+			String dir_project = storage_folder;
+			if (null == dir_project || !new File(dir_project).isDirectory()) {
+				DirectoryChooser dc = new DirectoryChooser("Select storage folder");
+				dir_project = dc.getDirectory();
+				if (null == dir_project) return null; // user cancelled dialog
+			}
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
 			Project project = createNewProject(loader, arg == null || !arg.equals("blank"), template_root);

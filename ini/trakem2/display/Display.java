@@ -1927,6 +1927,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					if (n < 2) item.setEnabled(false);
 				} else if (active instanceof Pipe) {
 					item = new JMenuItem("Identify..."); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Identify with axes..."); item.addActionListener(this); popup.add(item);
 				}
 			}
 			if (canvas.isTransforming()) {
@@ -2827,6 +2828,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// for pipes only for now
 			if (!(active instanceof Pipe)) return;
 			ini.trakem2.vector.Compare.findSimilar((Pipe)active);
+		} else if (command.equals("Identify with axes...")) {
+			if (!(active instanceof Pipe)) return;
+			if (Project.getProjects().size() < 2) {
+				Utils.showMessage("You need at least two projects open:\n-A reference project\n-The current project with the pipe to identify");
+				return;
+			}
+			ini.trakem2.vector.Compare.findSimilarWithAxes((Pipe)active);
 		} else if (command.equals("View orthoslices")) {
 			if (!(active instanceof Patch)) return;
 			Display3D.showOrthoslices(((Patch)active));

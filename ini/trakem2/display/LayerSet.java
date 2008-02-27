@@ -742,16 +742,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	synchronized public ArrayList<ZDisplayable> getZDisplayables() { return (ArrayList<ZDisplayable>)al_zdispl.clone(); }
 
 	/** Returns a list of ZDisplayable of class c only.*/
-	synchronized public ArrayList getZDisplayables(final Class c) {
-		final ArrayList al = new ArrayList();
+	synchronized public ArrayList<ZDisplayable> getZDisplayables(final Class c) {
+		final ArrayList<ZDisplayable> al = new ArrayList<ZDisplayable>();
 		if (null == c) return al;
 		if (c.equals(Displayable.class) || c.equals(ZDisplayable.class)) {
 			al.addAll(al_zdispl);
 			return al;
 		}
-		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if (c.equals(ob.getClass())) al.add(ob);
+		for (ZDisplayable zd : al_zdispl) {
+			if (c.equals(zd.getClass())) al.add(zd);
 		}
 		return al;
 	}

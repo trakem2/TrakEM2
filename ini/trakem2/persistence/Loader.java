@@ -3569,7 +3569,7 @@ abstract public class Loader {
 	protected boolean mipmaps_regen = true;
 
 	// used to prevent generating them when, for example, importing a montage
-	protected void setMipMapsRegeneration(boolean b) {
+	public void setMipMapsRegeneration(boolean b) {
 		mipmaps_regen = b;
 	}
 

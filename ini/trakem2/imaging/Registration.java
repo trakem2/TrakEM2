@@ -560,8 +560,8 @@ public class Registration {
 
 		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 
-		FloatProcessor fp1 = (FloatProcessor)StitchingTEM.makeStripe(base, sp.scale, true, true);
-		FloatProcessor fp2 = (FloatProcessor)StitchingTEM.makeStripe(moving, sp.scale, true, true);
+		FloatProcessor fp1 = (FloatProcessor)StitchingTEM.makeStripe(base, sp.scale, true);
+		FloatProcessor fp2 = (FloatProcessor)StitchingTEM.makeStripe(moving, sp.scale, true);
 
 		final Object[] result = Registration.registerSIFT(fp1, fp2, fs_base, sp);
 

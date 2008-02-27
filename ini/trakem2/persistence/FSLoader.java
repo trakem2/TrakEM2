@@ -260,6 +260,19 @@ public class FSLoader extends Loader {
 	public void destroy() {
 		super.destroy();
 		Utils.showStatus("");
+		// remove empty trakem2.mipmaps folder if any
+		if (null != dir_mipmaps && !dir_mipmaps.equals(dir_storage)) {
+			File f = new File(dir_mipmaps);
+			if (f.isDirectory() && 0 == f.list(new FilenameFilter() {
+				public boolean accept(File fdir, String name) {
+					File file = new File(dir_mipmaps + name);
+					if (file.isHidden() || '.' == name.charAt(0)) return false;
+					return true;
+				}
+			}).length) {
+				try { f.delete(); } catch (Exception e) { Utils.log("Could not remove empty trakem2.mipmaps directory."); }
+			}
+		}
 	}
 
 	/** Get the next unique id, not shared by any other object within the same project. */

@@ -334,16 +334,16 @@ public class StitchingTEM {
 	}
 
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale) {
-		return makeStripe(p, roi, scale, false, false);
+		return makeStripe(p, roi, scale, false);
 	}
 
-	static public ImageProcessor makeStripe(final Patch p, final float scale, final boolean quality, final boolean ignore_patch_transform) {
-		return makeStripe(p, null, scale, quality, ignore_patch_transform);
+	static public ImageProcessor makeStripe(final Patch p, final float scale, final boolean ignore_patch_transform) {
+		return makeStripe(p, null, scale, ignore_patch_transform);
 	}
 
 	/** @return FloatProcessor.
-	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */ // TODO param 'quality' is being ignored // TODO 2: there is a combination of options that ends up resulting in the actual ImageProcessor of the Patch being returned as is, which is DANGEROUS because it can potentially result in changes in the data.
-	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean quality, boolean ignore_patch_transform) {
+	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */ // TODO 2: there is a combination of options that ends up resulting in the actual ImageProcessor of the Patch being returned as is, which is DANGEROUS because it can potentially result in changes in the data.
+	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean ignore_patch_transform) {
 		ImagePlus imp = null;
 		ImageProcessor ip = null;
 		Loader loader =  p.getProject().getLoader();
