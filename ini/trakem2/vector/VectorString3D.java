@@ -846,15 +846,15 @@ public class VectorString3D implements VectorString {
 		return vs;
 	}
 
-	/** Scale to match cal.pixelWidth, cal.pixelHeight and cal.pixelDepth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. */
+	/** Scale to match cal.pixelWidth, cal.pixelHeight and cal.pixelDepth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. So it brings all values to cal.units, such as microns. */
 	public void calibrate(final Calibration cal) {
 		if (null == cal) return;
 		this.cal = cal;
 		for (int i=0; i<x.length; i++) {
 			x[i] *= cal.pixelWidth;
-			y[i] *= cal.pixelHeight;
-			// TODO z is obtained from the layer, which is already set in pixel coordinates // z[i] *= cal.pixelDepth;
-			// That has to change eventually.
+			y[i] *= cal.pixelHeight; // should be the same as pixelWidth
+			z[i] *= cal.pixelWidth; // not pixelDepth, see day notes 20080227
+			// it's pixelWidth because that is what is used to generate the pixel Z coordinates of the layers, multiplying by pixelDepth. So, layer Z coords are:  pixelDepth / pixelWidth (i.e. microns divided by microns/px gives px)
 		}
 		// reset vectors
 		vx = vy = vz = null;

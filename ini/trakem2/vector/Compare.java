@@ -44,6 +44,7 @@ import javax.swing.event.*;
 import javax.swing.table.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
+import java.awt.geom.AffineTransform;
 
 import javax.vecmath.Vector3d;
 import javax.media.j3d.Transform3D;
@@ -344,10 +345,10 @@ public class Compare {
 		}
 
 		// order by distance and show in a table
-		addTab(pipe, v_obs, v_eds, v_scores);
+		addTab(pipe, v_obs, v_eds, v_scores, new Visualizer(pipe, vs_pipe, delta1, cal2, trans2, rot2));
 
 
-		// debug: show the query among all others
+		/* // debug: show the query among all others
 		Display3D.addMesh(pipe.getLayerSet(), vs_pipe, pipe.getTitle(), Color.green);
 		for (int i=0; i<v_obs.size(); i++) {
 			Pipe pe = (Pipe)v_obs.get(i);
@@ -358,6 +359,7 @@ public class Compare {
 			vspe.transform(rot2);
 			Display3D.addMesh(pipe.getLayerSet(), vspe, pe.getTitle(), Color.yellow);
 		}
+		*/
 
 				} catch (Exception e) {
 					IJError.print(e);
@@ -369,6 +371,46 @@ public class Compare {
 		Bureaucrat burro = new Bureaucrat(worker, pipe.getProject());
 		burro.goHaveBreakfast();
 		return burro;
+	}
+
+
+	static private class Visualizer {
+		Pipe queried;
+		VectorString3D vs_queried; // the queried pipe
+		double delta1;
+		Calibration cal2;
+		Vector3d trans2;
+		Transform3D rot2;
+		LayerSet common; // calibrated to queried pipe space, which is now also the space of all others.
+		boolean vs_pipe_shows = false;
+
+		Visualizer(Pipe queried, VectorString3D vs_queried, double delta1, Calibration cal2, Vector3d trans2, Transform3D rot2) {
+			this.queried = queried;
+			this.vs_queried = vs_queried;
+			LayerSet ls = queried.getLayerSet();
+			Calibration cal1 = ls.getCalibrationCopy();
+			this.common = new LayerSet(queried.getProject(), queried.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, false, new AffineTransform());
+			Calibration cal = new Calibration();
+			cal.setUnit(cal1.getUnit()); // homogeneous on all axes
+			this.common.setCalibration(cal);
+			this.delta1 = delta1;
+			this.cal2 = cal2;
+			this.trans2 = trans2;
+			this.rot2 = rot2;
+		}
+		public void show(Pipe pipe) {
+			if (!vs_pipe_shows) {
+				Display3D.addMesh(common, vs_queried, queried.getProject().getMeaningfulTitle(queried), queried.getColor());
+				vs_pipe_shows = true;
+			}
+			VectorString3D vspe = pipe.asVectorString3D();
+			vspe.calibrate(cal2);
+			vspe.resample(delta1);
+			vspe.translate(trans2);
+			vspe.transform(rot2);
+			// The LayerSet is that of the Pipe being queried, not the given pipe to show which belongs to the reference project (and thus not to the queried pipe project)
+			Display3D.addMesh(common, vspe, pipe.getProject().getMeaningfulTitle(pipe), pipe.getColor());
+		}
 	}
 
 	/** Compare the given pipe with other pipes in the given standard project. WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
@@ -467,7 +509,7 @@ public class Compare {
 		}
 
 		// order by distance and show in a table
-		addTab(pipe, v_obs, v_eds, v_scores);
+		addTab(pipe, v_obs, v_eds, v_scores, null);
 
 				} catch (Exception e) {
 					IJError.print(e);
@@ -506,9 +548,9 @@ public class Compare {
 		}
 	}
 
-	static private final void addTab(final Displayable displ, final Vector<Displayable> v_obs, final Vector<Editions> v_eds, final Vector<Double> v_scores) {
+	static private final void addTab(final Displayable displ, final Vector<Displayable> v_obs, final Vector<Editions> v_eds, final Vector<Double> v_scores, final Visualizer vis) {
 		makeGUI();
-		ComparatorTableModel model = new ComparatorTableModel(v_obs, v_eds, v_scores);
+		ComparatorTableModel model = new ComparatorTableModel(v_obs, v_eds, v_scores, vis);
 		JTable table = new JTable(model);
 		table.addMouseListener(new ComparatorTableListener());
 		table.addKeyListener(kl);
@@ -597,11 +639,13 @@ public class Compare {
 		/** Keeps pointers to the VectorString3D instances and the Editions itself for further (future) processing, such as creating averaged paths. */
 		private Vector<Editions> v_eds;
 		private Vector<Double> v_scores;
-		ComparatorTableModel(Vector<Displayable> v_obs, Vector<Editions> v_eds, Vector<Double> v_scores) {
+		private Visualizer vis;
+		ComparatorTableModel(Vector<Displayable> v_obs, Vector<Editions> v_eds, Vector<Double> v_scores, Visualizer vis) {
 			super();
 			this.v_obs = v_obs;
 			this.v_eds = v_eds;
 			this.v_scores = v_scores;
+			this.vis = vis;
 		}
 		public String getColumnName(int col) {
 			switch (col) {
@@ -653,6 +697,10 @@ public class Compare {
 		public boolean contains(Object ob) {
 			return v_obs.contains(ob);
 		}
+		public void visualize(int row) {
+			if (null == this.vis) return;
+			vis.show((Pipe)v_obs.get(row));
+		}
 	}
 
 	static private class ComparatorTableListener extends MouseAdapter {
@@ -661,12 +709,19 @@ public class Compare {
 			final JTable table = (JTable)source;
 			final ComparatorTableModel model = (ComparatorTableModel)table.getModel();
 			if (2 == me.getClickCount()) {
-				Object ob = model.getDisplayableAt(table.rowAtPoint(me.getPoint()));
+				int row = table.rowAtPoint(me.getPoint());
+				Object ob = model.getDisplayableAt(row);
+				Displayable displ = null;
 				if (ob instanceof Displayable) {
-					Displayable displ = (Displayable)ob;
-					Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
+					displ = (Displayable)ob;
 				} else {
 					Utils.log2("Comparator: unhandable table selection: " + ob);
+					return;
+				}
+				if (me.isShiftDown()) {
+					model.visualize(row);
+				} else {
+					Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
 				}
 				return;
 			}
