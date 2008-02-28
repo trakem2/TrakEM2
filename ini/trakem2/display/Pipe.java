@@ -1596,7 +1596,7 @@ public class Pipe extends ZDisplayable {
 			py = vs.getPoints(1);
 			pz = vs.getPoints(2);
 			p_width_i = vs.getDependent(0);
-			Utils.log("lengths:  " + px.length + ", " + py.length + ", " + pz.length + ", " + p_width_i.length);
+			//Utils.log("lengths:  " + px.length + ", " + py.length + ", " + pz.length + ", " + p_width_i.length);
 			n = vs.length();
 		} catch (Exception e) {
 			IJError.print(e);

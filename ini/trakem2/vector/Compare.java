@@ -37,12 +37,16 @@ import java.awt.Checkbox;
 import java.awt.Dimension;
 import java.awt.event.*;
 import java.awt.Container;
+import java.awt.Choice;
 import javax.swing.*;
 import javax.swing.border.LineBorder;
 import javax.swing.event.*;
 import javax.swing.table.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
+
+import javax.vecmath.Vector3d;
+import javax.media.j3d.Transform3D;
 
 public class Compare {
 
@@ -97,71 +101,254 @@ public class Compare {
 	}
 
 	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe) {
-		ArrayList<Project> pro = Project.getProjects();
-		Project[] all = new Project[pro.size()];
-		pro.toArray(all);
-		Project[] ref = null;
-		GenericDialog gd = new GenericDialog("Indentify with axes");
-		if (all.length > 1) {
-			gd.addMessage("Choose a project to search into");
-			String[] options = new String[all.length + 1];
-			options[0] = "[-- ALL --]";
-			for (int i=0; i<all.length; i++) {
-				options[i+1] = all[i].toString();
-			}
-			gd.addChoice("Project: ", options, options[0]);
-		} else {
-			ref = new Project[1];
-			ref[0] = all[0];
+		final ArrayList<Project> pro = Project.getProjects();
+		if (pro.size() < 2) {
+			Utils.log("Compare.findSimilarWithAxes needs at least 2 open projects.");
+			return null;
 		}
-
+		final int iother = 0 == pro.indexOf(pipe.getProject()) ? 1 : 0;
+		final Project[] all = new Project[pro.size()];
+		pro.toArray(all);
+		GenericDialog gd = new GenericDialog("Indentify with axes");
 		gd.addMessage("Will search for a match to:");
 		gd.addMessage(pipe.getProject().getMeaningfulTitle(pipe));
 
 		ArrayList<ZDisplayable> pipes = pipe.getLayerSet().getZDisplayables(Pipe.class);
 		final String[] pipe_names = new String[pipes.size()];
-		int next = 0;
 
 		final String[][] presets = {{"medial lobe", "dorsal lobe", "peduncle"}};
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
-		gd.addChoice("Presets: ", preset_names, preset_names[0]);
+		/* 0 */ gd.addChoice("Presets: ", preset_names, preset_names[0]);
+		final Choice cpre = (Choice)gd.getChoices().get(0);
 
-		int sx = 0,
-		    sy = 0,
-		    sz = 0,
-		    tx = 0,
-		    ty = 0,
-		    tz = 0;
+		final ArrayList<ZDisplayable> pipes_ref = all[iother].getRootLayerSet().getZDisplayables(Pipe.class);
+		final String[] pipe_names_ref = new String[pipes_ref.size()];
+		final Object[] holder = new Object[]{pipe_names_ref};
 
 		// automatically find for the first preset
-		for (ZDisplayable zd : pipes) {
-			pipe_names[next] = zd.getProject().getMeaningfulTitle(zd);
-			final String lc = pipe_names[next].toLowerCase();
-			if (lc.contains(presets[0][0])) {
-				sx = tx = next;
-			} else if (lc.contains(presets[0][1])) {
-				sy = ty = next;
-			} else if (lc.contains(presets[0][2])) {
-				sz = tz = next;
-			}
-			next++;
-		}
+		int[] s = findXYZAxes(presets[0], pipes, pipe_names);
+		int[] t = findXYZAxes(presets[0], pipes_ref, pipe_names_ref);
 
 		gd.addMessage("Source project \"" + pipe.getProject().getTitle() + ":\"");
-		gd.addChoice("X: ", pipe_names, pipe_names[sx]);
-		gd.addChoice("Y: ", pipe_names, pipe_names[sy]);
-		gd.addChoice("Z: ", pipe_names, pipe_names[sz]);
+		/* 1 */ gd.addChoice("X: ", pipe_names, pipe_names[s[0]]);
+		/* 2 */ gd.addChoice("Y: ", pipe_names, pipe_names[s[1]]);
+		/* 3 */ gd.addChoice("Z: ", pipe_names, pipe_names[s[2]]);
 
 		gd.addMessage("Reference project:");
-		gd.addChoice("X: ", pipe_names, pipe_names[tx]);
-		gd.addChoice("Y: ", pipe_names, pipe_names[ty]);
-		gd.addChoice("Z: ", pipe_names, pipe_names[tz]);
+		String[] options = new String[all.length];
+		for (int i=0; i<all.length; i++) {
+			options[i] = all[i].toString();
+		}
+		/* 4 */ gd.addChoice("Project: ", options, options[iother]);
+		/* 5 */ gd.addChoice("X: ", pipe_names_ref, pipe_names_ref[t[0]]);
+		/* 6 */ gd.addChoice("Y: ", pipe_names_ref, pipe_names_ref[t[1]]);
+		/* 7 */ gd.addChoice("Z: ", pipe_names_ref, pipe_names_ref[t[2]]);
+
+		// refresh reference project choices
+		final Choice project_choice = (Choice)gd.getChoices().get(4);
+		final Choice[] ref = new Choice[3];
+		ref[0] = (Choice)gd.getChoices().get(5);
+		ref[1] = (Choice)gd.getChoices().get(6);
+		ref[2] = (Choice)gd.getChoices().get(7);
+		project_choice.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				String project_name = (String)ie.getItem();
+				Project project = null;
+				for (int i=0; i<all.length; i++) {
+					if (all[i].getTitle().equals(project_name)) {
+						project = all[i];
+						break;
+					}
+				}
+				if (null == project) return;
+				pipes_ref.clear();
+				pipes_ref.addAll(project.getRootLayerSet().getZDisplayables(Pipe.class));
+				String[] pipe_names_ref = new String[pipes_ref.size()];
+				holder[0] = pipe_names_ref;
+				int[] s = findXYZAxes(presets[cpre.getSelectedIndex()], pipes_ref, pipe_names_ref);
+				int ix = ref[0].getSelectedIndex();
+				int iy = ref[1].getSelectedIndex();
+				int iz = ref[2].getSelectedIndex();
+				for (int i=0; i<3; i++) {
+					int index = ref[i].getSelectedIndex();
+					ref[i].removeAll();
+					for (int k=0; k<pipe_names_ref.length; k++) {
+						ref[i].add(pipe_names_ref[k]);
+					}
+					if (0 != s[i]) ref[i].select(s[i]);
+					else ref[i].select(index); // previous one
+				}
+			}
+		});
 
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 
+		// ok, ready
+		int ipresets = gd.getNextChoiceIndex();
 
-		return null;
+		Pipe[] axes = new Pipe[]{
+			(Pipe)pipes.get(gd.getNextChoiceIndex()),
+			(Pipe)pipes.get(gd.getNextChoiceIndex()),
+			(Pipe)pipes.get(gd.getNextChoiceIndex())
+		};
+
+		int iproject = gd.getNextChoiceIndex();
+
+		Pipe[] axes_ref = new Pipe[]{
+			(Pipe)pipes_ref.get(gd.getNextChoiceIndex()),
+			(Pipe)pipes_ref.get(gd.getNextChoiceIndex()),
+			(Pipe)pipes_ref.get(gd.getNextChoiceIndex())
+		};
+
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref);
+	}
+
+	static private int[] findXYZAxes(String[] presets, ArrayList<ZDisplayable> pipes, String[] pipe_names) {
+		int[] s = new int[3];
+		int next = 0;
+		for (ZDisplayable zd : pipes) {
+			pipe_names[next] = zd.getProject().getMeaningfulTitle(zd);
+			final String lc = pipe_names[next].toLowerCase();
+			if (lc.contains(presets[0])) {
+				s[0] = next;
+			} else if (lc.contains(presets[1])) {
+				s[1] = next;
+			} else if (lc.contains(presets[2])) {
+				s[2] = next;
+			}
+			next++;
+		}
+		return s;
+	}
+
+	/** Generate calibrated origin of coordinates. */
+	static private Vector3d[] obtainOrigin(final Pipe[] axes) {
+		// pipe's axes
+		VectorString3D v1 = axes[0].asVectorString3D();
+		VectorString3D v2 = axes[1].asVectorString3D();
+		VectorString3D v3 = axes[2].asVectorString3D();
+		Calibration cal = (null != axes[0].getLayerSet() ? axes[0].getLayerSet().getCalibrationCopy() : null);
+		if (null != cal) {
+			v1.calibrate(cal);
+			v2.calibrate(cal);
+			v3.calibrate(cal);
+		}
+		// resample
+		double delta = (v1.getAverageDelta() + v2.getAverageDelta() + v3.getAverageDelta()) / 3;
+		v1.resample(delta);
+		v2.resample(delta);
+		v3.resample(delta);
+
+		// return origin vectors for pipe's project
+		return VectorString3D.createOrigin(v1, v2, v3); // requires resampled vs
+	}
+
+	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref) {
+		if (axes.length < 3 || axes_ref.length < 3) {
+			Utils.log("Need three axes for each.");
+			return null;
+		}
+		Worker worker = new Worker("Comparing pipes...") {
+			public void run() {
+				startedWorking();
+				try {
+
+		// obtain axes origin vectors for pipe's project
+		Vector3d[] o1 = obtainOrigin(axes);
+
+		// obtain origin vectors for reference project
+		Vector3d[] o2 = obtainOrigin(axes_ref);
+
+		// bring query pipe to common space
+		final VectorString3D vs_pipe = pipe.asVectorString3D();
+		final double delta1 = vs_pipe.getAverageDelta();
+		vs_pipe.resample(delta1);
+		vs_pipe.translate(new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z));
+		Transform3D rot1 = VectorString3D.createOriginRotationTransform(o1);
+		vs_pipe.transform(rot1);
+		Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibrationCopy() : null);
+		if (null != cal1) vs_pipe.calibrate(cal1);
+		// reversed copy of query pipe
+		final VectorString3D vs_pipe_reversed = vs_pipe.makeReversedCopy();
+
+		// bring all pipes in the reference project to common space
+		final Vector3d trans2 = new Vector3d(-o2[3].x, -o2[3].y, -o2[3].z);
+		final Transform3D rot2 = VectorString3D.createOriginRotationTransform(o2);
+
+		// match pipe against all
+		final Pipe[] p = new Pipe[pipes_ref.size()];
+		final Match[] match = new Match[p.length];
+		pipes_ref.toArray(p);
+		final Calibration cal2 = (null != p[0].getLayerSet() ? p[0].getLayerSet().getCalibrationCopy() : null);
+
+		final Thread[] threads = MultiThreading.newThreads();
+		final AtomicInteger ai = new AtomicInteger(0);
+
+		for (int ithread = 0; ithread < threads.length; ++ithread) {
+			threads[ithread] = new Thread(new Runnable() {
+				public void run() {
+				////
+		for (int k = ai.getAndIncrement(); k < p.length; k = ai.getAndIncrement()) {
+			try {
+				// the other
+				VectorString3D vs2 = p[k].asVectorString3D();
+				if (null != cal2) vs2.calibrate(cal2);
+				vs2.resample(delta1);
+
+				// test vs1 against vs2
+				Editions ed = new Editions(vs_pipe, vs2, delta1, false);
+				double score = ed.getDistance();
+				Utils.log2("Score: " + score + "  similarity: " + ed.getSimilarity());
+
+				// test vs1 reversed against vs2
+				Editions ed_rev = new Editions(vs_pipe_reversed, vs2, delta1, false);
+				double score_rev = ed_rev.getDistance();
+				Utils.log2("Score (reversed): " + score_rev + "  similarity: " + ed_rev.getSimilarity());
+
+				// choose smallest distance
+				if (ed.getDistance() < ed_rev.getDistance()) {
+					match[k] = new Match(p[k], ed, score);
+				} else {
+					match[k] = new Match(p[k], ed_rev, score_rev);
+				}
+
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+		}
+				////
+				}
+			});
+		}
+		MultiThreading.startAndJoin(threads);
+
+		Arrays.sort(match, new OrderMatch());
+
+		final Vector<Displayable> v_obs = new Vector<Displayable>(match.length);
+		final Vector<Editions> v_eds = new Vector<Editions>(match.length);
+		final Vector<Double> v_scores = new Vector<Double>(match.length);
+		for (int i=0; i<match.length; i++) {
+			v_obs.add(match[i].displ);
+			v_eds.add(match[i].ed);
+			v_scores.add(match[i].score);
+		}
+
+		// order by distance and show in a table
+		addTab(pipe, v_obs, v_eds, v_scores);
+
+
+				} catch (Exception e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, pipe.getProject());
+		burro.goHaveBreakfast();
+		return burro;
 	}
 
 	/** Compare the given pipe with other pipes in the given standard project. WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
