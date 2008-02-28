@@ -1060,7 +1060,7 @@ public class VectorString3D implements VectorString {
 	}
 
 	private final void transform(final double[] x, final double[] y, final double[] z, final Transform3D t, final Point3d p) {
-		for (int i=0; i<length; i++) {
+		for (int i=0; i<this.length; i++) {
 			p.x = x[i];	p.y = y[i];	p.z = z[i];
 			t.transform(p);
 			x[i] = p.x;	y[i] = p.y;	z[i] = p.z;
@@ -1229,6 +1229,7 @@ public class VectorString3D implements VectorString {
 		final Point3d p = new Point3d();
 		if (null != x) transform(t, x, y, z, length, p);
 		if (null != vx) transform(t, vx, vy, vz, length, p);
+		if (null != rvx) transform(t, rvx, rvy, rvz, length, p);
 	}
 
 	static private void transform(final Transform3D t, final double[] x, final double[] y, final double[] z, int length, final Point3d p) {

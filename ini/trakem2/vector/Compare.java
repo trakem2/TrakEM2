@@ -263,13 +263,16 @@ public class Compare {
 
 		// bring query pipe to common space
 		final VectorString3D vs_pipe = pipe.asVectorString3D();
+		// step 1 - calibrate
+		Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibrationCopy() : null);
+		if (null != cal1) vs_pipe.calibrate(cal1);
+		// step 2 - resample
 		final double delta1 = vs_pipe.getAverageDelta();
 		vs_pipe.resample(delta1);
+		// step 3 - transform to axes
 		vs_pipe.translate(new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z));
 		Transform3D rot1 = VectorString3D.createOriginRotationTransform(o1);
 		vs_pipe.transform(rot1);
-		Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibrationCopy() : null);
-		if (null != cal1) vs_pipe.calibrate(cal1);
 		// reversed copy of query pipe
 		final VectorString3D vs_pipe_reversed = vs_pipe.makeReversedCopy();
 
@@ -283,7 +286,7 @@ public class Compare {
 		pipes_ref.toArray(p);
 		final Calibration cal2 = (null != p[0].getLayerSet() ? p[0].getLayerSet().getCalibrationCopy() : null);
 
-		final Thread[] threads = MultiThreading.newThreads();
+		final Thread[] threads = new Thread[1]; //MultiThreading.newThreads();
 		final AtomicInteger ai = new AtomicInteger(0);
 
 		for (int ithread = 0; ithread < threads.length; ++ithread) {
@@ -294,8 +297,13 @@ public class Compare {
 			try {
 				// the other
 				VectorString3D vs2 = p[k].asVectorString3D();
+				// step 1 - calibrate
 				if (null != cal2) vs2.calibrate(cal2);
+				// step 2 - resample 
 				vs2.resample(delta1);
+				// step 3 - transform to axes
+				vs2.translate(trans2);
+				vs2.transform(rot2);
 
 				// test vs1 against vs2
 				Editions ed = new Editions(vs_pipe, vs2, delta1, false);
@@ -338,6 +346,18 @@ public class Compare {
 		// order by distance and show in a table
 		addTab(pipe, v_obs, v_eds, v_scores);
 
+
+		// debug: show the query among all others
+		Display3D.addMesh(pipe.getLayerSet(), vs_pipe, pipe.getTitle(), Color.green);
+		for (int i=0; i<v_obs.size(); i++) {
+			Pipe pe = (Pipe)v_obs.get(i);
+			VectorString3D vspe = pe.asVectorString3D();
+			vspe.calibrate(cal2);
+			vspe.resample(delta1);
+			vspe.translate(trans2);
+			vspe.transform(rot2);
+			Display3D.addMesh(pipe.getLayerSet(), vspe, pe.getTitle(), Color.yellow);
+		}
 
 				} catch (Exception e) {
 					IJError.print(e);
