@@ -225,25 +225,26 @@ public class Compare {
 	}
 
 	/** Generate calibrated origin of coordinates. */
-	static private Vector3d[] obtainOrigin(final Pipe[] axes) {
+	static private Object[] obtainOrigin(final Pipe[] axes) {
 		// pipe's axes
-		VectorString3D v1 = axes[0].asVectorString3D();
-		VectorString3D v2 = axes[1].asVectorString3D();
-		VectorString3D v3 = axes[2].asVectorString3D();
+		VectorString3D[] vs = new VectorString3D[3];
+		for (int i=0; i<3; i++) vs[i] = axes[i].asVectorString3D();
+
 		Calibration cal = (null != axes[0].getLayerSet() ? axes[0].getLayerSet().getCalibrationCopy() : null);
+		// 1 - calibrate
 		if (null != cal) {
-			v1.calibrate(cal);
-			v2.calibrate(cal);
-			v3.calibrate(cal);
+			for (int i=0; i<3; i++) vs[i].calibrate(cal);
 		}
-		// resample
-		double delta = (v1.getAverageDelta() + v2.getAverageDelta() + v3.getAverageDelta()) / 3;
-		v1.resample(delta);
-		v2.resample(delta);
-		v3.resample(delta);
+		// 2 - resample
+		double delta = 0;
+		for (int i=0; i<3; i++) delta += vs[i].getAverageDelta();
+		delta /= 3;
+		for (int i=0; i<3; i++) vs[i].resample(delta);
 
 		// return origin vectors for pipe's project
-		return VectorString3D.createOrigin(v1, v2, v3); // requires resampled vs
+		Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2]); // requires resampled vs
+
+		return new Object[]{vs, o};
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
@@ -258,10 +259,16 @@ public class Compare {
 				try {
 
 		// obtain axes origin vectors for pipe's project
-		Vector3d[] o1 = obtainOrigin(axes);
+		Object[] pack1 = obtainOrigin(axes);
+
+		VectorString3D[] vs_axes = (VectorString3D[])pack1[0];
+		Vector3d[] o1 = (Vector3d[])pack1[1];
 
 		// obtain origin vectors for reference project
-		Vector3d[] o2 = obtainOrigin(axes_ref);
+		Object[] pack2 = obtainOrigin(axes_ref);
+
+		VectorString3D[] vs_axes_ref = (VectorString3D[])pack2[0];
+		Vector3d[] o2 = (Vector3d[])pack2[1];
 
 		// bring query pipe to common space
 		final VectorString3D vs_pipe = pipe.asVectorString3D();
@@ -272,17 +279,33 @@ public class Compare {
 		final double delta1 = vs_pipe.getAverageDelta();
 		vs_pipe.resample(delta1);
 		// step 3 - transform to axes
-		vs_pipe.translate(new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z));
+		Vector3d trans1 =new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z); 
+		vs_pipe.translate(trans1);
 		Transform3D rot1 = VectorString3D.createOriginRotationTransform(o1);
 		vs_pipe.transform(rot1);
 		// reversed copy of query pipe
 		final VectorString3D vs_pipe_reversed = vs_pipe.makeReversedCopy();
+
+
+		// transform the axes themselves
+		for (int i=0; i<3; i++) {
+			vs_axes[i].translate(trans1);
+			vs_axes[i].transform(rot1);
+		}
+
 
 		final Point3d center1 = vs_pipe.computeCenterOfMass();
 
 		// bring all pipes in the reference project to common space
 		final Vector3d trans2 = new Vector3d(-o2[3].x, -o2[3].y, -o2[3].z);
 		final Transform3D rot2 = VectorString3D.createOriginRotationTransform(o2);
+
+		// transform the reference axes themselves
+		for (int i=0; i<3; i++) {
+			vs_axes_ref[i].translate(trans2);
+			vs_axes_ref[i].transform(rot2);
+		}
+
 
 		// match pipe against all
 		final Pipe[] p = new Pipe[pipes_ref.size()];
@@ -352,7 +375,7 @@ public class Compare {
 		}
 
 		// order by distance and show in a table
-		addTab(pipe, v_obs, v_eds, v_scores, v_phys_dist, new Visualizer(pipe, vs_pipe, delta1, cal2, trans2, rot2));
+		addTab(pipe, v_obs, v_eds, v_scores, v_phys_dist, new Visualizer(pipe, vs_pipe, delta1, cal2, trans2, rot2, vs_axes, vs_axes_ref));
 
 
 		/* // debug: show the query among all others
@@ -390,10 +413,13 @@ public class Compare {
 		Transform3D rot2;
 		LayerSet common; // calibrated to queried pipe space, which is now also the space of all others.
 		boolean vs_pipe_shows = false;
+		VectorString3D[] vs_axes, vs_axes_ref;
 
-		Visualizer(Pipe queried, VectorString3D vs_queried, double delta1, Calibration cal2, Vector3d trans2, Transform3D rot2) {
+		Visualizer(Pipe queried, VectorString3D vs_queried, double delta1, Calibration cal2, Vector3d trans2, Transform3D rot2, VectorString3D[] vs_axes, VectorString3D[] vs_axes_ref) {
 			this.queried = queried;
 			this.vs_queried = vs_queried;
+			this.vs_axes = vs_axes;
+			this.vs_axes_ref = vs_axes_ref;
 			LayerSet ls = queried.getLayerSet();
 			Calibration cal1 = ls.getCalibrationCopy();
 			this.common = new LayerSet(queried.getProject(), queried.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, false, new AffineTransform());
@@ -408,6 +434,15 @@ public class Compare {
 		public void show(Pipe pipe) {
 			if (!vs_pipe_shows) {
 				Display3D.addMesh(common, vs_queried, queried.getProject().getMeaningfulTitle(queried), queried.getColor());
+
+				Display3D.addMesh(common, vs_axes[0], "X query", queried.getColor());
+				Display3D.addMesh(common, vs_axes[1], "Y query", queried.getColor());
+				Display3D.addMesh(common, vs_axes[2], "Z query", queried.getColor());
+
+				Display3D.addMesh(common, vs_axes_ref[0], "X ref", Color.yellow);
+				Display3D.addMesh(common, vs_axes_ref[1], "Y ref", Color.yellow);
+				Display3D.addMesh(common, vs_axes_ref[2], "Z ref", Color.yellow);
+
 				vs_pipe_shows = true;
 			}
 			VectorString3D vspe = pipe.asVectorString3D();
@@ -651,8 +686,8 @@ public class Compare {
 			frame.getContentPane().add(all);
 			frame.pack();
 			tabs.addChangeListener(tabs_listener); // to avoid firing it during instantiation
+			ij.gui.GUI.center(frame);
 		}
-		ij.gui.GUI.center(frame);
 		frame.setVisible(true);
 		frame.toFront();
 	}
@@ -678,7 +713,7 @@ public class Compare {
 				case 1: return "Match";
 				case 2: return "Similarity";
 				case 3: return "Lev Dist";
-				case 4: return "Phys Dist";
+				case 4: return "Dist (" + vis.cal2.getUnits() + ")";
 				default: return "";
 			}
 		}
