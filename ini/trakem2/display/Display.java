@@ -2173,7 +2173,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** A function to make a Displayable panel be visible in the screen, by scrolling the viewport of the JScrollPane. */
-	public void scrollToShow(final Displayable d) {
+	private void scrollToShow(final Displayable d) {
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
 		if (d instanceof ZDisplayable && scroll.equals(scroll_zdispl)) {
 			scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(d));
@@ -3109,7 +3109,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private final void showCentered(final Displayable displ) {
+		if (null == displ) return;
+		displ.setVisible(true);
 		canvas.showCentered(displ.getBoundingBox());
+		scrollToShow(displ);
 		if (displ instanceof ZDisplayable) {
 			// scroll to first layer that has a point
 			ZDisplayable zd = (ZDisplayable)displ;
@@ -3185,6 +3188,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Used by the Displayable to update the visibility checkbox in other Displays. */
 	static protected void updateVisibilityCheckbox(final Layer layer, final Displayable displ, final Display calling_display) {
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
 		for (Display d : al_displays) {
 			if (d.equals(calling_display)) continue;
 			if (d.layer.contains(displ) || (displ instanceof ZDisplayable && d.layer.getParent().contains((ZDisplayable)displ))) {
@@ -3192,6 +3196,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				if (null != dp) dp.updateVisibilityCheckbox();
 			}
 		}
+		}});
 	}
 
 	protected boolean isActiveWindow() {

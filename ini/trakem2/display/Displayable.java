@@ -485,7 +485,11 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public void setVisible(boolean visible, boolean repaint) {
-		if (this.visible == visible) return;
+		if (this.visible == visible) {
+			// patching synch error
+			Display.updateVisibilityCheckbox(layer, this, null); // overkill, but makes my life easy
+			return;
+		}
 		this.visible = visible;
 		if (repaint) {
 			Display.setUpdateGraphics(layer, this);

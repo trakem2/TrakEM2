@@ -290,7 +290,7 @@ public class ProjectThing extends DBObject implements Thing {
 
 	public void setTitle(String title) {
 		// A Thing has a title as the object when it has no object, because the object gives it the title (the Thing only defines the type)
-		if (null == title || title == "") return;
+		if (null == title || title.length() < 1) return;
 		if (null == object || object instanceof String) {
 			object = title;
 			updateInDatabase("title");

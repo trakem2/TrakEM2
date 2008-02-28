@@ -434,14 +434,16 @@ public class Compare {
 		public void show(Pipe pipe) {
 			if (!vs_pipe_shows) {
 				Display3D.addMesh(common, vs_queried, queried.getProject().getMeaningfulTitle(queried), queried.getColor());
+				Color color = Color.pink.equals(queried.getColor()) ? Color.red : queried.getColor();
 
-				Display3D.addMesh(common, vs_axes[0], "X query", queried.getColor());
-				Display3D.addMesh(common, vs_axes[1], "Y query", queried.getColor());
-				Display3D.addMesh(common, vs_axes[2], "Z query", queried.getColor());
+				Display3D.addMesh(common, vs_axes[0], "X query", color);
+				Display3D.addMesh(common, vs_axes[1], "Y query", color);
+				Display3D.addMesh(common, vs_axes[2], "Z query", color);
 
-				Display3D.addMesh(common, vs_axes_ref[0], "X ref", Color.yellow);
-				Display3D.addMesh(common, vs_axes_ref[1], "Y ref", Color.yellow);
-				Display3D.addMesh(common, vs_axes_ref[2], "Z ref", Color.yellow);
+
+				Display3D.addMesh(common, vs_axes_ref[0], "X ref", Color.pink);
+				Display3D.addMesh(common, vs_axes_ref[1], "Y ref", Color.pink);
+				Display3D.addMesh(common, vs_axes_ref[2], "Z ref", Color.pink);
 
 				vs_pipe_shows = true;
 			}
