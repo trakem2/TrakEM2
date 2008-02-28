@@ -24,7 +24,6 @@ package ini.trakem2.vector;
 
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Vector3D;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.display.LayerSet;
 
@@ -1327,5 +1326,15 @@ public class VectorString3D implements VectorString {
 			z1[i] += origin.z;
 		}
 		return new VectorString3D(x1, y1, z1, false);
+	}
+
+	public Point3d computeCenterOfMass() {
+		final Point3d v = new Point3d();
+		for (int i=0; i<length; i++) {
+			v.x += x[i]/length;
+			v.y += y[i]/length;
+			v.z += z[i]/length;
+		}
+		return v;
 	}
 }

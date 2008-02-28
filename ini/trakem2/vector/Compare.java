@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
 import java.awt.geom.AffineTransform;
 
+import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
 import javax.media.j3d.Transform3D;
 
@@ -277,6 +278,8 @@ public class Compare {
 		// reversed copy of query pipe
 		final VectorString3D vs_pipe_reversed = vs_pipe.makeReversedCopy();
 
+		final Point3d center1 = vs_pipe.computeCenterOfMass();
+
 		// bring all pipes in the reference project to common space
 		final Vector3d trans2 = new Vector3d(-o2[3].x, -o2[3].y, -o2[3].z);
 		final Transform3D rot2 = VectorString3D.createOriginRotationTransform(o2);
@@ -316,11 +319,13 @@ public class Compare {
 				double score_rev = ed_rev.getDistance();
 				Utils.log2("Score (reversed): " + score_rev + "  similarity: " + ed_rev.getSimilarity());
 
+				double phys_distance = vs2.computeCenterOfMass().distance(center1);
+
 				// choose smallest distance
 				if (ed.getDistance() < ed_rev.getDistance()) {
-					match[k] = new Match(p[k], ed, score);
+					match[k] = new Match(p[k], phys_distance, ed, score);
 				} else {
-					match[k] = new Match(p[k], ed_rev, score_rev);
+					match[k] = new Match(p[k], phys_distance, ed_rev, score_rev);
 				}
 
 			} catch (Exception e) {
@@ -333,19 +338,21 @@ public class Compare {
 		}
 		MultiThreading.startAndJoin(threads);
 
-		Arrays.sort(match, new OrderMatch());
+		Arrays.sort(match, new OrderByDistance());
 
 		final Vector<Displayable> v_obs = new Vector<Displayable>(match.length);
 		final Vector<Editions> v_eds = new Vector<Editions>(match.length);
 		final Vector<Double> v_scores = new Vector<Double>(match.length);
+		final Vector<Double> v_phys_dist = new Vector<Double>(match.length);
 		for (int i=0; i<match.length; i++) {
 			v_obs.add(match[i].displ);
 			v_eds.add(match[i].ed);
 			v_scores.add(match[i].score);
+			v_phys_dist.add(match[i].phys_dist);
 		}
 
 		// order by distance and show in a table
-		addTab(pipe, v_obs, v_eds, v_scores, new Visualizer(pipe, vs_pipe, delta1, cal2, trans2, rot2));
+		addTab(pipe, v_obs, v_eds, v_scores, v_phys_dist, new Visualizer(pipe, vs_pipe, delta1, cal2, trans2, rot2));
 
 
 		/* // debug: show the query among all others
@@ -509,7 +516,7 @@ public class Compare {
 		}
 
 		// order by distance and show in a table
-		addTab(pipe, v_obs, v_eds, v_scores, null);
+		addTab(pipe, v_obs, v_eds, v_scores, null, null);
 
 				} catch (Exception e) {
 					IJError.print(e);
@@ -527,10 +534,15 @@ public class Compare {
 		Displayable displ;
 		Editions ed;
 		double score;
+		double phys_dist;
 		Match(Displayable displ, Editions ed, double score) {
 			this.displ = displ;
 			this.ed = ed;
 			this.score = score;
+		}
+		Match(Displayable displ, double phys_dist, Editions ed, double score) {
+			this(displ, ed, score);
+			this.phys_dist = phys_dist;
 		}
 	}
 
@@ -543,14 +555,25 @@ public class Compare {
 			//double val = m1.ed.getDistance() - m2.ed.getDistance();
 			if (val < 0) return -1; // m1 is smaller
 			if (val > 0) return 1; // m1 is larger
-			if (val < 0) return 1;
 			return 0; // equal
 		}
 	}
 
-	static private final void addTab(final Displayable displ, final Vector<Displayable> v_obs, final Vector<Editions> v_eds, final Vector<Double> v_scores, final Visualizer vis) {
+	static private class OrderByDistance implements Comparator {
+		public int compare(Object obm1, Object obm2) {
+			Match m1 = (Match)obm1;
+			Match m2 = (Match)obm2; // I hate java
+			// select for smallest physical distance of the center of mass
+			double val = m1.phys_dist - m2.phys_dist;
+			if (val < 0) return -1; // m1 is closer
+			if (val > 0) return 1; // m1 is further away
+			return 0; // same distance
+		}
+	}
+
+	static private final void addTab(final Displayable displ, final Vector<Displayable> v_obs, final Vector<Editions> v_eds, final Vector<Double> v_scores, final Vector<Double> v_phys_dist, final Visualizer vis) {
 		makeGUI();
-		ComparatorTableModel model = new ComparatorTableModel(v_obs, v_eds, v_scores, vis);
+		ComparatorTableModel model = new ComparatorTableModel(v_obs, v_eds, v_scores, v_phys_dist, vis);
 		JTable table = new JTable(model);
 		table.addMouseListener(new ComparatorTableListener());
 		table.addKeyListener(kl);
@@ -639,12 +662,14 @@ public class Compare {
 		/** Keeps pointers to the VectorString3D instances and the Editions itself for further (future) processing, such as creating averaged paths. */
 		private Vector<Editions> v_eds;
 		private Vector<Double> v_scores;
+		private Vector<Double> v_phys_dist;
 		private Visualizer vis;
-		ComparatorTableModel(Vector<Displayable> v_obs, Vector<Editions> v_eds, Vector<Double> v_scores, Visualizer vis) {
+		ComparatorTableModel(Vector<Displayable> v_obs, Vector<Editions> v_eds, Vector<Double> v_scores, Vector<Double> v_phys_dist, Visualizer vis) {
 			super();
 			this.v_obs = v_obs;
 			this.v_eds = v_eds;
 			this.v_scores = v_scores;
+			this.v_phys_dist = v_phys_dist;
 			this.vis = vis;
 		}
 		public String getColumnName(int col) {
@@ -652,12 +677,16 @@ public class Compare {
 				case 0: return "Project";
 				case 1: return "Match";
 				case 2: return "Similarity";
-				case 3: return "Distance";
+				case 3: return "Lev Dist";
+				case 4: return "Phys Dist";
 				default: return "";
 			}
 		}
 		public int getRowCount() { return v_obs.size(); }
-		public int getColumnCount() { return 4; }
+		public int getColumnCount() {
+			if (null != v_phys_dist) return 5;
+			return 4;
+		}
 		public Object getValueAt(int row, int col) {
 			switch (col) {
 				case 0:
@@ -668,6 +697,7 @@ public class Compare {
 					return d.getProject().getMeaningfulTitle(d);
 				case 2: return Utils.cutNumber(Math.floor(v_eds.get(row).getSimilarity() * 10000) / 100, 2) + " %";
 				case 3: return Utils.cutNumber(v_scores.get(row).doubleValue(), 2);
+				case 4: return Utils.cutNumber(v_phys_dist.get(row).doubleValue(), 2);
 				default: return "";
 			}
 		}
