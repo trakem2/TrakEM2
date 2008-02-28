@@ -612,6 +612,16 @@ public class Compare {
 		JTable table = new JTable(model);
 		table.addMouseListener(new ComparatorTableListener());
 		table.addKeyListener(kl);
+		/* // WOULD HAVE to create my own sorter: can't sort numerically even (it's bit sort), plus the getValueAt(int row, int col) gets messed up - no proper backend data update. But to create my own sorter, I need a TableSorter class which is new 1.6.0, i..e would have tobe very convolutedly generated.
+		if (ij.IJ.isJava16()) {
+			try {
+				java.lang.reflect.Method msort = JTable.class.getMethod("setAutoCreateRowSorter", new Class[]{Boolean.TYPE});
+				msort.invoke(table, new Object[]{Boolean.TRUE});
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		*/
 		JScrollPane jsp = new JScrollPane(table);
 		ht_tabs.put(jsp, displ); // before adding the tab, so that the listener can find it
 		tabs.addTab(displ.getProject().findProjectThing(displ).getTitle(), jsp);
@@ -685,7 +695,7 @@ public class Compare {
 			all.add(tabs);
 			frame.getContentPane().add(all);
 			frame.pack();
-			tabs.addChangeListener(tabs_listener); // to avoid firing it during instantiation
+			tabs.addChangeListener(tabs_listener); // to avoid firing it during instantiation, must be added last
 			ij.gui.GUI.center(frame);
 		}
 		frame.setVisible(true);
