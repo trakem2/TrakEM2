@@ -2218,7 +2218,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void updateTitle(final Layer layer, final Displayable displ) {
 		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
-				((DisplayablePanel)d.ht_panels.get(displ)).updateTitle();
+				DisplayablePanel dp = ((DisplayablePanel)d.ht_panels.get(displ));
+				if (null != dp) dp.updateTitle();
 			}
 		}
 	}
