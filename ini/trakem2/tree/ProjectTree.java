@@ -349,7 +349,12 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		DefaultMutableTreeNode ctn = addChild(ct, project_node);
 		ProjectThing pt_is = ct.createChild(imported_labels);
 		DefaultMutableTreeNode node_pt_is = addChild(pt_is, ctn);
-		this.scrollPathToVisible(new TreePath(node_pt_is.getPath()));
+		try {
+			// fails when importing labels from Amira TODO
+			this.scrollPathToVisible(new TreePath(node_pt_is.getPath()));
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 
 		// now, insert a new ProjectThing if of type AreaList, Ball and/or Pipe under node_child
 		for (Iterator it = al.iterator(); it.hasNext(); ) {

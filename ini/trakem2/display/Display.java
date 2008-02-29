@@ -3188,7 +3188,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Used by the Displayable to update the visibility checkbox in other Displays. */
 	static protected void updateVisibilityCheckbox(final Layer layer, final Displayable displ, final Display calling_display) {
-		SwingUtilities.invokeLater(new Runnable() { public void run() {
+		//LOCKS ALL //SwingUtilities.invokeLater(new Runnable() { public void run() {
 		for (Display d : al_displays) {
 			if (d.equals(calling_display)) continue;
 			if (d.layer.contains(displ) || (displ instanceof ZDisplayable && d.layer.getParent().contains((ZDisplayable)displ))) {
@@ -3196,7 +3196,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				if (null != dp) dp.updateVisibilityCheckbox();
 			}
 		}
-		}});
+		//}});
 	}
 
 	protected boolean isActiveWindow() {
