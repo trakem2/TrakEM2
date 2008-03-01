@@ -183,6 +183,11 @@ public class Compare {
 			}
 		});
 
+		gd.addCheckbox("Skip insertion/deletion strings at ends when scoring", true);
+		gd.addNumericField("Maximum ignorable non-I/D string: ", 5, 0);
+		gd.addNumericField("Minimum percentage that must remain: ", 0.4, 2);
+		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
+
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 
@@ -203,7 +208,16 @@ public class Compare {
 			(Pipe)pipes_ref.get(gd.getNextChoiceIndex())
 		};
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref);
+		boolean skip_ends = gd.getNextBoolean();
+		int max_non_mut = (int)gd.getNextNumber();
+		float min_chunk = (float)gd.getNextNumber();
+		if (skip_ends) {
+			if (max_non_mut < 0) max_non_mut = 0;
+			if (min_chunk <= 0) skip_ends = false;
+			if (min_chunk > 1) min_chunk = 1;
+		}
+
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_non_mut, min_chunk);
 	}
 
 	static private int[] findXYZAxes(String[] presets, ArrayList<ZDisplayable> pipes, String[] pipe_names) {
@@ -248,7 +262,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref) {
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_non_mut, final float min_chunk) {
 		if (axes.length < 3 || axes_ref.length < 3) {
 			Utils.log("Need three axes for each.");
 			return null;
@@ -332,6 +346,10 @@ public class Compare {
 				vs2.translate(trans2);
 				vs2.transform(rot2);
 
+
+				/*
+				double phys_distance = vs2.computeCenterOfMass().distance(center1);
+
 				// test vs1 against vs2
 				Editions ed = new Editions(vs_pipe, vs2, delta1, false);
 				double score = ed.getDistance();
@@ -342,14 +360,19 @@ public class Compare {
 				double score_rev = ed_rev.getDistance();
 				Utils.log2("Score (reversed): " + score_rev + "  similarity: " + ed_rev.getSimilarity());
 
-				double phys_distance = vs2.computeCenterOfMass().distance(center1);
-
 				// choose smallest distance
 				if (ed.getDistance() < ed_rev.getDistance()) {
 					match[k] = new Match(p[k], phys_distance, ed, score);
 				} else {
 					match[k] = new Match(p[k], phys_distance, ed_rev, score_rev);
 				}
+				*/
+
+				//Utils.log2("pipe " + p[k].getProject().getMeaningfulTitle(p[k]));
+				Object[] ob = findBestMatch(vs_pipe, vs2, delta1, skip_ends, max_non_mut, min_chunk);
+				double score = ((Double)ob[1]).doubleValue();
+				Editions ed = (Editions)ob[0];
+				match[k] = new Match(p[k], ed.getPhysicalDistance(skip_ends, max_non_mut, min_chunk), ed, score);
 
 			} catch (Exception e) {
 				IJError.print(e);
@@ -455,6 +478,60 @@ public class Compare {
 			// The LayerSet is that of the Pipe being queried, not the given pipe to show which belongs to the reference project (and thus not to the queried pipe project)
 			Display3D.addMesh(common, vspe, pipe.getProject().getMeaningfulTitle(pipe), pipe.getColor());
 		}
+	}
+
+	/** Since comparing two sequences starting from one end or starting from the other
+	 *  is not the same at all, this method performs the match starting first from one
+	 *  end and then from the other.
+	 *  Then it performs a match starting from the middle of the longest stretches of
+	 *  pure mutations detected in the best of the matches above.
+	 *  Also, since strings may be reversed, the test against the reversed one is done as well.
+	 *
+	 * vs1 			vs2
+	 * vs1.reversed()	vs2.reversed()
+	 *
+	 * vs1 			vs2.reversed()
+	 * vs1.reversed()	vs2
+	 *
+	 * ASSUMES both VectorString3D are open.
+	 *
+	 * */
+	static private final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_non_mut, float min_chunk) {
+
+		final VectorString3D vs1rev = vs1.makeReversedCopy();
+		final VectorString3D vs2rev = vs2.makeReversedCopy();
+
+		Editions[] ed = new Editions[4];
+
+		// vs1 vs2
+		ed[0] = new Editions(vs1, vs2, delta, false);
+		// vs1rev vs2rev
+		ed[1] = new Editions(vs1rev, vs2rev, delta, false);
+		// vs1 vs2rev
+		ed[2] = new Editions(vs1, vs2rev, delta, false);
+		// vs1rev vs2
+		ed[3] = new Editions(vs1rev, vs2, delta, false);
+
+		double best_score = 0;
+		double best_score1 = 0;
+
+		int best_i = 0;
+		for (int i=0; i<ed.length; i++) {
+			double score1 = ed[i].getSimilarity();
+			double score = ed[i].getSimilarity(skip_ends, max_non_mut, min_chunk);
+			if (score > best_score) {
+				best_i = i;
+				best_score = score;
+				best_score1 = score1;
+			}
+		}
+		//Utils.log2("score, score1: " + best_score + ", " + best_score1);
+
+		Editions best_ed = ed[best_i];
+
+		// now test also starting from the middle of the longest mutation strech
+
+		return new Object[]{best_ed, new Double(best_score)};
 	}
 
 	/** Compare the given pipe with other pipes in the given standard project. WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
@@ -742,8 +819,8 @@ public class Compare {
 					Displayable d = v_obs.get(row);
 					//return d.getProject().findProjectThing(d).getTitle();
 					return d.getProject().getMeaningfulTitle(d);
-				case 2: return Utils.cutNumber(Math.floor(v_eds.get(row).getSimilarity() * 10000) / 100, 2) + " %";
-				case 3: return Utils.cutNumber(v_scores.get(row).doubleValue(), 2);
+				case 2: return Utils.cutNumber(Math.floor(v_scores.get(row).doubleValue() * 10000) / 100, 2) + " %";
+				case 3: return Utils.cutNumber(v_eds.get(row).getDistance(), 2);
 				case 4: return Utils.cutNumber(v_phys_dist.get(row).doubleValue(), 2);
 				default: return "";
 			}

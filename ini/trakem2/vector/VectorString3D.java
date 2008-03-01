@@ -1199,8 +1199,14 @@ public class VectorString3D implements VectorString {
 		};
 	}
 
-	static private double distance(VectorString3D vs1, int i, VectorString3D vs2, int j) {
+	static public double distance(VectorString3D vs1, int i, VectorString3D vs2, int j) {
 		return distance(vs1.x[i], vs1.y[i], vs1.z[i],
+				vs2.x[j], vs2.y[j], vs2.z[j]);
+	}
+
+	public double distance(int i, VectorString vs, int j) {
+		VectorString3D vs2 = (VectorString3D)vs;
+		return distance(x[i], y[i], z[i],
 				vs2.x[j], vs2.y[j], vs2.z[j]);
 	}
 

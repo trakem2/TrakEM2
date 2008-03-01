@@ -427,4 +427,16 @@ public class VectorString2D implements VectorString {
 		final double dy = v_y[i] - vs.v_y[j];
 		return Math.sqrt(dx*dx + dy*dy);
 	}
+
+	public double distance(int i, VectorString vs, int j) {
+		VectorString2D vs2 = (VectorString2D)vs;
+		return distance(x[i], y[i],
+				vs2.x[i], vs2.y[i]);
+	}
+
+	static public double distance(double x1, double y1,
+			              double x2, double y2) {
+		return Math.sqrt(Math.pow(x1 - x2, 2)
+			       + Math.pow(y1 - y2, 2));
+	}
 }

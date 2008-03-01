@@ -59,19 +59,111 @@ public class Editions {
 	public VectorString getVS1() { return vs1; }
 	public VectorString getVS2() { return vs2; }
 
-	/** A mutation is considered an equal or near equal, and thus does not count. Only deletions and insertions count towards scoring the similarity. */
-	public double getSimilarity() {
+	/** A mutation is considered an equal or near equal, and thus does not count. Only deletions and insertions count towards scoring the similarity.
+	 * 
+	 * @param skip_ends enables ignoring sequences in the beginning and ending if they are insertions or deletions.
+	 * @param max_non_mut indicates the maximum length of a contiguous sequence of mutations to be ignored when skipping insertions and deletions at beginning and end.
+	 * @param min_chunk indicates the minimal proportion of the string that should remain between the found start and end, for vs1. The function will return the regular similarity if the chunk is too small.
+	 *
+	 */
+	public double getSimilarity(boolean skip_ends, final int max_non_mut, final float min_chunk) {
+
+		int[] g = getStartEndSkip(skip_ends, max_non_mut, min_chunk);
+		int i_start = g[0];
+		int i_end = g[1];
+		skip_ends = 1 == g[2];
+
 		int non_mut = 0;
-		for (int i=0; i<editions.length; i++) {
-			switch (editions[i][0]) {
-				case DELETION:
-				case INSERTION:
-					non_mut++;
-					break;
+
+		if (skip_ends) {
+			// count non mutations
+			for (int i=i_start; i<i_end; i++) {
+				if (MUTATION != editions[i][0]) non_mut++;
 			}
+
+			// compute proper segment lengths
+			return  1.0 - ( (double)non_mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1) );
+
+		} else {
+			for (int i=0; i<editions.length; i++) {
+				if (MUTATION != editions[i][0]) non_mut++;
+			}
+			//Utils.log2("non_mut: " + non_mut + "  total: " + editions.length);
+			return 1.0 - ( (double)non_mut / Math.max(vs1.length(), vs2.length()) );
 		}
-		//Utils.log2("non_mut: " + non_mut + "  total: " + editions.length);
-		return 1.0 - ( (double)non_mut / Math.max(vs1.length(), vs2.length()) );
+	}
+
+	public double getSimilarity() {
+		return getSimilarity(false, 0, 1);
+	}
+
+	private final int[] getStartEndSkip(boolean skip_ends, final int max_non_mut, final float min_chunk) {
+		int i_start = 0;
+		int i_end = editions.length -1;
+		if (skip_ends) {
+			// 1 - find start:
+			int len_mut_seq = 0;
+			// break when the found sequence of continuous mutations is larger than max_non_mut
+			for (int i=0; i<editions.length; i++) {
+				if (MUTATION == editions[i][0]) {
+					len_mut_seq++;
+				} else {
+					// reset
+					len_mut_seq = 0;
+				}
+				if (len_mut_seq > max_non_mut) {
+					i_start = i - len_mut_seq +1;
+					break;
+				}
+			}
+			// find end
+			len_mut_seq = 0;
+			for (int i=i_end; i>-1; i--) {
+				if (MUTATION == editions[i][0]) {
+					len_mut_seq++;
+				} else {
+					// reset
+					len_mut_seq = 0;
+				}
+				if (len_mut_seq > max_non_mut) {
+					i_end = i;
+					break;
+				}
+			}
+			// determine if remaining chunk is larger than required min_chunk
+			skip_ends = ((float)(editions[i_end][1] - editions[i_start][1] + 1) / vs1.length()) >= min_chunk;
+		}
+		return new int[]{i_start, i_end, skip_ends ? 1 : 0};
+	}
+
+	/** Returns the average distance between all points involved in a mutation. */
+	public double getPhysicalDistance(boolean skip_ends, final int max_non_mut, final float min_chunk) {
+
+		int[] g = getStartEndSkip(skip_ends, max_non_mut, min_chunk);
+		int i_start = g[0];
+		int i_end = g[1];
+		skip_ends = 1 == g[2];
+
+		double dist = 0;
+		int len = 0;
+		int i = 0;
+		final int len1 = vs.length();
+		final int len2 = vs.length();
+		try {
+			for (i=i_start; i<=i_end; i++) {
+				if (MUTATION != editions[i][0]) continue;
+				int k1 = editions[i][1];
+				int k2 = editions[i][2];
+				if (len1 == k1 || len2 == k2) continue; // LAST point will fail in some occasions, needs fixing
+				dist += vs1.distance(k1, vs2, k2);
+				len++;
+			}
+			return dist / len; // can len be zero?
+		} catch (Exception e) {
+			IJError.print(e);
+			Utils.log2("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			return 100000000;
+		}
 	}
 
 	final private void init() {
