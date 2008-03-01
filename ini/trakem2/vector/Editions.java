@@ -441,4 +441,45 @@ public class Editions {
 		return matrix;
 	}
 
+	/** Get the sequence of editions and matches in three lines, like:
+	 *  vs1: 1 2 3 4 5 6     7 8 9
+	 *       M M D M M M I I M M M 
+	 *  vs2: 1 2   3 4   5 6 7 8 9
+	 *
+	 *  With the given separator (defaults to tab if null)
+	 */
+	public String prettyPrint(String separator) {
+		if (null == editions) return null;
+		if (null == separator) separator = "\t";
+		final StringBuffer s1 = new StringBuffer(editions.length*2 + 5);
+		final StringBuffer se = new StringBuffer(editions.length*2 + 5);
+		final StringBuffer s2 = new StringBuffer(editions.length*2 + 5);
+		s1.append("vs1:");
+		se.append("    ");
+		s2.append("vs2:");
+		for (int i=0; i<editions.length; i++) {
+			switch (editions[i][0]) {
+				case MUTATION:
+					s1.append(separator).append(editions[i][1] + 1);
+					se.append(separator).append('M');
+					s2.append(separator).append(editions[i][2] + 1);
+					break;
+				case DELETION:
+					s1.append(separator).append(editions[i][1] + 1);
+					se.append(separator).append('D');
+					s2.append(separator).append(' ');
+					break;
+				case INSERTION:
+					s1.append(separator).append(' ');
+					se.append(separator).append('I');
+					s2.append(separator).append(editions[i][2] + 1);
+					break;
+			}
+		}
+		s1.append('\n');
+		se.append('\n');
+		s2.append('\n');
+		return s1.append(se).append(s2).toString();
+	}
+
 }

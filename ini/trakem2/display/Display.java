@@ -2224,6 +2224,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 	}
 
+	/** Update the Display's title in all Displays showing the given Layer. */
 	static public void updateTitle(final Layer layer) {
 		for (Display d : al_displays) {
 			if (d.layer.equals(layer)) {
@@ -2231,6 +2232,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 	}
+	/** Update the Display's title in all Displays showing a Layer of the given LayerSet. */
 	static public void updateTitle(final LayerSet ls) {
 		for (Display d : al_displays) {
 			if (d.layer.getParent().equals(ls)) {
