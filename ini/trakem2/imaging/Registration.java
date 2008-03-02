@@ -402,13 +402,25 @@ public class Registration {
 		
 		final Vector< PointMatch > inliers = new Vector< PointMatch >();
 
-		TRModel2D model = TRModel2D.estimateBestModel(
+		Model model;
+		if (1 == sp.dimension) {
+			// translation and rotation
+			model = TRModel2D.estimateBestModel(
 				candidates,
 				inliers,
 				sp.min_epsilon,
 				sp.max_epsilon,
 				sp.min_inlier_ratio );
-		
+		} else {
+			// translation only
+			model = TModel2D.estimateBestModel(
+				candidates,
+				inliers,
+				sp.min_epsilon,
+				sp.max_epsilon,
+				sp.min_inlier_ratio );
+		}
+
 		final AffineTransform at = new AffineTransform();
 
 		if (model != null) {
@@ -555,15 +567,19 @@ public class Registration {
 		}
 	}
 
-	/** The @param fs_base is the vector of features of the base Patch, and can be null -in which case it will be computed. */
 	static public Object[] registerWithSIFTLandmarks(final Patch base, final Patch moving, final Registration.SIFTParameters sp, final Vector<Feature> fs_base) {
+		return registerWithSIFTLandmarks(base, moving, sp, fs_base, true, true);
+	}
 
-		Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
+	/** The @param fs_base is the vector of features of the base Patch, and can be null -in which case it will be computed. */
+	static public Object[] registerWithSIFTLandmarks(final Patch base, final Patch moving, final Registration.SIFTParameters sp, final Vector<Feature> fs_base, boolean apply, boolean fallback_to_phase_correlation) {
+
+		if (null != moving.getLayer()) Utils.log2("processing layer " + moving.getLayer().getParent().indexOf(moving.getLayer()));
 
 		FloatProcessor fp1 = (FloatProcessor)StitchingTEM.makeStripe(base, sp.scale, true);
 		FloatProcessor fp2 = (FloatProcessor)StitchingTEM.makeStripe(moving, sp.scale, true);
 
-		final Object[] result = Registration.registerSIFT(fp1, fp2, fs_base, sp);
+		Object[] result = Registration.registerSIFT(fp1, fp2, fs_base, sp);
 
 		// enable garbage collection!
 		fp1 = null;
@@ -574,33 +590,43 @@ public class Registration {
 		//Loader.runGCAll();
 		//base.getProject().getLoader().releaseToFit(Loader.MIN_FREE_BYTES * 20);
 
+		AffineTransform atr = null;
+
 		if (null != result) {
+			atr = (AffineTransform)result[2];
+
+		} else if (fallback_to_phase_correlation) {
+			// failed, fall back to phase-correlation
+			Utils.log2("Automatic landmark detection failed, falling back to phase-correlation.");
+			atr = Registration.correlate(base, moving, sp.scale);
+			if (null != atr) {
+				result = new Object[4];
+				result[2] = atr;
+			}
+		} 
+
+		if (apply && null != atr) {
 			AffineTransform at_moving = moving.getAffineTransform();
 			at_moving.setToIdentity(); // be sure to CLEAR it totally
 			// set to the given result
-			at_moving.setTransform((AffineTransform)result[2]);
+			at_moving.setTransform(atr);
 			// pre-apply the base's transform
 			at_moving.preConcatenate(base.getAffineTransform());
-
 			at_moving = null;
 
 			if (ControlWindow.isGUIEnabled()) {
 				Rectangle box = moving.getBoundingBox();
 				box.add(moving.getBoundingBox());
 				Display.repaint(moving.getLayer(), box, 1);
-
 				box = null;
 			}
-		} else {
-			// failed, fall back to phase-correlation
-			Utils.log2("Automatic landmark detection failed, falling back to phase-correlation.");
-			Registration.correlate(base, moving, sp.scale);
 		}
+
 		return result;
 	}
 
 	static public class SIFTParameters implements Serializable {
-		transient Project project = null; // not in serialized object
+		transient public Project project = null; // not in serialized object
 		// filled with default values
 		public float scale = 1.0f;
 		public int steps = 3;
@@ -720,7 +746,8 @@ public class Registration {
 		}
 	}
 
-	static private void correlate(final Patch base, final Patch moving, final float scale) {
+	/** Returns null on failure. */
+	static private AffineTransform correlate(final Patch base, final Patch moving, final float scale) {
 		Utils.log2("Correlating #" + moving.getId() + " to #" + base.getId());
 
 		// test rotation first TODO
@@ -729,22 +756,16 @@ public class Registration {
 		if (pc[2] != StitchingTEM.SUCCESS) {
 			// R is too low to be trusted
 			Utils.log("Bad R coefficient, skipping " + moving);
-			return; // don't move
+			return null; // don't move
 		}
 		Utils.log2("BASE: x, y " + base.getX() + " , " + base.getY() + "\n\t pc x,y: " + pc[0] + ", " + pc[1]);
-		double x2 = base.getX() + pc[0];
-		double y2 = base.getY() + pc[1];
-
-		Rectangle box = moving.getBoundingBox();
-
-		if (ControlWindow.isGUIEnabled()) {
-			moving.translate(x2 - box.x, y2 - box.y); // considers links
-			box.add(moving.getBoundingBox());
-			Display.repaint(moving.getLayer(), box, 1);
-		} else {
-			moving.translate(x2 - box.x, y2 - box.y); // considers links
-		}
 		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
+		
+		AffineTransform at = new AffineTransform();
+		at.translate(pc[0], pc[1]);
+		return at;
+
+
 	}
 
 	/** Single-threaded: one layer after the other, to avoid memory saturation. The feature finding with SIFT is multithreaded.

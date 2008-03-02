@@ -364,28 +364,6 @@ public class Compare {
 				vs2.translate(trans2);
 				vs2.transform(rot2);
 
-
-				/*
-				double phys_distance = vs2.computeCenterOfMass().distance(center1);
-
-				// test vs1 against vs2
-				Editions ed = new Editions(vs_pipe, vs2, delta1, false);
-				double score = ed.getDistance();
-				Utils.log2("Score: " + score + "  similarity: " + ed.getSimilarity());
-
-				// test vs1 reversed against vs2
-				Editions ed_rev = new Editions(vs_pipe_reversed, vs2, delta1, false);
-				double score_rev = ed_rev.getDistance();
-				Utils.log2("Score (reversed): " + score_rev + "  similarity: " + ed_rev.getSimilarity());
-
-				// choose smallest distance
-				if (ed.getDistance() < ed_rev.getDistance()) {
-					match[k] = new Match(p[k], phys_distance, ed, score);
-				} else {
-					match[k] = new Match(p[k], phys_distance, ed_rev, score_rev);
-				}
-				*/
-
 				//Utils.log2("pipe " + p[k].getProject().getMeaningfulTitle(p[k]));
 				Object[] ob = findBestMatch(vs_pipe, vs2, delta1, skip_ends, max_mut, min_chunk);
 				double score = ((Double)ob[1]).doubleValue();
@@ -547,8 +525,8 @@ public class Compare {
 
 		int best_i = 0;
 		for (int i=0; i<ed.length; i++) {
-			double score1 = ed[i].getSimilarity();
-			double score = ed[i].getSimilarity(skip_ends, max_mut, min_chunk);
+			double score1 = ed[i].getSimilarity2();
+			double score = ed[i].getSimilarity2(skip_ends, max_mut, min_chunk);
 			if (score > best_score) {
 				best_i = i;
 				best_score = score;

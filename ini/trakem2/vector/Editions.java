@@ -101,6 +101,42 @@ public class Editions {
 		return getSimilarity(false, 0, 1);
 	}
 
+	public double getSimilarity2() {
+		return getSimilarity2(false, 0, 1);
+	}
+
+	/** Returns the number of mutations / maximum length of both strings: 1.0 means all are mutations and the sequences jave the same lengths.*/
+	public double getSimilarity2(boolean skip_ends, final int max_mut, final float min_chunk) {
+
+		int[] g = getStartEndSkip(skip_ends, max_mut, min_chunk);
+		int i_start = g[0];
+		int i_end = g[1];
+		skip_ends = 1 == g[2];
+
+		int mut = 0;
+
+		if (skip_ends) {
+			// count non mutations
+			for (int i=i_start; i<i_end; i++) {
+				if (MUTATION == editions[i][0]) mut++;
+			}
+
+			// compute proper segment lengths, inlined
+			double sim = (double)mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1);
+
+			if (sim > 0.7) Utils.log2("similarity: mut, len1, len2, i_start, i_end : " + mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
+
+			return sim;
+
+		} else {
+			for (int i=0; i<editions.length; i++) {
+				if (MUTATION == editions[i][0]) mut++;
+			}
+			return (double)mut / Math.max(vs1.length(), vs2.length());
+		}
+	}
+
+
 	private final int[] getStartEndSkip(boolean skip_ends, final int max_mut, final float min_chunk) {
 		int i_start = 0;
 		int i_end = editions.length -1;
