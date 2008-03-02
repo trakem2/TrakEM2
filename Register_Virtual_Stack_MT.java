@@ -26,6 +26,8 @@ import java.util.Arrays;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
+import java.awt.Graphics2D;
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.io.File;
 import java.io.FilenameFilter;
@@ -111,6 +113,7 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 			final int type = first.getType();
 			final double min = first.getProcessor().getMin();
 			final double max = first.getProcessor().getMax();
+			final boolean color = (type == ImagePlus.COLOR_RGB);
 			first = null; // don't interfere with memory management
 
 			// create all patches. Images are NOT loaded
@@ -190,7 +193,7 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 			}
 			final IndexColorModel icm = new IndexColorModel(8, 256, r, g, b);
 
-			// output images as 8-bit
+			// output images as 8-bit or RGB
 			final Thread[] threads2 = MultiThreading.newThreads();
 			final AtomicInteger ai2 = new AtomicInteger(0);
 
@@ -203,9 +206,19 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 						affine[i].concatenate(trans);
 						// ensure enough free memory
 						loader.releaseToFit(width * height * (ImagePlus.GRAY8 == type ? 1 : 5) * threads2.length * 3); // 3: 1 processor + 1 image + 1 for safety
-						BufferedImage bi = new BufferedImage(box.width, box.height, BufferedImage.TYPE_BYTE_INDEXED, icm);
+						BufferedImage bi;
+						Graphics2D g;
+						if (color) {
+							bi = new BufferedImage(box.width, box.height, BufferedImage.TYPE_INT_ARGB);
+							g = bi.createGraphics();
+							g.setColor(Color.black);
+							g.fillRect(0, 0, box.width, box.height);
+						} else {
+							bi = new BufferedImage(box.width, box.height, BufferedImage.TYPE_BYTE_INDEXED, icm);
+							g = bi.createGraphics();
+						}
 						Patch patch = pa.get(i);
-						bi.createGraphics().drawImage(loader.fetchImage(patch, 1.0), affine[i], null);
+						g.drawImage(loader.fetchImage(patch, 1.0), affine[i], null);
 						ImagePlus imp = new ImagePlus(patch.getTitle(), bi);
 						tiffnames[i] = patch.getTitle() + ".tif";
 						new FileSaver(imp).saveAsTiff(target_dir_ + tiffnames[i]);
@@ -221,7 +234,6 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 			MultiThreading.startAndJoin(threads2);
 
 			IJ.showStatus("done.");
-			IJ.showProgress(0);
 
 			project.destroy();
 
@@ -234,6 +246,7 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 			IJError.print(e);
 		} finally {
 			ControlWindow.setGUIEnabled(false);
+			IJ.showProgress(0);
 		}
 	}
 }
