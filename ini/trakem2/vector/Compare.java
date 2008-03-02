@@ -183,9 +183,9 @@ public class Compare {
 			}
 		});
 
-		gd.addCheckbox("Skip insertion/deletion strings at ends when scoring", true);
-		gd.addNumericField("Maximum ignorable non-I/D string: ", 5, 0);
-		gd.addNumericField("Minimum percentage that must remain: ", 0.4, 2);
+		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", true);
+		gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
+		gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
 
 		gd.showDialog();
@@ -209,15 +209,15 @@ public class Compare {
 		};
 
 		boolean skip_ends = gd.getNextBoolean();
-		int max_non_mut = (int)gd.getNextNumber();
+		int max_mut = (int)gd.getNextNumber();
 		float min_chunk = (float)gd.getNextNumber();
 		if (skip_ends) {
-			if (max_non_mut < 0) max_non_mut = 0;
+			if (max_mut < 0) max_mut = 0;
 			if (min_chunk <= 0) skip_ends = false;
 			if (min_chunk > 1) min_chunk = 1;
 		}
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_non_mut, min_chunk);
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk);
 	}
 
 	static private int[] findXYZAxes(String[] presets, ArrayList<ZDisplayable> pipes, String[] pipe_names) {
@@ -262,7 +262,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_non_mut, final float min_chunk) {
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk) {
 		if (axes.length < 3 || axes_ref.length < 3) {
 			Utils.log("Need three axes for each.");
 			return null;
@@ -369,10 +369,10 @@ public class Compare {
 				*/
 
 				//Utils.log2("pipe " + p[k].getProject().getMeaningfulTitle(p[k]));
-				Object[] ob = findBestMatch(vs_pipe, vs2, delta1, skip_ends, max_non_mut, min_chunk);
+				Object[] ob = findBestMatch(vs_pipe, vs2, delta1, skip_ends, max_mut, min_chunk);
 				double score = ((Double)ob[1]).doubleValue();
 				Editions ed = (Editions)ob[0];
-				match[k] = new Match(p[k], ed.getPhysicalDistance(skip_ends, max_non_mut, min_chunk), ed, score);
+				match[k] = new Match(p[k], ed.getPhysicalDistance(skip_ends, max_mut, min_chunk), ed, score);
 
 			} catch (Exception e) {
 				IJError.print(e);
@@ -455,21 +455,8 @@ public class Compare {
 			this.rot2 = rot2;
 		}
 		public void show(Pipe pipe) {
-			if (!vs_pipe_shows) {
-				Display3D.addMesh(common, vs_queried, queried.getProject().getMeaningfulTitle(queried), queried.getColor());
-				Color color = Color.pink.equals(queried.getColor()) ? Color.red : queried.getColor();
-
-				Display3D.addMesh(common, vs_axes[0], "X query", color);
-				Display3D.addMesh(common, vs_axes[1], "Y query", color);
-				Display3D.addMesh(common, vs_axes[2], "Z query", color);
-
-
-				Display3D.addMesh(common, vs_axes_ref[0], "X ref", Color.pink);
-				Display3D.addMesh(common, vs_axes_ref[1], "Y ref", Color.pink);
-				Display3D.addMesh(common, vs_axes_ref[2], "Z ref", Color.pink);
-
-				vs_pipe_shows = true;
-			}
+			reset();
+			if (!vs_pipe_shows) showAxesAndQueried();
 			VectorString3D vspe = pipe.asVectorString3D();
 			vspe.calibrate(cal2);
 			vspe.resample(delta1);
@@ -477,6 +464,31 @@ public class Compare {
 			vspe.transform(rot2);
 			// The LayerSet is that of the Pipe being queried, not the given pipe to show which belongs to the reference project (and thus not to the queried pipe project)
 			Display3D.addMesh(common, vspe, pipe.getProject().getMeaningfulTitle(pipe), pipe.getColor());
+		}
+		public void showAxesAndQueried() {
+			reset();
+			Display3D.addMesh(common, vs_queried, queried.getProject().getMeaningfulTitle(queried), queried.getColor());
+			Color color = Color.pink.equals(queried.getColor()) ? Color.red : queried.getColor();
+
+			Display3D.addMesh(common, vs_axes[0], "X query", color);
+			Display3D.addMesh(common, vs_axes[1], "Y query", color);
+			Display3D.addMesh(common, vs_axes[2], "Z query", color);
+
+
+			Display3D.addMesh(common, vs_axes_ref[0], "X ref", Color.pink);
+			Display3D.addMesh(common, vs_axes_ref[1], "Y ref", Color.pink);
+			Display3D.addMesh(common, vs_axes_ref[2], "Z ref", Color.pink);
+
+			vs_pipe_shows = true;
+		}
+		public void showInterpolated(Editions ed, Pipe match) {
+			reset();
+			if (!vs_pipe_shows) showAxesAndQueried();
+			VectorString3D vs = VectorString3D.createInterpolatedPoints(ed, 0.5f);
+			Display3D.addMesh(common, vs, "Averaged #" + queried.getId() + " #" + match.getId(), match.getColor());
+		}
+		private void reset() {
+			if (null == Display3D.getDisplay(common)) vs_pipe_shows = false;
 		}
 	}
 
@@ -496,7 +508,7 @@ public class Compare {
 	 * ASSUMES both VectorString3D are open.
 	 *
 	 * */
-	static private final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_non_mut, float min_chunk) {
+	static private final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
 
 		final VectorString3D vs1rev = vs1.makeReversedCopy();
 		final VectorString3D vs2rev = vs2.makeReversedCopy();
@@ -518,7 +530,7 @@ public class Compare {
 		int best_i = 0;
 		for (int i=0; i<ed.length; i++) {
 			double score1 = ed[i].getSimilarity();
-			double score = ed[i].getSimilarity(skip_ends, max_non_mut, min_chunk);
+			double score = ed[i].getSimilarity(skip_ends, max_mut, min_chunk);
 			if (score > best_score) {
 				best_i = i;
 				best_score = score;
@@ -529,7 +541,17 @@ public class Compare {
 
 		Editions best_ed = ed[best_i];
 
-		// now test also starting from the middle of the longest mutation strech
+		// now test also starting from the middle of the longest mutation chunk of the best matching
+		try {
+			Editions ed_center = best_ed.recreateFromCenter(max_mut);
+			double score_center = ed_center.getSimilarity(skip_ends, max_mut, min_chunk);
+			if (score_center > best_score) {
+				best_ed = ed_center;
+				best_score = score_center;
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 
 		return new Object[]{best_ed, new Double(best_score)};
 	}
@@ -796,6 +818,7 @@ public class Compare {
 			this.v_phys_dist = v_phys_dist;
 			this.vis = vis;
 		}
+		public Visualizer getVisualizer() { return vis; }
 		public String getColumnName(int col) {
 			switch (col) {
 				case 0: return "Project";
@@ -858,20 +881,24 @@ public class Compare {
 	}
 
 	static private class ComparatorTableListener extends MouseAdapter {
-		public void mousePressed(MouseEvent me) {
+		public void mousePressed(final MouseEvent me) {
 			final Object source = me.getSource();
 			final JTable table = (JTable)source;
 			final ComparatorTableModel model = (ComparatorTableModel)table.getModel();
+
+			final int row = table.rowAtPoint(me.getPoint());
+			final Object ob = model.getDisplayableAt(row);
+			Displayable displ_ = null;
+
+			if (ob instanceof Displayable) {
+				displ_ = (Displayable)ob;
+			} else {
+				Utils.log2("Comparator: unhandable table selection: " + ob);
+				return;
+			}
+			final Displayable displ = displ_;
+
 			if (2 == me.getClickCount()) {
-				int row = table.rowAtPoint(me.getPoint());
-				Object ob = model.getDisplayableAt(row);
-				Displayable displ = null;
-				if (ob instanceof Displayable) {
-					displ = (Displayable)ob;
-				} else {
-					Utils.log2("Comparator: unhandable table selection: " + ob);
-					return;
-				}
 				if (me.isShiftDown()) {
 					model.visualize(row);
 				} else {
@@ -879,15 +906,16 @@ public class Compare {
 				}
 				return;
 			}
-			if (Utils.isPopupTrigger(me)) {
-				if (true) {
-					Utils.log2("WAIT a couple of days.");
-					return;
-				}
 
+			if (Utils.isPopupTrigger(me)) {
 				final int[] sel = table.getSelectedRows();
+				if (0 == sel.length) return;
 				JPopupMenu popup = new JPopupMenu();
+				final String show3D = "Show in 3D";
 				final String interp3D = "Show interpolated in 3D";
+				final String showCentered = "Show centered in 2D";
+				final String showAxes = "Show axes and queried";
+
 				ActionListener listener = new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
 						final String command = ae.getActionCommand();
@@ -895,20 +923,27 @@ public class Compare {
 							// for now, use the first selected only
 							try {
 								Editions ed = model.getEditionsAt(sel[0]);
-								VectorString3D vs = VectorString3D.createInterpolated(ed, 0.5);
-								Pipe master = (Pipe)ht_tabs.get((JScrollPane)tabs.getSelectedComponent());
 								Pipe match = (Pipe)model.getDisplayableAt(sel[0]);
-
-								Display3D.addMesh(master.getLayerSet(), vs, "Interpolated #" + master.getId() + " + #" + match.getId(), master.getColor());
-
+								model.getVisualizer().showInterpolated(ed, match);
 							} catch (Exception e) {
 								IJError.print(e);
 							}
+							return;
+						} else if (command.equals(show3D)) {
+							model.visualize(row);
+						} else if (command.equals(showCentered)) {
+							Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
+						} else if (command.equals(showAxes)) {
+							model.getVisualizer().showAxesAndQueried();
 						}
 					}
 				};
-				JMenuItem item = new JMenuItem(interp3D); popup.add(item); item.addActionListener(listener);
-				if (0 == sel.length) item.setEnabled(false);
+				JMenuItem item;
+				item = new JMenuItem(show3D); popup.add(item); item.addActionListener(listener);
+				item = new JMenuItem(interp3D); popup.add(item); item.addActionListener(listener);
+				item = new JMenuItem(showCentered); popup.add(item); item.addActionListener(listener);
+				item = new JMenuItem(showAxes); popup.add(item); item.addActionListener(listener);
+
 				popup.show(table, me.getX(), me.getY());
 			}
 		}

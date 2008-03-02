@@ -46,4 +46,6 @@ public interface VectorString {
 	public boolean isClosed();
 	public double getDiffVectorLength(int i, int j, VectorString vs);
 	public double distance(int i, VectorString vs, int j);
+	public VectorString subVectorString(int first, int last) throws Exception;
+	public void reverse();
 }

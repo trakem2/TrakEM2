@@ -781,7 +781,7 @@ public class Display3D {
 				// ensure proper default transform
 				d3d.universe.resetView();
 				//
-				Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
+				//Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
 				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
 				Content ct = d3d.universe.getContent(title);
 				// no need, it's default //ct.setTransparency(1f);

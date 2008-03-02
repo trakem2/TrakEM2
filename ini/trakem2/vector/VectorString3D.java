@@ -570,7 +570,7 @@ public class VectorString3D implements VectorString {
 		// see whether the subsampling terminated too early, and fill with a line of points.
 		final int last_i = isClosed() ? 0 : this.length -1;
 		if (dist_ahead > delta*1.2) {
-			System.out.println("resampling terminated too early. Why?");
+			//TODO//System.out.println("resampling terminated too early. Why?");
 			while (dist_ahead > delta*1.2) {
 				// make a vector from the last resampled point to the last point
 				vector.set(x[last_i] - r.x(j-1), y[last_i] - r.y(j-1), z[last_i] - r.z(j-1));
@@ -1155,9 +1155,11 @@ public class VectorString3D implements VectorString {
 		vy.scale(dir[1]);
 		vx.scale(dir[2]);
 
+		/*
 		Utils.log2("dir[0]=" + dir[0]);
 		Utils.log2("dir[1]=" + dir[1]);
 		Utils.log2("dir[2]=" + dir[2]);
+		*/
 
 		// compute medial vector: perpendicular to the plane made by peduncle and dorsal lobe
 		Vector3d vc_medial = new Vector3d();
@@ -1168,7 +1170,7 @@ public class VectorString3D implements VectorString {
 		// if the sum is smaller, then it means it should be inverted (it was the other side)
 		if (vc_med.length() < vx.length()) {
 			vc_medial.scale(-1);
-			Utils.log2("inverting cp vx");
+			Utils.log("Mirroring X axis");
 		}
 
 		// compute dorsal vector: perpedicular to the plane made by v1 and vc_medial
@@ -1180,7 +1182,7 @@ public class VectorString3D implements VectorString {
 		// if the sum is smaller, invert
 		if (vc_dor.length() < vy.length()) {
 			vc_dorsal.scale(-1);
-			Utils.log2("inverting cp v2");
+			Utils.log("Mirroring Y axis");
 		}
 
 		vc_medial.normalize();
@@ -1204,6 +1206,7 @@ public class VectorString3D implements VectorString {
 				vs2.x[j], vs2.y[j], vs2.z[j]);
 	}
 
+	/** Distance from point i in this to point j in vs2. */
 	public double distance(int i, VectorString vs, int j) {
 		VectorString3D vs2 = (VectorString3D)vs;
 		return distance(x[i], y[i], z[i],
@@ -1342,5 +1345,78 @@ public class VectorString3D implements VectorString {
 			v.z += z[i]/length;
 		}
 		return v;
+	}
+	/** Create a new VectorString for the given range. If last &lt; first, it will be created as reversed. */
+	public VectorString subVectorString(int first, int last) throws Exception {
+		boolean reverse = false;
+		if (last < first) {
+			int tmp = first;
+			first = last;
+			last = tmp;
+			reverse = true;
+		}
+		int len = last - first + 1;
+		double[] x = new double[len];
+		double[] y = new double[len];
+		double[] z = new double[len];
+		System.arraycopy(this.x, first, x, 0, len);
+		System.arraycopy(this.y, first, y, 0, len);
+		System.arraycopy(this.z, first, z, 0, len);
+		final VectorString3D vs = new VectorString3D(x, y, z, this.isClosed());
+		if (reverse) vs.reverse();
+		if (null != this.vx) {
+			// this is resampled, so:
+			vs.delta = this.delta;
+			// create vectors
+			vs.vx = new double[len];
+			vs.vy = new double[len];
+			vs.vz = new double[len];
+			for (int i=1; i<len; i++) {
+				vs.vx[i] = vs.x[i] - vs.x[i-1];
+				vs.vy[i] = vs.y[i] - vs.y[i-1];
+				vs.vz[i] = vs.z[i] - vs.z[i-1];
+			}
+			if (null != this.rvx) {
+				// it's relative
+				vs.relative();
+			}
+		}
+		return vs;
+	}
+
+	/** Create a new VectorString3D which is the weighted average between the two VectorString3D that make the Editions.
+	 * @param alpha is the weight, between 0 and 1.
+	 * */
+	static public VectorString3D createInterpolatedPoints(Editions ed, float alpha) {
+		try {
+			final VectorString3D vs1 = (VectorString3D)ed.vs1;
+			if (alpha <= 0) return (VectorString3D)vs1.clone();
+			final VectorString3D vs2 = (VectorString3D)ed.vs2;
+			if (alpha >= 1) return (VectorString3D)vs2.clone();
+			// else make weighted average
+			double[] x = new double[ed.editions.length];
+			double[] y = new double[x.length];
+			double[] z = new double[x.length];
+			final int len1 = vs1.length();
+			final int len2 = vs2.length();
+
+			for (int k=0; k<ed.editions.length; k++) {
+				int[] e = ed.editions[k];
+				int i = e[1];	if (i >= len1) i = len1 -1; // patching error that I don't understand TODO
+				int j = e[2];	if (j >= len2) j = len2 -1;
+				x[k] = vs1.x[i] * alpha + vs2.x[j] * (1 - alpha);
+				y[k] = vs1.y[i] * alpha + vs2.y[j] * (1 - alpha);
+				z[k] = vs1.z[i] * alpha + vs2.z[j] * (1 - alpha);
+			}
+
+			VectorString3D vs = new VectorString3D(x, y, z, ed.vs1.isClosed());
+			vs.resample(vs1.delta);
+
+			return vs;
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
 	}
 }

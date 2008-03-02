@@ -192,10 +192,10 @@ public class VectorString2D implements VectorString {
 			if (j >= ps_length) {
 				// must enlarge
 				ps_length += 20;
-				v_x = enlargeArrayOfDoubles(v_x, ps_length);
-				v_y = enlargeArrayOfDoubles(v_y, ps_length);
-				ps_x = enlargeArrayOfDoubles(ps_x, ps_length);
-				ps_y = enlargeArrayOfDoubles(ps_y, ps_length);
+				v_x = Utils.copy(v_x, ps_length);
+				v_y = Utils.copy(v_y, ps_length);
+				ps_x = Utils.copy(ps_x, ps_length);
+				ps_y = Utils.copy(ps_y, ps_length);
 			}
 			// get distances of MAX_POINTs ahead from the previous point
 			n_ahead = 0; // reset
@@ -321,10 +321,10 @@ public class VectorString2D implements VectorString {
 				if (j >= ps_length) {
 					// must enlarge.
 					ps_length += 20;
-					v_x = enlargeArrayOfDoubles(v_x, ps_length);
-					v_y = enlargeArrayOfDoubles(v_y, ps_length);
-					ps_x = enlargeArrayOfDoubles(ps_x, ps_length);
-					ps_y = enlargeArrayOfDoubles(ps_y, ps_length);
+					v_x = Utils.copy(v_x, ps_length);
+					v_y = Utils.copy(v_y, ps_length);
+					ps_x = Utils.copy(ps_x, ps_length);
+					ps_y = Utils.copy(ps_y, ps_length);
 				}
 				//add a point
 				ps_x[j] = ps_x[j-1] + dx;
@@ -352,12 +352,6 @@ public class VectorString2D implements VectorString {
 		this.length = j;
 
 		// done!
-	}
-
-	private final double[] enlargeArrayOfDoubles(final double[] a, final int new_length) {
-		final double[] b = new double[new_length]; 
-		System.arraycopy(a, 0, b, 0, a.length);
-		return b;
 	}
 
 	private final double[] recalculate(final double[] w, final int length, final double sum_) {
@@ -428,6 +422,7 @@ public class VectorString2D implements VectorString {
 		return Math.sqrt(dx*dx + dy*dy);
 	}
 
+	/** Distance from point i in this to point j in vs2. */
 	public double distance(int i, VectorString vs, int j) {
 		VectorString2D vs2 = (VectorString2D)vs;
 		return distance(x[i], y[i],
@@ -438,5 +433,43 @@ public class VectorString2D implements VectorString {
 			              double x2, double y2) {
 		return Math.sqrt(Math.pow(x1 - x2, 2)
 			       + Math.pow(y1 - y2, 2));
+	}
+
+	/** Create a new VectorString for the given range. If last &lt; first, it will be created as reversed. */
+	public VectorString subVectorString(int first, int last) throws Exception {
+		boolean reverse = false;
+		if (last < first) {
+			int tmp = first;
+			first = last;
+			last = tmp;
+			reverse = true;
+		}
+		int len = last - first + 1;
+		double[] x = new double[len];
+		double[] y = new double[len];
+		System.arraycopy(this.x, first, x, 0, len);
+		System.arraycopy(this.y, first, y, 0, len);
+		final VectorString2D vs = new VectorString2D(x, y, this.z, this.closed);
+		if (reverse) vs.reverse();
+		if (null != this.v_x) {
+			// this is resampled, so:
+			vs.delta = this.delta;
+			// create vectors
+			vs.v_x = new double[len];
+			vs.v_y = new double[len];
+			for (int i=1; i<len; i++) {
+				vs.v_x[i] = vs.x[i] - vs.x[i-1];
+				vs.v_y[i] = vs.y[i] - vs.y[i-1];
+			}
+		}
+		return vs;
+	}
+
+	/** Invert the order of points. Will clear all vector arrays if any! */
+	public void reverse() {
+		Utils.reverse(x);
+		Utils.reverse(y);
+		delta = 0;
+		if (null != v_x) v_x = v_y = null;
 	}
 }
