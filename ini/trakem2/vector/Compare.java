@@ -52,6 +52,10 @@ import javax.media.j3d.Transform3D;
 
 public class Compare {
 
+	static public final int TRANS_ROT = 0;
+	static public final int TRANS_ROT_SCALE = 1;
+	static public final int TRANS_ROT_SCALE_SHEAR = 2;
+
 	static private JLabel label = null;
 	static private JTabbedPane tabs = null;
 	static private JFrame frame = null;
@@ -188,6 +192,13 @@ public class Compare {
 		gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
 
+		final String[] transforms = {"translate and rotate",
+			                     "translate, rotate and scale",
+					     "translate, rotate, scale and shear"};
+		gd.addChoice("Transform type: ", transforms, transforms[2]);
+
+		//////
+
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 
@@ -217,7 +228,9 @@ public class Compare {
 			if (min_chunk > 1) min_chunk = 1;
 		}
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk);
+		int transform_type = gd.getNextChoiceIndex();
+
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type);
 	}
 
 	static private int[] findXYZAxes(String[] presets, ArrayList<ZDisplayable> pipes, String[] pipe_names) {
@@ -239,7 +252,7 @@ public class Compare {
 	}
 
 	/** Generate calibrated origin of coordinates. */
-	static private Object[] obtainOrigin(final Pipe[] axes) {
+	static private Object[] obtainOrigin(final Pipe[] axes, final int transform_type) {
 		// pipe's axes
 		VectorString3D[] vs = new VectorString3D[3];
 		for (int i=0; i<3; i++) vs[i] = axes[i].asVectorString3D();
@@ -256,13 +269,13 @@ public class Compare {
 		for (int i=0; i<3; i++) vs[i].resample(delta);
 
 		// return origin vectors for pipe's project
-		Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2]); // requires resampled vs
+		Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2], transform_type); // requires resampled vs
 
 		return new Object[]{vs, o};
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk) {
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type) {
 		if (axes.length < 3 || axes_ref.length < 3) {
 			Utils.log("Need three axes for each.");
 			return null;
@@ -273,16 +286,21 @@ public class Compare {
 				try {
 
 		// obtain axes origin vectors for pipe's project
-		Object[] pack1 = obtainOrigin(axes);
+		Object[] pack1 = obtainOrigin(axes, transform_type);
 
 		VectorString3D[] vs_axes = (VectorString3D[])pack1[0];
 		Vector3d[] o1 = (Vector3d[])pack1[1];
 
 		// obtain origin vectors for reference project
-		Object[] pack2 = obtainOrigin(axes_ref);
+		Object[] pack2 = obtainOrigin(axes_ref, transform_type);
 
 		VectorString3D[] vs_axes_ref = (VectorString3D[])pack2[0];
 		Vector3d[] o2 = (Vector3d[])pack2[1];
+
+
+		// fix axes according to the transform type
+		VectorString3D.matchOrigins(o1, o2, transform_type);
+
 
 		// bring query pipe to common space
 		final VectorString3D vs_pipe = pipe.asVectorString3D();

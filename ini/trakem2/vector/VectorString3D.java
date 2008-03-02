@@ -1093,11 +1093,32 @@ public class VectorString3D implements VectorString {
 		return v;
 	}
 
+	/** The sum of all vectors, or what is the same: a vector from first to last points. */
+	public Vector3d makeAverageVector() {
+		return new Vector3d(x[length-1] - x[0], y[length-1] - y[0], z[length-1] - z[0]);
+	}
+
 	static public double distance(double x1, double y1, double z1,
 			              double x2, double y2, double z2) {
 		return Math.sqrt(Math.pow(x1 - x2, 2)
 			       + Math.pow(y1 - y2, 2)
 			       + Math.pow(z1 - z2, 2));
+	}
+
+	/** If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0. */
+	static public final void matchOrigins(Vector3d[] o1, Vector3d[] o2, final int transform_type) {
+		if (Compare.TRANS_ROT == transform_type) return; // nothing to change, vectors are normalized
+		// else, scale vectors to make the longest one be of length 1.0
+		double max_len = 0;
+		for (int i=0; i<3; i++) {
+			max_len = Math.max(max_len, o1[i].length());
+			max_len = Math.max(max_len, o2[i].length());
+		}
+		max_len = 1/max_len;
+		for (int i=0; i<3; i++) {
+			o1[i].scale(max_len);
+			o2[i].scale(max_len);
+		}
 	}
 
 	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates.
@@ -1106,8 +1127,10 @@ public class VectorString3D implements VectorString {
 	 *   X, Y, Z
 	 *   where Z is the one to trust the most, Y the second most trusted, and X only for orientation.
 	 *   ZY define the plane, the direction of the perpendicular of which is given by the X.
+	 *
+	 *   @return normalized vectors for transform_type == Compare.TRANS_ROT, otherwise NOT normalized.
 	 */
-	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z) {
+	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type) {
 		// Aproximate a origin of coordinates
 		VectorString3D[] vs = new VectorString3D[]{z, y, x};
 		ArrayList<Point3d> ps = new ArrayList<Point3d>();
@@ -1146,9 +1169,9 @@ public class VectorString3D implements VectorString {
 		for (Point3d p : ps) origin.add(p);
 
 		// aproximate a vector for each axis
-		Vector3d vz = z.makeAverageNormalizedVector(); // v1 is peduncle
-		Vector3d vy = y.makeAverageNormalizedVector(); // v2 is dorsal lobe
-		Vector3d vx = x.makeAverageNormalizedVector(); // v3 is medial lobe
+		Vector3d vz = z.makeAverageVector(); // v1 is peduncle
+		Vector3d vy = y.makeAverageVector(); // v2 is dorsal lobe
+		Vector3d vx = x.makeAverageVector(); // v3 is medial lobe
 
 		// adjust orientation, so vectors point away from the origin towards the other end of the vectorstring
 		vz.scale(dir[0]);
@@ -1161,42 +1184,71 @@ public class VectorString3D implements VectorString {
 		Utils.log2("dir[2]=" + dir[2]);
 		*/
 
-		// compute medial vector: perpendicular to the plane made by peduncle and dorsal lobe
-		Vector3d vc_medial = new Vector3d();
-		vc_medial.cross(vz, vy);
-		// check orientation:
-		Vector3d vc_med = new Vector3d(vc_medial);
-		vc_med.add(vx); // adding the actual medial lobe vector
-		// if the sum is smaller, then it means it should be inverted (it was the other side)
-		if (vc_med.length() < vx.length()) {
-			vc_medial.scale(-1);
-			Utils.log("Mirroring X axis");
+		Vector3d v1 = vx,
+			 v2 = vy,
+			 v3 = vz;
+
+
+		// TRANS_ROT:
+		//     - peduncle rules (vz), and the others are cross products of it
+		//     - normalized vectors
+		//
+		// TRANS_ROT_SCALE:
+		//     - same as TRANS_ROT, but normalized to make the longest be 1.0
+		//
+		// TRANS_ROT_SCALE_SHEAR:
+		//     - use axes vectors as they are, but normalized to make the longest be 1.0
+
+
+		if (Compare.TRANS_ROT == transform_type) {
+			vx.normalize();
+			vy.normalize();
+			vz.normalize();
 		}
 
-		// compute dorsal vector: perpedicular to the plane made by v1 and vc_medial
-		Vector3d vc_dorsal = new Vector3d();
-		vc_dorsal.cross(vz, vc_medial);
-		// check orientation
-		Vector3d vc_dor = new Vector3d(vc_dorsal);
-		vc_dor.add(vy);
-		// if the sum is smaller, invert
-		if (vc_dor.length() < vy.length()) {
-			vc_dorsal.scale(-1);
-			Utils.log("Mirroring Y axis");
+		if (Compare.TRANS_ROT == transform_type || Compare.TRANS_ROT_SCALE == transform_type) {
+			// compute medial vector: perpendicular to the plane made by peduncle and dorsal lobe
+			Vector3d vc_medial = new Vector3d();
+			vc_medial.cross(vz, vy);
+			// check orientation:
+			Vector3d vc_med = new Vector3d(vc_medial);
+			vc_med.add(vx); // adding the actual medial lobe vector
+			// if the sum is smaller, then it means it should be inverted (it was the other side)
+			if (vc_med.length() < vx.length()) {
+				vc_medial.scale(-1);
+				Utils.log("Mirroring X axis");
+			}
+
+			// compute dorsal vector: perpedicular to the plane made by v1 and vc_medial
+			Vector3d vc_dorsal = new Vector3d();
+			vc_dorsal.cross(vz, vc_medial);
+			// check orientation
+			Vector3d vc_dor = new Vector3d(vc_dorsal);
+			vc_dor.add(vy);
+			// if the sum is smaller, invert
+			if (vc_dor.length() < vy.length()) {
+				vc_dorsal.scale(-1);
+				Utils.log("Mirroring Y axis");
+			}
+
+			if (Compare.TRANS_ROT == transform_type) {
+				// just in case, for rounding issues
+				vc_medial.normalize();
+				vc_dorsal.normalize();
+			}
+
+			v1 = vc_medial;
+			v2 = vc_dorsal;
+			//v3 = vz; // already done
+		
 		}
-
-		vc_medial.normalize();
-		vc_dorsal.normalize();
-
-		// SO, finally, the three vectors are
-		//  v1
-		//  vc_medial
-		//  vc_dorsal
+		// else if (Compare.TRANS_ROT_SCALE_SHEAR == transform_type)
+			// use vectors AS THEY ARE
 
 		return new Vector3d[]{
-			vc_medial, // X axis
-			vc_dorsal, // Y axis
-			vz,        // Z axis
+			v1, // X axis : medial lobe
+			v2, // Y axis : dorsal lobe
+			v3, // Z axis : peduncle
 			origin     // x,y,z origin of coordinates
 		};
 	}
@@ -1260,7 +1312,7 @@ public class VectorString3D implements VectorString {
 			vs2.resample(delta);
 			vs3.resample(delta);
 			//
-			Vector3d[] o = createOrigin(vs1, vs2, vs3);
+			Vector3d[] o = createOrigin(vs1, vs2, vs3, Compare.TRANS_ROT);
 			Display3D.addMesh(ls, makeVSFromP(o[0], o[3]), "v1", Color.green);
 			Display3D.addMesh(ls, makeVSFromP(o[1], o[3]), "v2", Color.orange);
 			Display3D.addMesh(ls, makeVSFromP(o[2], o[3]), "v3", Color.red);
