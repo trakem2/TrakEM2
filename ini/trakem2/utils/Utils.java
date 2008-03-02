@@ -928,4 +928,31 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final void sleep(final long miliseconds) {
 		try { Thread.currentThread().sleep(miliseconds); } catch (Exception e) { e.printStackTrace(); }
 	}
+
+	/** Mix colors visually: red + green = yellow, etc.*/
+	static public final Color mix(Color c1, Color c2) {
+		final float[] b = Color.RGBtoHSB(c1.getRed(), c1.getGreen(), c1.getBlue(), new float[3]);
+		final float[] c = Color.RGBtoHSB(c2.getRed(), c2.getGreen(), c2.getBlue(), new float[3]);
+		final float[] a = new float[3];
+		// find to which side the hue values are closer, since hue space is a a circle
+		// hue values all between 0 and 1
+		float h1 = b[0];
+		float h2 = c[0];
+		if (h1 < h2) {
+			float tmp = h1;
+			h1 = h2;
+			h2 = tmp;
+		}
+		float d1 = h2 - h1;
+		float d2 = 1 + h1 - h2;
+		if (d1 < d2) {
+			a[0] = h1 + d1 / 2;
+		} else {
+			a[0] = h2 + d2 / 2;
+			if (a[0] > 1) a[0] -= 1;
+		}
+
+		for (int i=1; i<3; i++) a[i] = (b[i] + c[i]) / 2; // only Saturation and Brightness can be averaged
+		return Color.getHSBColor(a[0], a[1], a[2]);
+	}
 }

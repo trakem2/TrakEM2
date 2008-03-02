@@ -485,7 +485,7 @@ public class Compare {
 			reset();
 			if (!vs_pipe_shows) showAxesAndQueried();
 			VectorString3D vs = VectorString3D.createInterpolatedPoints(ed, 0.5f);
-			Display3D.addMesh(common, vs, "Averaged #" + queried.getId() + " #" + match.getId(), match.getColor());
+			Display3D.addMesh(common, vs, "Averaged #" + queried.getId() + " #" + match.getId(), Utils.mix(queried.getColor(), match.getColor()));
 		}
 		private void reset() {
 			if (null == Display3D.getDisplay(common)) vs_pipe_shows = false;
