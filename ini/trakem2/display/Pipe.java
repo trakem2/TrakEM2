@@ -1782,6 +1782,7 @@ public class Pipe extends ZDisplayable {
 		return new Object[]{p, p_l, p_r, p_i, p_width, p_width_i};
 	}
 
+	/** Returns a non-calibrated VectorString3D. */
 	synchronized public VectorString3D asVectorString3D() {
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;

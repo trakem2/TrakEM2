@@ -82,13 +82,12 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 		final String target_dir_ = target_dir;
 
 		// get file listing
-		final String exts = ".tif.jpg.png";
-		String[] names = new File(source_dir).list(new FilenameFilter() {
+		final String exts = ".tif.jpg.png.gif.tiff.jpeg.bmp.pgm";
+		final String[] names = new File(source_dir).list(new FilenameFilter() {
 			public boolean accept(File dir, String name) {
 				int idot = name.lastIndexOf('.');
 				if (-1 == idot) return false;
-				String ext = name.substring(idot);
-				return exts.contains(ext);
+				return exts.contains(name.substring(idot).toLowerCase());
 			}
 		});
 		Arrays.sort(names);

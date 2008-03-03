@@ -26,6 +26,7 @@ import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
+import ini.trakem2.tree.ProjectThing;
 import mpi.fruitfly.general.MultiThreading;
 
 import ij.gui.GenericDialog;
@@ -136,9 +137,9 @@ public class Compare {
 		int[] t = findXYZAxes(presets[0], pipes_ref, pipe_names_ref);
 
 		gd.addMessage("Source project \"" + pipe.getProject().getTitle() + ":\"");
-		/* 1 */ gd.addChoice("X: ", pipe_names, pipe_names[s[0]]);
-		/* 2 */ gd.addChoice("Y: ", pipe_names, pipe_names[s[1]]);
-		/* 3 */ gd.addChoice("Z: ", pipe_names, pipe_names[s[2]]);
+		/* 1 */ gd.addChoice("X_source: ", pipe_names, pipe_names[s[0]]);
+		/* 2 */ gd.addChoice("Y_source: ", pipe_names, pipe_names[s[1]]);
+		/* 3 */ gd.addChoice("Z_source: ", pipe_names, pipe_names[s[2]]);
 
 		gd.addMessage("Reference project:");
 		String[] options = new String[all.length];
@@ -146,9 +147,9 @@ public class Compare {
 			options[i] = all[i].toString();
 		}
 		/* 4 */ gd.addChoice("Project: ", options, options[iother]);
-		/* 5 */ gd.addChoice("X: ", pipe_names_ref, pipe_names_ref[t[0]]);
-		/* 6 */ gd.addChoice("Y: ", pipe_names_ref, pipe_names_ref[t[1]]);
-		/* 7 */ gd.addChoice("Z: ", pipe_names_ref, pipe_names_ref[t[2]]);
+		/* 5 */ gd.addChoice("X_ref: ", pipe_names_ref, pipe_names_ref[t[0]]);
+		/* 6 */ gd.addChoice("Y_ref: ", pipe_names_ref, pipe_names_ref[t[1]]);
+		/* 7 */ gd.addChoice("Z_ref: ", pipe_names_ref, pipe_names_ref[t[2]]);
 
 		// refresh reference project choices
 		final Choice project_choice = (Choice)gd.getChoices().get(4);
@@ -195,7 +196,8 @@ public class Compare {
 		final String[] transforms = {"translate and rotate",
 			                     "translate, rotate and scale",
 					     "translate, rotate, scale and shear"};
-		gd.addChoice("Transform type: ", transforms, transforms[2]);
+		gd.addChoice("Transform_type: ", transforms, transforms[2]);
+		gd.addCheckbox("Chain_branches", true);
 
 		//////
 
@@ -229,8 +231,9 @@ public class Compare {
 		}
 
 		int transform_type = gd.getNextChoiceIndex();
+		boolean chain_branches = gd.getNextBoolean();
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type);
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches);
 	}
 
 	static private int[] findXYZAxes(String[] presets, ArrayList<ZDisplayable> pipes, String[] pipe_names) {
@@ -275,7 +278,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type) {
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches) {
 		if (axes.length < 3 || axes_ref.length < 3) {
 			Utils.log("Need three axes for each.");
 			return null;
@@ -300,6 +303,13 @@ public class Compare {
 
 		// fix axes according to the transform type
 		VectorString3D.matchOrigins(o1, o2, transform_type);
+
+
+
+		// TODO: if chain_branches, the query must also be split into as many branches as it generates.
+		// Should generate a tab for each potential branch? Or better, a tab but not with a table but with a list of labels, one per potential branch, and underneath as many tables in more tabs?
+
+
 
 
 		// bring query pipe to common space
@@ -420,6 +430,119 @@ public class Compare {
 		Bureaucrat burro = new Bureaucrat(worker, pipe.getProject());
 		burro.goHaveBreakfast();
 		return burro;
+	}
+
+	/** For a given pipe, create a VectorString3D for each possible path, as determined by the Project Tree structure and the parent/child relationships.
+	 *  A pipe is considered a potential branch when it is contained in an abstract child at the same tree level that the pipe itself in the tree. So:
+	 *  - lineage
+	 *      - branch 1
+	 *          -pipe 1
+	 *          - branch 2
+	 *              - pipe 2
+	 *          - branch 3
+	 *              - pipe 3
+	 *
+	 *  Results in an ArrayList with:
+	 *    VS 1
+	 *    VS 1 + 2
+	 *    VS 1 + 3
+	 *
+	 *  An so on, recursively from the given pipe's parent.
+	 */
+	static public ArrayList<Chain> createPipeChains(final ProjectThing root_pt) throws Exception {
+		final ArrayList<Chain> chains = new ArrayList<Chain>();
+		appendAndFork(root_pt, null, null, chains);
+		return chains;
+	}
+
+	/** Recursive. */
+	static private void appendAndFork(final ProjectThing parent, Chain chain, HashSet<ProjectThing> hs_c_done, final ArrayList<Chain> chains) throws Exception {
+		final ArrayList children = parent.getChildren();
+		if (null == children) return;
+
+		if (null == hs_c_done) hs_c_done = new HashSet<ProjectThing>();
+
+		for (Iterator it = children.iterator(); it.hasNext(); ) {
+			ProjectThing child = (ProjectThing)it.next();
+			if (hs_c_done.contains(child)) continue;
+			hs_c_done.add(child);
+
+			if (child.getType().equals("pipe")) {
+				Pipe pipe = (Pipe)child.getObject();
+				if (null == chain) {
+					chain = new Chain(pipe);
+					chains.add(chain);
+				} else {
+					chain.append(pipe);
+				}
+				// find other children in the parent who contain children with child pipes
+				boolean first = true;
+				final Chain base = chain.duplicate();
+				for (Iterator cc = children.iterator(); cc.hasNext(); ) {
+					ProjectThing c = (ProjectThing)cc.next();
+					if (hs_c_done.contains(c)) continue; // already visited
+					// c is at the same tree level as child (which contains a pipe directly)
+					ArrayList child_pipes = c.findChildrenOfType("pipe");
+					if (child_pipes.size() > 0) {
+						Chain ca;
+						if (first) {
+							// just append
+							ca = chain;
+							first = false;
+						} else {
+							// otherwise make a copy to branch out
+							ca = base.duplicate(); // can't duplicate from chain itself, because it would have the previous child added to it.
+							chains.add(ca);
+						}
+						appendAndFork(c, ca, hs_c_done, chains);
+					}
+				}
+				// pipe wrapping ProjectThing objects cannot have any children
+				continue;
+			}
+
+			// if it does not have direct pipe children, cut chain - but keep inspecting
+			if (0 == child.findChildrenOfType("pipe").size()) {
+				chain = null;
+			}
+
+			// inspect others down the unvisited tree nodes
+			appendAndFork(child, chain, hs_c_done, chains);
+		}
+	}
+
+	static public class Chain {
+		final ArrayList<Pipe> pipes = new ArrayList<Pipe>();
+		VectorString3D vs;
+		private Chain() {}
+		Chain(Pipe root) {
+			this.pipes.add(root);
+			this.vs = root.asVectorString3D();
+		}
+		void append(Pipe p) throws Exception {
+			//if (pipes.contains(p)) throw new Exception("Already contains pipe #" + p.getId());
+			pipes.add(p);
+			vs = vs.chain(p.asVectorString3D());
+		}
+		Chain duplicate() {
+			Chain chain = new Chain();
+			chain.pipes.addAll(this.pipes);
+			chain.vs = (VectorString3D)this.vs.clone();
+			return chain;
+		}
+		public String toString() {
+			/*
+			StringBuffer sb = new StringBuffer("root: #");
+			sb.append(pipes.get(0).getId()).append("  len: ").append(pipes.size());
+			sb.append("\tchain: ");
+			for (Pipe p : pipes) sb.append('#').append(p.getId()).append(' ');
+			return sb.toString();
+			*/
+			StringBuffer sb = new StringBuffer("len: ");
+			sb.append(pipes.size()).append("   ");
+			for (Pipe p : pipes) sb.append('#').append(p.getId()).append(' ');
+			return sb.toString();
+		}
 	}
 
 
