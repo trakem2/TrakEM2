@@ -338,7 +338,7 @@ public class Compare {
 			for (Chain chain : createPipeChains((ProjectThing)pipe.getProject().findProjectThing(pipe).getParent(), pipe.getLayerSet())) {
 				qh.addQuery(chain);
 			}
-			chains_ref = createPipeChains(pipe.getProject().getRootProjectThing(), pipe.getLayerSet());
+			chains_ref = createPipeChains(pipes_ref.get(0).getProject().getRootProjectThing(), pipes_ref.get(0).getLayerSet());
 		} else {
 			// no branching
 			qh.addQuery(new Chain(pipe));
@@ -395,11 +395,7 @@ public class Compare {
 		qh.sortMatches();
 
 		// add to the GUI
-
-		//TODO
-
-		// order by distance and show in a table
-		//addTab(pipe, v_obs, v_eds, v_scores, v_phys_dist, new Visualizer(pipe, vs_pipe, delta1, cal2, trans2, rot2, vs_axes, vs_axes_ref));
+		qh.createGUI(vs_axes, vs_axes_ref);
 
 
 				} catch (Exception e) {
@@ -507,7 +503,7 @@ public class Compare {
 			pipes.add(p);
 			vs = vs.chain(p.asVectorString3D());
 		}
-		Chain duplicate() {
+		final Chain duplicate() {
 			Chain chain = new Chain();
 			chain.pipes.addAll(this.pipes);
 			chain.vs = (VectorString3D)this.vs.clone();
@@ -526,23 +522,26 @@ public class Compare {
 			for (Pipe p : pipes) sb.append('#').append(p.getId()).append(' ');
 			return sb.toString();
 		}
-		public String getTitle() {
+		final public String getTitle() {
 			final StringBuffer sb = new StringBuffer(pipes.get(0).getProject().getTitle());
 			sb.append(' ');
 			for (Pipe p : pipes) sb.append(' ').append('#').append(p.getId());
 			return sb.toString();
 		}
-		public String getShortTitle() {
-			final StringBuffer sb = new StringBuffer();
-			for (Pipe p : pipes) sb.append('#').append(p.getId()).append(' ');
-			sb.setLength(sb.length()-1);
+		final public String getCellTitle() {
+			Pipe root = pipes.get(0);
+			String mt = root.getProject().getMeaningfulTitle(root);
+			if (1 == pipes.size()) return mt;
+			//else, chain the ids of the rest
+			final StringBuffer sb = new StringBuffer(mt);
+			for (int i=1; i<pipes.size(); i++) sb.append(' ').append('#').append(pipes.get(i).getId());
 			return sb.toString();
 		}
 		/** Returns the color of the root pipe. */
 		public Color getColor() {
 			return pipes.get(0).getColor();
 		}
-		public Pipe getRoot() {
+		final public Pipe getRoot() {
 			return pipes.get(0);
 		}
 		public void showCentered2D() {
@@ -571,6 +570,9 @@ public class Compare {
 		Transform3D rot2;
 
 		final Hashtable<Chain,ArrayList<ChainMatch>> matches = new Hashtable<Chain,ArrayList<ChainMatch>>();
+
+		VectorString3D[] vs_axes = null,
+			         vs_axes_ref = null;
 
 		// these chains are kept only calibrated, NOT transformed. Because each query will resample it to its own delta, and then transform it.
 		final ArrayList<Chain> chains_ref = new ArrayList<Chain>();
@@ -627,7 +629,7 @@ public class Compare {
 
 		/** Returns a resampled and transformed copy of the ref VectorString3D. */
 		final VectorString3D makeVS(final Chain ref, final double delta) {
-			final VectorString3D vs = (VectorString3D)vs.clone();
+			final VectorString3D vs = (VectorString3D)ref.vs.clone();
 			vs.resample(delta);
 			vs.translate(trans2);
 			vs.transform(rot2);
@@ -660,6 +662,23 @@ public class Compare {
 			}
 			return ht;
 		}
+		// One table entry per query chain
+		void createGUI(VectorString3D[] vs_axes, VectorString3D[] vs_axes_ref) {
+			makeGUI();
+			this.vs_axes = vs_axes;
+			this.vs_axes_ref = vs_axes_ref;
+			for (Chain query : queries) {
+				QueryHolderTableModel qt = new QueryHolderTableModel(this, new Visualizer(this, vs_axes, vs_axes_ref), query, matches.get(query));
+				JTable table = new JTable(qt);
+				table.addMouseListener(new QueryHolderTableListener());
+				table.addKeyListener(kl);
+				JScrollPane jsp = new JScrollPane(table);
+				Pipe root = query.getRoot();
+				ht_tabs.put(jsp, root);
+				tabs.addTab(root.getProject().findProjectThing(root).getTitle(), jsp);
+				tabs.setSelectedComponent(jsp); // sets the label
+			}
+		}
 	}
 
 	static private class ChainMatch {
@@ -686,7 +705,6 @@ public class Compare {
 		LayerSet common; // calibrated to queried pipe space, which is now also the space of all others.
 		boolean query_shows = false;
 		VectorString3D[] vs_axes, vs_axes_ref;
-		final Hashtable<Pipe,VectorString3D> queried;
 
 		Visualizer(QueryHolder qh, VectorString3D[] vs_axes, VectorString3D[] vs_axes_ref) {
 			this.qh = qh;
@@ -713,6 +731,7 @@ public class Compare {
 		public void showAxesAndQueried() {
 			reset();
 			Color qcolor = null;
+			final Hashtable<Pipe,VectorString3D> queried = qh.getAllQueried();
 			for (Iterator it = queried.entrySet().iterator(); it.hasNext(); ) {
 				Map.Entry entry = (Map.Entry)it.next();
 				Pipe p = (Pipe)entry.getKey();
@@ -1076,7 +1095,7 @@ public class Compare {
 				case 1: return "Match";
 				case 2: return "Similarity";
 				case 3: return "Lev Dist";
-				case 4: return "Dist (" + vis.cal2.getUnits() + ")";
+				case 4: return "DISABLED TODO"; // TODO "Dist (" + vis.cal2.getUnits() + ")";
 				default: return "";
 			}
 		}
@@ -1127,7 +1146,7 @@ public class Compare {
 		}
 		public void visualize(int row) {
 			if (null == this.vis) return;
-			vis.show((Pipe)v_obs.get(row));
+			// TODO DISABLED // vis.show((Pipe)v_obs.get(row));
 		}
 	}
 
@@ -1173,9 +1192,11 @@ public class Compare {
 						if (command.equals(interp3D)) {
 							// for now, use the first selected only
 							try {
+								/* TODO DISABLED
 								Editions ed = model.getEditionsAt(sel[0]);
 								Pipe match = (Pipe)model.getDisplayableAt(sel[0]);
 								model.getVisualizer().showInterpolated(ed, match);
+								*/
 							} catch (Exception e) {
 								IJError.print(e);
 							}
@@ -1252,8 +1273,8 @@ public class Compare {
 		public int getColumnCount() { return 5; }
 		public Object getValueAt(int row, int col) {
 			switch (col) {
-				case 0: return query.getRoot().getProject();
-				case 1: return cm.get(row).ref.getShortTitle();
+				case 0: return cm.get(row).ref.getRoot().getProject();
+				case 1: return cm.get(row).ref.getCellTitle();
 				case 2: return Utils.cutNumber(Math.floor(cm.get(row).score * 10000) / 100, 2) + " %";
 				case 3: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
 				case 4: return Utils.cutNumber(cm.get(row).phys_dist, 2);
