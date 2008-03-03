@@ -46,6 +46,7 @@ import javax.swing.table.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
 import java.awt.geom.AffineTransform;
+import java.awt.Rectangle;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
@@ -289,13 +290,13 @@ public class Compare {
 				try {
 
 		// obtain axes origin vectors for pipe's project
-		Object[] pack1 = obtainOrigin(axes, transform_type);
+		Object[] pack1 = obtainOrigin(axes, transform_type); // calibrates axes
 
 		VectorString3D[] vs_axes = (VectorString3D[])pack1[0];
 		Vector3d[] o1 = (Vector3d[])pack1[1];
 
 		// obtain origin vectors for reference project
-		Object[] pack2 = obtainOrigin(axes_ref, transform_type);
+		Object[] pack2 = obtainOrigin(axes_ref, transform_type); // calibrates axes
 
 		VectorString3D[] vs_axes_ref = (VectorString3D[])pack2[0];
 		Vector3d[] o2 = (Vector3d[])pack2[1];
@@ -304,43 +305,21 @@ public class Compare {
 		// fix axes according to the transform type
 		VectorString3D.matchOrigins(o1, o2, transform_type);
 
+		// obtain transformation for query axes
+		final Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibrationCopy() : null);
+		final Vector3d trans1 = new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z); 
+		final Transform3D rot1 = VectorString3D.createOriginRotationTransform(o1);
 
-
-		// TODO: if chain_branches, the query must also be split into as many branches as it generates.
-		// Should generate a tab for each potential branch? Or better, a tab but not with a table but with a list of labels, one per potential branch, and underneath as many tables in more tabs?
-
-
-
-
-		// bring query pipe to common space
-		final VectorString3D vs_pipe = pipe.asVectorString3D();
-		// step 1 - calibrate
-		Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibrationCopy() : null);
-		if (null != cal1) vs_pipe.calibrate(cal1);
-		// step 2 - resample
-		final double delta1 = vs_pipe.getAverageDelta();
-		vs_pipe.resample(delta1);
-		// step 3 - transform to axes
-		Vector3d trans1 =new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z); 
-		vs_pipe.translate(trans1);
-		Transform3D rot1 = VectorString3D.createOriginRotationTransform(o1);
-		vs_pipe.transform(rot1);
-		// reversed copy of query pipe
-		final VectorString3D vs_pipe_reversed = vs_pipe.makeReversedCopy();
-
-
-		// transform the axes themselves
+		// transform the axes themselves (already calibrated)
 		for (int i=0; i<3; i++) {
 			vs_axes[i].translate(trans1);
 			vs_axes[i].transform(rot1);
 		}
 
-
-		final Point3d center1 = vs_pipe.computeCenterOfMass();
-
-		// bring all pipes in the reference project to common space
+		// obtain transformation for the ref axes
 		final Vector3d trans2 = new Vector3d(-o2[3].x, -o2[3].y, -o2[3].z);
 		final Transform3D rot2 = VectorString3D.createOriginRotationTransform(o2);
+		final Calibration cal2 = pipes_ref.get(0).getLayerSet().getCalibrationCopy();
 
 		// transform the reference axes themselves
 		for (int i=0; i<3; i++) {
@@ -348,12 +327,36 @@ public class Compare {
 			vs_axes_ref[i].transform(rot2);
 		}
 
+		// If chain_branches, the query must also be split into as many branches as it generates.
+		// Should generate a tab for each potential branch? Or better, a tab but not with a table but with a list of labels, one per potential branch, and underneath as many tables in more tabs?
 
-		// match pipe against all
-		final Pipe[] p = new Pipe[pipes_ref.size()];
-		final Match[] match = new Match[p.length];
-		pipes_ref.toArray(p);
-		final Calibration cal2 = (null != p[0].getLayerSet() ? p[0].getLayerSet().getCalibrationCopy() : null);
+		// the queries to do, according to how many different chains the query pipe is part of
+		final QueryHolder qh = new QueryHolder(cal1, trans1, rot1,
+				                       cal2, trans2, rot2);
+		ArrayList<Chain> chains_ref;
+		if (chain_branches) {
+			for (Chain chain : createPipeChains((ProjectThing)pipe.getProject().findProjectThing(pipe).getParent(), pipe.getLayerSet())) {
+				qh.addQuery(chain);
+			}
+			chains_ref = createPipeChains(pipe.getProject().getRootProjectThing(), pipe.getLayerSet());
+		} else {
+			// no branching
+			qh.addQuery(new Chain(pipe));
+			chains_ref = new ArrayList<Chain>();
+			for (ZDisplayable zd : pipes_ref) {
+				chains_ref.add(new Chain((Pipe)zd));
+			}
+		}
+
+		// set and calibrate them all
+		qh.setReferenceChains(chains_ref);
+		chains_ref = null;
+
+		// query chains are both calibrated and transformed
+		// ref chains are so far NOT calibrated neither transformed
+
+		// each thread handles a ref pipe, which is to be matched against all queries
+		final int n_ref_chains = qh.chains_ref.size();
 
 		final Thread[] threads = new Thread[1]; //MultiThreading.newThreads();
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -362,24 +365,20 @@ public class Compare {
 			threads[ithread] = new Thread(new Runnable() {
 				public void run() {
 				////
-		for (int k = ai.getAndIncrement(); k < p.length; k = ai.getAndIncrement()) {
+		for (int k = ai.getAndIncrement(); k < n_ref_chains; k = ai.getAndIncrement()) {
 			try {
-				// the other
-				VectorString3D vs2 = p[k].asVectorString3D();
-				// step 1 - calibrate
-				if (null != cal2) vs2.calibrate(cal2);
-				// step 2 - resample 
-				vs2.resample(delta1);
-				// step 3 - transform to axes
-				vs2.translate(trans2);
-				vs2.transform(rot2);
-
-				//Utils.log2("pipe " + p[k].getProject().getMeaningfulTitle(p[k]));
-				Object[] ob = findBestMatch(vs_pipe, vs2, delta1, skip_ends, max_mut, min_chunk);
-				double score = ((Double)ob[1]).doubleValue();
-				Editions ed = (Editions)ob[0];
-				match[k] = new Match(p[k], ed.getPhysicalDistance(skip_ends, max_mut, min_chunk), ed, score);
-
+				// obtain a calibrated ref chain, to be uniquely processed by this thread
+				final Chain ref = qh.chains_ref.get(k);
+				// match it against all queries
+				for (Chain query : qh.queries) {
+					VectorString3D vs1 = query.vs;
+					double delta1 = vs1.getDelta();
+					VectorString3D vs2 = qh.makeVS(ref, delta1);
+					Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk);
+					double score = ((Double)ob[1]).doubleValue();
+					Editions ed = (Editions)ob[0];
+					qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
+				}
 			} catch (Exception e) {
 				IJError.print(e);
 			}
@@ -390,35 +389,18 @@ public class Compare {
 		}
 		MultiThreading.startAndJoin(threads);
 
-		Arrays.sort(match, new OrderByDistance());
 
-		final Vector<Displayable> v_obs = new Vector<Displayable>(match.length);
-		final Vector<Editions> v_eds = new Vector<Editions>(match.length);
-		final Vector<Double> v_scores = new Vector<Double>(match.length);
-		final Vector<Double> v_phys_dist = new Vector<Double>(match.length);
-		for (int i=0; i<match.length; i++) {
-			v_obs.add(match[i].displ);
-			v_eds.add(match[i].ed);
-			v_scores.add(match[i].score);
-			v_phys_dist.add(match[i].phys_dist);
-		}
+		// done!
+		// Now, sort matches by physical distance.
+		qh.sortMatches();
+
+		// add to the GUI
+
+		//TODO
 
 		// order by distance and show in a table
-		addTab(pipe, v_obs, v_eds, v_scores, v_phys_dist, new Visualizer(pipe, vs_pipe, delta1, cal2, trans2, rot2, vs_axes, vs_axes_ref));
+		//addTab(pipe, v_obs, v_eds, v_scores, v_phys_dist, new Visualizer(pipe, vs_pipe, delta1, cal2, trans2, rot2, vs_axes, vs_axes_ref));
 
-
-		/* // debug: show the query among all others
-		Display3D.addMesh(pipe.getLayerSet(), vs_pipe, pipe.getTitle(), Color.green);
-		for (int i=0; i<v_obs.size(); i++) {
-			Pipe pe = (Pipe)v_obs.get(i);
-			VectorString3D vspe = pe.asVectorString3D();
-			vspe.calibrate(cal2);
-			vspe.resample(delta1);
-			vspe.translate(trans2);
-			vspe.transform(rot2);
-			Display3D.addMesh(pipe.getLayerSet(), vspe, pe.getTitle(), Color.yellow);
-		}
-		*/
 
 				} catch (Exception e) {
 					IJError.print(e);
@@ -449,14 +431,14 @@ public class Compare {
 	 *
 	 *  An so on, recursively from the given pipe's parent.
 	 */
-	static public ArrayList<Chain> createPipeChains(final ProjectThing root_pt) throws Exception {
+	static public ArrayList<Chain> createPipeChains(final ProjectThing root_pt, final LayerSet ls) throws Exception {
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
-		appendAndFork(root_pt, null, null, chains);
+		appendAndFork(root_pt, null, null, chains, ls);
 		return chains;
 	}
 
 	/** Recursive. */
-	static private void appendAndFork(final ProjectThing parent, Chain chain, HashSet<ProjectThing> hs_c_done, final ArrayList<Chain> chains) throws Exception {
+	static private void appendAndFork(final ProjectThing parent, Chain chain, HashSet<ProjectThing> hs_c_done, final ArrayList<Chain> chains, final LayerSet ls) throws Exception {
 		final ArrayList children = parent.getChildren();
 		if (null == children) return;
 
@@ -469,6 +451,7 @@ public class Compare {
 
 			if (child.getType().equals("pipe")) {
 				Pipe pipe = (Pipe)child.getObject();
+				if (!pipe.getLayerSet().equals(ls)) continue; // not from the same LayerSet, maybe from a nested one.
 				if (null == chain) {
 					chain = new Chain(pipe);
 					chains.add(chain);
@@ -494,7 +477,7 @@ public class Compare {
 							ca = base.duplicate(); // can't duplicate from chain itself, because it would have the previous child added to it.
 							chains.add(ca);
 						}
-						appendAndFork(c, ca, hs_c_done, chains);
+						appendAndFork(c, ca, hs_c_done, chains, ls);
 					}
 				}
 				// pipe wrapping ProjectThing objects cannot have any children
@@ -507,7 +490,7 @@ public class Compare {
 			}
 
 			// inspect others down the unvisited tree nodes
-			appendAndFork(child, chain, hs_c_done, chains);
+			appendAndFork(child, chain, hs_c_done, chains, ls);
 		}
 	}
 
@@ -543,71 +526,221 @@ public class Compare {
 			for (Pipe p : pipes) sb.append('#').append(p.getId()).append(' ');
 			return sb.toString();
 		}
+		public String getTitle() {
+			final StringBuffer sb = new StringBuffer(pipes.get(0).getProject().getTitle());
+			sb.append(' ');
+			for (Pipe p : pipes) sb.append(' ').append('#').append(p.getId());
+			return sb.toString();
+		}
+		public String getShortTitle() {
+			final StringBuffer sb = new StringBuffer();
+			for (Pipe p : pipes) sb.append('#').append(p.getId()).append(' ');
+			sb.setLength(sb.length()-1);
+			return sb.toString();
+		}
+		/** Returns the color of the root pipe. */
+		public Color getColor() {
+			return pipes.get(0).getColor();
+		}
+		public Pipe getRoot() {
+			return pipes.get(0);
+		}
+		public void showCentered2D() {
+			Rectangle b = null;
+			for (Pipe p : pipes) {
+				if (null == b) b = p.getBoundingBox();
+				else b.add(p.getBoundingBox());
+				p.setVisible(true);
+			}
+			Display.showCentered(pipes.get(0).getFirstLayer(), pipes.get(0), false, false);
+			Display.getFront().getCanvas().showCentered(b);
+		}
 	}
 
 
-	static private class Visualizer {
-		Pipe queried;
-		VectorString3D vs_queried; // the queried pipe
-		double delta1;
+	static private class QueryHolder {
+
+		final ArrayList<Chain> queries = new ArrayList<Chain>();
+
+		Calibration cal1;
+		Vector3d trans1;
+		Transform3D rot1;
+
 		Calibration cal2;
 		Vector3d trans2;
 		Transform3D rot2;
-		LayerSet common; // calibrated to queried pipe space, which is now also the space of all others.
-		boolean vs_pipe_shows = false;
-		VectorString3D[] vs_axes, vs_axes_ref;
 
-		Visualizer(Pipe queried, VectorString3D vs_queried, double delta1, Calibration cal2, Vector3d trans2, Transform3D rot2, VectorString3D[] vs_axes, VectorString3D[] vs_axes_ref) {
-			this.queried = queried;
-			this.vs_queried = vs_queried;
-			this.vs_axes = vs_axes;
-			this.vs_axes_ref = vs_axes_ref;
-			LayerSet ls = queried.getLayerSet();
-			Calibration cal1 = ls.getCalibrationCopy();
-			this.common = new LayerSet(queried.getProject(), queried.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, false, new AffineTransform());
-			Calibration cal = new Calibration();
-			cal.setUnit(cal1.getUnit()); // homogeneous on all axes
-			this.common.setCalibration(cal);
-			this.delta1 = delta1;
+		final Hashtable<Chain,ArrayList<ChainMatch>> matches = new Hashtable<Chain,ArrayList<ChainMatch>>();
+
+		// these chains are kept only calibrated, NOT transformed. Because each query will resample it to its own delta, and then transform it.
+		final ArrayList<Chain> chains_ref = new ArrayList<Chain>();
+
+		QueryHolder(Calibration cal1, Vector3d trans1, Transform3D rot1, Calibration cal2, Vector3d trans2, Transform3D rot2) {
+			this.cal1 = cal1;
+			this.trans1 = trans1;
+			this.rot1 = rot1;
+
 			this.cal2 = cal2;
 			this.trans2 = trans2;
 			this.rot2 = rot2;
 		}
-		public void show(Pipe pipe) {
+
+		/** Will calibrate and transform the chain's VectorString3D. */
+		final void addQuery(final Chain chain) {
+			final VectorString3D vs = chain.vs;
+			// Order is important:
+			// 1 - calibrate
+			if (null != cal1) vs.calibrate(cal1);
+			// 2 - resample
+			double delta = vs.getAverageDelta();
+			vs.resample(delta);
+			// 3 - transform to axes
+			vs.translate(trans1);
+			vs.transform(rot1);
+			// Store all
+			queries.add(chain);
+		}
+
+		// one thread at a time may access this method
+		synchronized final void addMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist) {
+			final ChainMatch cm = new ChainMatch();
+			cm.ref = ref;
+			cm.ed = ed;
+			cm.score = score;
+			cm.phys_dist = phys_dist;
+			ArrayList<ChainMatch> al = matches.get(query);
+			if (null == al) {
+				al = new ArrayList<ChainMatch>();
+				matches.put(query, al);
+			}
+			al.add(cm);
+		}
+
+		/** Will calibrate them all to cal2. */
+		void setReferenceChains(final ArrayList<Chain> chains_ref) {
+			this.chains_ref.addAll(chains_ref);
+			if (null == cal2) return;
+			for (Chain c : chains_ref) {
+				c.vs.calibrate(cal2);
+			}
+		}
+
+		/** Returns a resampled and transformed copy of the ref VectorString3D. */
+		final VectorString3D makeVS(final Chain ref, final double delta) {
+			final VectorString3D vs = (VectorString3D)vs.clone();
+			vs.resample(delta);
+			vs.translate(trans2);
+			vs.transform(rot2);
+			return vs;
+		}
+
+		/** For each list of matches corresponding to each query chain, sort the matches by physical distance. */
+		void sortMatches() {
+			final ChainMatchComparator comp = new ChainMatchComparator();
+			for (ArrayList<ChainMatch> list : matches.values()) {
+				Collections.sort(list, comp);
+			}
+		}
+		/** Returns all pipes involved in the query chains. */
+		HashSet<Pipe> getAllQueriedPipes() {
+			final HashSet<Pipe> hs = new HashSet<Pipe>();
+			for (Chain c : queries) {
+				hs.addAll(c.pipes);
+			}
+			return hs;
+		}
+		Hashtable<Pipe,VectorString3D> getAllQueried() {
+			Hashtable<Pipe,VectorString3D> ht = new Hashtable<Pipe,VectorString3D>();
+			for (Pipe p : getAllQueriedPipes()) {
+				VectorString3D vs = p.asVectorString3D();
+				if (null != cal1) vs.calibrate(cal1);
+				vs.translate(trans1);
+				vs.transform(rot1);
+				ht.put(p, vs);
+			}
+			return ht;
+		}
+	}
+
+	static private class ChainMatch {
+		Chain ref;
+		Editions ed;
+		double phys_dist;
+		double score;
+	}
+
+	static private class ChainMatchComparator implements Comparator {
+		public int compare(final Object ob1, final Object ob2) {
+			ChainMatch cm1 = (ChainMatch)ob1;
+			ChainMatch cm2 = (ChainMatch)ob2;
+			// select for smallest physical distance of the center of mass
+			double val = cm1.phys_dist - cm2.phys_dist;
+			if (val < 0) return -1; // m1 is closer
+			if (val > 0) return 1; // m1 is further away
+			return 0; // same distance
+		}
+	}
+
+	static private class Visualizer {
+		QueryHolder qh;
+		LayerSet common; // calibrated to queried pipe space, which is now also the space of all others.
+		boolean query_shows = false;
+		VectorString3D[] vs_axes, vs_axes_ref;
+		final Hashtable<Pipe,VectorString3D> queried;
+
+		Visualizer(QueryHolder qh, VectorString3D[] vs_axes, VectorString3D[] vs_axes_ref) {
+			this.qh = qh;
+			this.vs_axes = vs_axes;
+			this.vs_axes_ref = vs_axes_ref;
+			// create common LayerSet space
+			Pipe pipe = qh.getAllQueriedPipes().iterator().next();
+			LayerSet ls = pipe.getLayerSet();
+			Calibration cal1 = ls.getCalibrationCopy();
+			this.common = new LayerSet(pipe.getProject(), pipe.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, false, new AffineTransform());
+			Calibration cal = new Calibration();
+			cal.setUnit(cal1.getUnit()); // homogeneous on all axes
+			this.common.setCalibration(cal);
+		}
+		/** TODO: should show in full the two sets of pipes derived from the root pipe of each chain,
+		 *  and not just the reference chain. */
+		public void show(Chain query, Chain ref) {
 			reset();
-			if (!vs_pipe_shows) showAxesAndQueried();
-			VectorString3D vspe = pipe.asVectorString3D();
-			vspe.calibrate(cal2);
-			vspe.resample(delta1);
-			vspe.translate(trans2);
-			vspe.transform(rot2);
+			if (!query_shows) showAxesAndQueried();
+			VectorString3D vs = qh.makeVS(ref, query.vs.getDelta());
 			// The LayerSet is that of the Pipe being queried, not the given pipe to show which belongs to the reference project (and thus not to the queried pipe project)
-			Display3D.addMesh(common, vspe, pipe.getProject().getMeaningfulTitle(pipe), pipe.getColor());
+			Display3D.addMesh(common, vs, ref.getTitle(), ref.getColor());
 		}
 		public void showAxesAndQueried() {
 			reset();
-			Display3D.addMesh(common, vs_queried, queried.getProject().getMeaningfulTitle(queried), queried.getColor());
-			Color color = Color.pink.equals(queried.getColor()) ? Color.red : queried.getColor();
+			Color qcolor = null;
+			for (Iterator it = queried.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = (Map.Entry)it.next();
+				Pipe p = (Pipe)entry.getKey();
+				VectorString3D vs = (VectorString3D)entry.getValue();
+				if (null == qcolor) qcolor = p.getColor();
+				Display3D.addMesh(common, vs, p.getProject().getMeaningfulTitle(p), qcolor);
+			}
+
+			Color color = Color.pink.equals(qcolor) ? Color.red : qcolor;
 
 			Display3D.addMesh(common, vs_axes[0], "X query", color);
 			Display3D.addMesh(common, vs_axes[1], "Y query", color);
 			Display3D.addMesh(common, vs_axes[2], "Z query", color);
 
-
 			Display3D.addMesh(common, vs_axes_ref[0], "X ref", Color.pink);
 			Display3D.addMesh(common, vs_axes_ref[1], "Y ref", Color.pink);
 			Display3D.addMesh(common, vs_axes_ref[2], "Z ref", Color.pink);
 
-			vs_pipe_shows = true;
+			query_shows = true;
 		}
-		public void showInterpolated(Editions ed, Pipe match) {
+		public void showInterpolated(Editions ed, Chain query, Chain ref) {
 			reset();
-			if (!vs_pipe_shows) showAxesAndQueried();
+			if (!query_shows) showAxesAndQueried();
 			VectorString3D vs = VectorString3D.createInterpolatedPoints(ed, 0.5f);
-			Display3D.addMesh(common, vs, "Averaged #" + queried.getId() + " #" + match.getId(), Utils.mix(queried.getColor(), match.getColor()));
+			Display3D.addMesh(common, vs, "Av. " + query.getTitle() + " - " + ref.getTitle(), Utils.mix(query.getColor(), ref.getColor()));
 		}
 		private void reset() {
-			if (null == Display3D.getDisplay(common)) vs_pipe_shows = false;
+			if (null == Display3D.getDisplay(common)) query_shows = false;
 		}
 	}
 
@@ -846,7 +979,6 @@ public class Compare {
 		ht_tabs.put(jsp, displ); // before adding the tab, so that the listener can find it
 		tabs.addTab(displ.getProject().findProjectThing(displ).getTitle(), jsp);
 		tabs.setSelectedComponent(jsp);
-		frame.pack();
 	}
 
 	static private void tryCloseTab(KeyEvent ke) {
@@ -1090,5 +1222,105 @@ public class Compare {
 			kl = null;
 		}
 		frame = null;
+	}
+
+
+	static private class QueryHolderTableModel extends AbstractTableModel {
+		QueryHolder qh;
+		Chain query;
+		ArrayList<ChainMatch> cm;
+		Visualizer vis;
+
+		QueryHolderTableModel(QueryHolder qh, Visualizer vis, Chain query, ArrayList<ChainMatch> cm) {
+			this.qh = qh;
+			this.vis = vis;
+			this.cm = cm;
+			this.query = query;
+		}
+		public Visualizer getVisualizer() { return vis; }
+		public String getColumnName(int col) {
+			switch (col) {
+				case 0: return "Project";
+				case 1: return "Match";
+				case 2: return "Similarity";
+				case 3: return "Lev Dist";
+				case 4: return "Dist (" + qh.cal2.getUnits() + ")";
+				default: return "";
+			}
+		}
+		public int getRowCount() { return cm.size(); }
+		public int getColumnCount() { return 5; }
+		public Object getValueAt(int row, int col) {
+			switch (col) {
+				case 0: return query.getRoot().getProject();
+				case 1: return cm.get(row).ref.getShortTitle();
+				case 2: return Utils.cutNumber(Math.floor(cm.get(row).score * 10000) / 100, 2) + " %";
+				case 3: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
+				case 4: return Utils.cutNumber(cm.get(row).phys_dist, 2);
+				default: return "";
+			}
+		}
+		public boolean isCellEditable(int row, int col) {
+			return false;
+		}
+		public void setValueAt(Object value, int row, int col) {}
+	}
+
+	static private class QueryHolderTableListener extends MouseAdapter {
+		public void mousePressed(final MouseEvent me) {
+			final Object source = me.getSource();
+			final JTable table = (JTable)source;
+			final QueryHolderTableModel model = (QueryHolderTableModel)table.getModel();
+
+			final int row = table.rowAtPoint(me.getPoint());
+			final Chain ref = model.cm.get(row).ref;
+
+			if (2 == me.getClickCount()) {
+				if (me.isShiftDown()) {
+					model.vis.show(model.query, ref);
+				} else {
+					ref.showCentered2D();
+				}
+				return;
+			}
+
+			if (Utils.isPopupTrigger(me)) {
+				final int[] sel = table.getSelectedRows();
+				if (0 == sel.length) return;
+				JPopupMenu popup = new JPopupMenu();
+				final String show3D = "Show in 3D";
+				final String interp3D = "Show interpolated in 3D";
+				final String showCentered = "Show centered in 2D";
+				final String showAxes = "Show axes and queried";
+
+				ActionListener listener = new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						final String command = ae.getActionCommand();
+						if (command.equals(interp3D)) {
+							// for now, use the first selected only
+							try {
+								model.vis.showInterpolated(model.cm.get(sel[0]).ed, model.query, ref);
+							} catch (Exception e) {
+								IJError.print(e);
+							}
+							return;
+						} else if (command.equals(show3D)) {
+							model.vis.show(model.query, ref);
+						} else if (command.equals(showCentered)) {
+							ref.showCentered2D();
+						} else if (command.equals(showAxes)) {
+							model.vis.showAxesAndQueried();
+						}
+					}
+				};
+				JMenuItem item;
+				item = new JMenuItem(show3D); popup.add(item); item.addActionListener(listener);
+				item = new JMenuItem(interp3D); popup.add(item); item.addActionListener(listener);
+				item = new JMenuItem(showCentered); popup.add(item); item.addActionListener(listener);
+				item = new JMenuItem(showAxes); popup.add(item); item.addActionListener(listener);
+
+				popup.show(table, me.getX(), me.getY());
+			}
+		}
 	}
 }

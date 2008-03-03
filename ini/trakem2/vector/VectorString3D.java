@@ -105,6 +105,9 @@ public class VectorString3D implements VectorString {
 		return d / length;
 	}
 
+	/** If not resampled, the returned delta is zero. */
+	public double getDelta() { return delta; }
+
 	/** Homogenize the average point interdistance to 'delta'. */
 	public void resample(double delta) {
 		if (Math.abs(delta - this.delta) < 0.0000001) {
