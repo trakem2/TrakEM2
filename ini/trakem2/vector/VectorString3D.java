@@ -1478,7 +1478,7 @@ public class VectorString3D implements VectorString {
 	/** Returns a new VectorString3D which is the result of the optimal chaining of this and the given VectorString. 
 	 *  The ordering of this VectorString3D is preserved; the other is thus appended at the end or prepended at te beginning, reversed as necessary.
 	 * */
-	public VectorString3D chain(VectorString3D vs) {
+	public VectorString3D chain(final VectorString3D vs) {
 		if (this.isClosed() || vs.isClosed()) {
 			Utils.log2("Can't chain closed VectorString3D instances.");
 			return null;
@@ -1493,34 +1493,19 @@ public class VectorString3D implements VectorString {
 		final double d4 = distance(x[length-1], y[length-1], z[length-1],
 				     vs.x[vs.length-1], vs.y[vs.length-1], vs.z[vs.length-1]);
 
-		/* I HATE java, what a crippled language //switch (Math.max(d1, Math.max(d2, Math.max(d3, d4)))) {
-			case d1:
-				vs = (VectorString3D)vs.clone();
-				vs.reverse();
-				return concat(vs, this);
-			case d2:
-				return concat(this, vs);
-			case d3:
-				return concat(vs, this);
-			case d4:
-				vs = (VectorString3D)vs.clone();
-				vs.reverse();
-				return concat(vs, this);
-		}
-		*/
-		final double max = Math.max(d1, Math.max(d2, Math.max(d3, d4)));
-		if (d1 == max) {
-			vs = (VectorString3D)vs.clone();
-			vs.reverse();
-			return concat(vs, this);
-		} else if (d2 == max) {
+		final double min = Math.min(d1, Math.min(d2, Math.min(d3, d4)));
+		if (d1 == min) {
+			VectorString3D vsr = (VectorString3D)vs.clone();
+			vsr.reverse();
+			return concat(vsr, this);
+		} else if (d2 == min) {
 			return concat(this, vs);
-		} else if (d3 == max) {
+		} else if (d3 == min) {
 			return concat(vs, this);
-		} else { //  if (d4 == max)
-			vs = (VectorString3D)vs.clone();
-			vs.reverse();
-			return concat(vs, this);
+		} else { //  if (d4 == min)
+			VectorString3D vsr = (VectorString3D)vs.clone();
+			vsr.reverse();
+			return concat(vsr, this);
 		}
 	}
 

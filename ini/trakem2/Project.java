@@ -740,6 +740,28 @@ public class Project extends DBObject {
 		return title;
 	}
 
+	/** Returns the first upstream user-defined name and type, and the id of the displayable tagged at the end.
+	 *  If no user-defined name is found, then the type is prepended to the id.
+	 */
+	public String getShortMeaningfulTitle(final Displayable d) {
+		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+		if (null == thing) return d.getTitle(); // happens if there is no associated node
+		ProjectThing parent = (ProjectThing)thing.getParent();
+		String title = "#" + d.getId();
+		while (null != parent) {
+			Object ob = parent.getObject();
+			String type = parent.getType();
+			if (!ob.equals(type)) { // meaning, something else was typed in as a title
+				title =  ob.toString() + " [" + type + "] " + title;
+				break;
+			}
+			parent = (ProjectThing)parent.getParent();
+		}
+		// if nothing found, prepend the type
+		if ('#' == title.charAt(0)) title = Project.getName(d.getClass()) + " " + title;
+		return title;
+	}
+
 	/** Returns the proper TemplateThing for the given type, complete with children and attributes if any. */
 	public TemplateThing getTemplateThing(String type) {
 		Object ob = ht_unique_tt.get(type);

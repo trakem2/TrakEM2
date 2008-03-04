@@ -61,7 +61,7 @@ public class Compare {
 	static private JLabel label = null;
 	static private JTabbedPane tabs = null;
 	static private JFrame frame = null;
-	static private Hashtable<JScrollPane,Displayable> ht_tabs = null;
+	static private Hashtable<JScrollPane,Chain> ht_tabs = null;
 	static private KeyListener kl = null;
 
 	private Compare() {}
@@ -119,7 +119,7 @@ public class Compare {
 		pro.toArray(all);
 		GenericDialog gd = new GenericDialog("Indentify with axes");
 		gd.addMessage("Will search for a match to:");
-		gd.addMessage(pipe.getProject().getMeaningfulTitle(pipe));
+		gd.addMessage(pipe.getProject().getShortMeaningfulTitle(pipe));
 
 		ArrayList<ZDisplayable> pipes = pipe.getLayerSet().getZDisplayables(Pipe.class);
 		final String[] pipe_names = new String[pipes.size()];
@@ -241,7 +241,7 @@ public class Compare {
 		int[] s = new int[3];
 		int next = 0;
 		for (ZDisplayable zd : pipes) {
-			pipe_names[next] = zd.getProject().getMeaningfulTitle(zd);
+			pipe_names[next] = zd.getProject().getShortMeaningfulTitle(zd);
 			final String lc = pipe_names[next].toLowerCase();
 			if (lc.contains(presets[0])) {
 				s[0] = next;
@@ -334,14 +334,19 @@ public class Compare {
 		final QueryHolder qh = new QueryHolder(cal1, trans1, rot1,
 				                       cal2, trans2, rot2);
 		ArrayList<Chain> chains_ref;
+
 		if (chain_branches) {
+			// create all chained ref branches
+			chains_ref = createPipeChains(pipes_ref.get(0).getProject().getRootProjectThing(), pipes_ref.get(0).getLayerSet()); // TODO WARNING: if the parent has more than one pipe, this will query them all!
+
+			// add all possible query chains, starting at the parent of the chosen pipe
 			for (Chain chain : createPipeChains((ProjectThing)pipe.getProject().findProjectThing(pipe).getParent(), pipe.getLayerSet())) {
 				qh.addQuery(chain);
 			}
-			chains_ref = createPipeChains(pipes_ref.get(0).getProject().getRootProjectThing(), pipes_ref.get(0).getLayerSet());
 		} else {
-			// no branching
+			// no branching: single query of one single-pipe chain
 			qh.addQuery(new Chain(pipe));
+			// just add a single-pipe chain for each ref pipe
 			chains_ref = new ArrayList<Chain>();
 			for (ZDisplayable zd : pipes_ref) {
 				chains_ref.add(new Chain((Pipe)zd));
@@ -530,7 +535,7 @@ public class Compare {
 		}
 		final public String getCellTitle() {
 			Pipe root = pipes.get(0);
-			String mt = root.getProject().getMeaningfulTitle(root);
+			String mt = root.getProject().getShortMeaningfulTitle(root);
 			if (1 == pipes.size()) return mt;
 			//else, chain the ids of the rest
 			final StringBuffer sb = new StringBuffer(mt);
@@ -544,15 +549,18 @@ public class Compare {
 		final public Pipe getRoot() {
 			return pipes.get(0);
 		}
-		public void showCentered2D() {
+		/** Show centered, set visible and select. */
+		public void showCentered2D(boolean shift_down) {
 			Rectangle b = null;
+			Display display = Display.getFront();
 			for (Pipe p : pipes) {
 				if (null == b) b = p.getBoundingBox();
 				else b.add(p.getBoundingBox());
 				p.setVisible(true);
+				display.select(p, shift_down);
 			}
-			Display.showCentered(pipes.get(0).getFirstLayer(), pipes.get(0), false, false);
-			Display.getFront().getCanvas().showCentered(b);
+			display.select(pipes.get(0), shift_down); // the root as active
+			display.getCanvas().showCentered(b);
 		}
 	}
 
@@ -673,12 +681,43 @@ public class Compare {
 				table.addMouseListener(new QueryHolderTableListener());
 				table.addKeyListener(kl);
 				JScrollPane jsp = new JScrollPane(table);
-				Pipe root = query.getRoot();
-				ht_tabs.put(jsp, root);
-				tabs.addTab(root.getProject().findProjectThing(root).getTitle(), jsp);
+				ht_tabs.put(jsp, query);
+				tabs.addTab(query.getCellTitle(), jsp);
 				tabs.setSelectedComponent(jsp); // sets the label
 			}
 		}
+
+		void remove(Displayable d) {
+			// from the queries (and thus the tabs as well)
+			for (Iterator<Chain> i = queries.iterator(); i.hasNext(); ) {
+				Chain chain = i.next();
+				if (chain.equals(d)) {
+					Component comp = findTab(chain);
+					if (null != comp) {
+						ht_tabs.remove(comp);
+						tabs.remove(comp);
+					}
+					i.remove();
+					matches.remove(chain);
+				}
+			}
+			// from the matches list of each query chain
+			for (ArrayList<ChainMatch> acm : matches.values()) {
+				for (Iterator<ChainMatch> i = acm.iterator(); i.hasNext(); ) {
+					if (i.next().ref.pipes.contains(equals(d))) {
+						i.remove();
+					}
+				}
+			}
+		}
+	}
+
+	static private Component findTab(Chain chain) {
+		for (Iterator it = ht_tabs.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			if (entry.getValue().equals(chain)) return (Component)entry.getKey();
+		}
+		return null;
 	}
 
 	static private class ChainMatch {
@@ -737,7 +776,7 @@ public class Compare {
 				Pipe p = (Pipe)entry.getKey();
 				VectorString3D vs = (VectorString3D)entry.getValue();
 				if (null == qcolor) qcolor = p.getColor();
-				Display3D.addMesh(common, vs, p.getProject().getMeaningfulTitle(p), qcolor);
+				Display3D.addMesh(common, vs, p.getProject().getShortMeaningfulTitle(p), qcolor);
 			}
 
 			Color color = Color.pink.equals(qcolor) ? Color.red : qcolor;
@@ -994,10 +1033,13 @@ public class Compare {
 			}
 		}
 		*/
+		// TODO DISABLED
+		/*
 		JScrollPane jsp = new JScrollPane(table);
 		ht_tabs.put(jsp, displ); // before adding the tab, so that the listener can find it
 		tabs.addTab(displ.getProject().findProjectThing(displ).getTitle(), jsp);
 		tabs.setSelectedComponent(jsp);
+		*/
 	}
 
 	static private void tryCloseTab(KeyEvent ke) {
@@ -1026,7 +1068,7 @@ public class Compare {
 					destroy();
 				}
 			});
-			if (null == ht_tabs) ht_tabs = new Hashtable<JScrollPane,Displayable>();
+			if (null == ht_tabs) ht_tabs = new Hashtable<JScrollPane,Chain>();
 			tabs = new JTabbedPane();
 			tabs.setPreferredSize(new Dimension(350,250));
 			// a listener to change the label text when the tab is selected
@@ -1035,9 +1077,9 @@ public class Compare {
 					if (null == frame || null == ht_tabs || null == tabs || null == label) return; // the event fires during instantiation ... pffff!
 					Object ob = tabs.getSelectedComponent();
 					if (null == ob) return;
-					Displayable displ = ht_tabs.get(ob);
-					if (null == displ) return;
-					label.setText(displ.getProject().toString() + ": " + displ.getProject().getMeaningfulTitle(displ) + " [" + Project.getName(displ.getClass()) + "]");
+					Chain query = ht_tabs.get(ob);
+					if (null == query) return;
+					label.setText(query.getRoot().getProject().toString() + ": " + query.getCellTitle());
 				}
 			};
 			kl = new KeyAdapter() {
@@ -1051,8 +1093,7 @@ public class Compare {
 			label.addMouseListener(new MouseAdapter() {
 				public void mousePressed(MouseEvent me) {
 					if (2 != me.getClickCount()) return;
-					Displayable displ = ht_tabs.get(tabs.getSelectedComponent());
-					Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
+					ht_tabs.get(tabs.getSelectedComponent()).showCentered2D(me.isShiftDown());
 				}
 			});
 			BoxLayout bl = new BoxLayout(all, BoxLayout.Y_AXIS);
@@ -1111,7 +1152,7 @@ public class Compare {
 				case 1:
 					Displayable d = v_obs.get(row);
 					//return d.getProject().findProjectThing(d).getTitle();
-					return d.getProject().getMeaningfulTitle(d);
+					return d.getProject().getShortMeaningfulTitle(d);
 				case 2: return Utils.cutNumber(Math.floor(v_scores.get(row).doubleValue() * 10000) / 100, 2) + " %";
 				case 3: return Utils.cutNumber(v_eds.get(row).getDistance(), 2);
 				case 4: return Utils.cutNumber(v_phys_dist.get(row).doubleValue(), 2);
@@ -1284,7 +1325,8 @@ public class Compare {
 		public boolean isCellEditable(int row, int col) {
 			return false;
 		}
-		public void setValueAt(Object value, int row, int col) {}
+		public void setValueAt(Object value, int row, int col) {} // ignore
+		public void remove(Displayable d) { qh.remove(d); }
 	}
 
 	static private class QueryHolderTableListener extends MouseAdapter {
@@ -1300,7 +1342,7 @@ public class Compare {
 				if (me.isShiftDown()) {
 					model.vis.show(model.query, ref);
 				} else {
-					ref.showCentered2D();
+					ref.showCentered2D(false);
 				}
 				return;
 			}
@@ -1328,7 +1370,7 @@ public class Compare {
 						} else if (command.equals(show3D)) {
 							model.vis.show(model.query, ref);
 						} else if (command.equals(showCentered)) {
-							ref.showCentered2D();
+							ref.showCentered2D(0 != (ae.getModifiers()  & ActionEvent.SHIFT_MASK));
 						} else if (command.equals(showAxes)) {
 							model.vis.showAxesAndQueried();
 						}
