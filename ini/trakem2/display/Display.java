@@ -2996,6 +2996,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Patch p = project.getLoader().importImage(project, x, y);
 		if (null == p) {
 			finishedWorking();
+			Utils.showMessage("Could not open the image.");
 			return;
 		}
 		layer.add(p); // will add it to the proper Displays
@@ -3023,6 +3024,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		int y = srcRect.y + srcRect.height/ 2;// - imp.getHeight()/ 2;
 		Patch p = project.getLoader().importNextImage(project, x, y);
 		if (null == p) {
+			Utils.showMessage("Could not open next image.");
 			finishedWorking();
 			return;
 		}

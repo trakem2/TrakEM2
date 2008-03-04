@@ -1129,11 +1129,17 @@ abstract public class Loader {
 		final OpenDialog od = new OpenDialog("Select stack", OpenDialog.getDefaultDirectory(), null);
 		String file_name = od.getFileName();
 		if (null == file_name || file_name.toLowerCase().startsWith("null")) return null;
-		String dir = od.getDirectory();
+		String dir = od.getDirectory().replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
 
-		File f = new File(dir + "/" + file_name);
+		File f = new File(dir + file_name);
 		if (!f.exists()) {
-			Utils.showMessage("File " + dir + "/" + file_name  + " does not exist.");
+			Utils.showMessage("File " + dir + file_name  + " does not exist.");
+			return null;
+		}
+		// avoid opening trakem2 projects
+		if (file_name.toLowerCase().endsWith(".xml")) {
+			Utils.showMessage("Cannot import " + file_name + " as a stack.");
 			return null;
 		}
 		// estimate file size: assumes an uncompressed tif, or a zipped tif with an average compression ratio of 2.5
@@ -2871,6 +2877,11 @@ abstract public class Loader {
 			path = dir + name;
 		} else {
 			path = path.replace('\\', '/');
+		}
+		// avoid opening trakem2 projects
+		if (path.toLowerCase().endsWith(".xml")) {
+			Utils.showMessage("Cannot import " + path + " as a stack.");
+			return null;
 		}
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		IJ.redirectErrorMessages();
