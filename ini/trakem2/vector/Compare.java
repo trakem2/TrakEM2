@@ -644,6 +644,30 @@ public class Compare {
 			return vs;
 		}
 
+		/* WARNING should be the same as above, but it's not. The only difference is the check for calibraiton, which looks correct (the vs is already calibrated).
+		final VectorString3D makeVS2(final Chain ref, final double delta) {
+			return bringTo((VectorString3D)ref.vs.clone(), delta, cal2, trans2, rot2);
+		}
+		*/
+
+		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
+		final VectorString3D makeVS2(final Pipe ref, final double delta) {
+			return bringTo(ref.asVectorString3D(), delta, cal2, trans2, rot2);
+		}
+
+		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
+		final VectorString3D makeVS1(final Pipe ref, final double delta) {
+			return bringTo(ref.asVectorString3D(), delta, cal1, trans1, rot1);
+		}
+
+		final VectorString3D bringTo(final VectorString3D vs, final double delta, final Calibration cal, final Vector3d trans, final Transform3D rot) {
+			if (null != cal && !vs.isCalibrated()) vs.calibrate(cal);
+			vs.resample(delta);
+			vs.translate(trans);
+			vs.transform(rot);
+			return vs;
+		}
+
 		/** For each list of matches corresponding to each query chain, sort the matches by physical distance. */
 		void sortMatches() {
 			final ChainMatchComparator comp = new ChainMatchComparator();
@@ -758,14 +782,36 @@ public class Compare {
 			cal.setUnit(cal1.getUnit()); // homogeneous on all axes
 			this.common.setCalibration(cal);
 		}
-		/** TODO: should show in full the two sets of pipes derived from the root pipe of each chain,
-		 *  and not just the reference chain. */
-		public void show(Chain query, Chain ref) {
+		/** Shows the matched chain in 3D. */
+		public void show3D(Chain query, Chain ref) {
 			reset();
 			if (!query_shows) showAxesAndQueried();
 			VectorString3D vs = qh.makeVS(ref, query.vs.getDelta());
 			// The LayerSet is that of the Pipe being queried, not the given pipe to show which belongs to the reference project (and thus not to the queried pipe project)
 			Display3D.addMesh(common, vs, ref.getTitle(), ref.getColor());
+		}
+		public void showFull3D(Chain query, Chain ref) {
+			reset();
+			if (!query_shows) {
+				showAxes(query.getRoot().getColor());
+				showNode3D(query, true);
+			}
+			showNode3D(ref, false);
+		}
+		void showNode3D(Chain chain, boolean as_query) {
+			Pipe root = chain.getRoot();
+			ProjectThing pt = (ProjectThing)root.getProject().findProjectThing(root).getParent();
+			HashSet hs = pt.findChildrenOfTypeR("pipe");
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				Pipe p = (Pipe)((ProjectThing)it.next()).getObject();
+				VectorString3D vs;
+				if (as_query) {
+					vs = qh.makeVS1(p, chain.vs.getDelta());
+				} else { // as ref
+					vs = qh.makeVS2(p, chain.vs.getDelta());
+				}
+				Display3D.addMesh(common, vs, p.getProject().getShortMeaningfulTitle(p), p.getColor());
+			}
 		}
 		public void showAxesAndQueried() {
 			reset();
@@ -778,6 +824,9 @@ public class Compare {
 				if (null == qcolor) qcolor = p.getColor();
 				Display3D.addMesh(common, vs, p.getProject().getShortMeaningfulTitle(p), qcolor);
 			}
+			showAxes(qcolor);
+		}
+		void showAxes(Color qcolor) {
 
 			Color color = Color.pink.equals(qcolor) ? Color.red : qcolor;
 
@@ -1340,7 +1389,7 @@ public class Compare {
 
 			if (2 == me.getClickCount()) {
 				if (me.isShiftDown()) {
-					model.vis.show(model.query, ref);
+					model.vis.show3D(model.query, ref);
 				} else {
 					ref.showCentered2D(false);
 				}
@@ -1351,10 +1400,15 @@ public class Compare {
 				final int[] sel = table.getSelectedRows();
 				if (0 == sel.length) return;
 				JPopupMenu popup = new JPopupMenu();
-				final String show3D = "Show in 3D";
+				final String show3D = "Show match in 3D";
 				final String interp3D = "Show interpolated in 3D";
+				final String showfull3D = "Show full node in 3D";
 				final String showCentered = "Show centered in 2D";
 				final String showAxes = "Show axes and queried";
+
+				// TODO: need better
+				//  - to show the matched chains alone
+				//  - to show the full matched nodes
 
 				ActionListener listener = new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
@@ -1368,17 +1422,20 @@ public class Compare {
 							}
 							return;
 						} else if (command.equals(show3D)) {
-							model.vis.show(model.query, ref);
+							model.vis.show3D(model.query, ref);
 						} else if (command.equals(showCentered)) {
 							ref.showCentered2D(0 != (ae.getModifiers()  & ActionEvent.SHIFT_MASK));
 						} else if (command.equals(showAxes)) {
 							model.vis.showAxesAndQueried();
+						} else if (command.equals(showfull3D)) {
+							model.vis.showFull3D(model.query, ref);
 						}
 					}
 				};
 				JMenuItem item;
 				item = new JMenuItem(show3D); popup.add(item); item.addActionListener(listener);
 				item = new JMenuItem(interp3D); popup.add(item); item.addActionListener(listener);
+				item = new JMenuItem(showfull3D); popup.add(item); item.addActionListener(listener);
 				item = new JMenuItem(showCentered); popup.add(item); item.addActionListener(listener);
 				item = new JMenuItem(showAxes); popup.add(item); item.addActionListener(listener);
 
