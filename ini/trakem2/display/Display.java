@@ -1711,7 +1711,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final Container tab, final String label, final ArrayList al) {
-		try { SwingUtilities.invokeLater(new Runnable() { public void run() {
+		final boolean[] recreated = new boolean[]{false};
+		SwingUtilities.invokeLater(new Runnable() { public void run() { try {
 			if (0 == al.size()) {
 				tab.removeAll();
 				tab.add(new JLabel("No " + label + "."));
@@ -1740,8 +1741,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						tab.remove(i);
 					}
 				}
+				recreated[0] = true;
 			}
-		}});} catch (Exception e) { e.printStackTrace(); }
+		} catch (Exception e) { e.printStackTrace(); }}});
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			if (!recreated[0]) return;
+			tab.invalidate();
+			tab.validate();
+			tab.repaint();
+		}});
 	}
 
 	static public void setActive(final Object event, final Displayable displ) {
