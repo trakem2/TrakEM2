@@ -149,23 +149,24 @@ public class FSLoader extends Loader {
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */
 	public Object[] openFSProject(String path) {
 		// clean path of double-slashes, safely (and painfully)
-		path = path.replace('\\','/');
-		path = path.trim();
-		int itwo = path.indexOf("//");
-		while (-1 != itwo) {
-			if (0 == itwo) continue; // samba disk
-			if (5 == itwo  && "http:".equals(path.substring(0, 5))) continue;
-			path = path.substring(0, itwo) + path.substring(itwo+1);
-			itwo = path.indexOf("//", itwo+1);
+		if (null != path) {
+			path = path.replace('\\','/');
+			path = path.trim();
+			int itwo = path.indexOf("//");
+			while (-1 != itwo) {
+				if (0 == itwo) continue; // samba disk
+				if (5 == itwo  && "http:".equals(path.substring(0, 5))) continue;
+				path = path.substring(0, itwo) + path.substring(itwo+1);
+				itwo = path.indexOf("//", itwo+1);
+			}
 		}
 		//
-		Utils.log2("Loader.openFSProject: path is " + path);
 		if (null == path) {
 			String user = System.getProperty("user.name");
 			OpenDialog od = new OpenDialog("Select Project", OpenDialog.getDefaultDirectory(), null);
 			String file = od.getFileName();
 			if (null == file || file.toLowerCase().startsWith("null")) return null;
-			String dir = od.getDirectory();
+			String dir = od.getDirectory().replace('\\', '/');
 			if (!dir.endsWith("/")) dir += "/";
 			this.project_file_path = dir + file;
 			Utils.log2("project file path 1: " + this.project_file_path);
@@ -173,6 +174,7 @@ public class FSLoader extends Loader {
 			this.project_file_path = path;
 			Utils.log2("project file path 2: " + this.project_file_path);
 		}
+		Utils.log2("Loader.openFSProject: path is " + path);
 		// check if any of the open projects uses the same file path, and refuse to open if so:
 		if (null != FSLoader.getOpenProject(project_file_path, this)) {
 			Utils.showMessage("The project is already open.");
