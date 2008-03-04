@@ -2079,6 +2079,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				if (none) item.setEnabled(false);
 				item = new JMenuItem("Unhide all images"); item.addActionListener(this); menu.add(item);
 				if (none) item.setEnabled(false);
+				item = new JMenuItem("Hide all but images"); item.addActionListener(this); menu.add(item);
+				item = new JMenuItem("Unhide all"); item.addActionListener(this); menu.add(item);
+
 				popup.add(menu);
 			} catch (Exception e) { IJError.print(e); }
 
@@ -2601,6 +2604,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (0 != rot) selection.rotate(rot);
 			sel_box.add(selection.getLinkedBox());
 			repaint(this.layer, sel_box, Selection.PADDING);
+		} else if (command.equals("Hide all but images")) {
+			ArrayList<Class> type = new ArrayList<Class>();
+			type.add(Patch.class);
+			layer.getParent().hideExcept(type, false);
+			Display.update(layer.getParent());
+		} else if (command.equals("Unhide all")) {
+			layer.getParent().setAllVisible(false);
+			Display.update(layer.getParent());
 		} else if (command.startsWith("Hide all ")) {
 			String type = command.substring(9, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
@@ -3124,7 +3135,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	private final void showCentered(final Displayable displ) {
 		if (null == displ) return;
 		displ.setVisible(true);
-		canvas.showCentered(displ.getBoundingBox());
+		Rectangle box = displ.getBoundingBox();
+		if (0 == box.width || 0 == box.height) {
+			box.width = (int)layer.getLayerWidth();
+			box.height = (int)layer.getLayerHeight();
+		}
+		canvas.showCentered(box);
 		scrollToShow(displ);
 		if (displ instanceof ZDisplayable) {
 			// scroll to first layer that has a point

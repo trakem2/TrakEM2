@@ -853,6 +853,20 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			Display.repaint(this); // this could be optimized to repaint only the accumulated box
 		}
 	}
+	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. */
+	public void hideExcept(ArrayList<Class> type, boolean repaint) {
+		for (ZDisplayable zd : al_zdispl) {
+			if (!type.contains(zd.getClass())) zd.setVisible(false, repaint);
+		}
+		for (Layer la : al_layers) la.hideExcept(type, repaint);
+	}
+	public void setAllVisible(boolean repaint) {
+		for (ZDisplayable zd : al_zdispl) {
+			zd.setVisible(true, repaint);
+		}
+		for (Layer la : al_layers) la.setAllVisible(repaint);
+	}
+
 	/** Returns true if any of the ZDisplayable objects are of the given class. */
 	synchronized public boolean contains(Class c) {
 		Iterator it = al_zdispl.iterator();

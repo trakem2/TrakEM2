@@ -3016,7 +3016,7 @@ abstract public class Loader {
 
 		// check if it's amira labels stack to prevent missimports
 		if (null != props && -1 != props.indexOf("Materials {")) {
-			YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Warning", "You are importing a stack of Amira labels as a regular image stack. Continue?");
+			YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Warning", "You are importing a stack of Amira labels as a regular image stack. Continue anyway?");
 			if (!yn.yesPressed()) {
 				finishedWorking();
 				return;

@@ -580,6 +580,18 @@ public class Layer extends DBObject {
 			Display.repaint(this);
 		}
 	}
+	public void setAllVisible(boolean repaint) {
+		for (Displayable d : al_displayables) {
+			d.setVisible(true, repaint);
+		}
+	}
+
+	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. */
+	public void hideExcept(ArrayList<Class> type, boolean repaint) {
+		for (Displayable d : al_displayables) {
+			if (!type.contains(d.getClass())) d.setVisible(false, repaint);
+		}
+	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		String in = indent + "\t";
