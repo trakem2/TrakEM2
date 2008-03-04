@@ -395,7 +395,7 @@ public class Compare {
 				for (Chain query : qh.queries) {
 					VectorString3D vs1 = query.vs;
 					double delta1 = vs1.getDelta();
-					VectorString3D vs2 = qh.makeVS(ref, delta1);
+					VectorString3D vs2 = qh.makeVS2(ref, delta1); // was: makeVS
 					Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk);
 					double score = ((Double)ob[1]).doubleValue();
 					Editions ed = (Editions)ob[0];
@@ -657,6 +657,7 @@ public class Compare {
 		}
 
 		/** Returns a resampled and transformed copy of the ref VectorString3D. */
+		/*
 		final VectorString3D makeVS(final Chain ref, final double delta) {
 			final VectorString3D vs = (VectorString3D)ref.vs.clone();
 			vs.resample(delta);
@@ -664,12 +665,13 @@ public class Compare {
 			if (null != rot2) vs.transform(rot2);
 			return vs;
 		}
+		*/
 
 		/* WARNING should be the same as above, but it's not. The only difference is the check for calibraiton, which looks correct (the vs is already calibrated).
+		 * */
 		final VectorString3D makeVS2(final Chain ref, final double delta) {
 			return bringTo((VectorString3D)ref.vs.clone(), delta, cal2, trans2, rot2);
 		}
-		*/
 
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
 		final VectorString3D makeVS2(final Pipe ref, final double delta) {
@@ -818,7 +820,7 @@ public class Compare {
 		public void show3D(Chain query, Chain ref) {
 			reset();
 			if (!query_shows) showAxesAndQueried();
-			VectorString3D vs = qh.makeVS(ref, query.vs.getDelta());
+			VectorString3D vs = qh.makeVS2(ref, query.vs.getDelta()); // was: makeVS
 			// The LayerSet is that of the Pipe being queried, not the given pipe to show which belongs to the reference project (and thus not to the queried pipe project)
 			Display3D.addMesh(common, vs, ref.getTitle(), ref.getColor());
 		}
@@ -921,8 +923,8 @@ public class Compare {
 
 		int best_i = 0;
 		for (int i=0; i<ed.length; i++) {
-			double score1 = ed[i].getSimilarity2();
-			double score = ed[i].getSimilarity2(skip_ends, max_mut, min_chunk);
+			double score1 = ed[i].getSimilarity();
+			double score = ed[i].getSimilarity(skip_ends, max_mut, min_chunk);
 			if (score > best_score) {
 				best_i = i;
 				best_score = score;
@@ -936,7 +938,7 @@ public class Compare {
 		// now test also starting from the middle of the longest mutation chunk of the best matching
 		try {
 			Editions ed_center = best_ed.recreateFromCenter(max_mut);
-			double score_center = ed_center.getSimilarity2(skip_ends, max_mut, min_chunk);
+			double score_center = ed_center.getSimilarity(skip_ends, max_mut, min_chunk);
 			if (score_center > best_score) {
 				best_ed = ed_center;
 				best_score = score_center;
@@ -1030,7 +1032,7 @@ public class Compare {
 					VectorString3D vs1_rev = reversed_queries.get(q); // calibrated
 					double delta1 = vs1.getDelta();
 					//
-					VectorString3D vs2 = qh.makeVS(ref, delta1); // makes resampled copy
+					VectorString3D vs2 = qh.makeVS2(ref, delta1);// was: makeVS // makes resampled copy
 					if (ignore_orientation) {
 						if (mirror) vs2.mirror(VectorString3D.X_AXIS);
 						vs2.relative();
@@ -1040,9 +1042,9 @@ public class Compare {
 					double score;
 					if (ignore_orientation) {
 						ed = new Editions(vs1, vs2, delta1, false);
-						score = ed.getSimilarity2();
+						score = ed.getSimilarity();
 						Editions ed_rev = new Editions(vs1_rev, vs2, delta1, false);
-						double score_rev = ed_rev.getSimilarity2();
+						double score_rev = ed_rev.getSimilarity();
 						// the higher the better
 						if (score_rev > score) {
 							ed = ed_rev;

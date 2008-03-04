@@ -697,6 +697,7 @@ public class VectorString3D implements VectorString {
 			if (null != rvy) vs.rvy = Utils.copy(rvy, length);
 			if (null != rvz) vs.rvz = Utils.copy(rvz, length);
 			vs.tags = this.tags;
+			vs.cal = null == this.cal ? null : this.cal.copy();
 			return vs;
 		} catch (Exception e) {
 			IJError.print(e);
