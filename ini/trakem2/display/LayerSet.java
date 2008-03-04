@@ -1344,7 +1344,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		this.calibration = (Calibration)cal.clone();
 	}
 
-	protected Calibration getCalibration() {
+	public Calibration getCalibration() {
 		return this.calibration;
 	}
 

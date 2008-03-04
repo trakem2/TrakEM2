@@ -29,7 +29,9 @@ import ini.trakem2.utils.*;
 import ini.trakem2.tree.ProjectThing;
 import mpi.fruitfly.general.MultiThreading;
 
+import ij.IJ;
 import ij.gui.GenericDialog;
+import ij.gui.YesNoCancelDialog;
 import ij.measure.Calibration;
 
 import java.awt.Color;
@@ -88,12 +90,15 @@ public class Compare {
 		gd.addCheckbox("Mirror", false);
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getCheckboxes().get(1)}, null);
 		gd.addCheckbox("Ignore calibration", false);
+		gd.addCheckbox("Chain_branches", true);
+
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 
 		boolean ignore_orientation = gd.getNextBoolean();
 		boolean ignore_calibration = gd.getNextBoolean();
 		boolean mirror = gd.getNextBoolean();
+		boolean chain_branches = gd.getNextBoolean();
 
 		if (all.length > 1) {
 			int choice = gd.getNextChoiceIndex();
@@ -104,8 +109,18 @@ public class Compare {
 				ref[0] = all[choice-1];
 			}
 		}
-		return findSimilar(pipe, ref, ignore_orientation, ignore_calibration, mirror);
 
+		// check that the calibration units are the same
+		if (!ignore_calibration) {
+			String unit1 = pipe.getLayerSet().getCalibration().getUnit();
+			for (int i=0; i<ref.length; i++) {
+				if (!matchUnits(unit1, ref[i].getRootLayerSet().getCalibration().getUnit(), ref[i].getTitle())) {
+					return null;
+				}
+			}
+		}
+
+		return findSimilar(pipe, ref, ignore_orientation, ignore_calibration, mirror, chain_branches);
 	}
 
 	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe) {
@@ -234,6 +249,11 @@ public class Compare {
 		int transform_type = gd.getNextChoiceIndex();
 		boolean chain_branches = gd.getNextBoolean();
 
+		// check that the Calibration units are the same
+		if (!matchUnits(pipe.getLayerSet().getCalibration().getUnit(), all[iproject].getRootLayerSet().getCalibration().getUnit(), all[iproject].getTitle())) {
+			return null;
+		}
+
 		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches);
 	}
 
@@ -261,7 +281,7 @@ public class Compare {
 		VectorString3D[] vs = new VectorString3D[3];
 		for (int i=0; i<3; i++) vs[i] = axes[i].asVectorString3D();
 
-		Calibration cal = (null != axes[0].getLayerSet() ? axes[0].getLayerSet().getCalibrationCopy() : null);
+		Calibration cal = (null != axes[0].getLayerSet() ? axes[0].getLayerSet().getCalibration() : null);
 		// 1 - calibrate
 		if (null != cal) {
 			for (int i=0; i<3; i++) vs[i].calibrate(cal);
@@ -306,7 +326,7 @@ public class Compare {
 		VectorString3D.matchOrigins(o1, o2, transform_type);
 
 		// obtain transformation for query axes
-		final Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibrationCopy() : null);
+		final Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibration() : null);
 		final Vector3d trans1 = new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z); 
 		final Transform3D rot1 = VectorString3D.createOriginRotationTransform(o1);
 
@@ -319,7 +339,7 @@ public class Compare {
 		// obtain transformation for the ref axes
 		final Vector3d trans2 = new Vector3d(-o2[3].x, -o2[3].y, -o2[3].z);
 		final Transform3D rot2 = VectorString3D.createOriginRotationTransform(o2);
-		final Calibration cal2 = pipes_ref.get(0).getLayerSet().getCalibrationCopy();
+		final Calibration cal2 = pipes_ref.get(0).getLayerSet().getCalibration();
 
 		// transform the reference axes themselves
 		for (int i=0; i<3; i++) {
@@ -356,9 +376,6 @@ public class Compare {
 		// set and calibrate them all
 		qh.setReferenceChains(chains_ref);
 		chains_ref = null;
-
-		// query chains are both calibrated and transformed
-		// ref chains are so far NOT calibrated neither transformed
 
 		// each thread handles a ref pipe, which is to be matched against all queries
 		final int n_ref_chains = qh.chains_ref.size();
@@ -397,7 +414,7 @@ public class Compare {
 
 		// done!
 		// Now, sort matches by physical distance.
-		qh.sortMatches();
+		qh.sortMatches(new ChainMatchComparator());
 
 		// add to the GUI
 		qh.createGUI(vs_axes, vs_axes_ref);
@@ -495,6 +512,7 @@ public class Compare {
 		}
 	}
 
+	/** Represents a list of concatenated pipes, where each pipe is parent of the next within the ProjectTree. */
 	static public class Chain {
 		final ArrayList<Pipe> pipes = new ArrayList<Pipe>();
 		VectorString3D vs;
@@ -565,6 +583,7 @@ public class Compare {
 	}
 
 
+	/** Contains all que query chains created from the single pipe selected for matching against another reference project, their matches with the chains made from the reference project, and some general data such as the transforms and the axes. */
 	static private class QueryHolder {
 
 		final ArrayList<Chain> queries = new ArrayList<Chain>();
@@ -581,6 +600,8 @@ public class Compare {
 
 		VectorString3D[] vs_axes = null,
 			         vs_axes_ref = null;
+
+		boolean relative = false;
 
 		// these chains are kept only calibrated, NOT transformed. Because each query will resample it to its own delta, and then transform it.
 		final ArrayList<Chain> chains_ref = new ArrayList<Chain>();
@@ -605,8 +626,8 @@ public class Compare {
 			double delta = vs.getAverageDelta();
 			vs.resample(delta);
 			// 3 - transform to axes
-			vs.translate(trans1);
-			vs.transform(rot1);
+			if (null != trans1) vs.translate(trans1);
+			if (null != rot1) vs.transform(rot1);
 			// Store all
 			queries.add(chain);
 		}
@@ -639,8 +660,8 @@ public class Compare {
 		final VectorString3D makeVS(final Chain ref, final double delta) {
 			final VectorString3D vs = (VectorString3D)ref.vs.clone();
 			vs.resample(delta);
-			vs.translate(trans2);
-			vs.transform(rot2);
+			if (null != trans2) vs.translate(trans2);
+			if (null != rot2) vs.transform(rot2);
 			return vs;
 		}
 
@@ -663,14 +684,13 @@ public class Compare {
 		final VectorString3D bringTo(final VectorString3D vs, final double delta, final Calibration cal, final Vector3d trans, final Transform3D rot) {
 			if (null != cal && !vs.isCalibrated()) vs.calibrate(cal);
 			vs.resample(delta);
-			vs.translate(trans);
-			vs.transform(rot);
+			if (null != trans) vs.translate(trans);
+			if (null != rot) vs.transform(rot);
 			return vs;
 		}
 
 		/** For each list of matches corresponding to each query chain, sort the matches by physical distance. */
-		void sortMatches() {
-			final ChainMatchComparator comp = new ChainMatchComparator();
+		void sortMatches(Comparator comp) {
 			for (ArrayList<ChainMatch> list : matches.values()) {
 				Collections.sort(list, comp);
 			}
@@ -688,8 +708,8 @@ public class Compare {
 			for (Pipe p : getAllQueriedPipes()) {
 				VectorString3D vs = p.asVectorString3D();
 				if (null != cal1) vs.calibrate(cal1);
-				vs.translate(trans1);
-				vs.transform(rot1);
+				if (null != trans1) vs.translate(trans1);
+				if (null != rot1) vs.transform(rot1);
 				ht.put(p, vs);
 			}
 			return ht;
@@ -744,6 +764,7 @@ public class Compare {
 		return null;
 	}
 
+	/** Represents the scored match between any two Chain objects. */
 	static private class ChainMatch {
 		Chain ref;
 		Editions ed;
@@ -762,6 +783,17 @@ public class Compare {
 			return 0; // same distance
 		}
 	}
+	static private class ChainMatchComparatorSim implements Comparator {
+		public int compare(final Object ob1, final Object ob2) {
+			ChainMatch cm1 = (ChainMatch)ob1;
+			ChainMatch cm2 = (ChainMatch)ob2;
+			// select for largest similarity score
+			double val = cm1.score - cm2.score;
+			if (val < 0) return 1; // m2 is more similar
+			if (val > 0) return -1; // m2 is less similar
+			return 0; // same
+		}
+	}
 
 	static private class Visualizer {
 		QueryHolder qh;
@@ -776,7 +808,7 @@ public class Compare {
 			// create common LayerSet space
 			Pipe pipe = qh.getAllQueriedPipes().iterator().next();
 			LayerSet ls = pipe.getLayerSet();
-			Calibration cal1 = ls.getCalibrationCopy();
+			Calibration cal1 = ls.getCalibration();
 			this.common = new LayerSet(pipe.getProject(), pipe.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, false, new AffineTransform());
 			Calibration cal = new Calibration();
 			cal.setUnit(cal1.getUnit()); // homogeneous on all axes
@@ -827,17 +859,18 @@ public class Compare {
 			showAxes(qcolor);
 		}
 		void showAxes(Color qcolor) {
+			if (null != vs_axes) {
+				Color color = Color.pink.equals(qcolor) ? Color.red : qcolor;
 
-			Color color = Color.pink.equals(qcolor) ? Color.red : qcolor;
-
-			Display3D.addMesh(common, vs_axes[0], "X query", color);
-			Display3D.addMesh(common, vs_axes[1], "Y query", color);
-			Display3D.addMesh(common, vs_axes[2], "Z query", color);
-
-			Display3D.addMesh(common, vs_axes_ref[0], "X ref", Color.pink);
-			Display3D.addMesh(common, vs_axes_ref[1], "Y ref", Color.pink);
-			Display3D.addMesh(common, vs_axes_ref[2], "Z ref", Color.pink);
-
+				Display3D.addMesh(common, vs_axes[0], "X query", color);
+				Display3D.addMesh(common, vs_axes[1], "Y query", color);
+				Display3D.addMesh(common, vs_axes[2], "Z query", color);
+			}
+			if (null != vs_axes_ref) {
+				Display3D.addMesh(common, vs_axes_ref[0], "X ref", Color.pink);
+				Display3D.addMesh(common, vs_axes_ref[1], "Y ref", Color.pink);
+				Display3D.addMesh(common, vs_axes_ref[2], "Z ref", Color.pink);
+			}
 			query_shows = true;
 		}
 		public void showInterpolated(Editions ed, Chain query, Chain ref) {
@@ -903,7 +936,7 @@ public class Compare {
 		// now test also starting from the middle of the longest mutation chunk of the best matching
 		try {
 			Editions ed_center = best_ed.recreateFromCenter(max_mut);
-			double score_center = ed_center.getSimilarity(skip_ends, max_mut, min_chunk);
+			double score_center = ed_center.getSimilarity2(skip_ends, max_mut, min_chunk);
 			if (score_center > best_score) {
 				best_ed = ed_center;
 				best_score = score_center;
@@ -915,47 +948,67 @@ public class Compare {
 		return new Object[]{best_ed, new Double(best_score)};
 	}
 
-	/** Compare the given pipe with other pipes in the given standard project. WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
-	static public final Bureaucrat findSimilar(final Pipe pipe, final Project[] ref, final boolean ignore_orientation, final boolean ignore_calibration, final boolean mirror) {
+	static private boolean matchUnits(String unit1, String unit2, String project_title) {
+		if (unit1.equals(unit2)) return true;
+		// else, ask
+		YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The calibration units of the queried pipe (" + unit1 + ") does not match with that of the reference project '" + project_title + "' (" + unit2 + ").\nContinue anyway?");
+		if (yn.yesPressed()) return true;
+		return false;
+	}
+
+	/** Compare the given pipe with other pipes in the given standard project(s). WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
+	static public final Bureaucrat findSimilar(final Pipe pipe, final Project[] ref, final boolean ignore_orientation, final boolean ignore_calibration, final boolean mirror, final boolean chain_branches) {
 		final Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
 				try {
 
-		final ArrayList al = new ArrayList();
 		Utils.log2("Will search into " + ref.length + " projects.");
-		for (int i=0; i<ref.length; i++) {
-			Utils.log2("will search into project " + ref[i]);
-			al.addAll(ref[i].getRootLayerSet().get(Pipe.class));
+
+		Calibration cal = null;
+		if (!ignore_calibration) cal = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibration() : null);
+
+		final QueryHolder qh = new QueryHolder(cal, null, null,
+				                       null, null, null);
+		ArrayList<Chain> chains_ref = new ArrayList<Chain>();
+
+		final ArrayList<VectorString3D> reversed_queries = new ArrayList<VectorString3D>();
+
+		if (chain_branches) {
+			// collect the full set of ref pipes from each project
+			for (int i=0; i<ref.length; i++) {
+				for (Chain c : createPipeChains(ref[i].getRootProjectThing(), ref[i].getRootLayerSet())) {
+					if (c.getRoot().equals(pipe)) continue; // slip!
+					chains_ref.add(c);
+				}
+			}
+			// add all possible query chains, starting at the parent of the chosen pipe
+			for (Chain chain : createPipeChains((ProjectThing)pipe.getProject().findProjectThing(pipe).getParent(), pipe.getLayerSet())) {
+				qh.addQuery(chain); // calibrates it
+				if (ignore_orientation) {
+					if (mirror) chain.vs.mirror(VectorString3D.X_AXIS);
+					chain.vs.relative();
+				}
+				reversed_queries.add(chain.vs.makeReversedCopy());
+			}
+		} else {
+			// no branching: single query of one single-pipe chain
+			Chain chain = new Chain(pipe);
+			qh.addQuery(chain); // calibrates it
+			reversed_queries.add(chain.vs.makeReversedCopy());
+			for (int i=0; i<ref.length; i++) {
+				for (ZDisplayable zd : ref[i].getRootLayerSet().getZDisplayables(Pipe.class)) {
+					if (zd.equals(pipe)) continue; // skip!
+					chains_ref.add(new Chain((Pipe)zd));
+				}
+			}
 		}
 
-		// remove the self
-		al.remove(pipe);
+		qh.setReferenceChains(chains_ref);
+		chains_ref = null; // == qh.chains_ref
 
-		if (0 == al.size()) {
-			Utils.log("No other pipes found to compare with.");
-			finishedWorking();
-			return;
-		}
-
-		Calibration cal = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibrationCopy() : null);
-
-		final VectorString3D vs = pipe.asVectorString3D();
-		/* 1 */ if (!ignore_calibration && null != cal) vs.calibrate(cal);
-		/* 2 */ final double delta = vs.getAverageDelta(); // after calibration!
-		/* 3 */ vs.resample(delta);
-		/* 4 */ 
-		if (ignore_orientation) {
-			if (mirror) vs.mirror(VectorString.X_AXIS);
-			vs.relative();
-		}
-
-		final VectorString3D vs_reverse = vs.makeReversedCopy();
-
-		// array of pipes to test 'vs' and 'vs_reverse' against:
-		final Pipe[] p = new Pipe[al.size()];
-		final Match[] match = new Match[p.length];
-		al.toArray(p);
+		// each thread handles a ref pipe, which is to be matched against all queries and reversed queries
+		final int n_ref_chains = qh.chains_ref.size();
 
 		final Thread[] threads = MultiThreading.newThreads();
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -964,29 +1017,44 @@ public class Compare {
 			threads[ithread] = new Thread(new Runnable() {
 				public void run() {
 				////
-		for (int k = ai.getAndIncrement(); k < p.length; k = ai.getAndIncrement()) {
+		for (int k = ai.getAndIncrement(); k < n_ref_chains; k = ai.getAndIncrement()) {
 			try {
-				VectorString3D v = p[k].asVectorString3D();
-				Calibration cal = (null != p[k].getLayerSet() ? p[k].getLayerSet().getCalibrationCopy() : null);
-				/* 1 */ if (!ignore_calibration && null != cal) v.calibrate(cal);
-				/* 2 */ v.resample(delta);
-				/* 3 */ if (ignore_orientation) v.relative(); // vectors of consecutive differences
 
-				// test 'vs'
-				Editions ed = new Editions(vs, v, delta, false);
-				double score = ed.getDistance();
-				Utils.log2("Score: " + score + "  similarity: " + ed.getSimilarity());
+				// obtain a ref chain, to be uniquely processed by this thread
+				final Chain ref = qh.chains_ref.get(k);
+				final Calibration cal2 = ref.getRoot().getLayerSet().getCalibration();
+				if (!ignore_calibration) ref.vs.calibrate(cal2);
+				for (int q=qh.queries.size()-1; q>-1; q--) {
+					Chain query = qh.queries.get(q);
+					VectorString3D vs1 = query.vs; // calibrated
+					VectorString3D vs1_rev = reversed_queries.get(q); // calibrated
+					double delta1 = vs1.getDelta();
+					//
+					VectorString3D vs2 = qh.makeVS(ref, delta1); // makes resampled copy
+					if (ignore_orientation) {
+						if (mirror) vs2.mirror(VectorString3D.X_AXIS);
+						vs2.relative();
+					}
 
-				// test 'vs_reverse'
-				Editions ed_rev = new Editions(vs_reverse, v, delta, false);
-				double score_rev = ed_rev.getDistance();
-				Utils.log2("Score (reversed): " + score_rev + "  similarity: " + ed_rev.getSimilarity());
-
-				// choose smallest distance
-				if (ed.getDistance() < ed_rev.getDistance()) {
-					match[k] = new Match(p[k], ed, score);
-				} else {
-					match[k] = new Match(p[k], ed_rev, score_rev);
+					Editions ed;
+					double score;
+					if (ignore_orientation) {
+						ed = new Editions(vs1, vs2, delta1, false);
+						score = ed.getSimilarity2();
+						Editions ed_rev = new Editions(vs1_rev, vs2, delta1, false);
+						double score_rev = ed_rev.getSimilarity2();
+						// the higher the better
+						if (score_rev > score) {
+							ed = ed_rev;
+							score = score_rev;
+							query.vs = vs1_rev; //swap!
+						}
+					} else {
+						Object[] ob = findBestMatch(vs1, vs2, delta1, false, 0, 1);
+						ed = (Editions)ob[0];
+						score = ((Double)ob[1]).doubleValue();
+					}
+					qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
 				}
 
 			} catch (Exception e) {
@@ -999,19 +1067,14 @@ public class Compare {
 		}
 		MultiThreading.startAndJoin(threads);
 
-		Arrays.sort(match, new OrderMatch());
+		// done!
+		// Now, sort matches by physical distance.
+		qh.sortMatches(ignore_orientation ? new ChainMatchComparatorSim() : new ChainMatchComparator());
+		qh.relative = ignore_orientation;
 
-		final Vector<Displayable> v_obs = new Vector<Displayable>(match.length);
-		final Vector<Editions> v_eds = new Vector<Editions>(match.length);
-		final Vector<Double> v_scores = new Vector<Double>(match.length);
-		for (int i=0; i<match.length; i++) {
-			v_obs.add(match[i].displ);
-			v_eds.add(match[i].ed);
-			v_scores.add(match[i].score);
-		}
+		// add to the GUI
+		qh.createGUI(null, null);
 
-		// order by distance and show in a table
-		addTab(pipe, v_obs, v_eds, v_scores, null, null);
 
 				} catch (Exception e) {
 					IJError.print(e);
@@ -1066,12 +1129,7 @@ public class Compare {
 		}
 	}
 
-	static private final void addTab(final Displayable displ, final Vector<Displayable> v_obs, final Vector<Editions> v_eds, final Vector<Double> v_scores, final Vector<Double> v_phys_dist, final Visualizer vis) {
-		makeGUI();
-		ComparatorTableModel model = new ComparatorTableModel(v_obs, v_eds, v_scores, v_phys_dist, vis);
-		JTable table = new JTable(model);
-		table.addMouseListener(new ComparatorTableListener());
-		table.addKeyListener(kl);
+
 		/* // WOULD HAVE to create my own sorter: can't sort numerically even (it's bit sort), plus the getValueAt(int row, int col) gets messed up - no proper backend data update. But to create my own sorter, I need a TableSorter class which is new 1.6.0, i..e would have tobe very convolutedly generated.
 		if (ij.IJ.isJava16()) {
 			try {
@@ -1082,14 +1140,7 @@ public class Compare {
 			}
 		}
 		*/
-		// TODO DISABLED
-		/*
-		JScrollPane jsp = new JScrollPane(table);
-		ht_tabs.put(jsp, displ); // before adding the tab, so that the listener can find it
-		tabs.addTab(displ.getProject().findProjectThing(displ).getTitle(), jsp);
-		tabs.setSelectedComponent(jsp);
-		*/
-	}
+
 
 	static private void tryCloseTab(KeyEvent ke) {
 		switch (ke.getKeyCode()) {
@@ -1163,160 +1214,12 @@ public class Compare {
 		frame.toFront();
 	}
 
-	static private class ComparatorTableModel extends AbstractTableModel {
-		private Vector<Displayable> v_obs;
-		/** Keeps pointers to the VectorString3D instances and the Editions itself for further (future) processing, such as creating averaged paths. */
-		private Vector<Editions> v_eds;
-		private Vector<Double> v_scores;
-		private Vector<Double> v_phys_dist;
-		private Visualizer vis;
-		ComparatorTableModel(Vector<Displayable> v_obs, Vector<Editions> v_eds, Vector<Double> v_scores, Vector<Double> v_phys_dist, Visualizer vis) {
-			super();
-			this.v_obs = v_obs;
-			this.v_eds = v_eds;
-			this.v_scores = v_scores;
-			this.v_phys_dist = v_phys_dist;
-			this.vis = vis;
-		}
-		public Visualizer getVisualizer() { return vis; }
-		public String getColumnName(int col) {
-			switch (col) {
-				case 0: return "Project";
-				case 1: return "Match";
-				case 2: return "Similarity";
-				case 3: return "Lev Dist";
-				case 4: return "DISABLED TODO"; // TODO "Dist (" + vis.cal2.getUnits() + ")";
-				default: return "";
-			}
-		}
-		public int getRowCount() { return v_obs.size(); }
-		public int getColumnCount() {
-			if (null != v_phys_dist) return 5;
-			return 4;
-		}
-		public Object getValueAt(int row, int col) {
-			switch (col) {
-				case 0:
-					return v_obs.get(row).getProject().toString();
-				case 1:
-					Displayable d = v_obs.get(row);
-					//return d.getProject().findProjectThing(d).getTitle();
-					return d.getProject().getShortMeaningfulTitle(d);
-				case 2: return Utils.cutNumber(Math.floor(v_scores.get(row).doubleValue() * 10000) / 100, 2) + " %";
-				case 3: return Utils.cutNumber(v_eds.get(row).getDistance(), 2);
-				case 4: return Utils.cutNumber(v_phys_dist.get(row).doubleValue(), 2);
-				default: return "";
-			}
-		}
-		public Displayable getDisplayableAt(int row) {
-			return v_obs.get(row);
-		}
-		public Editions getEditionsAt(int row) {
-			return v_eds.get(row);
-		}
-		public boolean isCellEditable(int row, int col) {
-			return false;
-		}
-		public void setValueAt(Object value, int row, int col) {
-			// nothing
-			//fireTableCellUpdated(row, col);
-		}
-		public boolean remove(Displayable displ) {
-			int i = v_obs.indexOf(displ);
-			if (-1 != i) {
-				v_obs.remove(i);
-				v_eds.remove(i);
-				v_scores.remove(i);
-				return true;
-			}
-			return false;
-		}
-		public boolean contains(Object ob) {
-			return v_obs.contains(ob);
-		}
-		public void visualize(int row) {
-			if (null == this.vis) return;
-			// TODO DISABLED // vis.show((Pipe)v_obs.get(row));
-		}
-	}
-
-	static private class ComparatorTableListener extends MouseAdapter {
-		public void mousePressed(final MouseEvent me) {
-			final Object source = me.getSource();
-			final JTable table = (JTable)source;
-			final ComparatorTableModel model = (ComparatorTableModel)table.getModel();
-
-			final int row = table.rowAtPoint(me.getPoint());
-			final Object ob = model.getDisplayableAt(row);
-			Displayable displ_ = null;
-
-			if (ob instanceof Displayable) {
-				displ_ = (Displayable)ob;
-			} else {
-				Utils.log2("Comparator: unhandable table selection: " + ob);
-				return;
-			}
-			final Displayable displ = displ_;
-
-			if (2 == me.getClickCount()) {
-				if (me.isShiftDown()) {
-					model.visualize(row);
-				} else {
-					Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
-				}
-				return;
-			}
-
-			if (Utils.isPopupTrigger(me)) {
-				final int[] sel = table.getSelectedRows();
-				if (0 == sel.length) return;
-				JPopupMenu popup = new JPopupMenu();
-				final String show3D = "Show in 3D";
-				final String interp3D = "Show interpolated in 3D";
-				final String showCentered = "Show centered in 2D";
-				final String showAxes = "Show axes and queried";
-
-				ActionListener listener = new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
-						final String command = ae.getActionCommand();
-						if (command.equals(interp3D)) {
-							// for now, use the first selected only
-							try {
-								/* TODO DISABLED
-								Editions ed = model.getEditionsAt(sel[0]);
-								Pipe match = (Pipe)model.getDisplayableAt(sel[0]);
-								model.getVisualizer().showInterpolated(ed, match);
-								*/
-							} catch (Exception e) {
-								IJError.print(e);
-							}
-							return;
-						} else if (command.equals(show3D)) {
-							model.visualize(row);
-						} else if (command.equals(showCentered)) {
-							Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
-						} else if (command.equals(showAxes)) {
-							model.getVisualizer().showAxesAndQueried();
-						}
-					}
-				};
-				JMenuItem item;
-				item = new JMenuItem(show3D); popup.add(item); item.addActionListener(listener);
-				item = new JMenuItem(interp3D); popup.add(item); item.addActionListener(listener);
-				item = new JMenuItem(showCentered); popup.add(item); item.addActionListener(listener);
-				item = new JMenuItem(showAxes); popup.add(item); item.addActionListener(listener);
-
-				popup.show(table, me.getX(), me.getY());
-			}
-		}
-	}
-
 	static public void remove(Displayable displ) {
 		if (null == frame) return;
 		for (int i=tabs.getTabCount()-1; i>-1; i--) {
 			Container jsp = (Container)tabs.getComponentAt(0);
 			JTable table = (JTable)jsp.getComponent(i);
-			ComparatorTableModel model = (ComparatorTableModel)table.getModel();
+			QueryHolderTableModel model = (QueryHolderTableModel)table.getModel();
 			model.remove(displ);
 		}
 	}
@@ -1355,7 +1258,7 @@ public class Compare {
 				case 1: return "Match";
 				case 2: return "Similarity";
 				case 3: return "Lev Dist";
-				case 4: return "Dist (" + qh.cal2.getUnits() + ")";
+				case 4: return null != qh.cal2 ? "Dist (" + qh.cal2.getUnits() + ")" : "Dist";
 				default: return "";
 			}
 		}
@@ -1397,8 +1300,9 @@ public class Compare {
 			}
 
 			if (Utils.isPopupTrigger(me)) {
+				// select row under mouse
+				table.getSelectionModel().setSelectionInterval(row, row);
 				final int[] sel = table.getSelectedRows();
-				if (0 == sel.length) return;
 				JPopupMenu popup = new JPopupMenu();
 				final String show3D = "Show match in 3D";
 				final String interp3D = "Show interpolated in 3D";
@@ -1435,9 +1339,11 @@ public class Compare {
 				JMenuItem item;
 				item = new JMenuItem(show3D); popup.add(item); item.addActionListener(listener);
 				item = new JMenuItem(interp3D); popup.add(item); item.addActionListener(listener);
+				if (model.qh.relative) item.setEnabled(false);
 				item = new JMenuItem(showfull3D); popup.add(item); item.addActionListener(listener);
 				item = new JMenuItem(showCentered); popup.add(item); item.addActionListener(listener);
 				item = new JMenuItem(showAxes); popup.add(item); item.addActionListener(listener);
+				if (null == model.qh.vs_axes) item.setEnabled(false);
 
 				popup.show(table, me.getX(), me.getY());
 			}
