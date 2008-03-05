@@ -85,6 +85,9 @@ public class Project extends DBObject {
 	/** The root LayerThing of the LayerTree. */
 	private LayerThing root_lt;
 
+	/** The root TemplateThing of the TemplateTree. */
+	private TemplateThing root_tt;
+
 	/** The root LayerSet that holds the layers. */
 	private LayerSet layer_set;
 
@@ -328,13 +331,13 @@ public class Project extends DBObject {
 	}
 
 	/** Create a new Project using the given project as template. This means the DTD of the given project is copied, as well as the storage and mipmaps folders; everything else is empty in the new project. */
-	static public Project newFSProject(final Project pr) {
+	static public Project newFSProject(final Project source) {
 		StringBuffer sb = new StringBuffer();
-		pr.exportDTD(sb, new HashSet(), "");
-		TemplateThing[] roots = DTDParser.parseDTD(sb); // should write a TemplateThing.duplicate() ... but then ids may collide, etc.
-		FSLoader loader = new FSLoader(pr.getLoader());
-		Project new_project = Project.createNewProject(loader, false, roots[0]);
-		new_project.ht_props.putAll(pr.ht_props);
+		//pr.exportDTD(sb, new HashSet(), "");
+		//TemplateThing[] roots = DTDParser.parseDTD(sb); // should write a TemplateThing.duplicate() ... but then ids may collide, etc.
+		FSLoader loader = new FSLoader(source.getLoader());
+		Project new_project = Project.createNewProject(loader, false, source.root_tt, true); // will clone the root_tt of the source
+		new_project.ht_props.putAll(source.ht_props);
 		return new_project;
 	}
 
@@ -357,6 +360,7 @@ public class Project extends DBObject {
 		final Project project = (Project)root_pt.getObject();
 		project.createLayerTemplates();
 		project.template_tree = new TemplateTree(project, root_tt);
+		project.root_tt = root_tt;
 		project.root_pt= root_pt;
 		project.project_tree = new ProjectTree(project, project.root_pt);
 		project.layer_tree = new LayerTree(project, root_lt);
@@ -430,7 +434,15 @@ public class Project extends DBObject {
 		return createNewProject(loader, ask_for_template, null);
 	}
 
+	static private Project createNewSubProject(Project source, Loader loader) {
+		return createNewProject(loader, false, source.root_tt, true);
+	}
+
 	static private Project createNewProject(Loader loader, boolean ask_for_template, TemplateThing template_root) {
+		return createNewProject(loader, ask_for_template, template_root, false);
+	}
+
+	static private Project createNewProject(Loader loader, boolean ask_for_template, TemplateThing template_root, boolean clone_ids) {
 		Project project = new Project(loader);
 		// ask for an XML properties file that defines the Thing objects that can be created
 		// (the XML file will be parsed into a TemplateTree filled with TemplateThing objects)
@@ -438,13 +450,19 @@ public class Project extends DBObject {
 		if (ask_for_template) template_root = project.loader.askForXMLTemplate(project);
 		if (null == template_root) {
 			template_root = new TemplateThing("anything");
+		} else if (clone_ids) {
+			// the given template_root belongs to another project from which we are cloning
+			template_root = template_root.clone(project);
 		}
 		// create tree
 		project.template_tree = new TemplateTree(project, template_root);
+		project.root_tt = template_root;
 		// collect unique TemplateThing instances
 		project.ht_unique_tt = template_root.getUniqueTypes(new Hashtable());
 		// add all TemplateThing objects to the database, recursively
-		template_root.addToDatabase(project);
+		if (!clone_ids) template_root.addToDatabase(project);
+		// else already done when cloning the root_tt
+
 		// create a non-database bound template for the project Thing
 		TemplateThing project_template = new TemplateThing("project");
 		project.ht_unique_tt.put("project", project_template);
@@ -871,7 +889,7 @@ public class Project extends DBObject {
 		// 1 - TrakEM2 tag that encloses all hierarchies
 		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display)>\n");
 		// 2 - export user-defined templates
-		TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
+		//TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
 		sb_header.append(indent).append("<!ELEMENT ").append("project (").append(root_tt.getType()).append(")>\n");
 		sb_header.append(indent).append("<!ATTLIST project id NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project title NMTOKEN #REQUIRED>\n");
@@ -900,7 +918,7 @@ public class Project extends DBObject {
 
 	/** Returns the String to be used as Document Type of the XML file, generated from the name of the root template thing.*/
 	public String getDocType() {
-		TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
+		//TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
 		return "trakem2_" + root_tt.getType();
 	}
 

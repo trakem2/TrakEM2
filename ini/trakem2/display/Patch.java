@@ -586,9 +586,10 @@ public class Patch extends Displayable {
 		;
 	}
 
-	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. */
+	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */
 	public Displayable clone(Project pr) {
-		final Patch copy = new Patch(pr, pr.getLoader().getNextId(), null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
+		final long nid = pr.equals(this.project) ? pr.getLoader().getNextId() : this.id;
+		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.alpha = this.alpha;
 		copy.visible = true;

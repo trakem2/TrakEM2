@@ -670,6 +670,7 @@ public class Layer extends DBObject {
 	/** Make a copy of this layer into the given LayerSet, enclosing only Displayable objects within the roi, and translating them for that roi x,y. */
 	public Layer clone(final Project pr, LayerSet ls, final Rectangle roi) {
 		final Layer clone = new Layer(pr, z, thickness, ls);
+		if (!this.project.equals(pr)) clone.id = this.id;
 		for (Iterator it = find(roi).iterator(); it.hasNext(); ) {
 			Displayable copy = ((Displayable)it.next()).clone(pr);
 			if (null != copy) clone.addSilently(copy); // Dissector.clone is not implemented yet

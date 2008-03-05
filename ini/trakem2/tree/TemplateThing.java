@@ -526,4 +526,20 @@ public class TemplateThing extends DBObject implements Thing {
 	public String getInfo() {
 		return "Template Node: " + type;
 	}
+
+	/** Recursive into children: clones the whole tree from this node downward. */
+	public TemplateThing clone(final Project pr) {
+		final long nid = pr.equals(this.project) ? pr.getLoader().getNextId() : this.id;
+		final TemplateThing clone = new TemplateThing(this.type, pr, nid);
+		clone.project = pr;
+		if (!pr.equals(this.project)) clone.addToDatabase();
+		if (null == al_children) return clone;
+		// clone attributes
+		// TODO
+		// clone children
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			clone.addChild(((TemplateThing)it.next()).clone(pr));
+		}
+		return clone;
+	}
 }

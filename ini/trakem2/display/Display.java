@@ -1744,6 +1744,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				recreated[0] = true;
 			}
 		} catch (Exception e) { e.printStackTrace(); }}});
+		// crude patch to account for lack of painting some times de to asynch issuea with Swing
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 			if (!recreated[0]) return;
 			tab.invalidate();

@@ -880,12 +880,13 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public  Displayable clone(Project project) {
+	public  Displayable clone(Project pr) {
 		final ArrayList al_ul = new ArrayList();
 		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
 			al_ul.add(new Long(((Long)it.next()).longValue())); // clones of the Long that wrap layer ids
 		}
-		final AreaList copy = new AreaList(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, al_ul, (AffineTransform)this.at.clone());
+		final long nid = pr.equals(this.project) ? pr.getLoader().getNextId() : this.id;
+		final AreaList copy = new AreaList(pr, nid, null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, al_ul, (AffineTransform)this.at.clone());
 		for (Iterator it = copy.ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			entry.setValue(((Area)this.ht_areas.get(entry.getKey())).clone());

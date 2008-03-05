@@ -1304,24 +1304,27 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle. */
-	synchronized public Displayable clone(Project project, Layer first, Layer last, Rectangle roi, boolean add_to_tree) {
+	synchronized public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree) {
 		// obtain a LayerSet
 		LayerSet target = null;
 		if (null == this.layer) {
-			// copy into the exisiting root layer set
-			target = project.getRootLayerSet();
+			// copy into the existing root layer set
+			target = pr.getRootLayerSet();
 			target.setDimensions(roi.width, roi.height, LayerSet.NORTHWEST);
 		} else {
-			target = new LayerSet(project, getTitle(), 0, 0, null, layer_width, layer_height);
+			target = new LayerSet(pr, getTitle(), 0, 0, null, layer_width, layer_height);
+			if (!pr.equals(this.project)) target.id = this.id;
 		}
 		target.setCalibration(getCalibrationCopy());
+		target.snapshots_enabled = this.snapshots_enabled;
+		target.snapshots_quality = this.snapshots_quality;
 		// copy into the target LayerSet the range of layers
 		final java.util.List al = ((ArrayList)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
 		for (Iterator it = al.iterator(); it.hasNext(); ) {
 			Layer source = (Layer)it.next();
-			Layer copy = source.clone(project, target, roi);
+			Layer copy = source.clone(pr, target, roi);
 			target.addSilently(copy);
-			if (add_to_tree) project.getLayerTree().addLayer(target, copy);
+			if (add_to_tree) pr.getLayerTree().addLayer(target, copy);
 		}
 		return (Displayable)target;
 	}
