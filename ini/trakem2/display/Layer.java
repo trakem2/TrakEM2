@@ -668,17 +668,18 @@ public class Layer extends DBObject {
 	}
 
 	/** Make a copy of this layer into the given LayerSet, enclosing only Displayable objects within the roi, and translating them for that roi x,y. */
-	public Layer clone(final Project pr, LayerSet ls, final Rectangle roi) {
-		final Layer clone = new Layer(pr, z, thickness, ls);
-		if (!this.project.equals(pr)) clone.id = this.id;
+	public Layer clone(final Project pr, LayerSet ls, final Rectangle roi, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final Layer copy = new Layer(pr, nid, z, thickness);
+		copy.parent = ls;
 		for (Iterator it = find(roi).iterator(); it.hasNext(); ) {
-			Displayable copy = ((Displayable)it.next()).clone(pr);
-			if (null != copy) clone.addSilently(copy); // Dissector.clone is not implemented yet
+			Displayable dc = ((Displayable)it.next()).clone(pr, copy_id);
+			copy.addSilently(dc);
 		}
 		final AffineTransform transform = new AffineTransform();
 		transform.translate(-roi.x, -roi.y);
-		clone.apply(Displayable.class, transform);
-		return clone;
+		copy.apply(Displayable.class, transform);
+		return copy;
 	}
 
 	static public final int IMAGEPROCESSOR = 0;

@@ -1483,8 +1483,8 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	synchronized public Displayable clone(final Project pr) {
-		final long nid = pr.equals(this.project) ? pr.getLoader().getNextId() : this.id;
+	synchronized public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Pipe copy = new Pipe(pr, nid, null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
@@ -1496,8 +1496,6 @@ public class Pipe extends ZDisplayable {
 		copy.p_width = (double[])this.p_width.clone();
 		copy.p_i = new double[][]{(double[])this.p_i[0].clone(), (double[])this.p_i[1].clone()};
 		copy.p_width_i = (double[])this.p_width_i.clone();
-		// add
-		copy.layer = this.layer;
 		copy.addToDatabase();
 
 		return copy;

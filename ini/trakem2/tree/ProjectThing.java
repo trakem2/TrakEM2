@@ -514,7 +514,6 @@ public class ProjectThing extends DBObject implements Thing {
 			IJError.print(e);
 			return null;
 		}
-		// the cloned object has already added itself to the same Layer or LayerSet as the original
 		return pt;
 	}
 

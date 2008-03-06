@@ -713,8 +713,8 @@ public class Ball extends ZDisplayable {
 	}
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public Displayable clone(Project pr) {
-		final long nid = pr.equals(this.project) ? pr.getLoader().getNextId() : this.id;
+	public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Ball copy = new Ball(pr, nid, null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
 		// links are left null
 		// The data:
@@ -723,11 +723,7 @@ public class Ball extends ZDisplayable {
 		copy.p = new double[][]{(double[])this.p[0].clone(), (double[])this.p[1].clone()};
 		copy.p_layer = (long[])this.p_layer.clone();
 		copy.p_width = (double[])this.p_width.clone();
-		// add
-		copy.layer = this.layer;
 		copy.addToDatabase();
-		Display.repaint(layer_set, this, 5);
-
 		return copy;
 	}
 

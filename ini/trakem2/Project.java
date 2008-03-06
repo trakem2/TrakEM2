@@ -978,8 +978,16 @@ public class Project extends DBObject {
 	public Project createSubproject(final Rectangle roi, final Layer first, final Layer last) {
 		// make a new project using the given one as template
 		final Project pr = Project.newFSProject(first.getProject());
-		first.getParent().clone(pr, first, last, roi, true); // this is a "clone into" operation
+		first.getParent().clone(pr, first, last, roi, true, true); // this is a "clone into" operation: makes a full duplicate of this project's LayerSet into the new Project's root LayerSet.
 		return pr;
+
+		// TODO: just reserve the ids for the images involved
+		// then duplicate everything else (with new ids) if they fall within the roi.
+		// The abstract structure should be copied in full regardless, without the basic objects
+		// if they don't intersect the roi
+		//
+		// Another related option is to add a clone(Project pr, boolean copy_id) method to each object.
+		// This would actually help a lot to recognize the same objects from project to subproject.
 	}
 
 	public void parseXMLOptions(final Hashtable ht_attributes) {

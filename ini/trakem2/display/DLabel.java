@@ -463,17 +463,14 @@ public class DLabel extends Displayable {
 	}
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public Displayable clone(Project pr) {
-		final long nid = pr.equals(this.project) ? pr.getLoader().getNextId() : this.id;
+	public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final DLabel copy = new DLabel(pr, nid, title, width, height, type, font.getName(), font.getStyle(), font.getSize(), false, (AffineTransform)this.at.clone());
 		copy.alpha = this.alpha;
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.visible = true;
 		// add
-		copy.layer = this.layer;
-		copy.layer.add(copy); // TODO: added to the Layer !?!?
 		copy.addToDatabase();
-		Display.repaint(layer, this, 5);
 		return copy;
 	}
 }

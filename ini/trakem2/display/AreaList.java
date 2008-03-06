@@ -880,21 +880,17 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public  Displayable clone(Project pr) {
+	public Displayable clone(final Project pr, final boolean copy_id) {
 		final ArrayList al_ul = new ArrayList();
 		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
 			al_ul.add(new Long(((Long)it.next()).longValue())); // clones of the Long that wrap layer ids
 		}
-		final long nid = pr.equals(this.project) ? pr.getLoader().getNextId() : this.id;
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final AreaList copy = new AreaList(pr, nid, null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, al_ul, (AffineTransform)this.at.clone());
 		for (Iterator it = copy.ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			entry.setValue(((Area)this.ht_areas.get(entry.getKey())).clone());
 		}
-		// add
-		copy.layer = this.layer; // this does not add it to any layer, just sets the 'current' layer pointer
-		copy.addToDatabase();
-		//
 		return copy;
 	}
 

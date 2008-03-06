@@ -47,7 +47,7 @@ public abstract class Displayable extends DBObject {
 	protected double width = 0,
 		         height = 0;
 
-	private boolean locked = false;
+	protected boolean locked = false;
 	protected String title;
 	protected Color color = Color.yellow;
 	protected float alpha = 1.0f; // from 0 to 1 (0 is full transparency)
@@ -1080,8 +1080,13 @@ public abstract class Displayable extends DBObject {
 		return clone(this.project);
 	}
 
-	/** Performs a deep copy of this object but assigning to it the given project. */
-	abstract public Displayable clone(Project pr);
+	/** Performs a deep copy of this object, obtaining its unique id either from the given project or the exact same as this object's id. The visibility, though, is set to true at all times. */
+	abstract public Displayable clone(Project pr, boolean copy_id);
+
+	/** Performs a deep copy of this object but assigning to it the given project. The visibility, though, is set to true at all times. */
+	public Displayable clone(Project pr) {
+		return clone(pr, false);
+	}
 
 	public LayerSet getLayerSet() {
 		if (null != layer) return layer.getParent();

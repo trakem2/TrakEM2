@@ -72,6 +72,21 @@ public class Dissector extends ZDisplayable {
 		/** The dimensions of each box. */
 		int radius;
 
+		public Object clone() {
+			final Item copy = new Item();
+			copy.tag = this.tag;
+			copy.radius = radius;
+			copy.n_points = this.n_points;
+			copy.p = new double[2][this.p[0].length];
+			System.arraycopy(this.p[0], 0, copy.p[0], 0, this.p[0].length);
+			System.arraycopy(this.p[1], 0, copy.p[1], 0, this.p[1].length);
+			copy.p_layer = new long[this.p_layer.length];
+			System.arraycopy(this.p_layer, 0, copy.p_layer, 0, this.p_layer.length);
+			return copy;
+		}
+
+		private Item() {}
+
 		private Item(int tag, int radius) {
 			this.tag = tag;
 			this.radius = radius;
@@ -388,10 +403,14 @@ public class Dissector extends ZDisplayable {
 	}
 
 	/** Returns a deep copy. */
-	public Displayable clone(Project project) {
-		// TODO
-		Utils.log2("Cloning a Dissector not implemented yet.");
-		return null;
+	public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final Dissector copy = new Dissector(pr, nid, this.title, this.width, this.height, this.alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
+		for (Item item : this.al_items) {
+			copy.al_items.add((Item)item.clone());
+		}
+		copy.addToDatabase();
+		return copy;
 	}
 
 	public boolean isDeletable() {

@@ -1299,30 +1299,29 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return true;
 	}
 
-	synchronized public Displayable clone(Project project) {
-		return clone(project, (Layer)al_layers.get(0), (Layer)al_layers.get(al_layers.size()-1), new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight())), false);
+	synchronized public Displayable clone(final Project pr, final boolean copy_id) {
+		return clone(pr, (Layer)al_layers.get(0), (Layer)al_layers.get(al_layers.size()-1), new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight())), false, copy_id);
 	}
 
 	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle. */
-	synchronized public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree) {
+	synchronized public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree, boolean copy_id) {
 		// obtain a LayerSet
 		LayerSet target = null;
 		if (null == this.layer) {
-			// copy into the existing root layer set
+			// copy into the existing root layer set of the given project
 			target = pr.getRootLayerSet();
 			target.setDimensions(roi.width, roi.height, LayerSet.NORTHWEST);
 		} else {
-			target = new LayerSet(pr, getTitle(), 0, 0, null, layer_width, layer_height);
-			if (!pr.equals(this.project)) target.id = this.id;
+			final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+			target = new LayerSet(pr, nid, getTitle(), this.width, this.height, this.rot_x, this.rot_y, this.rot_z, this.layer_width, this.layer_height, this.locked, this.snapshots_enabled, (AffineTransform)this.at.clone());
 		}
 		target.setCalibration(getCalibrationCopy());
-		target.snapshots_enabled = this.snapshots_enabled;
 		target.snapshots_quality = this.snapshots_quality;
 		// copy into the target LayerSet the range of layers
 		final java.util.List al = ((ArrayList)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
 		for (Iterator it = al.iterator(); it.hasNext(); ) {
 			Layer source = (Layer)it.next();
-			Layer copy = source.clone(pr, target, roi);
+			Layer copy = source.clone(pr, target, roi, copy_id);
 			target.addSilently(copy);
 			if (add_to_tree) pr.getLayerTree().addLayer(target, copy);
 		}
