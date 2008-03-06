@@ -603,7 +603,7 @@ public class Patch extends Displayable {
 
 	/** Override to cancel. */
 	public void linkPatches() {
-		Utils.log("Patch class can't link other patches using Displayble.linkPatches()");
+		Utils.log2("Patch class can't link other patches using Displayble.linkPatches()");
 	}
 
 	public void paintSnapshot(final Graphics2D g, final double mag) {

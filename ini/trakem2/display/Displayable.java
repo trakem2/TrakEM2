@@ -710,28 +710,14 @@ public abstract class Displayable extends DBObject {
 
 	/** Check if this perimeter's intersects that of the given Displayable. */
 	public boolean intersects(final Displayable d) {
-		/*
-		final Polygon pol1 = getPerimeter();
-		final Polygon pol2 = d.getPerimeter();
-		for (int i=0; i<pol1.npoints; i++) {
-			if (pol2.contains(pol1.xpoints[i], pol1.ypoints[i])) {
-				return true; // works even if any 2 points are simply overlapping
-			}
-		}
-		return false;
-		*/
-		//return new Area(getPerimeter()).intersects(new Area(d.getPerimeter()));
-		final Area area = new Area(d.getPerimeter());
-		area.intersect(new Area(this.getPerimeter()));
-		Rectangle b = area.getBounds();
+		return intersects(new Area(d.getPerimeter()));
+	}
+
+	public boolean intersects(final Area area) {
+		final Area a = new Area(getPerimeter());
+		a.intersect(area);
+		final Rectangle b = a.getBounds();
 		return 0 != b.width && 0 != b.height;
-		/* // debug
-		boolean result = (0 != b.width && 0 != b.height);
-		if (result) {
-			Utils.log2(title.substring(title.length()-8, title.length()-6) + " intersects " + d.title.substring(d.title.length()-8, d.title.length()-6));
-		}
-		return result;
-		*/
 	}
 
 	/** Returns the intersection of this Displayable's area with the given one. */

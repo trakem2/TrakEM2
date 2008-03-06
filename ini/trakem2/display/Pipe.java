@@ -47,6 +47,7 @@ import java.awt.Composite;
 import java.awt.AlphaComposite;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
+import java.awt.geom.Area;
 
 import javax.vecmath.Point3f;
 
@@ -1482,10 +1483,10 @@ public class Pipe extends ZDisplayable {
 		return null;
 	}
 
-	/** Performs a deep copy of this object, without the links, unlocked and visible. */
+	/** Performs a deep copy of this object, without the links. */
 	synchronized public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		final Pipe copy = new Pipe(pr, nid, null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
+		final Pipe copy = new Pipe(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, (AffineTransform)this.at.clone());
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
 		copy.n_points = n_points;
@@ -1845,5 +1846,29 @@ public class Pipe extends ZDisplayable {
 		vs.calibrate(this.layer_set.getCalibration());
 		double len = vs.computeLength(); // no resampling
 		return new StringBuffer("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
+	}
+
+	/** @param roi is expected in world coordinates. */
+	public boolean intersects(final Area area, final double z_first, final double z_last) {
+		// find lowest and highest Z
+		double min_z = Double.MAX_VALUE;
+		double max_z = 0;
+		for (int i=0; i<n_points; i++) {
+			double laz =layer_set.getLayer(p_layer[i]).getZ();
+			if (laz < min_z) min_z = laz;
+			if (laz > max_z) max_z = laz;
+		}
+		if (z_last < min_z || z_first > max_z) return false;
+		// check the roi
+		for (int i=0; i<n_points; i++)  {
+			final Polygon[] pol = getSubPerimeters(layer_set.getLayer(p_layer[i]));
+			for (int k=0; k<pol.length; k++) {
+				Area a = new Area(pol[k]).createTransformedArea(this.at);
+				a.intersect(area);
+				Rectangle r = a.getBounds();
+				if (0 != r.width && 0 != r.height) return true;
+			}
+		}
+		return false;
 	}
 }

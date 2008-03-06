@@ -515,6 +515,9 @@ public class ProjectThing extends DBObject implements Thing {
 				original.getLayer().add(displ);
 				Display.repaint(original.getLayer(), displ, 5);
 			}
+			// user-friendly copy:
+			displ.setLocked(false);
+			displ.setVisible(true);
 			// set the copy as selected in the front Display, if any
 			if (null != Display.getFront()) Display.getFront().select(displ);
 		} catch (Exception e) {
@@ -816,7 +819,10 @@ public class ProjectThing extends DBObject implements Thing {
 		if (null != this.al_children) {
 			copy.al_children = new ArrayList();
 			for (Iterator it = this.al_children.iterator(); it.hasNext(); ) {
-				ProjectThing cc = ((ProjectThing)it.next()).subclone(pr);
+				ProjectThing child = (ProjectThing)it.next();
+				ProjectThing cc = child.subclone(pr);
+				// check object:
+				if (child.object instanceof DBObject && null == cc.object) continue; // don't add: the object was not cloned and thus not found.
 				cc.setParent(this);
 				copy.al_children.add(cc);
 			}

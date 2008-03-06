@@ -95,7 +95,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		this.srcRect = (Rectangle)srcRect.clone(); // just in case
 		super.setDrawingSize((int)Math.ceil(srcRect.width * mag), (int)Math.ceil(srcRect.height * mag));
 		setMagnification(mag);
-		display.pack();
+		display.pack(); // TODO should be run via invokeLater ... need to check many potential locks of invokeLater calling each other.
 	}
 
 	/** Does not repaint. */

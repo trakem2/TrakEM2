@@ -46,6 +46,7 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Hashtable;
@@ -1311,15 +1312,20 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		copy.setCalibration(getCalibrationCopy());
 		copy.snapshots_quality = this.snapshots_quality;
 		// copy objects that intersect the roi, from within the given range of layers
-		final java.util.List al = ((ArrayList)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
-		for (Layer layer : al_layers) {
+		final java.util.List<Layer> al = ((ArrayList<Layer>)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
+		Utils.log2("al.size() : " + al.size());
+		for (Layer layer : al) {
 			Layer layercopy = layer.clone(pr, copy, roi, copy_id);
 			copy.addSilently(layercopy);
 			if (add_to_tree) pr.getLayerTree().addLayer(copy, layercopy);
 		}
-		// copy ZDisplayable objects
-		for (ZDisplayable zd : al_zdispl) {
-			copy.addSilently((ZDisplayable)zd.clone(pr, copy_id));
+		// copy ZDisplayable objects if they intersect the roi, and translate them properly
+		final AffineTransform trans = new AffineTransform();
+		trans.translate(-roi.x, -roi.y);
+		for (ZDisplayable zd : find(first, last, new Area(roi))) {
+			ZDisplayable zdcopy = (ZDisplayable)zd.clone(pr, copy_id);
+			zdcopy.getAffineTransform().preConcatenate(trans);
+			copy.addSilently(zdcopy);
 		}
 		// fix links:
 		copy.linkPatchesR();
@@ -1526,5 +1532,16 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		for (Layer la : al_layers) {
 			la.updateLayerTree();
 		}
+	}
+
+	/** Find the ZDisplayable objects that intersect with the 3D roi defined by the first and last layers, and the area -all in world coordinates. */
+	public ArrayList<ZDisplayable> find(final Layer first, final Layer last, final Area area) {
+		final ArrayList<ZDisplayable> al = new ArrayList<ZDisplayable>();
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.intersects(area, first.getZ(), last.getZ())) {
+				al.add(zd);
+			}
+		}
+		return al;
 	}
 }

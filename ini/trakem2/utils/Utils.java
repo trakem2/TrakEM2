@@ -49,6 +49,7 @@ import java.awt.MenuItem;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Area;
 import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
@@ -954,5 +955,12 @@ public class Utils implements ij.plugin.PlugIn {
 
 		for (int i=1; i<3; i++) a[i] = (b[i] + c[i]) / 2; // only Saturation and Brightness can be averaged
 		return Color.getHSBColor(a[0], a[1], a[2]);
+	}
+
+	static public final boolean intersects(final Area a1, final Area a2) {
+		final Area b = new Area(a1);
+		b.intersect(a2);
+		final java.awt.Rectangle r = b.getBounds();
+		return 0 != r.width && 0 != r.height;
 	}
 }

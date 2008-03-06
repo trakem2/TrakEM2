@@ -30,6 +30,7 @@ import java.awt.Rectangle;
 import java.util.Hashtable;
 import java.util.HashSet;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
@@ -127,4 +128,6 @@ public abstract class ZDisplayable extends Displayable {
 		Display.repaint(layer_set, this, 5);
 		Display3D.setColor(this, color);
 	}
+
+	abstract public boolean intersects(Area area, double z_first, double z_last);
 }

@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
+import java.awt.geom.Area;
 
 import javax.vecmath.Point3f;
 
@@ -712,10 +713,10 @@ public class Ball extends ZDisplayable {
 		return sb.toString();
 	}
 
-	/** Performs a deep copy of this object, without the links, unlocked and visible. */
+	/** Performs a deep copy of this object, without the links. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		final Ball copy = new Ball(pr, nid, null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
+		final Ball copy = new Ball(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, (AffineTransform)this.at.clone());
 		// links are left null
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
@@ -850,5 +851,29 @@ public class Ball extends ZDisplayable {
 			p_width[i] = (Math.abs(pw[0][i] - p[0][i]) + Math.abs(pw[1][i] - p[1][i])) / 2;
 		}
 		return new Object[]{p, p_width};
+	}
+
+	/** @param roi is expected in world coordinates. */
+	public boolean intersects(final Area area, final double z_first, final double z_last) {
+		// find lowest and highest Z
+		double min_z = Double.MAX_VALUE;
+		double max_z = 0;
+		for (int i=0; i<n_points; i++) {
+			double laz =layer_set.getLayer(p_layer[i]).getZ();
+			if (laz < min_z) min_z = laz;
+			if (laz > max_z) max_z = laz;
+		}
+		if (z_last < min_z || z_first > max_z) return false;
+		// check the roi
+		for (int i=0; i<n_points; i++)  {
+			final Rectangle[] rec = getSubPerimeters(layer_set.getLayer(p_layer[i]));
+			for (int k=0; k<rec.length; k++) {
+				Area a = new Area(rec[k]).createTransformedArea(this.at);
+				a.intersect(area);
+				Rectangle r = a.getBounds();
+				if (0 != r.width && 0 != r.height) return true;
+			}
+		}
+		return false;
 	}
 }

@@ -879,14 +879,14 @@ public class AreaList extends ZDisplayable {
 		return null;
 	}
 
-	/** Performs a deep copy of this object, without the links, unlocked and visible. */
+	/** Performs a deep copy of this object, without the links. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final ArrayList al_ul = new ArrayList();
 		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
 			al_ul.add(new Long(((Long)it.next()).longValue())); // clones of the Long that wrap layer ids
 		}
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		final AreaList copy = new AreaList(pr, nid, null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, al_ul, (AffineTransform)this.at.clone());
+		final AreaList copy = new AreaList(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.visible, al_ul, (AffineTransform)this.at.clone());
 		for (Iterator it = copy.ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			entry.setValue(((Area)this.ht_areas.get(entry.getKey())).clone());
@@ -1100,5 +1100,20 @@ public class AreaList extends ZDisplayable {
 		surface /= scale;
 		// remove pretentious after-comma digits on return:
 		return new StringBuffer("Volume: ").append(IJ.d2s(volume, 2)).append(" (cubic pixels)\nLateral surface: ").append(IJ.d2s(surface, 2)).append(" (square pixels)\n").toString();
+	}
+
+	/** @param roi is expected in world coordinates. */
+	public boolean intersects(final Area area, final double z_first, final double z_last) {
+		for (Iterator<Map.Entry> it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = it.next();
+			Layer layer = layer_set.getLayer(((Long)entry.getKey()).longValue());
+			if (layer.getZ() >= z_first && layer.getZ() <= z_last) {
+				Area a = ((Area)entry.getValue()).createTransformedArea(this.at);
+				a.intersect(area);
+				Rectangle r = a.getBounds();
+				if (0 != r.width && 0 != r.height) return true;
+			}
+		}
+		return false;
 	}
 }

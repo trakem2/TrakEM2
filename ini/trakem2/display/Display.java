@@ -2956,9 +2956,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				if (gd.wasCanceled()) return;
 				first = layer.getParent().getLayer(gd.getNextChoiceIndex());
 				last = layer.getParent().getLayer(gd.getNextChoiceIndex());
+				Utils.log2("first, last: " + first + ", " + last);
 			}
 			Project sub = getProject().createSubproject(roi.getBounds(), first, last);
-			new Display(sub, sub.getRootLayerSet().getLayer(0));
+			LayerSet subls = sub.getRootLayerSet();
+			Display d = new Display(sub, subls.getLayer(0));
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+			d.canvas.showCentered(new Rectangle(0, 0, (int)subls.getLayerWidth(), (int)subls.getLayerHeight()));
+			}});
 		} else if (command.equals("Project properties...")) {
 			project.adjustProperties();
 		} else {

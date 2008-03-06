@@ -1374,7 +1374,7 @@ public class Profile extends Displayable {
 	/** Performs a deep copy of this object, unlocked and visible. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		final Profile copy = new Profile(pr, nid, null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), closed, false, (AffineTransform)this.at.clone());
+		final Profile copy = new Profile(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), closed, this.locked, (AffineTransform)this.at.clone());
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
 		copy.n_points = n_points;
