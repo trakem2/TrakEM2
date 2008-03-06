@@ -43,6 +43,7 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.Map;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -286,6 +287,12 @@ public class ProjectThing extends DBObject implements Thing {
 
 	public Thing getParent() {
 		return parent;
+	}
+
+	/** Crawl up until finding a parent that has no parent: the root. */
+	public ProjectThing getParentR() {
+		if (null == parent) return this;
+		else return parent.getParentR();
 	}
 
 	public void setTitle(String title) {
@@ -796,5 +803,31 @@ public class ProjectThing extends DBObject implements Thing {
 			ProjectThing pt = (ProjectThing)it.next();
 			pt.getInfo(hs, info);
 		}
+	}
+
+	/** Implicit id copying; assumes the ids of the object are also the same in the given project; the object, if it is a DBObject, is retrieved from the given project by matching its id. */
+	public ProjectThing subclone(final Project pr) {
+		Object ob = null;
+		if (null != this.object) {
+			if (this.object instanceof DBObject) ob = pr.getRootLayerSet().findById(((DBObject)this.object).getId());
+			else ob = this.object; // String is a final class: no copy protection needed.
+		}
+		final ProjectThing copy = new ProjectThing(pr.getTemplateThing(this.template.getType()), pr, this.id, ob, new ArrayList(), new Hashtable());
+		if (null != this.al_children) {
+			copy.al_children = new ArrayList();
+			for (Iterator it = this.al_children.iterator(); it.hasNext(); ) {
+				ProjectThing cc = ((ProjectThing)it.next()).subclone(pr);
+				cc.setParent(this);
+				copy.al_children.add(cc);
+			}
+		}
+		if (null != this.ht_attributes) {
+			copy.ht_attributes = new Hashtable();
+			for (Iterator<Map.Entry> it = this.ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = it.next();
+				copy.ht_attributes.put(entry.getKey(), ((ProjectAttribute)entry.getValue()).subclone(pr, copy)); // String is a final class ... again, not turtles all the way down.
+			}
+		}
+		return copy;
 	}
 }

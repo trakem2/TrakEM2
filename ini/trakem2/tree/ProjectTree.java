@@ -154,7 +154,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				ProjectThing new_thing = null;
 				if (command.startsWith("new ")) {
 					new_thing = thing.createChild(command.substring(4)); // if it's a Displayable, it will be added to whatever layer is in the front Display
-				} else if (command.equals("Duplicate")) { // just to keep myself fro mscrewing in the future
+				} else if (command.equals("Duplicate")) { // just to keep myself from screwing in the future
 					if (Project.isBasicType(thing.getType()) && null != thing.getParent()) {
 						new_thing = ((ProjectThing)thing.getParent()).createClonedChild(thing);
 					}

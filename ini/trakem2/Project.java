@@ -330,17 +330,6 @@ public class Project extends DBObject {
 		return null;
 	}
 
-	/** Create a new Project using the given project as template. This means the DTD of the given project is copied, as well as the storage and mipmaps folders; everything else is empty in the new project. */
-	static public Project newFSProject(final Project source) {
-		StringBuffer sb = new StringBuffer();
-		//pr.exportDTD(sb, new HashSet(), "");
-		//TemplateThing[] roots = DTDParser.parseDTD(sb); // should write a TemplateThing.duplicate() ... but then ids may collide, etc.
-		FSLoader loader = new FSLoader(source.getLoader());
-		Project new_project = Project.createNewProject(loader, false, source.root_tt, true); // will clone the root_tt of the source
-		new_project.ht_props.putAll(source.ht_props);
-		return new_project;
-	}
-
 	/** Opens a project from an .xml file. If the path is null it'll be asked for.
 	 *  Only one project may be opened at a time.
 	 */
@@ -452,8 +441,8 @@ public class Project extends DBObject {
 			template_root = new TemplateThing("anything");
 		} else if (clone_ids) {
 			// the given template_root belongs to another project from which we are cloning
-			template_root = template_root.clone(project);
-		}
+			template_root = template_root.clone(project, true);
+		} // else, use the given template_root as is.
 		// create tree
 		project.template_tree = new TemplateTree(project, template_root);
 		project.root_tt = template_root;
@@ -698,9 +687,12 @@ public class Project extends DBObject {
 	}
 
 	public DBObject findById(final long id) {
+		if (this.id == id) return this;
 		DBObject dbo = layer_set.findById(id);
 		if (null != dbo) return dbo;
-		return root_pt.findChild(id); // could call findObject(id), but all objects must exist in layer sets anyway.
+		dbo = root_pt.findChild(id); // could call findObject(id), but all objects must exist in layer sets anyway.
+		if (null != dbo) return dbo;
+		return (DBObject)root_tt.findChild(id);
 	}
 
 	/** Find a LayerThing that contains the given object. */
@@ -923,7 +915,7 @@ public class Project extends DBObject {
 	}
 
 	/** Find an instance containing the given tree. */
-	static public Project getInstance(DNDTree ob) {
+	static public Project getInstance(final DNDTree ob) {
 		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
 			Project project = (Project)it.next();
 			if (project.layer_tree.equals(ob)) return project;
@@ -974,20 +966,50 @@ public class Project extends DBObject {
 		return !input_disabled;
 	}
 
-	/** Create a new subproject for the given layer range and ROI. */
+	/** Create a new subproject for the given layer range and ROI.
+	*   Create a new Project using the given project as template. This means the DTD of the given project is copied, as well as the storage and mipmaps folders; everything else is empty in the new project. */
 	public Project createSubproject(final Rectangle roi, final Layer first, final Layer last) {
-		// make a new project using the given one as template
-		final Project pr = Project.newFSProject(first.getProject());
-		first.getParent().clone(pr, first, last, roi, true, true); // this is a "clone into" operation: makes a full duplicate of this project's LayerSet into the new Project's root LayerSet.
-		return pr;
+		try {
+			// The order matters.
+			final Project pr = new Project(new FSLoader(this.getLoader()));
+			pr.id = this.id;
+			// copy properties
+			pr.title = this.title;
+			pr.ht_props.putAll(this.ht_props);
+			// copy template
+			pr.root_tt = this.root_tt.clone(pr, true);
+			pr.template_tree = new TemplateTree(pr, pr.root_tt);
+			pr.ht_unique_tt = root_tt.getUniqueTypes(new Hashtable());
+			TemplateThing project_template = new TemplateThing("project");
+			project_template.addChild(pr.root_tt);
+			pr.ht_unique_tt.put("project", project_template);
+			// create the layers templates
+			pr.createLayerTemplates();
+			// copy LayerSet and all involved Displayable objects
+			pr.layer_set = (LayerSet)this.layer_set.clone(pr, first, last, roi, false, true);
+			// create layer tree
+			pr.root_lt = new LayerThing(pr.layer_set_template, pr, pr.layer_set);
+			pr.layer_tree = new LayerTree(pr, pr.root_lt);
+			// add layer nodes to the layer tree (solving chicken-and-egg problem)
+			pr.layer_set.updateLayerTree();
+			// copy project tree
+			pr.root_pt = this.root_pt.subclone(pr);
+			pr.project_tree = new ProjectTree(pr, pr.root_pt);
+			// not copying node expanded state.
+			// register
+			al_open_projects.add(pr);
+			// add to gui:
+			ControlWindow.add(pr, pr.template_tree, pr.project_tree, pr.layer_tree);
 
-		// TODO: just reserve the ids for the images involved
-		// then duplicate everything else (with new ids) if they fall within the roi.
-		// The abstract structure should be copied in full regardless, without the basic objects
-		// if they don't intersect the roi
-		//
-		// Another related option is to add a clone(Project pr, boolean copy_id) method to each object.
-		// This would actually help a lot to recognize the same objects from project to subproject.
+			// Above, the id of each object is preserved from this project into the subproject.
+
+			// The abstract structure should be copied in full regardless, without the basic objects
+			// included if they intersect the roi.
+
+			return pr;
+
+		} catch (Exception e) { e.printStackTrace(); }
+		return null;
 	}
 
 	public void parseXMLOptions(final Hashtable ht_attributes) {

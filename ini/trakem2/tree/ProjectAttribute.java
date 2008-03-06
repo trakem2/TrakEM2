@@ -50,6 +50,12 @@ public class ProjectAttribute extends DBObject implements Attribute { // stupid 
 		this.owner = null;
 	}
 
+	/** WARNING: the object is not cloned. Implicit id copying. */
+	public ProjectAttribute subclone(final Project pr, final Thing copy_owner) {
+		final ProjectAttribute copy = new ProjectAttribute(pr, this.title, this.object, copy_owner);
+		return copy;
+	}
+
 	/** Resolve the temporary object to the proper object, and assign the owner Thing. */
 	public void setup(Thing owner) {
 		this.owner = owner;

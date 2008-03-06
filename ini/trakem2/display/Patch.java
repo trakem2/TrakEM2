@@ -601,6 +601,11 @@ public class Patch extends Displayable {
 		return copy;
 	}
 
+	/** Override to cancel. */
+	public void linkPatches() {
+		Utils.log("Patch class can't link other patches using Displayble.linkPatches()");
+	}
+
 	public void paintSnapshot(final Graphics2D g, final double mag) {
 		if (layer.getParent().areSnapshotsEnabled()) {
 			if (this.getClass().equals(Patch.class) && !project.getLoader().isSnapPaintable(this.id)) {

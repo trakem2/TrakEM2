@@ -1306,26 +1306,24 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle. */
 	synchronized public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree, boolean copy_id) {
 		// obtain a LayerSet
-		LayerSet target = null;
-		if (null == this.layer) {
-			// copy into the existing root layer set of the given project
-			target = pr.getRootLayerSet();
-			target.setDimensions(roi.width, roi.height, LayerSet.NORTHWEST);
-		} else {
-			final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-			target = new LayerSet(pr, nid, getTitle(), this.width, this.height, this.rot_x, this.rot_y, this.rot_z, this.layer_width, this.layer_height, this.locked, this.snapshots_enabled, (AffineTransform)this.at.clone());
-		}
-		target.setCalibration(getCalibrationCopy());
-		target.snapshots_quality = this.snapshots_quality;
-		// copy into the target LayerSet the range of layers
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final LayerSet copy = new LayerSet(pr, nid, getTitle(), this.width, this.height, this.rot_x, this.rot_y, this.rot_z, roi.width, roi.height, this.locked, this.snapshots_enabled, (AffineTransform)this.at.clone());
+		copy.setCalibration(getCalibrationCopy());
+		copy.snapshots_quality = this.snapshots_quality;
+		// copy objects that intersect the roi, from within the given range of layers
 		final java.util.List al = ((ArrayList)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Layer source = (Layer)it.next();
-			Layer copy = source.clone(pr, target, roi, copy_id);
-			target.addSilently(copy);
-			if (add_to_tree) pr.getLayerTree().addLayer(target, copy);
+		for (Layer layer : al_layers) {
+			Layer layercopy = layer.clone(pr, copy, roi, copy_id);
+			copy.addSilently(layercopy);
+			if (add_to_tree) pr.getLayerTree().addLayer(copy, layercopy);
 		}
-		return (Displayable)target;
+		// copy ZDisplayable objects
+		for (ZDisplayable zd : al_zdispl) {
+			copy.addSilently((ZDisplayable)zd.clone(pr, copy_id));
+		}
+		// fix links:
+		copy.linkPatchesR();
+		return (Displayable)copy;
 	}
 
 	public LayerStack makeLayerStack(Display display) {
@@ -1344,7 +1342,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	public int getPixelsDimension() { return max_dimension; }
 	public void setPixelsDimension(int d) {
-		// TODO
+		Utils.logAll("LayerSet.setPixelsDimension not implemented yet."); // TODO
 	}
 
 	public void setPixelsVirtualizationEnabled(boolean b) { this.virtualization_enabled = b; }
@@ -1439,8 +1437,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				if (ob.getClass().equals(c)) all.add(ob);
 			}
 		}
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
+		for (Layer layer : al_layers) {
 			all.addAll(layer.getDisplayables(c));
 			ArrayList al_ls = layer.getDisplayables(LayerSet.class);
 			for (Iterator i2 = al_ls.iterator(); i2.hasNext(); ) {
@@ -1494,6 +1491,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return null;
 	}
 
+
+	/** Searches in all layers. Ignores the ZDisplaybles. */
 	public Displayable findDisplayable(final long id) {
 		for (Layer la : al_layers) {
 			for (Displayable d : la.getDisplayables()) {
@@ -1503,6 +1502,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return null;
 	}
 
+	/** Searches in all ZDisplayables and in all layers, recursively into nested LayerSets. */
 	public DBObject findById(final long id) {
 		if (this.id == id) return this;
 		for (ZDisplayable zd : al_zdispl) {
@@ -1513,5 +1513,18 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			if (null != dbo) return dbo;
 		}
 		return null;
+	}
+
+	// private to the package
+	void linkPatchesR() {
+		for (Layer la : al_layers) la.linkPatchesR();
+		for (ZDisplayable zd : al_zdispl) zd.linkPatches();
+	}
+
+	/** Recursive into nested LayerSet objects.*/
+	public void updateLayerTree() {
+		for (Layer la : al_layers) {
+			la.updateLayerTree();
+		}
 	}
 }

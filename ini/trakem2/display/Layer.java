@@ -720,4 +720,20 @@ public class Layer extends DBObject {
 		}
 		return null;
 	}
+
+	// private to the package
+	void linkPatchesR() {
+		for (Displayable d : al_displayables) {
+			if (d.getClass().equals(LayerSet.class)) ((LayerSet)d).linkPatchesR();
+			d.linkPatches(); // Patch.class does nothing
+		}
+	}
+
+	/** Recursive into nested LayerSet objects.*/
+	public void updateLayerTree() {
+		project.getLayerTree().addLayer(parent, this);
+		for (Displayable d : getDisplayables(LayerSet.class)) {
+			((LayerSet)d).updateLayerTree();
+		}
+	}
 }

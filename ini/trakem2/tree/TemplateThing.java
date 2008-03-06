@@ -32,6 +32,7 @@ import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 
 public class TemplateThing extends DBObject implements Thing {
 
@@ -528,18 +529,24 @@ public class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** Recursive into children: clones the whole tree from this node downward. */
-	public TemplateThing clone(final Project pr) {
-		final long nid = pr.equals(this.project) ? pr.getLoader().getNextId() : this.id;
-		final TemplateThing clone = new TemplateThing(this.type, pr, nid);
-		clone.project = pr;
-		if (!pr.equals(this.project)) clone.addToDatabase();
-		if (null == al_children) return clone;
+	public TemplateThing clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final TemplateThing copy = new TemplateThing(this.type, pr, nid);
+		copy.project = pr;
+		copy.addToDatabase();
 		// clone attributes
-		// TODO
-		// clone children
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			clone.addChild(((TemplateThing)it.next()).clone(pr));
+		if (null != ht_attributes) {
+			copy.ht_attributes = new Hashtable();
+			for (Iterator<Map.Entry> it = this.ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = it.next();
+				copy.ht_attributes.put(entry.getKey(), ((TemplateAttribute)entry.getValue()).clone(pr, copy_id)); // String is a final class ... again, not turtles all the way down.
+			}
 		}
-		return clone;
+		// clone children
+		if (null == al_children) return copy;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			copy.addChild(((TemplateThing)it.next()).clone(pr, copy_id));
+		}
+		return copy;
 	}
 }
