@@ -558,7 +558,7 @@ public class Editions {
 				} else {
 					//dx = v_x1[i] - v_x2[j];
 					//dy = v_y1[i] - v_y2[j];
-					fun3 = mat1[j-1] + vs1.getDiffVectorLength(i, j, vs2); //  Math.sqrt(dx*dx + dy*dy); // the vector length is the hypothenusa
+					fun3 = mat1[j-1] + vs1.getDiffVectorLength(i, j, vs2); //  Math.sqrt(dx*dx + dy*dy); // the vector length is the hypothenusa.
 				}
 				// insert the lowest value in the matrix.
 				// since most are mutations, start with fun3:

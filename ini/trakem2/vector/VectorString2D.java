@@ -472,4 +472,6 @@ public class VectorString2D implements VectorString {
 		delta = 0;
 		if (null != v_x) v_x = v_y = null;
 	}
+
+	public int getDimensions() { return 2; }
 }

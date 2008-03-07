@@ -2959,8 +2959,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				Utils.log2("first, last: " + first + ", " + last);
 			}
 			Project sub = getProject().createSubproject(roi.getBounds(), first, last);
-			LayerSet subls = sub.getRootLayerSet();
-			Display d = new Display(sub, subls.getLayer(0));
+			final LayerSet subls = sub.getRootLayerSet();
+			final Display d = new Display(sub, subls.getLayer(0));
 			SwingUtilities.invokeLater(new Runnable() { public void run() {
 			d.canvas.showCentered(new Rectangle(0, 0, (int)subls.getLayerWidth(), (int)subls.getLayerHeight()));
 			}});

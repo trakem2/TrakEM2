@@ -53,10 +53,10 @@ public class FloatArrayND extends FloatArray
     */
     public FloatArrayND(int n[])
     {
-        int size = 0;
+        int size = n[0];
 
-        for (int value : n)
-            size += value;
+        for (int i=1; i<n.length; i++)
+            size *= n[i];
 
         data = new float[size];
         this.n = n.clone();
@@ -75,7 +75,7 @@ public class FloatArrayND extends FloatArray
     @param i - The entries are the positions in each dimension
     @return the position in a 1-dimensional array
     */
-    public int getPos(int i[])
+    public int getPos(final int i[])
     {
         int pos;
 
@@ -97,9 +97,9 @@ public class FloatArrayND extends FloatArray
 
     /** Return the value for a given positions in the nth-dimension
     @param  i - The entries are the positions in each dimension
-    @return the value for given postion
+    @return the value for given position
     */
-    public float get(int i[])
+    public float get(final int i[])
     {
         return data[getPos(i)];
     }
@@ -107,7 +107,7 @@ public class FloatArrayND extends FloatArray
     /** Sets the value for a given positions in the n-dimensional array
     @param i - The entries are the positions in each dimension
     */
-    public void set(float value, int i[])
+    public void set(final float value, final int i[])
     {
         data[getPos(i)] = value;
     }

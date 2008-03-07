@@ -118,7 +118,8 @@ public class VectorString3D implements VectorString {
 		this.resample();
 	}
 
-	public int length() { return length; }
+	/** The length of this string, that is, the number of points (and vectors) in it. */
+	public final int length() { return length; }
 	public double[] getPoints(final int dim) {
 		switch (dim) {
 			case 0: return x;
@@ -641,48 +642,13 @@ public class VectorString3D implements VectorString {
 			final double dx = vx[i] - vs.vx[j];
 			final double dy = vy[i] - vs.vy[j];
 			final double dz = vz[i] - vs.vz[j];
-
-			if (i == j){
-				double leni = Math.sqrt(vx[i]*vx[i]
-						      + vy[i]*vy[i]
-						      + vz[i]*vz[i]);
-				double lenj = Math.sqrt(vs.vx[j]*vs.vx[j]
-						      + vs.vy[j]*vs.vy[j]
-						      + vs.vz[j]*vs.vz[j]);
-
-				/*
-				Utils.log2("i: " + i + " len: " + leni + "\t\tj: " + j + " len:" + lenj
-					+ "\n\t" + vx[i] + "\t\t\t" +  vs.vx[j]
-					+ "\n\t" + vy[i] + "\t\t\t" +  vs.vy[j]
-					+ "\n\t" + vz[i] + "\t\t\t" +  vs.vz[j]);
-				*/
-			}
-
 			return Math.sqrt(dx*dx + dy*dy + dz*dz);
-
 		} else {
 			// use relative vectors
 			final double dx = rvx[i] - vs.rvx[j];
 			final double dy = rvy[i] - vs.rvy[j];
 			final double dz = rvz[i] - vs.rvz[j];
-			final double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-			if (j == i) /*(j > i-2 && j < i+2)*/ {
-				//Utils.log2("rel: i,j,dist "+ i + ", " + j + ", " + dist + " dx,dy,dz: " + dx + ", " + dy + ", " + dz);
-				double leni = Math.sqrt(rvx[i]*rvx[i]
-						      + rvy[i]*rvy[i]
-						      + rvz[i]*rvz[i]);
-				double lenj = Math.sqrt(vs.rvx[j]*vs.rvx[j]
-						      + vs.rvy[j]*vs.rvy[j]
-						      + vs.rvz[j]*vs.rvz[j]);
-
-				/*
-				Utils.log2("i: " + i + " len: " + leni + "\t\tj: " + j + " len:" + lenj
-					+ "\n\t" + rvx[i] + "\t\t\t" +  vs.rvx[j]
-					+ "\n\t" + rvy[i] + "\t\t\t" +  vs.rvy[j]
-					+ "\n\t" + rvz[i] + "\t\t\t" +  vs.rvz[j]);
-				*/
-			}
-			return dist;
+			return Math.sqrt(dx*dx + dy*dy + dz*dz);
 		}
 	}
 
@@ -1523,5 +1489,17 @@ public class VectorString3D implements VectorString {
 		} catch (Exception e) {
 			return null;
 		}
+	}
+
+	public int getDimensions() { return 3; }
+
+	static public final double getAverageVectorLength(final int[] i, final VectorString3D[] vs) {
+		double len = 0;
+		for (int k=vs.length; k>-1; k--) {
+			final VectorString3D v = vs[k]; // java cannot even optimize this .. pitiful
+			final int j = i[k];
+			len += Math.sqrt(Math.pow(v.x[j], 2) + Math.pow(v.y[j], 2) + Math.pow(v.z[j], 2));
+		}
+		return len / vs.length;
 	}
 }
