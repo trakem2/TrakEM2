@@ -889,7 +889,7 @@ public class Registration {
 			if (hasQuitted()) return;
 			final ArrayList< Tile > layer_fixed_tiles = new ArrayList< Tile >();
 
-			Utils.log2( "###############\nStarting layer " + ( set.indexOf( layer ) + 1 ) + " of " + set.size() + "\n###############" );
+			Utils.log( "Registering layer " + ( set.indexOf( layer ) + 1 ) + " of " + set.size() );
 
 			// ignore empty layers
 			if ( !layer.contains( Patch.class ) )
