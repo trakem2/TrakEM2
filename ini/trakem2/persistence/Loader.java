@@ -2592,7 +2592,7 @@ abstract public class Loader {
 				}
 				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
 					d.paint(g2d, scaleP, false, c_alphas, layer);
-					Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
+					//Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
 				} else {
 					//Utils.log2("out: " + d);
 				}
