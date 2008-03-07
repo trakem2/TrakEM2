@@ -78,17 +78,36 @@ public class EditionsND {
 		final float felta = (float)delta;
 		final int[] i = new int[n_dims]; // the positions on each dimension, iu.e. (3,2,6,...4)
 		int j = 0;
+		final int[] i1 = new int[n_dims];
 		for (;;) {
 			for (j=0; j<n_dims; j++) {
 				if (++i[j] >= len[j]) i[j] = 0;
 				else break;
 				// here: the i[] contains all the positions, one for each
+				//
+				// The "equivalent" of the difference of 2 vectors, but for N vectors.
 				float val = felta - (float)VectorString3D.getAverageVectorLength(i, vs);
-				// TODO: compute fun1, fun2, fun3 ... etc.
+
+				// min cost deletions and insertions, in all possible combinations
+				final float fun1 = getMinCost(fa, i);
+				// cost mutation:
+				for (int k=0; k<n_dims; k++) {
+					if (i[k] -1 > 0) i1[k] = i[k] -1;
+				}
+				final float fun3 = fa.get(i1) + val;
+
+				fa.set(Math.min(fun1, fun3), i);
 
 			}
 			if (j == n_dims) break;
 		}
 		return fa;
 	}
+
+	private final float getMinCost(final FloatArrayND fa, final int[] i) {
+		float min = Float.MAX_VALUE;
+		// TODO explore, for i positions, all combinations of i and i-1
+		return min;
+	}
+
 }

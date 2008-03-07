@@ -1992,12 +1992,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					item = new JMenuItem("Revert"); item.addActionListener(this); popup.add(item);
 					popup.addSeparator();
 				}
-				item = new JMenuItem("Undo transforms");item.addActionListener(this); popup.add(item);
-				if (!layer.getParent().canUndo() || canvas.isTransforming()) item.setEnabled(false);
-				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.SHIFT_MASK, true));
-				item = new JMenuItem("Redo transforms");item.addActionListener(this); popup.add(item);
-				if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
-				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
 				item = new JMenuItem("Properties...");    item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Show centered"); item.addActionListener(this); popup.add(item);
 
@@ -2031,6 +2025,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						//Utils.log("Active's linked group not within layer.");
 					}
 					popup.add(menu);
+					popup.addSeparator();
 
 
 					item = new JMenuItem("Homogenize contrast (selected images)"); item.addActionListener(this); adjust_menu.add(item);
@@ -2040,9 +2035,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 
-
 		if (!canvas.isTransforming()) {
-			popup.addSeparator();
+
+			item = new JMenuItem("Undo transforms");item.addActionListener(this); popup.add(item);
+			if (!layer.getParent().canUndo() || canvas.isTransforming()) item.setEnabled(false);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.SHIFT_MASK, true));
+			item = new JMenuItem("Redo transforms");item.addActionListener(this); popup.add(item);
+			if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
+
 			item = new JMenuItem("Homogenize contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 			item = new JMenuItem("Set Min and Max..."); item.addActionListener(this); adjust_menu.add(item);
 			popup.add(adjust_menu);
