@@ -182,7 +182,7 @@ public class Registration {
 			final Layer layer_start = (Layer)list2.get(0); // even if there is only one element, list2 will contain the starting layer as the first element. Should be equivalent to layer_set.get(start)
 			// check assumptions
 			if (0 == layer_start.count(Patch.class)) {
-				Utils.log("Registration of layers: ERROR: the starting layer is empty.");
+				Utils.log2("Registration of layers: ERROR: the starting layer is empty.");
 				finishedWorking();
 				return;
 			}
@@ -755,11 +755,11 @@ public class Registration {
 		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
 		if (pc[2] != StitchingTEM.SUCCESS) {
 			// R is too low to be trusted
-			Utils.log("Bad R coefficient, skipping " + moving);
+			Utils.log2("Bad R coefficient, skipping " + moving);
 			return null; // don't move
 		}
 		Utils.log2("BASE: x, y " + base.getX() + " , " + base.getY() + "\n\t pc x,y: " + pc[0] + ", " + pc[1]);
-		Utils.log("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
+		Utils.showStatus("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
 		
 		AffineTransform at = new AffineTransform();
 		at.translate(pc[0], pc[1]);
@@ -889,12 +889,12 @@ public class Registration {
 			if (hasQuitted()) return;
 			final ArrayList< Tile > layer_fixed_tiles = new ArrayList< Tile >();
 
-			Utils.log( "###############\nStarting layer " + ( set.indexOf( layer ) + 1 ) + " of " + set.size() + "\n###############" );
+			Utils.log2( "###############\nStarting layer " + ( set.indexOf( layer ) + 1 ) + " of " + set.size() + "\n###############" );
 
 			// ignore empty layers
 			if ( !layer.contains( Patch.class ) )
 			{
-				Utils.log( "Ignoring empty layer." );
+				Utils.log2( "Ignoring empty layer." );
 				continue;
 			}
 
@@ -1478,11 +1478,11 @@ public class Registration {
 		}
 
 		Display.update( set );
-		
-		Utils.log( "Successfully optimized configuration of " + tiles.size() + " tiles:" );
-		Utils.log( "  average displacement: " + Utils.cutNumber( od, 3 ) + "px" );
-		Utils.log( "  minimal displacement: " + Utils.cutNumber( min_d, 3 ) + "px" );
-		Utils.log( "  maximal displacement: " + Utils.cutNumber( max_d, 3 ) + "px" );
+
+		Utils.log2( "Successfully optimized configuration of " + tiles.size() + " tiles:" );
+		Utils.log2( "  average displacement: " + Utils.cutNumber( od, 3 ) + "px" );
+		Utils.log2( "  minimal displacement: " + Utils.cutNumber( min_d, 3 ) + "px" );
+		Utils.log2( "  maximal displacement: " + Utils.cutNumber( max_d, 3 ) + "px" );
 	}
 
 	/**
@@ -1534,7 +1534,7 @@ public class Registration {
 								Float.MAX_VALUE );
 					Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 					
-					Utils.log( "Tiles " + i + " and " + j + " have " + candidates.size() + " potentially corresponding features." );
+					Utils.log2( "Tiles " + i + " and " + j + " have " + candidates.size() + " potentially corresponding features." );
 					
 					final Vector< PointMatch > inliers = new Vector< PointMatch >();
 					
@@ -1547,12 +1547,12 @@ public class Registration {
 
 					if ( mo != null )
 					{
-						Utils.log( inliers.size() + " of them are good." );
+						Utils.log2( inliers.size() + " of them are good." );
 						current_tile.connect( other_tile, inliers );								
 					}
 					else
 					{
-						Utils.log( "None of them is good." );
+						Utils.log2( "None of them is good." );
 					}
 				}
 			}
@@ -1645,7 +1645,7 @@ public class Registration {
 								Float.MAX_VALUE );
 					Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 					
-					Utils.log( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
+					Utils.log2( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
 					
 					final Vector< PointMatch > inliers = new Vector< PointMatch >();
 

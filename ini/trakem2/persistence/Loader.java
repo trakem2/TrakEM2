@@ -2446,6 +2446,7 @@ abstract public class Loader {
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
 		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality);
 		final ImagePlus imp = new ImagePlus(layer.getPrintableTitle(), bi);
+		bi.flush();
 		return imp;
 	}
 
