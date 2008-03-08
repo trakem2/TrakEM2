@@ -69,7 +69,7 @@ import java.util.Calendar;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.5m 2008-01-04";
+	static public String version = "0.5n 2008-01-07";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -962,5 +962,14 @@ public class Utils implements ij.plugin.PlugIn {
 		b.intersect(a2);
 		final java.awt.Rectangle r = b.getBounds();
 		return 0 != r.width && 0 != r.height;
+	}
+
+	/** 1 A, 2 B, 3 C  ---  26 - z, 27 AA, 28 AB, 29 AC  --- 26*27 AAA */
+	static public final String getCharacter(int i) {
+		i--;
+		int k = i / 26;
+		char c = (char)((i % 26) + 65); // 65 is 'A'
+		if (0 == k) return new StringBuffer().append(c).toString();
+		return new StringBuffer().append(getCharacter(k)).append(c).toString();
 	}
 }

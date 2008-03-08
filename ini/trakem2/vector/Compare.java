@@ -33,6 +33,8 @@ import ij.IJ;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ij.measure.Calibration;
+import ij.io.SaveDialog;
+import ij.io.OpenDialog;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -53,6 +55,9 @@ import java.awt.Rectangle;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
 import javax.media.j3d.Transform3D;
+
+import java.io.*;
+
 
 public class Compare {
 
@@ -120,7 +125,7 @@ public class Compare {
 			}
 		}
 
-		return findSimilar(pipe, ref, ignore_orientation, ignore_calibration, mirror, chain_branches);
+		return findSimilar(pipe, ref, ignore_orientation, ignore_calibration, mirror, chain_branches, true);
 	}
 
 	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe) {
@@ -254,7 +259,7 @@ public class Compare {
 			return null;
 		}
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches);
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true);
 	}
 
 	static private int[] findXYZAxes(String[] presets, ArrayList<ZDisplayable> pipes, String[] pipe_names) {
@@ -299,7 +304,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches) {
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui) {
 		if (axes.length < 3 || axes_ref.length < 3) {
 			Utils.log("Need three axes for each.");
 			return null;
@@ -379,6 +384,9 @@ public class Compare {
 
 		// each thread handles a ref pipe, which is to be matched against all queries
 		final int n_ref_chains = qh.chains_ref.size();
+		final QueryMatchList[] qm = new QueryMatchList[qh.queries.size()];
+		int ne = 0;
+		for (Chain query : qh.queries) qm[ne++] = new QueryMatchList(query, n_ref_chains);
 
 		final Thread[] threads = new Thread[1]; //MultiThreading.newThreads();
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -392,6 +400,7 @@ public class Compare {
 				// obtain a calibrated ref chain, to be uniquely processed by this thread
 				final Chain ref = qh.chains_ref.get(k);
 				// match it against all queries
+				int next = 0;
 				for (Chain query : qh.queries) {
 					VectorString3D vs1 = query.vs;
 					double delta1 = vs1.getDelta();
@@ -399,7 +408,10 @@ public class Compare {
 					Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk);
 					double score = ((Double)ob[1]).doubleValue();
 					Editions ed = (Editions)ob[0];
-					qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
+					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
+
+					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
+
 				}
 			} catch (Exception e) {
 				IJError.print(e);
@@ -413,11 +425,15 @@ public class Compare {
 
 
 		// done!
-		// Now, sort matches by physical distance.
-		qh.sortMatches(new ChainMatchComparator());
+		// put result into the Worker
+		this.result = qm;
 
-		// add to the GUI
-		qh.createGUI(vs_axes, vs_axes_ref);
+		if (show_gui) {
+			// add to the GUI (will sort them by phys_dist)
+			qh.addMatches(qm);
+			qh.sortMatches(new ChainMatchComparator());
+			qh.createGUI(vs_axes, vs_axes_ref);
+		}
 
 
 				} catch (Exception e) {
@@ -427,7 +443,11 @@ public class Compare {
 				}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, pipe.getProject());
+		Project other = pipes_ref.get(0).getProject();
+		Project[] p;
+		if (other.equals(pipe.getProject())) p = new Project[]{other};
+		else p = new Project[]{other, pipe.getProject()};
+		Bureaucrat burro = new Bureaucrat(worker, p);
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -632,17 +652,21 @@ public class Compare {
 			queries.add(chain);
 		}
 
-		// one thread at a time may access this method
 		synchronized final void addMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist) {
-			final ChainMatch cm = new ChainMatch();
-			cm.ref = ref;
-			cm.ed = ed;
-			cm.score = score;
-			cm.phys_dist = phys_dist;
+			final ChainMatch cm = new ChainMatch(query, ref, ed, score, phys_dist);
 			ArrayList<ChainMatch> al = matches.get(query);
 			if (null == al) {
 				al = new ArrayList<ChainMatch>();
 				matches.put(query, al);
+			}
+			al.add(cm);
+		}
+
+		final void addMatch(final ChainMatch cm) {
+			ArrayList<ChainMatch> al = matches.get(cm.query);
+			if (null == al) {
+				al = new ArrayList<ChainMatch>();
+				matches.put(cm.query, al);
 			}
 			al.add(cm);
 		}
@@ -716,8 +740,16 @@ public class Compare {
 			}
 			return ht;
 		}
+		void addMatches(final QueryMatchList[] qm) {
+			// add all matches
+			for (int i=0; i<qm.length; i++) {
+				for (int k=0; k<qm[i].cm.length; k++) {
+					addMatch(qm[i].cm[k]);
+				}
+			}
+		}
 		// One table entry per query chain
-		void createGUI(VectorString3D[] vs_axes, VectorString3D[] vs_axes_ref) {
+		void createGUI(final VectorString3D[] vs_axes, final VectorString3D[] vs_axes_ref) {
 			makeGUI();
 			this.vs_axes = vs_axes;
 			this.vs_axes_ref = vs_axes_ref;
@@ -768,10 +800,27 @@ public class Compare {
 
 	/** Represents the scored match between any two Chain objects. */
 	static private class ChainMatch {
+		Chain query;
 		Chain ref;
 		Editions ed;
 		double phys_dist;
 		double score;
+		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist) {
+			this.query = query;
+			this.ref = ref;
+			this.ed = ed;
+			this.score = score;
+			this.phys_dist = phys_dist;
+		}
+	}
+
+	static private class QueryMatchList {
+		Chain query;
+		ChainMatch[] cm;
+		QueryMatchList(final Chain query, final int n_ref_chains) {
+			this.query = query;
+			this.cm = new ChainMatch[n_ref_chains];
+		}
 	}
 
 	static private class ChainMatchComparator implements Comparator {
@@ -959,7 +1008,7 @@ public class Compare {
 	}
 
 	/** Compare the given pipe with other pipes in the given standard project(s). WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
-	static public final Bureaucrat findSimilar(final Pipe pipe, final Project[] ref, final boolean ignore_orientation, final boolean ignore_calibration, final boolean mirror, final boolean chain_branches) {
+	static public final Bureaucrat findSimilar(final Pipe pipe, final Project[] ref, final boolean ignore_orientation, final boolean ignore_calibration, final boolean mirror, final boolean chain_branches, final boolean show_gui) {
 		final Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
@@ -1011,6 +1060,9 @@ public class Compare {
 
 		// each thread handles a ref pipe, which is to be matched against all queries and reversed queries
 		final int n_ref_chains = qh.chains_ref.size();
+		final QueryMatchList[] qm = new QueryMatchList[qh.queries.size()];
+		int ne = 0;
+		for (Chain query : qh.queries) qm[ne++] = new QueryMatchList(query, n_ref_chains);
 
 		final Thread[] threads = MultiThreading.newThreads();
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -1056,7 +1108,8 @@ public class Compare {
 						ed = (Editions)ob[0];
 						score = ((Double)ob[1]).doubleValue();
 					}
-					qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
+					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
+					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
 				}
 
 			} catch (Exception e) {
@@ -1070,12 +1123,16 @@ public class Compare {
 		MultiThreading.startAndJoin(threads);
 
 		// done!
-		// Now, sort matches by physical distance.
-		qh.sortMatches(ignore_orientation ? new ChainMatchComparatorSim() : new ChainMatchComparator());
-		qh.relative = ignore_orientation;
+		// put result into the Worker
+		this.result = qm;
 
-		// add to the GUI
-		qh.createGUI(null, null);
+		if (show_gui) {
+			// Now, sort matches by physical distance.
+			qh.addMatches(qm);
+			qh.relative = ignore_orientation;
+			qh.sortMatches(ignore_orientation ? new ChainMatchComparatorSim() : new ChainMatchComparator());
+			qh.createGUI(null, null);
+		}
 
 
 				} catch (Exception e) {
@@ -1085,7 +1142,11 @@ public class Compare {
 				}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, pipe.getProject());
+		HashSet hsp = new HashSet();
+		hsp.add(pipe.getProject());
+		for (int i=0; i<ref.length; i++) hsp.add(ref[i]);
+		Project[] p = (Project[])hsp.toArray(new Project[0]);
+		Bureaucrat burro = new Bureaucrat(worker, p);
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -1350,5 +1411,197 @@ public class Compare {
 				popup.show(table, me.getX(), me.getY());
 			}
 		}
+	}
+
+
+	/** Gets pipes for all open projects, and generates a matrix of comparisons. */
+	static public Bureaucrat compareAllToAll(final boolean to_file) {
+		final GenericDialog gd = new GenericDialog("All to all");
+		gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
+		gd.addNumericField("point interdistance: ", 0, 2);
+		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", true);
+		gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
+		gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
+		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
+
+		final String[] transforms = {"translate and rotate",
+			                     "translate, rotate and scale",
+					     "translate, rotate, scale and shear",
+					     "relative",
+					     "direct"};
+		gd.addChoice("Transform_type: ", transforms, transforms[5]);
+		gd.addCheckbox("Chain_branches", true);
+
+		final String[][] presets = {{"medial lobe", "dorsal lobe", "peduncle"}};
+		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
+		gd.addChoice("Presets: ", preset_names, preset_names[0]);
+
+		//////
+
+		gd.showDialog();
+		if (gd.wasCanceled()) return null;
+
+
+		// gather all open projects
+		final Project[] p = Project.getProjects().toArray(new Project[0]);
+
+		final Worker worker = new Worker("Comparing all to all") {
+			public void run() {
+				startedWorking();
+				try {
+
+		double delta = gd.getNextNumber();
+		boolean skip_ends = gd.getNextBoolean();
+		int max_mut = (int)gd.getNextNumber();
+		float min_chunk = (float)gd.getNextNumber();
+		if (skip_ends) {
+			if (max_mut < 0) max_mut = 0;
+			if (min_chunk <= 0) skip_ends = false;
+			if (min_chunk > 1) min_chunk = 1;
+		}
+		int transform_type = gd.getNextChoiceIndex();
+		boolean chain_branches = gd.getNextBoolean();
+		String[] preset = presets[gd.getNextChoiceIndex()];
+
+		// gather all chains
+		final ArrayList[] p_chains = new ArrayList[p.length]; // to keep track of each project's chains
+		final ArrayList<Chain> chains = new ArrayList<Chain>();
+		for (int i=0; i<p.length; i++) {
+			p_chains[i] = createPipeChains(p[i].getRootProjectThing(), p[i].getRootLayerSet());
+			chains.addAll(p_chains[i]);
+			// calibrate
+			Calibration cal = p[i].getRootLayerSet().getCalibrationCopy();
+			for (Chain chain : (ArrayList<Chain>)p_chains[i]) chain.vs.calibrate(cal);
+		}
+		final int n_chains = chains.size();
+
+		// compute global average delta
+		if (0 == delta) {
+			for (Chain chain : chains) {
+				delta += ( chain.vs.getAverageDelta() / n_chains );
+			}
+		}
+		Utils.log2("Using delta: " + delta);
+
+		// register all, or relative
+		if (3 == transform_type) {
+			for (Chain chain : chains) {
+				chain.vs.resample(delta); // BEFORE making it relative
+				chain.vs.relative();
+			}
+		} else if (4 != transform_type) {
+			// no need //VectorString3D[][] vs_axes = new VectorString3D[p.length][];
+			Vector3d[][] o = new Vector3d[p.length][];
+			for (int i=0; i<p.length; i++) {
+				// 1 - find pipes to work as axes for each project
+				ArrayList<ZDisplayable> pipes = p[i].getRootLayerSet().getZDisplayables(Pipe.class);
+				String[] pipe_names = new String[pipes.size()];
+				for (int k=0; k<pipes.size(); k++) {
+					pipe_names[k] = p[i].getMeaningfulTitle(pipes.get(k));
+				}
+				int[] s = findXYZAxes(preset, pipes, pipe_names);
+				// obtain axes and origin
+				Object[] pack = obtainOrigin(new Pipe[]{(Pipe)pipes.get(s[0]),
+								     (Pipe)pipes.get(s[1]),
+								     (Pipe)pipes.get(s[2])},
+								     transform_type);
+
+				// no need //vs_axes[i] = (VectorString3D[])pack[0];
+				o[i] = (Vector3d[])pack[1];
+			}
+			// match the scales to make the largest be 1.0
+			VectorString3D.matchOrigins(o, transform_type);
+			// transform all
+			for (int i=0; i<p.length; i++) {
+				Vector3d trans = new Vector3d(-o[i][3].x, -o[i][3].y, -o[i][3].z);
+				Transform3D rot = VectorString3D.createOriginRotationTransform(o[i]);
+				for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
+					chain.vs.translate(trans);
+					chain.vs.transform(rot);
+				}
+			}
+			// After calibration and transformation, resample all to the same delta
+			for (Chain chain : chains) chain.vs.resample(delta);
+		} else {
+			// else compare direct
+			for (Chain chain : chains) chain.vs.resample(delta);
+		}
+
+
+
+
+		// compare all to all
+		//final double[] scores = new double[((n_chains+1) * n_chains) / 2];
+		//int next = 0;
+		final float[][] scores = new float[n_chains][n_chains];
+		for (int i=0; i<n_chains; i++) {
+			final VectorString3D vs1 = chains.get(i).vs;
+			for (int j=i+1; j<n_chains; j++) {
+				if (this.quit) return;
+				Object[] ob = findBestMatch(vs1, chains.get(j).vs, delta, skip_ends, max_mut, min_chunk);
+				//scores[next++] = ((Double)ob[1]).doubleValue();
+				scores[i][j] = (float)((Double)ob[1]).doubleValue();
+				if (i != j) scores[j][i] = scores[i][j];
+				// easier ... I don't need double precision anyway, so the float matrix is half the size.
+			}
+		}
+		// store half-matrix into the worker
+		this.result = scores;
+
+		// write to file
+		if (!to_file) {
+			finishedWorking();
+			return;
+		}
+		SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
+		String filename = sd.getFileName();
+		if (null == filename) {
+			finishedWorking();
+			return;
+		}
+		String dir = sd.getDirectory().replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
+		File f = new File(dir + filename);
+		OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
+
+		// write chain titles, with project prefix
+		try {
+			StringBuffer[] titles = new StringBuffer[n_chains];
+			int next = 0;
+			for (int i=0; i<p.length; i++) {
+				String prefix = Utils.getCharacter(i+1);
+				dos.write("\"\""); //empty upper left corner
+				for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
+					dos.write(",");
+					titles[next] = new StringBuffer('\"').append(chain.getCellTitle()).append('\"');
+					dos.write(titles[next].toString());
+					next++;
+				}
+			}
+			dos.write("\n");
+			for (int i=0; i<n_chains; i++) {
+				StringBuffer line = new StringBuffer();
+				line.append(titles[i]);
+				for (int j=0; j<n_chains; j++) line.append(',').append(scores[i][j]);
+				line.append('\n');
+				dos.write(line.toString());
+			}
+			dos.flush();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		dos.close();
+
+
+				} catch (Exception e) {
+					e.printStackTrace();
+				} finally {
+					finishedWorking();
+				}
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, p);
+		burro.goHaveBreakfast();
+		return burro;
 	}
 }

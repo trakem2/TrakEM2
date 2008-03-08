@@ -1091,6 +1091,24 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
+	/** Match together any number of orgins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0. */
+	static public final void matchOrigins(Vector3d[][] o, final int transform_type) {
+		if (Compare.TRANS_ROT == transform_type) return; // nothing to change, vectors are normalized
+		// else, scale vectors to make the longest one be of length 1.0
+		double max_len = 0;
+		for (int k=0; k<o.length; k++) {
+			for (int i=0; i<3; i++) {
+				max_len = Math.max(max_len, o[k][i].length());
+			}
+		}
+		max_len = 1/max_len;
+		for (int k=0; k<o.length; k++) {
+			for (int i=0; i<3; i++) { // can't do o[k].length because 4==len, the fourth being the origin of coordinates of the given origin axes.
+				o[k][i].scale(max_len);
+			}
+		}
+	}
+
 	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates.
 	 *
 	 * Expects:
