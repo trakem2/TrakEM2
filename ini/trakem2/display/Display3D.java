@@ -867,4 +867,10 @@ public class Display3D {
 					Math.pow(zA*xB + zB*xC + zC*xA, 2));
 	}
 	*/
+
+	static public final boolean contains(final LayerSet ls, final String title) {
+		final Display3D d3d = getDisplay(ls);
+		if (null == d3d) return false;
+		return null != d3d.universe.getContent(title);
+	}
 }

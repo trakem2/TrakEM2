@@ -877,7 +877,9 @@ public class Compare {
 			if (!query_shows) showAxesAndQueried();
 			VectorString3D vs = qh.makeVS2(ref, query.vs.getDelta()); // was: makeVS
 			// The LayerSet is that of the Pipe being queried, not the given pipe to show which belongs to the reference project (and thus not to the queried pipe project)
-			Display3D.addMesh(common, vs, ref.getTitle(), ref.getColor());
+			String title = ref.getCellTitle();
+			if (Display3D.contains(common, title)) return;
+			Display3D.addMesh(common, vs, title, ref.getColor());
 		}
 		public void showFull3D(Chain query, Chain ref) {
 			reset();
@@ -893,13 +895,15 @@ public class Compare {
 			HashSet hs = pt.findChildrenOfTypeR("pipe");
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				Pipe p = (Pipe)((ProjectThing)it.next()).getObject();
+				String title = p.getProject().getShortMeaningfulTitle(p);
+				if (Display3D.contains(common, title)) continue; // add only any missing ones
 				VectorString3D vs;
 				if (as_query) {
 					vs = qh.makeVS1(p, chain.vs.getDelta());
 				} else { // as ref
 					vs = qh.makeVS2(p, chain.vs.getDelta());
 				}
-				Display3D.addMesh(common, vs, p.getProject().getShortMeaningfulTitle(p), p.getColor());
+				Display3D.addMesh(common, vs, title, p.getColor());
 			}
 		}
 		public void showAxesAndQueried() {
@@ -909,9 +913,12 @@ public class Compare {
 			for (Iterator it = queried.entrySet().iterator(); it.hasNext(); ) {
 				Map.Entry entry = (Map.Entry)it.next();
 				Pipe p = (Pipe)entry.getKey();
+				// if already there, ignore request
+				String title = p.getProject().getShortMeaningfulTitle(p);
+				if (Display3D.contains(common, title)) continue;
 				VectorString3D vs = (VectorString3D)entry.getValue();
 				if (null == qcolor) qcolor = p.getColor();
-				Display3D.addMesh(common, vs, p.getProject().getShortMeaningfulTitle(p), qcolor);
+				Display3D.addMesh(common, vs, title, qcolor);
 			}
 			showAxes(qcolor);
 		}
@@ -933,8 +940,11 @@ public class Compare {
 		public void showInterpolated(Editions ed, Chain query, Chain ref) {
 			reset();
 			if (!query_shows) showAxesAndQueried();
+			String title = "Av. " + query.getTitle() + " - " + ref.getTitle();
+			// if already there, ignore request
+			if (Display3D.contains(common, title)) return;
 			VectorString3D vs = VectorString3D.createInterpolatedPoints(ed, 0.5f);
-			Display3D.addMesh(common, vs, "Av. " + query.getTitle() + " - " + ref.getTitle(), Utils.mix(query.getColor(), ref.getColor()));
+			Display3D.addMesh(common, vs, title, Utils.mix(query.getColor(), ref.getColor()));
 		}
 		private void reset() {
 			if (null == Display3D.getDisplay(common)) query_shows = false;
@@ -1631,7 +1641,7 @@ public class Compare {
 				int next = 0;
 				for (int i=0; i<p.length; i++) {
 					String prefix = Utils.getCharacter(i+1);
-					String color = new StringBuffer("color=\"").append(i+1).append('\"');
+					String color = new StringBuffer("color=\"").append(i+1).append('\"').toString();
 					for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
 						sb.append("<record id=\"").append(next+1).append("\" label=\"").append(prefix).append(' ').append(chain.getCellTitle()).append("\" ").append(color).append("></record>\n");
 						next++;
