@@ -1075,9 +1075,11 @@ public class VectorString3D implements VectorString {
 			       + Math.pow(z1 - z2, 2));
 	}
 
-	/** If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0. */
-	static public final void matchOrigins(Vector3d[] o1, Vector3d[] o2, final int transform_type) {
-		if (Compare.TRANS_ROT == transform_type) return; // nothing to change, vectors are normalized
+	/** If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
+	 *  @return the applied scaling factor.
+	 * */
+	static public final double matchOrigins(Vector3d[] o1, Vector3d[] o2, final int transform_type) {
+		if (Compare.TRANS_ROT == transform_type) return 1; // nothing to change, vectors are normalized
 		// else, scale vectors to make the longest one be of length 1.0
 		double max_len = 0;
 		for (int i=0; i<3; i++) {
@@ -1089,11 +1091,14 @@ public class VectorString3D implements VectorString {
 			o1[i].scale(max_len);
 			o2[i].scale(max_len);
 		}
+		return max_len;
 	}
 
-	/** Match together any number of orgins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0. */
-	static public final void matchOrigins(Vector3d[][] o, final int transform_type) {
-		if (Compare.TRANS_ROT == transform_type) return; // nothing to change, vectors are normalized
+	/** Match together any number of orgins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
+	 *  @return the applied scaling factor.
+	 * */
+	static public final double matchOrigins(Vector3d[][] o, final int transform_type) {
+		if (Compare.TRANS_ROT == transform_type) return 1; // nothing to change, vectors are normalized
 		// else, scale vectors to make the longest one be of length 1.0
 		double max_len = 0;
 		for (int k=0; k<o.length; k++) {
@@ -1107,6 +1112,7 @@ public class VectorString3D implements VectorString {
 				o[k][i].scale(max_len);
 			}
 		}
+		return max_len;
 	}
 
 	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates.

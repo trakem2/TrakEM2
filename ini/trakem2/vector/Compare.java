@@ -156,6 +156,11 @@ public class Compare {
 		// automatically find for the first preset
 		int[] s = findXYZAxes(presets[0], pipes, pipe_names);
 		int[] t = findXYZAxes(presets[0], pipes_ref, pipe_names_ref);
+		// check if none found
+		for (int i=0; i<3; i++) {
+			if (-1 == s[i]) s[i] = 0;
+			if (-1 == t[i]) t[i] = 0;
+		}
 
 		gd.addMessage("Source project \"" + pipe.getProject().getTitle() + ":\"");
 		/* 1 */ gd.addChoice("X_source: ", pipe_names, pipe_names[s[0]]);
@@ -194,6 +199,7 @@ public class Compare {
 				String[] pipe_names_ref = new String[pipes_ref.size()];
 				holder[0] = pipe_names_ref;
 				int[] s = findXYZAxes(presets[cpre.getSelectedIndex()], pipes_ref, pipe_names_ref);
+				for (int i=0; i<3; i++) if (-1 == s[i]) s[i] = 0;
 				int ix = ref[0].getSelectedIndex();
 				int iy = ref[1].getSelectedIndex();
 				int iz = ref[2].getSelectedIndex();
@@ -262,8 +268,8 @@ public class Compare {
 		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true);
 	}
 
-	static private int[] findXYZAxes(String[] presets, ArrayList<ZDisplayable> pipes, String[] pipe_names) {
-		int[] s = new int[3];
+	static private int[] findXYZAxes(final String[] presets, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
+		int[] s = new int[]{-1, -1, -1};
 		int next = 0;
 		for (ZDisplayable zd : pipes) {
 			pipe_names[next] = zd.getProject().getShortMeaningfulTitle(zd);
@@ -987,10 +993,13 @@ public class Compare {
 		// now test also starting from the middle of the longest mutation chunk of the best matching
 		try {
 			Editions ed_center = best_ed.recreateFromCenter(max_mut);
-			double score_center = ed_center.getSimilarity(skip_ends, max_mut, min_chunk);
-			if (score_center > best_score) {
-				best_ed = ed_center;
-				best_score = score_center;
+			// is null if no chunks were found
+			if (null != ed_center) {
+				double score_center = ed_center.getSimilarity(skip_ends, max_mut, min_chunk);
+				if (score_center > best_score) {
+					best_ed = ed_center;
+					best_score = score_center;
+				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -1414,7 +1423,7 @@ public class Compare {
 	}
 
 
-	/** Gets pipes for all open projects, and generates a matrix of comparisons. */
+	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired. */
 	static public Bureaucrat compareAllToAll(final boolean to_file) {
 		final GenericDialog gd = new GenericDialog("All to all");
 		gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
@@ -1429,12 +1438,15 @@ public class Compare {
 					     "translate, rotate, scale and shear",
 					     "relative",
 					     "direct"};
-		gd.addChoice("Transform_type: ", transforms, transforms[5]);
+		gd.addChoice("Transform_type: ", transforms, transforms[2]);
 		gd.addCheckbox("Chain_branches", true);
 
 		final String[][] presets = {{"medial lobe", "dorsal lobe", "peduncle"}};
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
 		gd.addChoice("Presets: ", preset_names, preset_names[0]);
+		gd.addMessage("");
+		String[] format = {"ggobi XML", ".csv"};
+		gd.addChoice("File format: ", format, format[0]);
 
 		//////
 
@@ -1463,6 +1475,9 @@ public class Compare {
 		boolean chain_branches = gd.getNextBoolean();
 		String[] preset = presets[gd.getNextChoiceIndex()];
 
+		boolean xml = 0 == gd.getNextChoiceIndex();
+
+
 		// gather all chains
 		final ArrayList[] p_chains = new ArrayList[p.length]; // to keep track of each project's chains
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
@@ -1489,41 +1504,51 @@ public class Compare {
 				chain.vs.resample(delta); // BEFORE making it relative
 				chain.vs.relative();
 			}
-		} else if (4 != transform_type) {
-			// no need //VectorString3D[][] vs_axes = new VectorString3D[p.length][];
-			Vector3d[][] o = new Vector3d[p.length][];
-			for (int i=0; i<p.length; i++) {
-				// 1 - find pipes to work as axes for each project
-				ArrayList<ZDisplayable> pipes = p[i].getRootLayerSet().getZDisplayables(Pipe.class);
-				String[] pipe_names = new String[pipes.size()];
-				for (int k=0; k<pipes.size(); k++) {
-					pipe_names[k] = p[i].getMeaningfulTitle(pipes.get(k));
-				}
-				int[] s = findXYZAxes(preset, pipes, pipe_names);
-				// obtain axes and origin
-				Object[] pack = obtainOrigin(new Pipe[]{(Pipe)pipes.get(s[0]),
-								     (Pipe)pipes.get(s[1]),
-								     (Pipe)pipes.get(s[2])},
-								     transform_type);
-
-				// no need //vs_axes[i] = (VectorString3D[])pack[0];
-				o[i] = (Vector3d[])pack[1];
-			}
-			// match the scales to make the largest be 1.0
-			VectorString3D.matchOrigins(o, transform_type);
-			// transform all
-			for (int i=0; i<p.length; i++) {
-				Vector3d trans = new Vector3d(-o[i][3].x, -o[i][3].y, -o[i][3].z);
-				Transform3D rot = VectorString3D.createOriginRotationTransform(o[i]);
-				for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
-					chain.vs.translate(trans);
-					chain.vs.transform(rot);
-				}
-			}
-			// After calibration and transformation, resample all to the same delta
-			for (Chain chain : chains) chain.vs.resample(delta);
 		} else {
-			// else compare direct
+			if (transform_type < 3) {
+				// no need //VectorString3D[][] vs_axes = new VectorString3D[p.length][];
+				Vector3d[][] o = new Vector3d[p.length][];
+				for (int i=0; i<p.length; i++) {
+					// 1 - find pipes to work as axes for each project
+					ArrayList<ZDisplayable> pipes = p[i].getRootLayerSet().getZDisplayables(Pipe.class);
+					String[] pipe_names = new String[pipes.size()];
+					for (int k=0; k<pipes.size(); k++) {
+						pipe_names[k] = p[i].getMeaningfulTitle(pipes.get(k));
+					}
+					int[] s = findXYZAxes(preset, pipes, pipe_names);
+
+					// if axes are -1, forget it: not found
+					if (-1 == s[0] || -1 == s[1] || -1 == s[2]) {
+						Utils.log("Can't find axes for project " + p[i]);
+						o = null;
+						finishedWorking();
+						return;
+					}
+
+					// obtain axes and origin
+					Object[] pack = obtainOrigin(new Pipe[]{(Pipe)pipes.get(s[0]),
+									     (Pipe)pipes.get(s[1]),
+									     (Pipe)pipes.get(s[2])},
+									     transform_type);
+
+					// no need //vs_axes[i] = (VectorString3D[])pack[0];
+					o[i] = (Vector3d[])pack[1];
+				}
+				// match the scales to make the largest be 1.0
+				VectorString3D.matchOrigins(o, transform_type);
+				// transform all
+				for (int i=0; i<p.length; i++) {
+					Vector3d trans = new Vector3d(-o[i][3].x, -o[i][3].y, -o[i][3].z);
+					Transform3D rot = VectorString3D.createOriginRotationTransform(o[i]);
+					for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
+						chain.vs.translate(trans);
+						chain.vs.transform(rot);
+					}
+				}
+			}
+			// else, direct
+
+			// After calibration and transformation, resample all to the same delta
 			for (Chain chain : chains) chain.vs.resample(delta);
 		}
 
@@ -1539,9 +1564,10 @@ public class Compare {
 			for (int j=i+1; j<n_chains; j++) {
 				if (this.quit) return;
 				Object[] ob = findBestMatch(vs1, chains.get(j).vs, delta, skip_ends, max_mut, min_chunk);
-				//scores[next++] = ((Double)ob[1]).doubleValue();
-				scores[i][j] = (float)((Double)ob[1]).doubleValue();
-				if (i != j) scores[j][i] = scores[i][j];
+				//scores[next++] = 1 - ((Double)ob[1]).doubleValue();
+				// Record the dissimilarity
+				scores[i][j] = 1.0f - (float)((Double)ob[1]).doubleValue();
+				scores[j][i] = scores[i][j];
 				// easier ... I don't need double precision anyway, so the float matrix is half the size.
 			}
 		}
@@ -1565,31 +1591,76 @@ public class Compare {
 		OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
 
 		// write chain titles, with project prefix
-		try {
-			StringBuffer[] titles = new StringBuffer[n_chains];
-			int next = 0;
-			for (int i=0; i<p.length; i++) {
-				String prefix = Utils.getCharacter(i+1);
-				dos.write("\"\""); //empty upper left corner
-				for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
-					dos.write(",");
-					titles[next] = new StringBuffer('\"').append(chain.getCellTitle()).append('\"');
-					dos.write(titles[next].toString());
-					next++;
+		if (!xml) {
+			// as csv:
+			try {
+				StringBuffer[] titles = new StringBuffer[n_chains];
+				int next = 0;
+				for (int i=0; i<p.length; i++) {
+					String prefix = Utils.getCharacter(i+1);
+					dos.write("\"\""); //empty upper left corner
+					for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
+						dos.write(",");
+						titles[next] = new StringBuffer().append('\"').append(prefix).append(' ').append(chain.getCellTitle()).append('\"');
+						dos.write(titles[next].toString());
+						next++;
+					}
 				}
+				dos.write("\n");
+				for (int i=0; i<n_chains; i++) {
+					StringBuffer line = new StringBuffer();
+					line.append(titles[i]);
+					for (int j=0; j<n_chains; j++) line.append(',').append(scores[i][j]);
+					line.append('\n');
+					dos.write(line.toString());
+				}
+				dos.flush();
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
-			dos.write("\n");
-			for (int i=0; i<n_chains; i++) {
-				StringBuffer line = new StringBuffer();
-				line.append(titles[i]);
-				for (int j=0; j<n_chains; j++) line.append(',').append(scores[i][j]);
-				line.append('\n');
-				dos.write(line.toString());
+		} else {
+			// as XML:
+			try {
+				StringBuffer sb = new StringBuffer("<?xml version=\"1.0\"?>\n<!DOCTYPE ggobidata SYSTEM \"ggobi.dtd\">\n");
+				sb.append("<ggobidata count=\"2\">\n");
+
+				sb.append("<data name=\"Pipe Chains\">\n");
+				sb.append("<description />\n");
+				sb.append("<variables count=\"0\">\n</variables>\n"); // ggobi: what a crappy XML parser it has
+				sb.append("<records count=\"").append(chains.size()).append("\" glyph=\"fr 1\" color=\"3\">\n");
+				int next = 0;
+				for (int i=0; i<p.length; i++) {
+					String prefix = Utils.getCharacter(i+1);
+					String color = new StringBuffer("color=\"").append(i+1).append('\"');
+					for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
+						sb.append("<record id=\"").append(next+1).append("\" label=\"").append(prefix).append(' ').append(chain.getCellTitle()).append("\" ").append(color).append("></record>\n");
+						next++;
+					}
+				}
+				sb.append("</records>\n</data>\n");
+
+				sb.append("<data name=\"distances\">\n");
+				sb.append("<description />\n");
+				sb.append("<variables count=\"1\">\n<realvariable name=\"D\" />\n</variables>\n");
+				sb.append("<records count=\"").append(n_chains*(n_chains-1)).append("\" glyph=\"fr 1\" color=\"0\">\n");
+				for (int i=0; i<n_chains; i++) {
+					for (int j=0; j<n_chains; j++) {
+						if (i == j) continue;
+						sb.append("<record source=\"").append(i+1).append("\" destination=\"").append(j+1).append("\">").append(scores[i][j]).append("</record>\n");
+					}
+				}
+				sb.append("</records>\n</data>\n");
+
+				sb.append("</ggobidata>");
+
+				dos.write(sb.toString());
+				dos.flush();
+
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
-			dos.flush();
-		} catch (Exception e) {
-			e.printStackTrace();
 		}
+
 		dos.close();
 
 
