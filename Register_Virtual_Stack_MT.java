@@ -116,6 +116,7 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 			first = null; // don't interfere with memory management
 
 			// create all patches. Images are NOT loaded
+			IJ.showStatus("Loading Image Patches ...");
 			final ArrayList<Patch> pa = new ArrayList<Patch>();
 
 			for (int i=0; i<names.length; i++) {
@@ -134,11 +135,16 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 
 			final Thread[] threads = MultiThreading.newThreads();
 			final AtomicInteger ai = new AtomicInteger(1); // start at second slice
+			final AtomicInteger finished = new AtomicInteger(0);
 
 			for (int ithread = 0; ithread < threads.length; ++ithread) {
 				threads[ithread] = new Thread() { public void run() { setPriority(Thread.NORM_PRIORITY);
 
 					for (int i = ai.getAndIncrement(); i < affine.length; i = ai.getAndIncrement()) {
+						IJ.showStatus("Computing transform for slice (" + i + "/" + affine.length + ")");
+						if (IJ.debugMode) IJ.log("Computing transform for slice (" + i + "/" + affine.length + ")");
+						IJ.showProgress(finished.get(), affine.length);
+
 						Patch prev = pa.get(i-1);
 						Patch next = pa.get(i);
 						// will load images on its own (only once for each, guaranteed)
@@ -151,11 +157,7 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 							Object[] result = Registration.registerWithSIFTLandmarks(prev, next, sp, null, false, true);
 							affine[i] = (null == result ? new AffineTransform() : (AffineTransform)result[2]);
 						}
-
-						if (0 == i % threads.length) {
-							IJ.showStatus("Computing transforms...");
-							IJ.showProgress(i / (float)affine.length);
-						}
+						IJ.showProgress(finished.incrementAndGet(), affine.length);
 					}
 
 				}};
@@ -204,7 +206,7 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 					for (int i = ai2.getAndIncrement(); i < affine.length; i = ai2.getAndIncrement()) {
 						affine[i].concatenate(trans);
 						// ensure enough free memory
-						loader.releaseToFit(width * height * (ImagePlus.GRAY8 == type ? 1 : 5) * threads2.length * 3); // 3: 1 processor + 1 image + 1 for safety
+						loader.releaseToFit(width * height * (ImagePlus.GRAY8 == type ? 1 : 5) * threads2.length * 6); // 3: 1 processor + 1 image + 1 for safety , times 2 ...
 						BufferedImage bi;
 						Graphics2D g;
 						if (color) {
@@ -219,12 +221,16 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 						Patch patch = pa.get(i);
 						g.drawImage(loader.fetchImage(patch, 1.0), affine[i], null);
 						ImagePlus imp = new ImagePlus(patch.getTitle(), bi);
-						tiffnames[i] = patch.getTitle() + ".tif";
+						// Trim off file extension
+						String slice_name = patch.getTitle();
+						int idot = slice_name.lastIndexOf('.');
+						if (idot > 0) slice_name = slice_name.substring(0, idot);
+						tiffnames[i] = slice_name + ".tif";
 						new FileSaver(imp).saveAsTiff(target_dir_ + tiffnames[i]);
 
 						if (0 == i % threads.length) {
-							IJ.showStatus("Saving new images...");
-							IJ.showProgress(i / (float)affine.length);
+							IJ.showStatus("Saving slice ("+i+"/"+affine.length+")");
+							IJ.showProgress(i, affine.length);
 						}
 					}
 				}};
@@ -233,6 +239,7 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 			MultiThreading.startAndJoin(threads2);
 
 			IJ.showStatus("done.");
+			IJ.showProgress(1.0);
 
 			project.destroy();
 

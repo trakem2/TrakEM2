@@ -969,7 +969,7 @@ public class Utils implements ij.plugin.PlugIn {
 		i--;
 		int k = i / 26;
 		char c = (char)((i % 26) + 65); // 65 is 'A'
-		if (0 == k) return new StringBuffer().append(c).toString();
+		if (0 == k) return Character.toString(c);
 		return new StringBuffer().append(getCharacter(k)).append(c).toString();
 	}
 }

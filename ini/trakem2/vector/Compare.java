@@ -1456,7 +1456,9 @@ public class Compare {
 		gd.addChoice("Presets: ", preset_names, preset_names[0]);
 		gd.addMessage("");
 		String[] format = {"ggobi XML", ".csv"};
-		gd.addChoice("File format: ", format, format[0]);
+		if (to_file) {
+			gd.addChoice("File format: ", format, format[0]);
+		}
 
 		//////
 
@@ -1485,7 +1487,7 @@ public class Compare {
 		boolean chain_branches = gd.getNextBoolean();
 		String[] preset = presets[gd.getNextChoiceIndex()];
 
-		boolean xml = 0 == gd.getNextChoiceIndex();
+		boolean xml = to_file && 0 == gd.getNextChoiceIndex();
 
 
 		// gather all chains
