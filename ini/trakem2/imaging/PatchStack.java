@@ -331,8 +331,12 @@ public class PatchStack extends ImagePlus {
 
 	public synchronized void trimProcessor() {
 		if (!locked) {
-			ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
-			imp.trimProcessor();
+			try {
+				ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
+				imp.trimProcessor();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 		}
 	}
 

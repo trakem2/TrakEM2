@@ -470,6 +470,20 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return setDimensions(r.width, r.height, anchor);
 	}
 
+	/** May leave objects beyond the visible window. */
+	synchronized public void setDimensions(double x, double y, double layer_width, double layer_height) {
+		this.layer_width = layer_width;
+		this.layer_height = layer_height;
+		final AffineTransform affine = new AffineTransform();
+		affine.translate(-x, -y);
+		for (ZDisplayable zd : al_zdispl) {
+			zd.getAffineTransform().preConcatenate(affine);
+			zd.updateInDatabase("transform");
+		}
+		for (Layer la : al_layers) la.apply(Displayable.class, affine);
+		Display.update(this);
+	}
+
 	/** Returns false if any Displayables are being partially or totally cropped away. */
 	synchronized public boolean setDimensions(double layer_width, double layer_height, int anchor) {
 		// check preconditions
@@ -892,19 +906,17 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Return all the Displayable objects from all the layers of this LayerSet. Does not include the ZDisplayables. */
-	synchronized public ArrayList getDisplayables() {
-		final ArrayList al = new ArrayList();
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
+	synchronized public ArrayList<Displayable> getDisplayables() {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (Layer layer : al_layers) {
 			al.addAll(layer.getDisplayables());
 		}
 		return al;
 	}
 	/** Return all the Displayable objects from all the layers of this LayerSet of the given class. Does not include the ZDisplayables. */
-	synchronized public ArrayList getDisplayables(Class c) {
-		final ArrayList al = new ArrayList();
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
+	synchronized public ArrayList<Displayable> getDisplayables(Class c) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (Layer layer : al_layers) {
 			al.addAll(layer.getDisplayables(c));
 		}
 		return al;

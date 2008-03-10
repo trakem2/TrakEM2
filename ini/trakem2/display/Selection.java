@@ -408,6 +408,9 @@ public class Selection {
 		floater.y = y;
 	}
 
+	public int getFloaterX() { return floater.x; }
+	public int getFloaterY() { return floater.y; }
+
 	public void setActive(Displayable d) {
 		synchronized (queue_lock) {
 			try {
@@ -918,17 +921,26 @@ public class Selection {
 
 	/** Rotate the objects in the current selection by the given angle, in degrees, relative to the floater position. */
 	public void rotate(double angle) {
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next(); // all this is so obvious and ridiculous compared to python's for t in ht: ...
-			d.rotate(Math.toRadians(angle), floater.x, floater.y);
+		for (Displayable d : hs) {
+			d.rotate(Math.toRadians(angle), floater.x, floater.y, false); // all linked ones included in the hashset
 		}
 		resetBox();
 	}
 	/** Translate all selected objects and their links by the given differentials. The floater position is unaffected; if you want to update it call centerFloater() */
 	public void translate(double dx, double dy) {
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			d.translate(dx, dy);
+		for (Displayable d : hs) {
+			d.translate(dx, dy, false); // all linked ones already included in the hashset
+		}
+		resetBox();
+	}
+	/** Scale all selected objects and their links by by the given scales, relative to the floater position. . */
+	public void scale(double sx, double sy) {
+		if (0 == sx || 0 == sy) {
+			Utils.showMessage("Cannot scale to 0.");
+			return;
+		}
+		for (Displayable d : hs) {
+			d.scale(sx, sy, floater.x, floater.y, false); // all linked ones already included in the hashset
 		}
 		resetBox();
 	}

@@ -155,11 +155,10 @@ public class AreaList extends ZDisplayable {
 			original_composite = g.getComposite();
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
-		if (fill_paint) {
-			g.fill(area.createTransformedArea(this.at));
-		} else {
-			g.draw(area.createTransformedArea(this.at));  // the contour only
-		}
+
+		if (fill_paint) g.fill(area.createTransformedArea(this.at));
+		else 		g.draw(area.createTransformedArea(this.at));  // the contour only
+
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
 			g.setComposite(original_composite);

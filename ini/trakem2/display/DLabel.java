@@ -462,7 +462,7 @@ public class DLabel extends Displayable {
 		setText(this.title, true);
 	}
 
-	/** Performs a deep copy of this object, without the links, unlocked and visible. */
+	/** Performs a deep copy of this object, except for the Layer pointer. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final DLabel copy = new DLabel(pr, nid, title, width, height, type, font.getName(), font.getStyle(), font.getSize(), this.locked, (AffineTransform)this.at.clone());
