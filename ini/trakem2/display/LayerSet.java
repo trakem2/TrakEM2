@@ -1386,8 +1386,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	public boolean isCalibrated() {
 		Calibration identity = new Calibration();
-		if (identity.equals(this.calibration)) return true;
-		return false;
+		if (identity.equals(this.calibration)) return false;
+		return true;
 	}
 
 	/** Restore calibration from the given XML attributes table.*/
