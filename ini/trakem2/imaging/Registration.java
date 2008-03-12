@@ -32,8 +32,10 @@ import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.registration.Tile;
 import mpi.fruitfly.registration.Model;
+import mpi.fruitfly.registration.AffineModel2D;
 import mpi.fruitfly.registration.TModel2D;
 import mpi.fruitfly.registration.TRModel2D;
+import mpi.fruitfly.registration.RANSAC;
 import mpi.fruitfly.analysis.FitLine;
 
 import ini.trakem2.Project;
@@ -402,24 +404,23 @@ public class Registration {
 		
 		final Vector< PointMatch > inliers = new Vector< PointMatch >();
 
-		Model model;
+		AffineModel2D model;
 		if (1 == sp.dimension) {
 			// translation and rotation
-			model = TRModel2D.estimateBestModel(
-				candidates,
-				inliers,
-				sp.min_epsilon,
-				sp.max_epsilon,
-				sp.min_inlier_ratio );
+			model = new TRModel2D();
 		} else {
 			// translation only
-			model = TModel2D.estimateBestModel(
+			model = new TModel2D();
+		}
+		if ( !RANSAC.runForBest(
+				model,
 				candidates,
 				inliers,
+				1000,
 				sp.min_epsilon,
 				sp.max_epsilon,
-				sp.min_inlier_ratio );
-		}
+				sp.min_inlier_ratio ) )
+			model = null;
 
 		final AffineTransform at = new AffineTransform();
 

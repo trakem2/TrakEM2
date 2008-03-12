@@ -1,5 +1,3 @@
-import static mpi.fruitfly.math.General.*;
-
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 import mpi.fruitfly.registration.*;
