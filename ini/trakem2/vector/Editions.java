@@ -176,12 +176,12 @@ public class Editions {
 		return new int[]{i_start, i_end, skip_ends ? 1 : 0};
 	}
 
-	/** Returns the average distance between all points involved in a mutation. */
-	public double getPhysicalDistance(boolean skip_ends, final int max_mut, final float min_chunk) {
-		return getPhysicalDistance(getStartEndSkip(skip_ends, max_mut, min_chunk));
+	/** Returns the distance between all points involved in a mutation; if average is false, then it returns the cummulative. Returns Double.MAX_VALUE if no mutations are found. */
+	public double getPhysicalDistance(boolean skip_ends, final int max_mut, final float min_chunk, boolean average) {
+		return getPhysicalDistance(getStartEndSkip(skip_ends, max_mut, min_chunk), average);
 	}
 
-	private double getPhysicalDistance(int[] g) {
+	private double getPhysicalDistance(final int[] g, final boolean average) {
 		int i_start = g[0];
 		int i_end = g[1];
 		boolean skip_ends = 1 == g[2];
@@ -200,11 +200,55 @@ public class Editions {
 				dist += vs1.distance(k1, vs2, k2);
 				len++;
 			}
-			return dist / len; // can len be zero?
+			if (0 == len) return Double.MAX_VALUE;
+			if (average) return dist / len; // can len be zero ?
+			return dist;
 		} catch (Exception e) {
 			IJError.print(e);
 			Utils.log2("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
-			return 100000000;
+			return Double.MAX_VALUE;
+		}
+	}
+
+	public double getStdDev(final boolean skip_ends, final int max_mut, final float min_chunk) {
+		return getStdDev(getStartEndSkip(skip_ends, max_mut, min_chunk));
+	}
+
+	/** Returns the standard deviation of the distances between all points involved in a mutation. */
+	private double getStdDev(final int[] g) {
+		int i_start = g[0];
+		int i_end = g[1];
+		boolean skip_ends = 1 == g[2];
+
+		double dist = 0;
+		int i = 0;
+		final int len1 = vs1.length();
+		final int len2 = vs2.length();
+		final ArrayList<Double> mut = new ArrayList<Double>(); // why not ArrayList<double> ? STUPID JAVA
+		try {
+			for (i=i_start; i<=i_end; i++) {
+				if (MUTATION != editions[i][0]) continue;
+				int k1 = editions[i][1];
+				int k2 = editions[i][2];
+				if (len1 == k1 || len2 == k2) continue; // LAST point will fail in some occasions, needs fixing
+				double d = vs1.distance(k1, vs2, k2);
+				dist += d;
+				mut.add(d);
+			}
+			if (0 == mut.size()) return Double.MAX_VALUE;
+			Double[] di = new Double[mut.size()];
+			mut.toArray(di);
+			double average = dist / di.length; // can length be zero ?
+			double std = 0;
+			for (int k=0; k<di.length; k++) {
+				std += Math.pow(di[k].doubleValue() - average, 2);
+			}
+			return Math.sqrt(std / di.length);
+
+		} catch (Exception e) {
+			IJError.print(e);
+			Utils.log2("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			return Double.MAX_VALUE;
 		}
 	}
 
@@ -700,12 +744,12 @@ public class Editions {
 		if (1 == chunks.size()) chunk = chunks.get(0);
 		else {
 			// All added chunks have the same length (otherwise would have been deleted)
-			// Find the one with the smallest physical distance
+			// Find the one with the smallest cummulative physical distance
 			double[] dist = new double[chunks.size()];
 			int next = 0;
 			Hashtable<Chunk,Double> ht = new Hashtable<Chunk,Double>();
 			for (Chunk c : chunks) {
-				dist[next] = getPhysicalDistance(new int[]{c.i_start, c.i_end, max_non_mut});
+				dist[next] = getPhysicalDistance(new int[]{c.i_start, c.i_end, max_non_mut}, false);
 				ht.put(c, dist[next]);
 				next++;
 			}

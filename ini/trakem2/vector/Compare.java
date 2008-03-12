@@ -416,7 +416,7 @@ public class Compare {
 					Editions ed = (Editions)ob[0];
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
-					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
+					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, true));
 
 				}
 			} catch (Exception e) {
@@ -1128,7 +1128,7 @@ public class Compare {
 						score = ((Double)ob[1]).doubleValue();
 					}
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
-					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
+					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1, true));
 				}
 
 			} catch (Exception e) {
@@ -1455,6 +1455,8 @@ public class Compare {
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
 		gd.addChoice("Presets: ", preset_names, preset_names[0]);
 		gd.addMessage("");
+		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Cummulative physical distance", "Standard deviation"};
+		gd.addChoice("Dissimilarity type: ", distance_types, distance_types[2]);
 		String[] format = {"ggobi XML", ".csv"};
 		if (to_file) {
 			gd.addChoice("File format: ", format, format[0]);
@@ -1486,6 +1488,8 @@ public class Compare {
 		int transform_type = gd.getNextChoiceIndex();
 		boolean chain_branches = gd.getNextBoolean();
 		String[] preset = presets[gd.getNextChoiceIndex()];
+
+		int distance_type = gd.getNextChoiceIndex();
 
 		boolean xml = to_file && 0 == gd.getNextChoiceIndex();
 
@@ -1578,7 +1582,22 @@ public class Compare {
 				Object[] ob = findBestMatch(vs1, chains.get(j).vs, delta, skip_ends, max_mut, min_chunk);
 				//scores[next++] = 1 - ((Double)ob[1]).doubleValue();
 				// Record the dissimilarity
-				scores[i][j] = 1.0f - (float)((Double)ob[1]).doubleValue();
+				switch (distance_type) {
+					case 0: // Levenshtein
+						scores[i][j] = (float)((Editions)ob[0]).getDistance();
+						break;
+					case 1: // Dissimilarity
+						scores[i][j] = 1.0f - (float)((Double)ob[1]).doubleValue();
+						break;
+					case 2: // average physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
+						break;
+					case 3: // cummulative physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
+					case 4: // stdDev of distances between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getStdDev(skip_ends, max_mut, min_chunk);
+						break;
+				}
 				scores[j][i] = scores[i][j];
 				// easier ... I don't need double precision anyway, so the float matrix is half the size.
 			}
