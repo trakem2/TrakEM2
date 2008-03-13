@@ -617,4 +617,20 @@ public class Patch extends Displayable {
 			paintAsBox(g);
 		}
 	}
+
+	static protected void crosslink(final ArrayList patches, final boolean overlapping_only) {
+		if (null == patches) return;
+		final ArrayList<Patch> al = new ArrayList<Patch>();
+		for (Object ob : patches) if (ob instanceof Patch) al.add((Patch)ob); // ... 
+		final int len = al.size();
+		if (len < 2) return;
+		final Patch[] pa = new Patch[len];
+		al.toArray(pa);
+		for (int i=0; i<pa.length; i++) {
+			for (int j=i+1; j<pa.length; j++) {
+				if (overlapping_only && !pa[i].intersects(pa[j])) continue;
+				pa[i].link(pa[j]);
+			}
+		}
+	}
 }

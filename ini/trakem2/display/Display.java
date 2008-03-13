@@ -1916,6 +1916,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					} else if (n_sel_patches > 1) {
 						item = new JMenuItem("Montage"); item.addActionListener(this); popup.add(item);
 					}
+					item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
 					HashSet hs = active.getLinked(Patch.class);
 					if (null == hs || 0 == hs.size()) item.setEnabled(false);
@@ -2892,6 +2893,29 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			HashSet hs = new HashSet();
 			hs.addAll(selection.getSelected(Patch.class));
 			Registration.registerTilesSIFT(hs, (Patch)active, null, false);
+		} else if (command.equals("Link images...")) {
+			GenericDialog gd = new GenericDialog("Options");
+			gd.addMessage("Linking images to images (within the layer only):");
+			String[] options = {"all images to all images", "each image with any other overlapping image"};
+			gd.addChoice("Link: ", options, options[1]);
+			String[] options2 = {"selected images only", "all images in this layer", "all images in all layers"};
+			gd.addChoice("Apply to: ", options2, options2[0]);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			boolean overlapping_only = 1 == gd.getNextChoiceIndex();
+			switch (gd.getNextChoiceIndex()) {
+				case 0:
+					Patch.crosslink(selection.getSelected(Patch.class), overlapping_only);
+					break;
+				case 1:
+					Patch.crosslink(layer.getDisplayables(Patch.class), overlapping_only);
+					break;
+				case 2:
+					for (Layer la : layer.getParent().getLayers()) {
+						Patch.crosslink(la.getDisplayables(Patch.class), overlapping_only);
+					}
+					break;
+			}
 		} else if (command.equals("Homogenize contrast (selected images)")) {
 			ArrayList al = selection.getSelected(Patch.class);
 			if (al.size() < 2) return;
@@ -3422,5 +3446,4 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		return false;
 	}
-
 }
