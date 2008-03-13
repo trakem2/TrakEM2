@@ -416,7 +416,8 @@ public class Compare {
 					Editions ed = (Editions)ob[0];
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
-					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, true));
+					double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk);
+					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2]);
 
 				}
 			} catch (Exception e) {
@@ -658,6 +659,7 @@ public class Compare {
 			queries.add(chain);
 		}
 
+		/*
 		synchronized final void addMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist) {
 			final ChainMatch cm = new ChainMatch(query, ref, ed, score, phys_dist);
 			ArrayList<ChainMatch> al = matches.get(query);
@@ -667,6 +669,7 @@ public class Compare {
 			}
 			al.add(cm);
 		}
+		*/
 
 		final void addMatch(final ChainMatch cm) {
 			ArrayList<ChainMatch> al = matches.get(cm.query);
@@ -809,14 +812,18 @@ public class Compare {
 		Chain query;
 		Chain ref;
 		Editions ed;
+		double score; // similarity measure made of num 1 - ((insertions + num deletions) / max (len1, len2))
 		double phys_dist;
-		double score;
-		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist) {
+		double cum_phys_dist; // cummulative physiscal distance
+		double stdDev; // between mutation pairs
+		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist, final double cum_phys_dist, final double stdDev) {
 			this.query = query;
 			this.ref = ref;
 			this.ed = ed;
 			this.score = score;
 			this.phys_dist = phys_dist;
+			this.cum_phys_dist = cum_phys_dist;
+			this.stdDev = stdDev;
 		}
 	}
 
@@ -1128,7 +1135,8 @@ public class Compare {
 						score = ((Double)ob[1]).doubleValue();
 					}
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
-					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1, true));
+					double[] stats = ed.getStatistics(false, 0, 1);
+					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2]);
 				}
 
 			} catch (Exception e) {
@@ -1341,11 +1349,13 @@ public class Compare {
 				case 2: return "Similarity";
 				case 3: return "Lev Dist";
 				case 4: return null != qh.cal2 ? "Dist (" + qh.cal2.getUnits() + ")" : "Dist";
+				case 5: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
+				case 6: return "Std Dev";
 				default: return "";
 			}
 		}
 		public int getRowCount() { return cm.size(); }
-		public int getColumnCount() { return 5; }
+		public int getColumnCount() { return 7; }
 		public Object getValueAt(int row, int col) {
 			switch (col) {
 				case 0: return cm.get(row).ref.getRoot().getProject();
@@ -1353,6 +1363,8 @@ public class Compare {
 				case 2: return Utils.cutNumber(Math.floor(cm.get(row).score * 10000) / 100, 2) + " %";
 				case 3: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
 				case 4: return Utils.cutNumber(cm.get(row).phys_dist, 2);
+				case 5: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
+				case 6: return Utils.cutNumber(cm.get(row).stdDev, 2);
 				default: return "";
 			}
 		}

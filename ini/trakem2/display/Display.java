@@ -2895,7 +2895,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Registration.registerTilesSIFT(hs, (Patch)active, null, false);
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");
-			gd.addMessage("Linking images to images (within the layer only):");
+			gd.addMessage("Linking images to images (within their own layer only):");
 			String[] options = {"all images to all images", "each image with any other overlapping image"};
 			gd.addChoice("Link: ", options, options[1]);
 			String[] options2 = {"selected images only", "all images in this layer", "all images in all layers"};

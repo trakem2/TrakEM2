@@ -252,6 +252,53 @@ public class Editions {
 		}
 	}
 
+	/** Returns {average distance, cummulative distance, stdDev} */
+	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk) {
+		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk));
+	}
+
+	private double[] getStatistics(final int[] g) {
+		int i_start = g[0];
+		int i_end = g[1];
+		boolean skip_ends = 1 == g[2];
+
+		double cum_dist = 0; // cummulative distance between mutation pairs
+		int i = 0;
+		final int len1 = vs1.length();
+		final int len2 = vs2.length();
+		final ArrayList<Double> mut = new ArrayList<Double>(); // why not ArrayList<double> ? STUPID JAVA
+		final double[] pack = new double[]{Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
+		try {
+			for (i=i_start; i<=i_end; i++) {
+				if (MUTATION != editions[i][0]) continue;
+				int k1 = editions[i][1];
+				int k2 = editions[i][2];
+				if (len1 == k1 || len2 == k2) continue; // LAST point will fail in some occasions, needs fixing
+				double d = vs1.distance(k1, vs2, k2);
+				cum_dist += d;
+				mut.add(d);
+			}
+			if (0 == mut.size()) return pack;
+			Double[] di = new Double[mut.size()];
+			mut.toArray(di);
+			double average = cum_dist / di.length; // can length be zero ?
+			double std = 0;
+			for (int k=0; k<di.length; k++) {
+				std += Math.pow(di[k].doubleValue() - average, 2);
+			}
+
+			pack[0] = average;
+			pack[1] = cum_dist;
+			pack[2] = Math.sqrt(std / di.length);
+
+		} catch (Exception e) {
+			IJError.print(e);
+			Utils.log2("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+		}
+
+		return pack;
+	}
+
 	final private void init() {
 		// equalize point interdistance in both strings of vectors and create the actual vectors
 		vs1.resample(delta);
@@ -766,6 +813,7 @@ public class Editions {
 		// (so: get new edition sequence from chunk's midpoint to zero)
 
 		final int midpoint = (chunk.i_start + chunk.i_end) / 2;
+		if (0 == midpoint) return null;
 
 		VectorString3D firsthalf1 = (VectorString3D)vs1.subVectorString(editions[midpoint][1], 0); // already reversed, by giving indices in reverse order
 		VectorString3D firsthalf2 = (VectorString3D)vs2.subVectorString(editions[midpoint][2], 0); // already reversed, by giving indices in reverse order
