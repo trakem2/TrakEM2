@@ -286,10 +286,11 @@ public class Editions {
 			for (int k=0; k<di.length; k++) {
 				std += Math.pow(di[k].doubleValue() - average, 2);
 			}
+			std = Math.sqrt(std / di.length);
 
 			pack[0] = average;
 			pack[1] = cum_dist;
-			pack[2] = Math.sqrt(std / di.length);
+			pack[2] = std;
 
 		} catch (Exception e) {
 			IJError.print(e);
