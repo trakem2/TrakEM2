@@ -791,6 +791,7 @@ public abstract class Displayable extends DBObject {
 		gd.addSlider("Blue: ", 0, 255, color.getBlue());
 		gd.addCheckbox("locked", locked);
 		// add slider listener
+		final Scrollbar alp = (Scrollbar)gd.getSliders().get(0);
 		final Scrollbar red = (Scrollbar)gd.getSliders().get(1);
 		final Scrollbar green = (Scrollbar)gd.getSliders().get(2);
 		final Scrollbar blue = (Scrollbar)gd.getSliders().get(3);
@@ -799,9 +800,15 @@ public abstract class Displayable extends DBObject {
 				Object src = ae.getSource();
 				if (src.equals(red) || src.equals(green) || src.equals(blue)) {
 					setColor(new Color(red.getValue(), green.getValue(), blue.getValue()));
+					return;
+				}
+				if (src.equals(alp)) {
+					setAlpha((float)alp.getValue()/100);
+					return;
 				}
 			}
 		};
+		alp.addAdjustmentListener(cl);
 		red.addAdjustmentListener(cl);
 		green.addAdjustmentListener(cl);
 		blue.addAdjustmentListener(cl);
@@ -811,15 +818,18 @@ public abstract class Displayable extends DBObject {
 	private class GD extends GenericDialog {
 		Displayable displ;
 		Color dcolor;
+		float dalpha;
 		GD(String title, Displayable displ) {
 			super(title);
 			this.displ = displ;
 			this.dcolor = new Color(displ.color.getRed(), displ.color.getGreen(), displ.color.getBlue()); // can't clone color?
+			this.dalpha = displ.alpha;
 		}
 		/** Override to restore original color when canceled. */
 		public void dispose() {
 			if (wasCanceled()) {
-				displ.setColor(dcolor);
+				displ.alpha = dalpha;
+				displ.setColor(dcolor); // calls repaint
 			}
 			super.dispose();
 		}
