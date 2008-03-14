@@ -2109,6 +2109,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
+			item = new JMenuItem("Export arealists as labels"); item.addActionListener(this); menu.add(item);
+			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
 			if (menu.getItemCount() > 0) popup.add(menu);
 			menu = new JMenu("Selection");
 			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
@@ -2999,6 +3001,28 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			SwingUtilities.invokeLater(new Runnable() { public void run() {
 			d.canvas.showCentered(new Rectangle(0, 0, (int)subls.getLayerWidth(), (int)subls.getLayerHeight()));
 			}});
+		} else if (command.equals("Export arealists as labels")) {
+			GenericDialog gd = new GenericDialog("Export labels");
+			gd.addSlider("Scale: ", 1, 100, 100);
+			final String[] options = {"All area list", "Selected area lists"};
+			gd.addChoice("Export: ", options, options[0]);
+			Utils.addLayerRangeChoices(layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final float scale = (float)(gd.getNextNumber() / 100);
+			java.util.List al = 0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelected(AreaList.class);
+			if (null == al) {
+				Utils.log("No area lists found to export.");
+				return;
+			}
+			if (al.size() > 255) {
+				YesNoCancelDialog yn = new YesNoCancelDialog(frame, "WARNING", "Found more than 255 area lists to export:\nExport only the first 255?");
+				if (yn.cancelPressed()) return;
+				if (yn.yesPressed()) al = al.subList(0, 255); // only 255 total: the 0 is left for background
+			}
+			int first = gd.getNextChoiceIndex();
+			int last  = gd.getNextChoiceIndex();
+			AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last);
 		} else if (command.equals("Project properties...")) {
 			project.adjustProperties();
 		} else {

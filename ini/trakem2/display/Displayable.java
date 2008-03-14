@@ -795,24 +795,35 @@ public abstract class Displayable extends DBObject {
 		final Scrollbar red = (Scrollbar)gd.getSliders().get(1);
 		final Scrollbar green = (Scrollbar)gd.getSliders().get(2);
 		final Scrollbar blue = (Scrollbar)gd.getSliders().get(3);
-		AdjustmentListener cl = new AdjustmentListener() {
-			public void adjustmentValueChanged(AdjustmentEvent ae) {
-				Object src = ae.getSource();
-				if (src.equals(red) || src.equals(green) || src.equals(blue)) {
-					setColor(new Color(red.getValue(), green.getValue(), blue.getValue()));
-					return;
-				}
-				if (src.equals(alp)) {
-					setAlpha((float)alp.getValue()/100);
-					return;
-				}
+		final TextField talp = (TextField)gd.getNumericFields().get(5);
+		final TextField tred = (TextField)gd.getNumericFields().get(6);
+		final TextField tgreen = (TextField)gd.getNumericFields().get(7);
+		final TextField tblue = (TextField)gd.getNumericFields().get(8);
+		SliderListener sla = new SliderListener() {
+			public void update() {
+				setAlpha((float)alp.getValue()/100);
 			}
 		};
-		alp.addAdjustmentListener(cl);
-		red.addAdjustmentListener(cl);
-		green.addAdjustmentListener(cl);
-		blue.addAdjustmentListener(cl);
+		SliderListener slc = new SliderListener() {
+			public void update() {
+				setColor(new Color(red.getValue(), green.getValue(), blue.getValue()));
+			}
+		};
+		alp.addAdjustmentListener(sla);
+		red.addAdjustmentListener(slc);
+		green.addAdjustmentListener(slc);
+		blue.addAdjustmentListener(slc);
+		talp.addTextListener(sla);
+		tred.addTextListener(slc);
+		tgreen.addTextListener(slc);
+		tblue.addTextListener(slc);
 		return gd;
+	}
+
+	private abstract class SliderListener implements AdjustmentListener, TextListener {
+		public void adjustmentValueChanged(AdjustmentEvent ae) { update(); }
+		public void textValueChanged(TextEvent te) { update(); }
+		abstract public void update();
 	}
 
 	private class GD extends GenericDialog {
