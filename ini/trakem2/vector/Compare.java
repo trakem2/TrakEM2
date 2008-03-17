@@ -225,6 +225,7 @@ public class Compare {
 					     "translate, rotate, scale and shear"};
 		gd.addChoice("Transform_type: ", transforms, transforms[2]);
 		gd.addCheckbox("Chain_branches", true);
+		gd.addCheckbox("Score mutations only", false);
 
 		//////
 
@@ -259,13 +260,14 @@ public class Compare {
 
 		int transform_type = gd.getNextChoiceIndex();
 		boolean chain_branches = gd.getNextBoolean();
+		boolean score_mut = gd.getNextBoolean();
 
 		// check that the Calibration units are the same
 		if (!matchUnits(pipe.getLayerSet().getCalibration().getUnit(), all[iproject].getRootLayerSet().getCalibration().getUnit(), all[iproject].getTitle())) {
 			return null;
 		}
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true);
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true, score_mut);
 	}
 
 	static private int[] findXYZAxes(final String[] presets, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
@@ -310,7 +312,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui) {
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut) {
 		if (axes.length < 3 || axes_ref.length < 3) {
 			Utils.log("Need three axes for each.");
 			return null;
@@ -416,7 +418,7 @@ public class Compare {
 					Editions ed = (Editions)ob[0];
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
-					double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk);
+					double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
 					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2]);
 
 				}
@@ -1135,7 +1137,7 @@ public class Compare {
 						score = ((Double)ob[1]).doubleValue();
 					}
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
-					double[] stats = ed.getStatistics(false, 0, 1);
+					double[] stats = ed.getStatistics(false, 0, 1, false);
 					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2]);
 				}
 

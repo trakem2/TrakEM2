@@ -253,11 +253,11 @@ public class Editions {
 	}
 
 	/** Returns {average distance, cummulative distance, stdDev} */
-	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk) {
-		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk));
+	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean score_mut) {
+		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk), score_mut);
 	}
 
-	private double[] getStatistics(final int[] g) {
+	private double[] getStatistics(final int[] g, final boolean score_mut) {
 		int i_start = g[0];
 		int i_end = g[1];
 		boolean skip_ends = 1 == g[2];
@@ -270,7 +270,7 @@ public class Editions {
 		final double[] pack = new double[]{Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
 		try {
 			for (i=i_start; i<=i_end; i++) {
-				if (MUTATION != editions[i][0]) continue;
+				if (score_mut && MUTATION != editions[i][0]) continue;
 				int k1 = editions[i][1];
 				int k2 = editions[i][2];
 				if (len1 == k1 || len2 == k2) continue; // LAST point will fail in some occasions, needs fixing

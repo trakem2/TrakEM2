@@ -2014,8 +2014,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					menu = new JMenu("Send linked group to...");
 					if (active.hasLinkedGroupWithinLayer(this.layer)) {
 						int i = 1;
-						for (Iterator it = layer.getParent().getLayers().iterator(); it.hasNext(); ) {
-							Layer la = (Layer)it.next();
+						for (Layer la : layer.getParent().getLayers()) {
 							item = new JMenuItem(la.getTitle()); item.addActionListener(this); menu.add(item);
 							if (la.equals(this.layer)) item.setEnabled(false);
 							i++;
@@ -2510,6 +2509,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				updateSelection();//selection.update();
 			} catch (Exception e) { IJError.print(e); }
 		} else if (command.equals("Send to next layer")) {
+			Rectangle box = selection.getBox();
 			try {
 				// unlink Patch instances
 				active.unlinkAll(Patch.class);
@@ -2517,7 +2517,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveDown(layer, active); // will repaint whatever appropriate layers
 			selection.moveDown();
+			repaint(layer.getParent(), box);
 		} else if (command.equals("Send to previous layer")) {
+			Rectangle box = selection.getBox();
 			try {
 				// unlink Patch instances
 				active.unlinkAll(Patch.class);
@@ -2525,6 +2527,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveUp(layer, active); // will repaint whatever appropriate layers
 			selection.moveUp();
+			repaint(layer.getParent(), box);
 		} else if (command.equals("Show centered")) {
 			if (active == null) return;
 			showCentered(active);
