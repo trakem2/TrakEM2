@@ -1059,6 +1059,8 @@ public class Project extends DBObject {
 		boolean link_dissectors = addBox(gd, Dissector.class);
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
+		boolean no_color_cues = "true".equals(ht_props.get("no_color_cues"));
+		gd.addCheckbox("Paint_color_cues", !no_color_cues);
 		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
@@ -1069,6 +1071,9 @@ public class Project extends DBObject {
 		setLinkProp(link_dissectors, gd.getNextBoolean(), Dissector.class);
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
+		}
+		if (adjustProp("no_color_cues", no_color_cues, !gd.getNextBoolean())) {
+			Display.repaint(layer_set);
 		}
 	}
 }
