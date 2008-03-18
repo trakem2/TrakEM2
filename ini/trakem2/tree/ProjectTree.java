@@ -431,6 +431,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			TreePath trp = new TreePath(node.getPath());
 			this.scrollPathToVisible(trp);
 			this.setSelectionPath(trp);
+			this.updateUILater();
 		}
 	}
 	public void keyReleased(KeyEvent ke) {}

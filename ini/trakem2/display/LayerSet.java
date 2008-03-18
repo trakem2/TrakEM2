@@ -877,7 +877,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 	public void setAllVisible(boolean repaint) {
 		for (ZDisplayable zd : al_zdispl) {
-			zd.setVisible(true, repaint);
+			if (!zd.isVisible()) zd.setVisible(true, repaint);
 		}
 		for (Layer la : al_layers) la.setAllVisible(repaint);
 	}

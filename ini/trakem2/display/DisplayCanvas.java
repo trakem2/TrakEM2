@@ -1591,6 +1591,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					ke.consume();
 				}
 				break;
+			case KeyEvent.VK_H:
+				handleHide(ke);
+				break;
 			case KeyEvent.VK_I:
 				if (ke.isAltDown()) {
 					if (ke.isShiftDown()) display.importImage();
@@ -2002,5 +2005,26 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		if ((newy+srcRect.height)>imageHeight) newy = imageHeight-srcRect.height;
 		srcRect.x = newx;
 		srcRect.y = newy;
+	}
+
+	private void handleHide(final KeyEvent ke) {
+		if (ke.isAltDown() && !ke.isShiftDown()) {
+			// show hidden
+			display.getLayer().getParent().setAllVisible(false);
+			//Display.repaint(display.getLayer());
+			Display.update(display.getLayer());
+			ke.consume();
+			return;
+		}
+		if (ke.isShiftDown()) {
+			// hide deselected
+			display.hideDeselected(ke.isAltDown());
+			ke.consume();
+			return;
+		}
+		// else, hide selected
+		display.getSelection().setVisible(false);
+		Display.update(display.getLayer());
+		ke.consume();
 	}
 }

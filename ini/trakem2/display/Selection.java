@@ -1040,4 +1040,17 @@ public class Selection {
 		}
 		clear();
 	}
+
+	/** Set all selected objects visible/hidden. */
+	public void setVisible(boolean b) {
+		synchronized (queue_lock) {
+			lock();
+			for (Iterator it = queue.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				if (b != d.isVisible()) d.setVisible(b);
+			}
+			unlock();
+		}
+		Display.repaint(display.getLayer(), box, 10);
+	}
 }
