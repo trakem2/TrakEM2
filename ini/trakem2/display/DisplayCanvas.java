@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 import ij.*;
 import ij.gui.*;
+import ini.trakem2.Project;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.*;
@@ -1657,6 +1658,19 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						imp.copy(false);
 						ke.consume();
 					}
+				}
+				break;
+			case KeyEvent.VK_P:
+				if (0 == ke.getModifiers()) {
+					final Project pro = display.getProject();
+					if ("true".equals(pro.getProperty("no_color_cues"))) {
+						// remove key
+						pro.setProperty("no_color_cues", null);
+					} else {
+						pro.setProperty("no_color_cues", "true");
+					}
+					Display.repaint(display.getLayer().getParent());
+					ke.consume();
 				}
 				break;
 			default:

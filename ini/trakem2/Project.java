@@ -1025,6 +1025,10 @@ public class Project extends DBObject {
 	public String getProperty(final String key) {
 		return (String)ht_props.get(key);
 	}
+	public void setProperty(final String key, final String value) {
+		if (null == value) ht_props.remove(key);
+		else ht_props.put(key, value);
+	}
 	private final boolean addBox(final GenericDialog gd, final Class c) {
 		final String name = Project.getName(c);
 		final boolean link = "true".equals(ht_props.get(name.toLowerCase() + "_nolinks"));
