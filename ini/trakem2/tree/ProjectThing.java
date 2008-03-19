@@ -836,4 +836,15 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		return copy;
 	}
+
+	/** Moves this ProjectThing up and down the parent's children list. Returns false if no movement was done. */
+	public boolean move(final int inc) {
+		if (null == parent) return false;
+		int i = parent.al_children.indexOf(this);
+		if (0 == inc || i + inc < 0 || i + inc >= parent.al_children.size()) return false;
+		// swap objects (the ArrayList.set(..) replaces the element at the index)
+		parent.al_children.set(i, parent.al_children.get(i+inc));
+		parent.al_children.set(i+inc, this);
+		return true;
+	}
 }

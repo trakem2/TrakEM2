@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 import ij.*;
 import ij.gui.*;
+import ini.trakem2.Project;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.*;
@@ -1590,6 +1591,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					ke.consume();
 				}
 				break;
+			case KeyEvent.VK_H:
+				handleHide(ke);
+				break;
 			case KeyEvent.VK_I:
 				if (ke.isAltDown()) {
 					if (ke.isShiftDown()) display.importImage();
@@ -1657,6 +1661,19 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						imp.copy(false);
 						ke.consume();
 					}
+				}
+				break;
+			case KeyEvent.VK_P:
+				if (0 == ke.getModifiers()) {
+					final Project pro = display.getProject();
+					if ("true".equals(pro.getProperty("no_color_cues"))) {
+						// remove key
+						pro.setProperty("no_color_cues", null);
+					} else {
+						pro.setProperty("no_color_cues", "true");
+					}
+					Display.repaint(display.getLayer().getParent());
+					ke.consume();
 				}
 				break;
 			default:
@@ -1988,5 +2005,26 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		if ((newy+srcRect.height)>imageHeight) newy = imageHeight-srcRect.height;
 		srcRect.x = newx;
 		srcRect.y = newy;
+	}
+
+	private void handleHide(final KeyEvent ke) {
+		if (ke.isAltDown() && !ke.isShiftDown()) {
+			// show hidden
+			display.getLayer().getParent().setAllVisible(false);
+			//Display.repaint(display.getLayer());
+			Display.update(display.getLayer());
+			ke.consume();
+			return;
+		}
+		if (ke.isShiftDown()) {
+			// hide deselected
+			display.hideDeselected(ke.isAltDown());
+			ke.consume();
+			return;
+		}
+		// else, hide selected
+		display.getSelection().setVisible(false);
+		Display.update(display.getLayer());
+		ke.consume();
 	}
 }

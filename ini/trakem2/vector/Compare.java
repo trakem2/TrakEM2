@@ -225,6 +225,7 @@ public class Compare {
 					     "translate, rotate, scale and shear"};
 		gd.addChoice("Transform_type: ", transforms, transforms[2]);
 		gd.addCheckbox("Chain_branches", true);
+		gd.addCheckbox("Score mutations only", false);
 
 		//////
 
@@ -259,13 +260,14 @@ public class Compare {
 
 		int transform_type = gd.getNextChoiceIndex();
 		boolean chain_branches = gd.getNextBoolean();
+		boolean score_mut = gd.getNextBoolean();
 
 		// check that the Calibration units are the same
 		if (!matchUnits(pipe.getLayerSet().getCalibration().getUnit(), all[iproject].getRootLayerSet().getCalibration().getUnit(), all[iproject].getTitle())) {
 			return null;
 		}
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true);
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true, score_mut);
 	}
 
 	static private int[] findXYZAxes(final String[] presets, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
@@ -310,7 +312,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui) {
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut) {
 		if (axes.length < 3 || axes_ref.length < 3) {
 			Utils.log("Need three axes for each.");
 			return null;
@@ -416,7 +418,8 @@ public class Compare {
 					Editions ed = (Editions)ob[0];
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
-					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
+					double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
+					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2]);
 
 				}
 			} catch (Exception e) {
@@ -658,6 +661,7 @@ public class Compare {
 			queries.add(chain);
 		}
 
+		/*
 		synchronized final void addMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist) {
 			final ChainMatch cm = new ChainMatch(query, ref, ed, score, phys_dist);
 			ArrayList<ChainMatch> al = matches.get(query);
@@ -667,6 +671,7 @@ public class Compare {
 			}
 			al.add(cm);
 		}
+		*/
 
 		final void addMatch(final ChainMatch cm) {
 			ArrayList<ChainMatch> al = matches.get(cm.query);
@@ -809,14 +814,18 @@ public class Compare {
 		Chain query;
 		Chain ref;
 		Editions ed;
+		double score; // similarity measure made of num 1 - ((insertions + num deletions) / max (len1, len2))
 		double phys_dist;
-		double score;
-		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist) {
+		double cum_phys_dist; // cummulative physiscal distance
+		double stdDev; // between mutation pairs
+		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist, final double cum_phys_dist, final double stdDev) {
 			this.query = query;
 			this.ref = ref;
 			this.ed = ed;
 			this.score = score;
 			this.phys_dist = phys_dist;
+			this.cum_phys_dist = cum_phys_dist;
+			this.stdDev = stdDev;
 		}
 	}
 
@@ -1128,7 +1137,8 @@ public class Compare {
 						score = ((Double)ob[1]).doubleValue();
 					}
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
-					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
+					double[] stats = ed.getStatistics(false, 0, 1, false);
+					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2]);
 				}
 
 			} catch (Exception e) {
@@ -1341,11 +1351,13 @@ public class Compare {
 				case 2: return "Similarity";
 				case 3: return "Lev Dist";
 				case 4: return null != qh.cal2 ? "Dist (" + qh.cal2.getUnits() + ")" : "Dist";
+				case 5: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
+				case 6: return "Std Dev";
 				default: return "";
 			}
 		}
 		public int getRowCount() { return cm.size(); }
-		public int getColumnCount() { return 5; }
+		public int getColumnCount() { return 7; }
 		public Object getValueAt(int row, int col) {
 			switch (col) {
 				case 0: return cm.get(row).ref.getRoot().getProject();
@@ -1353,6 +1365,8 @@ public class Compare {
 				case 2: return Utils.cutNumber(Math.floor(cm.get(row).score * 10000) / 100, 2) + " %";
 				case 3: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
 				case 4: return Utils.cutNumber(cm.get(row).phys_dist, 2);
+				case 5: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
+				case 6: return Utils.cutNumber(cm.get(row).stdDev, 2);
 				default: return "";
 			}
 		}
@@ -1455,6 +1469,8 @@ public class Compare {
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
 		gd.addChoice("Presets: ", preset_names, preset_names[0]);
 		gd.addMessage("");
+		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Cummulative physical distance", "Standard deviation"};
+		gd.addChoice("Dissimilarity type: ", distance_types, distance_types[2]);
 		String[] format = {"ggobi XML", ".csv"};
 		if (to_file) {
 			gd.addChoice("File format: ", format, format[0]);
@@ -1486,6 +1502,8 @@ public class Compare {
 		int transform_type = gd.getNextChoiceIndex();
 		boolean chain_branches = gd.getNextBoolean();
 		String[] preset = presets[gd.getNextChoiceIndex()];
+
+		int distance_type = gd.getNextChoiceIndex();
 
 		boolean xml = to_file && 0 == gd.getNextChoiceIndex();
 
@@ -1578,7 +1596,22 @@ public class Compare {
 				Object[] ob = findBestMatch(vs1, chains.get(j).vs, delta, skip_ends, max_mut, min_chunk);
 				//scores[next++] = 1 - ((Double)ob[1]).doubleValue();
 				// Record the dissimilarity
-				scores[i][j] = 1.0f - (float)((Double)ob[1]).doubleValue();
+				switch (distance_type) {
+					case 0: // Levenshtein
+						scores[i][j] = (float)((Editions)ob[0]).getDistance();
+						break;
+					case 1: // Dissimilarity
+						scores[i][j] = 1.0f - (float)((Double)ob[1]).doubleValue();
+						break;
+					case 2: // average physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
+						break;
+					case 3: // cummulative physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
+					case 4: // stdDev of distances between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getStdDev(skip_ends, max_mut, min_chunk);
+						break;
+				}
 				scores[j][i] = scores[i][j];
 				// easier ... I don't need double precision anyway, so the float matrix is half the size.
 			}

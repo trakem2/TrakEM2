@@ -114,12 +114,14 @@ public class Registration {
 				gd.addCheckbox("Tiles are rougly registered: ", false);
 				break;
 		}
+		//TODO//gd.addCheckbox("Transform segmentations", true);
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		final int i_first = gd.getNextChoiceIndex();
 		final int i_start = layer.getParent().indexOf(layer);
 		final int i_last = gd.getNextChoiceIndex();
 		final boolean option = gd.getNextBoolean();
+		//TODO//final boolean tr_seg = gd.getNextBoolean();
 		switch (kind) {
 			case GLOBAL_MINIMIZATION:
 				List<Layer> lla = layer.getParent().getLayers().subList(i_first, i_last +1);

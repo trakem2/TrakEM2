@@ -31,7 +31,7 @@ public class Point
 	{
 		this.l = l;
 //		new float[ l.length ];
-		w = l.clone();		
+		w = l.clone();
 	}
 	
 	/**

@@ -777,7 +777,7 @@ public abstract class Displayable extends DBObject {
 
 	protected GenericDialog makeAdjustPropertiesDialog() {
 		Rectangle box = getBoundingBox(null);
-		GenericDialog gd = new GenericDialog("Properties");
+		GenericDialog gd = new GD("Properties", this);
 		gd.addStringField("title: ", title);
 		gd.addNumericField("x: ", box.x, 2);
 		gd.addNumericField("y: ", box.y, 2);
@@ -786,8 +786,64 @@ public abstract class Displayable extends DBObject {
 		gd.addNumericField("rot (degrees): ", 0, 2);
 		gd.addSlider("alpha: ", 0, 100, (int)(alpha*100));
 		gd.addCheckbox("visible", visible);
+		gd.addSlider("Red: ", 0, 255, color.getRed());
+		gd.addSlider("Green: ", 0, 255, color.getGreen());
+		gd.addSlider("Blue: ", 0, 255, color.getBlue());
 		gd.addCheckbox("locked", locked);
+		// add slider listener
+		final Scrollbar alp = (Scrollbar)gd.getSliders().get(0);
+		final Scrollbar red = (Scrollbar)gd.getSliders().get(1);
+		final Scrollbar green = (Scrollbar)gd.getSliders().get(2);
+		final Scrollbar blue = (Scrollbar)gd.getSliders().get(3);
+		final TextField talp = (TextField)gd.getNumericFields().get(5);
+		final TextField tred = (TextField)gd.getNumericFields().get(6);
+		final TextField tgreen = (TextField)gd.getNumericFields().get(7);
+		final TextField tblue = (TextField)gd.getNumericFields().get(8);
+		SliderListener sla = new SliderListener() {
+			public void update() {
+				setAlpha((float)alp.getValue()/100);
+			}
+		};
+		SliderListener slc = new SliderListener() {
+			public void update() {
+				setColor(new Color(red.getValue(), green.getValue(), blue.getValue()));
+			}
+		};
+		alp.addAdjustmentListener(sla);
+		red.addAdjustmentListener(slc);
+		green.addAdjustmentListener(slc);
+		blue.addAdjustmentListener(slc);
+		talp.addTextListener(sla);
+		tred.addTextListener(slc);
+		tgreen.addTextListener(slc);
+		tblue.addTextListener(slc);
 		return gd;
+	}
+
+	private abstract class SliderListener implements AdjustmentListener, TextListener {
+		public void adjustmentValueChanged(AdjustmentEvent ae) { update(); }
+		public void textValueChanged(TextEvent te) { update(); }
+		abstract public void update();
+	}
+
+	private class GD extends GenericDialog {
+		Displayable displ;
+		Color dcolor;
+		float dalpha;
+		GD(String title, Displayable displ) {
+			super(title);
+			this.displ = displ;
+			this.dcolor = new Color(displ.color.getRed(), displ.color.getGreen(), displ.color.getBlue()); // can't clone color?
+			this.dalpha = displ.alpha;
+		}
+		/** Override to restore original color when canceled. */
+		public void dispose() {
+			if (wasCanceled()) {
+				displ.alpha = dalpha;
+				displ.setColor(dcolor); // calls repaint
+			}
+			super.dispose();
+		}
 	}
 
 	protected void processAdjustPropertiesDialog(final GenericDialog gd) {
@@ -812,6 +868,11 @@ public abstract class Displayable extends DBObject {
 		if (Double.isNaN(x1) || Double.isNaN(y1) || Double.isNaN(sx) || Double.isNaN(sy) || Float.isNaN(alpha1)) {
 			Utils.showMessage("Invalid values!");
 			return;
+		}
+		Color co = new Color((int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
+		if (!co.equals(this.color)) {
+			color = co;
+			updateInDatabase("color");
 		}
 		boolean visible1 = gd.getNextBoolean();
 		boolean locked1 = gd.getNextBoolean();

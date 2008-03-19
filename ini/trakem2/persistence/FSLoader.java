@@ -153,9 +153,12 @@ public class FSLoader extends Loader {
 			path = path.trim();
 			int itwo = path.indexOf("//");
 			while (-1 != itwo) {
-				if (0 == itwo) continue; // samba disk
-				if (5 == itwo  && "http:".equals(path.substring(0, 5))) continue;
-				path = path.substring(0, itwo) + path.substring(itwo+1);
+				if (0 == itwo /* samba disk */
+				||  (5 == itwo && "http:".equals(path.substring(0, 5)))) {
+					// do nothing
+				} else {
+					path = path.substring(0, itwo) + path.substring(itwo+1);
+				}
 				itwo = path.indexOf("//", itwo+1);
 			}
 		}
@@ -1432,7 +1435,10 @@ public class FSLoader extends Loader {
 
 	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
-		if (null == dir_mipmaps) return null;
+		if (null == dir_mipmaps) {
+			Utils.log2("null dir_mipmaps");
+			return null;
+		}
 		try {
 			// TODO should wait if the file is currently being generated
 			//  (it's somewhat handled by a double-try to open the jpeg image)
@@ -1440,8 +1446,11 @@ public class FSLoader extends Loader {
 			final int max_level = getHighestMipMapLevel(patch);
 
 			final String filepath = getFileName(patch);
-			if (null == filepath) return null;
-			String path = dir_mipmaps + ( level > max_level ? max_level : level ) + "/" + filepath + "." + patch.getId() + ".jpg";
+			if (null == filepath) {
+				Utils.log2("null filepath!");
+				return null;
+			}
+			final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filepath).append('.').append(patch.getId()).append(".jpg").toString();
 			Image img = null;
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:
@@ -1462,7 +1471,9 @@ public class FSLoader extends Loader {
 			if (null != img) return img;
 
 			// if we got so far ... try to regenerate the mipmaps
-			if (!mipmaps_regen) return null;
+			if (!mipmaps_regen) {
+				return null;
+			}
 
 			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
 
@@ -1470,23 +1481,35 @@ public class FSLoader extends Loader {
 			double scale = 1 / Math.pow(2, level);
 			if (level > 0 && (patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
 				// regenerate
-				Worker worker = new Worker("Regenerating mipmaps") {
-					public void run() {
-						this.setAsBackground(true);
-						this.startedWorking();
-						try {
-							generateMipMaps(patch);
-						} catch (Exception e) {
-							IJError.print(e);
-						}
+				synchronized (gm_lock) {
+					gm_lock();
 
-						Display.repaint(patch.getLayer(), patch, 0);
-
-						this.finishedWorking();
+					if (hs_regenerating_mipmaps.contains(patch)) {
+						// already being done
+						gm_unlock();
+						return null;
 					}
-				};
-				Bureaucrat burro = new Bureaucrat(worker, patch.getProject());
-				burro.goHaveBreakfast();
+					// else, start it
+					Worker worker = new Worker("Regenerating mipmaps") {
+						public void run() {
+							this.setAsBackground(true);
+							this.startedWorking();
+							try {
+								generateMipMaps(patch);
+							} catch (Exception e) {
+								IJError.print(e);
+							}
+
+							Display.repaint(patch.getLayer(), patch, 0);
+
+							this.finishedWorking();
+						}
+					};
+					Bureaucrat burro = new Bureaucrat(worker, patch.getProject());
+					burro.goHaveBreakfast();
+
+					gm_unlock();
+				}
 				return null;
 			}
 		} catch (Exception e) {

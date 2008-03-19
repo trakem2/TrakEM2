@@ -154,16 +154,17 @@ public class DLabel extends Displayable {
 		if (null == title) reload();
 		int[] ib = new int[] {
 			title.indexOf('\n'),
-			title.indexOf(','),
-			title.indexOf(' '),
+			/*title.indexOf(','),*/
+			/*title.indexOf(' '),*/
 			title.indexOf('\t')
 		};
-		int min = 10;
+		int min = title.length();
 		for (int i=0; i<ib.length; i++)
-			if (-1 != ib[i] && ib[i] < min)
+			if (-1 != ib[i] /* && ib[i] < min*/)
 				min = ib[i];
-		if (min > title.length()) return title;
-		return title.substring(0, min);
+		//if (min > title.length()) return title;
+		//return title.substring(0, min);
+		return title;
 	}
 
 	public String toString() {

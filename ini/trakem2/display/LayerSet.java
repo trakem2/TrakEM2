@@ -877,7 +877,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 	public void setAllVisible(boolean repaint) {
 		for (ZDisplayable zd : al_zdispl) {
-			zd.setVisible(true, repaint);
+			if (!zd.isVisible()) zd.setVisible(true, repaint);
 		}
 		for (Layer la : al_layers) la.setAllVisible(repaint);
 	}
@@ -1386,8 +1386,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	public boolean isCalibrated() {
 		Calibration identity = new Calibration();
-		if (identity.equals(this.calibration)) return true;
-		return false;
+		if (identity.equals(this.calibration)) return false;
+		return true;
 	}
 
 	/** Restore calibration from the given XML attributes table.*/

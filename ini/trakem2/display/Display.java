@@ -1434,7 +1434,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 	}
 	/** Repaint the entire Layer, in all Displays showing it, including the tabs.*/
-	static public void repaint(final Layer layer) {
+	static public void repaint(final Layer layer) { // TODO this method overlaps with update(layer)
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
 			if (layer.equals(d.layer)) {
@@ -1916,6 +1916,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					} else if (n_sel_patches > 1) {
 						item = new JMenuItem("Montage"); item.addActionListener(this); popup.add(item);
 					}
+					item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
 					HashSet hs = active.getLinked(Patch.class);
 					if (null == hs || 0 == hs.size()) item.setEnabled(false);
@@ -2013,8 +2014,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					menu = new JMenu("Send linked group to...");
 					if (active.hasLinkedGroupWithinLayer(this.layer)) {
 						int i = 1;
-						for (Iterator it = layer.getParent().getLayers().iterator(); it.hasNext(); ) {
-							Layer la = (Layer)it.next();
+						for (Layer la : layer.getParent().getLayers()) {
 							item = new JMenuItem(la.getTitle()); item.addActionListener(this); menu.add(item);
 							if (la.equals(this.layer)) item.setEnabled(false);
 							i++;
@@ -2051,7 +2051,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 			try {
 				menu = new JMenu("Hide/Unhide");
-				boolean none = ! layer.getParent().containsDisplayable(DLabel.class);
+				boolean none = 0 == selection.getNSelected();
+				item = new JMenuItem("Hide deselected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK, true));
+				if (none) item.setEnabled(false);
+				item = new JMenuItem("Hide selected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true));
+				if (none) item.setEnabled(false);
+				none = ! layer.getParent().containsDisplayable(DLabel.class);
 				item = new JMenuItem("Hide all labels"); item.addActionListener(this); menu.add(item);
 				if (none) item.setEnabled(false);
 				item = new JMenuItem("Unhide all labels"); item.addActionListener(this); menu.add(item);
@@ -2082,7 +2087,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				item = new JMenuItem("Unhide all images"); item.addActionListener(this); menu.add(item);
 				if (none) item.setEnabled(false);
 				item = new JMenuItem("Hide all but images"); item.addActionListener(this); menu.add(item);
-				item = new JMenuItem("Unhide all"); item.addActionListener(this); menu.add(item);
+				item = new JMenuItem("Unhide all"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.ALT_MASK, true));
 
 				popup.add(menu);
 			} catch (Exception e) { IJError.print(e); }
@@ -2108,6 +2113,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
+			item = new JMenuItem("Export arealists as labels"); item.addActionListener(this); menu.add(item);
+			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
 			if (menu.getItemCount() > 0) popup.add(menu);
 			menu = new JMenu("Selection");
 			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
@@ -2507,6 +2514,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				updateSelection();//selection.update();
 			} catch (Exception e) { IJError.print(e); }
 		} else if (command.equals("Send to next layer")) {
+			Rectangle box = selection.getBox();
 			try {
 				// unlink Patch instances
 				active.unlinkAll(Patch.class);
@@ -2514,7 +2522,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveDown(layer, active); // will repaint whatever appropriate layers
 			selection.moveDown();
+			repaint(layer.getParent(), box);
 		} else if (command.equals("Send to previous layer")) {
+			Rectangle box = selection.getBox();
 			try {
 				// unlink Patch instances
 				active.unlinkAll(Patch.class);
@@ -2522,6 +2532,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveUp(layer, active); // will repaint whatever appropriate layers
 			selection.moveUp();
+			repaint(layer.getParent(), box);
 		} else if (command.equals("Show centered")) {
 			if (active == null) return;
 			showCentered(active);
@@ -2632,6 +2643,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			String type = command.substring(11, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
 			layer.getParent().setVisible(type, true, true);
+		} else if (command.equals("Hide deselected")) {
+			hideDeselected(0 != (ActionEvent.ALT_MASK & ae.getModifiers()));
+		} else if (command.equals("Hide selected")) {
+			selection.setVisible(false);
 		} else if (command.equals("Resize canvas/LayerSet...")) {
 			GenericDialog gd = new GenericDialog("Resize LayerSet");
 			gd.addNumericField("new width: ", layer.getLayerWidth(), 3);
@@ -2892,6 +2907,29 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			HashSet hs = new HashSet();
 			hs.addAll(selection.getSelected(Patch.class));
 			Registration.registerTilesSIFT(hs, (Patch)active, null, false);
+		} else if (command.equals("Link images...")) {
+			GenericDialog gd = new GenericDialog("Options");
+			gd.addMessage("Linking images to images (within their own layer only):");
+			String[] options = {"all images to all images", "each image with any other overlapping image"};
+			gd.addChoice("Link: ", options, options[1]);
+			String[] options2 = {"selected images only", "all images in this layer", "all images in all layers"};
+			gd.addChoice("Apply to: ", options2, options2[0]);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			boolean overlapping_only = 1 == gd.getNextChoiceIndex();
+			switch (gd.getNextChoiceIndex()) {
+				case 0:
+					Patch.crosslink(selection.getSelected(Patch.class), overlapping_only);
+					break;
+				case 1:
+					Patch.crosslink(layer.getDisplayables(Patch.class), overlapping_only);
+					break;
+				case 2:
+					for (Layer la : layer.getParent().getLayers()) {
+						Patch.crosslink(la.getDisplayables(Patch.class), overlapping_only);
+					}
+					break;
+			}
 		} else if (command.equals("Homogenize contrast (selected images)")) {
 			ArrayList al = selection.getSelected(Patch.class);
 			if (al.size() < 2) return;
@@ -2975,6 +3013,28 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			SwingUtilities.invokeLater(new Runnable() { public void run() {
 			d.canvas.showCentered(new Rectangle(0, 0, (int)subls.getLayerWidth(), (int)subls.getLayerHeight()));
 			}});
+		} else if (command.equals("Export arealists as labels")) {
+			GenericDialog gd = new GenericDialog("Export labels");
+			gd.addSlider("Scale: ", 1, 100, 100);
+			final String[] options = {"All area list", "Selected area lists"};
+			gd.addChoice("Export: ", options, options[0]);
+			Utils.addLayerRangeChoices(layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final float scale = (float)(gd.getNextNumber() / 100);
+			java.util.List al = 0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelected(AreaList.class);
+			if (null == al) {
+				Utils.log("No area lists found to export.");
+				return;
+			}
+			if (al.size() > 255) {
+				YesNoCancelDialog yn = new YesNoCancelDialog(frame, "WARNING", "Found more than 255 area lists to export:\nExport only the first 255?");
+				if (yn.cancelPressed()) return;
+				if (yn.yesPressed()) al = al.subList(0, 255); // only 255 total: the 0 is left for background
+			}
+			int first = gd.getNextChoiceIndex();
+			int last  = gd.getNextChoiceIndex();
+			AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last);
 		} else if (command.equals("Project properties...")) {
 			project.adjustProperties();
 		} else {
@@ -3423,4 +3483,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		return false;
 	}
 
+	public void hideDeselected(boolean not_images) {
+		// hide deselected
+		ArrayList all = layer.getParent().getZDisplayables();
+		all.addAll(layer.getDisplayables());
+		all.removeAll(selection.getSelected());
+		if (not_images) all.removeAll(layer.getDisplayables(Patch.class));
+		for (Displayable d : (ArrayList<Displayable>)all) {
+			if (d.isVisible()) d.setVisible(false);
+		}
+		Display.update(layer);
+	}
 }

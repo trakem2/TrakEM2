@@ -34,6 +34,8 @@ import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.Event;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
 import java.awt.event.MouseEvent;
@@ -47,7 +49,7 @@ import java.util.ArrayList;
 import java.io.File;
 
 /** A class to hold a tree of Thing nodes */
-public class ProjectTree extends DNDTree implements MouseListener, ActionListener {
+public class ProjectTree extends DNDTree implements MouseListener, ActionListener, KeyListener {
 
 	static {
 		System.setProperty("j3d.noOffScreen", "true");
@@ -60,6 +62,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		setEditable(false); // the titles
 		addMouseListener(this);
 		addTreeExpansionListener(this);
+		addKeyListener(this);
 	}
 
 	/** Get a custom, context-sensitive popup menu for the selected node. */
@@ -392,4 +395,45 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		}
 		return tt;
 	}
+
+	public void keyPressed(KeyEvent ke) {
+		Object source = ke.getSource();
+		if (!source.equals(this) || !Project.getInstance(this).isInputEnabled()) {
+			return;
+		}
+		// get the first selected node only
+		TreePath path = getSelectionPath();
+		if (null == path) return;
+		DefaultMutableTreeNode node = (DefaultMutableTreeNode)path.getLastPathComponent();
+		if (null == node) return;
+		ProjectThing pt = (ProjectThing)node.getUserObject();
+		if (null == pt) return;
+		//
+		int key_code = ke.getKeyCode();
+		boolean reinsert = false;
+		switch (key_code) {
+			case KeyEvent.VK_PAGE_UP:
+				reinsert = pt.move(-1);
+				ke.consume(); // in any case
+				break;
+			case KeyEvent.VK_PAGE_DOWN:
+				reinsert = pt.move(1);
+				ke.consume(); // in any case
+				break;
+		}
+		if (reinsert) {
+			DefaultMutableTreeNode parent_node = (DefaultMutableTreeNode)node.getParent();
+			int index = parent_node.getChildCount() -1;
+			((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
+			index = pt.getParent().getChildren().indexOf(pt);
+			((DefaultTreeModel)this.getModel()).insertNodeInto(node, parent_node, index);
+			// restore selection path
+			TreePath trp = new TreePath(node.getPath());
+			this.scrollPathToVisible(trp);
+			this.setSelectionPath(trp);
+			this.updateUILater();
+		}
+	}
+	public void keyReleased(KeyEvent ke) {}
+	public void keyTyped(KeyEvent ke) {}
 }

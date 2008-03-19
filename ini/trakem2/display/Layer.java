@@ -582,7 +582,7 @@ public class Layer extends DBObject {
 	}
 	public void setAllVisible(boolean repaint) {
 		for (Displayable d : al_displayables) {
-			d.setVisible(true, repaint);
+			if (!d.isVisible()) d.setVisible(true, repaint);
 		}
 	}
 

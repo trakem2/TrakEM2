@@ -2309,11 +2309,19 @@ abstract public class Loader {
 	}
 
 	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
-	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality) {
+	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality) {
+		if (null == layer || 0 == layer.length) {
+			Utils.log2("makeFlatImage: null or empty list of layers to process.");
+			return null;
+		}
 		final Worker worker = new Worker("making flat images") { public void run() {
 			try {
 			//
 			startedWorking();
+
+			Rectangle srcRect_ = srcRect;
+			if (null == srcRect_) srcRect_ = layer[0].getParent().get2DBounds(); 
+
 			ImagePlus imp = null;
 			String target_dir = null;
 			boolean choose_dir = force_to_file;
@@ -3081,9 +3089,13 @@ abstract public class Loader {
 		// set LayerSet calibration if there is no calibration
 		boolean calibrate = true;
 		if (ask_for_data && first_layer.getParent().isCalibrated()) {
-			YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the stack calibration values?");
-			if (!yn.yesPressed()) {
-				calibrate = false;
+			if (!ControlWindow.isGUIEnabled()) {
+				Utils.log2("Loader.importStack: overriding LayerSet calibration with that of the imported stack.");
+			} else {
+				YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the stack calibration values?");
+				if (!yn.yesPressed()) {
+					calibrate = false;
+				}
 			}
 		}
 		if (calibrate) {

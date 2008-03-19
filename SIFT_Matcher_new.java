@@ -8,8 +8,8 @@ import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.registration.RANSAC;
 
-import imagescience.transform.*;
-import imagescience.image.Image;
+import imagescience.transforms.*;
+import imagescience.images.Image;
 
 import ij.plugin.*;
 import ij.gui.*;

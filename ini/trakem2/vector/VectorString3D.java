@@ -1496,7 +1496,7 @@ public class VectorString3D implements VectorString {
 		} else { //  if (d4 == min)
 			VectorString3D vsr = (VectorString3D)vs.clone();
 			vsr.reverse();
-			return concat(vsr, this);
+			return concat(this, vsr);
 		}
 	}
 

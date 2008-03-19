@@ -536,8 +536,11 @@ public class Pipe extends ZDisplayable {
 			p_width_i = (double[])ob[5];
 		}
 
+		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
+
+		final long layer_id = active_layer.getId();
+
 		if (active) {
-			final long layer_id = active_layer.getId();
 			// draw/fill points
 			final int oval_radius = (int)Math.ceil(4 / magnification);
 			final int oval_corr = (int)Math.ceil(3 / magnification);
@@ -584,13 +587,35 @@ public class Pipe extends ZDisplayable {
 			l_side_x[m] = p_i[0][m] + Math.sin(angle-a90) * p_width_i[m];
 			l_side_y[m] = p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
 
-			double z_current = active_layer.getZ();
+			final double z_current = active_layer.getZ();
+
+			if (no_color_cues) {
+				// paint a tiny bit where it should!
+				g.setColor(this.color);
+			}
 
 			for (int j=0; j<n_points; j++) { // at least looping through 2 points, as guaranteed by the preconditions checking
-				double z = layer_set.getLayer(p_layer[j]).getZ();
-				if (z < z_current) g.setColor(Color.red);
-				else if (z == z_current) g.setColor(this.color);
-				else g.setColor(Color.blue);
+				if (no_color_cues) {
+					if (layer_id == p_layer[j]) {
+						// paint normally
+					} else {
+						// else if crossed the current layer, paint segment as well
+						if (0 == j) continue;
+						double z1 = layer_set.getLayer(p_layer[j-1]).getZ();
+						double z2 = layer_set.getLayer(p_layer[j]).getZ();
+						if ( (z1 < z_current && z_current < z2)
+						  || (z2 < z_current && z_current < z1) ) {
+							// paint normally, in this pipe's color
+						} else {
+							continue;
+						}
+					}
+				} else {
+					double z = layer_set.getLayer(p_layer[j]).getZ();
+					if (z < z_current) g.setColor(Color.red);
+					else if (z == z_current) g.setColor(this.color);
+					else g.setColor(Color.blue);
+				}
 
 				int fi = 0;
 				int la = j * 20 -1;

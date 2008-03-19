@@ -1115,4 +1115,30 @@ public class AreaList extends ZDisplayable {
 		}
 		return false;
 	}
+
+	/** Export for Amira: limited to 255 AreaList instances (their limitation, not mine). */
+	static public void exportAsLabels(final java.util.List list, final ij.gui.Roi roi, float scale, int first_layer, int last_layer) {
+		Utils.log("exportAsLabels: not yet implemented.");
+		// survive everything:
+		if (null == list || 0 == list.size()) {
+			Utils.log("Null or empty list.");
+			return;
+		}
+		if (scale < 0 || scale > 1) {
+			Utils.log("Improper scale value. Must be 0 < scale <= 1");
+			return;
+		}
+		LayerSet layer_set = ((Displayable)list.get(0)).getLayerSet();
+		if (first_layer < last_layer) {
+			int tmp = first_layer;
+			first_layer = last_layer;
+			last_layer = tmp;
+			if (first_layer < 0) first_layer = 0;
+			if (last_layer >= layer_set.size()) last_layer = layer_set.size()-1;
+		}
+		// ready
+		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
+			// TODO
+		}
+	}
 }
