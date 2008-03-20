@@ -180,6 +180,7 @@ public class Microcube_Maker implements PlugIn {
 				roi.y -= roi2.y;
 				// 4 - grab microcube
 				ob = sub_ls.grab(0, sub_la.length-1, roi, scale, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
+				sub.destroy();
 			}
 
 			// Store
