@@ -161,7 +161,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		public void windowStateChanged(WindowEvent we) {
 			final Object source = we.getSource();
 			for (Display d : al_displays) {
-				d.frame.pack();
+				d.pack();
 				break;
 			}
 		}
@@ -211,7 +211,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				int frame_state = d.frame.getExtendedState();
 			       	if (frame_state != d.last_frame_state) { // this setup avoids infinite loops (for pack() calls componentResized as well
 					d.last_frame_state = frame_state;
-					if (d.frame.ICONIFIED != frame_state) d.frame.pack();
+					if (d.frame.ICONIFIED != frame_state) d.pack();
 				}
 			}
 		}
@@ -967,7 +967,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		canvas.setUpdateGraphics(b);
 	}
 
-	/** Find all Display instances that contain the layer and repaint them. */
+	/** Find all Display instances that contain the layer and repaint them, in the Swing GUI thread. */
 	static public void update(final Layer layer) {
 		if (null == layer) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
@@ -979,7 +979,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}});
 	}
 
-	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint. */
+	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint, in the Swing GUI thread. */
 	static public void update(final LayerSet set) {
 		if (null == set) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
@@ -1148,7 +1148,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	public void pack() {
-		frame.pack();
+		new Thread() { public void run() { SwingUtilities.invokeLater(new Runnable() { public void run() {
+			frame.pack();
+		}}); }}.start();
+	}
+
+	static public void pack(final LayerSet ls) {
+		for (Display d : al_displays) {
+			if (d.layer.getParent().equals(ls)) d.pack();
+		}
 	}
 
 	protected void adjustCanvas() {
