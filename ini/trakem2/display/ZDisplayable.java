@@ -142,7 +142,6 @@ public abstract class ZDisplayable extends Displayable {
 			//Display.setUpdateGraphics(layer, this);
 			//Display.repaint(layer_set, this, null, 5, true);
 			Display.repaint(layer_set, null, getBoundingBox(), 5, true); // something is fishy: when active, it can't be properly repainted out -only the handles of a pipe do, for example, but not the skeleton, indicating that perhaps it was drawn into the background image.
-			Utils.log2("calling repaint zd");
 		}
 		updateInDatabase("visible");
 		Display.updateVisibilityCheckbox(layer, this, null);
