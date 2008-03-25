@@ -1829,6 +1829,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Get the layer of an open Display of the given Project, or null if none.*/
 	static public Layer getFrontLayer(final Project project) {
+		if (null == front) return null;
 		if (front.project.equals(project)) return front.layer;
 		// else, find an open Display for the given Project, if any
 		for (Display d : al_displays) {

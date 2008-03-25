@@ -2985,34 +2985,27 @@ abstract public class Loader {
 		ImagePlus imp_stack = null;
 		// ask to open a stack if it's null
 		if (null == imp_stacks) {
-			imp_stack = first_layer.getProject().getLoader().openStack();
+			imp_stack = openStack();
 		} else {
-			// if there's only one, use that one
-			if (1 == imp_stacks.length) {
-				//YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Select?", "Import the stack " + imp_stacks[0].getTitle() + " ?");
-				//if (!yn.yesPressed()) return; // TODO a layer may be left created..
-				imp_stack = imp_stacks[0];
+			// choose one from the list
+			GenericDialog gd = new GenericDialog("Choose one");
+			gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
+			String[] list = new String[imp_stacks.length +1];
+			for (int i=0; i<list.length -1; i++) {
+				list[i] = imp_stacks[i].getTitle();
+			}
+			list[list.length-1] = "[  Open stack...  ]";
+			gd.addChoice("choose stack: ", list, list[0]);
+			gd.showDialog();
+			if (gd.wasCanceled()) {
+				finishedWorking();
+				return;
+			}
+			int i_choice = gd.getNextChoiceIndex();
+			if (list.length-1 == i_choice) { // the open... command
+				imp_stack = first_layer.getProject().getLoader().openStack();
 			} else {
-				// choose one from the list
-				GenericDialog gd = new GenericDialog("Choose one");
-				gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
-				String[] list = new String[imp_stacks.length +1];
-				for (int i=0; i<list.length -1; i++) {
-					list[i] = imp_stacks[i].getTitle();
-				}
-				list[list.length-1] = "[  Open stack...  ]";
-				gd.addChoice("choose stack: ", list, list[0]);
-				gd.showDialog();
-				if (gd.wasCanceled()) {
-					finishedWorking();
-					return;
-				}
-				int i_choice = gd.getNextChoiceIndex();
-				if (list.length-1 == i_choice) { // the open... command
-					imp_stack = first_layer.getProject().getLoader().openStack();
-				} else {
-					imp_stack = imp_stacks[i_choice];
-				}
+				imp_stack = imp_stacks[i_choice];
 			}
 		}
 		// check:
@@ -3108,13 +3101,17 @@ abstract public class Loader {
 
 		if (null == filepath) {
 			// try to get it from the original FileInfo
-			FileInfo fi = imp_stack.getOriginalFileInfo();
+			final FileInfo fi = imp_stack.getOriginalFileInfo();
 			if (null != fi && null != fi.directory && null != fi.fileName) {
 				filepath = fi.directory.replace('\\', '/');
 				if (!filepath.endsWith("/")) filepath += '/';
 				filepath += fi.fileName;
 			}
 			Utils.log2("Getting filepath from FileInfo: " + filepath);
+			// check that file exists, otherwise save a copy in the storage folder
+			if (null == filepath || (!filepath.startsWith("http://") && !new File(filepath).exists())) {
+				filepath = handlePathlessImage(imp_stack);
+			}
 		} else {
 			filepath = filepath.replace('\\', '/');
 		}
@@ -3155,6 +3152,8 @@ abstract public class Loader {
 		burro.goHaveBreakfast();
 		return burro;
 	}
+
+	public String handlePathlessImage(ImagePlus imp) { return null; }
 
 	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath);
 
@@ -4405,6 +4404,7 @@ abstract public class Loader {
 								Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
 							}
 						} else {
+							// just load it into the cache if possible
 							p.getProject().getLoader().fetchImage(p, mag);
 						}
 						p = null;
