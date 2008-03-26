@@ -166,36 +166,21 @@ public class Microcube_Maker implements PlugIn {
 				p("roi: " + roi);
 				p("padding: " + padding);
 				p("roi2: " + roi2);
-				if (true) try { Thread.sleep(5000); } catch (Exception e) {}
 
-				// 1 - Make a new LayerSet
-				LayerSet copy_ls = new LayerSet(project, "copy", 0, 0, null, roi2.width, roi2.height);
-				List<Layer> original_la = ls.getLayers().subList(ls.indexOf(la1), ls.indexOf(la2)+1);
-				for (Layer la : original_la) {
-					// 1.2 - add empty copies of the selected layers
-					Layer copy_la = new Layer(project, la.getZ(), la.getThickness(), copy_ls);
-					copy_ls.addSilently(copy_la);
-					for (Displayable d : la.getDisplayables(Patch.class, roi2)) {
-						// 1.3 - add directly the patches that intersect the roi
-						Patch p = (Patch)d; // so much for generics, can't cast to ArrayList<Patch>
-						Patch clone = new Patch(project, d.getId(), d.getTitle(), d.getWidth(), d.getHeight(), p.getType(), false, p.getMin(), p.getMax(), d.getAffineTransformCopy());
-						copy_la.addSilently(clone); // tmp clone that has the same project and id
-					}
-				}
+				// 1 - Make a subproject
+				Project sub = ls.getProject().createSubproject(roi, la1, la2);
+				LayerSet sub_ls = sub.getRootLayerSet();
 				// 2 - register all tiles freely and optimally
-				final Layer[] sub_la = new Layer[copy_ls.size()];
-				copy_ls.getLayers().toArray(sub_la);
+				final Layer[] sub_la = new Layer[sub_ls.size()];
+				sub_ls.getLayers().toArray(sub_la);
 				final Thread task = Registration.registerTilesSIFT(sub_la, true);
 				if (null != task) try { task.join(); } catch (Exception e) { e.printStackTrace(); }
-
 				// 3 - prepare roi for cropping
-				roi2.x += padding;
-				roi2.y += padding;
-				roi2.width = roi.width;
-				roi2.height = roi.height;
-
+				roi.x -= roi2.x;
+				roi.y -= roi2.y;
 				// 4 - grab microcube
-				ob = copy_ls.grab(0, sub_la.length-1, roi2, scale, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
+				ob = sub_ls.grab(0, sub_la.length-1, roi, scale, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
+				sub.destroy();
 			}
 
 			// Store
@@ -221,7 +206,7 @@ public class Microcube_Maker implements PlugIn {
 		// done!
 		if (!was_open) {
 			project.destroy();
-			System.exit();
+			System.exit(0);
 		}
 	}
 

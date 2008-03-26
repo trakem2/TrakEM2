@@ -217,7 +217,8 @@ public class Compare {
 
 		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", true);
 		gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
-		gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
+		//gd.addNumericField("minimum_percentage that must remain: ", 1.0, 2);
+		gd.addSlider("minimum_percentage that must remain: ", 1, 100, 100);
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
 
 		final String[] transforms = {"translate and rotate",
@@ -251,7 +252,7 @@ public class Compare {
 
 		boolean skip_ends = gd.getNextBoolean();
 		int max_mut = (int)gd.getNextNumber();
-		float min_chunk = (float)gd.getNextNumber();
+		float min_chunk = (float)gd.getNextNumber() / 100;
 		if (skip_ends) {
 			if (max_mut < 0) max_mut = 0;
 			if (min_chunk <= 0) skip_ends = false;
@@ -419,7 +420,7 @@ public class Compare {
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
 					double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
-					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2]);
+					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2], stats[3]);
 
 				}
 			} catch (Exception e) {
@@ -815,10 +816,11 @@ public class Compare {
 		Chain ref;
 		Editions ed;
 		double score; // similarity measure made of num 1 - ((insertions + num deletions) / max (len1, len2))
-		double phys_dist;
-		double cum_phys_dist; // cummulative physiscal distance
+		double phys_dist; // average distance between mutation pair interdistances
+		double cum_phys_dist; // cummulative physical distance
 		double stdDev; // between mutation pairs
-		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist, final double cum_phys_dist, final double stdDev) {
+		double median; // of matched mutation pair interdistances
+		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist, final double cum_phys_dist, final double stdDev, final double median) {
 			this.query = query;
 			this.ref = ref;
 			this.ed = ed;
@@ -826,6 +828,7 @@ public class Compare {
 			this.phys_dist = phys_dist;
 			this.cum_phys_dist = cum_phys_dist;
 			this.stdDev = stdDev;
+			this.median = median;
 		}
 	}
 
@@ -843,7 +846,8 @@ public class Compare {
 			ChainMatch cm1 = (ChainMatch)ob1;
 			ChainMatch cm2 = (ChainMatch)ob2;
 			// select for smallest physical distance of the center of mass
-			double val = cm1.phys_dist - cm2.phys_dist;
+			// double val = cm1.phys_dist - cm2.phys_dist;
+			final double val = cm1.median - cm2.median;
 			if (val < 0) return -1; // m1 is closer
 			if (val > 0) return 1; // m1 is further away
 			return 0; // same distance
@@ -1138,7 +1142,7 @@ public class Compare {
 					}
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
 					double[] stats = ed.getStatistics(false, 0, 1, false);
-					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2]);
+					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2], stats[3]);
 				}
 
 			} catch (Exception e) {
@@ -1351,8 +1355,9 @@ public class Compare {
 				case 2: return "Similarity";
 				case 3: return "Lev Dist";
 				case 4: return null != qh.cal2 ? "Dist (" + qh.cal2.getUnits() + ")" : "Dist";
-				case 5: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
-				case 6: return "Std Dev";
+				case 5: return "Median";
+				case 6: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
+				case 7: return "Std Dev";
 				default: return "";
 			}
 		}
@@ -1365,8 +1370,9 @@ public class Compare {
 				case 2: return Utils.cutNumber(Math.floor(cm.get(row).score * 10000) / 100, 2) + " %";
 				case 3: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
 				case 4: return Utils.cutNumber(cm.get(row).phys_dist, 2);
-				case 5: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
-				case 6: return Utils.cutNumber(cm.get(row).stdDev, 2);
+				case 5: return Utils.cutNumber(cm.get(row).median, 2);
+				case 6: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
+				case 7: return Utils.cutNumber(cm.get(row).stdDev, 2);
 				default: return "";
 			}
 		}
@@ -1469,7 +1475,7 @@ public class Compare {
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
 		gd.addChoice("Presets: ", preset_names, preset_names[0]);
 		gd.addMessage("");
-		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Cummulative physical distance", "Standard deviation"};
+		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Cummulative physical distance", "Standard deviation"}; // TODO add median
 		gd.addChoice("Dissimilarity type: ", distance_types, distance_types[2]);
 		String[] format = {"ggobi XML", ".csv"};
 		if (to_file) {

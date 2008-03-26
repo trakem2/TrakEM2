@@ -453,6 +453,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			updateInDatabase("layer_dimensions");
 			// and notify the Displays, if any
 			Display.update(this);
+			Display.pack(this);
 		}
 		return true;
 	}
@@ -564,7 +565,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
 				Rectangle b = d.getBoundingBox(null);
-				Utils.log("d x,y = " + b.x + ", " + b.y);
+				//Utils.log("d x,y = " + b.x + ", " + b.y);
 				d.setLocation(b.x + new_x, b.y + new_y);
 			}
 		}
@@ -572,6 +573,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		updateInDatabase("layer_dimensions");
 		// and notify the Display
 		Display.update(this);
+		Display.pack(this);
 		return true;
 	}
 

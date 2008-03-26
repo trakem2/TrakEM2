@@ -484,19 +484,19 @@ public abstract class Displayable extends DBObject {
 		setVisible(visible, true);
 	}
 
-	public void setVisible(boolean visible, boolean repaint) {
-		if (this.visible == visible) {
+	public void setVisible(final boolean visible, final boolean repaint) {
+		if (visible == this.visible) {
 			// patching synch error
-			Display.updateVisibilityCheckbox(layer, this, null); // overkill, but makes my life easy
+			Display.updateVisibilityCheckbox(layer, this, null);
 			return;
 		}
 		this.visible = visible;
 		if (repaint) {
-			Display.setUpdateGraphics(layer, this);
+			//Display.setUpdateGraphics(layer, this);
 			Display.repaint(layer, this, 5);
 		}
 		updateInDatabase("visible");
-		Display.updateVisibilityCheckbox(layer, this, null); // overkill, but makes my life easy
+		Display.updateVisibilityCheckbox(layer, this, null);
 	}
 
 	/** Repaint this Displayable in all Display instances that are showing it. */

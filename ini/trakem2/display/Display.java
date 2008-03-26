@@ -161,7 +161,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		public void windowStateChanged(WindowEvent we) {
 			final Object source = we.getSource();
 			for (Display d : al_displays) {
-				d.frame.pack();
+				d.pack();
 				break;
 			}
 		}
@@ -211,7 +211,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				int frame_state = d.frame.getExtendedState();
 			       	if (frame_state != d.last_frame_state) { // this setup avoids infinite loops (for pack() calls componentResized as well
 					d.last_frame_state = frame_state;
-					if (d.frame.ICONIFIED != frame_state) d.frame.pack();
+					if (d.frame.ICONIFIED != frame_state) d.pack();
 				}
 			}
 		}
@@ -947,7 +947,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Mark the canvas for updating the offscreen images if the given Displayable is NOT the active. */ // Used by the Displayable.setVisible for example.
 	static public void setUpdateGraphics(final Layer layer, final Displayable displ) {
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer) && d.active != displ) {
+			if (layer.equals(d.layer) && null != d.active && !d.active.equals(displ)) {
 				d.canvas.setUpdateGraphics(true);
 			}
 		}
@@ -967,7 +967,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		canvas.setUpdateGraphics(b);
 	}
 
-	/** Find all Display instances that contain the layer and repaint them. */
+	/** Find all Display instances that contain the layer and repaint them, in the Swing GUI thread. */
 	static public void update(final Layer layer) {
 		if (null == layer) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
@@ -979,7 +979,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}});
 	}
 
-	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint. */
+	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint, in the Swing GUI thread. */
 	static public void update(final LayerSet set) {
 		if (null == set) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
@@ -1148,7 +1148,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	public void pack() {
-		frame.pack();
+		new Thread() { public void run() { SwingUtilities.invokeLater(new Runnable() { public void run() {
+			frame.pack();
+		}}); }}.start();
+	}
+
+	static public void pack(final LayerSet ls) {
+		for (Display d : al_displays) {
+			if (d.layer.getParent().equals(ls)) d.pack();
+		}
 	}
 
 	protected void adjustCanvas() {
@@ -1293,7 +1301,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	static public void repaint(Layer layer, Displayable displ, int extra) {
-		repaint(layer, displ, null, extra);
+		repaint(layer, displ, displ.getBoundingBox(), extra);
 	}
 
 	static public void repaint(Layer layer, Displayable displ, Rectangle r, int extra) {
@@ -1401,8 +1409,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		for (Display d : al_displays) {
 			if (set.contains(d.layer)) {
 				if (repaint_navigator) {
-					DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
-					if (null != dp) dp.repaint();
+					if (null != displ) {
+						DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+						if (null != dp) dp.repaint();
+					}
 					d.navigator.repaint(true);
 				}
 				if (null == displ || !displ.equals(d.active)) d.setUpdateGraphics(true); // safeguard
@@ -1819,6 +1829,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Get the layer of an open Display of the given Project, or null if none.*/
 	static public Layer getFrontLayer(final Project project) {
+		if (null == front) return null;
 		if (front.project.equals(project)) return front.layer;
 		// else, find an open Display for the given Project, if any
 		for (Display d : al_displays) {

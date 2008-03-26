@@ -337,18 +337,24 @@ public class FSLoader extends Loader {
 						// check that the stack is large enough (user may have changed it)
 						final int ia = Integer.parseInt(path.substring(i_sl + 12));
 						if (ia <= imp.getNSlices()) {
-							imp.setSlice(ia);
-							switch (format) {
-								case Layer.IMAGEPROCESSOR:
-									ip = imp.getStack().getProcessor(ia);
-									unlock();
-									return ip;
-								case Layer.IMAGEPLUS:
-									unlock();
-									return imp;
-								default:
-									Utils.log("FSLoader.fetchImage: Unknown format " + format);
-									return null;
+							if (null == imp.getStack() || null == imp.getStack().getPixels(ia)) {
+								// reload (happens when closing a stack that was opened before importing it, and then trying to paint, for example)
+								imps.remove(p.getId());
+								imp = null;
+							} else {
+								imp.setSlice(ia);
+								switch (format) {
+									case Layer.IMAGEPROCESSOR:
+										ip = imp.getStack().getProcessor(ia);
+										unlock();
+										return ip;
+									case Layer.IMAGEPLUS:
+										unlock();
+										return imp;
+									default:
+										Utils.log("FSLoader.fetchImage: Unknown format " + format);
+										return null;
+								}
 							}
 						} else {
 							unlock();
@@ -1559,5 +1565,23 @@ public class FSLoader extends Loader {
 		if (-1 == i_dot) return name;
 		if (0 == i_dot) return super.makeProjectName();
 		return name.substring(0, i_dot);
+	}
+
+
+	/** Returns the path where the imp is saved to: the storage folder plus a name. */
+	public String handlePathlessImage(final ImagePlus imp) {
+		final FileInfo fi = imp.getOriginalFileInfo();
+		if (null == fi.fileName || fi.fileName.equals("")) {
+			fi.fileName = "img_" + System.currentTimeMillis() + ".tif";
+		}
+		if (!fi.fileName.endsWith(".tif")) fi.fileName += ".tif";
+		fi.directory = dir_storage;
+		if (imp.getNSlices() > 1) {
+			new FileSaver(imp).saveAsTiffStack(dir_storage + fi.fileName);
+		} else {
+			new FileSaver(imp).saveAsTiff(dir_storage + fi.fileName);
+		}
+		Utils.log2("Saved a copy into the storage folder:\n" + dir_storage + fi.fileName);
+		return dir_storage + fi.fileName;
 	}
 }

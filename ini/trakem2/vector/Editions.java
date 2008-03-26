@@ -24,6 +24,7 @@ package ini.trakem2.vector;
 
 import java.util.*;
 import javax.vecmath.Point3f;
+import java.util.Collections;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
@@ -252,7 +253,7 @@ public class Editions {
 		}
 	}
 
-	/** Returns {average distance, cummulative distance, stdDev} */
+	/** Returns {average distance, cummulative distance, stdDev, median} where all values are of the physical distances between mutation pairs. */
 	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean score_mut) {
 		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk), score_mut);
 	}
@@ -267,7 +268,8 @@ public class Editions {
 		final int len1 = vs1.length();
 		final int len2 = vs2.length();
 		final ArrayList<Double> mut = new ArrayList<Double>(); // why not ArrayList<double> ? STUPID JAVA
-		final double[] pack = new double[]{Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
+		final double[] pack = new double[4];
+		Arrays.fill(pack, Double.MAX_VALUE);
 		try {
 			for (i=i_start; i<=i_end; i++) {
 				if (score_mut && MUTATION != editions[i][0]) continue;
@@ -288,13 +290,17 @@ public class Editions {
 			}
 			std = Math.sqrt(std / di.length);
 
+			Collections.sort(mut);
+			double median = mut.get(mut.size()/2);
+
 			pack[0] = average;
 			pack[1] = cum_dist;
 			pack[2] = std;
+			pack[3] = median;
 
 		} catch (Exception e) {
 			IJError.print(e);
-			Utils.log2("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			Utils.log2("ERROR in getStatistics: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
 		}
 
 		return pack;

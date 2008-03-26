@@ -182,8 +182,9 @@ public class Pipe extends ZDisplayable {
 		this.p_width_i = new double[0];
 		generateInterpolatedPoints(0.05);
 		// sanity check:
-		if (!(n_points == p.length && p.length == p_width.length && p_width.length == p_layer.length)) {
+		if (!(n_points == p[0].length && p[0].length == p_width.length && p_width.length == p_layer.length)) {
 			Utils.log2("Pipe at parsing XML: inconsistent number of points for id=" + id);
+			Utils.log2("\tn_points: " + n_points + "  p.length: " + p[0].length + "  p_width.length: " + p_width.length + "  p_layer.length: " + p_layer.length);
 		}
 	}
 
