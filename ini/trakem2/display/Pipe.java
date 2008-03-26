@@ -1529,6 +1529,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	synchronized public List generateTriangles(double scale, int parallels, int resample) {
+		if (n_points < 2) return null;
 		// check minimum requirements.
 		if (parallels < 3) parallels = 3;
 		//
