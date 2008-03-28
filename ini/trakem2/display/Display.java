@@ -2917,6 +2917,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 			HashSet hs = new HashSet();
 			hs.addAll(selection.getSelected(Patch.class));
+			// make an undo step!
+			layer.getParent().addUndoStep(selection.getAffected());
 			Registration.registerTilesSIFT(hs, (Patch)active, null, false);
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");

@@ -248,26 +248,28 @@ public class LayerThing extends DBObject implements Thing {
 			item.addActionListener(listener);
 			al_items.add(item);
 
+			LayerSet layer_set = (LayerSet)object;
+			final boolean empty = 0 == layer_set.getLayers().size();
+
 			item = new JMenuItem("Autoresize LayerSet");
 			item.addActionListener(listener);
 			al_items.add(item);
-			LayerSet layer_set = (LayerSet)object;
-			if (0 == layer_set.getLayers().size()) item.setEnabled(false);
+			if (empty) item.setEnabled(false);
 
 			item = new JMenuItem("Translate layers in Z...");
 			item.addActionListener(listener);
 			al_items.add(item);
-			if (0 == layer_set.getLayers().size()) item.setEnabled(false);
+			if (empty) item.setEnabled(false);
 
 			item = new JMenuItem("Reverse layer Z coords...");
 			item.addActionListener(listener);
 			al_items.add(item);
-			if (0 == layer_set.getLayers().size()) item.setEnabled(false);
+			if (empty) item.setEnabled(false);
 
 			item = new JMenuItem("Search...");
 			item.addActionListener(listener);
 			al_items.add(item);
-			if (0 == layer_set.getLayers().size()) item.setEnabled(false);
+			if (empty) item.setEnabled(false);
 		}
 		item = new JMenuItem("Import stack...");
 		if (template.getType().replaceAll("_", " ").equals("layer set") && 0 != ((LayerSet)object).getLayers().size()) item.setEnabled(false); // contains layers already, wouldn't know where to put it!

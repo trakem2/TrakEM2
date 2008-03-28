@@ -123,6 +123,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				if (type_first.equals("layer")) {
 					item = new JMenuItem("Reverse layer Z coords"); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("Translate layers in Z..."); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Scale Z and thickness..."); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("Delete..."); item.addActionListener(this); popup.add(item);
 				}
 				if (popup.getSubElements().length > 0) {
@@ -245,6 +246,23 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 						if (lt.remove(false)) {
 							((DefaultTreeModel)this.getModel()).removeNodeFromParent(lnode);
 						}
+					}
+					this.updateUILater();
+				} else if (command.equals("Scale Z and thickness...")) {
+					GenericDialog gd = new GenericDialog("Scale Z");
+					gd.addNumericField("scale: ", 1.0, 2);
+					gd.showDialog();
+					double scale = gd.getNextNumber();
+					if (Double.isNaN(scale) || 0 == scale) {
+						Utils.showMessage("Imvalid scaling factor: " + scale);
+						return;
+					}
+					for (int i=0; i<paths.length; i++) {
+						DefaultMutableTreeNode lnode = (DefaultMutableTreeNode)paths[i].getLastPathComponent();
+						LayerThing lt = (LayerThing)lnode.getUserObject();
+						Layer layer = (Layer)lt.getObject();
+						layer.setZ(layer.getZ() * scale);
+						layer.setThickness(layer.getThickness() * scale);
 					}
 					this.updateUILater();
 				} else {

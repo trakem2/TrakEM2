@@ -132,7 +132,9 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		gd.addStringField("New name: ", old_title);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
-		thing.setTitle(gd.getNextString());
+		String title = gd.getNextString();
+		title = title.replace('"', '\''); // avoid XML problems - could also replace by double '', then replace again by " when reading.
+		thing.setTitle(title);
 		this.updateUILater();
 	}
 

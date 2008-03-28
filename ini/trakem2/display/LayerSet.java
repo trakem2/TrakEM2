@@ -54,6 +54,7 @@ import java.util.Iterator;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -1069,6 +1070,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		/*
 		// discard redo steps
 		redo_queue.clear(); */
+	}
+
+	/** Create an undo step involving all Displayable objects in the set. */
+	public void addUndoStep(final Set<Displayable> set) {
+		Hashtable ht = new Hashtable();
+		for (Displayable d : set) {
+			ht.put(d, d.getAffineTransformCopy());
+		}
+		addUndoStep(ht);
 	}
 
 	/** Usable only when undoing the last step, to catch the current step (which is not in the undo queue).*/
