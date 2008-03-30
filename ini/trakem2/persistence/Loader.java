@@ -3739,7 +3739,8 @@ abstract public class Loader {
 			in.close();
 			return ob;
 		} catch (Exception e) {
-			IJError.print(e);
+			//IJError.print(e); // too much output if a whole set is wrong
+			e.printStackTrace();
 		}
 		return null;
 	}

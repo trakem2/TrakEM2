@@ -191,6 +191,8 @@ public class FakeImagePlus extends ImagePlus {
 	}
 
 	public Calibration getCalibration() {
+		// initialization problems with ij1.40a
+		if (null == display || null == display.getLayer()) return new Calibration();
 		return display.getLayer().getParent().getCalibrationCopy();
 	}
 

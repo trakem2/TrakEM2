@@ -257,7 +257,7 @@ public class Profile extends Displayable {
 		this.width = width;
 		this.height = height;
 		this.alpha = alpha;
-		this.color = color; 			// TODO: no rotation?
+		this.color = color;
 		this.n_points = n_points;
 		this.p = p;
 		this.p_r = p_r;
@@ -458,7 +458,7 @@ public class Profile extends Displayable {
 	}
 
 	/**Toggle curve closed/open.*/
-	protected void toggleClosed() {
+	public void toggleClosed() {
 		if (closed) {
 			closed = false;
 		} else {
@@ -1047,6 +1047,15 @@ public class Profile extends Displayable {
 		this.p_r = p_r;
 		this.n_points = p_l[0].length;
 		this.generateInterpolatedPoints(0.05);
+	}
+
+	public void setPoints(double[][] p_l, double[][] p, double[][] p_r, boolean update) {
+		setPoints(p_l, p, p_r);
+		calculateBoundingBox();
+		if (update) {
+			updateInDatabase("points");
+			repaint(true);
+		}
 	}
 
 	protected void addPointsAtBegin(double[][] new_p_l, double[][] new_p, double[][] new_p_r) {

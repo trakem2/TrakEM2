@@ -301,7 +301,7 @@ public class Project extends DBObject {
 			}
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
-			Project project = createNewProject(loader, arg == null || !arg.equals("blank"), template_root);
+			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
 			// help the helpless users:
 			if (null != project && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Creating automatic Display.");
@@ -323,6 +323,12 @@ public class Project extends DBObject {
 			} catch (InterruptedException ie) {
 				ie.printStackTrace();
 			}
+
+			if (arg.equals("amira") || arg.equals("stack")) {
+				// forks into a task thread
+				loader.importStack(project.layer_set.getLayer(0), null, true);
+			}
+
 			return project;
 		} catch (Exception e) {
 			IJError.print(e);

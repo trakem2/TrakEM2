@@ -284,8 +284,7 @@ public class FSLoader extends Loader {
 		long nid = -1;
 		synchronized (db_lock) {
 			lock();
-			nid = max_id + 1;
-			max_id = nid;
+			nid = ++max_id;
 			unlock();
 		}
 		return nid;

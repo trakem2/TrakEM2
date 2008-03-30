@@ -69,11 +69,11 @@ public class ProjectThing extends DBObject implements Thing {
 		// call super constructor
 		super(project);
 		// specifics:
+		if (null == ob) throw new Exception("ProjectThing constructor: Null Object!");
+		if (null == template) throw new Exception("ProjectThing constructor: Null template!");
 		this.template = project.getTemplateThing(template.getType());
 		copyAttributes();
 		this.object = ob;
-		if (null == ob) throw new Exception("ProjectThing constructor: Null Object!");
-		if (null == template) throw new Exception("ProjectThing constructor: Null template!");
 		// now, ready:
 		addToDatabase();
 	}

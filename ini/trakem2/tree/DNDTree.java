@@ -366,6 +366,34 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		}.start();
 	}
 
+	/** Rebuilds the entire tree, starting at the root Thing object. */
+	public void rebuild() {
+		rebuild((DefaultMutableTreeNode)this.getModel().getRoot(), false);
+		updateUILater();
+	}
+
+	/** Rebuilds the entire tree, starting at the given Thing object. */
+	public void rebuild(final Thing thing) {
+		rebuild(DNDTree.findNode(thing, this), false);
+		updateUILater();
+	}
+
+	/** Rebuilds the entire tree, from the given node downward. */
+	public void rebuild(final DefaultMutableTreeNode node, final boolean repaint) {
+		if (null == node) return;
+		if (0 != node.getChildCount()) node.removeAllChildren();
+		final Thing thing = (Thing)node.getUserObject();
+		final ArrayList al_children = thing.getChildren();
+		if (null == al_children) return;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			Thing child = (Thing)it.next();
+			DefaultMutableTreeNode childnode = new DefaultMutableTreeNode(child);
+			node.add(childnode);
+			rebuild(childnode, repaint);
+		}
+		if (repaint) updateUILater();
+	}
+
 	/** Rebuilds the part of the tree under the given node, one level deep only, for reordering purposes. */
 	public void updateList(Thing thing) {
 		updateList(DNDTree.findNode(thing, this));

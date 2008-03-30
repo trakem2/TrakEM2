@@ -353,7 +353,8 @@ public class Display3D {
 				Displayable displ = obc.getClass().equals(String.class) ? null : (Displayable)obc;
 				if (null != displ) {
 					if (displ.getClass().equals(Profile.class)) {
-						Utils.log("Display3D can't handle Bezier profiles at the moment.");
+						//Utils.log("Display3D can't handle Bezier profiles at the moment.");
+						// handled by profile_list Thing
 						continue;
 					}
 					if (!displ.isVisible()) {
