@@ -1907,9 +1907,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						i++;
 					}
 					popup.add(menu);
-					if (IJ.isLinux()) {
-						item = new JMenuItem("Duplicate, link and send to..."); item.addActionListener(this); popup.add(item);
-					}
+					item = new JMenuItem("Duplicate, link and send to..."); item.addActionListener(this); popup.add(item);
 
 					popup.addSeparator();
 
@@ -2470,7 +2468,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Thread thread = new SetLayerThread(this, previous_layer);//setLayer(previous_layer);
 			try { thread.join(); } catch (InterruptedException ie) {} // wait until finished!
 			selection.add(profile); //setActive(profile);
-		} else if (IJ.isLinux() && command.equals("Duplicate, link and send to...")) {
+		} else if (command.equals("Duplicate, link and send to...")) {
 			// fix non-scrolling popup menu
 			GenericDialog gd = new GenericDialog("Send to");
 			gd.addMessage("Duplicate, link and send to...");

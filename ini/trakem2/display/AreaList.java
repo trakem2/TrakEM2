@@ -950,7 +950,6 @@ public class AreaList extends ZDisplayable {
 			} else if (null != stack) {
 				// add a black slice
 				stack.addSlice(la.getZ() + "", new ByteProcessor(w, h));
-				n--;
 			}
 		}
 		// zero-pad stack
