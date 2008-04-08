@@ -135,6 +135,7 @@ public class LayerThing extends DBObject implements Thing {
 		}
 	}
 
+	/** May be null or empty; call toString() to get a textual representation. */
 	public String getTitle() {
 		return this.title;
 	}

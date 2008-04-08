@@ -629,8 +629,8 @@ public class Layer extends DBObject {
 
 	public String getTitle() {
 		LayerThing lt = project.findLayerThing(this);
-		if (null == lt) return this.toString();
-		return lt.getTitle(); //lt.toString();
+		if (null == lt || null == lt.getTitle() || 0 == lt.getTitle().trim().length()) return this.toString();
+		return lt.getTitle();
 	}
 
 	public void destroy() {
