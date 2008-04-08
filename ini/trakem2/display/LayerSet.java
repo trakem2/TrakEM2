@@ -1029,7 +1029,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	synchronized public void createUndoStep() {
 		final Hashtable ht_undo = new Hashtable();
 		for (Layer la : al_layers) {
-			for (Displayable d : layer.getDisplayables()) {
+			for (Displayable d : la.getDisplayables()) {
 				ht_undo.put(d, d.getAffineTransformCopy());
 			}
 		}

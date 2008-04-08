@@ -1429,6 +1429,15 @@ public class Profile extends Displayable {
 		// Create sublists of profiles, following the chain of links.
 		final Profile[] p = new Profile[hs.size()];
 		hs.toArray(p);
+		// find if at least one is visible
+		boolean hidden = true;
+		for (int i=0; i<p.length; i++) {
+			if (p[i].visible) {
+				hidden = false;
+				break;
+			}
+		}
+		if (hidden) return null;
 		// collect starts and ends
 		final HashSet hs_bases = new HashSet();
 		final HashSet hs_done = new HashSet();

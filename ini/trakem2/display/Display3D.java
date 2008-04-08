@@ -371,6 +371,8 @@ public class Display3D {
 					if (null == al_children || 0 == al_children.size()) continue;
 					// else, get the first Profile and get its LayerSet
 					d3d = Display3D.get(((Displayable)((ProjectThing)al_children.get(0)).getObject()).getLayerSet());
+				} else {
+					Utils.log("Don't know what to do with node " + child);
 				}
 				if (null == d3d) {
 					Utils.log("Could not get a proper 3D display for node " + displ);
@@ -720,7 +722,7 @@ public class Display3D {
 			u_lock.lock();
 			try {
 				// craft a unique title (id is always unique)
-				String title = null == displ ? pt.toString() + " #" + pt.getId() : displ.getTitle() + " #" + displ.getId();
+				String title = null == displ ? pt.toString() + " #" + pt.getId() : displ.getProject().getMeaningfulTitle(displ) + " #" + displ.getId();
 				if (ht_pt_meshes.contains(pt)) {
 					// remove content from universe
 					universe.removeContent(title);

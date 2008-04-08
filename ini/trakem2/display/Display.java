@@ -3242,7 +3242,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		// detect ColorPicker WARNING this will work even if the Display is not the window immediately active under the color picker.
 		if (this.equals(front) && updated instanceof ij.plugin.ColorPicker) {
 			if (null != active && project.isInputEnabled()) {
-				active.setColor(Toolbar.getForegroundColor());
+				Color color = Toolbar.getForegroundColor();
+				for (Iterator it = selection.getSelected().iterator(); it.hasNext(); ) {
+					Displayable displ = (Displayable)it.next();
+					displ.setColor(color);
+				}
 			}
 			return;
 		}

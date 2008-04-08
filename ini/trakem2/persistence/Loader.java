@@ -3629,7 +3629,8 @@ abstract public class Loader {
 	public boolean checkMipMapFileExists(Patch p, double magnification) { return false; }
 
 	public void adjustChannels(final Patch p, final int old_channels) {
-		if (0xff == old_channels) {
+		/*
+		if (0xffffffff == old_channels) {
 			// reuse any loaded mipmaps
 			Hashtable<Integer,Image> ht = null;
 			synchronized (db_lock) {
@@ -3653,6 +3654,7 @@ abstract public class Loader {
 						awt = p.adjustChannels(entry.getValue());
 					} catch (Exception e) {
 						IJError.print(e);
+						if (null == awt) continue;
 					}
 					synchronized (db_lock) {
 						lock();
@@ -3664,6 +3666,7 @@ abstract public class Loader {
 				}
 			}
 		} else {
+		*/
 			// flush away any loaded mipmap for the id
 			synchronized (db_lock) {
 				lock();
@@ -3671,7 +3674,7 @@ abstract public class Loader {
 				unlock();
 			}
 			// when reloaded, the channels will be adjusted
-		}
+		//}
 	}
 
 	static public ImageProcessor scaleImage(final ImagePlus imp, double mag, final boolean quality) {

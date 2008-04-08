@@ -559,6 +559,13 @@ public class Utils implements ij.plugin.PlugIn {
 				 Integer.parseInt(hex.substring(4, 6), 16));
 	}
 
+	static public final int[] get4Ints(int hex) {
+		return new int[]{((hex&0xFF000000)>>24),
+			         ((hex&0x00FF0000)>>16),
+				 ((hex&0x0000FF00)>> 8),
+				   hex&0x000000FF      };
+	}
+
 	public void run(String arg) {
 		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH\nUniversity of California Los Angeles");
 	}

@@ -259,9 +259,10 @@ public class Patch extends Displayable {
 		}
 		// extract channel values
 		final float cr = ((channels&0xff0000)>>16) / 255.0f;
-		final float cg = ((channels&0xff00)>>8) / 255.0f;
-		final float cb = (channels&0xff) / 255.0f;
+		final float cg = ((channels&0xff00)>>8   ) / 255.0f;
+		final float cb = ( channels&0xff         ) / 255.0f;
 		// extract pixels
+		Utils.log2("w, h: " + bi.getWidth() + ", " + bi.getHeight());
 		final int[] pixels = bi.getRGB(0, 0, bi.getWidth(), bi.getHeight(), null, 0, 1);
 		// scale them according to channel opacities
 		int p;
