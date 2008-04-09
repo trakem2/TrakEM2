@@ -965,12 +965,9 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (null != al_zdispl) {
 			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
 				ZDisplayable zd = (ZDisplayable)it.next();
-				// don't include in the XML file if the object is empty
-				if (!zd.isDeletable()) {
-					sb_body.setLength(0);
-					zd.exportXML(sb_body, in, any);
-					writer.write(sb_body.toString()); // each separately, for they can be huge
-				}
+				sb_body.setLength(0);
+				zd.exportXML(sb_body, in, any);
+				writer.write(sb_body.toString()); // each separately, for they can be huge
 			}
 		}
 		// export Layer and contained Displayable objects

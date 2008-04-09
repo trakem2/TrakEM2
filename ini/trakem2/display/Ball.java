@@ -643,7 +643,7 @@ public class Ball extends ZDisplayable {
 	/** Similar to exportSVG but the layer_id is saved instead of the z. The convention is my own, a ball_ob that contains ball objects and links. */
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		if (-1 == n_points) setupForDisplay(); // reload
-		if (0 == n_points) return;
+		//if (0 == n_points) return;
 		String in = indent + "\t";
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(indent).append("<t2_ball\n");

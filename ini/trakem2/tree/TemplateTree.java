@@ -62,9 +62,10 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 			return;
 		}
 		// allow right-click only
-		if (!(me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK))) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
+		/*if (!(me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK))) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
 			return;
-		}
+		}*/
+		if (!Utils.isPopupTrigger(me)) return;
 		int x = me.getX();
 		int y = me.getY();
 		// find the node and set it selected

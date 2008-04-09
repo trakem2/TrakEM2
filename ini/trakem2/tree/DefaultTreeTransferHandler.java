@@ -25,6 +25,7 @@ package ini.trakem2.tree;
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.display.Display;
 
 import java.awt.*;
 import javax.swing.tree.*;
@@ -42,6 +43,14 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 	}
  
 	public boolean canPerformAction(DNDTree target, DefaultMutableTreeNode dragged_node, int action, Point location) {
+
+		/* //debug:
+		Utils.log2(DnDConstants.ACTION_COPY + " " + DnDConstants.ACTION_COPY_OR_MOVE + " " + DnDConstants.ACTION_LINK + " " + DnDConstants.ACTION_MOVE + " " + DnDConstants.ACTION_NONE + " " + DnDConstants.ACTION_REFERENCE);
+		Utils.log2("action: " + action);
+		*/
+
+
+
 		// prevent drags from non-tree components
 		if (null == dragged_node) return false;
 		// Can't drop onto a TemplateTree
@@ -85,10 +94,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 		Object parent_ob = parent_node.getUserObject(); // can be a Thing or an Attribute
 		Thing child_thing = (Thing)dragged_node.getUserObject();
 
-		if (DnDConstants.ACTION_COPY == action) {
-			// in the future, use to copy elements between projects
-			return false;
-		} else if (DnDConstants.ACTION_MOVE == action) {
+		if (DnDConstants.ACTION_MOVE == action || DnDConstants.ACTION_COPY == action) {
 			if (parent_ob instanceof ProjectThing) {
 				ProjectThing parent_thing = (ProjectThing)parent_ob;
 
@@ -125,7 +131,14 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 		return false;
 	}
  
-	public boolean executeDrop(DNDTree target, DefaultMutableTreeNode dragged_node, DefaultMutableTreeNode new_parent_node, int action) { 
+	public boolean executeDrop(DNDTree target, DefaultMutableTreeNode dragged_node, DefaultMutableTreeNode new_parent_node, int action) {
+
+
+		/* //debug:
+		Utils.log2(DnDConstants.ACTION_COPY + " " + DnDConstants.ACTION_COPY_OR_MOVE + " " + DnDConstants.ACTION_LINK + " " + DnDConstants.ACTION_MOVE + " " + DnDConstants.ACTION_NONE + " " + DnDConstants.ACTION_REFERENCE);
+		Utils.log2("action: " + action);
+		*/
+
 		try {
 			// Can't drop onto a TemplateTree
 			if (target instanceof TemplateTree) {
@@ -177,7 +190,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 			}
 			*/
 
-			if (DnDConstants.ACTION_MOVE == action) {
+			if (DnDConstants.ACTION_MOVE == action || action == DnDConstants.ACTION_COPY) {
 				// MOVE is used for both dragging from the template tree to the project tree, and also for dragging within the project tree! Insane!
 				// So, detect if the dragged node is part of the tempalte or part of the project:
 				if (dragged_thing instanceof TemplateThing) {
@@ -237,6 +250,16 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 						*/
 					}
 
+					if (DnDConstants.ACTION_COPY == action) {
+						if (Project.isBasicType(tt.getType()) && null == Display.getFront()) {
+							return false;
+						}
+						// create nodes recursively
+						final ArrayList nc = new_parent_thing.createChildren(tt.getType(), 1, true);
+						target.addLeaves((ArrayList<Thing>)nc);
+						return true;
+					}
+
 
 					ProjectThing new_thing = new_parent_thing.createChild(tt.getType());
 					if (null == new_thing) return false; // for example, if no Display is open for a Profile or Pipe
@@ -263,7 +286,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 					DNDTree.expandNode(project.getTemplateTree(), dragged_node);
 
 					return true;
-				} else if (dragged_thing instanceof ProjectThing) {
+				} else if (DnDConstants.ACTION_MOVE == action && dragged_thing instanceof ProjectThing) {
 					// change the parent of the dragged thing, within the project tree, only if possible:
 					// check first if possible
 					if (!new_parent_thing.canHaveAsChild(dragged_thing)) return false;
@@ -293,10 +316,6 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 
 					return true;
 				}
-			} else if (action == DnDConstants.ACTION_COPY) {
-				// In the future, copy elements between projects
-				return false;
-				// WARNING: this copy action was being used before to transfer nodes as attributes. Check that the new fashion doesn't run into incompatibilities (such as a node that can have an element of a given type both as attribute and as child).
 			}
 
 		} catch (Exception e) {

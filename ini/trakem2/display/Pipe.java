@@ -1455,32 +1455,31 @@ public class Pipe extends ZDisplayable {
 		String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		if (-1 == n_points) setupForDisplay(); // reload
-		if (0 == n_points) return;
+		//if (0 == n_points) return;
 		String[] RGB = Utils.getHexRGBColor(color);
-		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n")
-		       .append(in).append("d=\"M")
-		;
-		for (int i=0; i<n_points-1; i++) {
-			sb_body.append(" ").append(p[0][i]).append(",").append(p[1][i])
-			    .append(" C ").append(p_r[0][i]).append(",").append(p_r[1][i])
-			    .append(" ").append(p_l[0][i+1]).append(",").append(p_l[1][i+1])
-			;
+		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
+		if (n_points > 0) {
+			sb_body.append(in).append("d=\"M");
+			for (int i=0; i<n_points-1; i++) {
+				sb_body.append(" ").append(p[0][i]).append(",").append(p[1][i])
+				    .append(" C ").append(p_r[0][i]).append(",").append(p_r[1][i])
+				    .append(" ").append(p_l[0][i+1]).append(",").append(p_l[1][i+1])
+				;
+			}
+			sb_body.append(" ").append(p[0][n_points-1]).append(',').append(p[1][n_points-1]).append("\"\n");
+			sb_body.append(in).append("layer_ids=\""); // different from 'layer_id' in superclass
+			for (int i=0; i<n_points; i++) {
+				sb_body.append(p_layer[i]);
+				if (n_points -1 != i) sb_body.append(",");
+			}
+			sb_body.append("\"\n");
+			sb_body.append(in).append("p_width=\"");
+			for (int i=0; i<n_points; i++) {
+				sb_body.append(p_width[i]);
+				if (n_points -1 != i) sb_body.append(",");
+			}
+			sb_body.append("\"\n");
 		}
-		sb_body.append(" ").append(p[0][n_points-1]).append(',').append(p[1][n_points-1]);
-		sb_body.append("\"\n")
-		    .append(in).append("layer_ids=\"") // different from 'layer_id' in superclass
-		;
-		for (int i=0; i<n_points; i++) {
-			sb_body.append(p_layer[i]);
-			if (n_points -1 != i) sb_body.append(",");
-		}
-		sb_body.append("\"\n");
-		sb_body.append(in).append("p_width=\"");
-		for (int i=0; i<n_points; i++) {
-			sb_body.append(p_width[i]);
-			if (n_points -1 != i) sb_body.append(",");
-		}
-		sb_body.append("\"\n");
 		sb_body.append(indent).append("/>\n");
 	}
 

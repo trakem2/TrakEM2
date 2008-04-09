@@ -46,6 +46,7 @@ import javax.swing.tree.*;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.io.File;
 
 /** A class to hold a tree of Thing nodes */
@@ -174,6 +175,27 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 					this.scrollPathToVisible(treePath);
 					this.setSelectionPath(treePath);
 				}
+			} else if (command.equals("many...")) {
+				ArrayList children = thing.getTemplate().getChildren();
+				if (null == children || 0 == children.size()) return;
+				String[] cn = new String[children.size()];
+				int i=0;
+				for (Iterator it = children.iterator(); it.hasNext(); ) {
+					cn[i++] = ((TemplateThing)it.next()).getType();
+				}
+				GenericDialog gd = new GenericDialog("Add many children");
+				gd.addNumericField("Amount: ", 1, 0);
+				gd.addChoice("New child: ", cn, cn[0]);
+				gd.addCheckbox("Recursive", true);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				int amount = (int)gd.getNextNumber();
+				if (amount < 1) {
+					Utils.showMessage("Makes no sense to create less than 1 child!");
+					return;
+				}
+				final ArrayList nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
+				addLeaves((ArrayList<Thing>)nc);
 			} else if (command.equals("Unhide")) {
 				thing.setVisible(true);
 				Object obd = thing.getObject();

@@ -373,6 +373,10 @@ public class ProjectThing extends DBObject implements Thing {
 		return template.getType();
 	}
 
+	public TemplateThing getTemplate() {
+		return template;
+	}
+
 	public JMenuItem[] getPopupItems(ActionListener listener) {
 		JMenuItem item = null;
 		ArrayList al_items = new ArrayList();
@@ -386,6 +390,7 @@ public class ProjectThing extends DBObject implements Thing {
 				item.addActionListener(listener);
 				menu.add(item);
 			}
+			item = new JMenuItem("many..."); item.addActionListener(listener); menu.add(item);
 		}
 		if (0 != menu.getItemCount()) {
 			if (template.getType().equals("profile_list") && null != al_children && al_children.size() > 0) {
@@ -450,6 +455,42 @@ public class ProjectThing extends DBObject implements Thing {
 				((ProjectThing)it.next()).setVisible(b);
 			}
 		}
+	}
+
+	/** Creates one instance of the given type and if recursive, also of all possible children of it, and of them, and so on.
+	 *  @return all created nodes, or null if the given type cannot be contained here as a child. */
+	public ArrayList<ProjectThing> createChildren(final String type, final int amount, final boolean recursive) {
+		final ArrayList<ProjectThing> al = new ArrayList<ProjectThing>();
+		for (int i=0; i<amount; i++) {
+			final ProjectThing pt = createChild(type);
+			if (null == pt) continue;
+			al.add(pt);
+			HashSet parents = new HashSet();
+			parents.add(template.getType());
+			if (recursive) pt.createChildren(al, parents);
+		}
+		return al;
+	}
+
+	/** Recursively create one instance of each possible children, and store them in the given ArrayList. Will stop if the new child to create has already been created as a parent, i.e. if it's nested. */
+	private void createChildren(final ArrayList<ProjectThing> nc, final HashSet parents) {
+		if (parents.contains(template.getType())) {
+			// don't dive into nested nodes
+			return;
+		}
+		parents.add(template.getType());
+		final ArrayList children = template.getChildren();
+		if (null == children) return;
+		for (Iterator it = children.iterator(); it.hasNext(); ) {
+			ProjectThing newchild = createChild(((TemplateThing)it.next()).getType());
+			if (null == newchild) continue;
+			nc.add(newchild);
+			newchild.createChildren(nc, parents);
+		}
+	}
+
+	public boolean canHaveAsChild(String type) {
+		return null != template.getChildTemplate(type);
 	}
 
 	public ProjectThing createChild(String type) {
@@ -682,10 +723,6 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
-		if (null != object && object instanceof Displayable && ((Displayable)object).isDeletable()) {
-			// don't save // WARNING I'm not checking on children, there should never be any if this ProjectThing is wrapping a Displayable object.
-			return;
-		}
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
 		String in = indent + "\t";
 		// 1 - opening tag with attributes:

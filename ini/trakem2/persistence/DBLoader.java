@@ -2757,7 +2757,7 @@ public class DBLoader extends Loader {
 		}
 	}
 
-	/** Monitors the InputStream of a PostgreSQL connection. This class is a tremendous hack on the PG JDBC that won't work on applets and certified systems. What it does: replaces the InputStream in the connection's PGStream with a ini.trakem2.utils.LoggingInputStream that keeps track of the ammount of bytes read and the speed. */
+	/** Monitors the InputStream of a PostgreSQL connection. This class is a tremendous hack on the PG JDBC that won't work on applets and certified systems. What it does: replaces the InputStream in the connection's PGStream with a ini.trakem2.utils.LoggingInputStream that keeps track of the amount of bytes read and the speed. */
 	private class Monitor extends Thread {
 
 		private final Connection connection;

@@ -608,8 +608,7 @@ public class Layer extends DBObject {
 		if (null != al_displayables) {
 			for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				// don't include in the XML file if the object is empty
-				if (!d.isDeletable()) d.exportXML(sb_body, in, any);
+				d.exportXML(sb_body, in, any);
 			}
 		}
 		// 3 - close tag
