@@ -95,7 +95,7 @@ public class Utils implements ij.plugin.PlugIn {
 		private boolean loading = false;
 		private boolean go = true;
 		public LogDispatcher() {
-			setPriority(Thread.NORM_PRIORITY-1);
+			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
@@ -145,7 +145,7 @@ public class Utils implements ij.plugin.PlugIn {
 		private boolean loading = false;
 		private boolean go = true;
 		public StatusDispatcher() {
-			setPriority(Thread.NORM_PRIORITY-1);
+			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}

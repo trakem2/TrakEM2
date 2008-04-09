@@ -4357,6 +4357,7 @@ abstract public class Loader {
 		private boolean go = true;
 		public ImageLoaderThread() {
 			setPriority(Thread.NORM_PRIORITY);
+			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
 		public final void quit() {
