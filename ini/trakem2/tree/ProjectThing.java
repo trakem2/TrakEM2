@@ -465,9 +465,7 @@ public class ProjectThing extends DBObject implements Thing {
 			final ProjectThing pt = createChild(type);
 			if (null == pt) continue;
 			al.add(pt);
-			HashSet parents = new HashSet();
-			parents.add(template.getType());
-			if (recursive) pt.createChildren(al, parents);
+			if (recursive) pt.createChildren(al, new HashSet());
 		}
 		return al;
 	}
@@ -479,13 +477,16 @@ public class ProjectThing extends DBObject implements Thing {
 			return;
 		}
 		parents.add(template.getType());
+		// the template itself is never nested; the ProjectThing has a pointer to the master one.
 		final ArrayList children = template.getChildren();
 		if (null == children) return;
 		for (Iterator it = children.iterator(); it.hasNext(); ) {
-			ProjectThing newchild = createChild(((TemplateThing)it.next()).getType());
+			TemplateThing tt = (TemplateThing)it.next();
+			if (parents.contains(tt.getType())) continue; // don't create directly nested types
+			ProjectThing newchild = createChild(tt.getType());
 			if (null == newchild) continue;
 			nc.add(newchild);
-			newchild.createChildren(nc, parents);
+			newchild.createChildren(nc, (HashSet)parents.clone()); // each branch needs its own copy of the parent chain
 		}
 	}
 
