@@ -640,11 +640,18 @@ public abstract class Displayable extends DBObject {
 
 	/** Check if this object is directly linked to a Displayable object of the given Class. */
 	public boolean isLinked(final Class c) {
+		if (null == hs_linked) return false;
 		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
 			Object ob = it.next();
 			if (c.isInstance(ob)) return true;
 		}
 		return false;
+	}
+
+	/** Check if thisobject is directly linked to the given Displayable. */
+	public boolean isLinked(final Displayable d) {
+		if (null == hs_linked) return false;
+		return hs_linked.contains(d);
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class (returns true) or to none (returns true as well).*/
