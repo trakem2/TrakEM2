@@ -492,6 +492,19 @@ public class Patch extends Displayable {
 		return new PatchStack(patch, currentSlice);
 	}
 
+	public ArrayList<Patch> getStackPatches() {
+		Hashtable ht = new Hashtable();
+		getStackPatches(ht);
+		ArrayList z = new ArrayList();
+		z.addAll(ht.keySet());
+		java.util.Collections.sort(z);
+		ArrayList<Patch> p = new ArrayList<Patch>();
+		for (Double d : (ArrayList<Double>)z) {
+			p.add((Patch)ht.get(d));
+		}
+		return p;
+	}
+
 	/** Collect linked Patch instances that do not lay in this layer. Recursive over linked Patch instances that lay in different layers. */ // This method returns a usable stack because Patch objects are only linked to other Patch objects when inserted together as stack. So the slices are all consecutive in space and have the same thickness. Yes this is rather convoluted, stacks should be full-grade citizens
 	private void getStackPatches(Hashtable ht) {
 		if (ht.contains(this)) return;

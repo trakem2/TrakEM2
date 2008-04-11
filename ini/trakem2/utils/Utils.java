@@ -69,7 +69,7 @@ import java.util.Calendar;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.5q 2008-04-09";
+	static public String version = "0.5q 2008-04-10";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;

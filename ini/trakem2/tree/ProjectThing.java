@@ -885,4 +885,24 @@ public class ProjectThing extends DBObject implements Thing {
 		parent.al_children.set(i+inc, this);
 		return true;
 	}
+
+	/** Recursively browse all children to classify all nodes by type. Returns a table of String types and ArrayList ProjectThing. */
+	public Hashtable<String,ArrayList<ProjectThing>> getByType() {
+		return getByType(new Hashtable<String,ArrayList<ProjectThing>>());
+	}
+
+	private Hashtable<String,ArrayList<ProjectThing>> getByType(final Hashtable<String,ArrayList<ProjectThing>> ht) {
+		String type = template.getType();
+		ArrayList<ProjectThing> ap = ht.get(type);
+		if (null == ap) {
+			ap = new ArrayList<ProjectThing>();
+			ht.put(type, ap);
+		}
+		ap.add(this);
+		if (null == al_children) return ht;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			((ProjectThing)it.next()).getByType(ht);
+		}
+		return ht;
+	}
 }

@@ -632,13 +632,22 @@ public abstract class Displayable extends DBObject {
 		project.getLoader().removeCrossLink(this.id, d.id);
 	}
 
-	/** Check if this object is linked to any other Displayable objects.*/
+	/** Check if this object is directly linked to any other Displayable objects.*/
 	public boolean isLinked() {
 		if (null == hs_linked) return false;
 		return !hs_linked.isEmpty();
 	}
 
-	/** Check if this object is only linked to Displayable objects of the given class (returns true) or to none (returns true as well).*/
+	/** Check if this object is directly linked to a Displayable object of the given Class. */
+	public boolean isLinked(final Class c) {
+		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+			Object ob = it.next();
+			if (c.isInstance(ob)) return true;
+		}
+		return false;
+	}
+
+	/** Check if this object is directly linked only to Displayable objects of the given class (returns true) or to none (returns true as well).*/
 	public boolean isOnlyLinkedTo(Class c) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
 		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
@@ -649,7 +658,7 @@ public abstract class Displayable extends DBObject {
 		return true;
 	}
 
-	/** Check if this object is only linked to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
+	/** Check if this object is directly linked only to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
 	public boolean isOnlyLinkedTo(Class c, Layer layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
 		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {

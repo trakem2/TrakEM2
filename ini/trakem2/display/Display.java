@@ -1916,8 +1916,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					popup.addSeparator();
 				} else if (active instanceof Patch) {
 					item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
-					if (!active.isOnlyLinkedTo(Patch.class, active.getLayer())) {
-						item.setEnabled(false);
+					if (!active.isLinked(Patch.class)) item.setEnabled(false);
+					if (((Patch)active).isStack()) {
+						item = new JMenuItem("Unlink slices"); item.addActionListener(this); popup.add(item);
 					}
 					int n_sel_patches = selection.getSelected(Patch.class).size(); 
 					if (1 == n_sel_patches) {
@@ -2522,6 +2523,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				active.unlinkAll(Patch.class);
 				updateSelection();//selection.update();
 			} catch (Exception e) { IJError.print(e); }
+		} else if (command.equals("Unlink slices")) {
+			YesNoCancelDialog yn = new YesNoCancelDialog(frame, "Attention", "Really unlink all slices from each other?\nThere is no undo.");
+			if (!yn.yesPressed()) return;
+			final ArrayList<Patch> pa = ((Patch)active).getStackPatches();
+			for (int i=pa.size()-1; i>0; i--) {
+				pa.get(i).unlink(pa.get(i-1));
+			}
 		} else if (command.equals("Send to next layer")) {
 			Rectangle box = selection.getBox();
 			try {
