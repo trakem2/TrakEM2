@@ -2872,10 +2872,36 @@ abstract public class Loader {
 	/** Subclasses can override this method to register the URL of the imported image. */
 	public void addedPatchFrom(String path, Patch patch) {}
 
+	/** Import an image into the given layer, in a separate task thread. */
+	public Bureaucrat importImage(final Layer layer, final double x, final double y, final String path) {
+		Worker worker = new Worker("Importing image") {
+			public void run() {
+				startedWorking();
+				try {
+					////
+					if (null == layer) {
+						Utils.log("Can't import. No layer found.");
+						finishedWorking();
+						return;
+					}
+					Patch p = importImage(layer.getProject(), x, y, path);
+					if (null != p) layer.add(p);
+					////
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, layer.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
 	public Patch importImage(Project project, double x, double y) {
 		return importImage(project, x, y, null);
 	}
-	/** Import a new image at the given coordinates. If a path is not provided it will be asked for.*/
+	/** Import a new image at the given coordinates; does not puts it into any layer, unless it's a stack -in which case importStack is called with the current front layer of the given project as target. If a path is not provided it will be asked for.*/
 	public Patch importImage(Project project, double x, double y, String path) {
 		if (null == path) {
 			OpenDialog od = new OpenDialog("Import image", "");

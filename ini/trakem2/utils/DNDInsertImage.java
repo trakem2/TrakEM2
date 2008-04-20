@@ -160,8 +160,8 @@ public class DNDInsertImage implements DropTargetListener {
 					break;
 				}
 			} else {
-				Patch p = display.getProject().getLoader().importImage(display.getProject(), point.x, point.y, path);
-				if (null != p) display.getLayer().add(p);
+				// single image file (single image or a stack)
+				display.getProject().getLoader().importImage(display.getLayer(), point.x, point.y, path);
 			}
 			return true;
 		} else {

@@ -33,6 +33,7 @@ public class Bureaucrat extends Thread {
 	private Worker worker;
 	private long onset;
 	private Project[] project;
+	private boolean started = false;
 
 	/** Registers itself in the project loader job queue. */
 	public Bureaucrat(Worker worker, Project project) {
@@ -52,7 +53,13 @@ public class Bureaucrat extends Thread {
 	/** Sets the worker to work and monitors it until it finishes.*/
 	public void goHaveBreakfast() {
 		worker.start();
+		while (!worker.hasStarted()) {
+			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
+		}
 		start();
+		while (!started) {
+			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
+		}
 	}
 	private void cleanup() {
 		for (int i=0; i<project.length; i++) {
@@ -61,6 +68,7 @@ public class Bureaucrat extends Thread {
 		}
 	}
 	public void run() {
+		started = true;
 		// wait until worker starts
 		while (!worker.isWorking()) {
 			try { Thread.sleep(50); } catch (InterruptedException ie) {}
