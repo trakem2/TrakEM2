@@ -144,6 +144,7 @@ public class Utils implements ij.plugin.PlugIn {
 		private String msg = null;
 		private boolean loading = false;
 		private boolean go = true;
+		private double progress = -1;
 		public StatusDispatcher() {
 			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
@@ -163,6 +164,16 @@ public class Utils implements ij.plugin.PlugIn {
 				e.printStackTrace();
 			}
 		}
+		public final void showProgress(final double progress) {
+			try {
+				synchronized (this) {
+					this.progress = progress;
+					notify();
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
 		public void run() {
 			while (go) {
 				try {
@@ -171,6 +182,10 @@ public class Utils implements ij.plugin.PlugIn {
 						if (null != msg) {
 							IJ.showStatus(msg);
 							msg = null;
+						}
+						if (-1 != progress) {
+							IJ.showProgress(progress);
+							progress = -1;
 						}
 						wait();
 					}
@@ -356,20 +371,25 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public final void showProgress(final double p) {
 		//IJ.showProgress(p); // never happens, can't repaint even though they are different threads
-		if (0 == p) {
-			last_progress = 0; // reset
-			last_percent = 0;
+		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled() || null == status) {
+			if (0 == p) {
+				last_progress = 0; // reset
+				last_percent = 0;
+				return;
+			}
+			// don't show intervals smaller than 1%:
+			if (last_progress + 0.01 > p ) {
+				int percent = (int)(p * 100);
+				if (last_percent != percent) {
+					System.out.println(percent + " %");
+					last_percent = percent;
+				}
+			}
+			last_progress = p;
 			return;
 		}
-		// don't show intervals smaller than 1%:
-		if (last_progress + 0.01 > p ) {
-			int percent = (int)(p * 100);
-			if (last_percent != percent) {
-				System.out.println(percent + " %");
-				last_percent = percent;
-			}
-		}
-		last_progress = p;
+
+		status.showProgress(p);
 	}
 
 	static public void debugDialog() {

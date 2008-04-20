@@ -1577,6 +1577,8 @@ public class Registration {
 
 		final Loader loader = pa[0].getProject().getLoader();
 
+		final AtomicInteger count = new AtomicInteger(0);
+
 		for (int ithread = 0; ithread < threads.length; ++ithread) {
 			final int si = ithread;
 			threads[ ithread ] = new Thread(new Runnable() {
@@ -1613,17 +1615,22 @@ public class Registration {
 						model.getAffine().setTransform(patch.getAffineTransform());
 						tls[k] = new Tile((float)patch.getWidth(), (float)patch.getHeight(), model);
 
+						Utils.showProgress((double)count.incrementAndGet() / num_pa);
+						Utils.showStatus(new StringBuffer("Extracted features for ").append(count.get()).append('/').append(num_pa).append(" tiles").toString());
+
 					}
 				}
 			});
 		}
 		MultiThreading.startAndJoin(threads);
+		Utils.showProgress(0);
 	}
 
 	/** Test all to all or all to overlapping only, and make appropriate connections between tiles. */
 	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, Vector<Feature>[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
 		// TODO: multithread this, but careful to synchronize current_tile.connect method
 		final int num_patches = patches.size();
+		final AtomicInteger count = new AtomicInteger(0);
 		for ( int i = 0; i < num_patches; ++i )
 		{
 			if (worker.hasQuitted()) return;
@@ -1660,9 +1667,13 @@ public class Registration {
 					
 					if ( model != null ) // that implies that inliers is not empty
 						current_tile.connect( other_tile, inliers );
+
+					Utils.showProgress((double)count.incrementAndGet() / num_patches);
+					Utils.showStatus(new StringBuffer("Connected ").append(count.get()).append('/').append(num_patches).append(" tiles").toString());
 				}
 			}
 		}
+		Utils.showProgress(0);
 	}
 
 	/** Will find a fixed tile for each graph, and Will also update each tile.
