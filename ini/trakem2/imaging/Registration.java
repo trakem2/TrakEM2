@@ -1623,7 +1623,7 @@ public class Registration {
 			});
 		}
 		MultiThreading.startAndJoin(threads);
-		Utils.showProgress(0);
+		Utils.showProgress(1);
 	}
 
 	/** Test all to all or all to overlapping only, and make appropriate connections between tiles. */
@@ -1673,7 +1673,7 @@ public class Registration {
 				}
 			}
 		}
-		Utils.showProgress(0);
+		Utils.showProgress(1);
 	}
 
 	/** Will find a fixed tile for each graph, and Will also update each tile.

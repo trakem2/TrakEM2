@@ -62,7 +62,7 @@ public class Bureaucrat extends Thread {
 		}
 	}
 	private void cleanup() {
-		Utils.showProgress(0); // cleanup all possible interruptions
+		Utils.showProgress(1); // cleanup all possible interruptions
 		for (int i=0; i<project.length; i++) {
 			project[i].getLoader().removeJob(this);
 			project[i].setReceivesInput(true);
