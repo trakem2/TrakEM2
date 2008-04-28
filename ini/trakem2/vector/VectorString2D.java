@@ -312,7 +312,7 @@ public class VectorString2D implements VectorString {
 		dist1 = Math.sqrt((lastx - ps_x[j-1])*(lastx - ps_x[j-1]) + (lasty - ps_y[j-1])*(lasty - ps_y[j-1]));
 		if (dist1 > delta*1.2) {
 			// TODO needs revision
-			System.out.println("resampling terminated too early. Why?");
+			// System.out.println("resampling terminated too early. Why?");
 			angleXY = Utils.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
 			dx = Math.cos(angleXY) * delta;
 			dy = Math.sin(angleXY) * delta;

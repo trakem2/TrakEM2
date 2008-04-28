@@ -30,6 +30,7 @@ public abstract class Worker extends Thread {
 	private String task_name;
 	private boolean working = false;
 	protected boolean quit = false;
+	private boolean started = false;
 	private boolean background = false;
 	/** Extending classes may store a resulting piece of data. */
 	protected Object result = null;
@@ -43,7 +44,11 @@ public abstract class Worker extends Thread {
 		setPriority(Thread.NORM_PRIORITY);
 	}
 	public void setTaskName(String name) { this.task_name = name; }
-	protected void startedWorking() { this.working = true; }
+	protected void startedWorking() {
+		this.working = true;
+		this.started = true;
+	}
+	public boolean hasStarted() { return started; }
 	protected void finishedWorking() { this.working = false; }
 	public boolean isWorking() { return working; }
 	public String getTaskName() { return task_name; }

@@ -279,6 +279,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		}
 		return null;
 	}
+	// TODO this could be improved by checking while searching for nodes, not first getting all then checking.
 
 	/** Find the node in the tree that contains a Thing which contains the given project_ob. */
 	static public DefaultMutableTreeNode findNode2(final Object project_ob, final JTree tree) {
@@ -364,6 +365,34 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 				}
 			}
 		}.start();
+	}
+
+	/** Rebuilds the entire tree, starting at the root Thing object. */
+	public void rebuild() {
+		rebuild((DefaultMutableTreeNode)this.getModel().getRoot(), false);
+		updateUILater();
+	}
+
+	/** Rebuilds the entire tree, starting at the given Thing object. */
+	public void rebuild(final Thing thing) {
+		rebuild(DNDTree.findNode(thing, this), false);
+		updateUILater();
+	}
+
+	/** Rebuilds the entire tree, from the given node downward. */
+	public void rebuild(final DefaultMutableTreeNode node, final boolean repaint) {
+		if (null == node) return;
+		if (0 != node.getChildCount()) node.removeAllChildren();
+		final Thing thing = (Thing)node.getUserObject();
+		final ArrayList al_children = thing.getChildren();
+		if (null == al_children) return;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			Thing child = (Thing)it.next();
+			DefaultMutableTreeNode childnode = new DefaultMutableTreeNode(child);
+			node.add(childnode);
+			rebuild(childnode, repaint);
+		}
+		if (repaint) updateUILater();
 	}
 
 	/** Rebuilds the part of the tree under the given node, one level deep only, for reordering purposes. */
@@ -506,5 +535,27 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		((DefaultTreeModel)getModel()).insertNodeInto(node_child, parent_node, parent_node.getChildCount());
 		updateUILater();
 		return node_child;
+	}
+
+	/** Will add only those for which a node doesn't exist already. */
+	public void addLeaves(final ArrayList<Thing> leaves) {
+		for (Thing th : leaves) {
+			// find parent node
+			final DefaultMutableTreeNode parent = DNDTree.findNode(th.getParent(), this);
+			// see if it exists already as a child of that node
+			boolean exists = false;
+			if (parent.getChildCount() > 0) {
+				final Enumeration e = parent.children();
+				while (e.hasMoreElements()) {
+					DefaultMutableTreeNode child = (DefaultMutableTreeNode)e.nextElement();
+					if (child.getUserObject().equals(th)) {
+						exists = true;
+						break;
+					}
+				}
+			}
+			// otherwise add!
+			if (!exists) addChild(th, parent);
+		}
 	}
 }

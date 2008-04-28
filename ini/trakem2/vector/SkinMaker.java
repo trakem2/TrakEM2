@@ -44,8 +44,8 @@ public class SkinMaker {
 		final int[][] editions = ed.getEditions();
 		final int n_editions = ed.length();
 		// the points to create. There is one point for each edition, plus the starting point.
-		final double[] x = new double[n_editions]; // +1];
-		final double[] y = new double[n_editions]; // +1]; 
+		double[] x = new double[n_editions]; // +1];
+		double[] y = new double[n_editions]; // +1]; 
 		//starting point: a weighted average between both starting points
 		x[0] = (vs1.getPoint(0, 0) * (1-alpha) + vs2.getPoint(0, 0) * alpha);
 		y[0] = (vs1.getPoint(1, 0) * (1-alpha) + vs2.getPoint(1, 0) * alpha);
@@ -97,6 +97,10 @@ public class SkinMaker {
 				default:
 					Utils.log2("\ngetMorphedPerimeter: Nothing added!");
 					break;
+			}
+			if (next+1 == n_editions) {
+				x = Utils.copy(x, x.length+1);
+				y = Utils.copy(y, y.length+1);
 			}
 			// store the point
 			x[next+1] = x[next] + vs_x;
@@ -163,7 +167,7 @@ public class SkinMaker {
 				// else, add them all
 				double z_start = vs[i-1].getPoint(2, 0); // z
 				double z_inc = (vs[i].getPoint(2, 0) - z_start) / (double)( 0 == d.length ? 1 : (d.length + 1)); // if zero, none are added anyway; '1' is a dummy number
-				Utils.log2("vs[i].z: " + vs[i].getPoint(2, 0) + "  z_start: " + z_start + "  z_inc is: " + z_inc);
+				//Utils.log2("vs[i].z: " + vs[i].getPoint(2, 0) + "  z_start: " + z_start + "  z_inc is: " + z_inc);
 				VectorString2D[] p = new VectorString2D[d.length];
 				for (int k=0; k<d.length; k++) {
 					p[k] = new VectorString2D(d[k][0], d[k][1], z_start + z_inc*(k+1), vs[0].isClosed()); // takes the closed value from the first one, ignoring the other

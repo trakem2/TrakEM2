@@ -970,7 +970,13 @@ public class Selection {
 
 	/** Returns the set of all Displayable objects affected by this selection, that is, the selected ones and their linked ones.*/
 	public Set<Displayable> getAffected() {
-		return (Set<Displayable>)hs.clone();
+		Set<Displayable> set = null;
+		synchronized (queue_lock) {
+			lock();
+			set = (Set<Displayable>)hs.clone();
+			unlock();
+		}
+		return set;
 	}
 
 	/** Returns the set of all Displayable objects of the given class affected by this selection, that is, among the selected ones and their linked ones. */
@@ -988,7 +994,7 @@ public class Selection {
 				if (zd && d instanceof ZDisplayable) {
 					copy.add(d);
 				} else if (d.getClass().equals(c)) {
-					hs.add(d);
+					copy.add(d);
 				}
 			}
 			unlock();

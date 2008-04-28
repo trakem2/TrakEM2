@@ -54,6 +54,7 @@ import java.util.Iterator;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -964,12 +965,9 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (null != al_zdispl) {
 			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
 				ZDisplayable zd = (ZDisplayable)it.next();
-				// don't include in the XML file if the object is empty
-				if (!zd.isDeletable()) {
-					sb_body.setLength(0);
-					zd.exportXML(sb_body, in, any);
-					writer.write(sb_body.toString()); // each separately, for they can be huge
-				}
+				sb_body.setLength(0);
+				zd.exportXML(sb_body, in, any);
+				writer.write(sb_body.toString()); // each separately, for they can be huge
 			}
 		}
 		// export Layer and contained Displayable objects
@@ -1028,7 +1026,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	synchronized public void createUndoStep() {
 		final Hashtable ht_undo = new Hashtable();
 		for (Layer la : al_layers) {
-			for (Displayable d : layer.getDisplayables()) {
+			for (Displayable d : la.getDisplayables()) {
 				ht_undo.put(d, d.getAffineTransformCopy());
 			}
 		}
@@ -1069,6 +1067,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		/*
 		// discard redo steps
 		redo_queue.clear(); */
+	}
+
+	/** Create an undo step involving all Displayable objects in the set. */
+	public void addUndoStep(final Set<Displayable> set) {
+		Hashtable ht = new Hashtable();
+		for (Displayable d : set) {
+			ht.put(d, d.getAffineTransformCopy());
+		}
+		addUndoStep(ht);
 	}
 
 	/** Usable only when undoing the last step, to catch the current step (which is not in the undo queue).*/

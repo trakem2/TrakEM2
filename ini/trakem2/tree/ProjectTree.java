@@ -46,6 +46,10 @@ import javax.swing.tree.*;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.Set;
+import java.util.Hashtable;
+import java.util.Collections;
 import java.io.File;
 
 /** A class to hold a tree of Thing nodes */
@@ -132,7 +136,9 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		gd.addStringField("New name: ", old_title);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
-		thing.setTitle(gd.getNextString());
+		String title = gd.getNextString();
+		title = title.replace('"', '\''); // avoid XML problems - could also replace by double '', then replace again by " when reading.
+		thing.setTitle(title);
 		this.updateUILater();
 	}
 
@@ -172,6 +178,28 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 					this.scrollPathToVisible(treePath);
 					this.setSelectionPath(treePath);
 				}
+			} else if (command.equals("many...")) {
+				ArrayList children = thing.getTemplate().getChildren();
+				if (null == children || 0 == children.size()) return;
+				String[] cn = new String[children.size()];
+				int i=0;
+				for (Iterator it = children.iterator(); it.hasNext(); ) {
+					cn[i] = ((TemplateThing)it.next()).getType();
+					i++;
+				}
+				GenericDialog gd = new GenericDialog("Add many children");
+				gd.addNumericField("Amount: ", 1, 0);
+				gd.addChoice("New child: ", cn, cn[0]);
+				gd.addCheckbox("Recursive", true);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				int amount = (int)gd.getNextNumber();
+				if (amount < 1) {
+					Utils.showMessage("Makes no sense to create less than 1 child!");
+					return;
+				}
+				final ArrayList nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
+				addLeaves((ArrayList<Thing>)nc);
 			} else if (command.equals("Unhide")) {
 				thing.setVisible(true);
 				Object obd = thing.getObject();
@@ -227,9 +255,18 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				// Just do the same as in "Save as..." but without saving the images and overwritting the XML file without asking.
 				thing.getProject().getLoader().save(thing.getProject());
 			} else if (command.equals("Info")) {
-				String info = thing.getInfo();
-				info = info.replaceAll("\t", "    "); // TextWindow can't handle tabs
-				new ij.text.TextWindow("Info", info, 500, 500);
+				Hashtable<String,ArrayList<ProjectThing>> ht = thing.getByType();
+				ArrayList<String> types = new ArrayList<String>();
+				types.addAll(ht.keySet());
+				Collections.sort(types);
+				StringBuffer sb = new StringBuffer(thing.getNodeInfo());
+				sb.append("\nCounts:\n");
+				for (String type : types) {
+					sb.append(type).append(": ").append(ht.get(type).size()).append('\n');
+				}
+				sb.append('\n');
+				sb.append(thing.getInfo().replaceAll("\t", "    ")); // TextWindow can't handle tabs
+				new ij.text.TextWindow("Info", sb.toString(), 500, 500);
 			} else {
 				Utils.log("ProjectTree.actionPerformed: don't know what to do with the command: " + command);
 				return;

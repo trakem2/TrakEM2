@@ -284,8 +284,7 @@ public class FSLoader extends Loader {
 		long nid = -1;
 		synchronized (db_lock) {
 			lock();
-			nid = max_id + 1;
-			max_id = nid;
+			nid = ++max_id;
 			unlock();
 		}
 		return nid;
@@ -735,19 +734,21 @@ public class FSLoader extends Loader {
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
 	public String save(final Project project) {
-		Utils.logAll(Utils.now() + " Saving " + project);
+		String result = null;
 		if (null == project_file_path) {
 			String xml_path = super.saveAs(project);
 			if (null == xml_path) return null;
 			else {
 				this.project_file_path = xml_path;
 				ControlWindow.updateTitle(project);
-				return this.project_file_path;
+				result = this.project_file_path;
 			}
 		} else {
 			File fxml = new File(project_file_path);
-			return super.export(project, fxml, false);
+			result = super.export(project, fxml, false);
 		}
+		if (null != result) Utils.logAll(Utils.now() + " Saved " + project);
+		return result;
 	}
 
 	public String saveAs(Project project) {

@@ -69,11 +69,11 @@ public class ProjectThing extends DBObject implements Thing {
 		// call super constructor
 		super(project);
 		// specifics:
+		if (null == ob) throw new Exception("ProjectThing constructor: Null Object!");
+		if (null == template) throw new Exception("ProjectThing constructor: Null template!");
 		this.template = project.getTemplateThing(template.getType());
 		copyAttributes();
 		this.object = ob;
-		if (null == ob) throw new Exception("ProjectThing constructor: Null Object!");
-		if (null == template) throw new Exception("ProjectThing constructor: Null template!");
 		// now, ready:
 		addToDatabase();
 	}
@@ -373,6 +373,10 @@ public class ProjectThing extends DBObject implements Thing {
 		return template.getType();
 	}
 
+	public TemplateThing getTemplate() {
+		return template;
+	}
+
 	public JMenuItem[] getPopupItems(ActionListener listener) {
 		JMenuItem item = null;
 		ArrayList al_items = new ArrayList();
@@ -386,6 +390,7 @@ public class ProjectThing extends DBObject implements Thing {
 				item.addActionListener(listener);
 				menu.add(item);
 			}
+			item = new JMenuItem("many..."); item.addActionListener(listener); menu.add(item);
 		}
 		if (0 != menu.getItemCount()) {
 			if (template.getType().equals("profile_list") && null != al_children && al_children.size() > 0) {
@@ -450,6 +455,43 @@ public class ProjectThing extends DBObject implements Thing {
 				((ProjectThing)it.next()).setVisible(b);
 			}
 		}
+	}
+
+	/** Creates one instance of the given type and if recursive, also of all possible children of it, and of them, and so on.
+	 *  @return all created nodes, or null if the given type cannot be contained here as a child. */
+	public ArrayList<ProjectThing> createChildren(final String type, final int amount, final boolean recursive) {
+		final ArrayList<ProjectThing> al = new ArrayList<ProjectThing>();
+		for (int i=0; i<amount; i++) {
+			final ProjectThing pt = createChild(type);
+			if (null == pt) continue;
+			al.add(pt);
+			if (recursive) pt.createChildren(al, new HashSet());
+		}
+		return al;
+	}
+
+	/** Recursively create one instance of each possible children, and store them in the given ArrayList. Will stop if the new child to create has already been created as a parent, i.e. if it's nested. */
+	private void createChildren(final ArrayList<ProjectThing> nc, final HashSet parents) {
+		if (parents.contains(template.getType())) {
+			// don't dive into nested nodes
+			return;
+		}
+		parents.add(template.getType());
+		// the template itself is never nested; the ProjectThing has a pointer to the master one.
+		final ArrayList children = template.getChildren();
+		if (null == children) return;
+		for (Iterator it = children.iterator(); it.hasNext(); ) {
+			TemplateThing tt = (TemplateThing)it.next();
+			if (parents.contains(tt.getType())) continue; // don't create directly nested types
+			ProjectThing newchild = createChild(tt.getType());
+			if (null == newchild) continue;
+			nc.add(newchild);
+			newchild.createChildren(nc, (HashSet)parents.clone()); // each branch needs its own copy of the parent chain
+		}
+	}
+
+	public boolean canHaveAsChild(String type) {
+		return null != template.getChildTemplate(type);
 	}
 
 	public ProjectThing createChild(String type) {
@@ -682,10 +724,6 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
-		if (null != object && object instanceof Displayable && ((Displayable)object).isDeletable()) {
-			// don't save // WARNING I'm not checking on children, there should never be any if this ProjectThing is wrapping a Displayable object.
-			return;
-		}
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
 		String in = indent + "\t";
 		// 1 - opening tag with attributes:
@@ -846,5 +884,25 @@ public class ProjectThing extends DBObject implements Thing {
 		parent.al_children.set(i, parent.al_children.get(i+inc));
 		parent.al_children.set(i+inc, this);
 		return true;
+	}
+
+	/** Recursively browse all children to classify all nodes by type. Returns a table of String types and ArrayList ProjectThing. */
+	public Hashtable<String,ArrayList<ProjectThing>> getByType() {
+		return getByType(new Hashtable<String,ArrayList<ProjectThing>>());
+	}
+
+	private Hashtable<String,ArrayList<ProjectThing>> getByType(final Hashtable<String,ArrayList<ProjectThing>> ht) {
+		String type = template.getType();
+		ArrayList<ProjectThing> ap = ht.get(type);
+		if (null == ap) {
+			ap = new ArrayList<ProjectThing>();
+			ht.put(type, ap);
+		}
+		ap.add(this);
+		if (null == al_children) return ht;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			((ProjectThing)it.next()).getByType(ht);
+		}
+		return ht;
 	}
 }

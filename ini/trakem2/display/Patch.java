@@ -259,9 +259,10 @@ public class Patch extends Displayable {
 		}
 		// extract channel values
 		final float cr = ((channels&0xff0000)>>16) / 255.0f;
-		final float cg = ((channels&0xff00)>>8) / 255.0f;
-		final float cb = (channels&0xff) / 255.0f;
+		final float cg = ((channels&0xff00)>>8   ) / 255.0f;
+		final float cb = ( channels&0xff         ) / 255.0f;
 		// extract pixels
+		Utils.log2("w, h: " + bi.getWidth() + ", " + bi.getHeight());
 		final int[] pixels = bi.getRGB(0, 0, bi.getWidth(), bi.getHeight(), null, 0, 1);
 		// scale them according to channel opacities
 		int p;
@@ -489,6 +490,19 @@ public class Patch extends Displayable {
 			patch = new Patch[]{ this };
 		}
 		return new PatchStack(patch, currentSlice);
+	}
+
+	public ArrayList<Patch> getStackPatches() {
+		Hashtable ht = new Hashtable();
+		getStackPatches(ht);
+		ArrayList z = new ArrayList();
+		z.addAll(ht.keySet());
+		java.util.Collections.sort(z);
+		ArrayList<Patch> p = new ArrayList<Patch>();
+		for (Double d : (ArrayList<Double>)z) {
+			p.add((Patch)ht.get(d));
+		}
+		return p;
 	}
 
 	/** Collect linked Patch instances that do not lay in this layer. Recursive over linked Patch instances that lay in different layers. */ // This method returns a usable stack because Patch objects are only linked to other Patch objects when inserted together as stack. So the slices are all consecutive in space and have the same thickness. Yes this is rather convoluted, stacks should be full-grade citizens

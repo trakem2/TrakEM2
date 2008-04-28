@@ -312,7 +312,7 @@ public class TemplateThing extends DBObject implements Thing {
 	/** Change the type to new_name. */
 	protected void rename(String new_name) {
 		if (null == new_name || 0 == new_name.length() || type.equals(new_name)) return;
-		Utils.log("Renaming " + type + "  " + id);
+		//Utils.log("Renaming " + type + "  " + id);
 		this.type = new_name;
 		updateInDatabase("type");
 	}

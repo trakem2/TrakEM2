@@ -205,15 +205,17 @@ public class Ball extends ZDisplayable {
 			p_width = (double[])ob[1];
 		}
 
+		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
+
 		// paint proper:
 		final int i_current = layer_set.getLayerIndex(active_layer.getId());
 		int ii;
 		int radius;
 		for (int j=0; j<n_points; j++) {
 			ii = layer_set.getLayerIndex(p_layer[j]);
-			if (ii == i_current -1) g.setColor(Color.red);
+			if (ii == i_current -1 && !no_color_cues) g.setColor(Color.red);
 			else if (ii == i_current) g.setColor(this.color);
-			else if (ii == i_current + 1) g.setColor(Color.blue);
+			else if (ii == i_current + 1 && !no_color_cues) g.setColor(Color.blue);
 			else continue; //don't paint!
 			radius = (int)p_width[j];
 			g.drawOval((int)(p[0][j]) - radius, (int)(p[1][j]) - radius, radius + radius, radius + radius);
@@ -643,7 +645,7 @@ public class Ball extends ZDisplayable {
 	/** Similar to exportSVG but the layer_id is saved instead of the z. The convention is my own, a ball_ob that contains ball objects and links. */
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		if (-1 == n_points) setupForDisplay(); // reload
-		if (0 == n_points) return;
+		//if (0 == n_points) return;
 		String in = indent + "\t";
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(indent).append("<t2_ball\n");

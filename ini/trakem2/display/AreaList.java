@@ -950,7 +950,6 @@ public class AreaList extends ZDisplayable {
 			} else if (null != stack) {
 				// add a black slice
 				stack.addSlice(la.getZ() + "", new ByteProcessor(w, h));
-				n--;
 			}
 		}
 		// zero-pad stack
@@ -1022,6 +1021,7 @@ public class AreaList extends ZDisplayable {
 	 *
 	 *  */
 	public String getInfo() {
+		if (0 == ht_areas.size()) return "Empty AreaList " + this.toString();
 		Rectangle box = getBoundingBox(null);
 		float scale = 1.0f;
 		while (!getProject().getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000)) { // factor of 2, because a mask will be involved

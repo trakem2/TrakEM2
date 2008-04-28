@@ -69,7 +69,7 @@ import java.util.Calendar;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.5n 2008-01-07";
+	static public String version = "0.5q 2008-04-10";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -95,7 +95,7 @@ public class Utils implements ij.plugin.PlugIn {
 		private boolean loading = false;
 		private boolean go = true;
 		public LogDispatcher() {
-			setPriority(Thread.NORM_PRIORITY-1);
+			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
@@ -145,7 +145,7 @@ public class Utils implements ij.plugin.PlugIn {
 		private boolean loading = false;
 		private boolean go = true;
 		public StatusDispatcher() {
-			setPriority(Thread.NORM_PRIORITY-1);
+			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
@@ -557,6 +557,13 @@ public class Utils implements ij.plugin.PlugIn {
 		return new Color(Integer.parseInt(hex.substring(0, 2), 16), // parse in hexadecimal radix
 				 Integer.parseInt(hex.substring(2, 4), 16),
 				 Integer.parseInt(hex.substring(4, 6), 16));
+	}
+
+	static public final int[] get4Ints(int hex) {
+		return new int[]{((hex&0xFF000000)>>24),
+			         ((hex&0x00FF0000)>>16),
+				 ((hex&0x0000FF00)>> 8),
+				   hex&0x000000FF      };
 	}
 
 	public void run(String arg) {
