@@ -364,13 +364,13 @@ public class DBLoader extends Loader {
 				unlock();
 				Utils.log("Loader: Database problems, can't check and/or create tables.");
 				disconnect();
-				new IJError(sqle);
+				IJError.print(sqle);
 				return;
 			} catch (Exception e) {
 				unlock();
 				Utils.log("Loader: Database problems, can't check tables!");
 				disconnect();
-				new IJError(e);
+				IJError.print(e);
 				return;
 			}
 			unlock();
@@ -424,7 +424,7 @@ public class DBLoader extends Loader {
 				preloader_connection = DriverManager.getConnection("jdbc:postgresql:" + (db_host.equals("") || db_host.equals("localhost") ? "" : "//" + db_host + (db_port.equals("") ? "" : ":" + db_port + "/")) + db_name, db_user, db_pw);
 			}
 		} catch (SQLException e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		return preloader_connection;
@@ -440,7 +440,7 @@ public class DBLoader extends Loader {
 		try {
 			connection.setAutoCommit(false);
 		} catch (SQLException e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 	/** Used in combination with startLargeUpdate() */
@@ -450,7 +450,7 @@ public class DBLoader extends Loader {
 			connection.commit();
 			connection.setAutoCommit(true);
 		} catch (SQLException e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -461,7 +461,7 @@ public class DBLoader extends Loader {
 			connection.rollback();
 			connection.setAutoCommit(true);
 		} catch (SQLException e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -472,7 +472,7 @@ public class DBLoader extends Loader {
 			this.stmt_add_displayable = connection.prepareStatement("INSERT INTO ab_displayables (id, title, x, y, width, height) VALUES (?,?,?,?,?,?)");
 			this.stmt_update_snap = connection.prepareStatement("UPDATE ab_patches SET tiff_snapshot=? WHERE id=?");
 		} catch (SQLException e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -490,7 +490,7 @@ public class DBLoader extends Loader {
 					return false;
 				}
 			}catch(SQLException sqle) {
-				new IJError(sqle);
+				IJError.print(sqle);
 				unlock();
 				return false;
 			}
@@ -532,7 +532,7 @@ public class DBLoader extends Loader {
 				}
 				result.close();
 			} catch (SQLException sqle) {
-				new IJError(sqle);
+				IJError.print(sqle);
 			}
 			unlock();
 			return id;
@@ -563,7 +563,7 @@ public class DBLoader extends Loader {
 					}
 					result.close();
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 					return false;
 				}
 				if (null == xml_stream) {
@@ -608,7 +608,7 @@ public class DBLoader extends Loader {
 			}
 			r.close();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return false;
 		}
 		try {
@@ -651,7 +651,7 @@ public class DBLoader extends Loader {
 			}
 			r2.close();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return false;
 		}
 
@@ -768,10 +768,10 @@ public class DBLoader extends Loader {
 				}
 				result.close();
 			} catch (SQLException sqle) {
-				new IJError(sqle);
+				IJError.print(sqle);
 				return null;
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				return null;
 			}
 			// make a TemplateTree from the XML file stream
@@ -798,7 +798,7 @@ public class DBLoader extends Loader {
 				}
 				r.close();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				unlock();
 				return null;
 			}
@@ -854,7 +854,7 @@ public class DBLoader extends Loader {
 				projects = new Project[al_projects.size()];
 				al_projects.toArray(projects);
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				unlock();
 				return null;
 			}
@@ -903,7 +903,7 @@ public class DBLoader extends Loader {
 					return null;
 				}
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				unlock();
 				return null;
 			}
@@ -1090,7 +1090,7 @@ public class DBLoader extends Loader {
 				}
 				rl.close();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				unlock();
 				return null;
 			}
@@ -1292,7 +1292,7 @@ public class DBLoader extends Loader {
 				r.close();
 
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				unlock();
 				return null;
 			}
@@ -1344,7 +1344,7 @@ public class DBLoader extends Loader {
 			}
 			r.close();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				return null;
 			}
 
@@ -1385,7 +1385,7 @@ public class DBLoader extends Loader {
 				}
 				r.close();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				unlock();
 				return null;
 			}
@@ -1421,7 +1421,7 @@ public class DBLoader extends Loader {
 				}
 				r.close();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				unlock();
 				return null;
 			}
@@ -1467,17 +1467,17 @@ public class DBLoader extends Loader {
 						return true;
 					} catch (Exception e) { // NoSuchMethodException and IllegalAccessException and InvocationTargetException
 						Utils.log("Loader: Not for " + interfaces[i] + " : " + e);
-						new IJError(e);
+						IJError.print(e);
 					}
 				}
 				Utils.log("Loader: no method for addToDatabase(" + ob.getClass().getName() + ")");
 				unlock();
 				return false;
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				if (e instanceof SQLException) { 
 					Exception next = ((SQLException)e).getNextException();
-					if (null != next) { new IJError(next); }
+					if (null != next) { IJError.print(next); }
 				}
 				unlock();
 				return false;
@@ -1510,7 +1510,7 @@ public class DBLoader extends Loader {
 						return true;
 					} catch (Exception e) { // NoSuchMethodException and IllegalAccessException
 						Utils.debug("Loader: Not for " + interfaces[i]);
-						new IJError(e);
+						IJError.print(e);
 					}
 				}
 				Utils.log("Loader: no method for updateInDatabase(" + ob.getClass().getName() + ")");
@@ -1518,10 +1518,10 @@ public class DBLoader extends Loader {
 				return false;
 			} catch (Exception e) {
 				unlock();
-				new IJError(e);
+				IJError.print(e);
 				if (e instanceof SQLException) { 
 					Exception next = ((SQLException)e).getNextException();
-					if (null != next) { new IJError(next); }
+					if (null != next) { IJError.print(next); }
 				}
 				return false;
 			}
@@ -1559,10 +1559,10 @@ public class DBLoader extends Loader {
 				unlock();
 				return false;
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				if (e instanceof SQLException) { 
 					Exception next = ((SQLException)e).getNextException();
-					if (null != next) { new IJError(next); }
+					if (null != next) { IJError.print(next); }
 				}
 				unlock();
 				return false;
@@ -1631,11 +1631,11 @@ public class DBLoader extends Loader {
 		connection.commit();
 		} catch (SQLException sqle) {
 			Exception next = sqle.getNextException();
-			if (null != next) new IJError(next);
+			if (null != next) IJError.print(next);
 			connection.setAutoCommit(autocommit);
 			return;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			connection.setAutoCommit(autocommit);
 			return;
 		}
@@ -1855,9 +1855,9 @@ public class DBLoader extends Loader {
 			stmt_add_patch.executeUpdate();
 			i_stream.close();
 		} catch (Exception e) {
-			if (null != i_stream) try { i_stream.close(); } catch (Exception ie) { new IJError(ie); }
+			if (null != i_stream) try { i_stream.close(); } catch (Exception ie) { IJError.print(ie); }
 			Utils.showMessage("Could not add Patch image.");
-			new IJError(e);
+			IJError.print(e);
 			return;
 		}
 		//finally:
@@ -1883,9 +1883,9 @@ public class DBLoader extends Loader {
 				stmt_update_snap.setLong(2, patch.getId());
 				stmt_update_snap.executeUpdate();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			} finally {
-				if (null != i_stream) try { i_stream.close(); } catch (Exception e1) { new IJError(e1); }
+				if (null != i_stream) try { i_stream.close(); } catch (Exception e1) { IJError.print(e1); }
 			}
 			*/
 			return;
@@ -1925,8 +1925,8 @@ public class DBLoader extends Loader {
 			if (null != i_stream2) i_stream2.close();
 
 		} catch (Exception e) {
-			new IJError(e);
-			if (null != i_stream2) try { i_stream2.close(); } catch (Exception e2) { new IJError(e2); }
+			IJError.print(e);
+			if (null != i_stream2) try { i_stream2.close(); } catch (Exception e2) { IJError.print(e2); }
 		}
 	}
 
@@ -2023,16 +2023,16 @@ public class DBLoader extends Loader {
 				// restore
 				connection.setAutoCommit(autocommit);
 			} catch (SQLException sqle) {
-				new IJError(sqle);
+				IJError.print(sqle);
 				Exception next;
 				if (null != (next = sqle.getNextException())) {
-					new IJError(next);
+					IJError.print(next);
 				}
 				try {
 					connection.rollback();
 					connection.setAutoCommit(autocommit);
 				} catch (SQLException sqle2) {
-					new IJError(sqle2);
+					IJError.print(sqle2);
 				}
 			}
 			return;
@@ -2270,16 +2270,16 @@ public class DBLoader extends Loader {
 			connection.setAutoCommit(autocommit);
 
 		} catch (SQLException sqle) {
-			new IJError(sqle);
+			IJError.print(sqle);
 			Exception next;
 			if (null != (next = sqle.getNextException())) {
-				new IJError(next);
+				IJError.print(next);
 			}
 			try {
 				connection.rollback();
 				connection.setAutoCommit(true); // default ..
 			} catch (SQLException sqle2) {
-				new IJError(sqle2);
+				IJError.print(sqle2);
 			}
 		}
 	}
@@ -2300,12 +2300,12 @@ public class DBLoader extends Loader {
 			// restore
 			connection.setAutoCommit(autocommit);
 		} catch (SQLException sqle) {
-			new IJError(sqle);
+			IJError.print(sqle);
 			try {
 				connection.rollback();
 				connection.setAutoCommit(autocommit);
 			} catch (SQLException sqle2) {
-				new IJError(sqle2);
+				IJError.print(sqle2);
 			}
 		}
 	}
@@ -2371,16 +2371,16 @@ public class DBLoader extends Loader {
 			connection.setAutoCommit(autocommit);
 
 		} catch (SQLException sqle) {
-			new IJError(sqle);
+			IJError.print(sqle);
 			Exception next;
 			if (null != (next = sqle.getNextException())) {
-				new IJError(next);
+				IJError.print(next);
 			}
 			try {
 				connection.rollback();
 				connection.setAutoCommit(true); // default ..
 			} catch (SQLException sqle2) {
-				new IJError(sqle2);
+				IJError.print(sqle2);
 			}
 		}
 	}
@@ -2401,12 +2401,12 @@ public class DBLoader extends Loader {
 			// restore
 			connection.setAutoCommit(autocommit);
 		} catch (SQLException sqle) {
-			new IJError(sqle);
+			IJError.print(sqle);
 			try {
 				connection.rollback();
 				connection.setAutoCommit(autocommit);
 			} catch (SQLException sqle2) {
-				new IJError(sqle2);
+				IJError.print(sqle2);
 			}
 		}
 	}
@@ -2490,16 +2490,16 @@ public class DBLoader extends Loader {
 			// restore
 			connection.setAutoCommit(autocommit);
 		} catch (SQLException sqle) {
-			new IJError(sqle);
+			IJError.print(sqle);
 			Exception next;
 			if (null != (next = sqle.getNextException())) {
-				new IJError(next);
+				IJError.print(next);
 			}
 			try {
 				connection.rollback();
 				connection.setAutoCommit(true); // default ..
 			} catch (SQLException sqle2) {
-				new IJError(sqle2);
+				IJError.print(sqle2);
 			}
 		}
 	}
@@ -2520,16 +2520,16 @@ public class DBLoader extends Loader {
 			// restore
 			connection.setAutoCommit(autocommit);
 		} catch (SQLException sqle) {
-			new IJError(sqle);
+			IJError.print(sqle);
 			Exception next;
 			if (null != (next = sqle.getNextException())) {
-				new IJError(next);
+				IJError.print(next);
 			}
 			try {
 				connection.rollback();
 				connection.setAutoCommit(true); // default ..
 			} catch (SQLException sqle2) {
-				new IJError(sqle2);
+				IJError.print(sqle2);
 			}
 		}
 	}
@@ -2568,7 +2568,7 @@ public class DBLoader extends Loader {
 		try {
 			connection.prepareStatement(new StringBuffer("INSERT INTO ab_links (project_id, id1, id2) VALUES (").append(project_id).append(',').append(id1).append(',').append(id2).append(')').toString()).executeUpdate();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return;
 		}
 	}
@@ -2582,18 +2582,13 @@ public class DBLoader extends Loader {
 		try {
 			connection.prepareStatement(new StringBuffer("DELETE FROM ab_links WHERE (id1=").append(id1).append(" AND id2=").append(id2).append(") OR (id1=").append(id2).append(" AND id2=").append(id1).append(')').toString()).executeUpdate();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return false;
 		}
 		return true;
 	}
 
 	public ImagePlus fetchImagePlus(Patch p) {
-		return fetchImagePlus(p, true);
-	}
-
-	/** Create snap is ignored here. */
-	public ImagePlus fetchImagePlus(Patch p, boolean create_snap) {
 		synchronized (db_lock) {
 			lock();
 			long id = p.getId();
@@ -2654,9 +2649,9 @@ public class DBLoader extends Loader {
 				}
 			} catch (Exception e) {
 				unlock();
-				new IJError(e);
+				IJError.print(e);
 				if (null != i_stream) {
-					try { i_stream.close(); } catch (Exception ie) { new IJError(ie); }
+					try { i_stream.close(); } catch (Exception ie) { IJError.print(ie); }
 				}
 				return null;
 			}
@@ -2687,7 +2682,7 @@ public class DBLoader extends Loader {
 				r.close();
 			} catch (Exception e) {
 				unlock();
-				new IJError(e);
+				IJError.print(e);
 				return null;
 			}
 			unlock();
@@ -2715,7 +2710,7 @@ public class DBLoader extends Loader {
 			r.close();
 		} catch (Exception e) {
 			Utils.log("Loader.fetchOriginal: ERROR fetching original ImagePlus for Patch id=" + patch.getId());
-			new IJError(e);
+			IJError.print(e);
 			if (null != i_stream) {
 				try { i_stream.close(); } catch (Exception ee) { Utils.log("Loader.fetchOriginal: could not close stream."); }
 			}
@@ -2762,7 +2757,7 @@ public class DBLoader extends Loader {
 		}
 	}
 
-	/** Monitors the InputStream of a PostgreSQL connection. This class is a tremendous hack on the PG JDBC that won't work on applets and certified systems. What it does: replaces the InputStream in the connection's PGStream with a ini.trakem2.utils.LoggingInputStream that keeps track of the ammount of bytes read and the speed. */
+	/** Monitors the InputStream of a PostgreSQL connection. This class is a tremendous hack on the PG JDBC that won't work on applets and certified systems. What it does: replaces the InputStream in the connection's PGStream with a ini.trakem2.utils.LoggingInputStream that keeps track of the amount of bytes read and the speed. */
 	private class Monitor extends Thread {
 
 		private final Connection connection;
@@ -2821,7 +2816,7 @@ public class DBLoader extends Loader {
 				f_i.set(pgstream, lis); // TADA! Many thanks to the PGSQL JDBC mailing list for this last tip on not just monitoring the PGStream as I was doing, but on replacing the inputstream altogether with a logging copy! ("CountingInputStream", they called it).
 
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			this.lis = lis;
 			makeWindow();
@@ -2877,7 +2872,7 @@ public class DBLoader extends Loader {
 
 				} catch (InterruptedException ie) {
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 					quit();
 				}
 			}
@@ -2917,7 +2912,7 @@ public class DBLoader extends Loader {
 			}
 			ptree.updateUILater();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 

@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
+import java.awt.geom.Area;
 
 import javax.vecmath.Point3f;
 
@@ -145,7 +146,7 @@ public class Ball extends ZDisplayable {
 			}
 		}
 
-		calculateBoundingBox(true);
+		//later! Otherwise can't repaint properly//calculateBoundingBox(true);
 
 		//update in database
 		updateInDatabase("points");
@@ -204,15 +205,17 @@ public class Ball extends ZDisplayable {
 			p_width = (double[])ob[1];
 		}
 
+		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
+
 		// paint proper:
 		final int i_current = layer_set.getLayerIndex(active_layer.getId());
 		int ii;
 		int radius;
 		for (int j=0; j<n_points; j++) {
 			ii = layer_set.getLayerIndex(p_layer[j]);
-			if (ii == i_current -1) g.setColor(Color.red);
+			if (ii == i_current -1 && !no_color_cues) g.setColor(Color.red);
 			else if (ii == i_current) g.setColor(this.color);
-			else if (ii == i_current + 1) g.setColor(Color.blue);
+			else if (ii == i_current + 1 && !no_color_cues) g.setColor(Color.blue);
 			else continue; //don't paint!
 			radius = (int)p_width[j];
 			g.drawOval((int)(p[0][j]) - radius, (int)(p[1][j]) - radius, radius + radius, radius + radius);
@@ -309,7 +312,7 @@ public class Ball extends ZDisplayable {
 			updateInDatabase("points"); // delete and add all again. TEMPORARY
 		}
 		if (-1 != index) {
-			calculateBoundingBox(true);
+			//later!//calculateBoundingBox(true);
 			updateInDatabase("transform+dimensions");
 		}
 
@@ -642,7 +645,7 @@ public class Ball extends ZDisplayable {
 	/** Similar to exportSVG but the layer_id is saved instead of the z. The convention is my own, a ball_ob that contains ball objects and links. */
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		if (-1 == n_points) setupForDisplay(); // reload
-		if (0 == n_points) return;
+		//if (0 == n_points) return;
 		String in = indent + "\t";
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(indent).append("<t2_ball\n");
@@ -712,9 +715,10 @@ public class Ball extends ZDisplayable {
 		return sb.toString();
 	}
 
-	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public Displayable clone(Project project) {
-		final Ball copy = new Ball(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
+	/** Performs a deep copy of this object, without the links. */
+	public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final Ball copy = new Ball(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, (AffineTransform)this.at.clone());
 		// links are left null
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
@@ -722,11 +726,7 @@ public class Ball extends ZDisplayable {
 		copy.p = new double[][]{(double[])this.p[0].clone(), (double[])this.p[1].clone()};
 		copy.p_layer = (long[])this.p_layer.clone();
 		copy.p_width = (double[])this.p_width.clone();
-		// add
-		copy.layer = this.layer;
 		copy.addToDatabase();
-		Display.repaint(layer_set, this, 5);
-
 		return copy;
 	}
 
@@ -853,5 +853,29 @@ public class Ball extends ZDisplayable {
 			p_width[i] = (Math.abs(pw[0][i] - p[0][i]) + Math.abs(pw[1][i] - p[1][i])) / 2;
 		}
 		return new Object[]{p, p_width};
+	}
+
+	/** @param roi is expected in world coordinates. */
+	public boolean intersects(final Area area, final double z_first, final double z_last) {
+		// find lowest and highest Z
+		double min_z = Double.MAX_VALUE;
+		double max_z = 0;
+		for (int i=0; i<n_points; i++) {
+			double laz =layer_set.getLayer(p_layer[i]).getZ();
+			if (laz < min_z) min_z = laz;
+			if (laz > max_z) max_z = laz;
+		}
+		if (z_last < min_z || z_first > max_z) return false;
+		// check the roi
+		for (int i=0; i<n_points; i++)  {
+			final Rectangle[] rec = getSubPerimeters(layer_set.getLayer(p_layer[i]));
+			for (int k=0; k<rec.length; k++) {
+				Area a = new Area(rec[k]).createTransformedArea(this.at);
+				a.intersect(area);
+				Rectangle r = a.getBounds();
+				if (0 != r.width && 0 != r.height) return true;
+			}
+		}
+		return false;
 	}
 }

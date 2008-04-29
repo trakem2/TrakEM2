@@ -31,8 +31,8 @@ import java.io.PrintWriter;
  *
  */
 public class IJError {
-	
-	public IJError(Throwable e) {
+
+	static public final void print(final Throwable e) {
 
 		CharArrayWriter caw = new CharArrayWriter();
 		PrintWriter pw = new PrintWriter(caw);
@@ -47,9 +47,9 @@ public class IJError {
 	}
 
 	/** Converts carriage returns to line feeds. Copied from ij.util.tools by Wayne Rasband*/
-	
-	static String fixNewLines(String s) {
-		char[] chars = s.toCharArray();
+
+	static final String fixNewLines(final String s) {
+		final char[] chars = s.toCharArray();
 		for (int i=0; i<chars.length; i++) {
 			if (chars[i]=='\r') chars[i] = '\n';
 		}

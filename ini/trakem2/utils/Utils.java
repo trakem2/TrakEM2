@@ -49,6 +49,7 @@ import java.awt.MenuItem;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Area;
 import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
@@ -68,7 +69,7 @@ import java.util.Calendar;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.5f 2008-02-07";
+	static public String version = "0.5q 2008-04-10";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -94,7 +95,7 @@ public class Utils implements ij.plugin.PlugIn {
 		private boolean loading = false;
 		private boolean go = true;
 		public LogDispatcher() {
-			setPriority(Thread.NORM_PRIORITY-1);
+			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
@@ -144,7 +145,7 @@ public class Utils implements ij.plugin.PlugIn {
 		private boolean loading = false;
 		private boolean go = true;
 		public StatusDispatcher() {
-			setPriority(Thread.NORM_PRIORITY-1);
+			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
@@ -175,6 +176,7 @@ public class Utils implements ij.plugin.PlugIn {
 					}
 					// allow some time for overwriting of messages
 					Thread.sleep(100);
+					/* // should not be needed
 					// print the msg if necessary
 					synchronized (this) {
 						if (null != msg) {
@@ -182,6 +184,7 @@ public class Utils implements ij.plugin.PlugIn {
 							msg = null;
 						}
 					}
+					*/
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -556,6 +559,13 @@ public class Utils implements ij.plugin.PlugIn {
 				 Integer.parseInt(hex.substring(4, 6), 16));
 	}
 
+	static public final int[] get4Ints(int hex) {
+		return new int[]{((hex&0xFF000000)>>24),
+			         ((hex&0x00FF0000)>>16),
+				 ((hex&0x0000FF00)>> 8),
+				   hex&0x000000FF      };
+	}
+
 	public void run(String arg) {
 		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH\nUniversity of California Los Angeles");
 	}
@@ -627,7 +637,7 @@ public class Utils implements ij.plugin.PlugIn {
 			dos.write(contents, 0, contents.length());
 			dos.flush();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			Utils.showMessage("ERROR: Most likely did NOT save your file.");
 			return false;
 		}
@@ -665,7 +675,7 @@ public class Utils implements ij.plugin.PlugIn {
         		}
 			r.close();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		return sb.toString();
@@ -684,7 +694,7 @@ public class Utils implements ij.plugin.PlugIn {
         		}
 			r.close();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		final String[] sal = new String[al.size()];
@@ -704,7 +714,7 @@ public class Utils implements ij.plugin.PlugIn {
 			r.read(src, 0, src.length);
 			r.close();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		return src;
@@ -787,19 +797,24 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final void addLayerRangeChoices(final Layer selected, final GenericDialog gd) {
-		final String[] layers = new String[selected.getParent().size()];
+		Utils.addLayerRangeChoices(selected, selected, gd);
+	}
+
+	static public final void addLayerRangeChoices(final Layer first, final Layer last, final GenericDialog gd) {
+		final String[] layers = new String[first.getParent().size()];
 		final ArrayList al_layer_titles =  new ArrayList();
 		int i = 0;
-		for (Iterator it = selected.getParent().getLayers().iterator(); it.hasNext(); ) {
-			layers[i] = selected.getProject().findLayerThing((Layer)it.next()).toString();
+		for (Iterator it = first.getParent().getLayers().iterator(); it.hasNext(); ) {
+			layers[i] = first.getProject().findLayerThing((Layer)it.next()).toString();
 			al_layer_titles.add(layers[i]);
 			i++;
 		}
-		final int i_layer = selected.getParent().indexOf(selected);
-		gd.addChoice("Start: ", layers, layers[i_layer]);
+		final int i_first = first.getParent().indexOf(first);
+		final int i_last = last.getParent().indexOf(last);
+		gd.addChoice("Start: ", layers, layers[i_first]);
 		final Vector v = gd.getChoices();
 		final Choice cstart = (Choice)v.get(v.size()-1);
-		gd.addChoice("End: ", layers, layers[i_layer]);
+		gd.addChoice("End: ", layers, layers[i_last]);
 		final Choice cend = (Choice)v.get(v.size()-1);
 		cstart.addItemListener(new ItemListener() {
 			public void itemStateChanged(ItemEvent ie) {
@@ -897,7 +912,7 @@ public class Utils implements ij.plugin.PlugIn {
 		try {
 			affine.createInverse().transform(pSrc, pDst);
 		} catch (NoninvertibleTransformException nite) {
-			new IJError(nite);
+			IJError.print(nite);
 		}
 		return pDst;
 	}
@@ -916,5 +931,52 @@ public class Utils implements ij.plugin.PlugIn {
 		sb.append(min).append(':');
 		if (sec < 10) sb.append(0);
 		return sb.append(sec).toString();
+	}
+
+	static public final void sleep(final long miliseconds) {
+		try { Thread.currentThread().sleep(miliseconds); } catch (Exception e) { e.printStackTrace(); }
+	}
+
+	/** Mix colors visually: red + green = yellow, etc.*/
+	static public final Color mix(Color c1, Color c2) {
+		final float[] b = Color.RGBtoHSB(c1.getRed(), c1.getGreen(), c1.getBlue(), new float[3]);
+		final float[] c = Color.RGBtoHSB(c2.getRed(), c2.getGreen(), c2.getBlue(), new float[3]);
+		final float[] a = new float[3];
+		// find to which side the hue values are closer, since hue space is a a circle
+		// hue values all between 0 and 1
+		float h1 = b[0];
+		float h2 = c[0];
+		if (h1 < h2) {
+			float tmp = h1;
+			h1 = h2;
+			h2 = tmp;
+		}
+		float d1 = h2 - h1;
+		float d2 = 1 + h1 - h2;
+		if (d1 < d2) {
+			a[0] = h1 + d1 / 2;
+		} else {
+			a[0] = h2 + d2 / 2;
+			if (a[0] > 1) a[0] -= 1;
+		}
+
+		for (int i=1; i<3; i++) a[i] = (b[i] + c[i]) / 2; // only Saturation and Brightness can be averaged
+		return Color.getHSBColor(a[0], a[1], a[2]);
+	}
+
+	static public final boolean intersects(final Area a1, final Area a2) {
+		final Area b = new Area(a1);
+		b.intersect(a2);
+		final java.awt.Rectangle r = b.getBounds();
+		return 0 != r.width && 0 != r.height;
+	}
+
+	/** 1 A, 2 B, 3 C  ---  26 - z, 27 AA, 28 AB, 29 AC  --- 26*27 AAA */
+	static public final String getCharacter(int i) {
+		i--;
+		int k = i / 26;
+		char c = (char)((i % 26) + 65); // 65 is 'A'
+		if (0 == k) return Character.toString(c);
+		return new StringBuffer().append(getCharacter(k)).append(c).toString();
 	}
 }

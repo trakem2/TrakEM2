@@ -331,8 +331,12 @@ public class PatchStack extends ImagePlus {
 
 	public synchronized void trimProcessor() {
 		if (!locked) {
-			ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
-			imp.trimProcessor();
+			try {
+				ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
+				imp.trimProcessor();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
@@ -519,7 +523,7 @@ public class PatchStack extends ImagePlus {
 			//no need//updateAndRepaintWindow();
 			return;
 		}
-		if (index>= 1 && index <=patch.length) {
+		if (index>= 1 && index <= patch.length) {
 			Roi roi = getRoi();
 			if (null != roi) roi.endPaste();
 			currentSlice = index;

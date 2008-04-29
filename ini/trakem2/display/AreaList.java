@@ -155,11 +155,10 @@ public class AreaList extends ZDisplayable {
 			original_composite = g.getComposite();
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
-		if (fill_paint) {
-			g.fill(area.createTransformedArea(this.at));
-		} else {
-			g.draw(area.createTransformedArea(this.at));  // the contour only
-		}
+
+		if (fill_paint) g.fill(area.createTransformedArea(this.at));
+		else 		g.draw(area.createTransformedArea(this.at));  // the contour only
+
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
 			g.setComposite(original_composite);
@@ -423,7 +422,7 @@ public class AreaList extends ZDisplayable {
 					try {
 						slash = slash.createTransformedArea(at.createInverse());
 					} catch (NoninvertibleTransformException nite) {
-						new IJError(nite);
+						IJError.print(nite);
 					}
 				}
 				if (0 == (flags & alt)) {
@@ -439,7 +438,7 @@ public class AreaList extends ZDisplayable {
 				if (null != r_old) r.add(r_old);
 				r_old = copy;
 
-				Display.repaint(Display.getFrontLayer(), 3, r, false); // repaint only the last added slash
+				Display.repaint(Display.getFrontLayer(), 3, r, false, false); // repaint only the last added slash
 
 				// reset
 				atb.setToIdentity();
@@ -764,8 +763,7 @@ public class AreaList extends ZDisplayable {
 
 	public boolean paintsAt(final Layer layer) {
 		if (!super.paintsAt(layer)) return false;
-		if (null != ht_areas.get(new Long(layer.getId()))) return true;
-		return false;
+		return null != ht_areas.get(new Long(layer.getId()));
 	}
 
 	/** Dynamic loading from the database. */
@@ -857,7 +855,7 @@ public class AreaList extends ZDisplayable {
 			try {
 				area = area.createTransformedArea(this.at.createInverse());
 			} catch (NoninvertibleTransformException nte) {
-				new IJError(nte);
+				IJError.print(nte);
 				// do what?
 			}
 			Object this_area = this.ht_areas.get(entry.getKey());
@@ -880,21 +878,18 @@ public class AreaList extends ZDisplayable {
 		return null;
 	}
 
-	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public  Displayable clone(Project project) {
+	/** Performs a deep copy of this object, without the links. */
+	public Displayable clone(final Project pr, final boolean copy_id) {
 		final ArrayList al_ul = new ArrayList();
 		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
 			al_ul.add(new Long(((Long)it.next()).longValue())); // clones of the Long that wrap layer ids
 		}
-		final AreaList copy = new AreaList(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, al_ul, (AffineTransform)this.at.clone());
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final AreaList copy = new AreaList(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.visible, al_ul, (AffineTransform)this.at.clone());
 		for (Iterator it = copy.ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			entry.setValue(((Area)this.ht_areas.get(entry.getKey())).clone());
 		}
-		// add
-		copy.layer = this.layer; // this does not add it to any layer, just sets the 'current' layer pointer
-		copy.addToDatabase();
-		//
 		return copy;
 	}
 
@@ -936,7 +931,7 @@ public class AreaList extends ZDisplayable {
 			Area area = getArea(la);
 			if (null != area) {
 				if (null == stack) {
-					Utils.log("0 - creating stack with  w,h : " + w + ", " + h);
+					//Utils.log2("0 - creating stack with  w,h : " + w + ", " + h);
 					stack = new ImageStack(w, h);
 					z = (float)la.getZ(); // z of the first layer
 					thickness = la.getThickness();
@@ -955,7 +950,6 @@ public class AreaList extends ZDisplayable {
 			} else if (null != stack) {
 				// add a black slice
 				stack.addSlice(la.getZ() + "", new ByteProcessor(w, h));
-				n--;
 			}
 		}
 		// zero-pad stack
@@ -1011,7 +1005,7 @@ public class AreaList extends ZDisplayable {
 		return st;
 	}
 
-	/** Directly place an Area for the specified layer. Does not make it local, you should call calculateBoundingBox() after setting an area. */
+	/** Directly place an Area for the specified layer. Keep in mind it will be added in this AreaList coordinate space, not the overall LayerSet coordinate space. Does not make it local, you should call calculateBoundingBox() after setting an area. */
 	public void setArea(long layer_id, Area area) {
 		if (null == area) return;
 		ht_areas.put(new Long(layer_id), area);
@@ -1027,6 +1021,7 @@ public class AreaList extends ZDisplayable {
 	 *
 	 *  */
 	public String getInfo() {
+		if (0 == ht_areas.size()) return "Empty AreaList " + this.toString();
 		Rectangle box = getBoundingBox(null);
 		float scale = 1.0f;
 		while (!getProject().getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000)) { // factor of 2, because a mask will be involved
@@ -1104,5 +1099,46 @@ public class AreaList extends ZDisplayable {
 		surface /= scale;
 		// remove pretentious after-comma digits on return:
 		return new StringBuffer("Volume: ").append(IJ.d2s(volume, 2)).append(" (cubic pixels)\nLateral surface: ").append(IJ.d2s(surface, 2)).append(" (square pixels)\n").toString();
+	}
+
+	/** @param roi is expected in world coordinates. */
+	public boolean intersects(final Area area, final double z_first, final double z_last) {
+		for (Iterator<Map.Entry> it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = it.next();
+			Layer layer = layer_set.getLayer(((Long)entry.getKey()).longValue());
+			if (layer.getZ() >= z_first && layer.getZ() <= z_last) {
+				Area a = ((Area)entry.getValue()).createTransformedArea(this.at);
+				a.intersect(area);
+				Rectangle r = a.getBounds();
+				if (0 != r.width && 0 != r.height) return true;
+			}
+		}
+		return false;
+	}
+
+	/** Export for Amira: limited to 255 AreaList instances (their limitation, not mine). */
+	static public void exportAsLabels(final java.util.List list, final ij.gui.Roi roi, float scale, int first_layer, int last_layer) {
+		Utils.log("exportAsLabels: not yet implemented.");
+		// survive everything:
+		if (null == list || 0 == list.size()) {
+			Utils.log("Null or empty list.");
+			return;
+		}
+		if (scale < 0 || scale > 1) {
+			Utils.log("Improper scale value. Must be 0 < scale <= 1");
+			return;
+		}
+		LayerSet layer_set = ((Displayable)list.get(0)).getLayerSet();
+		if (first_layer < last_layer) {
+			int tmp = first_layer;
+			first_layer = last_layer;
+			last_layer = tmp;
+			if (first_layer < 0) first_layer = 0;
+			if (last_layer >= layer_set.size()) last_layer = layer_set.size()-1;
+		}
+		// ready
+		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
+			// TODO
+		}
 	}
 }

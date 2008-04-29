@@ -69,7 +69,6 @@ import java.awt.image.ColorModel;
 import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -104,9 +103,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
 public class FSLoader extends Loader {
 
-	/** Contains all project objects that call addToDatabase */
-	private Hashtable ht_dbo = null;
-	private Hashtable ht_paths = null;
+	/** Largest id seen so far. */
+	private long max_id = -1;
+	private final Hashtable<Long,String> ht_paths = new Hashtable<Long,String>();
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
@@ -114,11 +113,8 @@ public class FSLoader extends Loader {
 	/** Path to the directory the user provided when creating the project. */
 	private String dir_storage = null;
 
-
 	public FSLoader() {
 		super(); // register
-		ht_dbo = new Hashtable();
-		ht_paths = new Hashtable();
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
 
@@ -152,23 +148,27 @@ public class FSLoader extends Loader {
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */
 	public Object[] openFSProject(String path) {
 		// clean path of double-slashes, safely (and painfully)
-		path = path.replace('\\','/');
-		path = path.trim();
-		int itwo = path.indexOf("//");
-		while (-1 != itwo) {
-			if (0 == itwo) continue; // samba disk
-			if (5 == itwo  && "http:".equals(path.substring(0, 5))) continue;
-			path = path.substring(0, itwo) + path.substring(itwo+1);
-			itwo = path.indexOf("//", itwo+1);
+		if (null != path) {
+			path = path.replace('\\','/');
+			path = path.trim();
+			int itwo = path.indexOf("//");
+			while (-1 != itwo) {
+				if (0 == itwo /* samba disk */
+				||  (5 == itwo && "http:".equals(path.substring(0, 5)))) {
+					// do nothing
+				} else {
+					path = path.substring(0, itwo) + path.substring(itwo+1);
+				}
+				itwo = path.indexOf("//", itwo+1);
+			}
 		}
 		//
-		Utils.log2("Loader.openFSProject: path is " + path);
 		if (null == path) {
 			String user = System.getProperty("user.name");
 			OpenDialog od = new OpenDialog("Select Project", OpenDialog.getDefaultDirectory(), null);
 			String file = od.getFileName();
 			if (null == file || file.toLowerCase().startsWith("null")) return null;
-			String dir = od.getDirectory();
+			String dir = od.getDirectory().replace('\\', '/');
 			if (!dir.endsWith("/")) dir += "/";
 			this.project_file_path = dir + file;
 			Utils.log2("project file path 1: " + this.project_file_path);
@@ -176,13 +176,11 @@ public class FSLoader extends Loader {
 			this.project_file_path = path;
 			Utils.log2("project file path 2: " + this.project_file_path);
 		}
+		Utils.log2("Loader.openFSProject: path is " + path);
 		// check if any of the open projects uses the same file path, and refuse to open if so:
-		for (Iterator it = v_loaders.iterator(); it.hasNext(); ) {
-			Loader lo = (Loader)it.next();
-			if (lo instanceof FSLoader && ((FSLoader)lo).project_file_path.equals(this.project_file_path)) {
-				Utils.showMessage("The project is already open.");
-				return null;
-			}
+		if (null != FSLoader.getOpenProject(project_file_path, this)) {
+			Utils.showMessage("The project is already open.");
+			return null;
 		}
 
 		Object[] data = null;
@@ -210,7 +208,7 @@ public class FSLoader extends Loader {
 					Utils.log("ERROR: File not found: " + path);
 					handler = null;
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 					handler = null;
 				} finally {
 					setMassiveMode(false);
@@ -218,7 +216,7 @@ public class FSLoader extends Loader {
 						try {
 							i_stream.close();
 						} catch (Exception e) {
-							new IJError(e);
+							IJError.print(e);
 						}
 					}
 				}
@@ -242,34 +240,54 @@ public class FSLoader extends Loader {
 		return data;
 	}
 
+	// Only one thread at a time may access this method.
+	synchronized static private final Project getOpenProject(final String project_file_path, final Loader caller) {
+		if (null == v_loaders) return null;
+		final Loader[] lo = (Loader[])v_loaders.toArray(new Loader[0]); // atomic way to get the list of loaders
+		for (int i=0; i<lo.length; i++) {
+			if (lo[i].equals(caller)) continue;
+			if (lo[i] instanceof FSLoader && ((FSLoader)lo[i]).project_file_path.equals(project_file_path)) {
+				return Project.findProject(lo[i]);
+			}
+		}
+		return null;
+	}
+
+	static public final Project getOpenProject(final String project_file_path) {
+		return getOpenProject(project_file_path, null);
+	}
+
 	public boolean isReady() {
-		return null != ht_dbo;
+		return null != ht_paths;
 	}
 
 	public void destroy() {
 		super.destroy();
 		Utils.showStatus("");
+		// remove empty trakem2.mipmaps folder if any
+		if (null != dir_mipmaps && !dir_mipmaps.equals(dir_storage)) {
+			File f = new File(dir_mipmaps);
+			if (f.isDirectory() && 0 == f.list(new FilenameFilter() {
+				public boolean accept(File fdir, String name) {
+					File file = new File(dir_mipmaps + name);
+					if (file.isHidden() || '.' == name.charAt(0)) return false;
+					return true;
+				}
+			}).length) {
+				try { f.delete(); } catch (Exception e) { Utils.log("Could not remove empty trakem2.mipmaps directory."); }
+			}
+		}
 	}
 
 	/** Get the next unique id, not shared by any other object within the same project. */
 	public long getNextId() {
-		// examine the hastable for existing ids
+		long nid = -1;
 		synchronized (db_lock) {
 			lock();
-			int n = ht_dbo.size();
-			if (0 != n) {
-				long[] ids = new long[ht_dbo.size()];
-				int i = 0;
-				for (Enumeration e = ht_dbo.keys(); e.hasMoreElements(); i++) {
-					ids[i] = ((Long)e.nextElement()).longValue();
-				}
-				Arrays.sort(ids);
-				unlock();
-				return ids[n-1] + 1;
-			}
+			nid = ++max_id;
 			unlock();
 		}
-		return 1;
+		return nid;
 	}
 
 	public double[][][] fetchBezierArrays(long id) { // profiles are loaded in full from the XML file
@@ -288,140 +306,17 @@ public class FSLoader extends Loader {
 		return null;
 	}
 
-	public ImagePlus fetchImagePlus(Patch p) {
-		return fetchImagePlus(p, true);
-	}
-
-	public ImagePlus fetchImagePlus(Patch p, boolean create_snap) {
-		ImagePlus imp = null;
-		String slice = null;
-		String path = null;
-		long n_bytes = 0;
-		PatchLoadingLock plock = null;
-		synchronized (db_lock) {
-			lock();
-			imp = imps.get(p.getId());
-			try {
-				path = getAbsolutePath(p);
-				int i_sl = -1;
-				if (null != path) i_sl = path.lastIndexOf("-----#slice=");
-				if (-1 != i_sl) {
-					// activate proper slice
-					if (null != imp) {
-						// check that the stack is large enough (user may have changed it)
-						final int ia = Integer.parseInt(path.substring(i_sl + 12));
-						if (ia <= imp.getNSlices()) {
-							imp.setSlice(ia);
-							unlock();
-							return imp;
-						} else {
-							unlock();
-							return null; // beyond bonds!
-						}
-					}
-				}
-				// for non-stack images
-				if (null != imp) {
-					unlock();
-					return imp;
-				}
-				releaseMemory(); // ensure there is a minimum % of free memory
-				if (-1 != i_sl) {
-					slice = path.substring(i_sl);
-					// set path proper
-					path = path.substring(0, i_sl);
-				}
-
-				plock = getOrMakePatchLoadingLock(p, 0);
-				unlock();
-			} catch (Exception e) {
-				new IJError(e);
-				return null;
-			}
-		}
-
-
-		synchronized (plock) {
-			plock.lock();
-
-			imp = imps.get(p.getId());
-			if (null != imp) {
-				plock.unlock();
-				return imp; // was loaded by a different thread
-			}
-
-			// going to load:
-
-			// reserve memory:
-			synchronized (db_lock) {
-				lock();
-				n_bytes = estimateImageFileSize(p, 0);
-				// not needed // releaseToFit2(n_bytes);
-				max_memory -= n_bytes;
-				unlock();
-			}
-
-			imp = openImage(path);
-			preProcess(imp);
-
-			synchronized (db_lock) {
-				try {
-					lock();
-					max_memory += n_bytes;
-
-					if (null == imp) {
-						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
-						unlock();
-						plock.unlock();
-						return null; // not removing the plock ?
-					}
-					// update all clients of the stack, if any
-					if (null != slice) {
-						String rel_path = getPath(p); // possibly relative
-						int r_isl = rel_path.lastIndexOf("-----#slice");
-						if (-1 != r_isl) rel_path = rel_path.substring(0, r_isl); // should always happen
-						for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
-							Map.Entry entry = (Map.Entry)it.next();
-							String str = (String)entry.getValue(); // this is like calling getPath(p)
-							Utils.log2("processing " + str);
-							if (0 != str.indexOf(rel_path)) {
-								Utils.log2("SKIP str is: " + str + "\t but path is: " + rel_path);
-								continue; // get only those whose path is identical, of course!
-							}
-							int isl = str.lastIndexOf("-----#slice=");
-							if (-1 != isl) {
-								//int i_slice = Integer.parseInt(str.substring(isl + 12));
-								Patch pa = (Patch)entry.getKey();
-								imps.put(pa.getId(), imp);
-								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
-								pa.putMinAndMax(imp);
-							}
-						}
-						// set proper active slice
-						int ia = Integer.parseInt(slice.substring(12));
-						imp.setSlice(ia);
-					} else {
-						// for non-stack images
-						p.putMinAndMax(imp); // non-destructive contrast: min and max
-							// puts the Patch min and max values into the ImagePlus processor.
-						imps.put(p.getId(), imp);
-					}
-					// imp is cached, so:
-					removePatchLoadingLock(plock);
-
-				} catch (Exception e) {
-					new IJError(e);
-				}
-				unlock();
-				plock.unlock();
-				return imp;
-				//Utils.log2("A2 returning " + imp + " for path " + path + slice);
-			}
-		}
+	public ImagePlus fetchImagePlus(final Patch p) {
+		return (ImagePlus)fetchImage(p, Layer.IMAGEPLUS);
 	}
 
 	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example. */
 	public ImageProcessor fetchImageProcessor(final Patch p) {
+		return (ImageProcessor)fetchImage(p, Layer.IMAGEPROCESSOR);
+	}
+
+	/** So far accepts Layer.IMAGEPLUS and Layer.IMAGEPROCESSOR as format. */
+	public Object fetchImage(final Patch p, final int format) {
 		ImagePlus imp = null;
 		ImageProcessor ip = null;
 		String slice = null;
@@ -441,10 +336,25 @@ public class FSLoader extends Loader {
 						// check that the stack is large enough (user may have changed it)
 						final int ia = Integer.parseInt(path.substring(i_sl + 12));
 						if (ia <= imp.getNSlices()) {
-							imp.setSlice(ia);
-							ip = imp.getStack().getProcessor(ia);
-							unlock();
-							return ip;
+							if (null == imp.getStack() || null == imp.getStack().getPixels(ia)) {
+								// reload (happens when closing a stack that was opened before importing it, and then trying to paint, for example)
+								imps.remove(p.getId());
+								imp = null;
+							} else {
+								imp.setSlice(ia);
+								switch (format) {
+									case Layer.IMAGEPROCESSOR:
+										ip = imp.getStack().getProcessor(ia);
+										unlock();
+										return ip;
+									case Layer.IMAGEPLUS:
+										unlock();
+										return imp;
+									default:
+										Utils.log("FSLoader.fetchImage: Unknown format " + format);
+										return null;
+								}
+							}
 						} else {
 							unlock();
 							return null; // beyond bonds!
@@ -454,7 +364,15 @@ public class FSLoader extends Loader {
 				// for non-stack images
 				if (null != imp) {
 					unlock();
-					return imp.getProcessor();
+					switch (format) {
+						case Layer.IMAGEPROCESSOR:
+							return imp.getProcessor();
+						case Layer.IMAGEPLUS:
+							return imp;
+						default:
+							Utils.log("FSLoader.fetchImage: Unknown format " + format);
+							return null;
+					}
 				}
 				releaseMemory(); // ensure there is a minimum % of free memory
 				if (-1 != i_sl) {
@@ -466,7 +384,7 @@ public class FSLoader extends Loader {
 				plock = getOrMakePatchLoadingLock(p, 0);
 				unlock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				return null;
 			}
 		}
@@ -477,8 +395,17 @@ public class FSLoader extends Loader {
 
 			imp = imps.get(p.getId());
 			if (null != imp) {
+				// was loaded by a different thread
 				plock.unlock();
-				return imp.getProcessor(); // was loaded by a different thread
+				switch (format) {
+					case Layer.IMAGEPROCESSOR:
+						return imp.getProcessor();
+					case Layer.IMAGEPLUS:
+						return imp;
+					default:
+						Utils.log("FSLoader.fetchImage: Unknown format " + format);
+						return null;
+				}
 			}
 
 			// going to load:
@@ -503,9 +430,10 @@ public class FSLoader extends Loader {
 
 					if (null == imp) {
 						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
+						removePatchLoadingLock(plock);
 						unlock();
 						plock.unlock();
-						return null; // not removing the plock ?
+						return null;
 					}
 					// update all clients of the stack, if any
 					if (null != slice) {
@@ -515,7 +443,7 @@ public class FSLoader extends Loader {
 						for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
 							Map.Entry entry = (Map.Entry)it.next();
 							String str = (String)entry.getValue(); // this is like calling getPath(p)
-							Utils.log2("processing " + str);
+							//Utils.log2("processing " + str);
 							if (0 != str.indexOf(rel_path)) {
 								Utils.log2("SKIP str is: " + str + "\t but path is: " + rel_path);
 								continue; // get only those whose path is identical, of course!
@@ -523,33 +451,47 @@ public class FSLoader extends Loader {
 							int isl = str.lastIndexOf("-----#slice=");
 							if (-1 != isl) {
 								//int i_slice = Integer.parseInt(str.substring(isl + 12));
-								Patch pa = (Patch)entry.getKey();
-								imps.put(pa.getId(), imp);
+								long lid = ((Long)entry.getKey()).longValue(); // really, J jate java
+								imps.put(lid, imp);
 								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
-								pa.putMinAndMax(imp);
+								// kludge, but what else short of a gigantic hashtable
+								try {
+									final Patch pa = (Patch)p.getLayerSet().findDisplayable(lid);
+									pa.putMinAndMax(imp);
+								} catch (Exception e) {
+									e.printStackTrace();
+								}
 							}
 						}
 						// set proper active slice
 						int ia = Integer.parseInt(slice.substring(12));
 						imp.setSlice(ia);
-						ip = imp.getStack().getProcessor(ia);
+						if (Layer.IMAGEPROCESSOR == format) ip = imp.getStack().getProcessor(ia); // otherwise creates one new for nothing
 					} else {
 						// for non-stack images
 						p.putMinAndMax(imp); // non-destructive contrast: min and max
 							// puts the Patch min and max values into the ImagePlus processor.
 						imps.put(p.getId(), imp);
-						ip = imp.getProcessor();
+						if (Layer.IMAGEPROCESSOR == format) ip = imp.getProcessor();
 					}
 					// imp is cached, so:
 					removePatchLoadingLock(plock);
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				unlock();
 				plock.unlock();
-				return ip;
-				//Utils.log2("A2 returning " + imp + " for path " + path + slice);
+				switch (format) {
+					case Layer.IMAGEPROCESSOR:
+						return ip; // not imp.getProcessor because after unlocking the slice may have changed for stacks.
+					case Layer.IMAGEPLUS:
+						return imp;
+					default:
+						Utils.log("FSLoader.fetchImage: Unknown format " + format);
+						return null;
+
+				}
 			}
 		}
 	}
@@ -570,19 +512,15 @@ public class FSLoader extends Loader {
 	}
 
 	/* GENERIC, from DBObject calls. Records the id of the object in the Hashtable ht_dbo.
-	 * Always returns true, but the object is not added if another object with identical id is already registered.
-	 * */
+	 * Always returns true. Does not check if another object has the same id.
+	 */
 	public boolean addToDatabase(final DBObject ob) {
-		// cheap version: keep in memory in a hashtable
 		synchronized (db_lock) {
 			lock();
 			setChanged(true);
-			final Long lid = new Long(ob.getId());
-			// TODO doesn't scale at all, plus it's doing two table lookups
-			//   It's a major source of slowness in adding new objects (such as when reading a file)
-			//   particularly if the table has more than 10000 elements (the TEM Dresden dataset has over 115000)
-			if (!ht_dbo.contains(lid)) {
-				ht_dbo.put(lid, ob);
+			final long id = ob.getId();
+			if (id > max_id) {
+				max_id = id;
 			}
 			unlock();
 		}
@@ -634,13 +572,13 @@ public class FSLoader extends Loader {
 						}
 						path += System.currentTimeMillis() + ".tif";
 						path = super.exportImage(p, path, true);
-						Utils.log2("Saved original " + ht_paths.get(p) + "\n\t at: " + path);
+						Utils.log2("Saved original " + ht_paths.get(p.getId()) + "\n\t at: " + path);
 						// make path relative if possible
 						if (null != project_file_path) { // project may be unsaved
 							File fxml = new File(project_file_path);
 							String parent_dir = fxml.getParent().replace('\\', '/');
 							if (!parent_dir.endsWith("/")) parent_dir += "/";
-							if (0 == path.indexOf((String)ht_paths.get(p))) {
+							if (0 == path.indexOf((String)ht_paths.get(p.getId()))) {
 								path = path.substring(path.length());
 							}
 						}
@@ -666,7 +604,7 @@ public class FSLoader extends Loader {
 					}
 				}
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				return false;
 			}
 		}
@@ -678,19 +616,15 @@ public class FSLoader extends Loader {
 			lock();
 			setChanged(true);
 			// remove from the hashtable
-			long loid = ob.getId();
-			Long lid = new Long(loid);
-			ht_dbo.remove(lid);
-			Utils.log2("removing " + ob);
+			final long loid = ob.getId();
+			Utils.log2("removing " + Project.getName(ob.getClass()) + " " + ob);
 			if (ob instanceof Patch) {
-				Utils.log2("removing patch " + ob);
-				Utils.log2("");
 				// STRATEGY change: images are not owned by the FSLoader.
 				Patch p = (Patch)ob;
 				removeMipMaps(p);
-				ht_paths.remove(ob); // after removeMipMaps !
+				ht_paths.remove(p.getId()); // after removeMipMaps !
 				mawts.removeAndFlush(loid);
-				ImagePlus imp = imps.remove(loid);
+				final ImagePlus imp = imps.remove(loid);
 				if (null != imp) {
 					if (imp.getStackSize() > 1) {
 						if (null == imp.getProcessor()) {}
@@ -711,7 +645,7 @@ public class FSLoader extends Loader {
 
 	/** With slice info appended at the end; only if it exists, otherwise null. */
 	public String getAbsolutePath(final Patch patch) {
-		Object ob = ht_paths.get(patch);
+		Object ob = ht_paths.get(patch.getId());
 		if (null == ob) return null;
 		String path = (String)ob;
 		// substract slice info if there
@@ -768,13 +702,13 @@ public class FSLoader extends Loader {
 		// if path is absolute, try to make it relative
 		path = makeRelativePath(path);
 		// store
-		ht_paths.put(patch, path);
-		//Utils.log2("Updated patch path " + ht_paths.get(patch) + " for patch " + patch);
+		ht_paths.put(patch.getId(), path);
+		//Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
 	}
 
-	/** Overriding superclass method;  if a path for the given Patch exists in the ht_paths Hashtable, it will be returned (meaning, the image exists already); if not, then an attempt is made to save it in the given path. The overwrite flag is used in the second case, to avoid creating a new image every time the Patch pixels are edited. The original image is never overwritten in any case. */
+	/** Overriding superclass method; if a path for the given Patch exists in the ht_paths Hashtable, it will be returned (meaning, the image exists already); if not, then an attempt is made to save it in the given path. The overwrite flag is used in the second case, to avoid creating a new image every time the Patch pixels are edited. The original image is never overwritten in any case. */
 	public String exportImage(Patch patch, String path, boolean overwrite) {
-		Object ob = ht_paths.get(patch);
+		Object ob = ht_paths.get(patch.getId());
 		if (null == ob) {
 			// means, the image has no related source file
 			if (null == path) {
@@ -800,19 +734,21 @@ public class FSLoader extends Loader {
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
 	public String save(final Project project) {
-		Utils.logAll(Utils.now() + " Saving " + project);
+		String result = null;
 		if (null == project_file_path) {
 			String xml_path = super.saveAs(project);
 			if (null == xml_path) return null;
 			else {
 				this.project_file_path = xml_path;
 				ControlWindow.updateTitle(project);
-				return this.project_file_path;
+				result = this.project_file_path;
 			}
 		} else {
 			File fxml = new File(project_file_path);
-			return super.export(project, fxml, false);
+			result = super.export(project, fxml, false);
 		}
+		if (null != result) Utils.logAll(Utils.now() + " Saved " + project);
+		return result;
 	}
 
 	public String saveAs(Project project) {
@@ -828,10 +764,10 @@ public class FSLoader extends Loader {
 
 	/** Returns the stored path for the given Patch image, which may be relative.*/
 	public String getPath(final Patch patch) {
-		final Object ob = ht_paths.get(patch);
-		if (null == ob) return null;
-		return (String)ob;
+		final Object ob = ht_paths.get(patch.getId());
+		return (String)ob; // casting a null is ok
 	}
+
 	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
 	private String makeRelativePath(String path) {
 		if (null == project_file_path) {
@@ -1182,7 +1118,7 @@ public class FSLoader extends Loader {
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			ok = false; //can't return, need to unlock Patch first
 		}
 		synchronized (gm_lock) {
@@ -1250,7 +1186,7 @@ public class FSLoader extends Loader {
 							Utils.log2("Could not generate mipmaps for patch " + pa[k]);
 						}
 					} catch (Exception e) {
-						new IJError(e);
+						IJError.print(e);
 					}
 				}
 
@@ -1260,7 +1196,7 @@ public class FSLoader extends Loader {
 				MultiThreading.startAndJoin(threads);
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 
 				this.finishedWorking();
@@ -1291,7 +1227,7 @@ public class FSLoader extends Loader {
 				unlock();
 				return path;
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			unlock();
 		}
@@ -1350,7 +1286,7 @@ public class FSLoader extends Loader {
 						f.mkdir();
 					}
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 					return false;
 				}
 			} else {
@@ -1380,7 +1316,9 @@ public class FSLoader extends Loader {
 		if (null == dir_mipmaps) return;
 		synchronized (db_lock) {
 			lock();
-			mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
+			try {
+				mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
+			} catch (Exception e) { e.printStackTrace(); }
 			unlock();
 		}
 	}
@@ -1412,7 +1350,7 @@ public class FSLoader extends Loader {
 							Utils.log2("Could not remove file " + f.getAbsolutePath());
 						}
 					} catch (Exception e) {
-						new IJError(e);
+						IJError.print(e);
 					}
 				}
 			}
@@ -1420,7 +1358,7 @@ public class FSLoader extends Loader {
 				}
 			}.start();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -1468,7 +1406,7 @@ public class FSLoader extends Loader {
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return 0;
 	}
@@ -1504,7 +1442,10 @@ public class FSLoader extends Loader {
 
 	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
-		if (null == dir_mipmaps) return null;
+		if (null == dir_mipmaps) {
+			Utils.log2("null dir_mipmaps");
+			return null;
+		}
 		try {
 			// TODO should wait if the file is currently being generated
 			//  (it's somewhat handled by a double-try to open the jpeg image)
@@ -1512,8 +1453,11 @@ public class FSLoader extends Loader {
 			final int max_level = getHighestMipMapLevel(patch);
 
 			final String filepath = getFileName(patch);
-			if (null == filepath) return null;
-			String path = dir_mipmaps + ( level > max_level ? max_level : level ) + "/" + filepath + "." + patch.getId() + ".jpg";
+			if (null == filepath) {
+				Utils.log2("null filepath!");
+				return null;
+			}
+			final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filepath).append('.').append(patch.getId()).append(".jpg").toString();
 			Image img = null;
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:
@@ -1534,7 +1478,9 @@ public class FSLoader extends Loader {
 			if (null != img) return img;
 
 			// if we got so far ... try to regenerate the mipmaps
-			if (!mipmaps_regen) return null;
+			if (!mipmaps_regen) {
+				return null;
+			}
 
 			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
 
@@ -1542,27 +1488,39 @@ public class FSLoader extends Loader {
 			double scale = 1 / Math.pow(2, level);
 			if (level > 0 && (patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
 				// regenerate
-				Worker worker = new Worker("Regenerating mipmaps") {
-					public void run() {
-						this.setAsBackground(true);
-						this.startedWorking();
-						try {
-							generateMipMaps(patch);
-						} catch (Exception e) {
-							new IJError(e);
-						}
+				synchronized (gm_lock) {
+					gm_lock();
 
-						Display.repaint(patch.getLayer(), patch, 0);
-
-						this.finishedWorking();
+					if (hs_regenerating_mipmaps.contains(patch)) {
+						// already being done
+						gm_unlock();
+						return null;
 					}
-				};
-				Bureaucrat burro = new Bureaucrat(worker, patch.getProject());
-				burro.goHaveBreakfast();
+					// else, start it
+					Worker worker = new Worker("Regenerating mipmaps") {
+						public void run() {
+							this.setAsBackground(true);
+							this.startedWorking();
+							try {
+								generateMipMaps(patch);
+							} catch (Exception e) {
+								IJError.print(e);
+							}
+
+							Display.repaint(patch.getLayer(), patch, 0);
+
+							this.finishedWorking();
+						}
+					};
+					Bureaucrat burro = new Bureaucrat(worker, patch.getProject());
+					burro.goHaveBreakfast();
+
+					gm_unlock();
+				}
 				return null;
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -1589,8 +1547,8 @@ public class FSLoader extends Loader {
 			case ImagePlus.GRAY8:
 			case ImagePlus.COLOR_256:
 				bytes_per_pixel = 1;
-				// check jpeg, which can only encode RGB ( take care of above) and 8-bit and 8-bit color images:
-				String path = (String)ht_paths.get(p);
+				// check jpeg, which can only encode RGB (taken care of above) and 8-bit and 8-bit color images:
+				String path = (String)ht_paths.get(p.getId());
 				if (null != path && path.endsWith(".jpg")) bytes_per_pixel = 5; //4 for the int[] and 1 for the byte[]
 				break;
 			default:
@@ -1608,5 +1566,23 @@ public class FSLoader extends Loader {
 		if (-1 == i_dot) return name;
 		if (0 == i_dot) return super.makeProjectName();
 		return name.substring(0, i_dot);
+	}
+
+
+	/** Returns the path where the imp is saved to: the storage folder plus a name. */
+	public String handlePathlessImage(final ImagePlus imp) {
+		final FileInfo fi = imp.getOriginalFileInfo();
+		if (null == fi.fileName || fi.fileName.equals("")) {
+			fi.fileName = "img_" + System.currentTimeMillis() + ".tif";
+		}
+		if (!fi.fileName.endsWith(".tif")) fi.fileName += ".tif";
+		fi.directory = dir_storage;
+		if (imp.getNSlices() > 1) {
+			new FileSaver(imp).saveAsTiffStack(dir_storage + fi.fileName);
+		} else {
+			new FileSaver(imp).saveAsTiff(dir_storage + fi.fileName);
+		}
+		Utils.log2("Saved a copy into the storage folder:\n" + dir_storage + fi.fileName);
+		return dir_storage + fi.fileName;
 	}
 }

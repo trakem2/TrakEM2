@@ -41,7 +41,11 @@ public class FloatArray2DSIFT
 	 * Returns the size in bytes of a Feature object.
 	 */
 	public long getFeatureObjectSize() {
-		return 32 + 4 + 4 + 8 + FEATURE_DESCRIPTOR_SIZE * FEATURE_DESCRIPTOR_SIZE * FEATURE_DESCRIPTOR_ORIENTATION_BINS * 4 + 32 + 32;
+		return FloatArray2DSIFT.getFeatureObjectSize(FEATURE_DESCRIPTOR_SIZE, FEATURE_DESCRIPTOR_ORIENTATION_BINS);
+	}
+
+	static public long getFeatureObjectSize(final int fdsize, final int fdbins) {
+		return 32 + 4 + 4 + 8 + fdsize * fdsize * fdbins * 4 + 32 + 32;
 	}
 
 	

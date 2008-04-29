@@ -368,7 +368,7 @@ abstract public class Loader {
 			//ij.IJ.redirectErrorMessages();
 			//imp = new Opener().openTiff(i_stream, title);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		return imp;
@@ -689,7 +689,7 @@ abstract public class Loader {
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return released;
 	}
@@ -721,7 +721,7 @@ abstract public class Loader {
 				}
 				mawts.removeAndFlushAll();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			unlock();
 		}
@@ -747,7 +747,7 @@ abstract public class Loader {
 				}
 			} catch (Exception e) {
 				unlock();
-				new IJError(e);
+				IJError.print(e);
 				return;
 			}
 			unlock();
@@ -890,7 +890,7 @@ abstract public class Loader {
 				}
 				unlock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 
@@ -959,7 +959,7 @@ abstract public class Loader {
 							mawt = NOT_FOUND;
 						}
 					} catch (Exception e) {
-						new IJError(e);
+						IJError.print(e);
 					}
 					removePatchLoadingLock(plock);
 					unlock();
@@ -981,7 +981,7 @@ abstract public class Loader {
 				}
 				unlock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 
@@ -1011,7 +1011,7 @@ abstract public class Loader {
 				}
 
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			unlock();
 			return NOT_FOUND;
@@ -1041,7 +1041,6 @@ abstract public class Loader {
 	}
 
 	abstract public ImagePlus fetchImagePlus(Patch p);
-	abstract public ImagePlus fetchImagePlus(Patch p, boolean create_snap);
 	/** Returns null unless overriden. */
 	public ImageProcessor fetchImageProcessor(Patch p) { return null; }
 
@@ -1117,7 +1116,7 @@ abstract public class Loader {
 				if (null != i_stream) i_stream.close();
 			} catch (IOException ioe) {
 				Utils.log("Loader: Attempt to clean up streams failed.");
-				new IJError(ioe);
+				IJError.print(ioe);
 			}
 			return null;
 		}
@@ -1130,11 +1129,17 @@ abstract public class Loader {
 		final OpenDialog od = new OpenDialog("Select stack", OpenDialog.getDefaultDirectory(), null);
 		String file_name = od.getFileName();
 		if (null == file_name || file_name.toLowerCase().startsWith("null")) return null;
-		String dir = od.getDirectory();
+		String dir = od.getDirectory().replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
 
-		File f = new File(dir + "/" + file_name);
+		File f = new File(dir + file_name);
 		if (!f.exists()) {
-			Utils.showMessage("File " + dir + "/" + file_name  + " does not exist.");
+			Utils.showMessage("File " + dir + file_name  + " does not exist.");
+			return null;
+		}
+		// avoid opening trakem2 projects
+		if (file_name.toLowerCase().endsWith(".xml")) {
+			Utils.showMessage("Cannot import " + file_name + " as a stack.");
 			return null;
 		}
 		// estimate file size: assumes an uncompressed tif, or a zipped tif with an average compression ratio of 2.5
@@ -1156,7 +1161,7 @@ abstract public class Loader {
 			IJ.redirectErrorMessages();
 			imp_stack = opener.openImage(f.getCanonicalPath());
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		if (null == imp_stack) {
@@ -1275,15 +1280,16 @@ abstract public class Loader {
 		gd.addCheckbox("link images", link_images);
 		gd.addStringField("preprocess with: ", preprocessor); // the name of a plugin to use for preprocessing the images before importing, which implements PlugInFilter
 		gd.addCheckbox("use_cross-correlation", stitch_tiles);
+		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
 		gd.addCheckbox("homogenize_contrast", homogenize_contrast);
-		StitchingTEM.addStitchingRuleChoice(gd);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
 			(Component)gd.getSliders().get(gd.getSliders().size()-1),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1)
+			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
+			(Component)gd.getChoices().get(gd.getChoices().size()-1)
 		};
 		// enable the checkbox to control the slider and its associated numeric field:
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size()-2), c, null);
@@ -1315,6 +1321,12 @@ abstract public class Loader {
 		float cc_scale = (float)gd.getNextNumber() / 100f;
 		homogenize_contrast = gd.getNextBoolean();
 		int stitching_rule = gd.getNextChoiceIndex();
+
+		// Ensure tiles overlap if using SIFT
+		if (StitchingTEM.FREE_RULE == stitching_rule) {
+			if (bt_overlap <= 0) bt_overlap = 1;
+			if (lr_overlap <= 0) lr_overlap = 1;
+		}
 
 		String[] file_names = null;
 		if (null == image_file_names) {
@@ -1368,7 +1380,7 @@ abstract public class Loader {
 		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -1391,7 +1403,7 @@ abstract public class Loader {
 				return null;
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			finishSetTempCurrentImage();
 			Utils.log("Ignoring " + imp.getTitle() + " from " + path + " since the preprocessor " + preprocessor + " throwed an Exception on it.");
 			flush(imp);
@@ -1443,15 +1455,16 @@ abstract public class Loader {
 		gd.addCheckbox("link_images", false);
 		gd.addStringField("Preprocess with: ", ""); // the name of a plugin to use for preprocessing the images before importing, which implements Preprocess
 		gd.addCheckbox("use_cross-correlation", false);
+		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, 25);
 		gd.addCheckbox("homogenize_contrast", true);
-		StitchingTEM.addStitchingRuleChoice(gd);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
 			(Component)gd.getSliders().get(gd.getSliders().size()-1),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1)
+			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
+			(Component)gd.getChoices().get(gd.getChoices().size()-1)
 		};
 		// enable the checkbox to control the slider and its associated numeric field:
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size()-1), c, null);
@@ -1483,6 +1496,12 @@ abstract public class Loader {
 		boolean homogenize_contrast = gd.getNextBoolean();
 		int stitching_rule = gd.getNextChoiceIndex();
 
+		// Ensure tiles overlap if using SIFT
+		if (StitchingTEM.FREE_RULE == stitching_rule) {
+			if (bt_overlap <= 0) bt_overlap = 1;
+			if (lr_overlap <= 0) lr_overlap = 1;
+		}
+
 		//start magic
 		//get ImageJ-openable files that comply with the convention
 		File images_dir = new File(dir);
@@ -1509,7 +1528,7 @@ abstract public class Loader {
 		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
@@ -1555,7 +1574,7 @@ abstract public class Loader {
 				}
 				finishSetTempCurrentImage();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				finishSetTempCurrentImage();
 				Utils.showMessageT("Plug in " + preprocessor + " is invalid: ImageJ has trhown an exception when testing it with a null image.");
 				return;
@@ -1859,7 +1878,7 @@ abstract public class Loader {
 					Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
 					double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
 					p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-					p.putMinAndMax(fetchImagePlus(p, false));
+					p.putMinAndMax(fetchImagePlus(p));
 				}
 
 				if (isMipMapsEnabled()) {
@@ -1892,27 +1911,8 @@ abstract public class Loader {
 			layer.getParent().createUndoStep(layer);
 			// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 			if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
-			ControlWindow.startWaitingCursor();
-			final StitchingTEM st = new StitchingTEM();
-			Thread thread = st.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true, stitching_rule);
-			while (StitchingTEM.WORKING == st.getStatus()) {
-				if (this.quit) {
-					st.quit();
-					rollback();
-					ControlWindow.endWaitingCursor();
-					Display.repaint(layer);
-					return;
-				}
-				try { Thread.sleep(1000); } catch (InterruptedException ie) {}
-			}
-			if (StitchingTEM.ERROR == st.getStatus()) {
-				Utils.log("Cross-correlation FAILED");
-				layer.getParent().undoOneStep();
-			}
-			ControlWindow.endWaitingCursor();
-
-			// make picture
-			//getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
+			Bureaucrat task = StitchingTEM.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true, stitching_rule);
+			if (null != task) try { task.join(); } catch (Exception e) {}
 		}
 
 		// link with images on top, bottom, left and right.
@@ -1952,7 +1952,7 @@ abstract public class Loader {
 
 		//debug:
 		} catch (Throwable t) {
-			new IJError(t);
+			IJError.print(t);
 			rollback();
 			setMassiveMode(false); //massive_mode = false;
 			setMipMapsRegeneration(true);
@@ -2035,21 +2035,18 @@ abstract public class Loader {
 		GenericDialog gd = new GenericDialog("Options");
 		gd.addMessage("For all touched layers:");
 		gd.addCheckbox("Homogenize histograms", false);
-		/*
-		gd.addCheckbox("Register tiles", false);
+		gd.addCheckbox("Register tiles and layers", true);
 		gd.addCheckbox("With overlapping tiles only", true); // TODO could also use near tiles, defining near as "within a radius of one image width from the center of the tile"
-		final Component[] c = {
+		final Component[] c_enable = {
 			(Component)gd.getCheckboxes().get(2)
 		};
-		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(1), c, null);
-		*/
-		gd.addCheckbox("Register all layers", false);
+		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(1), c_enable, null);
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		final boolean homogenize_contrast = gd.getNextBoolean();
-		//final boolean register_tiles = gd.getNextBoolean();
-		//final boolean overlapping_only = gd.getNextBoolean();
-		final boolean register_layers = gd.getNextBoolean();
+		final boolean register_tiles = gd.getNextBoolean();
+		final boolean overlapping_only = gd.getNextBoolean();
+		final int layer_subset = gd.getNextChoiceIndex();
 		final Set touched_layers = Collections.synchronizedSet(new HashSet());
 		gd = null;
 
@@ -2175,7 +2172,7 @@ abstract public class Loader {
 								addedPatchFrom(path, patch);
 								lock.unlock();
 							} catch (Exception e) {
-								new IJError(e);
+								IJError.print(e);
 							}
 						}
 						if (null != patch) {
@@ -2188,13 +2185,13 @@ abstract public class Loader {
 									layer.add(patch, true);
 									lock.unlock();
 								} catch (Exception e) {
-									new IJError(e);
+									IJError.print(e);
 								}
 							}
 							decacheImagePlus(patch.getId()); // no point in keeping it around
 						}
-						
-						wo.setTaskName("Imported " + n_imported.getAndIncrement() + "/" + lines.length);
+
+						wo.setTaskName("Imported " + (n_imported.getAndIncrement() + 1) + "/" + lines.length);
 					}
 
 					/////////////////////////
@@ -2204,6 +2201,12 @@ abstract public class Loader {
 					MultiThreading.startAndJoin(threads);
 					/////////////////////////
 
+					if (0 == n_imported.get()) {
+						Utils.log("No images imported.");
+						finishedWorking();
+						return;
+					}
+
 					base_layer.getParent().setMinimumDimensions();
 					Display.repaint(base_layer.getParent());
 
@@ -2211,25 +2214,42 @@ abstract public class Loader {
 					touched_layers.toArray(la);
 
 					if (homogenize_contrast) {
+						setTaskName("");
 						// layer-wise (layer order is irrelevant):
 						Thread t = homogenizeContrast(la); // multithreaded
 						if (null != t) t.join();
 					}
-					/* // not ready yet
 					if (register_tiles) {
-						// layer-wise (within a layer; thus layer order is irrelevant):
-						Registration.registerTilesSIFT(la, overlapping_only);
-					}
-					*/
-					if (register_layers) {
-						// sequential, from first to last:
+						wo.setTaskName("Registering tiles.");
+						// sequential, from first to last layer
+						Layer first = la[0];
+						Layer last = la[0];
+						// order touched layers by Z coord
+						for (int i=1; i<la.length; i++) {
+							if (la[i].getZ() < first.getZ()) first = la[i];
+							if (la[i].getZ() > last.getZ()) last = la[i];
+						}
 						LayerSet ls = base_layer.getParent();
-						Thread t = Registration.registerLayers(ls, 0, 0, ls.size()-1, false);
+						List<Layer> las = ls.getLayers().subList(ls.indexOf(first), ls.indexOf(last)+1);
+						// decide if processing all or just the touched ones or what range
+						if (ls.size() != las.size()) {
+							GenericDialog gd = new GenericDialog("Layer Range");
+							gd.addMessage("Apply registration to layers:");
+							Utils.addLayerRangeChoices(first, last, gd);
+							gd.showDialog();
+							if (gd.wasCanceled()) {
+								finishedWorking();
+								return;
+							}
+							las = ls.getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1);
+						}
+						Layer[] zla = new Layer[las.size()];
+						zla = las.toArray(zla);
+						Thread t = Registration.registerTilesSIFT(zla, overlapping_only);
 						if (null != t) t.join();
 					}
-
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -2289,11 +2309,19 @@ abstract public class Loader {
 	}
 
 	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
-	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality) {
+	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality) {
+		if (null == layer || 0 == layer.length) {
+			Utils.log2("makeFlatImage: null or empty list of layers to process.");
+			return null;
+		}
 		final Worker worker = new Worker("making flat images") { public void run() {
 			try {
 			//
 			startedWorking();
+
+			Rectangle srcRect_ = srcRect;
+			if (null == srcRect_) srcRect_ = layer[0].getParent().get2DBounds(); 
+
 			ImagePlus imp = null;
 			String target_dir = null;
 			boolean choose_dir = force_to_file;
@@ -2375,7 +2403,7 @@ abstract public class Loader {
 			}
 			if (null != imp) imp.show();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			finishedWorking();
 		}};
@@ -2402,10 +2430,10 @@ abstract public class Loader {
 			new FileSaver(imp).saveAsZip(file.getAbsolutePath());
 		} catch (OutOfMemoryError oome) {
 			Utils.log2("Not enough memory. Could not save image for " + file_name);
-			new IJError(oome);
+			IJError.print(oome);
 		} catch (Exception e) {
 			Utils.log2("Could not save image for " + file_name);
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -2426,13 +2454,13 @@ abstract public class Loader {
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
 		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality);
 		final ImagePlus imp = new ImagePlus(layer.getPrintableTitle(), bi);
+		bi.flush();
 		return imp;
 	}
 
 	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
 
 		try {
-
 			// if quality is specified, then a larger image is generated:
 			//   - full size if no mipmaps
 			//   - double the size if mipmaps is enabled
@@ -2448,7 +2476,6 @@ abstract public class Loader {
 				}
 			}
 
-			//if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 			// dimensions
 			int x = 0;
 			int y = 0;
@@ -2501,8 +2528,8 @@ abstract public class Loader {
 			}
 			final Graphics2D g2d = bi.createGraphics();
 
-			// fill background with black, since the getScaledInstance creates an RGB with white background
-			if (quality) {
+			// fill background with black, since RGB images default to white background
+			if (type == ImagePlus.COLOR_RGB) {
 				g2d.setColor(Color.black);
 				g2d.fillRect(0, 0, bi.getWidth(), bi.getHeight());
 			}
@@ -2512,11 +2539,13 @@ abstract public class Loader {
 			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
 			g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
 			synchronized (db_lock) {
 				lock();
 				releaseMemory(); // savage ...
 				unlock();
 			}
+
 			ArrayList al_zdispl = null;
 			if (null == al_displ) {
 				al_displ = layer.getDisplayables(clazz);
@@ -2571,7 +2600,7 @@ abstract public class Loader {
 				}
 				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
 					d.paint(g2d, scaleP, false, c_alphas, layer);
-					//Utils.log("painted: " + d);
+					//Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
 				} else {
 					//Utils.log2("out: " + d);
 				}
@@ -2613,30 +2642,19 @@ abstract public class Loader {
 						gs.drawImage(bi, 0, 0, (int)(w * scale), (int)(h * scale), null);
 					}
 					bi.flush();
-					//imp = new ImagePlus(layer.getPrintableTitle(), scaled);
-					//if (ImagePlus.COLOR_RGB != type) imp.setProcessor(imp.getTitle(), imp.getProcessor().convertToByte(false)); // no need for 'scaling' flag, since the image generated by the getScaledInstance is an RGB
 					return scaled;
 				} else {
 					// else the image was made scaled down already, and of the proper type
 					return bi;
-					//imp = new ImagePlus(layer.getPrintableTitle(), bi);
 				}
 			} catch (OutOfMemoryError oome) {
-				//if (null != imp) flush(imp);
-				//imp = null;
 				Utils.log("Not enough memory to create the ImagePlus. Try scaling it down or not using the 'quality' flag.");
 			}
 
 		} catch (Exception e) {
-			if (ControlWindow.isGUIEnabled()) new IJError(e);
-			else e.printStackTrace();
-			//if (null != imp) flush(imp);
-			//imp = null;
-		//} finally {
-		//	if (null != IJ.getInstance() && ControlWindow.isGUIEnabled()) IJ.getInstance().setCursor(Cursor.getDefaultCursor());
+			IJError.print(e);
 		}
 
-		//return imp;
 		return null;
 	}
 
@@ -2788,7 +2806,7 @@ abstract public class Loader {
 			}
 		}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		cleanup();
 		finishedWorking();
@@ -2854,10 +2872,36 @@ abstract public class Loader {
 	/** Subclasses can override this method to register the URL of the imported image. */
 	public void addedPatchFrom(String path, Patch patch) {}
 
+	/** Import an image into the given layer, in a separate task thread. */
+	public Bureaucrat importImage(final Layer layer, final double x, final double y, final String path) {
+		Worker worker = new Worker("Importing image") {
+			public void run() {
+				startedWorking();
+				try {
+					////
+					if (null == layer) {
+						Utils.log("Can't import. No layer found.");
+						finishedWorking();
+						return;
+					}
+					Patch p = importImage(layer.getProject(), x, y, path);
+					if (null != p) layer.add(p);
+					////
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+				finishedWorking();
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, layer.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
 	public Patch importImage(Project project, double x, double y) {
 		return importImage(project, x, y, null);
 	}
-	/** Import a new image at the given coordinates. If a path is not provided it will be asked for.*/
+	/** Import a new image at the given coordinates; does not puts it into any layer, unless it's a stack -in which case importStack is called with the current front layer of the given project as target. If a path is not provided it will be asked for.*/
 	public Patch importImage(Project project, double x, double y, String path) {
 		if (null == path) {
 			OpenDialog od = new OpenDialog("Import image", "");
@@ -2868,6 +2912,11 @@ abstract public class Loader {
 			path = dir + name;
 		} else {
 			path = path.replace('\\', '/');
+		}
+		// avoid opening trakem2 projects
+		if (path.toLowerCase().endsWith(".xml")) {
+			Utils.showMessage("Cannot import " + path + " as a stack.");
+			return null;
 		}
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		IJ.redirectErrorMessages();
@@ -2962,34 +3011,27 @@ abstract public class Loader {
 		ImagePlus imp_stack = null;
 		// ask to open a stack if it's null
 		if (null == imp_stacks) {
-			imp_stack = first_layer.getProject().getLoader().openStack();
+			imp_stack = openStack();
 		} else {
-			// if there's only one, use that one
-			if (1 == imp_stacks.length) {
-				//YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Select?", "Import the stack " + imp_stacks[0].getTitle() + " ?");
-				//if (!yn.yesPressed()) return; // TODO a layer may be left created..
-				imp_stack = imp_stacks[0];
+			// choose one from the list
+			GenericDialog gd = new GenericDialog("Choose one");
+			gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
+			String[] list = new String[imp_stacks.length +1];
+			for (int i=0; i<list.length -1; i++) {
+				list[i] = imp_stacks[i].getTitle();
+			}
+			list[list.length-1] = "[  Open stack...  ]";
+			gd.addChoice("choose stack: ", list, list[0]);
+			gd.showDialog();
+			if (gd.wasCanceled()) {
+				finishedWorking();
+				return;
+			}
+			int i_choice = gd.getNextChoiceIndex();
+			if (list.length-1 == i_choice) { // the open... command
+				imp_stack = first_layer.getProject().getLoader().openStack();
 			} else {
-				// choose one from the list
-				GenericDialog gd = new GenericDialog("Choose one");
-				gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
-				String[] list = new String[imp_stacks.length +1];
-				for (int i=0; i<list.length -1; i++) {
-					list[i] = imp_stacks[i].getTitle();
-				}
-				list[list.length-1] = "[  Open stack...  ]";
-				gd.addChoice("choose stack: ", list, list[0]);
-				gd.showDialog();
-				if (gd.wasCanceled()) {
-					finishedWorking();
-					return;
-				}
-				int i_choice = gd.getNextChoiceIndex();
-				if (list.length-1 == i_choice) { // the open... command
-					imp_stack = first_layer.getProject().getLoader().openStack();
-				} else {
-					imp_stack = imp_stacks[i_choice];
-				}
+				imp_stack = imp_stacks[i_choice];
 			}
 		}
 		// check:
@@ -3002,7 +3044,7 @@ abstract public class Loader {
 
 		// check if it's amira labels stack to prevent missimports
 		if (null != props && -1 != props.indexOf("Materials {")) {
-			YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Warning", "You are importing a stack of Amira labels as a regular image stack. Continue?");
+			YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Warning", "You are importing a stack of Amira labels as a regular image stack. Continue anyway?");
 			if (!yn.yesPressed()) {
 				finishedWorking();
 				return;
@@ -3021,7 +3063,7 @@ abstract public class Loader {
 			// ask for slice separation in pixels
 			GenericDialog gd = new GenericDialog("Slice separation?");
 			gd.addMessage("Please enter the slice thickness, in pixels");
-			gd.addNumericField("slice thickness: ", imp_stack.getCalibration().pixelDepth / imp_stack.getCalibration().pixelHeight, 3); // assuming pixelWidth == pixelHeight
+			gd.addNumericField("slice_thickness: ", Math.abs(imp_stack.getCalibration().pixelDepth / imp_stack.getCalibration().pixelHeight), 3); // assuming pixelWidth == pixelHeight
 			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
 				gd.addCheckbox("Resize canvas to fit stack", true);
 				gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
@@ -3066,9 +3108,13 @@ abstract public class Loader {
 		// set LayerSet calibration if there is no calibration
 		boolean calibrate = true;
 		if (ask_for_data && first_layer.getParent().isCalibrated()) {
-			YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the stack calibration values?");
-			if (!yn.yesPressed()) {
-				calibrate = false;
+			if (!ControlWindow.isGUIEnabled()) {
+				Utils.log2("Loader.importStack: overriding LayerSet calibration with that of the imported stack.");
+			} else {
+				YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the stack calibration values?");
+				if (!yn.yesPressed()) {
+					calibrate = false;
+				}
 			}
 		}
 		if (calibrate) {
@@ -3081,13 +3127,17 @@ abstract public class Loader {
 
 		if (null == filepath) {
 			// try to get it from the original FileInfo
-			FileInfo fi = imp_stack.getOriginalFileInfo();
+			final FileInfo fi = imp_stack.getOriginalFileInfo();
 			if (null != fi && null != fi.directory && null != fi.fileName) {
 				filepath = fi.directory.replace('\\', '/');
 				if (!filepath.endsWith("/")) filepath += '/';
 				filepath += fi.fileName;
 			}
 			Utils.log2("Getting filepath from FileInfo: " + filepath);
+			// check that file exists, otherwise save a copy in the storage folder
+			if (null == filepath || (!filepath.startsWith("http://") && !new File(filepath).exists())) {
+				filepath = handlePathlessImage(imp_stack);
+			}
 		} else {
 			filepath = filepath.replace('\\', '/');
 		}
@@ -3119,7 +3169,7 @@ abstract public class Loader {
 
 		// it is safe not to flush the imp_stack, because all its resources are being used anyway (all the ImageProcessor), and it has no awt.Image. Unless it's being shown in ImageJ, and then it will be flushed on its own when the user closes its window.
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -3128,6 +3178,8 @@ abstract public class Loader {
 		burro.goHaveBreakfast();
 		return burro;
 	}
+
+	public String handlePathlessImage(ImagePlus imp) { return null; }
 
 	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath);
 
@@ -3195,14 +3247,14 @@ abstract public class Loader {
 							fpd.delete();
 						} catch (Exception e) {
 							Utils.log2("Could not delete empty directory " + patches_dir);
-							new IJError(e);
+							IJError.print(e);
 						}
 					}
 				}
 			}
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		ControlWindow.updateTitle(project);
 		return path;
@@ -3250,7 +3302,7 @@ abstract public class Loader {
 			}
 			return patches_dir + "_images";
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 	}
@@ -3272,7 +3324,7 @@ abstract public class Loader {
 		try {
 			dir.mkdir();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			Utils.showMessage("Could not create a directory for the images.");
 			return null;
 		}
@@ -3289,7 +3341,7 @@ abstract public class Loader {
 		if (null == path || (!overwrite && new File(path).exists())) return null;
 		synchronized(db_lock) {
 			try {
-				ImagePlus imp = fetchImagePlus(patch, false); // locks on its own
+				ImagePlus imp = fetchImagePlus(patch); // locks on its own
 				lock();
 				if (null == imp) {
 					// something went wrong
@@ -3301,7 +3353,7 @@ abstract public class Loader {
 				}
 			} catch (Exception e) {
 				Utils.log("Could not save an image for Patch #" + patch.getId() + " at: " + path);
-				new IJError(e);
+				IJError.print(e);
 				unlock();
 				return null;
 			}
@@ -3387,7 +3439,7 @@ abstract public class Loader {
 	public boolean setPreprocessor(String plugin_class_name) {
 		if (null == plugin_class_name || 0 == plugin_class_name.length()) {
 			this.preprocessor = null;
-			return false;
+			return true;
 		}
 		// just for the sake of it:
 		plugin_class_name = plugin_class_name.replace(' ', '_');
@@ -3426,7 +3478,7 @@ abstract public class Loader {
 			IJ.redirectErrorMessages();
 			IJ.runPlugIn(preprocessor, "");
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			finishSetTempCurrentImage();
 		}
@@ -3483,8 +3535,9 @@ abstract public class Loader {
 		}
 		return popup_jobs;
 	}
-	/** Names as generated for popup menu items in the getJobsPopup method. If the name is null, it will cancel the last one. */
-	public void quitJob(String name) {
+	/** Names as generated for popup menu items in the getJobsPopup method. If the name is null, it will cancel the last one. Runs in a separate thread so that it can immediately return. */
+	public void quitJob(final String name) {
+		new Thread () { public void run() { setPriority(Thread.NORM_PRIORITY);
 		Object ob = null;
 		synchronized (popup_lock) {
 			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
@@ -3510,6 +3563,7 @@ abstract public class Loader {
 			popup_lock.notifyAll();
 		}
 		Utils.showStatus("Job canceled.");
+		}}.start();
 	}
 
 	public final void printMemState() {
@@ -3564,7 +3618,7 @@ abstract public class Loader {
 	protected boolean mipmaps_regen = true;
 
 	// used to prevent generating them when, for example, importing a montage
-	protected void setMipMapsRegeneration(boolean b) {
+	public void setMipMapsRegeneration(boolean b) {
 		mipmaps_regen = b;
 	}
 
@@ -3601,7 +3655,8 @@ abstract public class Loader {
 	public boolean checkMipMapFileExists(Patch p, double magnification) { return false; }
 
 	public void adjustChannels(final Patch p, final int old_channels) {
-		if (0xff == old_channels) {
+		/*
+		if (0xffffffff == old_channels) {
 			// reuse any loaded mipmaps
 			Hashtable<Integer,Image> ht = null;
 			synchronized (db_lock) {
@@ -3624,7 +3679,8 @@ abstract public class Loader {
 					try {
 						awt = p.adjustChannels(entry.getValue());
 					} catch (Exception e) {
-						new IJError(e);
+						IJError.print(e);
+						if (null == awt) continue;
 					}
 					synchronized (db_lock) {
 						lock();
@@ -3636,6 +3692,7 @@ abstract public class Loader {
 				}
 			}
 		} else {
+		*/
 			// flush away any loaded mipmap for the id
 			synchronized (db_lock) {
 				lock();
@@ -3643,7 +3700,7 @@ abstract public class Loader {
 				unlock();
 			}
 			// when reloaded, the channels will be adjusted
-		}
+		//}
 	}
 
 	static public ImageProcessor scaleImage(final ImagePlus imp, double mag, final boolean quality) {
@@ -3690,37 +3747,29 @@ abstract public class Loader {
 
 	/* =========================== */
 
-	/** Serializes the given vector of Feature instances and stores it in a file whose name is "features_" + p.getId() + ".ser". <br /> Returns false on failure. */
-	public boolean store(final Patch p, final Vector<Feature> v, String storage_folder) {
+	/** Serializes the given object into the path. Returns false on failure. */
+	public boolean serialize(final Object ob, final String path) {
 		try {
-			// make shallow copy to prevent any problems when writing.
-			Vector<Feature> v2 = (Vector<Feature>)v.clone();
-			// make the path Windows-safe
-			storage_folder.replace('\\', '/');
-			if (!storage_folder.endsWith("/")) storage_folder += "/";
-			ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(storage_folder + "features_" + p.getId() + ".ser"));
-			out.writeObject(v2);
+			final ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(path));
+			out.writeObject(ob);
 			out.close();
 			return true;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return false;
 	}
-	/** Attempts to find a file containing the serialized Vector of Feature instances generated for the given Patch. <br />Returns null if no suitable file is found, or an error occurs while deserializing. */
-	public Vector<Feature> retrieve(final Patch p, String storage_folder) {
+	/** Attempts to find a file containing a serialized object. Returns null if no suitable file is found, or an error occurs while deserializing. */
+	public Object deserialize(final String path) {
 		try {
-			// make the path Windows-safe
-			storage_folder.replace('\\', '/');
-			if (!storage_folder.endsWith("/")) storage_folder += "/";
-			final String path = storage_folder + "features_" + p.getId() + ".ser";
 			if (!new File(path).exists()) return null;
-			ObjectInputStream in = new ObjectInputStream(new FileInputStream(path));
-			Vector<Feature> v = (Vector<Feature>)in.readObject();
+			final ObjectInputStream in = new ObjectInputStream(new FileInputStream(path));
+			final Object ob = in.readObject();
 			in.close();
-			return v;
+			return ob;
 		} catch (Exception e) {
-			new IJError(e);
+			//IJError.print(e); // too much output if a whole set is wrong
+			e.printStackTrace();
 		}
 		return null;
 	}
@@ -3824,7 +3873,7 @@ abstract public class Loader {
 					}
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -3889,7 +3938,7 @@ abstract public class Loader {
 					}
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -3914,7 +3963,7 @@ abstract public class Loader {
 				try {
 					homogenizeContrast(pa[0].getLayer(), pa, min, max, drift_hist_peak);
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 				finishedWorking();
 			}
@@ -4064,7 +4113,7 @@ abstract public class Loader {
 						ImagePlus imp = imps.get(p.getId());
 						if (null != imp) p.putMinAndMax(imp);
 						// else, it will be put when reloading the file
-					} catch (Exception e) { new IJError(e); }
+					} catch (Exception e) { IJError.print(e); }
 					unlock();
 				}
 			}
@@ -4089,7 +4138,7 @@ abstract public class Loader {
 			// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more than once for a few tiles
 			if (null != layer) Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return false;
 		}
 		return true;
@@ -4117,7 +4166,7 @@ abstract public class Loader {
 				f.setAccessible(true);
 				this.my_listeners = (Vector<ij.ImageListener>)f.get(this);
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 		public final void notifyListeners(final ImagePlus imp, final int action) {
@@ -4334,6 +4383,7 @@ abstract public class Loader {
 		private boolean go = true;
 		public ImageLoaderThread() {
 			setPriority(Thread.NORM_PRIORITY);
+			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
 		public final void quit() {
@@ -4385,6 +4435,7 @@ abstract public class Loader {
 								Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
 							}
 						} else {
+							// just load it into the cache if possible
 							p.getProject().getLoader().fetchImage(p, mag);
 						}
 						p = null;
@@ -4413,4 +4464,5 @@ abstract public class Loader {
 		}
 		return level;
 	}
+
 }

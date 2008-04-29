@@ -47,6 +47,7 @@ import java.awt.Composite;
 import java.awt.AlphaComposite;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
+import java.awt.geom.Area;
 
 import javax.vecmath.Point3f;
 
@@ -180,9 +181,18 @@ public class Pipe extends ZDisplayable {
 		this.p_i = new double[2][0]; // empty
 		this.p_width_i = new double[0];
 		generateInterpolatedPoints(0.05);
+		if (null == this.p) {
+			this.n_points = 0;
+			this.p = new double[2][0];
+			this.p_l = new double[2][0];
+			this.p_r = new double[2][0];
+			this.p_width = new double[0];
+			this.p_layer = new long[0];
+		}
 		// sanity check:
-		if (!(n_points == p.length && p.length == p_width.length && p_width.length == p_layer.length)) {
+		if (!(n_points == p[0].length && p[0].length == p_width.length && p_width.length == p_layer.length)) {
 			Utils.log2("Pipe at parsing XML: inconsistent number of points for id=" + id);
+			Utils.log2("\tn_points: " + n_points + "  p.length: " + p[0].length + "  p_width.length: " + p_width.length + "  p_layer.length: " + p_layer.length);
 		}
 	}
 
@@ -535,8 +545,11 @@ public class Pipe extends ZDisplayable {
 			p_width_i = (double[])ob[5];
 		}
 
+		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
+
+		final long layer_id = active_layer.getId();
+
 		if (active) {
-			final long layer_id = active_layer.getId();
 			// draw/fill points
 			final int oval_radius = (int)Math.ceil(4 / magnification);
 			final int oval_corr = (int)Math.ceil(3 / magnification);
@@ -583,13 +596,35 @@ public class Pipe extends ZDisplayable {
 			l_side_x[m] = p_i[0][m] + Math.sin(angle-a90) * p_width_i[m];
 			l_side_y[m] = p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
 
-			double z_current = active_layer.getZ();
+			final double z_current = active_layer.getZ();
+
+			if (no_color_cues) {
+				// paint a tiny bit where it should!
+				g.setColor(this.color);
+			}
 
 			for (int j=0; j<n_points; j++) { // at least looping through 2 points, as guaranteed by the preconditions checking
-				double z = layer_set.getLayer(p_layer[j]).getZ();
-				if (z < z_current) g.setColor(Color.red);
-				else if (z == z_current) g.setColor(this.color);
-				else g.setColor(Color.blue);
+				if (no_color_cues) {
+					if (layer_id == p_layer[j]) {
+						// paint normally
+					} else {
+						// else if crossed the current layer, paint segment as well
+						if (0 == j) continue;
+						double z1 = layer_set.getLayer(p_layer[j-1]).getZ();
+						double z2 = layer_set.getLayer(p_layer[j]).getZ();
+						if ( (z1 < z_current && z_current < z2)
+						  || (z2 < z_current && z_current < z1) ) {
+							// paint normally, in this pipe's color
+						} else {
+							continue;
+						}
+					}
+				} else {
+					double z = layer_set.getLayer(p_layer[j]).getZ();
+					if (z < z_current) g.setColor(Color.red);
+					else if (z == z_current) g.setColor(this.color);
+					else g.setColor(Color.blue);
+				}
 
 				int fi = 0;
 				int la = j * 20 -1;
@@ -772,7 +807,8 @@ public class Pipe extends ZDisplayable {
 			updateInDatabase("dimensions");
 		}
 
-		Display.repaint(layer, this, 5); // the entire Displayable object
+		//Display.repaint(layer, this, 5); // the entire Displayable object
+		repaint(true);
 
 		// reset
 		is_new_point = false;
@@ -1427,32 +1463,31 @@ public class Pipe extends ZDisplayable {
 		String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		if (-1 == n_points) setupForDisplay(); // reload
-		if (0 == n_points) return;
+		//if (0 == n_points) return;
 		String[] RGB = Utils.getHexRGBColor(color);
-		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n")
-		       .append(in).append("d=\"M")
-		;
-		for (int i=0; i<n_points-1; i++) {
-			sb_body.append(" ").append(p[0][i]).append(",").append(p[1][i])
-			    .append(" C ").append(p_r[0][i]).append(",").append(p_r[1][i])
-			    .append(" ").append(p_l[0][i+1]).append(",").append(p_l[1][i+1])
-			;
+		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
+		if (n_points > 0) {
+			sb_body.append(in).append("d=\"M");
+			for (int i=0; i<n_points-1; i++) {
+				sb_body.append(" ").append(p[0][i]).append(",").append(p[1][i])
+				    .append(" C ").append(p_r[0][i]).append(",").append(p_r[1][i])
+				    .append(" ").append(p_l[0][i+1]).append(",").append(p_l[1][i+1])
+				;
+			}
+			sb_body.append(" ").append(p[0][n_points-1]).append(',').append(p[1][n_points-1]).append("\"\n");
+			sb_body.append(in).append("layer_ids=\""); // different from 'layer_id' in superclass
+			for (int i=0; i<n_points; i++) {
+				sb_body.append(p_layer[i]);
+				if (n_points -1 != i) sb_body.append(",");
+			}
+			sb_body.append("\"\n");
+			sb_body.append(in).append("p_width=\"");
+			for (int i=0; i<n_points; i++) {
+				sb_body.append(p_width[i]);
+				if (n_points -1 != i) sb_body.append(",");
+			}
+			sb_body.append("\"\n");
 		}
-		sb_body.append(" ").append(p[0][n_points-1]).append(',').append(p[1][n_points-1]);
-		sb_body.append("\"\n")
-		    .append(in).append("layer_ids=\"") // different from 'layer_id' in superclass
-		;
-		for (int i=0; i<n_points; i++) {
-			sb_body.append(p_layer[i]);
-			if (n_points -1 != i) sb_body.append(",");
-		}
-		sb_body.append("\"\n");
-		sb_body.append(in).append("p_width=\"");
-		for (int i=0; i<n_points; i++) {
-			sb_body.append(p_width[i]);
-			if (n_points -1 != i) sb_body.append(",");
-		}
-		sb_body.append("\"\n");
 		sb_body.append(indent).append("/>\n");
 	}
 
@@ -1481,9 +1516,10 @@ public class Pipe extends ZDisplayable {
 		return null;
 	}
 
-	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	synchronized public Displayable clone(Project project) {
-		final Pipe copy = new Pipe(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), false, (AffineTransform)this.at.clone());
+	/** Performs a deep copy of this object, without the links. */
+	synchronized public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final Pipe copy = new Pipe(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, (AffineTransform)this.at.clone());
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
 		copy.n_points = n_points;
@@ -1494,14 +1530,13 @@ public class Pipe extends ZDisplayable {
 		copy.p_width = (double[])this.p_width.clone();
 		copy.p_i = new double[][]{(double[])this.p_i[0].clone(), (double[])this.p_i[1].clone()};
 		copy.p_width_i = (double[])this.p_width_i.clone();
-		// add
-		copy.layer = this.layer;
 		copy.addToDatabase();
 
 		return copy;
 	}
 
 	synchronized public List generateTriangles(double scale, int parallels, int resample) {
+		if (n_points < 2) return null;
 		// check minimum requirements.
 		if (parallels < 3) parallels = 3;
 		//
@@ -1595,9 +1630,10 @@ public class Pipe extends ZDisplayable {
 			py = vs.getPoints(1);
 			pz = vs.getPoints(2);
 			p_width_i = vs.getDependent(0);
+			//Utils.log("lengths:  " + px.length + ", " + py.length + ", " + pz.length + ", " + p_width_i.length);
 			n = vs.length();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 
 
@@ -1620,6 +1656,7 @@ public class Pipe extends ZDisplayable {
 		double sinn, coss;
 		int half_parallels = parallels/2;
 		for (int i=0; i<n-1; i++) {
+			//Utils.log2(i + " : " + px[i] + ", " + py[i] + ", " + pz[i]);
 			//First vector: from one realpoint to the next
 			//v3_P12 = new Vector3(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i], z_values[i+1] - z_values[i]);
 			v3_P12 = new Vector3(px[i+1] - px[i], py[i+1] - py[i], pz[i+1] - pz[i]);
@@ -1685,7 +1722,12 @@ public class Pipe extends ZDisplayable {
 				*/
 
 				v3_PR = v3_PR.normalize(v3_PR);
-				v3_PR = v3_PR.scale(p_width_i[i], v3_PR);
+				if (null == v3_PR) {
+					Utils.log2("vp_3r is null: most likely a point was repeated in the list, and thus the vector has length zero.");
+				}
+				v3_PR = v3_PR.scale(
+						p_width_i[i],
+						v3_PR);
 
 				circle[0] = v3_PR;
 				for (int q=1; q<parallels; q++) {
@@ -1774,6 +1816,7 @@ public class Pipe extends ZDisplayable {
 		return new Object[]{p, p_l, p_r, p_i, p_width, p_width_i};
 	}
 
+	/** Returns a non-calibrated VectorString3D. */
 	synchronized public VectorString3D asVectorString3D() {
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;
@@ -1826,7 +1869,40 @@ public class Pipe extends ZDisplayable {
 		try {
 			vs = new VectorString3D(px, py, pz, false);
 			vs.addDependent(p_width_i);
-		} catch (Exception e) { new IJError(e); }
+		} catch (Exception e) { IJError.print(e); }
 		return vs;
+	}
+
+	public String getInfo() {
+		if (-1 == n_points) setupForDisplay(); //reload
+		// measure length
+		VectorString3D vs = asVectorString3D();
+		vs.calibrate(this.layer_set.getCalibration());
+		double len = vs.computeLength(); // no resampling
+		return new StringBuffer("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
+	}
+
+	/** @param roi is expected in world coordinates. */
+	public boolean intersects(final Area area, final double z_first, final double z_last) {
+		// find lowest and highest Z
+		double min_z = Double.MAX_VALUE;
+		double max_z = 0;
+		for (int i=0; i<n_points; i++) {
+			double laz =layer_set.getLayer(p_layer[i]).getZ();
+			if (laz < min_z) min_z = laz;
+			if (laz > max_z) max_z = laz;
+		}
+		if (z_last < min_z || z_first > max_z) return false;
+		// check the roi
+		for (int i=0; i<n_points; i++)  {
+			final Polygon[] pol = getSubPerimeters(layer_set.getLayer(p_layer[i]));
+			for (int k=0; k<pol.length; k++) {
+				Area a = new Area(pol[k]).createTransformedArea(this.at);
+				a.intersect(area);
+				Rectangle r = a.getBounds();
+				if (0 != r.width && 0 != r.height) return true;
+			}
+		}
+		return false;
 	}
 }

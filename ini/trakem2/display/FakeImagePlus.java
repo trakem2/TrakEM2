@@ -191,6 +191,8 @@ public class FakeImagePlus extends ImagePlus {
 	}
 
 	public Calibration getCalibration() {
+		// initialization problems with ij1.40a
+		if (null == display || null == display.getLayer()) return new Calibration();
 		return display.getLayer().getParent().getCalibrationCopy();
 	}
 
@@ -206,4 +208,6 @@ public class FakeImagePlus extends ImagePlus {
 		//Utils.log2("Last temp is " + last_temp.getClass());
 		if (null != last_temp && !last_temp.equals(this)) last_temp.killRoi();
 	}
+
+	public synchronized void setSlice(int slice) {}
 }

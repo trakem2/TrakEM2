@@ -1,6 +1,6 @@
 package mpi.fruitfly.registration;
 
-import ij.IJ;
+import ini.trakem2.utils.Utils;
 
 import java.util.Iterator;
 import java.util.ArrayList;
@@ -371,12 +371,12 @@ public class TRModel2D extends Model {
 		}
 		if ( model == null )
 		{
-			IJ.log( "No model found." );
+			Utils.log2( "No model found." );
 		}
 		else
 		{
-			IJ.log( "Model with epsilon <= " + epsilon + " for " + inliers.size() + " inliers found." );
-			IJ.log( "  Affine transform: " + model.getAffine().toString() );
+			Utils.log2( "Model with epsilon <= " + epsilon + " for " + inliers.size() + " inliers found." );
+			Utils.log2( "  Affine transform: " + model.getAffine().toString() );
 		}
 				
 		return model;

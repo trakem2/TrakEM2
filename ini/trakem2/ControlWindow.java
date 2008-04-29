@@ -294,7 +294,7 @@ public class ControlWindow {
 						SwingUtilities.invokeAndWait(other[i]);
 					}
 					//Utils.log2("done");
-				} catch (Exception e) { new IJError(e); }
+				} catch (Exception e) { IJError.print(e); }
 			}
 		}.start();
 	}

@@ -129,6 +129,18 @@ public class DNDInsertImage implements DropTargetListener {
 				case 0: // as stack
 					// if importing image sequence as a stack:
 					String[] names = f.list();
+					int max_len = 0;
+					// fake natural sorting: pre-pad short names with zeros
+					for (int i=0; i<names.length; i++) {
+						if (names[i].length() > max_len) max_len = names[i].length();
+					}
+					for (int i=0; i<names.length; i++) {
+						while (names[i].length() < max_len) names[i] = "0" + names[i];
+					}
+					Utils.log2("stack size: " + names.length);
+					for (int i=0; i<names.length; i++) {
+						Utils.log2(names[i]);
+					}
 					Arrays.sort(names);
 					VirtualStack stack = new VirtualStack(10, 10, null, f.getAbsolutePath().replace('\\', '/')); // I don't care about the dimensions
 					for (int k=0; k<names.length; k++) {
@@ -148,8 +160,8 @@ public class DNDInsertImage implements DropTargetListener {
 					break;
 				}
 			} else {
-				Patch p = display.getProject().getLoader().importImage(display.getProject(), point.x, point.y, path);
-				if (null != p) display.getLayer().add(p);
+				// single image file (single image or a stack)
+				display.getProject().getLoader().importImage(display.getLayer(), point.x, point.y, path);
 			}
 			return true;
 		} else {

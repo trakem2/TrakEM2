@@ -39,6 +39,8 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
+import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.event.MouseEvent;
 import java.awt.BasicStroke;
 import java.awt.Stroke;
@@ -71,6 +73,33 @@ public class Dissector extends ZDisplayable {
 		int tag;
 		/** The dimensions of each box. */
 		int radius;
+
+		public Object clone() {
+			final Item copy = new Item();
+			copy.tag = this.tag;
+			copy.radius = radius;
+			copy.n_points = this.n_points;
+			copy.p = new double[2][this.p[0].length];
+			System.arraycopy(this.p[0], 0, copy.p[0], 0, this.p[0].length);
+			System.arraycopy(this.p[1], 0, copy.p[1], 0, this.p[1].length);
+			copy.p_layer = new long[this.p_layer.length];
+			System.arraycopy(this.p_layer, 0, copy.p_layer, 0, this.p_layer.length);
+			return copy;
+		}
+
+		boolean intersects(final Area area, final double z_first, final double z_last) {
+			for (int i=0; i<n_points; i++) {
+				Layer la = layer_set.getLayer(p_layer[i]);
+				if (la.getZ() >= z_first && la.getZ() <= z_last) {
+					for (int k=0; k<n_points; k++) {
+						if (area.contains(p[0][k], p[1][k])) return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		private Item() {}
 
 		private Item(int tag, int radius) {
 			this.tag = tag;
@@ -388,10 +417,14 @@ public class Dissector extends ZDisplayable {
 	}
 
 	/** Returns a deep copy. */
-	public Displayable clone(Project project) {
-		// TODO
-		Utils.log2("Cloning a Dissector not implemented yet.");
-		return null;
+	public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final Dissector copy = new Dissector(pr, nid, this.title, this.width, this.height, this.alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, (AffineTransform)this.at.clone());
+		for (Item item : this.al_items) {
+			copy.al_items.add((Item)item.clone());
+		}
+		copy.addToDatabase();
+		return copy;
 	}
 
 	public boolean isDeletable() {
@@ -566,5 +599,19 @@ public class Dissector extends ZDisplayable {
 	/** Always paint as box. TODO paint as the area of an associated ROI. */
 	public void paintSnapshot(final Graphics2D g, final double mag) {
 		paintAsBox(g);
+	}
+
+	public boolean intersects(final Area area, final double z_first, final double z_last) {
+		Area ai;
+		try {
+			ai = area.createTransformedArea(this.at.createInverse());
+		} catch (NoninvertibleTransformException nite) {
+			nite.printStackTrace();
+			return false;
+		}
+		for (Item item : al_items) {
+			if (item.intersects(ai, z_first, z_last)) return true;
+		}
+		return false;
 	}
 }

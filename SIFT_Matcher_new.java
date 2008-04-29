@@ -9,8 +9,8 @@ import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.registration.Feature;
 
-import imagescience.transform.*;
-import imagescience.image.Image;
+import imagescience.transforms.*;
+import imagescience.images.Image;
 
 import ij.plugin.*;
 import ij.gui.*;

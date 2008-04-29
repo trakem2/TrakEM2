@@ -47,6 +47,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -70,7 +71,7 @@ public class Project extends DBObject {
 	*/
 
 	/** Keep track of all open projects. */
-	static private ArrayList al_open_projects = new ArrayList();
+	static private ArrayList<Project> al_open_projects = new ArrayList<Project>();
 
 	private Loader loader;
 
@@ -83,6 +84,9 @@ public class Project extends DBObject {
 
 	/** The root LayerThing of the LayerTree. */
 	private LayerThing root_lt;
+
+	/** The root TemplateThing of the TemplateTree. */
+	private TemplateThing root_tt;
 
 	/** The root LayerSet that holds the layers. */
 	private LayerSet layer_set;
@@ -112,6 +116,19 @@ public class Project extends DBObject {
 		super(null, id);
 		this.title = title;
 		this.project = this;
+	}
+
+	static public Project getProject(final String title) {
+		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
+			Project pr = (Project)it.next();
+			if (pr.title.equals(title)) return pr;
+		}
+		return null;
+	}
+
+	/** Return a copy of the list of all open projects. */
+	static public ArrayList<Project> getProjects() {
+		return (ArrayList<Project>)al_open_projects.clone();
 	}
 
 	/** Create a new PostgreSQL-based TrakEM2 project. */
@@ -210,7 +227,7 @@ public class Project extends DBObject {
 			project.root_pt.setup();
 		} catch (Exception e) {
 			Utils.showMessage("Failed to retrieve the Thing tree for the project.");
-			new IJError(e); 
+			IJError.print(e); 
 			project.destroy();
 			return null;
 		}
@@ -247,7 +264,7 @@ public class Project extends DBObject {
 			project.root_lt = root_layer_thing;
 		} catch (Exception e) {
 			Utils.showMessage("Failed to retrieve the Layer tree for the project.");
-			new IJError(e);
+			IJError.print(e);
 			project.destroy();
 			return null;
 		}
@@ -268,52 +285,61 @@ public class Project extends DBObject {
 		return newFSProject(arg, null);
 	}
 
-	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for; if template_root is not null that is used; else, a template file is asked for. */
 	static public Project newFSProject(String arg, TemplateThing template_root) {
+		return newFSProject(arg, null, null);
+	}
+
+	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for; if template_root is not null that is used; else, a template file is asked for. */
+	static public Project newFSProject(String arg, TemplateThing template_root, String storage_folder) {
 		if (Utils.wrongImageJVersion()) return null;
 		try {
-			DirectoryChooser dc = new DirectoryChooser("Select storage folder");
-			String dir_project = dc.getDirectory();
-			if (null == dir_project) return null;
+			String dir_project = storage_folder;
+			if (null == dir_project || !new File(dir_project).isDirectory()) {
+				DirectoryChooser dc = new DirectoryChooser("Select storage folder");
+				dir_project = dc.getDirectory();
+				if (null == dir_project) return null; // user cancelled dialog
+			}
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
-			Project project = createNewProject(loader, arg == null || !arg.equals("blank"), template_root);
+			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
 			// help the helpless users:
 			if (null != project && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Creating automatic Display.");
+				// add a default layer
 				Layer layer = new Layer(project, 0, 1, project.layer_set);
 				project.layer_set.add(layer);
 				project.layer_tree.addLayer(project.layer_set, layer);
+				// create display
+				/*
 				Display display = new Display(project, layer);
 				Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
 				display.getCanvas().setup(0.25, srcRect);
 				display.updateTitle();
+				*/
+				Display.createDisplay(project, layer);
 			}
 			try {
 				Thread.sleep(200); // waiting cheaply for asynchronous swing calls
 			} catch (InterruptedException ie) {
 				ie.printStackTrace();
 			}
+
+			if (arg.equals("amira") || arg.equals("stack")) {
+				// forks into a task thread
+				loader.importStack(project.layer_set.getLayer(0), null, true);
+			}
+
 			return project;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}
 
-	/** Create a new Project using the given project as template. This means the DTD of the given project is copied, as well as the storage and mipmaps folders; everything else is empty in the new project. */
-	static public Project newFSProject(final Project pr) {
-		StringBuffer sb = new StringBuffer();
-		pr.exportDTD(sb, new HashSet(), "");
-		TemplateThing[] roots = DTDParser.parseDTD(sb); // should write a TemplateThing.duplicate() ... but then ids may collide, etc.
-		FSLoader loader = new FSLoader(pr.getLoader());
-		Project new_project = Project.createNewProject(loader, false, roots[0]);
-		new_project.ht_props.putAll(pr.ht_props);
-		return new_project;
-	}
-
-	/** Opens a project from an .xml file. If the path is null it'll be asked for.*/
-	static public Project openFSProject(final String path) {
+	/** Opens a project from an .xml file. If the path is null it'll be asked for.
+	 *  Only one project may be opened at a time.
+	 */
+	synchronized static public Project openFSProject(final String path) {
 		if (Utils.wrongImageJVersion()) return null;
 		final FSLoader loader = new FSLoader();
 		final Object[] data = loader.openFSProject(path);
@@ -329,6 +355,7 @@ public class Project extends DBObject {
 		final Project project = (Project)root_pt.getObject();
 		project.createLayerTemplates();
 		project.template_tree = new TemplateTree(project, root_tt);
+		project.root_tt = root_tt;
 		project.root_pt= root_pt;
 		project.project_tree = new ProjectTree(project, project.root_pt);
 		project.layer_tree = new LayerTree(project, root_lt);
@@ -367,7 +394,7 @@ public class Project extends DBObject {
 			}
 			project.project_tree.updateUILater(); // very important!!
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		// open any stored displays
 		final Bureaucrat burro = Display.openLater();
@@ -391,6 +418,9 @@ public class Project extends DBObject {
 					}
 				}
 			}.start();
+		} else {
+			// help the helpless users
+			Display.createDisplay(project, project.layer_set.getLayer(0));
 		}
 		return project;
 	}
@@ -399,7 +429,15 @@ public class Project extends DBObject {
 		return createNewProject(loader, ask_for_template, null);
 	}
 
+	static private Project createNewSubProject(Project source, Loader loader) {
+		return createNewProject(loader, false, source.root_tt, true);
+	}
+
 	static private Project createNewProject(Loader loader, boolean ask_for_template, TemplateThing template_root) {
+		return createNewProject(loader, ask_for_template, template_root, false);
+	}
+
+	static private Project createNewProject(Loader loader, boolean ask_for_template, TemplateThing template_root, boolean clone_ids) {
 		Project project = new Project(loader);
 		// ask for an XML properties file that defines the Thing objects that can be created
 		// (the XML file will be parsed into a TemplateTree filled with TemplateThing objects)
@@ -407,13 +445,19 @@ public class Project extends DBObject {
 		if (ask_for_template) template_root = project.loader.askForXMLTemplate(project);
 		if (null == template_root) {
 			template_root = new TemplateThing("anything");
-		}
+		} else if (clone_ids) {
+			// the given template_root belongs to another project from which we are cloning
+			template_root = template_root.clone(project, true);
+		} // else, use the given template_root as is.
 		// create tree
 		project.template_tree = new TemplateTree(project, template_root);
+		project.root_tt = template_root;
 		// collect unique TemplateThing instances
 		project.ht_unique_tt = template_root.getUniqueTypes(new Hashtable());
 		// add all TemplateThing objects to the database, recursively
-		template_root.addToDatabase(project);
+		if (!clone_ids) template_root.addToDatabase(project);
+		// else already done when cloning the root_tt
+
 		// create a non-database bound template for the project Thing
 		TemplateThing project_template = new TemplateThing("project");
 		project.ht_unique_tt.put("project", project_template);
@@ -421,7 +465,7 @@ public class Project extends DBObject {
 		// create the project Thing, to be root of the whole project thing tree
 		try {
 			project.root_pt= new ProjectThing(project_template, project, project);
-		} catch (Exception e) { new IJError(e); }
+		} catch (Exception e) { IJError.print(e); }
 		// create the user objects tree
 		project.project_tree = new ProjectTree(project, project.root_pt);
 		// create the layer's tree
@@ -432,7 +476,7 @@ public class Project extends DBObject {
 			project.layer_tree = new LayerTree(project, project.root_lt);
 		} catch (Exception e) {
 			project.remove();
-			new IJError(e);
+			IJError.print(e);
 		}
 		// create the project control window, containing the trees in a double JSplitPane
 		ControlWindow.add(project, project.template_tree, project.project_tree, project.layer_tree); // beware that this call is asynchronous, dispatched by the SwingUtilities.invokeLater to avoid havok with Swing components.
@@ -648,6 +692,15 @@ public class Project extends DBObject {
 		return root_pt.findChild(id);
 	}
 
+	public DBObject findById(final long id) {
+		if (this.id == id) return this;
+		DBObject dbo = layer_set.findById(id);
+		if (null != dbo) return dbo;
+		dbo = root_pt.findChild(id); // could call findObject(id), but all objects must exist in layer sets anyway.
+		if (null != dbo) return dbo;
+		return (DBObject)root_tt.findChild(id);
+	}
+
 	/** Find a LayerThing that contains the given object. */
 	public LayerThing findLayerThing(final Object ob) {
 		final Object lob = root_lt.findChild(ob);
@@ -681,7 +734,7 @@ public class Project extends DBObject {
 				Utils.log2("null ob for parent " + parent + " of " + d);
 			}
 			return parent.getObject().toString(); // the abstract thing should be enclosing a String object
-		} catch (Exception e) { new IJError(e); return null; }
+		} catch (Exception e) { IJError.print(e); return null; }
 	}
 
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */
@@ -700,6 +753,28 @@ public class Project extends DBObject {
 			title = type + "/" + title;
 			parent = (ProjectThing)parent.getParent();
 		}
+		return title;
+	}
+
+	/** Returns the first upstream user-defined name and type, and the id of the displayable tagged at the end.
+	 *  If no user-defined name is found, then the type is prepended to the id.
+	 */
+	public String getShortMeaningfulTitle(final Displayable d) {
+		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+		if (null == thing) return d.getTitle(); // happens if there is no associated node
+		ProjectThing parent = (ProjectThing)thing.getParent();
+		String title = "#" + d.getId();
+		while (null != parent) {
+			Object ob = parent.getObject();
+			String type = parent.getType();
+			if (!ob.equals(type)) { // meaning, something else was typed in as a title
+				title =  ob.toString() + " [" + type + "] " + title;
+				break;
+			}
+			parent = (ProjectThing)parent.getParent();
+		}
+		// if nothing found, prepend the type
+		if ('#' == title.charAt(0)) title = Project.getName(d.getClass()) + " " + title;
 		return title;
 	}
 
@@ -812,7 +887,7 @@ public class Project extends DBObject {
 		// 1 - TrakEM2 tag that encloses all hierarchies
 		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display)>\n");
 		// 2 - export user-defined templates
-		TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
+		//TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
 		sb_header.append(indent).append("<!ELEMENT ").append("project (").append(root_tt.getType()).append(")>\n");
 		sb_header.append(indent).append("<!ATTLIST project id NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project title NMTOKEN #REQUIRED>\n");
@@ -841,12 +916,12 @@ public class Project extends DBObject {
 
 	/** Returns the String to be used as Document Type of the XML file, generated from the name of the root template thing.*/
 	public String getDocType() {
-		TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
+		//TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
 		return "trakem2_" + root_tt.getType();
 	}
 
 	/** Find an instance containing the given tree. */
-	static public Project getInstance(DNDTree ob) {
+	static public Project getInstance(final DNDTree ob) {
 		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
 			Project project = (Project)it.next();
 			if (project.layer_tree.equals(ob)) return project;
@@ -897,12 +972,50 @@ public class Project extends DBObject {
 		return !input_disabled;
 	}
 
-	/** Create a new subproject for the given layer range and ROI. */
+	/** Create a new subproject for the given layer range and ROI.
+	*   Create a new Project using the given project as template. This means the DTD of the given project is copied, as well as the storage and mipmaps folders; everything else is empty in the new project. */
 	public Project createSubproject(final Rectangle roi, final Layer first, final Layer last) {
-		// make a new project using the given one as template
-		final Project pr = Project.newFSProject(first.getProject());
-		first.getParent().clone(pr, first, last, roi, true); // this is a "clone into" operation
-		return pr;
+		try {
+			// The order matters.
+			final Project pr = new Project(new FSLoader(this.getLoader()));
+			pr.id = this.id;
+			// copy properties
+			pr.title = this.title;
+			pr.ht_props.putAll(this.ht_props);
+			// copy template
+			pr.root_tt = this.root_tt.clone(pr, true);
+			pr.template_tree = new TemplateTree(pr, pr.root_tt);
+			pr.ht_unique_tt = root_tt.getUniqueTypes(new Hashtable());
+			TemplateThing project_template = new TemplateThing("project");
+			project_template.addChild(pr.root_tt);
+			pr.ht_unique_tt.put("project", project_template);
+			// create the layers templates
+			pr.createLayerTemplates();
+			// copy LayerSet and all involved Displayable objects
+			pr.layer_set = (LayerSet)this.layer_set.clone(pr, first, last, roi, false, true);
+			// create layer tree
+			pr.root_lt = new LayerThing(pr.layer_set_template, pr, pr.layer_set);
+			pr.layer_tree = new LayerTree(pr, pr.root_lt);
+			// add layer nodes to the layer tree (solving chicken-and-egg problem)
+			pr.layer_set.updateLayerTree();
+			// copy project tree
+			pr.root_pt = this.root_pt.subclone(pr);
+			pr.project_tree = new ProjectTree(pr, pr.root_pt);
+			// not copying node expanded state.
+			// register
+			al_open_projects.add(pr);
+			// add to gui:
+			ControlWindow.add(pr, pr.template_tree, pr.project_tree, pr.layer_tree);
+
+			// Above, the id of each object is preserved from this project into the subproject.
+
+			// The abstract structure should be copied in full regardless, without the basic objects
+			// included if they intersect the roi.
+
+			return pr;
+
+		} catch (Exception e) { e.printStackTrace(); }
+		return null;
 	}
 
 	public void parseXMLOptions(final Hashtable ht_attributes) {
@@ -917,6 +1030,10 @@ public class Project extends DBObject {
 	}
 	public String getProperty(final String key) {
 		return (String)ht_props.get(key);
+	}
+	public void setProperty(final String key, final String value) {
+		if (null == value) ht_props.remove(key);
+		else ht_props.put(key, value);
 	}
 	private final boolean addBox(final GenericDialog gd, final Class c) {
 		final String name = Project.getName(c);
@@ -952,6 +1069,8 @@ public class Project extends DBObject {
 		boolean link_dissectors = addBox(gd, Dissector.class);
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
+		boolean no_color_cues = "true".equals(ht_props.get("no_color_cues"));
+		gd.addCheckbox("Paint_color_cues", !no_color_cues);
 		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
@@ -962,6 +1081,9 @@ public class Project extends DBObject {
 		setLinkProp(link_dissectors, gd.getNextBoolean(), Dissector.class);
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
+		}
+		if (adjustProp("no_color_cues", no_color_cues, !gd.getNextBoolean())) {
+			Display.repaint(layer_set);
 		}
 	}
 }

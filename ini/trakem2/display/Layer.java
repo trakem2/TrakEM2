@@ -41,6 +41,7 @@ import java.util.Iterator;
 
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.Image;
 
 public class Layer extends DBObject {
@@ -163,6 +164,8 @@ public class Layer extends DBObject {
 	}
 
 	public String toString() {
+		if (null == parent) return "z=" + Utils.cutNumber(z, 4);
+		//return "z=" + Utils.cutNumber(z / parent.getCalibration().pixelDepth * z !!!?? I don't have the actual depth to correct with.
 		return "z=" + Utils.cutNumber(z, 4);
 	}
 
@@ -295,7 +298,7 @@ public class Layer extends DBObject {
 			/*can't ever be null//if (null != parent) */
 			parent.remove(this);
 			removeFromDatabase();
-		} catch (Exception e) { new IJError(e); return false; }
+		} catch (Exception e) { IJError.print(e); return false; }
 		return true;
 	}
 
@@ -372,6 +375,22 @@ public class Layer extends DBObject {
 		}
 		for (Object ob : al_displayables) {
 			if (c.equals(ob.getClass())) al.add((Displayable)ob); // cast only the few added, not all as it would in looping with  Displayabe d : al_displayables
+		}
+		return al;
+	}
+
+	/** Returns a list of all Displayable of class c that intersect the given roi. */
+	public ArrayList<Displayable> getDisplayables(final Class c, final Rectangle roi) {
+		final ArrayList<Displayable> al = getDisplayables(c);
+		final Area aroi = new Area(roi);
+		for (Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
+			Displayable d = it.next();
+			Area area = new Area(d.getPerimeter());
+			area.intersect(aroi);
+			Rectangle b = area.getBounds();
+			if (0 == b.width || 0 == b.height) {
+				it.remove();
+			}
 		}
 		return al;
 	}
@@ -561,6 +580,18 @@ public class Layer extends DBObject {
 			Display.repaint(this);
 		}
 	}
+	public void setAllVisible(boolean repaint) {
+		for (Displayable d : al_displayables) {
+			if (!d.isVisible()) d.setVisible(true, repaint);
+		}
+	}
+
+	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. */
+	public void hideExcept(ArrayList<Class> type, boolean repaint) {
+		for (Displayable d : al_displayables) {
+			if (!type.contains(d.getClass())) d.setVisible(false, repaint);
+		}
+	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		String in = indent + "\t";
@@ -577,8 +608,7 @@ public class Layer extends DBObject {
 		if (null != al_displayables) {
 			for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				// don't include in the XML file if the object is empty
-				if (!d.isDeletable()) d.exportXML(sb_body, in, any);
+				d.exportXML(sb_body, in, any);
 			}
 		}
 		// 3 - close tag
@@ -598,8 +628,8 @@ public class Layer extends DBObject {
 
 	public String getTitle() {
 		LayerThing lt = project.findLayerThing(this);
-		if (null == lt) return this.toString();
-		return lt.getTitle(); //lt.toString();
+		if (null == lt || null == lt.getTitle() || 0 == lt.getTitle().trim().length()) return this.toString();
+		return lt.getTitle();
 	}
 
 	public void destroy() {
@@ -637,16 +667,18 @@ public class Layer extends DBObject {
 	}
 
 	/** Make a copy of this layer into the given LayerSet, enclosing only Displayable objects within the roi, and translating them for that roi x,y. */
-	public Layer clone(final Project pr, LayerSet ls, final Rectangle roi) {
-		final Layer clone = new Layer(pr, z, thickness, ls);
+	public Layer clone(final Project pr, LayerSet ls, final Rectangle roi, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final Layer copy = new Layer(pr, nid, z, thickness);
+		copy.parent = ls;
 		for (Iterator it = find(roi).iterator(); it.hasNext(); ) {
-			Displayable copy = ((Displayable)it.next()).clone(pr);
-			if (null != copy) clone.addSilently(copy); // Dissector.clone is not implemented yet, and LayerSet can't be cloned so far
+			Displayable dc = ((Displayable)it.next()).clone(pr, copy_id);
+			copy.addSilently(dc);
 		}
 		final AffineTransform transform = new AffineTransform();
 		transform.translate(-roi.x, -roi.y);
-		clone.apply(Displayable.class, transform);
-		return clone;
+		copy.apply(Displayable.class, transform);
+		return copy;
 	}
 
 	static public final int IMAGEPROCESSOR = 0;
@@ -658,16 +690,16 @@ public class Layer extends DBObject {
 	 *  The type is either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB.
 	 *  The format is either Layer.IMAGEPROCESSOR, Layer.IMAGEPLUS, Layer.PIXELARRAY or Layer.IMAGE.
 	 */
-	public Object grab(final Rectangle r, final double scale, final Class c, final int format, final int type) {
+	public Object grab(final Rectangle r, final double scale, final Class c, final int c_alphas, final int format, final int type) {
 		// check that it will fit in memory
 		if (!project.getLoader().releaseToFit(r.width, r.height, type, 1.1f)) {
 			Utils.log("Layer.grab: Cannot fit a flat image of " + (long)(r.width*r.height*(ImagePlus.GRAY8==type?1:4)*1.1) + " bytes in memory.");
 			return null;
 		}
 		if (IMAGE == format) {
-			return project.getLoader().getFlatAWTImage(this, r, scale, 1, type, c, null, true);
+			return project.getLoader().getFlatAWTImage(this, r, scale, c_alphas, type, c, null, true);
 		} else {
-			final ImagePlus imp = project.getLoader().getFlatImage(this, r, scale, 1, type, c, null, true);
+			final ImagePlus imp = project.getLoader().getFlatImage(this, r, scale, c_alphas, type, c, null, true);
 			switch (format) {
 				case IMAGEPLUS:
 					return imp;
@@ -678,5 +710,29 @@ public class Layer extends DBObject {
 			}
 		}
 		return null;
+	}
+
+	public DBObject findById(final long id) {
+		if (this.id == id) return this;
+		for (Displayable d : al_displayables) {
+			if (d.getId() == id) return d;
+		}
+		return null;
+	}
+
+	// private to the package
+	void linkPatchesR() {
+		for (Displayable d : al_displayables) {
+			if (d.getClass().equals(LayerSet.class)) ((LayerSet)d).linkPatchesR();
+			d.linkPatches(); // Patch.class does nothing
+		}
+	}
+
+	/** Recursive into nested LayerSet objects.*/
+	public void updateLayerTree() {
+		project.getLayerTree().addLayer(parent, this);
+		for (Displayable d : getDisplayables(LayerSet.class)) {
+			((LayerSet)d).updateLayerTree();
+		}
 	}
 }

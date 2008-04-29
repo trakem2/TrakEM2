@@ -72,13 +72,13 @@ public class TrakEM2MLParser {
 			parser.parse(input_source, handler);
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			if (null != i_stream) {
 				try {
 					i_stream.close();
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 			}
 		}
@@ -97,13 +97,13 @@ public class TrakEM2MLParser {
 			parser.parse(input_source, handler);
 
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			if (null != xml_stream) {
 				try {
 					xml_stream.close();
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				}
 			}
 		}

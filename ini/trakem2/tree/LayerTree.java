@@ -123,6 +123,8 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				if (type_first.equals("layer")) {
 					item = new JMenuItem("Reverse layer Z coords"); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("Translate layers in Z..."); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Scale Z and thickness..."); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Delete..."); item.addActionListener(this); popup.add(item);
 				}
 				if (popup.getSubElements().length > 0) {
 					popup.show(this, x, y);
@@ -177,7 +179,6 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 			// commands for multiple selections:
 			TreePath[] paths = this.getSelectionPaths();
 			if (null != paths && paths.length > 1) {
-				Utils.log("paths.length = " + paths.length);
 				if (command.equals("Reverse layer Z coords")) {
 					// check that all layers belong to the same layer set
 					// just do it
@@ -219,9 +220,6 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 					}
 					for (Iterator it = hs_parents.iterator(); it.hasNext(); ) {
 						updateList((LayerSet)it.next());
-						//try {
-						//	Thread.sleep(100); // swing swing my dear!
-						//} catch (InterruptedException ie) {}
 					}
 					// now update all profile's Z ordering in the ProjectTree
 					final Project project = Project.getInstance(this);
@@ -235,7 +233,38 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 					project.getProjectTree().updateUILater();
 					//Display.updateLayerScroller((LayerSet)((DefaultMutableTreeNode)getModel().getRoot()).getUserObject());
 				} else if (command.equals("Delete...")) {
-					// TODO
+					if (!Utils.check("Really remove all selected layers?")) return;
+					for (int i=0; i<paths.length; i++) {
+						DefaultMutableTreeNode lnode = (DefaultMutableTreeNode)paths[i].getLastPathComponent();
+						LayerThing lt = (LayerThing)lnode.getUserObject();
+						Layer layer = (Layer)lt.getObject();
+						if (!layer.remove(false)) {
+							Utils.showMessage("Could not delete layer " + layer);
+							this.updateUILater();
+							return;
+						}
+						if (lt.remove(false)) {
+							((DefaultTreeModel)this.getModel()).removeNodeFromParent(lnode);
+						}
+					}
+					this.updateUILater();
+				} else if (command.equals("Scale Z and thickness...")) {
+					GenericDialog gd = new GenericDialog("Scale Z");
+					gd.addNumericField("scale: ", 1.0, 2);
+					gd.showDialog();
+					double scale = gd.getNextNumber();
+					if (Double.isNaN(scale) || 0 == scale) {
+						Utils.showMessage("Imvalid scaling factor: " + scale);
+						return;
+					}
+					for (int i=0; i<paths.length; i++) {
+						DefaultMutableTreeNode lnode = (DefaultMutableTreeNode)paths[i].getLastPathComponent();
+						LayerThing lt = (LayerThing)lnode.getUserObject();
+						Layer layer = (Layer)lt.getObject();
+						layer.setZ(layer.getZ() * scale);
+						layer.setThickness(layer.getThickness() * scale);
+					}
+					this.updateUILater();
 				} else {
 					Utils.showMessage("Don't know what to do with command " + command + " for multiple selected nodes");
 				}
@@ -510,7 +539,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 			this.scrollPathToVisible(treePath);
 			this.setSelectionPath(treePath);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -573,7 +602,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				this.scrollPathToVisible(treePath);
 				this.setSelectionPath(treePath);
 			}
-		} catch (Exception e) { new IJError(e); }
+		} catch (Exception e) { IJError.print(e); }
 	}
 
 	public void destroy() {

@@ -154,16 +154,17 @@ public class DLabel extends Displayable {
 		if (null == title) reload();
 		int[] ib = new int[] {
 			title.indexOf('\n'),
-			title.indexOf(','),
-			title.indexOf(' '),
+			/*title.indexOf(','),*/
+			/*title.indexOf(' '),*/
 			title.indexOf('\t')
 		};
-		int min = 10;
+		int min = title.length();
 		for (int i=0; i<ib.length; i++)
-			if (-1 != ib[i] && ib[i] < min)
+			if (-1 != ib[i] /* && ib[i] < min*/)
 				min = ib[i];
-		if (min > title.length()) return title;
-		return title.substring(0, min);
+		//if (min > title.length()) return title;
+		//return title.substring(0, min);
+		return title;
 	}
 
 	public String toString() {
@@ -360,7 +361,7 @@ public class DLabel extends Displayable {
 			} else {
 				//label.setTitle("  "); // double space
 				// delete the empty label
-				label.remove(true);
+				label.remove(false);
 			}
 			dispose();
 			Display.repaint(layer, label, 1);
@@ -462,17 +463,15 @@ public class DLabel extends Displayable {
 		setText(this.title, true);
 	}
 
-	/** Performs a deep copy of this object, without the links, unlocked and visible. */
-	public Displayable clone(Project project) {
-		final DLabel copy = new DLabel(project, project.getLoader().getNextId(), title, width, height, type, font.getName(), font.getStyle(), font.getSize(), false, (AffineTransform)this.at.clone());
+	/** Performs a deep copy of this object, except for the Layer pointer. */
+	public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final DLabel copy = new DLabel(pr, nid, title, width, height, type, font.getName(), font.getStyle(), font.getSize(), this.locked, (AffineTransform)this.at.clone());
 		copy.alpha = this.alpha;
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
-		copy.visible = true;
+		copy.visible = this.visible;
 		// add
-		copy.layer = this.layer;
-		copy.layer.add(copy); // TODO: added to the Layer !?!?
 		copy.addToDatabase();
-		Display.repaint(layer, this, 5);
 		return copy;
 	}
 }

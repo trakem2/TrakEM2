@@ -40,6 +40,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JMenu;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
+import java.util.regex.Pattern;
 
 
 public class TemplateTree extends DNDTree implements MouseListener, ActionListener {
@@ -61,9 +62,10 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 			return;
 		}
 		// allow right-click only
-		if (!(me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK))) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
+		/*if (!(me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK))) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
 			return;
-		}
+		}*/
+		if (!Utils.isPopupTrigger(me)) return;
 		int x = me.getX();
 		int y = me.getY();
 		// find the node and set it selected
@@ -240,7 +242,17 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 					Utils.showMessage("Type '" + new_type + "' is reserved.\nPlease choose a different name.");
 					return;
 				}
+				
+				// replace spaces before testing for non-alphanumeric chars
 				new_type = new_type.replace(' ', '_'); // spaces don't play well in an XML file.
+
+				String pattern = "^.*[^a-zA-Z0-9_-].*$";
+				final Pattern pat = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
+				if (pat.matcher(new_type).matches()) {
+					Utils.showMessage("Only alphanumeric characters, underscore, hyphen and space are accepted.");
+					return;
+				}
+
 				tet = new TemplateThing(new_type, tt.getProject());
 				tt.getProject().addUniqueType(tet);
 			} else {

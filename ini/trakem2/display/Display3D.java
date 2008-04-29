@@ -36,6 +36,7 @@ import javax.vecmath.Point3f;
 import javax.vecmath.Color3f;
 import javax.vecmath.Vector3f;
 import javax.media.j3d.View;
+import javax.media.j3d.Transform3D;
 
 import ij3d.ImageWindow3D;
 import ij3d.Image3DUniverse;
@@ -52,11 +53,9 @@ public class Display3D {
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
 	private Hashtable ht_pt_meshes = new Hashtable();
 
-	private Image3DUniverse universe;
+	private Display3DUniverse universe;
 
-	private Object u_lock = new Object();
-	private boolean u_locked = false;
-
+	private Lock u_lock = new Lock();
 
 	private ImageWindow3D win;
 	private LayerSet layer_set;
@@ -72,28 +71,178 @@ public class Display3D {
 	/** Defaults to parallel projection. */
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
-		this.universe = new Image3DUniverse(512, 512); // size of the initial canvas, not the universe itself
+		this.universe = new Display3DUniverse(512, 512); // size of the initial canvas, not the universe itself
 		this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
 		computeScale(ls);
 		this.win = new ImageWindow3D("3D Viewer", this.universe);
 		this.win.addWindowListener(new IW3DListener(ls));
 		this.win.setMenuBar(new Image3DMenubar(universe));
+		this.universe.setWindow(win);
 		// register
 		Display3D.ht_layer_sets.put(ls, this);
 	}
 
-	private final void lock() {
-		//Utils.log("entering lock");
-		while (u_locked) { try { u_lock.wait(); } catch (InterruptedException ie) {} }
-		u_locked = true;
-		//Utils.log("\tlocked");
-	}
-	private final void unlock() {
-		if (u_locked) {
-			//Utils.log("unlocking");
-			u_locked = false;
-			u_lock.notifyAll();
+	private class Display3DUniverse extends Image3DUniverse {
+		boolean noOffscreen = true;
+		Display3DUniverse(int w, int h) {
+			super(w, h);
+			noOffscreen = "true".equals(System.getProperty("j3d.noOffScreen"));
 		}
+		void setWindow(ImageWindow3D win) {
+			this.win = win;
+		}
+
+		/** The transforms given as arguments are applied to the following transform groups,
+		 *  each one in control of the named property:
+		 *
+		 *  scaleTG contains rotationsTG
+		 *  rotationsTG contains translateTG
+		 *  translateTG contains centerTG
+		 *  centerTG contains the whole scene.
+		 *
+		 *  Any null arg implies the default transform for that parameter.
+		 */
+		public ImagePlus makeSnapshot(final Transform3D scale, final Transform3D rotate, final Transform3D translate, final Transform3D center) {
+			// freeze view
+			try {
+				getCanvas().getView().stopView();
+			} catch (Exception e) {
+				e.printStackTrace();
+				return null;
+			}
+
+			ImagePlus imp = null;
+
+			try {
+				// record current transform
+				Transform3D s = new Transform3D();	scaleTG.getTransform(s);
+				Transform3D r = new Transform3D();	rotationsTG.getTransform(r);
+				Transform3D t = new Transform3D();	translateTG.getTransform(t);
+				Transform3D c = new Transform3D();	centerTG.getTransform(c);
+
+				// set transforms
+				getViewingPlatform().setNominalViewingTransform();
+				Transform3D tg = null;
+				if (null != scale) {
+					scaleTG.setTransform(scale);
+					transformChanged(-1, scaleTG);
+				}
+				if (null != rotate) {
+					rotationsTG.setTransform(rotate);
+					transformChanged(-1, rotationsTG);
+				}
+				if (null != translate) {
+					translateTG.setTransform(translate);
+					transformChanged(-1, translateTG);
+				}
+				if (null != center) {
+					centerTG.setTransform(center);
+					transformChanged(-1, centerTG);
+				}
+
+				// capture
+				// 1. Pre-render: renders the previous position,
+				//    prior to acknowledging that any transforms have changed.
+				getCanvas().getView().renderOnce();
+				Utils.sleep(100);
+				// 2. Actual render with the new conditions.
+				getCanvas().getView().renderOnce();
+				Utils.sleep(100);
+
+				// bring window to front
+				if (noOffscreen) {
+					win.toFront();
+					Utils.sleep(300);
+				}
+
+				// capture from offscreen or from a screenshot -hence needs toFront()
+				win.updateImagePlus();
+				imp = new ImagePlus("snapshot", win.getImagePlus().getProcessor().duplicate());
+
+				// restore
+				scaleTG.setTransform(s);	transformChanged(-1, scaleTG);
+				rotationsTG.setTransform(r);	transformChanged(-1, rotationsTG);
+				translateTG.setTransform(t);	transformChanged(-1, translateTG);
+				centerTG.setTransform(c);	transformChanged(-1, centerTG);
+			} catch (Exception ee) {
+				ee.printStackTrace();
+			} finally {
+				// resume view
+				getCanvas().getView().startView();
+			}
+
+			return imp;
+		}
+
+		/** Print the current transform of each TransformGroup in charge of scaling, rotation, translation, and centering. */
+		public void printTransforms() {
+			Transform3D s = new Transform3D();	scaleTG.getTransform(s);
+			Transform3D r = new Transform3D();	rotationsTG.getTransform(r);
+			Transform3D t = new Transform3D();	translateTG.getTransform(t);
+			Transform3D c = new Transform3D();	centerTG.getTransform(c);
+			Utils.log2("Current scaleTG transform: " + s);
+			Utils.log2("Current rotationsTG transform: " + r);
+			Utils.log2("Current translateTG transform: " + t);
+			Utils.log2("Current centerTG transform: " + c);
+		}
+	}
+
+	public Display3DUniverse getUniverse() {
+		return universe;
+	}
+
+	/* Take a snapshot know-it-all mode. Each Transform3D given as argument gets assigned to the (nearly) homonimous TransformGroup, which have the following relationships:
+	 *
+	 *  scaleTG contains rotationsTG
+	 *  rotationsTG contains translateTG
+	 *  translateTG contains centerTG
+	 *  centerTG contains the whole scene, with all meshes, etc.
+	 *
+	 *  Any null arguments imply the current transform in the open Display3D.
+	 *
+	 *  By default, a newly created Display3D has the scale and center transforms modified to make the scene fit nicely centered (and a bit scaled down) in the given Display3D window. The translate and rotate transforms are set to identity.
+	 *
+	 *  The TransformGroup instances may be reached like this:
+	 *
+	 *  LayerSet layer_set = Display.getFrontLayer().getParent();
+	 *  Display3D d3d = Display3D.getDisplay(layer_set);
+	 *  TransformGroup scaleTG = d3d.getUniverse().getGlobalScale();
+	 *  TransformGroup rotationsTG = d3d.getUniverse().getGlobalRotate();
+	 *  TransformGroup translateTG = d3d.getUniverse().getGlobalTranslate();
+	 *  TransformGroup centerTG = d3d.getUniverse().getCenterTG();
+	 *
+	 *  ... and the Transform3D from each may be read out indirectly like this:
+	 *
+	 *  Transform3D t_scale = new Transform3D();
+	 *  scaleTG.getTransform(t_scale);
+	 *  ...
+	 *
+	 * WARNING: if your java3d setup does not support offscreen rendering, the Display3D window will be brought to the front and a screen snapshot cropped to it to perform the snapshot capture. Don't cover the Display3D window with any other windows (not even an screen saver).
+	 *
+	 */
+	public ImagePlus makeSnapshot(final Transform3D scale, final Transform3D rotate, final Transform3D translate, final Transform3D center) {
+		return universe.makeSnapshot(scale, rotate, translate, center);
+	}
+
+	/** Uses current scaling, translation and centering transforms! */
+	public ImagePlus makeSnapshotXY() {
+		// default view
+		return universe.makeSnapshot(null, new Transform3D(), null, null);
+	}
+	/** Uses current scaling, translation and centering transforms! */
+	public ImagePlus makeSnapshotXZ() {
+		Transform3D rot = new Transform3D();
+		rot.rotX(-Math.PI/2); // 90 degrees clockwise
+		return universe.makeSnapshot(null, rot, null, null);
+	}
+	/** Uses current scaling, translation and centering transforms! */
+	public ImagePlus makeSnapshotYZ() {
+		Transform3D rot1 = new Transform3D();
+		rot1.rotX(-Math.PI/2);
+		Transform3D rot2 = new Transform3D();
+		rot2.rotZ(-Math.PI/2); // 90 degrees clockwise
+		rot1.mul(rot2);
+		return universe.makeSnapshot(null, rot1, null, null);
 	}
 
 	private class IW3DListener extends WindowAdapter {
@@ -103,95 +252,6 @@ public class Display3D {
 		}
 		public void windowClosing(WindowEvent we) {
 			ht_layer_sets.remove(ls);
-		}
-	}
-
-	private class D3DMenuBar extends MenuBar implements ActionListener, ItemListener {
-		CheckboxMenuItem perspective;
-		Menu selection;
-		D3DMenuBar() {
-			Menu file = new Menu("File");
-			this.add(file);
-			addItem("Export all (.obj)", file);
-			addItem("Export all (.dxf)", file);
-			file.addSeparator();
-			addItem("Export selected (.obj)", file);
-			addItem("Export selected (.dxf)", file);
-
-			Menu main = new Menu("Viewer");
-			this.add(main);
-			addItem("Reset view", main);
-			main.addSeparator();
-			addItem("Start animation", main);
-			addItem("Stop animation", main);
-			main.addSeparator();
-			addItem("Start recording", main);
-			addItem("Stop recording", main);
-			main.addSeparator();
-			perspective = new CheckboxMenuItem("Perspective Projection", false);
-			perspective.addItemListener(this);
-			main.add(perspective);
-
-			selection = new Menu("Selected: none");
-			this.add(selection);
-			addItem("Remove from view", selection);
-		}
-		private void addItem(String command, Menu menu) {
-			MenuItem item = new MenuItem(command);
-			item.addActionListener(this);
-			menu.add(item);
-		}
-		public void itemStateChanged(ItemEvent e) {
-			if(e.getSource() == perspective) {
-				int policy = perspective.getState() 
-							? View.PERSPECTIVE_PROJECTION 
-							: View.PARALLEL_PROJECTION;
-				universe.getViewer().getView().setProjectionPolicy(policy);
-			}
-		}
-		public void actionPerformed(ActionEvent ae) {
-			final String command = ae.getActionCommand();
-			if (command.equals("Reset view")) {
-				universe.resetView();
-			} else if (command.equals("Start recording")) {
-				universe.startRecording();
-			} else if (command.equals("Stop recording")) {
-				ImagePlus movie = universe.stopRecording();
-				if (null != movie) movie.show();
-			} else if (command.equals("Start animation")) {
-				universe.startAnimation();
-			} else if (command.equals("Stop animation")) {
-				universe.pauseAnimation();
-			} else if (command.equals("Remove from view")) {
-				// find the ProjectThing with the given id
-				if (null == selected) return;
-				ProjectThing pt = find(selected);
-				if (null != pt) {
-					synchronized (u_lock) {
-						lock();
-						try {
-							Displayable displ = (Displayable)pt.getObject();
-							universe.removeContent(displ.getTitle() + " #" + displ.getId());
-						} catch (Exception e) {
-							new IJError(e);
-						}
-						unlock();
-					}
-					setSelected(null);
-					ht_pt_meshes.remove(pt);
-				}
-			} else if (command.startsWith("Export all")) {
-				export(null, command.substring(13, 16));
-			} else if (command.startsWith("Export selected")) {
-				ProjectThing pt = find(selected);
-				if (null != pt) export(pt, command.substring(18, 21));
-			} else {
-				Utils.log2("Display3D.menubar: Don't know what to do with command '" + command + "'");
-			}
-		}
-		final void setSelected(String name) {
-			if (null == name) name = "none";
-			selection.setLabel("Selected: " + name);
 		}
 	}
 
@@ -222,7 +282,7 @@ public class Display3D {
 			width *= scale;
 			height = MAX_DIMENSION;
 		}
-		Utils.log2("scale, width, height: " + scale + ", " + width + ", " + height);
+		//Utils.log2("scale, width, height: " + scale + ", " + width + ", " + height);
 	}
 
 	/** Get an existing Display3D for the given LayerSet, or create a new one for it (and cache it). */
@@ -249,9 +309,14 @@ public class Display3D {
 			}
 			return (Display3D)ob;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
+	}
+
+	/** Get the Display3D instance that exists for the given LayerSet, if any. */
+	static public Display3D getDisplay(final LayerSet ls) {
+		return (Display3D)ht_layer_sets.get(ls);
 	}
 
 	static public void setWaitingCursor() {
@@ -266,8 +331,12 @@ public class Display3D {
 		}
 	}
 
-	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one.*/
 	static public void show(ProjectThing pt) {
+		show(pt, false, -1);
+	}
+
+	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one. If true == wait && -1 != resample, then the method returns only when the mesh/es have been added. */
+	static public void show(ProjectThing pt, boolean wait, int resample) {
 		try {
 			// scan the given ProjectThing for 3D-viewable items not present in the ht_meshes
 			// So: find arealist, pipe, ball, and profile_list types
@@ -281,16 +350,11 @@ public class Display3D {
 				// obtain the Displayable object under the node
 				ProjectThing child = (ProjectThing)it.next();
 				Object obc = child.getObject();
-				/*
-				if (obc.equals("profile_list")) {
-					Utils.log("Display3D can't handle profile lists at the moment.");
-					continue;
-				}
-				*/
 				Displayable displ = obc.getClass().equals(String.class) ? null : (Displayable)obc;
 				if (null != displ) {
 					if (displ.getClass().equals(Profile.class)) {
-						Utils.log("Display3D can't handle Bezier profiles at the moment.");
+						//Utils.log("Display3D can't handle Bezier profiles at the moment.");
+						// handled by profile_list Thing
 						continue;
 					}
 					if (!displ.isVisible()) {
@@ -298,7 +362,7 @@ public class Display3D {
 						continue;
 					}
 				}
-				StopWatch sw = new StopWatch();
+				//StopWatch sw = new StopWatch();
 				// obtain the containing LayerSet
 				Display3D d3d = null;
 				if (null != displ) d3d = Display3D.get(displ.getLayerSet());
@@ -307,6 +371,8 @@ public class Display3D {
 					if (null == al_children || 0 == al_children.size()) continue;
 					// else, get the first Profile and get its LayerSet
 					d3d = Display3D.get(((Displayable)((ProjectThing)al_children.get(0)).getObject()).getLayerSet());
+				} else {
+					Utils.log("Don't know what to do with node " + child);
 				}
 				if (null == d3d) {
 					Utils.log("Could not get a proper 3D display for node " + displ);
@@ -317,12 +383,16 @@ public class Display3D {
 					continue; // already here
 				}
 				setWaitingCursor(); // the above may be creating a display
-				sw.elapsed("after creating and/or retrieving Display3D");
-				d3d.addMesh(child, displ);
-				sw.elapsed("after creating mesh");
+				//sw.elapsed("after creating and/or retrieving Display3D");
+				Thread t = d3d.addMesh(child, displ, resample);
+				if (wait && -1 != d3d.resample) {
+					Utils.log("joining...");
+					try { t.join(); } catch (Exception e) { e.printStackTrace(); }
+				}
+				//sw.elapsed("after creating mesh");
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			doneWaiting();
 		}
@@ -539,15 +609,21 @@ public class Display3D {
 		Object ob = pt.getObject();
 		if (!(ob instanceof Displayable)) return;
 		Displayable displ = (Displayable)ob;
-		Object d3ob = ht_layer_sets.get(displ.getLayerSet());
+		Object d3ob = ht_layer_sets.get(displ.getLayerSet()); // TODO profile_list is going to fail here
 		if (null == d3ob) {
 			// there is no Display3D showing the pt to remove
+			Utils.log2("No Display3D contains ProjectThing: " + pt);
 			return;
 		}
 		Display3D d3d = (Display3D)d3ob;
 		Object ob_mesh = d3d.ht_pt_meshes.remove(pt);
-		if (null == ob_mesh) return; // not contained here
-		d3d.universe.removeContent(displ.getTitle()); // WARNING if the title changes, problems: will need a table of pt vs title as it was when added to the universe. At the moment titles are not editable for basic types, but this may change in the future.
+		if (null == ob_mesh) {
+			Utils.log2("No mesh contained within " + d3d + " for ProjectThing " + pt);
+			return; // not contained here
+		}
+		String title = displ.getTitle() + " #" + displ.getId();
+		//Utils.log(d3d.universe.contains(title) + ": Universe contains " + displ);
+		d3d.universe.removeContent(title); // WARNING if the title changes, problems: will need a table of pt vs title as it was when added to the universe. At the moment titles are not editable for basic types, but this may change in the future. TODO the future is here: titles are editable for basic types.
 	}
 
 	static private void writeTrianglesDXF(final StringBuffer sb, final List triangles, final String the_group, final String the_color) {
@@ -583,11 +659,11 @@ public class Display3D {
 		}
 	}
 
-	static private final int MAX_THREADS = Runtime.getRuntime().availableProcessors();
+	static private final int MAX_THREADS = 1; //Runtime.getRuntime().availableProcessors();
 	static private final Vector v_threads = new Vector(MAX_THREADS); // synchronized
 
 	/** Creates a mesh for the given Displayable in a separate Thread. */
-	private Thread addMesh(final ProjectThing pt, final Displayable displ) {
+	private Thread addMesh(final ProjectThing pt, final Displayable displ, final int resample) {
 		final double scale = this.scale;
 		Thread thread = new Thread() {
 			public void run() {
@@ -601,15 +677,17 @@ public class Display3D {
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
 		List triangles = null;
 		if (displ instanceof AreaList) {
-			adjustResampling();
-			triangles = ((AreaList)displ).generateTriangles(scale, resample);
+			int rs = resample;
+			if (-1 == resample) rs = Display3D.this.resample = adjustResampling(); // will adjust this.resample, and return it (even if it's a default value)
+			else rs = Display3D.this.resample;
+			triangles = ((AreaList)displ).generateTriangles(scale, rs);
 			//triangles = removeNonManifold(triangles);
 		} else if (displ instanceof Ball) {
 			double[][][] globe = Ball.generateGlobe(12, 12);
 			triangles = ((Ball)displ).generateTriangles(scale, globe);
 		} else if (displ instanceof Pipe) {
 			// adjustResampling();  // fails horribly, needs first to correct mesh-generation code
-			triangles = ((Pipe)displ).generateTriangles(scale, 12, 1 /*resample*/);
+			triangles = ((Pipe)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 		}
@@ -641,10 +719,10 @@ public class Display3D {
 		}
 		// add to 3D view (synchronized)
 		synchronized (u_lock) {
-			lock();
+			u_lock.lock();
 			try {
 				// craft a unique title (id is always unique)
-				String title = null == displ ? pt.toString() + " #" + pt.getId() : displ.getTitle() + " #" + displ.getId();
+				String title = null == displ ? pt.toString() + " #" + pt.getId() : displ.getProject().getMeaningfulTitle(displ) + " #" + displ.getId();
 				if (ht_pt_meshes.contains(pt)) {
 					// remove content from universe
 					universe.removeContent(title);
@@ -660,15 +738,15 @@ public class Display3D {
 				ct.setTransparency(1f - alpha);
 				ct.toggleLock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
-			unlock();
+			u_lock.unlock();
 		}
 
 		Utils.log2(pt.toString() + " n points: " + triangles.size());
 
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				} finally {
 					v_threads.remove(this);
 				}
@@ -695,29 +773,31 @@ public class Display3D {
 		/////
 
 		// temporary:
-		double[] wi = new double[vs.length()];
+		double[] wi = new double[vs.getPoints(0).length];
+		//Utils.log2("len: " + wi.length + vs.getPoints(0).length + vs.getPoints(1).length);
 		Arrays.fill(wi, 2.0);
 		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12), scale);
 		// add to 3D view (synchronized)
 		synchronized (d3d.u_lock) {
-			d3d.lock();
+			d3d.u_lock.lock();
 			try {
 				// ensure proper default transform
 				d3d.universe.resetView();
 				//
+				//Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
 				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
 				Content ct = d3d.universe.getContent(title);
 				// no need, it's default //ct.setTransparency(1f);
 				ct.toggleLock();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
-			d3d.unlock();
+			d3d.u_lock.unlock();
 		}
 
 		/////
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				} finally {
 					v_threads.remove(this);
 				}
@@ -729,16 +809,17 @@ public class Display3D {
 	}
 
 	// This method has the exclusivity in adjusting the resampling value.
-	synchronized private final void adjustResampling() {
-		if (resample > 0) return;
+	synchronized private final int adjustResampling() {
+		if (resample > 0) return resample;
 		final GenericDialog gd = new GenericDialog("Resample");
 		gd.addSlider("Resample: ", 1, 20, -1 != resample ? resample : DEFAULT_RESAMPLE);
 		gd.showDialog();
 		if (gd.wasCanceled()) {
 			resample = -1 != resample ? resample : DEFAULT_RESAMPLE; // current or default value
-			return;
+			return resample;
 		}
 		resample = ((java.awt.Scrollbar)gd.getSliders().get(0)).getValue();
+		return resample;
 	}
 
 	/** Checks if there is any Display3D instance currently showing the given Displayable. */
@@ -779,7 +860,7 @@ public class Display3D {
 		Object ob = ht_layer_sets.get(layer.getParent());
 		if (null == ob) return null;
 		Display3D d3d = (Display3D)ob;
-		return d3d.addMesh(d.getProject().findProjectThing(d), d);
+		return d3d.addMesh(d.getProject().findProjectThing(d), d, d3d.resample);
 	}
 
 	/*
@@ -789,4 +870,10 @@ public class Display3D {
 					Math.pow(zA*xB + zB*xC + zC*xA, 2));
 	}
 	*/
+
+	static public final boolean contains(final LayerSet ls, final String title) {
+		final Display3D d3d = getDisplay(ls);
+		if (null == d3d) return false;
+		return null != d3d.universe.getContent(title);
+	}
 }

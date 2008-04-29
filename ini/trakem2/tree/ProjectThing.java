@@ -43,6 +43,7 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.Map;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -68,11 +69,11 @@ public class ProjectThing extends DBObject implements Thing {
 		// call super constructor
 		super(project);
 		// specifics:
+		if (null == ob) throw new Exception("ProjectThing constructor: Null Object!");
+		if (null == template) throw new Exception("ProjectThing constructor: Null template!");
 		this.template = project.getTemplateThing(template.getType());
 		copyAttributes();
 		this.object = ob;
-		if (null == ob) throw new Exception("ProjectThing constructor: Null Object!");
-		if (null == template) throw new Exception("ProjectThing constructor: Null template!");
 		// now, ready:
 		addToDatabase();
 	}
@@ -268,7 +269,7 @@ public class ProjectThing extends DBObject implements Thing {
 			} catch (ClassNotFoundException cnfe) {
 				Utils.log("ImageJ_3D_Viewer.jar not installed.");
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 		// remove the Thing itself
@@ -288,9 +289,15 @@ public class ProjectThing extends DBObject implements Thing {
 		return parent;
 	}
 
+	/** Crawl up until finding a parent that has no parent: the root. */
+	public ProjectThing getParentR() {
+		if (null == parent) return this;
+		else return parent.getParentR();
+	}
+
 	public void setTitle(String title) {
 		// A Thing has a title as the object when it has no object, because the object gives it the title (the Thing only defines the type)
-		if (null == title || title == "") return;
+		if (null == title || title.length() < 1) return;
 		if (null == object || object instanceof String) {
 			object = title;
 			updateInDatabase("title");
@@ -324,7 +331,7 @@ public class ProjectThing extends DBObject implements Thing {
 				Utils.log("No such method: setTitle, for object " + object);
 			} catch (Exception e) {
 				Utils.log("ProjectThing.setTitle: no such method setTitle or can't access it, in the object " + object);
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
 	}
@@ -366,6 +373,10 @@ public class ProjectThing extends DBObject implements Thing {
 		return template.getType();
 	}
 
+	public TemplateThing getTemplate() {
+		return template;
+	}
+
 	public JMenuItem[] getPopupItems(ActionListener listener) {
 		JMenuItem item = null;
 		ArrayList al_items = new ArrayList();
@@ -379,6 +390,7 @@ public class ProjectThing extends DBObject implements Thing {
 				item.addActionListener(listener);
 				menu.add(item);
 			}
+			item = new JMenuItem("many..."); item.addActionListener(listener); menu.add(item);
 		}
 		if (0 != menu.getItemCount()) {
 			if (template.getType().equals("profile_list") && null != al_children && al_children.size() > 0) {
@@ -439,11 +451,47 @@ public class ProjectThing extends DBObject implements Thing {
 			((Displayable)object).setVisible(b);
 		}
 		if (null != al_children) {
-			final Iterator it = al_children.iterator();
-			while (it.hasNext()) {
+			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
 				((ProjectThing)it.next()).setVisible(b);
 			}
 		}
+	}
+
+	/** Creates one instance of the given type and if recursive, also of all possible children of it, and of them, and so on.
+	 *  @return all created nodes, or null if the given type cannot be contained here as a child. */
+	public ArrayList<ProjectThing> createChildren(final String type, final int amount, final boolean recursive) {
+		final ArrayList<ProjectThing> al = new ArrayList<ProjectThing>();
+		for (int i=0; i<amount; i++) {
+			final ProjectThing pt = createChild(type);
+			if (null == pt) continue;
+			al.add(pt);
+			if (recursive) pt.createChildren(al, new HashSet());
+		}
+		return al;
+	}
+
+	/** Recursively create one instance of each possible children, and store them in the given ArrayList. Will stop if the new child to create has already been created as a parent, i.e. if it's nested. */
+	private void createChildren(final ArrayList<ProjectThing> nc, final HashSet parents) {
+		if (parents.contains(template.getType())) {
+			// don't dive into nested nodes
+			return;
+		}
+		parents.add(template.getType());
+		// the template itself is never nested; the ProjectThing has a pointer to the master one.
+		final ArrayList children = template.getChildren();
+		if (null == children) return;
+		for (Iterator it = children.iterator(); it.hasNext(); ) {
+			TemplateThing tt = (TemplateThing)it.next();
+			if (parents.contains(tt.getType())) continue; // don't create directly nested types
+			ProjectThing newchild = createChild(tt.getType());
+			if (null == newchild) continue;
+			nc.add(newchild);
+			newchild.createChildren(nc, (HashSet)parents.clone()); // each branch needs its own copy of the parent chain
+		}
+	}
+
+	public boolean canHaveAsChild(String type) {
+		return null != template.getChildTemplate(type);
 	}
 
 	public ProjectThing createChild(String type) {
@@ -469,7 +517,7 @@ public class ProjectThing extends DBObject implements Thing {
 		try {
 			pt = new ProjectThing(tt, project, ob);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 		// add it here as child
@@ -509,13 +557,15 @@ public class ProjectThing extends DBObject implements Thing {
 				original.getLayer().add(displ);
 				Display.repaint(original.getLayer(), displ, 5);
 			}
+			// user-friendly copy:
+			displ.setLocked(false);
+			displ.setVisible(true);
 			// set the copy as selected in the front Display, if any
 			if (null != Display.getFront()) Display.getFront().select(displ);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
-		// the cloned object has already added itself to the same Layer or LayerSet as the original
 		return pt;
 	}
 
@@ -539,6 +589,21 @@ public class ProjectThing extends DBObject implements Thing {
 		while (it.hasNext()) {
 			ProjectThing found = ((ProjectThing)it.next()).findChild(id);
 			if (null != found) return found;
+		}
+		return null;
+	}
+
+	/** Recursive search for the object with the given id. */
+	public DBObject findObject(long id) {
+		if (id == this.id) return this;
+		if (null != object && object instanceof DBObject) {
+			DBObject dbo = (DBObject)object;
+			if (dbo.getId() == id) return dbo;
+		}
+		if (null == al_children) return null;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			DBObject dbo = ((ProjectThing)it.next()).findObject(id);
+			if (null != dbo) return dbo;
 		}
 		return null;
 	}
@@ -659,10 +724,6 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
-		if (null != object && object instanceof Displayable && ((Displayable)object).isDeletable()) {
-			// don't save // WARNING I'm not checking on children, there should never be any if this ProjectThing is wrapping a Displayable object.
-			return;
-		}
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
 		String in = indent + "\t";
 		// 1 - opening tag with attributes:
@@ -772,9 +833,9 @@ public class ProjectThing extends DBObject implements Thing {
 		return sb.toString();
 	}
 
-	private void getInfo(HashSet hs, StringBuffer info) {
+	/** Accumulate info recursively from all children nodes. */
+	private final void getInfo(HashSet hs, final StringBuffer info) {
 		if (null == hs) hs = new HashSet();
-		if (null == info) info = new StringBuffer();
 		if (hs.contains(this)) return;
 		hs.add(this);
 		info.append('\n').append(getNodeInfo());
@@ -783,5 +844,65 @@ public class ProjectThing extends DBObject implements Thing {
 			ProjectThing pt = (ProjectThing)it.next();
 			pt.getInfo(hs, info);
 		}
+	}
+
+	/** Implicit id copying; assumes the ids of the object are also the same in the given project; the object, if it is a DBObject, is retrieved from the given project by matching its id. */
+	public ProjectThing subclone(final Project pr) {
+		Object ob = null;
+		if (null != this.object) {
+			if (this.object instanceof DBObject) ob = pr.getRootLayerSet().findById(((DBObject)this.object).getId());
+			else ob = this.object; // String is a final class: no copy protection needed.
+		}
+		final ProjectThing copy = new ProjectThing(pr.getTemplateThing(this.template.getType()), pr, this.id, ob, new ArrayList(), new Hashtable());
+		if (null != this.al_children) {
+			copy.al_children = new ArrayList();
+			for (Iterator it = this.al_children.iterator(); it.hasNext(); ) {
+				ProjectThing child = (ProjectThing)it.next();
+				ProjectThing cc = child.subclone(pr);
+				// check object:
+				if (child.object instanceof DBObject && null == cc.object) continue; // don't add: the object was not cloned and thus not found.
+				cc.setParent(this);
+				copy.al_children.add(cc);
+			}
+		}
+		if (null != this.ht_attributes) {
+			copy.ht_attributes = new Hashtable();
+			for (Iterator<Map.Entry> it = this.ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = it.next();
+				copy.ht_attributes.put(entry.getKey(), ((ProjectAttribute)entry.getValue()).subclone(pr, copy)); // String is a final class ... again, not turtles all the way down.
+			}
+		}
+		return copy;
+	}
+
+	/** Moves this ProjectThing up and down the parent's children list. Returns false if no movement was done. */
+	public boolean move(final int inc) {
+		if (null == parent) return false;
+		int i = parent.al_children.indexOf(this);
+		if (0 == inc || i + inc < 0 || i + inc >= parent.al_children.size()) return false;
+		// swap objects (the ArrayList.set(..) replaces the element at the index)
+		parent.al_children.set(i, parent.al_children.get(i+inc));
+		parent.al_children.set(i+inc, this);
+		return true;
+	}
+
+	/** Recursively browse all children to classify all nodes by type. Returns a table of String types and ArrayList ProjectThing. */
+	public Hashtable<String,ArrayList<ProjectThing>> getByType() {
+		return getByType(new Hashtable<String,ArrayList<ProjectThing>>());
+	}
+
+	private Hashtable<String,ArrayList<ProjectThing>> getByType(final Hashtable<String,ArrayList<ProjectThing>> ht) {
+		String type = template.getType();
+		ArrayList<ProjectThing> ap = ht.get(type);
+		if (null == ap) {
+			ap = new ArrayList<ProjectThing>();
+			ht.put(type, ap);
+		}
+		ap.add(this);
+		if (null == al_children) return ht;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			((ProjectThing)it.next()).getByType(ht);
+		}
+		return ht;
 	}
 }

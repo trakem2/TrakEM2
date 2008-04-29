@@ -41,6 +41,7 @@ public class Search {
 	private JTabbedPane search_tabs = null;
 	private JTextField search_field = null;
 	private JComboBox pulldown = null;
+	private KeyListener kl = null;
 
 	static private Search instance = null;
 
@@ -53,8 +54,24 @@ public class Search {
 			instance.makeGUI();
 		} else {
 			instance = this;
-			types =  new Class[]{DBObject.class, Displayable.class, DLabel.class, Patch.class, AreaList.class, Profile.class, Pipe.class, Ball.class, Layer.class};
+			types =  new Class[]{DBObject.class, Displayable.class, DLabel.class, Patch.class, AreaList.class, Profile.class, Pipe.class, Ball.class, Layer.class, Dissector.class};
 			makeGUI();
+		}
+	}
+
+	private void tryCloseTab(KeyEvent ke) {
+		switch (ke.getKeyCode()) {
+			case KeyEvent.VK_W:
+				if (!ke.isControlDown()) return;
+				int ntabs = search_tabs.getTabCount();
+				if (0 == ntabs) {
+					instance.destroy();
+					return;
+				}
+				search_tabs.remove(search_tabs.getSelectedIndex());
+				return;
+			default:
+				return;
 		}
 	}
 
@@ -62,17 +79,30 @@ public class Search {
 		// create GUI if not there
 		if (null == search_frame) {
 			search_frame = new JFrame("Search");
-			search_frame.addWindowListener(new SearchFrameListener());
+			search_frame.addWindowListener(new WindowAdapter() {
+				public void windowClosing(WindowEvent we) {
+					instance.destroy();
+				}
+			});
 			search_tabs = new JTabbedPane(JTabbedPane.TOP);
+			kl = new KeyAdapter() {
+				public void keyPressed(KeyEvent ke) {
+					tryCloseTab(ke);
+				}
+			};
+			search_tabs.addKeyListener(kl);
 			search_field = new JTextField(14);
 			search_field.addKeyListener(new VKEnterListener());
 			JButton b = new JButton("Search");
 			b.addActionListener(new ButtonListener());
-			pulldown = new JComboBox(new String[]{"All", "All displayables", "Labels", "Images", "Area Lists", "Profiles", "Tubes", "Spheres", "Layers"});
+			pulldown = new JComboBox(new String[]{"All", "All displayables", "Labels", "Images", "Area Lists", "Profiles", "Tubes", "Spheres", "Layers", "Dissectors"});
 			JPanel top = new JPanel();
 			top.add(search_field);
 			top.add(b);
 			top.add(pulldown);
+			top.setMinimumSize(new Dimension(400, 30));
+			top.setMaximumSize(new Dimension(10000, 30));
+			top.setPreferredSize(new Dimension(400, 30));
 			JPanel all = new JPanel();
 			all.setPreferredSize(new Dimension(400, 400));
 			BoxLayout bl = new BoxLayout(all, BoxLayout.Y_AXIS);
@@ -87,13 +117,14 @@ public class Search {
 		}
 	}
 
-	private class SearchFrameListener extends WindowAdapter {
-		public void windowClosing(WindowEvent we) {
+	synchronized private void destroy() {
+		if (null != instance) {
 			search_frame = null;
 			search_tabs = null;
 			search_field = null;
 			pulldown = null;
 			types = null;
+			kl = null;
 			// deregister
 			instance = null;
 		}
@@ -118,7 +149,7 @@ public class Search {
 		public Object getValueAt(int row, int col) {
 			if (0 == col) return Project.getName(v_obs.get(row).getClass());
 			else if (1 == col) return ((DBObject)v_obs.get(row)).getShortTitle();
-			else if (2 == col) return ((DBObject)v_obs.get(row)).getTitle();//v_txt.get(row).toString();
+			else if (2 == col) return ((DBObject)v_obs.get(row)).getTitle().replace('\n', ' ');//v_txt.get(row).toString();
 			else return "";
 		}
 		public Displayable getDisplayableAt(int row) {
@@ -193,6 +224,7 @@ public class Search {
 		JTable table = new JTable(model);
 		//java 1.6.0 only!! //table.setAutoCreateRowSorter(true);
 		table.addMouseListener(new DisplayableListListener());
+		table.addKeyListener(kl);
 		JScrollPane jsp = new JScrollPane(table);
 		jsp.setPreferredSize(new Dimension(500, 500));
 		return jsp;
@@ -209,7 +241,9 @@ public class Search {
 		public void keyPressed(KeyEvent ke) {
 			if (ke.getKeyCode() == KeyEvent.VK_ENTER) {
 				executeSearch();
+				return;
 			}
+			tryCloseTab(ke);
 		}
 	}
 
@@ -236,18 +270,18 @@ public class Search {
 	}
 
 	/** Recursive search into nested LayerSet instances, accumulating DLabel instances into al_labels. */
-	private void find(LayerSet set, ArrayList al, Class type) {
-		if (type.getName().endsWith("DBObject")) {
+	private void find(final LayerSet set, final  ArrayList al, final Class type) {
+		if (type.equals(DBObject.class)) {
 			al.add(set);
 		}
 		for (Iterator it = set.getLayers().iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
-			if (type.getName().endsWith("DBObject") || Layer.class.equals(type)) {
+			if (DBObject.class.equals(type) || Layer.class.equals(type)) {
 				al.add(layer);
 			}
 			for (Iterator dit = layer.getDisplayables().iterator(); dit.hasNext(); ) {
 				Object ob = dit.next();
-				if (type.getName().endsWith("DBObject") || type.getName().endsWith("Displayable")) {
+				if (DBObject.class.equals(type) || Displayable.class.equals(type)) {
 					if (ob instanceof LayerSet) {
 						find((LayerSet)ob, al, type);
 					} else {
@@ -255,19 +289,17 @@ public class Search {
 					}
 				} else if (ob.getClass().equals(type)) {
 					al.add(ob);
-				}/* now REDUNDANT// else if (ob instanceof LayerSet) {
-					find((LayerSet)ob, al, type);
-				}*/
+				}
 			}
 		}
 	}
 
 	/** Remove from the tables if there. */
-	static public void remove(Displayable displ) {
+	static public void remove(final Displayable displ) {
 		if (null == displ || null == instance) return;
 		final int n_tabs = instance.search_tabs.getTabCount();
 		boolean repaint = false;
-		int selected = instance.search_tabs.getSelectedIndex();
+		final int selected = instance.search_tabs.getSelectedIndex();
 		for (int t=0; t<n_tabs; t++) {
 			java.awt.Component c = instance.search_tabs.getComponentAt(t);
 			JTable table = (JTable)((JScrollPane)c).getViewport().getComponent(0);
@@ -289,9 +321,9 @@ public class Search {
 	}
 
 	/** Repaint (refresh the text in the cells) only if any of the selected tabs in any of the search frames contains the given object in its rows. */
-	static public void repaint(Object ob) {
+	static public void repaint(final Object ob) {
 		if (null == instance) return;
-		int selected = instance.search_tabs.getSelectedIndex();
+		final int selected = instance.search_tabs.getSelectedIndex();
 		if (-1 == selected) return;
 		java.awt.Component c = instance.search_tabs.getComponentAt(selected);
 		JTable table = (JTable)((JScrollPane)c).getViewport().getComponent(0);

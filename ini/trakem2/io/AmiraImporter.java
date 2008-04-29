@@ -196,7 +196,7 @@ public class AmiraImporter {
 			}
 			return al_areas;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			return null;
 		}
 	}

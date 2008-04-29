@@ -126,7 +126,7 @@ public class Selection {
 					da = new Displayable[queue.size()];
 					queue.toArray(da);
 				} catch (Exception e) {
-					new IJError(e);
+					IJError.print(e);
 				} finally {
 					unlock();
 				}
@@ -408,6 +408,9 @@ public class Selection {
 		floater.y = y;
 	}
 
+	public int getFloaterX() { return floater.x; }
+	public int getFloaterY() { return floater.y; }
+
 	public void setActive(Displayable d) {
 		synchronized (queue_lock) {
 			try {
@@ -424,7 +427,7 @@ public class Selection {
 					display.setActive(d);
 				}
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			} finally {
 				unlock();
 			}
@@ -472,7 +475,7 @@ public class Selection {
 			// finally:
 			if (null != display) display.setActive(d);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -519,7 +522,7 @@ public class Selection {
 				this.active = display.getActive();
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -549,7 +552,7 @@ public class Selection {
 					}
 				}
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			} finally {
 				display.getProject().getLoader().commitLargeUpdate();
 			}
@@ -559,7 +562,7 @@ public class Selection {
 			//Display.repaint(display.getLayer(), box, 0);
 			Display.updateSelection(); // from all displays
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			if (queue_locked) unlock();
 		}}
@@ -623,7 +626,7 @@ public class Selection {
 			// reposition handles
 			setHandles(box);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -649,13 +652,17 @@ public class Selection {
 		synchronized (queue_lock) {
 		try {
 			lock();
+			// set null active before clearing so that borders can be repainted
+			if (null != display && queue.size() > 0) {
+				display.setActive(null);
+				display.repaint(display.getLayer(), 5, box, false);
+			}
 			this.queue.clear();
 			this.hs.clear();
 			this.active = null;
-			if (null != display) display.setActive(null);
 			this.box = null;
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -765,7 +772,7 @@ public class Selection {
 		return (Rectangle)box.clone();
 	}
 
-	/** Returns the total box enclosing all selected objects and their linked objects within the current layer, or null if none are selected.*/
+	/** Returns the total box enclosing all selected objects and their linked objects within the current layer, or null if none are selected. Includes the position of the floater, when transforming.*/
 	public Rectangle getLinkedBox() {
 		if (null == active) return null;
 		Rectangle b = active.getBoundingBox();
@@ -860,7 +867,7 @@ public class Selection {
 			}
 			hs.addAll(hsl); // hs is final, can't just assign
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -898,7 +905,7 @@ public class Selection {
 			}
 			resetBox();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			unlock();
 		}}
@@ -914,17 +921,26 @@ public class Selection {
 
 	/** Rotate the objects in the current selection by the given angle, in degrees, relative to the floater position. */
 	public void rotate(double angle) {
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next(); // all this is so obvious and ridiculous compared to python's for t in ht: ...
-			d.rotate(Math.toRadians(angle), floater.x, floater.y);
+		for (Displayable d : hs) {
+			d.rotate(Math.toRadians(angle), floater.x, floater.y, false); // all linked ones included in the hashset
 		}
 		resetBox();
 	}
 	/** Translate all selected objects and their links by the given differentials. The floater position is unaffected; if you want to update it call centerFloater() */
 	public void translate(double dx, double dy) {
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			d.translate(dx, dy);
+		for (Displayable d : hs) {
+			d.translate(dx, dy, false); // all linked ones already included in the hashset
+		}
+		resetBox();
+	}
+	/** Scale all selected objects and their links by by the given scales, relative to the floater position. . */
+	public void scale(double sx, double sy) {
+		if (0 == sx || 0 == sy) {
+			Utils.showMessage("Cannot scale to 0.");
+			return;
+		}
+		for (Displayable d : hs) {
+			d.scale(sx, sy, floater.x, floater.y, false); // all linked ones already included in the hashset
 		}
 		resetBox();
 	}
@@ -953,8 +969,60 @@ public class Selection {
 	}
 
 	/** Returns the set of all Displayable objects affected by this selection, that is, the selected ones and their linked ones.*/
-	public Set getAffected() {
-		return (Set)hs.clone();
+	public Set<Displayable> getAffected() {
+		Set<Displayable> set = null;
+		synchronized (queue_lock) {
+			lock();
+			set = (Set<Displayable>)hs.clone();
+			unlock();
+		}
+		return set;
+	}
+
+	/** Returns the set of all Displayable objects of the given class affected by this selection, that is, among the selected ones and their linked ones. */
+	public Set<Displayable> getAffected(final Class c) {
+		HashSet<Displayable> copy = new HashSet<Displayable>();
+		synchronized (queue_lock) {
+			lock();
+			if (Displayable.class.equals(c) && hs.size() > 0) {
+				copy.addAll(hs);
+				unlock();
+				return copy;
+			}
+			boolean zd = ZDisplayable.class.equals(c);
+			for (Displayable d : this.hs) {
+				if (zd && d instanceof ZDisplayable) {
+					copy.add(d);
+				} else if (d.getClass().equals(c)) {
+					copy.add(d);
+				}
+			}
+			unlock();
+		}
+		return hs;
+	}
+
+	/** If any of the selected or linked is of Class c. */
+	public boolean containsAffected(final Class c) {
+		synchronized (queue_lock) {
+			lock();
+			if (Displayable.class.equals(c) && hs.size() > 0) {
+				unlock();
+				return true;
+			}
+			boolean zd = ZDisplayable.class.equals(c);
+			for (Displayable d : hs) {
+				if (zd && d instanceof ZDisplayable) {
+					unlock();
+					return true;
+				} else if (d.getClass().equals(c)) {
+					unlock();
+					return true;
+				}
+			}
+			unlock();
+		}
+		return false;
 	}
 
 	/** Send all selected components to the previous layer. */
@@ -977,5 +1045,18 @@ public class Selection {
 			la.getParent().moveDown(la, (Displayable)it.next());
 		}
 		clear();
+	}
+
+	/** Set all selected objects visible/hidden. */
+	public void setVisible(boolean b) {
+		synchronized (queue_lock) {
+			lock();
+			for (Iterator it = queue.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				if (b != d.isVisible()) d.setVisible(b);
+			}
+			unlock();
+		}
+		Display.repaint(display.getLayer(), box, 10);
 	}
 }

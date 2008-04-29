@@ -45,6 +45,13 @@ public class TemplateAttribute extends DBObject implements Attribute {
 		this.object = object;
 	}
 
+	/** WARNING: the object is not cloned. */
+	public TemplateAttribute clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final TemplateAttribute copy = new TemplateAttribute(this.title, this.object, pr, nid);
+		return copy;
+	}
+
 	public void addToDatabase(Project project) {
 		this.project = project;
 		this.id = project.getLoader().getNextId();

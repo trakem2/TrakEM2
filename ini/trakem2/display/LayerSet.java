@@ -46,6 +46,7 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Hashtable;
@@ -53,6 +54,7 @@ import java.util.Iterator;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -432,7 +434,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				}
 				project.getLoader().commitLargeUpdate();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				project.getLoader().rollback();
 				return false; //TODO no notice to the user ...
 			}
@@ -452,6 +454,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			updateInDatabase("layer_dimensions");
 			// and notify the Displays, if any
 			Display.update(this);
+			Display.pack(this);
 		}
 		return true;
 	}
@@ -467,6 +470,20 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		final Rectangle r = new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
 		r.add(b);
 		return setDimensions(r.width, r.height, anchor);
+	}
+
+	/** May leave objects beyond the visible window. */
+	synchronized public void setDimensions(double x, double y, double layer_width, double layer_height) {
+		this.layer_width = layer_width;
+		this.layer_height = layer_height;
+		final AffineTransform affine = new AffineTransform();
+		affine.translate(-x, -y);
+		for (ZDisplayable zd : al_zdispl) {
+			zd.getAffineTransform().preConcatenate(affine);
+			zd.updateInDatabase("transform");
+		}
+		for (Layer la : al_layers) la.apply(Displayable.class, affine);
+		Display.update(this);
 	}
 
 	/** Returns false if any Displayables are being partially or totally cropped away. */
@@ -549,7 +566,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
 				Rectangle b = d.getBoundingBox(null);
-				Utils.log("d x,y = " + b.x + ", " + b.y);
+				//Utils.log("d x,y = " + b.x + ", " + b.y);
 				d.setLocation(b.x + new_x, b.y + new_y);
 			}
 		}
@@ -557,6 +574,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		updateInDatabase("layer_dimensions");
 		// and notify the Display
 		Display.update(this);
+		Display.pack(this);
 		return true;
 	}
 
@@ -725,7 +743,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			al_zdispl.add(zdispl);
 		} catch (Exception e) {
 			Utils.log("LayerSet.addSilently: not adding Zdisplayable with id=" + zdispl.getId());
-			new IJError(e);
+			IJError.print(e);
 			return;
 		}
 	}
@@ -742,16 +760,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	synchronized public ArrayList<ZDisplayable> getZDisplayables() { return (ArrayList<ZDisplayable>)al_zdispl.clone(); }
 
 	/** Returns a list of ZDisplayable of class c only.*/
-	synchronized public ArrayList getZDisplayables(final Class c) {
-		final ArrayList al = new ArrayList();
+	synchronized public ArrayList<ZDisplayable> getZDisplayables(final Class c) {
+		final ArrayList<ZDisplayable> al = new ArrayList<ZDisplayable>();
 		if (null == c) return al;
 		if (c.equals(Displayable.class) || c.equals(ZDisplayable.class)) {
 			al.addAll(al_zdispl);
 			return al;
 		}
-		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if (c.equals(ob.getClass())) al.add(ob);
+		for (ZDisplayable zd : al_zdispl) {
+			if (c.equals(zd.getClass())) al.add(zd);
 		}
 		return al;
 	}
@@ -846,7 +863,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			project.getLoader().commitLargeUpdate();
 		}
@@ -854,6 +871,20 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			Display.repaint(this); // this could be optimized to repaint only the accumulated box
 		}
 	}
+	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. */
+	public void hideExcept(ArrayList<Class> type, boolean repaint) {
+		for (ZDisplayable zd : al_zdispl) {
+			if (!type.contains(zd.getClass())) zd.setVisible(false, repaint);
+		}
+		for (Layer la : al_layers) la.hideExcept(type, repaint);
+	}
+	public void setAllVisible(boolean repaint) {
+		for (ZDisplayable zd : al_zdispl) {
+			if (!zd.isVisible()) zd.setVisible(true, repaint);
+		}
+		for (Layer la : al_layers) la.setAllVisible(repaint);
+	}
+
 	/** Returns true if any of the ZDisplayable objects are of the given class. */
 	synchronized public boolean contains(Class c) {
 		Iterator it = al_zdispl.iterator();
@@ -878,19 +909,17 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Return all the Displayable objects from all the layers of this LayerSet. Does not include the ZDisplayables. */
-	synchronized public ArrayList getDisplayables() {
-		final ArrayList al = new ArrayList();
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
+	synchronized public ArrayList<Displayable> getDisplayables() {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (Layer layer : al_layers) {
 			al.addAll(layer.getDisplayables());
 		}
 		return al;
 	}
 	/** Return all the Displayable objects from all the layers of this LayerSet of the given class. Does not include the ZDisplayables. */
-	synchronized public ArrayList getDisplayables(Class c) {
-		final ArrayList al = new ArrayList();
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
+	synchronized public ArrayList<Displayable> getDisplayables(Class c) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (Layer layer : al_layers) {
 			al.addAll(layer.getDisplayables(c));
 		}
 		return al;
@@ -903,7 +932,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	synchronized public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
 		final StringBuffer sb_body = new StringBuffer();
-		sb_body.append(indent).append("<t2_layer_set \n");
+		sb_body.append(indent).append("<t2_layer_set\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		sb_body.append(in).append("layer_width=\"").append(layer_width).append("\"\n")
@@ -936,12 +965,9 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (null != al_zdispl) {
 			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
 				ZDisplayable zd = (ZDisplayable)it.next();
-				// don't include in the XML file if the object is empty
-				if (!zd.isDeletable()) {
-					sb_body.setLength(0);
-					zd.exportXML(sb_body, in, any);
-					writer.write(sb_body.toString()); // each separately, for they can be huge
-				}
+				sb_body.setLength(0);
+				zd.exportXML(sb_body, in, any);
+				writer.write(sb_body.toString()); // each separately, for they can be huge
 			}
 		}
 		// export Layer and contained Displayable objects
@@ -999,10 +1025,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** Creates an undo step that contains transformations for all Displayable objects of this LayerSet */
 	synchronized public void createUndoStep() {
 		final Hashtable ht_undo = new Hashtable();
-		for (Iterator lit = al_layers.iterator(); lit.hasNext(); ) {
-			Layer la = (Layer)lit.next();
-			for (Iterator dit = la.getDisplayables().iterator(); dit.hasNext(); ) {
-				Displayable d = (Displayable)dit.next();
+		for (Layer la : al_layers) {
+			for (Displayable d : la.getDisplayables()) {
 				ht_undo.put(d, d.getAffineTransformCopy());
 			}
 		}
@@ -1013,8 +1037,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public void createUndoStep(final Layer layer) {
 		if (null == layer) return;
 		final Hashtable ht_undo = new Hashtable();
-		for (Iterator dit = layer.getDisplayables().iterator(); dit.hasNext(); ) {
-			Displayable d = (Displayable)dit.next();
+		for (Displayable d : layer.getDisplayables()) {
 			ht_undo.put(d, d.getAffineTransformCopy());
 		}
 		addUndoStep(ht_undo);
@@ -1044,6 +1067,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		/*
 		// discard redo steps
 		redo_queue.clear(); */
+	}
+
+	/** Create an undo step involving all Displayable objects in the set. */
+	public void addUndoStep(final Set<Displayable> set) {
+		Hashtable ht = new Hashtable();
+		for (Displayable d : set) {
+			ht.put(d, d.getAffineTransformCopy());
+		}
+		addUndoStep(ht);
 	}
 
 	/** Usable only when undoing the last step, to catch the current step (which is not in the undo queue).*/
@@ -1116,7 +1148,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			}
 			project.getLoader().commitLargeUpdate();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			Utils.log("Rolling back");
 			project.getLoader().rollback();
 		}
@@ -1289,31 +1321,36 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return true;
 	}
 
-	synchronized public Displayable clone(Project project) {
-		return clone(project, (Layer)al_layers.get(0), (Layer)al_layers.get(al_layers.size()-1), new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight())), false);
+	synchronized public Displayable clone(final Project pr, final boolean copy_id) {
+		return clone(pr, (Layer)al_layers.get(0), (Layer)al_layers.get(al_layers.size()-1), new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight())), false, copy_id);
 	}
 
 	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle. */
-	synchronized public Displayable clone(Project project, Layer first, Layer last, Rectangle roi, boolean add_to_tree) {
+	synchronized public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree, boolean copy_id) {
 		// obtain a LayerSet
-		LayerSet target = null;
-		if (null == this.layer) {
-			// copy into the exisiting root layer set
-			target = project.getRootLayerSet();
-			target.setDimensions(roi.width, roi.height, LayerSet.NORTHWEST);
-		} else {
-			target = new LayerSet(project, getTitle(), 0, 0, null, layer_width, layer_height);
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final LayerSet copy = new LayerSet(pr, nid, getTitle(), this.width, this.height, this.rot_x, this.rot_y, this.rot_z, roi.width, roi.height, this.locked, this.snapshots_enabled, (AffineTransform)this.at.clone());
+		copy.setCalibration(getCalibrationCopy());
+		copy.snapshots_quality = this.snapshots_quality;
+		// copy objects that intersect the roi, from within the given range of layers
+		final java.util.List<Layer> al = ((ArrayList<Layer>)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
+		Utils.log2("al.size() : " + al.size());
+		for (Layer layer : al) {
+			Layer layercopy = layer.clone(pr, copy, roi, copy_id);
+			copy.addSilently(layercopy);
+			if (add_to_tree) pr.getLayerTree().addLayer(copy, layercopy);
 		}
-		target.setCalibration(getCalibrationCopy());
-		// copy into the target LayerSet the range of layers
-		final java.util.List al = ((ArrayList)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Layer source = (Layer)it.next();
-			Layer copy = source.clone(project, target, roi);
-			target.addSilently(copy);
-			if (add_to_tree) project.getLayerTree().addLayer(target, copy);
+		// copy ZDisplayable objects if they intersect the roi, and translate them properly
+		final AffineTransform trans = new AffineTransform();
+		trans.translate(-roi.x, -roi.y);
+		for (ZDisplayable zd : find(first, last, new Area(roi))) {
+			ZDisplayable zdcopy = (ZDisplayable)zd.clone(pr, copy_id);
+			zdcopy.getAffineTransform().preConcatenate(trans);
+			copy.addSilently(zdcopy);
 		}
-		return (Displayable)target;
+		// fix links:
+		copy.linkPatchesR();
+		return (Displayable)copy;
 	}
 
 	public LayerStack makeLayerStack(Display display) {
@@ -1332,7 +1369,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	public int getPixelsDimension() { return max_dimension; }
 	public void setPixelsDimension(int d) {
-		// TODO
+		Utils.logAll("LayerSet.setPixelsDimension not implemented yet."); // TODO
 	}
 
 	public void setPixelsVirtualizationEnabled(boolean b) { this.virtualization_enabled = b; }
@@ -1348,7 +1385,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		this.calibration = (Calibration)cal.clone();
 	}
 
-	protected Calibration getCalibration() {
+	public Calibration getCalibration() {
 		return this.calibration;
 	}
 
@@ -1358,8 +1395,8 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	public boolean isCalibrated() {
 		Calibration identity = new Calibration();
-		if (identity.equals(this.calibration)) return true;
-		return false;
+		if (identity.equals(this.calibration)) return false;
+		return true;
 	}
 
 	/** Restore calibration from the given XML attributes table.*/
@@ -1394,10 +1431,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				}
 			} catch (Exception e) {
 				Utils.log2("LayerSet.restoreCalibration, key/value failed:" + key + "=\"" + value +"\"");
-				new IJError(e);
+				IJError.print(e);
 			}
 		}
-		Utils.log2("Restored LayerSet calibration: " + calibration);
+		//Utils.log2("Restored LayerSet calibration: " + calibration);
 	}
 
 	/** For creating snapshots, using a very slow but much better scaling algorithm (the Image.SCALE_AREA_AVERAGING method). */
@@ -1427,8 +1464,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				if (ob.getClass().equals(c)) all.add(ob);
 			}
 		}
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
+		for (Layer layer : al_layers) {
 			all.addAll(layer.getDisplayables(c));
 			ArrayList al_ls = layer.getDisplayables(LayerSet.class);
 			for (Iterator i2 = al_ls.iterator(); i2.hasNext(); ) {
@@ -1443,7 +1479,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	 *  The type is either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB.
 	 *  The format is either Layer.IMAGE (an array) or Layer.ImagePlus (it returns an ImagePlus containing an ImageStack), from which any ImageProcessor or pixel arrays can be retrieved trivially.
 	 */
-	public Object grab(final int first, final int last, final Rectangle r, final double scale, final Class c, final int format, final int type) {
+	public Object grab(final int first, final int last, final Rectangle r, final double scale, final Class c, final int c_alphas, final int format, final int type) {
 		// check preconditions
 		if (first < 0 || first > last || last >= al_layers.size()) {
 			Utils.log("Invalid first and/or last layers.");
@@ -1459,11 +1495,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			for (int i=first; i<=last; i++) {
 				Layer la = (Layer)al_layers.get(i);
 				Utils.log2("c is " + c);
-				ImagePlus imp = project.getLoader().getFlatImage(la, r, scale, 1, type, c, null, true);
+				ImagePlus imp = project.getLoader().getFlatImage(la, r, scale, c_alphas, type, c, null, true);
 				if (null != imp) try {
-					stack.addSlice(imp.getTitle(), imp.getProcessor().getPixels());
+					//if (0 == stack.getSize()) stack.setColorModel(imp.getProcessor().getColorModel());
+					stack.addSlice(imp.getTitle(), imp.getProcessor()); //.getPixels());
 				} catch (IllegalArgumentException iae) {
-					new IJError(iae);
+					IJError.print(iae);
 				} else Utils.log("LayerSet.grab: Ignoring layer " + la);
 			}
 			if (0 == stack.getSize()) {
@@ -1474,10 +1511,58 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		} else if (Layer.IMAGE == format) {
 			final Image[] image = new Image[last - first + 1];
 			for (int i=first, j=0; i<=last; i++, j++) {
-				image[j] = project.getLoader().getFlatAWTImage((Layer)al_layers.get(i), r, scale, 1, type, c, null, true);
+				image[j] = project.getLoader().getFlatAWTImage((Layer)al_layers.get(i), r, scale, c_alphas, type, c, null, true);
 			}
 			return image;
 		}
 		return null;
+	}
+
+
+	/** Searches in all layers. Ignores the ZDisplaybles. */
+	public Displayable findDisplayable(final long id) {
+		for (Layer la : al_layers) {
+			for (Displayable d : la.getDisplayables()) {
+				if (d.getId() == id) return d;
+			}
+		}
+		return null;
+	}
+
+	/** Searches in all ZDisplayables and in all layers, recursively into nested LayerSets. */
+	public DBObject findById(final long id) {
+		if (this.id == id) return this;
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.getId() == id) return zd;
+		}
+		for (Layer la : al_layers) {
+			DBObject dbo = la.findById(id);
+			if (null != dbo) return dbo;
+		}
+		return null;
+	}
+
+	// private to the package
+	void linkPatchesR() {
+		for (Layer la : al_layers) la.linkPatchesR();
+		for (ZDisplayable zd : al_zdispl) zd.linkPatches();
+	}
+
+	/** Recursive into nested LayerSet objects.*/
+	public void updateLayerTree() {
+		for (Layer la : al_layers) {
+			la.updateLayerTree();
+		}
+	}
+
+	/** Find the ZDisplayable objects that intersect with the 3D roi defined by the first and last layers, and the area -all in world coordinates. */
+	public ArrayList<ZDisplayable> find(final Layer first, final Layer last, final Area area) {
+		final ArrayList<ZDisplayable> al = new ArrayList<ZDisplayable>();
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.intersects(area, first.getZ(), last.getZ())) {
+				al.add(zd);
+			}
+		}
+		return al;
 	}
 }

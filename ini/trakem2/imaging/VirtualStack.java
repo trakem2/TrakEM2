@@ -57,13 +57,13 @@ public class VirtualStack extends ImageStack {
 			names[nSlices-1] = null;
 			nSlices--;
 		}
-	
+
 	/** Deletes the last slice in the stack. */
 	public void deleteLastSlice() {
 		if (nSlices>0)
 			deleteSlice(nSlices);
 	}
-	   
+
    /** Returns the pixel array for the specified slice, were 1<=n<=nslices. */
 	public Object getPixels(int n) {
 		ImageProcessor ip = getProcessor(n);
@@ -72,7 +72,7 @@ public class VirtualStack extends ImageStack {
 		else
 			return null;
 	}		
-	
+
 	 /** Assigns a pixel array to the specified slice,
 		were 1<=n<=nslices. */
 	public void setPixels(Object pixels, int n) {
@@ -103,7 +103,7 @@ public class VirtualStack extends ImageStack {
 	public String getSliceLabel(int n) {
 		 return names[n-1];
 	}
-	
+
 	/** Returns null. */
 	public Object[] getImageArray() {
 		return null;
@@ -121,17 +121,14 @@ public class VirtualStack extends ImageStack {
    /** Does nothing. */
 	public void trim() {
 	}
-	
+
 	/** Returns the path to the directory containing the images. */
 	public String getDirectory() {
 		return path;
 	}
-		
+
 	/** Returns the file name of the specified slice, were 1<=n<=nslices. */
 	public String getFileName(int n) {
 		return names[n-1];
 	}
-
 } 
-
-

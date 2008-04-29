@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 import ij.*;
 import ij.gui.*;
+import ini.trakem2.Project;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.*;
@@ -64,8 +65,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private final Object controler_ob = new Object();
 	private boolean controling = false;
 
-	private final Object offscreen_lock = new Object();
-	private boolean offscreen_locked = false;
+	private final Lock offscreen_lock = new Lock();
 
 	private Cursor noCursor;
 
@@ -96,7 +96,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		this.srcRect = (Rectangle)srcRect.clone(); // just in case
 		super.setDrawingSize((int)Math.ceil(srcRect.width * mag), (int)Math.ceil(srcRect.height * mag));
 		setMagnification(mag);
-		display.pack();
+		display.pack(); // TODO should be run via invokeLater ... need to check many potential locks of invokeLater calling each other.
 	}
 
 	/** Does not repaint. */
@@ -129,8 +129,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// store to be canceled if necessary
 				add(off);
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
+		}
+		public void paintFromOff(final Rectangle clipRect, final long time) {
+			// WARNING this is just a patch
+			//Utils.log("paintFromOff");
+			super.paintFromOff(display.getSelection().contains(Patch.class) ? null : clipRect, time);
 		}
 	};
 
@@ -165,7 +170,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			synchronized (lock_paint) {
 				lock_paint.lock();
 			}
-			display.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+			//display.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 
 			// ensure proper positioning
 			g.translate(0, 0); // ints!
@@ -194,27 +199,28 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// no background paint if painting in fill_paint mode and not erasing
 			} else {
 				synchronized (offscreen_lock) {
-					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-					offscreen_locked = true;
+					offscreen_lock.lock();
+					try {
 
-					if (null != offscreen) {
-						g.drawImage(offscreen, 0, 0, null);
+						if (null != offscreen) {
+							g.drawImage(offscreen, 0, 0, null);
 
+						}
+
+						// prepare the canvas for the srcRect and magnification
+						final AffineTransform at_original = g2d.getTransform();
+						atc.setToIdentity();
+						atc.scale(magnification, magnification);
+						atc.translate(-srcRect.x, -srcRect.y);
+						at_original.preConcatenate(atc);
+						g2d.setTransform(at_original);
+
+						di = new Displayable[al_top.size()];
+						al_top.toArray(di);
+					} catch (Exception e) {
+						e.printStackTrace();
 					}
-
-					// prepare the canvas for the srcRect and magnification
-					final AffineTransform at_original = g2d.getTransform();
-					atc.setToIdentity();
-					atc.scale(magnification, magnification);
-					atc.translate(-srcRect.x, -srcRect.y);
-					at_original.preConcatenate(atc);
-					g2d.setTransform(at_original);
-
-					di = new Displayable[al_top.size()];
-					al_top.toArray(di);
-
-					offscreen_locked = false;
-					offscreen_lock.notifyAll();
+					offscreen_lock.unlock();
 				}
 			}
 
@@ -262,7 +268,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 
 			// restore cursor
-			display.setCursor(Cursor.getDefaultCursor());
+			//display.setCursor(Cursor.getDefaultCursor());
 
 			// Mathias code:
 			if (null != freehandProfile) {
@@ -277,14 +283,16 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		} catch (Exception e) {
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			// restore cursor
+			/*
 			if (null == freehandProfile) {
 				setCursor(Cursor.getDefaultCursor());
 			} else {
 				setCursor(noCursor);
 			}
+			*/
 			synchronized (lock_paint) {
 				lock_paint.unlock();
 			}
@@ -366,7 +374,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		// pan with middle mouse like in inkscape
 		/* // works, but can't use it: the alt button then is useless (so no erasing with areas, and so on)
-		if (0 != (flags & InputEvent.BUTTON2_MASK)) {
+		if (0 != (flags & InputEvent.BUTTON2_MASK))
 		*/
 		if (me.getButton() == MouseEvent.BUTTON2) {
 			tmp_tool = tool;
@@ -483,7 +491,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			if (!set.isAligning()) {
 				set.startAlign(display);
 			}
-			set.getAlign().mousePressed(display.getLayer(), me, x_p, y_p);
+			set.getAlign().mousePressed(display.getLayer(), me, x_p, y_p, magnification);
 			return;
 		}
 
@@ -503,7 +511,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 			// gather initial box (for repainting purposes)
 			box = selection.getLinkedBox();
-			Utils.log2("MP: set box to " + box);
 			selection.mousePressed(x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
@@ -558,10 +565,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		case Toolbar.MAGNIFIER: // TODO : create a zooms-area tool
 			return;
 		case Toolbar.HAND:
-			update_graphics = true; // update the offscreen images.
+			int srx = srcRect.x,
+			    sry = srcRect.y;
 			scroll(me.getX(), me.getY());
-			display.getNavigator().repaint(false);
-			repaint(true);
+			if (0 != srx - srcRect.x || 0 != sry - srcRect.y) {
+				update_graphics = true; // update the offscreen images.
+				display.getNavigator().repaint(false);
+				repaint(true);
+			}
 			return;
 		}
 
@@ -628,7 +639,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					box2 = selection.getLinkedBox();
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
-					Display.repaint(display.getLayer(), Selection.PADDING, box, false);
+			//TODO//Utils.log2("md: " + box.toString());
+					Display.repaint(display.getLayer(), Selection.PADDING, box, false, active.isLinked() || active.getClass().equals(Patch.class));
 					// box for next mouse dragged iteration
 					box = box2;
 					break;
@@ -792,7 +804,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case ProjectToolbar.SELECT:
 				selection.mouseReleased(x_p, y_p, x_d, y_d, x_r, y_r);
 				box.add(selection.getLinkedBox());
-				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming()); // does not repaint the navigator
+				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass().equals(Patch.class)); // does not repaint the navigator
 				break;
 			case ProjectToolbar.PENCIL:
 			case ProjectToolbar.PEN:
@@ -800,9 +812,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// update active's bounding box
 				selection.updateTransform(active);
 				box.add(selection.getBox());
-				if (!active.getClass().equals(AreaList.class)) Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
+				//if (!active.getClass().equals(AreaList.class)) Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
 				// TODO: this last repaint call is unnecessary, if the box was properly repainted on mouse drag for Profile etc.
-				else if (null != old_brush_box) {
+				//else 
+				if (null != old_brush_box) {
 					repaint(old_brush_box, 0, false);
 					old_brush_box = null; // from mouseMoved
 				}
@@ -1207,11 +1220,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		display.getNavigator().repaint(false);
 	}
 
-	private long last_repaint = -1;
-
-	private Rectangle last_clip = null;
-
-	 /** Repaint as much as the bounding box around the given Displayable. If the Displayable is null, the entire canvas is repainted, remaking the offscreen images. */
+	/** Repaint as much as the bounding box around the given Displayable. If the Displayable is null, the entire canvas is repainted, remaking the offscreen images. */
 	public void repaint(Displayable d) {
 		repaint(d, 0);
 	}
@@ -1227,9 +1236,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			r.x = (int) ((r.x - srcRect.x) * magnification) - extra;
 			r.y = (int) ((r.y - srcRect.y) * magnification) - extra;
 			r.width = (int) Math.ceil(r.width * magnification) + extra + extra;
-			r.height = (int) Math.ceil(r.height * magnification) + extra
-					+ extra;
-			//repaint(r.x, r.y, r.width, r.height);
+			r.height = (int) Math.ceil(r.height * magnification) + extra + extra;
 			RT.paint(r, update_graphics);
 		} else {
 			// everything
@@ -1243,8 +1250,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	 */
 	// it is assumed that the linked objects are close to each other, otherwise
 	// the clip rectangle grows enormously.
-	public void repaint(HashSet hs) {
-		Iterator it = hs.iterator();
+	public void repaint(final HashSet hs) {
+		if (null == hs) return;
+		final Iterator it = hs.iterator();
 		int count = 0;
 		Rectangle r = new Rectangle();
 		while (it.hasNext()) {
@@ -1265,14 +1273,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	 * srcRect and magnification of this DisplayCanvas. The Rectangle is not
 	 * modified.
 	 */
-	public void repaint(Rectangle r, int extra) {
+	public void repaint(final Rectangle r, final int extra) {
 		if (null == r) {
 			//Utils.log2("DisplayCanvas.repaint(Rectangle, int) warning: null r");
 			RT.paint(null, update_graphics);
 			return;
 		}
 		// repaint((int) ((r.x - srcRect.x) * magnification) - extra, (int) ((r.y - srcRect.y) * magnification) - extra, (int) Math .ceil(r.width * magnification) + extra + extra, (int) Math.ceil(r.height * magnification) + extra + extra);
-		RT.paint(new Rectangle((int) ((r.x - srcRect.x) * magnification) - extra, (int) ((r.y - srcRect.y) * magnification) - extra, (int) Math .ceil(r.width * magnification) + extra + extra, (int) Math.ceil(r.height * magnification) + extra + extra), update_graphics);
+		RT.paint(new Rectangle((int) ((r.x - srcRect.x) * magnification) - extra, (int) ((r.y - srcRect.y) * magnification) - extra, (int) Math.ceil(r.width * magnification) + extra + extra, (int) Math.ceil(r.height * magnification) + extra + extra), update_graphics);
 	}
 
 	/**
@@ -1321,15 +1329,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		// cleanup update graphics thread if any
 		RT.quit();
 		synchronized (offscreen_lock) {
-			while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-			offscreen_locked = true;
-			
+			offscreen_lock.lock();
+
 			offscreen = null;
 			// reset for remaking if necessary TODO doesn't work in at least java 1.6 ?
 			update_graphics = true;
 
-			offscreen_locked = false;
-			offscreen_lock.notifyAll();
+			offscreen_lock.unlock();
 		}
 	}
 
@@ -1392,7 +1398,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			Utils.log("Display displ.:  " + display.getLayer().getDisplayables().size());
 			ke.consume();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 			}
 			return;
 		}
@@ -1565,6 +1571,15 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						display.setTransparencySlider(active.getAlpha());
 						ke.consume();
 					}
+				} else {
+					// ;)
+					int kem = ke.getModifiers();
+					if (0 != (kem & KeyEvent.SHIFT_MASK)
+					 && 0 != (kem & KeyEvent.ALT_MASK)
+					 && 0 != (kem & KeyEvent.CTRL_MASK)) {
+						Utils.showMessage("A mathematician, like a painter or poet,\nis a maker of patterns.\nIf his patterns are more permanent than theirs,\nit is because they are made with ideas.");
+						ke.consume();
+					 }
 				}
 				break;
 			case KeyEvent.VK_S:
@@ -1575,6 +1590,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					// ignore improper 's' that open ImageJ's save dialog (linux problem ... in macosx, a single dialog opens with lots of 'ssss...' in the text field)
 					ke.consume();
 				}
+				break;
+			case KeyEvent.VK_H:
+				handleHide(ke);
 				break;
 			case KeyEvent.VK_I:
 				if (ke.isAltDown()) {
@@ -1643,6 +1661,19 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						imp.copy(false);
 						ke.consume();
 					}
+				}
+				break;
+			case KeyEvent.VK_P:
+				if (0 == ke.getModifiers()) {
+					final Project pro = display.getProject();
+					if ("true".equals(pro.getProperty("no_color_cues"))) {
+						// remove key
+						pro.setProperty("no_color_cues", null);
+					} else {
+						pro.setProperty("no_color_cues", "true");
+					}
+					Display.repaint(display.getLayer().getParent());
+					ke.consume();
 				}
 				break;
 			default:
@@ -1744,7 +1775,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		private Displayable active;
 		private int c_alphas;
 		private Rectangle clipRect;
-		public long start;
 		public final int label = counter.getAndIncrement();
 		OffscreenThread(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
 			this.clipRect = clipRect;
@@ -1753,17 +1783,17 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			this.g_height = g_height;
 			this.active = active;
 			this.c_alphas = c_alphas;
-			this.start = System.currentTimeMillis();
 			setPriority(Thread.NORM_PRIORITY);
 			start();
 		}
 
 		public final boolean canQuit() {
 			final long now = System.currentTimeMillis();
-			if (now - start > min_time && now - last_paint < min_time) {
-				//p(label + " off canQuit yes");
+			if (now - this.start > min_time && now - last_paint < min_time) {
+				//Utils.log2(label + " off canQuit yes");
 				return true;
 			}
+			//Utils.log2(label + " off canQuit NO");
 			return false;
 		}
 
@@ -1786,7 +1816,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				final Area background =  new Area(new Rectangle(0, 0, g_width, g_height));
 				// bring the area to Layer space
 				background.transform(atc.createInverse());
-				boolean bkgd_painted = false;
 
 				// the non-srcRect areas, in offscreen coords
 				final Rectangle r1 = new Rectangle(srcRect.x + srcRect.width, srcRect.y, (int)(g_width / magnification) - srcRect.width, (int)(g_height / magnification));
@@ -1900,7 +1929,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					// paint background
 					g.setColor(Color.black);
 					g.fill(background);
-					bkgd_painted = true;
 				}
 
 				//Utils.log2("offscreen painting: " + al_paint.size());
@@ -1926,55 +1954,43 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					g.fill(r2);
 				}
 
-				// TODO: check
 				Thread.yield();
-				if (quit) {
+
+				if (quit && canQuit()) {
 					g.dispose();
 					target.flush();
 					return;
 				}
 
 				synchronized (offscreen_lock) {
-					while (offscreen_locked) { try { offscreen_lock.wait(); } catch (InterruptedException ie) {} }
-					offscreen_locked = true;
+					offscreen_lock.lock();
+					try {
+						// only on success:
+						update_graphics = false;
+						loader.setMassiveMode(false);
+						if (null != offscreen) offscreen.flush();
+						offscreen = target;
+						DisplayCanvas.this.al_top = al_top;
 
-					// only on success:
-					update_graphics = false;
-					loader.setMassiveMode(false);
-					if (null != offscreen) offscreen.flush();
-					offscreen = target;
-					DisplayCanvas.this.al_top = al_top;
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
 
-					offscreen_locked = false;
-					offscreen_lock.notifyAll();
+					offscreen_lock.unlock();
 				}
 
+				//Utils.log2(label + " called RT.paintFromOff");
 				// Repaint!
-				RT.paint(clipRect, false);
+				RT.paintFromOff(clipRect, this.start);
+
 
 			} catch (OutOfMemoryError oome) {
 				// so OutOfMemoryError won't generate locks
-				new IJError(oome);
-				synchronized (offscreen_lock) {
-					if (offscreen_locked) {
-						offscreen_locked = false;
-						offscreen_lock.notifyAll();
-					}
-				}
+				IJError.print(oome);
 			} catch (Exception e) {
-				new IJError(e);
-				synchronized (offscreen_lock) {
-					if (offscreen_locked) {
-						offscreen_locked = false;
-						offscreen_lock.notifyAll();
-					}
-				}
+				IJError.print(e);
 			}
 		}
-	}
-
-	private final void p(final String msg) {
-		//Utils.log2(msg);
 	}
 
 	// added here to prevent flickering, but doesn't help. All it does is avoid a call to imp.redraw()
@@ -1989,5 +2005,26 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		if ((newy+srcRect.height)>imageHeight) newy = imageHeight-srcRect.height;
 		srcRect.x = newx;
 		srcRect.y = newy;
+	}
+
+	private void handleHide(final KeyEvent ke) {
+		if (ke.isAltDown() && !ke.isShiftDown()) {
+			// show hidden
+			display.getLayer().getParent().setAllVisible(false);
+			//Display.repaint(display.getLayer());
+			Display.update(display.getLayer());
+			ke.consume();
+			return;
+		}
+		if (ke.isShiftDown()) {
+			// hide deselected
+			display.hideDeselected(ke.isAltDown());
+			ke.consume();
+			return;
+		}
+		// else, hide selected
+		display.getSelection().setVisible(false);
+		Display.update(display.getLayer());
+		ke.consume();
 	}
 }

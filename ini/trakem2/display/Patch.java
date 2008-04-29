@@ -113,9 +113,14 @@ public class Patch extends Displayable {
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
-	/** Fetches the image plus from the cache. Be warned: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache. */
+	/** Fetches the ImagePlus from the cache. Be warned: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache. */
 	public ImagePlus getImagePlus() {
 		return this.project.getLoader().fetchImagePlus(this);
+	}
+
+	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I adivse you to call this method everytime you need the processor. */
+	public ImageProcessor getImageProcessor() {
+		return this.project.getLoader().fetchImageProcessor(this);
 	}
 
 	/** Boundary checks on min and max, given the image type. */
@@ -181,11 +186,8 @@ public class Patch extends Displayable {
 	/** @param c contains the current Display 'channels' value (the transparencies of each channel). This method creates a new color image in which each channel (R, G, B) has the corresponding alpha (in fact, opacity) specified in the 'c'. This alpha is independent of the alpha of the whole Patch. The method updates the Loader cache with the newly created image. The argument 'imp' is optional: if null, it will be retrieved from the loader.<br />
 	 * For non-color images, a standard image is returned regardless of the @param c
 	 */
-	private Image adjustChannels(int c, boolean force, ImagePlus imp) {
-		if (null == imp) imp = project.getLoader().fetchImagePlus(this, false); // calling create_snap will end up calling this method adjustChannels twice, which is ludicrous, so 'false'
-		// the method fetchImage above has set the min and max already on the image
-		//Utils.log2("Patch " + this + "   imp: slice is " + imp.getCurrentSlice());
-		//Utils.printCaller(this, 12);
+	private Image adjustChannels(final int c, final boolean force, ImagePlus imp) {
+		if (null == imp) imp = project.getLoader().fetchImagePlus(this);
 		ImageProcessor ip = imp.getProcessor();
 		if (null == ip) return null; // fixing synch problems when deleting a Patch
 		Image awt = null;
@@ -232,11 +234,10 @@ public class Patch extends Displayable {
 
 	/** Just throws the cached image away if the alpha of the channels has changed. */
 	private final void checkChannels(int channels, double magnification) {
-		//Utils.log("checkChannels called: this.channels = " + this.channels + "  channels = " + channels);
 		if (this.channels != channels && (ImagePlus.COLOR_RGB == this.type || ImagePlus.COLOR_256 == this.type)) {
 			final int old_channels = this.channels;
 			this.channels = channels; // before, so if any gets recreated it's done right
-			getProject().getLoader().adjustChannels(this, old_channels);
+			project.getLoader().adjustChannels(this, old_channels);
 		}
 	}
 
@@ -258,9 +259,10 @@ public class Patch extends Displayable {
 		}
 		// extract channel values
 		final float cr = ((channels&0xff0000)>>16) / 255.0f;
-		final float cg = ((channels&0xff00)>>8) / 255.0f;
-		final float cb = (channels&0xff) / 255.0f;
+		final float cg = ((channels&0xff00)>>8   ) / 255.0f;
+		final float cb = ( channels&0xff         ) / 255.0f;
 		// extract pixels
+		Utils.log2("w, h: " + bi.getWidth() + ", " + bi.getHeight());
 		final int[] pixels = bi.getRGB(0, 0, bi.getWidth(), bi.getHeight(), null, 0, 1);
 		// scale them according to channel opacities
 		int p;
@@ -490,6 +492,19 @@ public class Patch extends Displayable {
 		return new PatchStack(patch, currentSlice);
 	}
 
+	public ArrayList<Patch> getStackPatches() {
+		Hashtable ht = new Hashtable();
+		getStackPatches(ht);
+		ArrayList z = new ArrayList();
+		z.addAll(ht.keySet());
+		java.util.Collections.sort(z);
+		ArrayList<Patch> p = new ArrayList<Patch>();
+		for (Double d : (ArrayList<Double>)z) {
+			p.add((Patch)ht.get(d));
+		}
+		return p;
+	}
+
 	/** Collect linked Patch instances that do not lay in this layer. Recursive over linked Patch instances that lay in different layers. */ // This method returns a usable stack because Patch objects are only linked to other Patch objects when inserted together as stack. So the slices are all consecutive in space and have the same thickness. Yes this is rather convoluted, stacks should be full-grade citizens
 	private void getStackPatches(Hashtable ht) {
 		if (ht.contains(this)) return;
@@ -585,9 +600,10 @@ public class Patch extends Displayable {
 		;
 	}
 
-	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. */
-	public Displayable clone(Project project) {
-		final Patch copy = new Patch(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
+	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */
+	public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.alpha = this.alpha;
 		copy.visible = true;
@@ -595,8 +611,13 @@ public class Patch extends Displayable {
 		copy.min = this.min;
 		copy.max = this.max;
 		copy.addToDatabase();
-		project.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
+		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 		return copy;
+	}
+
+	/** Override to cancel. */
+	public void linkPatches() {
+		Utils.log2("Patch class can't link other patches using Displayble.linkPatches()");
 	}
 
 	public void paintSnapshot(final Graphics2D g, final double mag) {
@@ -608,6 +629,22 @@ public class Patch extends Displayable {
 			}
 		} else {
 			paintAsBox(g);
+		}
+	}
+
+	static protected void crosslink(final ArrayList patches, final boolean overlapping_only) {
+		if (null == patches) return;
+		final ArrayList<Patch> al = new ArrayList<Patch>();
+		for (Object ob : patches) if (ob instanceof Patch) al.add((Patch)ob); // ... 
+		final int len = al.size();
+		if (len < 2) return;
+		final Patch[] pa = new Patch[len];
+		al.toArray(pa);
+		for (int i=0; i<pa.length; i++) {
+			for (int j=i+1; j<pa.length; j++) {
+				if (overlapping_only && !pa[i].intersects(pa[j])) continue;
+				pa[i].link(pa[j]);
+			}
 		}
 	}
 }

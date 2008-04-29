@@ -39,11 +39,11 @@ public class DTDParser {
 				data.append(tmp);
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			try {
 				dis.close();
-			} catch (Exception e) { new IJError(e); }
+			} catch (Exception e) { IJError.print(e); }
 		}
 
 		return parseDTD(data);
@@ -89,11 +89,11 @@ public class DTDParser {
 				}
 			}
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		} finally {
 			try {
 				dis.close();
-			} catch (Exception e) { new IJError(e); }
+			} catch (Exception e) { IJError.print(e); }
 		}
 
 		if (0 == data.length()) return null;
@@ -188,7 +188,7 @@ public class DTDParser {
 				for (Iterator it = ht_attr.values().iterator(); it.hasNext(); ) {
 					Attribute attr = (Attribute)it.next();
 					attr.createAttribute(parent);
-					Utils.log2(parent.getType() + "  new attr: " + attr.name);
+					//Utils.log2(parent.getType() + "  new attr: " + attr.name);
 				}
 			}
 

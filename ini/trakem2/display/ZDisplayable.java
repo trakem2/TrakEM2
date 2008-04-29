@@ -30,6 +30,7 @@ import java.awt.Rectangle;
 import java.util.Hashtable;
 import java.util.HashSet;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
@@ -126,5 +127,23 @@ public abstract class ZDisplayable extends Displayable {
 		updateInDatabase("color");
 		Display.repaint(layer_set, this, 5);
 		Display3D.setColor(this, color);
+	}
+
+	abstract public boolean intersects(Area area, double z_first, double z_last);
+
+	public void setVisible(final boolean visible, final boolean repaint) {
+		if (visible == this.visible) {
+			// patching synch error
+			//Display.updateVisibilityCheckbox(layer, this, null);
+			return;
+		}
+		this.visible = visible;
+		if (repaint) {
+			//Display.setUpdateGraphics(layer, this);
+			//Display.repaint(layer_set, this, null, 5, true);
+			Display.repaint(layer_set, null, getBoundingBox(), 5, true); // something is fishy: when active, it can't be properly repainted out -only the handles of a pipe do, for example, but not the skeleton, indicating that perhaps it was drawn into the background image.
+		}
+		updateInDatabase("visible");
+		Display.updateVisibilityCheckbox(layer, this, null);
 	}
 }

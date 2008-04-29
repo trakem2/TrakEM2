@@ -257,7 +257,7 @@ public class Profile extends Displayable {
 		this.width = width;
 		this.height = height;
 		this.alpha = alpha;
-		this.color = color; 			// TODO: no rotation?
+		this.color = color;
 		this.n_points = n_points;
 		this.p = p;
 		this.p_r = p_r;
@@ -458,7 +458,7 @@ public class Profile extends Displayable {
 	}
 
 	/**Toggle curve closed/open.*/
-	protected void toggleClosed() {
+	public void toggleClosed() {
 		if (closed) {
 			closed = false;
 		} else {
@@ -629,7 +629,7 @@ public class Profile extends Displayable {
 					removePoint(index);
 					index = index_r = index_l = -1;
 					generateInterpolatedPoints(0.05);
-					repaint();
+					repaint(false);
 					return;
 				} else if (me.isAltDown()) {
 					resetControlPoints(index);
@@ -641,7 +641,7 @@ public class Profile extends Displayable {
 					}
 					toggleClosed();
 					generateInterpolatedPoints(0.05);
-					repaint();
+					repaint(false);
 					return;
 				} else if (0 == index && n_points > 1 && !closed) {
 					//close curve, reset left control point of the first point and set it up for dragging
@@ -652,7 +652,7 @@ public class Profile extends Displayable {
 					index = -1;
 					index_r = -1;
 					index_l = 0; //the first one
-					repaint();
+					repaint(false);
 					return;
 				}
 			}
@@ -675,7 +675,7 @@ public class Profile extends Displayable {
 					index_r = index_l;
 					index_l = -1;
 				}
-				repaint();
+				repaint(false);
 				return;
 			}
 		}
@@ -710,7 +710,7 @@ public class Profile extends Displayable {
 					dragControlPoint(index, x_d, y_d, p_l, p_r, true);
 				}
 				generateInterpolatedPoints(0.05);
-				repaint();
+				repaint(false);
 				return;
 			}
 
@@ -718,13 +718,13 @@ public class Profile extends Displayable {
 			if (-1 != index_r) {
 				dragControlPoint(index_r, x_d, y_d, p_r, p_l, is_new_point);
 				generateInterpolatedPoints(0.05);
-				repaint();
+				repaint(false);
 				return;
 			}
 			if (-1 != index_l) {
 				dragControlPoint(index_l, x_d, y_d, p_l, p_r, is_new_point);
 				generateInterpolatedPoints(0.05);
-				repaint();
+				repaint(false);
 				return;
 			}
 
@@ -733,7 +733,7 @@ public class Profile extends Displayable {
 				int dx = x_d - x_d_old;
 				int dy = y_d - y_d_old;
 				this.at.translate(dx, dy);
-				repaint();
+				repaint(false);
 				return;
 			}
 		}
@@ -814,13 +814,17 @@ public class Profile extends Displayable {
 	}
 
 
-	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
 	public void repaint() {
+		repaint(true);
+	}
+
+	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
+	public void repaint(boolean repaint_navigator) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
 		calculateBoundingBox();
 		box.add(getBoundingBox(null));
-		Display.repaint(layer, this, box, 5);
+		Display.repaint(layer, this, box, 5, repaint_navigator);
 	}
 
 	/**Check if the given point (usually from a MOUSE_PRESSED MouseEvent) is contained within the boundaries of this object. The point is expected as local coordinates. */
@@ -1043,6 +1047,15 @@ public class Profile extends Displayable {
 		this.p_r = p_r;
 		this.n_points = p_l[0].length;
 		this.generateInterpolatedPoints(0.05);
+	}
+
+	public void setPoints(double[][] p_l, double[][] p, double[][] p_r, boolean update) {
+		setPoints(p_l, p, p_r);
+		calculateBoundingBox();
+		if (update) {
+			updateInDatabase("points");
+			repaint(true);
+		}
 	}
 
 	protected void addPointsAtBegin(double[][] new_p_l, double[][] new_p, double[][] new_p_r) {
@@ -1282,26 +1295,26 @@ public class Profile extends Displayable {
 		String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		if (-1 == n_points) setupForDisplay(); // reload
-		if (0 == n_points) return;
 		String[] RGB = Utils.getHexRGBColor(color);
-		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n")
-		       .append(in).append("d=\"M")
-		;
-		for (int i=0; i<n_points-1; i++) {
-			sb_body.append(' ').append(p[0][i]).append(',').append(p[1][i])
-			    .append(" C ").append(p_r[0][i]).append(',').append(p_r[1][i])
-			    .append(' ').append(p_l[0][i+1]).append(',').append(p_l[1][i+1])
-			;
+		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
+		if (n_points > 0) {
+			sb_body.append(in).append("d=\"M");
+			for (int i=0; i<n_points-1; i++) {
+				sb_body.append(' ').append(p[0][i]).append(',').append(p[1][i])
+				    .append(" C ").append(p_r[0][i]).append(',').append(p_r[1][i])
+				    .append(' ').append(p_l[0][i+1]).append(',').append(p_l[1][i+1])
+				;
+			}
+			sb_body.append(' ').append(p[0][n_points-1]).append(',').append(p[1][n_points-1]);
+			if (closed) {
+				sb_body.append(" C ").append(p_r[0][n_points-1]).append(',').append(p_r[1][n_points-1])
+				    .append(' ').append(p_l[0][0]).append(',').append(p_l[1][0])
+				    .append(' ').append(p[0][0]).append(',').append(p[1][0])
+				    .append(" z")
+				;
+			}
+			sb_body.append("\"\n");
 		}
-		sb_body.append(' ').append(p[0][n_points-1]).append(',').append(p[1][n_points-1]);
-		if (closed) {
-			sb_body.append(" C ").append(p_r[0][n_points-1]).append(',').append(p_r[1][n_points-1])
-			    .append(' ').append(p_l[0][0]).append(',').append(p_l[1][0])
-			    .append(' ').append(p[0][0]).append(',').append(p[1][0])
-			    .append(" z")
-			;
-		}
-		sb_body.append("\"\n");
 		sb_body.append(indent).append("/>\n");
 	}
 
@@ -1368,8 +1381,9 @@ public class Profile extends Displayable {
 	}
 
 	/** Performs a deep copy of this object, unlocked and visible. */
-	public Displayable clone(Project project) {
-		final Profile copy = new Profile(project, project.getLoader().getNextId(), null != title ? title.toString() : null, width, height, alpha, true, new Color(color.getRed(), color.getGreen(), color.getBlue()), closed, false, (AffineTransform)this.at.clone());
+	public Displayable clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final Profile copy = new Profile(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), closed, this.locked, (AffineTransform)this.at.clone());
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
 		copy.n_points = n_points;
@@ -1415,6 +1429,15 @@ public class Profile extends Displayable {
 		// Create sublists of profiles, following the chain of links.
 		final Profile[] p = new Profile[hs.size()];
 		hs.toArray(p);
+		// find if at least one is visible
+		boolean hidden = true;
+		for (int i=0; i<p.length; i++) {
+			if (p[i].visible) {
+				hidden = false;
+				break;
+			}
+		}
+		if (hidden) return null;
 		// collect starts and ends
 		final HashSet hs_bases = new HashSet();
 		final HashSet hs_done = new HashSet();
@@ -1539,7 +1562,7 @@ public class Profile extends Displayable {
 			}
 			return SkinMaker.generateTriangles(sv, -1, -1, closed);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}

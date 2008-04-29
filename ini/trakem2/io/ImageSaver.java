@@ -60,7 +60,7 @@ public class ImageSaver {
 			try {
 				fdir.mkdirs();
 			} catch (Exception e) {
-				new IJError(e);
+				IJError.print(e);
 				Utils.log("Can't use path: " + path);
 				return false;
 			}
@@ -109,7 +109,7 @@ public class ImageSaver {
 			if (null != f) {
 				try { f.close(); } catch (Exception ee) {}
 			}
-			new IJError(e);
+			IJError.print(e);
 			return false;
 		}
 		return true;
@@ -158,7 +158,7 @@ public class ImageSaver {
 				// decode
 				if (null != stream) bi = openJpeg2(stream, color_id);
 			} catch (Exception e2) {
-				new IJError(e2);
+				IJError.print(e2);
 			}
 		} finally {
 			if (null != stream) { try { stream.close(); } catch (Exception e) {} }
@@ -209,7 +209,7 @@ public class ImageSaver {
 			out.close();
 		}
 		catch (IOException e) {
-			new IJError(e);
+			IJError.print(e);
 			return false;
 		}
 		return true;
@@ -301,7 +301,7 @@ public class ImageSaver {
 		} catch (FileNotFoundException fnfe) {
 			Utils.log2("saveJpegAlpha: Path not found: " + path);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 	}
 
@@ -312,7 +312,7 @@ public class ImageSaver {
 		} catch (FileNotFoundException fnfe) {
 			Utils.log2("openJpegAlpha: Path not found: " + path);
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 		}
 		return null;
 	}

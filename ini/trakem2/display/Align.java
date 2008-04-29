@@ -56,7 +56,7 @@ public class Align {
 	}
 
 	/** Accepts offscreen coordinates only. */
-	public void mousePressed(Layer layer, MouseEvent me, int x_p, int y_p) {
+	public void mousePressed(Layer layer, MouseEvent me, int x_p, int y_p, double magnification) {
 		// check preconditions
 		if (null == layer || x_p < 0 || y_p < 0 || x_p > layer.getLayerWidth() || y_p > layer.getLayerHeight()) return;
 		// create landmark sets if not there
@@ -64,13 +64,13 @@ public class Align {
 			l1 = new Landmark(layer);
 			l1.add(x_p, y_p);
 		} else if (l1.layer.equals(layer)) {
-			if (me.isShiftDown()) l1.remove(x_p, y_p);
+			if (me.isShiftDown() && me.isControlDown()) l1.remove(x_p, y_p, magnification);
 			else l1.add(x_p, y_p);
 		} else if (null == l2) {
 			l2 = new Landmark(layer);
 			l2.add(x_p, y_p);
 		} else if (l2.layer.equals(layer)) {
-			if (me.isShiftDown()) l2.remove(x_p, y_p);
+			if (me.isShiftDown() && me.isControlDown()) l2.remove(x_p, y_p, magnification);
 			else l2.add(x_p, y_p);
 		} else {
 			// ignore, different layer
@@ -86,10 +86,10 @@ public class Align {
 	/** A set of landmarks in a specific Layer. */
 	private class Landmark {
 		Layer layer;
-		private ArrayList landmarks;
+		private ArrayList<Point> landmarks;
 		Landmark(Layer layer) {
 			this.layer = layer;
-			this.landmarks = new ArrayList();
+			this.landmarks = new ArrayList<Point>();
 		}
 		void destroy() {
 			this.layer = null;
@@ -97,21 +97,24 @@ public class Align {
 		}
 		void add(int x, int y) {
 			// check that the point doesn't exist already
-			for (Iterator it = landmarks.iterator(); it.hasNext(); ) {
-				Point p = (Point)it.next();
+			for (Point p : landmarks) {
 				if (p.x == x && p.y == y) return;
 			}
 			landmarks.add(new Point(x, y));
-			Display.repaint(layer); // TODO optimize this!
+			Display.repaint(layer);
 		}
-		void remove(int x, int y) {
-			for (Iterator it = landmarks.iterator(); it.hasNext(); ) {
-				Point p = (Point)it.next();
-				if (p.x == x && p.y == y) {
-					it.remove();
-					return;
+		/** Remove closest point, if closer than a certain threshold. */
+		void remove(int x, int y, double mag) {
+			double max = 10 / mag;
+			if (max < 1) max = 1;
+			Point closest = null;
+			for (Point p : landmarks) {
+				if (Math.abs(p.x - x) < max && Math.abs(p.y - y) < max) {
+					closest = p;
 				}
 			}
+			if (null != closest) landmarks.remove(closest);
+			Display.repaint(layer);
 		}
 		Point get(int i) {
 			if (i < 0 || i > landmarks.size()) return null;
@@ -121,8 +124,7 @@ public class Align {
 		void paint(Graphics2D g, Rectangle srcRect, double mag, Color color) {
 			int i = 1;
 			g.setFont(new Font("SansSerif", Font.BOLD, 14));
-			for (Iterator it = landmarks.iterator(); it.hasNext(); ) {
-				Point p = (Point)it.next();
+			for (Point p : landmarks) {
 				int x = (int)((p.x - srcRect.x)*mag);
 				int y = (int)((p.y - srcRect.y)*mag);
 				// draw a cross at the exact point
@@ -143,14 +145,19 @@ public class Align {
 		/** Returns all displayables under all landmarks and their linked ones. */
 		HashSet getDisplayables() {
 			HashSet hs = new HashSet();
-			for (Iterator it = landmarks.iterator(); it.hasNext(); ) {
-				Point p = (Point)it.next();
+			for (Point p : landmarks) {
 				for (Iterator itd = layer.find(p.x, p.y).iterator(); itd.hasNext(); ) {
 					Displayable d = (Displayable)itd.next();
 					if (hs.contains(d)) continue;
 					hs = d.getLinkedGroup(hs);
 				}
 			}
+			return hs;
+		}
+		/** Returns Displayables directly under the landmarks, not their linked ones. */
+		HashSet getDirectDisplayables() {
+			HashSet hs = new HashSet();
+			for (Point p : landmarks) hs.addAll(layer.find(p.x, p.y));
 			return hs;
 		}
 	}
@@ -177,8 +184,30 @@ public class Align {
 		}
 
 		// select objects under landmarks and their linked ones
-		HashSet hs1 = l1.getDisplayables();
-		HashSet hs2 = l2.getDisplayables();
+		HashSet hs1 = l1.getDirectDisplayables();
+		HashSet hs2 = l2.getDirectDisplayables();
+
+
+		// handle stacks:
+		Displayable pa1=null, pa2=null;
+		if (1 == hs1.size() && 1 == hs2.size()) {
+			pa1 = (Displayable)hs1.iterator().next();
+			pa2 = (Displayable)hs2.iterator().next();
+			if (pa1.getClass().equals(Patch.class)
+			 && pa2.getClass().equals(Patch.class)
+			 && pa1.isLinked(pa2)) {
+				// break the link to avoid improper propagation within the stack
+				pa1.unlink(pa2);
+			 } else {
+				pa1 = pa2 = null;
+			 }
+		}
+
+		// get the full linked group for each
+		hs1 = l1.getDisplayables();
+		hs2 = l2.getDisplayables();
+
+
 		// check that both hashsets do not overlap
 		for (Iterator it = hs1.iterator(); it.hasNext(); ) {
 			if (hs2.contains(it.next())) {
@@ -210,7 +239,6 @@ public class Align {
 					hs2.remove(it.next());
 				}
 			}
-			return;
 		}
 		if (0 == hs2.size()) {
 			Display.updateSelection();
@@ -281,11 +309,19 @@ public class Align {
 				list = ls.getLayers().subList(0, index1); // end is exclusive
 			}
 		}
-		for (Iterator it = list.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
-			layer.apply(Displayable.class, at);
-			Display.repaint(layer);
+		if (null != list) {
+			for (Iterator it = list.iterator(); it.hasNext(); ) {
+				Layer layer = (Layer)it.next();
+				layer.apply(Displayable.class, at);
+				Display.repaint(layer);
+			}
 		}
+
+		// repair link if it was a stack
+		if (null != pa1 && null != pa2) {
+			pa1.link(pa2);
+		}
+
 		// what about ZDisplayable ? Will not be affected if they are not linking Displayable objects present in the two layers involved. TODO
 
 		// end
@@ -462,7 +498,7 @@ public class Align {
 			// done!
 			ls.getProject().getLoader().commitLargeUpdate();
 		} catch (Exception e) {
-			new IJError(e);
+			IJError.print(e);
 			ls.getProject().getLoader().rollback();
 			ls.undoOneStep();
 		}

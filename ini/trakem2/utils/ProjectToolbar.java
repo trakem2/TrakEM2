@@ -91,7 +91,7 @@ public class ProjectToolbar implements MouseListener {
 		} catch (Exception e) {
 			// the above is not thread safe, will fail many times because the Display being show is also trying to set the toolbar
 			Utils.log2("Can't check if toolbar is in place.");
-			//new IJError(e);
+			//IJError.print(e);
 			// if it fails, toolbar_present still is false and thus will result in the macros being installed again.
 		}
 

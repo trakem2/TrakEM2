@@ -47,7 +47,7 @@ public abstract class Displayable extends DBObject {
 	protected double width = 0,
 		         height = 0;
 
-	private boolean locked = false;
+	protected boolean locked = false;
 	protected String title;
 	protected Color color = Color.yellow;
 	protected float alpha = 1.0f; // from 0 to 1 (0 is full transparency)
@@ -484,15 +484,19 @@ public abstract class Displayable extends DBObject {
 		setVisible(visible, true);
 	}
 
-	public void setVisible(boolean visible, boolean repaint) {
-		if (this.visible == visible) return;
+	public void setVisible(final boolean visible, final boolean repaint) {
+		if (visible == this.visible) {
+			// patching synch error
+			Display.updateVisibilityCheckbox(layer, this, null);
+			return;
+		}
 		this.visible = visible;
 		if (repaint) {
-			Display.setUpdateGraphics(layer, this);
+			//Display.setUpdateGraphics(layer, this);
 			Display.repaint(layer, this, 5);
 		}
 		updateInDatabase("visible");
-		Display.updateVisibilityCheckbox(layer, this, null); // overkill, but makes my life easy
+		Display.updateVisibilityCheckbox(layer, this, null);
 	}
 
 	/** Repaint this Displayable in all Display instances that are showing it. */
@@ -628,13 +632,29 @@ public abstract class Displayable extends DBObject {
 		project.getLoader().removeCrossLink(this.id, d.id);
 	}
 
-	/** Check if this object is linked to any other Displayable objects.*/
+	/** Check if this object is directly linked to any other Displayable objects.*/
 	public boolean isLinked() {
 		if (null == hs_linked) return false;
 		return !hs_linked.isEmpty();
 	}
 
-	/** Check if this object is only linked to Displayable objects of the given class (returns true) or to none (returns true as well).*/
+	/** Check if this object is directly linked to a Displayable object of the given Class. */
+	public boolean isLinked(final Class c) {
+		if (null == hs_linked) return false;
+		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+			Object ob = it.next();
+			if (c.isInstance(ob)) return true;
+		}
+		return false;
+	}
+
+	/** Check if thisobject is directly linked to the given Displayable. */
+	public boolean isLinked(final Displayable d) {
+		if (null == hs_linked) return false;
+		return hs_linked.contains(d);
+	}
+
+	/** Check if this object is directly linked only to Displayable objects of the given class (returns true) or to none (returns true as well).*/
 	public boolean isOnlyLinkedTo(Class c) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
 		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
@@ -645,7 +665,7 @@ public abstract class Displayable extends DBObject {
 		return true;
 	}
 
-	/** Check if this object is only linked to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
+	/** Check if this object is directly linked only to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
 	public boolean isOnlyLinkedTo(Class c, Layer layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
 		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
@@ -706,15 +726,14 @@ public abstract class Displayable extends DBObject {
 
 	/** Check if this perimeter's intersects that of the given Displayable. */
 	public boolean intersects(final Displayable d) {
-		final Polygon pol1 = getPerimeter();
-		final Polygon pol2 = d.getPerimeter();
-		for (int i=0; i<pol1.npoints; i++) {
-			if (pol2.contains(pol1.xpoints[i], pol1.ypoints[i])) {
-				return true;
-			}
-		}
-		return false;
-		// or: return new Area(getPerimeter()).intersects(new Area(d.getPerimeter());
+		return intersects(new Area(d.getPerimeter()));
+	}
+
+	public boolean intersects(final Area area) {
+		final Area a = new Area(getPerimeter());
+		a.intersect(area);
+		final Rectangle b = a.getBounds();
+		return 0 != b.width && 0 != b.height;
 	}
 
 	/** Returns the intersection of this Displayable's area with the given one. */
@@ -774,7 +793,7 @@ public abstract class Displayable extends DBObject {
 
 	protected GenericDialog makeAdjustPropertiesDialog() {
 		Rectangle box = getBoundingBox(null);
-		GenericDialog gd = new GenericDialog("Properties");
+		GenericDialog gd = new GD("Properties", this);
 		gd.addStringField("title: ", title);
 		gd.addNumericField("x: ", box.x, 2);
 		gd.addNumericField("y: ", box.y, 2);
@@ -783,8 +802,64 @@ public abstract class Displayable extends DBObject {
 		gd.addNumericField("rot (degrees): ", 0, 2);
 		gd.addSlider("alpha: ", 0, 100, (int)(alpha*100));
 		gd.addCheckbox("visible", visible);
+		gd.addSlider("Red: ", 0, 255, color.getRed());
+		gd.addSlider("Green: ", 0, 255, color.getGreen());
+		gd.addSlider("Blue: ", 0, 255, color.getBlue());
 		gd.addCheckbox("locked", locked);
+		// add slider listener
+		final Scrollbar alp = (Scrollbar)gd.getSliders().get(0);
+		final Scrollbar red = (Scrollbar)gd.getSliders().get(1);
+		final Scrollbar green = (Scrollbar)gd.getSliders().get(2);
+		final Scrollbar blue = (Scrollbar)gd.getSliders().get(3);
+		final TextField talp = (TextField)gd.getNumericFields().get(5);
+		final TextField tred = (TextField)gd.getNumericFields().get(6);
+		final TextField tgreen = (TextField)gd.getNumericFields().get(7);
+		final TextField tblue = (TextField)gd.getNumericFields().get(8);
+		SliderListener sla = new SliderListener() {
+			public void update() {
+				setAlpha((float)alp.getValue()/100);
+			}
+		};
+		SliderListener slc = new SliderListener() {
+			public void update() {
+				setColor(new Color(red.getValue(), green.getValue(), blue.getValue()));
+			}
+		};
+		alp.addAdjustmentListener(sla);
+		red.addAdjustmentListener(slc);
+		green.addAdjustmentListener(slc);
+		blue.addAdjustmentListener(slc);
+		talp.addTextListener(sla);
+		tred.addTextListener(slc);
+		tgreen.addTextListener(slc);
+		tblue.addTextListener(slc);
 		return gd;
+	}
+
+	private abstract class SliderListener implements AdjustmentListener, TextListener {
+		public void adjustmentValueChanged(AdjustmentEvent ae) { update(); }
+		public void textValueChanged(TextEvent te) { update(); }
+		abstract public void update();
+	}
+
+	private class GD extends GenericDialog {
+		Displayable displ;
+		Color dcolor;
+		float dalpha;
+		GD(String title, Displayable displ) {
+			super(title);
+			this.displ = displ;
+			this.dcolor = new Color(displ.color.getRed(), displ.color.getGreen(), displ.color.getBlue()); // can't clone color?
+			this.dalpha = displ.alpha;
+		}
+		/** Override to restore original color when canceled. */
+		public void dispose() {
+			if (wasCanceled()) {
+				displ.alpha = dalpha;
+				displ.setColor(dcolor); // calls repaint
+			}
+			super.dispose();
+		}
 	}
 
 	protected void processAdjustPropertiesDialog(final GenericDialog gd) {
@@ -809,6 +884,11 @@ public abstract class Displayable extends DBObject {
 		if (Double.isNaN(x1) || Double.isNaN(y1) || Double.isNaN(sx) || Double.isNaN(sy) || Float.isNaN(alpha1)) {
 			Utils.showMessage("Invalid values!");
 			return;
+		}
+		Color co = new Color((int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
+		if (!co.equals(this.color)) {
+			color = co;
+			updateInDatabase("color");
 		}
 		boolean visible1 = gd.getNextBoolean();
 		boolean locked1 = gd.getNextBoolean();
@@ -1063,8 +1143,13 @@ public abstract class Displayable extends DBObject {
 		return clone(this.project);
 	}
 
-	/** Performs a deep copy of this object but assigning to it the given project. */
-	abstract public Displayable clone(Project pr);
+	/** Performs a deep copy of this object, obtaining its unique id either from the given project or the exact same as this object's id. The visibility, though, is set to true at all times. */
+	abstract public Displayable clone(Project pr, boolean copy_id);
+
+	/** Performs a deep copy of this object but assigning to it the given project. The visibility, though, is set to true at all times. */
+	public Displayable clone(Project pr) {
+		return clone(pr, false);
+	}
 
 	public LayerSet getLayerSet() {
 		if (null != layer) return layer.getParent();
@@ -1202,7 +1287,7 @@ public abstract class Displayable extends DBObject {
 		try {
 			this.at.createInverse().transform(pSrc, pDst);
 		} catch (NoninvertibleTransformException nite) {
-			new IJError(nite);
+			IJError.print(nite);
 		}
 		return pDst;
 	}
@@ -1265,5 +1350,10 @@ public abstract class Displayable extends DBObject {
 		} else {
 			paintAsBox(g);
 		}
+	}
+
+	public DBObject findById(final long id) {
+		if (this.id == id) return this;
+		return null;
 	}
 }

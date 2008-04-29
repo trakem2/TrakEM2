@@ -132,8 +132,8 @@ public class DisplayablePanel extends JPanel implements MouseListener, ItemListe
 				}
 				d.setVisible(false);
 			}
-			display.getNavigator().repaint(d);
-			Display.updateVisibilityCheckbox(d.layer, d, display);
+			//display.getNavigator().repaint(d);
+			//Display.updateVisibilityCheckbox(d.layer, d, display);
 		}
 	}
 
