@@ -511,6 +511,7 @@ abstract public class Loader {
 		}
 		final boolean previous = massive_mode;
 		if (bytes > max_memory / 4) setMassiveMode(true);
+		if (enoughFreeMemory(bytes)) return true;
 		boolean result = true;
 		synchronized (db_lock) {
 			lock();
@@ -523,7 +524,7 @@ abstract public class Loader {
 
 	// non-locking version
 	protected final boolean releaseToFit2(long n_bytes) {
-		if (enoughFreeMemory(n_bytes)) return true;
+		//if (enoughFreeMemory(n_bytes)) return true;
 		if (releaseMemory(0.5D, true, n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
 		// else, wait for GC
 		int iterations = 30;
@@ -914,16 +915,16 @@ abstract public class Loader {
 				synchronized (db_lock) {
 					lock();
 					n_bytes = estimateImageFileSize(p, level);
-					max_memory += n_bytes;
+					max_memory -= n_bytes;
 					unlock();
 				}
-
+				releaseToFit(n_bytes * 3); // triple, for the jpeg decoder alloc/dealloc at least 2 copies
 				mawt = fetchMipMapAWT(p, level);
 
 				synchronized (db_lock) {
 					try {
 						lock();
-						max_memory -= n_bytes;
+						max_memory += n_bytes;
 						if (null != mawt) {
 							mawts.put(id, mawt, level);
 							unlock();
@@ -940,6 +941,7 @@ abstract public class Loader {
 							boolean newly_cached = false;
 							if (null == mawt) {
 								// reload existing scaled file
+								releaseToFit(n_bytes); // overshooting
 								mawt = fetchMipMapAWT2(p, lev);
 								if (null != mawt) {
 									mawts.put(id, mawt, lev);
@@ -4465,4 +4467,16 @@ abstract public class Loader {
 		return level;
 	}
 
+	static public final int NEAREST_NEIGHBOR = 0;
+	static public final int BILINEAR = 1;
+	static public final int BICUBIC = 2;
+	static public final int GAUSSIAN = 3;
+	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic", "Gaussian"};
+
+	static public final int getMode(final String mode) {
+		for (int i=0; i<modes.length; i++) {
+			if (mode.equals(modes[i])) return i;
+		}
+		return 0;
+	}
 }

@@ -1072,6 +1072,9 @@ public class Project extends DBObject {
 		boolean no_color_cues = "true".equals(ht_props.get("no_color_cues"));
 		gd.addCheckbox("Paint_color_cues", !no_color_cues);
 		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
+		String current_mode = ht_props.get("image_resizing_mode");
+		gd.addChoice("Image resizing mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
+		//
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		setLinkProp(link_labels, gd.getNextBoolean(), DLabel.class);
@@ -1085,5 +1088,7 @@ public class Project extends DBObject {
 		if (adjustProp("no_color_cues", no_color_cues, !gd.getNextBoolean())) {
 			Display.repaint(layer_set);
 		}
+		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
+		Utils.log2("prop is: " + ht_props.get("image_resizing_mode"));
 	}
 }
