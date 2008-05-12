@@ -1765,10 +1765,10 @@ public class Registration {
 			fixed_tiles.addAll(Registration.pickFixedTiles(graphs));
 		}
 
-		// in addition, respect locked tiles
+		// in addition, respect locked tiles (add them as fixed if not there already)
 		int il = 0;
 		for (Patch patch : patches) {
-			if (patch.isLocked2()) fixed_tiles.add(tls[il]);
+			if (patch.isLocked2() && !fixed_tiles.contains(patch)) fixed_tiles.add(tls[il]);
 			il++;
 		}
 
