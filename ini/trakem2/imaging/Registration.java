@@ -754,7 +754,7 @@ public class Registration {
 
 		// test rotation first TODO
 
-		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
+		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0, base.getProject().getProperty("min_R", StitchingTEM.DEFAULT_MIN_R));
 		if (pc[2] != StitchingTEM.SUCCESS) {
 			// R is too low to be trusted
 			Utils.log2("Bad R coefficient, skipping " + moving);

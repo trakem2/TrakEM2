@@ -94,6 +94,8 @@ public class StitchingTEM {
 	static public final int TOP_LEFT_RULE = 0;
 	static public final int FREE_RULE = 1;
 
+	static public final float DEFAULT_MIN_R = 0.4f;
+
 	static public void addStitchingRuleChoice(GenericDialog gd) {
 		final String[] rules = new String[]{"Top left", "Free"};
 		gd.addChoice("stitching_rule: ", rules, rules[0]);
@@ -161,6 +163,9 @@ public class StitchingTEM {
 			double[] R1=null,
 				 R2=null;
 
+			// for scoring phase- and cross-correlation
+			final float min_R = patch[0].getProject().getProperty("min_R", DEFAULT_MIN_R);
+
 			// for minimization:
 			ArrayList<Tile> al_tiles = new ArrayList<Tile>();
 			// first patch-tile:
@@ -196,16 +201,16 @@ public class StitchingTEM {
 
 				if (TOP == prev) {
 					// compare with top only
-					R1 = correlate(patch[prev_i], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
+					R1 = correlate(patch[prev_i], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy, min_R);
 					R2 = null;
 					tile_top = al_tiles.get(i - grid_width);
 				} else {
 					// the one on the left
-					R2 = correlate(patch[prev_i], patch[i], percent_overlap, scale, LEFT_RIGHT, default_dx, default_dy);
+					R2 = correlate(patch[prev_i], patch[i], percent_overlap, scale, LEFT_RIGHT, default_dx, default_dy, min_R);
 					tile_left = al_tiles.get(i - 1);
 					// the one above
 					if (i - grid_width > -1) {
-						R1 = correlate(patch[i - grid_width], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy);
+						R1 = correlate(patch[i - grid_width], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy, min_R);
 						tile_top = al_tiles.get(i - grid_width);
 					} else {
 						R1 = null;
@@ -417,14 +422,15 @@ public class StitchingTEM {
 	 * 	- flag: ERROR or SUCCESS<br />
 	 * 	- R: cross-correlation coefficient<br />
 	 */
-	static public double[] correlate(final Patch base, final Patch moving, final float percent_overlap, final float scale, final int direction, final double default_dx, final double default_dy) {
+	static public double[] correlate(final Patch base, final Patch moving, final float percent_overlap, final float scale, final int direction, final double default_dx, final double default_dy, final float min_R) {
 		PhaseCorrelation2D pc = null;
 		double R = -2;
 		final int limit = 5; // number of peaks to check in the PhaseCorrelation results
-		final float min_R = 0.70f; // minimum R for phase-correlation to be considered good
+		//final float min_R = 0.40f; // minimum R for phase-correlation to be considered good
 					// half this min_R will be considered good for cross-correlation
 		// Iterate until PhaseCorrelation correlation coeficient R is over 0.5, or there's no more
 		// image overlap to feed
+		Utils.log2("min_R: " + min_R);
 		ImageProcessor ip1, ip2;
 		final Rectangle b1 = base.getBoundingBox(null);
 		final Rectangle b2 = moving.getBoundingBox(null);
@@ -606,11 +612,12 @@ public class StitchingTEM {
 		// start:
 		double[] best_pc = null;
 		Patch best = null;
+		final float min_R = d.getProject().getProperty("min_R", DEFAULT_MIN_R);
 		try {
 			//
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Patch base = (Patch)it.next();
-				final double[] pc = StitchingTEM.correlate(base, p_dragged, 1f, cc_scale, StitchingTEM.TOP_BOTTOM, 0, 0);
+				final double[] pc = StitchingTEM.correlate(base, p_dragged, 1f, cc_scale, StitchingTEM.TOP_BOTTOM, 0, 0, min_R);
 				if (null == best_pc) {
 					best_pc = pc;
 					best = base;

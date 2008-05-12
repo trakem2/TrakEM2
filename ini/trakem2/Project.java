@@ -1028,8 +1028,25 @@ public class Project extends DBObject {
 		}
 
 	}
+	public Hashtable<String,String> getPropertiesCopy() {
+		return (Hashtable<String,String>)ht_props.clone();
+	}
+	/** Returns null if not defined. */
 	public String getProperty(final String key) {
-		return (String)ht_props.get(key);
+		return ht_props.get(key);
+	}
+	/** Returns the default value if not defined, or if not a number or not parsable as a number. */
+	public float getProperty(final String key, final float default_value) {
+		try {
+			final String s = ht_props.get(key);
+			if (null == s) return default_value;
+			final float num = Float.parseFloat(s);
+			if (Float.isNaN(num)) return default_value;
+			return num;
+		} catch (NumberFormatException nfe) {
+			IJError.print(nfe);
+		}
+		return default_value;
 	}
 	public void setProperty(final String key, final String value) {
 		if (null == value) ht_props.remove(key);
@@ -1073,7 +1090,15 @@ public class Project extends DBObject {
 		gd.addCheckbox("Paint_color_cues", !no_color_cues);
 		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
 		String current_mode = ht_props.get("image_resizing_mode");
-		gd.addChoice("Image resizing mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
+		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
+		int current_R = (int)(100 * ini.trakem2.imaging.StitchingTEM.DEFAULT_MIN_R); // make the float a percent
+		try {
+			String scR = ht_props.get("min_R");
+			if (null != scR) current_R = Integer.parseInt(scR);
+		} catch (Exception nfe) {
+			IJError.print(nfe);
+		}
+		gd.addSlider("min_R: ", 0, 100, current_R);
 		//
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
@@ -1089,6 +1114,6 @@ public class Project extends DBObject {
 			Display.repaint(layer_set);
 		}
 		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
-		Utils.log2("prop is: " + ht_props.get("image_resizing_mode"));
+		setProperty("min_R", new Float((float)gd.getNextNumber() / 100).toString());
 	}
 }
