@@ -1765,6 +1765,13 @@ public class Registration {
 			fixed_tiles.addAll(Registration.pickFixedTiles(graphs));
 		}
 
+		// in addition, respect locked tiles
+		int il = 0;
+		for (Patch patch : patches) {
+			if (patch.isLocked2()) fixed_tiles.add(tls[il]);
+			il++;
+		}
+
 		// again, for error and distance correction
 		for ( Tile tile : tiles ) tile.update();
 
