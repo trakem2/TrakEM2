@@ -77,9 +77,6 @@ public class ImageSaver {
 			Utils.log("Null ip, can't saveAsJpeg");
 			return false;
 		}
-		if (!checkPath(path)) return false;
-		if (quality < 0f) quality = 0f;
-		if (quality > 1f) quality = 1f;
 		// ok, onward
 		// No need to make an RGB int[] image if a byte[] image with a LUT will do.
 		/*
@@ -88,18 +85,25 @@ public class ImageSaver {
 			image_type = BufferedImage.TYPE_BYTE_GRAY;
 		}
 		*/
+		BufferedImage bi = null;
+		if (as_grey) { // even better would be to make a raster directly from the byte[] array, and pass that to the encoder
+			bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, (IndexColorModel)ip.getColorModel());
+		} else {
+			bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
+		}
+		final Graphics g = bi.createGraphics();
+		g.drawImage(ip.createImage(), 0, 0, null);
+		g.dispose();
+		return saveAsJpeg(bi, path, quality, as_grey);
+	}
+
+	static public final boolean saveAsJpeg(final BufferedImage bi, final String path, float quality, boolean as_grey) {
+		if (!checkPath(path)) return false;
+		if (quality < 0f) quality = 0f;
+		if (quality > 1f) quality = 1f;
 		FileOutputStream f = null;
 		try {
-			BufferedImage bi = null;
-			if (as_grey) { // even better would be to make a raster directly from the byte[] array, and pass that to the encoder
-				bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, (IndexColorModel)ip.getColorModel());
-			} else {
-				bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
-			}
 			f = new FileOutputStream(path);
-			final Graphics g = bi.createGraphics();
-			g.drawImage(ip.createImage(), 0, 0, null);
-			g.dispose();
 			final JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(f);
 			final JPEGEncodeParam param = encoder.getDefaultJPEGEncodeParam(bi);
 			param.setQuality(quality, true);
