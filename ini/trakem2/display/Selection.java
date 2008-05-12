@@ -116,7 +116,16 @@ public class Selection {
 	/** Paint a white frame around the selected object and a pink frame around all others. Active is painted last, so white frame is always top. */
 	public void paint(Graphics g, Rectangle srcRect, double magnification) {
 		// paint rectangle around selected Displayable elements
-		if (queue.isEmpty()) return;
+		synchronized (queue_lock) {
+			try {
+				lock();
+				if (queue.isEmpty()) return;
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
 		if (!transforming) {
 			g.setColor(Color.pink);
 			Displayable[] da = null;
@@ -449,7 +458,6 @@ public class Selection {
 					display.setActive(d);
 				}
 				Utils.log2("Selection.add warning: already have " + d + " selected.");
-				unlock();
 				return;
 			}
 			queue.add(d);
@@ -487,7 +495,7 @@ public class Selection {
 		ArrayList al = display.getLayer().getDisplayables();
 		al.addAll(display.getLayer().getParent().getZDisplayables());
 		selectAll(al);
-		Utils.log2("Just selected all: " + queue.size());
+		//Utils.log2("Just selected all: " + queue.size());
 	}
 
 	/** Select all objects in the given layer, preserving the active one (if any) as active. */
@@ -803,28 +811,66 @@ public class Selection {
 	/** Lock / unlock all selected objects. */
 	public void setLocked(final boolean b) {
 		if (null == active) return; // empty
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			d.setLocked(b);
+		synchronized (queue_lock) {
+			try {
+				lock();
+				for (Iterator it = queue.iterator(); it.hasNext(); ) {
+					Displayable d = (Displayable)it.next();
+					d.setLocked(b);
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
 		}
 		// update the 'locked' field in the Transforms
 		update();
 	}
 
 	public boolean isEmpty() {
-		return 0 == queue.size(); // active must always exists if selection is not empty
+		synchronized (queue_lock) {
+			try {
+				lock();
+				return 0 == queue.size(); // active must always exists if selection is not empty
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+		return true;
 	}
 
 	public boolean contains(final Displayable d) {
-		return queue.contains(d);
+		synchronized (queue_lock) {
+			try {
+				lock();
+				return queue.contains(d);
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+		return false;
 	}
 
 	/** Returns true if selection contains any items of the given class.*/
 	public boolean contains(final Class c) {
 		if (null == c) return false;
-		if (c.equals(Displayable.class) && queue.size() > 0) return true;
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			if (it.next().getClass().equals(c)) return true;
+		synchronized (queue_lock) {
+			try {
+				lock();
+				if (c.equals(Displayable.class) && queue.size() > 0) return true;
+				for (Iterator it = queue.iterator(); it.hasNext(); ) {
+					if (it.next().getClass().equals(c)) return true;
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
 		}
 		return false;
 	}
