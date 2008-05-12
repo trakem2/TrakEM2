@@ -66,6 +66,7 @@ import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.image.ColorModel;
+import java.awt.RenderingHints;
 import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
 import java.io.BufferedInputStream;
@@ -1018,6 +1019,44 @@ public class FSLoader extends Loader {
 		return dir_mipmaps;
 	}
 
+	static public final IndexColorModel GRAY_LUT = makeGrayLut();
+
+	static public final IndexColorModel makeGrayLut() {
+		final byte[] r = new byte[256];
+		final byte[] g = new byte[256];
+		final byte[] b = new byte[256];
+		for (int i=0; i<256; i++) {
+			r[i]=(byte)i;
+			g[i]=(byte)i;
+			b[i]=(byte)i;
+		}
+		return new IndexColorModel(8, 256, r, g, b);
+	}
+
+	private final BufferedImage half(final Image awt, final int w, final int h, final Object hint, final IndexColorModel icm) {
+		BufferedImage bi;
+		if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
+		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED);
+		final Graphics2D g = bi.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, hint);
+		g.drawImage(awt, 0, 0, w, h, null);
+		return bi;
+	}
+
+	private Object getHint(final int mode) {
+		Object hint = null;
+		switch (mode) {
+			case Loader.BICUBIC:
+				hint = RenderingHints.VALUE_INTERPOLATION_BICUBIC; break;
+			case Loader.BILINEAR:
+				hint = RenderingHints.VALUE_INTERPOLATION_BILINEAR; break;
+			case Loader.NEAREST_NEIGHBOR:
+			default:
+				hint = RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR; break;
+		}
+		return hint;
+	}
+
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
@@ -1044,6 +1083,11 @@ public class FSLoader extends Loader {
 			hs_regenerating_mipmaps.add(patch);
 			gm_unlock();
 		}
+
+		String srmode = patch.getProject().getProperty("image_resizing_mode");
+		int resizing_mode = GAUSSIAN;
+		if (null != srmode) resizing_mode = Loader.getMode(srmode);
+
 		boolean ok = true;
 		try {
 			final ImageProcessor ip = fetchImageProcessor(patch);
@@ -1054,7 +1098,7 @@ public class FSLoader extends Loader {
 			//    where 0.5 is the estimated sigma for a full-scale image
 			//  which means sigma = 0.75 for the full-scale image (has level 0)
 			// prepare a 0.75 sigma image from the original
-			final ColorModel cm = ip.getColorModel();
+			ColorModel cm = ip.getColorModel();
 			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 				   //   but since we scale 50% relative the previous, it's always 0.75
 			if (ImagePlus.COLOR_RGB == patch.getType()) {
@@ -1096,25 +1140,54 @@ public class FSLoader extends Loader {
 			} else {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
-				FloatProcessor fp = (FloatProcessor)ip.convertToFloat();
 				final boolean as_grey = ImagePlus.COLOR_256 != patch.getType();
-				while (w >= 64 && h >= 64) { // not smaller than 32x32
-					// 1 - blur the previous image to 0.75 sigma
-					fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
-					// 2 - prepare values for the next scaled image
-					w /= 2;
-					h /= 2;
-					k++;
-					// 3 - check that the target folder for the desired scale exists
-					String target_dir = getScaleDir(dir_mipmaps, k);
-					if (null == target_dir) continue;
-					// 4 - generate scaled image
-					fp = (FloatProcessor)fp.resize(w, h);
-					// 5 - save as 8-bit jpeg
-					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
-					ip2.setMinAndMax(patch.getMin(), patch.getMax());
-					ip2.setColorModel(cm); // the LUT
-					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey);
+				if (as_grey && null == cm) {
+					cm = GRAY_LUT;
+				}
+				if (Loader.GAUSSIAN == resizing_mode) {
+					FloatProcessor fp = (FloatProcessor)ip.convertToFloat();
+					while (w >= 64 && h >= 64) { // not smaller than 32x32
+						// 1 - blur the previous image to 0.75 sigma
+						fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
+						// 2 - prepare values for the next scaled image
+						w /= 2;
+						h /= 2;
+						k++;
+						// 3 - check that the target folder for the desired scale exists
+						String target_dir = getScaleDir(dir_mipmaps, k);
+						if (null == target_dir) continue;
+						// 4 - generate scaled image
+						fp = (FloatProcessor)fp.resize(w, h);
+						// 5 - save as 8-bit jpeg
+						ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
+						ip2.setMinAndMax(patch.getMin(), patch.getMax());
+						ip2.setColorModel(cm); // the LUT
+						ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey);
+					}
+				} else {
+					// use java hardware-accelerated resizing
+					Image awt = ip.createImage();
+					BufferedImage bi = null;
+					final Object hint = getHint(resizing_mode);
+					final StringBuffer sb = new StringBuffer();
+					final IndexColorModel icm = (IndexColorModel)cm;
+					while (w >= 64 && h >= 64) {
+						// check that the target folder for the desired scale exists
+						String target_dir = getScaleDir(dir_mipmaps, k);
+						if (null == target_dir) continue;
+						// obtain half image
+						bi = half(awt, w, h, hint, icm);
+						// prepate next iteration
+						awt.flush();
+						awt = bi;
+						w /= 2;
+						h /= 2;
+						k++;
+						// save this iteration
+						ini.trakem2.io.ImageSaver.saveAsJpeg(bi, sb.append(dir_mipmaps).append(k).append('/').append(filename).toString(), 0.85f, as_grey);
+						sb.setLength(0);
+					}
+					bi.flush();
 				}
 			}
 		} catch (Exception e) {
@@ -1440,7 +1513,7 @@ public class FSLoader extends Loader {
 		return false;
 	}
 
-	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
+	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. Does not frees memory on its own. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) {
 			Utils.log2("null dir_mipmaps");
