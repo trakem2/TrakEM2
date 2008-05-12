@@ -6,7 +6,8 @@ CPSEP=:
 endif
 
 PLUGINSDIR ?= ../plugins
-EXTJARS=$(wildcard $(PLUGINSDIR)/*.jar)
+JARSDIR ?= ../jars
+EXTJARS=$(wildcard $(PLUGINSDIR)/*.jar) $(wildcard $(JARSDIR)/*.jar)
 JAVACOPTSJARS=$(shell echo "$(EXTJARS)" | tr \  $(CPSEP))
 JAVACOPTS=-classpath ../ij.jar$(CPSEP)$(JAVACOPTSJARS) -target 1.5 -source 1.5
 

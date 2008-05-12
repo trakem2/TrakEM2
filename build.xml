@@ -1,0 +1,52 @@
+<project name="TrakEM2" default="warn-user" basedir=".">
+  
+  <target name="warn-user">
+    <echo>
+      This build script is set up to work with TrakEM2 as a
+      submodule of the Fiji, and only on the debian branch.  In
+      other words, you probably want to use "make" instead :)
+    </echo>
+  </target>
+    
+  <target name="clean">
+    <delete dir="build"/>
+    <delete file="TrakEM2_.jar"/>
+  </target>
+
+  <target name="compile">
+    <mkdir dir="build"/>
+
+    <!-- Remove any files that need to be regenerated: -->
+    <depend srcdir="."
+	    destdir="build"
+	    cache="depcache"
+	    closure="yes">
+      <include name="**/*.java"/>
+      <excludesfile name="excludes"/>
+      <classpath>
+	<pathelement location="../ImageJA/ij.jar"/>
+	<pathelement location="../VIB/VIB_.jar"/>
+	<pathelement location="/usr/share/java/jama.jar"/>
+	<pathelement location="/usr/share/java/postgresql-jdbc3-8.2.jar"/>
+	<pathelement location="../jtk/build/jar/edu_mines_jtk.jar"/>
+      </classpath>
+    </depend>
+
+    <!-- Compile all the Java files in src/ -->
+    <javac srcdir="." destdir="build">
+      <include name="**/*.java"/>
+      <excludesfile name="excludes"/>
+      <classpath>
+	<pathelement location="../ImageJA/ij.jar"/>
+	<pathelement location="../VIB/VIB_.jar"/>
+	<pathelement location="/usr/share/java/jama.jar"/>
+	<pathelement location="/usr/share/java/postgresql-jdbc3-8.2.jar"/>
+	<pathelement location="../jtk/build/jar/edu_mines_jtk.jar"/>
+      </classpath>
+    </javac>
+
+    <jar destfile="TrakEM2_.jar" basedir="build"/>
+
+  </target>  
+
+</project>

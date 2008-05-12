@@ -403,7 +403,7 @@ public class Display3D {
 		d3d.adjustResampling();
 		d3d.universe.resetView();
 		ImagePlus imp = get8BitStack(p.makePatchStack());
-		d3d.universe.addOrthoslice(imp, null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
+		d3d.universe.addOrthoslice(imp, null, p.getTitle(), 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(p.getTitle());
 		ct.toggleLock();
 	}
@@ -413,7 +413,7 @@ public class Display3D {
 		d3d.adjustResampling();
 		d3d.universe.resetView();
 		ImagePlus imp = get8BitStack(p.makePatchStack());
-		d3d.universe.addVoltex(imp, null, p.getTitle(), new boolean[]{true, true, true}, d3d.resample);
+		d3d.universe.addVoltex(imp, null, p.getTitle(), 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(p.getTitle());
 		ct.toggleLock();
 	}
