@@ -503,6 +503,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			// check if the selection contains locked objects
 			if (selection.isLocked()) {
 				locked = true;
+				Utils.log("Selection is locked.");
 				return;
 			}
 			if (selection.isEmpty()) {
@@ -899,13 +900,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			setCursor(defaultCursor);
 			break;
 		default: // selection tool
-					
-			if (roi != null && roi.getState() != roi.CONSTRUCTING
-					&& roi.isHandle(sx, sy) >= 0)
+
+			if (roi != null && roi.getState() != roi.CONSTRUCTING && roi.isHandle(sx, sy) >= 0)
 				setCursor(handCursor);
-			else if (Prefs.usePointerCursor
-					|| (roi != null && roi.getState() != roi.CONSTRUCTING && roi
-							.contains(ox, oy)))
+			else if (Prefs.usePointerCursor || (roi != null && roi.getState() != roi.CONSTRUCTING && roi.contains(ox, oy)))
 				setCursor(defaultCursor);
 			else
 				setCursor(crosshairCursor);

@@ -735,9 +735,7 @@ public class Selection {
 			grabbed.drag(dx, dy);
 		} else if (dragging) {
 			// drag all selected and linked
-			for (Displayable d : hs) {
-				d.translate(dx, dy, false); // false because the linked ones are already included in the HashSet
-			}
+			for (Displayable d : hs) d.translate(dx, dy, false); // false because the linked ones are already included in the HashSet
 			//and the box!
 			box.x += dx;
 			box.y += dy;
