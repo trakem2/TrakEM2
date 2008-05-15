@@ -1621,10 +1621,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		this.active = displ;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 
+		// renew current image if necessary
+		if (null == displ || (displ instanceof Patch && !active.equals(prev_active))) {
+			if (null == displ) last_temp = null; // TODO check, this shouldn't be here. Actually, the setActive method should totally disappear.
+			setTempCurrentImage(); // renew
+		}
 		if (null != displ && displ.equals(prev_active)) {
 			// make sure the proper tab is selected.
 			selectTab(displ);
-			if (displ instanceof Patch) setTempCurrentImage(); // renew
 			return; // the same
 		}
 		// deactivate previously active

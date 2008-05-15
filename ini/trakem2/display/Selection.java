@@ -565,7 +565,7 @@ public class Selection {
 				display.getProject().getLoader().commitLargeUpdate();
 			}
 			if (sb.length() > 0) {
-				Utils.showMessage("Could NOT delete:\n" + sb.toString());
+				Utils.log("Could NOT delete:\n" + sb.toString());
 			}
 			//Display.repaint(display.getLayer(), box, 0);
 			Display.updateSelection(); // from all displays
