@@ -893,6 +893,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		case Toolbar.HAND:
 			setCursor(handCursor);
 			break;
+		case ProjectToolbar.SELECT:
+		case ProjectToolbar.PENCIL:
+		case ProjectToolbar.ALIGN:
+			setCursor(defaultCursor);
+			break;
 		default: // selection tool
 					
 			if (roi != null && roi.getState() != roi.CONSTRUCTING
@@ -904,6 +909,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				setCursor(defaultCursor);
 			else
 				setCursor(crosshairCursor);
+			break;
 		}
 	}
 	/** Set the srcRect - used by the DisplayNavigator. */
