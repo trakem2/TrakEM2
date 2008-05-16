@@ -2124,6 +2124,7 @@ abstract public class Loader {
 								if ("QUIT".equals(base_dir[1])) {
 									// dialog to ask for directory was quitted
 									lock.unlock();
+									finishedWorking();
 									return;
 								}
 								//  path is relative.
@@ -2135,6 +2136,7 @@ abstract public class Loader {
 										// quit all threads
 										base_dir[1] = "QUIT";
 										lock.unlock();
+										finishedWorking();
 										return;
 									}
 									// else, set the base dir
