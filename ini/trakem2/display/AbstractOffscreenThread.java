@@ -29,6 +29,10 @@ public abstract class AbstractOffscreenThread extends Thread {
 	protected boolean quit = false;
 	protected final long start = System.currentTimeMillis();
 
+	AbstractOffscreenThread(String name) {
+		super(name);
+	}
+
 	public void cancel() {
 		this.quit = true;
 	}

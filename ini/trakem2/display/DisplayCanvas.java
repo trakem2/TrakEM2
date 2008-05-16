@@ -119,7 +119,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private long last_paint = 0;
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
-	private final AbstractRepaintThread RT = new AbstractRepaintThread(this) {
+	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Canvas-Repainter") {
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
 			try {
 				// Signal previous offscreen threads to quit
@@ -1781,6 +1781,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		private Rectangle clipRect;
 		public final int label = counter.getAndIncrement();
 		OffscreenThread(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
+			super("T2-Canvas-Offscreen");
 			this.clipRect = clipRect;
 			this.layer = layer;
 			this.g_width = g_width;

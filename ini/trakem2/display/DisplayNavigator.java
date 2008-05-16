@@ -149,6 +149,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		private Rectangle clipRect;
 
 		UpdateGraphicsThread(Rectangle clipRect) {
+			super("T2-Navigator-UpdateGraphics");
 			this.clipRect = clipRect;
 			synchronized (updating_ob) {
 				while (updating) {
@@ -302,7 +303,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	}
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
-	private final AbstractRepaintThread RT = new AbstractRepaintThread(this) {
+	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Navigator-Repainter") {
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
 			try {
 				// Signal previous offscreen threads to quit

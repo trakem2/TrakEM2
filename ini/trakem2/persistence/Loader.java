@@ -4278,6 +4278,7 @@ abstract public class Loader {
 		private final Lock lock = new Lock();
 		private final Lock lock2 = new Lock();
 		Preloader() {
+			super("T2-Preloader");
 			setPriority(Thread.NORM_PRIORITY);
 			start();
 		}
@@ -4386,6 +4387,7 @@ abstract public class Loader {
 		private boolean repaint = false;
 		private boolean go = true;
 		public ImageLoaderThread() {
+			super("T2-Image-Loader");
 			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();

@@ -41,7 +41,8 @@ public abstract class AbstractRepaintThread extends Thread {
 	private Component target;
 	//private long latest_off = 0;
 
-	public AbstractRepaintThread(Component target) {
+	public AbstractRepaintThread(Component target, String name) {
+		super(name);
 		this.target = target;
 		setPriority(Thread.NORM_PRIORITY);
 		start();
