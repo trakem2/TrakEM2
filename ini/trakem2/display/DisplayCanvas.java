@@ -503,7 +503,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			// check if the selection contains locked objects
 			if (selection.isLocked()) {
 				locked = true;
-				Utils.log("Selection is locked.");
 				return;
 			}
 			if (selection.isEmpty()) {
@@ -528,7 +527,13 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			return;
 		}
 
-		if (popup || locked || null != display.getLayer().getParent().getAlign()) return;
+		Selection selection = display.getSelection();
+		if (locked && !selection.isEmpty()) {
+			Utils.log("Selection is locked.");
+			return;
+		}
+
+		if (popup) return;
 
 		dragging = true;
 
@@ -579,6 +584,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		if (input_disabled2) return;
 
+		if (null != display.getLayer().getParent().getAlign()) return;
+
 
 		//debug:
 		//Utils.log2("x_d,y_d : " + x_d + "," + y_d + "   x_d_old, y_d_old : " + x_d_old + "," + y_d_old + "  dx, dy : " + (x_d_old - x_d) + "," + (y_d_old - y_d));
@@ -628,7 +635,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 
 		Displayable active = display.getActive();
-		Selection selection = display.getSelection();
 
 		if (null != active && active.isVisible()) {
 			// prevent dragging beyond the layer limits
