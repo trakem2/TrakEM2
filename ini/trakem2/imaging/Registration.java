@@ -1698,7 +1698,7 @@ public class Registration {
 		return fixed_tiles;
 	}
 
-	/** Freely register all-to-all the given set of patches; optionally provide a fixed Patch. */
+	/** Freely register all-to-all the given set of patches; optionally provide a fixed Patch. Will respect locked tiles. */
 	static public Bureaucrat registerTilesSIFT(final HashSet<Patch> hs_patches, final Patch fixed, final Registration.SIFTParameters sp_, final boolean overlapping_only) {
 		if (null == hs_patches || hs_patches.size() < 2) return null;
 

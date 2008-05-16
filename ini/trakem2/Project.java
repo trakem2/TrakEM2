@@ -1099,6 +1099,9 @@ public class Project extends DBObject {
 			IJError.print(nfe);
 		}
 		gd.addSlider("min_R: ", 0, 100, current_R);
+
+		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
+		gd.addCheckbox("Layer_mipmaps: ", layer_mipmaps);
 		//
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
@@ -1115,5 +1118,17 @@ public class Project extends DBObject {
 		}
 		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
 		setProperty("min_R", new Float((float)gd.getNextNumber() / 100).toString());
+		boolean layer_mipmaps2 = gd.getNextBoolean();
+		if (adjustProp("layer_mipmaps", layer_mipmaps, layer_mipmaps2)) {
+			if (layer_mipmaps && !layer_mipmaps2) {
+				// TODO
+				// ask first
+				// remove all existing images from layer.mipmaps folder
+			} else if (!layer_mipmaps && layer_mipmaps2) {
+				// TODO
+				// ask first
+				// create de novo all layer mipmaps in a background task
+			}
+		}
 	}
 }
