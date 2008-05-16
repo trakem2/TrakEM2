@@ -3889,11 +3889,15 @@ abstract public class Loader {
 	}
 
 	public Bureaucrat homogenizeContrast(final Layer[] la) {
-		return homogenizeContrast(la, -1, -1, true);
+		return homogenizeContrast(la, -1, -1, true, null);
+	}
+
+	public Bureaucrat homogenizeContrast(final Layer[] la, final double min, final double max, final boolean drift_hist_peak) {
+		return homogenizeContrast(la, min, max, drift_hist_peak, null);
 	}
 
 	/** Homogenize contrast layer-wise, for all given layers, in a multithreaded manner. */
-	public Bureaucrat homogenizeContrast(final Layer[] la, final double min, final double max, final boolean drift_hist_peak) {
+	public Bureaucrat homogenizeContrast(final Layer[] la, final double min, final double max, final boolean drift_hist_peak, final Worker parent) {
 		if (null == la || 0 == la.length) return null;
 		Worker worker = new Worker("Homogenizing contrast") {
 			public void run() {
@@ -3924,7 +3928,7 @@ abstract public class Loader {
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
-						if (!homogenizeContrast(la[i], pa, min, max, drift_hist_peak)) {
+						if (!homogenizeContrast(la[i], pa, min, max, drift_hist_peak, null == parent ? wo : parent)) {
 							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
 						}
 					}
@@ -3953,19 +3957,22 @@ abstract public class Loader {
 	}
 
 	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al) {
-		return homogenizeContrast(al, -1, -1, true);
+		return homogenizeContrast(al, -1, -1, true, null);
 	}
 
 	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final double min, final double max, final boolean drift_hist_peak) {
+		return homogenizeContrast(al, min, max, drift_hist_peak, null);
+	}
+
+	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final double min, final double max, final boolean drift_hist_peak, final Worker parent) {
 		if (null == al || al.size() < 2) return null;
 		final Patch[] pa = new Patch[al.size()];
 		al.toArray(pa);
 		Worker worker = new Worker("Homogenizing contrast") {
 			public void run() {
 				startedWorking();
-				final Worker wo = this;
 				try {
-					homogenizeContrast(pa[0].getLayer(), pa, min, max, drift_hist_peak);
+					homogenizeContrast(pa[0].getLayer(), pa, min, max, drift_hist_peak, null == parent ? this : parent);
 				} catch (Exception e) {
 					IJError.print(e);
 				}
@@ -3977,12 +3984,14 @@ abstract public class Loader {
 		return burro;
 	}
 
+	/*
 	public boolean homogenizeContrast(final Layer layer, final Patch[] pa) {
-		return homogenizeContrast(layer, pa, -1, -1, true);
+		return homogenizeContrast(layer, pa, -1, -1, true, null);
 	}
+	*/
 
 	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. Needs a layer to repaint when done. */
-	public boolean homogenizeContrast(final Layer layer, final Patch[] pa, final double min_, final double max_, final boolean drift_hist_peak) {
+	public boolean homogenizeContrast(final Layer layer, final Patch[] pa, final double min_, final double max_, final boolean drift_hist_peak, final Worker worker) {
 		try {
 			if (null == pa) return false; // error
 			if (0 == pa.length) return true; // done
@@ -4009,6 +4018,9 @@ abstract public class Loader {
 			final ArrayList al_p = new ArrayList(); // list of Patch ordered by stdDev ASC
 			int type = -1;
 			for (int i=0; i<pa.length; i++) {
+				if (null != worker && worker.hasQuitted()) {
+					return false;
+				}
 				ImagePlus imp = fetchImagePlus(pa[i]);
 				if (-1 == type) type = imp.getType();
 				releaseToFit(measureSize(imp));
@@ -4044,6 +4056,9 @@ abstract public class Loader {
 					last--;
 					i++;
 				}
+			}
+			if (null != worker && worker.hasQuitted()) {
+				return false;
 			}
 			// 3 - compute common histogram for the middle 50% images
 			final Patch[] p50 = new Patch[al_p.size()];
@@ -4104,6 +4119,9 @@ abstract public class Loader {
 			// 6 - apply to all
 			Utils.log2("Lo HC Using: " + min + ", " + max + ", " + drift_hist_peak);
 			for (i=al_p2.size()-1; i>-1; i--) {
+				if (null != worker && worker.hasQuitted()) {
+					return false;
+				}
 				Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
 				if (drift_hist_peak) {
 					double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
