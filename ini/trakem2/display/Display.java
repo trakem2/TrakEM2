@@ -2404,11 +2404,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				c = panel_labels;
 			}
 		}
+		Utils.log2("called upi");
 		if (null == c) return;
 		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(d);
 		if (null == dp) return; // may be half-baked, wait
 		c.remove(dp);
 		c.add(dp, i); // java and its fabulous consistency
+		// not enough! Utils.updateComponent(c);
+		// So, cocktail:
+		c.invalidate();
+		c.validate();
 		Utils.updateComponent(c);
 	}
 
