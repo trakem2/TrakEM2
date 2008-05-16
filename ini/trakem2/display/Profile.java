@@ -1413,7 +1413,8 @@ public class Profile extends Displayable {
 		}
 		ArrayList al = pt.getChildren(); // should be sorted by Z already
 		if (al.size() < 2) {
-			Utils.log2("profile_list " + pt + " has less than two profiles: can't render in 3D.");
+			Utils.log("profile_list " + pt + " has less than two profiles: can't render in 3D.");
+			return null;
 		}
 		// collect all Profile
 		final HashSet hs = new HashSet();

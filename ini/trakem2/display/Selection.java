@@ -1001,13 +1001,17 @@ public class Selection {
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones) of the given class. */
 	public ArrayList getSelected(final Class c) {
 		final ArrayList al = new ArrayList();
-		if (null == c || c.equals(Displayable.class) || c.equals(ZDisplayable.class)) {
+		if (null == c || c.equals(Displayable.class)) {
 			al.addAll(queue);
 			return al;
 		}
+		boolean zd = c.equals(ZDisplayable.class);
 		for (Iterator it = queue.iterator(); it.hasNext(); ) {
 			Object ob = it.next();
-			if (c.equals(ob.getClass())) al.add(ob);
+			if ((zd && ob instanceof ZDisplayable)
+			  || c.equals(ob.getClass())) {
+				al.add(ob);
+			 }
 		}
 		return al;
 	}

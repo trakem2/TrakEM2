@@ -1921,6 +1921,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 					item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
 					if (!active.isLinked()) item.setEnabled(false); // isLinked() checks if it's linked to a Patch in its own layer
+					item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
 					popup.addSeparator();
 				} else if (active instanceof Patch) {
 					item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
@@ -1943,6 +1944,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					popup.addSeparator();
 				} else {
 					item = new JMenuItem("Unlink"); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
 					popup.addSeparator();
 				}
 				if (active instanceof AreaList) {
@@ -2920,6 +2922,21 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("View volume")) {
 			if (!(active instanceof Patch)) return;
 			Display3D.showVolume(((Patch)active));
+		} else if (command.equals("Show in 3D")) {
+			for (Iterator it = selection.getSelected(ZDisplayable.class).iterator(); it.hasNext(); ) {
+				ZDisplayable zd = (ZDisplayable)it.next();
+				Display3D.show(zd.getProject().findProjectThing(zd));
+			}
+			// handle profile lists ...
+			HashSet hs = new HashSet();
+			for (Iterator it = selection.getSelected(Profile.class).iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				ProjectThing profile_list = (ProjectThing)d.getProject().findProjectThing(d).getParent();
+				if (!hs.contains(profile_list)) {
+					Display3D.show(profile_list);
+					hs.add(profile_list);
+				}
+			}
 		} else if (command.equals("Snap")) {
 			if (!(active instanceof Patch)) return;
 			StitchingTEM.snap(getActive(), this);

@@ -337,6 +337,7 @@ public class Display3D {
 
 	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one. If true == wait && -1 != resample, then the method returns only when the mesh/es have been added. */
 	static public void show(ProjectThing pt, boolean wait, int resample) {
+		if (null == pt) return;
 		try {
 			// scan the given ProjectThing for 3D-viewable items not present in the ht_meshes
 			// So: find arealist, pipe, ball, and profile_list types

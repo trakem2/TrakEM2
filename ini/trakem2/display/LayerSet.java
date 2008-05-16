@@ -742,7 +742,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			//Utils.log2("setLayerSet to ZDipl id=" + zdispl.getId());
 			al_zdispl.add(zdispl);
 		} catch (Exception e) {
-			Utils.log("LayerSet.addSilently: not adding Zdisplayable with id=" + zdispl.getId());
+			Utils.log("LayerSet.addSilently: not adding ZDisplayable with id=" + zdispl.getId());
 			IJError.print(e);
 			return;
 		}
