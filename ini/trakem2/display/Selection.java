@@ -27,6 +27,7 @@ import ij.ImagePlus;
 import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Point;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.HashSet;
@@ -155,26 +156,31 @@ public class Selection {
 			}
 		}
 		//Utils.log2("transforming, dragging, rotating: " + transforming + "," + dragging + "," + rotating);
-		if (transforming && !rotating) {
-			//Utils.log("box painting: " + box);
+		if (transforming) {
 			final Graphics2D g2d = (Graphics2D)g;
 			final Stroke original_stroke = g2d.getStroke();
-
 			AffineTransform original = g2d.getTransform();
 			g2d.setTransform(new AffineTransform());
+			if (!rotating) {
+				//Utils.log("box painting: " + box);
 
-			// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
-			float mag = (float)magnification;
-			float[] dashPattern = { 30, 10, 10, 10 };
-			g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
-			g.setColor(Color.yellow);
-			// paint box
-			//g.drawRect(box.x, box.y, box.width, box.height);
-			g2d.draw(original.createTransformedShape(this.box));
-			g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
-			// paint handles for scaling (boxes) and rotating (circles), and floater
-			for (int i=0; i<handles.length; i++) {
-				handles[i].paint(g, srcRect, magnification);
+				// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
+				float mag = (float)magnification;
+				float[] dashPattern = { 30, 10, 10, 10 };
+				g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
+				g.setColor(Color.yellow);
+				// paint box
+				//g.drawRect(box.x, box.y, box.width, box.height);
+				g2d.draw(original.createTransformedShape(this.box));
+				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+				// paint handles for scaling (boxes) and rotating (circles), and floater
+				for (int i=0; i<handles.length; i++) {
+					handles[i].paint(g, srcRect, magnification);
+				}
+			} else {
+				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+				RO.paint(g, srcRect, magnification);
+				((RotationHandle)RO).paintMoving(g, srcRect, magnification, display.getCanvas().getCursorLoc());
 			}
 			g2d.setStroke(original_stroke);
 			g2d.setTransform(original);
@@ -314,7 +320,7 @@ public class Selection {
 		}
 	}
 
-	private final void rotate() {
+	private final double rotate() {
 		// center of rotation is the floater
 		double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
 		//double sin = Math.sqrt(1 - cos*cos);
@@ -327,7 +333,7 @@ public class Selection {
 
 		if (Double.isNaN(delta)) {
 			Utils.log2("Selection rotation handle: ignoring NaN angle");
-			return;
+			return Double.NaN;
 		}
 
 		double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
@@ -338,6 +344,7 @@ public class Selection {
 		for (Displayable d : hs) {
 			d.rotate(delta, floater.x, floater.y, false); // false because the linked ones are already included in the HashSet
 		}
+		return delta;
 	}
 
 	private class RotationHandle extends Handle {
@@ -350,11 +357,26 @@ public class Selection {
 			final int y = (int)((this.y - srcRect.y)*mag);
 			final int fx = (int)((floater.x - srcRect.x)*mag);
 			final int fy = (int)((floater.y - srcRect.y)*mag);
+			draw(g, fx, fy, x, y);
+		}
+		private void draw(final Graphics g, int fx, int fy, int x, int y) {
 			g.setColor(Color.white);
 			g.drawLine(fx, fy, x, y);
 			g.fillOval(x -4, y -4, 9, 9);
 			g.setColor(Color.black);
 			g.drawOval(x -2, y -2, 5, 5);
+		}
+		public void paintMoving(final Graphics g, final Rectangle srcRect, final double mag, final Point mouse) {
+			// mouse as xMouse,yMouse from ImageCanvas: world coordinates, not screen!
+			final int fx = (int)((floater.x - srcRect.x)*mag);
+			final int fy = (int)((floater.y - srcRect.y)*mag);
+			// vector
+			double vx = (mouse.x - srcRect.x)*mag - fx;
+			double vy = (mouse.y - srcRect.y)*mag - fy;
+			//double len = Math.sqrt(vx*vx + vy*vy);
+			//vx = (vx / len) * 50;
+			//vy = (vy / len) * 50;
+			draw(g, fx, fy, fx + (int)vx, fy + (int)vy);
 		}
 		public boolean contains(int x_p, int y_p, double radius) {
 			final double mag = display.getCanvas().getMagnification();
