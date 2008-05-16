@@ -178,6 +178,10 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 					this.scrollPathToVisible(treePath);
 					this.setSelectionPath(treePath);
 				}
+				// bring the display to front
+				if (new_thing.getObject() instanceof Displayable) {
+					Display.getFront().getFrame().toFront();
+				}
 			} else if (command.equals("many...")) {
 				ArrayList children = thing.getTemplate().getChildren();
 				if (null == children || 0 == children.size()) return;

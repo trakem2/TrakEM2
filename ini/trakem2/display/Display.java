@@ -1183,7 +1183,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (d.layer.equals(layer)) {
 				if (front.equals(d)) {
 					d.add(displ, activate, true);
-					front.frame.toFront();
+					//front.frame.toFront();
 				} else {
 					d.add(displ, false, true);
 				}
@@ -1202,7 +1202,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				if (front.equals(d)) {
 					zdispl.setLayer(d.layer); // the active one
 					d.add(zdispl, true, true); // calling add(Displayable, boolean, boolean)
-					front.frame.toFront();
+					//front.frame.toFront();
 				} else {
 					d.add(zdispl, false, true);
 				}
@@ -1467,6 +1467,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	public Point getLocation() {
 		return frame.getLocation();
+	}
+
+	public JFrame getFrame() {
+		return frame;
 	}
 
 	public void setLocation(Point p) {
