@@ -409,12 +409,25 @@ public class Layer extends DBObject {
 		return parent.getLayerHeight();
 	}
 
-	/** Find the Displayable objects that contains the point. */
+	/** Find the Displayable objects that contain the point. */
 	public ArrayList<Displayable> find(int x, int y) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Displayable d = (Displayable)al_displayables.get(i);
 			if (d.contains(x, y)) {
+				al.add(d);
+			}
+		}
+		return al;
+	}
+
+	/** Find the Displayable objects of Class c that contain the point. */
+	public ArrayList<Displayable> find(Class c, int x, int y) {
+		if (c.equals(Displayable.class)) return find(x, y); // search among all
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (int i = al_displayables.size() -1; i>-1; i--) {
+			Displayable d = (Displayable)al_displayables.get(i);
+			if (d.getClass().equals(c) && d.contains(x, y)) {
 				al.add(d);
 			}
 		}
@@ -734,5 +747,15 @@ public class Layer extends DBObject {
 		for (Displayable d : getDisplayables(LayerSet.class)) {
 			((LayerSet)d).updateLayerTree();
 		}
+	}
+
+	/** Don't use this for fast pixel grabbing; this is intended for the dropper tool and status bar reporting by mouse motion. */
+	public int[] getPixel(int x, int y, double mag) {
+		// find Patch under cursor
+		final ArrayList<Displayable> under = find(Patch.class, x, y);
+		if (null == under || under.isEmpty()) return new int[3]; // zeros
+		Patch pa = (Patch)under.get(0); // the top one, since they are ordered like html divs
+		// TODO: edit here when adding layer mipmaps
+		return pa.getPixel(x, y, mag);
 	}
 }

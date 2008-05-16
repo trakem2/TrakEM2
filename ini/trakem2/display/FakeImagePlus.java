@@ -28,6 +28,7 @@ import ij.gui.*;
 import ij.measure.*;
 import ij.*;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.LayerStack;
 
@@ -67,23 +68,12 @@ public class FakeImagePlus extends ImagePlus {
 	}
 
 	public int[] getPixel(int x, int y) {
-		// too expensive
-		// ip.getPixel(x, y);
-
-		ImagePlus ps = display.getLastTemp();
-		if (null == ps || this.equals(ps)) return new int[3]; // zeros
 		try {
-			if (ps instanceof PatchStack) {
-				return ps.getPixel(x, y);
-			} else if (ps.getStack() instanceof LayerStack) {
-				Rectangle box = null;
-				if (null != getRoi()) box = getRoi().getBounds();
-				else box = display.getLayer().getParent().get2DBounds();
-				double vscale = display.getLayer().getParent().getPixelsVirtualizationScale(box);
-				return ps.getPixel((int)(x * vscale), (int)(y * vscale));
-			}
-		} catch (Exception e) {} // closing swing lazy repaints!
-		return null;
+			return display.getLayer().getPixel(x, y, display.getCanvas().getMagnification());
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return new int[3];
 	}
 
 	private class FakeProcessor extends ByteProcessor {

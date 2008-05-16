@@ -40,6 +40,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 
 
 
@@ -453,56 +454,13 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public int[] getPixel(int x, int y) {
-		final int[] pvalue = new int[4];
-		Display front = Display.getFront();
-		double mag = front.getCanvas().getMagnification();
-		if (null == front || mag < 0.249) return pvalue; // ignore if the magnification is too low (would load a lot of ImagePlus for almost nothing)
-
-		final Patch pa = patch[currentSlice-1];
-		final Image img = pa.getProject().getLoader().fetchImage(pa, mag);
-		int w = img.getWidth(null);
-		double scale = w / pa.getWidth(); // pa.getWidth() returns a double
-		Point2D.Double pd = pa.inverseTransformPoint(x, y);
-		int x2 = (int)(pd.x * scale);
-		int y2 = (int)(pd.y * scale);
-		PixelGrabber pg = new PixelGrabber(img, x2, y2, 1, 1, pvalue, 0, w);
 		try {
-			pg.grabPixels();
-		} catch (InterruptedException ie) {
-			return pvalue;
+			double mag = Display.getFront().getCanvas().getMagnification();
+			return patch[currentSlice-1].getPixel(x, y, mag);
+		} catch (Exception e) {
+			IJError.print(e);
 		}
-		switch (pa.getType()) {
-			case ImagePlus.COLOR_256:
-				PixelGrabber pg2 = new PixelGrabber(img,x2,y2,1,1,false);
-				try {
-					pg2.grabPixels();
-				} catch (InterruptedException ie) {
-					return pvalue;
-				}
-				byte[] pix8 = (byte[])pg2.getPixels();
-				pvalue[3] = null != pix8 ? pix8[0]&0xff : 0;
-				// fall through to get RGB values
-			case ImagePlus.COLOR_RGB:
-				int c = pvalue[0];
-				pvalue[0] = (c&0xff0000)>>16; // R
-				pvalue[1] = (c&0xff00)>>8;    // G
-				pvalue[2] = c&0xff;           // B
-				break;
-			default:
-				pvalue[0] = pvalue[0]&0xff;
-				break;
-		}
-
-		return pvalue;
-
-		/* // always returns 0, because ImagePlus.getPixel depends on the awt.Image and it has none
-		Utils.log2("x, y : " + x + "," + y + "   " + x2 + ", " + y2);
-		int[] iArray = imp.getPixel(x2, y2);
-		StringBuffer val = new StringBuffer();
-		for (int i=0; i<iArray.length; i++) val.append(iArray[i]).append(" ");
-		Utils.log2(imp + " " + val.toString());
-		return iArray;
-		*/
+		return new int[4];
 	}
 
 	public ImageStack createEmptyStack() {
