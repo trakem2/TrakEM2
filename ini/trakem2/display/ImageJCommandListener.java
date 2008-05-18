@@ -80,7 +80,7 @@ public class ImageJCommandListener implements CommandListener {
 		Patch pa = (Patch)active;
 		Project project = pa.getProject();
 		project.getLoader().releaseToFit((long)(project.getLoader().estimateImageFileSize(pa, 0) * 5));
-		ImagePlus imp = new ImagePlus(pa.getTitle(), pa.getImageProcessor().duplicate()); // don't show it yet
+		ImagePlus imp = new ImagePlus("Copy of " + pa.getTitle(), pa.getImageProcessor().duplicate()); // don't show it yet
 		Loader.setTempCurrentImage(imp);
 		imp.show();
 		// now execute command
@@ -103,8 +103,14 @@ public class ImageJCommandListener implements CommandListener {
 		final Selection selection = display.getSelection();
 		// 3 - filter accordingly
 		//
+		// FILE menu
+		if (command.equals("Save")) {
+			project.getLoader().save(project);
+			return null;
+		}
+
 		// EDIT menu
-		if (command.equals("Undo")) {
+		else if (command.equals("Undo")) {
 			// TODO forward to the active image, if any
 			niy(command);
 			return null;
@@ -233,9 +239,7 @@ public class ImageJCommandListener implements CommandListener {
 			notAvailable(command);
 			return null;
 		} else if (command.equals("Show LUT")) {
-			// TODO forward to the active image, if any
-			niy(command);
-			return null;
+			return setTempAndReset(command, active, fimp);
 		} else if (command.equals("Edit LUT...")) {
 			// TODO forward to the active image, if any
 			niy(command);
@@ -267,19 +271,19 @@ public class ImageJCommandListener implements CommandListener {
 			niy(command);
 			return null;
 		} else if (command.equals("3D Project...")) {
-			// TODO forward to the active image, if any
+			// TODO 
 			niy(command);
 			return null;
 		} else if (command.equals("Plot Z-axis Profile")) {
-			// TODO forward to the active image, if any
+			// TODO
 			niy(command);
 			return null;
 		} else if (command.equals("Start Animation [\\]")) {
-			// TODO forward to the active image, if any
+			// TODO
 			niy(command);
 			return null;
 		} else if (command.equals("Stop Animation")) {
-			// TODO forward to the active image, if any
+			// TODO
 			niy(command);
 			return null;
 		}
@@ -294,7 +298,7 @@ public class ImageJCommandListener implements CommandListener {
 		} else if (command.equals("Duplicate...")) {
 			if (null != active && active.getClass().equals(Patch.class)) {
 				// TODO stacks?
-				project.getLoader().releaseToFit((long)(project.getLoader().estimateImageFileSize((Patch)active, 0) * 2.5)); // 2.5 secutiry factor: for awt in non-1.6.0 machines
+				project.getLoader().releaseToFit((long)(project.getLoader().estimateImageFileSize((Patch)active, 0) * 2.5)); // 2.5 security factor: for awt in non-1.6.0 machines
 				new ImagePlus(active.getTitle(), ((Patch)active).getImageProcessor().duplicate()).show();
 			}
 			return null;
@@ -344,16 +348,14 @@ public class ImageJCommandListener implements CommandListener {
 
 		// LUTs handled by FakeImagePlus / FakeProcessor setColorModel
 
-		
+
 		// ANALYZE menu
 		else if (command.equals("Measure")) {
 			// TODO
 			niy(command);
 			return null;
 		} else if (in(command, new String[]{"Analyze Particles...", "Histogram", "Plot Profile", "Surface Plot...", "Color Inspector 3D", "3D Surface Plot", "Color Histogram"})) {
-			// TODO
-			niy(command);
-			return null;
+			return setTempAndReset(command, active, fimp);
 		} else if (command.equals("Label")) {
 			notAvailable(command);
 			return null;
@@ -364,7 +366,7 @@ public class ImageJCommandListener implements CommandListener {
 			return setTempAndReset(command, active, fimp);
 		} else if (in(command, new String[]{"Bandpass Filter...", "Custom Filter...", "FD Math...", "Swap Quadrants", "Convolve...", "Gaussian Blur...", "Median...", "Mean...", "Minimum...", "Maximum...", "Unsharp Mask...", "Variance...", "Show Circular Masks...", "Subtract Background..."})) {
 			return duplicate(command, active);
-		} else if (in(command, new String[]{"Smooth", "Sharpen", "Find Edges", "Enhance Contrast", "Add Noise", "Add Specified Noise...", "Salt and Pepper", "Despeckle", "Remove Outliers...", "North", "Northeast", "East", "Southeast", "South", "Southwest", "West", "Northwest", "Make Binary", "Convert to Mask", "Find Maxima...", "Erode", "Dilate", "Open ", "Close-", "Options...", "Outline", "Fill Holes", "Skeletonize", "Distance Map", "Ultimate Points", "Watershed", "Add...", "Subtract...", "Multiply...", "Divide...", "AND...", "OR...", "XOR...", "Min...", "Max...", "Gamma...", "Log", "Exp", "Square", "Square Root", "Reciprocal", "NaN Background", "Abs"})) {
+		} else if (in(command, new String[]{"Smooth", "Sharpen", "Find Edges", "Enhance Contrast", "Add Noise", "Add Specified Noise...", "Salt and Pepper", "Despeckle", "Remove Outliers...", "North", "Northeast", "East", "Southeast", "South", "Southwest", "West", "Northwest", "Make Binary", "Convert to Mask", "Find Maxima...", "Erode", "Dilate", "Open ", "Close-", "Outline", "Fill Holes", "Skeletonize", "Distance Map", "Ultimate Points", "Watershed", "Add...", "Subtract...", "Multiply...", "Divide...", "AND...", "OR...", "XOR...", "Min...", "Max...", "Gamma...", "Log", "Exp", "Square", "Square Root", "Reciprocal", "NaN Background", "Abs"})) {
 			return duplicate(command, active);
 
 
