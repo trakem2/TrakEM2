@@ -150,7 +150,10 @@ public class ProjectThing extends DBObject implements Thing {
 
 	public String toString() {
 		// 'object' can be the title, if not directly holding a Displayable object
-		return (null == object ? template.getType() : object.toString()) + " [" + template.getType() + "]";
+		final StringBuffer sb = new StringBuffer();
+		if (null == object) sb.append(template.getType());
+		else sb.append(object.toString()).append(' ').append('[').append(template.getType()).append(']');
+		return sb.toString();
 	}
 
 	public String getTitle() {

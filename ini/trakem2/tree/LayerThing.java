@@ -123,7 +123,13 @@ public class LayerThing extends DBObject implements Thing {
 	}
 
 	public String toString() {
-		return (null != parent ? Integer.toString(parent.indexOf(this) + 1) + ": ": "") + (null != title ? title : "") + " " + (null == object ? template.getType() : object.toString()) + " [" + template.getType() + "]";
+		final StringBuffer sb = new StringBuffer();
+		if (null != parent) sb.append(Integer.toString(parent.indexOf(this) + 1)).append(':').append(' ');
+		if (null != title) sb.append(title);
+		sb.append(' ');
+		if (null == object) sb.append(template.getType());
+		else sb.append(' ').append('[').append(template.getType()).append(']');
+		return sb.toString();
 	}
 
 	public void setTitle(String title) {
