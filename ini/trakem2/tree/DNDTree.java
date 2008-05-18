@@ -71,25 +71,28 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		// this is a crude hack that needs much cleanup and proper break down to subclasses.
 
 		Color bg;
+		final Color active_displ_color = new Color(1.0f, 1.0f, 0.0f, 0.5f);
+		final Color front_layer_color = new Color(1.0f, 1.0f, 0.4f, 0.5f);
 
-		NodeRenderer(Color bg) {
+		NodeRenderer(final Color bg) {
 			this.bg = bg;
 		}
 
 		/** Override to set a yellow background color to elements that belong to the currently displayed layer. The JTree nodes are painted as a JLabel that is transparent (no background, it has a setOpque(true) by default), so the code is insane.*/
-		public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
-			JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
 			label.setText(label.getText().replace('_', ' ')); // just for display
-			if (value instanceof DefaultMutableTreeNode) {
-				Object obb = ((DefaultMutableTreeNode)value).getUserObject();
-				if (obb instanceof ProjectThing) { // must be, but checking ...
-					Object ob = ((ProjectThing)obb).getObject();
-					if (ob instanceof Displayable) {
-						Displayable displ = (Displayable)ob;
-						Layer layer = Display.getFrontLayer();
+			if (value.getClass().equals(DefaultMutableTreeNode.class)) {
+				final Object obb = ((DefaultMutableTreeNode)value).getUserObject();
+				final Class clazz = obb.getClass();
+				if (clazz.equals(ProjectThing.class)) { // must be, but checking ...
+					final Object ob = ((ProjectThing)obb).getObject();
+					if (ob.getClass().getSuperclass().equals(Displayable.class)) {
+						final Displayable displ = (Displayable)ob;
+						final Layer layer = Display.getFrontLayer();
 						if (null != layer && (layer.contains(displ) || displ.equals(Display.getFront().getActive()))) {
 							label.setOpaque(true); //this label
-							label.setBackground(new Color(1.0f, 1.0f, 0.0f, 0.5f)); // this label
+							label.setBackground(active_displ_color); // this label
 							//Utils.log(" -- setting background");
 						} else {
 							label.setOpaque(false); //this label
@@ -101,15 +104,15 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 						label.setBackground(bg);
 						//Utils.log("ob is " + ob);
 					}
-				} else if (obb instanceof LayerThing) {
-					Object ob = ((LayerThing)obb).getObject();
-					Layer layer = Display.getFrontLayer();
+				} else if (clazz.equals(LayerThing.class)) {
+					final Object ob = ((LayerThing)obb).getObject();
+					final Layer layer = Display.getFrontLayer();
 					if (ob.equals(layer)) {
 						label.setOpaque(true); //this label
-						label.setBackground(new Color(1.0f, 1.0f, 0.4f, 0.5f)); // this label
-					} else if (ob instanceof LayerSet && null != layer && layer.contains((Displayable)ob)) {
+						label.setBackground(front_layer_color); // this label
+					} else if (ob.getClass().equals(LayerSet.class) && null != layer && layer.contains((Displayable)ob)) {
 						label.setOpaque(true); //this label
-						label.setBackground(new Color(1.0f, 1.0f, 0.0f, 0.5f)); // this label
+						label.setBackground(active_displ_color); // this label
 					} else {
 						label.setOpaque(false); //this label
 						label.setBackground(bg);
@@ -128,7 +131,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		}
 
 		/** Override to show tooptip text as well. */
-		public void setText(String text) {
+		public void setText(final String text) {
 			super.setText(text);
 			setToolTipText(text); // TODO doesn't work ??
 		}
