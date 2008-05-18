@@ -34,6 +34,7 @@ import ini.trakem2.imaging.LayerStack;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.awt.image.ColorModel;
 
 /** Need a non-null ImagePlus for the ImageCanvas, even if fake. */
 public class FakeImagePlus extends ImagePlus {
@@ -120,6 +121,10 @@ public class FakeImagePlus extends ImagePlus {
 		}
 		public int getWidth() { return w; }
 		public int getHeight() { return h; }
+
+		public void setColorModel(ColorModel cm) {
+			display.getSelection().setLut(cm);
+		}
 	}
 
 	public ImageStatistics getStatistics(int mOptions, int nBins, double histMin, double histMax) {
@@ -203,4 +208,9 @@ public class FakeImagePlus extends ImagePlus {
 	}
 
 	public synchronized void setSlice(int slice) {}
+
+	public void updateAndRepaintWindow() {
+		// TODO: if a selected image is a stack, the LUT applies to it as well...
+		Display.repaint(display.getLayer(), display.getSelection().getBox(), 0);
+	}
 }

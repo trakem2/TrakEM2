@@ -52,6 +52,7 @@ public class ImageJCommandListener implements CommandListener {
 		Project project = display.getProject();
 		ProjectTree ptree = project.getProjectTree();
 		Displayable active = display.getActive();
+		Selection selection = display.getSelection();
 		// 3 - filter accordingly
 		//
 		// EDIT menu
@@ -100,7 +101,7 @@ public class ImageJCommandListener implements CommandListener {
 		// EDIT - SELECTION menu
 		else if (command.equals("Select All")) {
 			if (ProjectToolbar.SELECT == Toolbar.getToolId()) {
-				display.getSelection().selectAll();
+				selection.selectAll();
 				return null;
 			}
 		} else if (command.equals("Select None")) {
@@ -110,7 +111,7 @@ public class ImageJCommandListener implements CommandListener {
 			}
 		} else if (command.equals("Restore Selection")) {
 			if (ProjectToolbar.SELECT == Toolbar.getToolId()) {
-				display.getSelection().restore();
+				selection.restore();
 				return null;
 			}
 		}
@@ -234,6 +235,47 @@ public class ImageJCommandListener implements CommandListener {
 			// TODO forward to the active image, if any
 			niy(command);
 			return null;
+		}
+
+		// IMAGE menu again
+		else if (command.equals("Crop")) {
+			notAvailable(command);
+			return null;
+		} else if (in(command, new String[]{"Translate...", "Scale..."})) {
+			if (null != active) selection.specify();
+			return null;
+		} else if (command.equals("Duplicate...")) {
+			if (null != active && active.getClass().equals(Patch.class)) {
+				// TODO stacks?
+				project.getLoader().releaseToFit((long)(project.getLoader().estimateImageFileSize((Patch)active, 0) * 2.5)); // 2.5 secutiry factor: for awt in non-1.6.0 machines
+				new ImagePlus(active.getTitle(), ((Patch)active).getImageProcessor().duplicate()).show();
+			}
+			return null;
+		} else if (command.equals("Rename...")) {
+			if (null != active) {
+				active.adjustProperties();
+				Display.updateSelection();
+			}
+			return null;
+		}
+
+		// IMAGE ZOOM menu
+		else if (command.equals("Flip Horizontally")) {
+			selection.apply(2, new double[]{-1, 1});
+			return null;
+		} else if (command.equals("Flip Vertically")) {
+			selection.apply(2, new double[]{1, -1});
+			return null;
+		} else if (command.equals("Rotate 90 Degrees Right")) {
+			selection.apply(1, new double[]{90});
+			return null;
+		} else if (command.equals("Rotate 90 Degrees Left")) {
+			selection.apply(1, new double[]{-90});
+			return null;
+		} else if (command.equals("Arbitrarily...")) {
+			if (null != active) selection.specify();
+			return null;
+
 
 	
 		// with LUTs, most likely a redirection can be done at FakeImageProcessor.setColorModel(..) level

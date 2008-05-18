@@ -23,6 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import ij.ImagePlus;
+import ij.gui.GenericDialog;
 
 import java.awt.Rectangle;
 import java.awt.Color;
@@ -42,6 +43,7 @@ import java.awt.AlphaComposite;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
+import java.awt.image.ColorModel;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -724,7 +726,7 @@ public class Selection {
 		}
 	}
 
-	public void cancelTransform() { // TODO : use the undo feature, reread the transforms as originally cached for undo.
+	public void cancelTransform() {
 		transforming = false;
 		if (null == active) return;
 		// restoring transforms
@@ -1165,5 +1167,60 @@ public class Selection {
 			setPrev(q);
 			unlock();
 		}
+	}
+
+	public void specify() {
+		if (null == display || null == display.getActive()) return;
+		boolean tr = transforming;
+		if (!tr) {
+			setTransforming(true);
+		}
+		final GenericDialog gd = new GenericDialog("Specify");
+		gd.addMessage("Relative to the floater's position:");
+		gd.addNumericField("floater X: ", getFloaterX(), 2);
+		gd.addNumericField("floater Y: ", getFloaterY(), 2);
+		gd.addMessage("Transforms applied in the same order as listed below:");
+		gd.addNumericField("rotate : ", 0, 2);
+		gd.addNumericField("translate in X: ", 0, 2);
+		gd.addNumericField("translate in Y: ", 0, 2);
+		gd.addNumericField("scale in X: ", 1.0, 2);
+		gd.addNumericField("scale in Y: ", 1.0, 2);
+		gd.showDialog();
+		if (gd.wasCanceled()) {
+			return;
+		}
+		if (!tr) display.getLayer().getParent().addUndoStep(getTransformationsCopy());
+		final Rectangle sel_box = getLinkedBox();
+		setFloater((int)gd.getNextNumber(), (int)gd.getNextNumber());
+		double rot = gd.getNextNumber();
+		double dx = gd.getNextNumber();
+		double dy = gd.getNextNumber();
+		double sx = gd.getNextNumber();
+		double sy = gd.getNextNumber();
+		if (0 != dx || 0 != dy) translate(dx, dy);
+		if (0 != rot) rotate(rot);
+		if (0 != sx && 0 != sy) scale(sx, sy);
+		else Utils.showMessage("Cannot scale to zero.");
+		sel_box.add(getLinkedBox());
+		// restore state if different
+		if (!tr) setTransforming(tr);
+		Display.repaint(display.getLayer(), sel_box, Selection.PADDING);
+	}
+
+	protected void apply(final int what, final double[] params) {
+		final Rectangle sel_box = getLinkedBox();
+		switch (what) {
+			case 0: translate(params[0], params[1]); break;
+			case 1: rotate(params[0]); break;
+			case 2: scale(params[0], params[1]); break;
+		}
+		sel_box.add(getLinkedBox());
+		Display.repaint(display.getLayer(), sel_box, Selection.PADDING);
+	}
+
+	/** Apply the given LUT to all selected 8-bit, 16-bit, 32-bit images. */
+	public void setLut(ColorModel cm) {
+		//TODO
+		Utils.log("Setting LUT not implemented yet.");
 	}
 }

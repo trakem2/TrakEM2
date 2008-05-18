@@ -2634,31 +2634,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			canvas.cancelTransform();
 		} else if (command.equals("Specify transform...")) {
 			if (null == active) return;
-			final GenericDialog gd = new GenericDialog("Specify");
-			gd.addMessage("Relative to the floater's position:");
-			gd.addNumericField("floater X: ", selection.getFloaterX(), 2);
-			gd.addNumericField("floater Y: ", selection.getFloaterY(), 2);
-			gd.addMessage("Transforms applied in the same order as listed below:");
-			gd.addNumericField("rotate : ", 0, 2);
-			gd.addNumericField("translate in X: ", 0, 2);
-			gd.addNumericField("translate in Y: ", 0, 2);
-			gd.addNumericField("scale in X: ", 1.0, 2);
-			gd.addNumericField("scale in Y: ", 1.0, 2);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			final Rectangle sel_box = selection.getLinkedBox();
-			selection.setFloater((int)gd.getNextNumber(), (int)gd.getNextNumber());
-			double rot = gd.getNextNumber();
-			double dx = gd.getNextNumber();
-			double dy = gd.getNextNumber();
-			double sx = gd.getNextNumber();
-			double sy = gd.getNextNumber();
-			if (0 != dx || 0 != dy) selection.translate(dx, dy);
-			if (0 != rot) selection.rotate(rot);
-			if (0 != sx && 0 != sy) selection.scale(sx, sy);
-			else Utils.showMessage("Cannot scale to zero.");
-			sel_box.add(selection.getLinkedBox());
-			repaint(this.layer, sel_box, Selection.PADDING);
+			selection.specify();
 		} else if (command.equals("Hide all but images")) {
 			ArrayList<Class> type = new ArrayList<Class>();
 			type.add(Patch.class);
@@ -3425,11 +3401,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 		if (null != front) {
+			Loader.setTempCurrentImage(front.canvas.getFakeImagePlus());
+			/*
 			if (tool < ProjectToolbar.SELECT || tool > ProjectToolbar.ALIGN) {
 				Loader.setTempCurrentImage(front.canvas.getFakeImagePlus());
 			} else {
 				Loader.setTempCurrentImage(front.last_temp);
 			}
+			*/
 		}
 	}
 
@@ -3469,16 +3448,21 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void setTempCurrentImage() {
+		Loader.setTempCurrentImage(canvas.getFakeImagePlus());
+		/*
 		//Utils.log2("Setting temp current image: " + last_temp + " " + (null == last_temp ? null : last_temp.getClass()));
 		if (null != last_temp) {
 			//Utils.log2("last_temp.class == " + last_temp.getClass());
 			last_temp.setSlice(layer.getParent().indexOf(layer) +1);
 		}
 		Loader.setTempCurrentImage(last_temp);
+		*/
 	}
 
 	/** Sets the ImagePlus that ImageJ will see in its WindowManager while this Display is activated. */
 	private void createTempCurrentImage() {
+		// DISABLED: always the FakeImagePlus
+		/*
 		ImagePlus temp = null;
 		final ArrayList al = selection.getSelected();
 		if (1 == selection.getNSelected() && getActive() instanceof Patch) {
@@ -3511,6 +3495,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//temp.getCalibration().pixelDepth = layer.getParent().getLayer(0).getThickness();
 		last_temp = temp;
 		//Utils.log2("currentSlice: " + temp.getCurrentSlice() + " for layer index " + layer.getParent().indexOf(layer));
+		*/
 	}
 
 	/** Check if any display will paint the given Displayable at the given magnification. */
