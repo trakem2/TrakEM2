@@ -5,6 +5,7 @@ import ij.Executer;
 import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.Toolbar;
+import ij.gui.Roi;
 
 import ini.trakem2.Project;
 import ini.trakem2.display.*;
@@ -12,6 +13,9 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.persistence.Loader;
+
+import java.awt.Rectangle;
 
 /** Intercept ImageJ menu commands if the current active image is a FakeImagePlus (from a ini.trakem2.display.Display.) */
 public class ImageJCommandListener implements CommandListener {
@@ -39,6 +43,50 @@ public class ImageJCommandListener implements CommandListener {
 		return false;
 	}
 
+	private boolean isPatch(final String command, final Displayable active) {
+		if (null == active) {
+			Utils.log("Nothing selected!");
+			return false;
+		}
+		if (!(active instanceof Patch)) {
+			Utils.log("Can't run '" + command + "' on a non-image object.");
+			return false;
+		}
+		return true;
+	}
+
+	/** Set as current image the Patch ImagePlus only for half a second, for a plugin to see it and grab a pointer.
+	 * YES this is a tremendous hack that may not work in all situations, but will be reasonably ok for PlugInFilter operations.
+	 * This action is intended for commands that don't alter the original image.
+	 * */
+	private String setTempAndReset(final String command, final Displayable active, final FakeImagePlus fimp) {
+		if (!isPatch(command, active)) return null;
+		final Patch pa = (Patch)active;
+		final Project project = pa.getProject();
+		Loader.setTempCurrentImage(pa.getImagePlus());
+		project.getLoader().releaseToFit((long)(project.getLoader().estimateImageFileSize(pa, 0) * 5));
+		new Thread() {
+			public void run() {
+				try { Thread.sleep(500); } catch (Exception e) {}
+				project.getLoader().setTempCurrentImage(fimp);
+			}
+		}.start();
+		return command;
+	}
+
+	/** Duplicate the active image (if any) and set it as active, so the command is run on it. */
+	private String duplicate(final String command, final Displayable active) {
+		if (!isPatch(command, active)) return null;
+		Patch pa = (Patch)active;
+		Project project = pa.getProject();
+		project.getLoader().releaseToFit((long)(project.getLoader().estimateImageFileSize(pa, 0) * 5));
+		ImagePlus imp = new ImagePlus(pa.getTitle(), pa.getImageProcessor().duplicate()); // don't show it yet
+		Loader.setTempCurrentImage(imp);
+		imp.show();
+		// now execute command
+		return command;
+	}
+
 	// I know, I could create a hashtable and then map methods of this class to each command key ... this is just easier, and performance-wise nobody cares
 	//  Or even a hastable with String command keys and then a number as value, and use a gigantic switch block. So much pain to write. WHAT I REALLY WANT is a switch that takes a String and is fast because it has its own hash setup.
 	public String commandExecuting(final String command) {
@@ -47,12 +95,12 @@ public class ImageJCommandListener implements CommandListener {
 		ImagePlus current = WindowManager.getCurrentImage();
 		if (!(current instanceof FakeImagePlus)) return command;  // not a trakem2 display: continue happily
 		// 2 - identify project
-		FakeImagePlus fimp = (FakeImagePlus)current;
-		Display display = fimp.getDisplay();
-		Project project = display.getProject();
-		ProjectTree ptree = project.getProjectTree();
-		Displayable active = display.getActive();
-		Selection selection = display.getSelection();
+		final FakeImagePlus fimp = (FakeImagePlus)current;
+		final Display display = fimp.getDisplay();
+		final Project project = display.getProject();
+		final ProjectTree ptree = project.getProjectTree();
+		final Displayable active = display.getActive();
+		final Selection selection = display.getSelection();
 		// 3 - filter accordingly
 		//
 		// EDIT menu
@@ -161,8 +209,7 @@ public class ImageJCommandListener implements CommandListener {
 			niy(command);
 			return null;
 		} else if (command.equals("Size...")) {
-			// TODO forward to the active image, if any
-			niy(command);
+			if (null != active) selection.specify();
 			return null;
 		} else if (command.equals("Canvas Size...")) {
 			display.resizeCanvas();
@@ -259,7 +306,7 @@ public class ImageJCommandListener implements CommandListener {
 			return null;
 		}
 
-		// IMAGE ZOOM menu
+		// IMAGE ROTATE menu
 		else if (command.equals("Flip Horizontally")) {
 			selection.apply(2, new double[]{-1, 1});
 			return null;
@@ -275,10 +322,50 @@ public class ImageJCommandListener implements CommandListener {
 		} else if (command.equals("Arbitrarily...")) {
 			if (null != active) selection.specify();
 			return null;
+		}
 
+		// IMAGE ZOOM menu
+		else if (command.equals("To Selection")) {
+			Roi roi = fimp.getRoi();
+			if (null != roi) {
+				Rectangle b = roi.getBounds();
+				b.x -= b.width/2;
+				b.y -= b.height/2;
+				b.width *= 2;
+				b.height *= 2;
+				display.getCanvas().showCentered(b);
+			}
+			return null;
+		} else if (command.equals("View 100%")) {
+			// TODO
+			niy(command);
+			return null;
+		}
 
-	
-		// with LUTs, most likely a redirection can be done at FakeImageProcessor.setColorModel(..) level
+		// LUTs handled by FakeImagePlus / FakeProcessor setColorModel
+
+		
+		// ANALYZE menu
+		else if (command.equals("Measure")) {
+			// TODO
+			niy(command);
+			return null;
+		} else if (in(command, new String[]{"Analyze Particles...", "Histogram", "Plot Profile", "Surface Plot...", "Color Inspector 3D", "3D Surface Plot", "Color Histogram"})) {
+			// TODO
+			niy(command);
+			return null;
+		} else if (command.equals("Label")) {
+			notAvailable(command);
+			return null;
+		}
+
+		// PROCESS menu and submenus
+		else if (in(command, new String[]{"FFT", "Fast FFT (2D/3D)"})) {
+			return setTempAndReset(command, active, fimp);
+		} else if (in(command, new String[]{"Bandpass Filter...", "Custom Filter...", "FD Math...", "Swap Quadrants", "Convolve...", "Gaussian Blur...", "Median...", "Mean...", "Minimum...", "Maximum...", "Unsharp Mask...", "Variance...", "Show Circular Masks...", "Subtract Background..."})) {
+			return duplicate(command, active);
+		} else if (in(command, new String[]{"Smooth", "Sharpen", "Find Edges", "Enhance Contrast", "Add Noise", "Add Specified Noise...", "Salt and Pepper", "Despeckle", "Remove Outliers...", "North", "Northeast", "East", "Southeast", "South", "Southwest", "West", "Northwest", "Make Binary", "Convert to Mask", "Find Maxima...", "Erode", "Dilate", "Open ", "Close-", "Options...", "Outline", "Fill Holes", "Skeletonize", "Distance Map", "Ultimate Points", "Watershed", "Add...", "Subtract...", "Multiply...", "Divide...", "AND...", "OR...", "XOR...", "Min...", "Max...", "Gamma...", "Log", "Exp", "Square", "Square Root", "Reciprocal", "NaN Background", "Abs"})) {
+			return duplicate(command, active);
 
 
 		} else {
