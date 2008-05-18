@@ -688,16 +688,17 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final String openTextFile(final String path) {
 		if (null == path || !new File(path).exists()) return null;
 		final StringBuffer sb = new StringBuffer();
+		BufferedReader r = null;
 		try {
-			final BufferedReader r = new BufferedReader(new FileReader(path));
+			r = new BufferedReader(new FileReader(path));
 			while (true) {
 				String s = r.readLine();
 				if (null == s) break;
 				sb.append(s).append('\n'); // I am sure the reading can be done better
         		}
-			r.close();
 		} catch (Exception e) {
 			IJError.print(e);
+			if (null != r) try { r.close(); } catch (IOException ioe) { ioe.printStackTrace(); }
 			return null;
 		}
 		return sb.toString();

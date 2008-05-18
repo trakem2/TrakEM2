@@ -570,12 +570,18 @@ public abstract class Displayable extends DBObject {
 		return false;
 	}
 
+	/** Remove also from the trees if present; does nothing more than remove(boolean) unless overriden. */
+	protected boolean remove2(boolean check) {
+		return remove(check);
+	}
+
 	/** Remove from both the database and any Display that shows the Layer in which this Displayable is shown. */
 	public boolean remove(boolean check) {
 		if (super.remove(check) && layer.remove(this)) {
 			unlink();
 			Search.remove(this);
 			Compare.remove(this);
+			Display.flush(this);
 			return true;
 		}
 		Utils.log("Failed to remove " + this.getClass().getName() + " " + this);

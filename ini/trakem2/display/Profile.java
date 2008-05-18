@@ -1567,4 +1567,8 @@ public class Profile extends Displayable {
 		}
 		return null;
 	}
+
+	protected boolean remove2(boolean check) {
+		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here
+	}
 }

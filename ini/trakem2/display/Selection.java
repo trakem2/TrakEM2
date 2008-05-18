@@ -55,6 +55,7 @@ public class Selection {
 	private Display display;
 	/** Queue of all selected objects. */
 	private final LinkedList queue = new LinkedList();
+	private final LinkedList queue_prev = new LinkedList();
 	private final Object queue_lock = new Object();
 	private boolean queue_locked = false;
 	/** All selected objects plus their links. */
@@ -482,6 +483,7 @@ public class Selection {
 				Utils.log2("Selection.add warning: already have " + d + " selected.");
 				return;
 			}
+			setPrev(queue);
 			queue.add(d);
 			//Utils.log("box before adding: " + box);
 			// add it's box to the selection box
@@ -517,7 +519,6 @@ public class Selection {
 		ArrayList al = display.getLayer().getDisplayables();
 		al.addAll(display.getLayer().getParent().getZDisplayables());
 		selectAll(al);
-		//Utils.log2("Just selected all: " + queue.size());
 	}
 
 	/** Select all objects in the given layer, preserving the active one (if any) as active. */
@@ -529,13 +530,14 @@ public class Selection {
 		synchronized (queue_lock) {
 		try {
 			lock();
+			setPrev(queue);
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
 				if (queue.contains(d)) continue;
 				queue.add(d);
 				if (hs.contains(d)) continue;
 				hs.add(d);
-				// now, grab the linked group and add it as well to the hashtable
+				// now, grab the linked group and add it as well to the hashset
 				HashSet hsl = d.getLinkedGroup(new HashSet());
 				if (null != hsl) {
 					for (Iterator hit = hsl.iterator(); hit.hasNext(); ) {
@@ -558,8 +560,6 @@ public class Selection {
 		}}
 	}
 
-	// TODO think of a way of disabling autocommit, but setting save points and commiting the good part and rolig back tha bad part if any
-
 	/** Delete all selected objects from their Layer. */
 	public boolean deleteAll() {
 		synchronized (queue_lock) {
@@ -567,6 +567,7 @@ public class Selection {
 			if (null == active) return true; // nothing to remove
 			if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
 			lock();
+			setPrev(queue);
 			if (null != display) display.setActive(null);
 			this.active = null;
 			StringBuffer sb = new StringBuffer();
@@ -576,7 +577,8 @@ public class Selection {
 			try {
 				display.getProject().getLoader().startLargeUpdate();
 				for (int i=0; i<d.length; i++) {
-					if (!d[i].remove(false)) {
+					// Remove from the trees and from the Layer/LayerSet
+					if (!d[i].remove2(false)) {
 						sb.append(d[i].getTitle()).append('\n');
 						continue;
 					}
@@ -599,6 +601,13 @@ public class Selection {
 		return true;
 	}
 
+	/** Set the elements of the given LinkedList as those of the stored, previous selection, only if the given list is not empty. */
+	private void setPrev(LinkedList q) {
+		if (0 == q.size()) return;
+		queue_prev.clear();
+		queue_prev.addAll(q);
+	}
+
 	/** Remove the given displayable from this selection. */
 	public void remove(Displayable d) {
 		if (null == d) {
@@ -615,6 +624,7 @@ public class Selection {
 				return;
 			}
 			queue.remove(d);
+			setPrev(queue);
 			hs.remove(d);
 			if (d.equals(active)) {
 				if (0 == queue.size()) {
@@ -687,6 +697,7 @@ public class Selection {
 				display.setActive(null);
 				display.repaint(display.getLayer(), 5, box, false);
 			}
+			setPrev(queue);
 			this.queue.clear();
 			this.hs.clear();
 			this.active = null;
@@ -1128,5 +1139,31 @@ public class Selection {
 			unlock();
 		}
 		Display.repaint(display.getLayer(), box, 10);
+	}
+
+	/** Removes the given Displayable from the selection and previous selection list. */
+	protected void removeFromPrev(Displayable d) {
+		if (null == d) return;
+		synchronized (queue_lock) {
+			lock();
+			queue_prev.remove(d);
+			unlock();
+		}
+	}
+
+	/** Restore the previous selection. */
+	public void restore() {
+		synchronized (queue_lock) {
+			lock();
+			LinkedList q = (LinkedList)queue.clone();
+			ArrayList al = new ArrayList();
+			al.addAll(queue_prev);
+			unlock();
+			clear();
+			selectAll(al);
+			lock();
+			setPrev(q);
+			unlock();
+		}
 	}
 }

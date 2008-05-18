@@ -324,11 +324,8 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				LayerSet ls = (LayerSet)thing.getObject();
 				Display.showCentered(ls.getParent(), ls, false, false);
 			} else if (command.equals("Delete...")) {
-				if (null == thing.getParent()) return; // can't remove the root LayerSet
-				if (thing.remove(true)) {
-					((DefaultTreeModel)this.getModel()).removeNodeFromParent(selected_node);
-					this.updateUILater();
-				}
+				remove(true, thing, selected_node);
+				return;
 			} else if (command.equals("Import stack...")) {
 
 				DBObject dbo = (DBObject)thing.getObject();
@@ -661,5 +658,10 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 		// what the hell:
 		this.getSelectionModel().setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
 	}
-}
 
+	/** If the given node is null, it will be searched for. */
+	public boolean remove(boolean check, LayerThing thing, DefaultMutableTreeNode node) {
+		if (null == thing || null == thing.getParent()) return false; // can't remove the root LayerSet
+		return thing.remove(check) && removeNode(null != node ? node : findNode(thing, this));
+	}
+}

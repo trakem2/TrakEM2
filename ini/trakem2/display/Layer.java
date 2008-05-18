@@ -154,9 +154,9 @@ public class Layer extends DBObject {
 		String title = lt.getTitle();
 		if (null == title) title = "";
 		else title = title.replace(' ', '_');
-		StringBuffer sb = new StringBuffer().append(parent.indexOf(this) + 1);
-		String s_size = Integer.toString(parent.size());
-		while (sb.length() < s_size.length()) {
+		final StringBuffer sb = new StringBuffer().append(parent.indexOf(this) + 1);
+		final int s_size = Integer.toString(parent.size()).length();
+		while (sb.length() < s_size) {
 			sb.insert(0, '0');
 		}
 		sb.append('_').append('_').append(title).append('_').append('_').append('z').append(Utils.cutNumber(this.z, 3, true));
@@ -164,7 +164,7 @@ public class Layer extends DBObject {
 	}
 
 	public String toString() {
-		if (null == parent) return "z=" + Utils.cutNumber(z, 4);
+		if (null == parent) return new StringBuffer("z=").append(Utils.cutNumber(z, 4)).toString();
 		//return "z=" + Utils.cutNumber(z / parent.getCalibration().pixelDepth * z !!!?? I don't have the actual depth to correct with.
 		return "z=" + Utils.cutNumber(z, 4);
 	}

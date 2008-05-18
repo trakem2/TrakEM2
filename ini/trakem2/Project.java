@@ -103,6 +103,9 @@ public class Project extends DBObject {
 
 	private final Hashtable<String,String> ht_props = new Hashtable<String,String>();
 
+	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
+	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
+
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
 		super(loader);
@@ -1122,12 +1125,12 @@ public class Project extends DBObject {
 		if (adjustProp("layer_mipmaps", layer_mipmaps, layer_mipmaps2)) {
 			if (layer_mipmaps && !layer_mipmaps2) {
 				// TODO
-				// ask first
-				// remove all existing images from layer.mipmaps folder
+				// 1 - ask first
+				// 2 - remove all existing images from layer.mipmaps folder
 			} else if (!layer_mipmaps && layer_mipmaps2) {
 				// TODO
-				// ask first
-				// create de novo all layer mipmaps in a background task
+				// 1 - ask first
+				// 2 - create de novo all layer mipmaps in a background task
 			}
 		}
 	}

@@ -105,6 +105,10 @@ public abstract class ZDisplayable extends Displayable {
 	@Deprecated
 	public void transformPoints(Layer layer, double dx, double dy, double rot, double xo, double yo) {}
 
+	protected boolean remove2(boolean check) {
+		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here
+	}
+
 	public boolean remove(boolean check) {
 		if (check && !Utils.check("Really remove " + this.toString() + " ?")) return false;
 		if (layer_set.remove(this) && removeFromDatabase()) {

@@ -48,6 +48,9 @@ public class FakeImagePlus extends ImagePlus {
 		this.display = display;
 		setProcessor("", new FakeProcessor(width, height));
 	}
+	protected Display getDisplay() {
+		return display;
+	}
 	public int getWidth() {
 		// trick the canvas, but not the ROIs
 		//Class dc = null; try { dc = Class.forName("ini.trakem2.DisplayCanvas"); } catch (Exception e) {}

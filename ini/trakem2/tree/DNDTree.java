@@ -561,4 +561,11 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 			if (!exists) addChild(th, parent);
 		}
 	}
+
+	protected boolean removeNode(DefaultMutableTreeNode node) {
+		if (null == node) return false;
+		((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
+		this.updateUILater();
+		return true;
+	}
 }

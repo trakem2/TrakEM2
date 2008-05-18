@@ -224,11 +224,8 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);
 			} else if (command.equals("Delete...")) {
-				Object obd = thing.getObject();
-				if (obd instanceof Project) { ((Project)obd).remove(true); return; } // shortcut to remove everything regardless.
-				if (!thing.remove(true)) return;
-				((DefaultTreeModel)this.getModel()).removeNodeFromParent(selected_node);
-				this.updateUILater();
+				remove(true, thing, selected_node);
+				return;
 			} else if (command.equals("Rename...")) {
 				//if (!Project.isBasicType(thing.getType())) {
 					rename(thing);
@@ -259,18 +256,8 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				// Just do the same as in "Save as..." but without saving the images and overwritting the XML file without asking.
 				thing.getProject().getLoader().save(thing.getProject());
 			} else if (command.equals("Info")) {
-				Hashtable<String,ArrayList<ProjectThing>> ht = thing.getByType();
-				ArrayList<String> types = new ArrayList<String>();
-				types.addAll(ht.keySet());
-				Collections.sort(types);
-				StringBuffer sb = new StringBuffer(thing.getNodeInfo());
-				sb.append("\nCounts:\n");
-				for (String type : types) {
-					sb.append(type).append(": ").append(ht.get(type).size()).append('\n');
-				}
-				sb.append('\n');
-				sb.append(thing.getInfo().replaceAll("\t", "    ")); // TextWindow can't handle tabs
-				new ij.text.TextWindow("Info", sb.toString(), 500, 500);
+				showInfo(thing);
+				return;
 			} else {
 				Utils.log("ProjectTree.actionPerformed: don't know what to do with the command: " + command);
 				return;
@@ -477,4 +464,27 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 	}
 	public void keyReleased(KeyEvent ke) {}
 	public void keyTyped(KeyEvent ke) {}
+
+	/** If the given node is null, it will be searched for. */
+	public boolean remove(boolean check, ProjectThing thing, DefaultMutableTreeNode node) {
+		Object obd = thing.getObject();
+		if (obd instanceof Project) return ((Project)obd).remove(check); // shortcut to remove everything regardless.
+		return thing.remove(true) && removeNode(null != node ? node : findNode(thing, this));
+	}
+
+	public void showInfo(ProjectThing thing) {
+		if (null == thing) return;
+		Hashtable<String,ArrayList<ProjectThing>> ht = thing.getByType();
+		ArrayList<String> types = new ArrayList<String>();
+		types.addAll(ht.keySet());
+		Collections.sort(types);
+		StringBuffer sb = new StringBuffer(thing.getNodeInfo());
+		sb.append("\nCounts:\n");
+		for (String type : types) {
+			sb.append(type).append(": ").append(ht.get(type).size()).append('\n');
+		}
+		sb.append('\n');
+		sb.append(thing.getInfo().replaceAll("\t", "    ")); // TextWindow can't handle tabs
+		new ij.text.TextWindow("Info", sb.toString(), 500, 500);
+	}
 }

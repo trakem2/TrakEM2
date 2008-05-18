@@ -4501,4 +4501,17 @@ abstract public class Loader {
 		}
 		return 0;
 	}
+
+	/** Generates layer-wise mipmaps with constant tile width and height. The mipmaps include only images.
+	 *  Mipmaps area generated all the way down until the entire canvas fits within one single tile.
+	 */
+	public Bureaucrat generateLayerMipMaps(final Layer[] la, final int starting_level) {
+		// hard-coded dimensions for mipmaps.
+		final int WIDTH = 512;
+		final int HEIGHT = 512;
+		//
+		// Each tile needs some coding system on where it belongs. For example in its file name, such as <layer_id>_Xi_Yi
+		// TODO
+		return null;
+	}
 }

@@ -35,6 +35,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.LayerStack;
+import ini.trakem2.tree.LayerThing;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -576,6 +577,15 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		Display.update(this);
 		Display.pack(this);
 		return true;
+	}
+
+	protected boolean remove2(boolean check) {
+		if (check) {
+			if (!Utils.check("Really delete " + this.toString() + (null != al_layers && al_layers.size() > 0 ? " and all its children?" : ""))) return false;
+		}
+		LayerThing lt = project.findLayerThing(this);
+		if (null == lt) return false;
+		return project.getLayerTree().remove(check, lt, null); // will end up calling remove(boolean) on this object
 	}
 
 	synchronized public boolean remove(boolean check) {

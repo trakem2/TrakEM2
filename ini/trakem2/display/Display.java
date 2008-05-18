@@ -2680,15 +2680,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Hide selected")) {
 			selection.setVisible(false);
 		} else if (command.equals("Resize canvas/LayerSet...")) {
-			GenericDialog gd = new GenericDialog("Resize LayerSet");
-			gd.addNumericField("new width: ", layer.getLayerWidth(), 3);
-			gd.addNumericField("new height: ",layer.getLayerHeight(),3);
-			gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[7]);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			double new_width = gd.getNextNumber();
-			double new_height =gd.getNextNumber();
-			layer.getParent().setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
+			resizeCanvas();
 		} else if (command.equals("Autoresize canvas/LayerSet")) {
 			layer.getParent().setMinimumDimensions();
 		} else if (command.equals("Import image")) {
@@ -3546,5 +3538,24 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (d.isVisible()) d.setVisible(false);
 		}
 		Display.update(layer);
+	}
+
+	/** Cleanup internal lists that may contain the given Displayable. */
+	static public void flush(final Displayable displ) {
+		for (Display d : al_displays) {
+			d.selection.removeFromPrev(displ);
+		}
+	}
+
+	public void resizeCanvas() {
+		GenericDialog gd = new GenericDialog("Resize LayerSet");
+		gd.addNumericField("new width: ", layer.getLayerWidth(), 3);
+		gd.addNumericField("new height: ",layer.getLayerHeight(),3);
+		gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[7]);
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		double new_width = gd.getNextNumber();
+		double new_height =gd.getNextNumber();
+		layer.getParent().setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
 	}
 }
