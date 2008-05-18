@@ -1171,10 +1171,6 @@ public class Selection {
 
 	public void specify() {
 		if (null == display || null == display.getActive()) return;
-		boolean tr = transforming;
-		if (!tr) {
-			setTransforming(true);
-		}
 		final GenericDialog gd = new GenericDialog("Specify");
 		gd.addMessage("Relative to the floater's position:");
 		gd.addNumericField("floater X: ", getFloaterX(), 2);
@@ -1189,6 +1185,8 @@ public class Selection {
 		if (gd.wasCanceled()) {
 			return;
 		}
+		boolean tr = transforming;
+		if (!tr) setTransforming(true);
 		if (!tr) display.getLayer().getParent().addUndoStep(getTransformationsCopy());
 		final Rectangle sel_box = getLinkedBox();
 		setFloater((int)gd.getNextNumber(), (int)gd.getNextNumber());
