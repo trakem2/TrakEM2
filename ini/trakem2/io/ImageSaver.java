@@ -92,11 +92,16 @@ public class ImageSaver {
 			bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
 		}
 		final Graphics g = bi.createGraphics();
-		g.drawImage(ip.createImage(), 0, 0, null);
+		final Image awt = ip.createImage();
+		g.drawImage(awt, 0, 0, null);
 		g.dispose();
-		return saveAsJpeg(bi, path, quality, as_grey);
+		awt.flush();
+		boolean b = saveAsJpeg(bi, path, quality, as_grey);
+		bi.flush();
+		return b;
 	}
 
+	/** Will not flush the given BufferedImage. */
 	static public final boolean saveAsJpeg(final BufferedImage bi, final String path, float quality, boolean as_grey) {
 		if (!checkPath(path)) return false;
 		if (quality < 0f) quality = 0f;
@@ -327,6 +332,7 @@ public class ImageSaver {
 		// get an image without alpha channel to paste into it
 		Image baboon = new ij.io.Opener().openImage("http://rsb.info.nih.gov/ij/images/baboon.jpg").getProcessor().createImage();
 		bi.createGraphics().drawImage(baboon, 0, 0, null);
+		baboon.flush();
 		// create a fading alpha channel
 		int[] ramp = (int[])ij.gui.NewImage.createRGBImage("ramp", 512, 512, 1, ij.gui.NewImage.FILL_RAMP).getProcessor().getPixels();
 		// insert fading alpha ramp into the image
@@ -343,6 +349,7 @@ public class ImageSaver {
 		final Image some = new ij.io.Opener().openImage("http://rsb.info.nih.gov/ij/images/bridge.gif").getProcessor().createImage();
 		java.awt.Graphics g = background.getGraphics();
 		g.drawImage(some, 0, 0, null);
+		some.flush();
 		g.drawImage(awt, 0, 0, null);
 		java.awt.Canvas canvas = new java.awt.Canvas() {
 			public void paint(Graphics g) {
