@@ -1051,6 +1051,9 @@ public class Project extends DBObject {
 		}
 		return default_value;
 	}
+	public boolean getBooleanProperty(final String key) {
+		return "true".equals(ht_props.get(key));
+	}
 	public void setProperty(final String key, final String value) {
 		if (null == value) ht_props.remove(key);
 		else ht_props.put(key, value);
@@ -1097,16 +1100,19 @@ public class Project extends DBObject {
 		int current_R = (int)(100 * ini.trakem2.imaging.StitchingTEM.DEFAULT_MIN_R); // make the float a percent
 		try {
 			String scR = ht_props.get("min_R");
-			if (null != scR) current_R = Integer.parseInt(scR);
+			if (null != scR) current_R = (int)(Double.parseDouble(scR) * 100);
 		} catch (Exception nfe) {
 			IJError.print(nfe);
 		}
 		gd.addSlider("min_R: ", 0, 100, current_R);
 
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
-		gd.addCheckbox("Layer_mipmaps: ", layer_mipmaps);
+		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
+		boolean keep_mipmaps = "true".equals(ht_props.get("keep_mipmaps"));
+		gd.addCheckbox("Keep_mipmaps_when_deleting_images", keep_mipmaps); // coping with the fact that thee is no Action context ... there should be one in the Worker thread.
 		//
 		gd.showDialog();
+		//
 		if (gd.wasCanceled()) return;
 		setLinkProp(link_labels, gd.getNextBoolean(), DLabel.class);
 		setLinkProp(link_arealist, gd.getNextBoolean(), AreaList.class);
@@ -1133,5 +1139,7 @@ public class Project extends DBObject {
 				// 2 - create de novo all layer mipmaps in a background task
 			}
 		}
+		adjustProp("keep_mipmaps", keep_mipmaps, gd.getNextBoolean());
+		Utils.log2("keep_mipmaps: " + getBooleanProperty("keep_mipmaps"));
 	}
 }

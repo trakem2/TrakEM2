@@ -622,7 +622,7 @@ public class FSLoader extends Loader {
 			if (ob instanceof Patch) {
 				// STRATEGY change: images are not owned by the FSLoader.
 				Patch p = (Patch)ob;
-				removeMipMaps(p);
+				if (!ob.getProject().getBooleanProperty("keep_mipmaps")) removeMipMaps(p);
 				ht_paths.remove(p.getId()); // after removeMipMaps !
 				mawts.removeAndFlush(loid);
 				final ImagePlus imp = imps.remove(loid);
@@ -1396,6 +1396,7 @@ public class FSLoader extends Loader {
 		}
 	}
 
+	// TODO this can potentially be a lot of threads! Should be cuing Runnable objects.
 	/** Gets data from the Patch and forks a new Thread to do the file removal. */
 	public void removeMipMaps(final Patch p) {
 		if (null == dir_mipmaps) return;
@@ -1657,5 +1658,19 @@ public class FSLoader extends Loader {
 		}
 		Utils.log2("Saved a copy into the storage folder:\n" + dir_storage + fi.fileName);
 		return dir_storage + fi.fileName;
+	}
+
+	/** Generates layer-wise mipmaps with constant tile width and height. The mipmaps include only images.
+	 *  Mipmaps area generated all the way down until the entire canvas fits within one single tile.
+	 */
+	public Bureaucrat generateLayerMipMaps(final Layer[] la, final int starting_level) {
+		// hard-coded dimensions for layer mipmaps.
+		final int WIDTH = 512;
+		final int HEIGHT = 512;
+		//
+		// Each tile needs some coding system on where it belongs. For example in its file name, such as <layer_id>_Xi_Yi
+		// 
+		// Generate the starting level mipmaps, and then the others from it by gaussian or whatever is indicated in the project image_resizing_mode property.
+		return null;
 	}
 }
