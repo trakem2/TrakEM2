@@ -966,7 +966,7 @@ public class Selection {
 			if (null == box) box = (Rectangle)b.clone();
 			box.add(b);
 		}
-		setHandles(box);
+		if (null != box) setHandles(box);
 	}
 
 	/** Update the bounding box of the whole selection. */
@@ -1162,7 +1162,7 @@ public class Selection {
 			al.addAll(queue_prev);
 			unlock();
 			clear();
-			selectAll(al);
+			if (al.size() > 0) selectAll(al);
 			lock();
 			setPrev(q);
 			unlock();
