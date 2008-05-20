@@ -2142,6 +2142,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
 			if (0 == selection.getNSelected()) item.setEnabled(false);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
+			item = new JMenuItem("Restore selection"); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
 			item = new JMenuItem("Search..."); item.addActionListener(this); popup.add(item);
 		}
@@ -2856,6 +2857,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Rectangle box = selection.getBox();
 			selection.clear();
 			repaint(this.layer, box, 0);
+		} else if (command.equals("Restore selection")) {
+			selection.restore();
 		} else if (command.equals("Merge")) {
 			ArrayList al_sel = selection.getSelected();
 			// put active at the beginning, to work as the base on which other's will get merged
