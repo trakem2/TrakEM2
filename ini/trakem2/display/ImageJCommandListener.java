@@ -158,16 +158,19 @@ public class ImageJCommandListener implements CommandListener {
 				selection.selectAll();
 				return null;
 			}
+			return command;
 		} else if (command.equals("Select None")) {
 			if (ProjectToolbar.SELECT == Toolbar.getToolId()) {
 				display.select(null);
 				return null;
 			}
+			return command;
 		} else if (command.equals("Restore Selection")) {
 			if (ProjectToolbar.SELECT == Toolbar.getToolId()) {
 				selection.restore();
 				return null;
 			}
+			return command;
 		}
 
 		// IMAGE - TYPE menu

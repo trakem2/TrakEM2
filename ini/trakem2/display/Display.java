@@ -2135,6 +2135,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
 			item = new JMenuItem("Export arealists as labels"); item.addActionListener(this); menu.add(item);
 			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+			item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 			if (menu.getItemCount() > 0) popup.add(menu);
 			menu = new JMenu("Selection");
 			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
@@ -2729,7 +2730,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				al_zd.toArray(zd);
 				for (int i=i_start, j=0; i <= i_end; i++, j++) {
 					Layer la = layer.getParent().getLayer(i);
-					if (!la.isEmpty()) al.add(la); // checks both the Layer and the ZDisplayable objects in the parent LayerSet
+					if (!la.isEmpty() || !non_empty_only) al.add(la); // checks both the Layer and the ZDisplayable objects in the parent LayerSet
 				}
 				if (0 == al.size()) {
 					Utils.showMessage("All layers are empty!");
@@ -3057,6 +3058,26 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last);
 		} else if (command.equals("Project properties...")) {
 			project.adjustProperties();
+		} else if (command.equals("Release memory...")) {
+			new Bureaucrat(new Worker("Releasing memory") {
+				public void run() {
+					startedWorking();
+					try {
+			GenericDialog gd = new GenericDialog("Release Memory");
+			int max = (int)(IJ.maxMemory() / 1000000);
+			gd.addSlider("Megabytes: ", 0, max, max/2);
+			gd.showDialog();
+			if (!gd.wasCanceled()) {
+				int n_mb = (int)gd.getNextNumber();
+				project.getLoader().releaseToFit((long)n_mb*1000000);
+			}
+					} catch (Throwable e) {
+						IJError.print(e);
+					} finally {
+						finishedWorking();
+					}
+				}
+			}, project).goHaveBreakfast();
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}

@@ -375,13 +375,13 @@ public class FSLoader extends Loader {
 							return null;
 					}
 				}
-				releaseMemory(); // ensure there is a minimum % of free memory
 				if (-1 != i_sl) {
 					slice = path.substring(i_sl);
 					// set path proper
 					path = path.substring(0, i_sl);
 				}
 
+				releaseMemory(); // ensure there is a minimum % of free memory
 				plock = getOrMakePatchLoadingLock(p, 0);
 				unlock();
 			} catch (Exception e) {
@@ -416,11 +416,11 @@ public class FSLoader extends Loader {
 			synchronized (db_lock) {
 				lock();
 				n_bytes = estimateImageFileSize(p, 0);
-				// not needed // releaseToFit2(n_bytes);
 				max_memory -= n_bytes;
 				unlock();
 			}
 
+			releaseToFit(n_bytes);
 			imp = openImage(path);
 			preProcess(imp);
 
@@ -1190,7 +1190,7 @@ public class FSLoader extends Loader {
 					bi.flush();
 				}
 			}
-		} catch (Exception e) {
+		} catch (Throwable e) {
 			IJError.print(e);
 			ok = false; //can't return, need to unlock Patch first
 		}

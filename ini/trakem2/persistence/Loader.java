@@ -151,6 +151,19 @@ abstract public class Loader {
 
 	static public final int ERROR_PATH_NOT_FOUND = Integer.MAX_VALUE;
 
+	/** Whether incremental garbage collection is enabled. */
+	/*
+	static protected final boolean Xincgc = isXincgcSet();
+
+	static protected final boolean isXincgcSet() {
+		String[] args = IJ.getInstance().getArgs();
+		for (int i=0; i<args.length; i++) {
+			if ("-Xingc".equals(args[i])) return true;
+		}
+		return false;
+	}
+	*/
+
 
 	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_BINARY);
 	static {
@@ -168,11 +181,11 @@ abstract public class Loader {
 	transient protected FIFOImagePlusMap imps = new FIFOImagePlusMap(50);
 	transient protected FIFOImageMipMaps mawts = new FIFOImageMipMaps(50);
 
-	static transient protected Vector v_loaders = null; // Vector: synchronized
+	static transient protected Vector<Loader> v_loaders = null; // Vector: synchronized
 
 	protected Loader() {
 		// register
-		if (null == v_loaders) v_loaders = new Vector();
+		if (null == v_loaders) v_loaders = new Vector<Loader>();
 		v_loaders.add(this);
 		if (!ControlWindow.isGUIEnabled()) {
 			opener.setSilentMode(true);
@@ -468,7 +481,7 @@ abstract public class Loader {
 	///////////////////
 
 	/** Really available maximum memory, in bytes.  */
-	static protected long max_memory = (long)(IJ.maxMemory() - 50000000); // 50 M always free
+	static protected long max_memory = (long)(IJ.maxMemory() - 128000000); // 128 M always free
 
 	public long getMaxMemory() {
 		return max_memory;
@@ -476,12 +489,8 @@ abstract public class Loader {
 
 	/** Measure whether there are at least 'n_bytes' free. */
 	static final protected boolean enoughFreeMemory(final long n_bytes) {
-		final long mem_in_use = IJ.currentMemory(); // in bytes
-		if (n_bytes < max_memory - mem_in_use) {
-			return true;
-		} else {
-			return false;
-		}
+		if (Runtime.getRuntime().freeMemory() < n_bytes + MIN_FREE_BYTES) return false;
+		return n_bytes < max_memory - IJ.currentMemory();
 	}
 
 	public final boolean releaseToFit(final int width, final int height, final int type, float factor) {
@@ -507,6 +516,8 @@ abstract public class Loader {
 	public final boolean releaseToFit(final long bytes) {
 		if (bytes > max_memory) {
 			Utils.log("Can't fit " + bytes + " bytes in memory.");
+			// Try anyway
+			releaseAll();
 			return false;
 		}
 		final boolean previous = massive_mode;
@@ -612,6 +623,30 @@ abstract public class Loader {
 	private final long measureSize(final Image img) {
 		if (null == img) return 0;
 		return img.getWidth(null) * img.getHeight(null) + 100;
+	}
+
+	public long releaseMemory(double percent, boolean from_all_projects) {
+		if (!from_all_projects) return releaseMemory(percent);
+		long mem = 0;
+		for (Loader loader : v_loaders) mem += loader.releaseMemory(percent);
+		return mem;
+	}
+
+	/** From 0 to 1. */
+	public long releaseMemory(double percent) {
+		if (percent <= 0) return 0;
+		if (percent > 1) percent = 1;
+		synchronized (db_lock) {
+			try {
+				lock();
+				return releaseMemory(percent, false, MIN_FREE_BYTES);
+			} catch (Throwable e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+		return 0;
 	}
 
 	/** Release as much of the cache as necessary to make at least min_free_bytes free.<br />
@@ -756,10 +791,18 @@ abstract public class Loader {
 	}
 
 	/** Removes from the cache all awt images bond to the given id. */
-	public void decacheAWT(long id) {
+	public void decacheAWT(final long id) {
 		synchronized (db_lock) {
 			lock();
 			mawts.removeAndFlush(id); // where are my lisp macros! Wrapping any function in a synch/lock/unlock could be done crudely with reflection, but what a pain
+			unlock();
+		}
+	}
+
+	public void cacheOffscreen(final Layer layer, final Image awt) {
+		synchronized (db_lock) {
+			lock();
+			mawts.put(layer.getId(), awt, 0);
 			unlock();
 		}
 	}
@@ -802,6 +845,16 @@ abstract public class Loader {
 			unlock();
 			return b;
 		}
+	}
+
+	public Image getCached(final long id, final int level) {
+		Image awt = null;
+		synchronized (db_lock) {
+			lock();
+			awt = mawts.getClosestAbove(id, level);
+			unlock();
+		}
+		return awt;
 	}
 
 	/** Above or equal in size. */
@@ -2388,7 +2441,7 @@ abstract public class Loader {
 						continue;
 					}
 					if (null != target_dir) {
-						saveToPath(slice, target_dir, layer[i].getPrintableTitle(), ".tif.zip");
+						saveToPath(slice, target_dir, layer[i].getPrintableTitle(), ".tif");
 					} else {
 						if (null == stack) stack = new ImageStack(slice.getWidth(), slice.getHeight());
 						stack.addSlice(layer[i].getProject().findLayerThing(layer[i]).toString(), slice.getProcessor());
@@ -2401,7 +2454,7 @@ abstract public class Loader {
 			} else {
 				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, quality);
 				if (null != target_dir) {
-					saveToPath(imp, target_dir, layer[0].getPrintableTitle(), ".tif.zip");
+					saveToPath(imp, target_dir, layer[0].getPrintableTitle(), ".tif");
 					imp = null; // to prevent showing it
 				}
 			}
@@ -2427,11 +2480,11 @@ abstract public class Loader {
 		File file = new File(path + extension);
 		int k = 1;
 		while (file.exists()) {
-			file = new File(path + "_" + k + ".tif.zip");
+			file = new File(path + "_" + k + ".tif");
 			k++;
 		}
 		try {
-			new FileSaver(imp).saveAsZip(file.getAbsolutePath());
+			new FileSaver(imp).saveAsTiff(file.getAbsolutePath());
 		} catch (OutOfMemoryError oome) {
 			Utils.log2("Not enough memory. Could not save image for " + file_name);
 			IJError.print(oome);
@@ -2528,6 +2581,9 @@ abstract public class Loader {
 					break;
 				case ImagePlus.COLOR_RGB:
 					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_INT_ARGB);
+					break;
+				default:
+					Utils.log2("Left bi,icm as null");
 					break;
 			}
 			final Graphics2D g2d = bi.createGraphics();
@@ -3341,7 +3397,6 @@ abstract public class Loader {
 	/** Returns the path to the saved image. */
 	public String exportImage(Patch patch, String path, boolean overwrite) {
 		// save only if not there already
-		if (!path.endsWith(".zip")) path += ".zip";
 		if (null == path || (!overwrite && new File(path).exists())) return null;
 		synchronized(db_lock) {
 			try {
@@ -4505,5 +4560,19 @@ abstract public class Loader {
 	/** Does nothing unless overriden. */
 	public Bureaucrat generateLayerMipMaps(final Layer[] la, final int starting_level) {
 		return null;
+	}
+
+	/** Recover from an OutOfMemoryError: release 1/3 of all memory AND execute the garbage collector. */
+	public void recoverOOME() {
+		releaseToFit(IJ.maxMemory() / 3);
+		long start = System.currentTimeMillis();
+		long end = start;
+		for (int i=0; i<3; i++) {
+			System.gc();
+			Thread.yield();
+			end = System.currentTimeMillis();
+			if (end - start > 2000) break; // garbage collecion catched and is running.
+			start = end;
+		}
 	}
 }
