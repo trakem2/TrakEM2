@@ -415,6 +415,7 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 
 		if (null != object && object instanceof Displayable) {
+			addPopupItem("Select", listener, al_items);
 			addPopupItem("Show centered in Display", listener, al_items);
 		}
 

@@ -55,9 +55,11 @@ import java.io.File;
 /** A class to hold a tree of Thing nodes */
 public class ProjectTree extends DNDTree implements MouseListener, ActionListener, KeyListener {
 
+	/*
 	static {
 		System.setProperty("j3d.noOffScreen", "true");
 	}
+	*/
 
 	private DefaultMutableTreeNode selected_node = null;
 
@@ -211,6 +213,11 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 					// additionality, get the front Display (or make a new one if none) and show in it the layer in which the Displayable object is contained.
 					Displayable displ = (Displayable)obd;
 					Display.setFront(displ.getLayer(), displ);
+				}
+			} else if (command.equals("Select")) {
+				Object obd = thing.getObject();
+				if (obd instanceof Displayable) {
+					Display.getFront().select((Displayable)obd, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
 				}
 			} else if (command.equals("Show centered in Display")) {
 				Object obd = thing.getObject();
