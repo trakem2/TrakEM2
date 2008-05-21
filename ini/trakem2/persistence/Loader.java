@@ -480,17 +480,28 @@ abstract public class Loader {
 
 	///////////////////
 
-	/** Really available maximum memory, in bytes.  */
-	static protected long max_memory = (long)(IJ.maxMemory() - 128000000); // 128 M always free
+	static protected final Runtime RUNTIME = Runtime.getRuntime();
 
-	public long getMaxMemory() {
-		return max_memory;
-	}
+	static public final long getCurrentMemory() {
+		// totalMemory() is the amount of current JVM heap allocation, whether it's being used or not. It may grow over time if -Xms < -Xmx
+		return RUNTIME.totalMemory() - RUNTIME.freeMemory(); }
+
+	static public final long getFreeMemory() {
+		// max_memory changes as some is reserved by image opening calls
+		return max_memory - getCurrentMemory(); }
+
+	/** Really available maximum memory, in bytes.  */
+	static protected long max_memory = RUNTIME.maxMemory() - 128000000; // 128 M always free
+	//static protected long max_memory = (long)(IJ.maxMemory() - 128000000); // 128 M always free
 
 	/** Measure whether there are at least 'n_bytes' free. */
 	static final protected boolean enoughFreeMemory(final long n_bytes) {
-		if (Runtime.getRuntime().freeMemory() < n_bytes + MIN_FREE_BYTES) return false;
-		return n_bytes < max_memory - IJ.currentMemory();
+		long free = getFreeMemory();
+		if (free < n_bytes) {
+			Utils.log2("\tfree: " + free + "\n\tneed: " + n_bytes);
+			return false; }
+		//if (Runtime.getRuntime().freeMemory() < n_bytes + MIN_FREE_BYTES) return false;
+		return n_bytes < max_memory - getCurrentMemory();
 	}
 
 	public final boolean releaseToFit(final int width, final int height, final int type, float factor) {
