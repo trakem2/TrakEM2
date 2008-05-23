@@ -214,10 +214,29 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 					Displayable displ = (Displayable)obd;
 					Display.setFront(displ.getLayer(), displ);
 				}
-			} else if (command.equals("Select")) {
+			} else if (command.equals("Select in display")) {
 				Object obd = thing.getObject();
+				Display display = Display.getFront();
+				if (null == display) return;
+				boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
 				if (obd instanceof Displayable) {
-					Display.getFront().select((Displayable)obd, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
+					Displayable d = (Displayable)obd;
+					if (!d.isVisible()) d.setVisible(true);
+					display.select(d, shift_down);
+				} else {
+					// select all basic types under this leaf
+					HashSet hs = thing.findBasicTypeChildren();
+					boolean first = true;
+					for (Iterator it = hs.iterator(); it.hasNext(); ) {
+						Displayable d = (Displayable)((ProjectThing)it.next()).getObject();
+						if (!d.isVisible()) d.setVisible(true);
+						if (first) {
+							display.select(d, shift_down);
+							first = false;
+						} else {
+							display.select(d, true);
+						}
+					}
 				}
 			} else if (command.equals("Show centered in Display")) {
 				Object obd = thing.getObject();
