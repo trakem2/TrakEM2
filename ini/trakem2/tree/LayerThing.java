@@ -128,7 +128,7 @@ public class LayerThing extends DBObject implements Thing {
 		if (null != title) sb.append(title);
 		sb.append(' ');
 		if (null == object) sb.append(template.getType());
-		else sb.append(' ').append('[').append(template.getType()).append(']');
+		else sb.append(object.toString()).append(' ').append('[').append(template.getType()).append(']');
 		return sb.toString();
 	}
 
