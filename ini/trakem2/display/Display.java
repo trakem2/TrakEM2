@@ -979,14 +979,18 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}});
 	}
 
-	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint, in the Swing GUI thread. */
 	static public void update(final LayerSet set) {
+		update(set, true);
+	}
+
+	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint, in the Swing GUI thread. */
+	static public void update(final LayerSet set, final boolean update_canvas_dimensions) {
 		if (null == set) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 			for (Display d : al_displays) {
 				if (set.contains(d.layer)) {
 					d.updateSnapshots();
-					d.canvas.setDimensions(set.getLayerWidth(), set.getLayerHeight());
+					if (update_canvas_dimensions) d.canvas.setDimensions(set.getLayerWidth(), set.getLayerHeight());
 					d.repaintAll();
 				}
 			}
@@ -2641,10 +2645,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			ArrayList<Class> type = new ArrayList<Class>();
 			type.add(Patch.class);
 			layer.getParent().hideExcept(type, false);
-			Display.update(layer.getParent());
+			Display.update(layer.getParent(), false);
 		} else if (command.equals("Unhide all")) {
 			layer.getParent().setAllVisible(false);
-			Display.update(layer.getParent());
+			Display.update(layer.getParent(), false);
 		} else if (command.startsWith("Hide all ")) {
 			String type = command.substring(9, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
