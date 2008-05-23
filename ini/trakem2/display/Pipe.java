@@ -1876,9 +1876,12 @@ public class Pipe extends ZDisplayable {
 	public String getInfo() {
 		if (-1 == n_points) setupForDisplay(); //reload
 		// measure length
-		VectorString3D vs = asVectorString3D();
-		vs.calibrate(this.layer_set.getCalibration());
-		double len = vs.computeLength(); // no resampling
+		double len = 0;
+		if (n_points > 1) {
+			VectorString3D vs = asVectorString3D();
+			vs.calibrate(this.layer_set.getCalibration());
+			len = vs.computeLength(); // no resampling
+		}
 		return new StringBuffer("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
 	}
 
