@@ -1,5 +1,6 @@
 package ini.trakem2.display;
 
+import ij.IJ;
 import ij.CommandListener;
 import ij.Executer;
 import ij.ImagePlus;
@@ -16,6 +17,7 @@ import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.persistence.Loader;
 
 import java.awt.Rectangle;
+import java.awt.Event;
 
 /** Intercept ImageJ menu commands if the current active image is a FakeImagePlus (from a ini.trakem2.display.Display.) */
 public class ImageJCommandListener implements CommandListener {
@@ -262,7 +264,16 @@ public class ImageJCommandListener implements CommandListener {
 		}
 
 		// IMAGE STACK menu
-		else if (in(command, new String[]{"Add Slice", "Delete Slice", "Next Slice [>]", "Previous Slice [<]", "Set Slice", "Images to Stack", "Stack to Images", "Make Montage..."})) {
+		else if (in(command, new String[]{"Add Slice", "Delete Slice"})) {
+			Utils.showMessage("Go to the Layer Tree and right-click to add/delete a layer.");
+			return null;
+		} else if (command.equals("Next Slice [>]")) {
+			display.nextLayer(IJ.shiftKeyDown() ? Event.SHIFT_MASK : 0);
+			return null;
+		} else if (command.equals("Previous Slice [<]")) {
+			display.previousLayer(IJ.shiftKeyDown() ? Event.SHIFT_MASK : 0);
+			return null;
+		} else if (in(command, new String[]{"Set Slice", "Images to Stack", "Stack to Images", "Make Montage..."})) {
 			notAvailable(command);
 			return null;
 		} else if (command.equals("Reslice [/]...")) {
