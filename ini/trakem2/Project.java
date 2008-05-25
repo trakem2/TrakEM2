@@ -51,6 +51,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -95,13 +96,13 @@ public class Project extends DBObject {
 	static private TemplateThing layer_set_template = null;
 
 	/** The hashtable of unique TemplateThing types; the key is the type (String). */
-	private Hashtable ht_unique_tt = null;
+	private HashMap ht_unique_tt = null;
 
 	private LayerTree layer_tree = null;
 
 	private String title = "Project"; // default  // TODO should be an attribute in the ProjectThing that holds it
 
-	private final Hashtable<String,String> ht_props = new Hashtable<String,String>();
+	private final HashMap<String,String> ht_props = new HashMap<String,String>();
 
 	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
 	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
@@ -217,9 +218,9 @@ public class Project extends DBObject {
 			return null;
 		}
 		project.template_tree = new TemplateTree(project, template_root);
-		project.ht_unique_tt = template_root.getUniqueTypes(new Hashtable());
+		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap());
 		// create the project Thing, to be root of the whole user Thing tree (and load all its objects)
-		Hashtable hs_d = new Hashtable(); // to collect all created displayables, and  then reassign to the proper layers.
+		HashMap hs_d = new HashMap(); // to collect all created displayables, and  then reassign to the proper layers.
 		try {
 			// create a template for the project Thing
 			TemplateThing project_template = new TemplateThing("project");
@@ -353,7 +354,7 @@ public class Project extends DBObject {
 		final TemplateThing root_tt = (TemplateThing)data[0];
 		final ProjectThing root_pt = (ProjectThing)data[1];
 		final LayerThing root_lt = (LayerThing)data[2];
-		final Hashtable ht_pt_expanded = (Hashtable)data[3];
+		final HashMap ht_pt_expanded = (HashMap)data[3];
 
 		final Project project = (Project)root_pt.getObject();
 		project.createLayerTemplates();
@@ -456,7 +457,7 @@ public class Project extends DBObject {
 		project.template_tree = new TemplateTree(project, template_root);
 		project.root_tt = template_root;
 		// collect unique TemplateThing instances
-		project.ht_unique_tt = template_root.getUniqueTypes(new Hashtable());
+		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap());
 		// add all TemplateThing objects to the database, recursively
 		if (!clone_ids) template_root.addToDatabase(project);
 		// else already done when cloning the root_tt
@@ -791,48 +792,44 @@ public class Project extends DBObject {
 	/** Returns a list of existing unique types in the template tree (thus the 'project' type is not included, nor the label). The basic types are guaranteed to be present even if there are no instances in the template tree. */
 	public String[] getUniqueTypes() {
 		// ensure the basic types (pipe, ball, profile, profile_list) are present
-		if (!ht_unique_tt.contains("profile")) ht_unique_tt.put("profile", new TemplateThing("profile"));
-		if (!ht_unique_tt.contains("profile_list")) {
+		if (!ht_unique_tt.containsKey("profile")) ht_unique_tt.put("profile", new TemplateThing("profile"));
+		if (!ht_unique_tt.containsKey("profile_list")) {
 			TemplateThing tpl = new TemplateThing("profile_list");
 			tpl.addChild((TemplateThing) ht_unique_tt.get("profile"));
 			ht_unique_tt.put("profile_list", tpl);
 		}
-		if (!ht_unique_tt.contains("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
-		if (!ht_unique_tt.contains("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
-		if (!ht_unique_tt.contains("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
-		if (!ht_unique_tt.contains("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
+		if (!ht_unique_tt.containsKey("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
+		if (!ht_unique_tt.containsKey("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
+		if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
+		if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
 
-		String[] ut = new String[ht_unique_tt.size()-1];
-		int i = 0;
 		Object project_tt = ht_unique_tt.remove("project");
-		for (Enumeration e = ht_unique_tt.keys(); e.hasMoreElements(); ) {
-			ut[i++] = (String)e.nextElement();
-		}
+		String[] ut = (String[])ht_unique_tt.keySet().toArray();
 		ht_unique_tt.put("project", project_tt);
 		Arrays.sort(ut);
 		return ut;
 	}
 
-	/** Remove a unique type from the Hashtable. Basic types can't be removed. */
+	/** Remove a unique type from the HashMap. Basic types can't be removed. */
 	public boolean removeUniqueType(String type) {
 		if (null == type || isBasicType(type)) return false;
 		return null != ht_unique_tt.remove(type);
 	}
 
 	public boolean typeExists(String type) {
-		return ht_unique_tt.contains(type);
+		return ht_unique_tt.containsKey(type);
 	}
 
 	/** Returns false if the type exists already. */
 	public boolean addUniqueType(TemplateThing tt) {
-		if (null == ht_unique_tt) this.ht_unique_tt = new Hashtable();
+		if (null == ht_unique_tt) this.ht_unique_tt = new HashMap();
 		if (ht_unique_tt.containsKey(tt.getType())) return false;
 		ht_unique_tt.put(tt.getType(), tt);
 		return true;
 	}
 
 	public boolean updateTypeName(String old_type, String new_type) {
-		if (ht_unique_tt.contains(new_type)) {
+		if (ht_unique_tt.containsKey(new_type)) {
 			Utils.showMessage("Can't rename type '" + old_type + "' : a type named '"+new_type+"' already exists!");
 			return false;
 		}
@@ -988,7 +985,7 @@ public class Project extends DBObject {
 			// copy template
 			pr.root_tt = this.root_tt.clone(pr, true);
 			pr.template_tree = new TemplateTree(pr, pr.root_tt);
-			pr.ht_unique_tt = root_tt.getUniqueTypes(new Hashtable());
+			pr.ht_unique_tt = root_tt.getUniqueTypes(new HashMap());
 			TemplateThing project_template = new TemplateThing("project");
 			project_template.addChild(pr.root_tt);
 			pr.ht_unique_tt.put("project", project_template);
@@ -1021,7 +1018,7 @@ public class Project extends DBObject {
 		return null;
 	}
 
-	public void parseXMLOptions(final Hashtable ht_attributes) {
+	public void parseXMLOptions(final HashMap ht_attributes) {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
@@ -1031,8 +1028,8 @@ public class Project extends DBObject {
 		}
 
 	}
-	public Hashtable<String,String> getPropertiesCopy() {
-		return (Hashtable<String,String>)ht_props.clone();
+	public HashMap<String,String> getPropertiesCopy() {
+		return (HashMap<String,String>)ht_props.clone();
 	}
 	/** Returns null if not defined. */
 	public String getProperty(final String key) {

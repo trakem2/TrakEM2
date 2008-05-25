@@ -131,17 +131,18 @@ public abstract class Displayable extends DBObject {
 	}
 
 
-	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the Hashtable. */
-	public Displayable(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the HashMap. */
+	public Displayable(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id);
 		double x=0, y=0, rot=0; // for backward compatibility
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
 		final ArrayList al_used_keys = new ArrayList();
-		for (Enumeration e = ht.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
+		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			try {
-				String data = (String)ht.get(key);
 				if (key.equals("width")) width = Double.parseDouble(data);
 				else if (key.equals("height")) height = Double.parseDouble(data);
 				else if (key.equals("transform")) {
@@ -871,7 +872,7 @@ public abstract class Displayable extends DBObject {
 	protected void processAdjustPropertiesDialog(final GenericDialog gd) {
 		// store old transforms for undo
 		HashSet hs = getLinkedGroup(new HashSet());
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			ht.put(d, d.getAffineTransformCopy());

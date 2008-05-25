@@ -409,7 +409,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Reconstruct a Display from an XML entry, to be opened when everything is ready. */
-	public Display(Project project, long id, Layer layer, Hashtable ht_attributes) {
+	public Display(Project project, long id, Layer layer, HashMap ht_attributes) {
 		super(project, id);
 		if (null == layer) {
 			Utils.log2("Display: need a non-null Layer for id=" + id);
@@ -420,9 +420,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Point p = new Point(0, 0);
 		int c_alphas = 0xffffffff;
 		int c_alphas_state = 0xffffffff;
-		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht_attributes.get(key);
+		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("srcrect_x")) { // reflection! Reflection!
 				srcRect.x = Integer.parseInt(data);
 			} else if (key.equals("srcrect_y")) {

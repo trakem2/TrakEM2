@@ -27,7 +27,7 @@ import ini.trakem2.Project;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Rectangle;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -51,7 +51,7 @@ public abstract class ZDisplayable extends Displayable {
 	}
 
 	/** For reconstruction from an XML file. */
-	public ZDisplayable(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public ZDisplayable(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		Object data = ht.get("layer_set_id");
 		if (null != data) {

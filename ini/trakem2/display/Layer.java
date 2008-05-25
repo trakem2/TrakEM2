@@ -34,9 +34,9 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
 import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Iterator;
 
 import java.awt.Rectangle;
@@ -70,13 +70,14 @@ public class Layer extends DBObject {
 	}
 
 	/** Reconstruct from XML file. */
-	public Layer(Project project, long id, Hashtable ht_attributes) {
+	public Layer(Project project, long id, HashMap ht_attributes) {
 		super(project, id);
 		this.parent = null;
 		// parse data
-		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht_attributes.get(key);
+		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("z")) {
 				this.z = Double.parseDouble(data);
 			} else if (key.equals("thickness")) {

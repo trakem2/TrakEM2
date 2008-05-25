@@ -32,7 +32,7 @@ import java.awt.Point;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.HashSet;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Map;
@@ -102,7 +102,7 @@ public class Selection {
 	/** The Display can be null, as long as paint, OvalHandle.contains, setTransforming, and getLinkedBox methods are never called on this object. */
 	public Selection(Display display) {
 		this.display = display;
-		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, RO, floater}; // shitty java, why no dictionaries (don't get me started with Hashtable class painful usability)
+		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, RO, floater}; // shitty java, why no dictionaries (don't get me started with HashMap class painful usability)
 	}
 
 	private void lock() {
@@ -913,8 +913,8 @@ public class Selection {
 	}
 
 	/** Returns a hash table with all selected Displayables as keys, and a copy of their affine transform as value. This is useful to easily create undo steps. */
-	protected Hashtable getTransformationsCopy() {
-		Hashtable ht_copy = new Hashtable(hs.size());
+	protected HashMap getTransformationsCopy() {
+		HashMap ht_copy = new HashMap(hs.size());
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			ht_copy.put(d, d.getAffineTransformCopy());

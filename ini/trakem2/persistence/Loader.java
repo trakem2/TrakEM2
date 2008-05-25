@@ -106,7 +106,6 @@ import java.io.OutputStreamWriter;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.HashSet;
@@ -498,7 +497,6 @@ abstract public class Loader {
 	static final protected boolean enoughFreeMemory(final long n_bytes) {
 		long free = getFreeMemory();
 		if (free < n_bytes) {
-			Utils.log2("\tfree: " + free + "\n\tneed: " + n_bytes);
 			return false; }
 		//if (Runtime.getRuntime().freeMemory() < n_bytes + MIN_FREE_BYTES) return false;
 		return n_bytes < max_memory - getCurrentMemory();

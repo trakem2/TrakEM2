@@ -44,6 +44,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.tree.*;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -500,7 +501,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 
 	public void showInfo(ProjectThing thing) {
 		if (null == thing) return;
-		Hashtable<String,ArrayList<ProjectThing>> ht = thing.getByType();
+		HashMap<String,ArrayList<ProjectThing>> ht = thing.getByType();
 		ArrayList<String> types = new ArrayList<String>();
 		types.addAll(ht.keySet());
 		Collections.sort(types);

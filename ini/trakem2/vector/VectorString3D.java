@@ -64,7 +64,7 @@ public class VectorString3D implements VectorString {
 
 	private Calibration cal = null;
 
-	/** Dependent arrays that will get resampled along. */
+	/** Dependent arrays that will get resampled along. */ // TODO for calibration pruposes, they should be associated with a specific x, y, or z
 	private double[][] dep;
 
 	// DANGER: the orientation of the curve can't be checked like in 2D. There is no up and down in the 3D space.

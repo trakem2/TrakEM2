@@ -570,9 +570,11 @@ public class PatchStack extends ImagePlus {
 	public synchronized void flush() {}
 
 	public Calibration getCalibration() {
+		/*
 		if (null != getGlobalCalibration()) {
 			return getGlobalCalibration();
 		}
+		*/
 		return getLocalCalibration();
 	}
 
@@ -765,7 +767,8 @@ public class PatchStack extends ImagePlus {
 			st.addSlice(Integer.toString(i), this.stack.getProcessor(i).convertToByte(true));
 		}
 		ImagePlus imp = new ImagePlus("byte", st);
-		imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
+		imp.setCalibration(patch[0].getLayer().getParent().getCalibrationCopy());
+		//imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
 		return imp;
 	}
 
@@ -791,7 +794,8 @@ public class PatchStack extends ImagePlus {
 			st.addSlice(null, m2.crop());
         	}
 		ImagePlus imp = new ImagePlus("color256", st);
-		imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
+		imp.setCalibration(patch[0].getLayer().getParent().getCalibrationCopy());
+		//imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
 		return imp;
 	}
 }

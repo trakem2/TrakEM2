@@ -69,16 +69,16 @@ import javax.vecmath.Point3f;
 
 /** A list of brush painted areas similar to a set of labelfields in Amira.
  * 
- * For each layer where painting has been done, there is an entry in the ht_areas Hashtable that contains the layer's id as a Long, and a java.awt.geom.Area object.
- * Area objects are stored with the top left 0,0 of the LayerSet as their 0,0 coordinate. This is out of necessity: this class x,y,with,height (defined in superclass Displayable) are but the bounding box of the last selected Area in the Hashtable. TODO the latter must change because it won't work properly for multiple displays showing different Layers of the same LayerSet
+ * For each layer where painting has been done, there is an entry in the ht_areas HashMap that contains the layer's id as a Long, and a java.awt.geom.Area object.
+ * Area objects are stored with the top left 0,0 of the LayerSet as their 0,0 coordinate. This is out of necessity: this class x,y,with,height (defined in superclass Displayable) are but the bounding box of the last selected Area in the HashMap. TODO the latter must change because it won't work properly for multiple displays showing different Layers of the same LayerSet
  *
  */
 public class AreaList extends ZDisplayable {
 
 	/** Contains the table of layer ids and their associated Area object.*/
-	private Hashtable ht_areas = new Hashtable();
+	private HashMap ht_areas = new HashMap();
 
-	/** Flag to signal dynamic loading from the database for the Area of a given layer id in the ht_areas Hashtable. */
+	/** Flag to signal dynamic loading from the database for the Area of a given layer id in the ht_areas HashMap. */
 	static private Object UNLOADED = new Object();
 
 	/** Flag to repaint faster even if the object is selected. */
@@ -93,7 +93,7 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Reconstruct from XML. */
-	public AreaList(Project project, long id, Hashtable ht_attributes, Hashtable ht_links) {
+	public AreaList(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
 		super(project, id, ht_attributes, ht_links);
 		// read the fill_paint
 		Object ob_data = ht_attributes.get("fill_paint");
@@ -623,8 +623,8 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Returns a table of Long layer ids versus the ArrayList that getPaths(long) returns for it.*/
-	public Hashtable getAllPaths() {
-		Hashtable ht = new Hashtable();
+	public HashMap getAllPaths() {
+		HashMap ht = new HashMap();
 		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			ht.put(entry.getKey(), getPaths(((Long)entry.getKey()).longValue()));

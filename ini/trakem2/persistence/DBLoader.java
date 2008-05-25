@@ -190,7 +190,7 @@ public class DBLoader extends Loader {
 				boolean table_labels_exists = false;
 				boolean table_ball_points_exists = false;
 				boolean table_area_paths_exists = false;
-				// I'm missing php associative arrays and python dictionaries .. (Hashtables are way too absurdly hard to used effectively) (I'm missing typeless variables for that matter)
+				// I'm missing php associative arrays and python dictionaries .. (HashMaps are way too absurdly hard to used effectively) (I'm missing typeless variables for that matter)
 				while (result0.next()) {
 					String relname = result0.getString("relname");
 					if (relname.equals("ab_projects")) {
@@ -823,8 +823,8 @@ public class DBLoader extends Loader {
 	}
 
 	// this method is a copy of the getProjectAttributes ... could pass a Constructor as argument and have only one method then.
-	private Hashtable getTemplateAttributes(Project project, long thing_id) throws Exception {
-		Hashtable ht = new Hashtable();
+	private HashMap getTemplateAttributes(Project project, long thing_id) throws Exception {
+		HashMap ht = new HashMap();
 		ResultSet r = connection.prepareStatement("SELECT * FROM ab_attributes WHERE thing_id=" + thing_id).executeQuery();
 		while (r.next()) {
 			String name = r.getString("name");
@@ -864,7 +864,7 @@ public class DBLoader extends Loader {
 	}
 
 	/** Recursive. Assumes all TemplateThing objects have a unique type. */
-	private void unpack(TemplateThing root, Hashtable hs_tt) {
+	private void unpack(TemplateThing root, HashMap hs_tt) {
 		String type = root.getType();
 		if (null != hs_tt.get(type)) return; // avoid replacing, the higher level one is the right one (for example for neurite_branch)
 		hs_tt.put(type, root);
@@ -877,7 +877,7 @@ public class DBLoader extends Loader {
 	}
 
 	/** Get all the Thing objects, recursively, for the root, and their corresponding encapsulated objects. Also, fills in the given ArrayList with all loaded Displayable objects. */
-	public ProjectThing getRootProjectThing(Project project, TemplateThing root_tt, TemplateThing project_tt, Hashtable hs_d) {
+	public ProjectThing getRootProjectThing(Project project, TemplateThing root_tt, TemplateThing project_tt, HashMap hs_d) {
 		synchronized (db_lock) {
 			lock();
 			//connect if disconnected
@@ -886,7 +886,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 			// unpack root_tt (assumes TemplateThing objects have unique types, skips any repeated type to avoid problems in recusive things such as neurite_branch)
-			Hashtable hs_tt = new Hashtable();
+			HashMap hs_tt = new HashMap();
 			unpack(root_tt, hs_tt);
 
 			ProjectThing root = null;
@@ -912,7 +912,7 @@ public class DBLoader extends Loader {
 		}
 	}
 
-	private ProjectThing getProjectThing(ResultSet r, Project project, Hashtable hs_tt, Hashtable hs_d) throws Exception {
+	private ProjectThing getProjectThing(ResultSet r, Project project, HashMap hs_tt, HashMap hs_d) throws Exception {
 		long id = r.getLong("id");
 		String type = r.getString("type");
 		TemplateThing tt = (TemplateThing)hs_tt.get(type);
@@ -930,7 +930,7 @@ public class DBLoader extends Loader {
 		return new ProjectThing(tt, project, id, ob, getChildrenProjectThings(project, id, type, hs_tt, hs_d), getProjectAttributes(project, id));
 	}
 
-	private ArrayList getChildrenProjectThings(Project project, long parent_id, String parent_type, Hashtable hs_tt, Hashtable hs_d) throws Exception {
+	private ArrayList getChildrenProjectThings(Project project, long parent_id, String parent_type, HashMap hs_tt, HashMap hs_d) throws Exception {
 		ArrayList al_children = new ArrayList();
 		ResultSet r = null;
 		if (-1 == parent_id) Utils.log("parent_id = -1 for parent_type=" + parent_type);
@@ -948,9 +948,9 @@ public class DBLoader extends Loader {
 	}
 
 
-	/** Fetch all attributes for the given Thing id. Returns an empty Hashtable if none.*/
-	private Hashtable getProjectAttributes(Project project, long thing_id) throws Exception {
-		Hashtable hs = new Hashtable();
+	/** Fetch all attributes for the given Thing id. Returns an empty HashMap if none.*/
+	private HashMap getProjectAttributes(Project project, long thing_id) throws Exception {
+		HashMap hs = new HashMap();
 		ResultSet r = connection.prepareStatement("SELECT * FROM ab_attributes WHERE thing_id=" + thing_id).executeQuery();
 		while (r.next()) {
 			String name = r.getString("name");
@@ -1033,7 +1033,7 @@ public class DBLoader extends Loader {
 	}
 
 	/** Unpack all objects and accumulate them, tagged by their id. */
-	private void unpack(ProjectThing root, Hashtable hs) {
+	private void unpack(ProjectThing root, HashMap hs) {
 		Object ob = root.getObject();
 		if (null != ob && ob instanceof DBObject) {
 			DBObject dbo = (DBObject)ob;
@@ -1058,7 +1058,7 @@ public class DBLoader extends Loader {
 				unlock();
 				return null;
 			}
-			Hashtable hs_pt = new Hashtable();
+			HashMap hs_pt = new HashMap();
 			unpack(project_thing, hs_pt);
 
 			LayerThing root = null;
@@ -1099,14 +1099,14 @@ public class DBLoader extends Loader {
 		}
 	}
 
-	private LayerThing getLayerThing(ResultSet r, Project project, Hashtable hs_pt, TemplateThing layer_set_tt, TemplateThing layer_tt) throws Exception {
+	private LayerThing getLayerThing(ResultSet r, Project project, HashMap hs_pt, TemplateThing layer_set_tt, TemplateThing layer_tt) throws Exception {
 		long id = r.getLong("id");
 		String type = r.getString("type");
 		TemplateThing template = type.equals("layer_set") ? layer_set_tt : layer_tt; // if not a "Layer", then it's a "Layer Set"
 		return new LayerThing(template, project, id, r.getString("title"), getLayerThingObject(project, r.getLong("object_id"), template, hs_pt), getChildrenLayerThing(project, id, hs_pt, layer_set_tt, layer_tt), getLayerAttributes(project, id)); // HERE the order of the arguments layer_set_tt and layer_tt was inverted, and it worked??? There was a compensating bug, incredibly enough, in the type.equals(.. above.
 	}
 
-	private ArrayList getChildrenLayerThing(Project project, long parent_id, Hashtable hs_pt, TemplateThing layer_set_tt, TemplateThing layer_tt) throws Exception {
+	private ArrayList getChildrenLayerThing(Project project, long parent_id, HashMap hs_pt, TemplateThing layer_set_tt, TemplateThing layer_tt) throws Exception {
 		ArrayList al_children = new ArrayList();
 		ResultSet r = connection.prepareStatement("SELECT ab_things.id AS id, ab_layers.id AS layer_id, ab_layers.project_id AS l_project_id, ab_things.project_id AS project_id, type, title, parent_id, object_id, z FROM ab_things, ab_layers WHERE ab_things.project_id=ab_layers.project_id AND ab_things.object_id=ab_layers.id AND ab_things.parent_id=" + parent_id + " ORDER BY z ASC").executeQuery();
 		while (r.next()) {
@@ -1116,7 +1116,7 @@ public class DBLoader extends Loader {
 		return al_children;
 	}
 
-	private Object getLayerThingObject(Project project, long id, TemplateThing template, Hashtable hs_pt) throws Exception {
+	private Object getLayerThingObject(Project project, long id, TemplateThing template, HashMap hs_pt) throws Exception {
 		if (template.getType().equals("layer")) {
 			return fetchLayer(project, id, hs_pt);
 		} else if (template.getType().equals("layer_set")) {
@@ -1156,7 +1156,7 @@ public class DBLoader extends Loader {
 	}
 
 	/** Load all objects into the Layer: Profile and Pipe from the hs_pt (full of ProjectThing wrapping them), and Patch, LayerSet, DLabel, etc from the database. */
-	private Layer fetchLayer(Project project, long id, Hashtable hs_pt) throws Exception {
+	private Layer fetchLayer(Project project, long id, HashMap hs_pt) throws Exception {
 		ResultSet r = connection.prepareStatement("SELECT * FROM ab_layers WHERE id=" + id).executeQuery();
 		Layer layer = null;
 		if (r.next()) {
@@ -1171,7 +1171,7 @@ public class DBLoader extends Loader {
 				Utils.log("Loader.fetchLayer: WARNING no parent for layer " + layer);
 			}
 			// add the displayables from hs_pt that correspond to this layer (and all other objects that belong to the layer)
-			Hashtable hs_d = new Hashtable();
+			HashMap hs_d = new HashMap();
 
 			ResultSet rd = connection.prepareStatement("SELECT ab_displayables.id, ab_profiles.id, layer_id, stack_index FROM ab_displayables,ab_profiles WHERE ab_displayables.id=ab_profiles.id AND layer_id=" + layer_id).executeQuery();
 			while (rd.next()) {
@@ -1228,14 +1228,11 @@ public class DBLoader extends Loader {
 			rl.close();
 
 			// Add silently to the Layer ordered by stack index
-			Enumeration e = hs_d.keys();
+			Set e = hs_d.keySet();
 			Object[] si = new Object[hs_d.size()];
-			int i = 0;
-			while (e.hasMoreElements()) {
-				si[i++] = e.nextElement();
-			}
+			si = e.toArray(si);
 			Arrays.sort(si); // will it sort an array of integers correctly? Who knows!
-			for (i=0; i<si.length; i++) {
+			for (int i=0; i<si.length; i++) {
 				//Utils.log("Loader layer.addSilently: adding " + (DBObject)hs_d.get(si[i]));
 				layer.addSilently((DBObject)hs_d.get(si[i]));
 			}
@@ -1252,8 +1249,8 @@ public class DBLoader extends Loader {
 		return layer;
 	}
 
-	private Hashtable getLayerAttributes(Project project, long thing_id) throws Exception {
-		Hashtable hs = new Hashtable(); // I want jython NOW
+	private HashMap getLayerAttributes(Project project, long thing_id) throws Exception {
+		HashMap hs = new HashMap(); // I want jython NOW
 		/*
 		ResultSet r = connection.prepareStatement("SELECT * FROM ab_attributes WHERE thing_id=" + thing_id).executeQuery();
 		while (r.next()) {
@@ -1431,7 +1428,7 @@ public class DBLoader extends Loader {
 	}
 
 	/** Recursive. Place all Layer (but not LayerSet) objects with a key as Long(id). */
-	private void unpackLayers(LayerThing root, Hashtable hs) {
+	private void unpackLayers(LayerThing root, HashMap hs) {
 		Object ob = root.getObject();
 		if (ob instanceof Layer) hs.put(new Long(((DBObject)ob).getId()), ob);
 		if (null == root.getChildren()) return;
@@ -2472,7 +2469,7 @@ public class DBLoader extends Loader {
 				// remove exisiting paths for this area_list_id
 				connection.createStatement().executeUpdate(new StringBuffer("DELETE FROM ab_area_paths WHERE area_list_id=").append(arealist.getId()).toString());
 				// add then new
-				Hashtable ht = arealist.getAllPaths();
+				HashMap ht = arealist.getAllPaths();
 				for (Iterator eit = ht.entrySet().iterator(); eit.hasNext(); ) {
 					Map.Entry entry = (Map.Entry)eit.next();
 					long layer_id = ((Long)entry.getKey()).longValue();

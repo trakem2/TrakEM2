@@ -39,7 +39,7 @@ import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashSet;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Iterator;
 
 /** Aligns objects from two layers, the objects in the second layer relative to those in the first (which are left untouched). The objects to use are independent of the Display's selection, but must lay under the landmarks set by the mouse. */
@@ -256,7 +256,7 @@ public class Align {
 		final List<Layer> las = ls.getLayers().subList(start, end+1); // exclusive end
 
 		// setup an undo for the second and later layers
-		final Hashtable ht = new Hashtable();
+		final HashMap ht = new HashMap();
 		for (Iterator it = hs2.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			ht.put(d, d.getAffineTransformCopy());

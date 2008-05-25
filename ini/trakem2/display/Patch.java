@@ -46,9 +46,9 @@ import java.awt.geom.Point2D;
 import java.awt.image.PixelGrabber;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
-import java.util.Enumeration;
 import java.util.Iterator;
-import java.util.Hashtable;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -86,16 +86,17 @@ public class Patch extends Displayable {
 	}
 
 	/** Reconstruct from an XML entry. */
-	public Patch(Project project, long id, Hashtable ht_attributes, Hashtable ht_links) {
+	public Patch(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
 		super(project, id, ht_attributes, ht_links);
 		// cache path:
 		project.getLoader().addedPatchFrom((String)ht_attributes.get("file_path"), this);
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht_attributes.get(key);
+		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("type")) {
 				this.type = Integer.parseInt(data);
 			} else if (key.equals("min")) {
@@ -413,7 +414,7 @@ public class Patch extends Displayable {
 			if (gd.wasCanceled()) return false;
 			boolean delete_empty_layers = gd.getNextBoolean();
 			// gather all
-			Hashtable ht = new Hashtable();
+			HashMap ht = new HashMap();
 			getStackPatches(ht);
 			ArrayList al = new ArrayList();
 			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
@@ -472,7 +473,7 @@ public class Patch extends Displayable {
 	/** Retuns a virtual ImagePlus with a virtual stack if necessary. */
 	public PatchStack makePatchStack() {
 		// are we a stack?
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		getStackPatches(ht);
 		Patch[] patch = null;
 		int currentSlice = 1; // from 1 to n, as in ImageStack
@@ -495,7 +496,7 @@ public class Patch extends Displayable {
 	}
 
 	public ArrayList<Patch> getStackPatches() {
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		getStackPatches(ht);
 		ArrayList z = new ArrayList();
 		z.addAll(ht.keySet());
@@ -508,8 +509,8 @@ public class Patch extends Displayable {
 	}
 
 	/** Collect linked Patch instances that do not lay in this layer. Recursive over linked Patch instances that lay in different layers. */ // This method returns a usable stack because Patch objects are only linked to other Patch objects when inserted together as stack. So the slices are all consecutive in space and have the same thickness. Yes this is rather convoluted, stacks should be full-grade citizens
-	private void getStackPatches(Hashtable ht) {
-		if (ht.contains(this)) return;
+	private void getStackPatches(HashMap ht) {
+		if (ht.containsKey(this)) return;
 		ht.put(new Double(layer.getZ()), this);
 		if (null != hs_linked && hs_linked.size() > 0) {
 			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {

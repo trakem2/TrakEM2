@@ -34,9 +34,8 @@ import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.Enumeration;
 import java.util.Iterator;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.awt.geom.AffineTransform;
@@ -75,7 +74,7 @@ public class Ball extends ZDisplayable {
 	}
 
 	/** Construct a Ball from an XML entry. */
-	public Ball(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public Ball(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		// indivudal balls will be added as soon as parsed
 		this.n_points = 0;
@@ -429,7 +428,7 @@ public class Ball extends ZDisplayable {
 	public void toShapesFile(StringBuffer data, String group, String color, double z_scale) {
 		if (-1 == n_points) setupForDisplay();
 		// TEMPORARY FIX: sort balls by layer_id (by Z, which is roughly the same)
-		final Hashtable ht = new Hashtable();
+		final HashMap ht = new HashMap();
 		final char l = '\n';
 		// local pointers, since they may be transformed
 		double[][] p = this.p;
@@ -452,11 +451,11 @@ public class Ball extends ZDisplayable {
 		for (int i=0; i<n_points; i++) {
 			Long layer_id = new Long(p_layer[i]);
 			// Doesn't work ??//if (ht.contains(layer_id)) tmp = (StringBuffer)ht.get(layer_id);
-			Enumeration e = ht.keys();
-			while (e.hasMoreElements()) {
-				Long lid = (Long)e.nextElement();
+			for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = (Map.Entry)it.next();
+				Long lid = (Long)entry.getKey();
 				if (lid.longValue() == p_layer[i]) {
-					tmp = (StringBuffer)ht.get(lid);
+					tmp = (StringBuffer)entry.getValue();
 				}
 			}
 			if (null == tmp) {
@@ -471,8 +470,8 @@ public class Ball extends ZDisplayable {
 			;
 			tmp = null;
 		}
-		for (Enumeration e = ht.keys(); e.hasMoreElements(); ) {
-			tmp = (StringBuffer)ht.get(e.nextElement());
+		for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
+			tmp = (StringBuffer)it.next();
 			data.append(tmp).append(l);
 
 			Utils.log("tmp : " + tmp.toString());
@@ -690,7 +689,7 @@ public class Ball extends ZDisplayable {
 	public String getInfo() {
 		StringBuffer sb = new StringBuffer("Ball id: ").append(this.id).append('\n');
 		// group balls by layer
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		for (int i=0; i<n_points; i++) {
 			ArrayList al = (ArrayList)ht.get(new Long(p_layer[i]));
 			if (null == al) {

@@ -49,8 +49,7 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -105,9 +104,9 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
 
-	/** Store Hashtables of displayable/transformation pairs for undo. */
+	/** Store HashMaps of displayable/transformation pairs for undo. */
 	private LinkedList undo_queue = new LinkedList();
-	/** Store Hashtables of displayable/transformation pairs for redo, as they are popped out of the undo_queue list. This list will be cleared the moment a new action is stored in the undo_queue.*/
+	/** Store HashMaps of displayable/transformation pairs for redo, as they are popped out of the undo_queue list. This list will be cleared the moment a new action is stored in the undo_queue.*/
 	//private LinkedList redo_queue = new LinkedList();
 	/** The index of the current set of Transformations in the undo/redo queues. */
 	private int current = 0;
@@ -156,11 +155,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Reconstruct from an XML entry. */
-	public LayerSet(Project project, long id, Hashtable ht_attributes, Hashtable ht_links) {
+	public LayerSet(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
 		super(project, id, ht_attributes, ht_links);
-		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht_attributes.get(key);
+		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("layer_width")) {
 				this.layer_width = Double.parseDouble(data);
 			} else if (key.equals("layer_height")) {
@@ -427,7 +427,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				}
 				// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
 				for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
-					Hashtable ht = (Hashtable)it.next();
+					HashMap ht = (HashMap)it.next();
 					for (Iterator hi = ht.values().iterator(); hi.hasNext(); ) {
 						AffineTransform at = (AffineTransform)hi.next();
 						at.preConcatenate(at2);
@@ -1034,7 +1034,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	/** Creates an undo step that contains transformations for all Displayable objects of this LayerSet */
 	synchronized public void createUndoStep() {
-		final Hashtable ht_undo = new Hashtable();
+		final HashMap ht_undo = new HashMap();
 		for (Layer la : al_layers) {
 			for (Displayable d : la.getDisplayables()) {
 				ht_undo.put(d, d.getAffineTransformCopy());
@@ -1046,7 +1046,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** Creates an undo step that contains transformations for all Displayable objects in the given Layer. */
 	public void createUndoStep(final Layer layer) {
 		if (null == layer) return;
-		final Hashtable ht_undo = new Hashtable();
+		final HashMap ht_undo = new HashMap();
 		for (Displayable d : layer.getDisplayables()) {
 			ht_undo.put(d, d.getAffineTransformCopy());
 		}
@@ -1054,7 +1054,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** The @param ht should be a hastable of Displayable keys and Transform values, such as those obtained from selection.getTransformationsCopy() . By adding a new undo step, the redo steps are cleared. */
-	public void addUndoStep(Hashtable ht) {
+	public void addUndoStep(HashMap ht) {
 		if (ht.isEmpty()) return;
 		if (undo_queue.size() == MAX_UNDO_STEPS) {
 			undo_queue.removeFirst();
@@ -1081,7 +1081,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	/** Create an undo step involving all Displayable objects in the set. */
 	public void addUndoStep(final Set<Displayable> set) {
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		for (Displayable d : set) {
 			ht.put(d, d.getAffineTransformCopy());
 		}
@@ -1089,7 +1089,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Usable only when undoing the last step, to catch the current step (which is not in the undo queue).*/
-	void appendCurrent(Hashtable ht) {
+	void appendCurrent(HashMap ht) {
 		if (ht.isEmpty() || undo_queue.size() != current || cycle_flag) return;
 		Utils.log2("appendCurrent: undo queue size: " + undo_queue.size() + " and current: " + current);
 		undo_queue.add(ht);
@@ -1107,12 +1107,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (cycle_flag && undo_queue.size() == current) current--; // compensate
 		current--;
 		if (current < 0) current = 0; // patching ...
-		Hashtable step = (Hashtable)undo_queue.get(current);
+		HashMap step = (HashMap)undo_queue.get(current);
 		applyStep(step);
 		cycle_flag = true;
 		Utils.log2("undoing to current=" + current);
 		/*
-		Hashtable last = (Hashtable)undo_queue.removeLast();
+		HashMap last = (HashMap)undo_queue.removeLast();
 		if (null != current) redo_queue.add(current);
 		current = last;
 		applyStep(last);
@@ -1127,10 +1127,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			current = undo_queue.size();
 			return;
 		}
-		Hashtable step = (Hashtable)undo_queue.get(current);
+		HashMap step = (HashMap)undo_queue.get(current);
 		applyStep(step);
 		/*
-		Hashtable next = (Hashtable)redo_queue.removeLast();
+		HashMap next = (HashMap)redo_queue.removeLast();
 		if (null != current) undo_queue.add(current);
 		current = next;
 		applyStep(next);
@@ -1141,7 +1141,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		//Utils.log2("redoing " + step);
 		Utils.log2("redoing to current=" + current);
 	}
-	private void applyStep(Hashtable ht) {
+	private void applyStep(HashMap ht) {
 		// apply:
 		Rectangle box = null;
 		Rectangle b = new Rectangle(); // tmp
@@ -1171,7 +1171,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public void removeFromUndo(Displayable d) {
 		// from the undo_queue
 		for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
-			Hashtable ht = (Hashtable)it.next();
+			HashMap ht = (HashMap)it.next();
 			for (Iterator itd = ht.keySet().iterator(); itd.hasNext(); ) {
 				if (d.equals(itd.next())) {
 					itd.remove();
@@ -1410,7 +1410,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Restore calibration from the given XML attributes table.*/
-	public void restoreCalibration(Hashtable ht_attributes) {
+	public void restoreCalibration(HashMap ht_attributes) {
 		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			String key = (String)entry.getKey();

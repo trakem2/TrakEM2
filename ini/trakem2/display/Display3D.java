@@ -777,7 +777,7 @@ public class Display3D {
 		double[] wi = new double[vs.getPoints(0).length];
 		//Utils.log2("len: " + wi.length + vs.getPoints(0).length + vs.getPoints(1).length);
 		Arrays.fill(wi, 2.0);
-		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12), scale);
+		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), scale);
 		// add to 3D view (synchronized)
 		synchronized (d3d.u_lock) {
 			d3d.u_lock.lock();

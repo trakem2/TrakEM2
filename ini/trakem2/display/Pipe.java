@@ -22,6 +22,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
+
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
@@ -38,7 +40,8 @@ import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Hashtable;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.awt.Graphics;
@@ -93,12 +96,13 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Construct a Pipe from an XML entry. */
-	public Pipe(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public Pipe(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		// parse specific data
-		for (java.util.Enumeration e = ht.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht.get(key);
+		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("d")) {
 				// parse the points
 				// parse the SVG points data
@@ -1535,12 +1539,13 @@ public class Pipe extends ZDisplayable {
 		return copy;
 	}
 
+	/** Calibrated. */
 	synchronized public List generateTriangles(double scale, int parallels, int resample) {
 		if (n_points < 2) return null;
 		// check minimum requirements.
 		if (parallels < 3) parallels = 3;
 		//
-		double[][][] all_points = generateJoints(parallels, resample);
+		double[][][] all_points = generateJoints(parallels, resample, layer_set.getCalibrationCopy());
 		return Pipe.generateTriangles(all_points, scale);
 	}
 
@@ -1566,7 +1571,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** From my former program, A_3D_Editing.java and Pipe.java  */
-	private double[][][] generateJoints(final int parallels, final int resample) {
+	private double[][][] generateJoints(final int parallels, final int resample, final Calibration cal) {
 		if (-1 == n_points) setupForDisplay();
 		
 		// local pointers, since they may be transformed
@@ -1614,16 +1619,21 @@ public class Pipe extends ZDisplayable {
 		z_values[n-1] = layer_set.getLayer(p_layer[mm-1]).getZ();
 
 
-		return makeTube(p_i[0], p_i[1], z_values, p_width_i, resample, parallels);
+		return makeTube(p_i[0], p_i[1], z_values, p_width_i, resample, parallels, cal);
 	}
 
-	static public double[][][] makeTube(double[] px, double[] py, double[] pz, double[] p_width_i, final int resample, final int parallels) {
+	static public double[][][] makeTube(double[] px, double[] py, double[] pz, double[] p_width_i, final int resample, final int parallels, final Calibration cal) {
 
 		int n = px.length;
 
 		// Resampling to get a smoother pipe
 		try {
 			VectorString3D vs = new VectorString3D(px, py, pz, false);
+			if (null != cal) {
+				vs.calibrate(cal);
+				for (int i=0; i<p_width_i.length; i++)
+					p_width_i[i] *= cal.pixelWidth;
+			}
 			vs.addDependent(p_width_i);
 			vs.resample(vs.getAverageDelta() * resample);
 			px = vs.getPoints(0);
@@ -1635,7 +1645,6 @@ public class Pipe extends ZDisplayable {
 		} catch (Exception e) {
 			IJError.print(e);
 		}
-
 
 
 		double[][][] all_points = new double[n+2][parallels+1][3];

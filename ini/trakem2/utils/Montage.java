@@ -22,13 +22,16 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Arrays;
 
 public class Montage {
 
 	private String convention;
 	private boolean chars_are_columns;
-	private Hashtable ht;
+	private HashMap ht;
 	private ArrayList al;
 	private int i_row_start = -1;
 	private int i_row_end = -1;
@@ -39,7 +42,7 @@ public class Montage {
 		this.convention = convention.toLowerCase();
 		this.chars_are_columns = chars_are_columns;
 		al = new ArrayList();
-		ht = new Hashtable();
+		ht = new HashMap();
 	
 		// find out the start and end index of the char string that defines the chunks for the rows and cols in the name
 		int start, end;
@@ -86,11 +89,11 @@ public class Montage {
 		al.add(item);
 		Object ob = ht.get(item.s_col);
 		if (null == ob) {
-			Hashtable rows = new Hashtable();
+			HashMap rows = new HashMap();
 			rows.put(item.s_row, item);
 			ht.put(item.s_col, rows);
 		} else {
-			((Hashtable)ob).put(item.s_row, item);
+			((HashMap)ob).put(item.s_row, item);
 		}
 	}
 
@@ -106,8 +109,8 @@ public class Montage {
 		String[] cols = new String[ht.size()];
 		int i = 0;
 		int max_col_len = 0;
-		for (Enumeration e = ht.keys(); e.hasMoreElements(); ) {
-			cols[i] = (String)e.nextElement();
+		for (Iterator it = ht.keySet().iterator(); it.hasNext(); ) {
+			cols[i] = (String)it.next();
 			int len = cols[i].length();
 			if (len > max_col_len) max_col_len = len;
 			i++;
@@ -121,12 +124,12 @@ public class Montage {
 
 		ArrayList mon = new ArrayList();
 		for (i=0; i<cols.length; i++) {
-			Hashtable ht_rows = (Hashtable)ht.get(cols[i]);
+			HashMap ht_rows = (HashMap)ht.get(cols[i]);
 			String[] rows = new String[ht_rows.size()];
 			int j = 0;
 			int max_row_len = 0;
-			for (Enumeration e = ht_rows.keys(); e.hasMoreElements(); ) {
-				rows[j] = (String)e.nextElement();
+			for (Iterator it = ht_rows.keySet().iterator(); it.hasNext(); ) {
+				rows[j] = (String)it.next();
 				int len = rows[j].length();
 				if (len > max_row_len) max_row_len = len;
 				j++;

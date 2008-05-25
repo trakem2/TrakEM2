@@ -32,7 +32,7 @@ import ini.trakem2.persistence.DBObject;
 
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -356,7 +356,7 @@ public class Dissector extends ZDisplayable {
 		this.color = color;
 	}
 	/** Reconstruct from XML. */
-	public Dissector(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public Dissector(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		// individual items will be added as soon as parsed
 	}

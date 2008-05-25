@@ -106,7 +106,7 @@ public class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;
-	private final Hashtable<Long,String> ht_paths = new Hashtable<Long,String>();
+	private final HashMap<Long,String> ht_paths = new HashMap<Long,String>();
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
@@ -512,7 +512,7 @@ public class FSLoader extends Loader {
 		super.prepare(layer);
 	}
 
-	/* GENERIC, from DBObject calls. Records the id of the object in the Hashtable ht_dbo.
+	/* GENERIC, from DBObject calls. Records the id of the object in the HashMap ht_dbo.
 	 * Always returns true. Does not check if another object has the same id.
 	 */
 	public boolean addToDatabase(final DBObject ob) {
@@ -707,7 +707,7 @@ public class FSLoader extends Loader {
 		//Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
 	}
 
-	/** Overriding superclass method; if a path for the given Patch exists in the ht_paths Hashtable, it will be returned (meaning, the image exists already); if not, then an attempt is made to save it in the given path. The overwrite flag is used in the second case, to avoid creating a new image every time the Patch pixels are edited. The original image is never overwritten in any case. */
+	/** Overriding superclass method; if a path for the given Patch exists in the ht_paths HashMap, it will be returned (meaning, the image exists already); if not, then an attempt is made to save it in the given path. The overwrite flag is used in the second case, to avoid creating a new image every time the Patch pixels are edited. The original image is never overwritten in any case. */
 	public String exportImage(Patch patch, String path, boolean overwrite) {
 		Object ob = ht_paths.get(patch.getId());
 		if (null == ob) {
@@ -910,7 +910,7 @@ public class FSLoader extends Loader {
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
-	public void parseXMLOptions(final Hashtable ht_attributes) {
+	public void parseXMLOptions(final HashMap ht_attributes) {
 		Object ob = ht_attributes.remove("preprocessor");
 		if (null != ob) {
 			setPreprocessor((String)ob);

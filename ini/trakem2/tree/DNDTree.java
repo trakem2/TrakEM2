@@ -222,16 +222,16 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 
 		// add the attributes first, only for ProjectThing or TemplateThing instances (not LayerThing)
 		if (thing instanceof ProjectThing || thing instanceof TemplateThing) {
-			Hashtable hs_attributes = thing.getAttributes();
-			if (null != hs_attributes) {
-				Enumeration keys = hs_attributes.keys();
-				while (keys.hasMoreElements()) {
-					String key = (String)keys.nextElement();
+			HashMap ht_attributes = thing.getAttributes();
+			if (null != ht_attributes) {
+				for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+					Map.Entry entry = (Map.Entry)it.next();
+					String key = (String)entry.getKey();
 					if (key.equals("id") || key.equals("title") || key.equals("index") || key.equals("expanded")) {
 						// ignore: the id is internal, and the title is shown in the node itself. The index is ignored.
 						continue;
 					}
-					DefaultMutableTreeNode attr_node = new DefaultMutableTreeNode(hs_attributes.get(key));
+					DefaultMutableTreeNode attr_node = new DefaultMutableTreeNode(entry.getValue());
 					node.add(attr_node);
 				}
 			}
@@ -414,7 +414,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 			point = ((JScrollPane)c).getViewport().getViewPosition();
 		}
 		// collect all current nodes
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		for (Enumeration e = node.children(); e.hasMoreElements(); ) {
 			DefaultMutableTreeNode child_node = (DefaultMutableTreeNode)e.nextElement();
 			ht.put(child_node.getUserObject(), child_node);
@@ -457,8 +457,8 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
-			Hashtable ht = (Hashtable)f.get(this);
-			ht.put(new TreePath(node.getPath()), new Boolean(b)); // this queries directly the expandedState transient private Hashtable of the JTree
+			HashMap ht = (HashMap)f.get(this);
+			ht.put(new TreePath(node.getPath()), new Boolean(b)); // this queries directly the expandedState transient private HashMap of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
 		 }
@@ -472,7 +472,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
 			Hashtable ht = (Hashtable)f.get(this);
-			return Boolean.TRUE.equals(ht.get(new TreePath(node.getPath()))); // this queries directly the expandedState transient private Hashtable of the JTree
+			return Boolean.TRUE.equals(ht.get(new TreePath(node.getPath()))); // this queries directly the expandedState transient private HashMap of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
 			 return false;

@@ -23,7 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.tree;
 
 import java.util.ArrayList;
-import java.util.Hashtable;
+import java.util.HashMap;
 
 public interface Thing {
 
@@ -37,7 +37,7 @@ public interface Thing {
 
 	public String toString();
 
-	public Hashtable getAttributes();
+	public HashMap getAttributes();
 
 	public ArrayList getChildren();
 

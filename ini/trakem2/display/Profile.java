@@ -38,8 +38,8 @@ import java.awt.Polygon;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -166,12 +166,13 @@ public class Profile extends Displayable {
 	}
 
 	/** Construct a Bezier Profile from an XML entry. */
-	public Profile(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public Profile(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		// parse data
-		for (Enumeration e = ht.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht.get(key);
+		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("d")) {
 				// parse the SVG points data
 				ArrayList al_p = new ArrayList();
