@@ -29,6 +29,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.ProjectTree;
@@ -51,6 +52,8 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	Insets autoscrollInsets = new Insets(20, 20, 20, 20); // insets
 
 	DefaultTreeTransferHandler dtth = null;
+
+	protected final Dispatcher dispatcher = new Dispatcher();
 
 	public DNDTree(Project project, DefaultMutableTreeNode root, Color background) {
 		this(project, root);
@@ -342,6 +345,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	public void destroy() {
 		this.dtth.destroy();
 		this.dtth = null;
+		this.dispatcher.quit();
 	}
 
 	/** Overriding to fix synchronization issues: the path changes while the multithreaded swing attempts to repaint it, so we "invoke later". Hilarious. */

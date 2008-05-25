@@ -152,8 +152,9 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 	public void mouseExited(MouseEvent me) { }
 	public void mouseClicked(MouseEvent me) { }
 
-	public void actionPerformed(ActionEvent ae) {
+	public void actionPerformed(final ActionEvent ae) {
 		if (!Project.getInstance(this).isInputEnabled()) return;
+		super.dispatcher.exec(new Runnable() { public void run() {
 		try {
 			if (null == selected_node) return;
 			Object ob = selected_node.getUserObject();
@@ -176,10 +177,10 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				//add it to the tree
 				if (null != new_thing) {
 					DefaultMutableTreeNode new_node = new DefaultMutableTreeNode(new_thing);
-					((DefaultTreeModel)this.getModel()).insertNodeInto(new_node, selected_node, i_position);
+					((DefaultTreeModel)ProjectTree.this.getModel()).insertNodeInto(new_node, selected_node, i_position);
 					TreePath treePath = new TreePath(new_node.getPath());
-					this.scrollPathToVisible(treePath);
-					this.setSelectionPath(treePath);
+					ProjectTree.this.scrollPathToVisible(treePath);
+					ProjectTree.this.setSelectionPath(treePath);
 				}
 				// bring the display to front
 				if (new_thing.getObject() instanceof Displayable) {
@@ -297,6 +298,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		} catch (Exception e) {
 			IJError.print(e);
 		}
+		}});
 	}
 
 	/** Remove the node, its Thing and the object hold by the thing from the database. */
