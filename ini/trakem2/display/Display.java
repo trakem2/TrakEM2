@@ -1854,6 +1854,18 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		return null; // none found
 	}
 
+	static public Display getFront(final Project project) {
+		if (null == front) return null;
+		if (front.project.equals(project)) return front;
+		for (Display d : al_displays) {
+			if (d.project.equals(project)) {
+				d.frame.toFront();
+				return d;
+			}
+		}
+		return null;
+	}
+
 	public boolean isReadOnly() {
 		// TEMPORARY: in the future one will be able show displays as read-only to other people, remotely
 		return false;
