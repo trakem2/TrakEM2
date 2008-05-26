@@ -551,7 +551,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		BoxLayout patches_layout = new BoxLayout(panel_patches, BoxLayout.Y_AXIS);
 		this.panel_patches.setLayout(patches_layout);
 		this.panel_patches.add(new JLabel("No patches."));
-		this.scroll_patches = new JScrollPane(panel_patches);
+		this.scroll_patches = makeScrollPane(panel_patches);
 		this.scroll_patches.setPreferredSize(new Dimension(250, 300));
 		this.scroll_patches.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Patches", scroll_patches);
@@ -561,7 +561,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		BoxLayout profiles_layout = new BoxLayout(panel_profiles, BoxLayout.Y_AXIS);
 		this.panel_profiles.setLayout(profiles_layout);
 		this.panel_profiles.add(new JLabel("No profiles."));
-		this.scroll_profiles = new JScrollPane(panel_profiles);
+		this.scroll_profiles = makeScrollPane(panel_profiles);
 		this.scroll_profiles.setPreferredSize(new Dimension(250, 300));
 		this.scroll_profiles.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Profiles", scroll_profiles);
@@ -571,7 +571,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		BoxLayout pipes_layout = new BoxLayout(panel_zdispl, BoxLayout.Y_AXIS);
 		this.panel_zdispl.setLayout(pipes_layout);
 		this.panel_zdispl.add(new JLabel("No objects."));
-		this.scroll_zdispl = new JScrollPane(panel_zdispl);
+		this.scroll_zdispl = makeScrollPane(panel_zdispl);
 		this.scroll_zdispl.setPreferredSize(new Dimension(250, 300));
 		this.scroll_zdispl.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Z space", scroll_zdispl);
@@ -580,7 +580,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		this.panel_channels = new JPanel();
 		BoxLayout channels_layout = new BoxLayout(panel_channels, BoxLayout.Y_AXIS);
 		this.panel_channels.setLayout(channels_layout);
-		this.scroll_channels = new JScrollPane(panel_channels);
+		this.scroll_channels = makeScrollPane(panel_channels);
 		this.scroll_channels.setPreferredSize(new Dimension(250, 300));
 		this.scroll_channels.setMinimumSize(new Dimension(250, 300));
 		this.channels = new Channel[4];
@@ -599,7 +599,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		BoxLayout labels_layout = new BoxLayout(panel_labels, BoxLayout.Y_AXIS);
 		this.panel_labels.setLayout(labels_layout);
 		this.panel_labels.add(new JLabel("No labels."));
-		this.scroll_labels = new JScrollPane(panel_labels);
+		this.scroll_labels = makeScrollPane(panel_labels);
 		this.scroll_labels.setPreferredSize(new Dimension(250, 300));
 		this.scroll_labels.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Labels", scroll_labels);
@@ -774,6 +774,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				tabs.setMinimumSize(new Dimension(0, 100));
 			}
 		});
+	}
+
+	private JScrollPane makeScrollPane(Component c) {
+		JScrollPane jsp = new JScrollPane(c);
+		jsp.getVerticalScrollBar().setBlockIncrement(DisplayablePanel.HEIGHT); // clicking within the track
+		jsp.getVerticalScrollBar().setUnitIncrement(DisplayablePanel.HEIGHT); // clicking on an arrow
+		return jsp;
 	}
 
 	public JPanel getCanvasPanel() {
