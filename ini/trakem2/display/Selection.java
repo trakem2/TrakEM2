@@ -24,6 +24,8 @@ package ini.trakem2.display;
 
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
+import ij.gui.ShapeRoi;
+import ij.gui.Roi;
 
 import java.awt.Rectangle;
 import java.awt.Color;
@@ -43,6 +45,7 @@ import java.awt.AlphaComposite;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.image.ColorModel;
 
 import ini.trakem2.utils.Utils;
@@ -526,6 +529,27 @@ public class Selection {
 	/** Select all objects in the given layer, preserving the active one (if any) as active. */
 	public void selectAll(Layer layer) {
 		selectAll(layer.getDisplayables());
+	}
+
+	/** Select all objects under the given roi, in the current display's layer. */
+	public void selectAll(Roi roi, boolean visible_only) {
+		Utils.log2("roi bounds: " + roi.getBounds());
+		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
+
+		Area aroi = new Area(Utils.getShape(shroi));
+		AffineTransform affine = new AffineTransform();
+		Rectangle bounds = shroi.getBounds();
+		affine.translate(bounds.x, bounds.y);
+		aroi = aroi.createTransformedArea(affine);
+		ArrayList al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
+		al.addAll(display.getLayer().getParent().getZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only));
+		if (visible_only) {
+			for (Iterator it = al.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				if (!d.isVisible()) it.remove();
+			}
+		}
+		if (al.size() > 0) selectAll(al);
 	}
 
 	private void selectAll(ArrayList al) {

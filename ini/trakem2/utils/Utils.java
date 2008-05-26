@@ -35,6 +35,7 @@ import ij.Menus;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
+import ij.gui.ShapeRoi;
 import ij.io.*;
 import ij.process.ImageProcessor;
 import ij.process.ImageConverter;
@@ -46,6 +47,7 @@ import java.awt.Component;
 import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
+import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.NoninvertibleTransformException;
@@ -56,6 +58,8 @@ import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
 import java.awt.Event;
 import javax.swing.SwingUtilities;
+
+import java.lang.reflect.Field;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -1001,5 +1005,20 @@ public class Utils implements ij.plugin.PlugIn {
 		char c = (char)((i % 26) + 65); // 65 is 'A'
 		if (0 == k) return Character.toString(c);
 		return new StringBuffer().append(getCharacter(k)).append(c).toString();
+	}
+
+	static private Field shape_field = null;
+
+	static public final Shape getShape(final ShapeRoi roi) {
+		try {
+			if (null == shape_field) {
+				shape_field = ShapeRoi.class.getDeclaredField("shape");
+				shape_field.setAccessible(true);
+			}
+			return (Shape)shape_field.get((ShapeRoi)roi);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
 	}
 }

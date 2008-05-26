@@ -1894,7 +1894,7 @@ public class Pipe extends ZDisplayable {
 		return new StringBuffer("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
 	}
 
-	/** @param roi is expected in world coordinates. */
+	/** @param area is expected in world coordinates. */
 	public boolean intersects(final Area area, final double z_first, final double z_last) {
 		// find lowest and highest Z
 		double min_z = Double.MAX_VALUE;
@@ -1909,7 +1909,7 @@ public class Pipe extends ZDisplayable {
 		for (int i=0; i<n_points; i++)  {
 			final Polygon[] pol = getSubPerimeters(layer_set.getLayer(p_layer[i]));
 			for (int k=0; k<pol.length; k++) {
-				Area a = new Area(pol[k]).createTransformedArea(this.at);
+				Area a = new Area(pol[k]); // perimeters already in world coords
 				a.intersect(area);
 				Rectangle r = a.getBounds();
 				if (0 != r.width && 0 != r.height) return true;

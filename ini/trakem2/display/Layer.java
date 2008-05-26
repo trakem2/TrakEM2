@@ -382,16 +382,18 @@ public class Layer extends DBObject {
 
 	/** Returns a list of all Displayable of class c that intersect the given roi. */
 	public ArrayList<Displayable> getDisplayables(final Class c, final Rectangle roi) {
+		return getDisplayables(c, new Area(roi), true);
+	}
+	/** Returns a list of all Displayable of class c that intersect the given area. */
+	public ArrayList<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
 		final ArrayList<Displayable> al = getDisplayables(c);
-		final Area aroi = new Area(roi);
 		for (Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
 			Displayable d = it.next();
+			if (visible_only && !d.isVisible()) { it.remove(); continue; }
 			Area area = new Area(d.getPerimeter());
 			area.intersect(aroi);
 			Rectangle b = area.getBounds();
-			if (0 == b.width || 0 == b.height) {
-				it.remove();
-			}
+			if (0 == b.width || 0 == b.height) it.remove();
 		}
 		return al;
 	}

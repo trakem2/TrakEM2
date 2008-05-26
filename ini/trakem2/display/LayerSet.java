@@ -783,6 +783,17 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return al;
 	}
 
+	synchronized public ArrayList<ZDisplayable> getZDisplayables(final Class c, final Layer layer, final Area aroi, final boolean visible_only) {
+		final ArrayList<ZDisplayable> al = getZDisplayables(c);
+		final double z = layer.getZ();
+		for (Iterator<ZDisplayable> it = al.iterator(); it.hasNext(); ) {
+			ZDisplayable zd = it.next();
+			if (visible_only && !zd.isVisible()) { it.remove(); continue; }
+			if (!zd.intersects(aroi, z, z)) it.remove();
+		}
+		return al;
+	}
+
 	synchronized public boolean contains(Layer layer) {
 		if (null == layer) return false;
 		return -1 != al_layers.indexOf(layer);
