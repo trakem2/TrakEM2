@@ -162,6 +162,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			ProjectThing thing = (ProjectThing)ob;
 			int i_position = 0;
 			String command = ae.getActionCommand();
+			Object obd = thing.getObject();
 
 			if (command.startsWith("new ") || command.equals("Duplicate")) {
 				ProjectThing new_thing = null;
@@ -210,14 +211,12 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				addLeaves((ArrayList<Thing>)nc);
 			} else if (command.equals("Unhide")) {
 				thing.setVisible(true);
-				Object obd = thing.getObject();
 				if (obd instanceof Displayable) {
 					// additionality, get the front Display (or make a new one if none) and show in it the layer in which the Displayable object is contained.
 					Displayable displ = (Displayable)obd;
 					Display.setFront(displ.getLayer(), displ);
 				}
 			} else if (command.equals("Select in display")) {
-				Object obd = thing.getObject();
 				boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
 				if (obd instanceof Displayable) {
 					Displayable d = (Displayable)obd;
@@ -245,8 +244,18 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 						}
 					}
 				}
+			} else if (command.equals("Identify...")) {
+				// for pipes only for now
+				if (!(obd instanceof Pipe)) return;
+				ini.trakem2.vector.Compare.findSimilar((Pipe)obd);
+			} else if (command.equals("Identify with axes...")) {
+				if (!(obd instanceof Pipe)) return;
+				if (Project.getProjects().size() < 2) {
+					Utils.showMessage("You need at least two projects open:\n-A reference project\n-The current project with the pipe to identify");
+					return;
+				}
+				ini.trakem2.vector.Compare.findSimilarWithAxes((Pipe)obd);
 			} else if (command.equals("Show centered in Display")) {
-				Object obd = thing.getObject();
 				if (obd instanceof Displayable) {
 					Displayable displ = (Displayable)obd;
 					Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));

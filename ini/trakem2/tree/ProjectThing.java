@@ -30,6 +30,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.Display3D;
+import ini.trakem2.display.Pipe;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -414,6 +415,11 @@ public class ProjectThing extends DBObject implements Thing {
 
 		if (null != object && object instanceof Displayable) {
 			addPopupItem("Show centered in Display", listener, al_items);
+		}
+
+		if (null != object && object instanceof Pipe) {
+			addPopupItem("Identify...", listener, al_items);
+			addPopupItem("Identify with axes...", listener, al_items);
 		}
 
 		addPopupItem("Measure", listener, al_items);
