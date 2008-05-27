@@ -285,7 +285,7 @@ public class AreaList extends ZDisplayable {
 				updateInDatabase("points=" + lid);
 			}
 		} else {
-			new BrushThread(area);
+			new BrushThread(area, mag);
 			brushing = true;
 		}
 	}
@@ -371,12 +371,14 @@ public class AreaList extends ZDisplayable {
 
 	/** Modeled after the ij.gui.RoiBrush class from ImageJ. */
 	private class BrushThread extends Thread {
+		/** The area to paint into. */
 		private Area area;
+		/** The last point on which a paint event was done. */
 		private Point previous_p = null;
 		private boolean paint = true;
 		private int brush_size;
 		private Area brush;
-		BrushThread(Area area) {
+		BrushThread(Area area, double mag) {
 			super("BrushThread");
 			setPriority(Thread.NORM_PRIORITY);
 			this.area = area;
@@ -384,7 +386,7 @@ public class AreaList extends ZDisplayable {
 			if (null != last) last.paint = false;
 			last = this;
 			brush_size = ProjectToolbar.getBrushSize();
-			brush = makeBrush(brush_size);
+			brush = makeBrush(brush_size, mag);
 			if (null == brush) return;
 			start();
 		}
@@ -448,9 +450,20 @@ public class AreaList extends ZDisplayable {
 		/** This method could get tones of improvement, which should be pumped upstream into ImageJ's RoiBrush class which is creating it at every while(true) {} iteration!!!
 		 * The returned area has its coordinates centered around 0,0
 		 */
-		private Area makeBrush(int diameter) {
+		private Area makeBrush(int diameter, double mag) {
 			if (diameter < 1) return null;
-			return new Area(new OvalRoi(-diameter/2, -diameter/2, diameter, diameter).getPolygon());
+			if (mag >= 1) return new Area(new OvalRoi(-diameter/2, -diameter/2, diameter, diameter).getPolygon());
+			// else, create a smaller brush and transform it up, i.e. less precise, less points to store -but precision matches what the eye sees, and allows for much better storage -less points.
+			int screen_diameter = (int)(diameter * mag);
+			if (0 == screen_diameter) return null; // can't paint at this mag with this diameter
+
+			Area brush = new Area(new OvalRoi(-screen_diameter/2, -screen_diameter/2, screen_diameter, screen_diameter).getPolygon());
+			// scale to world coordinates
+			AffineTransform at = new AffineTransform();
+			at.scale(1/mag, 1/mag);
+			return brush.createTransformedArea(at);
+
+
 			// smooth out edges
 			/*
 			Polygon pol = new OvalRoi(-diameter/2, -diameter/2, diameter, diameter).getPolygon();
