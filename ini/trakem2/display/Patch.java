@@ -473,21 +473,21 @@ public class Patch extends Displayable {
 	/** Retuns a virtual ImagePlus with a virtual stack if necessary. */
 	public PatchStack makePatchStack() {
 		// are we a stack?
-		HashMap ht = new HashMap();
-		getStackPatches(ht);
+		HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+		getStackPatchesNR(ht);
 		Patch[] patch = null;
 		int currentSlice = 1; // from 1 to n, as in ImageStack
 		if (ht.size() > 1) {
 			// a stack. Order by layer Z
-			patch = new Patch[ht.size()];
-			ArrayList al = new ArrayList();
-			al.addAll(ht.keySet());
-			Double[] zs = new Double[al.size()];
-			al.toArray(zs);
-			Arrays.sort(zs);
-			for (int i=0; i<zs.length; i++) {
-				patch[i] = (Patch)ht.get(zs[i]);
+			ArrayList<Double> z = new ArrayList<Double>();
+			z.addAll(ht.keySet());
+			java.util.Collections.sort(z);
+			patch = new Patch[z.size()];
+			int i = 0;
+			for (Double d : z) {
+				patch[i] = ht.get(d);
 				if (patch[i].id == this.id) currentSlice = i+1;
+				i++;
 			}
 		} else {
 			patch = new Patch[]{ this };
@@ -496,29 +496,66 @@ public class Patch extends Displayable {
 	}
 
 	public ArrayList<Patch> getStackPatches() {
-		HashMap ht = new HashMap();
-		getStackPatches(ht);
-		ArrayList z = new ArrayList();
+		HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+		getStackPatchesNR(ht);
+		Utils.log2("Found patches: " + ht.size());
+		ArrayList<Double> z = new ArrayList<Double>();
 		z.addAll(ht.keySet());
 		java.util.Collections.sort(z);
 		ArrayList<Patch> p = new ArrayList<Patch>();
-		for (Double d : (ArrayList<Double>)z) {
-			p.add((Patch)ht.get(d));
+		for (Double d : z) {
+			p.add(ht.get(d));
 		}
 		return p;
 	}
 
 	/** Collect linked Patch instances that do not lay in this layer. Recursive over linked Patch instances that lay in different layers. */ // This method returns a usable stack because Patch objects are only linked to other Patch objects when inserted together as stack. So the slices are all consecutive in space and have the same thickness. Yes this is rather convoluted, stacks should be full-grade citizens
-	private void getStackPatches(HashMap ht) {
+	private void getStackPatches(HashMap<Double,Patch> ht) {
 		if (ht.containsKey(this)) return;
 		ht.put(new Double(layer.getZ()), this);
 		if (null != hs_linked && hs_linked.size() > 0) {
+			/*
 			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
 				Displayable ob = (Displayable)it.next();
 				if (ob instanceof Patch && !ob.layer.equals(this.layer)) {
 					((Patch)ob).getStackPatches(ht);
 				}
 			}
+			*/
+			// avoid stack overflow (with as little as 114 layers ... !!!)
+			Displayable[] d = new Displayable[hs_linked.size()];
+			hs_linked.toArray(d);
+			for (int i=0; i<d.length; i++) {
+				if (d[i] instanceof Patch && d[i].layer.equals(this.layer)) {
+					((Patch)d[i]).getStackPatches(ht);
+				}
+			}
+		}
+	}
+
+	/** Non-recursive version to avoid stack overflows with "excessive" recursion (I hate java). */
+	private void getStackPatchesNR(final HashMap<Double,Patch> ht) {
+		final ArrayList<Patch> list1 = new ArrayList<Patch>();
+		list1.add(this);
+		final ArrayList<Patch> list2 = new ArrayList<Patch>();
+		while (list1.size() > 0) {
+			list2.clear();
+			for (Patch p : list1) {
+				if (null != p.hs_linked) {
+					for (Iterator it = p.hs_linked.iterator(); it.hasNext(); ) {
+						Object ln = it.next();
+						if (ln instanceof Patch) {
+							Patch pa = (Patch)ln;
+							if (!ht.containsValue(pa)) {
+								ht.put(pa.layer.getZ(), pa);
+								list2.add(pa);
+							}
+						}
+					}
+				}
+			}
+			list1.clear();
+			list1.addAll(list2);
 		}
 	}
 
