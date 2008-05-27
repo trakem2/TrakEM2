@@ -99,6 +99,11 @@ public class PatchStack extends ImagePlus {
 		return null;
 	}
 
+	public Patch getPatch(int i) {
+		if (i<0 || i>patch.length) return null;
+		return patch[i];
+	}
+
 	/** Returns the Patch corresponding to the current slice. */
 	public Patch getCurrentPatch() {
 		return patch[currentSlice-1];

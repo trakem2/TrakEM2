@@ -414,10 +414,11 @@ public class Display3D {
 		Display3D d3d = get(p.getLayerSet());
 		d3d.adjustResampling();
 		d3d.universe.resetView();
-		ImagePlus imp = get8BitStack(p.makePatchStack());
+		PatchStack ps = p.makePatchStack();
+		ImagePlus imp = get8BitStack(ps);
 		d3d.universe.addOrthoslice(imp, null, p.getTitle(), 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(p.getTitle());
-		setTransform(ct, p);
+		setTransform(ct, ps.getPatch(0));
 		ct.toggleLock();
 	}
 
@@ -425,10 +426,11 @@ public class Display3D {
 		Display3D d3d = get(p.getLayerSet());
 		d3d.adjustResampling();
 		d3d.universe.resetView();
-		ImagePlus imp = get8BitStack(p.makePatchStack());
+		PatchStack ps = p.makePatchStack();
+		ImagePlus imp = get8BitStack(ps);
 		d3d.universe.addVoltex(imp, null, p.getTitle(), 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(p.getTitle());
-		setTransform(ct, p);
+		setTransform(ct, ps.getPatch(0));
 		ct.toggleLock();
 	}
 
@@ -440,7 +442,7 @@ public class Display3D {
 		// d expects: m01 m02 m03 m04, m11 m12 ...
 		ct.applyTransform(new Transform3D(new double[]{a[0], a[2], 0, a[4] * cal.pixelWidth,
 			                                       a[1], a[3], 0, a[5] * cal.pixelWidth,
-					                          0,    0, 1,    0,
+					                          0,    0, 1,    p.getLayer().getZ() * cal.pixelWidth,
 					                          0,    0, 0,    1}));
 	}
 
