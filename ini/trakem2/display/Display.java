@@ -778,6 +778,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private JScrollPane makeScrollPane(Component c) {
 		JScrollPane jsp = new JScrollPane(c);
+		// adjust scrolling to use one DisplayablePanel as the minimal unit
 		jsp.getVerticalScrollBar().setBlockIncrement(DisplayablePanel.HEIGHT); // clicking within the track
 		jsp.getVerticalScrollBar().setUnitIncrement(DisplayablePanel.HEIGHT); // clicking on an arrow
 		return jsp;

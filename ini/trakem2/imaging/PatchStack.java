@@ -27,7 +27,11 @@ import java.awt.Image;
 import java.awt.Window;
 import java.awt.Color;
 import java.awt.geom.Point2D;
+import java.awt.geom.AffineTransform;
 import java.awt.image.PixelGrabber;
+import java.awt.image.BufferedImage;
+import java.awt.image.IndexColorModel;
+import java.awt.Graphics2D;
 import java.util.Properties;
 import java.util.HashSet;
 import ij.*;
@@ -757,8 +761,9 @@ public class PatchStack extends ImagePlus {
 	// WARNING This method will fail if the stack has slices of different dimensions
 	/** Does not respect local transform of the patches, this is intended for confocal stacks. */
 	public ImagePlus createGray8Copy() {
-		final int width = (int)Math.ceil(patch[0].getWidth());
-		final int height =  (int)Math.ceil(patch[0].getHeight());
+		final Rectangle box = patch[0].getBoundingBox();
+		final int width = box.width;
+		final int height = box.height;
 		// compute minimum bounding box
 		ImageStack st = new ImageStack(width, height);
 		Loader loader = patch[0].getProject().getLoader();
@@ -772,12 +777,12 @@ public class PatchStack extends ImagePlus {
 		return imp;
 	}
 
-	// WARNING This method will failif the stack has slices of different dimensions
+	// WARNING This method will fail if the stack has slices of different dimensions
 	/** Does not respect local transform of the patches, this is intended for confocal stacks. */
 	public ImagePlus createColor256Copy() {
-
-		final int width = (int)patch[0].getWidth();
-		final int height = (int)patch[0].getHeight();
+		final Rectangle box = patch[0].getBoundingBox();
+		final int width = box.width;
+		final int height = box.height;
 		Loader loader = patch[0].getProject().getLoader();
 		patch[0].getProject().getLoader().releaseToFit(4 * patch.length * width * height); // the montage, in RGB
 		final ColorProcessor montage = new ColorProcessor(width*patch.length, height);
