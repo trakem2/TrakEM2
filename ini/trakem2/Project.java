@@ -96,7 +96,7 @@ public class Project extends DBObject {
 	static private TemplateThing layer_set_template = null;
 
 	/** The hashtable of unique TemplateThing types; the key is the type (String). */
-	private HashMap ht_unique_tt = null;
+	private HashMap<String,TemplateThing> ht_unique_tt = null;
 
 	private LayerTree layer_tree = null;
 
@@ -218,7 +218,7 @@ public class Project extends DBObject {
 			return null;
 		}
 		project.template_tree = new TemplateTree(project, template_root);
-		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap());
+		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap<String,TemplateThing>());
 		// create the project Thing, to be root of the whole user Thing tree (and load all its objects)
 		HashMap hs_d = new HashMap(); // to collect all created displayables, and  then reassign to the proper layers.
 		try {
@@ -457,7 +457,7 @@ public class Project extends DBObject {
 		project.template_tree = new TemplateTree(project, template_root);
 		project.root_tt = template_root;
 		// collect unique TemplateThing instances
-		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap());
+		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap<String,TemplateThing>());
 		// add all TemplateThing objects to the database, recursively
 		if (!clone_ids) template_root.addToDatabase(project);
 		// else already done when cloning the root_tt
@@ -784,9 +784,7 @@ public class Project extends DBObject {
 
 	/** Returns the proper TemplateThing for the given type, complete with children and attributes if any. */
 	public TemplateThing getTemplateThing(String type) {
-		Object ob = ht_unique_tt.get(type);
-		if (null == ob) return null;
-		return (TemplateThing)ob;
+		return ht_unique_tt.get(type);
 	}
 
 	/** Returns a list of existing unique types in the template tree (thus the 'project' type is not included, nor the label). The basic types are guaranteed to be present even if there are no instances in the template tree. */
@@ -803,8 +801,12 @@ public class Project extends DBObject {
 		if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
 		if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
 
-		Object project_tt = ht_unique_tt.remove("project");
-		String[] ut = (String[])ht_unique_tt.keySet().toArray();
+		TemplateThing project_tt = ht_unique_tt.remove("project");
+		for (Iterator it = ht_unique_tt.keySet().iterator(); it.hasNext(); ) {
+			Utils.log2("class: " + it.next().getClass().getName());
+		}
+		String[] ut = new String[ht_unique_tt.size()];
+		ht_unique_tt.keySet().toArray(ut);
 		ht_unique_tt.put("project", project_tt);
 		Arrays.sort(ut);
 		return ut;

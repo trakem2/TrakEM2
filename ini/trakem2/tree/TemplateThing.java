@@ -276,7 +276,7 @@ public class TemplateThing extends DBObject implements Thing {
 	*/
 
 	/** Recursive into children. The parent of each stored TemplateThing are not meaningful for a tree; only the children are meaningful. */
-	public HashMap getUniqueTypes(HashMap ht) {
+	public HashMap<String,TemplateThing> getUniqueTypes(HashMap<String,TemplateThing> ht) {
 		if (ht.containsKey(this.type)) return ht;
 		ht.put(this.type, this);
 		if (null == al_children || al_children.isEmpty()) return ht;
