@@ -12,6 +12,7 @@ import ij.process.ByteProcessor;
 import ij.gui.ShapeRoi;
 import ij.gui.GenericDialog;
 import ij.io.DirectoryChooser;
+import ij.measure.Calibration;
 
 import java.awt.Color;
 import java.awt.Cursor;
@@ -286,7 +287,7 @@ public class Display3D {
 	}
 
 	/** Get an existing Display3D for the given LayerSet, or create a new one for it (and cache it). */
-	static private Display3D get(LayerSet ls) {
+	static private Display3D get(final LayerSet ls) {
 		try {
 			// test:
 			try {
@@ -304,8 +305,18 @@ public class Display3D {
 			//
 			Object ob = ht_layer_sets.get(ls);
 			if (null == ob) {
-				ob = new Display3D(ls);
-				ht_layer_sets.put(ls, ob);
+				final boolean[] done = new boolean[]{false};
+				javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+					Display3D ob = new Display3D(ls);
+					ht_layer_sets.put(ls, ob);
+					done[0] = true;
+				}});
+				// wait to avoid crashes in amd64
+				try { Thread.sleep(500); } catch (Exception e) {}
+				while (!done[0]) {
+					try { Thread.sleep(500); } catch (Exception e) {}
+				}
+				ob = ht_layer_sets.get(ls);
 			}
 			return (Display3D)ob;
 		} catch (Exception e) {
@@ -406,6 +417,7 @@ public class Display3D {
 		ImagePlus imp = get8BitStack(p.makePatchStack());
 		d3d.universe.addOrthoslice(imp, null, p.getTitle(), 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(p.getTitle());
+		setTransform(ct, p);
 		ct.toggleLock();
 	}
 
@@ -416,7 +428,20 @@ public class Display3D {
 		ImagePlus imp = get8BitStack(p.makePatchStack());
 		d3d.universe.addVoltex(imp, null, p.getTitle(), 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(p.getTitle());
+		setTransform(ct, p);
 		ct.toggleLock();
+	}
+
+	static private void setTransform(Content ct, Patch p) {
+		final double[] a = new double[6];
+		p.getAffineTransform().getMatrix(a);
+		Calibration cal = p.getLayerSet().getCalibration();
+		// a is: m00 m10 m01 m11 m02 m12
+		// d expects: m01 m02 m03 m04, m11 m12 ...
+		ct.applyTransform(new Transform3D(new double[]{a[0], a[2], 0, a[4] * cal.pixelWidth,
+			                                       a[1], a[3], 0, a[5] * cal.pixelWidth,
+					                          0,    0, 1,    0,
+					                          0,    0, 0,    1}));
 	}
 
 	/** Returns a stack suitable for the ImageJ 3D Viewer, either 8-bit gray or 8-bit color.
@@ -760,18 +785,18 @@ public class Display3D {
 
 	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
 	static public Thread addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color) {
-		final Display3D d3d = Display3D.get(ref_ls);
-		final double scale = d3d.scale;
-		final double width = d3d.width;
 		Thread thread = new Thread() {
 			public void run() {
 				setPriority(Thread.NORM_PRIORITY);
 				while (v_threads.size() >= MAX_THREADS) { // this is crude. Could do much better now ... much better! Properly queued tasks.
-					try { Thread.sleep(400); } catch (InterruptedException ie) {}
+					try { Thread.sleep(50); } catch (InterruptedException ie) {}
 				}
 				v_threads.add(this);
 				try {
 		/////
+		final Display3D d3d = Display3D.get(ref_ls);
+		final double scale = d3d.scale;
+		final double width = d3d.width;
 
 		// temporary:
 		double[] wi = new double[vs.getPoints(0).length];
