@@ -1748,25 +1748,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		scrollToShow(scroll_profiles, (DisplayablePanel)ht_panels.get(profile));
 	}
 
-	private void selectTab(Pipe pipe) {
-		tabs.setSelectedComponent(scroll_zdispl);
-		scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(pipe));
-	}
-
-	private void selectTab(AreaList area_list) {
-		tabs.setSelectedComponent(scroll_zdispl);
-		scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(area_list));
-	}
-
-	private void selectTab(Ball ball) {
-		tabs.setSelectedComponent(scroll_zdispl);
-		scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(ball));
-	}
-
 	private void selectTab(DLabel label) {
 		tabs.setSelectedComponent(scroll_labels);
 		scrollToShow(scroll_labels, (DisplayablePanel)ht_panels.get(label));
 	}
+
+	private void selectTab(ZDisplayable zd) {
+		tabs.setSelectedComponent(scroll_zdispl);
+		scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(zd));
+	}
+
+	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
+	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
+	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Dissector d) { selectTab((ZDisplayable)d); }
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final Container tab, final String label, final ArrayList al) {

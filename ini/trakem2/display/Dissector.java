@@ -541,6 +541,11 @@ public class Dissector extends ZDisplayable {
 			if (null == box) box = item.getBoundingBox();
 			else box.add(item.getBoundingBox());
 		}
+		if (null == box) {
+			// no items
+			this.width = this.height = 0;
+			return;
+		}
 		// edit the AffineTransform
 		this.translate(box.x, box.y, false);
 		// set dimensions
