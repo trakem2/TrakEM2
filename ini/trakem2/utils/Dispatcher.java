@@ -38,6 +38,7 @@ public class Dispatcher extends Thread {
 	private final Lock lock = new Lock();
 	private boolean go = true;
 	public Dispatcher() {
+		super("T2-Dispatcher");
 		setPriority(Thread.NORM_PRIORITY);
 		setDaemon(true);
 		start();
