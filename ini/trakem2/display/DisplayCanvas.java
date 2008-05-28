@@ -819,6 +819,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// update active's bounding box
 				selection.updateTransform(active);
 				box.add(selection.getBox());
+				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass().equals(Patch.class)); // does not repaint the navigator
 				//if (!active.getClass().equals(AreaList.class)) Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
 				// TODO: this last repaint call is unnecessary, if the box was properly repainted on mouse drag for Profile etc.
 				//else 
