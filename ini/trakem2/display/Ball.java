@@ -118,9 +118,9 @@ public class Ball extends ZDisplayable {
 	protected int findPoint(double[][] a, int x_p, int y_p, double magnification) {
 		int index = -1;
 		double d = (10.0D / magnification);
-		if (d < 2) d = 2;
+		if (d < 4) d = 4;
 		for (int i=0; i<n_points; i++) {
-			if ((Math.abs(x_p - a[0][i]) + Math.abs(y_p - a[1][i])) <= d) {
+			if ((Math.abs(x_p - a[0][i]) + Math.abs(y_p - a[1][i])) <= p_width[i]) {
 				index = i;
 			}
 		}
