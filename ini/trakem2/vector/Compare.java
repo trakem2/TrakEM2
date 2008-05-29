@@ -314,14 +314,21 @@ public class Compare {
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
 	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut) {
-		if (axes.length < 3 || axes_ref.length < 3) {
-			Utils.log("Need three axes for each.");
-			return null;
-		}
 		Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
 				try {
+
+		if (axes.length < 3 || axes_ref.length < 3) {
+			Utils.log("Need three axes for each.");
+			quit();
+			return;
+		}
+		if (pipe.length() < 1) {
+			Utils.log("Query pipe has less than 2 points");
+			quit();
+			return;
+		}
 
 		// obtain axes origin vectors for pipe's project
 		Object[] pack1 = obtainOrigin(axes, transform_type); // calibrates axes
@@ -499,7 +506,7 @@ public class Compare {
 
 			if (child.getType().equals("pipe")) {
 				Pipe pipe = (Pipe)child.getObject();
-				if (!pipe.getLayerSet().equals(ls)) continue; // not from the same LayerSet, maybe from a nested one.
+				if (!pipe.getLayerSet().equals(ls) || pipe.length() < 2) continue; // not from the same LayerSet, maybe from a nested one.
 				if (null == chain) {
 					chain = new Chain(pipe);
 					chains.add(chain);
@@ -709,14 +716,18 @@ public class Compare {
 			return bringTo((VectorString3D)ref.vs.clone(), delta, cal2, trans2, rot2);
 		}
 
+		final VectorString3D makeVS1(final Chain q, final double delta) {
+			return bringTo((VectorString3D)q.vs.clone(), delta, cal1, trans1, rot1);
+		}
+
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
 		final VectorString3D makeVS2(final Pipe ref, final double delta) {
 			return bringTo(ref.asVectorString3D(), delta, cal2, trans2, rot2);
 		}
 
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
-		final VectorString3D makeVS1(final Pipe ref, final double delta) {
-			return bringTo(ref.asVectorString3D(), delta, cal1, trans1, rot1);
+		final VectorString3D makeVS1(final Pipe q, final double delta) {
+			return bringTo(q.asVectorString3D(), delta, cal1, trans1, rot1);
 		}
 
 		final VectorString3D bringTo(final VectorString3D vs, final double delta, final Calibration cal, final Vector3d trans, final Transform3D rot) {
@@ -902,6 +913,19 @@ public class Compare {
 			}
 			showNode3D(ref, false);
 		}
+		public void showNearby(Chain query) {
+			reset();
+			if (!query_shows) showAxesAndQueried();
+			ArrayList<ChainMatch> matches = qh.matches.get(query);
+			final VectorString3D vs_query = qh.makeVS1(query, query.vs.getDelta());
+			final double radius = vs_query.computeLength() * 2;
+			for (ChainMatch match : matches) {
+				VectorString3D vs_ref = qh.makeVS2(match.ref, query.vs.getDelta());
+				if (vs_query.isNear(vs_ref, radius)) {
+					Display3D.addMesh(common, vs_ref, match.ref.getTitle(), match.ref.getColor());
+				}
+			}
+		}
 		void showNode3D(Chain chain, boolean as_query) {
 			Pipe root = chain.getRoot();
 			ProjectThing pt = (ProjectThing)root.getProject().findProjectThing(root).getParent();
@@ -1045,6 +1069,11 @@ public class Compare {
 			public void run() {
 				startedWorking();
 				try {
+		if (pipe.length() < 2) {
+			Utils.log("Query pipe has less than 2 points!");
+			quit();
+			return;
+		}
 
 		Utils.log2("Will search into " + ref.length + " projects.");
 
@@ -1411,6 +1440,7 @@ public class Compare {
 				final String showfull3D = "Show full node in 3D";
 				final String showCentered = "Show centered in 2D";
 				final String showAxes = "Show axes and queried";
+				final String showNearby = "Show all nearby";
 
 				// TODO: need better
 				//  - to show the matched chains alone
@@ -1435,6 +1465,8 @@ public class Compare {
 							model.vis.showAxesAndQueried();
 						} else if (command.equals(showfull3D)) {
 							model.vis.showFull3D(model.query, ref);
+						} else if (command.equals(showNearby)) {
+							model.vis.showNearby(model.query);
 						}
 					}
 				};
@@ -1446,6 +1478,7 @@ public class Compare {
 				item = new JMenuItem(showCentered); popup.add(item); item.addActionListener(listener);
 				item = new JMenuItem(showAxes); popup.add(item); item.addActionListener(listener);
 				if (null == model.qh.vs_axes) item.setEnabled(false);
+				item = new JMenuItem(showNearby); popup.add(item); item.addActionListener(listener);
 
 				popup.show(table, me.getX(), me.getY());
 			}

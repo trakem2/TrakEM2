@@ -1109,6 +1109,12 @@ public class Pipe extends ZDisplayable {
 		return 0 == n_points;
 	}
 
+	/** The number of clicked, backbone points in this pipe. */
+	public int length() {
+		if (-1 == n_points) setupForDisplay();
+		return n_points;
+	}
+
 	/** Test whether the Pipe contains the given point at the given layer. What it does: generates subpolygons that are present in the given layer, and tests whether the point is contained in any of them. */
 	public boolean contains(final Layer layer, int x, int y) {
 		if (-1 == n_points) setupForDisplay(); // reload points
