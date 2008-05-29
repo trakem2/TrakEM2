@@ -22,6 +22,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
+
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
@@ -687,7 +689,6 @@ public class Ball extends ZDisplayable {
 
 	/** Returns information on the number of ball objects per layer. */
 	public String getInfo() {
-		StringBuffer sb = new StringBuffer("Ball id: ").append(this.id).append('\n');
 		// group balls by layer
 		HashMap ht = new HashMap();
 		for (int i=0; i<n_points; i++) {
@@ -698,12 +699,16 @@ public class Ball extends ZDisplayable {
 			}
 			al.add(new Integer(i)); // blankets!
 		}
+		int total = 0;
+		StringBuffer sb1 = new StringBuffer("Ball id: ").append(this.id).append('\n');
+		StringBuffer sb = new StringBuffer();
 		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			long lid = ((Long)entry.getKey()).longValue();
 			ArrayList al = (ArrayList)entry.getValue();
 			sb.append("\tLayer ").append(this.layer_set.getLayer(lid).toString()).append(":\n");
 			sb.append("\t\tcount : ").append(al.size()).append('\n');
+			total += al.size();
 			double average = 0;
 			for (Iterator at = al.iterator(); at.hasNext(); ) {
 				int i = ((Integer)at.next()).intValue(); // I hate java
@@ -711,7 +716,7 @@ public class Ball extends ZDisplayable {
 			}
 			sb.append("\t\taverage radius: ").append(average / al.size()).append('\n');
 		}
-		return sb.toString();
+		return sb1.append("Total count: ").append(total).append('\n').append(sb).toString();
 	}
 
 	/** Performs a deep copy of this object, without the links. */
@@ -794,6 +799,7 @@ public class Ball extends ZDisplayable {
 			Utils.log("Java3D is not installed.");
 			return null;
 		}
+		final Calibration cal = layer_set.getCalibrationCopy();
 		// modify the globe to fit each ball's radius and x,y,z position
 		final ArrayList list = new ArrayList();
 		// transform points
@@ -812,9 +818,9 @@ public class Ball extends ZDisplayable {
 			for (int z=0; z<ball.length; z++) {
 				for (int k=0; k<ball[0].length; k++) {
 					// the line below says: to each globe point, multiply it by the radius of the particular ball, then translate to the ball location, then translate to this Displayable's location, then scale to the Display3D scale.
-					ball[z][k][0] = (globe[z][k][0] * p_width[i] + p[0][i]) * scale;
-					ball[z][k][1] = (globe[z][k][1] * p_width[i] + p[1][i]) * scale;
-					ball[z][k][2] = (globe[z][k][2] * p_width[i] + layer_set.getLayer(p_layer[i]).getZ()) * scale;
+					ball[z][k][0] = (globe[z][k][0] * p_width[i] + p[0][i]) * scale * cal.pixelWidth;
+					ball[z][k][1] = (globe[z][k][1] * p_width[i] + p[1][i]) * scale * cal.pixelHeight;
+					ball[z][k][2] = (globe[z][k][2] * p_width[i] + layer_set.getLayer(p_layer[i]).getZ()) * scale * cal.pixelWidth; // not pixelDepth, see day notes 20080227. Because pixelDepth is in microns/px, not in px/microns, and the z coord here is taken from the z of the layer, which is in pixels.
 				}
 			}
 			// create triangular faces and add them to the list

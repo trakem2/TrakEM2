@@ -32,6 +32,7 @@ import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.measure.Calibration;
 
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
@@ -930,6 +931,7 @@ public class AreaList extends ZDisplayable {
 		final AffineTransform atK = new AffineTransform();
 		//Utils.log("resample: " + resample + "  scale: " + scale);
 		final double K = (1.0 / resample) * scale; // 'scale' is there to limit gigantic universes
+		final Calibration cal = layer_set.getCalibrationCopy();
 		atK.scale(K, K);
 		at2.preConcatenate(atK);
 		//
@@ -969,6 +971,8 @@ public class AreaList extends ZDisplayable {
 		stack = zeroPad(stack);
 
 		ImagePlus imp = new ImagePlus("", stack); // Calibration MUST BE 1, i.e. default, since marchingcubes.MCCube will try to correct for it.
+		imp.getCalibration().pixelWidth = cal.pixelWidth * scale;
+		imp.getCalibration().pixelHeight = cal.pixelHeight * scale;
 		imp.getCalibration().pixelDepth = thickness * scale; // no need to factor in resampling
 		//debug:
 		//imp.show();
@@ -978,14 +982,15 @@ public class AreaList extends ZDisplayable {
 		final Triangulator tri = new MCTriangulator();
 		final List list = tri.getTriangles(imp, 0, new boolean[]{true, true, true}, 1);
 		// now translate all coordinates by x,y,z (it would be nice to simply assign them to a mesh object)
-		float dx = (float)r.x * (float)scale;
-		float dy = (float)r.y * (float)scale;
-		float dz = (float)((z - thickness) * scale); // the z of the first layer found, corrected for both scale and the zero padding
+		float dx = (float)(r.x * scale * cal.pixelWidth);
+		float dy = (float)(r.y * scale * cal.pixelHeight);
+		float dz = (float)((z - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
 		for (Iterator it = list.iterator(); it.hasNext(); ) {
 			Point3f p = (Point3f)it.next();
 			// fix back the resampling (but not the universe scale, which has already been considered)
 			p.x *= resample; // a resampling of '2' means 0.5  (I love inverted worlds..)
 			p.y *= resample;
+			p.z *= cal.pixelWidth;
 			//Z was not resampled
 			// translate to the x,y,z coordinate of the object in space
 			p.x += dx;

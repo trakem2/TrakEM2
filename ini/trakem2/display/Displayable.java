@@ -1363,4 +1363,7 @@ public abstract class Displayable extends DBObject {
 		if (this.id == id) return this;
 		return null;
 	}
+
+	/** Does nothing unless overriden. */
+	public void measure() {}
 }
