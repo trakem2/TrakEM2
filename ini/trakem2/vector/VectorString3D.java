@@ -1068,11 +1068,18 @@ public class VectorString3D implements VectorString {
 		return new Vector3d(x[length-1] - x[0], y[length-1] - y[0], z[length-1] - z[0]);
 	}
 
-	static public double distance(double x1, double y1, double z1,
-			              double x2, double y2, double z2) {
+	static public final double distance(final double x1, final double y1, final double z1,
+			              final double x2, final double y2, final double z2) {
 		return Math.sqrt(Math.pow(x1 - x2, 2)
 			       + Math.pow(y1 - y2, 2)
 			       + Math.pow(z1 - z2, 2));
+	}
+
+	static public final double sqDistance(final double x1, final double y1, final double z1,
+			              final double x2, final double y2, final double z2) {
+		return Math.pow(x1 - x2, 2)
+		      + Math.pow(y1 - y2, 2)
+		      + Math.pow(z1 - z2, 2);
 	}
 
 	/** If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
@@ -1525,5 +1532,23 @@ public class VectorString3D implements VectorString {
 			len += Math.sqrt(Math.pow(v.x[j], 2) + Math.pow(v.y[j], 2) + Math.pow(v.z[j], 2));
 		}
 		return len / vs.length;
+	}
+
+	/** Determine if any point of the given VectorString3D falls within a radius of half the length of this VectorString3D, as measured from the center point of this VectorString3D. */
+	public boolean isNear(final VectorString3D vs, final double radius) {
+		final double xc = x[length/2];
+		final double yc = y[length/2];
+		final double zc = z[length/2];
+		final double sq_radius = radius * radius; // * radius;
+		Utils.log2("center: " + length/2);
+		for (int i=0; i<vs.length; i++) {
+			double sqd = sqDistance(xc, yc, zc, vs.x[i], vs.y[i], vs.z[i]);
+			Utils.log("radius: " + sq_radius + " sqd: " + sqd);
+			if (sqd <= sq_radius) {
+				Utils.log2("Found nearby " + vs);
+				return true;
+			}
+		}
+		return false;
 	}
 }
