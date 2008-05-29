@@ -2468,11 +2468,11 @@ abstract public class Loader {
 				}
 			}
 			if (null != imp) imp.show();
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				IJError.print(e);
 			}
 			finishedWorking();
-		}};
+		}}; // I miss my lisp macros, you have no idea
 		Bureaucrat burro = new Bureaucrat(worker, layer[0].getProject());
 		burro.goHaveBreakfast();
 		return burro;
