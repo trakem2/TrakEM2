@@ -49,7 +49,7 @@ public abstract class Worker extends Thread {
 		this.started = true;
 	}
 	public boolean hasStarted() { return started; }
-	protected void finishedWorking() { this.working = false; }
+	protected void finishedWorking() { this.working = false; this.quit = true; }
 	public boolean isWorking() { return working; }
 	public String getTaskName() { return task_name; }
 	public void quit() { this.quit = true; }
