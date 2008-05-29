@@ -1365,5 +1365,7 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Does nothing unless overriden. */
-	public void measure() {}
+	public void measure() {
+		Utils.showMessage("Not implemented yet for " + Project.getName(getClass() + " [class " + this.getClass().getName() + "]");
+	}
 }

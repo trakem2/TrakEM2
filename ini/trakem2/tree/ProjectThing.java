@@ -617,7 +617,9 @@ public class ProjectThing extends DBObject implements Thing {
 
 	/** Call on children things, and on itself if it contains a basic data type directly. */
 	public void measure() {
-		Utils.showMessage("Not implemented yet.");
+		if (null != object && object instanceof Displayable) {
+			((Displayable)object).measure();
+		}
 	}
 
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {
