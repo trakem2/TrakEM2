@@ -23,6 +23,9 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
@@ -256,6 +259,25 @@ public class Dissector extends ZDisplayable {
 				final int py = (int)po.y;
 				g.drawRect(px - M_radius, py - M_radius, M_radius+M_radius, M_radius+M_radius);
 				g.drawString(Integer.toString(tag), px + M_radius + EXTRA, py + M_radius);
+			}
+		}
+
+		final void addResults(ResultsTable rt, Calibration cal) {
+			for (int i=0; i<n_points; i++) {
+				Layer la = layer_set.getLayer(p_layer[i]); 
+				if (null == layer) {
+					Utils.log("Dissector.addResults: could not find layer with id " + p_layer[i]);
+					continue;
+				}
+				final Point2D.Double po = Utils.transform(Dissector.this.at, p[0][i], p[1][i]);
+				rt.incrementCounter();
+				rt.addLabel("units", cal.getUnit());
+				rt.addValue(0, Dissector.this.id);
+				rt.addValue(1, tag);
+				rt.addValue(2, po.x * cal.pixelWidth);
+				rt.addValue(3, po.y * cal.pixelHeight);
+				rt.addValue(4, la.getZ() * cal.pixelWidth); // layer Z is in pixels
+				rt.addValue(5, radius * cal.pixelWidth);
 			}
 		}
 
@@ -638,5 +660,25 @@ public class Dissector extends ZDisplayable {
 			if (item.intersects(ai, z_first, z_last)) return true;
 		}
 		return false;
+	}
+
+	static public ResultsTable createResultsTable() {
+		ResultsTable rt = new ResultsTable();
+		rt.setPrecision(2);
+		rt.setHeading(0, "id");
+		rt.setHeading(1, "tag");
+		rt.setHeading(2, "x");
+		rt.setHeading(3, "y");
+		rt.setHeading(4, "z");
+		rt.setHeading(5, "radius");
+		return rt;
+	}
+
+	public ResultsTable measure(ResultsTable rt) {
+		if (0 == al_items.size()) return rt;
+		if (null == rt) rt = createResultsTable();
+		for (Item item : al_items) item.addResults(rt, layer_set.getCalibration());
+		rt.show("Dissector results"); // 'show' means also update.
+		return rt;
 	}
 }
