@@ -273,7 +273,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 					rename(thing);
 				//}
 			} else if (command.equals("Measure")) {
-				thing.measure();
+				thing.measure(null);
 			}/* else if (command.equals("Export 3D...")) {
 				GenericDialog gd = ControlWindow.makeGenericDialog("Export 3D");
 				String[] choice = new String[]{".svg [preserves links and hierarchical grouping]", ".shapes [limited to one profile per layer per profile_list]"};

@@ -33,6 +33,7 @@ import ij.process.ImageProcessor;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
@@ -1158,5 +1159,88 @@ public class AreaList extends ZDisplayable {
 		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
 			// TODO
 		}
+	}
+
+	static public ResultsTable createResultsTable() {
+		ResultsTable rt = new ResultsTable();
+		rt.setPrecision(2);
+		rt.setHeading(0, "id");
+		rt.setHeading(1, "volume");
+		return rt;
+	}
+
+	public ResultsTable measure(ResultsTable rt) {
+		if (0 == ht_areas.size()) return rt;
+		if (null == rt) rt = createResultsTable();
+		rt.incrementCounter();
+		rt.addLabel("units", "cubic " + layer_set.getCalibration().getUnit());
+		rt.addValue(0, this.id);
+		rt.addValue(1, measureVolume());
+		rt.show("AreaList results");
+		return rt;
+	}
+
+	public double measureVolume() {
+		if (0 == ht_areas.size()) return 0;
+		Rectangle box = getBoundingBox(null);
+		float scale = 1.0f;
+		while (!getProject().getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000)) { // factor of 2, because a mask will be involved
+			scale /= 2;
+		}
+		double volume = 0;
+		double surface = 0;
+		final int w = (int)Math.ceil(box.width * scale);
+		final int h = (int)Math.ceil(box.height * scale);
+		BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
+		Graphics2D g = bi.createGraphics();
+		//DataBufferByte buffer = (DataBufferByte)bi.getRaster().getDataBuffer();
+		byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
+
+		// prepare suitable transform
+		AffineTransform aff = (AffineTransform)this.at.clone();
+		AffineTransform aff2 = new AffineTransform();
+		//  A - remove translation
+		aff2.translate(-box.x, -box.y);
+		aff.preConcatenate(aff2);
+		//  B - scale
+		if (1.0f != scale) {
+			aff2.setToIdentity();
+			aff2.translate(box.width/2, box.height/2);
+			aff2.scale(scale, scale);
+			aff2.translate(-box.width/2, -box.height/2);
+			aff.preConcatenate(aff2);
+		}
+		Calibration cal = layer_set.getCalibration();
+		double pixelWidth = cal.pixelWidth;
+		double pixelHeight = cal.pixelHeight;
+		// for each area, measure its area and its perimeter
+		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
+			// fetch Area
+			Map.Entry entry = (Map.Entry)it.next();
+			Object ob_area = entry.getValue();
+			long lid = ((Long)entry.getKey()).longValue();
+			if (UNLOADED.equals(ob_area)) ob_area = loadLayer(lid);
+			Area area2 = ((Area)ob_area).createTransformedArea(aff);
+			// paint the area, filling mode
+			g.setColor(Color.white);
+			g.fill(area2);
+			double n_pix = 0;
+			// count white pixels
+			for (int i=0; i<pixels.length; i++) {
+				if (255 == (pixels[i]&0xff)) n_pix++;
+				// could set the pixel to 0, but I have no idea if that holds properly (or is fast at all) in automatically accelerated images
+			}
+			double thickness = layer_set.getLayer(lid).getThickness();
+			volume += n_pix * thickness * pixelWidth * pixelHeight * pixelWidth; // the last one is NOT pixelDepth because layer thickness and Z are in pixels
+			// reset board (filling all, to make sure there are no rounding surprises)
+			g.setColor(Color.black);
+			g.fillRect(0, 0, w, h);
+		}
+		// cleanup
+		pixels = null;
+		g = null;
+		bi.flush();
+		// correct scale
+		return volume /= (scale * scale); // above, calibration is fixed while computing. Scale only corrects for the 2D plane.
 	}
 }

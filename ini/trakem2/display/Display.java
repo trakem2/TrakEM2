@@ -26,6 +26,7 @@ import ij.*;
 import ij.io.*;
 import ij.gui.*;
 import ij.process.*;
+import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.persistence.DBObject;
@@ -2346,7 +2347,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			else
 				scale = " (" + Utils.d2s(percent,1) + "%)";
 		}
-		String title = (layer.getParent().indexOf(layer) + 1) + "/" + layer.getParent().size() +" " + (null == layer.getTitle() ? "" : layer.getTitle()) + scale + " -- " + getProject().toString();
+		Calibration cal = layer.getParent().getCalibration();
+		String title = new StringBuffer().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(layer.getParent().getLayerWidth() * cal.pixelWidth).append('x').append(layer.getParent().getLayerHeight() * cal.pixelHeight).append(' ').append(cal.getUnit()).toString();
 		frame.setTitle(title);
 		// fix the title for the FakeImageWindow and thus the WindowManager listing in the menus
 		canvas.getFakeImagePlus().setTitle(title);

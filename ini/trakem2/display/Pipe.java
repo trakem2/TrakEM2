@@ -23,6 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
@@ -1922,5 +1923,33 @@ public class Pipe extends ZDisplayable {
 			}
 		}
 		return false;
+	}
+
+	static public ResultsTable createResultsTable() {
+		ResultsTable rt = new ResultsTable();
+		rt.setPrecision(2);
+		rt.setHeading(0, "id");
+		rt.setHeading(1, "length");
+		return rt;
+	}
+
+	public ResultsTable measure(ResultsTable rt) {
+		if (-1 == n_points) setupForDisplay(); //reload
+		if (0 == n_points) return rt;
+		if (null == rt) rt = createResultsTable();
+		// measure length
+		double len = 0;
+		Calibration cal = layer_set.getCalibration();
+		if (n_points > 1) {
+			VectorString3D vs = asVectorString3D();
+			vs.calibrate(cal);
+			len = vs.computeLength(); // no resampling
+		}
+		rt.incrementCounter();
+		rt.addLabel("units", cal.getUnit());
+		rt.addValue(0, this.id);
+		rt.addValue(1, len);
+		rt.show("Pipe results");
+		return rt;
 	}
 }

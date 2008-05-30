@@ -23,6 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
@@ -882,5 +883,40 @@ public class Ball extends ZDisplayable {
 			}
 		}
 		return false;
+	}
+
+	static public ResultsTable createResultsTable() {
+		ResultsTable rt = new ResultsTable();
+		rt.setPrecision(2);
+		rt.setHeading(0, "id");
+		rt.setHeading(1, "index");
+		rt.setHeading(2, "x");
+		rt.setHeading(3, "y");
+		rt.setHeading(4, "z");
+		rt.setHeading(5, "radius");
+		return rt;
+	}
+
+	/** Returns a listing of all balls contained here, one per row with index, x, y, z, and radius, all calibrated. */
+	public ResultsTable measure(ResultsTable rt) {
+		if (-1 == n_points) setupForDisplay(); //reload
+		if (0 == n_points) return rt;
+		if (null == rt) rt = createResultsTable();
+		final Object[] ob = getTransformedData();
+		double[][] p = (double[][])ob[0];
+		double[] p_width = (double[])ob[1];
+		final Calibration cal = layer_set.getCalibration();
+		for (int i=0; i<n_points; i++) {
+			rt.incrementCounter();
+			rt.addLabel("units", cal.getUnit());
+			rt.addValue(0, this.id);
+			rt.addValue(1, i+1);
+			rt.addValue(2, p[0][i] * cal.pixelWidth);
+			rt.addValue(3, p[1][i] * cal.pixelHeight);
+			rt.addValue(4, layer_set.getLayer(p_layer[i]).getZ() * cal.pixelWidth);
+			rt.addValue(5, p_width[i] * cal.pixelWidth);
+		}
+		rt.show("Ball results");
+		return rt;
 	}
 }

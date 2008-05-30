@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.tree;
 
+import ij.measure.ResultsTable;
 
 import ini.trakem2.Project;
 import ini.trakem2.display.Display;
@@ -615,10 +616,23 @@ public class ProjectThing extends DBObject implements Thing {
 		return null;
 	}
 
-	/** Call on children things, and on itself if it contains a basic data type directly. */
-	public void measure() {
+	/** Call on children things, and on itself if it contains a basic data type directly.
+	 *  All children of the same type report to the same table. */
+	public void measure(HashMap<Class,ResultsTable> ht) {
+		if (null == ht) ht = new HashMap<Class,ResultsTable>();
 		if (null != object && object instanceof Displayable) {
-			((Displayable)object).measure();
+			Displayable d = (Displayable)object;
+			if (d.isVisible()) {
+				ResultsTable rt = d.measure(ht.get(d.getClass()));
+				if (null != rt) ht.put(d.getClass(), rt);
+			} else {
+				Utils.log("Measure: skipping hidden object " + d.getProject().getMeaningfulTitle(d));
+			}
+		}
+		if (null == al_children) return;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			ProjectThing child = (ProjectThing)it.next();
+			child.measure(ht);
 		}
 	}
 

@@ -30,6 +30,7 @@ import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
+import ij.measure.ResultsTable;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Decoder;
@@ -1365,7 +1366,8 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Does nothing unless overriden. */
-	public void measure() {
+	public ResultsTable measure(ResultsTable rt) {
 		Utils.showMessage("Not implemented yet for " + Project.getName(getClass()) + " [class " + this.getClass().getName() + "]");
+		return rt;
 	}
 }
