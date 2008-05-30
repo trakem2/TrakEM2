@@ -588,42 +588,45 @@ public class Selection {
 
 	/** Delete all selected objects from their Layer. */
 	public boolean deleteAll() {
+		Displayable[] d = null;
+		if (null == active) return true; // nothing to remove
+		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
+		// obtain a list of displayables to remove
 		synchronized (queue_lock) {
-		try {
-			if (null == active) return true; // nothing to remove
-			if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
-			lock();
-			setPrev(queue);
-			if (null != display) display.setActive(null);
-			this.active = null;
-			StringBuffer sb = new StringBuffer();
-			Displayable[] d = new Displayable[queue.size()];
-			queue.toArray(d);
-			unlock();
 			try {
-				display.getProject().getLoader().startLargeUpdate();
-				for (int i=0; i<d.length; i++) {
-					// Remove from the trees and from the Layer/LayerSet
-					if (!d[i].remove2(false)) {
-						sb.append(d[i].getTitle()).append('\n');
-						continue;
-					}
-				}
+				lock();
+				setPrev(queue);
+				if (null != display) display.setActive(null);
+				this.active = null;
+				d = new Displayable[queue.size()];
+				queue.toArray(d);
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
-				display.getProject().getLoader().commitLargeUpdate();
+				unlock();
 			}
-			if (sb.length() > 0) {
-				Utils.log("Could NOT delete:\n" + sb.toString());
+		}
+		// remove one by one, skip those that fail and log the error
+		StringBuffer sb = new StringBuffer();
+		try {
+			display.getProject().getLoader().startLargeUpdate();
+			for (int i=0; i<d.length; i++) {
+				// Remove from the trees and from the Layer/LayerSet
+				if (!d[i].remove2(false)) {
+					sb.append(d[i].getTitle()).append('\n');
+					continue;
+				}
 			}
-			//Display.repaint(display.getLayer(), box, 0);
-			Display.updateSelection(); // from all displays
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
-			if (queue_locked) unlock();
-		}}
+			display.getProject().getLoader().commitLargeUpdate();
+		}
+		if (sb.length() > 0) {
+			Utils.log("Could NOT delete:\n" + sb.toString());
+		}
+		//Display.repaint(display.getLayer(), box, 0);
+		Display.updateSelection(); // from all displays
 		return true;
 	}
 
