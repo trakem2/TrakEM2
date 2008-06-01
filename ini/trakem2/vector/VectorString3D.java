@@ -815,7 +815,7 @@ public class VectorString3D implements VectorString {
 		return vs;
 	}
 
-	/** Scale to match cal.pixelWidth, cal.pixelHeight and cal.pixelDepth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. So it brings all values to cal.units, such as microns. */
+	/** Scale to match cal.pixelWidth, cal.pixelHeight and computed depth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. So it brings all values to cal.units, such as microns. */
 	public void calibrate(final Calibration cal) {
 		if (null == cal) return;
 		this.cal = cal;

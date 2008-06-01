@@ -22,22 +22,32 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 
 
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.render3d.Perimeter2D;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.tree.Thing;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.vector.VectorString2D;
+import ini.trakem2.vector.SkinMaker;
 
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Polygon;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
+import java.awt.geom.Area;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -50,13 +60,7 @@ import java.awt.Graphics2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
 
-import ini.trakem2.tree.Thing;
-import ini.trakem2.tree.ProjectThing;
 import javax.vecmath.Point3f;
-import ini.trakem2.vector.VectorString2D;
-import ini.trakem2.vector.SkinMaker;
-import java.util.Arrays;
-import ini.trakem2.utils.IJError;
 
 
 /** A class to be a user-outlined profile over an image, which is painted with a particular color and also holds an associated text label.
@@ -1538,10 +1542,12 @@ public class Profile extends Displayable {
 		return last;
 	}
 
+	/** Make a mesh as a calibrated list of 3D triangles.*/
 	static private List<Point3f> makeTriangles(final Profile[] p, final double scale) {
 		try {
 			final VectorString2D[] sv = new VectorString2D[p.length];
 			boolean closed = true; // dummy initialization
+			final Calibration cal = p[0].getLayerSet().getCalibration();
 			for (int i=0; i<p.length; i++) {
 				if (-1 == p[i].n_points) p[i].setupForDisplay();
 				if (0 == p[i].n_points) continue;
@@ -1561,6 +1567,7 @@ public class Profile extends Displayable {
 					}
 				}
 				sv[i] = new VectorString2D(x, y, p[i].layer.getZ(), p[i].closed);
+				sv[i].calibrate(cal);
 			}
 			return SkinMaker.generateTriangles(sv, -1, -1, closed);
 		} catch (Exception e) {
@@ -1571,5 +1578,92 @@ public class Profile extends Displayable {
 
 	protected boolean remove2(boolean check) {
 		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here
+	}
+
+
+	static public ResultsTable createResultsTable() {
+		ResultsTable rt = new ResultsTable();
+		rt.setPrecision(2);
+		rt.setHeading(0, "id");
+		rt.setHeading(1, "surface");
+		rt.setHeading(2, "volume");
+		return rt;
+	}
+
+	/** Calibrated for pixel width only (pixel aspect ratio 1:1), in units as specified at getLayerSet().getCalibration().getUnit()*/
+	public double computeLength() {
+		if (-1 == n_points || 0 == this.p_i[0].length) setupForDisplay();
+		if (this.p_i[0].length < 2) return 0;
+		final double[][] p_i = transformPoints(this.p_i);
+		double len = 0;
+		for (int i=1; i<p_i[0].length; i++) {
+			len += Math.sqrt(Math.pow(p_i[0][i] - p_i[0][i-1], 2) + Math.pow(p_i[1][i] - p_i[1][i-1], 2));
+		}
+		if (closed) {
+			int last = p[0].length -1;
+			len += Math.sqrt(Math.pow(p_i[0][last] - p_i[0][0], 2) + Math.pow(p_i[1][last] - p_i[1][0], 2));
+		}
+		// to calibrate for pixelWidth and pixelHeight, I'd have to multiply each x,y values above separately
+		return len * getLayerSet().getCalibration().pixelWidth;
+	}
+
+	/** Calibrated, in units as specified at getLayerSet().getCalibration().getUnit()*/
+	public double computeArea() {
+		if (-1 == n_points) setupForDisplay();
+		if (n_points < 2) return 0;
+		if (0 == p_i[0].length) generateInterpolatedPoints(0.05);
+		Calibration cal = getLayerSet().getCalibration();
+		return Utils.measureArea(new Area(getPerimeter()), getProject().getLoader()) * cal.pixelWidth * cal.pixelHeight;
+	}
+
+	/** Assumes Z-coord sorted list of profiles, as stored in a "profile_list" ProjectThing type. . */
+	static public ResultsTable measure(final Profile[] profiles, ResultsTable rt, final long profile_list_id) {
+		if (null == profiles || 0 == profiles.length) return null;
+		if (null == rt) rt = createResultsTable();
+		Calibration cal = profiles[0].getLayerSet().getCalibration();
+		if (1 == profiles.length) {
+			if (-1 == profiles[0].n_points) profiles[0].setupForDisplay();
+			if (profiles[0].n_points < 2) return null;
+			if (0 == profiles[0].p_i[0].length) profiles[0].generateInterpolatedPoints(0.05);
+			double surface = profiles[0].computeLength() * cal.pixelWidth;
+			rt.incrementCounter();
+			rt.addLabel("units", "square " + cal.getUnit());
+			rt.addValue(0, profile_list_id);
+			rt.addValue(1, surface);
+			double volume = profiles[0].closed ? profiles[0].computeArea() * profiles[0].layer.getThickness() * cal.pixelWidth : 0;
+			rt.addValue(2, volume);
+			return rt;
+		}
+		// else, interpolate skin and measure each triangle
+		List<Point3f> tri = makeTriangles(profiles, 1.0);
+		final int n_tri = tri.size();
+		if (0 != n_tri % 3) {
+			Utils.log("Profile.measure error: triangle verts list not a multiple of 3 for profile list id " + profile_list_id);
+			return rt;
+		}
+		double surface = 0;
+		for (int i=2; i<n_tri; i+=3) {
+			surface += Utils.measureArea(tri.get(i-2), tri.get(i-1), tri.get(i));
+		}
+		// add capping ends
+		double area_first = profiles[0].computeArea();
+		double area_last = profiles[profiles.length-1].computeArea();
+
+		surface += area_first + area_last;
+
+		double volume = 0;
+		for (int i=1; i<profiles.length-1; i++) {
+			volume += profiles[i].computeArea() * profiles[i].layer.getThickness() * cal.pixelWidth;
+		}
+		volume += area_first * profiles[0].layer.getThickness() * cal.pixelWidth;
+		volume += area_last * profiles[profiles.length-1].layer.getThickness() * cal.pixelWidth;
+
+		rt.incrementCounter();
+		rt.addLabel("units", cal.getUnit());
+		rt.addValue(0, profile_list_id);
+		rt.addValue(1, surface);
+		rt.addValue(2, volume);
+		rt.show("Profile list results");
+		return rt;
 	}
 }

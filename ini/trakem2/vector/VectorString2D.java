@@ -24,6 +24,7 @@ package ini.trakem2.vector;
 
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ij.measure.Calibration;
 
 /** String of vectors. */
 public class VectorString2D implements VectorString {
@@ -40,6 +41,8 @@ public class VectorString2D implements VectorString {
 	/** The Z coordinate of the entire planar curve represented by this VectorString2D. */
 	private double z;
 	private boolean closed;
+
+	private Calibration cal = null;
 
 	/** Construct a new String of Vectors from the given points and desired resampling point interdistance 'delta'. */
 	public VectorString2D(double[] x, double[] y, double z, boolean closed) throws Exception {
@@ -474,4 +477,25 @@ public class VectorString2D implements VectorString {
 	}
 
 	public int getDimensions() { return 2; }
+
+	/** Scale to match cal.pixelWidth, cal.pixelHeight and computed depth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. So it brings all values to cal.units, such as microns. */
+	public void calibrate(final Calibration cal) {
+		if (null == cal) return;
+		this.cal = cal;
+		for (int i=0; i<x.length; i++) {
+			x[i] *= cal.pixelWidth;
+			y[i] *= cal.pixelHeight; // should be the same as pixelWidth
+		}
+		z *= cal.pixelWidth; // since layer Z is in pixels.
+		// reset vectors
+		if (null != v_x) v_x = v_y = null;
+		delta = 0;
+	}
+
+	public boolean isCalibrated() {
+		return null != this.cal;
+	}
+	public Calibration getCalibrationCopy() {
+		return null == this.cal ? null : this.cal.copy();
+	}
 }

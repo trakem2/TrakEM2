@@ -27,6 +27,7 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
+import ini.trakem2.persistence.Loader;
 
 
 import ij.IJ;
@@ -52,6 +53,10 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
+import java.awt.Rectangle;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
@@ -66,6 +71,8 @@ import java.util.Iterator;
 import java.util.Vector;
 import java.util.Calendar;
 
+import javax.vecmath.Point3f;
+import javax.vecmath.Vector3f;
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
@@ -73,7 +80,7 @@ import java.util.Calendar;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.5s 2008-05-29";
+	static public String version = "0.5t 2008-05-30";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -1020,5 +1027,54 @@ public class Utils implements ij.plugin.PlugIn {
 			IJError.print(e);
 		}
 		return null;
+	}
+
+	/** Returns the approximated area of the given Area object. */
+	static public final double measureArea(Area area, final Loader loader) {
+		double sum = 0;
+		try {
+			Rectangle bounds = area.getBounds();
+			double scale = 1;
+			if (bounds.width > 2048 || bounds.height > 2048) {
+				scale = 2048.0 / bounds.width;
+			}
+			if (0 == scale) {
+				Utils.log("Can't measure: area too large, out of scale range for approximation.");
+				return sum;
+			}
+			AffineTransform at = new AffineTransform();
+			at.translate(-bounds.x, -bounds.y);
+			at.scale(scale, scale);
+			area = area.createTransformedArea(at);
+			bounds = area.getBounds();
+			if (0 == bounds.width || 0 == bounds.height) {
+				Utils.log("Can't measure: area too large, approximates zero.");
+				return sum;
+			}
+			if (null != loader) loader.releaseToFit(bounds.width * bounds.height * 3);
+			BufferedImage bi = new BufferedImage(bounds.width, bounds.height, BufferedImage.TYPE_BYTE_INDEXED);
+			Graphics2D g = bi.createGraphics();
+			g.setColor(Color.white);
+			g.fill(area);
+			final byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
+			for (int i=pixels.length-1; i>-1; i--) {
+				//if (255 == (pixels[i]&0xff)) sum++;
+				if (0 != pixels[i]) sum++;
+			}
+			bi.flush();
+			g.dispose();
+			if (1 != scale) sum = sum / (scale * scale);
+		} catch (Throwable e) {
+			IJError.print(e);
+		}
+		return sum;
+	}
+
+	/** Compute the are of the triangle defined by 3 points in 3D space, returning half of the length of the vector resulting from the cross product of vectors p1p2 and p1p3. */
+	static public final double measureArea(final Point3f p1, final Point3f p2, final Point3f p3) {
+		final Vector3f v = new Vector3f();
+		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
+			 new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
+		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
 	}
 }

@@ -630,6 +630,14 @@ public class ProjectThing extends DBObject implements Thing {
 			}
 		}
 		if (null == al_children) return;
+		// profile list: always special ...
+		if (template.getType().equals("profile_list")) {
+			Profile[] p = new Profile[al_children.size()];
+			for (int i=0; i<al_children.size(); i++) p[i] = (Profile)((ProjectThing)al_children.get(i)).object;
+			ResultsTable rt = Profile.measure(p, ht.get(Profile.class), this.id);
+			if (null != rt) ht.put(Profile.class, rt);
+			return;
+		}
 		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
 			ProjectThing child = (ProjectThing)it.next();
 			child.measure(ht);
