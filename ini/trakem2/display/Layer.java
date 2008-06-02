@@ -581,20 +581,21 @@ public class Layer extends DBObject {
 		return 0;
 	}
 
-	/** Note: Non-recursive into embedded LayerSet objects. */
-	public void setVisible(String type, boolean visible, boolean repaint) {
+	/** Note: Not recursive into embedded LayerSet objects. Returns the hash set of objects whose visibility has changed. */
+	public HashSet<Displayable> setVisible(String type, boolean visible, boolean repaint) {
 		type = type.toLowerCase();
-		Iterator it = al_displayables.iterator();
-		while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
-			if (d.getClass().getName().toLowerCase().endsWith(type)) {
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
+		for (Displayable d : al_displayables) {
+			if (visible != d.isVisible() && d.getClass().getName().toLowerCase().endsWith(type)) {
 				d.setVisible(visible, false); // don't repaint
 				Display.updateVisibilityCheckbox(this, d, null);
+				hs.add(d);
 			}
 		}
 		if (repaint) {
 			Display.repaint(this);
 		}
+		return hs;
 	}
 	public void setAllVisible(boolean repaint) {
 		for (Displayable d : al_displayables) {
@@ -602,11 +603,16 @@ public class Layer extends DBObject {
 		}
 	}
 
-	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. */
-	public void hideExcept(ArrayList<Class> type, boolean repaint) {
+	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */
+	public HashSet<Displayable> hideExcept(ArrayList<Class> type, boolean repaint) {
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (Displayable d : al_displayables) {
-			if (!type.contains(d.getClass())) d.setVisible(false, repaint);
+			if (!type.contains(d.getClass()) && d.isVisible()) {
+				d.setVisible(false, repaint);
+				hs.add(d);
+			}
 		}
+		return hs;
 	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {

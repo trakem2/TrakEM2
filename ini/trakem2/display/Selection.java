@@ -637,6 +637,16 @@ public class Selection {
 		queue_prev.addAll(q);
 	}
 
+	/** Remove all given displayables from this selection. */
+	public void removeAll(HashSet<Displayable> hs) {
+		for (Displayable d : hs) remove(d);
+	}
+
+	/** Remove all given displayables from this selection. */
+	public void removeAll(ArrayList<Displayable> al) {
+		for (Displayable d : al) remove(d);
+	}
+
 	/** Remove the given displayable from this selection. */
 	public void remove(Displayable d) {
 		if (null == d) {

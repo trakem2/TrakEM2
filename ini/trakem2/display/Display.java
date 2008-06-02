@@ -2084,8 +2084,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					menu = new JMenu("Send linked group to...");
 					if (active.hasLinkedGroupWithinLayer(this.layer)) {
 						int i = 1;
-						for (Layer la : layer.getParent().getLayers()) {
-							item = new JMenuItem(la.getTitle()); item.addActionListener(this); menu.add(item);
+						for (Layer la : ls.getLayers()) {
+							String layer_title = i + ": " + la.getTitle();
+							if (-1 == layer_title.indexOf(' ')) layer_title += " ";
+							item = new JMenuItem(layer_title); item.addActionListener(this); menu.add(item);
 							if (la.equals(this.layer)) item.setEnabled(false);
 							i++;
 						}
@@ -2581,6 +2583,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// WARNING the indexOf is very similar to the previous one
 			// Send the linked group to the selected layer
 			int iz = command.indexOf("z=")+2;
+			Utils.log2("iz=" + iz + "  other: " + command.indexOf(' ', iz+2));
 			double lz = Double.parseDouble(command.substring(iz, command.indexOf(' ', iz+2)));
 			Layer target = layer.getParent().getLayer(lz);
 			HashSet hs = active.getLinkedGroup(new HashSet());
@@ -2695,7 +2698,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Hide all but images")) {
 			ArrayList<Class> type = new ArrayList<Class>();
 			type.add(Patch.class);
-			layer.getParent().hideExcept(type, false);
+			selection.removeAll(layer.getParent().hideExcept(type, false));
 			Display.update(layer.getParent(), false);
 		} else if (command.equals("Unhide all")) {
 			layer.getParent().setAllVisible(false);
@@ -2703,7 +2706,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.startsWith("Hide all ")) {
 			String type = command.substring(9, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
-			layer.getParent().setVisible(type, false, true);
+			selection.removeAll(layer.getParent().setVisible(type, false, true));
 		} else if (command.startsWith("Unhide all ")) {
 			String type = command.substring(11, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
@@ -2711,7 +2714,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Hide deselected")) {
 			hideDeselected(0 != (ActionEvent.ALT_MASK & ae.getModifiers()));
 		} else if (command.equals("Hide selected")) {
-			selection.setVisible(false);
+			selection.setVisible(false); // TODO should deselect them too? I don't think so.
 		} else if (command.equals("Resize canvas/LayerSet...")) {
 			resizeCanvas();
 		} else if (command.equals("Autoresize canvas/LayerSet")) {

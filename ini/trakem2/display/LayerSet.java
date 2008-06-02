@@ -863,24 +863,23 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 
-	synchronized public void setVisible(String type, boolean visible, boolean repaint) {
+	/** Returns the hash set of objects whose visibility has changed. */
+	synchronized public HashSet<Displayable> setVisible(String type, boolean visible, boolean repaint) {
 		type = type.toLowerCase();
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		try {
 			project.getLoader().startLargeUpdate();
 			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist")) {
-				Iterator it = al_zdispl.iterator();
-				while (it.hasNext()) {
-					ZDisplayable zd = (ZDisplayable)it.next();
-					if (zd.getClass().getName().toLowerCase().endsWith(type)) { // endsWith, because DLabel is called as Label
+				for (ZDisplayable zd : al_zdispl) {
+					if (visible != zd.isVisible() && zd.getClass().getName().toLowerCase().endsWith(type)) { // endsWith, because DLabel is called as Label
 						zd.setVisible(visible, false); // don't repaint
+						hs.add(zd);
 					}
 				}
 			} else {
 				if (type.equals("image")) type = "patch";
-				Iterator it = al_layers.iterator();
-				while (it.hasNext()) {
-					Layer l = (Layer)it.next();
-					l.setVisible(type, visible, false); // don't repaint
+				for (Layer layer : al_layers) {
+					hs.addAll(layer.setVisible(type, visible, false)); // don't repaint
 				}
 			}
 		} catch (Exception e) {
@@ -891,13 +890,19 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (repaint) {
 			Display.repaint(this); // this could be optimized to repaint only the accumulated box
 		}
+		return hs;
 	}
-	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. */
-	public void hideExcept(ArrayList<Class> type, boolean repaint) {
+	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */
+	public HashSet<Displayable> hideExcept(ArrayList<Class> type, boolean repaint) {
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (ZDisplayable zd : al_zdispl) {
-			if (!type.contains(zd.getClass())) zd.setVisible(false, repaint);
+			if (!type.contains(zd.getClass()) && zd.isVisible()) {
+				zd.setVisible(false, repaint);
+				hs.add(zd);
+			}
 		}
-		for (Layer la : al_layers) la.hideExcept(type, repaint);
+		for (Layer la : al_layers) hs.addAll(la.hideExcept(type, repaint));
+		return hs;
 	}
 	public void setAllVisible(boolean repaint) {
 		for (ZDisplayable zd : al_zdispl) {
