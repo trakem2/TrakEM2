@@ -1545,7 +1545,7 @@ public class FSLoader extends Loader {
 
 			final int max_level = getHighestMipMapLevel(patch);
 
-			final String filepath = getFileName(patch);
+			final String filepath = getInternalFileName(patch);
 			if (null == filepath) {
 				Utils.log2("null filepath!");
 				return null;

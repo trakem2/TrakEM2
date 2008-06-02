@@ -3656,7 +3656,7 @@ abstract public class Loader {
 	}
 
 	/** Equivalent to File.getName(), does not subtract the slice info from it.*/
-	protected final String getFileName(Patch p) {
+	protected final String getInternalFileName(Patch p) {
 		final String path = getAbsolutePath(p);
 		if (null == path) return null;
 		int i = path.length() -1;
@@ -3667,6 +3667,14 @@ abstract public class Loader {
 			i--;
 		}
 		return path.substring(i+1);
+	}
+
+	/** Equivalent to File.getName(), but subtracts the slice info from it if any.*/
+	public final String getFileName(final Patch p) {
+		String name = getInternalFileName(p);
+		int i = name.lastIndexOf("-----#slice=");
+		if (-1 == i) return name;
+		return name.substring(0, i);
 	}
 
 	/** Check if an awt exists to paint as a snap. */

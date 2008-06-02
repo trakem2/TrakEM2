@@ -858,6 +858,7 @@ public class Display3D {
 
 	/** Checks if there is any Display3D instance currently showing the given Displayable. */
 	static public boolean isDisplayed(final Displayable d) {
+		if (null == d) return false;
 		final String title = makeTitle(d);
 		for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
 			Display3D d3d = (Display3D)it.next();
@@ -876,18 +877,39 @@ public class Display3D {
 	}
 
 	static public void setTransparency(final Displayable d, final float alpha) {
-		if (!isDisplayed(d)) return;
+		if (null == d) return;
 		Layer layer = d.getLayer();
 		if (null == layer) return; // some objects have no layer, such as the parent LayerSet.
 		Object ob = ht_layer_sets.get(layer.getParent());
 		if (null == ob) return;
 		Display3D d3d = (Display3D)ob;
-		Content content = d3d.universe.getContent(makeTitle(d));
+		String title = makeTitle(d);
+		Content content = d3d.universe.getContent(title);
 		if (null != content) content.setTransparency(1 - alpha);
+		else if (null == content && d.getClass().equals(Patch.class)) {
+			Patch pa = (Patch)d;
+			if (pa.isStack()) {
+				title = pa.getProject().getLoader().getFileName(pa);
+				for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
+					d3d = (Display3D)it.next();
+					for (Iterator cit = d3d.universe.getContents().iterator(); cit.hasNext(); ) {
+						Content c = (Content)cit.next();
+						if (c.getName().startsWith(title)) {
+							c.setTransparency(1 - alpha);
+							// no break, since there could be a volume and an orthoslice
+						}
+					}
+				}
+			}
+		}
 	}
 
 	static private String makeTitle(final Displayable d) {
 		return d.getProject().getMeaningfulTitle(d) + " #" + d.getId();
+	}
+	static public String makeTitle(final Patch p) {
+		return new File(p.getProject().getLoader().getAbsolutePath(p)).getName()
+		       + " #" + p.getProject().getLoader().getNextId();
 	}
 
 	/** Remake the mesh for the Displayable in a separate Thread, if it's included in a Display3D
