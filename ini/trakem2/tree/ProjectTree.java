@@ -315,6 +315,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		Object uob = node.getUserObject();
 		if (!(uob instanceof ProjectThing)) return;
 		ProjectThing thing = (ProjectThing)uob;
+		Display3D.remove(thing);
 		ProjectThing parent = (ProjectThing)thing.getParent();
 		if (!thing.remove(check)) return;
 		((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);

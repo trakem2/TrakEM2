@@ -414,24 +414,30 @@ public class Display3D {
 		Display3D d3d = get(p.getLayerSet());
 		d3d.adjustResampling();
 		d3d.universe.resetView();
+		String title = makeTitle(p) + " orthoslices";
+		// remove if present
+		d3d.universe.removeContent(title);
 		PatchStack ps = p.makePatchStack();
 		ImagePlus imp = get8BitStack(ps);
-		d3d.universe.addOrthoslice(imp, null, p.getTitle(), 0, new boolean[]{true, true, true}, d3d.resample);
-		Content ct = d3d.universe.getContent(p.getTitle());
+		d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
+		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.toggleLock();
+		ct.toggleLock(); // locks the added content
 	}
 
 	static public void showVolume(Patch p) {
 		Display3D d3d = get(p.getLayerSet());
 		d3d.adjustResampling();
 		d3d.universe.resetView();
+		String title = makeTitle(p) + " volume";
+		// remove if present
+		d3d.universe.removeContent(title);
 		PatchStack ps = p.makePatchStack();
 		ImagePlus imp = get8BitStack(ps);
-		d3d.universe.addVoltex(imp, null, p.getTitle(), 0, new boolean[]{true, true, true}, d3d.resample);
-		Content ct = d3d.universe.getContent(p.getTitle());
+		d3d.universe.addVoltex(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
+		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.toggleLock();
+		ct.toggleLock(); // locks the added content
 	}
 
 	static private void setTransform(Content ct, Patch p) {
@@ -649,7 +655,7 @@ public class Display3D {
 			Utils.log2("No mesh contained within " + d3d + " for ProjectThing " + pt);
 			return; // not contained here
 		}
-		String title = displ.getTitle() + " #" + displ.getId();
+		String title = makeTitle(displ);
 		//Utils.log(d3d.universe.contains(title) + ": Universe contains " + displ);
 		d3d.universe.removeContent(title); // WARNING if the title changes, problems: will need a table of pt vs title as it was when added to the universe. At the moment titles are not editable for basic types, but this may change in the future. TODO the future is here: titles are editable for basic types.
 	}
@@ -750,7 +756,7 @@ public class Display3D {
 			u_lock.lock();
 			try {
 				// craft a unique title (id is always unique)
-				String title = null == displ ? pt.toString() + " #" + pt.getId() : displ.getProject().getMeaningfulTitle(displ) + " #" + displ.getId();
+				String title = null == displ ? pt.toString() + " #" + pt.getId() : makeTitle(displ);
 				if (ht_pt_meshes.contains(pt)) {
 					// remove content from universe
 					universe.removeContent(title);
@@ -852,7 +858,7 @@ public class Display3D {
 
 	/** Checks if there is any Display3D instance currently showing the given Displayable. */
 	static public boolean isDisplayed(final Displayable d) {
-		final String title = d.getTitle() + " #" + d.getId();
+		final String title = makeTitle(d);
 		for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
 			Display3D d3d = (Display3D)it.next();
 			if (null != d3d.universe.getContent(title)) return true;
@@ -864,7 +870,7 @@ public class Display3D {
 		if (!isDisplayed(d)) return;
 		Display3D d3d = get(d.getLayer().getParent());
 		if (null == d3d) return; // no 3D displays open
-		Content content = d3d.universe.getContent(d.getTitle() + " #" + d.getId());
+		Content content = d3d.universe.getContent(makeTitle(d));
 		//Utils.log2("content: " + content);
 		if (null != content) content.setColor(new Color3f(color));
 	}
@@ -876,8 +882,12 @@ public class Display3D {
 		Object ob = ht_layer_sets.get(layer.getParent());
 		if (null == ob) return;
 		Display3D d3d = (Display3D)ob;
-		Content content = d3d.universe.getContent(d.getTitle() + " #" + d.getId());
+		Content content = d3d.universe.getContent(makeTitle(d));
 		if (null != content) content.setTransparency(1 - alpha);
+	}
+
+	static private String makeTitle(final Displayable d) {
+		return d.getProject().getMeaningfulTitle(d) + " #" + d.getId();
 	}
 
 	/** Remake the mesh for the Displayable in a separate Thread, if it's included in a Display3D
