@@ -58,7 +58,7 @@ public class ImageSaver {
 		File fdir = new File(path).getParentFile();
 		if (!fdir.exists()) {
 			try {
-				fdir.mkdirs();
+				return fdir.mkdirs();
 			} catch (Exception e) {
 				IJError.print(e);
 				Utils.log("Can't use path: " + path);
