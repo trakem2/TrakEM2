@@ -4584,4 +4584,9 @@ abstract public class Loader {
 			start = end;
 		}
 	}
+
+	static public boolean canReadAndWriteTo(final String dir) {
+		final File fsf = new File(dir);
+		return fsf.canWrite() && fsf.canRead();
+	}
 }

@@ -124,7 +124,11 @@ public class FSLoader extends Loader {
 		if (null == storage_folder) this.dir_storage = super.getStorageFolder(); // home dir
 		else this.dir_storage = storage_folder;
 		if (!this.dir_storage.endsWith("/")) this.dir_storage += "/";
-		createMipMapsDir(this.dir_storage);
+		if (!Loader.canReadAndWriteTo(dir_storage)) {
+			Utils.log("WARNING can't read/write to the storage_folder at " + dir_storage);
+		} else {
+			createMipMapsDir(this.dir_storage);
+		}
 	}
 
 	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders.*/

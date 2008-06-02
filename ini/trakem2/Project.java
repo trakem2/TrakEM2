@@ -302,6 +302,10 @@ public class Project extends DBObject {
 				DirectoryChooser dc = new DirectoryChooser("Select storage folder");
 				dir_project = dc.getDirectory();
 				if (null == dir_project) return null; // user cancelled dialog
+				if (!Loader.canReadAndWriteTo(dir_project)) {
+					Utils.showMessage("Can't read/write to the selected storage folder.\nPlease check folder permissions.");
+					return null;
+				}
 			}
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
