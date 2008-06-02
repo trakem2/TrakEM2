@@ -60,8 +60,8 @@ public class ImageSaver {
 			try {
 				return fdir.mkdirs();
 			} catch (Exception e) {
-				IJError.print(e);
-				Utils.log("Can't use path: " + path);
+				IJError.print(e, true);
+				Utils.log("Can't use path: " + path + "\nCheck your file read/write permissions.");
 				return false;
 			}
 		}

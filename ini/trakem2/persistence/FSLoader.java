@@ -635,6 +635,7 @@ public class FSLoader extends Loader {
 						Loader.flush(imp);
 					}
 				}
+				cannot_regenerate.remove(p);
 				unlock();
 				flushMipMaps(p.getId()); // locks on its own
 				return true;
@@ -1070,6 +1071,7 @@ public class FSLoader extends Loader {
 		final String path = getAbsolutePath(patch);
 		if (null == path) {
 			Utils.log2("generateMipMaps: cannot find path for Patch " + patch);
+			cannot_regenerate.add(patch);
 			return false;
 		}
 		synchronized (gm_lock) {
@@ -1088,7 +1090,6 @@ public class FSLoader extends Loader {
 		int resizing_mode = GAUSSIAN;
 		if (null != srmode) resizing_mode = Loader.getMode(srmode);
 
-		boolean ok = true;
 		try {
 			final ImageProcessor ip = fetchImageProcessor(patch);
 			final String filename = new File(path).getName() + "." + patch.getId() + ".jpg";
@@ -1135,7 +1136,10 @@ public class FSLoader extends Loader {
 					ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 					cp2.setMinAndMax(patch.getMin(), patch.getMax());
 					// 5 - save as jpeg
-					ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f, false);
+					if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f, false)) {
+						cannot_regenerate.add(patch);
+						break;
+					}
 				}
 			} else {
 				// TODO releaseToFit proper
@@ -1162,7 +1166,10 @@ public class FSLoader extends Loader {
 						ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
 						ip2.setMinAndMax(patch.getMin(), patch.getMax());
 						ip2.setColorModel(cm); // the LUT
-						ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey);
+						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey)) {
+							cannot_regenerate.add(patch);
+							break;
+						}
 					}
 				} else {
 					// use java hardware-accelerated resizing
@@ -1184,22 +1191,28 @@ public class FSLoader extends Loader {
 						h /= 2;
 						k++;
 						// save this iteration
-						ini.trakem2.io.ImageSaver.saveAsJpeg(bi, sb.append(dir_mipmaps).append(k).append('/').append(filename).toString(), 0.85f, as_grey);
+						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(bi, sb.append(dir_mipmaps).append(k).append('/').append(filename).toString(), 0.85f, as_grey)) {
+							cannot_regenerate.add(patch);
+							break;
+						}
 						sb.setLength(0);
 					}
 					bi.flush();
 				}
 			}
+			return true;
 		} catch (Throwable e) {
 			IJError.print(e);
-			ok = false; //can't return, need to unlock Patch first
+			cannot_regenerate.add(patch);
+			return false;
+		} finally {
+			// gets executed even when returning from the catch statement or within the try/catch block
+			synchronized (gm_lock) {
+				gm_lock();
+				hs_regenerating_mipmaps.remove(patch);
+				gm_unlock();
+			}
 		}
-		synchronized (gm_lock) {
-			gm_lock();
-			hs_regenerating_mipmaps.remove(patch);
-			gm_unlock();
-		}
-		return ok;
 	}
 
 	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.*/
@@ -1514,6 +1527,8 @@ public class FSLoader extends Loader {
 		return false;
 	}
 
+	final HashSet<Patch> cannot_regenerate = new HashSet<Patch>();
+
 	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. Does not frees memory on its own. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) {
@@ -1553,6 +1568,11 @@ public class FSLoader extends Loader {
 
 			// if we got so far ... try to regenerate the mipmaps
 			if (!mipmaps_regen) {
+				return null;
+			}
+
+			if (cannot_regenerate.contains(patch)) {
+				Utils.log("Cannot regenerate mipmaps for patch " + patch);
 				return null;
 			}
 

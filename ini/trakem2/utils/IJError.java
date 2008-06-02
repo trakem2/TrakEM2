@@ -33,6 +33,9 @@ import java.io.PrintWriter;
 public class IJError {
 
 	static public final void print(final Throwable e) {
+		print(e, false);
+	}
+	static public final void print(final Throwable e, final boolean stdout) {
 
 		CharArrayWriter caw = new CharArrayWriter();
 		PrintWriter pw = new PrintWriter(caw);
@@ -43,7 +46,9 @@ public class IJError {
 				;//return null;
 			else s = fixNewLines(s);
 		}
-		Utils.log("==================\nERROR:\n" + s + "\n======================");
+		String msg = "==================\nERROR:\n" + s + "\n======================";
+		if (stdout) Utils.log2(msg);
+		else Utils.log(msg);
 	}
 
 	/** Converts carriage returns to line feeds. Copied from ij.util.tools by Wayne Rasband*/
