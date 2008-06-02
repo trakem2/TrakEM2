@@ -1279,6 +1279,7 @@ public class Compare {
 				int sel = tabs.getSelectedIndex();
 				ht_tabs.remove(tabs.getComponentAt(sel));
 				tabs.remove(sel);
+				if (0 == ht_tabs.size()) label.setText("[ -- empty -- ]");
 				return;
 			default:
 				return;
