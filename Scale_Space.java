@@ -25,6 +25,8 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.*;
 
+import ini.trakem2.imaging.FloatProcessorT2;
+
 
 public class Scale_Space implements PlugIn, KeyListener
 {
@@ -148,7 +150,7 @@ public class Scale_Space implements PlugIn, KeyListener
 					ds = dd;
 				}
 				os = ( int )Math.pow( 2, o );
-				FloatProcessor fp = new FloatProcessor( ls.width, ls.height );
+				FloatProcessor fp = new FloatProcessorT2( ls.width, ls.height );
 				ImageArrayConverter.FloatArrayToFloatProcessor( fp, ls );
 				fp.setMinAndMax( 0.0, 1.0 );
 				//ImageProcessor ipl = fp.convertToRGB();
@@ -192,7 +194,7 @@ public class Scale_Space implements PlugIn, KeyListener
 			/*
 			for ( int i = 0; i < d.length; ++i )
 			{
-				FloatProcessor fp = new FloatProcessor( d[ i ].width, d[ i ].height );
+				FloatProcessor fp = new FloatProcessorT2( d[ i ].width, d[ i ].height , 0, 0);
 				ImageArrayConverter.FloatArrayToFloatProcessor( fp, d[ i ] );
 				fp.setMinAndMax( -255.0, 255.0 );
 				ImageProcessor ipl = fp.convertToRGB();

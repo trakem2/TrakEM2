@@ -54,6 +54,7 @@ import ini.trakem2.tree.TrakEM2MLParser;
 import ini.trakem2.tree.DTDParser;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
+import ini.trakem2.imaging.FloatProcessorT2;
 
 import java.awt.Color;
 import java.awt.Cursor;
@@ -1106,18 +1107,19 @@ public class FSLoader extends Loader {
 			ColorModel cm = ip.getColorModel();
 			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 				   //   but since we scale 50% relative the previous, it's always 0.75
-			if (ImagePlus.COLOR_RGB == patch.getType()) {
+			final int type = patch.getType();
+			if (ImagePlus.COLOR_RGB == type) {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				ColorProcessor cp = (ColorProcessor)ip;
-				FloatProcessor red = cp.toFloat(0, new FloatProcessor(w, h));
-				FloatProcessor green = cp.toFloat(1, new FloatProcessor(w, h));
-				FloatProcessor blue = cp.toFloat(2, new FloatProcessor(w, h));
+				FloatProcessor red = cp.toFloat(0, new FloatProcessorT2(w, h, 0, 255));
+				FloatProcessor green = cp.toFloat(1, new FloatProcessorT2(w, h, 0, 255));
+				FloatProcessor blue = cp.toFloat(2, new FloatProcessorT2(w, h, 0, 255));
 				while (w >= 64 && h >= 64) { // not smaller than 32x32
 					// 1 - blur the previous image to 0.75 sigma
-					red = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])red.getPixels(), w, h), 0.75f).data, cm);
-					green = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])green.getPixels(), w, h), 0.75f).data, cm);
-					blue = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])blue.getPixels(), w, h), 0.75f).data, cm);
+					red = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])red.getPixels(), w, h), 0.75f).data, cm, 0, 255);
+					green = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])green.getPixels(), w, h), 0.75f).data, cm, 0, 255);
+					blue = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])blue.getPixels(), w, h), 0.75f).data, cm, 0, 255);
 					// 2 - prepare values for the next scaled image
 					w /= 2;
 					h /= 2;
@@ -1153,10 +1155,12 @@ public class FSLoader extends Loader {
 					cm = GRAY_LUT;
 				}
 				if (Loader.GAUSSIAN == resizing_mode) {
-					FloatProcessor fp = (FloatProcessor)ip.convertToFloat();
+					FloatProcessor fp = Utils.fastConvertToFloat(ip, type); //(FloatProcessor)ip.convertToFloat();
+					final double min = fp.getMin();
+					final double max = fp.getMax();
 					while (w >= 64 && h >= 64) { // not smaller than 32x32
 						// 1 - blur the previous image to 0.75 sigma
-						fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
+						fp = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
 						// 2 - prepare values for the next scaled image
 						w /= 2;
 						h /= 2;
@@ -1167,7 +1171,7 @@ public class FSLoader extends Loader {
 						// 4 - generate scaled image
 						fp = (FloatProcessor)fp.resize(w, h);
 						// 5 - save as 8-bit jpeg
-						ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
+						ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
 						ip2.setMinAndMax(patch.getMin(), patch.getMax());
 						ip2.setColorModel(cm); // the LUT
 						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey)) {

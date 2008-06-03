@@ -311,8 +311,8 @@ public class Registration {
 			Rectangle box2 = layer2.getMinimalBoundingBox(Patch.class);
 			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
 
-			FloatProcessor fp1 = (FloatProcessor)imp1.getProcessor().convertToFloat();
-			FloatProcessor fp2 = (FloatProcessor)imp2.getProcessor().convertToFloat();
+			FloatProcessor fp1 = Utils.fastConvertToFloat(imp1.getProcessor(), imp1.getType()); // (FloatProcessor)imp1.getProcessor().convertToFloat();
+			FloatProcessor fp2 = Utils.fastConvertToFloat(imp2.getProcessor(), imp1.getType()); //(FloatProcessor)imp2.getProcessor().convertToFloat();
 			if (null == cached) { // created locally, flushed locally since there's no caching
 				Loader.flush(imp1);
 				imp1 = null;
@@ -454,7 +454,7 @@ public class Registration {
 
 	/** Returns a sorted list of the SIFT features extracted from the given ImagePlus. */
 	final static public Vector<Feature> getSIFTFeatures(ImageProcessor ip, final Registration.SIFTParameters sp) {
-		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat());
+		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(Utils.fastConvertToFloat(ip)); //ip.convertToFloat());
 		ip = null; // enable GC
 		ImageFilter.enhance( fa, 1.0f ); // done in place
 		fa = ImageFilter.computeGaussianFastMirror(

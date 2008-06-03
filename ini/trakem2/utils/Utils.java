@@ -28,6 +28,7 @@ import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.imaging.FloatProcessorT2;
 
 
 import ij.IJ;
@@ -37,6 +38,7 @@ import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ij.gui.ShapeRoi;
+import ij.process.*;
 import ij.io.*;
 import ij.process.ImageProcessor;
 import ij.process.ImageConverter;
@@ -1076,5 +1078,38 @@ public class Utils implements ij.plugin.PlugIn {
 		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
 			 new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
 		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
+	}
+
+	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
+	static public final FloatProcessor fastConvertToFloat(final ByteProcessor ip) {
+		final byte[] pix = (byte[])ip.getPixels();
+		final float[] data = new float[pix.length];
+		for (int i=0; i<pix.length; i++) data[i] = pix[i]&0xff;
+		final FloatProcessor fp = new FloatProcessorT2(ip.getWidth(), ip.getHeight(), data, ip.getColorModel(), ip.getMin(), ip.getMax());
+		return fp;
+	}
+	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
+	static public final FloatProcessor fastConvertToFloat(final ShortProcessor ip) {
+		final short[] pix = (short[])ip.getPixels();
+		final float[] data = new float[pix.length];
+		for (int i=0; i<pix.length; i++) data[i] = pix[i]&0xffff;
+		final FloatProcessor fp = new FloatProcessorT2(ip.getWidth(), ip.getHeight(), data, ip.getColorModel(), ip.getMin(), ip.getMax());
+		return fp;
+	}
+	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
+	static public final FloatProcessor fastConvertToFloat(final ImageProcessor ip, final int type) {
+		switch (type) {
+			case ImagePlus.GRAY16: return fastConvertToFloat((ShortProcessor)ip);
+			case ImagePlus.GRAY32: return (FloatProcessor)ip;
+			case ImagePlus.GRAY8:
+			case ImagePlus.COLOR_256: return fastConvertToFloat((ByteProcessor)ip);
+			case ImagePlus.COLOR_RGB: return (FloatProcessor)ip.convertToFloat(); // SLOW
+		}
+		return null;
+	}
+	static public final FloatProcessor fastConvertToFloat(final ImageProcessor ip) {
+		if (ip instanceof ByteProcessor) return fastConvertToFloat((ByteProcessor)ip);
+		if (ip instanceof ShortProcessor) return fastConvertToFloat((ShortProcessor)ip);
+		return (FloatProcessor)ip.convertToFloat();
 	}
 }

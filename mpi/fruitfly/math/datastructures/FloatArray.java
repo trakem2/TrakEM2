@@ -14,6 +14,10 @@ package mpi.fruitfly.math.datastructures;
  */
 public abstract class FloatArray
 {
-    public float data[] = null;
+    public final float data[];
     public abstract FloatArray clone();
+
+    public FloatArray(final float[] data) {
+	    this.data = data;
+    }
 }

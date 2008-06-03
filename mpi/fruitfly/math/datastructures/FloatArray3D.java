@@ -29,22 +29,21 @@ package mpi.fruitfly.math.datastructures;
  */
 public class FloatArray3D extends FloatArray
 {
-    //public float data[] = null;
-    public int width = 0;
-    public int height = 0;
-    public int depth = 0;
+    public final int width;
+    public final int height;
+    public final int depth;
 
-    public FloatArray3D(float[] data, int width, int height, int depth)
+    public FloatArray3D(final float[] data, final int width, final int height, final int depth)
     {
-        this.data = data;
+	super(data);
         this.width = width;
         this.height = height;
         this.depth = depth;
     }
 
-    public FloatArray3D(int width, int height, int depth)
+    public FloatArray3D(final int width, final int height, final int depth)
     {
-        data = new float[width * height * depth];
+        super(new float[width * height * depth]);
         this.width = width;
         this.height = height;
         this.depth = depth;
@@ -57,17 +56,17 @@ public class FloatArray3D extends FloatArray
         return clone;
     }
 
-    public int getPos(int x, int y, int z)
+    public final int getPos(final int x, final int y, final int z)
     {
         return x + width * (y + z * height);
     }
 
-    public float get(int x, int y, int z)
+    public final float get(final int x, final int y, final int z)
     {
         return data[getPos(x,y,z)];
     }
 
-    public float getMirror(int x, int y, int z)
+    public final float getMirror(int x, int y, int z)
     {
         if (x >= width)
             x = width - (x - width + 2);
@@ -127,14 +126,14 @@ public class FloatArray3D extends FloatArray
     }
 
 
-    public void set(float value, int x, int y, int z)
+    public final void set(final float value, final int x, final int y, final int z)
     {
         data[getPos(x,y,z)] = value;
     }
 
-    public FloatArray2D getXPlane(int x)
+    public final FloatArray2D getXPlane(final int x)
     {
-        FloatArray2D plane = new FloatArray2D(height, depth);
+        final FloatArray2D plane = new FloatArray2D(height, depth);
 
         for (int y = 0; y < height; y++)
             for (int z = 0; z < depth; z++)
@@ -143,7 +142,7 @@ public class FloatArray3D extends FloatArray
         return plane;
     }
 
-    public float[][] getXPlane_float(int x)
+    public final float[][] getXPlane_float(final int x)
     {
         float[][] plane = new float[height][depth];
 
@@ -154,9 +153,9 @@ public class FloatArray3D extends FloatArray
         return plane;
     }
 
-    public FloatArray2D getYPlane(int y)
+    public final FloatArray2D getYPlane(final int y)
     {
-        FloatArray2D plane = new FloatArray2D(width, depth);
+        final FloatArray2D plane = new FloatArray2D(width, depth);
 
         for (int x = 0; x < width; x++)
             for (int z = 0; z < depth; z++)
@@ -165,9 +164,9 @@ public class FloatArray3D extends FloatArray
         return plane;
     }
 
-    public float[][] getYPlane_float(int y)
+    public final float[][] getYPlane_float(final int y)
     {
-        float[][] plane = new float[width][depth];
+        final float[][] plane = new float[width][depth];
 
         for (int x = 0; x < width; x++)
             for (int z = 0; z < depth; z++)
@@ -176,9 +175,9 @@ public class FloatArray3D extends FloatArray
         return plane;
     }
 
-    public FloatArray2D getZPlane(int z)
+    public final FloatArray2D getZPlane(final int z)
     {
-        FloatArray2D plane = new FloatArray2D(width, height);
+        final FloatArray2D plane = new FloatArray2D(width, height);
 
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)
@@ -187,9 +186,9 @@ public class FloatArray3D extends FloatArray
         return plane;
     }
 
-    public float[][] getZPlane_float(int z)
+    public final float[][] getZPlane_float(final int z)
     {
-        float[][] plane = new float[width][height];
+        final float[][] plane = new float[width][height];
 
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)
@@ -198,42 +197,42 @@ public class FloatArray3D extends FloatArray
         return plane;
     }
 
-    public void setXPlane(FloatArray2D plane, int x)
+    public final void setXPlane(final FloatArray2D plane, final int x)
     {
         for (int y = 0; y < height; y++)
             for (int z = 0; z < depth; z++)
                 this.set(plane.get(y,z),x,y,z);
     }
 
-    public void setXPlane(float[][] plane, int x)
+    public final void setXPlane(final float[][] plane, final int x)
     {
         for (int y = 0; y < height; y++)
             for (int z = 0; z < depth; z++)
                 this.set(plane[y][z],x,y,z);
     }
 
-    public void setYPlane(FloatArray2D plane, int y)
+    public final void setYPlane(final FloatArray2D plane, final int y)
     {
         for (int x = 0; x < width; x++)
             for (int z = 0; z < depth; z++)
                 this.set(plane.get(x,z),x,y,z);
     }
 
-    public void setYPlane(float[][] plane, int y)
+    public final void setYPlane(final float[][] plane, final int y)
     {
         for (int x = 0; x < width; x++)
             for (int z = 0; z < depth; z++)
                 this.set(plane[x][z], x, y, z);
     }
 
-    public void setZPlane(FloatArray2D plane, int z)
+    public final void setZPlane(final FloatArray2D plane, final int z)
     {
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)
                 this.set(plane.get(x,y),x,y,z);
     }
 
-    public void setZPlane(float[][] plane, int z)
+    public final void setZPlane(final float[][] plane, final int z)
     {
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)

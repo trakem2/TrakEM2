@@ -3792,7 +3792,7 @@ abstract public class Loader {
 		if (quality) {
 			// apply proper gaussian filter
 			double sigma = Math.sqrt(Math.pow(2, getMipMapLevel(mag)) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
-			ip = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel());
+			ip = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel(), ip.getMin(), ip.getMax());
 			ip = ip.resize((int)(w * mag), (int)(h * mag)); // better while float
 			return Utils.convertTo(ip, imp.getType(), false);
 		} else {
@@ -3813,7 +3813,7 @@ abstract public class Loader {
 		if (quality) {
 			// apply proper gaussian filter
 			double sigma = Math.sqrt(Math.pow(2, level) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
-			ip = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel());
+			ip = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel(), ip.getMin(), ip.getMax());
 			ip = ip.resize((int)(w * mag), (int)(h * mag)); // better while float
 			return Utils.convertTo(ip, imp.getType(), false);
 		} else {
@@ -4135,7 +4135,7 @@ abstract public class Loader {
 			// 3 - compute common histogram for the middle 50% images
 			final Patch[] p50 = new Patch[al_p.size()];
 			al_p.toArray(p50);
-			StackStatistics stats = new StackStatistics(new PatchStack(p50, 1));
+			final ImageStatistics stats = 1 == p50.length ? p50[0].getImagePlus().getStatistics() : new StackStatistics(new PatchStack(p50, 1));
 			int n = 1;
 			switch (type) {
 				case ImagePlus.GRAY16:
