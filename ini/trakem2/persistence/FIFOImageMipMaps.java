@@ -82,7 +82,7 @@ public class FIFOImageMipMaps {
 		for (int i=start; i<next; i++) {
 			if (id == ids[i] && level == levels[i]) {
 				final Image im = images[toTheEnd(i)];
-				if (im != null && !im.equals(image)) {
+				if (im != null && im != image) {
 					im.flush();
 					images[next-1] = image; // next-1 is the last slot, where id/level are now
 				}
@@ -138,7 +138,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** A call to this method puts the element at the end of the list, and returns it. Returns null if not found. */
-	public Image get(final long id, final int level) {
+	public final Image get(final long id, final int level) {
 		// find the id, from the end
 		if (start == next) return null; // empty
 		int i = next-1;
@@ -179,7 +179,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Find the cached image of the given level or its closest but smaller one, or null if none found. */
-	public Image getClosestBelow(final long id, final int level) {
+	public final Image getClosestBelow(final long id, final int level) {
 		int lev = Integer.MAX_VALUE;
 		int index = -1;
 		//for (int i=start; i<next; i++) {
@@ -207,7 +207,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Find the cached image of the given level or its closest but larger one, or null if none found. */
-	public Image getClosestAbove(final long id, final int level) {
+	public final Image getClosestAbove(final long id, final int level) {
 		int lev = -1;
 		int index = -1;
 		//for (int i=start; i<next; i++) {

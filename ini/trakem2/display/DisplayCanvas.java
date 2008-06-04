@@ -195,7 +195,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 			Displayable[] di = null;
 
-			if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass().equals(AreaList.class) && ((AreaList)active).isFillPaint()) {
+			if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass() == AreaList.class && ((AreaList)active).isFillPaint()) {
 				// no background paint if painting in fill_paint mode and not erasing
 			} else {
 				synchronized (offscreen_lock) {
@@ -228,7 +228,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			
 
 			// paint the active unless it's a Patch (since it's been painted offscreen already)
-			if (null != active && !active.getClass().equals(Patch.class) && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
+			if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
 				active.paint(g2d, magnification, true, c_alphas, active_layer);
 			}
 
@@ -257,7 +257,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 
 			// paint brush outline for AreaList
-			if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass().equals(AreaList.class)) {
+			if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass() == AreaList.class) {
 				int brushSize = ProjectToolbar.getBrushSize();
 				g.setColor(active.getColor());
 				g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
@@ -647,7 +647,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
 			//TODO//Utils.log2("md: " + box.toString());
-					Display.repaint(display.getLayer(), Selection.PADDING, box, false, active.isLinked() || active.getClass().equals(Patch.class));
+					Display.repaint(display.getLayer(), Selection.PADDING, box, false, active.isLinked() || active.getClass() == Patch.class);
 					// box for next mouse dragged iteration
 					box = box2;
 					break;
@@ -714,7 +714,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			if (dragging2) {
 				String msg = "\nRight-click and select\"";
 				if (null != display.getActive()) {
-					msg += display.getActive().getClass().equals(Patch.class) ? "Unlock" : "Unlink";
+					msg += display.getActive().getClass() == Patch.class ? "Unlock" : "Unlink";
 				}
 				msg += "\" first.";
 				Utils.showMessage("Selection is locked or contains links to a locked object." + msg);
@@ -811,7 +811,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case ProjectToolbar.SELECT:
 				selection.mouseReleased(x_p, y_p, x_d, y_d, x_r, y_r);
 				box.add(selection.getLinkedBox());
-				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass().equals(Patch.class)); // does not repaint the navigator
+				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass() == Patch.class); // does not repaint the navigator
 				break;
 			case ProjectToolbar.PENCIL:
 			case ProjectToolbar.PEN:
@@ -819,7 +819,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// update active's bounding box
 				selection.updateTransform(active);
 				box.add(selection.getBox());
-				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass().equals(Patch.class)); // does not repaint the navigator
+				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass() == Patch.class); // does not repaint the navigator
 				//if (!active.getClass().equals(AreaList.class)) Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
 				// TODO: this last repaint call is unnecessary, if the box was properly repainted on mouse drag for Profile etc.
 				//else 
@@ -869,7 +869,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		// paint away the circular brush if any
 		if (ProjectToolbar.getToolId() == ProjectToolbar.PEN) {
 			Displayable active = display.getActive();
-			if (null != active && active.isVisible() && AreaList.class.equals(active.getClass())) {
+			if (null != active && active.isVisible() && AreaList.class == active.getClass()) {
 				if (null != old_brush_box) {
 					this.repaint(old_brush_box, 0);
 					old_brush_box = null;
@@ -1143,7 +1143,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		/* && 0 == (flags & InputEvent.BUTTON2_MASK) */ // this is the alt key down ..
 		 && 0 == (flags & InputEvent.BUTTON3_MASK)
 		//if (me.getButton() == MouseEvent.NOBUTTON
-		 && ProjectToolbar.getToolId() == ProjectToolbar.PEN && null != active && active.isVisible() && AreaList.class.equals(active.getClass())) {
+		 && ProjectToolbar.getToolId() == ProjectToolbar.PEN && null != active && active.isVisible() && AreaList.class == active.getClass()) {
 			// repaint area where the brush circle is
 			int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
 			Rectangle r = new Rectangle( xMouse - brushSize/2,
@@ -1266,9 +1266,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		final Iterator it = hs.iterator();
 		int count = 0;
 		Rectangle r = new Rectangle();
+		final Layer dl = display.getLayer();
 		while (it.hasNext()) {
-			Displayable d = (Displayable) it.next();
-			if (d.getLayer().equals(this)) {
+			final Displayable d = (Displayable) it.next();
+			if (d.getLayer() == dl) {
 				count++;
 				r.add(d.getBoundingBox());
 			}
@@ -1859,16 +1860,16 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 					final Displayable d = (Displayable)al.get(i);
 					final Class c = d.getClass();
-					if (c.equals(DLabel.class) || c.equals(LayerSet.class)) {
+					if (DLabel.class == c || LayerSet.class == c) {
 						break;
 					}
 					if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
-						if (c.equals(Patch.class)) {
+						if (Patch.class == c) {
 							if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter(0,0,1,1))); // this only works because the clip is given to be null
 							al_paint.add(d);
 							al_patches.add((Patch)d);
 						} else {
-							if (!top && d.equals(active)) top = true; // no Patch on al_top ever
+							if (!top && d == active) top = true; // no Patch on al_top ever
 							if (top) al_top.add(d);
 							else al_paint.add(d);
 						}
@@ -1888,7 +1889,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 					final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
 					if (!zd.isOutOfRepaintingClip(magnification, srcRect, null)) {
-						if (zd.equals(active)) top = true;
+						if (zd == active) top = true;
 						if (top) al_top.add(zd);
 						else {
 							al_paint.add(zd);
@@ -1904,7 +1905,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 					final Displayable d = (Displayable) al.get(i);
 					if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
-						if (d.equals(active)) top = true;
+						if (d == active) top = true;
 						if (top) al_top.add(d);
 						else {
 							al_paint.add(d);
@@ -1953,7 +1954,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						target.flush();
 						return;
 					}
-					d.prePaint(g, magnification, d.equals(active), c_alphas, layer);
+					d.prePaint(g, magnification, d == active, c_alphas, layer);
 					i++;
 				}
 
@@ -2052,7 +2053,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		final void set(final Image awt, final long layer_id, final Rectangle srcRect, final double mag) {
 			this.layer_id = layer_id;
 			this.srcRect = (Rectangle)srcRect.clone();
-			if (null != awt && !awt.equals(this.awt)) this.awt.flush();
+			if (null != awt && awt != this.awt) this.awt.flush();
 			this.awt = awt;
 			this.mag = mag;
 		}

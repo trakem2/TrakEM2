@@ -207,7 +207,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 					//if (d.isOutOfRepaintingClip(clip, scale)) continue; // needed at least for the visibility
 					if (!d.isVisible()) continue; // TODO proper clipRect for this navigator image may be necessary (lots of changes needed in the lines above reltive to filling the black background, etc)
 					final Class c = d.getClass();
-					if (!zd_done && c.equals(DLabel.class)) {
+					if (!zd_done && DLabel.class == c) {
 						zd_done = true;
 						// paint ZDisplayables before the labels (i.e. text labels on top)
 						final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
@@ -223,7 +223,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 						}
 						// paint the label too!
 						d.paint(g, scale, false, 1, DisplayNavigator.this.layer);
-					} else if (c.equals(Patch.class)) {
+					} else if (Patch.class == c) {
 						if (are_snapshots_enabled) {
 							Patch p = (Patch)d;
 							Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
@@ -333,7 +333,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 	public void mouseDragged(MouseEvent me) {
 		if (!drag) return;
 		// prevent action if the srcRect takes over the whole area
-		if (this.srcRect.width == display.getLayer().getLayerWidth() && this.srcRect.height == display.getLayer().getLayerHeight()) { // testing for numeric identity, not for pointer identity; hence he usage of equals()
+		if (this.srcRect.width == display.getLayer().getLayerWidth() && this.srcRect.height == display.getLayer().getLayerHeight()) {
 			return;
 		}
 		int x_d = me.getX();

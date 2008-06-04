@@ -97,7 +97,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
 	private Layer parent = null;
 	/** A LayerSet can contain Displayables that are show in every single Layer, such as Pipe objects. */
-	private ArrayList<ZDisplayable> al_zdispl = new ArrayList<ZDisplayable>();
+	private final ArrayList<ZDisplayable> al_zdispl = new ArrayList<ZDisplayable>();
 
 	private boolean snapshots_enabled = true;
 
@@ -645,7 +645,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			layer = next;
 			next = next(layer);
 			if (!next.isEmpty()) return next;
-		} while (!next.equals(layer));
+		} while (next != layer);
 		return given;
 	}
 	public Layer previousNonEmpty(Layer layer) {
@@ -655,7 +655,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			layer = previous;
 			previous = previous(layer);
 			if (!previous.isEmpty()) return previous;
-		} while (!previous.equals(layer));
+		} while (previous != layer);
 		return given;
 	}
 
@@ -773,12 +773,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	synchronized public ArrayList<ZDisplayable> getZDisplayables(final Class c) {
 		final ArrayList<ZDisplayable> al = new ArrayList<ZDisplayable>();
 		if (null == c) return al;
-		if (c.equals(Displayable.class) || c.equals(ZDisplayable.class)) {
+		if (Displayable.class == c || ZDisplayable.class == c) {
 			al.addAll(al_zdispl);
 			return al;
 		}
 		for (ZDisplayable zd : al_zdispl) {
-			if (c.equals(zd.getClass())) al.add(zd);
+			if (zd.getClass() == c) al.add(zd);
 		}
 		return al;
 	}
@@ -832,12 +832,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Move all Displayable objects in the HashSet to the given target layer. */
-	public void move(HashSet hs_d, Layer source, Layer target) {
-		if (0 == hs_d.size() || null == source || null == target || source.equals(target)) return;
+	public void move(final HashSet hs_d, final Layer source, final Layer target) {
+		if (0 == hs_d.size() || null == source || null == target || source == target) return;
 		Display.setRepaint(false); // disable repaints
 		for (Iterator it = hs_d.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			if (source.equals(d.getLayer())) {
+			if (source == d.getLayer()) {
 				source.remove(d);
 				target.add(d, false, false); // these contortions to avoid repeated DB traffic
 				d.updateInDatabase("layer_id");
@@ -864,7 +864,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 
 	/** Returns the hash set of objects whose visibility has changed. */
-	synchronized public HashSet<Displayable> setVisible(String type, boolean visible, boolean repaint) {
+	synchronized public HashSet<Displayable> setVisible(String type, final boolean visible, final boolean repaint) {
 		type = type.toLowerCase();
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		try {
@@ -912,10 +912,9 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns true if any of the ZDisplayable objects are of the given class. */
-	synchronized public boolean contains(Class c) {
-		Iterator it = al_zdispl.iterator();
-		while (it.hasNext()) {
-			if (it.next().getClass().equals(c)) return true;
+	synchronized public boolean contains(final Class c) {
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.getClass() == c) return true;
 		}
 		return false;
 	}
@@ -1184,12 +1183,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Find the given Displayable in the undo/redo queues and clear it. This functionality is used when an object is removed, for which there is no undo. */
-	public void removeFromUndo(Displayable d) {
+	public void removeFromUndo(final Displayable d) {
 		// from the undo_queue
 		for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
 			HashMap ht = (HashMap)it.next();
 			for (Iterator itd = ht.keySet().iterator(); itd.hasNext(); ) {
-				if (d.equals(itd.next())) {
+				if (d == itd.next()) {
 					itd.remove();
 					break; // the inner loop only
 				}
@@ -1216,7 +1215,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
-		this.al_zdispl = null;
 		this.undo_queue.clear();
 		this.undo_queue = null;
 		//this.redo_queue.clear();
@@ -1483,11 +1481,11 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	synchronized public ArrayList get(ArrayList all, final Class c) {
 		if (null == all) all = new ArrayList();
 		// check whether to include all the ZDisplayable objects
-		if (Displayable.class.equals(c) || ZDisplayable.class.equals(c)) all.addAll(al_zdispl);
+		if (Displayable.class == c || ZDisplayable.class == c) all.addAll(al_zdispl);
 		else {
 			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ){
 				Object ob = it.next();
-				if (ob.getClass().equals(c)) all.add(ob);
+				if (ob.getClass() == c) all.add(ob);
 			}
 		}
 		for (Layer layer : al_layers) {

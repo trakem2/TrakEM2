@@ -594,7 +594,7 @@ public class StitchingTEM {
 			Layer layer = d.getLayer();
 			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
 				Displayable dob = (Displayable)it.next();
-				if (Patch.class.equals(dob.getClass()) && dob.getLayer().equals(layer)) {
+				if (Patch.class == dob.getClass() && dob.getLayer() == layer) {
 					al.remove(dob);
 				}
 			}

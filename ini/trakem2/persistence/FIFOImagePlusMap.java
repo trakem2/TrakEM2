@@ -206,7 +206,7 @@ public class FIFOImagePlusMap {
 		long[] a = new long[next];
 		int ne = 0;
 		for (int i=0; i<next; i++) {
-			if (imp.equals(images[i])) a[ne++] = ids[i];
+			if (imp == images[i]) a[ne++] = ids[i];
 		}
 		if (ne < next) {
 			long[] a2 = new long[ne];

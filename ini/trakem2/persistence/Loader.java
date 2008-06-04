@@ -747,7 +747,7 @@ abstract public class Loader {
 		long released = 0;
 		while (it.hasNext()) {
 			Loader loader = (Loader)it.next();
-			if (loader.equals(this)) continue;
+			if (loader == this) continue;
 			else {
 				loader.setMassiveMode(false); // otherwise would loop back!
 				released += loader.releaseMemory(a, false, MIN_FREE_BYTES);
@@ -3452,7 +3452,7 @@ abstract public class Loader {
 	/** Test whether this Loader needs recurrent calls to a "save" of some sort, such as for the FSLoader. */
 	public boolean isAsynchronous() {
 		// in the future, DBLoader may also be asynchronous
-		return this.getClass().equals(FSLoader.class);
+		return this.getClass() == FSLoader.class;
 	}
 
 	/** Throw away all awts and snaps that depend on this image, so that they will be recreated next time they are needed. */
@@ -4354,9 +4354,9 @@ abstract public class Loader {
 			this.repaint = repaint;
 		}
 		public boolean equals(final Object ob) {
-			if (!ob.getClass().equals(Tuple.class)) return false;
+			if (ob.getClass() != Tuple.class) return false;
 			final Tuple tu = (Tuple)ob;
-			return patch.equals(tu.patch) && mag == tu.mag && repaint == tu.repaint;
+			return patch == tu.patch && mag == tu.mag && repaint == tu.repaint;
 		}
 	}
 

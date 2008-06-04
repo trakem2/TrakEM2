@@ -511,7 +511,7 @@ public class Registration {
 			final Patch p = (Patch)it.next();
 			if (hs_done.contains(p)) continue;
 			// skip linked images within the same layer
-			if (p.getLayer().equals(slice.getLayer())) continue;
+			if (p.getLayer() == slice.getLayer()) continue;
 			// ensure there are no negative numbers in the x,y
 			slice.getLayer().getParent().setMinimumDimensions();
 			// go

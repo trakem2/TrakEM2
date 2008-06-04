@@ -535,7 +535,7 @@ public class FSLoader extends Loader {
 
 	public boolean updateInDatabase(final DBObject ob, final String key) {
 		setChanged(true);
-		if (ob.getClass().equals(Patch.class)) {
+		if (ob.getClass() == Patch.class) {
 			try {
 				Patch p = (Patch)ob;
 				if (key.equals("tiff_working")) {
@@ -1573,6 +1573,8 @@ public class FSLoader extends Loader {
 					break;
 			}
 			if (null != img) return img;
+
+			// TODO: check that REALLY the file doesn't exist.
 
 			// if we got so far ... try to regenerate the mipmaps
 			if (!mipmaps_regen) {

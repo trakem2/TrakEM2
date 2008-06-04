@@ -339,7 +339,7 @@ public class Layer extends DBObject {
 	/** Returns true if any of the Displayable objects are of the given class. */
 	public boolean contains(final Class c) {
 		for (Object ob : al_displayables) {
-			if (ob.getClass().equals(c)) return true;
+			if (ob.getClass() == c) return true;
 		}
 		return false;
 	}
@@ -348,7 +348,7 @@ public class Layer extends DBObject {
 	public int count(final Class c) {
 		int n = 0;
 		for (Object ob : al_displayables) {
-			if (ob.getClass().equals(c)) n++;
+			if (ob.getClass() == c) n++;
 		}
 		return n;
 	}
@@ -370,12 +370,12 @@ public class Layer extends DBObject {
 	public ArrayList<Displayable> getDisplayables(final Class c) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (null == c) return al;
-		if (c.equals(Displayable.class)) {
+		if (Displayable.class == c) {
 			al.addAll(al_displayables);
 			return al;
 		}
 		for (Object ob : al_displayables) {
-			if (c.equals(ob.getClass())) al.add((Displayable)ob); // cast only the few added, not all as it would in looping with  Displayabe d : al_displayables
+			if (ob.getClass() == c) al.add((Displayable)ob); // cast only the few added, not all as it would in looping with  Displayabe d : al_displayables
 		}
 		return al;
 	}
@@ -426,11 +426,11 @@ public class Layer extends DBObject {
 
 	/** Find the Displayable objects of Class c that contain the point. */
 	public ArrayList<Displayable> find(Class c, int x, int y) {
-		if (c.equals(Displayable.class)) return find(x, y); // search among all
+		if (Displayable.class == c) return find(x, y); // search among all
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Displayable d = (Displayable)al_displayables.get(i);
-			if (d.getClass().equals(c) && d.contains(x, y)) {
+			if (d.getClass() == c && d.contains(x, y)) {
 				al.add(d);
 			}
 		}
@@ -453,7 +453,7 @@ public class Layer extends DBObject {
 		ArrayList<Displayable> al = new ArrayList();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Object ob = al_displayables.get(i);
-			if (!ob.getClass().equals(target)) continue;
+			if (ob.getClass() != target) continue;
 			Displayable da = (Displayable)ob;
 			if (d.intersects(da)) {
 				al.add(da);
@@ -470,10 +470,10 @@ public class Layer extends DBObject {
 	}
 
 	/** Within its own class only. */ // 'up' is at the last element of the ArrayList (since when painting, the first one gets painted first, and thus gets buried the most while the last paints last, on top)
-	public void moveUp(Displayable d) {
+	public void moveUp(final Displayable d) {
 		int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || al_displayables.size() -1 == i) return;
-		if (al_displayables.get(i+1).getClass().equals(d.getClass())) {
+		if (al_displayables.get(i+1).getClass() == d.getClass()) {
 			//swap
 			al_displayables.remove(d);
 			al_displayables.add(i+1, d);
@@ -483,10 +483,10 @@ public class Layer extends DBObject {
 	}
 
 	/** Within its own class only. */
-	public void moveDown(Displayable d) {
+	public void moveDown(final Displayable d) {
 		int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || 0 == i) return;
-		if (al_displayables.get(i-1).getClass().equals(d.getClass())) {
+		if (al_displayables.get(i-1).getClass() == d.getClass()) {
 			//swap
 			Displayable o = al_displayables.remove(i-1);
 			al_displayables.add(i, o);
@@ -496,14 +496,14 @@ public class Layer extends DBObject {
 	}
 
 	/** Within its own class only. */
-	public void moveTop(Displayable d) { // yes I could have made several lists and make my live easier. Whatever
+	public void moveTop(final Displayable d) { // yes I could have made several lists and make my live easier. Whatever
 		int i = al_displayables.indexOf(d);
 		int size = al_displayables.size();
 		if (null == d || -1 == i || size -1 == i) return;
 		Class c = d.getClass();
 		boolean done = false;
 		for (i=i+1; i<size; i++) {
-			if (al_displayables.get(i).getClass().equals(c)) continue;
+			if (al_displayables.get(i).getClass() == c) continue;
 			else {
 				al_displayables.remove(d);
 				al_displayables.add(i-1, d);
@@ -522,13 +522,13 @@ public class Layer extends DBObject {
 	}
 
 	/** Within its own class only. */
-	public void moveBottom(Displayable d) {
+	public void moveBottom(final Displayable d) {
 		int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || 0 == i) return;
 		Class c = d.getClass();
 		boolean done = false;
 		for (i=i-1; i > -1; i--) {
-			if (al_displayables.get(i).getClass().equals(c)) continue;
+			if (al_displayables.get(i).getClass() == c) continue;
 			else {
 				al_displayables.remove(d);
 				al_displayables.add(i+1, d);
@@ -546,30 +546,30 @@ public class Layer extends DBObject {
 	}
 
 	/** Within its own class only. */
-	public boolean isTop(Displayable d) {
+	public boolean isTop(final Displayable d) {
 		int i = al_displayables.indexOf(d);
 		int size = al_displayables.size();
 		if (size -1 == i) return true;
-		if (al_displayables.get(i+1).getClass().equals(d.getClass())) return false;
+		if (al_displayables.get(i+1).getClass() == d.getClass()) return false;
 		return true;
 	} // these two methods will throw an Exception if the Displayable is not found (-1 == i) (the null.getClass() *should* throw it)
 	/** Within its own class only. */
-	public boolean isBottom(Displayable d) {
+	public boolean isBottom(final Displayable d) {
 		int i = al_displayables.indexOf(d);
 		if (0 == i) return true;
-		if (al_displayables.get(i-1).getClass().equals(d.getClass())) return false;
+		if (al_displayables.get(i-1).getClass() == d.getClass()) return false;
 		return true;
 	}
 
 	/** Get the index of the given Displayable relative to the rest of its class. Beware that the order of the al_displayables is bottom at zero, top at last, but the relative index returned here is inverted: top at zero, bottom at last -to match the tabs' vertical orientation in a Display.*/
-	public int relativeIndexOf(Displayable d) {
+	public int relativeIndexOf(final Displayable d) {
 		int k = al_displayables.indexOf(d);
 		if (-1 == k) return -1;
 		Class c = d.getClass();
 		int size = al_displayables.size();
 		int i = k+1;
 		for (; i<size; i++) {
-			if (al_displayables.get(i).getClass().equals(c)) continue;
+			if (al_displayables.get(i).getClass() == c) continue;
 			else {
 				return i - k -1;
 			}
@@ -678,10 +678,10 @@ public class Layer extends DBObject {
 
 	/** Preconcatenate the given AffineTransform to all Displayable objects of class c, without respecting their links. */
 	public void apply(final Class c, final AffineTransform at) {
-		boolean all = c.equals(Displayable.class);
+		boolean all = Displayable.class == c;
 		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 			final Displayable d = (Displayable)it.next();
-			if (all || d.getClass().equals(c)) {
+			if (all || d.getClass() == c) {
 				d.getAffineTransform().preConcatenate(at);
 				d.updateInDatabase("transform");
 			}
@@ -745,7 +745,7 @@ public class Layer extends DBObject {
 	// private to the package
 	void linkPatchesR() {
 		for (Displayable d : al_displayables) {
-			if (d.getClass().equals(LayerSet.class)) ((LayerSet)d).linkPatchesR();
+			if (d.getClass() == LayerSet.class) ((LayerSet)d).linkPatchesR();
 			d.linkPatches(); // Patch.class does nothing
 		}
 	}
