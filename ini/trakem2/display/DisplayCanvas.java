@@ -1129,32 +1129,72 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 	private Rectangle old_brush_box = null;
 
-	public void mouseMoved(final MouseEvent me) {
-		if (input_disabled || display.getSelection().isDragging()) return;
+	private MouseMovedThread mouse_moved = new MouseMovedThread();
 
-		// set xMouse, yMouse
-		super.mouseMoved(me);
-
-		final Displayable active = display.getActive();
-
-		// only when no mouse buttons are down
-		final int flags = me.getModifiers(); // override, the super fails for some reason
-		if (0 == (flags & InputEvent.BUTTON1_MASK)
-		/* && 0 == (flags & InputEvent.BUTTON2_MASK) */ // this is the alt key down ..
-		 && 0 == (flags & InputEvent.BUTTON3_MASK)
-		//if (me.getButton() == MouseEvent.NOBUTTON
-		 && ProjectToolbar.getToolId() == ProjectToolbar.PEN && null != active && active.isVisible() && AreaList.class == active.getClass()) {
-			// repaint area where the brush circle is
-			int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
-			Rectangle r = new Rectangle( xMouse - brushSize/2,
-				                     yMouse - brushSize/2,
-						     brushSize+1,
-						     brushSize+1 );
-			Rectangle copy = (Rectangle)r.clone(); 
-			if (null != old_brush_box) r.add(old_brush_box);
-			old_brush_box = copy;
-			this.repaint(r, 1); // padding because of painting rounding which would live dirty trails
+	private class MouseMovedThread extends Thread {
+		private MouseEvent me = null;
+		private boolean go = true;
+		MouseMovedThread() {
+			super("T2-mouseMoved");
+			setDaemon(true);
+			setPriority(Thread.NORM_PRIORITY);
+			start();
 		}
+		void dispatch(MouseEvent me) {
+			Utils.log2("before");
+			synchronized (this) {
+				Utils.log2("in");
+				this.me = me;
+				notify();
+			}
+		}
+		void quit() {
+			go = false;
+			synchronized (this) { notify(); }
+		}
+		public void run() {
+			while (go) {
+				MouseEvent me = null;
+				synchronized (this) {
+					try { this.wait(); } catch (Exception e) {}
+					me = this.me;
+					this.me = null;
+				}
+				mouseMoved(me);
+			}
+		}
+		private void mouseMoved(MouseEvent me) {
+			if (null == me) return;
+			if (input_disabled || display.getSelection().isDragging()) return;
+
+			// set xMouse, yMouse
+			DisplayCanvas.super.mouseMoved(me);
+
+			final Displayable active = display.getActive();
+
+			// only when no mouse buttons are down
+			final int flags = me.getModifiers(); // override, the super fails for some reason
+			if (0 == (flags & InputEvent.BUTTON1_MASK)
+			/* && 0 == (flags & InputEvent.BUTTON2_MASK) */ // this is the alt key down ..
+			 && 0 == (flags & InputEvent.BUTTON3_MASK)
+			//if (me.getButton() == MouseEvent.NOBUTTON
+			 && ProjectToolbar.getToolId() == ProjectToolbar.PEN && null != active && active.isVisible() && AreaList.class == active.getClass()) {
+				// repaint area where the brush circle is
+				int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
+				Rectangle r = new Rectangle( xMouse - brushSize/2,
+							     yMouse - brushSize/2,
+							     brushSize+1,
+							     brushSize+1 );
+				Rectangle copy = (Rectangle)r.clone(); 
+				if (null != old_brush_box) r.add(old_brush_box);
+				old_brush_box = copy;
+				repaint(r, 1); // padding because of painting rounding which would live dirty trails
+			}
+		}
+	}
+
+	public void mouseMoved(final MouseEvent me) {
+		mouse_moved.dispatch(me);
 	}
 
 	/** Zoom in using the current mouse position, or the center if the mouse is out. */
