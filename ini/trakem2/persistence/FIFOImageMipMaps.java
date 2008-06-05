@@ -26,13 +26,18 @@ package ini.trakem2.persistence;
 import ini.trakem2.utils.IJError;
 import java.util.ArrayList;
 import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.ListIterator;
 import java.util.LinkedList;
+import java.util.Iterator;
 import java.awt.Image;
 
 public class FIFOImageMipMaps {
 
 	private final LinkedList<Entry> cache;
+	private final HashMap<Long,Image[]> map = new HashMap<Long,Image[]>();
+	private boolean use_map = false;
+	private final int LINEAR_SEARCH_LIMIT = 100;
 
 	private class Entry {
 		final long id;
@@ -43,11 +48,11 @@ public class FIFOImageMipMaps {
 			this.level = level;
 			this.image = image;
 		}
-		public boolean equals(final Object ob) {
+		public final boolean equals(final Object ob) {
 			final Entry e = (Entry)ob;
 			return e.id == id && e.level == level;
 		}
-		public boolean equals(final long id, final int level) {
+		public final boolean equals(final long id, final int level) {
 			return this.id == id && this.level == level;
 		}
 	}
@@ -75,6 +80,38 @@ public class FIFOImageMipMaps {
 		}
 	}
 
+	/** The position in the array is the Math.max(width, height) of an image. */
+	private final static int[] max_levels = new int[50000]; // don't change to smaller than 33
+	static {
+		// from 0 to 32 all zeros
+		for (int i=33; i<max_levels.length; i++) {
+			max_levels[i] = (int)((Math.log(i) - Math.log(32)) / Math.log(2)) + 1;
+		}
+	}
+
+	private final int maxLevel(final Image image, final int starting_level) {
+		final int w = image.getWidth(null);
+		final int h = image.getHeight(null);
+		/*
+		int max_level = starting_level;
+
+		while (w > 32 || h > 32) {
+			w /= 2;
+			h /= 2;
+			max_level++;
+		}
+		return max_level;
+		*/
+
+		final int max = Math.max(w, h);
+		if (max >= max_levels.length) {
+			//if (max <= 32) return starting_level;
+			return starting_level + (int)((Math.log(max) - Math.log(32)) / Math.log(2)) + 1;
+		} else {
+			return starting_level + max_levels[max];
+		}
+	}
+
 	/** No duplicates allowed: if the id exists it's sended to the end and the image is first flushed (if different), then updated with the new one provided. */
 	public final void put(final long id, final Image image, final int level) {
 		final ListIterator<Entry> li = cache.listIterator(cache.size());
@@ -84,20 +121,56 @@ public class FIFOImageMipMaps {
 				li.remove();
 				cache.addLast(e);
 				if (image != e.image) {
+					// replace
 					e.image.flush();
 					e.image = image;
+					// replace in map
+					if (use_map) map.get(id)[level] = image;
 				}
 				return;
 			}
 		}
 		// else, new
 		cache.addLast(new Entry(id, level, image));
+
+		if (use_map) {
+			// add new to the map
+			Image[] images = map.get(id);
+			if (null == images) {
+				images = new Image[maxLevel(image, level)];
+				images[level] = image;
+				map.put(id, images);
+			} else {
+				images[level] = image;
+			}
+		} else if (cache.size() >= LINEAR_SEARCH_LIMIT) { // create the map one step before it's used, hence the >= not > alone.
+			// initialize map
+			final ListIterator<Entry> lim = cache.listIterator(0);
+			while (lim.hasNext()) {
+				final Entry e = lim.next();
+				if (!map.containsKey(e.id)) {
+					final Image[] images = new Image[maxLevel(image, level)];
+					images[e.level] = e.image;
+					map.put(e.id, images);
+				} else {
+					final Image[] images = map.get(e.id);
+					images[e.level] = e.image;
+				}
+			}
+			use_map = true;
+		}
 	}
 
 	/** A call to this method puts the element at the end of the list, and returns it. Returns null if not found. */
 	public final Image get(final long id, final int level) {
 		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		int i = 0;
 		while (li.hasPrevious()) { // images are more likely to be close to the end
+			if (i > LINEAR_SEARCH_LIMIT) {
+				return getFromMap(id, level);
+			}
+			i++;
+			///
 			final Entry e = li.previous();
 			if (id == e.id && level == e.level) {
 				li.remove();
@@ -108,12 +181,44 @@ public class FIFOImageMipMaps {
 		return null;
 	}
 
+	private final Image getFromMap(final long id, final int level) {
+		final Image[] images = map.get(id);
+		if (null == images) return null;
+		return images[level];
+	}
+
+	private final Image getBelowFromMap(final long id, final int level) {
+		final Image[] images = map.get(id);
+		if (null == images) return null;
+		
+		for (int i=level; i>-1; i--) {
+			if (null != images[i]) return images[i];
+		}
+		return null;
+	}
+
+	private final Image getAboveFromMap(final long id, final int level) {
+		final Image[] images = map.get(id);
+		if (null == images) return null;
+		
+		for (int i=level; i<images.length; i++) {
+			if (null != images[i]) return images[i];
+		}
+		return null;
+	}
+
 	/** Find the cached image of the given level or its closest but smaller one, or null if none found. */
 	public final Image getClosestBelow(final long id, final int level) {
 		Entry ee = null;
 		int lev = Integer.MAX_VALUE;
 		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		int i = 0;
 		while (li.hasPrevious()) { // images are more likely to be close to the end
+			if (i > LINEAR_SEARCH_LIMIT) {
+				return getBelowFromMap(id, level);
+			}
+			i++;
+			///
 			final Entry e = li.previous();
 			if (e.id != id) continue;
 			if (e.level > level) {
@@ -132,7 +237,6 @@ public class FIFOImageMipMaps {
 			return ee.image;
 		}
 		return null;
-		// TODO: it's UNNECESSARILY traversing the whole cache!!
 	}
 
 	/** Find the cached image of the given level or its closest but larger one, or null if none found. */
@@ -140,7 +244,12 @@ public class FIFOImageMipMaps {
 		int lev = -1;
 		Entry ee = null;
 		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		int i = 0;
 		while (li.hasPrevious()) { // images are more likely to be close to the end
+			if (i > LINEAR_SEARCH_LIMIT) {
+				return getAboveFromMap(id, level);
+			}
+			i++;
 			final Entry e = li.previous();
 			if (e.id != id) continue;
 			// if equal level as asked, just return it
@@ -158,7 +267,6 @@ public class FIFOImageMipMaps {
 			return ee.image;
 		}
 		return null;
-		// TODO: it's UNNECESSARILY traversing the whole cache!!
 	}
 
 	/** Remove the Image if found and returns it, without flushing it. Returns null if not found. */
@@ -171,6 +279,11 @@ public class FIFOImageMipMaps {
 				return e.image;
 			}
 		}
+		if (use_map) {
+			final Image[] images = map.get(id);
+			if (images == null) return null;
+			images[level] = null;
+		}
 		return null;
 	}
 
@@ -182,6 +295,7 @@ public class FIFOImageMipMaps {
 			e.image.flush();
 		}
 		cache.clear();
+		if (use_map) map.clear();
 	}
 
 	/** Remove all awts associated with a level different than 0 (that means all scaled down versions) for any id. */
@@ -194,6 +308,15 @@ public class FIFOImageMipMaps {
 				li.remove();
 			}
 		}
+		if (use_map) {
+			final Iterator<Image[]> it = map.values().iterator();
+			while (it.hasNext()) {
+				final Image[] images = it.next();
+				for (int i=1; i<images.length; i++) {
+					images[i] = null;
+				}
+			}
+		}
 	}
 
 	/** Remove all awts associated with a level different than 0 (that means all scaled down versions) for the given id. */
@@ -204,6 +327,14 @@ public class FIFOImageMipMaps {
 			if (id == e.id && e.level > 0) {
 				e.image.flush();
 				li.remove();
+			}
+		}
+		if (use_map) {
+			final Image[] images = map.get(id);
+			if (null != images) {
+				for (int i=1; i<images.length; i++) {
+					images[i] = null;
+				}
 			}
 		}
 	}
@@ -219,16 +350,30 @@ public class FIFOImageMipMaps {
 				li.remove();
 			}
 		}
+		if (use_map) {
+			map.remove(id);
+		}
 		return al;
 	}
 
 	/** Returns a table of level keys and image values that share the same id (that is, belong to the same Patch). */
 	public final Hashtable<Integer,Image> getAll(final long id) {
 		final Hashtable<Integer,Image> ht = new Hashtable<Integer,Image>();
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		while (li.hasPrevious()) {
-			final Entry e = li.previous();
-			if (id == e.id) ht.put(e.level, e.image);
+		if (use_map) {
+			final Image[] images = map.get(id);
+			if (null != images) {
+				for (int i=0; i<images.length; i++) {
+					if (null != images[i]) {
+						ht.put(i, images[i]);
+					}
+				}
+			}
+		} else {
+			final ListIterator<Entry> li = cache.listIterator(cache.size());
+			while (li.hasPrevious()) {
+				final Entry e = li.previous();
+				if (id == e.id) ht.put(e.level, e.image);
+			}
 		}
 		return ht;
 	}
@@ -243,31 +388,54 @@ public class FIFOImageMipMaps {
 				li.remove();
 			}
 		}
+		if (use_map) map.remove(id);
 	}
 
 	/** Remove the given index and return it, returns null if outside range. */
 	public final Image remove(int i) {
 		if (i < 0 || i >= cache.size()) return null;
-		return cache.remove(i).image;
+		final Entry e = cache.remove(i);
+		if (use_map) {
+			nullifyMap(e.id, e.level);
+		}
+		return e.image;
+	}
+
+	private final void nullifyMap(final long id, final int level) {
+		final Image[] images = map.get(id);
+		if (null != images) images[level] = null;
 	}
 
 	/** Remove the first element and return it. Returns null if none. The underlaying arrays are untouched besides nullifying the proper pointer. */
 	public final Image removeFirst() {
-		return cache.removeFirst().image;
+		final Entry e = cache.removeFirst();
+		if (use_map) {
+			nullifyMap(e.id, e.level);
+		}
+		return e.image;
 	}
 
 	/** Checks if there's any image at all for the given id. */
 	public final boolean contains(final long id) {
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		while (li.hasPrevious()) {
-			final Entry e = li.previous();
-			if (id == e.id) return true;
+		if (use_map) {
+			return map.containsKey(id);
+		} else {
+			final ListIterator<Entry> li = cache.listIterator(cache.size());
+			while (li.hasPrevious()) {
+				final Entry e = li.previous();
+				if (id == e.id) return true;
+			}
 		}
 		return false;
 	}
 
 	/** Checks if there's any image for the given id and level. */
 	public final boolean contains(final long id, final int level) {
+		if (use_map) {
+			final Image[] images = map.get(id);
+			if (null == images) return false;
+			return null != images[level];
+		}
 		return -1 != cache.lastIndexOf(new Entry(id, level, null));
 	}
 
