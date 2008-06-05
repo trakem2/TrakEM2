@@ -26,244 +26,184 @@ package ini.trakem2.persistence;
 import ini.trakem2.utils.IJError;
 import java.util.ArrayList;
 import java.util.Hashtable;
+import java.util.ListIterator;
+import java.util.LinkedList;
 import java.awt.Image;
 
 public class FIFOImageMipMaps {
 
-	private int start;
-	private int next;
-	private long[] ids;
-	private Image[] images;
-	private int[] levels;
-	private final int inc = 50;
+	private final LinkedList<Entry> cache;
 
-	public FIFOImageMipMaps(int initial_size) {
-		reset(initial_size);
+	private class Entry {
+		final long id;
+		final int level;
+		Image image;
+		Entry (final long id, final int level, final Image image) {
+			this.id = id;
+			this.level = level;
+			this.image = image;
+		}
+		public boolean equals(final Object ob) {
+			final Entry e = (Entry)ob;
+			return e.id == id && e.level == level;
+		}
+		public boolean equals(final long id, final int level) {
+			return this.id == id && this.level == level;
+		}
 	}
 
-	private final void reset(int initial_size) {
-		if (initial_size < 0) initial_size = inc;
-		this.images = new Image[initial_size];
-		this.ids = new long[initial_size];
-		this.levels = new int[initial_size];
-		start = 0;
-		next = 0;
+	public FIFOImageMipMaps(int initial_size) {
+		cache = new LinkedList<Entry>();
+	}
+
+	private final Entry rfind(final long id, final int level) {
+		final ListIterator<Entry> li = cache.listIterator(cache.size()); // descendingIterator() is from java 1.6 !
+		while (li.hasPrevious()) {
+			final Entry e = li.previous();
+			if (e.equals(id, level)) return e;
+		}
+		return null;
 	}
 
 	/** Replace or put. */
 	public void replace(final long id, final Image image, final int level) {
-		try {
-			if (null == image) throw new Exception("FIFOImageMap: null image!");
-		} catch (Exception e) {
-			IJError.print(e);
-			return;
+		final Entry e = rfind(id, level);
+		if (null == e) put(id, image, level);
+		else {
+			if (null != e.image) e.image.flush();
+			e.image = image;
 		}
-		for (int i=start; i<next; i++) {
-			if (id == ids[i] && level == levels[i]) {
-				images[i].flush();
-				images[i] = image;
-				return;
-			}
-		}
-		// else, put (should not happen ever)
-		put(id, image, level);
 	}
 
 	/** No duplicates allowed: if the id exists it's sended to the end and the image is first flushed (if different), then updated with the new one provided. */
 	public final void put(final long id, final Image image, final int level) {
-
-		try {
-			if (null == image) throw new Exception("FIFOImageMap: null image!");
-		} catch (Exception e) {
-			IJError.print(e);
-			return;
-		}
-		// check if exists already, if so, send it to the end
-		for (int i=start; i<next; i++) {
-			if (id == ids[i] && level == levels[i]) {
-				final Image im = images[toTheEnd(i)]; // toTheEnd changes the index position of the found image to next-1
-				if (im != null && im != image) {
-					im.flush();
-					images[next-1] = image; // next-1 is the last slot, where id/level are now
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) { // images are more likely to be close to the end
+			final Entry e = li.previous();
+			if (id == e.id && level == e.level) {
+				li.remove();
+				cache.addLast(e);
+				if (image != e.image) {
+					e.image.flush();
+					e.image = image;
 				}
 				return;
 			}
 		}
-
-		// adjust arrays: scale them up/down and reset the start to zero, while leaving 'inc' slots at the end
-		if (ids.length == next) {
-			// enlarge arrays
-			final int new_len = ids.length + inc; // - start; // keep it big
-			final long[] ids2 = new long[new_len];
-			final Image[] images2 = new Image[new_len];
-			final int[] levels2 = new int[new_len];
-			final int len = next - start;
-			System.arraycopy(ids, start, ids2, 0, len);
-			System.arraycopy(images, start, images2, 0, len);
-			System.arraycopy(levels, start, levels2, 0, len);
-			ids = ids2;
-			images = images2;
-			levels = levels2;
-			start = 0;
-			next = len;
-		}
-
-		// add at the end
-		images[next] = image;
-		ids[next] = id;
-		levels[next] = level;
-		next++;
+		// else, new
+		cache.addLast(new Entry(id, level, image));
 	}
 
 	/** A call to this method puts the element at the end of the list, and returns it. Returns null if not found. */
 	public final Image get(final long id, final int level) {
-		// find the id, from the end
-		if (start == next) return null; // empty
-		int i = next-1;
-		for (; i>=start; i--) {
-			if (id == ids[i] && level == levels[i]) {
-				break;
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) { // images are more likely to be close to the end
+			final Entry e = li.previous();
+			if (id == e.id && level == e.level) {
+				li.remove();
+				cache.addLast(e);
+				return e.image;
 			}
 		}
-		if (i < start) return null; // not found
-
-		// put the found id at the end, move the others forward.
-		return images[toTheEnd(i)];
-	}
-
-	/** Returns the last index, where the given index was put. */
-	private final int toTheEnd(final int index) {
-		final Image im = images[index];
-		final int level = levels[index];
-		final long id = ids[index];
-
-		//StringBuffer sb1 = new StringBuffer("Before: ");
-		//for (int i=start; i<next; i++) sb1.append(ids[i]).append(' ');
-
-		// put the found id at the end, move the others forward.
-		final int len = next - index - 1;
-		System.arraycopy(ids, index+1, ids, index, len);
-		System.arraycopy(images, index+1, images, index, len);
-		System.arraycopy(levels, index+1, levels, index, len);
-		ids[next-1] = id;
-		images[next-1] = im;
-		levels[next-1] = level;
-
-		//sb1.append("\nAfter: ");
-		//for (int i=start; i<next; i++) sb1.append(ids[i]).append(' ');
-		//ini.trakem2.utils.Utils.log2(sb1.toString());
-
-		return next -1;
+		return null;
 	}
 
 	/** Find the cached image of the given level or its closest but smaller one, or null if none found. */
 	public final Image getClosestBelow(final long id, final int level) {
+		Entry ee = null;
 		int lev = Integer.MAX_VALUE;
-		int index = -1;
-		//for (int i=start; i<next; i++) {
-		for (int i=next-1; i>=start; i--) { // images are more likely to be close to the end
-			if (id == ids[i]) {
-				/*
-				if (level == levels[i]) {
-					// if equal level as asked, just return it
-					im = images[i];
-					toTheEnd(i);
-					return im;
-				} else
-				*/
-				if (levels[i] > level) {
-					// if smaller image (larger level) than asked, choose the less smaller
-					if (levels[i] < lev) { // here going for the largest image (smaller level) that is still smaller, and thus its level larger, than the desired level
-						lev = levels[i];
-						index = i;
-					}
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) { // images are more likely to be close to the end
+			final Entry e = li.previous();
+			if (e.id != id) continue;
+			if (e.level > level) {
+				// if exactly smaller image than asked, return it
+				if (e.level == level -1) return e.image;
+				// if smaller image (larger level) than asked, choose the less smaller
+				if (e.level < lev) {
+					lev = e.level;
+					ee = e;
 				}
 			}
 		}
-		if (-1 == index) return null;
-		return images[toTheEnd(index)];
+		if (null != ee) {
+			cache.remove(ee); // unfortunaelly, removeLastOcurrence is java 1.6 only
+			cache.addLast(ee);
+			return ee.image;
+		}
+		return null;
+		// TODO: it's UNNECESSARILY traversing the whole cache!!
 	}
 
 	/** Find the cached image of the given level or its closest but larger one, or null if none found. */
 	public final Image getClosestAbove(final long id, final int level) {
 		int lev = -1;
-		int index = -1;
-		//for (int i=start; i<next; i++) {
-		for (int i=next-1; i>=start; i--) { // images are more likely to be close to the end
-			if (id == ids[i]) {
-				if (level == levels[i]) {
-					// if equal level as asked, just return it
-					return images[toTheEnd(i)];
-				} else if (levels[i] < level) {
-					// if larger image (smaller level) than asked, choose the less larger
-					if (levels[i] > lev) { // here going for the smallest image (larger level) that is still larger, and thus its level smaller, than the desired level
-						lev = levels[i];
-						index = i;
-					}
-				}
+		Entry ee = null;
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) { // images are more likely to be close to the end
+			final Entry e = li.previous();
+			if (e.id != id) continue;
+			// if equal level as asked, just return it
+			if (e.level == level) return e.image;
+			// if exactly one above, just return it // may hinder finding an exact one, but potentially cuts down search time a lot
+			// if (e.level == level + 1) return e.image; // WOULD NOT BE THE PERFECT IMAGE if the actual asked level is cached at a previous entry.
+			if (e.level > lev) {
+				lev = e.level;
+				ee = e;
 			}
 		}
-		if (-1 == index) return null;
-		return images[toTheEnd(index)];
+		if (null != ee) {
+			cache.remove(ee);
+			cache.addLast(ee);
+			return ee.image;
+		}
+		return null;
+		// TODO: it's UNNECESSARILY traversing the whole cache!!
 	}
 
 	/** Remove the Image if found and returns it, without flushing it. Returns null if not found. */
 	public final Image remove(final long id, final int level) {
-		// find the id
-		int i = start;
-		for (; i<next; i++) {
-			if (id == ids[i] && level == levels[i]) {
-				break;
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) {
+			final Entry e = li.previous();
+			if (id == e.id && level == e.level) {
+				li.remove();
+				return e.image;
 			}
 		}
-		if (i == next) return null;
-		Image im = images[i];
-		// move the others forward.
-		next--;
-		while (i < next) {
-			ids[i] = ids[i+1];
-			images[i] = images[i+1];
-			levels[i] = levels[i+1];
-			i++;
-		}
-		return im;
+		return null;
 	}
 
 	/** Removes and flushes all images, and shrinks arrays. */
 	public final void removeAndFlushAll() {
-		for (int i=start; i<next; i++) {
-			images[i].flush();
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) {
+			final Entry e = li.previous();
+			e.image.flush();
 		}
-		reset(0);
+		cache.clear();
 	}
 
 	/** Remove all awts associated with a level different than 0 (that means all scaled down versions) for any id. */
 	public void removeAllPyramids() {
-		int end = next;
-		for (int i=start+1; i<end; i++) {
-			if (i == next) break;
-			if (0 != levels[i]) {
-				Image awt = remove(i); // may modify start and/or next
-				awt.flush();
-				if (i != start) { // start may keep moving forward
-					end--;
-					i--;
-				}
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) {
+			final Entry e = li.previous();
+			if (e.level > 0) {
+				e.image.flush();
+				li.remove();
 			}
 		}
 	}
 
 	/** Remove all awts associated with a level different than 0 (that means all scaled down versions) for the given id. */
 	public void removePyramid(final long id) {
-		int end = next;
-		for (int i=start; i<end; i++) {
-			if (i == next) break;
-			if (0 != levels[i] && id == ids[i]) {
-				remove(i).flush(); // may modify start and/or next
-				if (i != start) { // start may keep moving forward
-					end--;
-					i--;
-				}
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) {
+			final Entry e = li.previous();
+			if (id == e.id && e.level > 0) {
+				e.image.flush();
+				li.remove();
 			}
 		}
 	}
@@ -271,17 +211,12 @@ public class FIFOImageMipMaps {
 	/** Remove all images that share the same id (but have different levels). */
 	public final ArrayList<Image> remove(final long id) {
 		final ArrayList<Image> al = new ArrayList<Image>();
-		int i = start;
-		for (; i<next; i++) {
-			if (id == ids[i]) {
-				al.add(images[i]);
-				// move the others to close the gap
-				next--;
-				for (int j=i; j<next; j++) {
-					ids[j] = ids[j+1];
-					images[j] = images[j+1];
-					levels[j] = levels[j+1];
-				}
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) {
+			final Entry e = li.previous();
+			if (id == e.id) {
+				al.add(e.image);
+				li.remove();
 			}
 		}
 		return al;
@@ -290,86 +225,55 @@ public class FIFOImageMipMaps {
 	/** Returns a table of level keys and image values that share the same id (that is, belong to the same Patch). */
 	public final Hashtable<Integer,Image> getAll(final long id) {
 		final Hashtable<Integer,Image> ht = new Hashtable<Integer,Image>();
-		int i = start;
-		for (; i<next; i++) {
-			if (id == ids[i]) {
-				ht.put(levels[i], images[i]);
-			}
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) {
+			final Entry e = li.previous();
+			if (id == e.id) ht.put(e.level, e.image);
 		}
 		return ht;
 	}
 
 	/** Remove and flush away all images that share the same id. */
 	public final void removeAndFlush(final long id) {
-		for (int i = start; i<next; i++) {
-			if (id == ids[i]) {
-				if (null != images[i]) images[i].flush();
-				// move the others to close the gap
-				next--;
-				for (int j=i; j<next; j++) {
-					ids[j] = ids[j+1];
-					images[j] = images[j+1];
-					levels[j] = levels[j+1];
-				}
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) {
+			final Entry e = li.previous();
+			if (id == e.id) {
+				e.image.flush();
+				li.remove();
 			}
 		}
 	}
 
-	/** Remove the given index and return it, returns null if outside range. The underlying arrays are untouched besides nullifying the proper pointer if the given 'i' is the first element of the arrays. */
+	/** Remove the given index and return it, returns null if outside range. */
 	public final Image remove(int i) {
-		if (i < start || i >= next) return null;
-		Image im = images[i];
-		if (i == start) {
-			start++;
-			images[i] = null;
-		} else if (i == next -1) {
-			next--;
-			images[i] = null;
-		} else {
-			// move the others forward.
-			next--;
-			while (i < next) {
-				ids[i] = ids[i+1];
-				images[i] = images[i+1];
-				levels[i] = levels[i+1];
-				i++;
-			}
-		}
-		return im;
+		if (i < 0 || i >= cache.size()) return null;
+		return cache.remove(i).image;
 	}
 
 	/** Remove the first element and return it. Returns null if none. The underlaying arrays are untouched besides nullifying the proper pointer. */
 	public final Image removeFirst() {
-		if (start == next) return null; //empty!
-		final Image im = images[start];
-		images[start] = null;
-		start++;
-		return im;
+		return cache.removeFirst().image;
 	}
 
 	/** Checks if there's any image at all for the given id. */
 	public final boolean contains(final long id) {
-		for (int i=next-1; i>=start; i--) {
-			if (id == ids[i]) return true;
+		final ListIterator<Entry> li = cache.listIterator(cache.size());
+		while (li.hasPrevious()) {
+			final Entry e = li.previous();
+			if (id == e.id) return true;
 		}
 		return false;
 	}
 
 	/** Checks if there's any image for the given id and level. */
 	public final boolean contains(final long id, final int level) {
-		for (int i=next-1; i>=start; i--) {
-			if (id == ids[i] && level == levels[i]) return true;
-		}
-		return false;
+		return -1 != cache.lastIndexOf(new Entry(id, level, null));
 	}
 
-	public int size() { return next - start; }
+	public int size() { return cache.size(); }
 
-	public void debug() {
-		for (int i=0; i<next; i++) {
-			System.out.println(i + " id: " + ids[i] + " level: " + levels[i]);
-		}
-	}
+	public void debug() {}
 
 	/** Does nothing. */
 	public void gc() {}
