@@ -70,7 +70,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** No duplicates allowed: if the id exists it's sended to the end and the image is first flushed (if different), then updated with the new one provided. */
-	public void put(final long id, final Image image, final int level) {
+	public final void put(final long id, final Image image, final int level) {
 
 		try {
 			if (null == image) throw new Exception("FIFOImageMap: null image!");
@@ -81,7 +81,7 @@ public class FIFOImageMipMaps {
 		// check if exists already, if so, send it to the end
 		for (int i=start; i<next; i++) {
 			if (id == ids[i] && level == levels[i]) {
-				final Image im = images[toTheEnd(i)];
+				final Image im = images[toTheEnd(i)]; // toTheEnd changes the index position of the found image to next-1
 				if (im != null && im != image) {
 					im.flush();
 					images[next-1] = image; // next-1 is the last slot, where id/level are now
@@ -89,47 +89,25 @@ public class FIFOImageMipMaps {
 				return;
 			}
 		}
-		// clean up empty entries at the beggining
-		if (0 != start) {
-			/*
-			next -= start;
-			for (int i=0; i<next; i++) {
-				ids[i] = ids[start + i];
-				images[i] = images[start + i];
-				levels[i] = levels[start + i];
-			}
-			start = 0;
-			*/
-			next -= start;
-			System.arraycopy(ids, start, ids, 0, next); // next works as length
-			System.arraycopy(levels, start, levels, 0, next);
-			System.arraycopy(images, start, images, 0, next);
-			start = 0;
-		}
-		// adjust arrays
+
+		// adjust arrays: scale them up/down and reset the start to zero, while leaving 'inc' slots at the end
 		if (ids.length == next) {
 			// enlarge arrays
-			long[] ids2 = new long[ids.length + inc];
-			Image[] images2 = new Image[ids2.length];
-			int[] levels2 = new int[ids2.length];
-			System.arraycopy(ids, 0, ids2, 0, ids.length);
-			System.arraycopy(images, 0, images2, 0, images.length);
-			System.arraycopy(levels, 0, levels2, 0, levels.length);
+			final int new_len = ids.length + inc; // - start; // keep it big
+			final long[] ids2 = new long[new_len];
+			final Image[] images2 = new Image[new_len];
+			final int[] levels2 = new int[new_len];
+			final int len = next - start;
+			System.arraycopy(ids, start, ids2, 0, len);
+			System.arraycopy(images, start, images2, 0, len);
+			System.arraycopy(levels, start, levels2, 0, len);
 			ids = ids2;
 			images = images2;
 			levels = levels2;
-		} else if (ids.length - 2*inc == next) {
-			// shorten arrays if unnecessarily long
-			long[] ids2 = new long[ids.length - inc]; // leave 'inc' slots at the end, so arrays need not be resized immediately in the next call to put
-			Image[] images2 = new Image[ids2.length];
-			int[] levels2 = new int[ids2.length];
-			System.arraycopy(ids, 0, ids2, 0, ids.length - 2*inc+1);
-			System.arraycopy(images, 0, images2, 0, images.length - 2*inc+1);
-			System.arraycopy(levels, 0, levels2, 0, levels.length - 2*inc+1);
-			ids = ids2;
-			images = images2;
-			levels = levels2;
+			start = 0;
+			next = len;
 		}
+
 		// add at the end
 		images[next] = image;
 		ids[next] = id;
@@ -230,7 +208,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Remove the Image if found and returns it, without flushing it. Returns null if not found. */
-	public Image remove(final long id, final int level) {
+	public final Image remove(final long id, final int level) {
 		// find the id
 		int i = start;
 		for (; i<next; i++) {
@@ -252,7 +230,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Removes and flushes all images, and shrinks arrays. */
-	public void removeAndFlushAll() {
+	public final void removeAndFlushAll() {
 		for (int i=start; i<next; i++) {
 			images[i].flush();
 		}
@@ -291,7 +269,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Remove all images that share the same id (but have different levels). */
-	public ArrayList<Image> remove(final long id) {
+	public final ArrayList<Image> remove(final long id) {
 		final ArrayList<Image> al = new ArrayList<Image>();
 		int i = start;
 		for (; i<next; i++) {
@@ -310,7 +288,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Returns a table of level keys and image values that share the same id (that is, belong to the same Patch). */
-	public Hashtable<Integer,Image> getAll(final long id) {
+	public final Hashtable<Integer,Image> getAll(final long id) {
 		final Hashtable<Integer,Image> ht = new Hashtable<Integer,Image>();
 		int i = start;
 		for (; i<next; i++) {
@@ -322,7 +300,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Remove and flush away all images that share the same id. */
-	public void removeAndFlush(final long id) {
+	public final void removeAndFlush(final long id) {
 		for (int i = start; i<next; i++) {
 			if (id == ids[i]) {
 				if (null != images[i]) images[i].flush();
@@ -338,7 +316,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Remove the given index and return it, returns null if outside range. The underlying arrays are untouched besides nullifying the proper pointer if the given 'i' is the first element of the arrays. */
-	public Image remove(int i) {
+	public final Image remove(int i) {
 		if (i < start || i >= next) return null;
 		Image im = images[i];
 		if (i == start) {
@@ -361,16 +339,16 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Remove the first element and return it. Returns null if none. The underlaying arrays are untouched besides nullifying the proper pointer. */
-	public Image removeFirst() {
+	public final Image removeFirst() {
 		if (start == next) return null; //empty!
-		Image im = images[start];
+		final Image im = images[start];
 		images[start] = null;
 		start++;
 		return im;
 	}
 
 	/** Checks if there's any image at all for the given id. */
-	public boolean contains(final long id) {
+	public final boolean contains(final long id) {
 		for (int i=next-1; i>=start; i--) {
 			if (id == ids[i]) return true;
 		}
@@ -378,7 +356,7 @@ public class FIFOImageMipMaps {
 	}
 
 	/** Checks if there's any image for the given id and level. */
-	public boolean contains(final long id, final int level) {
+	public final boolean contains(final long id, final int level) {
 		for (int i=next-1; i>=start; i--) {
 			if (id == ids[i] && level == levels[i]) return true;
 		}
@@ -392,5 +370,8 @@ public class FIFOImageMipMaps {
 			System.out.println(i + " id: " + ids[i] + " level: " + levels[i]);
 		}
 	}
+
+	/** Does nothing. */
+	public void gc() {}
 }
 
