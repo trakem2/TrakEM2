@@ -196,15 +196,17 @@ abstract public class Loader {
 		final Loader lo = this;
 		new Thread() {
 			public void run() {
+				setPriority(Thread.NORM_PRIORITY);
 				while (true) {
-					try { Thread.sleep(10000); } catch (InterruptedException ie) {}
+					try { Thread.sleep(1000); } catch (InterruptedException ie) {}
 					synchronized(db_lock) {
 						lock();
-						if (!v_loaders.contains(lo)) {
-							unlock();
-							break;
-						}
+						//if (!v_loaders.contains(lo)) {
+						//	unlock();
+						//	break;
+						//} // TODO BROKEN: not registered!
 						Utils.log2("CACHE: \n\timps: " + imps.size() + "\n\tmawts: " + mawts.size());
+						mawts.debug();
 						unlock();
 					}
 				}
@@ -826,11 +828,21 @@ abstract public class Loader {
 	 *  mag = 1 / Math.pow(2, level) <br />
 	 *  so that 100% is 0, 50% is 1, 25% is 2, and so on, but represented in values between 0 and 1.
 	 */
-	static protected final int getMipMapLevel(final double mag) {
+	static public final int getMipMapLevel(final double mag, final double size) {
 		// check parameters
 		if (mag > 1) return 0; // there is no level for mag > 1, so use mag = 1
 		if (mag <= 0 || Double.isNaN(mag)) return -1; //error signal
 		//
+
+
+		int level = (int)(0.0001 + Math.log(1/mag) / Math.log(2)); // compensating numerical instability: 1/0.25 should be 2 eaxctly
+		int max_level = (int)(0.5 + (Math.log(size) - Math.log(32)) / Math.log(2)); // no +1, this is not the length of the images[] array but the actual highest level
+		if (max_level > 6) {
+			Utils.log2("ERROR max_level > 6: " + max_level + ", size: " + size);
+		}
+		return Math.min(level, max_level);
+
+		/*
 		int level = 0;
 		double scale;
 		while (true) {
@@ -847,13 +859,18 @@ abstract public class Loader {
 			level++;
 		}
 		return level;
+		*/
+	}
+
+	public static final double maxDim(final Displayable d) {
+		return Math.max(d.getWidth(), d.getHeight());
 	}
 
 	/** Returns true if there is a cached awt image for the given mag and Patch id. */
 	public boolean isCached(final Patch p, final double mag) {
 		synchronized (db_lock) {
 			lock();
-			boolean b = mawts.contains(p.getId(), Loader.getMipMapLevel(mag));
+			boolean b = mawts.contains(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
 			unlock();
 			return b;
 		}
@@ -870,22 +887,22 @@ abstract public class Loader {
 	}
 
 	/** Above or equal in size. */
-	public Image getCachedClosestAboveImage(Patch p, double mag) {
+	public Image getCachedClosestAboveImage(final Patch p, final double mag) {
 		Image awt = null;
 		synchronized (db_lock) {
 			lock();
-			awt = mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag));
+			awt = mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
 			unlock();
 		}
 		return awt;
 	}
 
 	/** Below, not equal. */
-	public Image getCachedClosestBelowImage(Patch p, double mag) {
+	public Image getCachedClosestBelowImage(final Patch p, final double mag) {
 		Image awt = null;
 		synchronized (db_lock) {
 			lock();
-			awt = mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag));
+			awt = mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
 			unlock();
 		}
 		return awt;
@@ -923,7 +940,7 @@ abstract public class Loader {
 		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
 
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
-		final int level = Loader.getMipMapLevel(mag);
+		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 
 		// testing:
 		// if (level > 0) level--; // passing an image double the size, so it's like interpolating when doing nearest neighbor since the images are blurred with sigma 0.5
@@ -3797,7 +3814,7 @@ abstract public class Loader {
 		// TODO releseToFit !
 		if (quality) {
 			// apply proper gaussian filter
-			double sigma = Math.sqrt(Math.pow(2, getMipMapLevel(mag)) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
+			double sigma = Math.sqrt(Math.pow(2, getMipMapLevel(mag, Math.max(imp.getWidth(), imp.getHeight()))) - 0.25); // sigma = sqrt(level^2 - 0.5^2)
 			ip = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.convertToFloat().getPixels(), w, h), (float)sigma).data, ip.getDefaultColorModel(), ip.getMin(), ip.getMax());
 			ip = ip.resize((int)(w * mag), (int)(h * mag)); // better while float
 			return Utils.convertTo(ip, imp.getType(), false);

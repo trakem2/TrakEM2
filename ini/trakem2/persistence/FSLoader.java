@@ -1529,7 +1529,7 @@ public class FSLoader extends Loader {
 	/** Checks if the mipmap file for the Patch and closest upper level to the desired magnification exists. */
 	public boolean checkMipMapFileExists(final Patch p, final double magnification) {
 		if (null == dir_mipmaps) return false;
-		final int level = getMipMapLevel(magnification);
+		final int level = getMipMapLevel(magnification, maxDim(p));
 		if (isURL(dir_mipmaps)) return true; // just assume that it does
 		if (new File(dir_mipmaps + level + "/" + new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg").exists()) return true;
 		return false;
