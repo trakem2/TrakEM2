@@ -1165,7 +1165,7 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public boolean updateInDatabase(String key) {
-		project.getLoader().updateCache(this, key);
+		// ???? TODO ???? cruft from the past?  // project.getLoader().updateCache(this, key);
 		//if (Utils.java3d) Display3D.update(this);
 		return super.updateInDatabase(key);
 	}

@@ -179,6 +179,7 @@ abstract public class Loader {
 	// What I need is not provided: a LinkedHashMap with a method to do 'removeFirst' or remove(0) !!! To call my_map.entrySet().iterator() to delete the the first element of a LinkedHashMap is just too much calling for an operation that has to be blazing fast. So I create a double list setup with arrays. The variables are not static because each loader could be connected to a different database, and each database has its own set of unique ids. Memory from other loaders is free by the releaseOthers(double) method.
 	transient protected FIFOImagePlusMap imps = new FIFOImagePlusMap(50);
 	transient protected FIFOImageMipMaps mawts = new FIFOImageMipMaps(50);
+	//transient protected CacheMipMaps mawts = new CacheMipMaps(50);
 
 	static transient protected Vector<Loader> v_loaders = null; // Vector: synchronized
 
@@ -456,7 +457,8 @@ abstract public class Loader {
 		}
 	}
 
-	public void updateCache(Displayable d, String key) {
+	public void updateCache(final Displayable d, final String key) {
+		/* CRUFT FROM THE PAST, for LayerStack I think
 		if (key.startsWith("points=")) {
 			long lid = Long.parseLong(key.substring(7)); // for AreaList
 			decacheImagePlus(lid);
@@ -475,6 +477,7 @@ abstract public class Loader {
 			}
 			decacheImagePlus(d.getLayer().getId());
 		}
+		*/
 	}
 
 	///////////////////
@@ -652,6 +655,7 @@ abstract public class Loader {
 			} catch (Throwable e) {
 				IJError.print(e);
 			} finally {
+				// gets called by the 'return' above and by any other sort of try{}catch interruption
 				unlock();
 			}
 		}
@@ -730,6 +734,7 @@ abstract public class Loader {
 				if (0 == imps.size() && 0 == mawts.size()) {
 					Utils.log2("Loader.releaseMemory: empty cache.");
 					// in any case, can't release more:
+					mawts.gc();
 					return released;
 				}
 			}
@@ -774,13 +779,11 @@ abstract public class Loader {
 
 	private void destroyCache() {
 		synchronized (db_lock) {
-			lock();
-			// second catch, this time locked:
-			if (null != IJ.getInstance() && IJ.getInstance().quitting()) {
-				unlock();
-				return;
-			}
 			try {
+				lock();
+				if (null != IJ.getInstance() && IJ.getInstance().quitting()) {
+					return;
+				}
 				if (null != imps) {
 					for (ImagePlus imp : imps.removeAll()) {
 						flush(imp);
@@ -793,9 +796,9 @@ abstract public class Loader {
 			} catch (Exception e) {
 				unlock();
 				IJError.print(e);
-				return;
+			} finally {
+				unlock();
 			}
-			unlock();
 		}
 	}
 
@@ -936,14 +939,12 @@ abstract public class Loader {
 			lock();
 			try {
 				if (null == mawts) {
-					unlock();
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
 				if (level > 0 && isMipMapsEnabled()) {
 					// 1 - check if the exact level is cached
 					mawt = mawts.get(id, level);
 					if (null != mawt) {
-						unlock();
 						//Utils.log2("returning cached exact mawt for level " + level);
 						return mawt;
 					}
@@ -951,9 +952,10 @@ abstract public class Loader {
 					releaseMemory();
 					plock = getOrMakePatchLoadingLock(p, level);
 				}
-				unlock();
 			} catch (Exception e) {
 				IJError.print(e);
+			} finally {
+				unlock();
 			}
 		}
 
@@ -989,8 +991,6 @@ abstract public class Loader {
 						max_memory += n_bytes;
 						if (null != mawt) {
 							mawts.put(id, mawt, level);
-							unlock();
-							plock.unlock();
 							//Utils.log2("returning exact mawt from file for level " + level);
 							Display.repaintSnapshot(p);
 							return mawt;
@@ -1014,8 +1014,6 @@ abstract public class Loader {
 							//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
 							if (null != mawt) {
 								if (newly_cached) Display.repaintSnapshot(p);
-								unlock();
-								plock.unlock();
 								//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
 								return mawt;
 							}
@@ -1024,10 +1022,11 @@ abstract public class Loader {
 						}
 					} catch (Exception e) {
 						IJError.print(e);
+					} finally {
+						removePatchLoadingLock(plock);
+						unlock();
+						plock.unlock();
 					}
-					removePatchLoadingLock(plock);
-					unlock();
-					plock.unlock();
 				}
 			}
 		}
@@ -1040,12 +1039,12 @@ abstract public class Loader {
 				mawt = mawts.getClosestAbove(id, level);
 				if (null != mawt) {
 					//Utils.log2("returning from getClosest with level " + level);
-					unlock();
 					return mawt;
 				}
-				unlock();
 			} catch (Exception e) {
 				IJError.print(e);
+			} finally {
+				unlock();
 			}
 		}
 
@@ -1069,15 +1068,15 @@ abstract public class Loader {
 					mawt = p.createImage(imp); // could lock by calling fetchImagePlus if the imp was null, so CAREFUL
 					mawts.put(id, mawt, level);
 					Display.repaintSnapshot(p);
-					unlock();
 					//Utils.log2("Returning from imp with level " + level);
 					return mawt;
 				}
 
 			} catch (Exception e) {
 				IJError.print(e);
+			} finally {
+				unlock();
 			}
-			unlock();
 			return NOT_FOUND;
 		}
 	}
@@ -2236,9 +2235,10 @@ abstract public class Loader {
 								touched_layers.add(layer);
 								patch = new Patch(layer.getProject(), imp.getTitle(), x, y, imp);
 								addedPatchFrom(path, patch);
-								lock.unlock();
 							} catch (Exception e) {
 								IJError.print(e);
+							} finally {
+								lock.unlock();
 							}
 						}
 						if (null != patch) {
@@ -2249,9 +2249,10 @@ abstract public class Loader {
 								try {
 									lock.lock();
 									layer.add(patch, true);
-									lock.unlock();
 								} catch (Exception e) {
 									IJError.print(e);
+								} finally {
+									lock.unlock();
 								}
 							}
 							decacheImagePlus(patch.getId()); // no point in keeping it around
@@ -3459,13 +3460,18 @@ abstract public class Loader {
 	public void decache(final ImagePlus imp) {
 		synchronized(db_lock) {
 			lock();
-			long[] ids = imps.getAll(imp);
-			Utils.log2("decaching " + ids.length);
-			if (null == ids) return;
-			for (int i=0; i<ids.length; i++) {
-				mawts.removeAndFlush(ids[i]);
+			try {
+				long[] ids = imps.getAll(imp);
+				Utils.log2("decaching " + ids.length);
+				if (null == ids) return;
+				for (int i=0; i<ids.length; i++) {
+					mawts.removeAndFlush(ids[i]);
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
 			}
-			unlock();
 		}
 	}
 
