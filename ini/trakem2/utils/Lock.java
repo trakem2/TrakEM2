@@ -53,7 +53,7 @@ public class Lock {
 	public final void debug() {
 		debug = true;
 	}
-	public final void debugAll() {
+	static public final void debugAll() {
 		debug_all = true;
 	}
 }
