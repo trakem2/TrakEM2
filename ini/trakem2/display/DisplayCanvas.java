@@ -1141,9 +1141,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			start();
 		}
 		void dispatch(MouseEvent me) {
-			Utils.log2("before");
+			//Utils.log2("before");
 			synchronized (this) {
-				Utils.log2("in");
+				//Utils.log2("in");
 				this.me = me;
 				notify();
 			}
