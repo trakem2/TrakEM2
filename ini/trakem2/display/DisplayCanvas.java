@@ -1866,13 +1866,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				atc.translate(-srcRect.x, -srcRect.y);
 
 				// Area to which each Patch will subtract from
-				final Area background =  new Area(new Rectangle(0, 0, g_width, g_height));
+				//final Area background =  new Area(new Rectangle(0, 0, g_width, g_height));
 				// bring the area to Layer space
-				background.transform(atc.createInverse());
+				//background.transform(atc.createInverse());
 
 				// the non-srcRect areas, in offscreen coords
 				final Rectangle r1 = new Rectangle(srcRect.x + srcRect.width, srcRect.y, (int)(g_width / magnification) - srcRect.width, (int)(g_height / magnification));
 				final Rectangle r2 = new Rectangle(srcRect.x, srcRect.y + srcRect.height, srcRect.width, (int)(g_height / magnification) - srcRect.height);
+
 
 				final ArrayList<Displayable> al_top = new ArrayList<Displayable>();
 				boolean top = false;
@@ -1905,7 +1906,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 					if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
 						if (Patch.class == c) {
-							if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter(0,0,1,1))); // this only works because the clip is given to be null
+							//if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter(0,0,1,1))); // this only works because the clip is given to be null
 							al_paint.add(d);
 							al_patches.add((Patch)d);
 						} else {
@@ -1970,11 +1971,19 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// always a stroke of 1.0, regardless of magnification; the stroke below corrects for that
 				g.setStroke(stroke);
 
+
+
+				// Testing: removed Area.subtract, now need to fill int background
+				g.setColor(Color.black);
+				g.fillRect(0, 0, g_width - r1.x, g_height - r2.y);
+
+
 				// paint:
 				//  1 - background
 				//  2 - images and anything else not on al_top
 				//  3 - non-srcRect areas
 
+				/*
 				if (!background.isEmpty()) {
 					// subtract non-srcRect areas
 					background.subtract(new Area(r1));
@@ -1983,6 +1992,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					g.setColor(Color.black);
 					g.fill(background);
 				}
+				*/
 
 				//Utils.log2("offscreen painting: " + al_paint.size());
 
