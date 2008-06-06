@@ -4368,15 +4368,15 @@ abstract public class Loader {
 
 	// Java is pathetically low level.
 	static private final class Tuple {
-		Patch patch;
-		double mag;
-		boolean repaint;
+		final Patch patch;
+		final double mag;
+		final boolean repaint;
 		Tuple(final Patch patch, final double mag, final boolean repaint) {
 			this.patch = patch;
 			this.mag = mag;
 			this.repaint = repaint;
 		}
-		public boolean equals(final Object ob) {
+		public final boolean equals(final Object ob) {
 			if (ob.getClass() != Tuple.class) return false;
 			final Tuple tu = (Tuple)ob;
 			return patch == tu.patch && mag == tu.mag && repaint == tu.repaint;
