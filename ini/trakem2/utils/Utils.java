@@ -37,6 +37,7 @@ import ij.Menus;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
+import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.process.*;
 import ij.io.*;
@@ -1029,6 +1030,16 @@ public class Utils implements ij.plugin.PlugIn {
 			IJError.print(e);
 		}
 		return null;
+	}
+
+	static public final Area getArea(final Roi roi) {
+		if (null == roi) return null;
+		ShapeRoi sroi = new ShapeRoi(roi);
+		AffineTransform at = new AffineTransform();
+		Rectangle bounds = sroi.getBounds();
+		at.translate(bounds.x, bounds.y);
+		Area area = new Area(getShape(sroi));
+		return area.createTransformedArea(at);
 	}
 
 	/** Returns the approximated area of the given Area object. */

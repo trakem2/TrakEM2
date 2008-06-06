@@ -387,7 +387,7 @@ public class Layer extends DBObject {
 	/** Returns a list of all Displayable of class c that intersect the given area. */
 	public ArrayList<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
 		final ArrayList<Displayable> al = getDisplayables(c);
-		for (Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
+		for (Iterator<Displayable> it = al.iterator(); it.hasNext(); ) {
 			Displayable d = it.next();
 			if (visible_only && !d.isVisible()) { it.remove(); continue; }
 			Area area = new Area(d.getPerimeter());
