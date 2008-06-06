@@ -110,6 +110,9 @@ public class Registration {
 				break;
 			case GLOBAL_MINIMIZATION:
 				gd.addCheckbox("Tiles are rougly registered: ", false);
+				gd.addCheckbox("Consider largest graph only, in each layer", false);
+				gd.addCheckbox("Hide tiles from non-largest graph", false);
+				gd.addCheckbox("Delete tiles from non-largest graph", false);
 				break;
 		}
 		//TODO//gd.addCheckbox("Transform segmentations", true);
@@ -118,7 +121,13 @@ public class Registration {
 		final int i_first = gd.getNextChoiceIndex();
 		final int i_start = layer.getParent().indexOf(layer);
 		final int i_last = gd.getNextChoiceIndex();
-		final boolean option = gd.getNextBoolean();
+		final boolean[] option = new boolean[4];
+		option[0] = gd.getNextBoolean();
+		if (kind == GLOBAL_MINIMIZATION) {
+			option[1] = gd.getNextBoolean(); // largest graph only
+			option[2] = gd.getNextBoolean(); // hide other tiles
+			option[3] = gd.getNextBoolean(); // delete other tiles
+		}
 		//TODO//final boolean tr_seg = gd.getNextBoolean();
 		switch (kind) {
 			case GLOBAL_MINIMIZATION:
@@ -127,7 +136,7 @@ public class Registration {
 				la = lla.toArray(la);
 				return registerTilesSIFT(la, option);
 			case LAYER_SIFT:
-				return registerLayers(layer.getParent(), i_first, i_start, i_last, option);
+				return registerLayers(layer.getParent(), i_first, i_start, i_last, option[0]);
 		}
 		return null;
 	}
@@ -782,7 +791,15 @@ public class Registration {
 	 *
 	 */
 	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean overlapping_only) {
+		return registerTilesSIFT(layer, new boolean[]{overlapping_only, false, false});
+	}
+	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean[] options) {
 		if (null == layer || 0 == layer.length) return null;
+
+		final boolean overlapping_only = options[0];
+		final boolean largest_graph_only = options[1];
+		final boolean hide_other_tiles = options[2];
+		final boolean delete_other_tiles = options[3];
 
 		final Worker worker_ = new Worker("Free tile registration") {
 			public void run() {
@@ -945,7 +962,51 @@ public class Registration {
 			// identify connected graphs
 			ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( tiles2 );
 			Utils.log2( graphs.size() + " graphs detected." );
-			
+
+			if (largest_graph_only) {
+				final ArrayList<Patch> other_patches = new ArrayList<Patch>();
+				// remove graphs other than the largest, and remove tiles from tiles2 as well
+				if (1 != graphs.size()) {
+					int len = 0;
+					ArrayList<Tile> largest = null;
+					for (ArrayList<Tile> graph : graphs) {
+						if (graph.size() > len) {
+							len = graph.size();
+							largest = graph;
+						}
+					}
+					// remove all tiles from tiles2 except those that belong to the largest graph
+					//tiles2.retainAll(largest); // all other tiles are removed
+					// Can't ... patches2 would not be in synch, so:
+					graphs.remove(largest);
+					for (ArrayList<Tile> graph : graphs) {
+						for (Tile tile : graph) {
+							int index = tiles2.indexOf(tile);
+							other_patches.add(patches2.remove(index));
+							tiles2.remove(index);
+						}
+					}
+
+					int n_graphs = graphs.size();
+					graphs.clear();
+					graphs.add(largest); // so now graphs contains only one
+					Utils.log2("Removed " + n_graphs + "\n\t--> focusing on largest graph with " + largest.size() + " tiles.");
+				}
+				if (hide_other_tiles || delete_other_tiles) {
+					if (other_patches.size() > 0) {
+						for (Patch pa : other_patches) {
+							if (delete_other_tiles) {
+								pa.unlink(); // just in case: it could stop all
+								pa.remove(false);
+							} else if (hide_other_tiles) pa.setVisible(false);
+						}
+						Patch first = other_patches.get(0);
+						if (delete_other_tiles) Utils.log("Layer " + first.getLayer() + ": Deleted " + other_patches.size() + " images.");
+						else if (hide_other_tiles) Utils.log("Layer " + first.getLayer() + ": Hided " + other_patches.size() + " images.");
+					}
+				}
+			}
+
 			if ( sp.tiles_prealigned && graphs.size() > 1 )
 			{
 				/**
@@ -954,9 +1015,8 @@ public class Registration {
 				 * tiles.
 				 */
 				Utils.log2( "Synthetically connecting graphs using the given alignment." );
-				
 				Registration.connectDisconnectedGraphs( graphs, tiles2, patches2 );
-				
+
 				/**
 				 * check the connectivity graphs again.  Hopefully there is
 				 * only one graph now.  If not, we still have to fix one tile
@@ -971,10 +1031,10 @@ public class Registration {
 
 			// update all tiles, for error and distance correction
 			for ( Tile tile : tiles2 ) tile.update();
-			
+
 			// optimize the pose of all tiles in the current layer
 			Registration.minimizeAll( tiles2, patches2, layer_fixed_tiles, set, sp.max_epsilon, worker );
-			
+
 			// repaint all Displays showing a Layer of the edited LayerSet
 			Display.update( set );
 
@@ -1251,7 +1311,7 @@ public class Registration {
 	static private final void connectDisconnectedGraphs(
 			final List< ArrayList< Tile > > graphs,
 			final List< Tile > tiles,
-			final List< Patch > patches )
+			final List< Patch > patches)
 	{
 		/**
 		 * We have to trust the given alignment.  Try to add synthetic
