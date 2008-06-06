@@ -38,7 +38,7 @@ public class FIFOImageMipMaps {
 	private final LinkedList<Entry> cache;
 	private final HashMap<Long,Image[]> map = new HashMap<Long,Image[]>();
 	private boolean use_map = false;
-	public static int LINEAR_SEARCH_LIMIT = 100;
+	public static int LINEAR_SEARCH_LIMIT = 0;
 
 	private class Entry {
 		final long id;
@@ -88,8 +88,8 @@ public class FIFOImageMipMaps {
 	/** The position in the array is the Math.max(width, height) of an image. */
 	private final static int[] max_levels = new int[50000]; // don't change to smaller than 33
 	static {
-		// from 0 to 32 all zeros
-		for (int i=33; i<max_levels.length; i++) {
+		// from 0 to 31 all zeros
+		for (int i=32; i<max_levels.length; i++) {
 			max_levels[i] = computeLevel(i);
 		}
 	}
@@ -141,20 +141,20 @@ public class FIFOImageMipMaps {
 		if (use_map) {
 			// add new to the map
 			Image[] images = map.get(id);
-			if (null == images) {
-				//System.out.println("CREATION maxLevel, level, image.width: " + maxLevel(image, level) + ", " + level + ", " + image.getWidth(null));
-				images = new Image[maxLevel(image, level)];
-				images[level] = image;
-				map.put(id, images);
-			} else {
-				try {
+			try {
+				if (null == images) {
+					//System.out.println("CREATION maxLevel, level, image.width: " + maxLevel(image, level) + ", " + level + ", " + image.getWidth(null));
+					images = new Image[maxLevel(image, level)];
 					images[level] = image;
-				} catch (Exception e) {
-					System.out.println("length of images[]: " + images.length);
-					System.out.println("level to add: " + level);
-					System.out.println("size of the image: " + image.getWidth(null));
-					System.out.println("maxlevel is: " + maxLevel(image, level));
+					map.put(id, images);
+				} else {
+					images[level] = image;
 				}
+			} catch (Exception e) {
+				System.out.println("length of images[]: " + images.length);
+				System.out.println("level to add: " + level);
+				System.out.println("size of the image: " + image.getWidth(null));
+				System.out.println("maxlevel is: " + maxLevel(image, level));
 			}
 		} else if (cache.size() >= LINEAR_SEARCH_LIMIT) { // create the map one step before it's used, hence the >= not > alone.
 			// initialize map
