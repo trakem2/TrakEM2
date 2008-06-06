@@ -652,6 +652,9 @@ public class FSLoader extends Loader {
 
 	/** With slice info appended at the end; only if it exists, otherwise null. */
 	public String getAbsolutePath(final Patch patch) {
+		String abs_path = patch.getAbsolutePath();
+		if (null != abs_path) return abs_path;
+		// else, compute, set and return it:
 		Object ob = ht_paths.get(patch.getId());
 		if (null == ob) return null;
 		String path = (String)ob;
@@ -673,6 +676,8 @@ public class FSLoader extends Loader {
 		}
 		// reappend slice info if existent
 		if (null != slice) path += slice;
+		// set it
+		patch.setAbsolutePath(path);
 		return path;
 	}
 
