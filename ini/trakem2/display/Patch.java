@@ -734,4 +734,16 @@ public class Patch extends Displayable {
 
 		return pvalue;
 	}
+
+	private String absolute_path = null;
+
+	/** Returns the value of the field absolute_path, which may be null. If not null, the value may contain the slice info in it if it's part of a stack. */
+	public final String getAbsolutePath() {
+		return absolute_path;
+	}
+
+	public final void setAbsolutePath(final String path) {
+		this.absolute_path = path;
+	}
+	// TODO needs refactoring with ht_paths in FSLoader
 }
