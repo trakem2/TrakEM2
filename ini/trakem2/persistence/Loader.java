@@ -4527,8 +4527,8 @@ abstract public class Loader {
 							final Iterator<Tuple> it = list.iterator();
 							while (it.hasNext()) {
 								for (int i=0; i<imageloader.length; i++) {
+									final Tuple tu = it.next();
 									if (!imageloader[i].isLoading()) {
-										final Tuple tu = it.next();
 										it.remove();
 										imageloader[i].load(tu.patch, tu.mag, tu.repaint);
 									}
