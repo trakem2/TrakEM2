@@ -418,7 +418,7 @@ public class AreaList extends ZDisplayable {
 				}
 				// bring to offscreen position of the mouse
 				atb.translate(p.x, p.y);
-				Area slash = brush.createTransformedArea(atb);
+				Area slash = brush.createTransformedArea(atb); // + int transform, no problem
 				// capture bounds while still in offscreen coordinates
 				final Rectangle r = slash.getBounds();
 				// bring to the current transform, if any
@@ -429,6 +429,8 @@ public class AreaList extends ZDisplayable {
 						IJError.print(nite);
 					}
 				}
+				// avoid problems with floating-point points, for example inability to properly fill areas or delete them.
+				slash = slashInInts(slash);
 				if (0 == (flags & alt)) {
 					// no modifiers, just add
 					area.add(slash);
@@ -447,6 +449,49 @@ public class AreaList extends ZDisplayable {
 				// reset
 				atb.setToIdentity();
 			}
+		}
+
+		private final Area slashInInts(final Area area) {
+			int[] x = new int[400];
+			int[] y = new int[400];
+			int next = 0;
+			for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+				if (x.length == next) {
+					int[] x2 = new int[x.length + 200];
+					int[] y2 = new int[y.length + 200];
+					System.arraycopy(x, 0, x2, 0, x.length);
+					System.arraycopy(y, 0, y2, 0, y.length);
+					x = x2;
+					y = y2;
+				}
+				final float[] coords = new float[6];
+				int seg_type = pit.currentSegment(coords);
+				switch (seg_type) {
+					case PathIterator.SEG_MOVETO:
+					case PathIterator.SEG_LINETO:
+						x[next] = (int)coords[0];
+						y[next] = (int)coords[1];
+						break;
+					case PathIterator.SEG_CLOSE:
+						break;
+					default:
+						Utils.log2("WARNING: AreaList.slashInInts unhandled seg type.");
+						break;
+				}
+				pit.next();
+				if (pit.isDone()) break; // the loop
+				next++;
+			}
+			// resize back (now next is the length):
+			if (x.length == next) {
+				int[] x2 = new int[next];
+				int[] y2 = new int[next];
+				System.arraycopy(x, 0, x2, 0, next);
+				System.arraycopy(y, 0, y2, 0, next);
+				x = x2;
+				y = y2;
+			}
+			return new Area(new Polygon(x, y, next));
 		}
 
 		/** This method could get tones of improvement, which should be pumped upstream into ImageJ's RoiBrush class which is creating it at every while(true) {} iteration!!!
