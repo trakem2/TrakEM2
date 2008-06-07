@@ -4525,14 +4525,18 @@ abstract public class Loader {
 						// block 2: now iterate until each tuple in the list has been  assigned to a preloader thread
 						while (!list.isEmpty()) {
 							final Iterator<Tuple> it = list.iterator();
+							int i = 0;
 							while (it.hasNext()) {
-								for (int i=0; i<imageloader.length; i++) {
-									final Tuple tu = it.next();
-									if (!imageloader[i].isLoading()) {
-										it.remove();
-										imageloader[i].load(tu.patch, tu.mag, tu.repaint);
-									}
+								final Tuple tu = it.next();
+								if (i == imageloader.length) {
+									try { Thread.sleep(10); } catch (Exception e) {}
+									i = 0; // circular array
 								}
+								if (!imageloader[i].isLoading()) {
+									it.remove();
+									imageloader[i].load(tu.patch, tu.mag, tu.repaint);
+								}
+								i++;
 							}
 							if (!list.isEmpty()) try {
 								//Utils.log2("@@@@@ list not empty, waiting 50 ms");
