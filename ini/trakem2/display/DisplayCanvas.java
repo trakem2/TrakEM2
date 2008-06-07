@@ -120,7 +120,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Canvas-Repainter") {
-		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
+		protected void handleUpdateGraphics(final Component target, final Rectangle clipRect) {
 			try {
 				// Signal previous offscreen threads to quit
 				cancelOffs();
@@ -1821,12 +1821,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	static private final int min_time = 200;
 
 	private class OffscreenThread extends AbstractOffscreenThread {
-		private Layer layer;
-		private int g_width;
-		private int g_height;
-		private Displayable active;
-		private int c_alphas;
-		private Rectangle clipRect;
+		final private Layer layer;
+		final private int g_width;
+		final private int g_height;
+		final private Displayable active;
+		final private int c_alphas;
+		final private Rectangle clipRect;
 		public final int label = counter.getAndIncrement();
 		OffscreenThread(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
 			super("T2-Canvas-Offscreen");
@@ -1861,7 +1861,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
 
 				// prepare the canvas for the srcRect and magnification
-				AffineTransform atc = new AffineTransform();
+				final AffineTransform atc = new AffineTransform();
 				atc.scale(magnification, magnification);
 				atc.translate(-srcRect.x, -srcRect.y);
 
@@ -1919,7 +1919,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 
 				// preload as many as possible
-				Loader.preload(al_patches, magnification);
+				Loader.preload(al_patches, magnification, false); // must be false; a 'true' would incur in an infinite loop.
 
 				// paint the ZDisplayables here, before the labels and LayerSets, if any
 				int j = 0;
@@ -1955,7 +1955,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					i++;
 				}
 
-				if (quit && canQuit()) {
+				if (quit && canQuit()) { // TODO: NO NEED to quitPreloading those patches that are actually going to be immediately need in the call that is quitting this thread.
 					Loader.quitPreloading(al_patches, magnification);
 					return;
 				}

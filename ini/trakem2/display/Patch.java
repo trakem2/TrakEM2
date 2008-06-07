@@ -335,7 +335,7 @@ public class Patch extends Displayable {
 					// load the mipmap
 					image = project.getLoader().fetchImage(this, magnification);
 				} else {
-					// load a smaller mipmap, and then spawn the thread
+					// load a smaller mipmap, and then load the larger one and repaint on load.
 					image = project.getLoader().fetchImage(this, 0.25);
 					thread = true;
 				}
@@ -345,7 +345,7 @@ public class Patch extends Displayable {
 				thread = true;
 			}
 			if (thread && !Loader.NOT_FOUND.equals(image)) {
-				// use the lower resolution image, but spawn a thread to load and paint the proper one on loading it.
+				// use the lower resolution image, but ask to repaint it on load
 				Loader.preload(this, magnification, true);
 			}
 		}

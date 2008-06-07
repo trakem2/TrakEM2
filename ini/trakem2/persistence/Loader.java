@@ -112,6 +112,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.IdentityHashMap;
+import java.util.HashMap;
 import java.util.Vector;
 import java.util.LinkedHashSet;
 import java.util.zip.ZipEntry;
@@ -4369,23 +4372,31 @@ abstract public class Loader {
 	// Java is pathetically low level.
 	static private final class Tuple {
 		final Patch patch;
-		final double mag;
-		final boolean repaint;
+		double mag;
+		boolean repaint;
+		private boolean valid = true;
 		Tuple(final Patch patch, final double mag, final boolean repaint) {
 			this.patch = patch;
 			this.mag = mag;
 			this.repaint = repaint;
 		}
 		public final boolean equals(final Object ob) {
-			if (ob.getClass() != Tuple.class) return false;
+			// DISABLED: private class Tuple will never be used in lists that contain objects that are not Tuple as well.
+			//if (ob.getClass() != Tuple.class) return false;
 			final Tuple tu = (Tuple)ob;
 			return patch == tu.patch && mag == tu.mag && repaint == tu.repaint;
+		}
+		final void invalidate() {
+			//Utils.log2("@@@@ called invalidate for mag " + mag);
+			valid = false;
 		}
 	}
 
 	/** Manages available CPU cores for loading images in the background. */
 	static private class Preloader extends Thread {
-		private final ArrayList<Tuple> queue = new ArrayList<Tuple>();
+		private final LinkedList<Tuple> queue = new LinkedList<Tuple>();
+		/** IdentityHashMap uses ==, not .equals() ! */
+		private final IdentityHashMap<Patch,HashMap<Integer,Tuple>> map = new IdentityHashMap<Patch,HashMap<Integer,Tuple>>();
 		private boolean go = true;
 		/** Controls access to the queue. */
 		private final Lock lock = new Lock();
@@ -4395,82 +4406,139 @@ abstract public class Loader {
 			setPriority(Thread.NORM_PRIORITY);
 			start();
 		}
+		/** WARNING this method effectively limits zoom out to 0.00000001. */
+		private final int makeKey(final double mag) {
+			// get the nearest equal or higher power of 2
+			return (int)(0.000005 + Math.abs(Math.log(mag) / Math.log(2)));
+		}
 		public final void quit() {
 			this.go = false;
 			synchronized (lock) { lock.lock(); queue.clear(); lock.unlock(); }
 			synchronized (lock2) { lock2.unlock(); }
 		}
-		public final void add(final Patch patch, final double mag, final boolean repaint) {
-			if (patch.getProject().getLoader().isCached(patch, mag) && (!repaint || (repaint && !Display.willPaint(patch, mag)))) {
-				return;
-			}
-			boolean preload = false;
+		private final void addEntry(final Patch patch, final double mag, final boolean repaint) {
 			synchronized (lock) {
 				lock.lock();
 				final Tuple tu = new Tuple(patch, mag, repaint);
-				if (!queue.contains(tu)) {
-					queue.add(tu);
-					preload = true;
+				HashMap<Integer,Tuple> m = map.get(patch);
+				final int key = makeKey(mag);
+				if (null == m) {
+					m = new HashMap<Integer,Tuple>();
+					m.put(key, tu);
+					map.put(patch, m);
+				} else {
+					// invalidate previous entry if any
+					Tuple old = m.get(key);
+					if (null != old) old.invalidate();
+					// in any case:
+					m.put(key, tu);
 				}
+				queue.add(tu);
 				lock.unlock();
 			}
-			if (preload) synchronized (lock2) { lock2.unlock(); }
 		}
-		public final void add(final ArrayList<Patch> patches, final double mag) {
-			int len = 0;
-			synchronized (lock) {
-				lock.lock();
-				for (Patch p : patches) {
-					if (p.getProject().getLoader().isCached(p, mag)) continue;
-					final Tuple tu = new Tuple(p, mag, false);
-					if (queue.contains(tu)) continue;
-					queue.add(tu);
-				}
-				len = queue.size();
-				lock.unlock();
+		private final void addPatch(final Patch patch, final double mag, final boolean repaint) {
+			if (patch.getProject().getLoader().isCached(patch, mag)) return;
+			if (repaint && !Display.willPaint(patch, mag)) return;
+			// else, queue:
+			addEntry(patch, mag, repaint);
+		}
+		public final void add(final Patch patch, final double mag, final boolean repaint) {
+			addPatch(patch, mag, repaint);
+			synchronized (lock2) { lock2.unlock(); }
+		}
+		public final void add(final ArrayList<Patch> patches, final double mag, final boolean repaint) {
+			//Utils.log2("@@@@ Adding " + patches.size() + " for mag " + mag);
+			for (Patch p : patches) {
+				addPatch(p, mag, repaint);
 			}
-			if (len > 0) synchronized (lock2) { lock2.unlock(); }
+			synchronized (lock2) { lock2.unlock(); }
 		}
 		public final void remove(final ArrayList<Patch> patches, final double mag) {
+			// WARNING: this method only makes sense of the canceling of the offscreen thread happens before the issuing of the new offscreen thread, which is currently the case.
+			int sum = 0;
 			synchronized (lock) {
 				lock.lock();
 				for (Patch p : patches) {
-					queue.remove(new Tuple(p, mag, false)); // remove the first occurrence only., so later additions of the same will be fine.
+					HashMap<Integer,Tuple> m = map.get(p);
+					if (null == m) {
+						lock.unlock();
+						continue;
+					}
+					final Tuple tu = m.remove(makeKey(mag)); // if present.
+					//Utils.log2("@@@@ mag is " + mag + " and tu is null == " + (null == tu));
+					if (null != tu) {
+						tu.invalidate(); // never removed from the queue, just invalidated. Will be removed by the preloader thread itself, when poping from the end.
+						if (m.isEmpty()) map.remove(p);
+						sum++;
+					}
 				}
 				lock.unlock();
 			}
+			//Utils.log2("@@@@ invalidated " + sum + " for mag " + mag);
+		}
+		private final void removeMapping(final Tuple tu) {
+			final HashMap<Integer,Tuple> m = map.get(tu.patch);
+			if (null == m) return;
+			m.remove(makeKey(tu.mag));
+			if (m.isEmpty()) map.remove(tu.patch);
 		}
 		public void run() {
-			final Tuple[] tu = new Tuple[imageloader.length];
+			final int size = imageloader.length; // as many as Preloader threads
+			final ArrayList<Tuple> list = new ArrayList<Tuple>(size);
 			while (go) {
 				try {
 					synchronized (lock2) { lock2.lock(); }
 					// read out a group of imageloader.length patches to load
 					while (true) {
+						// block 1: pop out 'size' valid tuples from the queue (and all invalid in between as well)
 						synchronized (lock) {
 							lock.lock();
-							int i = 0;
 							int len = queue.size();
+							//Utils.log2("@@@@@ Queue size: " + len);
 							if (0 == len) {
 								lock.unlock();
 								break;
 							}
-							for (; i<tu.length && i<len; i++, len--) {
-								tu[i] = queue.remove(len-1); // start removing from the end, since those are the latest additions, hence the ones the user wants to see immediately.
+							// When more than a hundred images, multiply by 10 the remove/read -out batch for preloading.
+							// (if the batch_size is too large, then the removing/invalidating tuples from the queue would not work properly, i.e. they would never get invalidated and thus they'd be preloaded unnecessarily.)
+							final int batch_size = size * (len < 100 ? 1 : 10);
+							//
+							for (int i=0; i<batch_size && i<len; len--) {
+								final Tuple tuple = queue.remove(len-1); // start removing from the end, since those are the latest additions, hence the ones the user wants to see immediately.
+								removeMapping(tuple);
+								if (!tuple.valid) {
+									//Utils.log2("@@@@@ skipping invalid tuple");
+									continue;
+								}
+								list.add(tuple);
+								i++;
 							}
-							for (; i<tu.length; i++) {
-								tu[i] = null;
-							}
+							//Utils.log2("@@@@@ Queue size after: " + queue.size());
 							lock.unlock();
 						}
-						// changes may occur now to the queue, so work on the tu array
-						for (int i=0; i<imageloader.length; i++) {
-							if (null != tu[i] && null != tu[i].patch) {
-								imageloader[i].load(tu[i].patch, tu[i].mag, tu[i].repaint);
+
+						// changes may occur now to the queue, so work on the list
+
+						//Utils.log2("@@@@@ list size: " + list.size());
+
+						// block 2: now iterate until each tuple in the list has been  assigned to a preloader thread
+						while (!list.isEmpty()) {
+							final Iterator<Tuple> it = list.iterator();
+							while (it.hasNext()) {
+								for (int i=0; i<imageloader.length; i++) {
+									if (!imageloader[i].isLoading()) {
+										final Tuple tu = it.next();
+										it.remove();
+										imageloader[i].load(tu.patch, tu.mag, tu.repaint);
+									}
+								}
 							}
+							if (!list.isEmpty()) try {
+								//Utils.log2("@@@@@ list not empty, waiting 50 ms");
+								Thread.sleep(50);
+							} catch (InterruptedException ie) {}
 						}
-						// Ideally, there would be one paraller primer thead for each imageloader thread, because the ImageLoaderThread.load function locks if the thread is still loading the previous image.
-						// As it is now, should not waste time at all as long as images are all the same sizes.
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -4483,8 +4551,8 @@ abstract public class Loader {
 	static public final void preload(final Patch patch, final double magnification, final boolean repaint) {
 		preloader.add(patch, magnification, repaint);
 	}
-	static public final void preload(final ArrayList<Patch> patches, final double magnification) {
-		preloader.add(patches, magnification);
+	static public final void preload(final ArrayList<Patch> patches, final double magnification, final boolean repaint) {
+		preloader.add(patches, magnification, repaint);
 	}
 	static public final void quitPreloading(final ArrayList<Patch> patches, final double magnification) {
 		preloader.remove(patches, magnification);
@@ -4499,6 +4567,7 @@ abstract public class Loader {
 		private double mag = 1.0;
 		private boolean repaint = false;
 		private boolean go = true;
+		private boolean loading = false;
 		public ImageLoaderThread() {
 			super("T2-Image-Loader");
 			setPriority(Thread.NORM_PRIORITY);
@@ -4528,6 +4597,9 @@ abstract public class Loader {
 				}
 			}
 		}
+		final boolean isLoading() {
+			return loading;
+		}
 		public void run() {
 			while (go) {
 				Patch p = null;
@@ -4550,11 +4622,13 @@ abstract public class Loader {
 							Thread.yield();
 							try { sleep(50); } catch (InterruptedException ie) {}
 							if (Display.willPaint(p, mag)) {
+								loading = true;
 								p.getProject().getLoader().fetchImage(p, mag);
 								Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
 							}
 						} else {
 							// just load it into the cache if possible
+							loading = true;
 							p.getProject().getLoader().fetchImage(p, mag);
 						}
 						p = null;
@@ -4562,7 +4636,7 @@ abstract public class Loader {
 				}
 				// signal done
 				try {
-					synchronized (lock) { lock.unlock(); }
+					synchronized (lock) { loading = false; lock.unlock(); }
 				} catch (Exception e) {}
 			}
 		}

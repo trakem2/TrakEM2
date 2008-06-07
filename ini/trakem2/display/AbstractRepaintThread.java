@@ -36,12 +36,12 @@ public abstract class AbstractRepaintThread extends Thread {
 	final private Lock lock_paint = new Lock();
 	final private Lock lock_offs = new Lock();
 	private boolean quit = false;
-	private java.util.List<AbstractOffscreenThread> offs = new LinkedList<AbstractOffscreenThread>();
-	private java.util.List<PaintEvent> events = new LinkedList<PaintEvent>();
-	private Component target;
+	private final java.util.List<AbstractOffscreenThread> offs = new LinkedList<AbstractOffscreenThread>();
+	private final java.util.List<PaintEvent> events = new LinkedList<PaintEvent>();
+	private final Component target;
 	//private long latest_off = 0;
 
-	public AbstractRepaintThread(Component target, String name) {
+	public AbstractRepaintThread(final Component target, final String name) {
 		super(name);
 		this.target = target;
 		setPriority(Thread.NORM_PRIORITY);
@@ -49,9 +49,9 @@ public abstract class AbstractRepaintThread extends Thread {
 	}
 
 	private class PaintEvent {
-		Rectangle clipRect;
-		boolean update_graphics;
-		PaintEvent(Rectangle clipRect, boolean update_graphics) {
+		final Rectangle clipRect;
+		final boolean update_graphics;
+		PaintEvent(final Rectangle clipRect, final boolean update_graphics) {
 			this.clipRect = clipRect;
 			this.update_graphics = update_graphics; // java is sooo verbose... this class is just a tuple!
 		}
@@ -111,8 +111,7 @@ public abstract class AbstractRepaintThread extends Thread {
 			try {
 				int size = offs.size();
 				while (size > 0) {
-					AbstractOffscreenThread off = offs.remove(0);
-					off.cancel();
+					offs.remove(0).cancel();
 					size--;
 				}
 			} catch (Exception e) {
@@ -123,7 +122,7 @@ public abstract class AbstractRepaintThread extends Thread {
 	}
 
 	/** Add a new offscreen thread to the list, for its eventual cancelation if necessary. */
-	protected void add(AbstractOffscreenThread off) {
+	protected void add(final AbstractOffscreenThread off) {
 		synchronized (lock_offs) {
 			lock_offs.lock();
 			try { offs.add(off); } catch (Exception ee) { ee.printStackTrace(); }
