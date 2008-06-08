@@ -312,8 +312,11 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Bounding box of the transformed data. Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
-	public Rectangle getBoundingBox(Rectangle r) {
-		if (null == r) r = new Rectangle();
+	public Rectangle getBoundingBox(final Rectangle r) {
+		return getBounds(null == r ? new Rectangle() : r);
+	}
+	/** Will fill bounding box values into given rectangle, which must NOT be null. */
+	public Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;
 		r.width = (int)this.width;
@@ -380,7 +383,7 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Test whether the given point falls within the perimeter of this Displayable, considering the position x,y. Used by the DisplayCanvas mouse events. */
-	public boolean contains(int x_p, int y_p) {
+	public boolean contains(final int x_p, final int y_p) {
 		return getPerimeter().contains(x_p, y_p);
 	}
 
@@ -519,13 +522,13 @@ public abstract class Displayable extends DBObject {
 		this.layer = null;
 	}
 
-	public boolean isOutOfRepaintingClip(double magnification, Rectangle srcRect, Rectangle clipRect) {
+	public boolean isOutOfRepaintingClip(final double magnification, final Rectangle srcRect, final Rectangle clipRect) {
 		// 1 - check visibility
 		if (!visible) {
 			//if not visible, it's out, so return true:
 			return true;
 		}
-		Rectangle box = getBoundingBox(); // includes rotation
+		final Rectangle box = getBoundingBox(); // includes rotation
 		// 2 - check if out of clipRect (clipRect is in screen coords, whereas srcRect is in offscreen coords)
 		if (null != clipRect && null != srcRect) {
 			int screen_x = (int)((box.x -srcRect.x) * magnification);
@@ -1191,6 +1194,7 @@ public abstract class Displayable extends DBObject {
 	public void setAffineTransform(AffineTransform at) {
 		this.at.setTransform(at);
 		updateInDatabase("transform");
+		getBucketable().updateBucket(this);
 	}
 
 	/** Translate this Displayable and its linked ones if linked=true. */
@@ -1204,10 +1208,12 @@ public abstract class Displayable extends DBObject {
 				Displayable d = (Displayable)it.next();
 				d.at.preConcatenate(at2);
 				d.updateInDatabase("transform");
+				d.getBucketable().updateBucket(this);
 			}
 		} else {
 			this.at.preConcatenate(at2);
 			this.updateInDatabase("transform");
+			getBucketable().updateBucket(this);
 		}
 	}
 
@@ -1231,10 +1237,12 @@ public abstract class Displayable extends DBObject {
 				Displayable d = (Displayable)it.next();
 				d.at.preConcatenate(at2);
 				d.updateInDatabase("transform");
+				d.getBucketable().updateBucket(this);
 			}
 		} else {
 			this.at.preConcatenate(at2);
 			this.updateInDatabase("transform");
+			getBucketable().updateBucket(this);
 		}
 	}
 
@@ -1269,6 +1277,7 @@ public abstract class Displayable extends DBObject {
 
 		at.preConcatenate( at2 );
 		updateInDatabase( "transform" );
+		getBucketable().updateBucket(this);
 	}
 
 	/** Sets the top left of the bounding box to x,y. Warning: does not check that the object will remain within layer bounds. Does NOT affect linked Displayables. */
@@ -1277,6 +1286,7 @@ public abstract class Displayable extends DBObject {
 		Rectangle b = getBoundingBox(null);
 		this.translate(x - b.x, y - b.y, false); // do not affect linked Displayables
 		//Utils.log2("setting new loc, args are: " + x + ", "+ y);
+		getBucketable().updateBucket(this);
 	}
 
 	/** Apply this Displayable's AffineTransform to the given point. */
@@ -1337,6 +1347,7 @@ public abstract class Displayable extends DBObject {
 			Displayable d = (Displayable)it.next();
 			d.at.concatenate(at);
 			d.updateInDatabase("transform");
+			d.getBucketable().updateBucket(this);
 			//Utils.log("applying transform to " + d);
 		}
 	}
@@ -1369,5 +1380,9 @@ public abstract class Displayable extends DBObject {
 	public ResultsTable measure(ResultsTable rt) {
 		Utils.showMessage("Not implemented yet for " + Project.getName(getClass()) + " [class " + this.getClass().getName() + "]");
 		return rt;
+	}
+
+	public Bucketable getBucketable() {
+		return this.layer;
 	}
 }

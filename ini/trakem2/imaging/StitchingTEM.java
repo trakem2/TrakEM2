@@ -59,6 +59,7 @@ import java.awt.image.BufferedImage;
 import java.awt.geom.Point2D;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Vector;
@@ -584,7 +585,7 @@ public class StitchingTEM {
 		// snap patches only
 		if (null == d || !(d instanceof Patch)) { finishedWorking(); return; }
 		//Utils.log("Snapping " + d);
-		ArrayList al = al_;
+		Collection al = al_;
 		if (null == al) {
 			al = d.getLayer().getIntersecting(d, Patch.class);
 			if (null == al || 0 == al.size()) { finishedWorking(); return; }

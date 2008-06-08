@@ -58,7 +58,7 @@ import java.util.Set;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
-public class LayerSet extends Displayable { // Displayable is already extending DBObject
+public class LayerSet extends Displayable implements Bucketable { // Displayable is already extending DBObject
 
 	// the anchors for resizing
 	static public final int NORTH = 0;
@@ -768,6 +768,20 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	/** Returns a copy of the list of ZDisplayable objects. */
 	synchronized public ArrayList<ZDisplayable> getZDisplayables() { return (ArrayList<ZDisplayable>)al_zdispl.clone(); }
+
+	/** Returns the real list of displayables, not a copy. If you modify this list, Thor may ground you with His lightning. */
+	synchronized public ArrayList<ZDisplayable> getDisplayableList() {
+		return al_zdispl;
+	}
+
+	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap() {
+		// TODO
+		return null;
+	}
+
+	public void updateBucket(final Displayable d) {
+		// TODO
+	}
 
 	/** Returns a list of ZDisplayable of class c only.*/
 	synchronized public ArrayList<ZDisplayable> getZDisplayables(final Class c) {

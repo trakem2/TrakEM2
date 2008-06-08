@@ -1563,7 +1563,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Find a Displayable to add to the selection under the given point (which is in offscreen coords); will use a popup menu to give the user a range of Displayable objects to select from. */
 	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, boolean shift_down, Class c) {
 		//Utils.log("Display.choose: x,y " + x_p + "," + y_p);
-		ArrayList al = layer.find(x_p, y_p);
+		final ArrayList<Displayable> al = new ArrayList<Displayable>(layer.find(x_p, y_p));
 		al.addAll(layer.getParent().findZDisplayables(layer, x_p, y_p));
 		if (al.isEmpty()) {
 			Displayable act = this.active;
@@ -1609,7 +1609,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 	}
 
-	private void choose(final int screen_x_p, final int screen_y_p, final ArrayList al, final boolean shift_down, final int x_p, final int y_p) {
+	private void choose(final int screen_x_p, final int screen_y_p, final Collection al, final boolean shift_down, final int x_p, final int y_p) {
 		// show a popup on the canvas to choose
 		new Thread() {
 			public void run() {

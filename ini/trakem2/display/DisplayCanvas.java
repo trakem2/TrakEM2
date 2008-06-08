@@ -246,6 +246,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				selection.paint(g, srcRect, magnification);
 			}
 
+
+			// debug
+			if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification);
+
+
 			// reset to identity
 			g2d.setTransform(new AffineTransform());
 			// reset to 1.0 thickness
@@ -1883,7 +1888,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				final ArrayList<Patch> al_patches = new ArrayList<Patch>();
 
 				// start
-				final ArrayList al = layer.getDisplayables();
+				//final ArrayList al = layer.getDisplayables();
+				layer.checkBuckets();
+				final Collection<Displayable> al = layer.find(srcRect);
+				final Iterator<Displayable> ital = al.iterator();
 				final int n = al.size();
 				final ArrayList al_zdispl = layer.getParent().getZDisplayables();
 				final int m = al_zdispl.size();
@@ -1899,12 +1907,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					if (quit && 0 == n % 10 && canQuit()) {
 						return;
 					}
-					final Displayable d = (Displayable)al.get(i);
+					final Displayable d = ital.next(); //(Displayable)al.get(i);
 					final Class c = d.getClass();
 					if (DLabel.class == c || LayerSet.class == c) {
 						break;
 					}
-					if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
+					//if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
 						if (Patch.class == c) {
 							//if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter(0,0,1,1))); // this only works because the clip is given to be null
 							al_paint.add(d);
@@ -1914,7 +1922,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 							if (top) al_top.add(d);
 							else al_paint.add(d);
 						}
-					}
+					//}
 					i++;
 				}
 
@@ -1944,14 +1952,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						Loader.quitPreloading(al_patches, magnification);
 						return;
 					}
-					final Displayable d = (Displayable) al.get(i);
-					if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
+					final Displayable d = ital.next(); //(Displayable) al.get(i);
+					//if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
 						if (d == active) top = true;
 						if (top) al_top.add(d);
 						else {
 							al_paint.add(d);
 						}
-					}
+					//}
 					i++;
 				}
 

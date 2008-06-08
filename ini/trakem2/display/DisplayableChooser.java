@@ -28,6 +28,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Collection;
 
 /** A class to be used when a click to select Displayable objects on the Display detects that there are more than one under the mouse cursor.
  *
@@ -35,22 +36,22 @@ import java.util.Iterator;
  */
 public class DisplayableChooser implements ActionListener {
 
-	protected ArrayList al_under;
+	protected Collection al_under;
 	protected boolean waiting = true;
 	protected Displayable chosen = null;
 	private Object lock;
 
-	public DisplayableChooser(ArrayList al_under, Object lock) {
+	public DisplayableChooser(Collection al_under, Object lock) {
 		this.al_under = al_under;
 		this.lock = lock;
 	}
 
-	public void actionPerformed(ActionEvent ae) {
+	public void actionPerformed(final ActionEvent ae) {
 		String command = ae.getActionCommand();
 		//find the object that has the command as title
-		Iterator it = al_under.iterator();
+		final Iterator it = al_under.iterator();
 		while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
+			final Displayable d = (Displayable)it.next();
 			if (d.toString().equals(command)) {
 				chosen = d;
 				break;

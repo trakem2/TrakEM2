@@ -150,4 +150,8 @@ public abstract class ZDisplayable extends Displayable {
 		updateInDatabase("visible");
 		Display.updateVisibilityCheckbox(layer, this, null);
 	}
+
+	public Bucketable getBucketable() {
+		return this.layer_set;
+	}
 }
