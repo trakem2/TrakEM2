@@ -1563,7 +1563,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Find a Displayable to add to the selection under the given point (which is in offscreen coords); will use a popup menu to give the user a range of Displayable objects to select from. */
 	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, boolean shift_down, Class c) {
 		//Utils.log("Display.choose: x,y " + x_p + "," + y_p);
-		final ArrayList<Displayable> al = new ArrayList<Displayable>(layer.find(x_p, y_p));
+		final ArrayList<Displayable> al = new ArrayList<Displayable>(layer.find(x_p, y_p, true));
 		al.addAll(layer.getParent().findZDisplayables(layer, x_p, y_p, true)); // only visible ones
 		if (al.isEmpty()) {
 			Displayable act = this.active;
