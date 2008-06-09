@@ -248,7 +248,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 
 			// debug
-			if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification);
+			//if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification);
 
 
 			// reset to identity
@@ -972,10 +972,19 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 	private void zoomIn2(int x, int y) {
 		// copy of ImageCanvas.zoomIn except for the canEnlarge is different and
-		// there's no call to the non-exisiting ImageWindow
+		// there's no call to the non-existing ImageWindow
 		if (magnification >= 32)
 			return;
 		double newMag = getHigherZoomLevel2(magnification);
+
+		// zoom at point: correct mag drift
+		int cx = getWidth() / 2;
+		int cy = getHeight() / 2;
+		int dx = (int)(((x - cx) * magnification) / newMag);
+		int dy = (int)(((y - cy) * magnification) / newMag);
+		x -= dx;
+		y -= dy;
+
 		int newWidth = (int) (imageWidth * newMag);
 		int newHeight = (int) (imageHeight * newMag);
 		/*
@@ -1031,6 +1040,15 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		//if (magnification <= 0.03125)
 		//	return;
 		double newMag = getLowerZoomLevel2(magnification);
+
+		// zoom at point: correct mag drift
+		int cx = getWidth() / 2;
+		int cy = getHeight() / 2;
+		int dx = (int)(((x - cx) * magnification) / newMag);
+		int dy = (int)(((y - cy) * magnification) / newMag);
+		x -= dx;
+		y -= dy;
+
 		if (imageWidth * newMag > dstWidth) {
 			int w = (int) Math.round(dstWidth / newMag);
 			if (w * newMag < dstWidth)
