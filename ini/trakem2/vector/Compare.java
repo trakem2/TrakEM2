@@ -890,7 +890,7 @@ public class Compare {
 			Pipe pipe = qh.getAllQueriedPipes().iterator().next();
 			LayerSet ls = pipe.getLayerSet();
 			Calibration cal1 = ls.getCalibration();
-			this.common = new LayerSet(pipe.getProject(), pipe.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, false, new AffineTransform());
+			this.common = new LayerSet(pipe.getProject(), pipe.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, 2, new AffineTransform());
 			Calibration cal = new Calibration();
 			cal.setUnit(cal1.getUnit()); // homogeneous on all axes
 			this.common.setCalibration(cal);

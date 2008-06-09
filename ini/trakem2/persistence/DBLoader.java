@@ -253,7 +253,7 @@ public class DBLoader extends Loader {
 				}
 				// create table ab_layer_sets if it does not exist
 				if (!table_layer_sets_exists) {
-					String query_layer_sets = "CREATE TABLE ab_layer_sets (id BIGINT NOT NULL, project_id BIGINT NOT NULL, parent_layer_id BIGINT NOT NULL, active_layer_id BIGINT NOT NULL, layer_width DOUBLE PRECISION NOT NULL, layer_height DOUBLE PRECISION NOT NULL, rot_x DOUBLE PRECISION NOT NULL, rot_y DOUBLE PRECISION NOT NULL, rot_z DOUBLE PRECISION NOT NULL, snapshots_enabled BOOLEAN DEFAULT TRUE, PRIMARY KEY (id))";
+					String query_layer_sets = "CREATE TABLE ab_layer_sets (id BIGINT NOT NULL, project_id BIGINT NOT NULL, parent_layer_id BIGINT NOT NULL, active_layer_id BIGINT NOT NULL, layer_width DOUBLE PRECISION NOT NULL, layer_height DOUBLE PRECISION NOT NULL, rot_x DOUBLE PRECISION NOT NULL, rot_y DOUBLE PRECISION NOT NULL, rot_z DOUBLE PRECISION NOT NULL, snapshots_mode INT DEFAULT 0, PRIMARY KEY (id))";
 					connection.prepareStatement(query_layer_sets).execute();
 					Utils.log("Created table ab_layer_sets in database " + db_name);
 				} else {
@@ -1129,7 +1129,7 @@ public class DBLoader extends Loader {
 				LayerSet layer_set = null;
 				if (rls.next()) {
 					long ls_id = rls.getLong("id");
-					layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getBoolean("snapshots_enabled"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
+					layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
 					// store for children Layer to find it
 					hs_pt.put(new Long(ls_id), layer_set);
 					// find the pipes (or other possible ZDisplayable objects) in the hs_pt that belong to this LayerSet and add them silently
@@ -1188,7 +1188,7 @@ public class DBLoader extends Loader {
 			ResultSet rls = connection.prepareStatement("SELECT * FROM ab_layer_sets, ab_displayables WHERE ab_layer_sets.id=ab_displayables.id AND ab_layer_sets.parent_layer_id=" + id).executeQuery();
 			while (rls.next()) {
 				long ls_id = rls.getLong("id");
-				LayerSet layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getBoolean("snapshots_enabled"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
+				LayerSet layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
 				hs_pt.put(new Long(ls_id), layer_set);
 				hs_d.put(new Integer(rls.getInt("stack_index")), layer_set);
 				layer_set.setLayer(layer, false);
@@ -2068,8 +2068,8 @@ public class DBLoader extends Loader {
 			sb.append("rot_x=").append(layer_set.getRotX()).append(", rot_y=").append(layer_set.getRotY()).append(", rot_z=").append(layer_set.getRotZ());
 		} else if (key.equals("layer_dimensions")) {
 			sb.append("layer_width=").append(layer_set.getLayerWidth()).append(",layer_height=").append(layer_set.getLayerHeight());
-		} else if (key.equals("snapshots_enabled")) {
-			sb.append("snapshots_enabled=").append(layer_set.areSnapshotsEnabled());
+		} else if (key.equals("snapshots_mode")) {
+			sb.append("snapshots_mode=").append(layer_set.getSnapshotsMode());
 		} else {
 			// try the Displayable level
 			updateInDatabase((Displayable)layer_set, key);

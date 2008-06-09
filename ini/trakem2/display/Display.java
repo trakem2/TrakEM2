@@ -758,7 +758,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 		Utils.updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
 
-		
+
 		((FakeImagePlus)canvas.getFakeImagePlus()).setCalibrationSuper(layer.getParent().getCalibrationCopy());
 
 		// create a drag and drop listener
@@ -2868,7 +2868,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
 			//gd.addNumericField("layer_scroll_step: ", this.scroll_step, 0);
 			gd.addSlider("layer_scroll_step: ", 1, layer.getParent().size(), Display.this.scroll_step);
-			gd.addCheckbox("show_snapshots", layer.getParent().areSnapshotsEnabled());
+			gd.addChoice("snapshots_mode", LayerSet.snapshot_modes, LayerSet.snapshot_modes[layer.getParent().getSnapshotsMode()]);
 			gd.addCheckbox("prefer_snapshots_quality", layer.getParent().snapshotsQuality());
 			Loader lo = getProject().getLoader();
 			boolean using_mipmaps = lo.isMipMapsEnabled();
@@ -2878,15 +2878,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
 			double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();
 			gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsDimension());
+			// --------
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
-			//
+			// --------
 			int sc = (int) gd.getNextNumber();
 			if (sc < 1) sc = 1;
 			Display.this.scroll_step = sc;
 			updateInDatabase("scroll_step");
 			//
-			layer.getParent().setSnapshotsEnabled(gd.getNextBoolean());
+			layer.getParent().setSnapshotsMode(gd.getNextChoiceIndex());
 			layer.getParent().setSnapshotsQuality(gd.getNextBoolean());
 			//
 			boolean generate_mipmaps = gd.getNextBoolean();

@@ -85,6 +85,10 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	static public final int DOWN = 15;
 	static public final int BOTTOM = 16;
 
+	static public final String[] snapshot_modes = new String[]{"Full","Outlines","Disabled"};
+
+	/** 0, 1, 2 -- corresponding to snapshot_modes entries. */
+	private int snapshots_mode = 0;
 
 	static public final String[] ANCHORS =  new String[]{"north", "north east", "east", "southeast", "south", "south west", "west", "north west", "center"};
 	static public final String[] ROTATIONS = new String[]{"90 right", "90 left", "Flip horizontally", "Flip vertically"};
@@ -99,8 +103,6 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	private Layer parent = null;
 	/** A LayerSet can contain Displayables that are show in every single Layer, such as Pipe objects. */
 	private final ArrayList<ZDisplayable> al_zdispl = new ArrayList<ZDisplayable>();
-
-	private boolean snapshots_enabled = true;
 
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
@@ -143,14 +145,14 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	}
 
 	/** Reconstruct from the database. */
-	public LayerSet(Project project, long id, String title, double width, double height, double rot_x, double rot_y, double rot_z, double layer_width, double layer_height, boolean locked, boolean snapshots_enabled, AffineTransform at) {
+	public LayerSet(Project project, long id, String title, double width, double height, double rot_x, double rot_y, double rot_z, double layer_width, double layer_height, boolean locked, int shapshots_mode, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.rot_x = rot_x;
 		this.rot_y = rot_y;
 		this.rot_z = rot_z;
 		this.layer_width = layer_width;
 		this.layer_height= layer_height;
-		this.snapshots_enabled = snapshots_enabled;
+		this.snapshots_mode = snapshots_mode;
 		// the parent will be set by the LayerThing.setup() calling Layer.addSilently()
 		// the al_layers will be filled idem.
 	}
@@ -174,8 +176,14 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 				this.rot_z = Double.parseDouble(data);
 			} else if (key.equals("snapshots_quality")) {
 				snapshots_quality = Boolean.valueOf(data.trim().toLowerCase());
-			} else if (key.equals("snapshots_enabled")) {
-				snapshots_enabled = Boolean.valueOf(data.trim().toLowerCase());
+			} else if (key.equals("snapshots_mode")) {
+				String smode = data.trim();
+				for (int i=0; i<snapshot_modes.length; i++) {
+					if (smode.equals(snapshot_modes[i])) {
+						snapshots_mode = i;
+						break;
+					}
+				}
 			}
 			// the above would be trivial in Jython, and can be done by reflection! The problem would be in the parsing, that would need yet another if/else if/ sequence was any field to change or be added.
 		}
@@ -975,7 +983,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		       .append(in).append("rot_y=\"").append(rot_y).append("\"\n")
 		       .append(in).append("rot_z=\"").append(rot_z).append("\"\n")
 		       .append(in).append("snapshots_quality=\"").append(snapshots_quality).append("\"\n")
-		       .append(in).append("snapshots_enabled=\"").append(snapshots_enabled).append("\"\n")
+		       .append(in).append("snapshots_mode=\"").append(snapshot_modes[snapshots_mode]).append("\"\n")
 		       // TODO: alpha! But it's not necessary.
 		;
 		sb_body.append(indent).append(">\n");
@@ -1028,7 +1036,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_y").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_z").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_quality").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_enabled").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_mode").append(TAG_ATTR2)
 			;
 			sb_header.append(indent).append("<!ELEMENT t2_calibration EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_calibration pixelWidth").append(TAG_ATTR2)
@@ -1045,15 +1053,15 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		}
 	}
 
-	public void setSnapshotsEnabled(boolean b) {
-		if (b == this.snapshots_enabled) return;
-		this.snapshots_enabled = b;
+	public void setSnapshotsMode(final int mode) {
+		if (mode == snapshots_mode) return;
+		this.snapshots_mode = mode;
 		Display.repaintSnapshots(this);
-		updateInDatabase("snapshots_enabled");
+		updateInDatabase("snapshots_mode");
 	}
 
-	public boolean areSnapshotsEnabled() {
-		return this.snapshots_enabled;
+	public int getSnapshotsMode() {
+		return this.snapshots_mode;
 	}
 
 	/** Creates an undo step that contains transformations for all Displayable objects of this LayerSet */
@@ -1362,7 +1370,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	synchronized public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree, boolean copy_id) {
 		// obtain a LayerSet
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		final LayerSet copy = new LayerSet(pr, nid, getTitle(), this.width, this.height, this.rot_x, this.rot_y, this.rot_z, roi.width, roi.height, this.locked, this.snapshots_enabled, (AffineTransform)this.at.clone());
+		final LayerSet copy = new LayerSet(pr, nid, getTitle(), this.width, this.height, this.rot_x, this.rot_y, this.rot_z, roi.width, roi.height, this.locked, this.snapshots_mode, (AffineTransform)this.at.clone());
 		copy.setCalibration(getCalibrationCopy());
 		copy.snapshots_quality = this.snapshots_quality;
 		// copy objects that intersect the roi, from within the given range of layers
@@ -1402,7 +1410,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 
 	public int getPixelsDimension() { return max_dimension; }
 	public void setPixelsDimension(int d) {
-		Utils.logAll("LayerSet.setPixelsDimension not implemented yet."); // TODO
+		Utils.log2("LayerSet.setPixelsDimension not implemented yet."); // TODO
 	}
 
 	public void setPixelsVirtualizationEnabled(boolean b) { this.virtualization_enabled = b; }

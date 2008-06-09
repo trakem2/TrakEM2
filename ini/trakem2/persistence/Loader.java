@@ -275,20 +275,20 @@ abstract public class Loader {
 		return roots[0];
 	}
 
-	private boolean temp_snapshots_enabled = true;
+	private int temp_snapshots_mode = 0;
 
 	public void startLargeUpdate() {
 		LayerSet ls = Project.findProject(this).getRootLayerSet();
-		temp_snapshots_enabled = ls.areSnapshotsEnabled();
-		if (temp_snapshots_enabled) ls.setSnapshotsEnabled(false);
+		temp_snapshots_mode = ls.getSnapshotsMode();
+		if (2 != temp_snapshots_mode) ls.setSnapshotsMode(2); // disable repainting snapshots
 	}
 
 	public void commitLargeUpdate() {
-		Project.findProject(this).getRootLayerSet().setSnapshotsEnabled(temp_snapshots_enabled);
+		Project.findProject(this).getRootLayerSet().setSnapshotsMode(temp_snapshots_mode);
 	}
 
 	public void rollback() {
-		Project.findProject(this).getRootLayerSet().setSnapshotsEnabled(temp_snapshots_enabled);
+		Project.findProject(this).getRootLayerSet().setSnapshotsMode(temp_snapshots_mode);
 	}
 
 	abstract public double[][][] fetchBezierArrays(long id);

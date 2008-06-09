@@ -1380,10 +1380,14 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public void paintSnapshot(final Graphics2D g, final double mag) {
-		if (layer.getParent().areSnapshotsEnabled()) {
-			paint(g, mag, false, 1, layer);
-		} else {
-			paintAsBox(g);
+		switch (layer.getParent().getSnapshotsMode()) {
+			case 0:
+				paint(g, mag, false, 0xffffffff, layer);
+				return;
+			case 1:
+				paintAsBox(g);
+				return;
+			default: return; // case 2: // disabled, no paint
 		}
 	}
 

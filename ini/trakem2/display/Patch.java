@@ -661,14 +661,18 @@ public class Patch extends Displayable {
 	}
 
 	public void paintSnapshot(final Graphics2D g, final double mag) {
-		if (layer.getParent().areSnapshotsEnabled()) {
-			if (this.getClass().equals(Patch.class) && !project.getLoader().isSnapPaintable(this.id)) {
+		switch (layer.getParent().getSnapshotsMode()) {
+			case 0:
+				if (!project.getLoader().isSnapPaintable(this.id)) {
+					paintAsBox(g);
+				} else {
+					paint(g, mag, false, this.channels, layer);
+				}
+				return;
+			case 1:
 				paintAsBox(g);
-			} else {
-				paint(g, mag, false, this.channels, layer);
-			}
-		} else {
-			paintAsBox(g);
+				return;
+			default: return; // case 2: // disabled, no paint
 		}
 	}
 
