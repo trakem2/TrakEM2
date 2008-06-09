@@ -61,6 +61,8 @@ public class Bucket {
 
 	private final int x,y,w,h;
 
+	private boolean empty = true;
+
 	public Bucket(final int x, final int y, final int w, final int h) {
 		this.x = x;
 		this.y = y;
@@ -73,8 +75,8 @@ public class Bucket {
 		return "Bucket: " + x + ",  " + y + ", " + w + ", " + h;
 	}
 
-	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. */
-	synchronized final void populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
+	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. Returns true if not empty. */
+	synchronized final boolean populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
 		if (this.w <= MAX_BUCKET_SIDE || this.h <= MAX_BUCKET_SIDE) {
 			// add displayables, sorted by index
 			map = new TreeMap<Integer,Displayable>();
@@ -87,6 +89,8 @@ public class Bucket {
 				}
 				i++;
 			}
+			this.empty = map.isEmpty();
+			//Utils.log2(empty ? "EMPTY ": "FILLED " + this);
 		} else {
 			// create child buckets as subdivisions of this one
 			children = new ArrayList<Bucket>(N_CHILD_BUCKETS_SQRT*N_CHILD_BUCKETS_SQRT);
@@ -95,11 +99,17 @@ public class Bucket {
 			for (int i=0; i<N_CHILD_BUCKETS_SQRT; i++) {
 				for (int j=0; j<N_CHILD_BUCKETS_SQRT; j++){
 					Bucket bu = new Bucket(this.x + i * w, this.y + j * h, w, h);
-					bu.populate(container, db_map);
+					if (bu.populate(container, db_map)) {
+						//Utils.log2("FILLEd " + this);
+						this.empty = false;
+					//} else {
+					//	Utils.log2("EMPTY " + this);
+					}
 					children.add(bu);
 				}
 			}
 		}
+		return !this.empty;
 	}
 
 	synchronized private final boolean intersects(final Rectangle r) {
@@ -133,7 +143,7 @@ public class Bucket {
 
 	/** Recursive search, accumulates Displayable objects that intersect the srcRect and, if @param visible_only is true, then checks first if so. */
 	synchronized private void find(final TreeMap<Integer,Displayable> accum, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
-		if (!intersects(srcRect)) return;
+		if (empty || !intersects(srcRect)) return;
 		if (null != children) {
 			for (Bucket bu : children) {
 				bu.find(accum, srcRect, layer, visible_only);
@@ -158,7 +168,7 @@ public class Bucket {
 	}
 	/** Recursive search, accumulates Displayable objects that contain the given point and, if @param visible_only is true, then checks first if so. */
 	private void find(final TreeMap<Integer,Displayable> accum, final int px, final int py, final Layer layer, final boolean visible_only) {
-		if (!contains(px, py)) return;
+		if (empty || !contains(px, py)) return;
 		if (null != children) {
 			for (Bucket bu : children) {
 				 bu.find(accum, px, py, layer, visible_only);
@@ -183,7 +193,7 @@ public class Bucket {
 	}
 	/** Recursive search, accumulates Displayable objects that contain the given point and, if @param visible_only is true, then checks first if so. */
 	private void find(final TreeMap<Integer,Displayable> accum, final Area area, final Layer layer, final boolean visible_only) {
-		if (!intersects(area.getBounds())) return;
+		if (empty || !intersects(area.getBounds())) return;
 		if (null != children) {
 			for (Bucket bu : children) {
 				 bu.find(accum, area, layer, visible_only);
@@ -262,6 +272,8 @@ public class Bucket {
 	/** Add the given Displayable to all buckets that intercept its bounding box. */
 	synchronized final void put(final int stack_index, final Displayable d, final Rectangle box) {
 		if (!intersects(box)) return;
+		// there will be at least one now
+		this.empty = false;
 		if (null != children) {
 			for (Bucket bu : children) bu.put(stack_index, d, box);
 		} else if (null != map) {
@@ -294,13 +306,20 @@ public class Bucket {
 	}
 	*/
 
-	final private void remove(final int stack_index, final Set<Displayable> hs) {
+	/** Returns whether this bucket is empty of Displayable objects. */
+	final private boolean remove(final int stack_index, final Set<Displayable> hs) {
 		if (null != children) {
-			for (Bucket bu : children) bu.remove(stack_index, hs);
+			this.empty = true;
+			for (Bucket bu : children) {
+				if (!bu.remove(stack_index, hs)) this.empty = false;
+			}
+			return this.empty;
 		} else if (null != map) {
 			final Displayable d = map.remove(stack_index);
 			if (null != d) hs.add(d);
+			return map.isEmpty();
 		}
+		return true;
 	}
 
 	final Set<Displayable> remove(final int stack_index) {
