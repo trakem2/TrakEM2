@@ -183,11 +183,11 @@ public class Layer extends DBObject implements Bucketable {
 		add(displ, update_displays, true);
 	}
 
-	public void add(Displayable displ, boolean update_displays, boolean update_db) {
+	public void add(final Displayable displ, final boolean update_displays, final boolean update_db) {
 		if (null == displ || -1 != al_displayables.indexOf(displ)) return;
 
 		int i=-1, j=-1;
-		Displayable[] d = new Displayable[al_displayables.size()];
+		final Displayable[] d = new Displayable[al_displayables.size()];
 		al_displayables.toArray(d);
 		int stack_index = 0;
 		// what is it?
@@ -260,7 +260,7 @@ public class Layer extends DBObject implements Bucketable {
 				root.put(stack_index, displ, displ.getBoundingBox(null));
 			} else {
 				// find and update the range of affected Displayable objects
-				root.update(this, stack_index, d.length); // first to last indices affected
+				root.update(this, displ, stack_index, d.length); // first to last indices affected
 			}
 		}
 	}
@@ -510,7 +510,8 @@ public class Layer extends DBObject implements Bucketable {
 		return al_displayables.indexOf(d);
 	}
 
-	/** Within its own class only. */ // 'up' is at the last element of the ArrayList (since when painting, the first one gets painted first, and thus gets buried the most while the last paints last, on top)
+	/** Within its own class only.
+	 * 'up' is at the last element of the ArrayList (since when painting, the first one gets painted first, and thus gets buried the most while the last paints last, on top). */
 	public void moveUp(final Displayable d) {
 		final int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || al_displayables.size() -1 == i) return;
@@ -518,10 +519,10 @@ public class Layer extends DBObject implements Bucketable {
 			//swap
 			al_displayables.remove(d);
 			al_displayables.add(i+1, d);
-		}
+		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, i, i+1);
+		if (null != root) root.update(this, d, i, i+1);
 	}
 
 	/** Within its own class only. */
@@ -532,14 +533,14 @@ public class Layer extends DBObject implements Bucketable {
 			//swap
 			Displayable o = al_displayables.remove(i-1);
 			al_displayables.add(i, o);
-		}
+		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, i, i-1);
+		if (null != root) root.update(this, d, i-1, i);
 	}
 
 	/** Within its own class only. */
-	public void moveTop(final Displayable d) { // yes I could have made several lists and make my live easier. Whatever
+	public void moveTop(final Displayable d) { // yes I could have made several lists and make my life easier. Whatever
 		final int i = al_displayables.indexOf(d);
 		final int size = al_displayables.size();
 		if (null == d || -1 == i || size -1 == i) return;
@@ -550,8 +551,7 @@ public class Layer extends DBObject implements Bucketable {
 			if (al_displayables.get(j).getClass() == c) continue;
 			else {
 				al_displayables.remove(d);
-				j--;
-				al_displayables.add(j, d); // j-1
+				al_displayables.add(--j, d); // j-1
 				done = true;
 				break;
 			}
@@ -561,10 +561,11 @@ public class Layer extends DBObject implements Bucketable {
 			//add at the end
 			al_displayables.remove(d);
 			al_displayables.add(d);
+			j = size-1;
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, i, j);
+		if (null != root) root.update(this, d, i, j);
 	}
 
 	/** Within its own class only. */
@@ -578,8 +579,7 @@ public class Layer extends DBObject implements Bucketable {
 			if (al_displayables.get(j).getClass() == c) continue;
 			else {
 				al_displayables.remove(d);
-				j++;
-				al_displayables.add(j, d); // j+1
+				al_displayables.add(++j, d); // j+1
 				done = true;
 				break;
 			}
@@ -588,10 +588,11 @@ public class Layer extends DBObject implements Bucketable {
 		if (!done) {
 			al_displayables.remove(d);
 			al_displayables.add(0, d);
+			j = 0;
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, i, j);
+		if (null != root) root.update(this, d, j, i);
 	}
 
 	/** Within its own class only. */

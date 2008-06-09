@@ -27,7 +27,9 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
 
 import java.awt.Rectangle;
 import java.awt.geom.Area;
@@ -42,7 +44,7 @@ import ini.trakem2.utils.Utils;
 
 /** Each Bucket contains up to N_CHILD_BUCKETS, or a list of Displayables contained within.
  *
- * A Bucket is a subarea of the Layer area, which contains either other Buckets or a map of stack_index vs. Displayable instances.
+ * A Bucket is a subarea of the Layer area, which contains either other Buckets or a map of stack_index vs. Displayable instances. VERY IMPORTANT: either children is null, or map is null, but both cannot be null at the same time neither not null at the same time.
  *
  */
 public class Bucket {
@@ -235,44 +237,43 @@ public class Bucket {
 	}
 
 	/** Update a Displayable's stack index from old to new, or a range. */
-	synchronized final void update(final Bucketable container, final int old_i, final int new_i) {
-		if (1 == Math.abs(old_i - new_i)) {
-			// find entries with such numbers, and swap them
-			final TreeMap<Integer,Displayable> m1 = search(old_i);
-			final TreeMap<Integer,Displayable> m2 = search(new_i);
-			m2.put(new_i, m1.remove(old_i));
-			return;
-		}
-		// else, remove the entire range of entries, and trigger the update
+	synchronized final void update(final Bucketable container, final Displayable d, final int old_i, final int new_i) {
 		updateRange(container, old_i, new_i);
 	}
-
-	final private TreeMap<Integer,Displayable> search(final int i) {
-		if (null != children) {
-			for (Bucket bu : children) {
-				final TreeMap<Integer,Displayable> m = bu.search(i);
-				if (null != m) return m;
-			}
-		} else if (null != map) {
-			final Displayable d = map.get(i);
-			if (null != d) return map;
-		}
-		return null;
+	/*
+	final Set<Displayable> removeRange(final Bucketable container, final int first, final int last) {
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
+		removeRange(container, first, last, hs);
+		return hs;
 	}
+	*/
+	/** Accumulate removed Displayable instances into the HashSet. */
+	/*
+	final private void removeRange(final Bucketable container, final int first, final int last, final HashSet<Displayable> hs) {
+		if (null != children) {
+			for (Bucket bu : children) bu.removeRange(container, first, last, hs);
+		} else if (null != map) {
+			// remove entire range
+			for (int i=first; i<=last; i++) {
+				final Displayable d =  map.remove(i);
+				if (null != d) hs.add(d);
+			}
+		}
+	}
+	*/
 
 	final private void updateRange(final Bucketable container, final int first, final int last) {
 		if (null != children) {
 			for (Bucket bu : children) bu.updateRange(container, first, last);
 		} else if (null != map) {
-			// brute force: remove entire range, and put again
+			// remove range
 			final ArrayList<Displayable> a = new ArrayList<Displayable>();
 			for (int i=first; i<=last; i++) {
-				Displayable d = map.remove(i);
-				if (d != null) a.add(d);
+				final Displayable d =  map.remove(i);
+				if (null != d) a.add(d);
 			}
-			for (Displayable d : a) {
-				map.put(container.getDisplayableList().indexOf(d), d);
-			}
+			// re-add range with new stack_index keys
+			for (Displayable d : a) map.put(container.getDisplayableList().indexOf(d), d);
 		}
 	}
 
@@ -329,11 +330,19 @@ public class Bucket {
 	}
 	*/
 
-	final void remove(final int stack_index) {
-		if (null != map) map.remove(stack_index);
-		else if (null != children) {
-			for (Bucket bu : children) bu.remove(stack_index);
+	final private void remove(final int stack_index, final Set<Displayable> hs) {
+		if (null != children) {
+			for (Bucket bu : children) bu.remove(stack_index, hs);
+		} else if (null != map) {
+			final Displayable d = map.remove(stack_index);
+			if (null != d) hs.add(d);
 		}
+	}
+
+	final Set<Displayable> remove(final int stack_index) {
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
+		remove(stack_index, hs);
+		return hs;
 	}
 
 	static final void remove(final Displayable d, final HashMap<Displayable, ArrayList<Bucket>> db_map) {
