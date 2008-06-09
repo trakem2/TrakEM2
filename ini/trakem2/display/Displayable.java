@@ -311,12 +311,18 @@ public abstract class Displayable extends DBObject {
 		return getBoundingBox(null);
 	}
 
-	/** Bounding box of the transformed data. Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
-	public Rectangle getBoundingBox(final Rectangle r) {
-		return getBounds(null == r ? new Rectangle() : r);
+	/** Will fill bounding box values into given rectangle  -- only that part of this object showing in the given layer will be included in the box. */
+	public Rectangle getBounds(final Rectangle r, final Layer layer) {
+		return getBoundingBox(r);
 	}
-	/** Will fill bounding box values into given rectangle, which must NOT be null. */
-	public Rectangle getBounds(final Rectangle r) {
+
+	/** Bounding box of the transformed data. Saves one Rectangle allocation, returns the same Rectangle, modified (or a new one if null). */
+	public Rectangle getBoundingBox(final Rectangle r) {
+		return getBounds(null != r ? r : new Rectangle());
+	}
+
+	/** Bounding box of the transformed data. Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
+	private final Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;
 		r.width = (int)this.width;
@@ -385,6 +391,11 @@ public abstract class Displayable extends DBObject {
 	/** Test whether the given point falls within the perimeter of this Displayable, considering the position x,y. Used by the DisplayCanvas mouse events. */
 	public boolean contains(final int x_p, final int y_p) {
 		return getPerimeter().contains(x_p, y_p);
+	}
+
+	/** Calls contains(x_p, y_p) unless overriden -- in ZDisplayable objects, it tests whether the given point is contained in the part of the ZDisplayable that shows in the given layer. */
+	public boolean contains(final Layer layer, final int x_p, final int y_p) {
+		return contains(x_p, y_p);
 	}
 
 	public void setAlpha(float alpha) {
@@ -745,6 +756,11 @@ public abstract class Displayable extends DBObject {
 		a.intersect(area);
 		final Rectangle b = a.getBounds();
 		return 0 != b.width && 0 != b.height;
+	}
+
+	/** Calls intersects(area) unless overriden -- intended for ZDisplayable objects to return whether they intersect the given area at the given layer. */
+	public boolean intersects(final Layer layer, final Area area) {
+		return intersects(area);
 	}
 
 	/** Returns the intersection of this Displayable's area with the given one. */

@@ -81,9 +81,6 @@ public abstract class ZDisplayable extends Displayable {
 	// Overriding, for repainting the proper part, without updating the database
 	public void setLayer(Layer layer) { this.layer = layer; }
 
-	/** Test whether the ZDisplayable contains the given point at the given layer. */
-	abstract public boolean contains(Layer layer, int x, int y);
-
 	/** Link the Patch objects that lay underneath the part of the bounding box of this profile that shows in the current layer, so that they cannot be dragged independently. */
 	abstract public void linkPatches();
 

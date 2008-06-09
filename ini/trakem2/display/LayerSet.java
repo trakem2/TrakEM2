@@ -55,6 +55,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collection;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -453,6 +454,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 			this.layer_width = Math.ceil(w); // stupid int to double conversions ... why floating point math is a non-solved problem? Well, it is for SBCL
 			this.layer_height = Math.ceil(h);
 			updateInDatabase("layer_dimensions");
+			if (null != root) recreateBuckets(true);
 			// and notify the Displays, if any
 			Display.update(this);
 			Display.pack(this);
@@ -484,6 +486,9 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 			zd.updateInDatabase("transform");
 		}
 		for (Layer la : al_layers) la.apply(Displayable.class, affine);
+		if (null != root) {
+			recreateBuckets(true);
+		}
 		Display.update(this);
 	}
 
@@ -573,6 +578,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		}
 
 		updateInDatabase("layer_dimensions");
+		if (null != root) recreateBuckets(true);
 		// and notify the Display
 		Display.update(this);
 		Display.pack(this);
@@ -766,23 +772,6 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		return true;
 	}
 
-	/** Returns a copy of the list of ZDisplayable objects. */
-	synchronized public ArrayList<ZDisplayable> getZDisplayables() { return (ArrayList<ZDisplayable>)al_zdispl.clone(); }
-
-	/** Returns the real list of displayables, not a copy. If you modify this list, Thor may ground you with His lightning. */
-	synchronized public ArrayList<ZDisplayable> getDisplayableList() {
-		return al_zdispl;
-	}
-
-	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap() {
-		// TODO
-		return null;
-	}
-
-	public void updateBucket(final Displayable d) {
-		// TODO
-	}
-
 	/** Returns a list of ZDisplayable of class c only.*/
 	synchronized public ArrayList<ZDisplayable> getZDisplayables(final Class c) {
 		final ArrayList<ZDisplayable> al = new ArrayList<ZDisplayable>();
@@ -866,16 +855,22 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	}
 
 	/** Find ZDisplayable objects that contain the point x,y in the given layer. */
-	synchronized public ArrayList findZDisplayables(Layer layer, int x, int y) {
-		ArrayList al = new ArrayList();
-		Iterator it = al_zdispl.iterator();
-		while (it.hasNext()) {
-			ZDisplayable zd = (ZDisplayable)it.next();
+	synchronized public Collection<Displayable> findZDisplayables(final Layer layer, final int x, final int y, final boolean visible_only) {
+		if (null != root) return root.find(x, y, layer, visible_only);
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (ZDisplayable zd : al_zdispl) {
 			if (zd.contains(layer, x, y)) al.add(zd);
 		}
 		return al;
 	}
-
+	synchronized public Collection<Displayable> findZDisplayables(final Layer layer, final Rectangle r, final boolean visible_only) {
+		if (null != root) return root.find(r, layer, visible_only);
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.getBounds(null, layer).intersects(r)) al.add(zd);
+		}
+		return al;
+	}
 
 	/** Returns the hash set of objects whose visibility has changed. */
 	synchronized public HashSet<Displayable> setVisible(String type, final boolean visible, final boolean repaint) {
@@ -1602,5 +1597,42 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 			}
 		}
 		return al;
+	}
+
+	/** For fast search. */
+	private Bucket root = null;
+	private HashMap<Displayable,ArrayList<Bucket>> db_map = null;
+
+	/** Returns a copy of the list of ZDisplayable objects. */
+	synchronized public ArrayList<ZDisplayable> getZDisplayables() { return (ArrayList<ZDisplayable>)al_zdispl.clone(); }
+
+	/** Returns the real list of displayables, not a copy. If you modify this list, Thor may ground you with His lightning. */
+	synchronized public ArrayList<ZDisplayable> getDisplayableList() {
+		return al_zdispl;
+	}
+
+	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap() {
+		return db_map;
+	}
+
+	public void updateBucket(final Displayable d) {
+		if (null != root) root.updatePosition(d, db_map);
+	}
+
+	public void recreateBuckets(final boolean layers) {
+		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()));
+		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
+		this.root.populate(this, db_map);
+		if (layers) {
+			for (Layer la : al_layers) {
+				// recreate only if there were any already
+				if (null != la.root) la.recreateBuckets();
+			}
+		}
+	}
+
+	/** Checks only buckets for ZDisplayable, not any related to any layer. */
+	public void checkBuckets() {
+		if (null == root || null == db_map) recreateBuckets(false);
 	}
 }

@@ -33,6 +33,7 @@ import java.util.Set;
 
 import java.awt.Rectangle;
 import java.awt.geom.Area;
+
 import java.awt.Graphics2D;
 import java.awt.Color;
 import java.awt.Stroke;
@@ -50,7 +51,8 @@ import ini.trakem2.utils.Utils;
 public class Bucket {
 
 	private static final int N_CHILD_BUCKETS_SQRT = 2;
-	private static final int MAX_BUCKET_SIDE = 2048;
+	private static final int MIN_BUCKET_SIDE = 512;
+	private static int MAX_BUCKET_SIDE = 2048;
 
 	/** The sorted map of stack_index and Displayable objects that are fully contained in this bucket or intersect at top and left, but not at right and bottom. That is, the lower-right corner of the Displayable is contained with the area of this bucket. */
 	private TreeMap<Integer,Displayable> map = null;
@@ -64,25 +66,12 @@ public class Bucket {
 		this.y = y;
 		this.w = w;
 		this.h = h;
-		Utils.log2("new Bucket: " + x + ",  " + y + ", " + w + ", " + h);
+		Utils.showStatus(new StringBuffer("Creating bucket ").append(x).append(',').append(y).append(',').append(w).append(',').append(h).toString(), false);
 	}
 
 	public String toString() {
 		return "Bucket: " + x + ",  " + y + ", " + w + ", " + h;
 	}
-
-	/** Multimethod: for other Bucket, test deep equality;
-	 *               for an actual Rectangle, test intersection;
-	 *               for a Point, test whether its contained in the Bucket; */
-	/*
-	public final boolean equals(final Object ob) {
-		final Class c = ob.getClass();
-		if (Bucket.class == c) return super.equals(ob);
-		if (Point.class == c) return super.contains((Point)ob);
-		// else do a "contains" operation:
-		return ((Rectangle)ob).intersects(this);
-	}
-	*/
 
 	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. */
 	synchronized final void populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
@@ -91,7 +80,7 @@ public class Bucket {
 			map = new TreeMap<Integer,Displayable>();
 			int i = 0;
 			for (Displayable d : container.getDisplayableList()) {
-				final Rectangle b = d.getBoundingBox();
+				final Rectangle b = d.getBoundingBox(null);
 				if (this.intersects(b)) {
 					map.put(i, d);
 					putToBucketMap(d, db_map);
@@ -136,75 +125,50 @@ public class Bucket {
 	}
 
 	/** Find All Displayable objects that intersect with the given srcRect and return them ordered by stack_index. Of @param visible_only is true, then hidden Displayable objects are ignored. */
-	synchronized final Collection<Displayable> find(final Rectangle srcRect, final boolean visible_only) {
+	synchronized final Collection<Displayable> find(final Rectangle srcRect, final Layer layer, final boolean visible_only) {
 		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
-		find(accum, srcRect, visible_only);
+		find(accum, srcRect, layer, visible_only);
 		return accum.values(); // sorted by integer key
 	}
 
 	/** Recursive search, accumulates Displayable objects that intersect the srcRect and, if @param visible_only is true, then checks first if so. */
-	synchronized private void find(final TreeMap<Integer,Displayable> accum, final Rectangle srcRect, final boolean visible_only) {
+	synchronized private void find(final TreeMap<Integer,Displayable> accum, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
 		if (!intersects(srcRect)) return;
 		if (null != children) {
 			for (Bucket bu : children) {
-				bu.find(accum, srcRect, visible_only);
+				bu.find(accum, srcRect, layer, visible_only);
 			}
 		} else {
 			final Rectangle tmp = new Rectangle();
 			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
-				if (d.getBounds(tmp).intersects(srcRect)) {
+				if (d.getBounds(tmp, layer).intersects(srcRect)) {
 					accum.put(entry.getKey(), d);
 				}
 			}
 		}
 	}
 
-	/** Find all Displayable objects that contain the given point and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
-	synchronized final Collection<Displayable> find(final int px, final int py, final boolean visible_only) {
+	/** Find all Displayable objects that contain the given point at the given layer (here layer acts as the Z coordinate, then) and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
+	synchronized final Collection<Displayable> find(final int px, final int py, final Layer layer, final boolean visible_only) {
 		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
-		find(accum, px, py, visible_only);
+		find(accum, px, py, layer, visible_only);
 		return accum.values(); // sorted by integer key
 	}
 	/** Recursive search, accumulates Displayable objects that contain the given point and, if @param visible_only is true, then checks first if so. */
-	private void find(final TreeMap<Integer,Displayable> accum, final int px, final int py, final boolean visible_only) {
+	private void find(final TreeMap<Integer,Displayable> accum, final int px, final int py, final Layer layer, final boolean visible_only) {
 		if (!contains(px, py)) return;
 		if (null != children) {
 			for (Bucket bu : children) {
-				 bu.find(accum, px, py, visible_only);
+				 bu.find(accum, px, py, layer, visible_only);
 			}
 		} else {
 			final Rectangle tmp = new Rectangle();
 			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
-				if (d.contains(px, py)) {
-					accum.put(entry.getKey(), d);
-				}
-			}
-		}
-	}
-
-	/** Find all Displayable objects that contain the given point and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
-	synchronized final Collection<Displayable> find(final Class c, final int px, final int py, final boolean visible_only) {
-		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
-		find(accum, c, px, py, visible_only);
-		return accum.values(); // sorted by integer key
-	}
-	/** Recursive search, accumulates Displayable objects that contain the given point and, if @param visible_only is true, then checks first if so. */
-	private void find(final TreeMap<Integer,Displayable> accum, final Class c, final int px, final int py, final boolean visible_only) {
-		if (!contains(px, py)) return;
-		if (null != children) {
-			for (Bucket bu : children) {
-				 bu.find(accum, c, px, py, visible_only);
-			}
-		} else {
-			final Rectangle tmp = new Rectangle();
-			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
-				final Displayable d = entry.getValue();
-				if (visible_only && !d.isVisible()) continue;
-				if (d.getClass() == c && d.contains(px, py)) {
+				if (d.contains(layer, px, py)) {
 					accum.put(entry.getKey(), d);
 				}
 			}
@@ -212,24 +176,24 @@ public class Bucket {
 	}
 
 	/** Find all Displayable objects that intersect the given Area and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
-	synchronized final Collection<Displayable> find(final Area area, final boolean visible_only) {
+	synchronized final Collection<Displayable> find(final Area area, final Layer layer, final boolean visible_only) {
 		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
-		find(accum, area, visible_only);
+		find(accum, area, layer, visible_only);
 		return accum.values(); // sorted by integer key
 	}
 	/** Recursive search, accumulates Displayable objects that contain the given point and, if @param visible_only is true, then checks first if so. */
-	private void find(final TreeMap<Integer,Displayable> accum, final Area area, final boolean visible_only) {
+	private void find(final TreeMap<Integer,Displayable> accum, final Area area, final Layer layer, final boolean visible_only) {
 		if (!intersects(area.getBounds())) return;
 		if (null != children) {
 			for (Bucket bu : children) {
-				 bu.find(accum, area, visible_only);
+				 bu.find(accum, area, layer, visible_only);
 			}
 		} else {
 			final Rectangle tmp = new Rectangle();
 			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
-				if (d.intersects(area)) {
+				if (d.intersects(layer, area)) {
 					accum.put(entry.getKey(), d);
 				}
 			}
@@ -369,5 +333,19 @@ public class Bucket {
 		g.drawRect((int)((x - srcRect.x) * mag), (int)((y-srcRect.y)*mag), (int)(w*mag), (int)(h*mag));
 			g2d.setStroke(original_stroke);
 			g2d.setTransform(original);
+	}
+
+	/** Determine whether the rectangle is smaller than the layer dimensions padded in by one MAX_BUCKET_SIDE -- if not, makes little sense to use buckets, and it's better to do linear search without the TreeMap overhead. */
+	static public final boolean isBetter(final Rectangle r, final Layer layer) {
+		/*
+		final boolean b = r.width * r.height < (layer.getLayerWidth() - MAX_BUCKET_SIDE) * (layer.getLayerHeight() - MAX_BUCKET_SIDE);
+		Utils.log2("isBetter: " + b);
+		if (b) {
+			Utils.log2("\t r is " + r.width + ", " + r.height);
+			Utils.log2("\t o is " + (int)(layer.getLayerWidth() - MAX_BUCKET_SIDE) + ", " + (int)(layer.getLayerHeight() * MAX_BUCKET_SIDE));
+		}
+		return b;
+		*/
+		return r.width * r.height < (layer.getLayerWidth() - MAX_BUCKET_SIDE) * (layer.getLayerHeight() - MAX_BUCKET_SIDE);
 	}
 }

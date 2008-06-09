@@ -248,7 +248,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 
 			// debug
-			//if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification);
+			if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification);
 
 
 			// reset to identity
@@ -461,8 +461,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			} else {
 				// new
 				DLabel label = new DLabel(display.getProject(), "  ", x_p, y_p);
-				label.edit();
 				display.getLayer().add(label);
+				label.edit();
 			}
 			return;
 		}
@@ -1679,7 +1679,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case KeyEvent.VK_PAGE_UP: // as in Inkscape
 				if (null != active) {
 					update_graphics = true;
-					layer.moveUp(active); // active is not null, see above
+					layer.getParent().move(LayerSet.UP, active);
 					Display.repaint(layer, active, 5);
 					Display.updatePanelIndex(layer, active);
 					ke.consume();
@@ -1688,7 +1688,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case KeyEvent.VK_PAGE_DOWN: // as in Inkscape
 				if (null != active) {
 					update_graphics = true;
-					layer.moveDown(active); // active is not null, see above
+					layer.getParent().move(LayerSet.DOWN, active);
 					Display.repaint(layer, active, 5);
 					Display.updatePanelIndex(layer, active);
 					ke.consume();
@@ -1697,7 +1697,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case KeyEvent.VK_HOME: // as in Inkscape
 				if (null != active) {
 					update_graphics = true;
-					layer.moveTop(active); // active is not null, see above
+					layer.getParent().move(LayerSet.TOP, active);
 					Display.repaint(layer, active, 5);
 					Display.updatePanelIndex(layer, active);
 					ke.consume();
@@ -1706,7 +1706,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case KeyEvent.VK_END: // as in Inkscape
 				if (null != active) {
 					update_graphics = true;
-					layer.moveBottom(active); // active is not null, see above
+					layer.getParent().move(LayerSet.BOTTOM, active);
 					Display.repaint(layer, active, 5);
 					Display.updatePanelIndex(layer, active);
 					ke.consume();
@@ -1907,12 +1907,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				// start
 				//final ArrayList al = layer.getDisplayables();
+				layer.getParent().checkBuckets();
 				layer.checkBuckets();
-				final Collection<Displayable> al = layer.find(srcRect);
-				final Iterator<Displayable> ital = al.iterator();
-				final int n = al.size();
-				final ArrayList al_zdispl = layer.getParent().getZDisplayables();
-				final int m = al_zdispl.size();
+				final Iterator<Displayable> ital = layer.find(srcRect, true).iterator();
+				final Collection<Displayable> al_zdispl = layer.getParent().findZDisplayables(layer, srcRect, true);
+				final Iterator<Displayable> itzd = al_zdispl.iterator();
 
 				// Assumes the Layer has its objects in order:
 				// 1 - Patches
@@ -1920,27 +1919,27 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// 3 - Pipes and ZDisplayables (from the parent LayerSet)
 				// 4 - DLabels
 
+				Displayable tmp = null;
+
 				int i = 0;
-				while (i < n) {
-					if (quit && 0 == n % 10 && canQuit()) {
+				while (ital.hasNext()) {
+					if (quit && 0 == i % 10 && canQuit()) {
 						return;
 					}
-					final Displayable d = ital.next(); //(Displayable)al.get(i);
+					final Displayable d = ital.next();
 					final Class c = d.getClass();
 					if (DLabel.class == c || LayerSet.class == c) {
+						tmp = d; // since ital.next() has moved forward already
 						break;
 					}
-					//if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
-						if (Patch.class == c) {
-							//if (Math.abs(d.getAlpha() - 1.0f) < Utils.FL_ERROR) background.subtract(new Area(d.getPerimeter(0,0,1,1))); // this only works because the clip is given to be null
-							al_paint.add(d);
-							al_patches.add((Patch)d);
-						} else {
-							if (!top && d == active) top = true; // no Patch on al_top ever
-							if (top) al_top.add(d);
-							else al_paint.add(d);
-						}
-					//}
+					if (Patch.class == c) {
+						al_paint.add(d);
+						al_patches.add((Patch)d);
+					} else {
+						if (!top && d == active) top = true; // no Patch on al_top ever
+						if (top) al_top.add(d);
+						else al_paint.add(d);
+					}
 					i++;
 				}
 
@@ -1948,36 +1947,32 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				Loader.preload(al_patches, magnification, false); // must be false; a 'true' would incur in an infinite loop.
 
 				// paint the ZDisplayables here, before the labels and LayerSets, if any
-				int j = 0;
-				while (j < m) {
-					if (quit && 0 == n % 10 && canQuit()) {
+				while (itzd.hasNext()) {
+					if (quit && 0 == i % 10 && canQuit()) {
 						Loader.quitPreloading(al_patches, magnification);
 						return;
 					}
-					final ZDisplayable zd = (ZDisplayable) al_zdispl.get(j);
-					if (!zd.isOutOfRepaintingClip(magnification, srcRect, null)) {
-						if (zd == active) top = true;
-						if (top) al_top.add(zd);
-						else {
-							al_paint.add(zd);
-						}
-					}
-					j++;
+					final Displayable zd = itzd.next();
+					if (zd == active) top = true;
+					if (top) al_top.add(zd);
+					else al_paint.add(zd);
+					i++;
 				}
 				// paint LayerSet and DLabel objects!
-				while (i < n) {
-					if (quit && 0 == n % 10 && canQuit()) {
+				if (null != tmp) {
+					if (tmp == active) top = true;
+					if (top) al_top.add(tmp);
+					else al_paint.add(tmp);
+				}
+				while (ital.hasNext()) {
+					if (quit && 0 == i % 10 && canQuit()) {
 						Loader.quitPreloading(al_patches, magnification);
 						return;
 					}
-					final Displayable d = ital.next(); //(Displayable) al.get(i);
-					//if (!d.isOutOfRepaintingClip(magnification, srcRect, null)) {
-						if (d == active) top = true;
-						if (top) al_top.add(d);
-						else {
-							al_paint.add(d);
-						}
-					//}
+					final Displayable d = ital.next();
+					if (d == active) top = true;
+					if (top) al_top.add(d);
+					else al_paint.add(d);
 					i++;
 				}
 

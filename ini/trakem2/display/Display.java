@@ -1564,7 +1564,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, boolean shift_down, Class c) {
 		//Utils.log("Display.choose: x,y " + x_p + "," + y_p);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>(layer.find(x_p, y_p));
-		al.addAll(layer.getParent().findZDisplayables(layer, x_p, y_p));
+		al.addAll(layer.getParent().findZDisplayables(layer, x_p, y_p, true)); // only visible ones
 		if (al.isEmpty()) {
 			Displayable act = this.active;
 			selection.clear();

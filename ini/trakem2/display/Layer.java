@@ -421,6 +421,7 @@ public class Layer extends DBObject implements Bucketable {
 	public ArrayList<Displayable> getDisplayables(final Class c, final Rectangle roi) {
 		return getDisplayables(c, new Area(roi), true);
 	}
+
 	/** Returns a list of all Displayable of class c that intersect the given area. */
 	public ArrayList<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
 		final ArrayList<Displayable> al = getDisplayables(c);
@@ -449,12 +450,17 @@ public class Layer extends DBObject implements Bucketable {
 		return parent.getLayerHeight();
 	}
 
-	/** Find the Displayable objects that contain the point. */
 	public Collection<Displayable> find(final int x, final int y) {
-		if (root != null) return root.find(x, y, false);
+		return find(x, y, false);
+	}
+
+	/** Find the Displayable objects that contain the point. */
+	public Collection<Displayable> find(final int x, final int y, final boolean visible_only) {
+		if (null != root) return root.find(x, y, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Displayable d = (Displayable)al_displayables.get(i);
+			if (visible_only && !d.isVisible()) continue;
 			if (d.contains(x, y)) {
 				al.add(d);
 			}
@@ -462,13 +468,17 @@ public class Layer extends DBObject implements Bucketable {
 		return al;
 	}
 
-	/** Find the Displayable objects of Class c that contain the point. */
 	public Collection<Displayable> find(final Class c, final int x, final int y) {
-		if (root != null) return root.find(c, x, y, false);
+		return find(c, x, y, false);
+	}
+
+	/** Find the Displayable objects of Class c that contain the point. */
+	public Collection<Displayable> find(final Class c, final int x, final int y, final boolean visible_only) {
 		if (Displayable.class == c) return find(x, y); // search among all
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Displayable d = (Displayable)al_displayables.get(i);
+			if (visible_only && !d.isVisible()) continue;
 			if (d.getClass() == c && d.contains(x, y)) {
 				al.add(d);
 			}
@@ -476,11 +486,16 @@ public class Layer extends DBObject implements Bucketable {
 		return al;
 	}
 
-	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
 	public Collection<Displayable> find(final Rectangle r) {
-		if (root != null) return root.find(r, false);
+		return find(r, false);
+	}
+
+	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
+	public Collection<Displayable> find(final Rectangle r, final boolean visible_only) {
+		if (null != root && Bucket.isBetter(r, this)) return root.find(r, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (Displayable d : al_displayables) {
+			if (visible_only && !d.isVisible()) continue;
 			if (d.getBoundingBox().intersects(r)) {
 				al.add(d);
 			}
@@ -488,10 +503,13 @@ public class Layer extends DBObject implements Bucketable {
 		return al;
 	}
 
-	/** Find the Displayable objects of class 'target' whose bounding box intersects the given Displayable (which is itself not included if present in this very Layer). */
+	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself not included if present in this very Layer). */
 	public Collection<Displayable> getIntersecting(final Displayable d, final Class target) {
-		if (root != null) return root.find(new Area(d.getPerimeter()), false);
-		ArrayList<Displayable> al = new ArrayList();
+		if (null != root) {
+			final Area area = new Area(d.getPerimeter());
+			if (Bucket.isBetter(area.getBounds(), this)) return root.find(area, this, false);
+		}
+		final ArrayList<Displayable> al = new ArrayList();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Object ob = al_displayables.get(i);
 			if (ob.getClass() != target) continue;
@@ -826,7 +844,7 @@ public class Layer extends DBObject implements Bucketable {
 
 	public final void checkBuckets() {
 		if (null == root || null == db_map) recreateBuckets();
-		// TODO //layer_Set.checkBuckets();
+		parent.checkBuckets();
 	}
 
 	/** Update buckets of a position change for the given Displayable. */

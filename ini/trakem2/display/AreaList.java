@@ -221,7 +221,7 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Returns whether the point x,y is contained in this object at the given Layer. */
-	public boolean contains(Layer layer, int x, int y) {
+	public boolean contains(final Layer layer, final int x, final int y) {
 		Object ob = ht_areas.get(new Long(layer.getId()));
 		if (null == ob) return false;
 		if (AreaList.UNLOADED.equals(ob)) {
@@ -231,6 +231,37 @@ public class AreaList extends ZDisplayable {
 		Area area = (Area)ob;
 		if (!this.at.isIdentity()) area = area.createTransformedArea(this.at);
 		return area.contains(x, y);
+	}
+
+	public boolean intersects(final Layer layer, final Area area) {
+		Object ob = ht_areas.get(layer.getId());
+		if (null == ob) return false;
+		if (AreaList.UNLOADED.equals(ob)) {
+			ob = loadLayer(layer.getId());
+			if (null == ob) return false;
+		}
+		final Area a = ((Area)ob).createTransformedArea(this.at);
+		a.intersect(area);
+		final Rectangle b = a.getBounds();
+		return 0 != b.width && 0 != b.height;
+	}
+
+	/** Returns the bounds of this object as it shows in the given layer. */
+	public Rectangle getBounds(final Rectangle r, final Layer layer) {
+		if (null == layer) return super.getBounds(r, null);
+		final Area area = (Area)ht_areas.get(layer.getId());
+		if (null == area) {
+			if (null == r) return new Rectangle();
+			r.x = 0;
+			r.y = 0;
+			r.width = 0;
+			r.height = 0;
+			return r;
+		}
+		final Rectangle b = area.createTransformedArea(this.at).getBounds();
+		if (null == r) return b;
+		r.setBounds(b);
+		return r;
 	}
 
 	public boolean isDeletable() {
