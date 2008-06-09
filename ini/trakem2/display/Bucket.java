@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import java.util.Arrays;
 import java.util.TreeMap;
 import java.util.Collection;
 import java.util.Map;
@@ -50,9 +51,9 @@ import ini.trakem2.utils.Utils;
  */
 public class Bucket {
 
-	private static final int N_CHILD_BUCKETS_SQRT = 2;
-	private static final int MIN_BUCKET_SIDE = 512;
-	private static int MAX_BUCKET_SIDE = 2048;
+	static public final int MIN_BUCKET_SIZE = 256;
+
+	private int bucket_side;
 
 	/** The sorted map of stack_index and Displayable objects that are fully contained in this bucket or intersect at top and left, but not at right and bottom. That is, the lower-right corner of the Displayable is contained with the area of this bucket. */
 	private TreeMap<Integer,Displayable> map = null;
@@ -63,21 +64,27 @@ public class Bucket {
 
 	private boolean empty = true;
 
-	public Bucket(final int x, final int y, final int w, final int h) {
+	public Bucket(final int x, final int y, final int w, final int h, final int bucket_side) {
 		this.x = x;
 		this.y = y;
 		this.w = w;
 		this.h = h;
+		this.bucket_side = bucket_side;
 		Utils.showStatus(new StringBuffer("Creating bucket ").append(x).append(',').append(y).append(',').append(w).append(',').append(h).toString(), false);
+		Utils.log2(this.toString());
 	}
 
 	public String toString() {
 		return "Bucket: " + x + ",  " + y + ", " + w + ", " + h;
 	}
 
+	synchronized final void populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
+		populate(container, db_map, w+w, h+h, w, h);
+	}
+
 	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. Returns true if not empty. */
-	synchronized final boolean populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
-		if (this.w <= MAX_BUCKET_SIDE || this.h <= MAX_BUCKET_SIDE) {
+	synchronized final private boolean populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height) {
+		if (this.w <= bucket_side || this.h <= bucket_side) {
 			// add displayables, sorted by index
 			map = new TreeMap<Integer,Displayable>();
 			int i = 0;
@@ -93,11 +100,35 @@ public class Bucket {
 			//Utils.log2(empty ? "EMPTY ": "FILLED " + this);
 		} else {
 			// create child buckets as subdivisions of this one
-			children = new ArrayList<Bucket>(N_CHILD_BUCKETS_SQRT*N_CHILD_BUCKETS_SQRT);
-			int w = this.w / N_CHILD_BUCKETS_SQRT;
-			int h = this.h / N_CHILD_BUCKETS_SQRT;
-			for (int i=0; i<N_CHILD_BUCKETS_SQRT; i++) {
-				for (int j=0; j<N_CHILD_BUCKETS_SQRT; j++){
+			children = new ArrayList<Bucket>(2*2);
+
+			int side_w = (int)Math.pow(2, (int)Math.floor(Math.log(Math.max(w,h)) / Math.log(2)) - 1);
+			int side_h = side_w;
+			if (side_w > max_width) side_w = max_width;
+			if (side_h > max_height) side_h = max_height;
+
+			for (int x=0; x<parent_w; x += side_w) {
+				if (this.x + x >= max_width) continue;
+				int width = side_w;
+				if (this.x + x + side_w > max_width) width = max_width - this.x - x;
+				for (int y=0; y<parent_h; y += side_h) {
+					if (this.y + y >= max_height) continue;
+					int height = side_h;
+					if (this.y + y + side_h > max_height) height = max_height - this.y - y;
+					Bucket bu = new Bucket(this.x + x, this.y + y, width, height, bucket_side);
+					if (bu.populate(container, db_map, width, height, max_width, max_height)) {
+						this.empty = false;
+					}
+					children.add(bu);
+				}
+			}
+
+
+			/*
+			int w = this.w / 2;
+			int h = this.h / 2;
+			for (int i=0; i<2; i++) {
+				for (int j=0; j<2; j++) {
 					Bucket bu = new Bucket(this.x + i * w, this.y + j * h, w, h);
 					if (bu.populate(container, db_map)) {
 						//Utils.log2("FILLEd " + this);
@@ -108,6 +139,7 @@ public class Bucket {
 					children.add(bu);
 				}
 			}
+			*/
 		}
 		return !this.empty;
 	}
@@ -343,28 +375,63 @@ public class Bucket {
 			for (Bucket bu : children) bu.paint(g, srcRect, mag);
 			return;
 		}
-			final Graphics2D g2d = (Graphics2D)g;
-			final Stroke original_stroke = g2d.getStroke();
-			AffineTransform original = g2d.getTransform();
-			g2d.setTransform(new AffineTransform());
-			g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+		if (!intersects(srcRect)) return;
+		final Graphics2D g2d = (Graphics2D)g;
+		final Stroke original_stroke = g2d.getStroke();
+		AffineTransform original = g2d.getTransform();
+		g2d.setTransform(new AffineTransform());
+		g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
 		g.setColor(Color.red);
 		g.drawRect((int)((x - srcRect.x) * mag), (int)((y-srcRect.y)*mag), (int)(w*mag), (int)(h*mag));
-			g2d.setStroke(original_stroke);
-			g2d.setTransform(original);
+		g2d.setStroke(original_stroke);
+		g2d.setTransform(original);
 	}
 
-	/** Determine whether the rectangle is smaller than the layer dimensions padded in by one MAX_BUCKET_SIDE -- if not, makes little sense to use buckets, and it's better to do linear search without the TreeMap overhead. */
-	static public final boolean isBetter(final Rectangle r, final Layer layer) {
+	/** Determine whether the rectangle is smaller than the layer dimensions padded in by one bucket_side -- if not, makes little sense to use buckets, and it's better to do linear search without the TreeMap overhead. */
+	public final boolean isBetter(final Rectangle r, final Layer layer) {
 		/*
-		final boolean b = r.width * r.height < (layer.getLayerWidth() - MAX_BUCKET_SIDE) * (layer.getLayerHeight() - MAX_BUCKET_SIDE);
+		final boolean b = r.width * r.height < (layer.getLayerWidth() - bucket_side) * (layer.getLayerHeight() - bucket_side);
 		Utils.log2("isBetter: " + b);
 		if (b) {
 			Utils.log2("\t r is " + r.width + ", " + r.height);
-			Utils.log2("\t o is " + (int)(layer.getLayerWidth() - MAX_BUCKET_SIDE) + ", " + (int)(layer.getLayerHeight() * MAX_BUCKET_SIDE));
+			Utils.log2("\t o is " + (int)(layer.getLayerWidth() - bucket_side) + ", " + (int)(layer.getLayerHeight() * bucket_side));
 		}
 		return b;
 		*/
-		return r.width * r.height < (layer.getLayerWidth() - MAX_BUCKET_SIDE) * (layer.getLayerHeight() - MAX_BUCKET_SIDE);
+		return r.width * r.height < (layer.getLayerWidth() - bucket_side) * (layer.getLayerHeight() - bucket_side);
+	}
+
+	private final ArrayList<Bucket>getChildren(final ArrayList<Bucket> bus) {
+		if (null != children) {
+			for (Bucket bu : children) {
+				bu.getChildren(bus);
+			}
+		} else if (null != map) {
+			bus.add(this);
+		}
+		return bus;
+	}
+
+	public void debug() {
+		Utils.log2("total map buckets: " + getChildren(new ArrayList<Bucket>()).size());
+	}
+
+	static public int getBucketSide(final Bucketable container) {
+		if (null != container.getProject().getProperty("bucket_side")) {
+			return (int)container.getProject().getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
+		} else {
+			// estimate median
+			final ArrayList<Displayable> col = (ArrayList<Displayable>)container.getDisplayableList();
+			if (0 == col.size()) return 2048;
+			final int[] sizes = new int[col.size()];
+			final Rectangle r = new Rectangle();
+			int i = 0;
+			for (Displayable d : col) {
+				d.getBoundingBox(r);
+				sizes[i++] = Math.max(r.width, r.height);
+			}
+			Arrays.sort(sizes);
+			return 2 * sizes[sizes.length/2];
+		}
 	}
 }

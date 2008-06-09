@@ -248,7 +248,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 
 			// debug
-			if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification);
+			//if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification);
 
 
 			// reset to identity

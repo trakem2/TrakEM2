@@ -259,6 +259,8 @@ public class Layer extends DBObject implements Bucketable {
 				// append at the end
 				root.put(stack_index, displ, displ.getBoundingBox(null));
 			} else {
+				// add as last first, then update
+				root.put(d.length, displ, displ.getBoundingBox(null));
 				// find and update the range of affected Displayable objects
 				root.update(this, displ, stack_index, d.length); // first to last indices affected
 			}
@@ -492,7 +494,7 @@ public class Layer extends DBObject implements Bucketable {
 
 	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
 	public Collection<Displayable> find(final Rectangle r, final boolean visible_only) {
-		if (null != root && Bucket.isBetter(r, this)) return root.find(r, this, visible_only);
+		if (null != root && root.isBetter(r, this)) return root.find(r, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (Displayable d : al_displayables) {
 			if (visible_only && !d.isVisible()) continue;
@@ -507,7 +509,7 @@ public class Layer extends DBObject implements Bucketable {
 	public Collection<Displayable> getIntersecting(final Displayable d, final Class target) {
 		if (null != root) {
 			final Area area = new Area(d.getPerimeter());
-			if (Bucket.isBetter(area.getBounds(), this)) return root.find(area, this, false);
+			if (root.isBetter(area.getBounds(), this)) return root.find(area, this, false);
 		}
 		final ArrayList<Displayable> al = new ArrayList();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
@@ -837,18 +839,18 @@ public class Layer extends DBObject implements Bucketable {
 	}
 
 	public void recreateBuckets() {
-		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()));
+		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
 		this.root.populate(this, db_map);
-	}
-
-	public final void checkBuckets() {
-		if (null == root || null == db_map) recreateBuckets();
-		parent.checkBuckets();
+		root.debug();
 	}
 
 	/** Update buckets of a position change for the given Displayable. */
 	public void updateBucket(final Displayable d) {
 		if (null != root) root.updatePosition(d, db_map);
+	}
+
+	public void checkBuckets() {
+		if (null == root || null == db_map) recreateBuckets();
 	}
 }

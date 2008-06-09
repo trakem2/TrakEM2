@@ -1113,6 +1113,8 @@ public class Project extends DBObject {
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
 		boolean keep_mipmaps = "true".equals(ht_props.get("keep_mipmaps"));
 		gd.addCheckbox("Keep_mipmaps_when_deleting_images", keep_mipmaps); // coping with the fact that thee is no Action context ... there should be one in the Worker thread.
+		int bucket_side = (int)getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
+		gd.addNumericField("Bucket side length: ", bucket_side, 0);
 		//
 		gd.showDialog();
 		//
@@ -1144,5 +1146,11 @@ public class Project extends DBObject {
 		}
 		adjustProp("keep_mipmaps", keep_mipmaps, gd.getNextBoolean());
 		Utils.log2("keep_mipmaps: " + getBooleanProperty("keep_mipmaps"));
+		//
+		bucket_side = (int)gd.getNextNumber();
+		if (bucket_side > Bucket.MIN_BUCKET_SIZE) {
+			setProperty("bucket_side", Integer.toString(bucket_side));
+			layer_set.recreateBuckets(true);
+		}
 	}
 }
