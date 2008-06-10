@@ -171,7 +171,7 @@ public class FIFOImageMipMaps {
 				}
 			}
 			use_map = true;
-			System.out.println("CREATED map");
+			//System.out.println("CREATED map");
 		}
 	}
 
