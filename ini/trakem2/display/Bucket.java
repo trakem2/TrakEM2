@@ -71,7 +71,7 @@ public class Bucket {
 		this.h = h;
 		this.bucket_side = bucket_side;
 		Utils.showStatus(new StringBuffer("Creating bucket ").append(x).append(',').append(y).append(',').append(w).append(',').append(h).toString(), false);
-		Utils.log2(this.toString());
+		//Utils.log2(this.toString());
 	}
 
 	public String toString() {
@@ -144,7 +144,7 @@ public class Bucket {
 		return !this.empty;
 	}
 
-	synchronized private final boolean intersects(final Rectangle r) {
+	private final boolean intersects(final Rectangle r) {
 		if (r.width <= 0 || r.height <= 0 || w <= 0 || h <= 0) {
 		    return false;
 		}
@@ -159,7 +159,7 @@ public class Bucket {
 			(th < y || th > r.y));
 	}
 
-	synchronized private final boolean contains(final int px, final int py) {
+	private final boolean contains(final int px, final int py) {
 		return px >= x &&
 		       py >= y &&
 		       px <= x + w &&

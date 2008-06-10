@@ -1001,6 +1001,7 @@ public class Utils implements ij.plugin.PlugIn {
 		return Color.getHSBColor(a[0], a[1], a[2]);
 	}
 
+	/** Test whether the areas intersect each other. */
 	static public final boolean intersects(final Area a1, final Area a2) {
 		final Area b = new Area(a1);
 		b.intersect(a2);

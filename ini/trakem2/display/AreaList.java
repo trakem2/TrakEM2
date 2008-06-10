@@ -260,8 +260,17 @@ public class AreaList extends ZDisplayable {
 		}
 		final Rectangle b = area.createTransformedArea(this.at).getBounds();
 		if (null == r) return b;
-		r.setBounds(b);
+		r.setBounds(b.x, b.y, b.width, b.height);
 		return r;
+	}
+
+	/** It's assumed that @param tmp is not null. */
+	protected boolean intersectsBucket(final Layer layer, final Rectangle bucket, final Rectangle tmp) {
+		if (null == layer) return bucket.intersects(getBoundingBox(tmp));
+		final Area area = (Area)ht_areas.get(layer.getId());
+		if (null == area) return false;
+		// check whether any interior of the area intersects the given bucket rectangle
+		return area.createTransformedArea(this.at).intersects(bucket.x, bucket.y, bucket.width, bucket.height);
 	}
 
 	public boolean isDeletable() {

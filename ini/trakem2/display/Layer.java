@@ -842,7 +842,7 @@ public class Layer extends DBObject implements Bucketable {
 		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
 		this.root.populate(this, db_map);
-		root.debug();
+		//root.debug();
 	}
 
 	/** Update buckets of a position change for the given Displayable. */
