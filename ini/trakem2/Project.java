@@ -806,10 +806,11 @@ public class Project extends DBObject {
 		if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
 
 		TemplateThing project_tt = ht_unique_tt.remove("project");
+		/* // debug
 		for (Iterator it = ht_unique_tt.keySet().iterator(); it.hasNext(); ) {
 			Utils.log2("class: " + it.next().getClass().getName());
-		}
-		String[] ut = new String[ht_unique_tt.size()];
+		} */
+		final String[] ut = new String[ht_unique_tt.size()];
 		ht_unique_tt.keySet().toArray(ut);
 		ht_unique_tt.put("project", project_tt);
 		Arrays.sort(ut);
