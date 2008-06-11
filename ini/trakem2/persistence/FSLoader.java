@@ -1155,7 +1155,7 @@ public class FSLoader extends Loader {
 			} else {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
-				final boolean as_grey = ImagePlus.COLOR_256 != patch.getType();
+				final boolean as_grey = !ip.isColorLut();
 				if (as_grey && null == cm) {
 					cm = GRAY_LUT;
 				}
