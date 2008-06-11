@@ -694,7 +694,7 @@ public class Selection {
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				Object ob = it.next();
 				if (hs_to_keep.contains(ob)) continue; // avoid linked ones still in queue or linked to those in queue
-				hs.remove(ob);
+				it.remove();
 			}
 			// recompute box
 			Rectangle r = new Rectangle(); // as temp storage
