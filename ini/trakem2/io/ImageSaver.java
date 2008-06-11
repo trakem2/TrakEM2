@@ -87,7 +87,7 @@ public class ImageSaver {
 		*/
 		BufferedImage bi = null;
 		if (as_grey) { // even better would be to make a raster directly from the byte[] array, and pass that to the encoder
-			bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, (IndexColorModel)ip.getColorModel());
+			bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_BYTE_GRAY); //, (IndexColorModel)ip.getColorModel());
 		} else {
 			bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
 		}
@@ -110,7 +110,8 @@ public class ImageSaver {
 		try {
 			f = new FileOutputStream(path);
 			final JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(f);
-			final JPEGEncodeParam param = encoder.getDefaultJPEGEncodeParam(bi);
+			final JPEGEncodeParam param = as_grey ? encoder.getDefaultJPEGEncodeParam(bi.getRaster(), JPEGDecodeParam.COLOR_ID_GRAY)
+				                              : encoder.getDefaultJPEGEncodeParam(bi);
 			param.setQuality(quality, true);
 			encoder.encode(bi, param);
 			f.close();
@@ -176,10 +177,26 @@ public class ImageSaver {
 	}
 
 	static private final InputStream openStream(final String path) throws Exception {
+		/*
+		// Proper implementation, incurs in big drag because of new File(path).exists() OS calls.
 		if (FSLoader.isURL(path)) {
 			return new URL(path).openStream();
 		} else if (new File(path).exists()) {
 			return new FileInputStream(path);
+		}*/
+		// Simple optimization, incurring in horrible practices ... blame me.
+		try {
+			return new FileInputStream(path);
+		} catch (FileNotFoundException fnfe) {
+			try {
+				if (FSLoader.isURL(path)) {
+					return new URL(path).openStream();
+				}
+			} catch (Throwable e) {
+				IJError.print(e);
+			}
+		} catch (Throwable t) {
+			IJError.print(t);
 		}
 		return null;
 	}
