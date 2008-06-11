@@ -1215,7 +1215,7 @@ public abstract class Displayable extends DBObject {
 	public void setAffineTransform(AffineTransform at) {
 		this.at.setTransform(at);
 		updateInDatabase("transform");
-		getBucketable().updateBucket(this);
+		updateBucket();
 	}
 
 	/** Translate this Displayable and its linked ones if linked=true. */
@@ -1229,12 +1229,12 @@ public abstract class Displayable extends DBObject {
 				Displayable d = (Displayable)it.next();
 				d.at.preConcatenate(at2);
 				d.updateInDatabase("transform");
-				d.getBucketable().updateBucket(this);
+				d.updateBucket();
 			}
 		} else {
 			this.at.preConcatenate(at2);
 			this.updateInDatabase("transform");
-			getBucketable().updateBucket(this);
+			updateBucket();
 		}
 	}
 
@@ -1258,13 +1258,18 @@ public abstract class Displayable extends DBObject {
 				Displayable d = (Displayable)it.next();
 				d.at.preConcatenate(at2);
 				d.updateInDatabase("transform");
-				d.getBucketable().updateBucket(this);
+				d.updateBucket();
 			}
 		} else {
 			this.at.preConcatenate(at2);
 			this.updateInDatabase("transform");
-			getBucketable().updateBucket(this);
+			updateBucket();
 		}
+	}
+
+	/** Commands the parent container (a Layer or a LayerSet) to update the bucket position of this Displayable. */
+	public void updateBucket() {
+		if (null != getBucketable()) getBucketable().updateBucket(this);
 	}
 
 	/** Scale relative to an anchor point (will translate as necessary). */
@@ -1298,7 +1303,7 @@ public abstract class Displayable extends DBObject {
 
 		at.preConcatenate( at2 );
 		updateInDatabase( "transform" );
-		getBucketable().updateBucket(this);
+		updateBucket();
 	}
 
 	/** Sets the top left of the bounding box to x,y. Warning: does not check that the object will remain within layer bounds. Does NOT affect linked Displayables. */
@@ -1307,7 +1312,7 @@ public abstract class Displayable extends DBObject {
 		Rectangle b = getBoundingBox(null);
 		this.translate(x - b.x, y - b.y, false); // do not affect linked Displayables
 		//Utils.log2("setting new loc, args are: " + x + ", "+ y);
-		getBucketable().updateBucket(this);
+		updateBucket();
 	}
 
 	/** Apply this Displayable's AffineTransform to the given point. */
@@ -1368,7 +1373,7 @@ public abstract class Displayable extends DBObject {
 			Displayable d = (Displayable)it.next();
 			d.at.concatenate(at);
 			d.updateInDatabase("transform");
-			d.getBucketable().updateBucket(this);
+			d.updateBucket();
 			//Utils.log("applying transform to " + d);
 		}
 	}

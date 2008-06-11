@@ -829,11 +829,11 @@ public class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Don't use this for fast pixel grabbing; this is intended for the dropper tool and status bar reporting by mouse motion. */
-	public int[] getPixel(int x, int y, double mag) {
+	public int[] getPixel(final int x, final int y, final double mag) {
 		// find Patch under cursor
 		final Collection<Displayable> under = find(Patch.class, x, y);
 		if (null == under || under.isEmpty()) return new int[3]; // zeros
-		Patch pa = (Patch)under.iterator().next();// get(0) // the top one, since they are ordered like html divs
+		final Patch pa = (Patch)under.iterator().next();// get(0) // the top one, since they are ordered like html divs
 		// TODO: edit here when adding layer mipmaps
 		return pa.getPixel(x, y, mag);
 	}
@@ -851,6 +851,13 @@ public class Layer extends DBObject implements Bucketable {
 	}
 
 	public void checkBuckets() {
-		if (null == root || null == db_map) recreateBuckets();
+		if (use_buckets && (null == root || null == db_map)) recreateBuckets();
+	}
+
+	private boolean use_buckets = true;
+
+	public void setBucketsEnabled(boolean b) {
+		this.use_buckets = b;
+		if (!use_buckets) this.root = null;
 	}
 }

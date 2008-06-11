@@ -694,13 +694,13 @@ public class Patch extends Displayable {
 
 	public int[] getPixel(final int x, final int y, final double mag) {
 		final Image img = project.getLoader().fetchImage(this, mag);
-		int w = img.getWidth(null);
-		double scale = w / width;
-		Point2D.Double pd = inverseTransformPoint(x, y);
-		int x2 = (int)(pd.x * scale);
-		int y2 = (int)(pd.y * scale);
+		final int w = img.getWidth(null);
+		final double scale = w / width;
+		final Point2D.Double pd = inverseTransformPoint(x, y);
+		final int x2 = (int)(pd.x * scale);
+		final int y2 = (int)(pd.y * scale);
 		final int[] pvalue = new int[4];
-		PixelGrabber pg = new PixelGrabber(img, x2, y2, 1, 1, pvalue, 0, w);
+		final PixelGrabber pg = new PixelGrabber(img, x2, y2, 1, 1, pvalue, 0, w);
 		try {
 			pg.grabPixels();
 		} catch (InterruptedException ie) {
@@ -708,17 +708,17 @@ public class Patch extends Displayable {
 		}
 		switch (type) {
 			case ImagePlus.COLOR_256:
-				PixelGrabber pg2 = new PixelGrabber(img,x2,y2,1,1,false);
+				final PixelGrabber pg2 = new PixelGrabber(img,x2,y2,1,1,false);
 				try {
 					pg2.grabPixels();
 				} catch (InterruptedException ie) {
 					return pvalue;
 				}
-				byte[] pix8 = (byte[])pg2.getPixels();
+				final byte[] pix8 = (byte[])pg2.getPixels();
 				pvalue[3] = null != pix8 ? pix8[0]&0xff : 0;
 				// fall through to get RGB values
 			case ImagePlus.COLOR_RGB:
-				int c = pvalue[0];
+				final int c = pvalue[0];
 				pvalue[0] = (c&0xff0000)>>16; // R
 				pvalue[1] = (c&0xff00)>>8;    // G
 				pvalue[2] = c&0xff;           // B

@@ -1579,13 +1579,13 @@ public class FSLoader extends Loader {
 			}
 			if (null != img) return img;
 
-			// TODO: check that REALLY the file doesn't exist.
 
 			// if we got so far ... try to regenerate the mipmaps
 			if (!mipmaps_regen) {
 				return null;
 			}
 
+			// check that REALLY the file doesn't exist.
 			if (cannot_regenerate.contains(patch)) {
 				Utils.log("Cannot regenerate mipmaps for patch " + patch);
 				return null;

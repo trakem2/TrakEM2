@@ -1722,8 +1722,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						double x = srcRect.x + srcRect.width/2 - imp.getWidth()/2;
 						double y = srcRect.y + srcRect.height/2 - imp.getHeight()/2;
 						// save the image somewhere:
-						Patch pa = display.getProject().getLoader().addNewImage(imp);
-						pa.setLocation(x, y);
+						Patch pa = display.getProject().getLoader().addNewImage(imp, x, y);
 						display.getLayer().add(pa);
 						ke.consume();
 					} // TODO there isn't much ImageJ integration in the pasting. Can't paste to a selected image, for example.

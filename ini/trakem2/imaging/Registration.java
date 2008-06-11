@@ -248,6 +248,12 @@ public class Registration {
 			// trim and polish:
 			layer_set.setMinimumDimensions();
 
+			// redistribute images to buckets:
+			HashSet<Layer> all_layers = new HashSet<Layer>();
+			all_layers.addAll(list1);
+			all_layers.addAll(list2);
+			layer_set.getProject().getLoader().recreateBuckets(all_layers);
+
 		} catch (Exception e) {
 			IJError.print(e);
 		}
@@ -368,6 +374,9 @@ public class Registration {
 
 			// repaint the second Layer, if it is showing in any Display:
 			// no need // Display.repaint(layer2, null, 0);
+
+			// redistribute images to buckets:
+			layer2.recreateBuckets();
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -623,6 +632,7 @@ public class Registration {
 			at_moving.setTransform(atr);
 			// pre-apply the base's transform
 			at_moving.preConcatenate(base.getAffineTransform());
+			moving.updateBucket();
 			at_moving = null;
 
 			if (ControlWindow.isGUIEnabled()) {
@@ -1212,6 +1222,7 @@ public class Registration {
 						( ( TRModel2D )tile.getModel() ).preConcatenate( model );
 				
 					// repaint all Displays showing a Layer of the edited LayerSet
+					layer.recreateBuckets();
 					Display.update( layer );
 				}
 				Registration.identifyCrossLayerCorrespondences(
@@ -1277,7 +1288,11 @@ public class Registration {
 		for ( Tile tile : all_tiles ) tile.update();
 
 		// global minimization
-		Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, sp.cs_max_epsilon, worker );
+		try {
+			Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, sp.cs_max_epsilon, worker );
+		} catch (Throwable t) {
+			IJError.print(t);
+		}
 
 		// update selection internals in all open Displays
 		Display.updateSelection( Display.getFront() );
@@ -1461,6 +1476,14 @@ public class Registration {
 			float max_error,
 			Worker worker)
 	{
+
+		// find all affected layers and disable their buckets
+		final HashSet<Layer> hsla = new HashSet<Layer>();
+		for (Patch pa : patches) hsla.add(pa.getLayer());
+		for (Layer la : hsla) la.setBucketsEnabled(false);
+
+		try {
+
 		int num_patches = patches.size();
 
 		double od = Double.MAX_VALUE;
@@ -1539,12 +1562,21 @@ public class Registration {
 			++iteration;
 		}
 
-		Display.update( set );
-
 		Utils.log2( "Successfully optimized configuration of " + tiles.size() + " tiles:" );
 		Utils.log2( "  average displacement: " + Utils.cutNumber( od, 3 ) + "px" );
 		Utils.log2( "  minimal displacement: " + Utils.cutNumber( min_d, 3 ) + "px" );
 		Utils.log2( "  maximal displacement: " + Utils.cutNumber( max_d, 3 ) + "px" );
+
+		} catch (Throwable t) {
+			IJError.print(t);
+		}
+
+		// re-enable buckets and recreate them.
+		for (Layer la : hsla) la.setBucketsEnabled(true);
+		set.getProject().getLoader().recreateBuckets(hsla);
+
+		Display.update( set );
+
 	}
 
 	/**

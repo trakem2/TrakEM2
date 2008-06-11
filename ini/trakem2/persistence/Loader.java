@@ -111,6 +111,7 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.IdentityHashMap;
@@ -2034,6 +2035,8 @@ abstract public class Loader {
 		//reset Loader mode
 		setMassiveMode(false);//massive_mode = false;
 
+		layer.recreateBuckets();
+
 		//debug:
 		} catch (Throwable t) {
 			IJError.print(t);
@@ -2160,8 +2163,9 @@ abstract public class Loader {
 					final AtomicInteger n_imported = new AtomicInteger(0);
 
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
-						threads[ithread] = new Thread(new Runnable() {
+						threads[ithread] = new Thread() {
 							public void run() {
+								setPriority(Thread.NORM_PRIORITY);
 					///////////////////////////////
 
 					// 3 - parse each line
@@ -2284,7 +2288,7 @@ abstract public class Loader {
 
 					/////////////////////////
 							}
-						});
+						};
 					}
 					MultiThreading.startAndJoin(threads);
 					/////////////////////////
@@ -2336,6 +2340,9 @@ abstract public class Loader {
 						Thread t = Registration.registerTilesSIFT(zla, overlapping_only);
 						if (null != t) t.join();
 					}
+
+					recreateBuckets(la);
+
 				} catch (Exception e) {
 					IJError.print(e);
 				}
@@ -2345,6 +2352,30 @@ abstract public class Loader {
 		Bureaucrat burro = new Bureaucrat(worker, base_layer.getProject());
 		burro.goHaveBreakfast();
 		return burro;
+	}
+
+	public void recreateBuckets(final Collection<Layer> col) {
+		final Layer[] lall = new Layer[col.size()];
+		col.toArray(lall);
+		recreateBuckets(lall);
+	}
+
+	/** Recreate buckets for each Layer, one thread per layer, in as many threads as CPUs. */
+	public void recreateBuckets(final Layer[] la) {
+		final AtomicInteger ai = new AtomicInteger(0);
+		final Thread[] threads = MultiThreading.newThreads();
+
+		for (int ithread = 0; ithread < threads.length; ++ithread) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					setPriority(Thread.NORM_PRIORITY);
+					for (int i = ai.getAndIncrement(); i < la.length; i = ai.getAndIncrement()) {
+						la[i].recreateBuckets();
+					}
+				}
+			};
+		}
+		MultiThreading.startAndJoin(threads);
 	}
 
 	private double getMeanOfRange(ImageStatistics st, double min, double max) {
@@ -3892,6 +3923,7 @@ abstract public class Loader {
 					for (int ithread = 0; ithread < threads.length; ++ithread) {
 						threads[ithread] = new Thread() {
 							public void run() {
+								setPriority(Thread.NORM_PRIORITY);
 					/////////////////////////
 		for (int g = ai.getAndIncrement(); g < pa.length; g = ai.getAndIncrement()) {
 			if (wo.hasQuitted()) break;
@@ -4325,12 +4357,16 @@ abstract public class Loader {
 	/** Returns null unless overriden. */
 	public String getMipMapsFolder() { return null; }
 
-	public Patch addNewImage(ImagePlus imp) {
+	public Patch addNewImage(final ImagePlus imp) {
+		return addNewImage(imp, 0, 0);
+	}
+
+	public Patch addNewImage(final ImagePlus imp, final double x, final double y) {
 		String filename = imp.getTitle();
 		if (!filename.toLowerCase().endsWith(".tif")) filename += ".tif";
 		String path = getStorageFolder() + "/" + filename;
 		new FileSaver(imp).saveAsTiff(path);
-		Patch pa = new Patch(Project.findProject(this), imp.getTitle(), 0, 0, imp);
+		Patch pa = new Patch(Project.findProject(this), imp.getTitle(), x, y, imp);
 		addedPatchFrom(path, pa);
 		if (isMipMapsEnabled()) generateMipMaps(pa);
 		return pa;
