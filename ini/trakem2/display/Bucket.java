@@ -83,14 +83,16 @@ public class Bucket {
 	}
 
 	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. Returns true if not empty. */
-	synchronized final private boolean populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height) {
+	final private boolean populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height) {
 		if (this.w <= bucket_side || this.h <= bucket_side) {
 			// add displayables, sorted by index
 			map = new TreeMap<Integer,Displayable>();
 			int i = 0;
+			final Rectangle tmp = new Rectangle();
 			for (Displayable d : container.getDisplayableList()) {
-				final Rectangle b = d.getBoundingBox(null);
-				if (this.intersects(b)) {
+				d.getBoundingBox(tmp);
+				if (0 == tmp.width || 0 == tmp.height) continue;
+				if (this.intersects(tmp)) {
 					map.put(i, d);
 					putToBucketMap(d, db_map);
 				}
@@ -115,7 +117,7 @@ public class Bucket {
 					if (this.y + y >= max_height) continue;
 					int height = side_h;
 					if (this.y + y + side_h > max_height) height = max_height - this.y - y;
-					Bucket bu = new Bucket(this.x + x, this.y + y, width, height, bucket_side);
+					final Bucket bu = new Bucket(this.x + x, this.y + y, width, height, bucket_side);
 					if (bu.populate(container, db_map, width, height, max_width, max_height)) {
 						this.empty = false;
 					}
@@ -174,7 +176,7 @@ public class Bucket {
 	}
 
 	/** Recursive search, accumulates Displayable objects that intersect the srcRect and, if @param visible_only is true, then checks first if so. */
-	synchronized private void find(final TreeMap<Integer,Displayable> accum, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
+	private void find(final TreeMap<Integer,Displayable> accum, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
 		if (empty || !intersects(srcRect)) return;
 		if (null != children) {
 			for (Bucket bu : children) {
@@ -185,7 +187,7 @@ public class Bucket {
 			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
-				if (d.getBounds(tmp, layer).intersects(srcRect)) {
+				if (d.getBoundingBox(tmp).intersects(srcRect)) {
 					accum.put(entry.getKey(), d);
 				}
 			}
@@ -214,6 +216,7 @@ public class Bucket {
 					accum.put(entry.getKey(), d);
 				}
 			}
+			Utils.log2("Bucket with " + map.size() + " contains click " + this.toString());
 		}
 	}
 
@@ -354,7 +357,7 @@ public class Bucket {
 		return true;
 	}
 
-	final Set<Displayable> remove(final int stack_index) {
+	synchronized final Set<Displayable> remove(final int stack_index) {
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		remove(stack_index, hs);
 		return hs;
@@ -370,9 +373,9 @@ public class Bucket {
 		db_map.remove(d);
 	}
 
-	public void paint(Graphics2D g, Rectangle srcRect, double mag) {
+	synchronized public void paint(Graphics2D g, Rectangle srcRect, double mag, Color color) {
 		if (null == map) {
-			for (Bucket bu : children) bu.paint(g, srcRect, mag);
+			for (Bucket bu : children) bu.paint(g, srcRect, mag, color);
 			return;
 		}
 		if (!intersects(srcRect)) return;
@@ -381,14 +384,14 @@ public class Bucket {
 		AffineTransform original = g2d.getTransform();
 		g2d.setTransform(new AffineTransform());
 		g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
-		g.setColor(Color.red);
+		g.setColor(color);
 		g.drawRect((int)((x - srcRect.x) * mag), (int)((y-srcRect.y)*mag), (int)(w*mag), (int)(h*mag));
 		g2d.setStroke(original_stroke);
 		g2d.setTransform(original);
 	}
 
 	/** Determine whether the rectangle is smaller than the layer dimensions padded in by one bucket_side -- if not, makes little sense to use buckets, and it's better to do linear search without the TreeMap overhead. */
-	public final boolean isBetter(final Rectangle r, final Layer layer) {
+	public final boolean isBetter(final Rectangle r, final Bucketable container) {
 		/*
 		final boolean b = r.width * r.height < (layer.getLayerWidth() - bucket_side) * (layer.getLayerHeight() - bucket_side);
 		Utils.log2("isBetter: " + b);
@@ -398,7 +401,7 @@ public class Bucket {
 		}
 		return b;
 		*/
-		return r.width * r.height < (layer.getLayerWidth() - bucket_side) * (layer.getLayerHeight() - bucket_side);
+		return r.width * r.height < (container.getLayerWidth() - bucket_side) * (container.getLayerHeight() - bucket_side);
 	}
 
 	private final ArrayList<Bucket>getChildren(final ArrayList<Bucket> bus) {

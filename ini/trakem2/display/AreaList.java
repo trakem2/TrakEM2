@@ -224,7 +224,7 @@ public class AreaList extends ZDisplayable {
 	public boolean contains(final Layer layer, final int x, final int y) {
 		Object ob = ht_areas.get(new Long(layer.getId()));
 		if (null == ob) return false;
-		if (AreaList.UNLOADED.equals(ob)) {
+		if (AreaList.UNLOADED == ob) {
 			ob = loadLayer(layer.getId());
 			if (null == ob) return false;
 		}
@@ -233,10 +233,21 @@ public class AreaList extends ZDisplayable {
 		return area.contains(x, y);
 	}
 
+	public boolean intersects(final Layer layer, final Rectangle r) {
+		Object ob = ht_areas.get(layer.getId());
+		if (null == ob) return false;
+		if (AreaList.UNLOADED == ob) {
+			ob = loadLayer(layer.getId());
+			if (null == ob) return false;
+		}
+		final Area a = ((Area)ob).createTransformedArea(this.at);
+		return a.intersects(r.x, r.y, r.width, r.height);
+	}
+
 	public boolean intersects(final Layer layer, final Area area) {
 		Object ob = ht_areas.get(layer.getId());
 		if (null == ob) return false;
-		if (AreaList.UNLOADED.equals(ob)) {
+		if (AreaList.UNLOADED == ob) {
 			ob = loadLayer(layer.getId());
 			if (null == ob) return false;
 		}
@@ -262,15 +273,6 @@ public class AreaList extends ZDisplayable {
 		if (null == r) return b;
 		r.setBounds(b.x, b.y, b.width, b.height);
 		return r;
-	}
-
-	/** It's assumed that @param tmp is not null. */
-	protected boolean intersectsBucket(final Layer layer, final Rectangle bucket, final Rectangle tmp) {
-		if (null == layer) return bucket.intersects(getBoundingBox(tmp));
-		final Area area = (Area)ht_areas.get(layer.getId());
-		if (null == area) return false;
-		// check whether any interior of the area intersects the given bucket rectangle
-		return area.createTransformedArea(this.at).intersects(bucket.x, bucket.y, bucket.width, bucket.height);
 	}
 
 	public boolean isDeletable() {
@@ -402,6 +404,7 @@ public class AreaList extends ZDisplayable {
 		this.width = box.width;
 		this.height = box.height;
 		updateInDatabase("transform+dimensions");
+		layer_set.updateBucket(this);
 		if (0 != box.x || 0 != box.y) {
 			return true;
 		}

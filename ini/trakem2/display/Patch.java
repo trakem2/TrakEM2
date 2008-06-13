@@ -750,4 +750,18 @@ public class Patch extends Displayable {
 		this.absolute_path = path;
 	}
 	// TODO needs refactoring with ht_paths in FSLoader
+
+
+	protected void setAlpha(float alpha, boolean update) {
+		if (isStack()) {
+			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+			getStackPatchesNR(ht);
+			for (Patch pa : ht.values()) {
+				pa.alpha = alpha;
+				pa.updateInDatabase("alpha");
+				Display.repaint(pa.layer, pa, 5);
+			}
+			Display3D.setTransparency(this, alpha);
+		} else super.setAlpha(alpha, update);
+	}
 }

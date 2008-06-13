@@ -763,9 +763,8 @@ public abstract class Displayable extends DBObject {
 		return intersects(area);
 	}
 
-	/** It's assumed that @param tmp is not null. */
-	protected boolean intersectsBucket(final Layer layer, final Rectangle bucket, final Rectangle tmp) {
-		return getBounds(tmp, layer).intersects(bucket);
+	public boolean intersects(final Layer layer, final Rectangle r) {
+		return getBoundingBox(null).intersects(r);
 	}
 
 	/** Returns the intersection of this Displayable's area with the given one. */

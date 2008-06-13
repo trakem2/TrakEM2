@@ -775,6 +775,7 @@ public class Profile extends Displayable {
 	protected void calculateBoundingBox(boolean adjust_position) {
 		if (0 == n_points) {
 			this.width = this.height = 0.0D;
+			layer.updateBucket(this);
 			return;
 		}
 		//go over all points and control points and find the max and min
@@ -815,6 +816,7 @@ public class Profile extends Displayable {
 			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 			updateInDatabase("transform");
 		}
+		layer.updateBucket(this);
 		updateInDatabase("dimensions");
 	}
 

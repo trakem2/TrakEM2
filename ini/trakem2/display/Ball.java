@@ -330,6 +330,7 @@ public class Ball extends ZDisplayable {
 		double max_y = 0.0D;
 		if (0 == n_points) {
 			this.width = this.height = 0;
+			layer_set.updateBucket(this);
 			return;
 		}
 		if (0 != n_points) {
@@ -353,6 +354,8 @@ public class Ball extends ZDisplayable {
 		} else {
 			updateInDatabase("dimensions");
 		}
+
+		layer_set.updateBucket(this);
 	}
 
 	/**Release all memory resources taken by this object.*/

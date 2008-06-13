@@ -828,6 +828,7 @@ public class Pipe extends ZDisplayable {
 		double max_y = 0.0D;
 		if (0 == n_points) {
 			this.width = this.height = 0;
+			layer_set.updateBucket(this);
 			return;
 		}
 		// get perimeter of the tube, without the transform
@@ -870,6 +871,8 @@ public class Pipe extends ZDisplayable {
 			updateInDatabase("transform");
 		}
 		updateInDatabase("dimensions");
+
+		layer_set.updateBucket(this);
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -1180,27 +1183,61 @@ public class Pipe extends ZDisplayable {
 			if (j == n_points -1 || layer_id != p_layer[j+1]) {
 				add_pol = true;
 			}
+			int fi=0, la=0;
 			if (no_color_cues) {
 				// else if crossed the current layer, check segment as well
 				if (0 == j) continue;
+				first = j -1;
 				final double z1 = layer_set.getLayer(p_layer[j-1]).getZ();
 				final double z2 = layer_set.getLayer(p_layer[j]).getZ();
-				if ( (z1 < z_current && z_current < z2)
-				  || (z2 < z_current && z_current < z1)
-				  || (z1 == z_current && z_current == z2) ) {
+				
+				// 20 points is the length of interpolated points between any two backbone bezier 'j' points.
+				// 10 points is half that.
+				//
+				// Painting with cues paints the points on the layer padded 10 points to before and after, and when no points are in the layer, then just some padded area in between.
+				//
+				// When approaching from below or from above, or when leaving torwards below or towards above, the segment to check is only half the length, as painted.
+
+				if (z1 == z_current && z_current == z2) {
 					add_pol = true;
+					fi = ((j-1) * 20) - 10;
+					la = ( j    * 20) + 10;
+				} else if (  (z1 < z_current && z_current == z2)
+				          || (z1 > z_current && z_current == z2) ) {
+					add_pol = true;
+					fi = ((j-1) * 20) + 10;
+					la = ( j    * 20) + 10;
+				} else if (  (z1 == z_current && z_current < z2)
+				          || (z1 == z_current && z_current > z2) ) {
+					add_pol = true;
+					fi = ((j-1) * 20) - 10;
+					la = ( j    * 20) - 10;
+				} else if (  (z1 < z_current && z_current < z2)
+				          || (z1 > z_current && z_current > z2) ) {
+					add_pol = true;
+					// crossing by without a point: short polygons
+					fi = ((j-1) * 20) + 10;
+					la = ( j    * 20) - 10;
 				} else {
-					add_pol = false;
+					//add_pol = false;
+					continue;
 				}
+				// correct ends
+				if (0 == j-1) fi = 0;
+				if (n_points-1 == j) la = n_points * 20;
 			}
 			if (add_pol) {
 				// compute sub polygon
-				int fi = 0;
-				int la = last * 20 -1;
-				if (0 != first) fi = (first * 20) - 10; // 10 is half a segment
-				if (n_points -1 != last) la += 10; // same //= last * 20 + 9;
+				if (!no_color_cues) {
+					fi = 0;
+					la = last * 20 -1;
+					if (0 != first) fi = (first * 20) - 10; // 10 is half a segment
+					if (n_points -1 != last) la += 10; // same //= last * 20 + 9;
+				} else {
+					if (fi < 0) fi = 0;
+				}
 				if (la >= r_side_x.length) la = r_side_x.length-1; // quick fix
-				final int length = la - fi + 1; // +1 because fi and la are indexes
+				final int length = la - fi + 1; // +1 because fi and la are indices
 
 				final int [] pol_x = new int[length * 2];
 				final int [] pol_y = new int[length * 2];
@@ -1211,7 +1248,11 @@ public class Pipe extends ZDisplayable {
 					pol_y[length + k] = (int)l_side_y[la - k];
 				}
 				final Polygon pol = new Polygon(pol_x, pol_y, pol_x.length);
-				if (pol.contains(x, y)) { /*showShape(pol);*/ return true; }
+				if (pol.contains(x, y)) {
+					//Utils.log2("first, last : " + first + ", " + last);
+					//showShape(pol);
+					return true;
+				}
 				// reset
 				first = j + 1;
 				add_pol = false;
@@ -1943,8 +1984,24 @@ public class Pipe extends ZDisplayable {
 		return false;
 	}
 
-	/** Returns the bounds of this object as it shows in the given layer. */
+	/** Expects Rectangle in world coords. */
+	public boolean intersects(final Layer layer, final Rectangle r) {
+		final Polygon[] pol = getSubPerimeters(layer); // transformed
+		if (null == pol) return false;
+		for (Polygon p : pol) if (new Area(p).intersects(r.x, r.y, r.width, r.height)) return true;
+		return false;
+	}
+	/** Expects Area in world coords. */
+	public boolean intersects(final Layer layer, final Area area) {
+		final Polygon[] pol = getSubPerimeters(layer); // transformed
+		if (null == pol) return false;
+		for (Polygon p : pol) if (Utils.intersects(new Area(p), area)) return true;
+		return false;
+	}
+
+	/** Returns the bounds of this object as it shows in the given layer, set into @param r. */
 	public Rectangle getBounds(final Rectangle r, final Layer layer) {
+		// obtain the already transformed subperimeters
 		final Polygon[] pol = getSubPerimeters(layer);
 		if (null == pol) {
 			if (null == r) return new Rectangle();

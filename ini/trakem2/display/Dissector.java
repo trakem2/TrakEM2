@@ -596,6 +596,7 @@ public class Dissector extends ZDisplayable {
 		if (0 != box.x || 0 != box.y) {
 			for (Item item : al_items) item.translateAll(-box.x, -box.y);
 		}
+		layer_set.updateBucket(this);
 		return box;
 	}
 

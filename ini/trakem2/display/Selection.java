@@ -1255,7 +1255,12 @@ public class Selection {
 
 	/** Apply the given LUT to all selected 8-bit, 16-bit, 32-bit images. */
 	public void setLut(ColorModel cm) {
-		//TODO
-		Utils.log("Setting LUT not implemented yet.");
+		final ArrayList<Patch> al = (ArrayList<Patch>)getSelected(Patch.class);
+		if (0 == al.size()) {
+			return;
+		}
+		// reduce stacks to a single Patch
+		// TODO
+		if (!Utils.check("Really change LUT for " + al.size() + " images?")) return;
 	}
 }

@@ -688,9 +688,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 
 	/** Find a layer with the given id, or null if none. */
 	public Layer getLayer(final long id) {
-		Iterator it = al_layers.iterator();
-		while (it.hasNext()) {
-			Layer layer = (Layer)it.next();
+		for (Layer layer : al_layers) {
 			if (layer.getId() == id) return layer;
 		}
 		return null;
@@ -698,10 +696,8 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 
 	/** Returns the first layer found with the given Z coordinate, rounded to seventh decimal precision, or null if none found. */
 	public Layer getLayer(final double z) {
-		Iterator it = al_layers.iterator();
 		double error = 0.0000001; // TODO adjust to an optimal
-		while (it.hasNext()) {
-			Layer layer = (Layer)it.next();
+		for (Layer layer : al_layers) {
 			if (error > Math.abs(layer.getZ() - z)) { // floating-point arithmetic is still not a solved problem!
 				return layer;
 			}
@@ -1608,7 +1604,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	}
 
 	/** For fast search. */
-	private Bucket root = null;
+	Bucket root = null;
 	private HashMap<Displayable,ArrayList<Bucket>> db_map = null;
 
 	/** Returns a copy of the list of ZDisplayable objects. */

@@ -69,6 +69,7 @@ public class ImageJCommandListener implements CommandListener {
 		project.getLoader().releaseToFit((long)(project.getLoader().estimateImageFileSize(pa, 0) * 5));
 		new Thread() {
 			public void run() {
+				// Wait 0.5 seconds for ImageJ to run on the image
 				try { Thread.sleep(500); } catch (Exception e) {}
 				project.getLoader().setTempCurrentImage(fimp);
 			}
@@ -360,7 +361,8 @@ public class ImageJCommandListener implements CommandListener {
 			return null;
 		}
 
-		// LUTs handled by FakeImagePlus / FakeProcessor setColorModel
+		// LUTs handled by FakeImagePlus / FakeProcessor setColorModel,
+		// which call display.getSelection().setLut(ColorModel cm)
 
 
 		// ANALYZE menu

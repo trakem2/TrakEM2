@@ -142,6 +142,7 @@ public class DLabel extends Displayable {
 		frame = null;
 		Display.updateTransform(this); // need to update the Selection with the actual width and height!
 		updateInDatabase("dimensions");
+		layer.updateBucket(this);
 	}
 
 	private void reload() {
