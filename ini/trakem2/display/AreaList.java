@@ -145,7 +145,7 @@ public class AreaList extends ZDisplayable {
 	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		Object ob = ht_areas.get(new Long(active_layer.getId()));
 		if (null == ob) return;
-		if (AreaList.UNLOADED.equals(ob)) {
+		if (AreaList.UNLOADED == ob) {
 			ob = loadLayer(active_layer.getId());
 			if (null == ob) return;
 		}
@@ -293,7 +293,7 @@ public class AreaList extends ZDisplayable {
 			this.width = layer_set.getLayerWidth(); // will be set properly at mouse release
 			this.height = layer_set.getLayerHeight(); // without this, the first brush slash doesn't get painted because the isOutOfRepaintingClip returns true
 		} else {
-			if (AreaList.UNLOADED.equals(ob)) {
+			if (AreaList.UNLOADED == ob) {
 				ob = loadLayer(lid);
 				if (null == ob) return;
 			}
@@ -691,7 +691,7 @@ public class AreaList extends ZDisplayable {
 	public ArrayList getPaths(long layer_id) {
 		Object ob = ht_areas.get(new Long(layer_id));
 		if (null == ob) return null;
-		if (AreaList.UNLOADED.equals(ob)) {
+		if (AreaList.UNLOADED == ob) {
 			ob = loadLayer(layer_id);
 			if (null == ob) return null;
 		}
@@ -914,7 +914,7 @@ public class AreaList extends ZDisplayable {
 		final ArrayList list = (ArrayList)al.clone();
 		for (Iterator it = list.iterator(); it.hasNext(); ) {
 			Object ob = it.next();
-			if (!ob.getClass().equals(AreaList.class)) it.remove();
+			if (ob.getClass() != AreaList.class) it.remove();
 			if (null == base) {
 				base = (AreaList)ob;
 				if (null == base.layer_set) {
@@ -925,7 +925,7 @@ public class AreaList extends ZDisplayable {
 			}
 			// check that it belongs to the same layer set as the base
 			AreaList ali = (AreaList)ob;
-			if (!base.layer_set.equals(ali.layer_set)) it.remove();
+			if (base.layer_set != ali.layer_set) it.remove();
 		}
 		if (list.size() < 1) return null; // nothing to fuse
 		if (!Utils.check("Merging AreaList has no undo. Continue?")) return null;
@@ -951,7 +951,7 @@ public class AreaList extends ZDisplayable {
 			Map.Entry entry = (Map.Entry)it.next();
 			Object ob_area = entry.getValue();
 			long lid = ((Long)entry.getKey()).longValue();
-			if (UNLOADED.equals(ob_area)) ob_area = ali.loadLayer(lid);
+			if (UNLOADED == ob_area) ob_area = ali.loadLayer(lid);
 			Area area = (Area)ob_area;
 			area = area.createTransformedArea(ali.at);
 			// now need to inverse transform it by this.at
@@ -962,7 +962,7 @@ public class AreaList extends ZDisplayable {
 				// do what?
 			}
 			Object this_area = this.ht_areas.get(entry.getKey());
-			if (UNLOADED.equals(this_area)) { this_area = loadLayer(lid); }
+			if (UNLOADED == this_area) { this_area = loadLayer(lid); }
 			if (null == this_area) this.ht_areas.put(entry.getKey(), (Area)area.clone());
 			else ((Area)this_area).add(area);
 			updateInDatabase("points=" + ((Long)entry.getKey()).intValue());
@@ -975,7 +975,7 @@ public class AreaList extends ZDisplayable {
 	public Area getArea(Layer la) {
 		Object ob = ht_areas.get(new Long(la.getId()));
 		if (null != ob) {
-			if (UNLOADED.equals(ob)) ob = loadLayer(la.getId());
+			if (UNLOADED == ob) ob = loadLayer(la.getId());
 			return (Area)ob;
 		}
 		return null;
@@ -1163,7 +1163,7 @@ public class AreaList extends ZDisplayable {
 			Map.Entry entry = (Map.Entry)it.next();
 			Object ob_area = entry.getValue();
 			long lid = ((Long)entry.getKey()).longValue();
-			if (UNLOADED.equals(ob_area)) ob_area = loadLayer(lid);
+			if (UNLOADED == ob_area) ob_area = loadLayer(lid);
 			Area area2 = ((Area)ob_area).createTransformedArea(aff);
 			// paint the area, filling mode
 			g.setColor(Color.white);
@@ -1307,7 +1307,7 @@ public class AreaList extends ZDisplayable {
 			Map.Entry entry = (Map.Entry)it.next();
 			Object ob_area = entry.getValue();
 			long lid = ((Long)entry.getKey()).longValue();
-			if (UNLOADED.equals(ob_area)) ob_area = loadLayer(lid);
+			if (UNLOADED == ob_area) ob_area = loadLayer(lid);
 			Area area2 = ((Area)ob_area).createTransformedArea(aff);
 			// paint the area, filling mode
 			g.setColor(Color.white);

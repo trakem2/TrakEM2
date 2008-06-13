@@ -664,7 +664,7 @@ public class Project extends DBObject {
 		while (e.hasMoreElements()) {
 			node = (DefaultMutableTreeNode)e.nextElement();
 			Object ob = node.getUserObject();
-			if (ob instanceof ProjectThing && ((ProjectThing)ob).getObject().equals(object)) {
+			if (ob instanceof ProjectThing && ((ProjectThing)ob).getObject() == object) {
 				if (check && !Utils.check("Remove " + object.toString() + "?")) return false;
 				// remove the ProjectThing, its object and the node that holds it.
 				project_tree.remove(node, false, remove_empty_parents, levels);
@@ -682,7 +682,7 @@ public class Project extends DBObject {
 	}
 	/** Find the node in any tree with a Thing that contains the given Displayable, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Displayable d) {
-		if (d.getClass().equals(LayerSet.class)) select(d, layer_tree);
+		if (d.getClass() == LayerSet.class) select(d, layer_tree);
 		else select(d, project_tree);
 	}
 
@@ -962,7 +962,7 @@ public class Project extends DBObject {
 	static public Project findProject(Loader loader) {
 		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
 			Project pro = (Project)it.next();
-			if (pro.getLoader().equals(loader)) return pro;
+			if (pro.getLoader() == loader) return pro;
 		}
 		return null;
 	}
