@@ -36,6 +36,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferStrategy;
+import java.awt.image.VolatileImage;
 import java.util.*;
 import java.awt.Cursor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,7 +49,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private Display display;
 
 	private boolean update_graphics = false;
-	private Image offscreen = null;
+	private BufferedImage offscreen = null;
 	private ArrayList al_top = new ArrayList();
 
 	private final Lock lock_paint = new Lock();
@@ -73,6 +74,139 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private boolean dragging = false;
 	private boolean input_disabled = false;
 	private boolean input_disabled2 = false;
+
+
+	static private boolean openglEnabled = false;
+	static private boolean quartzEnabled = false;
+	static private boolean ddscaleEnabled = false;
+
+	static private final Map<RenderingHints.Key, Object> hints = new HashMap<RenderingHints.Key, Object>();
+	static private final RenderingHints rhints;
+ 
+	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
+	static {
+		try {
+			String openglProperty = System.getProperty("sun.java2d.opengl");
+			openglEnabled = openglProperty != null && Boolean.parseBoolean(openglProperty);
+		} catch (Exception ex) { }
+		try {
+			String quartzProperty = System.getProperty("apple.awt.graphics.UseQuartz");
+			quartzEnabled = Boolean.parseBoolean(quartzProperty);
+		} catch (Exception ex) { }
+		try {
+			String ddscaleProperty = System.getProperty("sun.java2d.ddscale");
+			String d3dProperty = System.getProperty("sun.java2d.d3d");
+			ddscaleEnabled = Boolean.parseBoolean(ddscaleProperty) && Boolean.parseBoolean(d3dProperty);
+		} catch (Exception ex) { }
+
+		if (openglEnabled) {
+			// Bilinear interpolation can be accelerated by the OpenGL pipeline
+			hints.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+			hints.put(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+			
+		} else if (quartzEnabled) {
+			//hints.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+			hints.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+			hints.put(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+			hints.put(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+			
+		} else if (ddscaleEnabled) {
+			hints.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		}
+
+		rhints = new RenderingHints(hints);
+	}
+
+	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
+	private ActionListener resourceReaper = new ActionListener() {
+		public void actionPerformed(final ActionEvent ae) {
+			if (!frameRendered) {
+				if (volatileImage != null) {
+					volatileImage.flush();
+					volatileImage = null;
+				}
+				frameRendered = false;
+
+				// Stop the timer so we don't wakeup needlessly
+				resourceTimer.stop();
+			}
+		}
+ 	};
+
+	private VolatileImage volatileImage;
+	private javax.swing.Timer resourceTimer = new javax.swing.Timer(250, resourceReaper);
+	private boolean frameRendered = false;
+
+	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
+	private void renderVolatileImage(final BufferedImage bufferedImage) {
+		renderVolatileImage(bufferedImage, null, null, null, 0, null);
+	}
+	private void renderVolatileImage(final BufferedImage bufferedImage, final Displayable active, final Displayable[] top, final Layer active_layer, final int c_alphas, final AffineTransform at) {
+		do {
+			final int w = getWidth(), h = getHeight();
+			final GraphicsConfiguration gc = getGraphicsConfiguration();
+			if (volatileImage == null || volatileImage.getWidth() != w 
+					|| volatileImage.getHeight() != h
+					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
+				if (volatileImage != null) {
+					volatileImage.flush();
+				}
+				volatileImage = gc.createCompatibleVolatileImage(w, h);
+				volatileImage.setAccelerationPriority(1.0f);
+			}
+			// 
+			// Now paint the BufferedImage into the accelerated image
+			//
+			final Graphics2D g = volatileImage.createGraphics();
+			g.setColor(Color.black);
+			g.fillRect(0, 0, w, h);
+			g.drawImage(bufferedImage, 0, 0, null);
+
+			if (null != active_layer) {
+				g.setTransform(at);
+				g.setStroke(this.stroke); // AFTER setting the transform
+				if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, null)) active.paint(g, magnification, true, c_alphas, active_layer);
+				if (null != top) for (int i=0; i<top.length; i++) top[i].paint(g, magnification, true, c_alphas, active_layer);
+				//Utils.log2("painted new volatile with active " + active);
+			}
+
+			g.dispose();
+		} while (volatileImage.contentsLost());
+	}
+
+	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent;
+	 *  Paints (and re-renders, if necessary) the volatile image onto the given Graphics object, which
+	 *  is that of the DisplayCanvas as provided to the paint(Graphics g) method.
+	 */
+	private void render(final Graphics g, final Displayable active, final Displayable[] top, final Layer active_layer, final int c_alphas, final AffineTransform at) {
+		final Graphics2D g2d = (Graphics2D) g.create();
+		g2d.setRenderingHints(rhints);
+		do {
+			if (volatileImage == null 
+				|| volatileImage.validate(getGraphicsConfiguration()) != VolatileImage.IMAGE_OK) {
+				renderVolatileImage(offscreen, active, top, active_layer, c_alphas, at);
+			}
+			g2d.drawImage(volatileImage, 0, 0, null);
+		} while (volatileImage.contentsLost());
+
+		g2d.dispose();
+
+		//
+		// Restart the resource reaper timer if neccessary
+		//
+		if (!frameRendered) {
+			frameRendered = true;
+			if (!resourceTimer.isRunning()) {
+				resourceTimer.restart();
+			}
+		}
+	}
+
+	protected void invalidateVolatile() {
+		this.volatileImage = null;
+	}
+
+	/////////////////
 
 	public DisplayCanvas(Display display, int width, int height) {
 		super(new FakeImagePlus(width, height, display));
@@ -202,21 +336,24 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					offscreen_lock.lock();
 					try {
 
-						if (null != offscreen) {
-							g.drawImage(offscreen, 0, 0, null);
-
-						}
-
 						// prepare the canvas for the srcRect and magnification
 						final AffineTransform at_original = g2d.getTransform();
 						atc.setToIdentity();
 						atc.scale(magnification, magnification);
 						atc.translate(-srcRect.x, -srcRect.y);
 						at_original.preConcatenate(atc);
-						g2d.setTransform(at_original);
 
 						di = new Displayable[al_top.size()];
 						al_top.toArray(di);
+
+						if (null != offscreen) {
+							//g.drawImage(offscreen, 0, 0, null);
+							if (dragging) invalidateVolatile(); // to update the active at least
+							render(g, active, di, active_layer, c_alphas, at_original);
+						}
+
+						g2d.setTransform(at_original);
+
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -225,8 +362,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 
 			g2d.setStroke(this.stroke);
-			
 
+			/*
 			// paint the active unless it's a Patch (since it's been painted offscreen already)
 			if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
 				active.paint(g2d, magnification, true, c_alphas, active_layer);
@@ -237,6 +374,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					di[i].paint(g2d, magnification, false, c_alphas, active_layer);
 				}
 			}
+			*/
 
 			// always a stroke of 1.0, regardless of magnification
 			//g2d.setStroke(this.stroke);
@@ -1642,6 +1780,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			case KeyEvent.VK_SPACE:
 				if (0 == ke.getModifiers()) {
 					if (null != active) {
+						invalidateVolatile();
 						if (Math.abs(active.getAlpha() - 0.5f) > 0.001f) active.setAlpha(0.5f);
 						else active.setAlpha(1.0f);
 						display.setTransparencySlider(active.getAlpha());
@@ -1983,7 +2122,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 				// create new graphics
 				layer.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
-				final Image target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height);
+				final BufferedImage target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT);
 				final Graphics2D g = (Graphics2D)target.getGraphics();
 
 				g.setTransform(atc); //at_original);
@@ -2054,6 +2193,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						loader.setMassiveMode(false);
 						if (null != offscreen) offscreen.flush();
 						offscreen = target;
+						//renderVolatileImage(offscreen);
+						volatileImage = null;
 						DisplayCanvas.this.al_top = al_top;
 
 					} catch (Exception e) {

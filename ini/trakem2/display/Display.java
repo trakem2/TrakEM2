@@ -958,12 +958,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				}
 			}
 		} else if (null != active) {
+			canvas.invalidateVolatile();
 			active.setAlpha(value);
 		}
 	}
 
 	public void setTransparencySlider(float transp) {
 		if (transp >= 0.0f && transp <= 1.0f) {
+			// fire event
 			transp_slider.setValue((int)(transp * 100));
 		}
 	}
