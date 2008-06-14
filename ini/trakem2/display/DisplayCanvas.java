@@ -118,6 +118,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	}
 
 	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
+	/*
 	private ActionListener resourceReaper = new ActionListener() {
 		public void actionPerformed(final ActionEvent ae) {
 			if (!frameRendered) {
@@ -132,20 +133,19 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 		}
  	};
+	*/
 
 	private VolatileImage volatileImage;
-	private javax.swing.Timer resourceTimer = new javax.swing.Timer(250, resourceReaper);
-	private boolean frameRendered = false;
+	//private javax.swing.Timer resourceTimer = new javax.swing.Timer(10000, resourceReaper);
+	//private boolean frameRendered = false;
+	private boolean invalid_volatile = false;
 
 	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
-	private void renderVolatileImage(final BufferedImage bufferedImage) {
-		renderVolatileImage(bufferedImage, null, null, null, 0, null);
-	}
 	private void renderVolatileImage(final BufferedImage bufferedImage, final Displayable active, final Displayable[] top, final Layer active_layer, final int c_alphas, final AffineTransform at) {
 		do {
 			final int w = getWidth(), h = getHeight();
 			final GraphicsConfiguration gc = getGraphicsConfiguration();
-			if (volatileImage == null || volatileImage.getWidth() != w 
+			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != w 
 					|| volatileImage.getHeight() != h
 					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
 				if (volatileImage != null) {
@@ -153,15 +153,21 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				}
 				volatileImage = gc.createCompatibleVolatileImage(w, h);
 				volatileImage.setAccelerationPriority(1.0f);
+				invalid_volatile = false;
 			}
 			// 
 			// Now paint the BufferedImage into the accelerated image
 			//
 			final Graphics2D g = volatileImage.createGraphics();
+
+			// 1 - Erase any background
 			g.setColor(Color.black);
 			g.fillRect(0, 0, w, h);
+
+			// 2 - Paint offscreen image
 			g.drawImage(bufferedImage, 0, 0, null);
 
+			// 3 - Paint the active Displayable and all cached on top
 			if (null != active_layer) {
 				g.setTransform(at);
 				g.setStroke(this.stroke); // AFTER setting the transform
@@ -182,7 +188,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		final Graphics2D g2d = (Graphics2D) g.create();
 		g2d.setRenderingHints(rhints);
 		do {
-			if (volatileImage == null 
+			if (invalid_volatile || volatileImage == null
 				|| volatileImage.validate(getGraphicsConfiguration()) != VolatileImage.IMAGE_OK) {
 				renderVolatileImage(offscreen, active, top, active_layer, c_alphas, at);
 			}
@@ -194,16 +200,18 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		//
 		// Restart the resource reaper timer if neccessary
 		//
+		/*
 		if (!frameRendered) {
 			frameRendered = true;
 			if (!resourceTimer.isRunning()) {
 				resourceTimer.restart();
 			}
 		}
+		*/
 	}
 
 	protected void invalidateVolatile() {
-		this.volatileImage = null;
+		this.invalid_volatile = true;
 	}
 
 	/////////////////
@@ -1970,9 +1978,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		} else if (0 != (modifiers & InputEvent.SHIFT_MASK) && ProjectToolbar.getToolId() == ProjectToolbar.PEN) {
 			int brushSize_old = ProjectToolbar.getBrushSize();
 			// resize brush for AreaList painting
-			int brushSize = ProjectToolbar.setBrushSize(5 * mwe.getWheelRotation()); // the getWheelRotation provides the sign
+			int brushSize = ProjectToolbar.setBrushSize((int)(5 * mwe.getWheelRotation() / magnification)); // the getWheelRotation provides the sign
 			if (brushSize_old > brushSize) brushSize = brushSize_old; // for repainting purposes alnne
-			Rectangle r = new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - brushSize/2, (int)(mwe.getY() / magnification) + srcRect.y - brushSize/2, brushSize+2, brushSize+2);
+			int extra = (int)(5 / magnification);
+			if (extra < 2) extra = 2;
+			extra += 4;
+			Rectangle r = new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - brushSize/2 - extra, (int)(mwe.getY() / magnification) + srcRect.y - brushSize/2 - extra, brushSize+extra, brushSize+extra);
 			this.repaint(r, 0);
 		} else {
 			// scroll layers
@@ -2195,8 +2206,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						loader.setMassiveMode(false);
 						if (null != offscreen) offscreen.flush();
 						offscreen = target;
-						//renderVolatileImage(offscreen);
-						volatileImage = null;
+						invalidateVolatile();
 						DisplayCanvas.this.al_top = al_top;
 
 					} catch (Exception e) {
