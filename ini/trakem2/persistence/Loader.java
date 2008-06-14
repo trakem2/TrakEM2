@@ -2627,19 +2627,9 @@ abstract public class Loader {
 				unlock();
 			}
 			BufferedImage bi = null;
-			IndexColorModel icm = null;
 			switch (type) {
 				case ImagePlus.GRAY8:
-					final byte[] r = new byte[256];
-					final byte[] g = new byte[256];
-					final byte[] b = new byte[256];
-					for (int i=0; i<256; i++) {
-						r[i]=(byte)i;
-						g[i]=(byte)i;
-						b[i]=(byte)i;
-					}
-					icm = new IndexColorModel(8, 256, r, g, b);
-					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, icm);
+					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, GRAY_LUT);
 					break;
 				case ImagePlus.COLOR_RGB:
 					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_INT_ARGB);
@@ -2750,14 +2740,14 @@ abstract public class Loader {
 						scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
 						if (ImagePlus.GRAY8 == type) {
 							// getScaledInstance generates RGB images for some reason.
-							BufferedImage bi8 = new BufferedImage((int)(w * scale), (int)(h * scale), BufferedImage.TYPE_BYTE_INDEXED, icm);
+							BufferedImage bi8 = new BufferedImage((int)(w * scale), (int)(h * scale), BufferedImage.TYPE_BYTE_GRAY);
 							bi8.createGraphics().drawImage(scaled, 0, 0, null);
 							scaled.flush();
 							scaled = bi8;
 						}
 					} else {
 						// faster, but requires gaussian blurred images (such as the mipmaps)
-						scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType(), icm); // without a proper grayscale color model, vertical lines appear (is there an underlying problem in the painting?)
+						scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType());
 						Graphics2D gs = (Graphics2D)scaled.getGraphics();
 						//gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 						gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
@@ -4732,5 +4722,20 @@ abstract public class Loader {
 	static public boolean canReadAndWriteTo(final String dir) {
 		final File fsf = new File(dir);
 		return fsf.canWrite() && fsf.canRead();
+	}
+
+
+	static public final IndexColorModel GRAY_LUT = makeGrayLut();
+
+	static public final IndexColorModel makeGrayLut() {
+		final byte[] r = new byte[256];
+		final byte[] g = new byte[256];
+		final byte[] b = new byte[256];
+		for (int i=0; i<256; i++) {
+			r[i]=(byte)i;
+			g[i]=(byte)i;
+			b[i]=(byte)i;
+		}
+		return new IndexColorModel(8, 256, r, g, b);
 	}
 }

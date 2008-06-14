@@ -1030,24 +1030,10 @@ public class FSLoader extends Loader {
 		return dir_mipmaps;
 	}
 
-	static public final IndexColorModel GRAY_LUT = makeGrayLut();
-
-	static public final IndexColorModel makeGrayLut() {
-		final byte[] r = new byte[256];
-		final byte[] g = new byte[256];
-		final byte[] b = new byte[256];
-		for (int i=0; i<256; i++) {
-			r[i]=(byte)i;
-			g[i]=(byte)i;
-			b[i]=(byte)i;
-		}
-		return new IndexColorModel(8, 256, r, g, b);
-	}
-
 	private final BufferedImage half(final Image awt, final int w, final int h, final Object hint, final IndexColorModel icm) {
 		BufferedImage bi;
 		if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
-		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED);
+		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
 		final Graphics2D g = bi.createGraphics();
 		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, hint);
 		g.drawImage(awt, 0, 0, w, h, null);
@@ -1158,7 +1144,7 @@ public class FSLoader extends Loader {
 				final boolean as_grey = !ip.isColorLut();
 				if (as_grey && null == cm) {
 					cm = GRAY_LUT;
-				}
+				} else cm = null;
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = Utils.fastConvertToFloat(ip, type); //(FloatProcessor)ip.convertToFloat();
 					final double min = fp.getMin();
