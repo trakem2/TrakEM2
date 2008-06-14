@@ -70,7 +70,7 @@ public class Microcube_Maker implements PlugIn {
 
 	static private final void makeMicrocube(final String[] arg) {
 		if (arg.length < 10) {
-			p("Example usage: java -Xmx1000m -classpath .:../../ij.jar:./plugins/TrakEM2_.jar Microcube_Maker /path/to/project.xml 123 456 78.9 987 654 87.0 0.5 true /path/to/stack.tif \nArguments are: <project path> <x1> <y1> <z1> <x2> <y2> <z2> <scale> <re-register layers: true|false> <path_to_stack>");
+			p("Example usage: java -Xmx1000m -classpath .:../../ij.jar:./plugins/TrakEM2_.jar Microcube_Maker /path/to/project.xml 123 456 78.9 987 654 87.0 0.5 true /path/to/stack.tif \nArguments are: <project path> <x1> <y1> <z1> <x2> <y2> <z2> <scale> <re-register layers: true|false> <path_to_stack>\n\n ... where x,y coords are pixel coordinates, and z are layer indices.");
 			return;
 		}
 
@@ -92,10 +92,10 @@ public class Microcube_Maker implements PlugIn {
 			try {
 				x1 = Double.parseDouble(arg[1]);
 				y1 = Double.parseDouble(arg[2]);
-				z1 = Double.parseDouble(arg[3]);
+				z1 = Integer.parseInt(arg[3]);
 				x2 = Double.parseDouble(arg[4]);
 				y2 = Double.parseDouble(arg[5]);
-				z2 = Double.parseDouble(arg[6]);
+				z2 = Integer.parseInt(arg[6]);
 				scale = Double.parseDouble(arg[7]);
 
 			} catch (NumberFormatException nfe) {
@@ -126,8 +126,8 @@ public class Microcube_Maker implements PlugIn {
 			final Rectangle roi = new Rectangle(x, y, w, h);
 			// define first and last layer
 			LayerSet ls = project.getRootLayerSet();
-			Layer la1 = ls.getNearestLayer(z1); // WARNING: Calibration
-			Layer la2 = ls.getNearestLayer(z2);
+			Layer la1 = ls.getLayer((int)Math.abs(z1)); // WARNING: Calibration
+			Layer la2 = ls.getLayer((int)Math.abs(z2));
 			if (z1 > z2) {
 				Layer tmp = la1;
 				la1 = la2;
@@ -173,7 +173,7 @@ public class Microcube_Maker implements PlugIn {
 				// 2 - register all tiles freely and optimally
 				final Layer[] sub_la = new Layer[sub_ls.size()];
 				sub_ls.getLayers().toArray(sub_la);
-				final Thread task = Registration.registerTilesSIFT(sub_la, true);
+				final Thread task = Registration.registerTilesSIFT(sub_la, new boolean[]{true, false, false, false, false}, 512, 0.2499999f);
 				if (null != task) try { task.join(); } catch (Exception e) { e.printStackTrace(); }
 				// 3 - prepare roi for cropping
 				roi.x -= roi2.x;
@@ -187,11 +187,15 @@ public class Microcube_Maker implements PlugIn {
 			if (null != ob && ob instanceof ImagePlus) {
 				p("Ob is: " + ob);
 				ImagePlus imp = ((ImagePlus)ob);
-				imp.show();
+				//imp.show();
 				if (imp.getStackSize() > 1) {
+					p("Saving stack to " + arg[9]);
 					new FileSaver(imp).saveAsTiffStack(arg[9]);
+					p("Stack saved to " + arg[9]);
 				} else {
+					p("Saving image to " + arg[9]);
 					new FileSaver(imp).saveAsTiff(arg[9]);
+					p("Image saved to: " + arg[9]);
 				}
 				p("Microcube saved successfully to " + arg[9]);
 			} else {
@@ -199,13 +203,13 @@ public class Microcube_Maker implements PlugIn {
 				return;
 			}
 
-		} catch (Exception e) {
+		} catch (Throwable e) {
 			e.printStackTrace();
 		}
 
 		// done!
 		if (!was_open) {
-			project.destroy();
+			//project.destroy();
 			System.exit(0);
 		}
 	}
