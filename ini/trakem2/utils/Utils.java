@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005,2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005,2006,2007,2008 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -273,9 +273,9 @@ public class Utils implements ij.plugin.PlugIn {
 		Utils.debug_sql = debug_sql;
 	}
 
+	/** Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I had the same problem for Pipe.java in the A_3D_editing plugin)
+	    Using schemata in JavaAngles.ai as reference */
 	static public double fixAtan2Angle(double angle) {
-		//Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I has the same problem for Pipe.java in the A_3D_editing plugin)
-		//Using schemata in JavaAngles.ai as reference
 
 		double a = angle;
 		//fix too large angles
@@ -789,6 +789,8 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static private int n_CPUs = 0;
 
+	/** This method is obsolete: there's Runtime.getRuntime().availableProcessors() */
+	/*
 	static public final int getCPUCount() {
 		if (0 != n_CPUs) return n_CPUs;
 		if (IJ.isWindows()) return 1; // no clue
@@ -815,6 +817,7 @@ public class Utils implements ij.plugin.PlugIn {
 			return 1;
 		}
 	}
+	*/
 
 	static public final boolean wrongImageJVersion() {
 		boolean b = IJ.versionLessThan("1.37g");
@@ -1084,7 +1087,7 @@ public class Utils implements ij.plugin.PlugIn {
 		return sum;
 	}
 
-	/** Compute the are of the triangle defined by 3 points in 3D space, returning half of the length of the vector resulting from the cross product of vectors p1p2 and p1p3. */
+	/** Compute the area of the triangle defined by 3 points in 3D space, returning half of the length of the vector resulting from the cross product of vectors p1p2 and p1p3. */
 	static public final double measureArea(final Point3f p1, final Point3f p2, final Point3f p3) {
 		final Vector3f v = new Vector3f();
 		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
