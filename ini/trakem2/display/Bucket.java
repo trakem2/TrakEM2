@@ -216,7 +216,7 @@ public class Bucket {
 					accum.put(entry.getKey(), d);
 				}
 			}
-			Utils.log2("Bucket with " + map.size() + " contains click " + this.toString());
+			//Utils.log2("Bucket with " + map.size() + " contains click " + this.toString());
 		}
 	}
 
