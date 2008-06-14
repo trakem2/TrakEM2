@@ -121,13 +121,14 @@ public class Registration {
 		final int i_first = gd.getNextChoiceIndex();
 		final int i_start = layer.getParent().indexOf(layer);
 		final int i_last = gd.getNextChoiceIndex();
-		final boolean[] option = new boolean[4];
+		final boolean[] option = new boolean[5]; // by default all slots are false
 		option[0] = gd.getNextBoolean();
 		if (kind == GLOBAL_MINIMIZATION) {
 			option[1] = gd.getNextBoolean(); // largest graph only
 			option[2] = gd.getNextBoolean(); // hide other tiles
 			option[3] = gd.getNextBoolean(); // delete other tiles
 		}
+		option[4] = true; // show dialog
 		//TODO//final boolean tr_seg = gd.getNextBoolean();
 		switch (kind) {
 			case GLOBAL_MINIMIZATION:
@@ -804,12 +805,16 @@ public class Registration {
 		return registerTilesSIFT(layer, new boolean[]{overlapping_only, false, false});
 	}
 	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean[] options) {
+		return registerTilesSIFT(layer, options, 512, 0.5f);
+	}
+	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean[] options, final int max_size, final float scale) {
 		if (null == layer || 0 == layer.length) return null;
 
 		final boolean overlapping_only = options[0];
 		final boolean largest_graph_only = options[1];
 		final boolean hide_other_tiles = options[2];
 		final boolean delete_other_tiles = options[3];
+		final boolean show_dialog = options[4];
 
 		final Worker worker_ = new Worker("Free tile registration") {
 			public void run() {
@@ -830,44 +835,46 @@ public class Registration {
 		sp.fdsize = 8;
 		sp.fdbins = 8;
 		sp.min_size = 64;
-		sp.max_size = 512;
+		sp.max_size = max_size;
 		sp.min_epsilon = 1.0f;
 		sp.max_epsilon = 10.0f;
 		sp.cs_min_epsilon = 1.0f;
 		sp.cs_max_epsilon = 50.0f;
 		sp.min_inlier_ratio = 0.05f;
-		sp.scale = 1.0f;
+		sp.scale = scale;
 		sp.tiles_prealigned = overlapping_only;
 
-		// Simple setup
-		GenericDialog gds = new GenericDialog("Setup");
-		gds.addNumericField("maximum_image_size :", sp.max_size, 0);
-		gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
-		gds.addCheckbox("Layers_are_roughly_prealigned", sp.tiles_prealigned);
-		gds.addCheckbox("Advanced setup", false);
-		gds.showDialog();
-		if (gds.wasCanceled()) {
-			finishedWorking();
-			return;
-		}
-		sp.max_size = (int)gds.getNextNumber();
-		sp.max_epsilon = (float)gds.getNextNumber();
-		sp.tiles_prealigned = gds.getNextBoolean();
-		boolean advanced_setup = gds.getNextBoolean();
+		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), "Options for coarse layer registration", true);
 
-		if (advanced_setup) {
-			if (!sp.setup()) {
+		if (show_dialog) {
+			// 1 - Simple setup
+			GenericDialog gds = new GenericDialog("Setup");
+			gds.addNumericField("maximum_image_size :", sp.max_size, 0);
+			gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
+			gds.addCheckbox("Layers_are_roughly_prealigned", sp.tiles_prealigned);
+			gds.addCheckbox("Advanced setup", false);
+			gds.showDialog();
+			if (gds.wasCanceled()) {
 				finishedWorking();
 				return;
 			}
-		}
+			sp.max_size = (int)gds.getNextNumber();
+			sp.max_epsilon = (float)gds.getNextNumber();
+			sp.tiles_prealigned = gds.getNextBoolean();
+			boolean advanced_setup = gds.getNextBoolean();
 
-		// for inter-layer registration
-		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), "Options for coarse layer registration", true);
-		if (advanced_setup) {
-			if (!sp_gross_interlayer.setup()) {
-				finishedWorking();
-				return;
+			// 2 - Optional advanced setup
+			if (advanced_setup) {
+				if (!sp.setup()) {
+					finishedWorking();
+					return;
+				}
+
+				// 3 - Inter-layer registration setup
+				if (!sp_gross_interlayer.setup()) {
+					finishedWorking();
+					return;
+				}
 			}
 		}
 
