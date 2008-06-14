@@ -1528,7 +1528,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 			return null;
 		}
 		if (Layer.IMAGEPLUS == format) {
-			ImageStack stack = new ImageStack((int)Math.ceil(r.width*scale), (int)Math.ceil(r.height*scale));
+			ImageStack stack = new ImageStack((int)(r.width*scale), (int)(r.height*scale));
 			for (int i=first; i<=last; i++) {
 				Layer la = (Layer)al_layers.get(i);
 				Utils.log2("c is " + c);
