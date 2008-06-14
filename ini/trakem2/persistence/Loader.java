@@ -2735,6 +2735,7 @@ abstract public class Loader {
 
 			try {
 				if (quality) {
+					// need to scale back down
 					Image scaled = null;
 					if (!isMipMapsEnabled() || scale >= 0.499) { // there are no proper mipmaps above 50%, so there's need for SCALE_AREA_AVERAGING.
 						scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
@@ -2747,7 +2748,11 @@ abstract public class Loader {
 						}
 					} else {
 						// faster, but requires gaussian blurred images (such as the mipmaps)
-						scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType());
+						if (bi.getType() == BufferedImage.TYPE_BYTE_INDEXED) {
+							scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType(), GRAY_LUT);
+						} else {
+							scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType());
+						}
 						Graphics2D gs = (Graphics2D)scaled.getGraphics();
 						//gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 						gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
