@@ -525,7 +525,7 @@ public class Project extends DBObject {
 					loader.save(this);
 				}
 			} else {
-				Utils.log("WARNING: closing project '" + title  + "' with unsaved changes.");
+				Utils.log2("WARNING: closing project '" + title  + "' with unsaved changes.");
 			}
 		}
 		al_open_projects.remove(this);
