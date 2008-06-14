@@ -622,8 +622,6 @@ public class Utils implements ij.plugin.PlugIn {
 			OpenDialog.setDefaultDirectory(default_dir);
 		}
 		SaveDialog sd = new SaveDialog("Save",
-						//(user.startsWith("albert") || user.endsWith("cardona")) ? 
-						//	"/home/" + user + "/temp" :
 						OpenDialog.getDefaultDirectory(),
 						name2,
 						extension);

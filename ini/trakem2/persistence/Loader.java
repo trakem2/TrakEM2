@@ -263,7 +263,7 @@ abstract public class Loader {
 		//fd.setFilenameFilter(new XMLFileFilter(XMLFileFilter.BOTH));
 		String user = System.getProperty("user.name");
 		OpenDialog od = new OpenDialog("Select XML Template",
-						(user.equals("albertca") || user.equals("cardona")) ? "/home/" + user + "/temp" : OpenDialog.getDefaultDirectory(),
+						OpenDialog.getDefaultDirectory(),
 						null);
 		String file = od.getFileName();
 		if (null == file || file.toLowerCase().startsWith("null")) return null;
@@ -1335,18 +1335,6 @@ abstract public class Loader {
 		boolean stitch_tiles = true;
 		boolean homogenize_contrast = true;
 
-		/** Need some sort of user properties system. */
-		/*
-		String username = System.getProperty("user.name");
-		if (null != username && (username.equals("albert") || username.equals("cardona"))) {
-			preprocessor = ""; //"Adjust_EMMENU_Images";
-			link_images = false; //true;
-			bt_overlap = 204.8; //102.4;
-			lr_overlap = 204.8; //102.4; // testing cross-correlation
-			stitch_tiles = true;
-			homogenize_contrast = true;
-		}
-		*/
 		// reasonable estimate
 		n_rows = n_cols = (int)Math.floor(Math.sqrt(n_max));
 

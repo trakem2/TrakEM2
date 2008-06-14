@@ -290,11 +290,6 @@ public class Registration {
 			result = registerSIFT(la1, la2, null, sp);
 			// !@#$% TODO this needs fine-tuning
 			la1.getProject().getLoader().releaseToFit(Loader.MIN_FREE_BYTES * 20);
-
-			// debug: at least we get chunks done
-			if (!ControlWindow.isGUIEnabled() && System.getProperty("user.name").equals("cardona")) {
-				la1.getProject().save();
-			}
 		}
 
 		//Loader.runGCAll();
