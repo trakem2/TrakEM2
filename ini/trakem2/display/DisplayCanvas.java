@@ -273,15 +273,16 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 	};
 
+	/*
 	private final void setRenderingHints(final Graphics2D g) {
-		/* // so slow!! Particularly the first one.
+		// so slow!! Particularly the first one.
 		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 		//g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 		//g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
 		//g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		//g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-		*/
 	}
+	*/
 
 	public void setMagnification(double mag) {
 		// ensure a stroke of thickness 1.0 regardless of magnification
@@ -660,6 +661,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		default: // the PEN and PENCIL tools, and any other custom tool
 			box = active.getBoundingBox();
 			active.mousePressed(me, x_p, y_p, magnification);
+			invalidateVolatile();
 			break;
 		}
 		//Utils.log("locked: " + locked + " popup: " + popup + " input_disabled2: " + input_disabled2);
@@ -2093,14 +2095,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 					final Displayable zd = itzd.next();
 					if (zd == active) top = true;
-					if (top) al_top.add(zd);
+					else if (top) al_top.add(zd);
 					else al_paint.add(zd);
 					i++;
 				}
 				// paint LayerSet and DLabel objects!
 				if (null != tmp) {
 					if (tmp == active) top = true;
-					if (top) al_top.add(tmp);
+					else if (top) al_top.add(tmp);
 					else al_paint.add(tmp);
 				}
 				while (ital.hasNext()) {
@@ -2110,7 +2112,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 					final Displayable d = ital.next();
 					if (d == active) top = true;
-					if (top) al_top.add(d);
+					else if (top) al_top.add(d);
 					else al_paint.add(d);
 					i++;
 				}
