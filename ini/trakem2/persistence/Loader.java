@@ -4422,6 +4422,7 @@ abstract public class Loader {
 		Preloader() {
 			super("T2-Preloader");
 			setPriority(Thread.NORM_PRIORITY);
+			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
 		/** WARNING this method effectively limits zoom out to 0.00000001. */

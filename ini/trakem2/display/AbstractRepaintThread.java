@@ -45,6 +45,7 @@ public abstract class AbstractRepaintThread extends Thread {
 		super(name);
 		this.target = target;
 		setPriority(Thread.NORM_PRIORITY);
+		try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 		start();
 	}
 
