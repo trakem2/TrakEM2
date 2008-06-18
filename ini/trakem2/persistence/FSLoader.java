@@ -635,7 +635,9 @@ public class FSLoader extends Loader {
 		return true;
 	}
 
-	/** Returns the absolute path to a file that contains the given image - which may be the path as described in the ImagePlus FileInfo object itself, or a totally new file. */
+	/** Returns the absolute path to a file that contains the given ImagePlus image - which may be the path as described in the ImagePlus FileInfo object itself, or a totally new file.
+	 *  If the Patch p current image path is different than its original image path, then the file is overwritten if it exists already.
+	 */
 	public String setImageFile(final Patch p, final ImagePlus imp) {
 		if (null == imp) return null;
 		try {
