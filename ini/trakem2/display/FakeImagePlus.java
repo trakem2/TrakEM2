@@ -158,11 +158,6 @@ public class FakeImagePlus extends ImagePlus {
 	/** Returns a virtual stack made of boxes with the dimension of the ROI or the whole layer, so that pixels are retrieved on the fly. */
 	public ImageStack getStack() {
 		return null;
-		/*
-		ImagePlus last_temp = display.getLastTemp();
-		if (null == last_temp) return display.getLayer().getParent().makeLayerStack();
-		return last_temp.getStack();
-		*/
 	}
 
 	/** Returns 1. */
@@ -202,9 +197,6 @@ public class FakeImagePlus extends ImagePlus {
 			ImageProcessor ip = getProcessor();
 			if (null != ip) ip.resetRoi();
 		}
-		ImagePlus last_temp = display.getLastTemp();
-		//Utils.log2("Last temp is " + last_temp.getClass());
-		if (null != last_temp && !last_temp.equals(this)) last_temp.killRoi();
 	}
 
 	public synchronized void setSlice(int slice) {}

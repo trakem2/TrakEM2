@@ -27,7 +27,6 @@ import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
 import mpi.fruitfly.registration.Feature;
-import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.registration.Tile;
@@ -776,7 +775,7 @@ public class Registration {
 			return null; // don't move
 		}
 		Utils.log2("BASE: x, y " + base.getX() + " , " + base.getY() + "\n\t pc x,y: " + pc[0] + ", " + pc[1]);
-		Utils.showStatus("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
+		Utils.showStatus("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId(), false);
 		
 		AffineTransform at = new AffineTransform();
 		at.translate(pc[0], pc[1]);
@@ -839,6 +838,8 @@ public class Registration {
 		sp.scale = scale;
 		sp.tiles_prealigned = overlapping_only;
 
+		boolean global_optimization = false;
+
 		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), "Options for coarse layer registration", true);
 
 		if (show_dialog) {
@@ -847,6 +848,7 @@ public class Registration {
 			gds.addNumericField("maximum_image_size :", sp.max_size, 0);
 			gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
 			gds.addCheckbox("Layers_are_roughly_prealigned", sp.tiles_prealigned);
+			gds.addCheckbox("Disable global optimization", global_optimization);
 			gds.addCheckbox("Advanced setup", false);
 			gds.showDialog();
 			if (gds.wasCanceled()) {
@@ -1291,7 +1293,11 @@ public class Registration {
 
 		// global minimization
 		try {
-			Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, sp.cs_max_epsilon, worker );
+			if (global_optimization) {
+				Utils.log("Performing global minimization...");
+				Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, sp.cs_max_epsilon, worker );
+				Utils.log("Done!");
+			}
 		} catch (Throwable t) {
 			IJError.print(t);
 		}
@@ -1525,7 +1531,7 @@ public class Registration {
 			cd /= tiles.size();
 			dd = Math.abs( od - cd );
 			od = cd;
-			if (0 == next % 100) Utils.showStatus( "displacement: " + Utils.cutNumber( od, 3) + " [" + Utils.cutNumber( min_d, 3 ) + "; " + Utils.cutNumber( max_d, 3 ) + "] after " + iteration + " iterations");
+			if (0 == next % 100) Utils.showStatus( "displacement: " + Utils.cutNumber( od, 3) + " [" + Utils.cutNumber( min_d, 3 ) + "; " + Utils.cutNumber( max_d, 3 ) + "] after " + iteration + " iterations", false);
 			
 			//observer.add( od );			
 			//Utils.log( observer.i + " " + observer.v + " " + observer.d + " " + observer.m + " " + observer.std );
@@ -1710,7 +1716,7 @@ public class Registration {
 						tls[k] = new Tile((float)patch.getWidth(), (float)patch.getHeight(), model);
 
 						Utils.showProgress((double)count.incrementAndGet() / num_pa);
-						Utils.showStatus(new StringBuffer("Extracted features for ").append(count.get()).append('/').append(num_pa).append(" tiles").toString());
+						Utils.showStatus(new StringBuffer("Extracted features for ").append(count.get()).append('/').append(num_pa).append(" tiles").toString(), false);
 
 					}
 				}
@@ -1763,7 +1769,7 @@ public class Registration {
 						current_tile.connect( other_tile, inliers );
 
 					Utils.showProgress((double)count.incrementAndGet() / num_patches);
-					Utils.showStatus(new StringBuffer("Connected ").append(count.get()).append('/').append(num_patches).append(" tiles").toString());
+					Utils.showStatus(new StringBuffer("Connected ").append(count.get()).append('/').append(num_patches).append(" tiles").toString(), false);
 				}
 			}
 		}

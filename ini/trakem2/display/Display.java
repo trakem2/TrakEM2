@@ -65,10 +65,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** All selected Displayable objects, including the active one. */
 	final private Selection selection = new Selection(this);
 
-	private ImagePlus active_imp_copy = null;
-	private long active_imp_id = -1;
-	private boolean undo = false;
-
 	private ImagePlus last_temp = null;
 
 	private JFrame frame;
@@ -880,8 +876,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		// update the coloring in the ProjectTree
 		project.getProjectTree().updateUILater();
 		
-		//
-		createTempCurrentImage();
 		setTempCurrentImage();
 	}
 
@@ -1060,15 +1054,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			scroller.removeAdjustmentListener(scroller_listener);
 			frame.setVisible(false);
 			//no need, and throws exception//frame.dispose();
-			if (null != active_imp_copy) {
-				Loader.flush(active_imp_copy); // TODO inspect implications for other displays if this is the current or the copy (I think it's the copy)
-				active_imp_copy = null;
-			}
-			if (null != last_temp) {
-				Loader.flush(last_temp);
-				last_temp = null;
-			}
-			//TEMPORARY W//WindowManager.setTempCurrentImage(null);
 			active = null;
 			if (null != selection) selection.clear();
 			//Utils.log2("destroying selection");
@@ -1351,6 +1336,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 	}
 
+	static public void repaint(final Displayable d) {
+		if (d instanceof ZDisplayable) repaint(d.getLayerSet(), d, d.getBoundingBox(null), 5, true);
+		repaint(d.getLayer(), d, d.getBoundingBox(null), 5, true);
+	}
+
 	/** Repaint as much as the bounding box around the given Displayable, or the r if not null. */
 	private void repaint(final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator, final boolean update_graphics) {
 		if (repaint_disabled || null == displ) return;
@@ -1549,7 +1539,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			selection.add(d);
 		}
 		// update the image shown to ImageJ
-		createTempCurrentImage();
 		setTempCurrentImage();
 	}
 
@@ -1659,12 +1648,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 
 		// renew current image if necessary
-		/* // OBSOLETE, now active image is ALWAYS the FakeImagePlus
-		if (null == displ || (displ instanceof Patch && !active.equals(prev_active))) {
-			if (null == displ) last_temp = null; // TODO check, this shouldn't be here. Actually, the setActive method should totally disappear.
-			setTempCurrentImage(); // renew
-		}
-		*/
 		if (null != displ && displ == prev_active) {
 			// make sure the proper tab is selected.
 			selectTab(displ);
@@ -2060,8 +2043,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				} catch (Exception e) { IJError.print(e); item.setEnabled(false); }
 
 				if (active instanceof Patch) {
-					item = new JMenuItem("Undo");   item.addActionListener(this); popup.add(item);
-					if (!undo) item.setEnabled(false);
 					item = new JMenuItem("Revert"); item.addActionListener(this); popup.add(item);
 					popup.addSeparator();
 				}
@@ -2642,35 +2623,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Color...")) {
 			IJ.doCommand("Color Picker...");
 		} else if (command.equals("Revert")) {
-			if (! (active instanceof Patch && last_temp instanceof PatchStack)) return;
-			Patch patch = (Patch)active;
-			PatchStack ps = (PatchStack)last_temp;
-			if (1 == last_temp.getStackSize()) {
-				ps.revert(patch);
-			} else {
-				YesNoCancelDialog yd = new YesNoCancelDialog(Display.this.frame, "Revert", "Revert all slices?");
-				if (yd.yesPressed()) {
-					// revert all slices
-					ps.revertAll();
-				} else if (!yd.cancelPressed()) {
-					// revert current slice only
-					ps.revert(patch);
-				}
-				// else do nothing (canceled)
+			if (null == active || active.getClass() != Patch.class) return;
+			Patch p = (Patch)active;
+			if (!p.revert()) {
+				if (null == p.getOriginalPath()) Utils.log("No editions to save for patch " + p.getTitle() + " #" + p.getId());
+				else Utils.log("Could not revert Patch " + p.getTitle() + " #" + p.getId());
 			}
-			navigator.repaint(true);
-		} else if (command.equals("Undo")) {
-			if (! (active instanceof Patch)) return;
-			if (!undo) return;
-			Patch patch = (Patch)active;
-			undo = false; // no more undos until the active_imp_copy has been made new in the imageUpdated(ImagePlus) method.
-			// set a copy of the active_imp_copy as the working one for the active Patch
-			ImagePlus copy = new ImagePlus(active_imp_copy.getTitle(), active_imp_copy.getProcessor().duplicate());
-			project.getLoader().updateCache(patch, copy);
-			patch.updateInDatabase("tiff_working"); //saves the cached one above.
-			canvas.repaint(active, 5);
-			navigator.repaint(true);
-			((JPanel)ht_panels.get(patch)).repaint();
 		} else if (command.equals("Undo transforms")) {
 			if (canvas.isTransforming()) return;
 			if (!layer.getParent().canRedo()) {
@@ -3370,15 +3328,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		// detect LUT changes: DONE at PatchStack, which is the active (virtual) image
 		//Utils.log2("calling decache for " + updated);
 		//getProject().getLoader().decache(updated);
-
-		//Utils.log2("imageUpdated: updated imp is " + updated.getTitle() + "\n\t and is last_temp: " + updated.equals(last_temp) + "\n\t and changes=" + updated.changes + " and class: " + updated.getClass());
 	}
 
 	public void imageClosed(ImagePlus imp) {}
 	public void imageOpened(ImagePlus imp) {}
-
-
-	protected ImagePlus getLastTemp() { return last_temp; } // can be null
 
 	/** Release memory captured by the offscreen images */
 	static public void flushAll() {
@@ -3493,13 +3446,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		if (null != front) {
 			Loader.setTempCurrentImage(front.canvas.getFakeImagePlus());
-			/*
-			if (tool < ProjectToolbar.SELECT || tool > ProjectToolbar.ALIGN) {
-				Loader.setTempCurrentImage(front.canvas.getFakeImagePlus());
-			} else {
-				Loader.setTempCurrentImage(front.last_temp);
-			}
-			*/
 		}
 	}
 
@@ -3540,53 +3486,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private void setTempCurrentImage() {
 		Loader.setTempCurrentImage(canvas.getFakeImagePlus());
-		/*
-		//Utils.log2("Setting temp current image: " + last_temp + " " + (null == last_temp ? null : last_temp.getClass()));
-		if (null != last_temp) {
-			//Utils.log2("last_temp.class == " + last_temp.getClass());
-			last_temp.setSlice(layer.getParent().indexOf(layer) +1);
-		}
-		Loader.setTempCurrentImage(last_temp);
-		*/
-	}
-
-	/** Sets the ImagePlus that ImageJ will see in its WindowManager while this Display is activated. */
-	private void createTempCurrentImage() {
-		// DISABLED: always the FakeImagePlus
-		/*
-		ImagePlus temp = null;
-		final ArrayList al = selection.getSelected();
-		if (1 == selection.getNSelected() && getActive() instanceof Patch) {
-			// present the currently selected image or stack
-			Patch patch = (Patch)al.get(0);
-			PatchStack ps = patch.makePatchStack(); // gets the LayerSet calibration on its own
-			ps.setCurrentSlice(patch);
-			temp = ps;
-		} else {
-			if (layer.getParent().isPixelsVirtualizationEnabled()) {
-				// show all selected in a LayerStack
-				ImageStack stack = null == temp ? null : temp.getStack();
-				if (null != stack && stack instanceof LayerStack) {
-					((LayerStack)stack).setDisplayables(al);
-				} else {
-					LayerStack lstack = layer.getParent().makeLayerStack(this);
-					lstack.setDisplayables(al);
-					stack = lstack;
-				}
-				// make new to renew the width and height
-				temp = ((LayerStack)stack).getImagePlus(); // gets the LayerSet calibration on its own
-				int i_slice = layer.getParent().indexOf(layer) +1;
-				temp.setSlice(i_slice);
-			} else {
-				temp = canvas.getFakeImagePlus();
-				((FakeImagePlus)temp).setCalibrationSuper(layer.getParent().getCalibrationCopy());
-			}
-		}
-		// Calibration is taken care of in the fake imagepluses constructors
-		//temp.getCalibration().pixelDepth = layer.getParent().getLayer(0).getThickness();
-		last_temp = temp;
-		//Utils.log2("currentSlice: " + temp.getCurrentSlice() + " for layer index " + layer.getParent().indexOf(layer));
-		*/
 	}
 
 	/** Check if any display will paint the given Displayable at the given magnification. */

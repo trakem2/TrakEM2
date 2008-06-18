@@ -167,6 +167,7 @@ abstract public class Loader {
 	}
 	*/
 
+	protected final HashSet<Patch> hs_unloadable = new HashSet<Patch>();
 
 	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_BINARY);
 	static {
@@ -419,20 +420,6 @@ abstract public class Loader {
 			}
 			unlock();
 		}
-	}
-
-	synchronized public void updateCache(Patch patch) {
-		updateCache(patch, imps.get(patch.getId()));
-	}
-
-	/** Update the awt, replace the imp with the new imp, and remake the snapshot from the awt*/
-	public void updateCache(Patch patch, ImagePlus imp) {
-		synchronized (db_lock) {
-			lock();
-			imps.put(patch.getId(), imp); // replace with the new imp
-			unlock();
-		}
-		patch.createImage(imp); // create from the cached new imp, and cache the new awt
 	}
 
 	/** Cache any ImagePlus, as long as a unique id is assigned to it there won't be problems; you can obtain a unique id from method getNextId() .*/
@@ -2269,6 +2256,7 @@ abstract public class Loader {
 								}
 							}
 							decacheImagePlus(patch.getId()); // no point in keeping it around
+							flushMipMaps(patch.getId()); // some may have been generated from the ImagePlus, and may look ugly/improper
 						}
 
 						wo.setTaskName("Imported " + (n_imported.getAndIncrement() + 1) + "/" + lines.length);
@@ -3439,29 +3427,21 @@ abstract public class Loader {
 		return patches_dir;
 	}
 
-	/** Returns the path to the saved image. */
-	public String exportImage(Patch patch, String path, boolean overwrite) {
-		// save only if not there already
-		if (null == path || (!overwrite && new File(path).exists())) return null;
-		synchronized(db_lock) {
-			try {
-				ImagePlus imp = fetchImagePlus(patch); // locks on its own
-				lock();
-				if (null == imp) {
-					// something went wrong
-					Utils.log("Loader.exportImage: Could not fetch a valid ImagePlus for " + patch.getId());
-					unlock();
-					return null;
-				} else {
-					new FileSaver(imp).saveAsZip(path);
-				}
-			} catch (Exception e) {
-				Utils.log("Could not save an image for Patch #" + patch.getId() + " at: " + path);
-				IJError.print(e);
-				unlock();
-				return null;
-			}
-			unlock();
+	public String exportImage(final Patch patch, final String path, final boolean overwrite) {
+		return exportImage(patch, fetchImagePlus(patch), path, overwrite);
+	}
+
+	/** Returns the path to the saved image, or null if not saved. */
+	public String exportImage(final Patch patch, final ImagePlus imp, final String path, final boolean overwrite) {
+		// if !overwrite, save only if not there already
+		if (null == path || null == imp || (!overwrite && new File(path).exists())) return null;
+		try {
+			if (imp.getNSlices() > 1) new FileSaver(imp).saveAsTiffStack(path);
+			else new FileSaver(imp).saveAsTiff(path);
+		} catch (Exception e) {
+			Utils.log("Could not save an image for Patch #" + patch.getId() + " at: " + path);
+			IJError.print(e);
+			return null;
 		}
 		return path;
 	}
@@ -3691,7 +3671,13 @@ abstract public class Loader {
 		Utils.log2("opening image " + path);
 		//Utils.printCaller(this, 25);
 		IJ.redirectErrorMessages();
-		return opener.openImage(path);
+		try {
+			return opener.openImage(path);
+		} catch (Exception e) {
+			Utils.log("Could not open image at " + path);
+			e.printStackTrace();
+			return null;
+		}
 	}
 
 	/** Equivalent to File.getName(), does not subtract the slice info from it.*/
@@ -3742,6 +3728,20 @@ abstract public class Loader {
 
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(final long id) {}
+
+	/** Generates mipmaps for the given Patch and flushes away all presently cached ones for the Patch. */
+	public boolean update(final Patch patch) {
+		// 1 - generate mipmaps
+		final boolean b = generateMipMaps(patch);
+		// 2 - flush away all cached images
+		//  Independently of whether the mipmap generation failed, the ImagePlus has been updated anyway.
+		synchronized (db_lock) {
+			lock();
+			mawts.removeAndFlush(patch.getId());
+			unlock();
+		}
+		return b;
+	}
 
 	/** Does nothing and returns false unless overriden. */
 	public boolean generateMipMaps(final Patch patch) { return false; }
@@ -4337,6 +4337,8 @@ abstract public class Loader {
 	/** Returns the user's home folder unless overriden. */
 	public String getStorageFolder() { return System.getProperty("user.home").replace('\\', '/'); }
 
+	public String getImageStorageFolder() { return getStorageFolder(); }
+
 	/** Returns null unless overriden. */
 	public String getMipMapsFolder() { return null; }
 
@@ -4638,7 +4640,7 @@ abstract public class Loader {
 						repaint = this.repaint;
 					} catch (Exception e) {}
 				}
-				if (null != p) {
+				if (null != p && !p.getProject().getLoader().hs_unloadable.contains(p)) {
 					try {
 						if (repaint) {
 							// wait a bit in case the user has browsed past
@@ -4646,8 +4648,8 @@ abstract public class Loader {
 							try { sleep(50); } catch (InterruptedException ie) {}
 							if (Display.willPaint(p, mag)) {
 								loading = true;
-								p.getProject().getLoader().fetchImage(p, mag);
-								Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
+								Object ob = p.getProject().getLoader().fetchImage(p, mag);
+								if (null != ob) Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
 							}
 						} else {
 							// just load it into the cache if possible
@@ -4664,7 +4666,6 @@ abstract public class Loader {
 			}
 		}
 	}
-
 
 
 	/** Returns the highest mipmap level for which a mipmap image may have been generated given the dimensions of the Patch. The minimum that this method may return is zero. */
@@ -4732,4 +4733,9 @@ abstract public class Loader {
 		}
 		return new IndexColorModel(8, 256, r, g, b);
 	}
+
+	/** Does nothing and returns null unless overridden. */
+	public String setImageFile(Patch p, ImagePlus imp) { return null; }
+
+	public boolean isUnloadable(final Patch p) { return hs_unloadable.contains(p); }
 }

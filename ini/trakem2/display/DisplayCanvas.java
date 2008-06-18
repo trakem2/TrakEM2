@@ -929,14 +929,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				// return; // replaced by #SET_ROI
 		}
 
-		// must be done here, for now the ROI is complete
-		Roi roi = imp.getRoi();
-		if (null != roi) {
-			ImagePlus last_temp = display.getLastTemp();
-			if (null != last_temp) {
-				last_temp.setRoi(roi);
-			}
-		}
+		final Roi roi = imp.getRoi();
 
 		// check:
 		if (display.isReadOnly()) return;
@@ -1880,10 +1873,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				break;
 			case KeyEvent.VK_C: // copy active Patch if any into ImageJ clipboard
 				if (0 == ke.getModifiers()) {
-					ImagePlus imp = display.getLastTemp();
-					if (null != imp) {
-						imp.copy(false);
-						ke.consume();
+					if (active.getClass() == Patch.class) {
+						ImagePlus imp = ((Patch)active).getImagePlus();
+						if (null != imp) {
+							imp.copy(false);
+							ke.consume();
+						}
 					}
 				}
 				break;

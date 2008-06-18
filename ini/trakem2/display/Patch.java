@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.io.File;
 
 public class Patch extends Displayable {
 
@@ -62,6 +63,12 @@ public class Patch extends Displayable {
 	/** To generate contrasted images non-destructively. */
 	private double min = 0;
 	private double max = 255;
+
+	/** To be set after the first successful query on whether this file exists, from the Loader, via the setCurrentPath method. This works as a good path cache to avoid excessive calls to File.exists(), which shows up as a huge performance drag. */
+	private String current_path = null;
+	/** To be read from XML, or set when the file ImagePlus has been updated and the current_path points to something else. */
+	private String original_path = null;
+
 
 	/** Construct a Patch from an image. */
 	public Patch(Project project, String title, double x, double y, ImagePlus imp) {
@@ -93,10 +100,11 @@ public class Patch extends Displayable {
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
+		final Iterator it = ht_attributes.entrySet().iterator();
+		while (it.hasNext()) {
+			final Map.Entry entry = (Map.Entry)it.next();
+			final String key = (String)entry.getKey();
+			final String data = (String)entry.getValue();
 			if (key.equals("type")) {
 				this.type = Integer.parseInt(data);
 			} else if (key.equals("min")) {
@@ -105,6 +113,8 @@ public class Patch extends Displayable {
 			} else if (key.equals("max")) {
 				this.max = Double.parseDouble(data);
 				hasmax = true;
+			} else if (key.equals("original_path")) {
+				this.original_path = data;
 			}
 		}
 		if (hasmin && hasmax) {
@@ -124,6 +134,69 @@ public class Patch extends Displayable {
 	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I adivse you to call this method everytime you need the processor. */
 	public ImageProcessor getImageProcessor() {
 		return this.project.getLoader().fetchImageProcessor(this);
+	}
+
+	/** Recreate mipmaps and flush away any cached ones.
+	 * This method is essentially the same as patch.getProject().getLoader().update(patch);
+	 * which in turn it's the same as the following two calls:
+	 *     patch.getProject().getLoader().generateMipMaps(patch);
+	 *     patch.getProject().getLoader().decacheAWT(patch.getId());
+	 *
+	 * If you want to update lots of Patch instances in parallel, consider also
+	 *    project.getLoader().generateMipMaps(ArrayList patches, boolean overwrite);
+	 */
+	public boolean updateMipmaps() {
+		return project.getLoader().update(this);
+	}
+
+	private void readProps(final ImagePlus new_imp) {
+		this.type = new_imp.getType();
+		if (new_imp.getWidth() != (int)this.width || new_imp.getHeight() != this.height) {
+			this.width = new_imp.getWidth();
+			this.height = new_imp.getHeight();
+			updateBucket();
+		}
+		ImageProcessor ip = new_imp.getProcessor();
+		this.min = ip.getMin();
+		this.max = ip.getMax();
+	}
+
+	/** Set a new ImagePlus for this Patch.
+	 * The original path and image remain untouched. Any later image is deleted and replaced by the new one.
+	 */
+	synchronized public String set(final ImagePlus new_imp) {
+		if (null == new_imp) return null;
+		// flag to mean: this Patch has never been set to any image except the original
+		//    The intention is never to remove the mipmaps of original images
+		boolean first_time = null == original_path;
+		// 0 - set original_path to the current path if there is no original_path recorded:
+		if (isStack()) {
+			for (Patch p : getStackPatches()) {
+				if (null == p.original_path) original_path = p.project.getLoader().getAbsolutePath(p);
+			}
+		} else {
+			if (null == original_path) original_path = project.getLoader().getAbsolutePath(this);
+		}
+		// 1 - tell the loader to store the image somewhere, unless the image has a path already
+		final String path = project.getLoader().setImageFile(this, new_imp);
+		if (null == path) {
+			Utils.log2("setImageFile returned null!");
+			return null; // something went wrong
+		}
+		// 2 - update properties and mipmaps
+		if (isStack()) {
+			for (Patch p : getStackPatches()) {
+				p.readProps(new_imp);
+				project.getLoader().generateMipMaps(p); // sequentially
+				project.getLoader().decacheAWT(p.id);
+			}
+		} else {
+			readProps(new_imp);
+			project.getLoader().generateMipMaps(this);
+			project.getLoader().decacheAWT(this.id);
+		}
+		Display.repaint(layer, this, 5);
+		return project.getLoader().getAbsolutePath(this);
 	}
 
 	/** Boundary checks on min and max, given the image type. */
@@ -318,7 +391,7 @@ public class Patch extends Displayable {
 	}
 
 	
-	/** Paint first whatever is available, then spawn a thread to load the proper image and paint it. */
+	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
 	public void prePaint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 
 		AffineTransform atp = this.at;
@@ -462,7 +535,7 @@ public class Patch extends Displayable {
 	/** Returns true if this Patch holds direct links to at least one other image in a different layer. Doesn't check for total overlap. */
 	public boolean isStack() {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		Iterator it = hs_linked.iterator();
+		final Iterator it = hs_linked.iterator();
 		while (it.hasNext()) {
 			Displayable d = (Displayable)it.next();
 			if (d instanceof Patch && d.layer.getId() != this.layer.getId()) return true;
@@ -615,6 +688,9 @@ public class Patch extends Displayable {
 		       .append(in).append("file_path=\"").append(rel_path).append("\"\n")
 		       .append(in).append("style=\"fill-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";\"\n")
 		;
+		if (null != original_path) {
+			sb_body.append(in).append("original_path=\"").append(original_path).append("\"\n");
+		}
 		if (0 != min) sb_body.append(in).append("min=\"").append(min).append("\"\n");
 		if (max != Patch.getMaxMax(type)) sb_body.append(in).append("max=\"").append(max).append("\"\n");
 		sb_body.append(indent).append("/>\n");
@@ -636,6 +712,7 @@ public class Patch extends Displayable {
 		sb_header.append(indent).append("<!ELEMENT t2_patch EMPTY>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" file_path").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" original_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" type").append(TAG_ATTR2)
 		;
 	}
@@ -693,7 +770,9 @@ public class Patch extends Displayable {
 	}
 
 	public int[] getPixel(final int x, final int y, final double mag) {
+		if (1 == mag && project.getLoader().isUnloadable(this)) return new int[4];
 		final Image img = project.getLoader().fetchImage(this, mag);
+		if (Loader.NOT_FOUND == img) return new int[4];
 		final int w = img.getWidth(null);
 		final double scale = w / width;
 		final Point2D.Double pd = inverseTransformPoint(x, y);
@@ -739,18 +818,22 @@ public class Patch extends Displayable {
 		return pvalue;
 	}
 
-	private String absolute_path = null;
-
-	/** Returns the value of the field absolute_path, which may be null. If not null, the value may contain the slice info in it if it's part of a stack. */
-	public final String getAbsolutePath() {
-		return absolute_path;
+	/** If this patch is part of a stack, the file path will contain the slice number attached to it, in the form -----#slice=10 for slice number 10. */
+	public final String getFilePath() {
+		if (null != current_path) return current_path;
+		return project.getLoader().getAbsolutePath(this);
 	}
 
-	public final void setAbsolutePath(final String path) {
-		this.absolute_path = path;
-	}
-	// TODO needs refactoring with ht_paths in FSLoader
+	/** Returns the value of the field current_path, which may be null. If not null, the value may contain the slice info in it if it's part of a stack. */
+	public final String getCurrentPath() { return current_path; }
 
+	/** Cache a proper, good, known path to the image wrapped by this Patch. */
+	public final void cacheCurrentPath(final String path) {
+		this.current_path = path;
+	}
+
+	/** Returns the value of the field original_path, which may be null. If not null, the value may contain the slice info in it if it's part of a stack. */
+	synchronized public String getOriginalPath() { return original_path; }
 
 	protected void setAlpha(float alpha, boolean update) {
 		if (isStack()) {
@@ -763,5 +846,41 @@ public class Patch extends Displayable {
 			}
 			Display3D.setTransparency(this, alpha);
 		} else super.setAlpha(alpha, update);
+	}
+
+	public void debug() {
+		Utils.log2("Patch id=" + id + "\n\toriginal_path=" + original_path + "\n\tcurrent_path=" + current_path);
+	}
+
+	/** Revert the ImagePlus to the one stored in original_path, if any; will revert all linked patches if this is part of a stack. */
+	synchronized public boolean revert() {
+		if (null == original_path) return false; // nothing to revert to
+		// 1 - check that original_path exists
+		if (!new File(original_path).exists()) {
+			Utils.log("CANNOT revert: Original file path does not exist: " + original_path + " for patch " + getTitle() + " #" + id);
+			return false;
+		}
+		// 2 - check that the original can be loaded
+		final ImagePlus imp = project.getLoader().fetchOriginal(this);
+		if (null == imp || null == set(imp)) {
+			Utils.log("CANNOT REVERT: original image at path " + original_path + " fails to load, for patch " + getType() + " #" + id);
+			return false;
+		}
+		// 3 - update path in loader, and cache imp for each stack slice id
+		if (isStack()) {
+			for (Patch p : getStackPatches()) {
+				p.project.getLoader().addedPatchFrom(p.original_path, p);
+				p.project.getLoader().cacheImagePlus(p.id, imp);
+				p.project.getLoader().generateMipMaps(p);
+			}
+		} else {
+			project.getLoader().addedPatchFrom(original_path, this);
+			project.getLoader().cacheImagePlus(id, imp);
+			project.getLoader().generateMipMaps(this);
+		}
+		// 4 - update screens
+		Display.repaint(layer, this, 0);
+		Utils.showStatus("Reverted patch " + getTitle(), false);
+		return true;
 	}
 }

@@ -458,32 +458,6 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayer(label);
 				return null;
 			} else if (type.equals("patch")) {
-				/* // no need
-				// fix base dir:
-				Object obfp = ht_attributes.get("file_path");
-				if (null != obfp) {
-					String file_path = (String)obfp;
-					if (IJ.isWindows() && -1 != file_path.indexOf(':')) {
-						// ok
-					} else if ('/' == file_path.charAt(0)) {
-						// ok
-					} else {
-						// prepend base_dir
-						if (new File(base_dir + file_path).exists()) {
-							file_path = base_dir + file_path;
-						} else {
-							// try *_images folder
-							final String pd = loader.extractRelativeFolderPath(new File(xml_path));
-							if (new File(pd + "/" + file_path).exists()) {
-								file_path = pd + "/" + file_path;
-							}
-							//else it's going to fail loading the image
-						}
-						ht_attributes.put("file_path", file_path);
-					}
-				}
-				*/
-				//Utils.log("file path: " + ht_attributes.get("file_path"));
 				Patch patch = new Patch(project, oid, ht_attributes, ht_links);
 				patch.addToDatabase();
 				ht_displayables.put(new Long(oid), patch);

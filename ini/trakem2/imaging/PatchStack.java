@@ -99,6 +99,7 @@ public class PatchStack extends ImagePlus {
 		return null;
 	}
 
+	/** From 0 to getNSlices() -1, otherwise null. */
 	public Patch getPatch(int i) {
 		if (i<0 || i>patch.length) return null;
 		return patch[i];
@@ -141,6 +142,10 @@ public class PatchStack extends ImagePlus {
 	}
 
 	private void revert2(Patch p) {
+		/* // TODO
+		 *    needs rewrite: should just flush away and swap paths, and perhaps remove copy of image.
+		 *
+		 *
 		// TODO this is overkill. If only the lut and so on has changed, one could just undo that by calling ip.reset etc. as in ContrastAdjuster
 		Loader loader = p.getProject().getLoader();
 		ImagePlus current = loader.fetchImagePlus(p);
@@ -167,6 +172,7 @@ public class PatchStack extends ImagePlus {
 
 		// TODO this method needs heavy revision and updating
 		Display.repaint(p.getLayer(), box, 5); // the previous dimensions
+		*/
 	}
 
 	/** Reset temporary changes such as from dragging B&C sliders and so on, in the current slice (the current Patch). */

@@ -39,6 +39,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
+import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.YesNoDialog;
@@ -115,6 +116,13 @@ public class FSLoader extends Loader {
 	/** Path to the directory the user provided when creating the project. */
 	private String dir_storage = null;
 
+	/** Path to dir_storage + "trakem2.images/" */
+	private String dir_image_storage = null;
+
+	/** Queue and execute Runnable tasks. */
+	static private Dispatcher dispatcher = new Dispatcher();
+
+
 	public FSLoader() {
 		super(); // register
 		super.v_loaders.remove(this); //will be readded on successful open
@@ -149,6 +157,28 @@ public class FSLoader extends Loader {
 	public String getStorageFolder() {
 		if (null == dir_storage) return super.getStorageFolder(); // the user's home
 		return dir_storage.toString(); // a copy
+	}
+
+	/** Returns a folder proven to be writable for images can be stored into. */
+	public String getImageStorageFolder() {
+		if (null == dir_image_storage) {
+			String s = getStorageFolder() + "trakem2.images/";
+			File f = new File(s);
+			if (f.exists() && f.isDirectory() && f.canWrite()) {
+				dir_image_storage = s;
+				return dir_image_storage;
+			}
+			else {
+				try {
+					f.mkdirs();
+					dir_image_storage = s;
+				} catch (Exception e) {
+					e.printStackTrace();
+					return getStorageFolder(); // fall back
+				}
+			}
+		}
+		return dir_image_storage;
 	}
 
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */
@@ -270,6 +300,7 @@ public class FSLoader extends Loader {
 	public void destroy() {
 		super.destroy();
 		Utils.showStatus("");
+		dispatcher.quit();
 		// remove empty trakem2.mipmaps folder if any
 		if (null != dir_mipmaps && !dir_mipmaps.equals(dir_storage)) {
 			File f = new File(dir_mipmaps);
@@ -296,19 +327,23 @@ public class FSLoader extends Loader {
 		return nid;
 	}
 
-	public double[][][] fetchBezierArrays(long id) { // profiles are loaded in full from the XML file
+	/** Loaded in full from XML file */
+	public double[][][] fetchBezierArrays(long id) {
 		return null;
 	}
 
+	/** Loaded in full from XML file */
 	public ArrayList fetchPipePoints(long id) {
 		return null;
 	}
 
+	/** Loaded in full from XML file */
 	public ArrayList fetchBallPoints(long id) {
 		return null;
 	}
 
-	public Area fetchArea(long area_list_id, long layer_id) { // loaded in full from XML file
+	/** Loaded in full from XML file */
+	public Area fetchArea(long area_list_id, long layer_id) { 
 		return null;
 	}
 
@@ -427,6 +462,7 @@ public class FSLoader extends Loader {
 
 			releaseToFit(n_bytes);
 			imp = openImage(path);
+
 			preProcess(imp);
 
 			synchronized (db_lock) {
@@ -435,7 +471,10 @@ public class FSLoader extends Loader {
 					max_memory += n_bytes;
 
 					if (null == imp) {
-						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
+						if (!hs_unloadable.contains(p)) {
+							Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
+							hs_unloadable.add(p);
+						}
 						removePatchLoadingLock(plock);
 						unlock();
 						plock.unlock();
@@ -444,20 +483,20 @@ public class FSLoader extends Loader {
 					// update all clients of the stack, if any
 					if (null != slice) {
 						String rel_path = getPath(p); // possibly relative
-						int r_isl = rel_path.lastIndexOf("-----#slice");
+						final int r_isl = rel_path.lastIndexOf("-----#slice");
 						if (-1 != r_isl) rel_path = rel_path.substring(0, r_isl); // should always happen
-						for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
-							Map.Entry entry = (Map.Entry)it.next();
-							String str = (String)entry.getValue(); // this is like calling getPath(p)
+						for (Iterator<Map.Entry<Long,String>> it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
+							final Map.Entry<Long,String> entry = it.next();
+							final String str = entry.getValue(); // this is like calling getPath(p)
 							//Utils.log2("processing " + str);
 							if (0 != str.indexOf(rel_path)) {
 								Utils.log2("SKIP str is: " + str + "\t but path is: " + rel_path);
 								continue; // get only those whose path is identical, of course!
 							}
-							int isl = str.lastIndexOf("-----#slice=");
+							final int isl = str.lastIndexOf("-----#slice=");
 							if (-1 != isl) {
 								//int i_slice = Integer.parseInt(str.substring(isl + 12));
-								long lid = ((Long)entry.getKey()).longValue(); // really, J jate java
+								final long lid = entry.getKey();
 								imps.put(lid, imp);
 								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
 								// kludge, but what else short of a gigantic hashtable
@@ -470,7 +509,7 @@ public class FSLoader extends Loader {
 							}
 						}
 						// set proper active slice
-						int ia = Integer.parseInt(slice.substring(12));
+						final int ia = Integer.parseInt(slice.substring(12));
 						imp.setSlice(ia);
 						if (Layer.IMAGEPROCESSOR == format) ip = imp.getStack().getProcessor(ia); // otherwise creates one new for nothing
 					} else {
@@ -502,14 +541,35 @@ public class FSLoader extends Loader {
 		}
 	}
 
+	/** Loaded in full from XML file */
 	public Object[] fetchLabel(DLabel label) {
 		return null;
 	}
 
-	/** Does NOT return the original image, but the working. The original image is not stored if a working image exists. */
-	synchronized public ImagePlus fetchOriginal(Patch patch) {
-		Utils.showMessage("The original image was NOT stored.");
-		return fetchImagePlus(patch);
+	/** Loads and returns the original image, which is not cached, or returns null if it's not different than the working image. */
+	synchronized public ImagePlus fetchOriginal(final Patch patch) {
+		String original_path = patch.getOriginalPath();
+		if (null == original_path) return null;
+		// else, reserve memory and open it:
+		long n_bytes = estimateImageFileSize(patch, 0);
+		// reserve memory:
+		synchronized (db_lock) {
+			lock();
+			max_memory -= n_bytes;
+			unlock();
+		}
+		try {
+			return openImage(original_path);
+		} catch (Throwable t) {
+			IJError.print(t);
+		} finally {
+			synchronized (db_lock) {
+				lock();
+				max_memory += n_bytes;
+				unlock();
+			}
+		}
+		return null;
 	}
 
 	public void prepare(Layer layer) {
@@ -536,83 +596,8 @@ public class FSLoader extends Loader {
 	public boolean updateInDatabase(final DBObject ob, final String key) {
 		setChanged(true);
 		if (ob.getClass() == Patch.class) {
-			try {
-				Patch p = (Patch)ob;
-				if (key.equals("tiff_working")) {
-					String path = getAbsolutePath(p);
-					String slice = null;
-					// path can be null if the image is pasted, or from a copy
-					if (null != path) {
-						int i_sl = path.lastIndexOf("-----#slice=");
-						if (-1 != i_sl) {
-							slice = path.substring(i_sl);
-							path = path.substring(0, i_sl);
-						}
-					}
-					boolean overwrite = null != path;
-					if (overwrite) {
-						//Utils.printCaller(this, 10);
-						YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "Overwrite '" + p.getTitle() + "'\nat " + path + "' ?");
-						if (yn.cancelPressed()) {
-							return false;
-						} else if (!yn.yesPressed()) { // so, 'no' button pressed
-							overwrite = false;
-						}
-					}
-					if (overwrite) {
-						// save as a separate image and update path
-						path = path.substring(0, path.lastIndexOf('/') + 1) + p.getTitle();
-						if (path.length() -4 == path.lastIndexOf(".tif")) {
-							path = path.substring(0, path.length() -4);
-						}
-						// remove previous time stamp, if any
-						int i = 0;
-						for (i=path.length()-1; i>-1; i--) {
-							if (Character.isDigit(path.charAt(i))) continue;
-							break;
-						}
-						if (-1 != i && path.length() - i >= 12) { // otherwise it may not be a time stamp
-							path = path.substring(0, i+1);
-						} else {
-							path += "_";
-						}
-						path += System.currentTimeMillis() + ".tif";
-						path = super.exportImage(p, path, true);
-						Utils.log2("Saved original " + ht_paths.get(p.getId()) + "\n\t at: " + path);
-						// make path relative if possible
-						if (null != project_file_path) { // project may be unsaved
-							File fxml = new File(project_file_path);
-							String parent_dir = fxml.getParent().replace('\\', '/');
-							if (!parent_dir.endsWith("/")) parent_dir += "/";
-							if (0 == path.indexOf((String)ht_paths.get(p.getId()))) {
-								path = path.substring(path.length());
-							}
-						}
-						// update paths' hashtable
-						if (null == slice) {
-							updatePatchPath(p, path);
-						} else {
-							// update all slices
-							for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
-								Map.Entry entry = (Map.Entry)it.next();
-								String str = (String)entry.getValue();
-								int isl = str.lastIndexOf("-----#slice=");
-								if (-1 != isl) {
-									entry.setValue(path + str.substring(isl));
-								}
-							}
-						}
-						return true;
-					} else {
-						// else 'yes' button pressed: overwrite image file
-						Utils.log2("overwriting image at " + path);
-						exportImage(p, path, true);
-					}
-				}
-			} catch (Exception e) {
-				IJError.print(e);
-				return false;
-			}
+			Patch p = (Patch)ob;
+			if (key.equals("tiff_working")) return null != setImageFile(p, fetchImagePlus(p));
 		}
 		return true;
 	}
@@ -650,14 +635,140 @@ public class FSLoader extends Loader {
 		return true;
 	}
 
+	/** Returns the absolute path to a file that contains the given image - which may be the path as described in the ImagePlus FileInfo object itself, or a totally new file. */
+	public String setImageFile(final Patch p, final ImagePlus imp) {
+		if (null == imp) return null;
+		try {
+			String path = getAbsolutePath(p);
+			String slice = null;
+			//
+			// path can be null if the image is pasted, or from a copy, or totally new
+			if (null != path) {
+				int i_sl = path.lastIndexOf("-----#slice=");
+				if (-1 != i_sl) {
+					slice = path.substring(i_sl);
+					path = path.substring(0, i_sl);
+				}
+			} else {
+				// no path, inspect image FileInfo's path if the image has no changes
+				if (!imp.changes) {
+					final FileInfo fi = imp.getOriginalFileInfo();
+					if (null != fi && null != fi.directory && null != fi.fileName) {
+						final String fipath = fi.directory.replace('\\', '/') + "/" + fi.fileName;
+						if (new File(fipath).exists()) {
+							// no need to save a new image, it exists and has no changes
+							updatePaths(p, fipath, null != slice);
+							cacheAll(p, imp);
+							Utils.log2("setImageFile: path exists for fileinfo at " + fipath);
+							return fipath;
+						}
+					}
+				}
+			}
+			if (null != path) {
+				final String starting_path = path;
+				// Save as a separate image in a new path within the storage folder
+
+				String filename = path.substring(path.lastIndexOf('/') +1);
+
+				// remove .tif extension if there
+				if (filename.endsWith(".tif")) filename = filename.substring(0, filename.length() -4);
+
+				final String tag = ".id" + p.getId() + ".";
+
+				if (!filename.endsWith(tag)) filename += tag + "tif";
+				else filename += ".tif";
+
+				path = getImageStorageFolder() + filename;
+
+				File file = new File(path);
+				int itag = path.lastIndexOf(tag);
+				int i = 1;
+				while (file.exists() || path.equals(p.getOriginalPath())) {
+					// Houston, we have a problem: a user reused a non-original image
+					path = path.substring(0, itag) + "." + i + tag + "tif";
+					i++;
+					file = new File(path);
+				}
+
+				Utils.log2("path to use: " + path);
+
+				final String path2 = super.exportImage(p, imp, path, true);
+
+				Utils.log2("path exported to: " + path2);
+
+				// update paths' hashtable
+				if (null != path2) {
+					updatePaths(p, path2, null != slice);
+					cacheAll(p, imp);
+					hs_unloadable.remove(p);
+					return path2;
+				} else {
+					Utils.log2("WARNING could not save image at " + path);
+					// undo
+					updatePaths(p, starting_path, null != slice);
+					return null;
+				}
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
+	}
+
+	private final String makeFileTitle(final Patch p) {
+		String title = p.getTitle();
+		if (null == title) return "image-" + p.getId();
+		title = asSafePath(title);
+		if (0 == title.length()) return "image-" + p.getId();
+		return title;
+	}
+
+	/** Associate patch with imp, and all slices as well if any. */
+	private void cacheAll(final Patch p, final ImagePlus imp) {
+		if (p.isStack()) {
+			for (Patch pa : p.getStackPatches()) {
+				cache(pa, imp);
+			}
+		} else {
+			cache(p, imp);
+		}
+	}
+
+	/** For the Patch and for any associated slices if the patch is part of a stack. */
+	private void updatePaths(final Patch patch, final String path, final boolean is_stack) {
+		synchronized (db_lock) {
+			lock();
+			try {
+				// ensure the old path is cached in the Patch, to get set as the original if there is no original.
+				if (is_stack) {
+					for (Patch p : patch.getStackPatches()) {
+						long pid = p.getId();
+						String str = ht_paths.get(pid);
+						int isl = str.lastIndexOf("-----#slice=");
+						updatePatchPath(p, path + str.substring(isl));
+					}
+				} else {
+					Utils.log2("path to set: " + path);
+					Utils.log2("path before: " + ht_paths.get(patch.getId()));
+					updatePatchPath(patch, path);
+					Utils.log2("path after: " + ht_paths.get(patch.getId()));
+				}
+			} catch (Throwable e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+	}
+
 	/** With slice info appended at the end; only if it exists, otherwise null. */
 	public String getAbsolutePath(final Patch patch) {
-		String abs_path = patch.getAbsolutePath();
+		String abs_path = patch.getCurrentPath();
 		if (null != abs_path) return abs_path;
 		// else, compute, set and return it:
-		Object ob = ht_paths.get(patch.getId());
-		if (null == ob) return null;
-		String path = (String)ob;
+		String path = ht_paths.get(patch.getId());
+		if (null == path) return null;
 		// substract slice info if there
 		int i_sl = path.lastIndexOf("-----#slice=");
 		String slice = null;
@@ -677,7 +788,7 @@ public class FSLoader extends Loader {
 		// reappend slice info if existent
 		if (null != slice) path += slice;
 		// set it
-		patch.setAbsolutePath(path);
+		patch.cacheCurrentPath(path);
 		return path;
 	}
 
@@ -711,6 +822,8 @@ public class FSLoader extends Loader {
 			// avoid the potential C:// of windows and the starting // of a samba network
 			path = path.substring(0, start) + path.substring(start).replace("//", "/");
 		}
+		// cache path as absolute
+		patch.cacheCurrentPath(isRelativePath(path) ? getParentFolder() + path : path);
 		// if path is absolute, try to make it relative
 		path = makeRelativePath(path);
 		// store
@@ -718,30 +831,9 @@ public class FSLoader extends Loader {
 		//Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
 	}
 
-	/** Overriding superclass method; if a path for the given Patch exists in the ht_paths HashMap, it will be returned (meaning, the image exists already); if not, then an attempt is made to save it in the given path. The overwrite flag is used in the second case, to avoid creating a new image every time the Patch pixels are edited. The original image is never overwritten in any case. */
-	public String exportImage(Patch patch, String path, boolean overwrite) {
-		Object ob = ht_paths.get(patch.getId());
-		if (null == ob) {
-			// means, the image has no related source file
-			if (null == path) {
-				if (null == project_file_path) {
-					this.project_file_path = save(patch.getProject());
-					if (null == project_file_path) {
-						return null;
-					}
-				}
-				path = makePatchesDir(new File(project_file_path)) + "/" + patch.getTitle().replace(' ', '_');
-			}
-			path = super.exportImage(patch, path, overwrite);
-			// record
-			Utils.log2("patch: " + patch + "  and path: " + path);
-			updatePatchPath(patch, path);
-			return path;
-		} else {
-			//Utils.printCaller(this, 7);
-			//Utils.log2("FSLoader.exportImage: path is " + ob.toString());
-			return (String)ob; // the path of the source image file
-		}
+	/** Takes a String and returns a copy with the following conversions: / to -, space to _, and \ to -. */
+	public String asSafePath(final String name) {
+		return name.trim().replace('/', '-').replace(' ', '_').replace('\\','-');
 	}
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
@@ -774,10 +866,9 @@ public class FSLoader extends Loader {
 		return path;
 	}
 
-	/** Returns the stored path for the given Patch image, which may be relative.*/
+	/** Returns the stored path for the given Patch image, which may be relative and may contain slice information appended.*/
 	public String getPath(final Patch patch) {
-		final Object ob = ht_paths.get(patch.getId());
-		return (String)ob; // casting a null is ok
+		return ht_paths.get(patch.getId());
 	}
 
 	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
@@ -1142,7 +1233,7 @@ public class FSLoader extends Loader {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				final boolean as_grey = !ip.isColorLut();
-				if (as_grey && null == cm) {
+				if (as_grey && null == cm) { // TODO needs fixing for'half' method
 					cm = GRAY_LUT;
 				} else cm = null;
 				if (Loader.GAUSSIAN == resizing_mode) {
@@ -1164,7 +1255,7 @@ public class FSLoader extends Loader {
 						// 5 - save as 8-bit jpeg
 						ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
 						ip2.setMinAndMax(patch.getMin(), patch.getMax());
-						ip2.setColorModel(cm); // the LUT
+						if (null != cm) ip2.setColorModel(cm); // the LUT
 						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey)) {
 							cannot_regenerate.add(patch);
 							break;
@@ -1214,7 +1305,11 @@ public class FSLoader extends Loader {
 		}
 	}
 
-	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.*/
+	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.
+	 *
+	 * @param al : the list of Patch instances to generate mipmaps for.
+	 * @param overwrite : whether to overwrite any existing mipmaps, or save only those that don't exist yet for whatever reason. This flag provides the means for minimal effort mipmap regeneration.)
+	 * */
 	public Bureaucrat generateMipMaps(final ArrayList al, final boolean overwrite) {
 		if (null == al || 0 == al.size()) return null;
 		if (null == dir_mipmaps) createMipMapsDir(null);
@@ -1408,19 +1503,18 @@ public class FSLoader extends Loader {
 		}
 	}
 
-	// TODO this can potentially be a lot of threads! Should be cuing Runnable objects.
-	/** Gets data from the Patch and forks a new Thread to do the file removal. */
+	/** Gets data from the Patch and queues a new task to do the file removal in a separate task manager thread. */
 	public void removeMipMaps(final Patch p) {
 		if (null == dir_mipmaps) return;
 		try {
 			// remove the files
 			final int width = (int)p.getWidth();
 			final int height = (int)p.getHeight();
-			String path = getAbsolutePath(p);
+			final String path = getAbsolutePath(p);
 			if (null == path) return; // missing file
 			final String filename = new File(path).getName() + "." + p.getId() + ".jpg";
-			new Thread() {
-				public void run() {
+			// cue the task in a dispatcher:
+			dispatcher.exec(new Runnable() { public void run() {
 
 			int w = width;
 			int h = height;
@@ -1429,7 +1523,7 @@ public class FSLoader extends Loader {
 				w /= 2;
 				h /= 2;
 				k++;
-				File f = new File(dir_mipmaps + k + "/" + filename);
+				final File f = new File(dir_mipmaps + k + "/" + filename);
 				if (f.exists()) {
 					try {
 						if (!f.delete()) {
@@ -1441,8 +1535,7 @@ public class FSLoader extends Loader {
 				}
 			}
 
-				}
-			}.start();
+			}});
 		} catch (Exception e) {
 			IJError.print(e);
 		}
@@ -1643,7 +1736,7 @@ public class FSLoader extends Loader {
 			case ImagePlus.COLOR_256:
 				bytes_per_pixel = 1;
 				// check jpeg, which can only encode RGB (taken care of above) and 8-bit and 8-bit color images:
-				String path = (String)ht_paths.get(p.getId());
+				String path = ht_paths.get(p.getId());
 				if (null != path && path.endsWith(".jpg")) bytes_per_pixel = 5; //4 for the int[] and 1 for the byte[]
 				break;
 			default:
