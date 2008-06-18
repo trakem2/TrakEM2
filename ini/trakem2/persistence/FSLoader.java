@@ -659,7 +659,7 @@ public class FSLoader extends Loader {
 							// no need to save a new image, it exists and has no changes
 							updatePaths(p, fipath, null != slice);
 							cacheAll(p, imp);
-							Utils.log2("setImageFile: path exists for fileinfo at " + fipath);
+							Utils.log2("Reusing image file: path exists for fileinfo at " + fipath);
 							return fipath;
 						}
 					}
@@ -671,31 +671,40 @@ public class FSLoader extends Loader {
 
 				String filename = path.substring(path.lastIndexOf('/') +1);
 
+				//Utils.log2("filename 1: " + filename);
+
 				// remove .tif extension if there
-				if (filename.endsWith(".tif")) filename = filename.substring(0, filename.length() -4);
+				if (filename.endsWith(".tif")) filename = filename.substring(0, filename.length() -3); // keep the dot
 
+				//Utils.log2("filename 2: " + filename);
+
+				// check if file ends with a tag of form ".id1234." where 1234 is p.getId()
 				final String tag = ".id" + p.getId() + ".";
+				if (!filename.endsWith(tag)) filename += tag.substring(1); // without the starting dot, since it has one already
+				// reappend extension
+				filename += "tif";
 
-				if (!filename.endsWith(tag)) filename += tag + "tif";
-				else filename += ".tif";
+				//Utils.log2("filename 3: " + filename);
 
 				path = getImageStorageFolder() + filename;
 
-				File file = new File(path);
-				int itag = path.lastIndexOf(tag);
-				int i = 1;
-				while (file.exists() || path.equals(p.getOriginalPath())) {
+				if (path.equals(p.getOriginalPath())) {
 					// Houston, we have a problem: a user reused a non-original image
-					path = path.substring(0, itag) + "." + i + tag + "tif";
-					i++;
-					file = new File(path);
+					File file = null;
+					int i = 1;
+					final int itag = path.lastIndexOf(tag);
+					do {
+						path = path.substring(0, itag) + "." + i + tag + "tif";
+						i++;
+						file = new File(path);
+					} while (file.exists());
 				}
 
-				Utils.log2("path to use: " + path);
+				//Utils.log2("path to use: " + path);
 
 				final String path2 = super.exportImage(p, imp, path, true);
 
-				Utils.log2("path exported to: " + path2);
+				//Utils.log2("path exported to: " + path2);
 
 				// update paths' hashtable
 				if (null != path2) {
@@ -704,7 +713,7 @@ public class FSLoader extends Loader {
 					hs_unloadable.remove(p);
 					return path2;
 				} else {
-					Utils.log2("WARNING could not save image at " + path);
+					Utils.log("WARNING could not save image at " + path);
 					// undo
 					updatePaths(p, starting_path, null != slice);
 					return null;

@@ -400,23 +400,35 @@ abstract public class Loader {
 	/** Remove a link between two objects. Returns true always in this empty method. */
 	public boolean removeCrossLink(long id1, long id2) { return true; }
 
-	synchronized public void cache(Displayable d) {
-		cache(d, null);
-		notify();
-	}
-
 	/** Add to the cache, or if already there, make it be the last (to be flushed the last). */
 	public void cache(final Displayable d, final ImagePlus imp) {
 		synchronized (db_lock) {
 			lock();
 			final long id = d.getId(); // each Displayable has a unique id for each database, not for different databases, that's why the cache is NOT shared.
-			if (d instanceof Patch) {
-				Patch p = (Patch)d;
-				if (null == imps.get(id)) { // the 'get' call already puts it at the end if there.
-					imps.put(id, imp);
-				}
+			if (Patch.class == d.getClass()) {
+				unlock();
+				cache((Patch)d, imp);
+				return;
 			} else {
 				Utils.log("Loader.cache: don't know how to cache: " + d);
+			}
+			unlock();
+		}
+	}
+
+	public void cache(final Patch p, final ImagePlus imp) {
+		if (null == imp || null == imp.getProcessor()) return;
+		synchronized (db_lock) {
+			lock();
+			final long id = p.getId();
+			final ImagePlus cached = imps.get(id);
+			if (null == cached
+			 || cached != imp
+			 || imp.getProcessor().getPixels() != cached.getProcessor().getPixels()
+			) {
+				imps.put(id, imp);
+			} else {
+				imps.get(id); // send to the end
 			}
 			unlock();
 		}
@@ -1059,7 +1071,9 @@ abstract public class Loader {
 
 		// 5 - else, fetch the ImageProcessor and make an image from it of the proper size and quality
 
-		ImageProcessor ip = fetchImageProcessor(p);
+		if (hs_unloadable.contains(p)) return NOT_FOUND;
+
+		final ImageProcessor ip = fetchImageProcessor(p);
 
 		synchronized (db_lock) {
 			try {
