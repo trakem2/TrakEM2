@@ -539,13 +539,13 @@ public abstract class Displayable extends DBObject {
 			//if not visible, it's out, so return true:
 			return true;
 		}
-		final Rectangle box = getBoundingBox(); // includes rotation
+		final Rectangle box = getBoundingBox(null); // includes rotation
 		// 2 - check if out of clipRect (clipRect is in screen coords, whereas srcRect is in offscreen coords)
 		if (null != clipRect && null != srcRect) {
-			int screen_x = (int)((box.x -srcRect.x) * magnification);
-			int screen_y = (int)((box.y -srcRect.y) * magnification);
-			int screen_width = (int)(box.width * magnification);
-			int screen_height = (int)(box.height * magnification);
+			final int screen_x = (int)((box.x -srcRect.x) * magnification);
+			final int screen_y = (int)((box.y -srcRect.y) * magnification);
+			final int screen_width = (int)(box.width * magnification);
+			final int screen_height = (int)(box.height * magnification);
 			if ((screen_x + screen_width) < clipRect.x || (screen_y + screen_height) < clipRect.y || screen_x > (clipRect.x + clipRect.width) || screen_y > (clipRect.y + clipRect.height)) {
 				return true;
 			}
