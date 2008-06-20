@@ -754,7 +754,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	}
 
 	/** Used for reconstruction purposes, avoids repainting or updating. */
-	public void addSilently(ZDisplayable zdispl) {
+	public void addSilently(final ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) return;
 		try {
 			zdispl.setLayer(0 == al_layers.size() ? null : al_layers.get(0));
@@ -769,8 +769,11 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	}
 
 	/** Remove a child. Does not destroy the child nor remove it from the database, only from the Display. */
-	public boolean remove(ZDisplayable zdispl) {
+	public boolean remove(final ZDisplayable zdispl) {
 		if (null == zdispl || null == al_zdispl || -1 == al_zdispl.indexOf(zdispl)) return false;
+		// remove from Bucket before modifying stack index
+		if (null != root) Bucket.remove(zdispl, db_map);
+		// now remove proper, so stack_index hasn't changed yet
 		al_zdispl.remove(zdispl);
 		Display.remove(zdispl);
 		return true;
@@ -801,12 +804,12 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		return al;
 	}
 
-	public boolean contains(Layer layer) {
+	public boolean contains(final Layer layer) {
 		if (null == layer) return false;
 		return -1 != al_layers.indexOf(layer);
 	}
 
-	public boolean contains(Displayable zdispl) {
+	public boolean contains(final Displayable zdispl) {
 		if (null == zdispl) return false;
 		return -1 != al_zdispl.indexOf(zdispl);
 	}
