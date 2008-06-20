@@ -141,7 +141,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	private boolean invalid_volatile = false;
 
 	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
-	private void renderVolatileImage(final BufferedImage bufferedImage, final Displayable active, final Displayable[] top, final Layer active_layer, final int c_alphas, final AffineTransform at) {
+	private void renderVolatileImage(final BufferedImage bufferedImage, final Displayable active, final Displayable[] top, final Layer active_layer, final int c_alphas, final AffineTransform at, Rectangle clipRect) {
 		do {
 			final int w = getWidth(), h = getHeight();
 			final GraphicsConfiguration gc = getGraphicsConfiguration();
@@ -154,15 +154,20 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				volatileImage = gc.createCompatibleVolatileImage(w, h);
 				volatileImage.setAccelerationPriority(1.0f);
 				invalid_volatile = false;
+				clipRect = null; // paint all
 			}
 			// 
 			// Now paint the BufferedImage into the accelerated image
 			//
 			final Graphics2D g = volatileImage.createGraphics();
 
+			// 0 - set clipRect
+			if (null != clipRect) g.setClip(clipRect);
+
 			// 1 - Erase any background
 			g.setColor(Color.black);
-			g.fillRect(0, 0, w, h);
+			if (null == clipRect) g.fillRect(0, 0, w, h);
+			else g.fillRect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
 
 			// 2 - Paint offscreen image
 			g.drawImage(bufferedImage, 0, 0, null);
@@ -171,8 +176,15 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			if (null != active_layer) {
 				g.setTransform(at);
 				g.setStroke(this.stroke); // AFTER setting the transform
-				if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, null)) active.paint(g, magnification, true, c_alphas, active_layer);
-				if (null != top) for (int i=0; i<top.length; i++) top[i].paint(g, magnification, true, c_alphas, active_layer);
+				if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) active.paint(g, magnification, true, c_alphas, active_layer);
+				if (null != top) {
+					final Rectangle tmp = null != clipRect ? new Rectangle() : null;
+					final Rectangle clip = null != clipRect ? new Rectangle((int)(clipRect.x * magnification) - srcRect.x, (int)(clipRect.y * magnification) - srcRect.y, (int)(clipRect.width * magnification), (int)(clipRect.height * magnification)) : null;
+					for (int i=0; i<top.length; i++) {
+						if (null != clipRect && !top[i].getBoundingBox(tmp).intersects(clip)) continue;
+						top[i].paint(g, magnification, true, c_alphas, active_layer);
+					}
+				}
 				//Utils.log2("painted new volatile with active " + active);
 			}
 
@@ -183,15 +195,21 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent;
 	 *  Paints (and re-renders, if necessary) the volatile image onto the given Graphics object, which
 	 *  is that of the DisplayCanvas as provided to the paint(Graphics g) method.
+	 *
+	 *  Expects clipRect in screen coordinates
 	 */
-	private void render(final Graphics g, final Displayable active, final Displayable[] top, final Layer active_layer, final int c_alphas, final AffineTransform at) {
+	private void render(final Graphics g, final Displayable active, final Displayable[] top, final Layer active_layer, final int c_alphas, final AffineTransform at, Rectangle clipRect) {
 		final Graphics2D g2d = (Graphics2D) g.create();
 		g2d.setRenderingHints(rhints);
 		do {
-			if (invalid_volatile || volatileImage == null
-				|| volatileImage.validate(getGraphicsConfiguration()) != VolatileImage.IMAGE_OK) {
-				renderVolatileImage(offscreen, active, top, active_layer, c_alphas, at);
+			if (invalid_volatile || null == volatileImage
+			 || volatileImage.validate(getGraphicsConfiguration()) != VolatileImage.IMAGE_OK)
+			{
+				// clear clip, remake in full
+				clipRect = null;
+				renderVolatileImage(offscreen, active, top, active_layer, c_alphas, at, clipRect);
 			}
+			if (null != clipRect) g2d.setClip(clipRect);
 			g2d.drawImage(volatileImage, 0, 0, null);
 		} while (volatileImage.contentsLost());
 
@@ -338,9 +356,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 			Displayable[] di = null;
 
-			if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass() == AreaList.class && ((AreaList)active).isFillPaint()) {
+			/*if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass() == AreaList.class && ((AreaList)active).isFillPaint()) {
 				// no background paint if painting in fill_paint mode and not erasing
 			} else {
+			*/
 				synchronized (offscreen_lock) {
 					offscreen_lock.lock();
 					try {
@@ -358,7 +377,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 						if (null != offscreen) {
 							//g.drawImage(offscreen, 0, 0, null);
 							if (dragging) invalidateVolatile(); // to update the active at least
-							render(g, active, di, active_layer, c_alphas, at_original);
+							render(g, active, di, active_layer, c_alphas, at_original, clipRect);
 						}
 
 						g2d.setTransform(at_original);
@@ -368,7 +387,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					}
 					offscreen_lock.unlock();
 				}
-			}
+			//}
 
 			g2d.setStroke(this.stroke);
 
