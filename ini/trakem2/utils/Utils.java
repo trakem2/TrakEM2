@@ -935,6 +935,16 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 		});
 	}
+	/** Like calling pack() on a Frame but on a Component. */
+	static public final void revalidateComponent(final Component c) {
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				c.invalidate();
+				c.validate();
+				c.repaint();
+			}
+		});
+	}
 
 	static public final Point2D.Double transform(final AffineTransform affine, final double x, final double y) {
 		final Point2D.Double pSrc = new Point2D.Double(x, y);
