@@ -69,7 +69,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private JFrame frame;
 	private JTabbedPane tabs;
-	private Hashtable ht_tabs;
+	private Hashtable<Class,JScrollPane> ht_tabs;
 	private JScrollPane scroll_patches;
 	private JPanel panel_patches;
 	private JScrollPane scroll_profiles;
@@ -95,7 +95,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	private int c_alphas = 0xffffffff; // all 100 % visible
 	private Channel[] channels;
 
-	private Hashtable ht_panels = new Hashtable();
+	private Hashtable<Displayable,DisplayablePanel> ht_panels = new Hashtable<Displayable,DisplayablePanel>();
 
 	/** Handle drop events, to insert image files. */
 	private DNDInsertImage dnd;
@@ -287,8 +287,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						if (null != d.active) {
 							// set the transp slider to the alpha value of the active Displayable if any
 							d.transp_slider.setValue((int)(d.active.getAlpha() * 100));
-							Object ob = d.ht_panels.get(d.active);
-							if (null != ob) ((DisplayablePanel)ob).setActive(true);
+							DisplayablePanel dp = d.ht_panels.get(d.active);
+							if (null != dp) dp.setActive(true);
 						}
 					}
 					}});
@@ -601,12 +601,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		this.scroll_labels.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Labels", scroll_labels);
 
-		this.ht_tabs = new Hashtable();
+		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
 		this.ht_tabs.put(Profile.class, scroll_profiles);
 		this.ht_tabs.put(ZDisplayable.class, scroll_zdispl);
+		this.ht_tabs.put(AreaList.class, scroll_zdispl);
 		this.ht_tabs.put(Pipe.class, scroll_zdispl);
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
+		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
 		// channels not included
 
@@ -889,7 +891,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		clearTab(panel_patches, "Patches");
 		clearTab(panel_labels, "Labels");
 		// distribute Displayable to the tabs. Ignore LayerSet instances.
-		if (null == ht_panels) ht_panels = new Hashtable();
+		if (null == ht_panels) ht_panels = new Hashtable<Displayable,DisplayablePanel>();
 		else ht_panels.clear();
 		Iterator it = layer.getDisplayables().iterator();
 		while (it.hasNext()) {
@@ -1232,7 +1234,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Add it to the proper panel, at the top, and set it active. */
 	private final void add(final Displayable d, final boolean activate, final boolean repaint_snapshot) {
-		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(d);
+		DisplayablePanel dp = ht_panels.get(d);
 		if (null != dp && activate) { // for ZDisplayable objects (TODO I think this is not used anymore)
 			dp.setActive(true);
 			//setActive(d);
@@ -1285,27 +1287,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void remove(final Displayable displ) {
-		Object ob = ht_panels.remove(displ);
+		DisplayablePanel ob = ht_panels.remove(displ);
 		if (null != ob) {
-			Component c = (Component)ob;
-			if (displ.getClass() == Patch.class) {
-				panel_patches.remove(c);
-				Utils.updateComponent(panel_patches);
-			} else if (displ instanceof ZDisplayable) {
-				panel_zdispl.remove(c);
-				Utils.updateComponent(panel_zdispl);
-			} else if (displ.getClass() == DLabel.class) {
-				panel_labels.remove(c);
-				Utils.updateComponent(panel_labels);
-			} else if (displ.getClass() == Profile.class) {
-				panel_profiles.remove(c);
-				Utils.updateComponent(panel_profiles);
+			final JScrollPane jsp = ht_tabs.get(displ.getClass());
+			if (null != jsp) {
+				JPanel p = (JPanel)jsp.getViewport().getView();
+				p.remove((Component)ob);
+				Utils.revalidateComponent(p);
 			}
 		}
 		if (null == active || !selection.contains(displ)) {
 			canvas.setUpdateGraphics(true);
 		}
 		layer.getParent().removeFromUndo(displ);
+		canvas.invalidateVolatile(); // removing active, no need to update offscreen but yes the volatile
 		repaint(displ, null, 5, true, false);
 		selection.remove(displ);
 	}
@@ -1350,7 +1345,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null != r) canvas.repaint(r, extra);
 		else canvas.repaint(displ, extra);
 		if (repaint_navigator) {
-			DisplayablePanel dp = (DisplayablePanel)ht_panels.get(displ);
+			DisplayablePanel dp = ht_panels.get(displ);
 			if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 			navigator.repaint(true); // everything
 		}
@@ -1361,7 +1356,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		for (Display d : al_displays) {
 			if (d.layer.contains(displ)) {
 				if (!d.navigator.isPainted(displ)) {
-					DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+					DisplayablePanel dp = d.ht_panels.get(displ);
 					if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 					d.navigator.repaint(displ);
 				}
@@ -1411,7 +1406,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
 			if (layer == d.layer) {
-				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+				DisplayablePanel dp = d.ht_panels.get(displ);
 				if (null != dp) dp.repaint();
 				d.navigator.repaint(true);
 			}
@@ -1433,7 +1428,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (set.contains(d.layer)) {
 				if (repaint_navigator) {
 					if (null != displ) {
-						DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+						DisplayablePanel dp = d.ht_panels.get(displ);
 						if (null != dp) dp.repaint();
 					}
 					d.navigator.repaint(true);
@@ -1655,15 +1650,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		// deactivate previously active
 		if (null != prev_active) {
-			final Object ob = ht_panels.get(prev_active);
-			if (null != ob) ((DisplayablePanel)ob).setActive(false);
+			final DisplayablePanel ob = ht_panels.get(prev_active);
+			if (null != ob) ob.setActive(false);
 			// erase "decorations" of the previously active
 			canvas.repaint(selection.getBox(), 4);
 		}
 		// activate the new active
 		if (null != displ) {
-			final Object ob = ht_panels.get(displ);
-			if (null != ob) ((DisplayablePanel)ob).setActive(true);
+			final DisplayablePanel ob = ht_panels.get(displ);
+			if (null != ob) ob.setActive(true);
 			updateInDatabase("active_displayable_id");
 			if (displ.getClass() != Patch.class) project.select(displ); // select the node in the corresponding tree, if any.
 			// select the proper tab, and scroll to visible
@@ -1726,22 +1721,22 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private void selectTab(Patch patch) {
 		tabs.setSelectedComponent(scroll_patches);
-		scrollToShow(scroll_patches, (DisplayablePanel)ht_panels.get(patch));
+		scrollToShow(scroll_patches, ht_panels.get(patch));
 	}
 
 	private void selectTab(Profile profile) {
 		tabs.setSelectedComponent(scroll_profiles);
-		scrollToShow(scroll_profiles, (DisplayablePanel)ht_panels.get(profile));
+		scrollToShow(scroll_profiles, ht_panels.get(profile));
 	}
 
 	private void selectTab(DLabel label) {
 		tabs.setSelectedComponent(scroll_labels);
-		scrollToShow(scroll_labels, (DisplayablePanel)ht_panels.get(label));
+		scrollToShow(scroll_labels, ht_panels.get(label));
 	}
 
 	private void selectTab(ZDisplayable zd) {
 		tabs.setSelectedComponent(scroll_zdispl);
-		scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(zd));
+		scrollToShow(scroll_zdispl, ht_panels.get(zd));
 	}
 
 	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
@@ -2192,16 +2187,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Check if a panel for the given Displayable is completely visible in the JScrollPane */
 	public boolean isWithinViewport(final Displayable d) {
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-		final Class c = d.getClass();
-		if (c == Profile.class && scroll == scroll_profiles) {
-			return isWithinViewport(scroll_profiles, (DisplayablePanel)ht_panels.get(d));
-		} else if (c == Patch.class && scroll == scroll_patches) {
-			return isWithinViewport(scroll_patches, (DisplayablePanel)ht_panels.get(d));
-		} else if (d instanceof ZDisplayable && scroll == scroll_zdispl) {
-			return isWithinViewport(scroll_zdispl, (DisplayablePanel)ht_panels.get(d));
-		} else if (c == DLabel.class && scroll == scroll_labels) {
-			return isWithinViewport(scroll_labels, (DisplayablePanel)ht_panels.get(d));
-		} else return false;
+		if (ht_tabs.get(d.getClass()) == scroll) return isWithinViewport(scroll, ht_panels.get(d));
+		return false;
 	}
 
 	private boolean isWithinViewport(JScrollPane scroll, DisplayablePanel dp) {
@@ -2218,22 +2205,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Check if a panel for the given Displayable is partially visible in the JScrollPane */
 	public boolean isPartiallyWithinViewport(final Displayable d) {
-		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-		if (d instanceof ZDisplayable && scroll == scroll_zdispl) {
-			return isPartiallyWithinViewport(scroll_zdispl, (DisplayablePanel)ht_panels.get(d));
-		}
-		final Class c = d.getClass();
-		if (Patch.class == c && scroll == scroll_patches) {
-			return isPartiallyWithinViewport(scroll_patches, (DisplayablePanel)ht_panels.get(d));
-		} else if (DLabel.class == c && scroll == scroll_labels) {
-			return isPartiallyWithinViewport(scroll_labels, (DisplayablePanel)ht_panels.get(d));
-		} else if (Profile.class == c && scroll == scroll_profiles) {
-			return isPartiallyWithinViewport(scroll_profiles, (DisplayablePanel)ht_panels.get(d));
-		} else return false;
+		final JScrollPane scroll = ht_tabs.get(d.getClass());
+		if (tabs.getSelectedComponent() == scroll) return isPartiallyWithinViewport(scroll, ht_panels.get(d));
+		return false;
 	}
 
 	/** Check if a panel for the given Displayable is at least partially visible in the JScrollPane */
-	private boolean isPartiallyWithinViewport(JScrollPane scroll, DisplayablePanel dp) {
+	private boolean isPartiallyWithinViewport(final JScrollPane scroll, final DisplayablePanel dp) {
 		if(null == dp) {
 			//Utils.log2("Display.isPartiallyWithinViewport: null DisplayablePanel ??");
 			return false; // to fast for you baby
@@ -2256,16 +2234,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		dispatcher.execSwing(new Runnable() { public void run() {
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
 		if (d instanceof ZDisplayable && scroll == scroll_zdispl) {
-			scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(d));
+			scrollToShow(scroll_zdispl, ht_panels.get(d));
 			return;
 		}
 		final Class c = d.getClass();
 		if (Patch.class == c && scroll == scroll_patches) {
-			scrollToShow(scroll_patches, (DisplayablePanel)ht_panels.get(d));
+			scrollToShow(scroll_patches, ht_panels.get(d));
 		} else if (DLabel.class == c && scroll == scroll_labels) {
-			scrollToShow(scroll_labels, (DisplayablePanel)ht_panels.get(d));
+			scrollToShow(scroll_labels, ht_panels.get(d));
 		} else if (Profile.class == c && scroll == scroll_profiles) {
-			scrollToShow(scroll_profiles, (DisplayablePanel)ht_panels.get(d));
+			scrollToShow(scroll_profiles, ht_panels.get(d));
 		}
 		}});
 	}
@@ -2297,7 +2275,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void updateTitle(final Layer layer, final Displayable displ) {
 		for (Display d : al_displays) {
 			if (layer == d.layer) {
-				DisplayablePanel dp = ((DisplayablePanel)d.ht_panels.get(displ));
+				DisplayablePanel dp = d.ht_panels.get(displ);
 				if (null != dp) dp.updateTitle();
 			}
 		}
@@ -2391,10 +2369,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void updateSnapshots() {
-		Enumeration e = ht_panels.elements();
+		Enumeration<DisplayablePanel> e = ht_panels.elements();
 		while (e.hasMoreElements()) {
-			DisplayablePanel dp = (DisplayablePanel)e.nextElement();
-			dp.remake();
+			e.nextElement().remake();
 		}
 		Utils.updateComponent(tabs.getSelectedComponent());
 	}
@@ -2420,7 +2397,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			c = panel_zdispl;
 		}
 		if (null == c) return;
-		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(d);
+		DisplayablePanel dp = ht_panels.get(d);
 		dp.remake();
 		Utils.updateComponent(c);
 	}
@@ -2451,7 +2428,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 		if (null == c) return;
-		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(d);
+		DisplayablePanel dp = ht_panels.get(d);
 		if (null == dp) return; // may be half-baked, wait
 		c.remove(dp);
 		c.add(dp, i); // java and its fabulous consistency
@@ -3363,7 +3340,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		for (Display d : al_displays) {
 			if (d == calling_display) continue;
 			if (d.layer.contains(displ) || (displ instanceof ZDisplayable && d.layer.getParent().contains((ZDisplayable)displ))) {
-				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+				DisplayablePanel dp = d.ht_panels.get(displ);
 				if (null != dp) dp.updateVisibilityCheckbox();
 			}
 		}
