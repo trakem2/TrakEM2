@@ -31,6 +31,7 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
 import ij.measure.ResultsTable;
+import ij.WindowManager;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Decoder;

@@ -1343,6 +1343,7 @@ abstract public class Loader {
 		gd.addStringField("file_name_matches: ", "");
 		gd.addNumericField("first_image: ", 1, 0);
 		gd.addNumericField("last_image: ", n_max, 0);
+		gd.addCheckbox("Reverse list order", false);
 		gd.addNumericField("number_of_rows: ", n_rows, 0);
 		gd.addNumericField("number_of_columns: ", n_cols, 0);
 		gd.addMessage("The top left coordinate for the imported grid:");
@@ -1382,6 +1383,9 @@ abstract public class Loader {
 			Utils.showMessage("Last is smaller that first!");
 			return null;
 		}
+
+		final boolean reverse_order = gd.getNextBoolean();
+
 		n_rows = (int)gd.getNextNumber();
 		n_cols = (int)gd.getNextNumber();
 		bx = gd.getNextNumber();
@@ -1406,6 +1410,15 @@ abstract public class Loader {
 		if (null == image_file_names) {
 			file_names = images_dir.list(new ini.trakem2.io.ImageFileFilter(regex, null));
 			Arrays.sort(file_names); //assumes 001, 002, 003 ... that style, since it does binary sorting of strings
+			if (reverse_order) {
+				// flip in place
+				for (int i=file_names.length/2; i>-1; i--) {
+					String tmp = file_names[i];
+					int j = file_names.length -1 -i;
+					file_names[i] = file_names[j];
+					file_names[j] =  tmp;
+				}
+			}
 		} else {
 			file_names = all_images;
 		}

@@ -39,6 +39,8 @@ import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.text.TextWindow;
+import ij.measure.ResultsTable;
 import ij.process.*;
 import ij.io.*;
 import ij.process.ImageProcessor;
@@ -1044,6 +1046,19 @@ public class Utils implements ij.plugin.PlugIn {
 		return null;
 	}
 
+	/** Get by reflection a private or protected field in the given object. */
+	static public final Object getField(final Object ob, final String field_name) {
+		if (null == ob || null == field_name) return null;
+		try {
+			Field f = ob.getClass().getDeclaredField(field_name);
+			f.setAccessible(true);
+			return f.get(ob);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
+	}
+
 	static public final Area getArea(final Roi roi) {
 		if (null == roi) return null;
 		ShapeRoi sroi = new ShapeRoi(roi);
@@ -1099,7 +1114,7 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final double measureArea(final Point3f p1, final Point3f p2, final Point3f p3) {
 		final Vector3f v = new Vector3f();
 		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
-			 new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
+			new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
 		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
 	}
 
@@ -1134,5 +1149,21 @@ public class Utils implements ij.plugin.PlugIn {
 		if (ip instanceof ByteProcessor) return fastConvertToFloat((ByteProcessor)ip);
 		if (ip instanceof ShortProcessor) return fastConvertToFloat((ShortProcessor)ip);
 		return (FloatProcessor)ip.convertToFloat();
+	}
+
+	/** Creates a new ResultsTable with the given window title and column titles, and 2 decimals of precision, or if one exists for the given window title, returns it. */
+	static public final ResultsTable createResultsTable(final String title, final String[] columns) {
+		TextWindow tw = (TextWindow)WindowManager.getFrame(title);
+		if (null != tw) {
+			// hacking again ... missing a getResultsTable() method in TextWindow
+			ResultsTable rt = (ResultsTable)Utils.getField(tw.getTextPanel(), "rt");
+			if (null != rt) return rt; // assumes columns will be identical
+		}
+		// else create a new one
+		ResultsTable rt = new ResultsTable();
+		rt.setPrecision(2);
+		for (int i=0; i<columns.length; i++) rt.setHeading(i, columns[i]);
+		//
+		return rt;
 	}
 }

@@ -1249,22 +1249,13 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	static public ResultsTable createResultsTable() {
-		ResultsTable rt = new ResultsTable();
-		rt.setPrecision(2);
-		rt.setHeading(0, "id");
-		rt.setHeading(1, "volume");
-		return rt;
-	}
-
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == ht_areas.size()) return rt;
-		if (null == rt) rt = createResultsTable();
+		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume"});
 		rt.incrementCounter();
 		rt.addLabel("units", "cubic " + layer_set.getCalibration().getUnit());
 		rt.addValue(0, this.id);
 		rt.addValue(1, measureVolume());
-		rt.show("AreaList results");
 		return rt;
 	}
 

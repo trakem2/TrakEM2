@@ -31,6 +31,8 @@ import ini.trakem2.display.*;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Render;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.Worker;
 
 import java.awt.Color;
 import java.awt.Event;
@@ -157,12 +159,12 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		super.dispatcher.exec(new Runnable() { public void run() {
 		try {
 			if (null == selected_node) return;
-			Object ob = selected_node.getUserObject();
+			final Object ob = selected_node.getUserObject();
 			if (!(ob instanceof ProjectThing)) return;
-			ProjectThing thing = (ProjectThing)ob;
+			final ProjectThing thing = (ProjectThing)ob;
 			int i_position = 0;
 			String command = ae.getActionCommand();
-			Object obd = thing.getObject();
+			final Object obd = thing.getObject();
 
 			if (command.startsWith("new ") || command.equals("Duplicate")) {
 				ProjectThing new_thing = null;
@@ -273,7 +275,17 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 					rename(thing);
 				//}
 			} else if (command.equals("Measure")) {
-				thing.measure(null);
+				// block displays while measuring
+				new Bureaucrat(new Worker("Measuring") { public void run() {
+					startedWorking();
+					try {
+						thing.measure();
+					} catch (Throwable e) {
+						IJError.print(e);
+					} finally {
+						finishedWorking();
+					}
+				}}, thing.getProject()).goHaveBreakfast();
 			}/* else if (command.equals("Export 3D...")) {
 				GenericDialog gd = ControlWindow.makeGenericDialog("Export 3D");
 				String[] choice = new String[]{".svg [preserves links and hierarchical grouping]", ".shapes [limited to one profile per layer per profile_list]"};

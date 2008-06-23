@@ -1582,17 +1582,7 @@ public class Profile extends Displayable {
 		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here
 	}
 
-
-	static public ResultsTable createResultsTable() {
-		ResultsTable rt = new ResultsTable();
-		rt.setPrecision(2);
-		rt.setHeading(0, "id");
-		rt.setHeading(1, "surface");
-		rt.setHeading(2, "volume");
-		return rt;
-	}
-
-	/** Calibrated for pixel width only (pixel aspect ratio 1:1), in units as specified at getLayerSet().getCalibration().getUnit()*/
+	/** Calibrated for pixel width only (that is, it assumes pixel aspect ratio 1:1), in units as specified at getLayerSet().getCalibration().getUnit() */
 	public double computeLength() {
 		if (-1 == n_points || 0 == this.p_i[0].length) setupForDisplay();
 		if (this.p_i[0].length < 2) return 0;
@@ -1609,40 +1599,54 @@ public class Profile extends Displayable {
 		return len * getLayerSet().getCalibration().pixelWidth;
 	}
 
-	/** Calibrated, in units as specified at getLayerSet().getCalibration().getUnit()*/
+	/** Calibrated, in units as specified at getLayerSet().getCalibration().getUnit() -- returns zero if this profile is not closed. */
 	public double computeArea() {
 		if (-1 == n_points) setupForDisplay();
 		if (n_points < 2) return 0;
+		if (!closed) return 0;
 		if (0 == p_i[0].length) generateInterpolatedPoints(0.05);
 		Calibration cal = getLayerSet().getCalibration();
 		return Utils.measureArea(new Area(getPerimeter()), getProject().getLoader()) * cal.pixelWidth * cal.pixelHeight;
 	}
 
+	/** Measures the calibrated length, the lateral surface as the length times the layer thickness, and the volume (if closed) as the area times the layer thickness. */
+	public ResultsTable measure(ResultsTable rt) {
+		if (null == rt) rt = Utils.createResultsTable("Profile results", new String[]{"id", "length", "side surface: length x thickness", "volume: area x thickness"});
+		if (-1 == n_points) setupForDisplay();
+		if (n_points < 2) return null;
+		if (0 == p_i[0].length) generateInterpolatedPoints(0.05);
+		final Calibration cal = getLayerSet().getCalibration();
+		// computeLength returns a calibrated length, so only calibrate the layer thickness:
+		final double len = computeLength();
+		final double surface_flat = len * layer.getThickness() * cal.pixelWidth;
+		rt.incrementCounter();
+		rt.addLabel("units", cal.getUnit());
+		rt.addValue(0, id);
+		rt.addValue(1, len);
+		rt.addValue(2, surface_flat);
+		final double volume = closed ? computeArea() * layer.getThickness() * cal.pixelWidth : 0;
+		rt.addValue(3, volume);
+		return rt;
+	}
+
 	/** Assumes Z-coord sorted list of profiles, as stored in a "profile_list" ProjectThing type. . */
 	static public ResultsTable measure(final Profile[] profiles, ResultsTable rt, final long profile_list_id) {
+		Utils.log2("profiles.length" + profiles.length);
 		if (null == profiles || 0 == profiles.length) return null;
-		if (null == rt) rt = createResultsTable();
-		Calibration cal = profiles[0].getLayerSet().getCalibration();
 		if (1 == profiles.length) {
-			if (-1 == profiles[0].n_points) profiles[0].setupForDisplay();
-			if (profiles[0].n_points < 2) return null;
-			if (0 == profiles[0].p_i[0].length) profiles[0].generateInterpolatedPoints(0.05);
-			double surface = profiles[0].computeLength() * cal.pixelWidth;
-			rt.incrementCounter();
-			rt.addLabel("units", "square " + cal.getUnit());
-			rt.addValue(0, profile_list_id);
-			rt.addValue(1, surface);
-			double volume = profiles[0].closed ? profiles[0].computeArea() * profiles[0].layer.getThickness() * cal.pixelWidth : 0;
-			rt.addValue(2, volume);
+			// don't measure if there is only one
 			return rt;
 		}
+		if (null == rt) rt = Utils.createResultsTable("Profile list results", new String[]{"id", "interpolated surface", "surface: sum of length x thickness", "volume"});
+		Calibration cal = profiles[0].getLayerSet().getCalibration();
 		// else, interpolate skin and measure each triangle
-		List<Point3f> tri = makeTriangles(profiles, 1.0);
+		List<Point3f> tri = makeTriangles(profiles, 1.0); // already calibrated
 		final int n_tri = tri.size();
 		if (0 != n_tri % 3) {
 			Utils.log("Profile.measure error: triangle verts list not a multiple of 3 for profile list id " + profile_list_id);
 			return rt;
 		}
+		// Surface: calibrated sum of the area of all triangles in the mesh.
 		double surface = 0;
 		for (int i=2; i<n_tri; i+=3) {
 			surface += Utils.measureArea(tri.get(i-2), tri.get(i-1), tri.get(i));
@@ -1650,22 +1654,35 @@ public class Profile extends Displayable {
 		// add capping ends
 		double area_first = profiles[0].computeArea();
 		double area_last = profiles[profiles.length-1].computeArea();
+		if (profiles[0].closed) surface += area_first;
+		if (profiles[profiles.length-1].closed) surface += area_last;
 
-		surface += area_first + area_last;
+		// calibrate surface measurement
+		surface *= Math.pow(cal.pixelWidth, 3);
 
-		double volume = 0;
-		for (int i=1; i<profiles.length-1; i++) {
-			volume += profiles[i].computeArea() * profiles[i].layer.getThickness() * cal.pixelWidth;
+		// Surface flat: sum of the perimeter lengths times the layer thickness
+		double surface_flat = 0;
+		for (int i=0; i<profiles.length; i++) {
+			if (0 == profiles[i].p_i[0].length) profiles[i].generateInterpolatedPoints(0.05);
+			surface_flat += profiles[i].computeLength() * profiles[i].layer.getThickness() * cal.pixelWidth;
 		}
-		volume += area_first * profiles[0].layer.getThickness() * cal.pixelWidth;
-		volume += area_last * profiles[profiles.length-1].layer.getThickness() * cal.pixelWidth;
+
+		// Volume: area times layer thickness
+		double volume = area_first * profiles[0].layer.getThickness();
+		for (int i=1; i<profiles.length-1; i++) {
+			volume += profiles[i].computeArea() * profiles[i].layer.getThickness();
+		}
+		volume += area_last * profiles[profiles.length-1].layer.getThickness();
+
+		// calibrate volume: the Z is still in pixels
+		volume *= cal.pixelWidth;
 
 		rt.incrementCounter();
 		rt.addLabel("units", cal.getUnit());
 		rt.addValue(0, profile_list_id);
 		rt.addValue(1, surface);
-		rt.addValue(2, volume);
-		rt.show("Profile list results");
+		rt.addValue(2, surface_flat);
+		rt.addValue(3, volume);
 		return rt;
 	}
 }

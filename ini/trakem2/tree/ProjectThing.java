@@ -616,9 +616,13 @@ public class ProjectThing extends DBObject implements Thing {
 		return null;
 	}
 
+	public final class Profile_List {}
+
 	/** Call on children things, and on itself if it contains a basic data type directly.
-	 *  All children of the same type report to the same table. */
-	public void measure(HashMap<Class,ResultsTable> ht) {
+	 *  All children of the same type report to the same table.
+	 *  Result tables are returned without ever displaying them.
+	 */
+	public HashMap<Class,ResultsTable> measure(HashMap<Class,ResultsTable> ht) {
 		if (null == ht) ht = new HashMap<Class,ResultsTable>();
 		if (null != object && object instanceof Displayable) {
 			Displayable d = (Displayable)object;
@@ -629,18 +633,38 @@ public class ProjectThing extends DBObject implements Thing {
 				Utils.log("Measure: skipping hidden object " + d.getProject().getMeaningfulTitle(d));
 			}
 		}
-		if (null == al_children) return;
+		if (null == al_children) return ht;
 		// profile list: always special ...
-		if (template.getType().equals("profile_list")) {
+		if (template.getType().equals("profile_list") && null != al_children && al_children.size() > 1) {
 			Profile[] p = new Profile[al_children.size()];
 			for (int i=0; i<al_children.size(); i++) p[i] = (Profile)((ProjectThing)al_children.get(i)).object;
 			ResultsTable rt = Profile.measure(p, ht.get(Profile.class), this.id);
-			if (null != rt) ht.put(Profile.class, rt);
-			return;
+			if (null != rt) ht.put(Profile_List.class, rt);
+			//return ht; // don't return: do each profile separately as well
 		}
 		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
 			ProjectThing child = (ProjectThing)it.next();
 			child.measure(ht);
+		}
+		return ht;
+	}
+
+	/** Measure each node, recursively into children, and at the end display all the result tables, one for each data type. */
+	public void measure() {
+		final HashMap<Class,ResultsTable> ht = new HashMap<Class,ResultsTable>();
+		measure(ht);
+		// Show all tables. Need to be done at the end -- otherwise, at each call to "show"
+		// the entire text panel is flushed and refilled with all data and repainted.
+		for (Map.Entry<Class,ResultsTable> entry : ht.entrySet()) {
+			final Class c = entry.getKey();
+			String title;
+			if (Profile_List.class == c) title = "Profile List";
+			else {
+				title = c.getName();
+				int idot = title.lastIndexOf('.');
+				if (-1 != idot) title = title.substring(idot+1);
+			}
+			entry.getValue().show(title + " results");
 		}
 	}
 

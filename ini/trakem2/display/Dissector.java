@@ -663,23 +663,10 @@ public class Dissector extends ZDisplayable {
 		return false;
 	}
 
-	static public ResultsTable createResultsTable() {
-		ResultsTable rt = new ResultsTable();
-		rt.setPrecision(2);
-		rt.setHeading(0, "id");
-		rt.setHeading(1, "tag");
-		rt.setHeading(2, "x");
-		rt.setHeading(3, "y");
-		rt.setHeading(4, "z");
-		rt.setHeading(5, "radius");
-		return rt;
-	}
-
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == al_items.size()) return rt;
-		if (null == rt) rt = createResultsTable();
+		if (null == rt) rt = Utils.createResultsTable("Dissector results", new String[]{"id", "tag", "x", "y", "z", "radius"});
 		for (Item item : al_items) item.addResults(rt, layer_set.getCalibration());
-		rt.show("Dissector results"); // 'show' means also update.
 		return rt;
 	}
 }
