@@ -3399,18 +3399,29 @@ abstract public class Loader {
 		return path;
 	}
 
-	/** Exports to an XML file chosen by the user. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
+	/** Save the project under a different name by choosing from a dialog, and exporting all images (will popup a YesNoCancelDialog to confirm exporting images.) */
 	public String saveAs(Project project) {
+		return saveAs(project, null, true);
+	}
+
+	/** Exports to an XML file chosen by the user in a dialog if @param xmlpath is null. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
+	public String saveAs(Project project, String xmlpath, boolean export_images) {
 		long size = countObjects(project.getRootLayerSet()) * 500;
 		releaseToFit(size > MIN_FREE_BYTES ? size : MIN_FREE_BYTES);
 		String default_dir = null;
 		default_dir = getStorageFolder();
 		// Select a file to export to
-		File fxml = Utils.chooseFile(default_dir, null, ".xml");
+		File fxml = null == xmlpath ? Utils.chooseFile(default_dir, null, ".xml") : new File(xmlpath);
 		if (null == fxml) return null;
-		String path = export(project, fxml);
+		String path = export(project, fxml, export_images);
 		if (null != path) this.changes = false;
 		return path;
+	}
+
+	/** Meant to be overriden -- as is, will call saveAs(project, path, export_images = getClass() != FSLoader.class ). */
+	public String saveAs(String path, boolean overwrite) {
+		if (null == path) return null;
+		return export(Project.findProject(this), new File(path), this.getClass() != FSLoader.class);
 	}
 
 	/** Parses the xml_path and returns the folder in the same directory that has the same name plus "_images". */

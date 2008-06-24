@@ -867,7 +867,7 @@ public class FSLoader extends Loader {
 	}
 
 	public String saveAs(Project project) {
-		String path = super.saveAs(project);
+		String path = super.saveAs(project, null, false);
 		if (null != path) {
 			// update the xml path to point to the new one
 			this.project_file_path = path;
@@ -875,6 +875,44 @@ public class FSLoader extends Loader {
 		}
 		ControlWindow.updateTitle(project);
 		return path;
+	}
+
+	/** Meant for programmatic access, such as calls to project.saveAs(path, overwrite) which call exactly this method. */
+	public String saveAs(final String path, final boolean overwrite) {
+		if (null == path) {
+			Utils.log("Cannot save on null path.");
+			return null;
+		}
+		String path2 = path;
+		if (!path2.endsWith(".xml")) path2 += ".xml";
+		File fxml = new File(path2);
+		if (!fxml.canWrite()) {
+			// write to storage folder instead
+			String path3 = path2;
+			path2 = getStorageFolder() + fxml.getName();
+			Utils.logAll("WARNING can't write to " + path3 + "\n  --> will write instead to " + path2);
+			fxml = new File(path2);
+		}
+		if (!overwrite) {
+			int i = 1;
+			while (fxml.exists()) {
+				String parent = fxml.getParent().replace('\\','/');
+				if (!parent.endsWith("/")) parent += "/";
+				String name = fxml.getName();
+				name = name.substring(0, name.length() - 4);
+				path2 =  parent + name + "-" +  i + ".xml";
+				fxml = new File(path2);
+				i++;
+			}
+		}
+		Project project = Project.findProject(this);
+		path2 = super.saveAs(project, path2, false);
+		if (null != path2) {
+			project_file_path = path2;
+			Utils.logAll("After saveAs, new xml path is: " + path2);
+			ControlWindow.updateTitle(project);
+		}
+		return path2;
 	}
 
 	/** Returns the stored path for the given Patch image, which may be relative and may contain slice information appended.*/

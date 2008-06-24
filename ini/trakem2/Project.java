@@ -517,6 +517,10 @@ public class Project extends DBObject {
 		return path;
 	}
 
+	public String saveAs(String xml_path, boolean overwrite) {
+		return loader.saveAs(xml_path, overwrite);
+	}
+
 	public boolean destroy() {
 		if (loader.hasChanges()) { // DBLoader always returns false
 			if (ControlWindow.isGUIEnabled()) {
