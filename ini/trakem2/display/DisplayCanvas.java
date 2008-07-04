@@ -1374,15 +1374,16 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 
 			if (me.isShiftDown()) {
-				Layer layer = DisplayCanvas.this.display.getLayer();
-				int x_p = offScreenX(me.getX()),
-				    y_p = offScreenY(me.getY());
+				// Print a comma-separated list of objects under the mouse pointer
+				final Layer layer = DisplayCanvas.this.display.getLayer();
+				final int x_p = offScreenX(me.getX()),
+				          y_p = offScreenY(me.getY());
 				final ArrayList<Displayable> al = new ArrayList(layer.getParent().findZDisplayables(layer, x_p, y_p, true));
 				final ArrayList al2 = new ArrayList(layer.find(x_p, y_p, true));
 				Collections.reverse(al2); // text labels first
 				al.addAll(al2);
-				StringBuffer sb = new StringBuffer();
-				Project pr = layer.getProject();
+				final StringBuffer sb = new StringBuffer();
+				final Project pr = layer.getProject();
 				for (Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
 				sb.setLength(sb.length()-2);
 				Utils.showStatus(sb.toString());
