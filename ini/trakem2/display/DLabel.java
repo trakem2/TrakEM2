@@ -148,12 +148,14 @@ public class DLabel extends Displayable {
 	private void reload() {
 		// reload
 		Object[] ob = project.getLoader().fetchLabel(this);
+		if (null == ob) return;
 		title = (String)ob[0];
 		font = new Font((String)ob[1], ((Integer)ob[2]).intValue(), ((Integer)ob[3]).intValue());
 	}
 
 	public String getShortTitle() {
 		if (null == title) reload();
+		if (null == title || title.length() < 1) return "";
 		int[] ib = new int[] {
 			title.indexOf('\n'),
 			/*title.indexOf(','),*/
