@@ -182,7 +182,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					final Rectangle clip = null != clipRect ? new Rectangle((int)(clipRect.x * magnification) - srcRect.x, (int)(clipRect.y * magnification) - srcRect.y, (int)(clipRect.width * magnification), (int)(clipRect.height * magnification)) : null;
 					for (int i=0; i<top.length; i++) {
 						if (null != clipRect && !top[i].getBoundingBox(tmp).intersects(clip)) continue;
-						top[i].paint(g, magnification, true, c_alphas, active_layer);
+						top[i].paint(g, magnification, false, c_alphas, active_layer);
 					}
 				}
 				//Utils.log2("painted new volatile with active " + active);
@@ -271,6 +271,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	public void handlePopupMenu() {}
 
 	public void update(Graphics g) {
+		// overriding to avoid default behaviour in java.awt.Canvas which consists in first repainting the entire drawable area with the background color, and then calling method paint.
 		this.paint(g);
 	}
 
@@ -1344,15 +1345,12 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					me = this.me;
 					this.me = null;
 				}
-				mouseMoved(me);
+				try { mouseMoved(me); } catch (Exception e) { IJError.print(e); }
 			}
 		}
 		private void mouseMoved(MouseEvent me) {
 			if (null == me) return;
 			if (input_disabled || display.getSelection().isDragging()) return;
-
-			// set xMouse, yMouse
-			DisplayCanvas.super.mouseMoved(me);
 
 			final Displayable active = display.getActive();
 
@@ -1373,6 +1371,24 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				if (null != old_brush_box) r.add(old_brush_box);
 				old_brush_box = copy;
 				repaint(r, 1); // padding because of painting rounding which would live dirty trails
+			}
+
+			if (me.isShiftDown()) {
+				Layer layer = DisplayCanvas.this.display.getLayer();
+				int x_p = offScreenX(me.getX()),
+				    y_p = offScreenY(me.getY());
+				final ArrayList<Displayable> al = new ArrayList(layer.getParent().findZDisplayables(layer, x_p, y_p, true));
+				final ArrayList al2 = new ArrayList(layer.find(x_p, y_p, true));
+				Collections.reverse(al2); // text labels first
+				al.addAll(al2);
+				StringBuffer sb = new StringBuffer();
+				Project pr = layer.getProject();
+				for (Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
+				sb.setLength(sb.length()-2);
+				Utils.showStatus(sb.toString());
+			} else {
+				// set xMouse, yMouse, and print pixel value
+				DisplayCanvas.super.mouseMoved(me);
 			}
 		}
 	}
