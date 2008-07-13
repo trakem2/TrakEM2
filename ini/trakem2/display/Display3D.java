@@ -413,7 +413,7 @@ public class Display3D {
 	static public void showOrthoslices(Patch p) {
 		Display3D d3d = get(p.getLayerSet());
 		d3d.adjustResampling();
-		d3d.universe.resetView();
+		//d3d.universe.resetView();
 		String title = makeTitle(p) + " orthoslices";
 		// remove if present
 		d3d.universe.removeContent(title);
@@ -428,7 +428,7 @@ public class Display3D {
 	static public void showVolume(Patch p) {
 		Display3D d3d = get(p.getLayerSet());
 		d3d.adjustResampling();
-		d3d.universe.resetView();
+		//d3d.universe.resetView();
 		String title = makeTitle(p) + " volume";
 		// remove if present
 		d3d.universe.removeContent(title);
@@ -765,7 +765,7 @@ public class Display3D {
 				// register mesh
 				ht_pt_meshes.put(pt, triangles);
 				// ensure proper default transform
-				universe.resetView();
+				//universe.resetView();
 				//
 				universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
 				Content ct = universe.getContent(title);
@@ -816,7 +816,7 @@ public class Display3D {
 			d3d.u_lock.lock();
 			try {
 				// ensure proper default transform
-				d3d.universe.resetView();
+				//d3d.universe.resetView();
 				//
 				//Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
 				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
