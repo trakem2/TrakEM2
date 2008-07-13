@@ -61,19 +61,12 @@ public class ImageJCommandListener implements CommandListener {
 	 * YES this is a tremendous hack that may not work in all situations, but will be reasonably ok for PlugInFilter operations.
 	 * This action is intended for commands that don't alter the original image.
 	 * */
-	private String setTempAndReset(final String command, final Displayable active, final FakeImagePlus fimp) {
+	private String setTempCurrentImage(final String command, final Displayable active) {
 		if (!isPatch(command, active)) return null;
 		final Patch pa = (Patch)active;
 		final Project project = pa.getProject();
-		Loader.setTempCurrentImage(pa.getImagePlus());
+		WindowManager.setTempCurrentImage(pa.getImagePlus());
 		project.getLoader().releaseToFit((long)(project.getLoader().estimateImageFileSize(pa, 0) * 5));
-		new Thread() {
-			public void run() {
-				// Wait 0.5 seconds for ImageJ to run on the image
-				try { Thread.sleep(500); } catch (Exception e) {}
-				project.getLoader().setTempCurrentImage(fimp);
-			}
-		}.start();
 		return command;
 	}
 
@@ -84,7 +77,7 @@ public class ImageJCommandListener implements CommandListener {
 		Project project = pa.getProject();
 		project.getLoader().releaseToFit((long)(project.getLoader().estimateImageFileSize(pa, 0) * 5));
 		ImagePlus imp = new ImagePlus("Copy of " + pa.getTitle(), pa.getImageProcessor().duplicate()); // don't show it yet
-		Loader.setTempCurrentImage(imp);
+		WindowManager.setTempCurrentImage(imp);
 		imp.show();
 		// now execute command
 		return command;
@@ -104,6 +97,7 @@ public class ImageJCommandListener implements CommandListener {
 		final ProjectTree ptree = project.getProjectTree();
 		final Displayable active = display.getActive();
 		final Selection selection = display.getSelection();
+
 		// 3 - filter accordingly
 		//
 		// FILE menu
@@ -245,7 +239,7 @@ public class ImageJCommandListener implements CommandListener {
 			notAvailable(command);
 			return null;
 		} else if (command.equals("Show LUT")) {
-			return setTempAndReset(command, active, fimp);
+			return setTempCurrentImage(command, active);
 		} else if (command.equals("Edit LUT...")) {
 			// TODO forward to the active image, if any
 			niy(command);
@@ -371,7 +365,7 @@ public class ImageJCommandListener implements CommandListener {
 			niy(command);
 			return null;
 		} else if (in(command, new String[]{"Analyze Particles...", "Histogram", "Plot Profile", "Surface Plot...", "Color Inspector 3D", "3D Surface Plot", "Color Histogram"})) {
-			return setTempAndReset(command, active, fimp);
+			return setTempCurrentImage(command, active);
 		} else if (command.equals("Label")) {
 			notAvailable(command);
 			return null;
@@ -379,7 +373,7 @@ public class ImageJCommandListener implements CommandListener {
 
 		// PROCESS menu and submenus
 		else if (in(command, new String[]{"FFT", "Fast FFT (2D/3D)"})) {
-			return setTempAndReset(command, active, fimp);
+			return setTempCurrentImage(command, active);
 		} else if (in(command, new String[]{"Bandpass Filter...", "Custom Filter...", "FD Math...", "Swap Quadrants", "Convolve...", "Gaussian Blur...", "Median...", "Mean...", "Minimum...", "Maximum...", "Unsharp Mask...", "Variance...", "Show Circular Masks...", "Subtract Background..."})) {
 			return duplicate(command, active);
 		} else if (in(command, new String[]{"Smooth", "Sharpen", "Find Edges", "Enhance Contrast", "Add Noise", "Add Specified Noise...", "Salt and Pepper", "Despeckle", "Remove Outliers...", "North", "Northeast", "East", "Southeast", "South", "Southwest", "West", "Northwest", "Make Binary", "Convert to Mask", "Find Maxima...", "Erode", "Dilate", "Open ", "Close-", "Outline", "Fill Holes", "Skeletonize", "Distance Map", "Ultimate Points", "Watershed", "Add...", "Subtract...", "Multiply...", "Divide...", "AND...", "OR...", "XOR...", "Min...", "Max...", "Gamma...", "Log", "Exp", "Square", "Square Root", "Reciprocal", "NaN Background", "Abs"})) {
