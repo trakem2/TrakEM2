@@ -757,7 +757,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Utils.updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
 
 
+		// Set the calibration of the FakeImagePlus to that of the LayerSet
 		((FakeImagePlus)canvas.getFakeImagePlus()).setCalibrationSuper(layer.getParent().getCalibrationCopy());
+
+		// Set the FakeImagePlus as the current image
+		setTempCurrentImage();
 
 		// create a drag and drop listener
 		dnd = new DNDInsertImage(this);
@@ -3422,7 +3426,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 		if (null != front) {
-			Loader.setTempCurrentImage(front.canvas.getFakeImagePlus());
+			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
 		}
 	}
 
@@ -3462,7 +3466,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void setTempCurrentImage() {
-		Loader.setTempCurrentImage(canvas.getFakeImagePlus());
+		WindowManager.setTempCurrentImage(canvas.getFakeImagePlus());
 	}
 
 	/** Check if any display will paint the given Displayable at the given magnification. */
