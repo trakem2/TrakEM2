@@ -4521,7 +4521,6 @@ abstract public class Loader {
 				for (Patch p : patches) {
 					HashMap<Integer,Tuple> m = map.get(p);
 					if (null == m) {
-						lock.unlock();
 						continue;
 					}
 					final Tuple tu = m.remove(makeKey(mag)); // if present.
@@ -4683,7 +4682,7 @@ abstract public class Loader {
 						if (repaint) {
 							// wait a bit in case the user has browsed past
 							Thread.yield();
-							try { sleep(50); } catch (InterruptedException ie) {}
+							if (mag >= 0.25) try { sleep(50); } catch (InterruptedException ie) {}
 							if (Display.willPaint(p, mag)) {
 								loading = true;
 								Object ob = p.getProject().getLoader().fetchImage(p, mag);
