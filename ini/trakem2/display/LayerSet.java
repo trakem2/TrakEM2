@@ -1420,6 +1420,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		return new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
 	}
 
+	/** Set the calibration to a clone of the given calibration. */
 	public void setCalibration(Calibration cal) {
 		if (null == cal) return;
 		this.calibration = (Calibration)cal.clone();
