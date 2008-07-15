@@ -175,7 +175,7 @@ public class FakeImagePlus extends ImagePlus {
 
 	/** Forward to LayerSet. */
 	public void setCalibration(Calibration cal) {
-		super.setCalibration(cal);
+		try { super.setCalibration(cal); } catch (Throwable e) { IJError.print(e); }
 		display.getLayer().getParent().setCalibration(cal);
 	}
 
