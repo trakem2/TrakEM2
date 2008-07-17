@@ -355,7 +355,7 @@ public class AreaList extends ZDisplayable {
 		Rectangle bounds = area.getBounds(); // TODO this can fail if the layer changes suddenly while painting
 		if (0 == bounds.width && 0 == bounds.height) {
 			ht_areas.remove(new Long(lid));
-			Utils.log("removing empty area");
+			//Utils.log("removing empty area");
 		}
 
 		final boolean translated = calculateBoundingBox(); // will reset all areas' top-left coordinates, and update the database if necessary
