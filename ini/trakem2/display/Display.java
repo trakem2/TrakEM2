@@ -2547,7 +2547,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// Send the linked group to the selected layer
 			int iz = command.indexOf("z=")+2;
 			Utils.log2("iz=" + iz + "  other: " + command.indexOf(' ', iz+2));
-			double lz = Double.parseDouble(command.substring(iz, command.indexOf(' ', iz+2)));
+			int end = command.indexOf(' ', iz);
+			if (-1 == end) end = command.length();
+			double lz = Double.parseDouble(command.substring(iz, end));
 			Layer target = layer.getParent().getLayer(lz);
 			HashSet hs = active.getLinkedGroup(new HashSet());
 			layer.getParent().move(hs, active.getLayer(), target);
@@ -2558,7 +2560,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Unlink from images")) {
 			if (null == active) return;
 			try {
-				active.unlinkAll(Patch.class);
+				for (Displayable displ: selection.getSelected()) {
+					displ.unlinkAll(Patch.class);
+				}
 				updateSelection();//selection.update();
 			} catch (Exception e) { IJError.print(e); }
 		} else if (command.equals("Unlink slices")) {
@@ -2572,7 +2576,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Rectangle box = selection.getBox();
 			try {
 				// unlink Patch instances
-				active.unlinkAll(Patch.class);
+				for (Displayable displ : selection.getSelected()) {
+					displ.unlinkAll(Patch.class);
+				}
 				updateSelection();//selection.update();
 			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveDown(layer, active); // will repaint whatever appropriate layers
@@ -2582,7 +2588,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Rectangle box = selection.getBox();
 			try {
 				// unlink Patch instances
-				active.unlinkAll(Patch.class);
+				for (Displayable displ : selection.getSelected()) {
+					displ.unlinkAll(Patch.class);
+				}
 				updateSelection();//selection.update();
 			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveUp(layer, active); // will repaint whatever appropriate layers
