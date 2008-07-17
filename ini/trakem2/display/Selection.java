@@ -533,7 +533,7 @@ public class Selection {
 
 	/** Select all objects under the given roi, in the current display's layer. */
 	public void selectAll(Roi roi, boolean visible_only) {
-		Utils.log2("roi bounds: " + roi.getBounds());
+		//Utils.log2("roi bounds: " + roi.getBounds());
 		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
 
 		Area aroi = new Area(Utils.getShape(shroi));
@@ -575,9 +575,12 @@ public class Selection {
 
 			resetBox();
 
-			if (null != display && null == this.active) {
-				display.setActive((Displayable)queue.getLast());
-				this.active = display.getActive();
+			if (null != display) {
+				if (null == this.active) {
+					display.setActive((Displayable)queue.getLast());
+					this.active = display.getActive();
+				}
+				Display.update(display.getLayer());
 			}
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1062,19 +1065,19 @@ public class Selection {
 	}
 
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones). */
-	public ArrayList getSelected() {
-		final ArrayList al = new ArrayList();
+	public ArrayList<Displayable> getSelected() {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			al.add(it.next());
+			al.add((Displayable)it.next());
 		}
 		return al;
 	}
 
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones) of the given class. */
-	public ArrayList getSelected(final Class c) {
-		final ArrayList al = new ArrayList();
+	public ArrayList<Displayable> getSelected(final Class c) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (null == c || c.equals(Displayable.class)) {
-			al.addAll(queue);
+			al.addAll((LinkedList<Displayable>)queue);
 			return al;
 		}
 		boolean zd = c.equals(ZDisplayable.class);
@@ -1082,7 +1085,7 @@ public class Selection {
 			Object ob = it.next();
 			if ((zd && ob instanceof ZDisplayable)
 			  || c.equals(ob.getClass())) {
-				al.add(ob);
+				al.add((Displayable)ob);
 			 }
 		}
 		return al;
@@ -1255,7 +1258,8 @@ public class Selection {
 
 	/** Apply the given LUT to all selected 8-bit, 16-bit, 32-bit images. */
 	public void setLut(ColorModel cm) {
-		final ArrayList<Patch> al = (ArrayList<Patch>)getSelected(Patch.class);
+		final ArrayList<Patch> al = new ArrayList<Patch>();
+		for (Displayable d : getSelected(Patch.class)) al.add((Patch)d);
 		if (0 == al.size()) {
 			return;
 		}
