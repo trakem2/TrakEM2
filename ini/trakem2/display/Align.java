@@ -293,6 +293,7 @@ public class Align {
 		for (Iterator it = hs2.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			d.getAffineTransform().preConcatenate(at);
+			d.updateBucket();
 		}
 
 		// propagate to all layers after the second one

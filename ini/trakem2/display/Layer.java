@@ -754,6 +754,7 @@ public class Layer extends DBObject implements Bucketable {
 			if (all || d.getClass() == c) {
 				d.getAffineTransform().preConcatenate(at);
 				d.updateInDatabase("transform");
+				d.updateBucket();
 			}
 		}
 	}
