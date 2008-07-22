@@ -510,6 +510,10 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				move(node, 1);
 				ke.consume(); // in any case
 				break;
+			case KeyEvent.VK_S:
+				pt.getProject().getLoader().save(pt.getProject());
+				ke.consume();
+				break;
 		}
 	}
 	public void keyReleased(KeyEvent ke) {}
