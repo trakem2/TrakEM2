@@ -244,15 +244,7 @@ public class Layer extends DBObject implements Bucketable {
 			al_displayables.add(displ); // at the end
 			stack_index = d.length;
 		}
-		if (update_db) {
-			updateInDatabase("stack_index"); // of the displayables ...
-			displ.setLayer(this);
-		} else {
-			displ.setLayer(this, false);
-		}
-		if (update_displays) {
-			Display.add(this, displ);
-		}
+
 		// insert into bucket
 		if (null != root) {
 			if (d.length == stack_index) {
@@ -264,6 +256,16 @@ public class Layer extends DBObject implements Bucketable {
 				// find and update the range of affected Displayable objects
 				root.update(this, displ, stack_index, d.length); // first to last indices affected
 			}
+		}
+
+		if (update_db) {
+			updateInDatabase("stack_index"); // of the displayables ...
+			displ.setLayer(this);
+		} else {
+			displ.setLayer(this, false);
+		}
+		if (update_displays) {
+			Display.add(this, displ);
 		}
 	}
 
