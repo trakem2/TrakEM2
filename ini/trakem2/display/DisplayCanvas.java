@@ -2127,7 +2127,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 					i++;
 				}
 
-				// preload as many as possible
+				// preload concurrently as many as possible
 				Loader.preload(al_patches, magnification, false); // must be false; a 'true' would incur in an infinite loop.
 
 				// paint the ZDisplayables here, before the labels and LayerSets, if any

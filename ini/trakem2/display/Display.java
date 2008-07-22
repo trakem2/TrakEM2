@@ -2041,7 +2041,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				popup.addSeparator();
 				LayerSet ls = layer.getParent();
 				item = new JMenuItem("Move to top"); item.addActionListener(this); menu.add(item);
-				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_HOME, 0, true));
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_HOME, 0, true)); // this is just to draw the key name by the menu; it does not incur on any event being generated (that I know if), and certainly not any event being listened to by TrakEM2.
 				if (ls.isTop(active)) item.setEnabled(false);
 				item = new JMenuItem("Move up"); item.addActionListener(this); menu.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true));
