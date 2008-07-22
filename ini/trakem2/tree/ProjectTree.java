@@ -38,8 +38,10 @@ import java.awt.Color;
 import java.awt.Event;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import javax.swing.KeyStroke;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
+import javax.swing.JMenu;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.ActionEvent;
@@ -84,12 +86,17 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			return null;
 		}
 		// context-sensitive popup
-		JMenuItem[] item = thing.getPopupItems(this);
-		if (0 == item.length) return null;
+		JMenuItem[] items = thing.getPopupItems(this);
+		if (0 == items.length) return null;
 		JPopupMenu popup = new JPopupMenu();
-		for (int i=0; i<item.length; i++) {
-			popup.add(item[i]);
+		for (int i=0; i<items.length; i++) {
+			popup.add(items[i]);
 		}
+		JMenu node_menu = new JMenu("Node");
+		JMenuItem item = new JMenuItem("Move up"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true)); node_menu.add(item);
+		item = new JMenuItem("Move down"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true)); node_menu.add(item);
+
+		popup.add(node_menu);
 		return popup;
 	}
 
@@ -307,6 +314,10 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			} else if (command.equals("Info")) {
 				showInfo(thing);
 				return;
+			} else if (command.equals("Move up")) {
+				move(selected_node, -1);
+			} else if (command.equals("Move down")) {
+				move(selected_node, 1);
 			} else {
 				Utils.log("ProjectTree.actionPerformed: don't know what to do with the command: " + command);
 				return;
@@ -492,29 +503,36 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		boolean reinsert = false;
 		switch (key_code) {
 			case KeyEvent.VK_PAGE_UP:
-				reinsert = pt.move(-1);
+				move(node, -1);
 				ke.consume(); // in any case
 				break;
 			case KeyEvent.VK_PAGE_DOWN:
-				reinsert = pt.move(1);
+				move(node, 1);
 				ke.consume(); // in any case
 				break;
-		}
-		if (reinsert) {
-			DefaultMutableTreeNode parent_node = (DefaultMutableTreeNode)node.getParent();
-			int index = parent_node.getChildCount() -1;
-			((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
-			index = pt.getParent().getChildren().indexOf(pt);
-			((DefaultTreeModel)this.getModel()).insertNodeInto(node, parent_node, index);
-			// restore selection path
-			TreePath trp = new TreePath(node.getPath());
-			this.scrollPathToVisible(trp);
-			this.setSelectionPath(trp);
-			this.updateUILater();
 		}
 	}
 	public void keyReleased(KeyEvent ke) {}
 	public void keyTyped(KeyEvent ke) {}
+
+	/** Move up (-1) or down (1). */
+	private void move(final DefaultMutableTreeNode node, final int direction) {
+		final ProjectThing pt = (ProjectThing)node.getUserObject();
+		if (null == pt) return;
+		// Move: within the list of children of the parent ProjectThing:
+		if (!pt.move(direction)) return;
+		// If moved, reposition within the list of children
+		final DefaultMutableTreeNode parent_node = (DefaultMutableTreeNode)node.getParent();
+		int index = parent_node.getChildCount() -1;
+		((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
+		index = pt.getParent().getChildren().indexOf(pt);
+		((DefaultTreeModel)this.getModel()).insertNodeInto(node, parent_node, index);
+		// restore selection path
+		final TreePath trp = new TreePath(node.getPath());
+		this.scrollPathToVisible(trp);
+		this.setSelectionPath(trp);
+		this.updateUILater();
+	}
 
 	/** If the given node is null, it will be searched for. */
 	public boolean remove(boolean check, ProjectThing thing, DefaultMutableTreeNode node) {
