@@ -213,11 +213,6 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				addLeaves((ArrayList<Thing>)nc);
 			} else if (command.equals("Unhide")) {
 				thing.setVisible(true);
-				if (obd instanceof Displayable) {
-					// additionality, get the front Display (or make a new one if none) and show in it the layer in which the Displayable object is contained.
-					Displayable displ = (Displayable)obd;
-					Display.setFront(displ.getLayer(), displ);
-				}
 			} else if (command.equals("Select in display")) {
 				boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
 				if (obd instanceof Displayable) {
