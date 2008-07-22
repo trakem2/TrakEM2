@@ -858,6 +858,7 @@ public class Registration {
 			sp.max_size = (int)gds.getNextNumber();
 			sp.max_epsilon = (float)gds.getNextNumber();
 			sp.tiles_prealigned = gds.getNextBoolean();
+			global_optimization = gds.getNextBoolean();
 			boolean advanced_setup = gds.getNextBoolean();
 
 			// 2 - Optional advanced setup
