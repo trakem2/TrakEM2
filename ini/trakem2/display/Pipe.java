@@ -76,6 +76,8 @@ public class Pipe extends ZDisplayable {
 	/**The interpolated width for each interpolated point. */
 	protected double[] p_width_i = new double[0];
 
+	static private double last_radius = 1;
+
 	public Pipe(Project project, String title, double x, double y) {
 		super(project, title, x, y);
 		n_points = 0;
@@ -330,7 +332,7 @@ public class Pipe extends ZDisplayable {
 			p[0][n_points] = p_l[0][n_points] = p_r[0][n_points] = x_p;
 			p[1][n_points] = p_l[1][n_points] = p_r[1][n_points] = y_p;
 			p_layer[n_points] = layer_id;
-			p_width[n_points] = (0 == n_points ? 1.0D : p_width[n_points -1]); // either 1.0 or the same as the last point
+			p_width[n_points] = (0 == n_points ? last_radius : p_width[n_points -1]); // either 1.0 or the same as the last point
 			index = n_points;
 		} else if (-1 == index) {
 			// decide whether to append at the end or prepend at the beginning
@@ -756,6 +758,7 @@ public class Pipe extends ZDisplayable {
 				} else if (me.isShiftDown()) {
 					// resize radius
 					p_width[index] = Math.sqrt((x_d - p[0][index])*(x_d - p[0][index]) + (y_d - p[1][index])*(y_d - p[1][index]));
+					last_radius = p_width[index];
 					Utils.showStatus("radius: " + p_width[index], false);
 				} else { //TODO in linux the alt+click is stolen by the KDE window manager but then the middle-click works as if it was the alt+click. Weird!
 					//drag both control points symmetrically
