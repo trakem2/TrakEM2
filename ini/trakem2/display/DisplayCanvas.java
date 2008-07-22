@@ -1382,7 +1382,10 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				final ArrayList al2 = new ArrayList(layer.find(x_p, y_p, true));
 				Collections.reverse(al2); // text labels first
 				al.addAll(al2);
-				if (0 == al.size()) return;
+				if (0 == al.size()) {
+					Utils.showStatus("");
+					return;
+				}
 				final StringBuffer sb = new StringBuffer();
 				final Project pr = layer.getProject();
 				for (Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
