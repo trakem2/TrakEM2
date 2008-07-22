@@ -79,24 +79,33 @@ public class Bucket {
 	}
 
 	synchronized final void populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
-		populate(container, db_map, w+w, h+h, w, h);
+		final HashMap<Integer,Displayable> list = new HashMap<Integer,Displayable>();
+		int i = 0;
+		for (Displayable d : container.getDisplayableList()) {
+			list.put(i, d);
+			i++;
+		}
+		// cache all bounding boxes
+		final HashMap<Displayable,Rectangle> bboxes = new HashMap<Displayable,Rectangle>();
+		for (Displayable d : list.values()) {
+			bboxes.put(d, d.getBoundingBox(new Rectangle()));
+		}
+		populate(container, db_map, w+w, h+h, w, h, list, bboxes);
 	}
 
 	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. Returns true if not empty. */
-	final private boolean populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height) {
+	final private boolean populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height, final HashMap<Integer,Displayable> parent_list, final HashMap<Displayable,Rectangle> bboxes) {
 		if (this.w <= bucket_side || this.h <= bucket_side) {
 			// add displayables, sorted by index
 			map = new TreeMap<Integer,Displayable>();
-			int i = 0;
-			final Rectangle tmp = new Rectangle();
-			for (Displayable d : container.getDisplayableList()) {
-				d.getBoundingBox(tmp);
-				if (0 == tmp.width || 0 == tmp.height) continue;
-				if (this.intersects(tmp)) {
-					map.put(i, d);
+			for (Map.Entry<Integer,Displayable> e : parent_list.entrySet()) {
+				final Displayable d = e.getValue();
+				final Rectangle bbox = bboxes.get(d);
+				if (0 == bbox.width || 0 == bbox.height) continue;
+				if (this.intersects(bbox)) {
+					map.put(e.getKey(), d);
 					putToBucketMap(d, db_map);
 				}
-				i++;
 			}
 			this.empty = map.isEmpty();
 			//Utils.log2(empty ? "EMPTY ": "FILLED " + this);
@@ -109,6 +118,17 @@ public class Bucket {
 			if (side_w > max_width) side_w = max_width;
 			if (side_h > max_height) side_h = max_height;
 
+			// create list of Displayables that will be added here, as extracted from the parent list
+			final HashMap<Integer,Displayable> local_list = new HashMap<Integer,Displayable>();
+			for (Map.Entry<Integer,Displayable> e : parent_list.entrySet()) {
+				final Displayable d = e.getValue();
+				final Rectangle bbox = bboxes.get(d);
+				if (0 == bbox.width || 0 == bbox.height) continue;
+				if (this.intersects(bbox))  local_list.put(e.getKey(), d);
+			}
+
+			//Utils.log2(local_list.size() + " :: " + this.toString());
+
 			for (int x=0; x<parent_w; x += side_w) {
 				if (this.x + x >= max_width) continue;
 				int width = side_w;
@@ -118,7 +138,7 @@ public class Bucket {
 					int height = side_h;
 					if (this.y + y + side_h > max_height) height = max_height - this.y - y;
 					final Bucket bu = new Bucket(this.x + x, this.y + y, width, height, bucket_side);
-					if (bu.populate(container, db_map, width, height, max_width, max_height)) {
+					if (bu.populate(container, db_map, width, height, max_width, max_height, local_list, bboxes)) {
 						this.empty = false;
 					}
 					children.add(bu);
