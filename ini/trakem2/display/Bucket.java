@@ -310,15 +310,16 @@ public class Bucket {
 	synchronized final void updatePosition(final Displayable d, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
 
 		final ArrayList<Bucket> list = db_map.get(d);
-		if (null == list) return;
 		final Rectangle box = d.getBoundingBox(null);
 		final int stack_index = d.getBucketable().getDisplayableList().indexOf(d);
-		for (Iterator<Bucket> it = list.iterator(); it.hasNext(); ) {
-			Bucket bu = it.next();
-			if (bu.intersects(box)) continue; // no change of bucket: lower-right corner still within the bucket
-			// else, remove
-			bu.map.remove(stack_index);
-			it.remove();
+		if (null != list) {
+			for (Iterator<Bucket> it = list.iterator(); it.hasNext(); ) {
+				Bucket bu = it.next();
+				if (bu.intersects(box)) continue; // no change of bucket: lower-right corner still within the bucket
+				// else, remove
+				bu.map.remove(stack_index);
+				it.remove();
+			}
 		}
 		// insert wherever appropriate, if not there
 		this.put(stack_index, d, box);
