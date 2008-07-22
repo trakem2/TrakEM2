@@ -304,61 +304,78 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 		public void adjustmentValueChanged(AdjustmentEvent ae) {
 			int index = scroller.getValue();
-			new SetLayerThread(Display.this, layer.getParent().getLayer(index));
+			slt.set(layer.getParent().getLayer(index));
 			return;
 		}
 	}
 
-	private Object setting_layer_lock = new Object();
-	private boolean setting_layer = false;
-	private SetLayerThread set_layer_thread = null;
+	private final SetLayerThread slt = new SetLayerThread();
 
 	private class SetLayerThread extends Thread {
 
-		private boolean quit = false;
-		private Display d;
+		private boolean go = true;
 		private Layer layer;
+		private final Lock lock = new Lock();
+		private final Lock lock2 = new Lock();
 
-		SetLayerThread(Display d, Layer layer) {
+		SetLayerThread() {
 			setPriority(Thread.NORM_PRIORITY);
-			if (null != set_layer_thread) set_layer_thread.quit();
-			set_layer_thread = this;
-			this.d = d;
-			this.layer = layer;
+			setDaemon(true);
 			start();
 		}
 
+		public final void set(final Layer layer) {
+			synchronized (lock) {
+				this.layer = layer;
+			}
+			synchronized (this) {
+				notify();
+			}
+		}
+
+		public final void setAndWait(final Layer layer) {
+			lock2.lock();
+			set(layer);
+		}
+
 		public void run() {
-			if (quit) return;
-			synchronized (setting_layer_lock) {
-				while (setting_layer) {
-					try { setting_layer_lock.wait(); } catch (InterruptedException ie) {}
-				}
-				if (quit) {
-					setting_layer = false;
-					setting_layer_lock.notifyAll();
-					return;
-				}
-				setting_layer = true;
-				try {
-					d.setLayer(layer);
-					updateInDatabase("layer_id"); // not being done at the setLayer method to avoid thread locking design problems (the setLayer is used when reconstructing from the database)
-					Thread.yield();
-				} catch (Exception e) {
-					IJError.print(e);
-				} finally {
-					// cleanup (removal of reference necessary for join() calls to this thread to succeed)
-					if (this == set_layer_thread) {
-						set_layer_thread = null;
+			while (go) {
+				while (null == this.layer) {
+					synchronized (this) {
+						try { wait(); } catch (InterruptedException ie) {}
 					}
 				}
-				setting_layer = false;
-				setting_layer_lock.notifyAll();
+				Layer layer = null;
+				synchronized (lock) {
+					layer = this.layer;
+					this.layer = null;
+				}
+				//
+				if (!go) return; // after nullifying layer
+				//
+				if (null != layer) {
+					Display.this.setLayer(layer);
+					Display.this.updateInDatabase("layer_id");
+				}
+				// unlock any calls waiting on setAndWait
+				synchronized (lock2) {
+					lock2.unlock();
+				}
+			}
+			// cleanup:
+			synchronized (lock2) {
+				lock2.unlock();
+			}
+		}
+
+		public void waitForLayer() {
+			while (null != layer && go) {
+				try { Thread.sleep(10); } catch (Exception e) {}
 			}
 		}
 
 		public void quit() {
-			quit = true;
+			go = false;
 		}
 	}
 
@@ -1027,57 +1044,50 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	protected void destroy() {
 		dispatcher.quit();
 		canvas.setReceivesInput(false);
-		synchronized (setting_layer_lock) {
-			while (setting_layer) {
-				try { setting_layer_lock.wait(); } catch (InterruptedException ie) {}
-			}
-			setting_layer = true;
-			if (null != set_layer_thread) set_layer_thread.quit();
+		slt.quit();
 
-			// update the coloring in the ProjectTree and LayerTree
-			if (!project.isBeingDestroyed()) {
-				try {
-					project.getProjectTree().updateUILater();
-					project.getLayerTree().updateUILater();
-				} catch (Exception e) {
-					Utils.log2("updateUI failed at Display.destroy()");
-				}
-			}
-
-			frame.removeComponentListener(component_listener);
-			frame.removeWindowListener(window_listener);
-			frame.removeWindowFocusListener(window_listener);
-			frame.removeWindowStateListener(window_listener);
-			frame.removeKeyListener(canvas);
-			frame.removeMouseListener(frame_mouse_listener);
-			canvas_panel.removeKeyListener(canvas);
-			canvas.removeKeyListener(canvas);
-			tabs.removeChangeListener(tabs_listener);
-			tabs.removeKeyListener(canvas);
-			ImagePlus.removeImageListener(this);
-			canvas.destroy();
-			navigator.destroy();
-			scroller.removeAdjustmentListener(scroller_listener);
-			frame.setVisible(false);
-			//no need, and throws exception//frame.dispose();
-			active = null;
-			if (null != selection) selection.clear();
-			//Utils.log2("destroying selection");
-
-			// below, need for SetLayerThread threads to quit if any.
-			setting_layer = false;
-			setting_layer_lock.notifyAll();
-			// set a new front if any
-			if (null == front && al_displays.size() > 0) {
-				front = (Display)al_displays.get(al_displays.size() -1);
-			}
-			// repaint layer tree (to update the label color)
+		// update the coloring in the ProjectTree and LayerTree
+		if (!project.isBeingDestroyed()) {
 			try {
-				project.getLayerTree().updateUILater(); // works only after setting the front above
-			} catch (Exception e) {} // ignore swing sync bullshit when closing everything too fast
-			// remove the drag and drop listener
-			dnd.destroy();
+				project.getProjectTree().updateUILater();
+				project.getLayerTree().updateUILater();
+			} catch (Exception e) {
+				Utils.log2("updateUI failed at Display.destroy()");
+			}
 		}
+
+		frame.removeComponentListener(component_listener);
+		frame.removeWindowListener(window_listener);
+		frame.removeWindowFocusListener(window_listener);
+		frame.removeWindowStateListener(window_listener);
+		frame.removeKeyListener(canvas);
+		frame.removeMouseListener(frame_mouse_listener);
+		canvas_panel.removeKeyListener(canvas);
+		canvas.removeKeyListener(canvas);
+		tabs.removeChangeListener(tabs_listener);
+		tabs.removeKeyListener(canvas);
+		ImagePlus.removeImageListener(this);
+		canvas.destroy();
+		navigator.destroy();
+		scroller.removeAdjustmentListener(scroller_listener);
+		frame.setVisible(false);
+		//no need, and throws exception//frame.dispose();
+		active = null;
+		if (null != selection) selection.clear();
+		//Utils.log2("destroying selection");
+
+		// below, need for SetLayerThread threads to quit
+		slt.quit();
+		// set a new front if any
+		if (null == front && al_displays.size() > 0) {
+			front = (Display)al_displays.get(al_displays.size() -1);
+		}
+		// repaint layer tree (to update the label color)
+		try {
+			project.getLayerTree().updateUILater(); // works only after setting the front above
+		} catch (Exception e) {} // ignore swing sync bullshit when closing everything too fast
+		// remove the drag and drop listener
+		dnd.destroy();
 	}
 
 	/** Find all Display instances that contain a Layer of the given project and close them without removing the Display entries from the database. */
@@ -2337,13 +2347,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//setLayer(layer.getParent().next(layer));
 		//scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 		if (0 == (modifiers ^ Event.SHIFT_MASK)) {
-			new SetLayerThread(this, layer.getParent().nextNonEmpty(layer));
+			slt.set(layer.getParent().nextNonEmpty(layer));
 		} else if (scroll_step > 1) {
 			int i = layer.getParent().indexOf(this.layer);
 			Layer la = layer.getParent().getLayer(i + scroll_step);
-			if (null != la) new SetLayerThread(this, la);
+			if (null != la) slt.set(la);
 		} else {
-			new SetLayerThread(this, layer.getParent().next(layer));
+			slt.set(layer.getParent().next(layer));
 		}
 		updateInDatabase("layer_id");
 	}
@@ -2353,13 +2363,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//setLayer(layer.getParent().previous(layer));
 		//scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 		if (0 == (modifiers ^ Event.SHIFT_MASK)) {
-			new SetLayerThread(this, layer.getParent().previousNonEmpty(layer));
+			slt.set(layer.getParent().previousNonEmpty(layer));
 		} else if (scroll_step > 1) {
 			int i = layer.getParent().indexOf(this.layer);
 			Layer la = layer.getParent().getLayer(i - scroll_step);
-			if (null != la) new SetLayerThread(this, la);
+			if (null != la) slt.set(la);
 		} else {
-			new SetLayerThread(this, layer.getParent().previous(layer));
+			slt.set(layer.getParent().previous(layer));
 		}
 		updateInDatabase("layer_id");
 	}
@@ -2503,8 +2513,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == profile) return;
 			active.link(profile);
 			next_layer.add(profile);
-			Thread thread = new SetLayerThread(Display.this, next_layer);//setLayer(next_layer);
-			try { thread.join(); } catch (InterruptedException ie) {} // wait until finished!
+			slt.setAndWait(next_layer);//setLayer(next_layer);
 			selection.add(profile); //setActive(profile);
 		} else if (command.equals("Duplicate, link and send to previous layer")) {
 			if (null == active || !(active instanceof Profile)) return;
@@ -2514,8 +2523,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == profile) return;
 			active.link(profile);
 			previous_layer.add(profile);
-			Thread thread = new SetLayerThread(Display.this, previous_layer);//setLayer(previous_layer);
-			try { thread.join(); } catch (InterruptedException ie) {} // wait until finished!
+			slt.setAndWait(previous_layer);//setLayer(previous_layer);
 			selection.add(profile); //setActive(profile);
 		} else if (command.equals("Duplicate, link and send to...")) {
 			// fix non-scrolling popup menu
@@ -2538,8 +2546,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == profile) return;
 			active.link(profile);
 			la.add(profile);
-			Thread thread = new SetLayerThread(Display.this, la);//setLayer(la);
-			try { thread.join(); } catch (InterruptedException ie) {} // waint until finished!
+			slt.setAndWait(la);//setLayer(la);
 			selection.add(profile);
 		} else if (-1 != command.indexOf("z = ")) {
 			// this is an item from the "Duplicate, link and send to" menu of layer z's
@@ -2550,8 +2557,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == profile) return;
 			active.link(profile);
 			target_layer.add(profile);
-			Thread thread = new SetLayerThread(Display.this, target_layer);//setLayer(target_layer);
-			try { thread.join(); } catch (InterruptedException ie) {} // waint until finished!
+			slt.setAndWait(target_layer);//setLayer(target_layer);
 			selection.add(profile); // setActive(profile); // this is repainting only the active, not everything, because it cancels the repaint sent by the setLayer ! BUT NO, it should add up to the max box.
 		} else if (-1 != command.indexOf("z=")) {
 			// WARNING the indexOf is very similar to the previous one
