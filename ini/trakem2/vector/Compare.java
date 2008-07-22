@@ -1004,7 +1004,7 @@ public class Compare {
 	 * ASSUMES both VectorString3D are open.
 	 *
 	 * */
-	static private final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
+	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
 
 		final VectorString3D vs1rev = vs1.makeReversedCopy();
 		final VectorString3D vs2rev = vs2.makeReversedCopy();
@@ -1057,10 +1057,9 @@ public class Compare {
 
 	static private boolean matchUnits(String unit1, String unit2, String project_title) {
 		if (unit1.equals(unit2)) return true;
-		// else, ask
-		YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The calibration units of the queried pipe (" + unit1 + ") does not match with that of the reference project '" + project_title + "' (" + unit2 + ").\nContinue anyway?");
-		if (yn.yesPressed()) return true;
-		return false;
+		// else, record problem
+		Utils.log("WARNING: the calibration units of the queried pipe (" + unit1 + ") does not match with that of the reference project '" + project_title + "' (" + unit2 + ").");
+		return true;
 	}
 
 	/** Compare the given pipe with other pipes in the given standard project(s). WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
@@ -1509,8 +1508,8 @@ public class Compare {
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
 		gd.addChoice("Presets: ", preset_names, preset_names[0]);
 		gd.addMessage("");
-		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Cummulative physical distance", "Standard deviation"}; // TODO add median
-		gd.addChoice("Dissimilarity type: ", distance_types, distance_types[2]);
+		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation"};
+		gd.addChoice("Dissimilarity type: ", distance_types, distance_types[3]);
 		String[] format = {"ggobi XML", ".csv"};
 		if (to_file) {
 			gd.addChoice("File format: ", format, format[0]);
@@ -1546,6 +1545,17 @@ public class Compare {
 		int distance_type = gd.getNextChoiceIndex();
 
 		boolean xml = to_file && 0 == gd.getNextChoiceIndex();
+
+
+		SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
+		String filename = sd.getFileName();
+		if (null == filename) {
+			finishedWorking();
+			return;
+		}
+		String dir = sd.getDirectory().replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
+
 
 
 		// gather all chains
@@ -1622,41 +1632,17 @@ public class Compare {
 			for (Chain chain : chains) chain.vs.resample(delta);
 		}
 
-
-
-
 		// compare all to all
-		//final double[] scores = new double[((n_chains+1) * n_chains) / 2];
-		//int next = 0;
-		final float[][] scores = new float[n_chains][n_chains];
-		for (int i=0; i<n_chains; i++) {
-			final VectorString3D vs1 = chains.get(i).vs;
-			for (int j=i+1; j<n_chains; j++) {
-				if (this.quit) return;
-				Object[] ob = findBestMatch(vs1, chains.get(j).vs, delta, skip_ends, max_mut, min_chunk);
-				//scores[next++] = 1 - ((Double)ob[1]).doubleValue();
-				// Record the dissimilarity
-				switch (distance_type) {
-					case 0: // Levenshtein
-						scores[i][j] = (float)((Editions)ob[0]).getDistance();
-						break;
-					case 1: // Dissimilarity
-						scores[i][j] = 1.0f - (float)((Double)ob[1]).doubleValue();
-						break;
-					case 2: // average physical distance between mutation pairs
-						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
-						break;
-					case 3: // cummulative physical distance between mutation pairs
-						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
-					case 4: // stdDev of distances between mutation pairs
-						scores[i][j] = (float)((Editions)ob[0]).getStdDev(skip_ends, max_mut, min_chunk);
-						break;
-				}
-				scores[j][i] = scores[i][j];
-				// easier ... I don't need double precision anyway, so the float matrix is half the size.
-			}
+		final VectorString3D[] vs = new VectorString3D[n_chains];
+		for (int i=0; i<n_chains; i++) vs[i] = chains.get(i).vs;
+		final float[][] scores = Compare.scoreAllToAll(vs, distance_type, delta, skip_ends, max_mut, min_chunk, this);
+
+		if (null == scores) {
+			finishedWorking();
+			return;
 		}
-		// store half-matrix into the worker
+
+		// store matrix into the worker
 		this.result = scores;
 
 		// write to file
@@ -1664,14 +1650,7 @@ public class Compare {
 			finishedWorking();
 			return;
 		}
-		SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
-		String filename = sd.getFileName();
-		if (null == filename) {
-			finishedWorking();
-			return;
-		}
-		String dir = sd.getDirectory().replace('\\', '/');
-		if (!dir.endsWith("/")) dir += "/";
+
 		File f = new File(dir + filename);
 		OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
 
@@ -1759,5 +1738,42 @@ public class Compare {
 		Bureaucrat burro = new Bureaucrat(worker, p);
 		burro.goHaveBreakfast();
 		return burro;
+	}
+
+	/** Returns the half matrix of scores, with values copied from one half matrix to the other, and a diagonal of zeros.
+	 * @param distance_type ranges from 0 to 5, and includes: 0=Levenshtein, 1=Dissimilarity, 2=Average physical distance, 3=Median physical distance, 4=Cummulative physical distance and 5=Standard deviation. */
+	static public float[][] scoreAllToAll(final VectorString3D[] vs, final int distance_type, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final Worker worker) {
+		final float[][] scores = new float[vs.length][vs.length];
+		for (int i=0; i<vs.length; i++) {
+			final VectorString3D vs1 = vs[i];
+			for (int j=i+1; j<vs.length; j++) {
+				if (null != worker && worker.hasQuitted()) return null;
+				Object[] ob = findBestMatch(vs1, vs[j], delta, skip_ends, max_mut, min_chunk);
+				// Record the dissimilarity
+				switch (distance_type) {
+					case 0: // Levenshtein
+						scores[i][j] = (float)((Editions)ob[0]).getDistance();
+						break;
+					case 1: // Dissimilarity
+						scores[i][j] = 1.0f - (float)((Double)ob[1]).doubleValue();
+						break;
+					case 2: // average physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
+						break;
+					case 3: // median physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getStatistics(skip_ends, max_mut, min_chunk, false)[3]; // 3 is median
+						break;
+					case 4: // cummulative physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
+						break;
+					case 5: // stdDev of distances between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getStdDev(skip_ends, max_mut, min_chunk);
+						break;
+				}
+				// mirror value
+				scores[j][i] = scores[i][j];
+			}
+		}
+		return scores;
 	}
 }
