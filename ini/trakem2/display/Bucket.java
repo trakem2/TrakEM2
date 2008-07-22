@@ -455,7 +455,8 @@ public class Bucket {
 				sizes[i++] = Math.max(r.width, r.height);
 			}
 			Arrays.sort(sizes);
-			return 2 * sizes[sizes.length/2];
+			int size = 2 * sizes[sizes.length/2];
+			return size > 128 ? size : 128;
 		}
 	}
 }
