@@ -2041,12 +2041,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				popup.addSeparator();
 				LayerSet ls = layer.getParent();
 				item = new JMenuItem("Move to top"); item.addActionListener(this); menu.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_HOME, 0, true));
 				if (ls.isTop(active)) item.setEnabled(false);
 				item = new JMenuItem("Move up"); item.addActionListener(this); menu.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true));
 				if (ls.isTop(active)) item.setEnabled(false);
 				item = new JMenuItem("Move down"); item.addActionListener(this); menu.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true));
 				if (ls.isBottom(active)) item.setEnabled(false);
 				item = new JMenuItem("Move to bottom"); item.addActionListener(this); menu.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_END, 0, true));
 				if (ls.isBottom(active)) item.setEnabled(false);
 
 				popup.add(menu);
