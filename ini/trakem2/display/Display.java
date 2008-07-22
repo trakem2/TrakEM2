@@ -1194,12 +1194,23 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Grab the last selected display (or create an new one if none) and show in it the layer,centered on the Displayable object. */
-	static public void setFront(Layer layer, Displayable displ) {
+	static public void setFront(final Layer layer, final Displayable displ) {
 		if (null == front) {
 			Display display = new Display(layer.getProject(), layer); // gets set to front
 			display.showCentered(displ);
-		} else {
+		} else if (layer == front.layer) {
 			front.showCentered(displ);
+		} else {
+			// find one:
+			for (Display d : al_displays) {
+				if (d.layer == layer) {
+					d.frame.toFront();
+					d.showCentered(displ);
+					return;
+				}
+			}
+			// else, open new one
+			new Display(layer.getProject(), layer).showCentered(displ);
 		}
 	}
 
@@ -1538,7 +1549,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			selection.add(d);
 		}
 		// update the image shown to ImageJ
-		setTempCurrentImage();
+		// NO longer necessary, always he same FakeImagePlus // setTempCurrentImage();
 	}
 
 	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, final Class c) {
