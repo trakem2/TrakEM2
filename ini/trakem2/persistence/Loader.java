@@ -247,7 +247,7 @@ abstract public class Loader {
 		if (null != IJ.getInstance() && IJ.getInstance().quitting()) {
 			return; // no need to do anything else
 		}
-		Utils.showStatus("Releasing all memory ...");
+		Utils.showStatus("Releasing all memory ...", false);
 		destroyCache();
 		if (null != v_loaders) {
 			v_loaders.remove(this); // sync issues when deleting two loaders consecutively
@@ -1272,7 +1272,7 @@ abstract public class Loader {
 	private int getCCScaleGuess(final File images_dir, final String[] all_images) {
 		try {
 			if (null != all_images && all_images.length > 0) {
-				Utils.showStatus("Opening one image ... ");
+				Utils.showStatus("Opening one image ... ", false);
 				String sdir = images_dir.getAbsolutePath().replace('\\', '/');
 				if (!sdir.endsWith("/")) sdir += "/";
 				IJ.redirectErrorMessages();
@@ -1601,7 +1601,7 @@ abstract public class Loader {
 			// the 'selected' file
 			file = file_names[0];
 		}
-		Utils.showStatus("Adding " + file_names.length + " patches.");
+		Utils.showStatus("Adding " + file_names.length + " patches.", false);
 		if (0 == file_names.length) {
 			Utils.log("Zero files match the convention '" + convention + "'");
 			return null;
@@ -3687,7 +3687,7 @@ abstract public class Loader {
 			popup_locked = false;
 			popup_lock.notifyAll();
 		}
-		Utils.showStatus("Job canceled.");
+		Utils.showStatus("Job canceled.", false);
 		}}.start();
 	}
 

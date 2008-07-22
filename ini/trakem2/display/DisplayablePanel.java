@@ -126,7 +126,7 @@ public class DisplayablePanel extends JPanel implements MouseListener, ItemListe
 			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
 				// Prevent hiding when transforming
 				if (Display.isTransforming(d)) {
-					Utils.showStatus("Transforming! Can't change visibility.");
+					Utils.showStatus("Transforming! Can't change visibility.", false);
 					c.setSelected(true);
 					return;
 				}

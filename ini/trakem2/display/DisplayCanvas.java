@@ -1383,14 +1383,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				Collections.reverse(al2); // text labels first
 				al.addAll(al2);
 				if (0 == al.size()) {
-					Utils.showStatus("");
+					Utils.showStatus("", false);
 					return;
 				}
 				final StringBuffer sb = new StringBuffer();
 				final Project pr = layer.getProject();
 				for (Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
 				sb.setLength(sb.length()-2);
-				Utils.showStatus(sb.toString());
+				Utils.showStatus(sb.toString(), false);
 			} else {
 				// set xMouse, yMouse, and print pixel value
 				DisplayCanvas.super.mouseMoved(me);

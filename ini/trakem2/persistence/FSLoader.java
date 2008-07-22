@@ -299,7 +299,7 @@ public class FSLoader extends Loader {
 
 	public void destroy() {
 		super.destroy();
-		Utils.showStatus("");
+		Utils.showStatus("", false);
 		dispatcher.quit();
 		// remove empty trakem2.mipmaps folder if any
 		if (null != dir_mipmaps && !dir_mipmaps.equals(dir_storage)) {
