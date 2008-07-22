@@ -2129,6 +2129,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				boolean none = 0 == selection.getNSelected();
 				item = new JMenuItem("Hide deselected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK, true));
 				if (none) item.setEnabled(false);
+				item = new JMenuItem("Hide deselected except images"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK | Event.ALT_MASK, true));
+				if (none) item.setEnabled(false);
 				item = new JMenuItem("Hide selected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true));
 				if (none) item.setEnabled(false);
 				none = ! layer.getParent().containsDisplayable(DLabel.class);
@@ -2678,6 +2680,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			layer.getParent().setVisible(type, true, true);
 		} else if (command.equals("Hide deselected")) {
 			hideDeselected(0 != (ActionEvent.ALT_MASK & ae.getModifiers()));
+		} else if (command.equals("Hide deselected except images")) {
+			hideDeselected(true);
 		} else if (command.equals("Hide selected")) {
 			selection.setVisible(false); // TODO should deselect them too? I don't think so.
 		} else if (command.equals("Resize canvas/LayerSet...")) {
@@ -3509,9 +3513,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		return false;
 	}
 
-	public void hideDeselected(boolean not_images) {
+	public void hideDeselected(final boolean not_images) {
 		// hide deselected
-		ArrayList all = layer.getParent().getZDisplayables();
+		final ArrayList all = layer.getParent().getZDisplayables(); // a copy
 		all.addAll(layer.getDisplayables());
 		all.removeAll(selection.getSelected());
 		if (not_images) all.removeAll(layer.getDisplayables(Patch.class));
