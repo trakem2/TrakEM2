@@ -245,6 +245,13 @@ public class Layer extends DBObject implements Bucketable {
 			stack_index = d.length;
 		}
 
+		if (update_db) {
+			updateInDatabase("stack_index"); // of the displayables ...
+			displ.setLayer(this);
+		} else {
+			displ.setLayer(this, false);
+		}
+
 		// insert into bucket
 		if (null != root) {
 			if (d.length == stack_index) {
@@ -258,12 +265,6 @@ public class Layer extends DBObject implements Bucketable {
 			}
 		}
 
-		if (update_db) {
-			updateInDatabase("stack_index"); // of the displayables ...
-			displ.setLayer(this);
-		} else {
-			displ.setLayer(this, false);
-		}
 		if (update_displays) {
 			Display.add(this, displ);
 		}

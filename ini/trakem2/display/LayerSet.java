@@ -747,6 +747,11 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		}
 		al_zdispl.add(0, zdispl); // at the top
 
+		zdispl.setLayerSet(this);
+		// The line below can fail (and in the addSilently as well) if one can add zdispl objects while no Layer has been created. But the ProjectThing.createChild prevents this situation.
+		zdispl.setLayer(al_layers.get(0));
+		zdispl.updateInDatabase("layer_set_id"); // TODO: update stack index?
+
 		// insert into bucket
 		if (null != root) {
 			// add as last, then update
@@ -754,10 +759,6 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 			root.update(this, zdispl, 0, al_zdispl.size()-1);
 		}
 
-		zdispl.setLayerSet(this);
-		// The line below can fail (and in the addSilently as well) if one can add zdispl objects while no Layer has been created. But the ProjectThing.createChild prevents this situation.
-		zdispl.setLayer(al_layers.get(0));
-		zdispl.updateInDatabase("layer_set_id"); // TODO: update stack index?
 		Display.add(this, zdispl);
 	}
 
