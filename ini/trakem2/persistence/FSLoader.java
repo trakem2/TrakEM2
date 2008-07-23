@@ -851,7 +851,7 @@ public class FSLoader extends Loader {
 	public String save(final Project project) {
 		String result = null;
 		if (null == project_file_path) {
-			String xml_path = super.saveAs(project);
+			String xml_path = super.saveAs(project, null, false);
 			if (null == xml_path) return null;
 			else {
 				this.project_file_path = xml_path;
