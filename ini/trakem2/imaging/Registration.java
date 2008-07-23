@@ -1728,11 +1728,20 @@ public class Registration {
 	}
 
 	/** Test all to all or all to overlapping only, and make appropriate connections between tiles. */
-	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, Vector<Feature>[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
+	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, final Vector<Feature>[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
 		// TODO: multithread this, but careful to synchronize current_tile.connect method
 		final int num_patches = patches.size();
 		final AtomicInteger count = new AtomicInteger(0);
-		for ( int i = 0; i < num_patches; ++i )
+
+		final Lock lock = new Lock();
+		final AtomicInteger ai = new AtomicInteger(0);
+
+		final Thread[] threads = MultiThreading.newThreads();
+		for (int ithread=0; ithread<threads.length; ithread++) {
+			threads[ithread] = new Thread() { public void run() {
+				try {
+
+		for ( int i = ai.getAndIncrement(); i < num_patches; i = ai.getAndIncrement() )
 		{
 			if (worker.hasQuitted()) return;
 			final Patch current_patch = patches.get( i );
@@ -1745,17 +1754,17 @@ public class Registration {
 				final Tile other_tile = tiles.get( j );
 				if ( !sp.tiles_prealigned || current_patch.intersects( other_patch ) )
 				{
-					long start_time = System.currentTimeMillis();
-					System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
+					//long start_time = System.currentTimeMillis();
+					//System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
 					Vector< PointMatch > correspondences = FloatArray2DSIFT.createMatches(
 								fsi, // featureSets.get( i ),
 								(null == fsets[j] ? Registration.deserialize(other_patch, sp, storage_folder) : fsets[j]), //featureSets.get( j ),
 								1.25f,
 								null,
 								Float.MAX_VALUE );
-					Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
+					//Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 					
-					Utils.log2( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
+					Utils.log2( new StringBuffer("Tiles ").append(i).append(" and ").append(j).append(" have ").append(correspondences.size()).append(" potentially corresponding features.").toString() );
 					
 					final Vector< PointMatch > inliers = new Vector< PointMatch >();
 
@@ -1765,15 +1774,32 @@ public class Registration {
 							sp.min_epsilon,
 							sp.max_epsilon,
 							sp.min_inlier_ratio );
-					
-					if ( model != null ) // that implies that inliers is not empty
-						current_tile.connect( other_tile, inliers );
+
+					if ( model != null ) { // that implies that inliers is not empty
+						// Global (and excessive) locking, but it's hard to avoid deadlocks
+						// when in need of synch over two objects at the same time.
+						// In addition the connect call is very cheap compared to the model extraction.
+						synchronized (lock) {
+							current_tile.connect( other_tile, inliers );
+						}
+					}
 
 					Utils.showProgress((double)count.incrementAndGet() / num_patches);
 					Utils.showStatus(new StringBuffer("Connected ").append(count.get()).append('/').append(num_patches).append(" tiles").toString(), false);
 				}
 			}
 		}
+				} catch (Exception e) {
+					Utils.log("Failed connecting tiles!");
+					IJError.print(e);
+					worker.quit();
+				}
+
+			}};
+		}
+		MultiThreading.startAndJoin(threads);
+
+
 		Utils.showProgress(1);
 	}
 
