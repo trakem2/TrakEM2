@@ -44,6 +44,8 @@ import ij3d.Image3DUniverse;
 import ij3d.Content;
 import ij3d.Image3DMenubar;
 
+import java.lang.reflect.Field;
+
 
 /** One Display3D instance for each LayerSet (maximum). */
 public class Display3D {
@@ -77,10 +79,34 @@ public class Display3D {
 		computeScale(ls);
 		this.win = new ImageWindow3D("3D Viewer", this.universe);
 		this.win.addWindowListener(new IW3DListener(ls));
-		this.win.setMenuBar(new Image3DMenubar(universe));
+		this.win.setMenuBar(new CustomImage3DMenubar(universe));
 		this.universe.setWindow(win);
 		// register
 		Display3D.ht_layer_sets.put(ls, this);
+	}
+
+	private class CustomImage3DMenubar extends Image3DMenubar {
+		CustomImage3DMenubar(Image3DUniverse univ) {
+			super(univ);
+		}
+		public void actionPerformed(ActionEvent ae) {
+			String command = ae.getActionCommand();
+			Field f_univ = null;
+			try {
+				f_univ = Image3DMenubar.class.getDeclaredField("univ");
+				f_univ.setAccessible(true);
+				if ("Quit".equals(command)) {
+					for (Iterator it = ht_layer_sets.entrySet().iterator(); it.hasNext(); ) {
+						Map.Entry entry = (Map.Entry)it.next();
+						Display3D d3d = (Display3D)entry.getValue();
+						if (null == d3d || d3d.universe == f_univ.get(this)) it.remove();
+					}
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+			super.actionPerformed(ae);
+		}
 	}
 
 	private class Display3DUniverse extends Image3DUniverse {
@@ -252,7 +278,10 @@ public class Display3D {
 			this.ls = ls;
 		}
 		public void windowClosing(WindowEvent we) {
-			ht_layer_sets.remove(ls);
+			Object ob = ht_layer_sets.remove(ls);
+			if (null != ob) {
+				Utils.log2("Removed Display3D from table for LayerSet " + ls);
+			}
 		}
 	}
 
