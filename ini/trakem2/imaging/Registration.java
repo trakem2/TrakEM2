@@ -23,17 +23,38 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.imaging;
 
 import static mpi.fruitfly.math.General.*;
-import mpi.fruitfly.general.*;
-import mpi.fruitfly.math.datastructures.*;
+import mpi.fruitfly.general.ImageArrayConverter;
+import mpi.fruitfly.general.MultiThreading;
+
+//////
+import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
 import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.registration.PointMatch;
+/////
+
 import mpi.fruitfly.registration.ImageFilter;
+
+//////
 import mpi.fruitfly.registration.Tile;
 import mpi.fruitfly.registration.Model;
 import mpi.fruitfly.registration.TModel2D;
 import mpi.fruitfly.registration.TRModel2D;
+//////
+
+
 import mpi.fruitfly.analysis.FitLine;
+
+/* // New package, with AffineModel2D
+import mpicbg.imagefeatures.Feature;
+import mpicbg.imagefeatures.FloatArray2DSIFT;
+import mpicbg.imagefeatures.FloatArray2D;
+import mpicbg.models.Tile;
+import mpicbg.models.Model;
+import mpicbg.models.AffineModel2D;
+import mpicbg.models.RigidModel2D;
+import mpicbg.models.TranslationModel2D;
+*/
 
 import ini.trakem2.Project;
 import ini.trakem2.display.*;
@@ -1709,7 +1730,7 @@ public class Registration {
 							fsets[k] = null;
 						}
 						Utils.log2(fs.size() + " features");
-						// Create Tile
+						// Create Tile, with a specific model:
 						Model model;
 						if (0 == sp.dimension) model = new TModel2D(); // translation only
 						else model = new TRModel2D(); // both translation and rotation
@@ -1729,7 +1750,6 @@ public class Registration {
 
 	/** Test all to all or all to overlapping only, and make appropriate connections between tiles. */
 	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, final Vector<Feature>[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
-		// TODO: multithread this, but careful to synchronize current_tile.connect method
 		final int num_patches = patches.size();
 		final AtomicInteger count = new AtomicInteger(0);
 
@@ -1777,7 +1797,7 @@ public class Registration {
 
 					if ( model != null ) { // that implies that inliers is not empty
 						// Global (and excessive) locking, but it's hard to avoid deadlocks
-						// when in need of synch over two objects at the same time.
+						// when in need of synch over two objects at the same time (current_tile and other_tile)
 						// In addition the connect call is very cheap compared to the model extraction.
 						synchronized (lock) {
 							current_tile.connect( other_tile, inliers );
