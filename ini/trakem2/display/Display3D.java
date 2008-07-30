@@ -252,22 +252,38 @@ public class Display3D {
 	}
 
 	/** Uses current scaling, translation and centering transforms! */
-	public ImagePlus makeSnapshotXY() {
+	public ImagePlus makeSnapshotXY() { // aka posterior
 		// default view
 		return universe.makeSnapshot(null, new Transform3D(), null, null);
 	}
 	/** Uses current scaling, translation and centering transforms! */
-	public ImagePlus makeSnapshotXZ() {
-		Transform3D rot = new Transform3D();
-		rot.rotX(-Math.PI/2); // 90 degrees clockwise
-		return universe.makeSnapshot(null, rot, null, null);
+	public ImagePlus makeSnapshotXZ() { // aka dorsal
+		Transform3D rot1 = new Transform3D();
+		rot1.rotZ(-Math.PI/2);
+		Transform3D rot2 = new Transform3D();
+		rot2.rotX(Math.PI/2);
+		rot1.mul(rot2);
+		return universe.makeSnapshot(null, rot1, null, null);
 	}
 	/** Uses current scaling, translation and centering transforms! */
-	public ImagePlus makeSnapshotYZ() {
+	public ImagePlus makeSnapshotYZ() { // aka lateral
+		Transform3D rot = new Transform3D();
+		rot.rotY(Math.PI/2);
+		return universe.makeSnapshot(null, rot, null, null);
+	}
+
+	public ImagePlus makeSnapshotZX() { // aka frontal
+		Transform3D rot = new Transform3D();
+		rot.rotX(-Math.PI/2);
+		return universe.makeSnapshot(null, rot, null, null);
+	}
+
+	/** Uses current scaling, translation and centering transforms! Opposite side of XZ. */
+	public ImagePlus makeSnapshotXZOpp() {
 		Transform3D rot1 = new Transform3D();
-		rot1.rotX(-Math.PI/2);
+		rot1.rotX(-Math.PI/2); // 90 degrees clockwise
 		Transform3D rot2 = new Transform3D();
-		rot2.rotZ(-Math.PI/2); // 90 degrees clockwise
+		rot2.rotY(Math.PI); // 180 degrees around Y, to the other side.
 		rot1.mul(rot2);
 		return universe.makeSnapshot(null, rot1, null, null);
 	}
