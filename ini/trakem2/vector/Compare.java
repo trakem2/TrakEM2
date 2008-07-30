@@ -290,7 +290,7 @@ public class Compare {
 	}
 
 	/** Generate calibrated origin of coordinates. */
-	static private Object[] obtainOrigin(final Pipe[] axes, final int transform_type) {
+	static public Object[] obtainOrigin(final Pipe[] axes, final int transform_type) {
 		// pipe's axes
 		VectorString3D[] vs = new VectorString3D[3];
 		for (int i=0; i<3; i++) vs[i] = axes[i].asVectorString3D();
@@ -552,18 +552,18 @@ public class Compare {
 	/** Represents a list of concatenated pipes, where each pipe is parent of the next within the ProjectTree. */
 	static public class Chain {
 		final ArrayList<Pipe> pipes = new ArrayList<Pipe>();
-		VectorString3D vs;
+		public VectorString3D vs; // the complete path of chained pipes
 		private Chain() {}
-		Chain(Pipe root) {
+		public Chain(Pipe root) {
 			this.pipes.add(root);
 			this.vs = root.asVectorString3D();
 		}
-		void append(Pipe p) throws Exception {
+		public void append(Pipe p) throws Exception {
 			//if (pipes.contains(p)) throw new Exception("Already contains pipe #" + p.getId());
 			pipes.add(p);
 			vs = vs.chain(p.asVectorString3D());
 		}
-		final Chain duplicate() {
+		public final Chain duplicate() {
 			Chain chain = new Chain();
 			chain.pipes.addAll(this.pipes);
 			chain.vs = (VectorString3D)this.vs.clone();
@@ -664,7 +664,7 @@ public class Compare {
 			vs.resample(delta);
 			// 3 - transform to axes
 			if (null != trans1) vs.translate(trans1);
-			if (null != rot1) vs.transform(rot1);
+			if (null != rot1) vs.transform(rot1); // contains scale and shear as well, but not translation
 			// Store all
 			queries.add(chain);
 		}
