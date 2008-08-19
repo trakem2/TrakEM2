@@ -950,7 +950,7 @@ public abstract class Displayable extends DBObject {
 				for (Iterator it = hs.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
 					if (this.equals(d)) continue;
-					d.translate(dx, dy);
+					d.translate(dx, dy, false);
 				}
 			} else {
 				this.setLocation(x1, y1);
@@ -961,10 +961,10 @@ public abstract class Displayable extends DBObject {
 				// scale all
 				for (Iterator it = hs.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
-					d.scale(sx, sy, b.y+b.width/2, b.y+b.height/2); // centered on this
+					d.scale(sx, sy, b.y+b.width/2, b.y+b.height/2, false); // centered on this
 				}
 			} else {
-				this.scale(sx, sy, b.y+b.width/2, b.y+b.height/2);
+				this.scale(sx, sy, b.y+b.width/2, b.y+b.height/2, false);
 			}
 		}
 		if (rot1 != 0) {
@@ -974,10 +974,10 @@ public abstract class Displayable extends DBObject {
 				//Utils.log2("delta_angle, rot1, rot: " + delta_angle + "," + rot1 + "," + rot);
 				for (Iterator it = hs.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
-					d.rotate(rads, b.x+b.width/2, b.y+b.height/2);
+					d.rotate(rads, b.x+b.width/2, b.y+b.height/2, false);
 				}
 			} else {
-				this.rotate(rads, b.x+b.width/2, b.y+b.height/2);
+				this.rotate(rads, b.x+b.width/2, b.y+b.height/2, false);
 			}
 		}
 		if (alpha1 != alpha) setAlpha(alpha1, true);

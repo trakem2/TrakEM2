@@ -605,7 +605,7 @@ public class StitchingTEM {
 
 		//  make a reasonable guess for the scale
 		float cc_scale = (float)(512.0 / (p_dragged.getWidth() > p_dragged.getHeight() ? p_dragged.getWidth() : p_dragged.getHeight()));
-		cc_scale = (float)   ( ((int)(cc_scale * 10000)) / 10000 );
+		cc_scale = ((float)((int)(cc_scale * 10000))) / 10000; // rounding
 		if (cc_scale > 1.0f) cc_scale = 1.0f;
 
 		// With Phase-correlation (thus limited to non-rotated Patch instances)
@@ -632,6 +632,7 @@ public class StitchingTEM {
 			}
 		} catch (Exception e) {
 			IJError.print(e);
+			finishedWorking();
 			return;
 		}
 		// now, relocate the Patch
