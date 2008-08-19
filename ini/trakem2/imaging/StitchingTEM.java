@@ -154,6 +154,7 @@ public class StitchingTEM {
 	static private Bureaucrat stitchTopLeft(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean optimize) {
 		final Worker worker = new Worker("Stitching") {
 			public void run() {
+				startedWorking();
 
 		try {
 			final int LEFT = 0, TOP = 1;
@@ -321,6 +322,8 @@ public class StitchingTEM {
 			//
 		} catch (Exception e) {
 			IJError.print(e);
+		} finally {
+			finishedWorking();
 		}
 			}
 		};
