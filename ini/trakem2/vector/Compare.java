@@ -558,7 +558,7 @@ public class Compare {
 			this.pipes.add(root);
 			this.vs = root.asVectorString3D();
 		}
-		public void append(Pipe p) throws Exception {
+		final public void append(Pipe p) throws Exception {
 			//if (pipes.contains(p)) throw new Exception("Already contains pipe #" + p.getId());
 			pipes.add(p);
 			vs = vs.chain(p.asVectorString3D());
@@ -597,15 +597,44 @@ public class Compare {
 			for (int i=1; i<pipes.size(); i++) sb.append(' ').append('#').append(pipes.get(i).getId());
 			return sb.toString();
 		}
+		/** Returns max 10 chars, solely the name of the parent's parent node of the root pipe (aka the [lineage] containing the [branch]) or the id if too long. Intended for the 10-digit limitation in the problem in .dis files for Phylip. */
+		final public String getShortCellTitle() {
+			Pipe root = pipes.get(0);
+			ProjectThing pt = root.getProject().findProjectThing(root);
+			String short_title = null;
+			// investigate the [branch] title
+			pt = (ProjectThing)pt.getParent(); // the [branch]
+			String title = pt.getTitle();
+			if (!title.equals(pt.getType())) short_title = title; // the [branch] was named
+			// investigate the lineage title
+			if (null == short_title) {
+				pt = (ProjectThing)pt.getParent(); // the [lineage]
+				title = pt.getTitle();
+				if (!title.equals(pt.getType())) short_title = title; // the [lineage] was named
+			}
+			// check length
+			if (null != short_title && short_title.length() > 10) {
+				short_title = null; // too long!
+			}
+			// else fall back to unique id
+			if (null == short_title) {
+				short_title = Long.toString(root.getId());
+				if (short_title.length() <= 8) short_title = "id" + short_title;
+			}
+			while (short_title.length() > 10) {
+				short_title = short_title.substring(1);
+			}
+			return short_title;
+		}
 		/** Returns the color of the root pipe. */
-		public Color getColor() {
+		final public Color getColor() {
 			return pipes.get(0).getColor();
 		}
 		final public Pipe getRoot() {
 			return pipes.get(0);
 		}
 		/** Show centered, set visible and select. */
-		public void showCentered2D(boolean shift_down) {
+		final public void showCentered2D(boolean shift_down) {
 			Rectangle b = null;
 			Display display = Display.getFront();
 			for (Pipe p : pipes) {
@@ -1486,8 +1515,16 @@ public class Compare {
 	}
 
 
-	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired. */
-	static public Bureaucrat compareAllToAll(final boolean to_file) {
+	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
+	 *
+	 * @param to_file Whether to save the results to a file and popup a save dialog for it or not. In any case the results are stored in the worker's load, which you can retrieve like:
+	 *     Bureaucrat bu = Compare.compareAllToAll(true, true);
+	 *     Object result = bu.getWorker().getResult();
+	 *     float[][] scores = (float[][])result[0];
+	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
+	 * @param normalize Whether to normalize the score values so that the maximum value is 1 and the minimum is 0, or not.
+	 */
+	static public Bureaucrat compareAllToAll(final boolean to_file, final boolean normalize) {
 		final GenericDialog gd = new GenericDialog("All to all");
 		gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
 		gd.addNumericField("point interdistance: ", 0, 2);
@@ -1510,9 +1547,9 @@ public class Compare {
 		gd.addMessage("");
 		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation"};
 		gd.addChoice("Dissimilarity type: ", distance_types, distance_types[3]);
-		String[] format = {"ggobi XML", ".csv"};
+		final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
 		if (to_file) {
-			gd.addChoice("File format: ", format, format[0]);
+			gd.addChoice("File format: ", formats, formats[2]);
 		}
 
 		//////
@@ -1544,17 +1581,22 @@ public class Compare {
 
 		int distance_type = gd.getNextChoiceIndex();
 
-		boolean xml = to_file && 0 == gd.getNextChoiceIndex();
+		String format = formats[0];
+		if (to_file) format = gd.getNextChoice().trim();
 
+		String filename = null,
+		       dir = null;
 
-		SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
-		String filename = sd.getFileName();
-		if (null == filename) {
-			finishedWorking();
-			return;
+		if (to_file) {
+			SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
+			filename = sd.getFileName();
+			if (null == filename) {
+				finishedWorking();
+				return;
+			}
+			dir = sd.getDirectory().replace('\\', '/');
+			if (!dir.endsWith("/")) dir += "/";
 		}
-		String dir = sd.getDirectory().replace('\\', '/');
-		if (!dir.endsWith("/")) dir += "/";
 
 
 
@@ -1642,8 +1684,8 @@ public class Compare {
 			return;
 		}
 
-		// store matrix into the worker
-		this.result = scores;
+		// store matrix and chains into the worker
+		this.result = new Object[]{scores, chains};
 
 		// write to file
 		if (!to_file) {
@@ -1652,10 +1694,25 @@ public class Compare {
 		}
 
 		File f = new File(dir + filename);
-		OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
+		final OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
+
+		// Normalize matrix to largest value of 1.0
+		if (normalize) {
+			float max = 0;
+			for (int i=0; i<scores.length; i++) { // traverse half matrix ony: it's mirrored
+				for (int j=i; j<scores[0].length; j++) {
+					if (scores[i][j] > max) max = scores[i][j];
+				}
+			}
+			for (int i=0; i<scores.length; i++) {
+				for (int j=i; j<scores[0].length; j++) {
+					scores[i][j] = scores[j][i] /= max;
+				}
+			}
+		}
 
 		// write chain titles, with project prefix
-		if (!xml) {
+		if (format.equals(formats[0])) {
 			// as csv:
 			try {
 				StringBuffer[] titles = new StringBuffer[n_chains];
@@ -1682,7 +1739,7 @@ public class Compare {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-		} else {
+		} else if (format.equals(formats[1])) {
 			// as XML:
 			try {
 				StringBuffer sb = new StringBuffer("<?xml version=\"1.0\"?>\n<!DOCTYPE ggobidata SYSTEM \"ggobi.dtd\">\n");
@@ -1720,6 +1777,48 @@ public class Compare {
 				dos.write(sb.toString());
 				dos.flush();
 
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		} else if (format.equals(formats[2])) {
+			// as Phylip .dis
+			try {
+				final HashSet names = new HashSet();
+				final StringBuffer sb = new StringBuffer();
+				sb.append(scores.length).append('\n');
+				dos.write(sb.toString());
+				for (int i=0; i<scores.length; i++) {
+					sb.setLength(0);
+					final String title = chains.get(i).getShortCellTitle().replace(' ', '_').replace('\t', '_').replace('[', '-').replace(']', '-');
+					int k = 2;
+					String name = title;
+					while (names.contains(name)) {
+						name = title + k;
+						k++;
+					}
+					while (name.length() > 10) name = name.substring(1); // cutting from the head
+					// WARNING now we could accidentally run into same name, but I don't care
+					names.add(name);
+					//
+					final int len = 10;
+					sb.append(name);
+					for (int j=len - name.length(); j>0; j--) sb.append(' '); // pad with spaces up to len
+					int count = 0;
+					for (int j=0; j<scores[0].length; j++) {
+						sb.append(' ').append(scores[i][j]);
+						count++;
+						if (7 == count && j < scores[0].length-1) {
+							sb.append('\n');
+							count = 0;
+							while (++count < len) sb.append(' ');
+							sb.append(' ');
+							count = 0;
+						}
+					}
+					sb.append('\n');
+					dos.write(sb.toString());
+				}
+				dos.flush();
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
