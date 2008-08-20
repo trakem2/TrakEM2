@@ -1017,6 +1017,10 @@ public class Compare {
 		}
 	}
 
+	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
+		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, false);
+	}
+
 	/** Since comparing two sequences starting from one end or starting from the other
 	 *  is not the same at all, this method performs the match starting first from one
 	 *  end and then from the other.
@@ -1032,13 +1036,19 @@ public class Compare {
 	 *
 	 * ASSUMES both VectorString3D are open.
 	 *
+	 * @param direct Whether to test vs1 against vs2 only, or to try all 4 possible combinations of reversed versus non-reversed and pick the best.
 	 * */
-	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
+	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final boolean direct) {
+
+		if (direct) {
+			final Editions edd = new Editions(vs1, vs2, delta, false);
+			return new Object[]{edd, edd.getSimilarity(skip_ends, max_mut, min_chunk)};
+		}
 
 		final VectorString3D vs1rev = vs1.makeReversedCopy();
 		final VectorString3D vs2rev = vs2.makeReversedCopy();
 
-		Editions[] ed = new Editions[4];
+		final Editions[] ed = new Editions[4];
 
 		// vs1 vs2
 		ed[0] = new Editions(vs1, vs2, delta, false);
@@ -1049,22 +1059,20 @@ public class Compare {
 		// vs1rev vs2
 		ed[3] = new Editions(vs1rev, vs2, delta, false);
 
+		//double best_score1 = 0;
 		double best_score = 0;
-		double best_score1 = 0;
 
-		int best_i = 0;
+		Editions best_ed = null;
 		for (int i=0; i<ed.length; i++) {
-			double score1 = ed[i].getSimilarity();
+			//double score1 = ed[i].getSimilarity();
 			double score = ed[i].getSimilarity(skip_ends, max_mut, min_chunk);
 			if (score > best_score) {
-				best_i = i;
+				best_ed = ed[i];
 				best_score = score;
-				best_score1 = score1;
+				//best_score1 = score1;
 			}
 		}
 		//Utils.log2("score, score1: " + best_score + ", " + best_score1);
-
-		Editions best_ed = ed[best_i];
 
 		// now test also starting from the middle of the longest mutation chunk of the best matching
 		try {
@@ -1524,7 +1532,7 @@ public class Compare {
 	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
 	 * @param normalize Whether to normalize the score values so that the maximum value is 1 and the minimum is 0, or not.
 	 */
-	static public Bureaucrat compareAllToAll(final boolean to_file, final boolean normalize) {
+	static public Bureaucrat compareAllToAll(final boolean to_file) {
 		final GenericDialog gd = new GenericDialog("All to all");
 		gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
 		gd.addNumericField("point interdistance: ", 0, 2);
@@ -1551,6 +1559,8 @@ public class Compare {
 		if (to_file) {
 			gd.addChoice("File format: ", formats, formats[2]);
 		}
+		gd.addCheckbox("normalize", false);
+		gd.addCheckbox("direct", true);
 
 		//////
 
@@ -1584,6 +1594,9 @@ public class Compare {
 		String format = formats[0];
 		if (to_file) format = gd.getNextChoice().trim();
 
+		boolean normalize = gd.getNextBoolean();
+		boolean direct = gd.getNextBoolean();
+
 		String filename = null,
 		       dir = null;
 
@@ -1597,7 +1610,6 @@ public class Compare {
 			dir = sd.getDirectory().replace('\\', '/');
 			if (!dir.endsWith("/")) dir += "/";
 		}
-
 
 
 		// gather all chains
@@ -1677,7 +1689,7 @@ public class Compare {
 		// compare all to all
 		final VectorString3D[] vs = new VectorString3D[n_chains];
 		for (int i=0; i<n_chains; i++) vs[i] = chains.get(i).vs;
-		final float[][] scores = Compare.scoreAllToAll(vs, distance_type, delta, skip_ends, max_mut, min_chunk, this);
+		final float[][] scores = Compare.scoreAllToAll(vs, distance_type, delta, skip_ends, max_mut, min_chunk, direct, this);
 
 		if (null == scores) {
 			finishedWorking();
@@ -1790,12 +1802,13 @@ public class Compare {
 				for (int i=0; i<scores.length; i++) {
 					sb.setLength(0);
 					final String title = chains.get(i).getShortCellTitle().replace(' ', '_').replace('\t', '_').replace('[', '-').replace(']', '-');
-					int k = 2;
+					int k = 1; // the '1' never used, left blank
 					String name = title;
-					while (names.contains(name)) {
-						name = title + k;
+					while (names.contains(name)) { // TODO need to check with dash as well!! ARGH tomorrow.
 						k++;
+						name = title + k;
 					}
+					if (k > 1 && name.length() < 10) name = title + "-" + k; // add a separating dash
 					while (name.length() > 10) name = name.substring(1); // cutting from the head
 					// WARNING now we could accidentally run into same name, but I don't care
 					names.add(name);
@@ -1841,13 +1854,13 @@ public class Compare {
 
 	/** Returns the half matrix of scores, with values copied from one half matrix to the other, and a diagonal of zeros.
 	 * @param distance_type ranges from 0 to 5, and includes: 0=Levenshtein, 1=Dissimilarity, 2=Average physical distance, 3=Median physical distance, 4=Cummulative physical distance and 5=Standard deviation. */
-	static public float[][] scoreAllToAll(final VectorString3D[] vs, final int distance_type, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final Worker worker) {
+	static public float[][] scoreAllToAll(final VectorString3D[] vs, final int distance_type, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final boolean direct, final Worker worker) {
 		final float[][] scores = new float[vs.length][vs.length];
 		for (int i=0; i<vs.length; i++) {
 			final VectorString3D vs1 = vs[i];
 			for (int j=i+1; j<vs.length; j++) {
 				if (null != worker && worker.hasQuitted()) return null;
-				Object[] ob = findBestMatch(vs1, vs[j], delta, skip_ends, max_mut, min_chunk);
+				Object[] ob = findBestMatch(vs1, vs[j], delta, skip_ends, max_mut, min_chunk, direct);
 				// Record the dissimilarity
 				switch (distance_type) {
 					case 0: // Levenshtein
