@@ -1522,6 +1522,21 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
+	/** Makes a substring starting at @param first (inclusive) and finishing at @param last (non-inclusive, aka last-1). */
+	public VectorString3D substring(final int first, final int last) {
+		if (first < 0 || last > length) return null;
+		final int len = last - first; // no +1 because last is non-inclusive
+		final double[] x2 = Utils.copy(x, first, len);
+		final double[] y2 = Utils.copy(y, first, len);
+		final double[] z2 = Utils.copy(z, first, len);
+		try {
+			return new VectorString3D(x2, y2, z2, false);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+	}
+
 	public int getDimensions() { return 3; }
 
 	static public final double getAverageVectorLength(final int[] i, final VectorString3D[] vs) {

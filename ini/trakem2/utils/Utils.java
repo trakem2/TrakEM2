@@ -912,6 +912,13 @@ public class Utils implements ij.plugin.PlugIn {
 		return b;
 	}
 
+	static public final double[] copy(final double[] a, final int first, final int new_length) {
+		final double[] b = new double[new_length];
+		final int len = new_length < a.length - first ? new_length : a.length - first;
+		System.arraycopy(a, first, b, 0, len);
+		return b;
+	}
+
 	/** Reverse in place an array of doubles. */
 	static public final void reverse(final double[] a) {
 		for (int left=0, right=a.length-1; left<right; left++, right--) {

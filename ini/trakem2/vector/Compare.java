@@ -184,6 +184,7 @@ public class Compare {
 		ref[1] = (Choice)gd.getChoices().get(6);
 		ref[2] = (Choice)gd.getChoices().get(7);
 		project_choice.addItemListener(new ItemListener() {
+			// TODO something is wrong here when there are more than 2 projects involved.
 			public void itemStateChanged(ItemEvent ie) {
 				String project_name = (String)ie.getItem();
 				Project project = null;
@@ -227,6 +228,8 @@ public class Compare {
 		gd.addChoice("Transform_type: ", transforms, transforms[2]);
 		gd.addCheckbox("Chain_branches", true);
 		gd.addCheckbox("Score mutations only", false);
+		gd.addCheckbox("Substring matching", false);
+		gd.addCheckbox("Direct (no reverse matches)", false);
 
 		//////
 
@@ -262,13 +265,15 @@ public class Compare {
 		int transform_type = gd.getNextChoiceIndex();
 		boolean chain_branches = gd.getNextBoolean();
 		boolean score_mut = gd.getNextBoolean();
+		boolean substring_matching = gd.getNextBoolean();
+		boolean direct = gd.getNextBoolean();
 
 		// check that the Calibration units are the same
 		if (!matchUnits(pipe.getLayerSet().getCalibration().getUnit(), all[iproject].getRootLayerSet().getCalibration().getUnit(), all[iproject].getTitle())) {
 			return null;
 		}
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true, score_mut);
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true, score_mut, substring_matching, direct);
 	}
 
 	static private int[] findXYZAxes(final String[] presets, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
@@ -313,7 +318,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut) {
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut, final boolean substring_matching, final boolean direct) {
 		Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
@@ -421,7 +426,7 @@ public class Compare {
 					VectorString3D vs1 = query.vs;
 					double delta1 = vs1.getDelta();
 					VectorString3D vs2 = qh.makeVS2(ref, delta1); // was: makeVS
-					Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk);
+					Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk, 1, direct, substring_matching);
 					double score = ((Double)ob[1]).doubleValue();
 					Editions ed = (Editions)ob[0];
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
@@ -1018,7 +1023,7 @@ public class Compare {
 	}
 
 	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
-		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, false);
+		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, 1, false, false);
 	}
 
 	/** Since comparing two sequences starting from one end or starting from the other
@@ -1038,12 +1043,68 @@ public class Compare {
 	 *
 	 * @param direct Whether to test vs1 against vs2 only, or to try all 4 possible combinations of reversed versus non-reversed and pick the best.
 	 * */
-	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final boolean direct) {
+	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching) {
 
-		if (direct) {
-			final Editions edd = new Editions(vs1, vs2, delta, false);
-			return new Object[]{edd, edd.getSimilarity(skip_ends, max_mut, min_chunk)};
+		if (substring_matching) {
+			// identify shorter chain
+			final VectorString3D shorter = vs1.length() < vs2.length() ? vs1 : vs2;
+			final VectorString3D longer  = vs1 == shorter ? vs2 : vs1;
+			
+			// iterate matching of shorter string inside longer string:
+			// (so that the match is always between two equally long strings)
+			// aaaaaaaa   : 8 elements
+			// bbbbb      : 5 elements
+			//  bbbbb      --- total 4 matches to try
+			//   bbbbb
+			//    bbbbb
+			//
+			final int max_offset = longer.length() - shorter.length() + 1;
+			Object[] best = null;
+			for (int k=0; k<max_offset; k++) {
+				final VectorString3D longer_sub = longer.substring(k, k+shorter.length());
+				Utils.log2("substring_matching lengths: shorter, longer : " + shorter.length() + ", " + longer_sub.length());
+				final Object[] ob = direct ?
+					              matchDirect(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type)
+						    : matchFwdRev(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type);
+				if (null == best) best = ob;
+				else if (((Double)ob[1]).doubleValue() > ((Double)best[1]).doubleValue()) best = ob;
+			}
+			return best;
+		} else {
+			if (direct) {
+				return matchDirect(vs1, vs2, delta, skip_ends, max_mut, min_chunk, distance_type);
+			} else {
+				return matchFwdRev(vs1, vs2, delta, skip_ends, max_mut, min_chunk, distance_type);
+			}
 		}
+	}
+
+	/** Zero is best; gets bad towards positive infinite. */
+	static private final double getScore(Editions ed, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
+		switch (distance_type) {
+			case 0: // Levenshtein
+				return ed.getDistance();
+			case 1: // Dissimilarity
+				return 1 - ed.getSimilarity(skip_ends, max_mut, min_chunk);
+			case 2: // average physical distance between mutation pairs
+				return ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
+			case 3: // median physical distance between mutation pairs
+				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3]; // 3 is median
+			case 4: // cummulative physical distance between mutation pairs
+				return ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
+			case 5: // stdDev of distances between mutation pairs
+				return ed.getStdDev(skip_ends, max_mut, min_chunk);
+		}
+		return Double.NaN;
+	}
+
+	static private final Object[] matchDirect(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
+		final Editions edd = new Editions(vs1, vs2, delta, false);
+		return new Object[]{edd, getScore(edd, skip_ends, max_mut, min_chunk, distance_type)};
+	}
+
+	// Match in all possible ways
+	static private final Object[] matchFwdRev(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
 
 		final VectorString3D vs1rev = vs1.makeReversedCopy();
 		final VectorString3D vs2rev = vs2.makeReversedCopy();
@@ -1060,13 +1121,13 @@ public class Compare {
 		ed[3] = new Editions(vs1rev, vs2, delta, false);
 
 		//double best_score1 = 0;
-		double best_score = 0;
+		double best_score = Double.MAX_VALUE; // worst possible
 
 		Editions best_ed = null;
 		for (int i=0; i<ed.length; i++) {
 			//double score1 = ed[i].getSimilarity();
-			double score = ed[i].getSimilarity(skip_ends, max_mut, min_chunk);
-			if (score > best_score) {
+			double score = getScore(ed[i], skip_ends, max_mut, min_chunk, distance_type);
+			if (score < best_score) {
 				best_ed = ed[i];
 				best_score = score;
 				//best_score1 = score1;
@@ -1079,8 +1140,8 @@ public class Compare {
 			Editions ed_center = best_ed.recreateFromCenter(max_mut);
 			// is null if no chunks were found
 			if (null != ed_center) {
-				double score_center = ed_center.getSimilarity(skip_ends, max_mut, min_chunk);
-				if (score_center > best_score) {
+				double score_center = getScore(ed_center, skip_ends, max_mut, min_chunk, distance_type);
+				if (score_center < best_score) {
 					best_ed = ed_center;
 					best_score = score_center;
 				}
@@ -1428,7 +1489,7 @@ public class Compare {
 			}
 		}
 		public int getRowCount() { return cm.size(); }
-		public int getColumnCount() { return 7; }
+		public int getColumnCount() { return 8; }
 		public Object getValueAt(int row, int col) {
 			switch (col) {
 				case 0: return cm.get(row).ref.getRoot().getProject();
@@ -1561,6 +1622,7 @@ public class Compare {
 		}
 		gd.addCheckbox("normalize", false);
 		gd.addCheckbox("direct", true);
+		gd.addCheckbox("substring_matching", true);
 
 		//////
 
@@ -1596,6 +1658,7 @@ public class Compare {
 
 		boolean normalize = gd.getNextBoolean();
 		boolean direct = gd.getNextBoolean();
+		boolean substring_matching = gd.getNextBoolean();
 
 		String filename = null,
 		       dir = null;
@@ -1689,7 +1752,7 @@ public class Compare {
 		// compare all to all
 		final VectorString3D[] vs = new VectorString3D[n_chains];
 		for (int i=0; i<n_chains; i++) vs[i] = chains.get(i).vs;
-		final float[][] scores = Compare.scoreAllToAll(vs, distance_type, delta, skip_ends, max_mut, min_chunk, direct, this);
+		final float[][] scores = Compare.scoreAllToAll(vs, distance_type, delta, skip_ends, max_mut, min_chunk, direct, substring_matching, this);
 
 		if (null == scores) {
 			finishedWorking();
@@ -1795,25 +1858,47 @@ public class Compare {
 		} else if (format.equals(formats[2])) {
 			// as Phylip .dis
 			try {
+				// collect different projects
+				final ArrayList<Project> projects = new ArrayList<Project>();
+				for (Chain chain : chains) {
+					Project p = chain.getRoot().getProject();
+					if (!projects.contains(p)) projects.add(p);
+				}
 				final HashSet names = new HashSet();
 				final StringBuffer sb = new StringBuffer();
 				sb.append(scores.length).append('\n');
 				dos.write(sb.toString());
 				for (int i=0; i<scores.length; i++) {
 					sb.setLength(0);
-					final String title = chains.get(i).getShortCellTitle().replace(' ', '_').replace('\t', '_').replace('[', '-').replace(']', '-');
-					int k = 1; // the '1' never used, left blank
-					String name = title;
-					while (names.contains(name)) { // TODO need to check with dash as well!! ARGH tomorrow.
-						k++;
-						name = title + k;
+					String title = chains.get(i).getShortCellTitle().replace(' ', '_').replace('\t', '_').replace('[', '-').replace(']', '-');
+					// Crop title to 6 chars
+					if (title.length() > 8) {
+						String title2 = title.substring(0, 8);
+						Utils.log2("Cropping " + title + " to " + title2);
+						title = title2;
 					}
-					if (k > 1 && name.length() < 10) name = title + "-" + k; // add a separating dash
-					while (name.length() > 10) name = name.substring(1); // cutting from the head
-					// WARNING now we could accidentally run into same name, but I don't care
+					int k = 1;
+					String name = title;
+					// Prepend a project char identifier
+					String project_name = "";
+					if (projects.size() > 1) {
+						project_name = Utils.getCharacter(projects.indexOf(chains.get(i).getRoot().getProject()) + 1).toLowerCase();
+						name = project_name + title;
+					}
+					// Append a char index when name is used multiple times (mostly because of branching, and other reasons)
+					if (names.contains(name)) {
+						names.remove(name);
+						names.add(name + "a");
+						name += "a";
+						Utils.log2("Contained name " + name + ", thus set to " + name + "a");
+					} else if (names.contains(name + "a")) name += "a"; // so the 'while' will find it
+					while (names.contains(name)) {
+						k++;
+						name = project_name + title + Utils.getCharacter(k).toLowerCase();
+					}
 					names.add(name);
 					//
-					final int len = 10;
+					final int len = 12;
 					sb.append(name);
 					for (int j=len - name.length(); j>0; j--) sb.append(' '); // pad with spaces up to len
 					int count = 0;
@@ -1854,20 +1939,19 @@ public class Compare {
 
 	/** Returns the half matrix of scores, with values copied from one half matrix to the other, and a diagonal of zeros.
 	 * @param distance_type ranges from 0 to 5, and includes: 0=Levenshtein, 1=Dissimilarity, 2=Average physical distance, 3=Median physical distance, 4=Cummulative physical distance and 5=Standard deviation. */
-	static public float[][] scoreAllToAll(final VectorString3D[] vs, final int distance_type, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final boolean direct, final Worker worker) {
+	static public float[][] scoreAllToAll(final VectorString3D[] vs, final int distance_type, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final boolean direct, final boolean substring_matching, final Worker worker) {
 		final float[][] scores = new float[vs.length][vs.length];
 		for (int i=0; i<vs.length; i++) {
 			final VectorString3D vs1 = vs[i];
 			for (int j=i+1; j<vs.length; j++) {
 				if (null != worker && worker.hasQuitted()) return null;
-				Object[] ob = findBestMatch(vs1, vs[j], delta, skip_ends, max_mut, min_chunk, direct);
-				// Record the dissimilarity
+				Object[] ob = findBestMatch(vs1, vs[j], delta, skip_ends, max_mut, min_chunk, distance_type, direct, substring_matching); // TODO should add 'distance_type' as well for the selection of the best match when not direct.
 				switch (distance_type) {
 					case 0: // Levenshtein
 						scores[i][j] = (float)((Editions)ob[0]).getDistance();
 						break;
-					case 1: // Dissimilarity
-						scores[i][j] = 1.0f - (float)((Double)ob[1]).doubleValue();
+					case 1: // dissimilarity
+						scores[i][j] = (float)((Double)ob[1]).doubleValue();
 						break;
 					case 2: // average physical distance between mutation pairs
 						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
