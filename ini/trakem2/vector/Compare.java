@@ -1494,7 +1494,7 @@ public class Compare {
 			switch (col) {
 				case 0: return cm.get(row).ref.getRoot().getProject();
 				case 1: return cm.get(row).ref.getCellTitle();
-				case 2: return Utils.cutNumber(Math.floor(cm.get(row).score * 10000) / 100, 2) + " %";
+				case 2: return Utils.cutNumber(Math.floor( (1 - cm.get(row).score) * 10000) / 100, 2) + " %"; // 1 - score, to convert from dissimilarity to similarity
 				case 3: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
 				case 4: return Utils.cutNumber(cm.get(row).phys_dist, 2);
 				case 5: return Utils.cutNumber(cm.get(row).median, 2);
