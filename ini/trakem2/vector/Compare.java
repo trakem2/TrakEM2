@@ -216,7 +216,7 @@ public class Compare {
 			}
 		});
 
-		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", true);
+		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", false);
 		gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
 		//gd.addNumericField("minimum_percentage that must remain: ", 1.0, 2);
 		gd.addSlider("minimum_percentage that must remain: ", 1, 100, 100);
@@ -229,7 +229,7 @@ public class Compare {
 		gd.addCheckbox("Chain_branches", true);
 		gd.addCheckbox("Score mutations only", false);
 		gd.addCheckbox("Substring matching", false);
-		gd.addCheckbox("Direct (no reverse matches)", false);
+		gd.addCheckbox("Direct (no reverse matches)", true);
 
 		//////
 
@@ -414,7 +414,7 @@ public class Compare {
 
 		for (int ithread = 0; ithread < threads.length; ++ithread) {
 			threads[ithread] = new Thread(new Runnable() {
-				public void run() {
+				final public void run() {
 				////
 		for (int k = ai.getAndIncrement(); k < n_ref_chains; k = ai.getAndIncrement()) {
 			try {
@@ -423,17 +423,20 @@ public class Compare {
 				// match it against all queries
 				int next = 0;
 				for (Chain query : qh.queries) {
-					VectorString3D vs1 = query.vs;
-					double delta1 = vs1.getDelta();
-					VectorString3D vs2 = qh.makeVS2(ref, delta1); // was: makeVS
-					Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk, 1, direct, substring_matching);
-					double score = ((Double)ob[1]).doubleValue();
-					Editions ed = (Editions)ob[0];
+					final VectorString3D vs1 = query.vs;
+					final double delta1 = vs1.getDelta();
+					final VectorString3D vs2 = qh.makeVS2(ref, delta1);
+					final Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk, 1, direct, substring_matching);
+					final double score = ((Double)ob[1]).doubleValue();
+					final Editions ed = (Editions)ob[0];
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
-					double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
-					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2], stats[3]);
+					final float prop_len = substring_matching ?
+								  1.0f
+								: ((float)vs1.length()) / vs2.length();
 
+					final double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
+					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, stats, prop_len);
 				}
 			} catch (Exception e) {
 				IJError.print(e);
@@ -703,18 +706,6 @@ public class Compare {
 			queries.add(chain);
 		}
 
-		/*
-		synchronized final void addMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist) {
-			final ChainMatch cm = new ChainMatch(query, ref, ed, score, phys_dist);
-			ArrayList<ChainMatch> al = matches.get(query);
-			if (null == al) {
-				al = new ArrayList<ChainMatch>();
-				matches.put(query, al);
-			}
-			al.add(cm);
-		}
-		*/
-
 		final void addMatch(final ChainMatch cm) {
 			ArrayList<ChainMatch> al = matches.get(cm.query);
 			if (null == al) {
@@ -860,20 +851,24 @@ public class Compare {
 		Chain query;
 		Chain ref;
 		Editions ed;
-		double score; // similarity measure made of num 1 - ((insertions + num deletions) / max (len1, len2))
+		double score; // similarity measure made of num 1 - ((num insertions + num deletions) / max (len1, len2)).
 		double phys_dist; // average distance between mutation pair interdistances
 		double cum_phys_dist; // cummulative physical distance
 		double stdDev; // between mutation pairs
 		double median; // of matched mutation pair interdistances
-		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist, final double cum_phys_dist, final double stdDev, final double median) {
+		double prop_mut; // the proportion of mutation pairs relative to the length of the queried sequence
+		float prop_len; // the proportion of length of query sequence versus reference sequence
+		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double[] stats, final float prop_len) {
 			this.query = query;
 			this.ref = ref;
 			this.ed = ed;
 			this.score = score;
-			this.phys_dist = phys_dist;
-			this.cum_phys_dist = cum_phys_dist;
-			this.stdDev = stdDev;
-			this.median = median;
+			this.phys_dist = stats[0];
+			this.cum_phys_dist = stats[1];
+			this.stdDev = stats[2];
+			this.median = stats[3];
+			this.prop_mut = stats[4];
+			this.prop_len = prop_len;
 		}
 	}
 
@@ -1268,7 +1263,8 @@ public class Compare {
 					}
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
 					double[] stats = ed.getStatistics(false, 0, 1, false);
-					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2], stats[3]);
+					float prop_len = ((float)vs1.length()) / vs2.length();
+					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats, prop_len);
 				}
 
 			} catch (Exception e) {
@@ -1393,7 +1389,7 @@ public class Compare {
 			});
 			if (null == ht_tabs) ht_tabs = new Hashtable<JScrollPane,Chain>();
 			tabs = new JTabbedPane();
-			tabs.setPreferredSize(new Dimension(350,250));
+			tabs.setPreferredSize(new Dimension(800,500));
 			// a listener to change the label text when the tab is selected
 			ChangeListener tabs_listener =  new ChangeListener() {
 				public void stateChanged(ChangeEvent ce) {
@@ -1485,21 +1481,25 @@ public class Compare {
 				case 5: return "Median";
 				case 6: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
 				case 7: return "Std Dev";
+				case 8: return "Prop Mut";
+				case 9: return "Prop Lengths";
 				default: return "";
 			}
 		}
 		public int getRowCount() { return cm.size(); }
-		public int getColumnCount() { return 8; }
+		public int getColumnCount() { return 10; }
 		public Object getValueAt(int row, int col) {
 			switch (col) {
 				case 0: return cm.get(row).ref.getRoot().getProject();
 				case 1: return cm.get(row).ref.getCellTitle();
-				case 2: return Utils.cutNumber(Math.floor( (1 - cm.get(row).score) * 10000) / 100, 2) + " %"; // 1 - score, to convert from dissimilarity to similarity
+				case 2: return Utils.cutNumber((1 - cm.get(row).score) * 100, 2) + " %"; // 1 - score, to convert from dissimilarity to similarity
 				case 3: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
 				case 4: return Utils.cutNumber(cm.get(row).phys_dist, 2);
 				case 5: return Utils.cutNumber(cm.get(row).median, 2);
 				case 6: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
 				case 7: return Utils.cutNumber(cm.get(row).stdDev, 2);
+				case 8: return Utils.cutNumber(cm.get(row).prop_mut * 100, 2) + " %"; // the proportion of mutations, relative to the query sequence length
+				case 9: return Utils.cutNumber(cm.get(row).prop_len * 100, 2) + " %"; // the proportion of lengths = len(query) / len(ref)
 				default: return "";
 			}
 		}
