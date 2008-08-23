@@ -92,7 +92,12 @@ public class Editions {
 			for (int i=0; i<editions.length; i++) {
 				if (MUTATION != editions[i][0]) non_mut++;
 			}
-			//Utils.log2("non_mut: " + non_mut + "  total: " + editions.length);
+			/*
+			 * If the max_len is smaller than the number of non-mutations, then a NEGATIVE similarity value is returned,
+			 * but it's ok. All it means is that it's not similar at all.
+			int max_len = Math.max(vs1.length(), vs2.length());
+			Utils.log2("non_mut: " + non_mut + "  total: " + editions.length + "  max length: " + max_len + (non_mut > max_len ? "  WARNING!" : ""));
+			*/
 			return 1.0 - ( (double)non_mut / Math.max(vs1.length(), vs2.length()) );
 		}
 	}
@@ -274,27 +279,31 @@ public class Editions {
 		int i = 0;
 		final int len1 = vs1.length();
 		final int len2 = vs2.length();
-		final ArrayList<Double> mut = new ArrayList<Double>(); // why not ArrayList<double> ? STUPID JAVA
+		final ArrayList<Double> dist = new ArrayList<Double>(); // why not ArrayList<double> ? STUPID JAVA
 		final double[] pack = new double[5];
 
 		Arrays.fill(pack, Double.MAX_VALUE);
 		pack[4] = 0;
 
+		int n_mutation = 0;
+
 		try {
 			for (i=i_start; i<=i_end; i++) {
-				if (score_mut && MUTATION != editions[i][0]) continue;
+				if (MUTATION == editions[i][0]) n_mutation++;
+				else if (score_mut) continue; // not a mutation, so continue because we want only mutations.
+				//if (score_mut && MUTATION != editions[i][0]) continue;
 				int k1 = editions[i][1];
 				int k2 = editions[i][2];
 				if (len1 == k1 || len2 == k2) continue; // LAST point will fail in some occasions, needs fixing
 				double d = vs1.distance(k1, vs2, k2);
 				cum_dist += d;
-				mut.add(d);
+				dist.add(d);
 			}
 			// Need at least one value to make any sense of the data
-			if (0 == mut.size()) return pack;
+			if (0 == dist.size()) return pack;
 
-			final Double[] di = new Double[mut.size()];
-			mut.toArray(di);
+			final Double[] di = new Double[dist.size()];
+			dist.toArray(di);
 
 			final double average = cum_dist / di.length;
 
@@ -304,10 +313,10 @@ public class Editions {
 			}
 			std = Math.sqrt(std / di.length);
 
-			Collections.sort(mut);
-			final double median = mut.get(mut.size()/2);
+			Collections.sort(dist);
+			final double median = dist.get(di.length/2);
 
-			final double prop_mut = ((double)mut.size()) / (i_end - i_start); // i_end is non-inclusive
+			final double prop_mut = ((double)n_mutation) / (i_end - i_start); // i_end is non-inclusive
 
 			pack[0] = average;
 			pack[1] = cum_dist;

@@ -1057,7 +1057,7 @@ public class Compare {
 			Object[] best = null;
 			for (int k=0; k<max_offset; k++) {
 				final VectorString3D longer_sub = longer.substring(k, k+shorter.length());
-				Utils.log2("substring_matching lengths: shorter, longer : " + shorter.length() + ", " + longer_sub.length());
+				//Utils.log2("substring_matching lengths: shorter, longer : " + shorter.length() + ", " + longer_sub.length());
 				final Object[] ob = direct ?
 					              matchDirect(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type)
 						    : matchFwdRev(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type);
