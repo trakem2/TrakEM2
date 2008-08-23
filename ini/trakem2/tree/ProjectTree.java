@@ -69,7 +69,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 	private DefaultMutableTreeNode selected_node = null;
 
 	public ProjectTree(Project project, ProjectThing project_thing) {
-		super(project, DNDTree.makeNode(project_thing), new Color(185,156,255));
+		super(project, DNDTree.makeNode(project_thing), new Color(240,230,255)); // new Color(185,156,255));
 		setEditable(false); // the titles
 		addMouseListener(this);
 		addTreeExpansionListener(this);

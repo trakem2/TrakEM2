@@ -55,25 +55,29 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 
 	protected final Dispatcher dispatcher = new Dispatcher();
 
-	public DNDTree(Project project, DefaultMutableTreeNode root, Color background) {
+	public DNDTree(final Project project, final DefaultMutableTreeNode root, final Color background) {
 		this(project, root);
 		this.setScrollsOnExpand(true);
 		if (null != background) {
-			setBackground(background);
-			DefaultTreeCellRenderer renderer = new NodeRenderer(background); // new DefaultTreeCellRenderer();
+			final DefaultTreeCellRenderer renderer = new NodeRenderer(background); // new DefaultTreeCellRenderer();
 			renderer.setBackground(background);
 			renderer.setBackgroundNonSelectionColor(background);
-			setCellRenderer(renderer);
+			// I hate swing, I really do. And java has no closures, no macros, and reflection is nearly as verbose as the code below!
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				DNDTree.this.setCellRenderer(renderer);
+			}});
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				DNDTree.this.setBackground(background);
+			}});
 		}
 	}
-
 
 	/** Extends the DefaultTreeCellRenderer to paint the nodes that contain Thing objects present in the current layer with a distinctive orange background; also, attribute nodes are painted with a different icon. */
 	private class NodeRenderer extends DefaultTreeCellRenderer {
 
 		// this is a crude hack that needs much cleanup and proper break down to subclasses.
 
-		Color bg;
+		final Color bg;
 		final Color active_displ_color = new Color(1.0f, 1.0f, 0.0f, 0.5f);
 		final Color front_layer_color = new Color(1.0f, 1.0f, 0.4f, 0.5f);
 
@@ -85,10 +89,10 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
 			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
 			label.setText(label.getText().replace('_', ' ')); // just for display
-			if (value.getClass().equals(DefaultMutableTreeNode.class)) {
+			if (value.getClass() == DefaultMutableTreeNode.class) {
 				final Object obb = ((DefaultMutableTreeNode)value).getUserObject();
 				final Class clazz = obb.getClass();
-				if (clazz.equals(ProjectThing.class)) { // must be, but checking ...
+				if (ProjectThing.class == clazz) { // must be, but checking ...
 					final Object ob = ((ProjectThing)obb).getObject();
 					if (ob.getClass().getSuperclass().equals(Displayable.class)) {
 						final Displayable displ = (Displayable)ob;

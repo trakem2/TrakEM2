@@ -49,7 +49,7 @@ public class TemplateTree extends DNDTree implements MouseListener, ActionListen
 	private TemplateThing root;
 
 	public TemplateTree(Project project, TemplateThing root) {
-		super(project, DNDTree.makeNode(root, true), new Color(208, 255, 177));
+		super(project, DNDTree.makeNode(root, true), new Color(245, 255, 245)); //Color(208, 255, 177));
 		this.root = root;
 		setEditable(false); // affects the titles only
 		addMouseListener(this);

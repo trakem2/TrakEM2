@@ -63,7 +63,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 	private DefaultMutableTreeNode selected_node = null;
 
 	public LayerTree(Project project, LayerThing root) {
-		super(project, DNDTree.makeNode(root), new Color(200, 200, 255));
+		super(project, DNDTree.makeNode(root), new Color(230, 235, 255)); // Color(200, 200, 255));
 		setEditable(false);
 		addMouseListener(this);
 		// enable multiple discontiguous selection
