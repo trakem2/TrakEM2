@@ -266,11 +266,11 @@ public class Editions {
 	 * [3] - median: the average medial physical distance between mutation pairs, more robust than the average to extreme values
 	 * [4 ]- prop_mut: the proportion of mutation pairs relative to the length of the queried sequence vs1.
 	 */
-	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean score_mut) {
-		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk), score_mut);
+	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean score_mut_only) {
+		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk), score_mut_only);
 	}
 
-	private double[] getStatistics(final int[] g, final boolean score_mut) {
+	private double[] getStatistics(final int[] g, final boolean score_mut_only) {
 		int i_start = g[0];
 		int i_end = g[1];
 		boolean skip_ends = 1 == g[2];
@@ -290,8 +290,8 @@ public class Editions {
 		try {
 			for (i=i_start; i<=i_end; i++) {
 				if (MUTATION == editions[i][0]) n_mutation++;
-				else if (score_mut) continue; // not a mutation, so continue because we want only mutations.
-				//if (score_mut && MUTATION != editions[i][0]) continue;
+				else if (score_mut_only) continue; // not a mutation, so continue because we want only mutations.
+				//if (score_mut_only && MUTATION != editions[i][0]) continue;
 				int k1 = editions[i][1];
 				int k2 = editions[i][2];
 				if (len1 == k1 || len2 == k2) continue; // LAST point will fail in some occasions, needs fixing

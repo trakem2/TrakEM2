@@ -427,16 +427,16 @@ public class Compare {
 					final double delta1 = vs1.getDelta();
 					final VectorString3D vs2 = qh.makeVS2(ref, delta1);
 					final Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk, 1, direct, substring_matching);
-					final double score = ((Double)ob[1]).doubleValue();
+					final double seq_sim = ((Double)ob[1]).doubleValue();
 					final Editions ed = (Editions)ob[0];
-					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
+					//qh.addMatch(query, ref, ed, seq_sim, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
 					final float prop_len = substring_matching ?
 								  1.0f
 								: ((float)vs1.length()) / vs2.length();
 
 					final double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
-					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, stats, prop_len);
+					qm[next++].cm[k] = new ChainMatch(query, ref, ed, seq_sim, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W));
 				}
 			} catch (Exception e) {
 				IJError.print(e);
@@ -851,24 +851,26 @@ public class Compare {
 		Chain query;
 		Chain ref;
 		Editions ed;
-		double score; // similarity measure made of num 1 - ((num insertions + num deletions) / max (len1, len2)).
+		double score; // combined score, made from several of the parameters below (S, L and M as of 20080823)
+		double seq_sim; // similarity measure made of num 1 - ((num insertions + num deletions) / max (len1, len2)).
 		double phys_dist; // average distance between mutation pair interdistances
 		double cum_phys_dist; // cummulative physical distance
 		double stdDev; // between mutation pairs
 		double median; // of matched mutation pair interdistances
 		double prop_mut; // the proportion of mutation pairs relative to the length of the queried sequence
 		float prop_len; // the proportion of length of query sequence versus reference sequence
-		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double[] stats, final float prop_len) {
+		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double seq_sim, final double[] stats, final float prop_len, final double score) {
 			this.query = query;
 			this.ref = ref;
 			this.ed = ed;
-			this.score = score;
+			this.seq_sim = seq_sim;
 			this.phys_dist = stats[0];
 			this.cum_phys_dist = stats[1];
 			this.stdDev = stats[2];
 			this.median = stats[3];
 			this.prop_mut = stats[4];
 			this.prop_len = prop_len;
+			this.score = score;
 		}
 	}
 
@@ -897,7 +899,7 @@ public class Compare {
 		public int compare(final Object ob1, final Object ob2) {
 			ChainMatch cm1 = (ChainMatch)ob1;
 			ChainMatch cm2 = (ChainMatch)ob2;
-			// select for largest similarity score
+			// select for largest score
 			double val = cm1.score - cm2.score;
 			if (val < 0) return 1; // m2 is more similar
 			if (val > 0) return -1; // m2 is less similar
@@ -1018,7 +1020,7 @@ public class Compare {
 	}
 
 	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
-		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, 1, false, false);
+		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, COMBINED, false, false);
 	}
 
 	/** Since comparing two sequences starting from one end or starting from the other
@@ -1074,21 +1076,40 @@ public class Compare {
 		}
 	}
 
+	static public final int LEVENSHTEIN = 0;
+	static public final int DISSIMILARITY = 1;
+	static public final int AVG_PHYS_DIST = 2;
+	static public final int MEDIAN_PHYS_DIST = 3;
+	static public final int CUM_PHYST_DIST = 4;
+	static public final int STD_DEV = 5;
+	static public final int COMBINED = 6;
+
+	// Weights as empirically approximated with some lineages, with S. Preibisch ( see Test_Scoring.java )
+	static public final double[] W = new double[]{-0.017653598211893495, -0.0627529281196102, 0.1563823319867952, 0.8146587593044643};
+
+	static public final double score(final double seq_sim, final double levenshtein, final double median_phys_dist, final double[] w) {
+		//       S                L                    M
+		return seq_sim * w[0] + levenshtein * w[1] + median_phys_dist * w[2] + w[3];
+	}
+
 	/** Zero is best; gets bad towards positive infinite. */
 	static private final double getScore(Editions ed, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
+
 		switch (distance_type) {
-			case 0: // Levenshtein
+			case LEVENSHTEIN: // Levenshtein
 				return ed.getDistance();
-			case 1: // Dissimilarity
+			case DISSIMILARITY: // Dissimilarity
 				return 1 - ed.getSimilarity(skip_ends, max_mut, min_chunk);
-			case 2: // average physical distance between mutation pairs
+			case AVG_PHYS_DIST: // average physical distance between mutation pairs
 				return ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
-			case 3: // median physical distance between mutation pairs
+			case MEDIAN_PHYS_DIST: // median physical distance between mutation pairs
 				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3]; // 3 is median
-			case 4: // cummulative physical distance between mutation pairs
+			case CUM_PHYST_DIST: // cummulative physical distance between mutation pairs
 				return ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
-			case 5: // stdDev of distances between mutation pairs
+			case STD_DEV: // stdDev of distances between mutation pairs
 				return ed.getStdDev(skip_ends, max_mut, min_chunk);
+			case COMBINED: // combined score
+				return 1 / score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W);
 		}
 		return Double.NaN;
 	}
@@ -1120,7 +1141,6 @@ public class Compare {
 
 		Editions best_ed = null;
 		for (int i=0; i<ed.length; i++) {
-			//double score1 = ed[i].getSimilarity();
 			double score = getScore(ed[i], skip_ends, max_mut, min_chunk, distance_type);
 			if (score < best_score) {
 				best_ed = ed[i];
@@ -1264,7 +1284,7 @@ public class Compare {
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
 					double[] stats = ed.getStatistics(false, 0, 1, false);
 					float prop_len = ((float)vs1.length()) / vs2.length();
-					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats, prop_len);
+					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(false, 0, 0, false)[3], Compare.W));
 				}
 
 			} catch (Exception e) {
@@ -1475,31 +1495,33 @@ public class Compare {
 			switch (col) {
 				case 0: return "Project";
 				case 1: return "Match";
-				case 2: return "Similarity";
-				case 3: return "Lev Dist";
-				case 4: return null != qh.cal2 ? "Dist (" + qh.cal2.getUnits() + ")" : "Dist";
-				case 5: return "Median";
-				case 6: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
-				case 7: return "Std Dev";
-				case 8: return "Prop Mut";
-				case 9: return "Prop Lengths";
+				case 2: return "Score";
+				case 3: return "Seq Sim"; // sequence similarity
+				case 4: return "Lev Dist";
+				case 5: return null != qh.cal2 ? "Dist (" + qh.cal2.getUnits() + ")" : "Dist";
+				case 6: return "Median";
+				case 7: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
+				case 8: return "Std Dev";
+				case 9: return "Prop Mut";
+				case 10: return "Prop Lengths";
 				default: return "";
 			}
 		}
 		public int getRowCount() { return cm.size(); }
-		public int getColumnCount() { return 10; }
+		public int getColumnCount() { return 11; }
 		public Object getValueAt(int row, int col) {
 			switch (col) {
 				case 0: return cm.get(row).ref.getRoot().getProject();
 				case 1: return cm.get(row).ref.getCellTitle();
-				case 2: return Utils.cutNumber((1 - cm.get(row).score) * 100, 2) + " %"; // 1 - score, to convert from dissimilarity to similarity
-				case 3: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
-				case 4: return Utils.cutNumber(cm.get(row).phys_dist, 2);
-				case 5: return Utils.cutNumber(cm.get(row).median, 2);
-				case 6: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
-				case 7: return Utils.cutNumber(cm.get(row).stdDev, 2);
-				case 8: return Utils.cutNumber(cm.get(row).prop_mut * 100, 2) + " %"; // the proportion of mutations, relative to the query sequence length
-				case 9: return Utils.cutNumber(cm.get(row).prop_len * 100, 2) + " %"; // the proportion of lengths = len(query) / len(ref)
+				case 2: return Utils.cutNumber(cm.get(row).score * 100, 2) + " %"; // combined score
+				case 3: return Utils.cutNumber((1 - cm.get(row).seq_sim) * 100, 2) + " %"; // 1 - seq_sim, to convert from dissimilarity to similarity
+				case 4: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
+				case 5: return Utils.cutNumber(cm.get(row).phys_dist, 2);
+				case 6: return Utils.cutNumber(cm.get(row).median, 2);
+				case 7: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
+				case 8: return Utils.cutNumber(cm.get(row).stdDev, 2);
+				case 9: return Utils.cutNumber(cm.get(row).prop_mut * 100, 2) + " %"; // the proportion of mutations, relative to the query sequence length
+				case 10: return Utils.cutNumber(cm.get(row).prop_len * 100, 2) + " %"; // the proportion of lengths = len(query) / len(ref)
 				default: return "";
 			}
 		}
@@ -1614,8 +1636,8 @@ public class Compare {
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
 		gd.addChoice("Presets: ", preset_names, preset_names[0]);
 		gd.addMessage("");
-		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation"};
-		gd.addChoice("Dissimilarity type: ", distance_types, distance_types[3]);
+		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM"};
+		gd.addChoice("Scoring type: ", distance_types, distance_types[7]);
 		final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
 		if (to_file) {
 			gd.addChoice("File format: ", formats, formats[2]);
@@ -1945,7 +1967,8 @@ public class Compare {
 			final VectorString3D vs1 = vs[i];
 			for (int j=i+1; j<vs.length; j++) {
 				if (null != worker && worker.hasQuitted()) return null;
-				Object[] ob = findBestMatch(vs1, vs[j], delta, skip_ends, max_mut, min_chunk, distance_type, direct, substring_matching); // TODO should add 'distance_type' as well for the selection of the best match when not direct.
+				final Object[] ob = findBestMatch(vs1, vs[j], delta, skip_ends, max_mut, min_chunk, distance_type, direct, substring_matching); // TODO should add 'distance_type' as well for the selection of the best match when not direct.
+				/*
 				switch (distance_type) {
 					case 0: // Levenshtein
 						scores[i][j] = (float)((Editions)ob[0]).getDistance();
@@ -1966,6 +1989,12 @@ public class Compare {
 						scores[i][j] = (float)((Editions)ob[0]).getStdDev(skip_ends, max_mut, min_chunk);
 						break;
 				}
+				*/
+
+				final Editions ed = (Editions)ob[0];
+				scores[i][j] = (float)getScore(ed, skip_ends, max_mut, min_chunk, distance_type);
+
+
 				// mirror value
 				scores[j][i] = scores[i][j];
 			}
