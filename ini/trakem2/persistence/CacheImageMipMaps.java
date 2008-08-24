@@ -33,7 +33,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.awt.Image;
 
-public class FIFOImageMipMaps {
+public class CacheImageMipMaps {
 
 	private final LinkedList<Entry> cache;
 	private final HashMap<Long,Image[]> map = new HashMap<Long,Image[]>();
@@ -58,7 +58,7 @@ public class FIFOImageMipMaps {
 		}
 	}
 
-	public FIFOImageMipMaps(int initial_size) {
+	public CacheImageMipMaps(int initial_size) {
 		cache = new LinkedList<Entry>();
 	}
 
