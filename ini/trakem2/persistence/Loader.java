@@ -182,10 +182,8 @@ abstract public class Loader {
 
 
 	// What I need is not provided: a LinkedHashMap with a method to do 'removeFirst' or remove(0) !!! To call my_map.entrySet().iterator() to delete the the first element of a LinkedHashMap is just too much calling for an operation that has to be blazing fast. So I create a double list setup with arrays. The variables are not static because each loader could be connected to a different database, and each database has its own set of unique ids. Memory from other loaders is free by the releaseOthers(double) method.
-	//transient protected FIFOImagePlusMap imps = new FIFOImagePlusMap(50);
 	transient protected CacheImagePlus imps = new CacheImagePlus(50);
 	transient protected FIFOImageMipMaps mawts = new FIFOImageMipMaps(50);
-	//transient protected CacheMipMaps mawts = new CacheMipMaps(50);
 
 	static transient protected Vector<Loader> v_loaders = null; // Vector: synchronized
 
