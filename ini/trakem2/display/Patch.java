@@ -761,6 +761,7 @@ public class Patch extends Displayable {
 		if (len < 2) return;
 		final Patch[] pa = new Patch[len];
 		al.toArray(pa);
+		// linking is reciprocal: need only call link() on one member of the pair
 		for (int i=0; i<pa.length; i++) {
 			for (int j=i+1; j<pa.length; j++) {
 				if (overlapping_only && !pa[i].intersects(pa[j])) continue;

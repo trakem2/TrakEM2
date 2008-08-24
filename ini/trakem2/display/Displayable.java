@@ -1052,40 +1052,6 @@ public abstract class Displayable extends DBObject {
 		sb_body.append("\"\n");
 	}
 
-	public void exportT2(final StringBuffer sb_body, final String in, final Object any) {
-		final double[] a = new double[6];
-		at.getMatrix(a);
-		sb_body.append(in).append("oid '").append(id).append('\n')
-			.append(in).append("width '").append(width).append('\n')
-			.append(in).append("height '").append(height).append('\n')
-			.append(in).append("transform '(").append(a[0]).append(' ')
-							  .append(a[1]).append(' ')
-							  .append(a[2]).append(' ')
-							  .append(a[3]).append(' ')
-							  .append(a[4]).append(' ')
-							  .append(a[5]).append(")\n")
-		;
-		// the default is obvious, so just store the value if necessary
-		if (locked) sb_body.append(in).append("locked 'true\n");
-		if (!visible) sb_body.append(in).append("visible 'false\n");
-		// 'style' is taken care in subclasses
-		if (null != title && title.length() > 0) {
-			sb_body.append(in).append("title '(").append(title).append(")\n"); // embed in parenthesis to avoid potential parsing-related characters (such as quotes or parenthesis) or spaces or tabs
-		}
-		if (null != hs_linked && 0 != hs_linked.size()) {
-			sb_body.append(in).append("links '(");
-			int ii = 0;
-			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				sb_body.append(((DBObject)ob).getId());
-				if (ii != len-1) sb_body.append(' ');
-				ii++;
-			}
-			sb_body.append(")\n");
-		}
-	}
-
 	// I'm sure it could be made more efficient, but I'm too tired!
 	public boolean hasLinkedGroupWithinLayer(Layer la) {
 		HashSet hs = getLinkedGroup(new HashSet());

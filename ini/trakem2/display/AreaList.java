@@ -668,25 +668,6 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	public void exportT2(final StringBuffer sb_body, final String indent, final Object any) {
-		sb_body.append(indent).append("(area_list\n");
-		final String in = indent + " ";
-		super.exportT2(sb_body, in, any);
-		sb_body.append(in).append("fill_paint '").append(fill_paint).append('\n');
-		final String[] RGB= Utils.getHexRGBColor(color);
-		sb_body.append(in).append("style '(stroke:none;fill-opacity:").append(alpha).append(";fill:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";)\n");
-		sb_body.append(indent).append('\n');
-		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			long lid = ((Long)entry.getKey()).longValue();
-			Area area = (Area)entry.getValue();
-			sb_body.append(in).append("(area layer_id '").append(lid).append('\n');
-			exportAreaT2(sb_body, in + " ", area);
-			sb_body.append(')');
-		}
-		sb_body.append(')');
-	}
-
 	/** Returns an ArrayList of ArrayList of Point as value with all paths for the Area of the given layer_id. */
 	public ArrayList getPaths(long layer_id) {
 		Object ob = ht_areas.get(new Long(layer_id));
