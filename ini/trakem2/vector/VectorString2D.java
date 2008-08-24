@@ -72,6 +72,9 @@ public class VectorString2D implements VectorString {
 
 	public int length() { return length; }
 
+	/** If not resampled, returns zero. */
+	public double getDelta() { return delta; }
+
 	public double[] getPoints(final int dim) {
 		switch (dim) {
 			case 0: return x;

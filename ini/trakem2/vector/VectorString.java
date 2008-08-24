@@ -49,4 +49,5 @@ public interface VectorString {
 	public VectorString subVectorString(int first, int last) throws Exception;
 	public void reverse();
 	public int getDimensions();
+	public double getDelta();
 }
