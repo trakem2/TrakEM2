@@ -61,11 +61,6 @@ public abstract class ZDisplayable extends Displayable {
 		}
 	}
 
-	/** For reconstruction from a t2 file. */
-	public ZDisplayable(final Project project, final char[] src, final int first, final int last) {
-		super(project, src, first, last);
-	}
-
 	public void setLayerSet(LayerSet layer_set) {
 		setLayerSet(layer_set, true); // should check that the new LayerSet belongs to the same project
 	}

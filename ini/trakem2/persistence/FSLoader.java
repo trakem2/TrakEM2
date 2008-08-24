@@ -263,8 +263,6 @@ public class FSLoader extends Loader {
 			}
 
 			data = handler.getProjectData();
-		} else if (this.project_file_path.toLowerCase().endsWith(".t2")) {
-			data = Decoder.read(this.project_file_path, this);
 		}
 
 		if (null == data) {

@@ -37,7 +37,6 @@ import ij.measure.ResultsTable;
 
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
-import ini.trakem2.persistence.Decoder;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -114,31 +113,6 @@ public class AreaList extends ZDisplayable {
 		this.color = color;
 		for (Iterator it = al_ul.iterator(); it.hasNext(); ) {
 			ht_areas.put(it.next(), AreaList.UNLOADED); // assumes al_ul contains only Long instances wrapping layer_id long values
-		}
-	}
-
-	/** Reconstruct from t2 format. */
-	public AreaList(Project project, final char[] src, final int first, final int last) {
-		super(project, src, first, last);
-		// TODO decode style
-		//
-		// decode areas and their paths
-		// needs to: repeatedly call Decoder.findChild until there are no more
-		int start = first;
-		while (true) {
-			// find area chunk
-			int[] se = Decoder.findNextChildRange(src, start, last);
-			if (null == se) break;
-			start = se[1]+2; // next start is one char past the closing parenthesis
-			long layer_id = Decoder.getLong(Decoder.LAYER_ID, src, se[0], se[1], Long.MIN_VALUE);
-			// find path chunks within area
-			int startpath = se[0];
-			while (true) {
-				int[] se_path = Decoder.findNextChildRange(src, startpath, se[1]);
-				if (null == se_path) break;
-				int[] se_atom = Decoder.findAtomRange(Decoder.PATH, src, se_path[0], se_path[1]);
-				// parse .. TODO
-			}
 		}
 	}
 

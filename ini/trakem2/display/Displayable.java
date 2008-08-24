@@ -34,7 +34,6 @@ import ij.measure.ResultsTable;
 import ij.WindowManager;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
-import ini.trakem2.persistence.Decoder;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
@@ -116,22 +115,6 @@ public abstract class Displayable extends DBObject {
 		this.width = width;
 		this.height = height;
 	}
-
-	/** Reconstruct a Displayable from a t2 data file.
-	 * @param first is the index of the first char in @param src that defines this instance.
-	 * @param last is the index of the last char in @param src that defines this instance.
-	 */
-	public Displayable(final Project project, final char[] src, final int first, final int last) {
-		super(project, Decoder.getLong(Decoder.OID, src, first, last, Long.MIN_VALUE));
-		// could be done with reflection, given the field name! But then one needs to create String object s.. which is what I am avoiding like the plague
-		this.width = Decoder.getDouble(Decoder.WIDTH, src, first, last, 0);
-		this.height = Decoder.getDouble(Decoder.HEIGHT, src, first, last, 0);
-		Decoder.putAffineTransform(this.at, src, first, last);
-		this.visible = Decoder.getBoolean(Decoder.VISIBLE, src, first, last, true);
-		this.locked = Decoder.getBoolean(Decoder.LOCKED, src, first, last, true);
-		this.title = Decoder.getString(Decoder.TITLE, src, first, last, Project.getName(this.getClass()));
-	}
-
 
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the HashMap. */
 	public Displayable(Project project, long id, HashMap ht, HashMap ht_links) {
