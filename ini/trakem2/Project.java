@@ -317,13 +317,6 @@ public class Project extends DBObject {
 				Layer layer = new Layer(project, 0, 1, project.layer_set);
 				project.layer_set.add(layer);
 				project.layer_tree.addLayer(project.layer_set, layer);
-				// create display
-				/*
-				Display display = new Display(project, layer);
-				Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
-				display.getCanvas().setup(0.25, srcRect);
-				display.updateTitle();
-				*/
 				Display.createDisplay(project, layer);
 			}
 			try {
@@ -344,13 +337,17 @@ public class Project extends DBObject {
 		return null;
 	}
 
+	static public Project openFSProject(final String path) {
+		return openFSProject(path, true);
+	}
+
 	/** Opens a project from an .xml file. If the path is null it'll be asked for.
 	 *  Only one project may be opened at a time.
 	 */
-	synchronized static public Project openFSProject(final String path) {
+	synchronized static public Project openFSProject(final String path, final boolean open_displays) {
 		if (Utils.wrongImageJVersion()) return null;
 		final FSLoader loader = new FSLoader();
-		final Object[] data = loader.openFSProject(path);
+		final Object[] data = loader.openFSProject(path, open_displays);
 		if (null == data) {
 			return null;
 		}
@@ -405,30 +402,32 @@ public class Project extends DBObject {
 			IJError.print(e);
 		}
 		// open any stored displays
-		final Bureaucrat burro = Display.openLater();
-		if (null != burro) {
-			final Runnable ru = new Runnable() {
-				public void run() {
-					// wait until the Bureaucrat finishes
-					try { burro.join(); } catch (InterruptedException ie) {}
-					// restore to non-changes (crude, but works)
-					project.loader.setChanged(false);
-				}
-			};
-			new Thread() {
-				public void run() {
-					setPriority(Thread.NORM_PRIORITY);
-					// avoiding "can't call invokeAndWait from the EventDispatch thread" error
-					try {
-						javax.swing.SwingUtilities.invokeAndWait(ru);
-					} catch (Exception e) {
-						Utils.log2("ERROR: " + e);
+		if (open_displays) {
+			final Bureaucrat burro = Display.openLater();
+			if (null != burro) {
+				final Runnable ru = new Runnable() {
+					public void run() {
+						// wait until the Bureaucrat finishes
+						try { burro.join(); } catch (InterruptedException ie) {}
+						// restore to non-changes (crude, but works)
+						project.loader.setChanged(false);
 					}
-				}
-			}.start();
-		} else {
-			// help the helpless users
-			Display.createDisplay(project, project.layer_set.getLayer(0));
+				};
+				new Thread() {
+					public void run() {
+						setPriority(Thread.NORM_PRIORITY);
+						// avoiding "can't call invokeAndWait from the EventDispatch thread" error
+						try {
+							javax.swing.SwingUtilities.invokeAndWait(ru);
+						} catch (Exception e) {
+							Utils.log2("ERROR: " + e);
+						}
+					}
+				}.start();
+			} else {
+				// help the helpless users
+				Display.createDisplay(project, project.layer_set.getLayer(0));
+			}
 		}
 		return project;
 	}
