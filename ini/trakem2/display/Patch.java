@@ -69,7 +69,6 @@ public class Patch extends Displayable {
 	/** To be read from XML, or set when the file ImagePlus has been updated and the current_path points to something else. */
 	private String original_path = null;
 
-
 	/** Construct a Patch from an image. */
 	public Patch(Project project, String title, double x, double y, ImagePlus imp) {
 		super(project, title, x, y);

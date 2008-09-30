@@ -50,7 +50,9 @@ import ij.process.FloatProcessor;
 import ij.process.StackProcessor;
 import ij.process.StackStatistics;
 import ij.process.ImageStatistics;
+import ij.process.ColorProcessor;
 import ij.measure.Calibration;
+import ij.measure.Measurements;
 
 import ini.trakem2.Project;
 import ini.trakem2.display.Ball;
@@ -133,7 +135,6 @@ import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.atomic.AtomicInteger;
-
 
 
 /** Handle all data-related issues with a virtualization engine, including load/unload and saving, saving as and overwriting. */
@@ -1366,6 +1367,7 @@ abstract public class Loader {
 		};
 		// enable the checkbox to control the slider and its associated numeric field:
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size()-2), c, null);
+		//gd.addCheckbox("Apply non-linear deformation", false);
 
 		gd.showDialog();
 
@@ -1397,6 +1399,7 @@ abstract public class Loader {
 		float cc_scale = (float)gd.getNextNumber() / 100f;
 		homogenize_contrast = gd.getNextBoolean();
 		int stitching_rule = gd.getNextChoiceIndex();
+		//boolean apply_non_linear_def = gd.getNextBoolean();
 
 		// Ensure tiles overlap if using SIFT
 		if (StitchingTEM.FREE_RULE == stitching_rule) {
@@ -1462,7 +1465,7 @@ abstract public class Loader {
 			cols.add(col);
 		}
 
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1553,6 +1556,7 @@ abstract public class Loader {
 		};
 		// enable the checkbox to control the slider and its associated numeric field:
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size()-1), c, null);
+		//gd.addCheckbox("Apply non-linear deformation", false);
 
 		gd.showDialog();
 		if (gd.wasCanceled()) {
@@ -1580,6 +1584,7 @@ abstract public class Loader {
 		float cc_scale = (float)gd.getNextNumber() / 100f;
 		boolean homogenize_contrast = gd.getNextBoolean();
 		int stitching_rule = gd.getNextChoiceIndex();
+		//boolean apply_non_linear_def = gd.getNextBoolean();
 
 		// Ensure tiles overlap if using SIFT
 		if (StitchingTEM.FREE_RULE == stitching_rule) {
@@ -1610,7 +1615,7 @@ abstract public class Loader {
 		Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
 		ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1629,7 +1634,7 @@ abstract public class Loader {
 	 * @param link_images Link images to their neighbors.
 	 * @param preproprecessor The name of a PluginFilter in ImageJ's plugin directory, to be called on every image prior to insertion.
 	 */
-	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final String preprocessor, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule) {
+	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final String preprocessor, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule/*, final boolean apply_non_linear_def*/) {
 
 		// create a Worker, then give it to the Bureaucrat
 
@@ -1665,6 +1670,20 @@ abstract public class Loader {
 				return;
 			}
 		}
+
+		/* If requested, ask for a text file containing the non-linear deformation coefficients
+		 * and obtain a NonLinearTransform object and coefficients to apply to all images. */
+		/*
+		// NOT READY YET
+		final NonLinearTransform nlt = apply_non_linear_def ? askForNonLinearTransform() : null;
+		final double[][] nlt_coeffs = null != nlt ? nlt.getCoefficients() : null;
+
+		if (apply_non_linear_def && null == nlt) {
+			finishedWorking();
+			return;
+		}
+		*/
+
 
 		int x = 0;
 		int y = 0;
@@ -1795,6 +1814,7 @@ abstract public class Loader {
 				//add new Patch at base bx,by plus the x,y of the grid
 				Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 				if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
+				//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
 				addedPatchFrom(path, patch);
 				if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
 				else generateMipMaps(patch);
@@ -2128,14 +2148,30 @@ abstract public class Loader {
 			(Component)gd.getCheckboxes().get(2)
 		};
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(1), c_enable, null);
+		//gd.addCheckbox("Apply non-linear deformation", false);
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		final boolean homogenize_contrast = gd.getNextBoolean();
 		final boolean register_tiles = gd.getNextBoolean();
 		final boolean overlapping_only = gd.getNextBoolean();
 		final int layer_subset = gd.getNextChoiceIndex();
+		//final boolean apply_non_linear_def = gd.getNextBoolean();
 		final Set touched_layers = Collections.synchronizedSet(new HashSet());
 		gd = null;
+
+
+		/* If requested, ask for a text file containing the non-linear deformation coefficients
+		 * and obtain a NonLinearTransform object and coefficients to apply to all images. */
+		/*
+		// NOT READY YET
+		final NonLinearTransform nlt = apply_non_linear_def ? askForNonLinearTransform() : null;
+		final double[][] nlt_coeffs = null != nlt ? nlt.getCoefficients() : null;
+
+		if (apply_non_linear_def && null == nlt) {
+			return null;
+		}
+		*/
+
 
 		final Worker worker = new Worker("Importing images") {
 			public void run() {
@@ -2259,6 +2295,7 @@ abstract public class Loader {
 								layer = layer_set.getLayer(z, layer_thickness, true); // will create a new Layer if necessary
 								touched_layers.add(layer);
 								patch = new Patch(layer.getProject(), imp.getTitle(), x, y, imp);
+								//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
 								addedPatchFrom(path, patch);
 							} catch (Exception e) {
 								IJError.print(e);
@@ -4773,4 +4810,93 @@ abstract public class Loader {
 	public String setImageFile(Patch p, ImagePlus imp) { return null; }
 
 	public boolean isUnloadable(final Patch p) { return hs_unloadable.contains(p); }
+
+
+	/** Store NonLinearTransform objects that can process a specific Patch. */
+	//protected final HashMap<Patch,NonLinearTransform> nlt_map = new HashMap<Patch,NonLinearTransform>();
+
+	/*
+	protected NonLinearTransform askForNonLinearTransform() {
+		// ask for text file containing coefficients (generated by Verena Kaynig's plugin)
+		OpenDialog od = new OpenDialog("Choose file", OpenDialog.getDefaultDirectory(), null);
+		String coeff_filename = od.getFileName();
+		if (null == coeff_filename || coeff_filename.toLowerCase().startsWith("null")) {
+			return null;
+		}
+		String coeff_dir = od.getDirectory().replace('\\','/');
+		if (!coeff_dir.endsWith("/")) coeff_dir += "/";
+
+		NonLinearTransform nlt = new NonLinearTransform();
+		nlt.load(coeff_filename);
+
+		return nlt;
+	}
+	*/
+
+	/** Returns an RGB image (ColorProcessor) of exactly the same dimensions as that of the given Patch, made by applying the non-linear deformation parameters of the Patch to the given ImageProcessor. */
+	/*
+	// NOT READY YET
+	static protected ImageProcessor[] deform(final Patch patch, ImageProcessor ip) {
+		final ImageProcessor[] deformed = new NonLinearTransform(patch.getNonLinearCoeff(), (int)patch.getWidth(), (int)patch.getHeight()).transform(ip); // the transformed image is def[0], the mask is def[1]
+		ImageProcessor alpha_mask = null;
+		if (null != deformed) {
+			// The RGB image to generate as output:
+			final ColorProcessor cp = new ColorProcessor(deformed[0].getWidth(), deformed[0].getHeight());
+			final int[] pix = (int[])cp.getPixels();
+
+			// The mask to put into the pixels array of the new RGB image:
+			alpha_mask = deformed[1];
+			final byte[] mask = (byte[])alpha_mask.getPixels();
+
+			// The value to fill in 'black' areas of the mask, i.e. regions for which there is no pixel information. The median value may help in avoiding some JPEG artifacts in mipmap generation.
+			final int median = (int)(ImageStatistics.getStatistics(ip, Measurements.MEDIAN, null).median + 0.5); // rounded
+
+			if (ImagePlus.COLOR_RGB == patch.getType()) { // the 'type' of the ImagePlus wrapped by the Patch
+				final byte[] red = new byte[pix.length];
+				final byte[] green = new byte[pix.length];
+				final byte[] blue = new byte[pix.length];
+				((ColorProcessor)deformed[0]).getRGB(red, green, blue);
+				for (int i=0; i<pix.length; i++) {
+					if (255 == (mask[i]&0xff)) {
+						// inside the mask
+						pix[i] =   (255<<24)
+							 + (blue[i]<<16)
+							 + (green[i]<<8)
+							 +  red[i];
+					} else {
+						// outside the mask: fill in with median luminance values
+						pix[i] =   (median << 16)
+							 + (median << 8)
+							 +  median;
+					}
+				}
+			} else {
+				// Non-RGB source image. Hence: set all channels to the same value
+				//    except for alpha channel that gets the mask in it.
+
+				// the luminance value to put in all
+				final byte[] source = (byte[])deformed[0].convertToByte(true).getPixels();
+
+				for (int i=0; i<pix.length; i++) {
+					if (255 == (mask[i]&0xff)) {
+						// Inside the mask: set alpha to 255 (fully visible),
+						// and the other three channels to the same value (so it's overall gray.)
+						pix[i] =   (255<<24)
+							 + (source[i]<<16)
+							 + (source[i]<<8)
+							 +  source[i];
+					} else {
+						// outside the mask: fill in with median values
+						pix[i] =   (median << 16)
+							 + (median << 8)
+							 +  median;
+						// ... leaving alphas as zero: not visible.
+					}
+				}
+			}
+			ip = cp;
+		}
+		return new ImageProcessor[]{ip, alpha_mask};
+	}
+	*/
 }

@@ -26,9 +26,12 @@ import ij.IJ;
 import ij.ImagePlus;
 import ini.trakem2.imaging.VirtualStack; //import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
+import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ColorProcessor;
+import ij.process.ImageStatistics;
+import ij.measure.Measurements;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
@@ -182,7 +185,7 @@ public class FSLoader extends Loader {
 	}
 
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */
-	public Object[] openFSProject(String path) {
+	public Object[] openFSProject(String path, final boolean open_displays) {
 		// clean path of double-slashes, safely (and painfully)
 		if (null != path) {
 			path = path.replace('\\','/');
@@ -262,7 +265,7 @@ public class FSLoader extends Loader {
 				return null;
 			}
 
-			data = handler.getProjectData();
+			data = handler.getProjectData(open_displays);
 		}
 
 		if (null == data) {
@@ -1192,6 +1195,61 @@ public class FSLoader extends Loader {
 		return hint;
 	}
 
+	/*
+	static final private byte[] resize(final FloatProcessor source, final ByteProcessor alpha_mask, final int source_width, final int source_height, final int target_width, final int target_height) {
+		if (null == alpha_mask) return gaussianBlurResizeInHalf(source, target_width, target_height);
+		return alphaWeightedScaleAreaAverageResizeInHalf(source, alpha_mask, source_width, source_height, target_width, target_height);
+	}
+	*/
+ 
+	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
+	static final private byte[] gaussianBlurResizeInHalf(final FloatProcessorT2 source, final int source_width, final int source_height, final int target_width, final int target_height) {
+		source.setPixels(source_width, source_height, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])source.getPixels(), source_width, source_height), 0.75f).data);
+		source.setPixels(target_width, target_width, (float[])source.resize(target_width, target_height).getPixels());
+		return (byte[])source.convertToByte(false).getPixels(); // no interpolation: gaussian took care of that
+	}
+
+	/** NoReallyIMeanExactlyWhatTheMethodNameSays. WARNING: the source FloatProcessorT2 is resized in place. The alpha_mask is left untouched. */
+	static final private byte[] alphaWeightedScaleAreaAverageResizeInHalf(final FloatProcessorT2 source, final FloatProcessor alpha_mask, final int source_width, final int source_height, final int target_width, final int target_height) {
+		// resize using the alpha_mask values as weights
+		final float[] data = (float[])source.getPixels(); // in source_width, source_height
+		final byte[] alpha = (byte[])alpha_mask.getPixels(); // in target_width, target_height
+		final byte[] pixels = new byte[target_width * target_height];
+		final float[] new_data = new float[pixels.length];
+		float val = 0;
+		int x, y;
+		// 
+		// 'i' iterates over source array
+		// 'k' iterates over target array (half the size)
+		for (int i=0, k=0; k<pixels.length; i+=2, k++) {
+
+			// add same
+			val += alpha[i] * data[i];
+
+			// No boundary checks needed, source image is exactly double the size as target image
+
+			// add right:
+			val += alpha[i+1] * data[i+1];
+
+			// add bottom: 
+			val += alpha[i+source_width] * data[i+source_width];
+
+			// add bottom-right
+			val += alpha[i+source_width+1] * data[i+source_width+1];
+
+			new_data[k] = val;
+
+			final int v = (int)( (val/4) + 0.5f); // proper rounding
+
+			pixels[k] = (byte)( v - (v < 128 ? 0 : 256) ); // map 0,255 to -128,127 range, where 0 = 0, 127 = 127, -128 = 128, and 255 = -1.
+
+		}
+
+		source.setPixels(target_width, target_height, new_data);
+
+		return pixels;
+	}
+
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
@@ -1225,7 +1283,25 @@ public class FSLoader extends Loader {
 		if (null != srmode) resizing_mode = Loader.getMode(srmode);
 
 		try {
-			final ImageProcessor ip = fetchImageProcessor(patch);
+			ImageProcessor ip = fetchImageProcessor(patch);
+
+			/* // NOT READY YET
+			final boolean is_nlt = patch.isNonLinearlyDeformed();
+			final int type = is_nlt ? ImagePlus.COLOR_RGB : patch.getType();
+
+			// Convert to an RGB image with alpha channel if non-linearly deformed
+			if (is_nlt) {
+				ImageProcessor[] def = deform(patch, ip);
+				ip = def[0];
+				alpha_mask = def[1];
+			}
+			*/
+			ImageProcessor alpha_mask = null;
+			final int type = patch.getType();
+
+
+
+
 			final String filename = new File(path).getName() + "." + patch.getId() + ".jpg";
 			int w = ip.getWidth();
 			int h = ip.getHeight();
@@ -1236,44 +1312,79 @@ public class FSLoader extends Loader {
 			ColorModel cm = ip.getColorModel();
 			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 				   //   but since we scale 50% relative the previous, it's always 0.75
-			final int type = patch.getType();
 			if (ImagePlus.COLOR_RGB == type) {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
-				ColorProcessor cp = (ColorProcessor)ip;
-				FloatProcessor red = cp.toFloat(0, new FloatProcessorT2(w, h, 0, 255));
-				FloatProcessor green = cp.toFloat(1, new FloatProcessorT2(w, h, 0, 255));
-				FloatProcessor blue = cp.toFloat(2, new FloatProcessorT2(w, h, 0, 255));
-				while (w >= 64 && h >= 64) { // not smaller than 32x32
-					// 1 - blur the previous image to 0.75 sigma
-					red = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])red.getPixels(), w, h), 0.75f).data, cm, 0, 255);
-					green = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])green.getPixels(), w, h), 0.75f).data, cm, 0, 255);
-					blue = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])blue.getPixels(), w, h), 0.75f).data, cm, 0, 255);
-					// 2 - prepare values for the next scaled image
-					w /= 2;
-					h /= 2;
-					k++;
-					// 3 - check that the target folder for the desired scale exists
-					String target_dir = getScaleDir(dir_mipmaps, k);
-					if (null == target_dir) continue;
-					// 4 - generate scaled image
-					red = (FloatProcessor)red.resize(w, h);
-					green = (FloatProcessor)green.resize(w, h);
-					blue = (FloatProcessor)blue.resize(w, h);
-					// compose ColorProcessor
-					int[] pix = new int[w * h];
-					byte[] r = (byte[])red.convertToByte(false).getPixels();
-					byte[] g = (byte[])green.convertToByte(false).getPixels();
-					byte[] b = (byte[])blue.convertToByte(false).getPixels();
-					for (int i=0; i<pix.length; i++) {
-						pix[i] = (r[i]<<16) + (g[i]<<8) + b[i];
+				final ColorProcessor cp = (ColorProcessor)ip;
+				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
+				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
+				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
+				final FloatProcessorT2 falpha = new FloatProcessorT2(w, h, (byte[])alpha_mask.getPixels(), 0, 255);
+				falpha.setInterpolate(true); // TODO perhaps false?
+				int sw, sh;
+
+				if (null != alpha_mask) {
+					while (w >= 64 && h >= 64) {
+						// 1 - Prepare values for the next scaled image
+						sw = w;
+						sh = h;
+						w /= 2;
+						h /= 2;
+						k++;
+						// 2 - Check that the target folder for the desired scale exists
+						final String target_dir = getScaleDir(dir_mipmaps, k);
+						if (null == target_dir) continue;
+						// 3 - Scale the images, using scale area averaging weighted by the alpha mask
+						final byte[] r = alphaWeightedScaleAreaAverageResizeInHalf(red, falpha, sw, sh, w, h);   // resizes 'red' in place
+						final byte[] g = alphaWeightedScaleAreaAverageResizeInHalf(green, falpha, sw, sh, w, h); // idem
+						final byte[] b = alphaWeightedScaleAreaAverageResizeInHalf(blue, falpha, sw, sh, w, h);  // idem
+						falpha.resizeInPlace(w, h); // after all the above
+						final byte[] alpha = (byte[])alpha_mask.getPixels();
+						// 4 - Compose pixel array
+						final int[] pix = new int[w * h];
+						for (int i=0; i<pix.length; i++) {
+							pix[i] = (alpha[i]<<24) + (r[i]<<16) + (g[i]<<8) + b[i];
+						}
+						// 5 - Compose BufferedImage and save it with alpha channel
+						final BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+						bi.createGraphics().drawImage(new ColorProcessor(w, h, pix).createImage(), 0, 0, null);
+						bi.getAlphaRaster().setPixels(0, 0, w, h, falpha.getFloatPixels());
+						// 6 - save as jpeg
+						if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi, dir_mipmaps + k + "/" + filename, 0.85f)) {
+							cannot_regenerate.add(patch);
+							break;
+						}
 					}
-					ColorProcessor cp2 = new ColorProcessor(w, h, pix);
-					cp2.setMinAndMax(patch.getMin(), patch.getMax());
-					// 5 - save as jpeg
-					if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f, false)) {
-						cannot_regenerate.add(patch);
-						break;
+				} else {
+					// No alpha channel:
+					//  - use gaussian resizing
+					//  - use standard ImageJ java.awt.Image creation
+					while (w >= 64 && h >= 64) { // not smaller than 32x32
+						// 1 - Prepare values for the next scaled image
+						sw = w;
+						sh = h;
+						w /= 2;
+						h /= 2;
+						k++;
+						// 2 - Check that the target folder for the desired scale exists
+						final String target_dir = getScaleDir(dir_mipmaps, k);
+						if (null == target_dir) continue;
+						// 3 - Blur the previous image to 0.75 sigma, and scale it
+						final byte[] r = gaussianBlurResizeInHalf(red, sw, sh, w, h);   // will resize 'red' FloatProcessor in place.
+						final byte[] g = gaussianBlurResizeInHalf(green, sw, sh, w, h); // idem
+						final byte[] b = gaussianBlurResizeInHalf(blue, sw, sh, w, h);  // idem
+						// 4 - Compose ColorProcessor
+						final int[] pix = new int[w * h];
+						for (int i=0; i<pix.length; i++) {
+							pix[i] = (r[i]<<16) + (g[i]<<8) + b[i];
+						}
+						final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
+						cp2.setMinAndMax(patch.getMin(), patch.getMax());
+						// 5 - save as jpeg
+						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f, false)) {
+							cannot_regenerate.add(patch);
+							break;
+						}
 					}
 				}
 			} else {
@@ -1834,4 +1945,5 @@ public class FSLoader extends Loader {
 		// Generate the starting level mipmaps, and then the others from it by gaussian or whatever is indicated in the project image_resizing_mode property.
 		return null;
 	}
+
 }
