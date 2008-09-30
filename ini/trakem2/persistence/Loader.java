@@ -532,7 +532,7 @@ abstract public class Loader {
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
 	public final boolean releaseToFit(final long bytes) {
 		if (bytes > max_memory) {
-			Utils.log("Can't fit " + bytes + " bytes in memory.");
+			Utils.log("WARNING: Can't fit " + bytes + " bytes in memory.");
 			// Try anyway
 			releaseAll();
 			return false;
