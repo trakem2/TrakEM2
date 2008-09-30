@@ -817,7 +817,7 @@ public class Registration {
 	 *
 	 */
 	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean overlapping_only) {
-		return registerTilesSIFT(layer, new boolean[]{overlapping_only, false, false});
+		return registerTilesSIFT(layer, new boolean[]{overlapping_only, false, false, false, false});
 	}
 	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean[] options) {
 		return registerTilesSIFT(layer, options, 512, 0.5f);
