@@ -84,7 +84,7 @@ public class ControlWindow {
 	/** Prevents ControlWindow from displaying projects.*/
 	static public void setGUIEnabled(boolean b) {
 		gui_enabled = b;
-		if (gui_enabled && null != frame) frame.setVisible(false);
+		if (gui_enabled && null != frame) frame.setVisible(true);
 	}
 
 	static public final boolean isGUIEnabled() {
