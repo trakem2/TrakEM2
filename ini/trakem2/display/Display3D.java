@@ -53,6 +53,12 @@ public class Display3D {
 
 	/** Table of LayerSet and Display3D - since there is a one to one relationship.  */
 	static private Hashtable ht_layer_sets = new Hashtable();
+
+	/** The sky will fall on your head if you modify any of the objects contained in this table -- which is a copy of the original, but the objects are the originals. */
+	static public Hashtable getMasterTable() {
+		return (Hashtable)ht_layer_sets.clone();
+	}
+
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
 	private Hashtable ht_pt_meshes = new Hashtable();
 
@@ -359,7 +365,7 @@ public class Display3D {
 				// wait to avoid crashes in amd64
 				try { Thread.sleep(500); } catch (Exception e) {}
 				while (!done[0]) {
-					try { Thread.sleep(500); } catch (Exception e) {}
+					try { Thread.sleep(50); } catch (Exception e) {}
 				}
 				ob = ht_layer_sets.get(ls);
 			}
