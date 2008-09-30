@@ -72,6 +72,7 @@ public class TMLHandler extends DefaultHandler {
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
 	private Dissector last_dissector = null;
+	private boolean open_displays = true;
 
 
 	/** @param path The XML file that contains the project data in XML format.
@@ -120,8 +121,9 @@ public class TMLHandler extends DefaultHandler {
 	 * <br />
 	 * Also, triggers the reconstruction of links and assignment of Displayable objects to their layer.
 	 */
-	public Object[] getProjectData() {
+	public Object[] getProjectData(final boolean open_displays) {
 		if (null == project) return null;
+		this.open_displays = open_displays;
 		// 1 - Reconstruct links using ht_links
 		// Links exist between Displayable objects.
 		for (Iterator it = ht_displayables.values().iterator(); it.hasNext(); ) {
@@ -220,7 +222,7 @@ public class TMLHandler extends DefaultHandler {
 			Thing thing = null;
 			if (0 == qualified_name.indexOf("t2_")) {
 				if (qualified_name.equals("t2_display")) {
-					al_displays.add(ht_attributes); // store for later, until the layers exist
+					if (open_displays) al_displays.add(ht_attributes); // store for later, until the layers exist
 				} else {
 					// a Layer, LayerSet or Displayable object
 					thing = makeLayerThing(qualified_name, ht_attributes);
