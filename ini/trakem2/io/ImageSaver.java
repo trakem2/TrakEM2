@@ -37,6 +37,10 @@ import java.io.*;
 import java.net.URL;
 import java.util.zip.*;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriter;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.IIOImage;
+import javax.imageio.metadata.IIOMetadata;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -315,20 +319,39 @@ public class ImageSaver {
 	}
 
 	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
-	static public final void saveJpegAlpha(final Image awt, final String path) {
+	static public final boolean saveAsJpegAlpha(final BufferedImage awt, final String path, final float quality) {
 		try {
-			if (awt instanceof BufferedImage) {
-				ImageIO.write((BufferedImage)awt, "jpeg", new File(path));
-			} else {
-				final BufferedImage bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), BufferedImage.TYPE_INT_ARGB);
-				bi.createGraphics().drawImage(awt, 0, 0, null);
-				ImageIO.write(bi, "jpeg", new File(path));
+			// This is all the mid-level junk code I have to learn and manage just to SET THE F*CK*NG compression quality for a jpeg.
+			ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next(); // just the first one
+			if (null != writer) {
+				ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
+				iwp.setCompressionQuality(0.85f); // <---------------------------------------------------------- THIS IS ALL I WANTED
+				writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
+				writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+				return true; // only one: com.sun.imageio.plugins.jpeg.JPEGImageWriter
 			}
+
+			// If the above doesn't find any, magically do it anyway without setting the compression quality:
+			ImageIO.write(awt, "jpeg", new File(path));
+			return true;
 		} catch (FileNotFoundException fnfe) {
-			Utils.log2("saveJpegAlpha: Path not found: " + path);
+			Utils.log2("saveAsJpegAlpha: Path not found: " + path);
 		} catch (Exception e) {
 			IJError.print(e);
 		}
+		return false;
+	}
+
+	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
+	static public final boolean saveAsJpegAlpha(final Image awt, final String path, final float quality) {
+		BufferedImage bi = null;
+		if (awt instanceof BufferedImage) {
+			bi = (BufferedImage)awt;
+		} else {
+			bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+			bi.createGraphics().drawImage(awt, 0, 0, null);
+		}
+		return saveAsJpegAlpha(bi, path, quality);
 	}
 
 	/** Open a jpeg file including the alpha channel if it has one. */
@@ -356,7 +379,7 @@ public class ImageSaver {
 		bi.getAlphaRaster().setPixels(0, 0, 512, 512, ramp);
 		// save the image
 		String path = "/home/albert/temp/baboonramp.jpg";
-		saveJpegAlpha(bi, path);
+		saveAsJpegAlpha(bi, path, 0.75f);
 		// open the image
 		Image awt = openJpegAlpha(path);
 		// show it in a canvas that has some background
