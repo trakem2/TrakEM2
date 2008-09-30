@@ -291,14 +291,24 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Crawl up until finding a parent that has no parent: the root. */
-	public ProjectThing getParentR() {
+	public ProjectThing getRootParent() {
 		if (null == parent) return this;
-		else return parent.getParentR();
+		else return parent.getRootParent();
+	}
+
+	/** Check if this or any of its parents are of the given type. */
+	public boolean hasParent(final String type) {
+		if (null == parent) return false;
+		if (template.getType().equals(type)) return true; // also for itself
+		return parent.hasParent(type);
 	}
 
 	public void setTitle(String title) {
 		// A Thing has a title as the object when it has no object, because the object gives it the title (the Thing only defines the type)
-		if (null == title || title.length() < 1) return;
+		if (null == title || title.length() < 1) {
+			if (object != null && object instanceof String) this.object = null; // reset title
+			return;
+		}
 		if (null == object || object instanceof String) {
 			object = title;
 			updateInDatabase("title");

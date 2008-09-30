@@ -149,7 +149,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		String title = gd.getNextString();
-		title = title.replace('"', '\''); // avoid XML problems - could also replace by double '', then replace again by " when reading.
+		title = title.replace('"', '\'').trim(); // avoid XML problems - could also replace by double '', then replace again by " when reading.
 		thing.setTitle(title);
 		this.updateUILater();
 	}
@@ -222,32 +222,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				thing.setVisible(true);
 			} else if (command.equals("Select in display")) {
 				boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
-				if (obd instanceof Displayable) {
-					Displayable d = (Displayable)obd;
-					if (!d.isVisible()) d.setVisible(true);
-					Display display = Display.getFront(d.getProject());
-					if (null == display) return;
-					display.select(d, shift_down);
-				} else {
-					// select all basic types under this leaf
-					HashSet hs = thing.findBasicTypeChildren();
-					boolean first = true;
-					Display display = null;
-					for (Iterator it = hs.iterator(); it.hasNext(); ) {
-						Displayable d = (Displayable)((ProjectThing)it.next()).getObject();
-						if (null == display) {
-							display = Display.getFront(d.getProject());
-							if (null == display) return;
-						}
-						if (!d.isVisible()) d.setVisible(true);
-						if (first) {
-							display.select(d, shift_down);
-							first = false;
-						} else {
-							display.select(d, true);
-						}
-					}
-				}
+				selectInDisplay(thing, shift_down);
 			} else if (command.equals("Identify...")) {
 				// for pipes only for now
 				if (!(obd instanceof Pipe)) return;
@@ -559,5 +534,35 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		sb.append('\n');
 		sb.append(thing.getInfo().replaceAll("\t", "    ")); // TextWindow can't handle tabs
 		new ij.text.TextWindow("Info", sb.toString(), 500, 500);
+	}
+
+	public void selectInDisplay(final ProjectThing thing, final boolean shift_down) {
+		Object obd = thing.getObject();
+		if (obd instanceof Displayable) {
+			Displayable d = (Displayable)obd;
+			if (!d.isVisible()) d.setVisible(true);
+			Display display = Display.getFront(d.getProject());
+			if (null == display) return;
+			display.select(d, shift_down);
+		} else {
+			// select all basic types under this leaf
+			HashSet hs = thing.findBasicTypeChildren();
+			boolean first = true;
+			Display display = null;
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)((ProjectThing)it.next()).getObject();
+				if (null == display) {
+					display = Display.getFront(d.getProject());
+					if (null == display) return;
+				}
+				if (!d.isVisible()) d.setVisible(true);
+				if (first) {
+					display.select(d, shift_down);
+					first = false;
+				} else {
+					display.select(d, true);
+				}
+			}
+		}
 	}
 }
