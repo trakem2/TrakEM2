@@ -163,6 +163,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		public void windowStateChanged(WindowEvent we) {
 			final Object source = we.getSource();
 			for (Display d : al_displays) {
+				if (source != d.frame) continue;
 				d.pack();
 				break;
 			}
@@ -171,17 +172,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	static private MouseListener frame_mouse_listener = new MouseAdapter() {
 		public void mouseReleased(MouseEvent me) {
-			Object ob = me.getSource();
-			if (ob instanceof JFrame) {
-				Display d = null;
-				for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-					d = (Display)it.next();
-					if (d == ob) break;
-				}
-				if (d == null) return;
-				if (d.size_adjusted) {
-					d.pack();
-					d.size_adjusted = false;
+			Object source = me.getSource();
+			for (Display d : al_displays) {
+				if (d.frame == source) {
+					if (d.size_adjusted) {
+						d.pack();
+						d.size_adjusted = false;
+					}
+					break;
 				}
 			}
 		}
@@ -189,12 +187,17 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private int last_frame_state = frame.NORMAL;
 
+	// THIS WHOLE SYSTEM OF LISTENERS IS BROKEN:
+	// * when zooming in, the window growths in width a few pixels.
+	// * when enlarging the window quickly, the canvas is not resized as large as it should.
+	// -- the whole problem: swing threading, which I am not handling properly. It's hard.
 	static private ComponentListener component_listener = new ComponentAdapter() {
 		public void componentResized(ComponentEvent ce) {
-			Display d = getDisplaySource(ce);
+			final Display d = getDisplaySource(ce);
 			if (null != d) {
 				//if (!d.size_adjusted) {
 					// keep a minimum width and height
+					SwingUtilities.invokeLater(new Runnable() { public void run() {
 					Rectangle r = d.frame.getBounds();
 					int w = r.width;
 					int h = r.height;
@@ -204,8 +207,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						d.frame.setSize(w, h);
 						//d.size_adjusted = true;
 					}
+					}});
 				//} else {
-					//d.size_adjusted = false;
+					d.size_adjusted = false;
 				//}
 				d.size_adjusted = true; // works in combination with mouseReleased to call pack(), avoiding infinite loops.
 				d.adjustCanvas();
@@ -1182,6 +1186,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	public void pack() {
 		dispatcher.exec(new Runnable() { public void run() {
 		try {
+			Thread.currentThread().sleep(100);
 			SwingUtilities.invokeAndWait(new Runnable() { public void run() {
 				frame.pack();
 			}});
@@ -1195,12 +1200,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 	}
 
-	protected void adjustCanvas() {
+	private void adjustCanvas() {
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
 		Rectangle r = split.getRightComponent().getBounds();
 		canvas.setDrawingSize(r.width, r.height, true);
 		//frame.pack(); // don't! Would go into an infinite loop
 		canvas.repaint(true);
 		updateInDatabase("srcRect");
+		}});
 	}
 
 	/** Grab the last selected display (or create an new one if none) and show in it the layer,centered on the Displayable object. */
