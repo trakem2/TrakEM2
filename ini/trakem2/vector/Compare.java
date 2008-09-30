@@ -200,11 +200,8 @@ public class Compare {
 				String[] pipe_names_ref = new String[pipes_ref.size()];
 				holder[0] = pipe_names_ref;
 				int[] s = findXYZAxes(presets[cpre.getSelectedIndex()], pipes_ref, pipe_names_ref);
-				for (int i=0; i<3; i++) if (-1 == s[i]) s[i] = 0;
-				int ix = ref[0].getSelectedIndex();
-				int iy = ref[1].getSelectedIndex();
-				int iz = ref[2].getSelectedIndex();
 				for (int i=0; i<3; i++) {
+					if (-1 == s[i]) s[i] = 0;
 					int index = ref[i].getSelectedIndex();
 					ref[i].removeAll();
 					for (int k=0; k<pipe_names_ref.length; k++) {
@@ -303,10 +300,10 @@ public class Compare {
 	/** Generate calibrated origin of coordinates. */
 	static public Object[] obtainOrigin(final Pipe[] axes, final int transform_type) {
 		// pipe's axes
-		VectorString3D[] vs = new VectorString3D[3];
+		final VectorString3D[] vs = new VectorString3D[3];
 		for (int i=0; i<3; i++) vs[i] = axes[i].asVectorString3D();
 
-		Calibration cal = (null != axes[0].getLayerSet() ? axes[0].getLayerSet().getCalibration() : null);
+		final Calibration cal = (null != axes[0].getLayerSet() ? axes[0].getLayerSet().getCalibration() : null);
 		// 1 - calibrate
 		if (null != cal) {
 			for (int i=0; i<3; i++) vs[i].calibrate(cal);
@@ -318,7 +315,7 @@ public class Compare {
 		for (int i=0; i<3; i++) vs[i].resample(delta);
 
 		// return origin vectors for pipe's project
-		Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2], transform_type); // requires resampled vs
+		final Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2], transform_type); // requires resampled vs
 
 		return new Object[]{vs, o};
 	}
@@ -355,7 +352,8 @@ public class Compare {
 
 
 		// fix axes according to the transform type
-		VectorString3D.matchOrigins(o1, o2, transform_type);
+		final double scaling_factor = VectorString3D.matchOrigins(o1, o2, transform_type);
+		Utils.log2("matchOrigins scaling factor: " + scaling_factor + " for transform_type " + transform_type);
 
 		// obtain transformation for query axes
 		final Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibration() : null);
@@ -375,6 +373,7 @@ public class Compare {
 
 		// transform the reference axes themselves
 		for (int i=0; i<3; i++) {
+			// Axes are already calibrated
 			vs_axes_ref[i].translate(trans2);
 			vs_axes_ref[i].transform(rot2);
 		}
@@ -1102,6 +1101,7 @@ public class Compare {
 	static public final int COMBINED = 6;
 	static public final int PROXIMITY = 7;
 	static public final int PROXIMITY_MUT = 8;
+	static public final int STD_DEV_ALL = 9;
 
 	// Weights as empirically approximated with some lineages, with S. Preibisch ( see Test_Scoring.java )
 	static public final double[] W = new double[]{1.3345290383577453, -0.0012626693452889859, -0.012764729437173508, -0.13344076489951817};
@@ -1118,14 +1118,16 @@ public class Compare {
 				return ed.getDistance();
 			case DISSIMILARITY: // Dissimilarity
 				return 1 - ed.getSimilarity(skip_ends, max_mut, min_chunk);
-			case AVG_PHYS_DIST: // average physical distance between mutation pairs
+			case AVG_PHYS_DIST: // average physical distance between mutation pairs only
 				return ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
-			case MEDIAN_PHYS_DIST: // median physical distance between mutation pairs
+			case MEDIAN_PHYS_DIST: // median physical distance between all pairs
 				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3]; // 3 is median
-			case CUM_PHYST_DIST: // cummulative physical distance between mutation pairs
+			case CUM_PHYST_DIST: // cummulative physical distance between all pairs
 				return ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
-			case STD_DEV: // stdDev of distances between mutation pairs
+			case STD_DEV: // stdDev of distances between mutation pairs only
 				return ed.getStdDev(skip_ends, max_mut, min_chunk);
+			case STD_DEV_ALL: // stdDev of distances between all pairs
+				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[2];
 			case COMBINED: // combined score
 				return 1 / score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W);
 			case PROXIMITY: // cummulative distance relative to largest physical length of the two sequences
@@ -1137,8 +1139,14 @@ public class Compare {
 	}
 
 	static private final Object[] matchDirect(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
-		final Editions edd = new Editions(vs1, vs2, delta, false);
-		return new Object[]{edd, getScore(edd, skip_ends, max_mut, min_chunk, distance_type)};
+		// Levenshtein is unfortunately not commutative: must try both
+		final Editions ed1 = new Editions(vs1, vs2, delta, false);
+		double score1 = getScore(ed1, skip_ends, max_mut, min_chunk, distance_type);
+		final Editions ed2 = new Editions(vs2, vs1, delta, false);
+		double score2 = getScore(ed2, skip_ends, max_mut, min_chunk, distance_type);
+		return score1 < score2 ?
+			new Object[]{ed1, score1}
+		      : new Object[]{ed2, score2};
 	}
 
 	// Match in all possible ways
@@ -1635,7 +1643,7 @@ public class Compare {
 	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
 	 *
 	 * @param to_file Whether to save the results to a file and popup a save dialog for it or not. In any case the results are stored in the worker's load, which you can retrieve like:
-	 *     Bureaucrat bu = Compare.compareAllToAll(true, true);
+	 *     Bureaucrat bu = Compare.compareAllToAll(true);
 	 *     Object result = bu.getWorker().getResult();
 	 *     float[][] scores = (float[][])result[0];
 	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
@@ -1780,7 +1788,8 @@ public class Compare {
 					o[i] = (Vector3d[])pack[1];
 				}
 				// match the scales to make the largest be 1.0
-				VectorString3D.matchOrigins(o, transform_type);
+				final double scaling_factor = VectorString3D.matchOrigins(o, transform_type);
+				Utils.log2("matchOrigins scaling factor: " + scaling_factor + " for transform_type " + transform_type);
 				// transform all
 				for (int i=0; i<p.length; i++) {
 					Vector3d trans = new Vector3d(-o[i][3].x, -o[i][3].y, -o[i][3].z);
@@ -1989,11 +1998,20 @@ public class Compare {
 	 * @param distance_type ranges from 0 to 5, and includes: 0=Levenshtein, 1=Dissimilarity, 2=Average physical distance, 3=Median physical distance, 4=Cummulative physical distance and 5=Standard deviation. */
 	static public float[][] scoreAllToAll(final VectorString3D[] vs, final int distance_type, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final boolean direct, final boolean substring_matching, final Worker worker) {
 		final float[][] scores = new float[vs.length][vs.length];
-		for (int i=0; i<vs.length; i++) {
+
+
+		final AtomicInteger ai = new AtomicInteger(0);
+
+		final Thread[] threads = MultiThreading.newThreads();
+		for (int ithread=0; ithread<threads.length; ithread++) {
+			threads[ithread] = new Thread() { public void run() {
+				////
+
+		for (int i=ai.getAndIncrement(); i<vs.length; i=ai.getAndIncrement()) {
 			final VectorString3D vs1 = vs[i];
 			for (int j=i+1; j<vs.length; j++) {
-				if (null != worker && worker.hasQuitted()) return null;
-				final Object[] ob = findBestMatch(vs1, vs[j], delta, skip_ends, max_mut, min_chunk, distance_type, direct, substring_matching); // TODO should add 'distance_type' as well for the selection of the best match when not direct.
+				if (null != worker && worker.hasQuitted()) return;
+				final Object[] ob = findBestMatch(vs[i], vs[j], delta, skip_ends, max_mut, min_chunk, distance_type, direct, substring_matching); // TODO should add 'distance_type' as well for the selection of the best match when not direct.
 				/*
 				switch (distance_type) {
 					case 0: // Levenshtein
@@ -2025,6 +2043,14 @@ public class Compare {
 				scores[j][i] = scores[i][j];
 			}
 		}
+
+			////
+			}};
+		}
+		MultiThreading.startAndJoin(threads);
+
+		if (null != worker && worker.hasQuitted()) return null;
+
 		return scores;
 	}
 }

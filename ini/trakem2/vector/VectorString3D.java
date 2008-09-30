@@ -1093,15 +1093,15 @@ public class VectorString3D implements VectorString {
 			max_len = Math.max(max_len, o1[i].length());
 			max_len = Math.max(max_len, o2[i].length());
 		}
-		max_len = 1/max_len;
+		final double K = 1/max_len;
 		for (int i=0; i<3; i++) {
-			o1[i].scale(max_len);
-			o2[i].scale(max_len);
+			o1[i].scale(K);
+			o2[i].scale(K);
 		}
-		return max_len;
+		return K;
 	}
 
-	/** Match together any number of orgins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
+	/** Match together any number of origins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
 	 *  @return the applied scaling factor.
 	 * */
 	static public final double matchOrigins(Vector3d[][] o, final int transform_type) {
@@ -1113,13 +1113,13 @@ public class VectorString3D implements VectorString {
 				max_len = Math.max(max_len, o[k][i].length());
 			}
 		}
-		max_len = 1/max_len;
+		final double K = 1/max_len;
 		for (int k=0; k<o.length; k++) {
 			for (int i=0; i<3; i++) { // can't do o[k].length because 4==len, the fourth being the origin of coordinates of the given origin axes.
-				o[k][i].scale(max_len);
+				o[k][i].scale(K);
 			}
 		}
-		return max_len;
+		return K;
 	}
 
 	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates.
@@ -1208,7 +1208,7 @@ public class VectorString3D implements VectorString {
 		}
 
 		if (Compare.TRANS_ROT == transform_type || Compare.TRANS_ROT_SCALE == transform_type) {
-			// compute medial vector: perpendicular to the plane made by peduncle and dorsal lobe
+			// 1 - compute MEDIAL vector: perpendicular to the plane made by peduncle and dorsal lobe
 			Vector3d vc_medial = new Vector3d();
 			vc_medial.cross(vz, vy);
 			// check orientation:
@@ -1217,10 +1217,10 @@ public class VectorString3D implements VectorString {
 			// if the sum is smaller, then it means it should be inverted (it was the other side)
 			if (vc_med.length() < vx.length()) {
 				vc_medial.scale(-1);
-				Utils.log("Mirroring X axis");
+				Utils.log2("Mirroring X axis");
 			}
 
-			// compute dorsal vector: perpedicular to the plane made by v1 and vc_medial
+			// 2 - compute DORSAL vector: perpedicular to the plane made by v1 and vc_medial
 			Vector3d vc_dorsal = new Vector3d();
 			vc_dorsal.cross(vz, vc_medial);
 			// check orientation
@@ -1240,11 +1240,36 @@ public class VectorString3D implements VectorString {
 
 			v1 = vc_medial;
 			v2 = vc_dorsal;
-			//v3 = vz; // already done
+			//v3 = vz; // already done, the peduncle
 		
 		}
 		// else if (Compare.TRANS_ROT_SCALE_SHEAR == transform_type)
-			// use vectors AS THEY ARE
+			// use AS THEY ARE
+
+		/* // This is wrong, yet something must be done in this direction
+		 * // to compensate for the differential lengths of the axes
+		if (Compare.TRANS_ROT != transform_type) {
+			// Use vectors with whatever length they have
+			// BUT: make sure the final proportions are correct,
+			// which means the shorter axes have to be scaled up
+			// to the inverse of their length proportion to the longest one.
+			final double v1_len = v1.length();
+			final double v2_len = v2.length();
+			final double v3_len = v3.length();
+			final double max_len = Math.max(v1_len, Math.max(v2_len, v3_len));
+			// can't use a switch statement with floating point? Great.
+			if (max_len == v1_len) {
+				v2.scale(v1_len / v2_len);
+				v3.scale(v1_len / v3_len);
+			} else if (max_len == v2_len) {
+				v1.scale(v2_len / v1_len);
+				v3.scale(v2_len / v3_len);
+			} else { // v3_len:
+				v1.scale(v3_len / v1_len);
+				v2.scale(v3_len / v2_len);
+			}
+		}
+		*/
 
 		return new Vector3d[]{
 			v1, // X axis : medial lobe
@@ -1254,14 +1279,14 @@ public class VectorString3D implements VectorString {
 		};
 	}
 
-	static public double distance(VectorString3D vs1, int i, VectorString3D vs2, int j) {
+	static public final double distance(final VectorString3D vs1, final int i, final VectorString3D vs2, int j) {
 		return distance(vs1.x[i], vs1.y[i], vs1.z[i],
 				vs2.x[j], vs2.y[j], vs2.z[j]);
 	}
 
 	/** Distance from point i in this to point j in vs2. */
-	public double distance(int i, VectorString vs, int j) {
-		VectorString3D vs2 = (VectorString3D)vs;
+	public double distance(final int i, final VectorString vs, final int j) {
+		final VectorString3D vs2 = (VectorString3D)vs;
 		return distance(x[i], y[i], z[i],
 				vs2.x[j], vs2.y[j], vs2.z[j]);
 	}
