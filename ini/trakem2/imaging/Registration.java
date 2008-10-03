@@ -115,6 +115,8 @@ public class Registration {
 
 	static public final int GLOBAL_MINIMIZATION = 0;
 	static public final int LAYER_SIFT = 1;
+	/** Number of iterations the optimizer will run before attempting to stop if converging. */
+	static public int min_iterations = 2000;
 
 	static public Bureaucrat registerLayers(final Layer layer, final int kind) {
 		if (layer.getParent().size() <= 1) {
@@ -1568,12 +1570,12 @@ public class Registration {
 			}
 			dall[next++] = dd;
 			
-			// cut the last 'n'
-			if (next > 100) { // wait until completing at least 'n' iterations
-				double[] dn = new double[100];
+			// Attempt to stop if at least min_iterations have passed, and there's convergence:
+			if (next > min_iterations) {
+				final double[] dn = new double[100];
 				System.arraycopy(dall, dall.length - 100, dn, 0, 100);
 				// fit curve
-				double[] ft = FitLine.fitLine(dn);
+				final double[] ft = FitLine.fitLine(dn);
 				// ft[1] StdDev
 				// ft[2] m (slope)
 				//if ( Math.abs( ft[ 1 ] ) < 0.001 )
