@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.tree;
 
+import ij.measure.ResultsTable;
 
 import ini.trakem2.Project;
 import ini.trakem2.display.Display;
@@ -30,6 +31,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.Display3D;
+import ini.trakem2.display.Pipe;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -39,9 +41,8 @@ import java.awt.event.ActionListener;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.HashSet;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -62,7 +63,7 @@ public class ProjectThing extends DBObject implements Thing {
 	/** The object holded by this ProjectThing. Can be a simple String when it holds no object. The title of a Thing is the title of the object it holds, or the String itself. The title is always accessed with Object.toString(). */
 	private Object object;
 
-	private Hashtable ht_attributes;
+	private HashMap ht_attributes;
 
 	/** Create a new ProjectThing of the given type to contain the given Object. The object cannot be null. */
 	public ProjectThing(final TemplateThing template, Project project, Object ob) throws Exception {
@@ -79,7 +80,7 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Reconstruct a ProjectThing from the database, used in  combination with the 'setup' method. */
-	public ProjectThing(TemplateThing template, Project project, long id, Object ob, ArrayList al_children, Hashtable ht_attributes) {
+	public ProjectThing(TemplateThing template, Project project, long id, Object ob, ArrayList al_children, HashMap ht_attributes) {
 		// call super constructor
 		super(project, id);
 		// specifics:
@@ -116,9 +117,8 @@ public class ProjectThing extends DBObject implements Thing {
 	/* Tell the attributes and the children who owns them, and then those of the children, recursively. Used when reconstructing from the database. */
 	public void setup() {
 		if (null != ht_attributes) {
-			Enumeration e = ht_attributes.keys();
-			while (e.hasMoreElements()) {
-				ProjectAttribute pa = (ProjectAttribute)ht_attributes.get(e.nextElement());
+			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
+				ProjectAttribute pa = (ProjectAttribute)it.next();
 				// now tell it to resolve its object
 				pa.setup(this);
 			}
@@ -139,10 +139,9 @@ public class ProjectThing extends DBObject implements Thing {
 			this.ht_attributes = null;
 			return;
 		}
-		Enumeration keys = template.getAttributes().keys();
-		this.ht_attributes = new Hashtable();
-		while (keys.hasMoreElements()) {
-			String key = (String)keys.nextElement();
+		this.ht_attributes = new HashMap();
+		for (Iterator it = template.getAttributes().keySet().iterator(); it.hasNext(); ) {
+			String key = (String)it.next();
 			ht_attributes.put(key, new ProjectAttribute(project, key, null, this));
 		}
 		updateInDatabase("attributes");
@@ -150,7 +149,10 @@ public class ProjectThing extends DBObject implements Thing {
 
 	public String toString() {
 		// 'object' can be the title, if not directly holding a Displayable object
-		return (null == object ? template.getType() : object.toString()) + " [" + template.getType() + "]";
+		final StringBuffer sb = new StringBuffer();
+		if (null == object) sb.append(template.getType());
+		else sb.append(object.toString()).append(' ').append('[').append(template.getType()).append(']');
+		return sb.toString();
 	}
 
 	public String getTitle() {
@@ -199,7 +201,7 @@ public class ProjectThing extends DBObject implements Thing {
 		if (null == title || null == object) return false;
 		if (title.equals("id")) return true; // no need to store the id as an attribute (but will exists as such in the XML file)
 		if (!template.canHaveAsAttribute(title)) return false;
-		if (null == ht_attributes) ht_attributes = new Hashtable();
+		if (null == ht_attributes) ht_attributes = new HashMap();
 		else if (ht_attributes.containsKey(title)) {
 			Utils.log("ProjectThing.addAttribute: " + this + " already has an attribute of type " + title);
 			return false;
@@ -247,9 +249,8 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		// remove the attributes
 		if (null != ht_attributes) {
-			Enumeration e = ht_attributes.keys();
-			while (e.hasMoreElements()) {
-				if (! ((ProjectAttribute)ht_attributes.get(e.nextElement())).remove(false)) {
+			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
+				if (! ((ProjectAttribute)it.next()).remove(false)) {
 					Utils.showMessage("Deletion incomplete at attributes, check database for thing: " + this);
 					return false;
 				}
@@ -290,14 +291,24 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Crawl up until finding a parent that has no parent: the root. */
-	public ProjectThing getParentR() {
+	public ProjectThing getRootParent() {
 		if (null == parent) return this;
-		else return parent.getParentR();
+		else return parent.getRootParent();
+	}
+
+	/** Check if this or any of its parents are of the given type. */
+	public boolean hasParent(final String type) {
+		if (null == parent) return false;
+		if (template.getType().equals(type)) return true; // also for itself
+		return parent.hasParent(type);
 	}
 
 	public void setTitle(String title) {
 		// A Thing has a title as the object when it has no object, because the object gives it the title (the Thing only defines the type)
-		if (null == title || title.length() < 1) return;
+		if (null == title || title.length() < 1) {
+			if (object != null && object instanceof String) this.object = null; // reset title
+			return;
+		}
 		if (null == object || object instanceof String) {
 			object = title;
 			updateInDatabase("title");
@@ -365,7 +376,7 @@ public class ProjectThing extends DBObject implements Thing {
 		return template.canHaveAsAttribute(type);
 	}
 
-	public Hashtable getAttributes() {
+	public HashMap getAttributes() {
 		return ht_attributes;
 	}
 
@@ -411,8 +422,15 @@ public class ProjectThing extends DBObject implements Thing {
 			addPopupItem("Duplicate", listener, al_items);
 		}
 
+		addPopupItem("Select in display", listener, al_items);
+
 		if (null != object && object instanceof Displayable) {
 			addPopupItem("Show centered in Display", listener, al_items);
+		}
+
+		if (null != object && object instanceof Pipe) {
+			addPopupItem("Identify...", listener, al_items);
+			addPopupItem("Identify with axes...", listener, al_items);
 		}
 
 		addPopupItem("Measure", listener, al_items);
@@ -608,9 +626,56 @@ public class ProjectThing extends DBObject implements Thing {
 		return null;
 	}
 
-	/** Call on children things, and on itself if it contains a basic data type directly. */
+	public final class Profile_List {}
+
+	/** Call on children things, and on itself if it contains a basic data type directly.
+	 *  All children of the same type report to the same table.
+	 *  Result tables are returned without ever displaying them.
+	 */
+	public HashMap<Class,ResultsTable> measure(HashMap<Class,ResultsTable> ht) {
+		if (null == ht) ht = new HashMap<Class,ResultsTable>();
+		if (null != object && object instanceof Displayable) {
+			Displayable d = (Displayable)object;
+			if (d.isVisible()) {
+				ResultsTable rt = d.measure(ht.get(d.getClass()));
+				if (null != rt) ht.put(d.getClass(), rt);
+			} else {
+				Utils.log("Measure: skipping hidden object " + d.getProject().getMeaningfulTitle(d));
+			}
+		}
+		if (null == al_children) return ht;
+		// profile list: always special ...
+		if (template.getType().equals("profile_list") && null != al_children && al_children.size() > 1) {
+			Profile[] p = new Profile[al_children.size()];
+			for (int i=0; i<al_children.size(); i++) p[i] = (Profile)((ProjectThing)al_children.get(i)).object;
+			ResultsTable rt = Profile.measure(p, ht.get(Profile.class), this.id);
+			if (null != rt) ht.put(Profile_List.class, rt);
+			//return ht; // don't return: do each profile separately as well
+		}
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			ProjectThing child = (ProjectThing)it.next();
+			child.measure(ht);
+		}
+		return ht;
+	}
+
+	/** Measure each node, recursively into children, and at the end display all the result tables, one for each data type. */
 	public void measure() {
-		Utils.showMessage("Not implemented yet.");
+		final HashMap<Class,ResultsTable> ht = new HashMap<Class,ResultsTable>();
+		measure(ht);
+		// Show all tables. Need to be done at the end -- otherwise, at each call to "show"
+		// the entire text panel is flushed and refilled with all data and repainted.
+		for (Map.Entry<Class,ResultsTable> entry : ht.entrySet()) {
+			final Class c = entry.getKey();
+			String title;
+			if (Profile_List.class == c) title = "Profile List";
+			else {
+				title = c.getName();
+				int idot = title.lastIndexOf('.');
+				if (-1 != idot) title = title.substring(idot+1);
+			}
+			entry.getValue().show(title + " results");
+		}
 	}
 
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {
@@ -741,9 +806,8 @@ public class ProjectThing extends DBObject implements Thing {
 		if (null != ht_attributes && !ht_attributes.isEmpty() ) {
 			sb_body.append("\n");
 			// the rest of the attributes:
-			for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-				String key = (String)e.nextElement();
-				ProjectAttribute pa = (ProjectAttribute)ht_attributes.get(key);
+			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
+				ProjectAttribute pa = (ProjectAttribute)it.next();
 				sb_body.append(in).append(pa.asXML()).append("\n");
 			}
 			sb_body.append(indent).append(">\n");
@@ -790,7 +854,7 @@ public class ProjectThing extends DBObject implements Thing {
 		if (!this.template.getType().equals("profile_list")) return false;
 		if (null == al_children || al_children.size() < 2) return true; // no need
 		// fix Z ordering in the tree
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
 			ProjectThing child = (ProjectThing)it.next();
 			Profile p = (Profile)child.object;
@@ -853,7 +917,7 @@ public class ProjectThing extends DBObject implements Thing {
 			if (this.object instanceof DBObject) ob = pr.getRootLayerSet().findById(((DBObject)this.object).getId());
 			else ob = this.object; // String is a final class: no copy protection needed.
 		}
-		final ProjectThing copy = new ProjectThing(pr.getTemplateThing(this.template.getType()), pr, this.id, ob, new ArrayList(), new Hashtable());
+		final ProjectThing copy = new ProjectThing(pr.getTemplateThing(this.template.getType()), pr, this.id, ob, new ArrayList(), new HashMap());
 		if (null != this.al_children) {
 			copy.al_children = new ArrayList();
 			for (Iterator it = this.al_children.iterator(); it.hasNext(); ) {
@@ -866,7 +930,7 @@ public class ProjectThing extends DBObject implements Thing {
 			}
 		}
 		if (null != this.ht_attributes) {
-			copy.ht_attributes = new Hashtable();
+			copy.ht_attributes = new HashMap();
 			for (Iterator<Map.Entry> it = this.ht_attributes.entrySet().iterator(); it.hasNext(); ) {
 				Map.Entry entry = it.next();
 				copy.ht_attributes.put(entry.getKey(), ((ProjectAttribute)entry.getValue()).subclone(pr, copy)); // String is a final class ... again, not turtles all the way down.
@@ -887,11 +951,11 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Recursively browse all children to classify all nodes by type. Returns a table of String types and ArrayList ProjectThing. */
-	public Hashtable<String,ArrayList<ProjectThing>> getByType() {
-		return getByType(new Hashtable<String,ArrayList<ProjectThing>>());
+	public HashMap<String,ArrayList<ProjectThing>> getByType() {
+		return getByType(new HashMap<String,ArrayList<ProjectThing>>());
 	}
 
-	private Hashtable<String,ArrayList<ProjectThing>> getByType(final Hashtable<String,ArrayList<ProjectThing>> ht) {
+	private HashMap<String,ArrayList<ProjectThing>> getByType(final HashMap<String,ArrayList<ProjectThing>> ht) {
 		String type = template.getType();
 		ArrayList<ProjectThing> ap = ht.get(type);
 		if (null == ap) {

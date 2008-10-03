@@ -30,9 +30,10 @@ import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
+import ij.measure.ResultsTable;
+import ij.WindowManager;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
-import ini.trakem2.persistence.Decoder;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
@@ -115,33 +116,18 @@ public abstract class Displayable extends DBObject {
 		this.height = height;
 	}
 
-	/** Reconstruct a Displayable from a t2 data file.
-	 * @param first is the index of the first char in @param src that defines this instance.
-	 * @param last is the index of the last char in @param src that defines this instance.
-	 */
-	public Displayable(final Project project, final char[] src, final int first, final int last) {
-		super(project, Decoder.getLong(Decoder.OID, src, first, last, Long.MIN_VALUE));
-		// could be done with reflection, given the field name! But then one needs to create String object s.. which is what I am avoiding like the plague
-		this.width = Decoder.getDouble(Decoder.WIDTH, src, first, last, 0);
-		this.height = Decoder.getDouble(Decoder.HEIGHT, src, first, last, 0);
-		Decoder.putAffineTransform(this.at, src, first, last);
-		this.visible = Decoder.getBoolean(Decoder.VISIBLE, src, first, last, true);
-		this.locked = Decoder.getBoolean(Decoder.LOCKED, src, first, last, true);
-		this.title = Decoder.getString(Decoder.TITLE, src, first, last, Project.getName(this.getClass()));
-	}
-
-
-	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the Hashtable. */
-	public Displayable(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the HashMap. */
+	public Displayable(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id);
 		double x=0, y=0, rot=0; // for backward compatibility
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
 		final ArrayList al_used_keys = new ArrayList();
-		for (Enumeration e = ht.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
+		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			try {
-				String data = (String)ht.get(key);
 				if (key.equals("width")) width = Double.parseDouble(data);
 				else if (key.equals("height")) height = Double.parseDouble(data);
 				else if (key.equals("transform")) {
@@ -309,9 +295,18 @@ public abstract class Displayable extends DBObject {
 		return getBoundingBox(null);
 	}
 
+	/** Will fill bounding box values into given rectangle  -- only that part of this object showing in the given layer will be included in the box. */
+	public Rectangle getBounds(final Rectangle r, final Layer layer) {
+		return getBoundingBox(r);
+	}
+
+	/** Bounding box of the transformed data. Saves one Rectangle allocation, returns the same Rectangle, modified (or a new one if null). */
+	public Rectangle getBoundingBox(final Rectangle r) {
+		return getBounds(null != r ? r : new Rectangle());
+	}
+
 	/** Bounding box of the transformed data. Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
-	public Rectangle getBoundingBox(Rectangle r) {
-		if (null == r) r = new Rectangle();
+	private final Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;
 		r.width = (int)this.width;
@@ -378,8 +373,13 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Test whether the given point falls within the perimeter of this Displayable, considering the position x,y. Used by the DisplayCanvas mouse events. */
-	public boolean contains(int x_p, int y_p) {
+	public boolean contains(final int x_p, final int y_p) {
 		return getPerimeter().contains(x_p, y_p);
+	}
+
+	/** Calls contains(x_p, y_p) unless overriden -- in ZDisplayable objects, it tests whether the given point is contained in the part of the ZDisplayable that shows in the given layer. */
+	public boolean contains(final Layer layer, final int x_p, final int y_p) {
+		return contains(x_p, y_p);
 	}
 
 	public void setAlpha(float alpha) {
@@ -517,19 +517,19 @@ public abstract class Displayable extends DBObject {
 		this.layer = null;
 	}
 
-	public boolean isOutOfRepaintingClip(double magnification, Rectangle srcRect, Rectangle clipRect) {
+	public boolean isOutOfRepaintingClip(final double magnification, final Rectangle srcRect, final Rectangle clipRect) {
 		// 1 - check visibility
 		if (!visible) {
 			//if not visible, it's out, so return true:
 			return true;
 		}
-		Rectangle box = getBoundingBox(); // includes rotation
+		final Rectangle box = getBoundingBox(null); // includes rotation
 		// 2 - check if out of clipRect (clipRect is in screen coords, whereas srcRect is in offscreen coords)
 		if (null != clipRect && null != srcRect) {
-			int screen_x = (int)((box.x -srcRect.x) * magnification);
-			int screen_y = (int)((box.y -srcRect.y) * magnification);
-			int screen_width = (int)(box.width * magnification);
-			int screen_height = (int)(box.height * magnification);
+			final int screen_x = (int)((box.x -srcRect.x) * magnification);
+			final int screen_y = (int)((box.y -srcRect.y) * magnification);
+			final int screen_width = (int)(box.width * magnification);
+			final int screen_height = (int)(box.height * magnification);
 			if ((screen_x + screen_width) < clipRect.x || (screen_y + screen_height) < clipRect.y || screen_x > (clipRect.x + clipRect.width) || screen_y > (clipRect.y + clipRect.height)) {
 				return true;
 			}
@@ -570,12 +570,18 @@ public abstract class Displayable extends DBObject {
 		return false;
 	}
 
+	/** Remove also from the trees if present; does nothing more than remove(boolean) unless overriden. */
+	protected boolean remove2(boolean check) {
+		return remove(check);
+	}
+
 	/** Remove from both the database and any Display that shows the Layer in which this Displayable is shown. */
 	public boolean remove(boolean check) {
 		if (super.remove(check) && layer.remove(this)) {
 			unlink();
 			Search.remove(this);
 			Compare.remove(this);
+			Display.flush(this);
 			return true;
 		}
 		Utils.log("Failed to remove " + this.getClass().getName() + " " + this);
@@ -736,6 +742,15 @@ public abstract class Displayable extends DBObject {
 		return 0 != b.width && 0 != b.height;
 	}
 
+	/** Calls intersects(area) unless overriden -- intended for ZDisplayable objects to return whether they intersect the given area at the given layer. */
+	public boolean intersects(final Layer layer, final Area area) {
+		return intersects(area);
+	}
+
+	public boolean intersects(final Layer layer, final Rectangle r) {
+		return getBoundingBox(null).intersects(r);
+	}
+
 	/** Returns the intersection of this Displayable's area with the given one. */
 	public Area getIntersection(final Displayable d) {
 		final Area a = new Area(this.getPerimeter());
@@ -865,7 +880,7 @@ public abstract class Displayable extends DBObject {
 	protected void processAdjustPropertiesDialog(final GenericDialog gd) {
 		// store old transforms for undo
 		HashSet hs = getLinkedGroup(new HashSet());
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			ht.put(d, d.getAffineTransformCopy());
@@ -918,7 +933,7 @@ public abstract class Displayable extends DBObject {
 				for (Iterator it = hs.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
 					if (this.equals(d)) continue;
-					d.translate(dx, dy);
+					d.translate(dx, dy, false);
 				}
 			} else {
 				this.setLocation(x1, y1);
@@ -929,10 +944,10 @@ public abstract class Displayable extends DBObject {
 				// scale all
 				for (Iterator it = hs.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
-					d.scale(sx, sy, b.y+b.width/2, b.y+b.height/2); // centered on this
+					d.scale(sx, sy, b.y+b.width/2, b.y+b.height/2, false); // centered on this
 				}
 			} else {
-				this.scale(sx, sy, b.y+b.width/2, b.y+b.height/2);
+				this.scale(sx, sy, b.y+b.width/2, b.y+b.height/2, false);
 			}
 		}
 		if (rot1 != 0) {
@@ -942,10 +957,10 @@ public abstract class Displayable extends DBObject {
 				//Utils.log2("delta_angle, rot1, rot: " + delta_angle + "," + rot1 + "," + rot);
 				for (Iterator it = hs.iterator(); it.hasNext(); ) {
 					Displayable d = (Displayable)it.next();
-					d.rotate(rads, b.x+b.width/2, b.y+b.height/2);
+					d.rotate(rads, b.x+b.width/2, b.y+b.height/2, false);
 				}
 			} else {
-				this.rotate(rads, b.x+b.width/2, b.y+b.height/2);
+				this.rotate(rads, b.x+b.width/2, b.y+b.height/2, false);
 			}
 		}
 		if (alpha1 != alpha) setAlpha(alpha1, true);
@@ -1018,40 +1033,6 @@ public abstract class Displayable extends DBObject {
 			}
 		}
 		sb_body.append("\"\n");
-	}
-
-	public void exportT2(final StringBuffer sb_body, final String in, final Object any) {
-		final double[] a = new double[6];
-		at.getMatrix(a);
-		sb_body.append(in).append("oid '").append(id).append('\n')
-			.append(in).append("width '").append(width).append('\n')
-			.append(in).append("height '").append(height).append('\n')
-			.append(in).append("transform '(").append(a[0]).append(' ')
-							  .append(a[1]).append(' ')
-							  .append(a[2]).append(' ')
-							  .append(a[3]).append(' ')
-							  .append(a[4]).append(' ')
-							  .append(a[5]).append(")\n")
-		;
-		// the default is obvious, so just store the value if necessary
-		if (locked) sb_body.append(in).append("locked 'true\n");
-		if (!visible) sb_body.append(in).append("visible 'false\n");
-		// 'style' is taken care in subclasses
-		if (null != title && title.length() > 0) {
-			sb_body.append(in).append("title '(").append(title).append(")\n"); // embed in parenthesis to avoid potential parsing-related characters (such as quotes or parenthesis) or spaces or tabs
-		}
-		if (null != hs_linked && 0 != hs_linked.size()) {
-			sb_body.append(in).append("links '(");
-			int ii = 0;
-			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				sb_body.append(((DBObject)ob).getId());
-				if (ii != len-1) sb_body.append(' ');
-				ii++;
-			}
-			sb_body.append(")\n");
-		}
 	}
 
 	// I'm sure it could be made more efficient, but I'm too tired!
@@ -1157,7 +1138,7 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public boolean updateInDatabase(String key) {
-		project.getLoader().updateCache(this, key);
+		// ???? TODO ???? cruft from the past?  // project.getLoader().updateCache(this, key);
 		//if (Utils.java3d) Display3D.update(this);
 		return super.updateInDatabase(key);
 	}
@@ -1183,6 +1164,7 @@ public abstract class Displayable extends DBObject {
 	public void setAffineTransform(AffineTransform at) {
 		this.at.setTransform(at);
 		updateInDatabase("transform");
+		updateBucket();
 	}
 
 	/** Translate this Displayable and its linked ones if linked=true. */
@@ -1196,10 +1178,12 @@ public abstract class Displayable extends DBObject {
 				Displayable d = (Displayable)it.next();
 				d.at.preConcatenate(at2);
 				d.updateInDatabase("transform");
+				d.updateBucket();
 			}
 		} else {
 			this.at.preConcatenate(at2);
 			this.updateInDatabase("transform");
+			updateBucket();
 		}
 	}
 
@@ -1223,11 +1207,18 @@ public abstract class Displayable extends DBObject {
 				Displayable d = (Displayable)it.next();
 				d.at.preConcatenate(at2);
 				d.updateInDatabase("transform");
+				d.updateBucket();
 			}
 		} else {
 			this.at.preConcatenate(at2);
 			this.updateInDatabase("transform");
+			updateBucket();
 		}
+	}
+
+	/** Commands the parent container (a Layer or a LayerSet) to update the bucket position of this Displayable. */
+	public void updateBucket() {
+		if (null != getBucketable()) getBucketable().updateBucket(this);
 	}
 
 	/** Scale relative to an anchor point (will translate as necessary). */
@@ -1261,6 +1252,7 @@ public abstract class Displayable extends DBObject {
 
 		at.preConcatenate( at2 );
 		updateInDatabase( "transform" );
+		updateBucket();
 	}
 
 	/** Sets the top left of the bounding box to x,y. Warning: does not check that the object will remain within layer bounds. Does NOT affect linked Displayables. */
@@ -1269,6 +1261,7 @@ public abstract class Displayable extends DBObject {
 		Rectangle b = getBoundingBox(null);
 		this.translate(x - b.x, y - b.y, false); // do not affect linked Displayables
 		//Utils.log2("setting new loc, args are: " + x + ", "+ y);
+		updateBucket();
 	}
 
 	/** Apply this Displayable's AffineTransform to the given point. */
@@ -1329,6 +1322,7 @@ public abstract class Displayable extends DBObject {
 			Displayable d = (Displayable)it.next();
 			d.at.concatenate(at);
 			d.updateInDatabase("transform");
+			d.updateBucket();
 			//Utils.log("applying transform to " + d);
 		}
 	}
@@ -1345,15 +1339,29 @@ public abstract class Displayable extends DBObject {
 	}
 
 	public void paintSnapshot(final Graphics2D g, final double mag) {
-		if (layer.getParent().areSnapshotsEnabled()) {
-			paint(g, mag, false, 1, layer);
-		} else {
-			paintAsBox(g);
+		switch (layer.getParent().getSnapshotsMode()) {
+			case 0:
+				paint(g, mag, false, 0xffffffff, layer);
+				return;
+			case 1:
+				paintAsBox(g);
+				return;
+			default: return; // case 2: // disabled, no paint
 		}
 	}
 
 	public DBObject findById(final long id) {
 		if (this.id == id) return this;
 		return null;
+	}
+
+	/** Does nothing unless overriden. */
+	public ResultsTable measure(ResultsTable rt) {
+		Utils.showMessage("Not implemented yet for " + Project.getName(getClass()) + " [class " + this.getClass().getName() + "]");
+		return rt;
+	}
+
+	public Bucketable getBucketable() {
+		return this.layer;
 	}
 }

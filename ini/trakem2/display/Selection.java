@@ -23,14 +23,18 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import ij.ImagePlus;
+import ij.gui.GenericDialog;
+import ij.gui.ShapeRoi;
+import ij.gui.Roi;
 
 import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Point;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.HashSet;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Map;
@@ -41,6 +45,8 @@ import java.awt.AlphaComposite;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.image.ColorModel;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -54,6 +60,7 @@ public class Selection {
 	private Display display;
 	/** Queue of all selected objects. */
 	private final LinkedList queue = new LinkedList();
+	private final LinkedList queue_prev = new LinkedList();
 	private final Object queue_lock = new Object();
 	private boolean queue_locked = false;
 	/** All selected objects plus their links. */
@@ -98,7 +105,7 @@ public class Selection {
 	/** The Display can be null, as long as paint, OvalHandle.contains, setTransforming, and getLinkedBox methods are never called on this object. */
 	public Selection(Display display) {
 		this.display = display;
-		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, RO, floater}; // shitty java, why no dictionaries (don't get me started with Hashtable class painful usability)
+		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, RO, floater}; // shitty java, why no dictionaries (don't get me started with HashMap class painful usability)
 	}
 
 	private void lock() {
@@ -116,7 +123,16 @@ public class Selection {
 	/** Paint a white frame around the selected object and a pink frame around all others. Active is painted last, so white frame is always top. */
 	public void paint(Graphics g, Rectangle srcRect, double magnification) {
 		// paint rectangle around selected Displayable elements
-		if (queue.isEmpty()) return;
+		synchronized (queue_lock) {
+			try {
+				lock();
+				if (queue.isEmpty()) return;
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
 		if (!transforming) {
 			g.setColor(Color.pink);
 			Displayable[] da = null;
@@ -146,26 +162,31 @@ public class Selection {
 			}
 		}
 		//Utils.log2("transforming, dragging, rotating: " + transforming + "," + dragging + "," + rotating);
-		if (transforming && !rotating) {
-			//Utils.log("box painting: " + box);
+		if (transforming) {
 			final Graphics2D g2d = (Graphics2D)g;
 			final Stroke original_stroke = g2d.getStroke();
-
 			AffineTransform original = g2d.getTransform();
 			g2d.setTransform(new AffineTransform());
+			if (!rotating) {
+				//Utils.log("box painting: " + box);
 
-			// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
-			float mag = (float)magnification;
-			float[] dashPattern = { 30, 10, 10, 10 };
-			g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
-			g.setColor(Color.yellow);
-			// paint box
-			//g.drawRect(box.x, box.y, box.width, box.height);
-			g2d.draw(original.createTransformedShape(this.box));
-			g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
-			// paint handles for scaling (boxes) and rotating (circles), and floater
-			for (int i=0; i<handles.length; i++) {
-				handles[i].paint(g, srcRect, magnification);
+				// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
+				float mag = (float)magnification;
+				float[] dashPattern = { 30, 10, 10, 10 };
+				g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
+				g.setColor(Color.yellow);
+				// paint box
+				//g.drawRect(box.x, box.y, box.width, box.height);
+				g2d.draw(original.createTransformedShape(this.box));
+				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+				// paint handles for scaling (boxes) and rotating (circles), and floater
+				for (int i=0; i<handles.length; i++) {
+					handles[i].paint(g, srcRect, magnification);
+				}
+			} else {
+				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+				RO.paint(g, srcRect, magnification);
+				((RotationHandle)RO).paintMoving(g, srcRect, magnification, display.getCanvas().getCursorLoc());
 			}
 			g2d.setStroke(original_stroke);
 			g2d.setTransform(original);
@@ -305,7 +326,7 @@ public class Selection {
 		}
 	}
 
-	private final void rotate() {
+	private final double rotate() {
 		// center of rotation is the floater
 		double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
 		//double sin = Math.sqrt(1 - cos*cos);
@@ -318,7 +339,7 @@ public class Selection {
 
 		if (Double.isNaN(delta)) {
 			Utils.log2("Selection rotation handle: ignoring NaN angle");
-			return;
+			return Double.NaN;
 		}
 
 		double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
@@ -329,6 +350,7 @@ public class Selection {
 		for (Displayable d : hs) {
 			d.rotate(delta, floater.x, floater.y, false); // false because the linked ones are already included in the HashSet
 		}
+		return delta;
 	}
 
 	private class RotationHandle extends Handle {
@@ -341,11 +363,26 @@ public class Selection {
 			final int y = (int)((this.y - srcRect.y)*mag);
 			final int fx = (int)((floater.x - srcRect.x)*mag);
 			final int fy = (int)((floater.y - srcRect.y)*mag);
+			draw(g, fx, fy, x, y);
+		}
+		private void draw(final Graphics g, int fx, int fy, int x, int y) {
 			g.setColor(Color.white);
 			g.drawLine(fx, fy, x, y);
 			g.fillOval(x -4, y -4, 9, 9);
 			g.setColor(Color.black);
 			g.drawOval(x -2, y -2, 5, 5);
+		}
+		public void paintMoving(final Graphics g, final Rectangle srcRect, final double mag, final Point mouse) {
+			// mouse as xMouse,yMouse from ImageCanvas: world coordinates, not screen!
+			final int fx = (int)((floater.x - srcRect.x)*mag);
+			final int fy = (int)((floater.y - srcRect.y)*mag);
+			// vector
+			double vx = (mouse.x - srcRect.x)*mag - fx;
+			double vy = (mouse.y - srcRect.y)*mag - fy;
+			//double len = Math.sqrt(vx*vx + vy*vy);
+			//vx = (vx / len) * 50;
+			//vy = (vy / len) * 50;
+			draw(g, fx, fy, fx + (int)vx, fy + (int)vy);
 		}
 		public boolean contains(int x_p, int y_p, double radius) {
 			final double mag = display.getCanvas().getMagnification();
@@ -449,9 +486,9 @@ public class Selection {
 					display.setActive(d);
 				}
 				Utils.log2("Selection.add warning: already have " + d + " selected.");
-				unlock();
 				return;
 			}
+			setPrev(queue);
 			queue.add(d);
 			//Utils.log("box before adding: " + box);
 			// add it's box to the selection box
@@ -487,7 +524,6 @@ public class Selection {
 		ArrayList al = display.getLayer().getDisplayables();
 		al.addAll(display.getLayer().getParent().getZDisplayables());
 		selectAll(al);
-		Utils.log2("Just selected all: " + queue.size());
 	}
 
 	/** Select all objects in the given layer, preserving the active one (if any) as active. */
@@ -495,17 +531,39 @@ public class Selection {
 		selectAll(layer.getDisplayables());
 	}
 
+	/** Select all objects under the given roi, in the current display's layer. */
+	public void selectAll(Roi roi, boolean visible_only) {
+		//Utils.log2("roi bounds: " + roi.getBounds());
+		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
+
+		Area aroi = new Area(Utils.getShape(shroi));
+		AffineTransform affine = new AffineTransform();
+		Rectangle bounds = shroi.getBounds();
+		affine.translate(bounds.x, bounds.y);
+		aroi = aroi.createTransformedArea(affine);
+		ArrayList al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
+		al.addAll(display.getLayer().getParent().getZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only));
+		if (visible_only) {
+			for (Iterator it = al.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				if (!d.isVisible()) it.remove();
+			}
+		}
+		if (al.size() > 0) selectAll(al);
+	}
+
 	private void selectAll(ArrayList al) {
 		synchronized (queue_lock) {
 		try {
 			lock();
+			setPrev(queue);
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
 				if (queue.contains(d)) continue;
 				queue.add(d);
 				if (hs.contains(d)) continue;
 				hs.add(d);
-				// now, grab the linked group and add it as well to the hashtable
+				// now, grab the linked group and add it as well to the hashset
 				HashSet hsl = d.getLinkedGroup(new HashSet());
 				if (null != hsl) {
 					for (Iterator hit = hsl.iterator(); hit.hasNext(); ) {
@@ -517,9 +575,12 @@ public class Selection {
 
 			resetBox();
 
-			if (null != display && null == this.active) {
-				display.setActive((Displayable)queue.getLast());
-				this.active = display.getActive();
+			if (null != display) {
+				if (null == this.active) {
+					display.setActive((Displayable)queue.getLast());
+					this.active = display.getActive();
+				}
+				Display.update(display.getLayer());
 			}
 		} catch (Exception e) {
 			IJError.print(e);
@@ -528,45 +589,65 @@ public class Selection {
 		}}
 	}
 
-	// TODO think of a way of disabling autocommit, but setting save points and commiting the good part and rolig back tha bad part if any
-
 	/** Delete all selected objects from their Layer. */
 	public boolean deleteAll() {
+		Displayable[] d = null;
+		if (null == active) return true; // nothing to remove
+		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
+		// obtain a list of displayables to remove
 		synchronized (queue_lock) {
-		try {
-			if (null == active) return true; // nothing to remove
-			if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
-			lock();
-			if (null != display) display.setActive(null);
-			this.active = null;
-			StringBuffer sb = new StringBuffer();
-			Displayable[] d = new Displayable[queue.size()];
-			queue.toArray(d);
-			unlock();
 			try {
-				display.getProject().getLoader().startLargeUpdate();
-				for (int i=0; i<d.length; i++) {
-					if (!d[i].remove(false)) {
-						sb.append(d[i].getTitle()).append('\n');
-						continue;
-					}
-				}
+				lock();
+				setPrev(queue);
+				if (null != display) display.setActive(null);
+				this.active = null;
+				d = new Displayable[queue.size()];
+				queue.toArray(d);
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
-				display.getProject().getLoader().commitLargeUpdate();
+				unlock();
 			}
-			if (sb.length() > 0) {
-				Utils.showMessage("Could NOT delete:\n" + sb.toString());
+		}
+		// remove one by one, skip those that fail and log the error
+		StringBuffer sb = new StringBuffer();
+		try {
+			display.getProject().getLoader().startLargeUpdate();
+			for (int i=0; i<d.length; i++) {
+				// Remove from the trees and from the Layer/LayerSet
+				if (!d[i].remove2(false)) {
+					sb.append(d[i].getTitle()).append('\n');
+					continue;
+				}
 			}
-			//Display.repaint(display.getLayer(), box, 0);
-			Display.updateSelection(); // from all displays
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
-			if (queue_locked) unlock();
-		}}
+			display.getProject().getLoader().commitLargeUpdate();
+		}
+		if (sb.length() > 0) {
+			Utils.log("Could NOT delete:\n" + sb.toString());
+		}
+		//Display.repaint(display.getLayer(), box, 0);
+		Display.updateSelection(); // from all displays
 		return true;
+	}
+
+	/** Set the elements of the given LinkedList as those of the stored, previous selection, only if the given list is not empty. */
+	private void setPrev(LinkedList q) {
+		if (0 == q.size()) return;
+		queue_prev.clear();
+		queue_prev.addAll(q);
+	}
+
+	/** Remove all given displayables from this selection. */
+	public void removeAll(HashSet<Displayable> hs) {
+		for (Displayable d : hs) remove(d);
+	}
+
+	/** Remove all given displayables from this selection. */
+	public void removeAll(ArrayList<Displayable> al) {
+		for (Displayable d : al) remove(d);
 	}
 
 	/** Remove the given displayable from this selection. */
@@ -585,6 +666,7 @@ public class Selection {
 				return;
 			}
 			queue.remove(d);
+			setPrev(queue);
 			hs.remove(d);
 			if (d.equals(active)) {
 				if (0 == queue.size()) {
@@ -615,7 +697,7 @@ public class Selection {
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				Object ob = it.next();
 				if (hs_to_keep.contains(ob)) continue; // avoid linked ones still in queue or linked to those in queue
-				hs.remove(ob);
+				it.remove();
 			}
 			// recompute box
 			Rectangle r = new Rectangle(); // as temp storage
@@ -657,6 +739,7 @@ public class Selection {
 				display.setActive(null);
 				display.repaint(display.getLayer(), 5, box, false);
 			}
+			setPrev(queue);
 			this.queue.clear();
 			this.hs.clear();
 			this.active = null;
@@ -683,7 +766,7 @@ public class Selection {
 		}
 	}
 
-	public void cancelTransform() { // TODO : use the undo feature, reread the transforms as originally cached for undo.
+	public void cancelTransform() {
 		transforming = false;
 		if (null == active) return;
 		// restoring transforms
@@ -727,9 +810,7 @@ public class Selection {
 			grabbed.drag(dx, dy);
 		} else if (dragging) {
 			// drag all selected and linked
-			for (Displayable d : hs) {
-				d.translate(dx, dy, false); // false because the linked ones are already included in the HashSet
-			}
+			for (Displayable d : hs) d.translate(dx, dy, false); // false because the linked ones are already included in the HashSet
 			//and the box!
 			box.x += dx;
 			box.y += dy;
@@ -803,28 +884,66 @@ public class Selection {
 	/** Lock / unlock all selected objects. */
 	public void setLocked(final boolean b) {
 		if (null == active) return; // empty
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			d.setLocked(b);
+		synchronized (queue_lock) {
+			try {
+				lock();
+				for (Iterator it = queue.iterator(); it.hasNext(); ) {
+					Displayable d = (Displayable)it.next();
+					d.setLocked(b);
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
 		}
 		// update the 'locked' field in the Transforms
 		update();
 	}
 
 	public boolean isEmpty() {
-		return 0 == queue.size(); // active must always exists if selection is not empty
+		synchronized (queue_lock) {
+			try {
+				lock();
+				return 0 == queue.size(); // active must always exists if selection is not empty
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+		return true;
 	}
 
 	public boolean contains(final Displayable d) {
-		return queue.contains(d);
+		synchronized (queue_lock) {
+			try {
+				lock();
+				return queue.contains(d);
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+		return false;
 	}
 
 	/** Returns true if selection contains any items of the given class.*/
 	public boolean contains(final Class c) {
 		if (null == c) return false;
-		if (c.equals(Displayable.class) && queue.size() > 0) return true;
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			if (it.next().getClass().equals(c)) return true;
+		synchronized (queue_lock) {
+			try {
+				lock();
+				if (c.equals(Displayable.class) && queue.size() > 0) return true;
+				for (Iterator it = queue.iterator(); it.hasNext(); ) {
+					if (it.next().getClass().equals(c)) return true;
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
 		}
 		return false;
 	}
@@ -834,8 +953,8 @@ public class Selection {
 	}
 
 	/** Returns a hash table with all selected Displayables as keys, and a copy of their affine transform as value. This is useful to easily create undo steps. */
-	protected Hashtable getTransformationsCopy() {
-		Hashtable ht_copy = new Hashtable(hs.size());
+	protected HashMap getTransformationsCopy() {
+		HashMap ht_copy = new HashMap(hs.size());
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			ht_copy.put(d, d.getAffineTransformCopy());
@@ -887,7 +1006,7 @@ public class Selection {
 			if (null == box) box = (Rectangle)b.clone();
 			box.add(b);
 		}
-		setHandles(box);
+		if (null != box) setHandles(box);
 	}
 
 	/** Update the bounding box of the whole selection. */
@@ -946,24 +1065,28 @@ public class Selection {
 	}
 
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones). */
-	public ArrayList getSelected() {
-		final ArrayList al = new ArrayList();
+	public ArrayList<Displayable> getSelected() {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			al.add(it.next());
+			al.add((Displayable)it.next());
 		}
 		return al;
 	}
 
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones) of the given class. */
-	public ArrayList getSelected(final Class c) {
-		final ArrayList al = new ArrayList();
-		if (null == c || c.equals(Displayable.class) || c.equals(ZDisplayable.class)) {
-			al.addAll(queue);
+	public ArrayList<Displayable> getSelected(final Class c) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		if (null == c || c.equals(Displayable.class)) {
+			al.addAll((LinkedList<Displayable>)queue);
 			return al;
 		}
+		boolean zd = c.equals(ZDisplayable.class);
 		for (Iterator it = queue.iterator(); it.hasNext(); ) {
 			Object ob = it.next();
-			if (c.equals(ob.getClass())) al.add(ob);
+			if ((zd && ob instanceof ZDisplayable)
+			  || c.equals(ob.getClass())) {
+				al.add((Displayable)ob);
+			 }
 		}
 		return al;
 	}
@@ -1058,5 +1181,90 @@ public class Selection {
 			unlock();
 		}
 		Display.repaint(display.getLayer(), box, 10);
+	}
+
+	/** Removes the given Displayable from the selection and previous selection list. */
+	protected void removeFromPrev(Displayable d) {
+		if (null == d) return;
+		synchronized (queue_lock) {
+			lock();
+			queue_prev.remove(d);
+			unlock();
+		}
+	}
+
+	/** Restore the previous selection. */
+	public void restore() {
+		synchronized (queue_lock) {
+			lock();
+			LinkedList q = (LinkedList)queue.clone();
+			ArrayList al = new ArrayList();
+			al.addAll(queue_prev);
+			unlock();
+			clear();
+			if (al.size() > 0) selectAll(al);
+			lock();
+			setPrev(q);
+			unlock();
+		}
+	}
+
+	public void specify() {
+		if (null == display || null == display.getActive()) return;
+		final GenericDialog gd = new GenericDialog("Specify");
+		gd.addMessage("Relative to the floater's position:");
+		gd.addNumericField("floater X: ", getFloaterX(), 2);
+		gd.addNumericField("floater Y: ", getFloaterY(), 2);
+		gd.addMessage("Transforms applied in the same order as listed below:");
+		gd.addNumericField("rotate : ", 0, 2);
+		gd.addNumericField("translate in X: ", 0, 2);
+		gd.addNumericField("translate in Y: ", 0, 2);
+		gd.addNumericField("scale in X: ", 1.0, 2);
+		gd.addNumericField("scale in Y: ", 1.0, 2);
+		gd.showDialog();
+		if (gd.wasCanceled()) {
+			return;
+		}
+		boolean tr = transforming;
+		if (!tr) setTransforming(true);
+		if (!tr) display.getLayer().getParent().addUndoStep(getTransformationsCopy());
+		final Rectangle sel_box = getLinkedBox();
+		setFloater((int)gd.getNextNumber(), (int)gd.getNextNumber());
+		double rot = gd.getNextNumber();
+		double dx = gd.getNextNumber();
+		double dy = gd.getNextNumber();
+		double sx = gd.getNextNumber();
+		double sy = gd.getNextNumber();
+		if (0 != dx || 0 != dy) translate(dx, dy);
+		if (0 != rot) rotate(rot);
+		if (0 != sx && 0 != sy) scale(sx, sy);
+		else Utils.showMessage("Cannot scale to zero.");
+		sel_box.add(getLinkedBox());
+		// restore state if different
+		if (!tr) setTransforming(tr);
+		Display.repaint(display.getLayer(), sel_box, Selection.PADDING);
+	}
+
+	protected void apply(final int what, final double[] params) {
+		final Rectangle sel_box = getLinkedBox();
+		switch (what) {
+			case 0: translate(params[0], params[1]); break;
+			case 1: rotate(params[0]); break;
+			case 2: scale(params[0], params[1]); break;
+		}
+		sel_box.add(getLinkedBox());
+		Display.repaint(display.getLayer(), sel_box, Selection.PADDING);
+	}
+
+	/** Apply the given LUT to all selected 8-bit, 16-bit, 32-bit images. */
+	public void setLut(ColorModel cm) {
+		final ArrayList<Patch> al = new ArrayList<Patch>();
+		for (Displayable d : getSelected(Patch.class)) al.add((Patch)d);
+		if (0 == al.size()) {
+			return;
+		}
+		// reduce stacks to a single Patch
+		// TODO
+		if (!Utils.check("Really change LUT for " + al.size() + " images?")) return;
 	}
 }

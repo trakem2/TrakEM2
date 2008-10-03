@@ -23,6 +23,9 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
@@ -32,7 +35,7 @@ import ini.trakem2.persistence.DBObject;
 
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -162,7 +165,7 @@ public class Dissector extends ZDisplayable {
 					// ok
 				} else {
 					// can't add
-					Utils.log2(tag + " case append: can't add");
+					//Utils.log2(tag + " case append: can't add");
 					return -1;
 				}
 
@@ -184,7 +187,7 @@ public class Dissector extends ZDisplayable {
 					// ok
 				} else {
 					// can't add
-					Utils.log2(tag + " case preppend: can't add");
+					//Utils.log2(tag + " case preppend: can't add");
 					return -1;
 				}
 
@@ -205,7 +208,7 @@ public class Dissector extends ZDisplayable {
 				return 0;
 			}
 			// else invalid layer
-			Utils.log2(tag + " invalid layer");
+			//Utils.log2(tag + " invalid layer");
 			return -1;
 		}
 
@@ -218,7 +221,7 @@ public class Dissector extends ZDisplayable {
 			p = p2;
 			p_layer = l2;
 		}
-		// Expects graphics in with an identity transform
+		// Expects graphics with an identity transform
 		final void paint(final Graphics2D g, final AffineTransform aff, final Layer layer) {
 			final int i_current = layer_set.getLayerIndex(layer.getId());
 			int ii;
@@ -259,6 +262,25 @@ public class Dissector extends ZDisplayable {
 			}
 		}
 
+		final void addResults(ResultsTable rt, Calibration cal) {
+			for (int i=0; i<n_points; i++) {
+				Layer la = layer_set.getLayer(p_layer[i]); 
+				if (null == layer) {
+					Utils.log("Dissector.addResults: could not find layer with id " + p_layer[i]);
+					continue;
+				}
+				final Point2D.Double po = Utils.transform(Dissector.this.at, p[0][i], p[1][i]);
+				rt.incrementCounter();
+				rt.addLabel("units", cal.getUnit());
+				rt.addValue(0, Dissector.this.id);
+				rt.addValue(1, tag);
+				rt.addValue(2, po.x * cal.pixelWidth);
+				rt.addValue(3, po.y * cal.pixelHeight);
+				rt.addValue(4, la.getZ() * cal.pixelWidth); // layer Z is in pixels
+				rt.addValue(5, radius * cal.pixelWidth);
+			}
+		}
+
 		final Layer getFirstLayer() {
 			if (0 == n_points) return null;
 			return layer_set.getLayer(p_layer[0]);
@@ -281,7 +303,8 @@ public class Dissector extends ZDisplayable {
 
 		/** Check whether the given point x,y falls within radius of any of the points in this Item.
 		 *  Returns -1 if not found, or its index if found. */
-		final int find(final long lid, int x, int y) {
+		final int find(final long lid, int x, int y, double mag) {
+			int radius = (int)(this.radius / mag);
 			for (int i=0; i<n_points; i++) {
 				if (lid == p_layer[i]
 				    && p[0][i] + radius > x && p[0][i] - radius < x
@@ -356,7 +379,7 @@ public class Dissector extends ZDisplayable {
 		this.color = color;
 	}
 	/** Reconstruct from XML. */
-	public Dissector(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public Dissector(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		// individual items will be added as soon as parsed
 	}
@@ -411,7 +434,7 @@ public class Dissector extends ZDisplayable {
 		x = (int)po.x;
 		y = (int)po.y;
 		for (Item item : al_items) {
-			if (-1 != item.find(lid, x, y)) return true;
+			if (-1 != item.find(lid, x, y, 1)) return true;
 		}
 		return false;
 	}
@@ -437,6 +460,8 @@ public class Dissector extends ZDisplayable {
 	/** The selected label in the active item. */
 	private int index = -1;
 
+	private Rectangle bbox = null;
+
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
@@ -455,7 +480,7 @@ public class Dissector extends ZDisplayable {
 
 		// find if the click is within radius of an existing point for the current layer
 		for (Item tmp : al_items) {
-			index = tmp.find(lid, x_p, y_p); //, mag, is_zoom_invariant);
+			index = tmp.find(lid, x_p, y_p, mag);
 			if (-1 != index) {
 				this.item = tmp;
 				break;
@@ -465,37 +490,46 @@ public class Dissector extends ZDisplayable {
 		// TODO: if zoom invariant, should check for nearest point. Or nearest point anyway, when deleting
 		// (but also for adding a new one?)
 
-		if (-1 != index) {
-			if (me.isShiftDown() && me.isControlDown()) {
+		if (me.isShiftDown() && me.isControlDown()) {
+			if (-1 != index) {
 				// delete
 				item.remove(index);
 				if (0 == item.n_points) al_items.remove(item);
 				item = null;
 				index = -1;
+				Display.repaint(layer_set, this, 0);
 			}
 			// in any case:
 			return;
 		}
+		if (-1 != index) return;
 		// else try to add a point to a suitable item
 		// Find an item in the previous or the next layer,
 		//     which falls within radius of the clicked point
-		for (Item tmp : al_items) {
-			index = tmp.add(x_p, y_p, la);
-			if (-1 != index) {
-				this.item = tmp;
-				return;
+		try {
+			for (Item tmp : al_items) {
+				index = tmp.add(x_p, y_p, la);
+				if (-1 != index) {
+					this.item = tmp;
+					return;
+				}
 			}
+			// could not be added to an existing item, so creating a new item with a new point in it
+			int max_tag = 0;
+			for (Item tmp : al_items) {
+				if (tmp.tag > max_tag) max_tag = tmp.tag;
+			}
+			int radius = 8; //default
+			if (al_items.size() > 0) radius = al_items.get(al_items.size()-1).radius;
+			this.item = new Item(max_tag+1, radius, x_p, y_p, la);
+			index = 0;
+			al_items.add(this.item);
+		} finally {
+			if (null != item) {
+				bbox = this.at.createTransformedShape(item.getBoundingBox()).getBounds();
+				Display.repaint(layer_set, bbox);
+			} else  Display.repaint(layer_set, this, 0);
 		}
-		// could not be added to an existing item, so creating a new item with a new point in it
-		int max_tag = 0;
-		for (Item tmp : al_items) {
-			if (tmp.tag > max_tag) max_tag = tmp.tag;
-		}
-		int radius = 8; //default
-		if (al_items.size() > 0) radius = al_items.get(al_items.size()-1).radius;
-		this.item = new Item(max_tag+1, radius, x_p, y_p, la);
-		index = 0;
-		al_items.add(this.item);
 	}
 
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
@@ -523,23 +557,35 @@ public class Dissector extends ZDisplayable {
 			} else {
 				item.translate(index, x_d - x_d_old, y_d - y_d_old);
 			}
-			calculateBoundingBox();
-			Display.repaint(layer_set, this, 0);
+			Rectangle repaint_bbox = bbox;
+			Rectangle current_bbox = this.at.createTransformedShape(item.getBoundingBox()).getBounds();
+			if (null == bbox) repaint_bbox = current_bbox;
+			else {
+				repaint_bbox = (Rectangle)bbox.clone();
+				repaint_bbox.add(current_bbox);
+			}
+			bbox = current_bbox;
+			Display.repaint(layer_set, repaint_bbox);
 		}
 	}
 
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		this.item = null;
 		this.index = -1;
-		calculateBoundingBox();
+		bbox = calculateBoundingBox();
 	}
 
 	/** Make points as local as possible, and set the width and height. */
-	private void calculateBoundingBox() {
+	private Rectangle calculateBoundingBox() {
 		Rectangle box = null;
 		for (Item item : al_items) {
 			if (null == box) box = item.getBoundingBox();
 			else box.add(item.getBoundingBox());
+		}
+		if (null == box) {
+			// no items
+			this.width = this.height = 0;
+			return null;
 		}
 		// edit the AffineTransform
 		this.translate(box.x, box.y, false);
@@ -547,9 +593,11 @@ public class Dissector extends ZDisplayable {
 		this.width = box.width;
 		this.height = box.height;
 		// apply new x,y position to all items
-		for (Item item : al_items) {
-			item.translateAll(-box.x, -box.y);
+		if (0 != box.x || 0 != box.y) {
+			for (Item item : al_items) item.translateAll(-box.x, -box.y);
 		}
+		layer_set.updateBucket(this);
+		return box;
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
@@ -613,5 +661,12 @@ public class Dissector extends ZDisplayable {
 			if (item.intersects(ai, z_first, z_last)) return true;
 		}
 		return false;
+	}
+
+	public ResultsTable measure(ResultsTable rt) {
+		if (0 == al_items.size()) return rt;
+		if (null == rt) rt = Utils.createResultsTable("Dissector results", new String[]{"id", "tag", "x", "y", "z", "radius"});
+		for (Item item : al_items) item.addResults(rt, layer_set.getCalibration());
+		return rt;
 	}
 }

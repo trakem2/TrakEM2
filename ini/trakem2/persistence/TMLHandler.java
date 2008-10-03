@@ -25,8 +25,8 @@ package ini.trakem2.persistence;
 import ij.IJ;
 
 import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Iterator;
 import java.io.File;
 
@@ -57,21 +57,22 @@ public class TMLHandler extends DefaultHandler {
 	private String base_dir;
 	private String xml_path;
 	/** Stores the object and its String with coma-separated links, to construct links when all objects exist. */
-	private Hashtable ht_links = new Hashtable();
+	private HashMap ht_links = new HashMap();
 
 	private Thing current_thing = null;
 	private ArrayList al_open = new ArrayList();
 	private ArrayList al_layers = new ArrayList();
 	private ArrayList al_layer_sets = new ArrayList();
-	private ArrayList al_displays = new ArrayList(); // contains Hashtable instances with display data.
+	private ArrayList al_displays = new ArrayList(); // contains HashMap instances with display data.
 	/** To accumulate Displayable types for relinking and assigning their proper layer. */
-	private Hashtable ht_displayables = new Hashtable();
-	private Hashtable ht_zdispl = new Hashtable();
-	private Hashtable ht_oid_pt = new Hashtable();
-	private Hashtable ht_pt_expanded = new Hashtable();
+	private HashMap ht_displayables = new HashMap();
+	private HashMap ht_zdispl = new HashMap();
+	private HashMap ht_oid_pt = new HashMap();
+	private HashMap ht_pt_expanded = new HashMap();
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
 	private Dissector last_dissector = null;
+	private boolean open_displays = true;
 
 
 	/** @param path The XML file that contains the project data in XML format.
@@ -120,8 +121,9 @@ public class TMLHandler extends DefaultHandler {
 	 * <br />
 	 * Also, triggers the reconstruction of links and assignment of Displayable objects to their layer.
 	 */
-	public Object[] getProjectData() {
+	public Object[] getProjectData(final boolean open_displays) {
 		if (null == project) return null;
+		this.open_displays = open_displays;
 		// 1 - Reconstruct links using ht_links
 		// Links exist between Displayable objects.
 		for (Iterator it = ht_displayables.values().iterator(); it.hasNext(); ) {
@@ -144,9 +146,10 @@ public class TMLHandler extends DefaultHandler {
 		}
 
 		// 2 - Add Displayable objects to ProjectThing that can contain them
-		for (Enumeration e = ht_oid_pt.keys(); e.hasMoreElements(); ) {
-			Long lid = (Long)e.nextElement();
-			ProjectThing pt = (ProjectThing)ht_oid_pt.get(lid);
+		for (Iterator it = ht_oid_pt.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			Long lid = (Long)entry.getKey();
+			ProjectThing pt = (ProjectThing)entry.getValue();
 			Object od = ht_displayables.get(lid);
 			//Utils.log("==== processing: Displayable [" + od + "]  vs. ProjectThing [" + pt + "]");
 			if (null != od) {
@@ -173,13 +176,13 @@ public class TMLHandler extends DefaultHandler {
 		}
 
 		// 3 - Create displays for later
-		Hashtable ht_lid = new Hashtable();
+		HashMap ht_lid = new HashMap();
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
 			ht_lid.put(new Long(layer.getId()), layer);
 		}
 		for (Iterator it = al_displays.iterator(); it.hasNext(); ){
-			Hashtable ht_attributes = (Hashtable)it.next();
+			HashMap ht_attributes = (HashMap)it.next();
 			Object ob = ht_attributes.get("layer_id");
 			if (null != ob) {
 				Object lob = ht_lid.get(new Long((String)ob));
@@ -210,7 +213,7 @@ public class TMLHandler extends DefaultHandler {
 			// failsafe:
 			qualified_name = qualified_name.toLowerCase();
 
-			Hashtable ht_attributes = new Hashtable();
+			HashMap ht_attributes = new HashMap();
 			for (int i=attributes.getLength() -1; i>-1; i--) {
 				ht_attributes.put(attributes.getQName(i).toLowerCase(), attributes.getValue(i));
 			}
@@ -219,7 +222,7 @@ public class TMLHandler extends DefaultHandler {
 			Thing thing = null;
 			if (0 == qualified_name.indexOf("t2_")) {
 				if (qualified_name.equals("t2_display")) {
-					al_displays.add(ht_attributes); // store for later, until the layers exist
+					if (open_displays) al_displays.add(ht_attributes); // store for later, until the layers exist
 				} else {
 					// a Layer, LayerSet or Displayable object
 					thing = makeLayerThing(qualified_name, ht_attributes);
@@ -240,7 +243,7 @@ public class TMLHandler extends DefaultHandler {
 				this.project.parseXMLOptions(ht_attributes);
 				this.project.addToDatabase(); // register id
 				// Add all unique TemplateThing types to the project
-				for (Iterator it = root_tt.getUniqueTypes(new Hashtable()).values().iterator(); it.hasNext(); ) {
+				for (Iterator it = root_tt.getUniqueTypes(new HashMap()).values().iterator(); it.hasNext(); ) {
 					this.project.addUniqueType((TemplateThing)it.next());
 				}
 				this.project.addUniqueType(this.project_tt);
@@ -315,7 +318,7 @@ public class TMLHandler extends DefaultHandler {
 		Utils.log("SAXParseException : " + e);
 	}
 
-	private ProjectThing makeProjectThing(String type, Hashtable ht_attributes) {
+	private ProjectThing makeProjectThing(String type, HashMap ht_attributes) {
 		try {
 			type = type.toLowerCase();
 
@@ -341,10 +344,11 @@ public class TMLHandler extends DefaultHandler {
 				ht_attributes.remove("expanded");
 			}
 			// abstract object, including profile_list
-			Hashtable ht_attr = new Hashtable();
-			for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-				String key = (String)e.nextElement();
-				String data = (String)ht_attributes.get(key);
+			HashMap ht_attr = new HashMap();
+			for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = (Map.Entry)it.next();
+				String key = (String)entry.getKey();
+				String data = (String)entry.getValue();
 				ht_attr.put(key, new ProjectAttribute(this.project, -1, key, data));
 				//Utils.log2("putting key=[" + key + "]=" + data);
 			}
@@ -378,7 +382,7 @@ public class TMLHandler extends DefaultHandler {
 		}
 	}
 
-	private LayerThing makeLayerThing(String type, Hashtable ht_attributes) {
+	private LayerThing makeLayerThing(String type, HashMap ht_attributes) {
 		try {
 			type = type.toLowerCase();
 			if (0 == type.indexOf("t2_")) {
@@ -456,32 +460,6 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayer(label);
 				return null;
 			} else if (type.equals("patch")) {
-				/* // no need
-				// fix base dir:
-				Object obfp = ht_attributes.get("file_path");
-				if (null != obfp) {
-					String file_path = (String)obfp;
-					if (IJ.isWindows() && -1 != file_path.indexOf(':')) {
-						// ok
-					} else if ('/' == file_path.charAt(0)) {
-						// ok
-					} else {
-						// prepend base_dir
-						if (new File(base_dir + file_path).exists()) {
-							file_path = base_dir + file_path;
-						} else {
-							// try *_images folder
-							final String pd = loader.extractRelativeFolderPath(new File(xml_path));
-							if (new File(pd + "/" + file_path).exists()) {
-								file_path = pd + "/" + file_path;
-							}
-							//else it's going to fail loading the image
-						}
-						ht_attributes.put("file_path", file_path);
-					}
-				}
-				*/
-				//Utils.log("file path: " + ht_attributes.get("file_path"));
 				Patch patch = new Patch(project, oid, ht_attributes, ht_links);
 				patch.addToDatabase();
 				ht_displayables.put(new Long(oid), patch);

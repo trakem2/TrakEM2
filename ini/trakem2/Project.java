@@ -51,6 +51,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -95,13 +96,16 @@ public class Project extends DBObject {
 	static private TemplateThing layer_set_template = null;
 
 	/** The hashtable of unique TemplateThing types; the key is the type (String). */
-	private Hashtable ht_unique_tt = null;
+	private HashMap<String,TemplateThing> ht_unique_tt = null;
 
 	private LayerTree layer_tree = null;
 
 	private String title = "Project"; // default  // TODO should be an attribute in the ProjectThing that holds it
 
-	private final Hashtable<String,String> ht_props = new Hashtable<String,String>();
+	private final HashMap<String,String> ht_props = new HashMap<String,String>();
+
+	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
+	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
 
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
@@ -214,9 +218,9 @@ public class Project extends DBObject {
 			return null;
 		}
 		project.template_tree = new TemplateTree(project, template_root);
-		project.ht_unique_tt = template_root.getUniqueTypes(new Hashtable());
+		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap<String,TemplateThing>());
 		// create the project Thing, to be root of the whole user Thing tree (and load all its objects)
-		Hashtable hs_d = new Hashtable(); // to collect all created displayables, and  then reassign to the proper layers.
+		HashMap hs_d = new HashMap(); // to collect all created displayables, and  then reassign to the proper layers.
 		try {
 			// create a template for the project Thing
 			TemplateThing project_template = new TemplateThing("project");
@@ -298,6 +302,10 @@ public class Project extends DBObject {
 				DirectoryChooser dc = new DirectoryChooser("Select storage folder");
 				dir_project = dc.getDirectory();
 				if (null == dir_project) return null; // user cancelled dialog
+				if (!Loader.canReadAndWriteTo(dir_project)) {
+					Utils.showMessage("Can't read/write to the selected storage folder.\nPlease check folder permissions.");
+					return null;
+				}
 			}
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
@@ -309,13 +317,6 @@ public class Project extends DBObject {
 				Layer layer = new Layer(project, 0, 1, project.layer_set);
 				project.layer_set.add(layer);
 				project.layer_tree.addLayer(project.layer_set, layer);
-				// create display
-				/*
-				Display display = new Display(project, layer);
-				Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
-				display.getCanvas().setup(0.25, srcRect);
-				display.updateTitle();
-				*/
 				Display.createDisplay(project, layer);
 			}
 			try {
@@ -336,13 +337,17 @@ public class Project extends DBObject {
 		return null;
 	}
 
+	static public Project openFSProject(final String path) {
+		return openFSProject(path, true);
+	}
+
 	/** Opens a project from an .xml file. If the path is null it'll be asked for.
 	 *  Only one project may be opened at a time.
 	 */
-	synchronized static public Project openFSProject(final String path) {
+	synchronized static public Project openFSProject(final String path, final boolean open_displays) {
 		if (Utils.wrongImageJVersion()) return null;
 		final FSLoader loader = new FSLoader();
-		final Object[] data = loader.openFSProject(path);
+		final Object[] data = loader.openFSProject(path, open_displays);
 		if (null == data) {
 			return null;
 		}
@@ -350,7 +355,7 @@ public class Project extends DBObject {
 		final TemplateThing root_tt = (TemplateThing)data[0];
 		final ProjectThing root_pt = (ProjectThing)data[1];
 		final LayerThing root_lt = (LayerThing)data[2];
-		final Hashtable ht_pt_expanded = (Hashtable)data[3];
+		final HashMap ht_pt_expanded = (HashMap)data[3];
 
 		final Project project = (Project)root_pt.getObject();
 		project.createLayerTemplates();
@@ -397,30 +402,32 @@ public class Project extends DBObject {
 			IJError.print(e);
 		}
 		// open any stored displays
-		final Bureaucrat burro = Display.openLater();
-		if (null != burro) {
-			final Runnable ru = new Runnable() {
-				public void run() {
-					// wait until the Bureaucrat finishes
-					try { burro.join(); } catch (InterruptedException ie) {}
-					// restore to non-changes (crude, but works)
-					project.loader.setChanged(false);
-				}
-			};
-			new Thread() {
-				public void run() {
-					setPriority(Thread.NORM_PRIORITY);
-					// avoiding "can't call invokeAndWait from the EventDispatch thread" error
-					try {
-						javax.swing.SwingUtilities.invokeAndWait(ru);
-					} catch (Exception e) {
-						Utils.log2("ERROR: " + e);
+		if (open_displays) {
+			final Bureaucrat burro = Display.openLater();
+			if (null != burro) {
+				final Runnable ru = new Runnable() {
+					public void run() {
+						// wait until the Bureaucrat finishes
+						try { burro.join(); } catch (InterruptedException ie) {}
+						// restore to non-changes (crude, but works)
+						project.loader.setChanged(false);
 					}
-				}
-			}.start();
-		} else {
-			// help the helpless users
-			Display.createDisplay(project, project.layer_set.getLayer(0));
+				};
+				new Thread() {
+					public void run() {
+						setPriority(Thread.NORM_PRIORITY);
+						// avoiding "can't call invokeAndWait from the EventDispatch thread" error
+						try {
+							javax.swing.SwingUtilities.invokeAndWait(ru);
+						} catch (Exception e) {
+							Utils.log2("ERROR: " + e);
+						}
+					}
+				}.start();
+			} else {
+				// help the helpless users
+				Display.createDisplay(project, project.layer_set.getLayer(0));
+			}
 		}
 		return project;
 	}
@@ -453,7 +460,7 @@ public class Project extends DBObject {
 		project.template_tree = new TemplateTree(project, template_root);
 		project.root_tt = template_root;
 		// collect unique TemplateThing instances
-		project.ht_unique_tt = template_root.getUniqueTypes(new Hashtable());
+		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap<String,TemplateThing>());
 		// add all TemplateThing objects to the database, recursively
 		if (!clone_ids) template_root.addToDatabase(project);
 		// else already done when cloning the root_tt
@@ -509,6 +516,10 @@ public class Project extends DBObject {
 		return path;
 	}
 
+	public String saveAs(String xml_path, boolean overwrite) {
+		return loader.saveAs(xml_path, overwrite);
+	}
+
 	public boolean destroy() {
 		if (loader.hasChanges()) { // DBLoader always returns false
 			if (ControlWindow.isGUIEnabled()) {
@@ -517,7 +528,7 @@ public class Project extends DBObject {
 					loader.save(this);
 				}
 			} else {
-				Utils.log("WARNING: closing project '" + title  + "' with unsaved changes.");
+				Utils.log2("WARNING: closing project '" + title  + "' with unsaved changes.");
 			}
 		}
 		al_open_projects.remove(this);
@@ -656,7 +667,7 @@ public class Project extends DBObject {
 		while (e.hasMoreElements()) {
 			node = (DefaultMutableTreeNode)e.nextElement();
 			Object ob = node.getUserObject();
-			if (ob instanceof ProjectThing && ((ProjectThing)ob).getObject().equals(object)) {
+			if (ob instanceof ProjectThing && ((ProjectThing)ob).getObject() == object) {
 				if (check && !Utils.check("Remove " + object.toString() + "?")) return false;
 				// remove the ProjectThing, its object and the node that holds it.
 				project_tree.remove(node, false, remove_empty_parents, levels);
@@ -674,7 +685,7 @@ public class Project extends DBObject {
 	}
 	/** Find the node in any tree with a Thing that contains the given Displayable, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Displayable d) {
-		if (d.getClass().equals(LayerSet.class)) select(d, layer_tree);
+		if (d.getClass() == LayerSet.class) select(d, layer_tree);
 		else select(d, project_tree);
 	}
 
@@ -780,56 +791,55 @@ public class Project extends DBObject {
 
 	/** Returns the proper TemplateThing for the given type, complete with children and attributes if any. */
 	public TemplateThing getTemplateThing(String type) {
-		Object ob = ht_unique_tt.get(type);
-		if (null == ob) return null;
-		return (TemplateThing)ob;
+		return ht_unique_tt.get(type);
 	}
 
 	/** Returns a list of existing unique types in the template tree (thus the 'project' type is not included, nor the label). The basic types are guaranteed to be present even if there are no instances in the template tree. */
 	public String[] getUniqueTypes() {
 		// ensure the basic types (pipe, ball, profile, profile_list) are present
-		if (!ht_unique_tt.contains("profile")) ht_unique_tt.put("profile", new TemplateThing("profile"));
-		if (!ht_unique_tt.contains("profile_list")) {
+		if (!ht_unique_tt.containsKey("profile")) ht_unique_tt.put("profile", new TemplateThing("profile"));
+		if (!ht_unique_tt.containsKey("profile_list")) {
 			TemplateThing tpl = new TemplateThing("profile_list");
 			tpl.addChild((TemplateThing) ht_unique_tt.get("profile"));
 			ht_unique_tt.put("profile_list", tpl);
 		}
-		if (!ht_unique_tt.contains("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
-		if (!ht_unique_tt.contains("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
-		if (!ht_unique_tt.contains("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
-		if (!ht_unique_tt.contains("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
+		if (!ht_unique_tt.containsKey("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
+		if (!ht_unique_tt.containsKey("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
+		if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
+		if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
 
-		String[] ut = new String[ht_unique_tt.size()-1];
-		int i = 0;
-		Object project_tt = ht_unique_tt.remove("project");
-		for (Enumeration e = ht_unique_tt.keys(); e.hasMoreElements(); ) {
-			ut[i++] = (String)e.nextElement();
-		}
+		TemplateThing project_tt = ht_unique_tt.remove("project");
+		/* // debug
+		for (Iterator it = ht_unique_tt.keySet().iterator(); it.hasNext(); ) {
+			Utils.log2("class: " + it.next().getClass().getName());
+		} */
+		final String[] ut = new String[ht_unique_tt.size()];
+		ht_unique_tt.keySet().toArray(ut);
 		ht_unique_tt.put("project", project_tt);
 		Arrays.sort(ut);
 		return ut;
 	}
 
-	/** Remove a unique type from the Hashtable. Basic types can't be removed. */
+	/** Remove a unique type from the HashMap. Basic types can't be removed. */
 	public boolean removeUniqueType(String type) {
 		if (null == type || isBasicType(type)) return false;
 		return null != ht_unique_tt.remove(type);
 	}
 
 	public boolean typeExists(String type) {
-		return ht_unique_tt.contains(type);
+		return ht_unique_tt.containsKey(type);
 	}
 
 	/** Returns false if the type exists already. */
 	public boolean addUniqueType(TemplateThing tt) {
-		if (null == ht_unique_tt) this.ht_unique_tt = new Hashtable();
+		if (null == ht_unique_tt) this.ht_unique_tt = new HashMap();
 		if (ht_unique_tt.containsKey(tt.getType())) return false;
 		ht_unique_tt.put(tt.getType(), tt);
 		return true;
 	}
 
 	public boolean updateTypeName(String old_type, String new_type) {
-		if (ht_unique_tt.contains(new_type)) {
+		if (ht_unique_tt.containsKey(new_type)) {
 			Utils.showMessage("Can't rename type '" + old_type + "' : a type named '"+new_type+"' already exists!");
 			return false;
 		}
@@ -955,7 +965,7 @@ public class Project extends DBObject {
 	static public Project findProject(Loader loader) {
 		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
 			Project pro = (Project)it.next();
-			if (pro.getLoader().equals(loader)) return pro;
+			if (pro.getLoader() == loader) return pro;
 		}
 		return null;
 	}
@@ -985,7 +995,7 @@ public class Project extends DBObject {
 			// copy template
 			pr.root_tt = this.root_tt.clone(pr, true);
 			pr.template_tree = new TemplateTree(pr, pr.root_tt);
-			pr.ht_unique_tt = root_tt.getUniqueTypes(new Hashtable());
+			pr.ht_unique_tt = root_tt.getUniqueTypes(new HashMap());
 			TemplateThing project_template = new TemplateThing("project");
 			project_template.addChild(pr.root_tt);
 			pr.ht_unique_tt.put("project", project_template);
@@ -1018,7 +1028,7 @@ public class Project extends DBObject {
 		return null;
 	}
 
-	public void parseXMLOptions(final Hashtable ht_attributes) {
+	public void parseXMLOptions(final HashMap ht_attributes) {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
@@ -1028,8 +1038,28 @@ public class Project extends DBObject {
 		}
 
 	}
+	public HashMap<String,String> getPropertiesCopy() {
+		return (HashMap<String,String>)ht_props.clone();
+	}
+	/** Returns null if not defined. */
 	public String getProperty(final String key) {
-		return (String)ht_props.get(key);
+		return ht_props.get(key);
+	}
+	/** Returns the default value if not defined, or if not a number or not parsable as a number. */
+	public float getProperty(final String key, final float default_value) {
+		try {
+			final String s = ht_props.get(key);
+			if (null == s) return default_value;
+			final float num = Float.parseFloat(s);
+			if (Float.isNaN(num)) return default_value;
+			return num;
+		} catch (NumberFormatException nfe) {
+			IJError.print(nfe);
+		}
+		return default_value;
+	}
+	public boolean getBooleanProperty(final String key) {
+		return "true".equals(ht_props.get(key));
 	}
 	public void setProperty(final String key, final String value) {
 		if (null == value) ht_props.remove(key);
@@ -1072,7 +1102,26 @@ public class Project extends DBObject {
 		boolean no_color_cues = "true".equals(ht_props.get("no_color_cues"));
 		gd.addCheckbox("Paint_color_cues", !no_color_cues);
 		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
+		String current_mode = ht_props.get("image_resizing_mode");
+		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
+		int current_R = (int)(100 * ini.trakem2.imaging.StitchingTEM.DEFAULT_MIN_R); // make the float a percent
+		try {
+			String scR = ht_props.get("min_R");
+			if (null != scR) current_R = (int)(Double.parseDouble(scR) * 100);
+		} catch (Exception nfe) {
+			IJError.print(nfe);
+		}
+		gd.addSlider("min_R: ", 0, 100, current_R);
+
+		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
+		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
+		boolean keep_mipmaps = "true".equals(ht_props.get("keep_mipmaps"));
+		gd.addCheckbox("Keep_mipmaps_when_deleting_images", keep_mipmaps); // coping with the fact that thee is no Action context ... there should be one in the Worker thread.
+		int bucket_side = (int)getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
+		gd.addNumericField("Bucket side length: ", bucket_side, 0);
+		//
 		gd.showDialog();
+		//
 		if (gd.wasCanceled()) return;
 		setLinkProp(link_labels, gd.getNextBoolean(), DLabel.class);
 		setLinkProp(link_arealist, gd.getNextBoolean(), AreaList.class);
@@ -1084,6 +1133,28 @@ public class Project extends DBObject {
 		}
 		if (adjustProp("no_color_cues", no_color_cues, !gd.getNextBoolean())) {
 			Display.repaint(layer_set);
+		}
+		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
+		setProperty("min_R", new Float((float)gd.getNextNumber() / 100).toString());
+		boolean layer_mipmaps2 = gd.getNextBoolean();
+		if (adjustProp("layer_mipmaps", layer_mipmaps, layer_mipmaps2)) {
+			if (layer_mipmaps && !layer_mipmaps2) {
+				// TODO
+				// 1 - ask first
+				// 2 - remove all existing images from layer.mipmaps folder
+			} else if (!layer_mipmaps && layer_mipmaps2) {
+				// TODO
+				// 1 - ask first
+				// 2 - create de novo all layer mipmaps in a background task
+			}
+		}
+		adjustProp("keep_mipmaps", keep_mipmaps, gd.getNextBoolean());
+		Utils.log2("keep_mipmaps: " + getBooleanProperty("keep_mipmaps"));
+		//
+		bucket_side = (int)gd.getNextNumber();
+		if (bucket_side > Bucket.MIN_BUCKET_SIZE) {
+			setProperty("bucket_side", Integer.toString(bucket_side));
+			layer_set.recreateBuckets(true);
 		}
 	}
 }

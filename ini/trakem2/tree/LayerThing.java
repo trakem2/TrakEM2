@@ -47,7 +47,7 @@ public class LayerThing extends DBObject implements Thing {
 
 	private ArrayList al_children = null;
 
-	private Hashtable ht_attributes = null;
+	private HashMap ht_attributes = null;
 	// TODO : attributes, at all?
 	private String title = null;
 
@@ -64,7 +64,7 @@ public class LayerThing extends DBObject implements Thing {
 	}
 
 	/** Reconstruct from database, in combination with the setup() method. */
-	public LayerThing(TemplateThing template, Project project, long id, String title, Object ob, ArrayList al_children, Hashtable ht_attributes) {
+	public LayerThing(TemplateThing template, Project project, long id, String title, Object ob, ArrayList al_children, HashMap ht_attributes) {
 		super(project, id);
 		this.template = template;
 		this.object = ob;
@@ -79,9 +79,8 @@ public class LayerThing extends DBObject implements Thing {
 	/** Tell the attributes who owns them, and the children's attributes as well, and set the parent to the children; used to finish up reconstruction from the database. */
 	public void setup() {
 		if (null != ht_attributes) {
-			Enumeration e = ht_attributes.keys();
-			while (e.hasMoreElements()) {
-				ProjectAttribute pa = (ProjectAttribute)ht_attributes.get(e.nextElement()); // ?? A ProjectAttribute? WARNING
+			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
+				ProjectAttribute pa = (ProjectAttribute)it.next(); // ?? A ProjectAttribute? WARNING
 				pa.setup(this);
 			}
 		}
@@ -123,7 +122,13 @@ public class LayerThing extends DBObject implements Thing {
 	}
 
 	public String toString() {
-		return (null != parent ? Integer.toString(parent.indexOf(this) + 1) + ": ": "") + (null != title ? title : "") + " " + (null == object ? template.getType() : object.toString()) + " [" + template.getType() + "]";
+		final StringBuffer sb = new StringBuffer();
+		if (null != parent) sb.append(Integer.toString(parent.indexOf(this) + 1)).append(':').append(' ');
+		if (null != title) sb.append(title);
+		sb.append(' ');
+		if (null == object) sb.append(template.getType());
+		else sb.append(object.toString()).append(' ').append('[').append(template.getType()).append(']');
+		return sb.toString();
 	}
 
 	public void setTitle(String title) {
@@ -181,7 +186,7 @@ public class LayerThing extends DBObject implements Thing {
 		return template.getType();
 	}
 
-	public Hashtable getAttributes() {
+	public HashMap getAttributes() {
 		return ht_attributes; // TODO for now, Layer and LayerSet have no attributes
 	}
 
@@ -351,49 +356,6 @@ public class LayerThing extends DBObject implements Thing {
 	public int indexOf(LayerThing child) {
 		return al_children.indexOf(child);
 	}
-
-	/*
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
-		// 1 - store an XML entry for this object
-		String tag = template.getType().toLowerCase().replace(' ', '_');
-		sb_body.append(indent).append("<lt_").append(tag).append(" id=\"").append(id).append("\"\n");
-		if (null != title && title.length() > 0 && !title.equals("null")) {
-			sb_body.append(indent).append("title=\"").append(title).append("\"\n");
-		}
-		String in = indent + "\t";
-		// the id of the object if any
-		if (null != object && object instanceof DBObject) {
-			DBObject dbo = (DBObject)object;
-			dbo.exportXML(sb_body, in, any);// WARNING: possible clash of names
-		}
-		if (null != ht_attributes && !ht_attributes.isEmpty() ) {
-			// the rest of the attributes:
-			for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-				String key = (String)e.nextElement();
-				ProjectAttribute pa = (ProjectAttribute)ht_attributes.get(key);
-				sb_body.append(" ").append(pa.asXML());
-			}
-		}
-		sb_body.append(indent).append(">\n");
-		// 2 - call the Layer/LayerSet to export their children
-		if (object instanceof LayerSet) { // could use interfaces for this
-			LayerSet set = (LayerSet)object;
-			set.exportChildrenXML(sb_body, in, any);
-		} else if (object instanceof Layer) {
-			Layer layer = (Layer)object;
-			layer.exportChildrenXML(sb_body, in, any);
-		}
-		// 3 - recurse into children if any
-		if (null != al_children && 0 != al_children.size()) {
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				DBObject dbo = (DBObject)it.next();
-				dbo.exportXML(sb_body, in, any);
-			}
-		}
-		// 4 - closing tag:
-		sb_body.append(indent).append("</lt_").append(tag).append(">\n");
-	}
-	*/
 
 	public void debug(String indent) {
 		StringBuffer sb_at = new StringBuffer(" (id,"); // 'id' exists regardless

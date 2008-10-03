@@ -35,6 +35,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.LayerStack;
+import ini.trakem2.tree.LayerThing;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -48,17 +49,17 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collection;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
-public class LayerSet extends Displayable { // Displayable is already extending DBObject
+public class LayerSet extends Displayable implements Bucketable { // Displayable is already extending DBObject
 
 	// the anchors for resizing
 	static public final int NORTH = 0;
@@ -84,6 +85,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	static public final int DOWN = 15;
 	static public final int BOTTOM = 16;
 
+	static public final String[] snapshot_modes = new String[]{"Full","Outlines","Disabled"};
+
+	/** 0, 1, 2 -- corresponding to snapshot_modes entries. */
+	private int snapshots_mode = 0;
 
 	static public final String[] ANCHORS =  new String[]{"north", "north east", "east", "southeast", "south", "south west", "west", "north west", "center"};
 	static public final String[] ROTATIONS = new String[]{"90 right", "90 left", "Flip horizontally", "Flip vertically"};
@@ -97,16 +102,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
 	private Layer parent = null;
 	/** A LayerSet can contain Displayables that are show in every single Layer, such as Pipe objects. */
-	private ArrayList<ZDisplayable> al_zdispl = new ArrayList<ZDisplayable>();
-
-	private boolean snapshots_enabled = true;
+	private final ArrayList<ZDisplayable> al_zdispl = new ArrayList<ZDisplayable>();
 
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
 
-	/** Store Hashtables of displayable/transformation pairs for undo. */
+	/** Store HashMaps of displayable/transformation pairs for undo. */
 	private LinkedList undo_queue = new LinkedList();
-	/** Store Hashtables of displayable/transformation pairs for redo, as they are popped out of the undo_queue list. This list will be cleared the moment a new action is stored in the undo_queue.*/
+	/** Store HashMaps of displayable/transformation pairs for redo, as they are popped out of the undo_queue list. This list will be cleared the moment a new action is stored in the undo_queue.*/
 	//private LinkedList redo_queue = new LinkedList();
 	/** The index of the current set of Transformations in the undo/redo queues. */
 	private int current = 0;
@@ -142,24 +145,25 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Reconstruct from the database. */
-	public LayerSet(Project project, long id, String title, double width, double height, double rot_x, double rot_y, double rot_z, double layer_width, double layer_height, boolean locked, boolean snapshots_enabled, AffineTransform at) {
+	public LayerSet(Project project, long id, String title, double width, double height, double rot_x, double rot_y, double rot_z, double layer_width, double layer_height, boolean locked, int shapshots_mode, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.rot_x = rot_x;
 		this.rot_y = rot_y;
 		this.rot_z = rot_z;
 		this.layer_width = layer_width;
 		this.layer_height= layer_height;
-		this.snapshots_enabled = snapshots_enabled;
+		this.snapshots_mode = snapshots_mode;
 		// the parent will be set by the LayerThing.setup() calling Layer.addSilently()
 		// the al_layers will be filled idem.
 	}
 
 	/** Reconstruct from an XML entry. */
-	public LayerSet(Project project, long id, Hashtable ht_attributes, Hashtable ht_links) {
+	public LayerSet(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
 		super(project, id, ht_attributes, ht_links);
-		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht_attributes.get(key);
+		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("layer_width")) {
 				this.layer_width = Double.parseDouble(data);
 			} else if (key.equals("layer_height")) {
@@ -172,15 +176,21 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				this.rot_z = Double.parseDouble(data);
 			} else if (key.equals("snapshots_quality")) {
 				snapshots_quality = Boolean.valueOf(data.trim().toLowerCase());
-			} else if (key.equals("snapshots_enabled")) {
-				snapshots_enabled = Boolean.valueOf(data.trim().toLowerCase());
+			} else if (key.equals("snapshots_mode")) {
+				String smode = data.trim();
+				for (int i=0; i<snapshot_modes.length; i++) {
+					if (smode.equals(snapshot_modes[i])) {
+						snapshots_mode = i;
+						break;
+					}
+				}
 			}
 			// the above would be trivial in Jython, and can be done by reflection! The problem would be in the parsing, that would need yet another if/else if/ sequence was any field to change or be added.
 		}
 	}
 
 	/** For reconstruction purposes: set the active layer to the ZDisplayable objects. Recurses through LayerSets in the children layers. */
-	synchronized public void setup() {
+	public void setup() {
 		final Layer la0 = al_layers.get(0);
 		for (ZDisplayable zd : al_zdispl) zd.setLayer(la0); // just any Layer
 		for (Layer layer : al_layers) {
@@ -217,7 +227,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Add a new Layer silently, ordering by z as well.*/
-	synchronized public void addSilently(final Layer layer) {
+	public void addSilently(final Layer layer) {
 		if (null == layer || al_layers.contains(layer)) return;
 		try {
 			double z = layer.getZ();
@@ -240,7 +250,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Add a new Layer, inserted according to its Z. */
-	synchronized public void add(final Layer layer) {
+	public void add(final Layer layer) {
 		if (-1 != al_layers.indexOf(layer)) return;
 		final double z = layer.getZ();
 		final int n = al_layers.size();
@@ -260,7 +270,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		//debug();
 	}
 
-	synchronized private void debug() {
+	private void debug() {
 		Utils.log("LayerSet debug:");
 		for (int i=0; i<al_layers.size(); i++)
 			Utils.log(i + " : " + ((Layer)al_layers.get(i)).getZ());
@@ -282,7 +292,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		updateInDatabase("parent_id");
 	}
 
-	synchronized public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
+	public void mousePressed(MouseEvent me, int x_p, int y_p, Rectangle srcRect, double mag) {
 		if (ProjectToolbar.SELECT != ProjectToolbar.getToolId()) return;
 		Display.setActive(me, this);
 		if (2 == me.getClickCount() && al_layers.size() > 0) {
@@ -348,7 +358,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public double getRotY() { return rot_y; }
 	public double getRotZ() { return rot_z; }
 
-	synchronized public int size() {
+	public int size() {
 		return al_layers.size();
 	}
 
@@ -366,7 +376,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Used by the Loader after loading blindly a lot of Patches. Will crop the canvas to the minimum size possible. */
-	synchronized public boolean setMinimumDimensions() {
+	public boolean setMinimumDimensions() {
 		// find current x,y,width,height that crops the canvas without cropping away any Displayable
 		double x = Double.NaN;
 		double y = Double.NaN;
@@ -426,7 +436,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				}
 				// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
 				for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
-					Hashtable ht = (Hashtable)it.next();
+					HashMap ht = (HashMap)it.next();
 					for (Iterator hi = ht.values().iterator(); hi.hasNext(); ) {
 						AffineTransform at = (AffineTransform)hi.next();
 						at.preConcatenate(at2);
@@ -452,6 +462,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			this.layer_width = Math.ceil(w); // stupid int to double conversions ... why floating point math is a non-solved problem? Well, it is for SBCL
 			this.layer_height = Math.ceil(h);
 			updateInDatabase("layer_dimensions");
+			if (null != root) recreateBuckets(true);
 			// and notify the Displays, if any
 			Display.update(this);
 			Display.pack(this);
@@ -473,7 +484,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** May leave objects beyond the visible window. */
-	synchronized public void setDimensions(double x, double y, double layer_width, double layer_height) {
+	public void setDimensions(double x, double y, double layer_width, double layer_height) {
 		this.layer_width = layer_width;
 		this.layer_height = layer_height;
 		final AffineTransform affine = new AffineTransform();
@@ -483,11 +494,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			zd.updateInDatabase("transform");
 		}
 		for (Layer la : al_layers) la.apply(Displayable.class, affine);
+		if (null != root) {
+			recreateBuckets(true);
+		}
 		Display.update(this);
 	}
 
 	/** Returns false if any Displayables are being partially or totally cropped away. */
-	synchronized public boolean setDimensions(double layer_width, double layer_height, int anchor) {
+	public boolean setDimensions(double layer_width, double layer_height, int anchor) {
 		// check preconditions
 		if (Double.isNaN(layer_width) || Double.isNaN(layer_height)) { Utils.log("LayerSet.setDimensions: NaNs! Not adjusting."); return false; }
 		if (layer_width <=0 || layer_height <= 0) { Utils.showMessage("LayerSet: can't accept zero or a minus for layer width or height"); return false; }
@@ -572,13 +586,23 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 
 		updateInDatabase("layer_dimensions");
+		if (null != root) recreateBuckets(true);
 		// and notify the Display
 		Display.update(this);
 		Display.pack(this);
 		return true;
 	}
 
-	synchronized public boolean remove(boolean check) {
+	protected boolean remove2(boolean check) {
+		if (check) {
+			if (!Utils.check("Really delete " + this.toString() + (null != al_layers && al_layers.size() > 0 ? " and all its children?" : ""))) return false;
+		}
+		LayerThing lt = project.findLayerThing(this);
+		if (null == lt) return false;
+		return project.getLayerTree().remove(check, lt, null); // will end up calling remove(boolean) on this object
+	}
+
+	public boolean remove(boolean check) {
 		if (check) {
 			if (!Utils.check("Really delete " + this.toString() + (null != al_layers && al_layers.size() > 0 ? " and all its children?" : ""))) return false;
 		}
@@ -601,14 +625,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Remove a child. Does not destroy it or delete it from the database. */
-	synchronized public void remove(Layer layer) {
+	public void remove(Layer layer) {
 		if (null == layer || -1 == al_layers.indexOf(layer)) return;
 		al_layers.remove(layer);
 		Display.updateLayerScroller(this);
 		Display.updateTitle(this);
 	}
 
-	synchronized public Layer next(Layer layer) {
+	public Layer next(Layer layer) {
 		int i = al_layers.indexOf(layer);
 		if (-1 == i) {
 			Utils.log("LayerSet.next: no such Layer " + layer);
@@ -618,7 +642,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		else return (Layer)al_layers.get(i+1);
 	}
 
-	synchronized public Layer previous(Layer layer) {
+	public Layer previous(Layer layer) {
 		int i = al_layers.indexOf(layer);
 		if (-1 == i) {
 			Utils.log("LayerSet.previous: no such Layer " + layer);
@@ -635,7 +659,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			layer = next;
 			next = next(layer);
 			if (!next.isEmpty()) return next;
-		} while (!next.equals(layer));
+		} while (next != layer);
 		return given;
 	}
 	public Layer previousNonEmpty(Layer layer) {
@@ -645,11 +669,11 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			layer = previous;
 			previous = previous(layer);
 			if (!previous.isEmpty()) return previous;
-		} while (!previous.equals(layer));
+		} while (previous != layer);
 		return given;
 	}
 
-	synchronized public int getLayerIndex(long id) {
+	public int getLayerIndex(long id) {
 		for (int i=al_layers.size()-1; i>-1; i--) {
 			if (((Layer)al_layers.get(i)).getId() == id) return i;
 		}
@@ -657,27 +681,23 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Find a layer by index, or null if none. */
-	synchronized public Layer getLayer(int i) {
+	public Layer getLayer(int i) {
 		if (i >=0 && i < al_layers.size()) return (Layer)al_layers.get(i);
 		return null;
 	}
 
 	/** Find a layer with the given id, or null if none. */
-	synchronized public Layer getLayer(final long id) {
-		Iterator it = al_layers.iterator();
-		while (it.hasNext()) {
-			Layer layer = (Layer)it.next();
+	public Layer getLayer(final long id) {
+		for (Layer layer : al_layers) {
 			if (layer.getId() == id) return layer;
 		}
 		return null;
 	}
 
 	/** Returns the first layer found with the given Z coordinate, rounded to seventh decimal precision, or null if none found. */
-	synchronized public Layer getLayer(final double z) {
-		Iterator it = al_layers.iterator();
+	public Layer getLayer(final double z) {
 		double error = 0.0000001; // TODO adjust to an optimal
-		while (it.hasNext()) {
-			Layer layer = (Layer)it.next();
+		for (Layer layer : al_layers) {
 			if (error > Math.abs(layer.getZ() - z)) { // floating-point arithmetic is still not a solved problem!
 				return layer;
 			}
@@ -685,7 +705,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return null;
 	}
 
-	synchronized public Layer getNearestLayer(final double z) {
+	public Layer getNearestLayer(final double z) {
 		double min_dist = Double.MAX_VALUE;
 		Layer closest = null;
 		for (Layer layer : al_layers) {
@@ -699,7 +719,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns null if none has the given z and thickness. If 'create' is true and no layer is found, a new one with the given Z is created and added to the LayerTree. */
-	synchronized public Layer getLayer(double z, double thickness, boolean create) {
+	public Layer getLayer(double z, double thickness, boolean create) {
 		Iterator it = al_layers.iterator();
 		Layer layer = null;
 		double error = 0.0000001; // TODO adjust to an optimal
@@ -720,21 +740,30 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Add a Displayable to be painted in all Layers, such as a Pipe. */
-	synchronized public void add(final ZDisplayable zdispl) {
+	public void add(final ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) {
 			Utils.log2("LayerSet: not adding zdispl");
 			return;
 		}
 		al_zdispl.add(0, zdispl); // at the top
+
 		zdispl.setLayerSet(this);
 		// The line below can fail (and in the addSilently as well) if one can add zdispl objects while no Layer has been created. But the ProjectThing.createChild prevents this situation.
 		zdispl.setLayer(al_layers.get(0));
 		zdispl.updateInDatabase("layer_set_id"); // TODO: update stack index?
+
+		// insert into bucket
+		if (null != root) {
+			// add as last, then update
+			root.put(al_zdispl.size()-1, zdispl, zdispl.getBoundingBox(null));
+			root.update(this, zdispl, 0, al_zdispl.size()-1);
+		}
+
 		Display.add(this, zdispl);
 	}
 
 	/** Used for reconstruction purposes, avoids repainting or updating. */
-	synchronized public void addSilently(ZDisplayable zdispl) {
+	public void addSilently(final ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) return;
 		try {
 			zdispl.setLayer(0 == al_layers.size() ? null : al_layers.get(0));
@@ -742,49 +771,60 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			//Utils.log2("setLayerSet to ZDipl id=" + zdispl.getId());
 			al_zdispl.add(zdispl);
 		} catch (Exception e) {
-			Utils.log("LayerSet.addSilently: not adding Zdisplayable with id=" + zdispl.getId());
+			Utils.log("LayerSet.addSilently: not adding ZDisplayable with id=" + zdispl.getId());
 			IJError.print(e);
 			return;
 		}
 	}
 
 	/** Remove a child. Does not destroy the child nor remove it from the database, only from the Display. */
-	synchronized public boolean remove(ZDisplayable zdispl) {
+	public boolean remove(final ZDisplayable zdispl) {
 		if (null == zdispl || null == al_zdispl || -1 == al_zdispl.indexOf(zdispl)) return false;
+		// remove from Bucket before modifying stack index
+		if (null != root) Bucket.remove(zdispl, db_map);
+		// now remove proper, so stack_index hasn't changed yet
 		al_zdispl.remove(zdispl);
 		Display.remove(zdispl);
 		return true;
 	}
 
-	/** Returns a copy of the list of ZDisplayable objects. */
-	synchronized public ArrayList<ZDisplayable> getZDisplayables() { return (ArrayList<ZDisplayable>)al_zdispl.clone(); }
-
 	/** Returns a list of ZDisplayable of class c only.*/
-	synchronized public ArrayList<ZDisplayable> getZDisplayables(final Class c) {
+	public ArrayList<ZDisplayable> getZDisplayables(final Class c) {
 		final ArrayList<ZDisplayable> al = new ArrayList<ZDisplayable>();
 		if (null == c) return al;
-		if (c.equals(Displayable.class) || c.equals(ZDisplayable.class)) {
+		if (Displayable.class == c || ZDisplayable.class == c) {
 			al.addAll(al_zdispl);
 			return al;
 		}
 		for (ZDisplayable zd : al_zdispl) {
-			if (c.equals(zd.getClass())) al.add(zd);
+			if (zd.getClass() == c) al.add(zd);
 		}
 		return al;
 	}
 
-	synchronized public boolean contains(Layer layer) {
+	public ArrayList<ZDisplayable> getZDisplayables(final Class c, final Layer layer, final Area aroi, final boolean visible_only) {
+		final ArrayList<ZDisplayable> al = getZDisplayables(c);
+		final double z = layer.getZ();
+		for (Iterator<ZDisplayable> it = al.iterator(); it.hasNext(); ) {
+			ZDisplayable zd = it.next();
+			if (visible_only && !zd.isVisible()) { it.remove(); continue; }
+			if (!zd.intersects(aroi, z, z)) it.remove();
+		}
+		return al;
+	}
+
+	public boolean contains(final Layer layer) {
 		if (null == layer) return false;
 		return -1 != al_layers.indexOf(layer);
 	}
 
-	synchronized public boolean contains(Displayable zdispl) {
+	public boolean contains(final Displayable zdispl) {
 		if (null == zdispl) return false;
 		return -1 != al_zdispl.indexOf(zdispl);
 	}
 
 	/** Returns a copy of the layer list. */
-	synchronized public ArrayList<Layer> getLayers() {
+	public ArrayList<Layer> getLayers() {
 		return (ArrayList<Layer>)al_layers.clone(); // for integrity and safety, return a copy.
 	}
 
@@ -796,14 +836,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	public void setAlpha(float alpha) { return; }
 
 	/** Move the given Displayable to the next layer if possible. */
-	synchronized public void moveDown(Layer layer, Displayable d) {
+	public void moveDown(Layer layer, Displayable d) {
 		int i = al_layers.indexOf(layer);
 		if (al_layers.size() -1 == i || -1 == i) return;
 		layer.remove(d);
 		((Layer)(al_layers.get(i +1))).add(d);
 	}
 	/** Move the given Displayable to the previous layer if possible. */
-	synchronized public void moveUp(Layer layer, Displayable d) {
+	public void moveUp(Layer layer, Displayable d) {
 		int i = al_layers.indexOf(layer);
 		if (0 == i || -1 == i) return;
 		layer.remove(d);
@@ -811,12 +851,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Move all Displayable objects in the HashSet to the given target layer. */
-	public void move(HashSet hs_d, Layer source, Layer target) {
-		if (0 == hs_d.size() || null == source || null == target || source.equals(target)) return;
+	public void move(final HashSet hs_d, final Layer source, final Layer target) {
+		if (0 == hs_d.size() || null == source || null == target || source == target) return;
 		Display.setRepaint(false); // disable repaints
 		for (Iterator it = hs_d.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
-			if (source.equals(d.getLayer())) {
+			if (source == d.getLayer()) {
 				source.remove(d);
 				target.add(d, false, false); // these contortions to avoid repeated DB traffic
 				d.updateInDatabase("layer_id");
@@ -831,35 +871,40 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Find ZDisplayable objects that contain the point x,y in the given layer. */
-	synchronized public ArrayList findZDisplayables(Layer layer, int x, int y) {
-		ArrayList al = new ArrayList();
-		Iterator it = al_zdispl.iterator();
-		while (it.hasNext()) {
-			ZDisplayable zd = (ZDisplayable)it.next();
+	public Collection<Displayable> findZDisplayables(final Layer layer, final int x, final int y, final boolean visible_only) {
+		if (null != root) return root.find(x, y, layer, visible_only);
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (ZDisplayable zd : al_zdispl) {
 			if (zd.contains(layer, x, y)) al.add(zd);
 		}
 		return al;
 	}
+	public Collection<Displayable> findZDisplayables(final Layer layer, final Rectangle r, final boolean visible_only) {
+		if (null != root) return root.find(r, layer, visible_only);
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.getBounds(null, layer).intersects(r)) al.add(zd);
+		}
+		return al;
+	}
 
-
-	synchronized public void setVisible(String type, boolean visible, boolean repaint) {
+	/** Returns the hash set of objects whose visibility has changed. */
+	public HashSet<Displayable> setVisible(String type, final boolean visible, final boolean repaint) {
 		type = type.toLowerCase();
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		try {
 			project.getLoader().startLargeUpdate();
 			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist")) {
-				Iterator it = al_zdispl.iterator();
-				while (it.hasNext()) {
-					ZDisplayable zd = (ZDisplayable)it.next();
-					if (zd.getClass().getName().toLowerCase().endsWith(type)) { // endsWith, because DLabel is called as Label
+				for (ZDisplayable zd : al_zdispl) {
+					if (visible != zd.isVisible() && zd.getClass().getName().toLowerCase().endsWith(type)) { // endsWith, because DLabel is called as Label
 						zd.setVisible(visible, false); // don't repaint
+						hs.add(zd);
 					}
 				}
 			} else {
 				if (type.equals("image")) type = "patch";
-				Iterator it = al_layers.iterator();
-				while (it.hasNext()) {
-					Layer l = (Layer)it.next();
-					l.setVisible(type, visible, false); // don't repaint
+				for (Layer layer : al_layers) {
+					hs.addAll(layer.setVisible(type, visible, false)); // don't repaint
 				}
 			}
 		} catch (Exception e) {
@@ -870,13 +915,19 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (repaint) {
 			Display.repaint(this); // this could be optimized to repaint only the accumulated box
 		}
+		return hs;
 	}
-	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. */
-	public void hideExcept(ArrayList<Class> type, boolean repaint) {
+	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */
+	public HashSet<Displayable> hideExcept(ArrayList<Class> type, boolean repaint) {
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (ZDisplayable zd : al_zdispl) {
-			if (!type.contains(zd.getClass())) zd.setVisible(false, repaint);
+			if (!type.contains(zd.getClass()) && zd.isVisible()) {
+				zd.setVisible(false, repaint);
+				hs.add(zd);
+			}
 		}
-		for (Layer la : al_layers) la.hideExcept(type, repaint);
+		for (Layer la : al_layers) hs.addAll(la.hideExcept(type, repaint));
+		return hs;
 	}
 	public void setAllVisible(boolean repaint) {
 		for (ZDisplayable zd : al_zdispl) {
@@ -886,15 +937,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns true if any of the ZDisplayable objects are of the given class. */
-	synchronized public boolean contains(Class c) {
-		Iterator it = al_zdispl.iterator();
-		while (it.hasNext()) {
-			if (it.next().getClass().equals(c)) return true;
+	public boolean contains(final Class c) {
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.getClass() == c) return true;
 		}
 		return false;
 	}
 	/** Check in all layers. */
-	synchronized public boolean containsDisplayable(Class c) {
+	public boolean containsDisplayable(Class c) {
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer la = (Layer)it.next();
 			if (la.contains(c)) return true;
@@ -903,13 +953,13 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Returns the distance from the first layer's Z to the last layer's Z. */
-	synchronized public double getDepth() {
+	public double getDepth() {
 		if (null == al_layers || al_layers.isEmpty()) return 0;
 		return ((Layer)al_layers.get(al_layers.size() -1)).getZ() - ((Layer)al_layers.get(0)).getZ();
 	}
 
 	/** Return all the Displayable objects from all the layers of this LayerSet. Does not include the ZDisplayables. */
-	synchronized public ArrayList<Displayable> getDisplayables() {
+	public ArrayList<Displayable> getDisplayables() {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (Layer layer : al_layers) {
 			al.addAll(layer.getDisplayables());
@@ -917,7 +967,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return al;
 	}
 	/** Return all the Displayable objects from all the layers of this LayerSet of the given class. Does not include the ZDisplayables. */
-	synchronized public ArrayList<Displayable> getDisplayables(Class c) {
+	public ArrayList<Displayable> getDisplayables(Class c) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (Layer layer : al_layers) {
 			al.addAll(layer.getDisplayables(c));
@@ -926,11 +976,11 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** From zero to size-1. */
-	synchronized public int indexOf(Layer layer) {
+	public int indexOf(Layer layer) {
 		return al_layers.indexOf(layer);
 	}
 
-	synchronized public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
+	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
 		final StringBuffer sb_body = new StringBuffer();
 		sb_body.append(indent).append("<t2_layer_set\n");
 		final String in = indent + "\t";
@@ -941,7 +991,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		       .append(in).append("rot_y=\"").append(rot_y).append("\"\n")
 		       .append(in).append("rot_z=\"").append(rot_z).append("\"\n")
 		       .append(in).append("snapshots_quality=\"").append(snapshots_quality).append("\"\n")
-		       .append(in).append("snapshots_enabled=\"").append(snapshots_enabled).append("\"\n")
+		       .append(in).append("snapshots_mode=\"").append(snapshot_modes[snapshots_mode]).append("\"\n")
 		       // TODO: alpha! But it's not necessary.
 		;
 		sb_body.append(indent).append(">\n");
@@ -994,7 +1044,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_y").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_z").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_quality").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_enabled").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_mode").append(TAG_ATTR2)
 			;
 			sb_header.append(indent).append("<!ELEMENT t2_calibration EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_calibration pixelWidth").append(TAG_ATTR2)
@@ -1011,20 +1061,20 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 	}
 
-	public void setSnapshotsEnabled(boolean b) {
-		if (b == this.snapshots_enabled) return;
-		this.snapshots_enabled = b;
+	public void setSnapshotsMode(final int mode) {
+		if (mode == snapshots_mode) return;
+		this.snapshots_mode = mode;
 		Display.repaintSnapshots(this);
-		updateInDatabase("snapshots_enabled");
+		updateInDatabase("snapshots_mode");
 	}
 
-	public boolean areSnapshotsEnabled() {
-		return this.snapshots_enabled;
+	public int getSnapshotsMode() {
+		return this.snapshots_mode;
 	}
 
 	/** Creates an undo step that contains transformations for all Displayable objects of this LayerSet */
-	synchronized public void createUndoStep() {
-		final Hashtable ht_undo = new Hashtable();
+	public void createUndoStep() {
+		final HashMap ht_undo = new HashMap();
 		for (Layer la : al_layers) {
 			for (Displayable d : la.getDisplayables()) {
 				ht_undo.put(d, d.getAffineTransformCopy());
@@ -1036,7 +1086,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	/** Creates an undo step that contains transformations for all Displayable objects in the given Layer. */
 	public void createUndoStep(final Layer layer) {
 		if (null == layer) return;
-		final Hashtable ht_undo = new Hashtable();
+		final HashMap ht_undo = new HashMap();
 		for (Displayable d : layer.getDisplayables()) {
 			ht_undo.put(d, d.getAffineTransformCopy());
 		}
@@ -1044,7 +1094,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** The @param ht should be a hastable of Displayable keys and Transform values, such as those obtained from selection.getTransformationsCopy() . By adding a new undo step, the redo steps are cleared. */
-	public void addUndoStep(Hashtable ht) {
+	public void addUndoStep(HashMap ht) {
 		if (ht.isEmpty()) return;
 		if (undo_queue.size() == MAX_UNDO_STEPS) {
 			undo_queue.removeFirst();
@@ -1071,7 +1121,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	/** Create an undo step involving all Displayable objects in the set. */
 	public void addUndoStep(final Set<Displayable> set) {
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		for (Displayable d : set) {
 			ht.put(d, d.getAffineTransformCopy());
 		}
@@ -1079,7 +1129,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Usable only when undoing the last step, to catch the current step (which is not in the undo queue).*/
-	void appendCurrent(Hashtable ht) {
+	void appendCurrent(HashMap ht) {
 		if (ht.isEmpty() || undo_queue.size() != current || cycle_flag) return;
 		Utils.log2("appendCurrent: undo queue size: " + undo_queue.size() + " and current: " + current);
 		undo_queue.add(ht);
@@ -1097,12 +1147,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		if (cycle_flag && undo_queue.size() == current) current--; // compensate
 		current--;
 		if (current < 0) current = 0; // patching ...
-		Hashtable step = (Hashtable)undo_queue.get(current);
+		HashMap step = (HashMap)undo_queue.get(current);
 		applyStep(step);
 		cycle_flag = true;
 		Utils.log2("undoing to current=" + current);
 		/*
-		Hashtable last = (Hashtable)undo_queue.removeLast();
+		HashMap last = (HashMap)undo_queue.removeLast();
 		if (null != current) redo_queue.add(current);
 		current = last;
 		applyStep(last);
@@ -1117,10 +1167,10 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			current = undo_queue.size();
 			return;
 		}
-		Hashtable step = (Hashtable)undo_queue.get(current);
+		HashMap step = (HashMap)undo_queue.get(current);
 		applyStep(step);
 		/*
-		Hashtable next = (Hashtable)redo_queue.removeLast();
+		HashMap next = (HashMap)redo_queue.removeLast();
 		if (null != current) undo_queue.add(current);
 		current = next;
 		applyStep(next);
@@ -1131,7 +1181,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		//Utils.log2("redoing " + step);
 		Utils.log2("redoing to current=" + current);
 	}
-	private void applyStep(Hashtable ht) {
+	private void applyStep(HashMap ht) {
 		// apply:
 		Rectangle box = null;
 		Rectangle b = new Rectangle(); // tmp
@@ -1158,12 +1208,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Find the given Displayable in the undo/redo queues and clear it. This functionality is used when an object is removed, for which there is no undo. */
-	public void removeFromUndo(Displayable d) {
+	public void removeFromUndo(final Displayable d) {
 		// from the undo_queue
 		for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
-			Hashtable ht = (Hashtable)it.next();
+			HashMap ht = (HashMap)it.next();
 			for (Iterator itd = ht.keySet().iterator(); itd.hasNext(); ) {
-				if (d.equals(itd.next())) {
+				if (d == itd.next()) {
 					itd.remove();
 					break; // the inner loop only
 				}
@@ -1179,7 +1229,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		current--;
 	}
 
-	synchronized public void destroy() {
+	public void destroy() {
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
 			layer.destroy();
@@ -1190,7 +1240,6 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
-		this.al_zdispl = null;
 		this.undo_queue.clear();
 		this.undo_queue = null;
 		//this.redo_queue.clear();
@@ -1229,14 +1278,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Used by the Layer.setZ method. */
-	synchronized protected void reposition(Layer layer) {
+	protected void reposition(Layer layer) {
 		if (null == layer || !al_layers.contains(layer)) return;
 		al_layers.remove(layer);
 		addSilently(layer);
 	}
 
 	/** Get up to 'n' layers before and after the given layers. */
-	synchronized public ArrayList getNeighborLayers(final Layer layer, final int n) {
+	public ArrayList getNeighborLayers(final Layer layer, final int n) {
 		final int i_layer = al_layers.indexOf(layer);
 		final ArrayList al = new ArrayList();
 		if (-1 == i_layer) return al;
@@ -1249,12 +1298,12 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return al;
 	}
 
-	synchronized public boolean isTop(ZDisplayable zd) {
+	public boolean isTop(ZDisplayable zd) {
 		if (null != zd && al_zdispl.size() > 0 && al_zdispl.indexOf(zd) == al_zdispl.size() -1) return true;
 		return false;
 	}
 
-	synchronized public boolean isBottom(ZDisplayable zd) {
+	public boolean isBottom(ZDisplayable zd) {
 		if (null != zd && al_zdispl.size() > 0 && al_zdispl.indexOf(zd) == 0) return true;
 		return false;
 	}
@@ -1271,7 +1320,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Change z position in the layered stack, which defines the painting order. */ // the BOTTOM of the stack is the first element in the al_zdispl array
-	synchronized protected void move(final int place, final Displayable d) {
+	protected void move(final int place, final Displayable d) {
 		if (d instanceof ZDisplayable) {
 			int i = al_zdispl.indexOf(d);
 			if (-1 == i) {
@@ -1308,28 +1357,28 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		}
 	}
 
-	synchronized public int indexOf(ZDisplayable zd) {
+	public int indexOf(ZDisplayable zd) {
 		int k = al_zdispl.indexOf(zd);
 		if (-1 == k) return -1;
 		return al_zdispl.size() - k -1;
 	}
 
-	synchronized public boolean isEmptyAt(Layer la) {
+	public boolean isEmptyAt(Layer la) {
 		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
 			if (((ZDisplayable)it.next()).paintsAt(la)) return false;
 		}
 		return true;
 	}
 
-	synchronized public Displayable clone(final Project pr, final boolean copy_id) {
+	public Displayable clone(final Project pr, final boolean copy_id) {
 		return clone(pr, (Layer)al_layers.get(0), (Layer)al_layers.get(al_layers.size()-1), new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight())), false, copy_id);
 	}
 
 	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle. */
-	synchronized public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree, boolean copy_id) {
+	public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree, boolean copy_id) {
 		// obtain a LayerSet
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		final LayerSet copy = new LayerSet(pr, nid, getTitle(), this.width, this.height, this.rot_x, this.rot_y, this.rot_z, roi.width, roi.height, this.locked, this.snapshots_enabled, (AffineTransform)this.at.clone());
+		final LayerSet copy = new LayerSet(pr, nid, getTitle(), this.width, this.height, this.rot_x, this.rot_y, this.rot_z, roi.width, roi.height, this.locked, this.snapshots_mode, (AffineTransform)this.at.clone());
 		copy.setCalibration(getCalibrationCopy());
 		copy.snapshots_quality = this.snapshots_quality;
 		// copy objects that intersect the roi, from within the given range of layers
@@ -1369,7 +1418,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 
 	public int getPixelsDimension() { return max_dimension; }
 	public void setPixelsDimension(int d) {
-		Utils.logAll("LayerSet.setPixelsDimension not implemented yet."); // TODO
+		Utils.log2("LayerSet.setPixelsDimension not implemented yet."); // TODO
 	}
 
 	public void setPixelsVirtualizationEnabled(boolean b) { this.virtualization_enabled = b; }
@@ -1380,6 +1429,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 		return new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
 	}
 
+	/** Set the calibration to a clone of the given calibration. */
 	public void setCalibration(Calibration cal) {
 		if (null == cal) return;
 		this.calibration = (Calibration)cal.clone();
@@ -1400,7 +1450,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Restore calibration from the given XML attributes table.*/
-	public void restoreCalibration(Hashtable ht_attributes) {
+	public void restoreCalibration(HashMap ht_attributes) {
 		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			String key = (String)entry.getKey();
@@ -1454,14 +1504,14 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 	}
 
 	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c, which are stored in the given ArrayList; returns the same ArrayList, or a new one if its null. Includes the ZDisplayables. */
-	synchronized public ArrayList get(ArrayList all, final Class c) {
+	public ArrayList get(ArrayList all, final Class c) {
 		if (null == all) all = new ArrayList();
 		// check whether to include all the ZDisplayable objects
-		if (Displayable.class.equals(c) || ZDisplayable.class.equals(c)) all.addAll(al_zdispl);
+		if (Displayable.class == c || ZDisplayable.class == c) all.addAll(al_zdispl);
 		else {
 			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ){
 				Object ob = it.next();
-				if (ob.getClass().equals(c)) all.add(ob);
+				if (ob.getClass() == c) all.add(ob);
 			}
 		}
 		for (Layer layer : al_layers) {
@@ -1491,7 +1541,7 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			return null;
 		}
 		if (Layer.IMAGEPLUS == format) {
-			ImageStack stack = new ImageStack((int)Math.ceil(r.width*scale), (int)Math.ceil(r.height*scale));
+			ImageStack stack = new ImageStack((int)(r.width*scale), (int)(r.height*scale));
 			for (int i=first; i<=last; i++) {
 				Layer la = (Layer)al_layers.get(i);
 				Utils.log2("c is " + c);
@@ -1564,5 +1614,42 @@ public class LayerSet extends Displayable { // Displayable is already extending 
 			}
 		}
 		return al;
+	}
+
+	/** For fast search. */
+	Bucket root = null;
+	private HashMap<Displayable,ArrayList<Bucket>> db_map = null;
+
+	/** Returns a copy of the list of ZDisplayable objects. */
+	public ArrayList<ZDisplayable> getZDisplayables() { return (ArrayList<ZDisplayable>)al_zdispl.clone(); }
+
+	/** Returns the real list of displayables, not a copy. If you modify this list, Thor may ground you with His lightning. */
+	public ArrayList<ZDisplayable> getDisplayableList() {
+		return al_zdispl;
+	}
+
+	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap() {
+		return db_map;
+	}
+
+	public void updateBucket(final Displayable d) {
+		if (null != root) root.updatePosition(d, db_map);
+	}
+
+	public void recreateBuckets(final boolean layers) {
+		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
+		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
+		this.root.populate(this, db_map);
+		if (layers) {
+			for (Layer la : al_layers) {
+				// recreate only if there were any already
+				if (null != la.root) la.recreateBuckets();
+			}
+		}
+	}
+
+	/** Checks only buckets for ZDisplayable, not any related to any layer. */
+	public void checkBuckets() {
+		if (null == root || null == db_map) recreateBuckets(false);
 	}
 }

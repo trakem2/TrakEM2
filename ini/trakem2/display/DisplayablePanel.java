@@ -101,8 +101,8 @@ public class DisplayablePanel extends JPanel implements MouseListener, ItemListe
 	}
 
 	private String makeUpdatedTitle() {
-		if (null == d) Utils.log("null d");
-		else if (null == d.getTitle()) Utils.log("null title");
+		if (null == d) { Utils.log2("null d "); return ""; }
+		else if (null == d.getTitle()) { Utils.log2("null title for " + d); return ""; }
 		final Class c = d.getClass();
 		if (c.equals(Patch.class)) {
 			return d.getTitle();
@@ -126,7 +126,7 @@ public class DisplayablePanel extends JPanel implements MouseListener, ItemListe
 			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
 				// Prevent hiding when transforming
 				if (Display.isTransforming(d)) {
-					Utils.showStatus("Transforming! Can't change visibility.");
+					Utils.showStatus("Transforming! Can't change visibility.", false);
 					c.setSelected(true);
 					return;
 				}

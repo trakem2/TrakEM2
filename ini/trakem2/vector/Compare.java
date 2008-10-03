@@ -184,6 +184,7 @@ public class Compare {
 		ref[1] = (Choice)gd.getChoices().get(6);
 		ref[2] = (Choice)gd.getChoices().get(7);
 		project_choice.addItemListener(new ItemListener() {
+			// TODO something is wrong here when there are more than 2 projects involved.
 			public void itemStateChanged(ItemEvent ie) {
 				String project_name = (String)ie.getItem();
 				Project project = null;
@@ -199,11 +200,8 @@ public class Compare {
 				String[] pipe_names_ref = new String[pipes_ref.size()];
 				holder[0] = pipe_names_ref;
 				int[] s = findXYZAxes(presets[cpre.getSelectedIndex()], pipes_ref, pipe_names_ref);
-				for (int i=0; i<3; i++) if (-1 == s[i]) s[i] = 0;
-				int ix = ref[0].getSelectedIndex();
-				int iy = ref[1].getSelectedIndex();
-				int iz = ref[2].getSelectedIndex();
 				for (int i=0; i<3; i++) {
+					if (-1 == s[i]) s[i] = 0;
 					int index = ref[i].getSelectedIndex();
 					ref[i].removeAll();
 					for (int k=0; k<pipe_names_ref.length; k++) {
@@ -215,7 +213,7 @@ public class Compare {
 			}
 		});
 
-		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", true);
+		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", false);
 		gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
 		//gd.addNumericField("minimum_percentage that must remain: ", 1.0, 2);
 		gd.addSlider("minimum_percentage that must remain: ", 1, 100, 100);
@@ -227,6 +225,9 @@ public class Compare {
 		gd.addChoice("Transform_type: ", transforms, transforms[2]);
 		gd.addCheckbox("Chain_branches", true);
 		gd.addCheckbox("Score mutations only", false);
+		gd.addCheckbox("Substring matching", false);
+		gd.addCheckbox("Direct (no reverse matches)", true);
+		gd.addNumericField("Point interdistance (calibrated; zero means auto): ", 0, 2);
 
 		//////
 
@@ -262,13 +263,20 @@ public class Compare {
 		int transform_type = gd.getNextChoiceIndex();
 		boolean chain_branches = gd.getNextBoolean();
 		boolean score_mut = gd.getNextBoolean();
+		boolean substring_matching = gd.getNextBoolean();
+		boolean direct = gd.getNextBoolean();
+		double delta = gd.getNextNumber();
+		if (Double.isNaN(delta) || delta < 0) {
+			Utils.log("Nonsense delta: " + delta);
+			return null;
+		}
 
 		// check that the Calibration units are the same
 		if (!matchUnits(pipe.getLayerSet().getCalibration().getUnit(), all[iproject].getRootLayerSet().getCalibration().getUnit(), all[iproject].getTitle())) {
 			return null;
 		}
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true, score_mut);
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true, score_mut, substring_matching, direct, delta);
 	}
 
 	static private int[] findXYZAxes(final String[] presets, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
@@ -290,12 +298,12 @@ public class Compare {
 	}
 
 	/** Generate calibrated origin of coordinates. */
-	static private Object[] obtainOrigin(final Pipe[] axes, final int transform_type) {
+	static public Object[] obtainOrigin(final Pipe[] axes, final int transform_type) {
 		// pipe's axes
-		VectorString3D[] vs = new VectorString3D[3];
+		final VectorString3D[] vs = new VectorString3D[3];
 		for (int i=0; i<3; i++) vs[i] = axes[i].asVectorString3D();
 
-		Calibration cal = (null != axes[0].getLayerSet() ? axes[0].getLayerSet().getCalibration() : null);
+		final Calibration cal = (null != axes[0].getLayerSet() ? axes[0].getLayerSet().getCalibration() : null);
 		// 1 - calibrate
 		if (null != cal) {
 			for (int i=0; i<3; i++) vs[i].calibrate(cal);
@@ -307,21 +315,28 @@ public class Compare {
 		for (int i=0; i<3; i++) vs[i].resample(delta);
 
 		// return origin vectors for pipe's project
-		Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2], transform_type); // requires resampled vs
+		final Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2], transform_type); // requires resampled vs
 
 		return new Object[]{vs, o};
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut) {
-		if (axes.length < 3 || axes_ref.length < 3) {
-			Utils.log("Need three axes for each.");
-			return null;
-		}
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut, final boolean substring_matching, final boolean direct, final double delta) {
 		Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
 				try {
+
+		if (axes.length < 3 || axes_ref.length < 3) {
+			Utils.log("Need three axes for each.");
+			quit();
+			return;
+		}
+		if (pipe.length() < 1) {
+			Utils.log("Query pipe has less than 2 points");
+			quit();
+			return;
+		}
 
 		// obtain axes origin vectors for pipe's project
 		Object[] pack1 = obtainOrigin(axes, transform_type); // calibrates axes
@@ -337,7 +352,8 @@ public class Compare {
 
 
 		// fix axes according to the transform type
-		VectorString3D.matchOrigins(o1, o2, transform_type);
+		final double scaling_factor = VectorString3D.matchOrigins(o1, o2, transform_type);
+		Utils.log2("matchOrigins scaling factor: " + scaling_factor + " for transform_type " + transform_type);
 
 		// obtain transformation for query axes
 		final Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibration() : null);
@@ -357,6 +373,7 @@ public class Compare {
 
 		// transform the reference axes themselves
 		for (int i=0; i<3; i++) {
+			// Axes are already calibrated
 			vs_axes_ref[i].translate(trans2);
 			vs_axes_ref[i].transform(rot2);
 		}
@@ -402,7 +419,7 @@ public class Compare {
 
 		for (int ithread = 0; ithread < threads.length; ++ithread) {
 			threads[ithread] = new Thread(new Runnable() {
-				public void run() {
+				final public void run() {
 				////
 		for (int k = ai.getAndIncrement(); k < n_ref_chains; k = ai.getAndIncrement()) {
 			try {
@@ -411,17 +428,19 @@ public class Compare {
 				// match it against all queries
 				int next = 0;
 				for (Chain query : qh.queries) {
-					VectorString3D vs1 = query.vs;
-					double delta1 = vs1.getDelta();
-					VectorString3D vs2 = qh.makeVS2(ref, delta1); // was: makeVS
-					Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk);
-					double score = ((Double)ob[1]).doubleValue();
-					Editions ed = (Editions)ob[0];
-					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
+					final VectorString3D vs1 = query.vs;
+					final double delta1 = 0 == delta ? vs1.getDelta() : delta; // WARNING unchecked delta value
+					final VectorString3D vs2 = qh.makeVS2(ref, delta1);
+					final Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk, 1, direct, substring_matching);
+					final Editions ed = (Editions)ob[0];
+					//qh.addMatch(query, ref, ed, seq_sim, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
-					double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
-					qm[next++].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2], stats[3]);
+					final float prop_len = substring_matching ?
+								  1.0f
+								: ((float)vs1.length()) / vs2.length();
 
+					final double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
+					qm[next++].cm[k] = new ChainMatch(query, ref, ed, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W));
 				}
 			} catch (Exception e) {
 				IJError.print(e);
@@ -499,7 +518,7 @@ public class Compare {
 
 			if (child.getType().equals("pipe")) {
 				Pipe pipe = (Pipe)child.getObject();
-				if (!pipe.getLayerSet().equals(ls)) continue; // not from the same LayerSet, maybe from a nested one.
+				if (!pipe.getLayerSet().equals(ls) || pipe.length() < 2) continue; // not from the same LayerSet, maybe from a nested one.
 				if (null == chain) {
 					chain = new Chain(pipe);
 					chains.add(chain);
@@ -545,18 +564,18 @@ public class Compare {
 	/** Represents a list of concatenated pipes, where each pipe is parent of the next within the ProjectTree. */
 	static public class Chain {
 		final ArrayList<Pipe> pipes = new ArrayList<Pipe>();
-		VectorString3D vs;
+		public VectorString3D vs; // the complete path of chained pipes
 		private Chain() {}
-		Chain(Pipe root) {
+		public Chain(Pipe root) {
 			this.pipes.add(root);
 			this.vs = root.asVectorString3D();
 		}
-		void append(Pipe p) throws Exception {
+		final public void append(Pipe p) throws Exception {
 			//if (pipes.contains(p)) throw new Exception("Already contains pipe #" + p.getId());
 			pipes.add(p);
 			vs = vs.chain(p.asVectorString3D());
 		}
-		final Chain duplicate() {
+		public final Chain duplicate() {
 			Chain chain = new Chain();
 			chain.pipes.addAll(this.pipes);
 			chain.vs = (VectorString3D)this.vs.clone();
@@ -590,15 +609,44 @@ public class Compare {
 			for (int i=1; i<pipes.size(); i++) sb.append(' ').append('#').append(pipes.get(i).getId());
 			return sb.toString();
 		}
+		/** Returns max 10 chars, solely the name of the parent's parent node of the root pipe (aka the [lineage] containing the [branch]) or the id if too long. Intended for the 10-digit limitation in the problem in .dis files for Phylip. */
+		final public String getShortCellTitle() {
+			Pipe root = pipes.get(0);
+			ProjectThing pt = root.getProject().findProjectThing(root);
+			String short_title = null;
+			// investigate the [branch] title
+			pt = (ProjectThing)pt.getParent(); // the [branch]
+			String title = pt.getTitle();
+			if (!title.equals(pt.getType())) short_title = title; // the [branch] was named
+			// investigate the lineage title
+			if (null == short_title) {
+				pt = (ProjectThing)pt.getParent(); // the [lineage]
+				title = pt.getTitle();
+				if (!title.equals(pt.getType())) short_title = title; // the [lineage] was named
+			}
+			// check length
+			if (null != short_title && short_title.length() > 10) {
+				short_title = null; // too long!
+			}
+			// else fall back to unique id
+			if (null == short_title) {
+				short_title = Long.toString(root.getId());
+				if (short_title.length() <= 8) short_title = "id" + short_title;
+			}
+			while (short_title.length() > 10) {
+				short_title = short_title.substring(1);
+			}
+			return short_title;
+		}
 		/** Returns the color of the root pipe. */
-		public Color getColor() {
+		final public Color getColor() {
 			return pipes.get(0).getColor();
 		}
 		final public Pipe getRoot() {
 			return pipes.get(0);
 		}
 		/** Show centered, set visible and select. */
-		public void showCentered2D(boolean shift_down) {
+		final public void showCentered2D(boolean shift_down) {
 			Rectangle b = null;
 			Display display = Display.getFront();
 			for (Pipe p : pipes) {
@@ -657,22 +705,10 @@ public class Compare {
 			vs.resample(delta);
 			// 3 - transform to axes
 			if (null != trans1) vs.translate(trans1);
-			if (null != rot1) vs.transform(rot1);
+			if (null != rot1) vs.transform(rot1); // contains scale and shear as well, but not translation
 			// Store all
 			queries.add(chain);
 		}
-
-		/*
-		synchronized final void addMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist) {
-			final ChainMatch cm = new ChainMatch(query, ref, ed, score, phys_dist);
-			ArrayList<ChainMatch> al = matches.get(query);
-			if (null == al) {
-				al = new ArrayList<ChainMatch>();
-				matches.put(query, al);
-			}
-			al.add(cm);
-		}
-		*/
 
 		final void addMatch(final ChainMatch cm) {
 			ArrayList<ChainMatch> al = matches.get(cm.query);
@@ -709,14 +745,18 @@ public class Compare {
 			return bringTo((VectorString3D)ref.vs.clone(), delta, cal2, trans2, rot2);
 		}
 
+		final VectorString3D makeVS1(final Chain q, final double delta) {
+			return bringTo((VectorString3D)q.vs.clone(), delta, cal1, trans1, rot1);
+		}
+
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
 		final VectorString3D makeVS2(final Pipe ref, final double delta) {
 			return bringTo(ref.asVectorString3D(), delta, cal2, trans2, rot2);
 		}
 
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
-		final VectorString3D makeVS1(final Pipe ref, final double delta) {
-			return bringTo(ref.asVectorString3D(), delta, cal1, trans1, rot1);
+		final VectorString3D makeVS1(final Pipe q, final double delta) {
+			return bringTo(q.asVectorString3D(), delta, cal1, trans1, rot1);
 		}
 
 		final VectorString3D bringTo(final VectorString3D vs, final double delta, final Calibration cal, final Vector3d trans, final Transform3D rot) {
@@ -815,20 +855,30 @@ public class Compare {
 		Chain query;
 		Chain ref;
 		Editions ed;
-		double score; // similarity measure made of num 1 - ((insertions + num deletions) / max (len1, len2))
+		double score; // combined score, made from several of the parameters below (S, L and M as of 20080823)
+		double seq_sim; // similarity measure made of num 1 - ((num insertions + num deletions) / max (len1, len2)).
 		double phys_dist; // average distance between mutation pair interdistances
 		double cum_phys_dist; // cummulative physical distance
 		double stdDev; // between mutation pairs
 		double median; // of matched mutation pair interdistances
-		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double score, final double phys_dist, final double cum_phys_dist, final double stdDev, final double median) {
+		double prop_mut; // the proportion of mutation pairs relative to the length of the queried sequence
+		float prop_len; // the proportion of length of query sequence versus reference sequence
+		double proximity; // unitless value: cummulative distance of pairs relative to query sequence length
+		double proximity_mut; // unitless value: cummulative distance of only mutation pairs relative to query sequence length
+		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double[] stats, final float prop_len, final double score) {
 			this.query = query;
 			this.ref = ref;
 			this.ed = ed;
-			this.score = score;
-			this.phys_dist = phys_dist;
-			this.cum_phys_dist = cum_phys_dist;
-			this.stdDev = stdDev;
-			this.median = median;
+			this.phys_dist = stats[0];
+			this.cum_phys_dist = stats[1];
+			this.stdDev = stats[2];
+			this.median = stats[3];
+			this.prop_mut = stats[4];
+			this.prop_len = prop_len;
+			this.score = score; // combined
+			this.seq_sim = stats[6];
+			this.proximity = stats[7];
+			this.proximity_mut = stats[8];
 		}
 	}
 
@@ -847,9 +897,17 @@ public class Compare {
 			ChainMatch cm2 = (ChainMatch)ob2;
 			// select for smallest physical distance of the center of mass
 			// double val = cm1.phys_dist - cm2.phys_dist;
+			/*
 			final double val = cm1.median - cm2.median;
 			if (val < 0) return -1; // m1 is closer
 			if (val > 0) return 1; // m1 is further away
+			return 0; // same distance
+			*/
+
+			// Select the largest score
+			final double val = cm1.score - cm2.score;
+			if (val > 0) return -1;
+			if (val < 0) return 1;
 			return 0; // same distance
 		}
 	}
@@ -857,7 +915,7 @@ public class Compare {
 		public int compare(final Object ob1, final Object ob2) {
 			ChainMatch cm1 = (ChainMatch)ob1;
 			ChainMatch cm2 = (ChainMatch)ob2;
-			// select for largest similarity score
+			// select for largest score
 			double val = cm1.score - cm2.score;
 			if (val < 0) return 1; // m2 is more similar
 			if (val > 0) return -1; // m2 is less similar
@@ -879,7 +937,7 @@ public class Compare {
 			Pipe pipe = qh.getAllQueriedPipes().iterator().next();
 			LayerSet ls = pipe.getLayerSet();
 			Calibration cal1 = ls.getCalibration();
-			this.common = new LayerSet(pipe.getProject(), pipe.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, false, new AffineTransform());
+			this.common = new LayerSet(pipe.getProject(), pipe.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, 2, new AffineTransform());
 			Calibration cal = new Calibration();
 			cal.setUnit(cal1.getUnit()); // homogeneous on all axes
 			this.common.setCalibration(cal);
@@ -901,6 +959,19 @@ public class Compare {
 				showNode3D(query, true);
 			}
 			showNode3D(ref, false);
+		}
+		public void showNearby(Chain query) {
+			reset();
+			if (!query_shows) showAxesAndQueried();
+			ArrayList<ChainMatch> matches = qh.matches.get(query);
+			final VectorString3D vs_query = qh.makeVS1(query, query.vs.getDelta());
+			final double radius = vs_query.computeLength() * 2;
+			for (ChainMatch match : matches) {
+				VectorString3D vs_ref = qh.makeVS2(match.ref, query.vs.getDelta());
+				if (vs_query.isNear(vs_ref, radius)) {
+					Display3D.addMesh(common, vs_ref, match.ref.getTitle(), match.ref.getColor());
+				}
+			}
 		}
 		void showNode3D(Chain chain, boolean as_query) {
 			Pipe root = chain.getRoot();
@@ -964,6 +1035,10 @@ public class Compare {
 		}
 	}
 
+	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
+		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, COMBINED, false, false);
+	}
+
 	/** Since comparing two sequences starting from one end or starting from the other
 	 *  is not the same at all, this method performs the match starting first from one
 	 *  end and then from the other.
@@ -979,13 +1054,108 @@ public class Compare {
 	 *
 	 * ASSUMES both VectorString3D are open.
 	 *
+	 * @param direct Whether to test vs1 against vs2 only, or to try all 4 possible combinations of reversed versus non-reversed and pick the best.
 	 * */
-	static private final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
+	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching) {
+
+		if (substring_matching) {
+			// identify shorter chain
+			final VectorString3D shorter = vs1.length() < vs2.length() ? vs1 : vs2;
+			final VectorString3D longer  = vs1 == shorter ? vs2 : vs1;
+			
+			// iterate matching of shorter string inside longer string:
+			// (so that the match is always between two equally long strings)
+			// aaaaaaaa   : 8 elements
+			// bbbbb      : 5 elements
+			//  bbbbb      --- total 4 matches to try
+			//   bbbbb
+			//    bbbbb
+			//
+			final int max_offset = longer.length() - shorter.length() + 1;
+			Object[] best = null;
+			for (int k=0; k<max_offset; k++) {
+				final VectorString3D longer_sub = longer.substring(k, k+shorter.length());
+				//Utils.log2("substring_matching lengths: shorter, longer : " + shorter.length() + ", " + longer_sub.length());
+				final Object[] ob = direct ?
+					              matchDirect(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type)
+						    : matchFwdRev(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type);
+				if (null == best) best = ob;
+				else if (((Double)ob[1]).doubleValue() > ((Double)best[1]).doubleValue()) best = ob;
+			}
+			return best;
+		} else {
+			if (direct) {
+				return matchDirect(vs1, vs2, delta, skip_ends, max_mut, min_chunk, distance_type);
+			} else {
+				return matchFwdRev(vs1, vs2, delta, skip_ends, max_mut, min_chunk, distance_type);
+			}
+		}
+	}
+
+	static public final int LEVENSHTEIN = 0;
+	static public final int DISSIMILARITY = 1;
+	static public final int AVG_PHYS_DIST = 2;
+	static public final int MEDIAN_PHYS_DIST = 3;
+	static public final int CUM_PHYST_DIST = 4;
+	static public final int STD_DEV = 5;
+	static public final int COMBINED = 6;
+	static public final int PROXIMITY = 7;
+	static public final int PROXIMITY_MUT = 8;
+	static public final int STD_DEV_ALL = 9;
+
+	// Weights as empirically approximated with some lineages, with S. Preibisch ( see Test_Scoring.java )
+	static public final double[] W = new double[]{1.3345290383577453, -0.0012626693452889859, -0.012764729437173508, -0.13344076489951817};
+
+	static public final double score(final double seq_sim, final double levenshtein, final double median_phys_dist, final double[] w) {
+		//       S                L                    M
+		return seq_sim * w[0] + levenshtein * w[1] + median_phys_dist * w[2] + w[3];
+	}
+
+	/** Zero is best; gets bad towards positive infinite. */
+	static private final double getScore(Editions ed, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
+		switch (distance_type) {
+			case LEVENSHTEIN: // Levenshtein
+				return ed.getDistance();
+			case DISSIMILARITY: // Dissimilarity
+				return 1 - ed.getSimilarity(skip_ends, max_mut, min_chunk);
+			case AVG_PHYS_DIST: // average physical distance between mutation pairs only
+				return ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
+			case MEDIAN_PHYS_DIST: // median physical distance between all pairs
+				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3]; // 3 is median
+			case CUM_PHYST_DIST: // cummulative physical distance between all pairs
+				return ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
+			case STD_DEV: // stdDev of distances between mutation pairs only
+				return ed.getStdDev(skip_ends, max_mut, min_chunk);
+			case STD_DEV_ALL: // stdDev of distances between all pairs
+				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[2];
+			case COMBINED: // combined score
+				return 1 / score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W);
+			case PROXIMITY: // cummulative distance relative to largest physical length of the two sequences
+				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[7]; // 7 is proximity
+			case PROXIMITY_MUT: // cummulative distance of mutation pairs relative to largest physical length of the two sequences
+				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[8]; // 8 is proximity
+		}
+		return Double.NaN;
+	}
+
+	static private final Object[] matchDirect(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
+		// Levenshtein is unfortunately not commutative: must try both
+		final Editions ed1 = new Editions(vs1, vs2, delta, false);
+		double score1 = getScore(ed1, skip_ends, max_mut, min_chunk, distance_type);
+		final Editions ed2 = new Editions(vs2, vs1, delta, false);
+		double score2 = getScore(ed2, skip_ends, max_mut, min_chunk, distance_type);
+		return score1 < score2 ?
+			new Object[]{ed1, score1}
+		      : new Object[]{ed2, score2};
+	}
+
+	// Match in all possible ways
+	static private final Object[] matchFwdRev(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
 
 		final VectorString3D vs1rev = vs1.makeReversedCopy();
 		final VectorString3D vs2rev = vs2.makeReversedCopy();
 
-		Editions[] ed = new Editions[4];
+		final Editions[] ed = new Editions[4];
 
 		// vs1 vs2
 		ed[0] = new Editions(vs1, vs2, delta, false);
@@ -996,30 +1166,27 @@ public class Compare {
 		// vs1rev vs2
 		ed[3] = new Editions(vs1rev, vs2, delta, false);
 
-		double best_score = 0;
-		double best_score1 = 0;
+		//double best_score1 = 0;
+		double best_score = Double.MAX_VALUE; // worst possible
 
-		int best_i = 0;
+		Editions best_ed = null;
 		for (int i=0; i<ed.length; i++) {
-			double score1 = ed[i].getSimilarity();
-			double score = ed[i].getSimilarity(skip_ends, max_mut, min_chunk);
-			if (score > best_score) {
-				best_i = i;
+			double score = getScore(ed[i], skip_ends, max_mut, min_chunk, distance_type);
+			if (score < best_score) {
+				best_ed = ed[i];
 				best_score = score;
-				best_score1 = score1;
+				//best_score1 = score1;
 			}
 		}
 		//Utils.log2("score, score1: " + best_score + ", " + best_score1);
-
-		Editions best_ed = ed[best_i];
 
 		// now test also starting from the middle of the longest mutation chunk of the best matching
 		try {
 			Editions ed_center = best_ed.recreateFromCenter(max_mut);
 			// is null if no chunks were found
 			if (null != ed_center) {
-				double score_center = ed_center.getSimilarity(skip_ends, max_mut, min_chunk);
-				if (score_center > best_score) {
+				double score_center = getScore(ed_center, skip_ends, max_mut, min_chunk, distance_type);
+				if (score_center < best_score) {
 					best_ed = ed_center;
 					best_score = score_center;
 				}
@@ -1033,10 +1200,9 @@ public class Compare {
 
 	static private boolean matchUnits(String unit1, String unit2, String project_title) {
 		if (unit1.equals(unit2)) return true;
-		// else, ask
-		YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The calibration units of the queried pipe (" + unit1 + ") does not match with that of the reference project '" + project_title + "' (" + unit2 + ").\nContinue anyway?");
-		if (yn.yesPressed()) return true;
-		return false;
+		// else, record problem
+		Utils.log("WARNING: the calibration units of the queried pipe (" + unit1 + ") does not match with that of the reference project '" + project_title + "' (" + unit2 + ").");
+		return true;
 	}
 
 	/** Compare the given pipe with other pipes in the given standard project(s). WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
@@ -1045,6 +1211,11 @@ public class Compare {
 			public void run() {
 				startedWorking();
 				try {
+		if (pipe.length() < 2) {
+			Utils.log("Query pipe has less than 2 points!");
+			quit();
+			return;
+		}
 
 		Utils.log2("Will search into " + ref.length + " projects.");
 
@@ -1142,7 +1313,8 @@ public class Compare {
 					}
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
 					double[] stats = ed.getStatistics(false, 0, 1, false);
-					qm[q].cm[k] = new ChainMatch(query, ref, ed, score, stats[0], stats[1], stats[2], stats[3]);
+					float prop_len = ((float)vs1.length()) / vs2.length();
+					qm[q].cm[k] = new ChainMatch(query, ref, ed, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(false, 0, 0, false)[3], Compare.W));
 				}
 
 			} catch (Exception e) {
@@ -1250,6 +1422,7 @@ public class Compare {
 				int sel = tabs.getSelectedIndex();
 				ht_tabs.remove(tabs.getComponentAt(sel));
 				tabs.remove(sel);
+				if (0 == ht_tabs.size()) label.setText("[ -- empty -- ]");
 				return;
 			default:
 				return;
@@ -1266,7 +1439,7 @@ public class Compare {
 			});
 			if (null == ht_tabs) ht_tabs = new Hashtable<JScrollPane,Chain>();
 			tabs = new JTabbedPane();
-			tabs.setPreferredSize(new Dimension(350,250));
+			tabs.setPreferredSize(new Dimension(800,500));
 			// a listener to change the label text when the tab is selected
 			ChangeListener tabs_listener =  new ChangeListener() {
 				public void stateChanged(ChangeEvent ce) {
@@ -1352,27 +1525,37 @@ public class Compare {
 			switch (col) {
 				case 0: return "Project";
 				case 1: return "Match";
-				case 2: return "Similarity";
-				case 3: return "Lev Dist";
-				case 4: return null != qh.cal2 ? "Dist (" + qh.cal2.getUnits() + ")" : "Dist";
-				case 5: return "Median";
-				case 6: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
-				case 7: return "Std Dev";
+				case 2: return "Score";
+				case 3: return "Seq Sim"; // sequence similarity
+				case 4: return "Lev Dist";
+				case 5: return null != qh.cal2 ? "Dist (" + qh.cal2.getUnits() + ")" : "Dist";
+				case 6: return "Median";
+				case 7: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
+				case 8: return "Std Dev";
+				case 9: return "Prop Mut";
+				case 10: return "Prop Lengths";
+				case 11: return "Proximity";
+				case 12: return "Prox Mut";
 				default: return "";
 			}
 		}
 		public int getRowCount() { return cm.size(); }
-		public int getColumnCount() { return 7; }
+		public int getColumnCount() { return 13; }
 		public Object getValueAt(int row, int col) {
 			switch (col) {
 				case 0: return cm.get(row).ref.getRoot().getProject();
 				case 1: return cm.get(row).ref.getCellTitle();
-				case 2: return Utils.cutNumber(Math.floor(cm.get(row).score * 10000) / 100, 2) + " %";
-				case 3: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
-				case 4: return Utils.cutNumber(cm.get(row).phys_dist, 2);
-				case 5: return Utils.cutNumber(cm.get(row).median, 2);
-				case 6: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
-				case 7: return Utils.cutNumber(cm.get(row).stdDev, 2);
+				case 2: return Utils.cutNumber(cm.get(row).score, 2); // combined score
+				case 3: return Utils.cutNumber(cm.get(row).seq_sim * 100, 2) + " %"; // 1 - seq_sim, to convert from dissimilarity to similarity
+				case 4: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
+				case 5: return Utils.cutNumber(cm.get(row).phys_dist, 2);
+				case 6: return Utils.cutNumber(cm.get(row).median, 2);
+				case 7: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
+				case 8: return Utils.cutNumber(cm.get(row).stdDev, 2);
+				case 9: return Utils.cutNumber(cm.get(row).prop_mut * 100, 2) + " %"; // the proportion of mutations, relative to the query sequence length
+				case 10: return Utils.cutNumber(cm.get(row).prop_len * 100, 2) + " %"; // the proportion of lengths = len(query) / len(ref)
+				case 11: return Utils.cutNumber(cm.get(row).proximity, 2);
+				case 12: return Utils.cutNumber(cm.get(row).proximity_mut, 2);
 				default: return "";
 			}
 		}
@@ -1411,6 +1594,7 @@ public class Compare {
 				final String showfull3D = "Show full node in 3D";
 				final String showCentered = "Show centered in 2D";
 				final String showAxes = "Show axes and queried";
+				final String showNearby = "Show all nearby";
 
 				// TODO: need better
 				//  - to show the matched chains alone
@@ -1435,6 +1619,8 @@ public class Compare {
 							model.vis.showAxesAndQueried();
 						} else if (command.equals(showfull3D)) {
 							model.vis.showFull3D(model.query, ref);
+						} else if (command.equals(showNearby)) {
+							model.vis.showNearby(model.query);
 						}
 					}
 				};
@@ -1446,6 +1632,7 @@ public class Compare {
 				item = new JMenuItem(showCentered); popup.add(item); item.addActionListener(listener);
 				item = new JMenuItem(showAxes); popup.add(item); item.addActionListener(listener);
 				if (null == model.qh.vs_axes) item.setEnabled(false);
+				item = new JMenuItem(showNearby); popup.add(item); item.addActionListener(listener);
 
 				popup.show(table, me.getX(), me.getY());
 			}
@@ -1453,7 +1640,15 @@ public class Compare {
 	}
 
 
-	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired. */
+	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
+	 *
+	 * @param to_file Whether to save the results to a file and popup a save dialog for it or not. In any case the results are stored in the worker's load, which you can retrieve like:
+	 *     Bureaucrat bu = Compare.compareAllToAll(true);
+	 *     Object result = bu.getWorker().getResult();
+	 *     float[][] scores = (float[][])result[0];
+	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
+	 * @param normalize Whether to normalize the score values so that the maximum value is 1 and the minimum is 0, or not.
+	 */
 	static public Bureaucrat compareAllToAll(final boolean to_file) {
 		final GenericDialog gd = new GenericDialog("All to all");
 		gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
@@ -1475,12 +1670,15 @@ public class Compare {
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
 		gd.addChoice("Presets: ", preset_names, preset_names[0]);
 		gd.addMessage("");
-		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Cummulative physical distance", "Standard deviation"}; // TODO add median
-		gd.addChoice("Dissimilarity type: ", distance_types, distance_types[2]);
-		String[] format = {"ggobi XML", ".csv"};
+		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs"};
+		gd.addChoice("Scoring type: ", distance_types, distance_types[3]);
+		final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
 		if (to_file) {
-			gd.addChoice("File format: ", format, format[0]);
+			gd.addChoice("File format: ", formats, formats[2]);
 		}
+		gd.addCheckbox("normalize", false);
+		gd.addCheckbox("direct", true);
+		gd.addCheckbox("substring_matching", true);
 
 		//////
 
@@ -1511,7 +1709,26 @@ public class Compare {
 
 		int distance_type = gd.getNextChoiceIndex();
 
-		boolean xml = to_file && 0 == gd.getNextChoiceIndex();
+		String format = formats[0];
+		if (to_file) format = gd.getNextChoice().trim();
+
+		boolean normalize = gd.getNextBoolean();
+		boolean direct = gd.getNextBoolean();
+		boolean substring_matching = gd.getNextBoolean();
+
+		String filename = null,
+		       dir = null;
+
+		if (to_file) {
+			SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
+			filename = sd.getFileName();
+			if (null == filename) {
+				finishedWorking();
+				return;
+			}
+			dir = sd.getDirectory().replace('\\', '/');
+			if (!dir.endsWith("/")) dir += "/";
+		}
 
 
 		// gather all chains
@@ -1571,7 +1788,8 @@ public class Compare {
 					o[i] = (Vector3d[])pack[1];
 				}
 				// match the scales to make the largest be 1.0
-				VectorString3D.matchOrigins(o, transform_type);
+				final double scaling_factor = VectorString3D.matchOrigins(o, transform_type);
+				Utils.log2("matchOrigins scaling factor: " + scaling_factor + " for transform_type " + transform_type);
 				// transform all
 				for (int i=0; i<p.length; i++) {
 					Vector3d trans = new Vector3d(-o[i][3].x, -o[i][3].y, -o[i][3].z);
@@ -1588,61 +1806,45 @@ public class Compare {
 			for (Chain chain : chains) chain.vs.resample(delta);
 		}
 
-
-
-
 		// compare all to all
-		//final double[] scores = new double[((n_chains+1) * n_chains) / 2];
-		//int next = 0;
-		final float[][] scores = new float[n_chains][n_chains];
-		for (int i=0; i<n_chains; i++) {
-			final VectorString3D vs1 = chains.get(i).vs;
-			for (int j=i+1; j<n_chains; j++) {
-				if (this.quit) return;
-				Object[] ob = findBestMatch(vs1, chains.get(j).vs, delta, skip_ends, max_mut, min_chunk);
-				//scores[next++] = 1 - ((Double)ob[1]).doubleValue();
-				// Record the dissimilarity
-				switch (distance_type) {
-					case 0: // Levenshtein
-						scores[i][j] = (float)((Editions)ob[0]).getDistance();
-						break;
-					case 1: // Dissimilarity
-						scores[i][j] = 1.0f - (float)((Double)ob[1]).doubleValue();
-						break;
-					case 2: // average physical distance between mutation pairs
-						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
-						break;
-					case 3: // cummulative physical distance between mutation pairs
-						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
-					case 4: // stdDev of distances between mutation pairs
-						scores[i][j] = (float)((Editions)ob[0]).getStdDev(skip_ends, max_mut, min_chunk);
-						break;
-				}
-				scores[j][i] = scores[i][j];
-				// easier ... I don't need double precision anyway, so the float matrix is half the size.
-			}
+		final VectorString3D[] vs = new VectorString3D[n_chains];
+		for (int i=0; i<n_chains; i++) vs[i] = chains.get(i).vs;
+		final float[][] scores = Compare.scoreAllToAll(vs, distance_type, delta, skip_ends, max_mut, min_chunk, direct, substring_matching, this);
+
+		if (null == scores) {
+			finishedWorking();
+			return;
 		}
-		// store half-matrix into the worker
-		this.result = scores;
+
+		// store matrix and chains into the worker
+		this.result = new Object[]{scores, chains};
 
 		// write to file
 		if (!to_file) {
 			finishedWorking();
 			return;
 		}
-		SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
-		String filename = sd.getFileName();
-		if (null == filename) {
-			finishedWorking();
-			return;
-		}
-		String dir = sd.getDirectory().replace('\\', '/');
-		if (!dir.endsWith("/")) dir += "/";
+
 		File f = new File(dir + filename);
-		OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
+		final OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
+
+		// Normalize matrix to largest value of 1.0
+		if (normalize) {
+			float max = 0;
+			for (int i=0; i<scores.length; i++) { // traverse half matrix ony: it's mirrored
+				for (int j=i; j<scores[0].length; j++) {
+					if (scores[i][j] > max) max = scores[i][j];
+				}
+			}
+			for (int i=0; i<scores.length; i++) {
+				for (int j=i; j<scores[0].length; j++) {
+					scores[i][j] = scores[j][i] /= max;
+				}
+			}
+		}
 
 		// write chain titles, with project prefix
-		if (!xml) {
+		if (format.equals(formats[0])) {
 			// as csv:
 			try {
 				StringBuffer[] titles = new StringBuffer[n_chains];
@@ -1669,7 +1871,7 @@ public class Compare {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-		} else {
+		} else if (format.equals(formats[1])) {
 			// as XML:
 			try {
 				StringBuffer sb = new StringBuffer("<?xml version=\"1.0\"?>\n<!DOCTYPE ggobidata SYSTEM \"ggobi.dtd\">\n");
@@ -1710,6 +1912,71 @@ public class Compare {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
+		} else if (format.equals(formats[2])) {
+			// as Phylip .dis
+			try {
+				// collect different projects
+				final ArrayList<Project> projects = new ArrayList<Project>();
+				for (Chain chain : chains) {
+					Project p = chain.getRoot().getProject();
+					if (!projects.contains(p)) projects.add(p);
+				}
+				final HashSet names = new HashSet();
+				final StringBuffer sb = new StringBuffer();
+				sb.append(scores.length).append('\n');
+				dos.write(sb.toString());
+				for (int i=0; i<scores.length; i++) {
+					sb.setLength(0);
+					String title = chains.get(i).getShortCellTitle().replace(' ', '_').replace('\t', '_').replace('[', '-').replace(']', '-');
+					// Crop title to 6 chars
+					if (title.length() > 8) {
+						String title2 = title.substring(0, 8);
+						Utils.log2("Cropping " + title + " to " + title2);
+						title = title2;
+					}
+					int k = 1;
+					String name = title;
+					// Prepend a project char identifier
+					String project_name = "";
+					if (projects.size() > 1) {
+						project_name = Utils.getCharacter(projects.indexOf(chains.get(i).getRoot().getProject()) + 1).toLowerCase();
+						name = project_name + title;
+					}
+					// Append a char index when name is used multiple times (mostly because of branching, and other reasons)
+					if (names.contains(name)) {
+						names.remove(name);
+						names.add(name + "a");
+						name += "a";
+						Utils.log2("Contained name " + name + ", thus set to " + name + "a");
+					} else if (names.contains(name + "a")) name += "a"; // so the 'while' will find it
+					while (names.contains(name)) {
+						k++;
+						name = project_name + title + Utils.getCharacter(k).toLowerCase();
+					}
+					names.add(name);
+					//
+					final int len = 12;
+					sb.append(name);
+					for (int j=len - name.length(); j>0; j--) sb.append(' '); // pad with spaces up to len
+					int count = 0;
+					for (int j=0; j<scores[0].length; j++) {
+						sb.append(' ').append(scores[i][j]);
+						count++;
+						if (7 == count && j < scores[0].length-1) {
+							sb.append('\n');
+							count = 0;
+							while (++count < len) sb.append(' ');
+							sb.append(' ');
+							count = 0;
+						}
+					}
+					sb.append('\n');
+					dos.write(sb.toString());
+				}
+				dos.flush();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 		}
 
 		dos.close();
@@ -1725,5 +1992,65 @@ public class Compare {
 		Bureaucrat burro = new Bureaucrat(worker, p);
 		burro.goHaveBreakfast();
 		return burro;
+	}
+
+	/** Returns the half matrix of scores, with values copied from one half matrix to the other, and a diagonal of zeros.
+	 * @param distance_type ranges from 0 to 5, and includes: 0=Levenshtein, 1=Dissimilarity, 2=Average physical distance, 3=Median physical distance, 4=Cummulative physical distance and 5=Standard deviation. */
+	static public float[][] scoreAllToAll(final VectorString3D[] vs, final int distance_type, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final boolean direct, final boolean substring_matching, final Worker worker) {
+		final float[][] scores = new float[vs.length][vs.length];
+
+
+		final AtomicInteger ai = new AtomicInteger(0);
+
+		final Thread[] threads = MultiThreading.newThreads();
+		for (int ithread=0; ithread<threads.length; ithread++) {
+			threads[ithread] = new Thread() { public void run() {
+				////
+
+		for (int i=ai.getAndIncrement(); i<vs.length; i=ai.getAndIncrement()) {
+			final VectorString3D vs1 = vs[i];
+			for (int j=i+1; j<vs.length; j++) {
+				if (null != worker && worker.hasQuitted()) return;
+				final Object[] ob = findBestMatch(vs[i], vs[j], delta, skip_ends, max_mut, min_chunk, distance_type, direct, substring_matching); // TODO should add 'distance_type' as well for the selection of the best match when not direct.
+				/*
+				switch (distance_type) {
+					case 0: // Levenshtein
+						scores[i][j] = (float)((Editions)ob[0]).getDistance();
+						break;
+					case 1: // dissimilarity
+						scores[i][j] = (float)((Double)ob[1]).doubleValue();
+						break;
+					case 2: // average physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
+						break;
+					case 3: // median physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getStatistics(skip_ends, max_mut, min_chunk, false)[3]; // 3 is median
+						break;
+					case 4: // cummulative physical distance between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getPhysicalDistance(skip_ends, max_mut, min_chunk, false);
+						break;
+					case 5: // stdDev of distances between mutation pairs
+						scores[i][j] = (float)((Editions)ob[0]).getStdDev(skip_ends, max_mut, min_chunk);
+						break;
+				}
+				*/
+
+				final Editions ed = (Editions)ob[0];
+				scores[i][j] = (float)getScore(ed, skip_ends, max_mut, min_chunk, distance_type);
+
+
+				// mirror value
+				scores[j][i] = scores[i][j];
+			}
+		}
+
+			////
+			}};
+		}
+		MultiThreading.startAndJoin(threads);
+
+		if (null != worker && worker.hasQuitted()) return null;
+
+		return scores;
 	}
 }

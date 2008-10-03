@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005,2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005,2006,2007,2008 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -27,6 +27,8 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.imaging.FloatProcessorT2;
 
 
 import ij.IJ;
@@ -35,6 +37,11 @@ import ij.Menus;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.text.TextWindow;
+import ij.measure.ResultsTable;
+import ij.process.*;
 import ij.io.*;
 import ij.process.ImageProcessor;
 import ij.process.ImageConverter;
@@ -46,10 +53,15 @@ import java.awt.Component;
 import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
+import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
+import java.awt.Rectangle;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
@@ -57,11 +69,15 @@ import java.awt.event.MouseEvent;
 import java.awt.Event;
 import javax.swing.SwingUtilities;
 
+import java.lang.reflect.Field;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Vector;
 import java.util.Calendar;
 
+import javax.vecmath.Point3f;
+import javax.vecmath.Vector3f;
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
@@ -69,7 +85,7 @@ import java.util.Calendar;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.5q 2008-04-10";
+	static public String version = "0.5z 2008-08-25";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -95,6 +111,7 @@ public class Utils implements ij.plugin.PlugIn {
 		private boolean loading = false;
 		private boolean go = true;
 		public LogDispatcher() {
+			super("T2-Log-Dispatcher");
 			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
@@ -144,7 +161,9 @@ public class Utils implements ij.plugin.PlugIn {
 		private String msg = null;
 		private boolean loading = false;
 		private boolean go = true;
+		private double progress = -1;
 		public StatusDispatcher() {
+			super("T2-Status-Dispatcher");
 			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
@@ -163,6 +182,16 @@ public class Utils implements ij.plugin.PlugIn {
 				e.printStackTrace();
 			}
 		}
+		public final void showProgress(final double progress) {
+			try {
+				synchronized (this) {
+					this.progress = progress;
+					notify();
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
 		public void run() {
 			while (go) {
 				try {
@@ -171,6 +200,10 @@ public class Utils implements ij.plugin.PlugIn {
 						if (null != msg) {
 							IJ.showStatus(msg);
 							msg = null;
+						}
+						if (-1 != progress) {
+							IJ.showProgress(progress);
+							progress = -1;
 						}
 						wait();
 					}
@@ -242,9 +275,9 @@ public class Utils implements ij.plugin.PlugIn {
 		Utils.debug_sql = debug_sql;
 	}
 
+	/** Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I had the same problem for Pipe.java in the A_3D_editing plugin)
+	    Using schemata in JavaAngles.ai as reference */
 	static public double fixAtan2Angle(double angle) {
-		//Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I has the same problem for Pipe.java in the A_3D_editing plugin)
-		//Using schemata in JavaAngles.ai as reference
 
 		double a = angle;
 		//fix too large angles
@@ -356,20 +389,25 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public final void showProgress(final double p) {
 		//IJ.showProgress(p); // never happens, can't repaint even though they are different threads
-		if (0 == p) {
-			last_progress = 0; // reset
-			last_percent = 0;
+		if (null == IJ.getInstance() || !ControlWindow.isGUIEnabled() || null == status) {
+			if (0 == p) {
+				last_progress = 0; // reset
+				last_percent = 0;
+				return;
+			}
+			// don't show intervals smaller than 1%:
+			if (last_progress + 0.01 > p ) {
+				int percent = (int)(p * 100);
+				if (last_percent != percent) {
+					System.out.println(percent + " %");
+					last_percent = percent;
+				}
+			}
+			last_progress = p;
 			return;
 		}
-		// don't show intervals smaller than 1%:
-		if (last_progress + 0.01 > p ) {
-			int percent = (int)(p * 100);
-			if (last_percent != percent) {
-				System.out.println(percent + " %");
-				last_percent = percent;
-			}
-		}
-		last_progress = p;
+
+		status.showProgress(p);
 	}
 
 	static public void debugDialog() {
@@ -586,8 +624,6 @@ public class Utils implements ij.plugin.PlugIn {
 			OpenDialog.setDefaultDirectory(default_dir);
 		}
 		SaveDialog sd = new SaveDialog("Save",
-						//(user.startsWith("albert") || user.endsWith("cardona")) ? 
-						//	"/home/" + user + "/temp" :
 						OpenDialog.getDefaultDirectory(),
 						name2,
 						extension);
@@ -666,16 +702,17 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final String openTextFile(final String path) {
 		if (null == path || !new File(path).exists()) return null;
 		final StringBuffer sb = new StringBuffer();
+		BufferedReader r = null;
 		try {
-			final BufferedReader r = new BufferedReader(new FileReader(path));
+			r = new BufferedReader(new FileReader(path));
 			while (true) {
 				String s = r.readLine();
 				if (null == s) break;
 				sb.append(s).append('\n'); // I am sure the reading can be done better
         		}
-			r.close();
 		} catch (Exception e) {
 			IJError.print(e);
+			if (null != r) try { r.close(); } catch (IOException ioe) { ioe.printStackTrace(); }
 			return null;
 		}
 		return sb.toString();
@@ -752,6 +789,8 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static private int n_CPUs = 0;
 
+	/** This method is obsolete: there's Runtime.getRuntime().availableProcessors() */
+	/*
 	static public final int getCPUCount() {
 		if (0 != n_CPUs) return n_CPUs;
 		if (IJ.isWindows()) return 1; // no clue
@@ -778,6 +817,7 @@ public class Utils implements ij.plugin.PlugIn {
 			return 1;
 		}
 	}
+	*/
 
 	static public final boolean wrongImageJVersion() {
 		boolean b = IJ.versionLessThan("1.37g");
@@ -872,6 +912,13 @@ public class Utils implements ij.plugin.PlugIn {
 		return b;
 	}
 
+	static public final double[] copy(final double[] a, final int first, final int new_length) {
+		final double[] b = new double[new_length];
+		final int len = new_length < a.length - first ? new_length : a.length - first;
+		System.arraycopy(a, first, b, 0, len);
+		return b;
+	}
+
 	/** Reverse in place an array of doubles. */
 	static public final void reverse(final double[] a) {
 		for (int left=0, right=a.length-1; left<right; left++, right--) {
@@ -893,6 +940,16 @@ public class Utils implements ij.plugin.PlugIn {
 		// ALL that was needed: to put it into the swing repaint queue ... couldn't they JUST SAY SO
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
+				c.repaint();
+			}
+		});
+	}
+	/** Like calling pack() on a Frame but on a Component. */
+	static public final void revalidateComponent(final Component c) {
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				c.invalidate();
+				c.validate();
 				c.repaint();
 			}
 		});
@@ -964,6 +1021,7 @@ public class Utils implements ij.plugin.PlugIn {
 		return Color.getHSBColor(a[0], a[1], a[2]);
 	}
 
+	/** Test whether the areas intersect each other. */
 	static public final boolean intersects(final Area a1, final Area a2) {
 		final Area b = new Area(a1);
 		b.intersect(a2);
@@ -978,5 +1036,141 @@ public class Utils implements ij.plugin.PlugIn {
 		char c = (char)((i % 26) + 65); // 65 is 'A'
 		if (0 == k) return Character.toString(c);
 		return new StringBuffer().append(getCharacter(k)).append(c).toString();
+	}
+
+	static private Field shape_field = null;
+
+	static public final Shape getShape(final ShapeRoi roi) {
+		try {
+			if (null == shape_field) {
+				shape_field = ShapeRoi.class.getDeclaredField("shape");
+				shape_field.setAccessible(true);
+			}
+			return (Shape)shape_field.get((ShapeRoi)roi);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
+	}
+
+	/** Get by reflection a private or protected field in the given object. */
+	static public final Object getField(final Object ob, final String field_name) {
+		if (null == ob || null == field_name) return null;
+		try {
+			Field f = ob.getClass().getDeclaredField(field_name);
+			f.setAccessible(true);
+			return f.get(ob);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
+	}
+
+	static public final Area getArea(final Roi roi) {
+		if (null == roi) return null;
+		ShapeRoi sroi = new ShapeRoi(roi);
+		AffineTransform at = new AffineTransform();
+		Rectangle bounds = sroi.getBounds();
+		at.translate(bounds.x, bounds.y);
+		Area area = new Area(getShape(sroi));
+		return area.createTransformedArea(at);
+	}
+
+	/** Returns the approximated area of the given Area object. */
+	static public final double measureArea(Area area, final Loader loader) {
+		double sum = 0;
+		try {
+			Rectangle bounds = area.getBounds();
+			double scale = 1;
+			if (bounds.width > 2048 || bounds.height > 2048) {
+				scale = 2048.0 / bounds.width;
+			}
+			if (0 == scale) {
+				Utils.log("Can't measure: area too large, out of scale range for approximation.");
+				return sum;
+			}
+			AffineTransform at = new AffineTransform();
+			at.translate(-bounds.x, -bounds.y);
+			at.scale(scale, scale);
+			area = area.createTransformedArea(at);
+			bounds = area.getBounds();
+			if (0 == bounds.width || 0 == bounds.height) {
+				Utils.log("Can't measure: area too large, approximates zero.");
+				return sum;
+			}
+			if (null != loader) loader.releaseToFit(bounds.width * bounds.height * 3);
+			BufferedImage bi = new BufferedImage(bounds.width, bounds.height, BufferedImage.TYPE_BYTE_INDEXED);
+			Graphics2D g = bi.createGraphics();
+			g.setColor(Color.white);
+			g.fill(area);
+			final byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
+			for (int i=pixels.length-1; i>-1; i--) {
+				//if (255 == (pixels[i]&0xff)) sum++;
+				if (0 != pixels[i]) sum++;
+			}
+			bi.flush();
+			g.dispose();
+			if (1 != scale) sum = sum / (scale * scale);
+		} catch (Throwable e) {
+			IJError.print(e);
+		}
+		return sum;
+	}
+
+	/** Compute the area of the triangle defined by 3 points in 3D space, returning half of the length of the vector resulting from the cross product of vectors p1p2 and p1p3. */
+	static public final double measureArea(final Point3f p1, final Point3f p2, final Point3f p3) {
+		final Vector3f v = new Vector3f();
+		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
+			new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
+		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
+	}
+
+	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
+	static public final FloatProcessor fastConvertToFloat(final ByteProcessor ip) {
+		final byte[] pix = (byte[])ip.getPixels();
+		final float[] data = new float[pix.length];
+		for (int i=0; i<pix.length; i++) data[i] = pix[i]&0xff;
+		final FloatProcessor fp = new FloatProcessorT2(ip.getWidth(), ip.getHeight(), data, ip.getColorModel(), ip.getMin(), ip.getMax());
+		return fp;
+	}
+	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
+	static public final FloatProcessor fastConvertToFloat(final ShortProcessor ip) {
+		final short[] pix = (short[])ip.getPixels();
+		final float[] data = new float[pix.length];
+		for (int i=0; i<pix.length; i++) data[i] = pix[i]&0xffff;
+		final FloatProcessor fp = new FloatProcessorT2(ip.getWidth(), ip.getHeight(), data, ip.getColorModel(), ip.getMin(), ip.getMax());
+		return fp;
+	}
+	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
+	static public final FloatProcessor fastConvertToFloat(final ImageProcessor ip, final int type) {
+		switch (type) {
+			case ImagePlus.GRAY16: return fastConvertToFloat((ShortProcessor)ip);
+			case ImagePlus.GRAY32: return (FloatProcessor)ip;
+			case ImagePlus.GRAY8:
+			case ImagePlus.COLOR_256: return fastConvertToFloat((ByteProcessor)ip);
+			case ImagePlus.COLOR_RGB: return (FloatProcessor)ip.convertToFloat(); // SLOW
+		}
+		return null;
+	}
+	static public final FloatProcessor fastConvertToFloat(final ImageProcessor ip) {
+		if (ip instanceof ByteProcessor) return fastConvertToFloat((ByteProcessor)ip);
+		if (ip instanceof ShortProcessor) return fastConvertToFloat((ShortProcessor)ip);
+		return (FloatProcessor)ip.convertToFloat();
+	}
+
+	/** Creates a new ResultsTable with the given window title and column titles, and 2 decimals of precision, or if one exists for the given window title, returns it. */
+	static public final ResultsTable createResultsTable(final String title, final String[] columns) {
+		TextWindow tw = (TextWindow)WindowManager.getFrame(title);
+		if (null != tw) {
+			// hacking again ... missing a getResultsTable() method in TextWindow
+			ResultsTable rt = (ResultsTable)Utils.getField(tw.getTextPanel(), "rt");
+			if (null != rt) return rt; // assumes columns will be identical
+		}
+		// else create a new one
+		ResultsTable rt = new ResultsTable();
+		rt.setPrecision(2);
+		for (int i=0; i<columns.length; i++) rt.setHeading(i, columns[i]);
+		//
+		return rt;
 	}
 }

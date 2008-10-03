@@ -29,21 +29,20 @@ package mpi.fruitfly.math.datastructures;
  */
 public class FloatArray2D extends FloatArray
 {
-//    public float data[] = null;
-    public int width = 0;
-    public int height = 0;
+    public final int width;
+    public final int height;
 
 
-    public FloatArray2D(int width, int height)
+    public FloatArray2D(final int width, final int height)
     {
-        data = new float[width * height];
+        super(new float[width * height]);
         this.width = width;
         this.height = height;
     }
 
-    public FloatArray2D(float[] data, int width, int height)
+    public FloatArray2D(final float[] data, final int width, final int height)
     {
-        this.data = data;
+        super(data);
         this.width = width;
         this.height = height;
     }
@@ -55,17 +54,17 @@ public class FloatArray2D extends FloatArray
         return clone;
     }
 
-    public int getPos(int x, int y)
+    public final int getPos(final int x, final int y)
     {
         return x + width * y;
     }
 
-    public float get(int x, int y)
+    public final float get(final int x, final int y)
     {
         return data[getPos(x,y)];
     }
 
-    public float getMirror(int x, int y)
+    public final float getMirror(int x, int y)
     {
         if (x >= width)
             x = width - (x - width + 2);
@@ -106,7 +105,7 @@ public class FloatArray2D extends FloatArray
        return data[getPos(x,y)];
     }
 
-    public float getZero(int x, int y)
+    public final float getZero(final int x, final int y)
     {
         if (x >= width)
             return 0;
@@ -123,7 +122,7 @@ public class FloatArray2D extends FloatArray
         return data[getPos(x,y)];
     }
 
-    public void set(float value, int x, int y)
+    public final void set(final float value, final int x, final int y)
     {
         data[getPos(x,y)] = value;
     }

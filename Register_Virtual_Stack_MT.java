@@ -1,4 +1,5 @@
-/* Albert Cardona 2008. */
+/** Albert Cardona 2008. This work released under the terms of the General Public License in its latest edition. */
+/** Greg Jefferis enhanced progress report and interaction with the user. */
 
 import ij.IJ;
 import ij.gui.GenericDialog;
@@ -40,6 +41,10 @@ import java.util.Arrays;
  */
 public class Register_Virtual_Stack_MT implements PlugIn {
 
+	// Registration types
+	static public final int PHASE_CORRELATION = 0;
+	static public final int SIFT = 1;
+
 	public void run(String arg) {
 
 		GenericDialog gd = new GenericDialog("Options");
@@ -77,10 +82,21 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 			IJ.showMessage("Source and target directories MUST be different\n or images would get overwritten.");
 			return;
 		}
+		exec(source_dir, target_dir, registration_type, sp, scale, StitchingTEM.DEFAULT_MIN_R);
+	}
 
-		final String source_dir_ = source_dir;
-		final String target_dir_ = target_dir;
-
+	/** @param source_dir Directory to read all images from, where each image is a slice in a sequence. Their names must be bit-sortable, i.e. if numbered, they must be padded with zeros.
+	 *  @param target_fir Directory to store registered slices into.
+	 *  @param registration_type Either PHASE_CORRELATION or SIFT (0 or 1)
+	 *  @param sp The ini.trakem2.imaging.Registration.SIFTParameters class instance containing all SIFT parameters. Can be null only if not using SIFT as @param registration_type.
+	 *  @param scale The scale at which phase-correlation should be executed.
+	 *  @param min_R The minimal acceptable cross-correlation score, from 0 to 1, to evaluate the goodness of a phase-correlation.
+	 */
+	static public void exec(final String source_dir, final String target_dir, final int registration_type, final Registration.SIFTParameters sp, final float scale, final float min_R) {
+		if (SIFT == registration_type && null == sp) {
+			System.out.println("Can't use a null sp.");
+			return;
+		}
 		// get file listing
 		final String exts = ".tif.jpg.png.gif.tiff.jpeg.bmp.pgm";
 		final String[] names = new File(source_dir).list(new FilenameFilter() {
@@ -125,7 +141,7 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 					continue;
 				}
 				Patch patch = new Patch(project, loader.getNextId(), names[i], width, height, type, false, min, max, new AffineTransform());
-				loader.addedPatchFrom(source_dir_ + names[i], patch);
+				loader.addedPatchFrom(source_dir + names[i], patch);
 				pa.add(patch);
 			}
 
@@ -149,8 +165,8 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 						Patch next = pa.get(i);
 						// will load images on its own (only once for each, guaranteed)
 						loader.releaseToFit(width * height * (ImagePlus.GRAY8 == type ? 1 : 5) * threads.length * 6);
-						if ( 0 == registration_type ) { 
-							double[] c = StitchingTEM.correlate(prev, next, 1.0f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
+						if ( 0 == registration_type ) {
+							double[] c = StitchingTEM.correlate(prev, next, 1.0f, scale, StitchingTEM.TOP_BOTTOM, 0, 0, min_R);
 							affine[i] = new AffineTransform();
 							affine[i].translate(c[0], c[1]);
 						} else if ( 1 == registration_type ) {
@@ -226,7 +242,7 @@ public class Register_Virtual_Stack_MT implements PlugIn {
 						int idot = slice_name.lastIndexOf('.');
 						if (idot > 0) slice_name = slice_name.substring(0, idot);
 						tiffnames[i] = slice_name + ".tif";
-						new FileSaver(imp).saveAsTiff(target_dir_ + tiffnames[i]);
+						new FileSaver(imp).saveAsTiff(target_dir + tiffnames[i]);
 
 						if (0 == i % threads.length) {
 							IJ.showStatus("Saving slice ("+i+"/"+affine.length+")");

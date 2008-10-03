@@ -28,11 +28,13 @@ import ij.gui.*;
 import ij.measure.*;
 import ij.*;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.LayerStack;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.awt.image.ColorModel;
 
 /** Need a non-null ImagePlus for the ImageCanvas, even if fake. */
 public class FakeImagePlus extends ImagePlus {
@@ -46,6 +48,9 @@ public class FakeImagePlus extends ImagePlus {
 		h = height;
 		this.display = display;
 		setProcessor("", new FakeProcessor(width, height));
+	}
+	protected Display getDisplay() {
+		return display;
 	}
 	public int getWidth() {
 		// trick the canvas, but not the ROIs
@@ -67,23 +72,12 @@ public class FakeImagePlus extends ImagePlus {
 	}
 
 	public int[] getPixel(int x, int y) {
-		// too expensive
-		// ip.getPixel(x, y);
-
-		ImagePlus ps = display.getLastTemp();
-		if (null == ps || this.equals(ps)) return new int[3]; // zeros
 		try {
-			if (ps instanceof PatchStack) {
-				return ps.getPixel(x, y);
-			} else if (ps.getStack() instanceof LayerStack) {
-				Rectangle box = null;
-				if (null != getRoi()) box = getRoi().getBounds();
-				else box = display.getLayer().getParent().get2DBounds();
-				double vscale = display.getLayer().getParent().getPixelsVirtualizationScale(box);
-				return ps.getPixel((int)(x * vscale), (int)(y * vscale));
-			}
-		} catch (Exception e) {} // closing swing lazy repaints!
-		return null;
+			return display.getLayer().getPixel(x, y, display.getCanvas().getMagnification());
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return new int[3];
 	}
 
 	private class FakeProcessor extends ByteProcessor {
@@ -127,6 +121,10 @@ public class FakeImagePlus extends ImagePlus {
 		}
 		public int getWidth() { return w; }
 		public int getHeight() { return h; }
+
+		public void setColorModel(ColorModel cm) {
+			display.getSelection().setLut(cm);
+		}
 	}
 
 	public ImageStatistics getStatistics(int mOptions, int nBins, double histMin, double histMax) {
@@ -160,11 +158,6 @@ public class FakeImagePlus extends ImagePlus {
 	/** Returns a virtual stack made of boxes with the dimension of the ROI or the whole layer, so that pixels are retrieved on the fly. */
 	public ImageStack getStack() {
 		return null;
-		/*
-		ImagePlus last_temp = display.getLastTemp();
-		if (null == last_temp) return display.getLayer().getParent().makeLayerStack();
-		return last_temp.getStack();
-		*/
 	}
 
 	/** Returns 1. */
@@ -182,7 +175,7 @@ public class FakeImagePlus extends ImagePlus {
 
 	/** Forward to LayerSet. */
 	public void setCalibration(Calibration cal) {
-		super.setCalibration(cal);
+		try { super.setCalibration(cal); } catch (Throwable e) { IJError.print(e); }
 		display.getLayer().getParent().setCalibration(cal);
 	}
 
@@ -204,10 +197,12 @@ public class FakeImagePlus extends ImagePlus {
 			ImageProcessor ip = getProcessor();
 			if (null != ip) ip.resetRoi();
 		}
-		ImagePlus last_temp = display.getLastTemp();
-		//Utils.log2("Last temp is " + last_temp.getClass());
-		if (null != last_temp && !last_temp.equals(this)) last_temp.killRoi();
 	}
 
 	public synchronized void setSlice(int slice) {}
+
+	public void updateAndRepaintWindow() {
+		// TODO: if a selected image is a stack, the LUT applies to it as well...
+		Display.repaint(display.getLayer(), display.getSelection().getBox(), 0);
+	}
 }

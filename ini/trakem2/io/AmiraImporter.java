@@ -44,7 +44,6 @@ import ij.process.ImageProcessor;
 
 import java.awt.Color;
 import java.awt.Rectangle;
-import java.awt.Shape;
 import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
@@ -160,8 +159,6 @@ public class AmiraImporter {
 	static private ArrayList extractLabelAreas(final int label, final ImageStack stack) {
 		try {
 			final int size = stack.getSize();
-			final java.lang.reflect.Field field = ShapeRoi.class.getDeclaredField("shape");
-			field.setAccessible(true);
 			final ImagePlus tmp = new ImagePlus("", stack);
 			//
 			final ArrayList al_areas = new ArrayList();
@@ -187,8 +184,7 @@ public class AmiraImporter {
 				} else if (!(roi instanceof ShapeRoi)) {
 					roi = new ShapeRoi(roi);
 				}
-				final Shape shape = (Shape)field.get((ShapeRoi)roi);
-				Area area = new Area(shape);
+				Area area = new Area(Utils.getShape((ShapeRoi)roi));
 				AffineTransform at = new AffineTransform();
 				at.translate(bounds.x, bounds.y);
 				area = area.createTransformedArea(at);

@@ -29,6 +29,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.ProjectTree;
@@ -52,44 +53,53 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 
 	DefaultTreeTransferHandler dtth = null;
 
-	public DNDTree(Project project, DefaultMutableTreeNode root, Color background) {
+	protected final Dispatcher dispatcher = new Dispatcher();
+
+	public DNDTree(final Project project, final DefaultMutableTreeNode root, final Color background) {
 		this(project, root);
 		this.setScrollsOnExpand(true);
 		if (null != background) {
-			setBackground(background);
-			DefaultTreeCellRenderer renderer = new NodeRenderer(background); // new DefaultTreeCellRenderer();
+			final DefaultTreeCellRenderer renderer = new NodeRenderer(background); // new DefaultTreeCellRenderer();
 			renderer.setBackground(background);
 			renderer.setBackgroundNonSelectionColor(background);
-			setCellRenderer(renderer);
+			// I hate swing, I really do. And java has no closures, no macros, and reflection is nearly as verbose as the code below!
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				DNDTree.this.setCellRenderer(renderer);
+			}});
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				DNDTree.this.setBackground(background);
+			}});
 		}
 	}
-
 
 	/** Extends the DefaultTreeCellRenderer to paint the nodes that contain Thing objects present in the current layer with a distinctive orange background; also, attribute nodes are painted with a different icon. */
 	private class NodeRenderer extends DefaultTreeCellRenderer {
 
 		// this is a crude hack that needs much cleanup and proper break down to subclasses.
 
-		Color bg;
+		final Color bg;
+		final Color active_displ_color = new Color(1.0f, 1.0f, 0.0f, 0.5f);
+		final Color front_layer_color = new Color(1.0f, 1.0f, 0.4f, 0.5f);
 
-		NodeRenderer(Color bg) {
+		NodeRenderer(final Color bg) {
 			this.bg = bg;
 		}
 
 		/** Override to set a yellow background color to elements that belong to the currently displayed layer. The JTree nodes are painted as a JLabel that is transparent (no background, it has a setOpque(true) by default), so the code is insane.*/
-		public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
-			JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
 			label.setText(label.getText().replace('_', ' ')); // just for display
-			if (value instanceof DefaultMutableTreeNode) {
-				Object obb = ((DefaultMutableTreeNode)value).getUserObject();
-				if (obb instanceof ProjectThing) { // must be, but checking ...
-					Object ob = ((ProjectThing)obb).getObject();
-					if (ob instanceof Displayable) {
-						Displayable displ = (Displayable)ob;
-						Layer layer = Display.getFrontLayer();
+			if (value.getClass() == DefaultMutableTreeNode.class) {
+				final Object obb = ((DefaultMutableTreeNode)value).getUserObject();
+				final Class clazz = obb.getClass();
+				if (ProjectThing.class == clazz) { // must be, but checking ...
+					final Object ob = ((ProjectThing)obb).getObject();
+					if (ob.getClass().getSuperclass().equals(Displayable.class)) {
+						final Displayable displ = (Displayable)ob;
+						final Layer layer = Display.getFrontLayer();
 						if (null != layer && (layer.contains(displ) || displ.equals(Display.getFront().getActive()))) {
 							label.setOpaque(true); //this label
-							label.setBackground(new Color(1.0f, 1.0f, 0.0f, 0.5f)); // this label
+							label.setBackground(active_displ_color); // this label
 							//Utils.log(" -- setting background");
 						} else {
 							label.setOpaque(false); //this label
@@ -101,15 +111,15 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 						label.setBackground(bg);
 						//Utils.log("ob is " + ob);
 					}
-				} else if (obb instanceof LayerThing) {
-					Object ob = ((LayerThing)obb).getObject();
-					Layer layer = Display.getFrontLayer();
+				} else if (clazz.equals(LayerThing.class)) {
+					final Object ob = ((LayerThing)obb).getObject();
+					final Layer layer = Display.getFrontLayer();
 					if (ob.equals(layer)) {
 						label.setOpaque(true); //this label
-						label.setBackground(new Color(1.0f, 1.0f, 0.4f, 0.5f)); // this label
-					} else if (ob instanceof LayerSet && null != layer && layer.contains((Displayable)ob)) {
+						label.setBackground(front_layer_color); // this label
+					} else if (ob.getClass().equals(LayerSet.class) && null != layer && layer.contains((Displayable)ob)) {
 						label.setOpaque(true); //this label
-						label.setBackground(new Color(1.0f, 1.0f, 0.0f, 0.5f)); // this label
+						label.setBackground(active_displ_color); // this label
 					} else {
 						label.setOpaque(false); //this label
 						label.setBackground(bg);
@@ -128,7 +138,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		}
 
 		/** Override to show tooptip text as well. */
-		public void setText(String text) {
+		public void setText(final String text) {
 			super.setText(text);
 			setToolTipText(text); // TODO doesn't work ??
 		}
@@ -219,16 +229,16 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 
 		// add the attributes first, only for ProjectThing or TemplateThing instances (not LayerThing)
 		if (thing instanceof ProjectThing || thing instanceof TemplateThing) {
-			Hashtable hs_attributes = thing.getAttributes();
-			if (null != hs_attributes) {
-				Enumeration keys = hs_attributes.keys();
-				while (keys.hasMoreElements()) {
-					String key = (String)keys.nextElement();
+			HashMap ht_attributes = thing.getAttributes();
+			if (null != ht_attributes) {
+				for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+					Map.Entry entry = (Map.Entry)it.next();
+					String key = (String)entry.getKey();
 					if (key.equals("id") || key.equals("title") || key.equals("index") || key.equals("expanded")) {
 						// ignore: the id is internal, and the title is shown in the node itself. The index is ignored.
 						continue;
 					}
-					DefaultMutableTreeNode attr_node = new DefaultMutableTreeNode(hs_attributes.get(key));
+					DefaultMutableTreeNode attr_node = new DefaultMutableTreeNode(entry.getValue());
 					node.add(attr_node);
 				}
 			}
@@ -339,6 +349,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	public void destroy() {
 		this.dtth.destroy();
 		this.dtth = null;
+		this.dispatcher.quit();
 	}
 
 	/** Overriding to fix synchronization issues: the path changes while the multithreaded swing attempts to repaint it, so we "invoke later". Hilarious. */
@@ -411,7 +422,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 			point = ((JScrollPane)c).getViewport().getViewPosition();
 		}
 		// collect all current nodes
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		for (Enumeration e = node.children(); e.hasMoreElements(); ) {
 			DefaultMutableTreeNode child_node = (DefaultMutableTreeNode)e.nextElement();
 			ht.put(child_node.getUserObject(), child_node);
@@ -454,8 +465,8 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
-			Hashtable ht = (Hashtable)f.get(this);
-			ht.put(new TreePath(node.getPath()), new Boolean(b)); // this queries directly the expandedState transient private Hashtable of the JTree
+			HashMap ht = (HashMap)f.get(this);
+			ht.put(new TreePath(node.getPath()), new Boolean(b)); // this queries directly the expandedState transient private HashMap of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
 		 }
@@ -469,7 +480,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
 			Hashtable ht = (Hashtable)f.get(this);
-			return Boolean.TRUE.equals(ht.get(new TreePath(node.getPath()))); // this queries directly the expandedState transient private Hashtable of the JTree
+			return Boolean.TRUE.equals(ht.get(new TreePath(node.getPath()))); // this queries directly the expandedState transient private HashMap of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
 			 return false;
@@ -557,5 +568,12 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 			// otherwise add!
 			if (!exists) addChild(th, parent);
 		}
+	}
+
+	protected boolean removeNode(DefaultMutableTreeNode node) {
+		if (null == node) return false;
+		((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
+		this.updateUILater();
+		return true;
 	}
 }

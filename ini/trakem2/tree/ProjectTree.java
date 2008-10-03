@@ -31,19 +31,24 @@ import ini.trakem2.display.*;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Render;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.Worker;
 
 import java.awt.Color;
 import java.awt.Event;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import javax.swing.KeyStroke;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
+import javax.swing.JMenu;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.tree.*;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -55,14 +60,16 @@ import java.io.File;
 /** A class to hold a tree of Thing nodes */
 public class ProjectTree extends DNDTree implements MouseListener, ActionListener, KeyListener {
 
+	/*
 	static {
 		System.setProperty("j3d.noOffScreen", "true");
 	}
+	*/
 
 	private DefaultMutableTreeNode selected_node = null;
 
 	public ProjectTree(Project project, ProjectThing project_thing) {
-		super(project, DNDTree.makeNode(project_thing), new Color(185,156,255));
+		super(project, DNDTree.makeNode(project_thing), new Color(240,230,255)); // new Color(185,156,255));
 		setEditable(false); // the titles
 		addMouseListener(this);
 		addTreeExpansionListener(this);
@@ -79,12 +86,17 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			return null;
 		}
 		// context-sensitive popup
-		JMenuItem[] item = thing.getPopupItems(this);
-		if (0 == item.length) return null;
+		JMenuItem[] items = thing.getPopupItems(this);
+		if (0 == items.length) return null;
 		JPopupMenu popup = new JPopupMenu();
-		for (int i=0; i<item.length; i++) {
-			popup.add(item[i]);
+		for (int i=0; i<items.length; i++) {
+			popup.add(items[i]);
 		}
+		JMenu node_menu = new JMenu("Node");
+		JMenuItem item = new JMenuItem("Move up"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true)); node_menu.add(item);
+		item = new JMenuItem("Move down"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true)); node_menu.add(item);
+
+		popup.add(node_menu);
 		return popup;
 	}
 
@@ -137,7 +149,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		String title = gd.getNextString();
-		title = title.replace('"', '\''); // avoid XML problems - could also replace by double '', then replace again by " when reading.
+		title = title.replace('"', '\'').trim(); // avoid XML problems - could also replace by double '', then replace again by " when reading.
 		thing.setTitle(title);
 		this.updateUILater();
 	}
@@ -149,15 +161,17 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 	public void mouseExited(MouseEvent me) { }
 	public void mouseClicked(MouseEvent me) { }
 
-	public void actionPerformed(ActionEvent ae) {
+	public void actionPerformed(final ActionEvent ae) {
 		if (!Project.getInstance(this).isInputEnabled()) return;
+		super.dispatcher.exec(new Runnable() { public void run() {
 		try {
 			if (null == selected_node) return;
-			Object ob = selected_node.getUserObject();
+			final Object ob = selected_node.getUserObject();
 			if (!(ob instanceof ProjectThing)) return;
-			ProjectThing thing = (ProjectThing)ob;
+			final ProjectThing thing = (ProjectThing)ob;
 			int i_position = 0;
 			String command = ae.getActionCommand();
+			final Object obd = thing.getObject();
 
 			if (command.startsWith("new ") || command.equals("Duplicate")) {
 				ProjectThing new_thing = null;
@@ -173,10 +187,14 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				//add it to the tree
 				if (null != new_thing) {
 					DefaultMutableTreeNode new_node = new DefaultMutableTreeNode(new_thing);
-					((DefaultTreeModel)this.getModel()).insertNodeInto(new_node, selected_node, i_position);
+					((DefaultTreeModel)ProjectTree.this.getModel()).insertNodeInto(new_node, selected_node, i_position);
 					TreePath treePath = new TreePath(new_node.getPath());
-					this.scrollPathToVisible(treePath);
-					this.setSelectionPath(treePath);
+					ProjectTree.this.scrollPathToVisible(treePath);
+					ProjectTree.this.setSelectionPath(treePath);
+				}
+				// bring the display to front
+				if (new_thing.getObject() instanceof Displayable) {
+					Display.getFront().getFrame().toFront();
 				}
 			} else if (command.equals("many...")) {
 				ArrayList children = thing.getTemplate().getChildren();
@@ -202,14 +220,21 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				addLeaves((ArrayList<Thing>)nc);
 			} else if (command.equals("Unhide")) {
 				thing.setVisible(true);
-				Object obd = thing.getObject();
-				if (obd instanceof Displayable) {
-					// additionality, get the front Display (or make a new one if none) and show in it the layer in which the Displayable object is contained.
-					Displayable displ = (Displayable)obd;
-					Display.setFront(displ.getLayer(), displ);
+			} else if (command.equals("Select in display")) {
+				boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
+				selectInDisplay(thing, shift_down);
+			} else if (command.equals("Identify...")) {
+				// for pipes only for now
+				if (!(obd instanceof Pipe)) return;
+				ini.trakem2.vector.Compare.findSimilar((Pipe)obd);
+			} else if (command.equals("Identify with axes...")) {
+				if (!(obd instanceof Pipe)) return;
+				if (Project.getProjects().size() < 2) {
+					Utils.showMessage("You need at least two projects open:\n-A reference project\n-The current project with the pipe to identify");
+					return;
 				}
+				ini.trakem2.vector.Compare.findSimilarWithAxes((Pipe)obd);
 			} else if (command.equals("Show centered in Display")) {
-				Object obd = thing.getObject();
 				if (obd instanceof Displayable) {
 					Displayable displ = (Displayable)obd;
 					Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
@@ -220,17 +245,24 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);
 			} else if (command.equals("Delete...")) {
-				Object obd = thing.getObject();
-				if (obd instanceof Project) { ((Project)obd).remove(true); return; } // shortcut to remove everything regardless.
-				if (!thing.remove(true)) return;
-				((DefaultTreeModel)this.getModel()).removeNodeFromParent(selected_node);
-				this.updateUILater();
+				remove(true, thing, selected_node);
+				return;
 			} else if (command.equals("Rename...")) {
 				//if (!Project.isBasicType(thing.getType())) {
 					rename(thing);
 				//}
 			} else if (command.equals("Measure")) {
-				thing.measure();
+				// block displays while measuring
+				new Bureaucrat(new Worker("Measuring") { public void run() {
+					startedWorking();
+					try {
+						thing.measure();
+					} catch (Throwable e) {
+						IJError.print(e);
+					} finally {
+						finishedWorking();
+					}
+				}}, thing.getProject()).goHaveBreakfast();
 			}/* else if (command.equals("Export 3D...")) {
 				GenericDialog gd = ControlWindow.makeGenericDialog("Export 3D");
 				String[] choice = new String[]{".svg [preserves links and hierarchical grouping]", ".shapes [limited to one profile per layer per profile_list]"};
@@ -255,18 +287,12 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				// Just do the same as in "Save as..." but without saving the images and overwritting the XML file without asking.
 				thing.getProject().getLoader().save(thing.getProject());
 			} else if (command.equals("Info")) {
-				Hashtable<String,ArrayList<ProjectThing>> ht = thing.getByType();
-				ArrayList<String> types = new ArrayList<String>();
-				types.addAll(ht.keySet());
-				Collections.sort(types);
-				StringBuffer sb = new StringBuffer(thing.getNodeInfo());
-				sb.append("\nCounts:\n");
-				for (String type : types) {
-					sb.append(type).append(": ").append(ht.get(type).size()).append('\n');
-				}
-				sb.append('\n');
-				sb.append(thing.getInfo().replaceAll("\t", "    ")); // TextWindow can't handle tabs
-				new ij.text.TextWindow("Info", sb.toString(), 500, 500);
+				showInfo(thing);
+				return;
+			} else if (command.equals("Move up")) {
+				move(selected_node, -1);
+			} else if (command.equals("Move down")) {
+				move(selected_node, 1);
 			} else {
 				Utils.log("ProjectTree.actionPerformed: don't know what to do with the command: " + command);
 				return;
@@ -274,6 +300,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		} catch (Exception e) {
 			IJError.print(e);
 		}
+		}});
 	}
 
 	/** Remove the node, its Thing and the object hold by the thing from the database. */
@@ -281,6 +308,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		Object uob = node.getUserObject();
 		if (!(uob instanceof ProjectThing)) return;
 		ProjectThing thing = (ProjectThing)uob;
+		Display3D.remove(thing);
 		ProjectThing parent = (ProjectThing)thing.getParent();
 		if (!thing.remove(check)) return;
 		((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
@@ -450,27 +478,91 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		boolean reinsert = false;
 		switch (key_code) {
 			case KeyEvent.VK_PAGE_UP:
-				reinsert = pt.move(-1);
+				move(node, -1);
 				ke.consume(); // in any case
 				break;
 			case KeyEvent.VK_PAGE_DOWN:
-				reinsert = pt.move(1);
+				move(node, 1);
 				ke.consume(); // in any case
 				break;
-		}
-		if (reinsert) {
-			DefaultMutableTreeNode parent_node = (DefaultMutableTreeNode)node.getParent();
-			int index = parent_node.getChildCount() -1;
-			((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
-			index = pt.getParent().getChildren().indexOf(pt);
-			((DefaultTreeModel)this.getModel()).insertNodeInto(node, parent_node, index);
-			// restore selection path
-			TreePath trp = new TreePath(node.getPath());
-			this.scrollPathToVisible(trp);
-			this.setSelectionPath(trp);
-			this.updateUILater();
+			case KeyEvent.VK_S:
+				pt.getProject().getLoader().save(pt.getProject());
+				ke.consume();
+				break;
 		}
 	}
 	public void keyReleased(KeyEvent ke) {}
 	public void keyTyped(KeyEvent ke) {}
+
+	/** Move up (-1) or down (1). */
+	private void move(final DefaultMutableTreeNode node, final int direction) {
+		final ProjectThing pt = (ProjectThing)node.getUserObject();
+		if (null == pt) return;
+		// Move: within the list of children of the parent ProjectThing:
+		if (!pt.move(direction)) return;
+		// If moved, reposition within the list of children
+		final DefaultMutableTreeNode parent_node = (DefaultMutableTreeNode)node.getParent();
+		int index = parent_node.getChildCount() -1;
+		((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
+		index = pt.getParent().getChildren().indexOf(pt);
+		((DefaultTreeModel)this.getModel()).insertNodeInto(node, parent_node, index);
+		// restore selection path
+		final TreePath trp = new TreePath(node.getPath());
+		this.scrollPathToVisible(trp);
+		this.setSelectionPath(trp);
+		this.updateUILater();
+	}
+
+	/** If the given node is null, it will be searched for. */
+	public boolean remove(boolean check, ProjectThing thing, DefaultMutableTreeNode node) {
+		Object obd = thing.getObject();
+		if (obd instanceof Project) return ((Project)obd).remove(check); // shortcut to remove everything regardless.
+		return thing.remove(true) && removeNode(null != node ? node : findNode(thing, this));
+	}
+
+	public void showInfo(ProjectThing thing) {
+		if (null == thing) return;
+		HashMap<String,ArrayList<ProjectThing>> ht = thing.getByType();
+		ArrayList<String> types = new ArrayList<String>();
+		types.addAll(ht.keySet());
+		Collections.sort(types);
+		StringBuffer sb = new StringBuffer(thing.getNodeInfo());
+		sb.append("\nCounts:\n");
+		for (String type : types) {
+			sb.append(type).append(": ").append(ht.get(type).size()).append('\n');
+		}
+		sb.append('\n');
+		sb.append(thing.getInfo().replaceAll("\t", "    ")); // TextWindow can't handle tabs
+		new ij.text.TextWindow("Info", sb.toString(), 500, 500);
+	}
+
+	public void selectInDisplay(final ProjectThing thing, final boolean shift_down) {
+		Object obd = thing.getObject();
+		if (obd instanceof Displayable) {
+			Displayable d = (Displayable)obd;
+			if (!d.isVisible()) d.setVisible(true);
+			Display display = Display.getFront(d.getProject());
+			if (null == display) return;
+			display.select(d, shift_down);
+		} else {
+			// select all basic types under this leaf
+			HashSet hs = thing.findBasicTypeChildren();
+			boolean first = true;
+			Display display = null;
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)((ProjectThing)it.next()).getObject();
+				if (null == display) {
+					display = Display.getFront(d.getProject());
+					if (null == display) return;
+				}
+				if (!d.isVisible()) d.setVisible(true);
+				if (first) {
+					display.select(d, shift_down);
+					first = false;
+				} else {
+					display.select(d, true);
+				}
+			}
+		}
+	}
 }

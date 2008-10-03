@@ -67,33 +67,38 @@ public class Editions {
 	 *
 	 */
 	public double getSimilarity(boolean skip_ends, final int max_mut, final float min_chunk) {
+		return getSimilarity(getStartEndSkip(skip_ends, max_mut, min_chunk));
+	}
 
-		int[] g = getStartEndSkip(skip_ends, max_mut, min_chunk);
+	private double getSimilarity(final int[] g) {
 		int i_start = g[0];
 		int i_end = g[1];
-		skip_ends = 1 == g[2];
+		boolean skip_ends = 1 == g[2];
 
 		int non_mut = 0;
 
 		if (skip_ends) {
 			// count non mutations
-			for (int i=i_start; i<i_end; i++) {
+			for (int i=i_start; i<=i_end; i++) {
 				if (MUTATION != editions[i][0]) non_mut++;
 			}
 
-
 			// compute proper segment lengths, inlined
-			double sim = 1.0 - ( (double)non_mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1) );
+			final double sim = 1.0 - ( (double)non_mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1) );
 
 			//if (sim > 0.7) Utils.log2("similarity: non_mut, len1, len2, i_start, i_end : " + non_mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
 
 			return sim;
-
 		} else {
 			for (int i=0; i<editions.length; i++) {
 				if (MUTATION != editions[i][0]) non_mut++;
 			}
-			//Utils.log2("non_mut: " + non_mut + "  total: " + editions.length);
+			/*
+			 * If the max_len is smaller than the number of non-mutations, then a NEGATIVE similarity value is returned,
+			 * but it's ok. All it means is that it's not similar at all.
+			int max_len = Math.max(vs1.length(), vs2.length());
+			Utils.log2("non_mut: " + non_mut + "  total: " + editions.length + "  max length: " + max_len + (non_mut > max_len ? "  WARNING!" : ""));
+			*/
 			return 1.0 - ( (double)non_mut / Math.max(vs1.length(), vs2.length()) );
 		}
 	}
@@ -106,7 +111,7 @@ public class Editions {
 		return getSimilarity2(false, 0, 1);
 	}
 
-	/** Returns the number of mutations / maximum length of both strings: 1.0 means all are mutations and the sequences jave the same lengths.*/
+	/** Returns the number of mutations / max(len(vs1), len(vs2)) : 1.0 means all are mutations and the sequences have the same lengths.*/
 	public double getSimilarity2(boolean skip_ends, final int max_mut, final float min_chunk) {
 
 		int[] g = getStartEndSkip(skip_ends, max_mut, min_chunk);
@@ -138,6 +143,7 @@ public class Editions {
 	}
 
 
+	/** Returns starting and ending indices, both inclusive. */
 	private final int[] getStartEndSkip(boolean skip_ends, final int max_mut, final float min_chunk) {
 		int i_start = 0;
 		int i_end = editions.length -1;
@@ -253,50 +259,90 @@ public class Editions {
 		}
 	}
 
-	/** Returns {average distance, cummulative distance, stdDev, median} where all values are of the physical distances between mutation pairs. */
-	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean score_mut) {
-		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk), score_mut);
+	/** Returns {average distance, cummulative distance, stdDev, median, prop_mut} which are:
+	 *
+	 * [0] - average distance: the average physical distance between mutation pairs
+	 * [1] - cummulative distance: the sum of the distances between mutation pairs
+	 * [2] - stdDev: of the physical distances between mutation pairs relative to the average
+	 * [3] - median: the average medial physical distance between mutation pairs, more robust than the average to extreme values
+	 * [4] - prop_mut: the proportion of mutation pairs relative to the length of the queried sequence vs1.
+	 * [5] - Levenshtein's distance
+	 * [6] - Similarity (@see getSimilarity)
+	 */
+	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean score_mut_only) {
+		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk), score_mut_only);
 	}
 
-	private double[] getStatistics(final int[] g, final boolean score_mut) {
+	private double[] getStatistics(final int[] g, final boolean score_mut_only) {
 		int i_start = g[0];
 		int i_end = g[1];
 		boolean skip_ends = 1 == g[2];
 
-		double cum_dist = 0; // cummulative distance between mutation pairs
 		int i = 0;
 		final int len1 = vs1.length();
 		final int len2 = vs2.length();
-		final ArrayList<Double> mut = new ArrayList<Double>(); // why not ArrayList<double> ? STUPID JAVA
-		final double[] pack = new double[4];
+		final ArrayList<Double> dist = new ArrayList<Double>(); // why not ArrayList<double> ? STUPID JAVA
+		final double[] pack = new double[9];
+
 		Arrays.fill(pack, Double.MAX_VALUE);
+		pack[4] = 0;
+
+		int n_mutation = 0;
+
+		double c_dist = 0;     // cummulative distance of pairs
+		double c_dist_mut = 0; // cummulative distance of mutation pairs
+
 		try {
 			for (i=i_start; i<=i_end; i++) {
-				if (score_mut && MUTATION != editions[i][0]) continue;
-				int k1 = editions[i][1];
-				int k2 = editions[i][2];
+				if (MUTATION == editions[i][0]) n_mutation++;
+				else if (score_mut_only) continue; // not a mutation, so continue because we want only mutations.
+				//if (score_mut_only && MUTATION != editions[i][0]) continue;
+				final int k1 = editions[i][1];
+				final int k2 = editions[i][2];
 				if (len1 == k1 || len2 == k2) continue; // LAST point will fail in some occasions, needs fixing
-				double d = vs1.distance(k1, vs2, k2);
-				cum_dist += d;
-				mut.add(d);
+				final double d = vs1.distance(k1, vs2, k2);
+				c_dist += d;
+				if (MUTATION == editions[i][0]) c_dist_mut += d; // will be the same as c_dist when 'score_mut_only' is true
+				dist.add(d);
 			}
-			if (0 == mut.size()) return pack;
-			Double[] di = new Double[mut.size()];
-			mut.toArray(di);
-			double average = cum_dist / di.length; // can length be zero ?
+
+			// Need at least one value to make any sense of the data
+			if (0 == dist.size()) return pack;
+
+			final Double[] di = new Double[dist.size()];
+			dist.toArray(di);
+
+			final double average = c_dist / di.length;
+
 			double std = 0;
 			for (int k=0; k<di.length; k++) {
 				std += Math.pow(di[k].doubleValue() - average, 2);
 			}
 			std = Math.sqrt(std / di.length);
 
-			Collections.sort(mut);
-			double median = mut.get(mut.size()/2);
+			Collections.sort(dist);
+			final double median = dist.get(di.length/2);
+
+			final double prop_mut = ((double)n_mutation) / (i_end - i_start); // i_end is non-inclusive
+
+			// the max physical length of the measured part of the sequences
+			final double phys_len = Math.max(editions[i_end][1] - editions[i_start][1] + 1,
+							 editions[i_end][2] - editions[i_start][2] + 1)
+					        * vs1.getDelta(); // delta is the same for both
 
 			pack[0] = average;
-			pack[1] = cum_dist;
+			pack[1] = c_dist;
 			pack[2] = std;
 			pack[3] = median;
+			pack[4] = prop_mut;
+			pack[5] = this.distance;
+			pack[6] = getSimilarity(g);
+			// proximity: Unitless value indicating proximity:
+			pack[7] = ((double)c_dist) / phys_len;
+			// proximity_mut: Unitless value indicating proximity between mutation pairs only:
+			pack[8] = score_mut_only ? pack[7] : ((double)c_dist_mut) / phys_len;
+
+			// When one does the proximity with the length of the query sequence only and not the max of both, then shorter ref sequences will score better.
 
 		} catch (Exception e) {
 			IJError.print(e);

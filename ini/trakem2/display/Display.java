@@ -26,6 +26,7 @@ import ij.*;
 import ij.io.*;
 import ij.gui.*;
 import ij.process.*;
+import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.persistence.DBObject;
@@ -41,6 +42,8 @@ import ini.trakem2.utils.DNDInsertImage;
 import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
+import ini.trakem2.utils.Dispatcher;
+import ini.trakem2.utils.Lock;
 import ini.trakem2.tree.*;
 
 import javax.swing.*;
@@ -62,15 +65,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** All selected Displayable objects, including the active one. */
 	final private Selection selection = new Selection(this);
 
-	private ImagePlus active_imp_copy = null;
-	private long active_imp_id = -1;
-	private boolean undo = false;
-
 	private ImagePlus last_temp = null;
 
 	private JFrame frame;
 	private JTabbedPane tabs;
-	private Hashtable ht_tabs;
+	private Hashtable<Class,JScrollPane> ht_tabs;
 	private JScrollPane scroll_patches;
 	private JPanel panel_patches;
 	private JScrollPane scroll_profiles;
@@ -96,7 +95,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	private int c_alphas = 0xffffffff; // all 100 % visible
 	private Channel[] channels;
 
-	private Hashtable ht_panels = new Hashtable();
+	private Hashtable<Displayable,DisplayablePanel> ht_panels = new Hashtable<Displayable,DisplayablePanel>();
 
 	/** Handle drop events, to insert image files. */
 	private DNDInsertImage dnd;
@@ -113,13 +112,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Displays to open when all objects have been reloaded from the database. */
 	static private Hashtable ht_later = null;
 
+	/** A thread to handle user actions, for example an event sent from a popup menu. */
+	private final Dispatcher dispatcher = new Dispatcher();
+
 	static private WindowAdapter window_listener = new WindowAdapter() {
 		/** Unregister the closed Display. */
 		public void windowClosing(WindowEvent we) {
 			final Object source = we.getSource();
 			for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
 				Display d = (Display)it.next();
-				if (source.equals(d.frame)) {
+				if (source == d.frame) {
 					it.remove();
 					if (d == front) front = null;
 					d.remove(false); //calls destroy
@@ -132,7 +134,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// find which was it to make it be the front
 			final Object source = we.getSource();
 			for (Display d : al_displays) {
-				if (source.equals(d.frame)) {
+				if (source == d.frame) {
 					front = d;
 					// set toolbar
 					ProjectToolbar.setProjectToolbar();
@@ -161,6 +163,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		public void windowStateChanged(WindowEvent we) {
 			final Object source = we.getSource();
 			for (Display d : al_displays) {
+				if (source != d.frame) continue;
 				d.pack();
 				break;
 			}
@@ -169,17 +172,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	static private MouseListener frame_mouse_listener = new MouseAdapter() {
 		public void mouseReleased(MouseEvent me) {
-			Object ob = me.getSource();
-			if (ob instanceof JFrame) {
-				Display d = null;
-				for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-					d = (Display)it.next();
-					if (d.equals(ob)) break;
-				}
-				if (d == null) return;
-				if (d.size_adjusted) {
-					d.pack();
-					d.size_adjusted = false;
+			Object source = me.getSource();
+			for (Display d : al_displays) {
+				if (d.frame == source) {
+					if (d.size_adjusted) {
+						d.pack();
+						d.size_adjusted = false;
+					}
+					break;
 				}
 			}
 		}
@@ -187,12 +187,17 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private int last_frame_state = frame.NORMAL;
 
+	// THIS WHOLE SYSTEM OF LISTENERS IS BROKEN:
+	// * when zooming in, the window growths in width a few pixels.
+	// * when enlarging the window quickly, the canvas is not resized as large as it should.
+	// -- the whole problem: swing threading, which I am not handling properly. It's hard.
 	static private ComponentListener component_listener = new ComponentAdapter() {
 		public void componentResized(ComponentEvent ce) {
-			Display d = getDisplaySource(ce);
+			final Display d = getDisplaySource(ce);
 			if (null != d) {
 				//if (!d.size_adjusted) {
 					// keep a minimum width and height
+					SwingUtilities.invokeLater(new Runnable() { public void run() {
 					Rectangle r = d.frame.getBounds();
 					int w = r.width;
 					int h = r.height;
@@ -202,8 +207,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						d.frame.setSize(w, h);
 						//d.size_adjusted = true;
 					}
+					}});
 				//} else {
-					//d.size_adjusted = false;
+					d.size_adjusted = false;
 				//}
 				d.size_adjusted = true; // works in combination with mouseReleased to call pack(), avoiding infinite loops.
 				d.adjustCanvas();
@@ -222,7 +228,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		private Display getDisplaySource(ComponentEvent ce) {
 			final Object source = ce.getSource();
 			for (Display d : al_displays) {
-				if (source.equals(d.frame)) {
+				if (source == d.frame) {
 					return d;
 				}
 			}
@@ -232,14 +238,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	static private ChangeListener tabs_listener = new ChangeListener() {
 		/** Listen to tab changes. */
-		public void stateChanged(ChangeEvent ce) {
+		public void stateChanged(final ChangeEvent ce) {
 			final Object source = ce.getSource();
-			for (Display d : al_displays) {
-				if (source.equals(d.tabs)) {
+			for (Display dd : al_displays) {
+				if (source == dd.tabs) {
+					final Display d = dd;
+					d.dispatcher.exec(new Runnable() { public void run() {
 					// creating tabs fires the event!!!
 					if (null == d.frame || null == d.canvas) return;
 					final Container tab = (Container)d.tabs.getSelectedComponent();
-					if (tab.equals(d.scroll_channels)) {
+					if (tab == d.scroll_channels) {
 						// find active channel if any
 						for (int i=0; i<d.channels.length; i++) {
 							if (d.channels[i].isActive()) {
@@ -257,19 +265,19 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 							String label = null;
 							ArrayList al = null;
 							JPanel p = null;
-							if (tab.equals(d.scroll_zdispl)) {
+							if (tab == d.scroll_zdispl) {
 								label = "Z-space objects";
 								al = d.layer.getParent().getZDisplayables();
 								p = d.panel_zdispl;
-							} else if (tab.equals(d.scroll_patches)) {
+							} else if (tab == d.scroll_patches) {
 								label = "Patches";
 								al = d.layer.getDisplayables(Patch.class);
 								p = d.panel_patches;
-							} else if (tab.equals(d.scroll_labels)) {
+							} else if (tab == d.scroll_labels) {
 								label = "Labels";
 								al = d.layer.getDisplayables(DLabel.class);
 								p = d.panel_labels;
-							} else if (tab.equals(d.scroll_profiles)) {
+							} else if (tab == d.scroll_profiles) {
 								label = "Profiles";
 								al = d.layer.getDisplayables(Profile.class);
 								p = d.panel_profiles;
@@ -283,10 +291,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 						if (null != d.active) {
 							// set the transp slider to the alpha value of the active Displayable if any
 							d.transp_slider.setValue((int)(d.active.getAlpha() * 100));
-							Object ob = d.ht_panels.get(d.active);
-							if (null != ob) ((DisplayablePanel)ob).setActive(true);
+							DisplayablePanel dp = d.ht_panels.get(d.active);
+							if (null != dp) dp.setActive(true);
 						}
 					}
+					}});
 					break;
 				}
 			}
@@ -299,61 +308,78 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 		public void adjustmentValueChanged(AdjustmentEvent ae) {
 			int index = scroller.getValue();
-			new SetLayerThread(Display.this, layer.getParent().getLayer(index));
+			slt.set(layer.getParent().getLayer(index));
 			return;
 		}
 	}
 
-	private Object setting_layer_lock = new Object();
-	private boolean setting_layer = false;
-	private SetLayerThread set_layer_thread = null;
+	private final SetLayerThread slt = new SetLayerThread();
 
 	private class SetLayerThread extends Thread {
 
-		private boolean quit = false;
-		private Display d;
+		private boolean go = true;
 		private Layer layer;
+		private final Lock lock = new Lock();
+		private final Lock lock2 = new Lock();
 
-		SetLayerThread(Display d, Layer layer) {
+		SetLayerThread() {
 			setPriority(Thread.NORM_PRIORITY);
-			if (null != set_layer_thread) set_layer_thread.quit();
-			set_layer_thread = this;
-			this.d = d;
-			this.layer = layer;
+			setDaemon(true);
 			start();
 		}
 
+		public final void set(final Layer layer) {
+			synchronized (lock) {
+				this.layer = layer;
+			}
+			synchronized (this) {
+				notify();
+			}
+		}
+
+		public final void setAndWait(final Layer layer) {
+			lock2.lock();
+			set(layer);
+		}
+
 		public void run() {
-			if (quit) return;
-			synchronized (setting_layer_lock) {
-				while (setting_layer) {
-					try { setting_layer_lock.wait(); } catch (InterruptedException ie) {}
-				}
-				if (quit) {
-					setting_layer = false;
-					setting_layer_lock.notifyAll();
-					return;
-				}
-				setting_layer = true;
-				try {
-					d.setLayer(layer);
-					updateInDatabase("layer_id"); // not being done at the setLayer method to avoid thread locking design problems (the setLayer is used when reconstructing from the database)
-					Thread.yield();
-				} catch (Exception e) {
-					IJError.print(e);
-				} finally {
-					// cleanup (removal of reference necessary for join() calls to this thread to succeed)
-					if (this.equals(set_layer_thread)) {
-						set_layer_thread = null;
+			while (go) {
+				while (null == this.layer) {
+					synchronized (this) {
+						try { wait(); } catch (InterruptedException ie) {}
 					}
 				}
-				setting_layer = false;
-				setting_layer_lock.notifyAll();
+				Layer layer = null;
+				synchronized (lock) {
+					layer = this.layer;
+					this.layer = null;
+				}
+				//
+				if (!go) return; // after nullifying layer
+				//
+				if (null != layer) {
+					Display.this.setLayer(layer);
+					Display.this.updateInDatabase("layer_id");
+				}
+				// unlock any calls waiting on setAndWait
+				synchronized (lock2) {
+					lock2.unlock();
+				}
+			}
+			// cleanup:
+			synchronized (lock2) {
+				lock2.unlock();
+			}
+		}
+
+		public void waitForLayer() {
+			while (null != layer && go) {
+				try { Thread.sleep(10); } catch (Exception e) {}
 			}
 		}
 
 		public void quit() {
-			quit = true;
+			go = false;
 		}
 	}
 
@@ -409,7 +435,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Reconstruct a Display from an XML entry, to be opened when everything is ready. */
-	public Display(Project project, long id, Layer layer, Hashtable ht_attributes) {
+	public Display(Project project, long id, Layer layer, HashMap ht_attributes) {
 		super(project, id);
 		if (null == layer) {
 			Utils.log2("Display: need a non-null Layer for id=" + id);
@@ -420,9 +446,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Point p = new Point(0, 0);
 		int c_alphas = 0xffffffff;
 		int c_alphas_state = 0xffffffff;
-		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht_attributes.get(key);
+		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("srcrect_x")) { // reflection! Reflection!
 				srcRect.x = Integer.parseInt(data);
 			} else if (key.equals("srcrect_y")) {
@@ -542,7 +569,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		BoxLayout patches_layout = new BoxLayout(panel_patches, BoxLayout.Y_AXIS);
 		this.panel_patches.setLayout(patches_layout);
 		this.panel_patches.add(new JLabel("No patches."));
-		this.scroll_patches = new JScrollPane(panel_patches);
+		this.scroll_patches = makeScrollPane(panel_patches);
 		this.scroll_patches.setPreferredSize(new Dimension(250, 300));
 		this.scroll_patches.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Patches", scroll_patches);
@@ -552,7 +579,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		BoxLayout profiles_layout = new BoxLayout(panel_profiles, BoxLayout.Y_AXIS);
 		this.panel_profiles.setLayout(profiles_layout);
 		this.panel_profiles.add(new JLabel("No profiles."));
-		this.scroll_profiles = new JScrollPane(panel_profiles);
+		this.scroll_profiles = makeScrollPane(panel_profiles);
 		this.scroll_profiles.setPreferredSize(new Dimension(250, 300));
 		this.scroll_profiles.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Profiles", scroll_profiles);
@@ -562,7 +589,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		BoxLayout pipes_layout = new BoxLayout(panel_zdispl, BoxLayout.Y_AXIS);
 		this.panel_zdispl.setLayout(pipes_layout);
 		this.panel_zdispl.add(new JLabel("No objects."));
-		this.scroll_zdispl = new JScrollPane(panel_zdispl);
+		this.scroll_zdispl = makeScrollPane(panel_zdispl);
 		this.scroll_zdispl.setPreferredSize(new Dimension(250, 300));
 		this.scroll_zdispl.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Z space", scroll_zdispl);
@@ -571,7 +598,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		this.panel_channels = new JPanel();
 		BoxLayout channels_layout = new BoxLayout(panel_channels, BoxLayout.Y_AXIS);
 		this.panel_channels.setLayout(channels_layout);
-		this.scroll_channels = new JScrollPane(panel_channels);
+		this.scroll_channels = makeScrollPane(panel_channels);
 		this.scroll_channels.setPreferredSize(new Dimension(250, 300));
 		this.scroll_channels.setMinimumSize(new Dimension(250, 300));
 		this.channels = new Channel[4];
@@ -590,17 +617,19 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		BoxLayout labels_layout = new BoxLayout(panel_labels, BoxLayout.Y_AXIS);
 		this.panel_labels.setLayout(labels_layout);
 		this.panel_labels.add(new JLabel("No labels."));
-		this.scroll_labels = new JScrollPane(panel_labels);
+		this.scroll_labels = makeScrollPane(panel_labels);
 		this.scroll_labels.setPreferredSize(new Dimension(250, 300));
 		this.scroll_labels.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Labels", scroll_labels);
 
-		this.ht_tabs = new Hashtable();
+		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
 		this.ht_tabs.put(Profile.class, scroll_profiles);
 		this.ht_tabs.put(ZDisplayable.class, scroll_zdispl);
+		this.ht_tabs.put(AreaList.class, scroll_zdispl);
 		this.ht_tabs.put(Pipe.class, scroll_zdispl);
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
+		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
 		// channels not included
 
@@ -748,8 +777,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 		Utils.updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
 
-		
+
+		// Set the calibration of the FakeImagePlus to that of the LayerSet
 		((FakeImagePlus)canvas.getFakeImagePlus()).setCalibrationSuper(layer.getParent().getCalibrationCopy());
+
+		// Set the FakeImagePlus as the current image
+		setTempCurrentImage();
 
 		// create a drag and drop listener
 		dnd = new DNDInsertImage(this);
@@ -767,6 +800,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		});
 	}
 
+	private JScrollPane makeScrollPane(Component c) {
+		JScrollPane jsp = new JScrollPane(c);
+		// adjust scrolling to use one DisplayablePanel as the minimal unit
+		jsp.getVerticalScrollBar().setBlockIncrement(DisplayablePanel.HEIGHT); // clicking within the track
+		jsp.getVerticalScrollBar().setUnitIncrement(DisplayablePanel.HEIGHT); // clicking on an arrow
+		return jsp;
+	}
+
 	public JPanel getCanvasPanel() {
 		return canvas_panel;
 	}
@@ -775,15 +816,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		return canvas;
 	}
 
-	public void setLayer(Layer layer) {
-		if (null == layer || layer.equals(this.layer)) return;
-		final boolean set_zdispl = null == this.layer || !layer.getParent().equals(this.layer.getParent());
+	public void setLayer(final Layer layer) {
+		if (null == layer || layer == this.layer) return;
+		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
 		if (selection.isTransforming()) {
 			Utils.log("Can't browse layers while transforming.\nCANCEL the transform first with the ESCAPE key or right-click -> cancel.");
-			scroller.setValue(this.layer.getParent().getLayerIndex(this.layer.getId()));
+			scroller.setValue(Display.this.layer.getParent().getLayerIndex(Display.this.layer.getId()));
 			return;
 		}
-		this.layer = layer;
+		Display.this.layer = layer;
 		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 
 		// update the current Layer pointer in ZDisplayable objects
@@ -818,26 +859,26 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		project.getLoader().prepare(layer);
 		updateTitle(); // to show the new 'z'
 		// select the Layer in the LayerTree
-		project.select(this.layer); // does so in a separate thread
+		project.select(Display.this.layer); // does so in a separate thread
 		// update active Displayable:
 
 		// deselect all except ZDisplayables
 		final ArrayList sel = selection.getSelected();
-		final Displayable last_active = this.active;
+		final Displayable last_active = Display.this.active;
 		int sel_next = -1;
 		for (Iterator it = sel.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
 			if (!(d instanceof ZDisplayable)) {
 				it.remove();
 				selection.remove(d);
-				if (d.equals(last_active) && sel.size() > 0) {
+				if (d == last_active && sel.size() > 0) {
 					// select the last one of the remaining, if any
 					sel_next = sel.size()-1;
 				}
 			}
 		}
 		if (-1 != sel_next && sel.size() > 0) select((Displayable)sel.get(sel_next), true);
-		else if (null != last_active && last_active.getClass().equals(Patch.class) && null != last_temp && last_temp instanceof PatchStack) {
+		else if (null != last_active && last_active.getClass() == Patch.class && null != last_temp && last_temp instanceof PatchStack) {
 			Displayable d = ((PatchStack)last_temp).getPatch(layer, (Patch)last_active);
 			if (null != d) selection.add(d);
 		}
@@ -862,21 +903,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		// update the coloring in the ProjectTree
 		project.getProjectTree().updateUILater();
 		
-		//
-		createTempCurrentImage();
 		setTempCurrentImage();
 	}
 
-	private void setLayerLater(Layer layer, final Displayable active) {
+	private void setLayerLater(final Layer layer, final Displayable active) {
 		if (null == layer) return;
 		this.layer = layer;
 		if (!ControlWindow.isGUIEnabled()) return;
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
 		// empty the tabs, except channels and pipes
 		clearTab(panel_profiles, "Profiles");
 		clearTab(panel_patches, "Patches");
 		clearTab(panel_labels, "Labels");
 		// distribute Displayable to the tabs. Ignore LayerSet instances.
-		if (null == ht_panels) ht_panels = new Hashtable();
+		if (null == ht_panels) ht_panels = new Hashtable<Displayable,DisplayablePanel>();
 		else ht_panels.clear();
 		Iterator it = layer.getDisplayables().iterator();
 		while (it.hasNext()) {
@@ -888,7 +928,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		navigator.repaint(true); // was not done when adding
 		Utils.updateComponent(tabs.getSelectedComponent());
+		//
+		setActive(active);
+		}});
 		// swing issues:
+		/*
 		new Thread() {
 			public void run() {
 				setPriority(Thread.NORM_PRIORITY);
@@ -896,14 +940,15 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				setActive(active);
 			}
 		}.start();
+		*/
 	}
 
 	/** Remove all components from the tab and add a "No [label]" label to each. */
-	private void clearTab(Container c, String label) {
+	private void clearTab(final Container c, final String label) {
 		c.removeAll();
 		c.add(new JLabel("No " + label + "."));
 		// magic cocktail:
-		if (tabs.getSelectedComponent().equals(c)) {
+		if (tabs.getSelectedComponent() == c) {
 			Utils.updateComponent(c);
 		}
 	}
@@ -926,20 +971,22 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Context-sensitive: to a Displayable, or to a channel. */
 	private void setTransparency(float value) {
 		JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-		if (scroll.equals(scroll_channels)) {
+		if (scroll == scroll_channels) {
 			for (int i=0; i<4; i++) {
-				if (channels[i].getBackground().equals(Color.cyan)) {
+				if (channels[i].getBackground() == Color.cyan) {
 					channels[i].setAlpha(value); // will call back and repaint the Display
 					return;
 				}
 			}
 		} else if (null != active) {
+			canvas.invalidateVolatile();
 			active.setAlpha(value);
 		}
 	}
 
 	public void setTransparencySlider(float transp) {
 		if (transp >= 0.0f && transp <= 1.0f) {
+			// fire event
 			transp_slider.setValue((int)(transp * 100));
 		}
 	}
@@ -947,7 +994,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Mark the canvas for updating the offscreen images if the given Displayable is NOT the active. */ // Used by the Displayable.setVisible for example.
 	static public void setUpdateGraphics(final Layer layer, final Displayable displ) {
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer) && null != d.active && !d.active.equals(displ)) {
+			if (layer == d.layer && null != d.active && d.active != displ) {
 				d.canvas.setUpdateGraphics(true);
 			}
 		}
@@ -956,7 +1003,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Flag the DisplayCanvas of Displays showing the given Layer to update their offscreen images.*/
 	static public void setUpdateGraphics(final Layer layer, final boolean update) {
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer)) {
+			if (layer == d.layer) {
 				d.canvas.setUpdateGraphics(update);
 			}
 		}
@@ -979,14 +1026,18 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}});
 	}
 
-	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint, in the Swing GUI thread. */
 	static public void update(final LayerSet set) {
+		update(set, true);
+	}
+
+	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint, in the Swing GUI thread. */
+	static public void update(final LayerSet set, final boolean update_canvas_dimensions) {
 		if (null == set) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 			for (Display d : al_displays) {
 				if (set.contains(d.layer)) {
 					d.updateSnapshots();
-					d.canvas.setDimensions(set.getLayerWidth(), set.getLayerHeight());
+					if (update_canvas_dimensions) d.canvas.setDimensions(set.getLayerWidth(), set.getLayerHeight());
 					d.repaintAll();
 				}
 			}
@@ -995,67 +1046,52 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Release all resources held by this Display and close the frame. */
 	protected void destroy() {
+		dispatcher.quit();
 		canvas.setReceivesInput(false);
-		synchronized (setting_layer_lock) {
-			while (setting_layer) {
-				try { setting_layer_lock.wait(); } catch (InterruptedException ie) {}
-			}
-			setting_layer = true;
-			if (null != set_layer_thread) set_layer_thread.quit();
+		slt.quit();
 
-			// update the coloring in the ProjectTree and LayerTree
-			if (!project.isBeingDestroyed()) {
-				try {
-					project.getProjectTree().updateUILater();
-					project.getLayerTree().updateUILater();
-				} catch (Exception e) {
-					Utils.log2("updateUI failed at Display.destroy()");
-				}
-			}
-
-			frame.removeComponentListener(component_listener);
-			frame.removeWindowListener(window_listener);
-			frame.removeWindowFocusListener(window_listener);
-			frame.removeWindowStateListener(window_listener);
-			frame.removeKeyListener(canvas);
-			frame.removeMouseListener(frame_mouse_listener);
-			canvas_panel.removeKeyListener(canvas);
-			canvas.removeKeyListener(canvas);
-			tabs.removeChangeListener(tabs_listener);
-			tabs.removeKeyListener(canvas);
-			ImagePlus.removeImageListener(this);
-			canvas.destroy();
-			navigator.destroy();
-			scroller.removeAdjustmentListener(scroller_listener);
-			frame.setVisible(false);
-			//no need, and throws exception//frame.dispose();
-			if (null != active_imp_copy) {
-				Loader.flush(active_imp_copy); // TODO inspect implications for other displays if this is the current or the copy (I think it's the copy)
-				active_imp_copy = null;
-			}
-			if (null != last_temp) {
-				Loader.flush(last_temp);
-				last_temp = null;
-			}
-			//TEMPORARY W//WindowManager.setTempCurrentImage(null);
-			active = null;
-			if (null != selection) selection.clear();
-			//Utils.log2("destroying selection");
-
-			// below, need for SetLayerThread threads to quit if any.
-			setting_layer = false;
-			setting_layer_lock.notifyAll();
-			// set a new front if any
-			if (null == front && al_displays.size() > 0) {
-				front = (Display)al_displays.get(al_displays.size() -1);
-			}
-			// repaint layer tree (to update the label color)
+		// update the coloring in the ProjectTree and LayerTree
+		if (!project.isBeingDestroyed()) {
 			try {
-				project.getLayerTree().updateUILater(); // works only after setting the front above
-			} catch (Exception e) {} // ignore swing sync bullshit when closing everything too fast
-			// remove the drag and drop listener
-			dnd.destroy();
+				project.getProjectTree().updateUILater();
+				project.getLayerTree().updateUILater();
+			} catch (Exception e) {
+				Utils.log2("updateUI failed at Display.destroy()");
+			}
 		}
+
+		frame.removeComponentListener(component_listener);
+		frame.removeWindowListener(window_listener);
+		frame.removeWindowFocusListener(window_listener);
+		frame.removeWindowStateListener(window_listener);
+		frame.removeKeyListener(canvas);
+		frame.removeMouseListener(frame_mouse_listener);
+		canvas_panel.removeKeyListener(canvas);
+		canvas.removeKeyListener(canvas);
+		tabs.removeChangeListener(tabs_listener);
+		tabs.removeKeyListener(canvas);
+		ImagePlus.removeImageListener(this);
+		canvas.destroy();
+		navigator.destroy();
+		scroller.removeAdjustmentListener(scroller_listener);
+		frame.setVisible(false);
+		//no need, and throws exception//frame.dispose();
+		active = null;
+		if (null != selection) selection.clear();
+		//Utils.log2("destroying selection");
+
+		// below, need for SetLayerThread threads to quit
+		slt.quit();
+		// set a new front if any
+		if (null == front && al_displays.size() > 0) {
+			front = (Display)al_displays.get(al_displays.size() -1);
+		}
+		// repaint layer tree (to update the label color)
+		try {
+			project.getLayerTree().updateUILater(); // works only after setting the front above
+		} catch (Exception e) {} // ignore swing sync bullshit when closing everything too fast
+		// remove the drag and drop listener
+		dnd.destroy();
 	}
 
 	/** Find all Display instances that contain a Layer of the given project and close them without removing the Display entries from the database. */
@@ -1071,7 +1107,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Display[] d = new Display[al_displays.size()];
 		al_displays.toArray(d);
 		for (int i=0; i<d.length; i++) {
-			if (d[i].getProject().equals(project)) {
+			if (d[i].getProject() == project) {
 				al_displays.remove(d[i]);
 				d[i].destroy();
 			}
@@ -1103,8 +1139,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		return layer;
 	}
 
-	public boolean isShowing(Layer layer) {
-		return this.layer.equals(layer);
+	public boolean isShowing(final Layer layer) {
+		return this.layer == layer;
 	}
 
 	public DisplayNavigator getNavigator() {
@@ -1131,7 +1167,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void repaintSnapshots(final LayerSet set) {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
-			if (d.getLayer().getParent().equals(set)) {
+			if (d.getLayer().getParent() == set) {
 				d.navigator.repaint(true);
 				Utils.updateComponent(d.tabs);
 			}
@@ -1140,7 +1176,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void repaintSnapshots(final Layer layer) {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
-			if (d.getLayer().equals(layer)) {
+			if (d.getLayer() == layer) {
 				d.navigator.repaint(true);
 				Utils.updateComponent(d.tabs);
 			}
@@ -1148,42 +1184,60 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	public void pack() {
-		new Thread() { public void run() { SwingUtilities.invokeLater(new Runnable() { public void run() {
-			frame.pack();
-		}}); }}.start();
+		dispatcher.exec(new Runnable() { public void run() {
+		try {
+			Thread.currentThread().sleep(100);
+			SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+				frame.pack();
+			}});
+		} catch (Exception e) { IJError.print(e); }
+		}});
 	}
 
 	static public void pack(final LayerSet ls) {
 		for (Display d : al_displays) {
-			if (d.layer.getParent().equals(ls)) d.pack();
+			if (d.layer.getParent() == ls) d.pack();
 		}
 	}
 
-	protected void adjustCanvas() {
+	private void adjustCanvas() {
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
 		Rectangle r = split.getRightComponent().getBounds();
 		canvas.setDrawingSize(r.width, r.height, true);
 		//frame.pack(); // don't! Would go into an infinite loop
 		canvas.repaint(true);
 		updateInDatabase("srcRect");
+		}});
 	}
 
 	/** Grab the last selected display (or create an new one if none) and show in it the layer,centered on the Displayable object. */
-	static public void setFront(Layer layer, Displayable displ) {
+	static public void setFront(final Layer layer, final Displayable displ) {
 		if (null == front) {
 			Display display = new Display(layer.getProject(), layer); // gets set to front
 			display.showCentered(displ);
-		} else {
+		} else if (layer == front.layer) {
 			front.showCentered(displ);
+		} else {
+			// find one:
+			for (Display d : al_displays) {
+				if (d.layer == layer) {
+					d.frame.toFront();
+					d.showCentered(displ);
+					return;
+				}
+			}
+			// else, open new one
+			new Display(layer.getProject(), layer).showCentered(displ);
 		}
 	}
 
 	/** Find the displays that show the given Layer, and add the given Displayable to the GUI and sets it active only in the front Display and only if 'activate' is true. */
 	static public void add(final Layer layer, final Displayable displ, final boolean activate) {
 		for (Display d : al_displays) {
-			if (d.layer.equals(layer)) {
-				if (front.equals(d)) {
+			if (d.layer == layer) {
+				if (front == d) {
 					d.add(displ, activate, true);
-					front.frame.toFront();
+					//front.frame.toFront();
 				} else {
 					d.add(displ, false, true);
 				}
@@ -1199,10 +1253,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void add(final LayerSet set, final ZDisplayable zdispl) {
 		for (Display d : al_displays) {
 			if (set.contains(d.layer)) {
-				if (front.equals(d)) {
+				if (front == d) {
 					zdispl.setLayer(d.layer); // the active one
 					d.add(zdispl, true, true); // calling add(Displayable, boolean, boolean)
-					front.frame.toFront();
+					//front.frame.toFront();
 				} else {
 					d.add(zdispl, false, true);
 				}
@@ -1212,7 +1266,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Add it to the proper panel, at the top, and set it active. */
 	private final void add(final Displayable d, final boolean activate, final boolean repaint_snapshot) {
-		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(d);
+		DisplayablePanel dp = ht_panels.get(d);
 		if (null != dp && activate) { // for ZDisplayable objects (TODO I think this is not used anymore)
 			dp.setActive(true);
 			//setActive(d);
@@ -1260,74 +1314,70 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Find the displays that show the given Layer, and remove the given Displayable from the GUI. */
 	static public void remove(final Layer layer, final Displayable displ) {
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer)) {
-				d.remove(displ);
-			}
+			if (layer == d.layer) d.remove(displ);
 		}
 	}
 
 	private void remove(final Displayable displ) {
-		Object ob = ht_panels.remove(displ);
+		DisplayablePanel ob = ht_panels.remove(displ);
 		if (null != ob) {
-			Component c = (Component)ob;
-			if (displ.getClass().equals(Patch.class)) {
-				panel_patches.remove(c);
-				Utils.updateComponent(panel_patches);
-			} else if (displ instanceof ZDisplayable) {
-				panel_zdispl.remove(c);
-				Utils.updateComponent(panel_zdispl);
-			} else if (displ.getClass().equals(DLabel.class)) {
-				panel_labels.remove(c);
-				Utils.updateComponent(panel_labels);
-			} else if (displ.getClass().equals(Profile.class)) {
-				panel_profiles.remove(c);
-				Utils.updateComponent(panel_profiles);
+			final JScrollPane jsp = ht_tabs.get(displ.getClass());
+			if (null != jsp) {
+				JPanel p = (JPanel)jsp.getViewport().getView();
+				p.remove((Component)ob);
+				Utils.revalidateComponent(p);
 			}
 		}
 		if (null == active || !selection.contains(displ)) {
 			canvas.setUpdateGraphics(true);
 		}
 		layer.getParent().removeFromUndo(displ);
+		canvas.invalidateVolatile(); // removing active, no need to update offscreen but yes the volatile
 		repaint(displ, null, 5, true, false);
 		selection.remove(displ);
 	}
 
-	static public void remove(ZDisplayable zdispl) {
+	static public void remove(final ZDisplayable zdispl) {
 		for (Display d : al_displays) {
-			if (zdispl.getLayerSet().equals(d.layer.getParent())) {
+			if (zdispl.getLayerSet() == d.layer.getParent()) {
 				d.remove((Displayable)zdispl);
 			}
 		}
 	}
 
-	static public void repaint(Layer layer, Displayable displ, int extra) {
+	static public void repaint(final Layer layer, final Displayable displ, final int extra) {
 		repaint(layer, displ, displ.getBoundingBox(), extra);
 	}
 
-	static public void repaint(Layer layer, Displayable displ, Rectangle r, int extra) {
+	static public void repaint(final Layer layer, final Displayable displ, final Rectangle r, final int extra) {
 		repaint(layer, displ, r, extra, true);
 	}
 
 	/** Find the displays that show the given Layer, and repaint the given Displayable. */
-	static public void repaint(Layer layer, Displayable displ, Rectangle r, int extra, boolean repaint_navigator) {
+	static public void repaint(final Layer layer, final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator) {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer)) {
+			if (layer == d.layer) {
 				d.repaint(displ, r, extra, repaint_navigator, false);
 			}
 		}
 	}
 
+	static public void repaint(final Displayable d) {
+		if (d instanceof ZDisplayable) repaint(d.getLayerSet(), d, d.getBoundingBox(null), 5, true);
+		repaint(d.getLayer(), d, d.getBoundingBox(null), 5, true);
+	}
+
 	/** Repaint as much as the bounding box around the given Displayable, or the r if not null. */
-	private void repaint(Displayable displ, Rectangle r, int extra, boolean repaint_navigator, boolean update_graphics) {
+	private void repaint(final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator, final boolean update_graphics) {
 		if (repaint_disabled || null == displ) return;
-		if (update_graphics || displ.getClass().equals(Patch.class) || !displ.equals(active)) {
+		if (update_graphics || displ.getClass() == Patch.class || displ != active) {
 			canvas.setUpdateGraphics(true);
 		}
 		if (null != r) canvas.repaint(r, extra);
 		else canvas.repaint(displ, extra);
 		if (repaint_navigator) {
-			DisplayablePanel dp = (DisplayablePanel)ht_panels.get(displ);
+			DisplayablePanel dp = ht_panels.get(displ);
 			if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 			navigator.repaint(true); // everything
 		}
@@ -1338,7 +1388,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		for (Display d : al_displays) {
 			if (d.layer.contains(displ)) {
 				if (!d.navigator.isPainted(displ)) {
-					DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+					DisplayablePanel dp = d.ht_panels.get(displ);
 					if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
 					d.navigator.repaint(displ);
 				}
@@ -1347,7 +1397,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Repaint the given Rectangle in all Displays showing the layer, updating the offscreen image if any. */
-	static public void repaint(Layer layer, Rectangle r, int extra) {
+	static public void repaint(final Layer layer, final Rectangle r, final int extra) {
 		repaint(layer, extra, r, true, true);
 	}
 
@@ -1358,7 +1408,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void repaint(final Layer layer, final int extra, final Rectangle r, final boolean update_navigator, final boolean update_graphics) {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer)) {
+			if (layer == d.layer) {
 				d.canvas.setUpdateGraphics(update_graphics);
 				d.canvas.repaint(r, extra);
 				if (update_navigator) {
@@ -1374,7 +1424,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void repaint(final Layer layer, final Rectangle r, final int extra, final boolean update_graphics) {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer)) {
+			if (layer == d.layer) {
 				d.canvas.setUpdateGraphics(update_graphics);
 				d.canvas.repaint(r, extra);
 				d.navigator.repaint(update_graphics);
@@ -1387,8 +1437,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void repaint(final Layer layer, final Displayable displ) {
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer)) {
-				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+			if (layer == d.layer) {
+				DisplayablePanel dp = d.ht_panels.get(displ);
 				if (null != dp) dp.repaint();
 				d.navigator.repaint(true);
 			}
@@ -1410,12 +1460,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (set.contains(d.layer)) {
 				if (repaint_navigator) {
 					if (null != displ) {
-						DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+						DisplayablePanel dp = d.ht_panels.get(displ);
 						if (null != dp) dp.repaint();
 					}
 					d.navigator.repaint(true);
 				}
-				if (null == displ || !displ.equals(d.active)) d.setUpdateGraphics(true); // safeguard
+				if (null == displ || displ != d.active) d.setUpdateGraphics(true); // safeguard
 				// paint the given box or the actual Displayable's box
 				if (null != r) d.canvas.repaint(r, extra);
 				else d.canvas.repaint(displ, extra);
@@ -1447,7 +1497,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void repaint(final Layer layer) { // TODO this method overlaps with update(layer)
 		if (repaint_disabled) return;
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer)) {
+			if (layer == d.layer) {
 				d.navigator.repaint(true);
 				d.canvas.repaint(true);
 			}
@@ -1469,6 +1519,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		return frame.getLocation();
 	}
 
+	public JFrame getFrame() {
+		return frame;
+	}
+
 	public void setLocation(Point p) {
 		this.frame.setLocation(p);
 	}
@@ -1483,7 +1537,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Select/deselect accordingly to the current state and the shift key. */
 	public void select(final Displayable d, final boolean shift_down) {
-		if (null != active && !active.equals(d) && !active.getClass().equals(Patch.class)) {
+		if (null != active && active != d && active.getClass() != Patch.class) {
 			// active is being deselected, so link underlying patches
 			active.linkPatches();
 		}
@@ -1495,12 +1549,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 		if (!shift_down) {
 			//Utils.log2("Display.select: single selection");
-			if (!d.equals(active)) {
+			if (d != active) {
 				selection.clear();
 				selection.add(d);
 			}
 		} else if (selection.contains(d)) {
-			if (active.equals(d)) {
+			if (active == d) {
 				selection.remove(d);
 				//Utils.log2("Display.select: removing from a selection");
 			} else {
@@ -1512,8 +1566,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			selection.add(d);
 		}
 		// update the image shown to ImageJ
-		createTempCurrentImage();
-		setTempCurrentImage();
+		// NO longer necessary, always he same FakeImagePlus // setTempCurrentImage();
 	}
 
 	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, final Class c) {
@@ -1526,8 +1579,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Find a Displayable to add to the selection under the given point (which is in offscreen coords); will use a popup menu to give the user a range of Displayable objects to select from. */
 	protected void choose(int screen_x_p, int screen_y_p, int x_p, int y_p, boolean shift_down, Class c) {
 		//Utils.log("Display.choose: x,y " + x_p + "," + y_p);
-		ArrayList al = layer.find(x_p, y_p);
-		al.addAll(layer.getParent().findZDisplayables(layer, x_p, y_p));
+		final ArrayList<Displayable> al = new ArrayList<Displayable>(layer.find(x_p, y_p, true));
+		al.addAll(layer.getParent().findZDisplayables(layer, x_p, y_p, true)); // only visible ones
 		if (al.isEmpty()) {
 			Displayable act = this.active;
 			selection.clear();
@@ -1537,7 +1590,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null != act) Display.repaint(layer, act, 5);
 		} else if (1 == al.size()) {
 			Displayable d = (Displayable)al.get(0);
-			if (null != c && !d.getClass().equals(c)) {
+			if (null != c && d.getClass() != c) {
 				selection.clear();
 				return;
 			}
@@ -1553,7 +1606,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					// else show menu
 					for (Iterator it = al.iterator(); it.hasNext(); ) {
 						Object ob = it.next();
-						if (!ob.getClass().equals(c)) it.remove();
+						if (ob.getClass() != c) it.remove();
 					}
 					if (0 == al.size()) {
 						// deselect
@@ -1572,7 +1625,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		}
 	}
 
-	private void choose(final int screen_x_p, final int screen_y_p, final ArrayList al, final boolean shift_down, final int x_p, final int y_p) {
+	private void choose(final int screen_x_p, final int screen_y_p, final Collection al, final boolean shift_down, final int x_p, final int y_p) {
 		// show a popup on the canvas to choose
 		new Thread() {
 			public void run() {
@@ -1621,25 +1674,25 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		this.active = displ;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 
-		if (null != displ && displ.equals(prev_active)) {
+		// renew current image if necessary
+		if (null != displ && displ == prev_active) {
 			// make sure the proper tab is selected.
 			selectTab(displ);
-			if (displ instanceof Patch) setTempCurrentImage(); // renew
 			return; // the same
 		}
 		// deactivate previously active
 		if (null != prev_active) {
-			final Object ob = ht_panels.get(prev_active);
-			if (null != ob) ((DisplayablePanel)ob).setActive(false);
+			final DisplayablePanel ob = ht_panels.get(prev_active);
+			if (null != ob) ob.setActive(false);
 			// erase "decorations" of the previously active
 			canvas.repaint(selection.getBox(), 4);
 		}
 		// activate the new active
 		if (null != displ) {
-			final Object ob = ht_panels.get(displ);
-			if (null != ob) ((DisplayablePanel)ob).setActive(true);
+			final DisplayablePanel ob = ht_panels.get(displ);
+			if (null != ob) ob.setActive(true);
 			updateInDatabase("active_displayable_id");
-			if (!displ.getClass().equals(Patch.class)) project.select(displ); // select the node in the corresponding tree, if any.
+			if (displ.getClass() != Patch.class) project.select(displ); // select the node in the corresponding tree, if any.
 			// select the proper tab, and scroll to visible
 			selectTab(displ);
 			boolean update_graphics = null == prev_active || paintsBelow(prev_active, displ); // or if it's an image, but that's by default in the repaint method
@@ -1678,58 +1731,63 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Select the proper tab, and also scroll it to show the given Displayable -unless it's a LayerSet, and unless the proper tab is already showing. */
-	private void selectTab(Displayable displ) {
+	private void selectTab(final Displayable displ) {
+		Method method = null;
 		try {
 			if (!(displ instanceof LayerSet)) {
-				Method method = getClass().getDeclaredMethod("selectTab", new Class[]{displ.getClass()});
-				method.invoke(this, new Object[]{displ});
+				method = Display.class.getDeclaredMethod("selectTab", new Class[]{displ.getClass()});
 			}
 		} catch (Exception e) {
-			Utils.log2("Display.setActive(" + displ + "): " + e);
+			IJError.print(e);
+		}
+		if (null != method) {
+			final Method me = method;
+			dispatcher.exec(new Runnable() { public void run() {
+				try {
+					me.setAccessible(true);
+					me.invoke(Display.this, new Object[]{displ});
+				} catch (Exception e) { IJError.print(e); }
+			}});
 		}
 	}
 
 	private void selectTab(Patch patch) {
 		tabs.setSelectedComponent(scroll_patches);
-		scrollToShow(scroll_patches, (DisplayablePanel)ht_panels.get(patch));
+		scrollToShow(scroll_patches, ht_panels.get(patch));
 	}
 
 	private void selectTab(Profile profile) {
 		tabs.setSelectedComponent(scroll_profiles);
-		scrollToShow(scroll_profiles, (DisplayablePanel)ht_panels.get(profile));
-	}
-
-	private void selectTab(Pipe pipe) {
-		tabs.setSelectedComponent(scroll_zdispl);
-		scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(pipe));
-	}
-
-	private void selectTab(AreaList area_list) {
-		tabs.setSelectedComponent(scroll_zdispl);
-		scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(area_list));
-	}
-
-	private void selectTab(Ball ball) {
-		tabs.setSelectedComponent(scroll_zdispl);
-		scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(ball));
+		scrollToShow(scroll_profiles, ht_panels.get(profile));
 	}
 
 	private void selectTab(DLabel label) {
 		tabs.setSelectedComponent(scroll_labels);
-		scrollToShow(scroll_labels, (DisplayablePanel)ht_panels.get(label));
+		scrollToShow(scroll_labels, ht_panels.get(label));
 	}
+
+	private void selectTab(ZDisplayable zd) {
+		tabs.setSelectedComponent(scroll_zdispl);
+		scrollToShow(scroll_zdispl, ht_panels.get(zd));
+	}
+
+	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
+	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
+	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Dissector d) { selectTab((ZDisplayable)d); }
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final Container tab, final String label, final ArrayList al) {
-		final boolean[] recreated = new boolean[]{false};
-		SwingUtilities.invokeLater(new Runnable() { public void run() { try {
+		final boolean[] recreated = new boolean[]{false, true, true};
+		dispatcher.execSwing(new Runnable() { public void run() {
+			try {
 			if (0 == al.size()) {
 				tab.removeAll();
 				tab.add(new JLabel("No " + label + "."));
 			} else {
 				Component[] comp = tab.getComponents();
 				int next = 0;
-				if (1 == comp.length && comp[0].getClass().equals(JLabel.class)) {
+				if (1 == comp.length && comp[0].getClass() == JLabel.class) {
 					next = 1;
 					tab.remove(0);
 				}
@@ -1753,13 +1811,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				}
 				recreated[0] = true;
 			}
-		} catch (Exception e) { e.printStackTrace(); }}});
-		// crude patch to account for lack of painting some times de to asynch issuea with Swing
-		SwingUtilities.invokeLater(new Runnable() { public void run() {
-			if (!recreated[0]) return;
-			tab.invalidate();
-			tab.validate();
-			tab.repaint();
+			if (recreated[0]) {
+				tab.invalidate();
+				tab.validate();
+				tab.repaint();
+			}
+			if (null != Display.this.active) scrollToShow(Display.this.active);
+			} catch (Throwable e) { IJError.print(e); }
 		}});
 	}
 
@@ -1782,14 +1840,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Find whether any Display is transforming the given Displayable. */
 	static public boolean isTransforming(final Displayable displ) {
 		for (Display d : al_displays) {
-			if (null != d.active && d.active.equals(displ) && d.canvas.isTransforming()) return true;
+			if (null != d.active && d.active == displ && d.canvas.isTransforming()) return true;
 		}
 		return false;
 	}
 
 	static public boolean isAligning(final LayerSet set) {
 		for (Display d : al_displays) {
-			if (d.layer.getParent().equals(set) && set.isAligning()) {
+			if (d.layer.getParent() == set && set.isAligning()) {
 				return true;
 			}
 		}
@@ -1801,7 +1859,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		if (null == front) return;
 		if (front.active != displ) return;
 		for (Display d : al_displays) {
-			if (d.active.equals(displ)) {
+			if (d.active == displ) {
 				if (d.canvas.isTransforming()) {
 					Utils.showMessage("Already transforming " + displ.getTitle());
 					return;
@@ -1815,7 +1873,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	private boolean isOrigin(InputEvent event) {
 		Object source = event.getSource();
 		// find it ... check the canvas for now TODO
-		if (canvas.equals(source)) {
+		if (canvas == source) {
 			return true;
 		}
 		return false;
@@ -1830,15 +1888,27 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Get the layer of an open Display of the given Project, or null if none.*/
 	static public Layer getFrontLayer(final Project project) {
 		if (null == front) return null;
-		if (front.project.equals(project)) return front.layer;
+		if (front.project == project) return front.layer;
 		// else, find an open Display for the given Project, if any
 		for (Display d : al_displays) {
-			if (d.project.equals(project)) {
+			if (d.project == project) {
 				d.frame.toFront();
 				return d.layer;
 			}
 		}
 		return null; // none found
+	}
+
+	static public Display getFront(final Project project) {
+		if (null == front) return null;
+		if (front.project == project) return front;
+		for (Display d : al_displays) {
+			if (d.project == project) {
+				d.frame.toFront();
+				return d;
+			}
+		}
+		return null;
 	}
 
 	public boolean isReadOnly() {
@@ -1875,7 +1945,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			item = new JMenuItem("Align using profiles");  item.addActionListener(this); popup.add(item);
 			if (!aligning || selection.isEmpty() || !selection.contains(Profile.class)) item.setEnabled(false);
 			item = new JMenuItem("Align stack slices"); item.addActionListener(this); popup.add(item);
-			if (selection.isEmpty() || ! (getActive().getClass().equals(Patch.class) && ((Patch)getActive()).isStack())) item.setEnabled(false);
+			if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
 			item = new JMenuItem("Align layers (layer-wise)"); item.addActionListener(this); popup.add(item);
 			if (1 == layer.getParent().size()) item.setEnabled(false);
 			item = new JMenuItem("Align layers (tile-wise global minimization)"); item.addActionListener(this); popup.add(item);
@@ -1891,10 +1961,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				if (active instanceof Profile) {
 					item = new JMenuItem("Duplicate, link and send to next layer"); item.addActionListener(this); popup.add(item);
 					Layer nl = layer.getParent().next(layer);
-					if (nl.equals(layer)) item.setEnabled(false);
+					if (nl == layer) item.setEnabled(false);
 					item = new JMenuItem("Duplicate, link and send to previous layer"); item.addActionListener(this); popup.add(item);
 					nl = layer.getParent().previous(layer);
-					if (nl.equals(layer)) item.setEnabled(false);
+					if (nl == layer) item.setEnabled(false);
 
 					menu = new JMenu("Duplicate, link and send to");
 					ArrayList al = layer.getParent().getLayers();
@@ -1903,7 +1973,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					while (it.hasNext()) {
 						Layer la = (Layer)it.next();
 						item = new JMenuItem(i + ": z = " + la.getZ()); item.addActionListener(this); menu.add(item); // TODO should label which layers contain Profile instances linked to the one being duplicated
-						if (la.equals(this.layer)) item.setEnabled(false);
+						if (la == this.layer) item.setEnabled(false);
 						i++;
 					}
 					popup.add(menu);
@@ -1913,6 +1983,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 					item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
 					if (!active.isLinked()) item.setEnabled(false); // isLinked() checks if it's linked to a Patch in its own layer
+					item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
 					popup.addSeparator();
 				} else if (active instanceof Patch) {
 					item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
@@ -1935,6 +2006,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					popup.addSeparator();
 				} else {
 					item = new JMenuItem("Unlink"); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
 					popup.addSeparator();
 				}
 				if (active instanceof AreaList) {
@@ -1942,7 +2014,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					ArrayList al = selection.getSelected();
 					int n = 0;
 					for (Iterator it = al.iterator(); it.hasNext(); ) {
-						if (it.next().getClass().equals(AreaList.class)) n++;
+						if (it.next().getClass() == AreaList.class) n++;
 					}
 					if (n < 2) item.setEnabled(false);
 				} else if (active instanceof Pipe) {
@@ -1976,12 +2048,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				popup.addSeparator();
 				LayerSet ls = layer.getParent();
 				item = new JMenuItem("Move to top"); item.addActionListener(this); menu.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_HOME, 0, true)); // this is just to draw the key name by the menu; it does not incur on any event being generated (that I know if), and certainly not any event being listened to by TrakEM2.
 				if (ls.isTop(active)) item.setEnabled(false);
 				item = new JMenuItem("Move up"); item.addActionListener(this); menu.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true));
 				if (ls.isTop(active)) item.setEnabled(false);
 				item = new JMenuItem("Move down"); item.addActionListener(this); menu.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true));
 				if (ls.isBottom(active)) item.setEnabled(false);
 				item = new JMenuItem("Move to bottom"); item.addActionListener(this); menu.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_END, 0, true));
 				if (ls.isBottom(active)) item.setEnabled(false);
 
 				popup.add(menu);
@@ -1998,8 +2074,6 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				} catch (Exception e) { IJError.print(e); item.setEnabled(false); }
 
 				if (active instanceof Patch) {
-					item = new JMenuItem("Undo");   item.addActionListener(this); popup.add(item);
-					if (!undo) item.setEnabled(false);
 					item = new JMenuItem("Revert"); item.addActionListener(this); popup.add(item);
 					popup.addSeparator();
 				}
@@ -2024,9 +2098,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					menu = new JMenu("Send linked group to...");
 					if (active.hasLinkedGroupWithinLayer(this.layer)) {
 						int i = 1;
-						for (Layer la : layer.getParent().getLayers()) {
-							item = new JMenuItem(la.getTitle()); item.addActionListener(this); menu.add(item);
-							if (la.equals(this.layer)) item.setEnabled(false);
+						for (Layer la : ls.getLayers()) {
+							String layer_title = i + ": " + la.getTitle();
+							if (-1 == layer_title.indexOf(' ')) layer_title += " ";
+							item = new JMenuItem(layer_title); item.addActionListener(this); menu.add(item);
+							if (la == this.layer) item.setEnabled(false);
 							i++;
 						}
 						popup.add(menu);
@@ -2063,6 +2139,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				menu = new JMenu("Hide/Unhide");
 				boolean none = 0 == selection.getNSelected();
 				item = new JMenuItem("Hide deselected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK, true));
+				if (none) item.setEnabled(false);
+				item = new JMenuItem("Hide deselected except images"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK | Event.ALT_MASK, true));
 				if (none) item.setEnabled(false);
 				item = new JMenuItem("Hide selected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true));
 				if (none) item.setEnabled(false);
@@ -2125,6 +2203,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
 			item = new JMenuItem("Export arealists as labels"); item.addActionListener(this); menu.add(item);
 			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+			item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 			if (menu.getItemCount() > 0) popup.add(menu);
 			menu = new JMenu("Selection");
 			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
@@ -2132,6 +2211,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
 			if (0 == selection.getNSelected()) item.setEnabled(false);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
+			item = new JMenuItem("Restore selection"); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Select under ROI"); item.addActionListener(this); menu.add(item);
+			if (canvas.getFakeImagePlus().getRoi() == null) item.setEnabled(false);
 			popup.add(menu);
 			item = new JMenuItem("Search..."); item.addActionListener(this); popup.add(item);
 		}
@@ -2143,16 +2225,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Check if a panel for the given Displayable is completely visible in the JScrollPane */
 	public boolean isWithinViewport(final Displayable d) {
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-		final Class c = d.getClass();
-		if (c.equals(Profile.class) && scroll.equals(scroll_profiles)) {
-			return isWithinViewport(scroll_profiles, (DisplayablePanel)ht_panels.get(d));
-		} else if (c.equals(Patch.class) && scroll.equals(scroll_patches)) {
-			return isWithinViewport(scroll_patches, (DisplayablePanel)ht_panels.get(d));
-		} else if (d instanceof ZDisplayable && scroll.equals(scroll_zdispl)) {
-			return isWithinViewport(scroll_zdispl, (DisplayablePanel)ht_panels.get(d));
-		} else if (c.equals(DLabel.class) && scroll.equals(scroll_labels)) {
-			return isWithinViewport(scroll_labels, (DisplayablePanel)ht_panels.get(d));
-		} else return false;
+		if (ht_tabs.get(d.getClass()) == scroll) return isWithinViewport(scroll, ht_panels.get(d));
+		return false;
 	}
 
 	private boolean isWithinViewport(JScrollPane scroll, DisplayablePanel dp) {
@@ -2169,22 +2243,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** Check if a panel for the given Displayable is partially visible in the JScrollPane */
 	public boolean isPartiallyWithinViewport(final Displayable d) {
-		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-		if (d instanceof ZDisplayable && scroll.equals(scroll_zdispl)) {
-			return isPartiallyWithinViewport(scroll_zdispl, (DisplayablePanel)ht_panels.get(d));
-		}
-		final Class c = d.getClass();
-		if (Patch.class.equals(c) && scroll.equals(scroll_patches)) {
-			return isPartiallyWithinViewport(scroll_patches, (DisplayablePanel)ht_panels.get(d));
-		} else if (DLabel.class.equals(c) && scroll.equals(scroll_labels)) {
-			return isPartiallyWithinViewport(scroll_labels, (DisplayablePanel)ht_panels.get(d));
-		} else if (Profile.class.equals(c) && scroll.equals(scroll_profiles)) {
-			return isPartiallyWithinViewport(scroll_profiles, (DisplayablePanel)ht_panels.get(d));
-		} else return false;
+		final JScrollPane scroll = ht_tabs.get(d.getClass());
+		if (tabs.getSelectedComponent() == scroll) return isPartiallyWithinViewport(scroll, ht_panels.get(d));
+		return false;
 	}
 
 	/** Check if a panel for the given Displayable is at least partially visible in the JScrollPane */
-	private boolean isPartiallyWithinViewport(JScrollPane scroll, DisplayablePanel dp) {
+	private boolean isPartiallyWithinViewport(final JScrollPane scroll, final DisplayablePanel dp) {
 		if(null == dp) {
 			//Utils.log2("Display.isPartiallyWithinViewport: null DisplayablePanel ??");
 			return false; // to fast for you baby
@@ -2204,22 +2269,24 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** A function to make a Displayable panel be visible in the screen, by scrolling the viewport of the JScrollPane. */
 	private void scrollToShow(final Displayable d) {
+		dispatcher.execSwing(new Runnable() { public void run() {
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-		if (d instanceof ZDisplayable && scroll.equals(scroll_zdispl)) {
-			scrollToShow(scroll_zdispl, (DisplayablePanel)ht_panels.get(d));
+		if (d instanceof ZDisplayable && scroll == scroll_zdispl) {
+			scrollToShow(scroll_zdispl, ht_panels.get(d));
 			return;
 		}
 		final Class c = d.getClass();
-		if (Patch.class.equals(c) && scroll.equals(scroll_patches)) {
-			scrollToShow(scroll_patches, (DisplayablePanel)ht_panels.get(d));
-		} else if (DLabel.class.equals(c) && scroll.equals(scroll_labels)) {
-			scrollToShow(scroll_labels, (DisplayablePanel)ht_panels.get(d));
-		} else if (Profile.class.equals(c) && scroll.equals(scroll_profiles)) {
-			scrollToShow(scroll_profiles, (DisplayablePanel)ht_panels.get(d));
+		if (Patch.class == c && scroll == scroll_patches) {
+			scrollToShow(scroll_patches, ht_panels.get(d));
+		} else if (DLabel.class == c && scroll == scroll_labels) {
+			scrollToShow(scroll_labels, ht_panels.get(d));
+		} else if (Profile.class == c && scroll == scroll_profiles) {
+			scrollToShow(scroll_profiles, ht_panels.get(d));
 		}
+		}});
 	}
 
-	private void scrollToShow(JScrollPane scroll, DisplayablePanel dp) {
+	private void scrollToShow(final JScrollPane scroll, final DisplayablePanel dp) {
 		if (null == dp) return;
 		JViewport view = scroll.getViewport();
 		Point current = view.getViewPosition();
@@ -2233,13 +2300,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			// if it's above, show at the top
 			if (panel_y - current.y < 0) {
 				view.setViewPosition(new Point(0, panel_y));
-				return;
 			}
 			// if it's below (even if partially), show at the bottom
-			if (panel_y + 50 > current.y + extent.height) {
+			else if (panel_y + 50 > current.y + extent.height) {
 				view.setViewPosition(new Point(0, panel_y - extent.height + 50));
 				//Utils.log("Display.scrollToShow: panel_y: " + panel_y + "   current.y: " + current.y + "  extent.height: " + extent.height);
-				return;
 			}
 		}
 	}
@@ -2247,8 +2312,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Update the title of the given Displayable in its DisplayablePanel, if any. */
 	static public void updateTitle(final Layer layer, final Displayable displ) {
 		for (Display d : al_displays) {
-			if (layer.equals(d.layer)) {
-				DisplayablePanel dp = ((DisplayablePanel)d.ht_panels.get(displ));
+			if (layer == d.layer) {
+				DisplayablePanel dp = d.ht_panels.get(displ);
 				if (null != dp) dp.updateTitle();
 			}
 		}
@@ -2257,7 +2322,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Update the Display's title in all Displays showing the given Layer. */
 	static public void updateTitle(final Layer layer) {
 		for (Display d : al_displays) {
-			if (d.layer.equals(layer)) {
+			if (d.layer == layer) {
 				d.updateTitle();
 			}
 		}
@@ -2265,7 +2330,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Update the Display's title in all Displays showing a Layer of the given LayerSet. */
 	static public void updateTitle(final LayerSet ls) {
 		for (Display d : al_displays) {
-			if (d.layer.getParent().equals(ls)) {
+			if (d.layer.getParent() == ls) {
 				d.updateTitle();
 			}
 		}
@@ -2283,7 +2348,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			else
 				scale = " (" + Utils.d2s(percent,1) + "%)";
 		}
-		String title = (layer.getParent().indexOf(layer) + 1) + "/" + layer.getParent().size() +" " + (null == layer.getTitle() ? "" : layer.getTitle()) + scale + " -- " + getProject().toString();
+		Calibration cal = layer.getParent().getCalibration();
+		String title = new StringBuffer().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(layer.getParent().getLayerWidth() * cal.pixelWidth).append('x').append(layer.getParent().getLayerHeight() * cal.pixelHeight).append(' ').append(cal.getUnit()).toString();
 		frame.setTitle(title);
 		// fix the title for the FakeImageWindow and thus the WindowManager listing in the menus
 		canvas.getFakeImagePlus().setTitle(title);
@@ -2294,13 +2360,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//setLayer(layer.getParent().next(layer));
 		//scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 		if (0 == (modifiers ^ Event.SHIFT_MASK)) {
-			new SetLayerThread(this, layer.getParent().nextNonEmpty(layer));
+			slt.set(layer.getParent().nextNonEmpty(layer));
 		} else if (scroll_step > 1) {
 			int i = layer.getParent().indexOf(this.layer);
 			Layer la = layer.getParent().getLayer(i + scroll_step);
-			if (null != la) new SetLayerThread(this, la);
+			if (null != la) slt.set(la);
 		} else {
-			new SetLayerThread(this, layer.getParent().next(layer));
+			slt.set(layer.getParent().next(layer));
 		}
 		updateInDatabase("layer_id");
 	}
@@ -2310,20 +2376,20 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		//setLayer(layer.getParent().previous(layer));
 		//scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 		if (0 == (modifiers ^ Event.SHIFT_MASK)) {
-			new SetLayerThread(this, layer.getParent().previousNonEmpty(layer));
+			slt.set(layer.getParent().previousNonEmpty(layer));
 		} else if (scroll_step > 1) {
 			int i = layer.getParent().indexOf(this.layer);
 			Layer la = layer.getParent().getLayer(i - scroll_step);
-			if (null != la) new SetLayerThread(this, la);
+			if (null != la) slt.set(la);
 		} else {
-			new SetLayerThread(this, layer.getParent().previous(layer));
+			slt.set(layer.getParent().previous(layer));
 		}
 		updateInDatabase("layer_id");
 	}
 
 	static public void updateLayerScroller(LayerSet set) {
 		for (Display d : al_displays) {
-			if (d.layer.getParent().equals(set)) {
+			if (d.layer.getParent() == set) {
 				d.updateLayerScroller(d.layer);
 			}
 		}
@@ -2341,10 +2407,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void updateSnapshots() {
-		Enumeration e = ht_panels.elements();
+		Enumeration<DisplayablePanel> e = ht_panels.elements();
 		while (e.hasMoreElements()) {
-			DisplayablePanel dp = (DisplayablePanel)e.nextElement();
-			dp.remake();
+			e.nextElement().remake();
 		}
 		Utils.updateComponent(tabs.getSelectedComponent());
 	}
@@ -2352,7 +2417,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void updatePanel(Layer layer, final Displayable displ) {
 		if (null == layer && null != front) layer = front.layer; // the front layer
 		for (Display d : al_displays) {
-			if (d.layer.equals(layer)) {
+			if (d.layer == layer) {
 				d.updatePanel(displ);
 			}
 		}
@@ -2370,14 +2435,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			c = panel_zdispl;
 		}
 		if (null == c) return;
-		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(d);
+		DisplayablePanel dp = ht_panels.get(d);
 		dp.remake();
 		Utils.updateComponent(c);
 	}
 
 	static public void updatePanelIndex(final Layer layer, final Displayable displ) {
 		for (Display d : al_displays) {
-			if (d.layer.equals(layer) || displ instanceof ZDisplayable) {
+			if (d.layer == layer || displ instanceof ZDisplayable) {
 				d.updatePanelIndex(displ);
 			}
 		}
@@ -2401,10 +2466,14 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 		if (null == c) return;
-		DisplayablePanel dp = (DisplayablePanel)ht_panels.get(d);
+		DisplayablePanel dp = ht_panels.get(d);
 		if (null == dp) return; // may be half-baked, wait
 		c.remove(dp);
 		c.add(dp, i); // java and its fabulous consistency
+		// not enough! Utils.updateComponent(c);
+		// So, cocktail:
+		c.invalidate();
+		c.validate();
 		Utils.updateComponent(c);
 	}
 
@@ -2415,7 +2484,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		setLayer(layer);
 	}
 
-	public void actionPerformed(ActionEvent ae) {
+	public void actionPerformed(final ActionEvent ae) {
+		dispatcher.exec(new Runnable() { public void run() {
+
 		String command = ae.getActionCommand();
 		if (command.startsWith("Job")) {
 			if (Utils.checkYN("Really cancel job?")) {
@@ -2455,8 +2526,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == profile) return;
 			active.link(profile);
 			next_layer.add(profile);
-			Thread thread = new SetLayerThread(this, next_layer);//setLayer(next_layer);
-			try { thread.join(); } catch (InterruptedException ie) {} // wait until finished!
+			slt.setAndWait(next_layer);//setLayer(next_layer);
 			selection.add(profile); //setActive(profile);
 		} else if (command.equals("Duplicate, link and send to previous layer")) {
 			if (null == active || !(active instanceof Profile)) return;
@@ -2466,8 +2536,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == profile) return;
 			active.link(profile);
 			previous_layer.add(profile);
-			Thread thread = new SetLayerThread(this, previous_layer);//setLayer(previous_layer);
-			try { thread.join(); } catch (InterruptedException ie) {} // wait until finished!
+			slt.setAndWait(previous_layer);//setLayer(previous_layer);
 			selection.add(profile); //setActive(profile);
 		} else if (command.equals("Duplicate, link and send to...")) {
 			// fix non-scrolling popup menu
@@ -2482,7 +2551,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			Layer la = layer.getParent().getLayer(gd.getNextChoiceIndex());
-			if (layer.equals(la)) {
+			if (layer == la) {
 				Utils.showMessage("Can't duplicate, link and send to the same layer.");
 				return;
 			}
@@ -2490,8 +2559,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == profile) return;
 			active.link(profile);
 			la.add(profile);
-			Thread thread = new SetLayerThread(this, la);//setLayer(la);
-			try { thread.join(); } catch (InterruptedException ie) {} // waint until finished!
+			slt.setAndWait(la);//setLayer(la);
 			selection.add(profile);
 		} else if (-1 != command.indexOf("z = ")) {
 			// this is an item from the "Duplicate, link and send to" menu of layer z's
@@ -2502,14 +2570,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (null == profile) return;
 			active.link(profile);
 			target_layer.add(profile);
-			Thread thread = new SetLayerThread(this, target_layer);//setLayer(target_layer);
-			try { thread.join(); } catch (InterruptedException ie) {} // waint until finished!
+			slt.setAndWait(target_layer);//setLayer(target_layer);
 			selection.add(profile); // setActive(profile); // this is repainting only the active, not everything, because it cancels the repaint sent by the setLayer ! BUT NO, it should add up to the max box.
 		} else if (-1 != command.indexOf("z=")) {
 			// WARNING the indexOf is very similar to the previous one
 			// Send the linked group to the selected layer
 			int iz = command.indexOf("z=")+2;
-			double lz = Double.parseDouble(command.substring(iz, command.indexOf(' ', iz+2)));
+			Utils.log2("iz=" + iz + "  other: " + command.indexOf(' ', iz+2));
+			int end = command.indexOf(' ', iz);
+			if (-1 == end) end = command.length();
+			double lz = Double.parseDouble(command.substring(iz, end));
 			Layer target = layer.getParent().getLayer(lz);
 			HashSet hs = active.getLinkedGroup(new HashSet());
 			layer.getParent().move(hs, active.getLayer(), target);
@@ -2520,7 +2590,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Unlink from images")) {
 			if (null == active) return;
 			try {
-				active.unlinkAll(Patch.class);
+				for (Displayable displ: selection.getSelected()) {
+					displ.unlinkAll(Patch.class);
+				}
 				updateSelection();//selection.update();
 			} catch (Exception e) { IJError.print(e); }
 		} else if (command.equals("Unlink slices")) {
@@ -2534,7 +2606,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Rectangle box = selection.getBox();
 			try {
 				// unlink Patch instances
-				active.unlinkAll(Patch.class);
+				for (Displayable displ : selection.getSelected()) {
+					displ.unlinkAll(Patch.class);
+				}
 				updateSelection();//selection.update();
 			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveDown(layer, active); // will repaint whatever appropriate layers
@@ -2544,7 +2618,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Rectangle box = selection.getBox();
 			try {
 				// unlink Patch instances
-				active.unlinkAll(Patch.class);
+				for (Displayable displ : selection.getSelected()) {
+					displ.unlinkAll(Patch.class);
+				}
 				updateSelection();//selection.update();
 			} catch (Exception e) { IJError.print(e); }
 			//layer.getParent().moveUp(layer, active); // will repaint whatever appropriate layers
@@ -2566,35 +2642,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Color...")) {
 			IJ.doCommand("Color Picker...");
 		} else if (command.equals("Revert")) {
-			if (! (active instanceof Patch && last_temp instanceof PatchStack)) return;
-			Patch patch = (Patch)active;
-			PatchStack ps = (PatchStack)last_temp;
-			if (1 == last_temp.getStackSize()) {
-				ps.revert(patch);
-			} else {
-				YesNoCancelDialog yd = new YesNoCancelDialog(this.frame, "Revert", "Revert all slices?");
-				if (yd.yesPressed()) {
-					// revert all slices
-					ps.revertAll();
-				} else if (!yd.cancelPressed()) {
-					// revert current slice only
-					ps.revert(patch);
-				}
-				// else do nothing (canceled)
+			if (null == active || active.getClass() != Patch.class) return;
+			Patch p = (Patch)active;
+			if (!p.revert()) {
+				if (null == p.getOriginalPath()) Utils.log("No editions to save for patch " + p.getTitle() + " #" + p.getId());
+				else Utils.log("Could not revert Patch " + p.getTitle() + " #" + p.getId());
 			}
-			navigator.repaint(true);
-		} else if (command.equals("Undo")) {
-			if (! (active instanceof Patch)) return;
-			if (!undo) return;
-			Patch patch = (Patch)active;
-			undo = false; // no more undos until the active_imp_copy has been made new in the imageUpdated(ImagePlus) method.
-			// set a copy of the active_imp_copy as the working one for the active Patch
-			ImagePlus copy = new ImagePlus(active_imp_copy.getTitle(), active_imp_copy.getProcessor().duplicate());
-			project.getLoader().updateCache(patch, copy);
-			patch.updateInDatabase("tiff_working"); //saves the cached one above.
-			canvas.repaint(active, 5);
-			navigator.repaint(true);
-			((JPanel)ht_panels.get(patch)).repaint();
 		} else if (command.equals("Undo transforms")) {
 			if (canvas.isTransforming()) return;
 			if (!layer.getParent().canRedo()) {
@@ -2619,61 +2672,31 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			canvas.cancelTransform();
 		} else if (command.equals("Specify transform...")) {
 			if (null == active) return;
-			final GenericDialog gd = new GenericDialog("Specify");
-			gd.addMessage("Relative to the floater's position:");
-			gd.addNumericField("floater X: ", selection.getFloaterX(), 2);
-			gd.addNumericField("floater Y: ", selection.getFloaterY(), 2);
-			gd.addMessage("Transforms applied in the same order as listed below:");
-			gd.addNumericField("rotate : ", 0, 2);
-			gd.addNumericField("translate in X: ", 0, 2);
-			gd.addNumericField("translate in Y: ", 0, 2);
-			gd.addNumericField("scale in X: ", 1.0, 2);
-			gd.addNumericField("scale in Y: ", 1.0, 2);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			final Rectangle sel_box = selection.getLinkedBox();
-			selection.setFloater((int)gd.getNextNumber(), (int)gd.getNextNumber());
-			double rot = gd.getNextNumber();
-			double dx = gd.getNextNumber();
-			double dy = gd.getNextNumber();
-			double sx = gd.getNextNumber();
-			double sy = gd.getNextNumber();
-			if (0 != dx || 0 != dy) selection.translate(dx, dy);
-			if (0 != rot) selection.rotate(rot);
-			if (0 != sx && 0 != sy) selection.scale(sx, sy);
-			else Utils.showMessage("Cannot scale to zero.");
-			sel_box.add(selection.getLinkedBox());
-			repaint(this.layer, sel_box, Selection.PADDING);
+			selection.specify();
 		} else if (command.equals("Hide all but images")) {
 			ArrayList<Class> type = new ArrayList<Class>();
 			type.add(Patch.class);
-			layer.getParent().hideExcept(type, false);
-			Display.update(layer.getParent());
+			selection.removeAll(layer.getParent().hideExcept(type, false));
+			Display.update(layer.getParent(), false);
 		} else if (command.equals("Unhide all")) {
 			layer.getParent().setAllVisible(false);
-			Display.update(layer.getParent());
+			Display.update(layer.getParent(), false);
 		} else if (command.startsWith("Hide all ")) {
 			String type = command.substring(9, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
-			layer.getParent().setVisible(type, false, true);
+			selection.removeAll(layer.getParent().setVisible(type, false, true));
 		} else if (command.startsWith("Unhide all ")) {
 			String type = command.substring(11, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
 			layer.getParent().setVisible(type, true, true);
 		} else if (command.equals("Hide deselected")) {
 			hideDeselected(0 != (ActionEvent.ALT_MASK & ae.getModifiers()));
+		} else if (command.equals("Hide deselected except images")) {
+			hideDeselected(true);
 		} else if (command.equals("Hide selected")) {
-			selection.setVisible(false);
+			selection.setVisible(false); // TODO should deselect them too? I don't think so.
 		} else if (command.equals("Resize canvas/LayerSet...")) {
-			GenericDialog gd = new GenericDialog("Resize LayerSet");
-			gd.addNumericField("new width: ", layer.getLayerWidth(), 3);
-			gd.addNumericField("new height: ",layer.getLayerHeight(),3);
-			gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[7]);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			double new_width = gd.getNextNumber();
-			double new_height =gd.getNextNumber();
-			layer.getParent().setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
+			resizeCanvas();
 		} else if (command.equals("Autoresize canvas/LayerSet")) {
 			layer.getParent().setMinimumDimensions();
 		} else if (command.equals("Import image")) {
@@ -2718,7 +2741,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				gd.addChoice("Start: ", layers, layers[i_layer]);
 				gd.addChoice("End: ", layers, layers[i_layer]);
 				*/
-				Utils.addLayerRangeChoices(this.layer, gd); /// $#%! where are my lisp macros
+				Utils.addLayerRangeChoices(Display.this.layer, gd); /// $#%! where are my lisp macros
 				gd.addCheckbox("Include non-empty layers only", true);
 			}
 			gd.addCheckbox("Best quality", false);
@@ -2745,7 +2768,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				al_zd.toArray(zd);
 				for (int i=i_start, j=0; i <= i_end; i++, j++) {
 					Layer la = layer.getParent().getLayer(i);
-					if (!la.isEmpty()) al.add(la); // checks both the Layer and the ZDisplayable objects in the parent LayerSet
+					if (!la.isEmpty() || !non_empty_only) al.add(la); // checks both the Layer and the ZDisplayable objects in the parent LayerSet
 				}
 				if (0 == al.size()) {
 					Utils.showMessage("All layers are empty!");
@@ -2754,7 +2777,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				layer_array = new Layer[al.size()];
 				al.toArray(layer_array);
 			} else {
-				layer_array = new Layer[]{this.layer};
+				layer_array = new Layer[]{Display.this.layer};
 			}
 			final boolean quality = gd.getNextBoolean();
 			final boolean save_to_file = gd.getNextBoolean();
@@ -2783,12 +2806,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 			// ask for range of layers
 			final GenericDialog gd = new GenericDialog("Choose range");
-			Utils.addLayerRangeChoices(this.layer, gd);
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			Layer la_start = layer.getParent().getLayer(gd.getNextChoiceIndex());
 			Layer la_end = layer.getParent().getLayer(gd.getNextChoiceIndex());
-			if (la_start.equals(la_end)) {
+			if (la_start == la_end) {
 				Utils.showMessage("Need at least two layers.");
 				return;
 			}
@@ -2796,7 +2819,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				Utils.showMessage("There are locked objects.");
 				return;
 			}
-			layer.getParent().startAlign(this);
+			layer.getParent().startAlign(Display.this);
 			layer.getParent().applyAlign(la_start, la_end, selection);
 		} else if (command.equals("Align stack slices")) {
 			if (getActive() instanceof Patch) {
@@ -2805,7 +2828,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 					// check linked group
 					final HashSet hs = slice.getLinkedGroup(new HashSet());
 					for (Iterator it = hs.iterator(); it.hasNext(); ) {
-						if (!it.next().getClass().equals(Patch.class)) {
+						if (it.next().getClass() != Patch.class) {
 							Utils.showMessage("Images are linked to other objects, can't proceed to cross-correlate them."); // labels should be fine, need to check that
 							return;
 						}
@@ -2821,10 +2844,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Align layers (tile-wise global minimization)")) {
 			Registration.registerLayers(layer, Registration.GLOBAL_MINIMIZATION);
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
-			GenericDialog gd = new GenericDialog("Properties", this.frame);
+			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
 			//gd.addNumericField("layer_scroll_step: ", this.scroll_step, 0);
-			gd.addSlider("layer_scroll_step: ", 1, layer.getParent().size(), this.scroll_step);
-			gd.addCheckbox("show_snapshots", layer.getParent().areSnapshotsEnabled());
+			gd.addSlider("layer_scroll_step: ", 1, layer.getParent().size(), Display.this.scroll_step);
+			gd.addChoice("snapshots_mode", LayerSet.snapshot_modes, LayerSet.snapshot_modes[layer.getParent().getSnapshotsMode()]);
 			gd.addCheckbox("prefer_snapshots_quality", layer.getParent().snapshotsQuality());
 			Loader lo = getProject().getLoader();
 			boolean using_mipmaps = lo.isMipMapsEnabled();
@@ -2834,15 +2857,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
 			double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();
 			gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsDimension());
+			// --------
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
-			//
+			// --------
 			int sc = (int) gd.getNextNumber();
 			if (sc < 1) sc = 1;
-			this.scroll_step = sc;
+			Display.this.scroll_step = sc;
 			updateInDatabase("scroll_step");
 			//
-			layer.getParent().setSnapshotsEnabled(gd.getNextBoolean());
+			layer.getParent().setSnapshotsMode(gd.getNextChoiceIndex());
 			layer.getParent().setSnapshotsQuality(gd.getNextBoolean());
 			//
 			boolean generate_mipmaps = gd.getNextBoolean();
@@ -2868,22 +2892,28 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			new Search();
 		} else if (command.equals("Select all")) {
 			selection.selectAll();
-			repaint(this.layer, selection.getBox(), 0);
+			repaint(Display.this.layer, selection.getBox(), 0);
 		} else if (command.equals("Select none")) {
 			Rectangle box = selection.getBox();
 			selection.clear();
-			repaint(this.layer, box, 0);
+			repaint(Display.this.layer, box, 0);
+		} else if (command.equals("Restore selection")) {
+			selection.restore();
+		} else if (command.equals("Select under ROI")) {
+			Roi roi = canvas.getFakeImagePlus().getRoi();
+			if (null == roi) return;
+			selection.selectAll(roi, true);
 		} else if (command.equals("Merge")) {
 			ArrayList al_sel = selection.getSelected();
 			// put active at the beginning, to work as the base on which other's will get merged
-			al_sel.remove(this.active);
-			al_sel.add(0, this.active);
+			al_sel.remove(Display.this.active);
+			al_sel.add(0, Display.this.active);
 			AreaList ali = AreaList.merge(al_sel);
 			if (null != ali) {
 				// remove all but the first from the selection
 				for (int i=1; i<al_sel.size(); i++) {
 					Object ob = al_sel.get(i);
-					if (ob.getClass().equals(AreaList.class)) {
+					if (ob.getClass() == AreaList.class) {
 						selection.remove((Displayable)ob);
 					}
 				}
@@ -2907,9 +2937,24 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("View volume")) {
 			if (!(active instanceof Patch)) return;
 			Display3D.showVolume(((Patch)active));
+		} else if (command.equals("Show in 3D")) {
+			for (Iterator it = selection.getSelected(ZDisplayable.class).iterator(); it.hasNext(); ) {
+				ZDisplayable zd = (ZDisplayable)it.next();
+				Display3D.show(zd.getProject().findProjectThing(zd));
+			}
+			// handle profile lists ...
+			HashSet hs = new HashSet();
+			for (Iterator it = selection.getSelected(Profile.class).iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
+				ProjectThing profile_list = (ProjectThing)d.getProject().findProjectThing(d).getParent();
+				if (!hs.contains(profile_list)) {
+					Display3D.show(profile_list);
+					hs.add(profile_list);
+				}
+			}
 		} else if (command.equals("Snap")) {
 			if (!(active instanceof Patch)) return;
-			StitchingTEM.snap(getActive(), this);
+			StitchingTEM.snap(getActive(), Display.this);
 		} else if (command.equals("Montage")) {
 			if (!(active instanceof Patch)) {
 				Utils.showMessage("Please select only images.");
@@ -2956,7 +3001,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Homogenize contrast layer-wise...")) {
 			// ask for range of layers
 			final GenericDialog gd = new GenericDialog("Choose range");
-			Utils.addLayerRangeChoices(this.layer, gd);
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			java.util.List list = layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1); // exclusive end
@@ -2966,7 +3011,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		} else if (command.equals("Set Min and Max...")) {
 			final GenericDialog gd = new GenericDialog("Choices");
 			gd.addMessage("Either process all images of all layers\nwithin the selected range,\nor check the box for using selected images only.");
-			Utils.addLayerRangeChoices(this.layer, gd);
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
 			gd.addCheckbox("use_selected_images_only", false);
 			gd.addMessage("-------");
 			gd.addNumericField("min: ", 0, 2);
@@ -3056,9 +3101,30 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last);
 		} else if (command.equals("Project properties...")) {
 			project.adjustProperties();
+		} else if (command.equals("Release memory...")) {
+			new Bureaucrat(new Worker("Releasing memory") {
+				public void run() {
+					startedWorking();
+					try {
+			GenericDialog gd = new GenericDialog("Release Memory");
+			int max = (int)(IJ.maxMemory() / 1000000);
+			gd.addSlider("Megabytes: ", 0, max, max/2);
+			gd.showDialog();
+			if (!gd.wasCanceled()) {
+				int n_mb = (int)gd.getNextNumber();
+				project.getLoader().releaseToFit((long)n_mb*1000000);
+			}
+					} catch (Throwable e) {
+						IJError.print(e);
+					} finally {
+						finishedWorking();
+					}
+				}
+			}, project).goHaveBreakfast();
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
+		}});
 	}
 
 	/** Update in all displays the Transform for the given Displayable if it's selected. */
@@ -3205,7 +3271,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Show the layer in the front Display, or in a new Display if the front Display is showing a layer from a different LayerSet. */
 	static public void showFront(final Layer layer) {
 		Display display = front;
-		if (null == display || !display.layer.getParent().equals(layer.getParent())) {
+		if (null == display || display.layer.getParent() != layer.getParent()) {
 			display = new Display(layer.getProject(), layer, null); // gets set to front
 		}
 	}
@@ -3214,9 +3280,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static public void showCentered(Layer layer, Displayable displ, boolean select, boolean shift_down) {
 		// see if the given layer belongs to the layer set being displayed
 		Display display = front; // to ensure thread consistency to some extent
-		if (null == display || !display.layer.getParent().equals(layer.getParent())) {
+		if (null == display || display.layer.getParent() != layer.getParent()) {
 			display = new Display(layer.getProject(), layer, displ); // gets set to front
-		} else if (!display.layer.equals(layer)) {
+		} else if (display.layer != layer) {
 			display.setLayer(layer);
 		}
 		if (select) {
@@ -3230,6 +3296,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	private final void showCentered(final Displayable displ) {
 		if (null == displ) return;
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
 		displ.setVisible(true);
 		Rectangle box = displ.getBoundingBox();
 		if (0 == box.width || 0 == box.height) {
@@ -3243,12 +3310,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			ZDisplayable zd = (ZDisplayable)displ;
 			setLayer(zd.getFirstLayer());
 		}
+		}});
 	}
 
 	/** Listen to interesting updates, such as the ColorPicker and updates to Patch objects. */
 	public void imageUpdated(ImagePlus updated) {
 		// detect ColorPicker WARNING this will work even if the Display is not the window immediately active under the color picker.
-		if (this.equals(front) && updated instanceof ij.plugin.ColorPicker) {
+		if (this == front && updated instanceof ij.plugin.ColorPicker) {
 			if (null != active && project.isInputEnabled()) {
 				Color color = Toolbar.getForegroundColor();
 				for (Iterator it = selection.getSelected().iterator(); it.hasNext(); ) {
@@ -3281,15 +3349,10 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		// detect LUT changes: DONE at PatchStack, which is the active (virtual) image
 		//Utils.log2("calling decache for " + updated);
 		//getProject().getLoader().decache(updated);
-
-		//Utils.log2("imageUpdated: updated imp is " + updated.getTitle() + "\n\t and is last_temp: " + updated.equals(last_temp) + "\n\t and changes=" + updated.changes + " and class: " + updated.getClass());
 	}
 
 	public void imageClosed(ImagePlus imp) {}
 	public void imageOpened(ImagePlus imp) {}
-
-
-	protected ImagePlus getLastTemp() { return last_temp; } // can be null
 
 	/** Release memory captured by the offscreen images */
 	static public void flushAll() {
@@ -3319,9 +3382,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	static protected void updateVisibilityCheckbox(final Layer layer, final Displayable displ, final Display calling_display) {
 		//LOCKS ALL //SwingUtilities.invokeLater(new Runnable() { public void run() {
 		for (Display d : al_displays) {
-			if (d.equals(calling_display)) continue;
+			if (d == calling_display) continue;
 			if (d.layer.contains(displ) || (displ instanceof ZDisplayable && d.layer.getParent().contains((ZDisplayable)displ))) {
-				DisplayablePanel dp = (DisplayablePanel)d.ht_panels.get(displ);
+				DisplayablePanel dp = d.ht_panels.get(displ);
 				if (null != dp) dp.updateVisibilityCheckbox();
 			}
 		}
@@ -3335,7 +3398,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	/** Toggle user input; pan and zoom are always enabled though.*/
 	static public void setReceivesInput(final Project project, final boolean b) {
 		for (Display d : al_displays) {
-			if (d.project.equals(project)) d.canvas.setReceivesInput(b);
+			if (d.project == project) d.canvas.setReceivesInput(b);
 		}
 	}
 
@@ -3363,7 +3426,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		final StringBuffer sb_body = new StringBuffer();
 		final String in = indent + "\t";
 		for (Display d : al_displays) {
-			if (!d.project.equals(project)) continue;
+			if (d.project != project) continue;
 			final Rectangle r = d.frame.getBounds();
 			final Rectangle srcRect = d.canvas.getSrcRect();
 			final double magnification = d.canvas.getMagnification();
@@ -3403,11 +3466,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 		}
 		if (null != front) {
-			if (tool < ProjectToolbar.SELECT || tool > ProjectToolbar.ALIGN) {
-				Loader.setTempCurrentImage(front.canvas.getFakeImagePlus());
-			} else {
-				Loader.setTempCurrentImage(front.last_temp);
-			}
+			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
 		}
 	}
 
@@ -3432,7 +3491,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			} else {
 				d.selection.update(); // recomputes box
 			}
-			if (!d.equals(calling)) { // TODO this is so dirty!
+			if (d != calling) { // TODO this is so dirty!
 				if (d.selection.getNLinked() > 1) d.canvas.setUpdateGraphics(true); // this is overkill anyway
 				d.canvas.repaint(d.selection.getLinkedBox(), Selection.PADDING);
 				d.navigator.repaint(true); // everything
@@ -3442,53 +3501,12 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 
 	static public void clearSelection(final Layer layer) {
 		for (Display d : al_displays) {
-			if (d.layer.equals(layer)) d.selection.clear();
+			if (d.layer == layer) d.selection.clear();
 		}
 	}
 
 	private void setTempCurrentImage() {
-		//Utils.log2("Setting temp current image: " + last_temp + " " + (null == last_temp ? null : last_temp.getClass()));
-		if (null != last_temp) {
-			//Utils.log2("last_temp.class == " + last_temp.getClass());
-			last_temp.setSlice(layer.getParent().indexOf(layer) +1);
-		}
-		Loader.setTempCurrentImage(last_temp);
-	}
-
-	/** Sets the ImagePlus that ImageJ will see in its WindowManager while this Display is activated. */
-	private void createTempCurrentImage() {
-		ImagePlus temp = null;
-		final ArrayList al = selection.getSelected();
-		if (1 == selection.getNSelected() && getActive() instanceof Patch) {
-			// present the currently selected image or stack
-			Patch patch = (Patch)al.get(0);
-			PatchStack ps = patch.makePatchStack(); // gets the LayerSet calibration on its own
-			ps.setCurrentSlice(patch);
-			temp = ps;
-		} else {
-			if (layer.getParent().isPixelsVirtualizationEnabled()) {
-				// show all selected in a LayerStack
-				ImageStack stack = null == temp ? null : temp.getStack();
-				if (null != stack && stack instanceof LayerStack) {
-					((LayerStack)stack).setDisplayables(al);
-				} else {
-					LayerStack lstack = layer.getParent().makeLayerStack(this);
-					lstack.setDisplayables(al);
-					stack = lstack;
-				}
-				// make new to renew the width and height
-				temp = ((LayerStack)stack).getImagePlus(); // gets the LayerSet calibration on its own
-				int i_slice = layer.getParent().indexOf(layer) +1;
-				temp.setSlice(i_slice);
-			} else {
-				temp = canvas.getFakeImagePlus();
-				((FakeImagePlus)temp).setCalibrationSuper(layer.getParent().getCalibrationCopy());
-			}
-		}
-		// Calibration is taken care of in the fake imagepluses constructors
-		//temp.getCalibration().pixelDepth = layer.getParent().getLayer(0).getThickness();
-		last_temp = temp;
-		//Utils.log2("currentSlice: " + temp.getCurrentSlice() + " for layer index " + layer.getParent().indexOf(layer));
+		WindowManager.setTempCurrentImage(canvas.getFakeImagePlus());
 	}
 
 	/** Check if any display will paint the given Displayable at the given magnification. */
@@ -3506,9 +3524,9 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		return false;
 	}
 
-	public void hideDeselected(boolean not_images) {
+	public void hideDeselected(final boolean not_images) {
 		// hide deselected
-		ArrayList all = layer.getParent().getZDisplayables();
+		final ArrayList all = layer.getParent().getZDisplayables(); // a copy
 		all.addAll(layer.getDisplayables());
 		all.removeAll(selection.getSelected());
 		if (not_images) all.removeAll(layer.getDisplayables(Patch.class));
@@ -3516,5 +3534,24 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			if (d.isVisible()) d.setVisible(false);
 		}
 		Display.update(layer);
+	}
+
+	/** Cleanup internal lists that may contain the given Displayable. */
+	static public void flush(final Displayable displ) {
+		for (Display d : al_displays) {
+			d.selection.removeFromPrev(displ);
+		}
+	}
+
+	public void resizeCanvas() {
+		GenericDialog gd = new GenericDialog("Resize LayerSet");
+		gd.addNumericField("new width: ", layer.getLayerWidth(), 3);
+		gd.addNumericField("new height: ",layer.getLayerHeight(),3);
+		gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[7]);
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		double new_width = gd.getNextNumber();
+		double new_height =gd.getNextNumber();
+		layer.getParent().setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
 	}
 }

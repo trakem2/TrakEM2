@@ -43,10 +43,9 @@ public class FakeImageWindow extends ImageWindow {
 		WindowManager.addWindow(this);
 	}
 
+	/** Returns the display's FakeImagePlus. */
 	public ImagePlus getImagePlus() {
-		ImagePlus last_temp = display.getLastTemp();
-		if (null == last_temp) return super.getImagePlus(); // the FakeImagePlus
-		return last_temp;
+		return super.getImagePlus();
 	}
 
 	// just in case .. although it never should be shown

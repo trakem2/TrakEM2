@@ -26,9 +26,12 @@ import ij.IJ;
 import ij.ImagePlus;
 import ini.trakem2.imaging.VirtualStack; //import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
+import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ColorProcessor;
+import ij.process.ImageStatistics;
+import ij.measure.Measurements;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
@@ -39,6 +42,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
+import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.YesNoDialog;
@@ -54,6 +58,7 @@ import ini.trakem2.tree.TrakEM2MLParser;
 import ini.trakem2.tree.DTDParser;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
+import ini.trakem2.imaging.FloatProcessorT2;
 
 import java.awt.Color;
 import java.awt.Cursor;
@@ -66,6 +71,7 @@ import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.image.ColorModel;
+import java.awt.RenderingHints;
 import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
 import java.io.BufferedInputStream;
@@ -105,13 +111,20 @@ public class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;
-	private final Hashtable<Long,String> ht_paths = new Hashtable<Long,String>();
+	private final HashMap<Long,String> ht_paths = new HashMap<Long,String>();
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
 	private String dir_mipmaps = null;
 	/** Path to the directory the user provided when creating the project. */
 	private String dir_storage = null;
+
+	/** Path to dir_storage + "trakem2.images/" */
+	private String dir_image_storage = null;
+
+	/** Queue and execute Runnable tasks. */
+	static private Dispatcher dispatcher = new Dispatcher();
+
 
 	public FSLoader() {
 		super(); // register
@@ -123,7 +136,11 @@ public class FSLoader extends Loader {
 		if (null == storage_folder) this.dir_storage = super.getStorageFolder(); // home dir
 		else this.dir_storage = storage_folder;
 		if (!this.dir_storage.endsWith("/")) this.dir_storage += "/";
-		createMipMapsDir(this.dir_storage);
+		if (!Loader.canReadAndWriteTo(dir_storage)) {
+			Utils.log("WARNING can't read/write to the storage_folder at " + dir_storage);
+		} else {
+			createMipMapsDir(this.dir_storage);
+		}
 	}
 
 	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders.*/
@@ -145,8 +162,30 @@ public class FSLoader extends Loader {
 		return dir_storage.toString(); // a copy
 	}
 
+	/** Returns a folder proven to be writable for images can be stored into. */
+	public String getImageStorageFolder() {
+		if (null == dir_image_storage) {
+			String s = getStorageFolder() + "trakem2.images/";
+			File f = new File(s);
+			if (f.exists() && f.isDirectory() && f.canWrite()) {
+				dir_image_storage = s;
+				return dir_image_storage;
+			}
+			else {
+				try {
+					f.mkdirs();
+					dir_image_storage = s;
+				} catch (Exception e) {
+					e.printStackTrace();
+					return getStorageFolder(); // fall back
+				}
+			}
+		}
+		return dir_image_storage;
+	}
+
 	/** Returns TMLHandler.getProjectData() . If the path is null it'll be asked for. */
-	public Object[] openFSProject(String path) {
+	public Object[] openFSProject(String path, final boolean open_displays) {
 		// clean path of double-slashes, safely (and painfully)
 		if (null != path) {
 			path = path.replace('\\','/');
@@ -226,9 +265,7 @@ public class FSLoader extends Loader {
 				return null;
 			}
 
-			data = handler.getProjectData();
-		} else if (this.project_file_path.toLowerCase().endsWith(".t2")) {
-			data = Decoder.read(this.project_file_path, this);
+			data = handler.getProjectData(open_displays);
 		}
 
 		if (null == data) {
@@ -263,7 +300,8 @@ public class FSLoader extends Loader {
 
 	public void destroy() {
 		super.destroy();
-		Utils.showStatus("");
+		Utils.showStatus("", false);
+		dispatcher.quit();
 		// remove empty trakem2.mipmaps folder if any
 		if (null != dir_mipmaps && !dir_mipmaps.equals(dir_storage)) {
 			File f = new File(dir_mipmaps);
@@ -290,19 +328,23 @@ public class FSLoader extends Loader {
 		return nid;
 	}
 
-	public double[][][] fetchBezierArrays(long id) { // profiles are loaded in full from the XML file
+	/** Loaded in full from XML file */
+	public double[][][] fetchBezierArrays(long id) {
 		return null;
 	}
 
+	/** Loaded in full from XML file */
 	public ArrayList fetchPipePoints(long id) {
 		return null;
 	}
 
+	/** Loaded in full from XML file */
 	public ArrayList fetchBallPoints(long id) {
 		return null;
 	}
 
-	public Area fetchArea(long area_list_id, long layer_id) { // loaded in full from XML file
+	/** Loaded in full from XML file */
+	public Area fetchArea(long area_list_id, long layer_id) { 
 		return null;
 	}
 
@@ -374,13 +416,13 @@ public class FSLoader extends Loader {
 							return null;
 					}
 				}
-				releaseMemory(); // ensure there is a minimum % of free memory
 				if (-1 != i_sl) {
 					slice = path.substring(i_sl);
 					// set path proper
 					path = path.substring(0, i_sl);
 				}
 
+				releaseMemory(); // ensure there is a minimum % of free memory
 				plock = getOrMakePatchLoadingLock(p, 0);
 				unlock();
 			} catch (Exception e) {
@@ -415,12 +457,13 @@ public class FSLoader extends Loader {
 			synchronized (db_lock) {
 				lock();
 				n_bytes = estimateImageFileSize(p, 0);
-				// not needed // releaseToFit2(n_bytes);
 				max_memory -= n_bytes;
 				unlock();
 			}
 
+			releaseToFit(n_bytes);
 			imp = openImage(path);
+
 			preProcess(imp);
 
 			synchronized (db_lock) {
@@ -429,7 +472,10 @@ public class FSLoader extends Loader {
 					max_memory += n_bytes;
 
 					if (null == imp) {
-						Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
+						if (!hs_unloadable.contains(p)) {
+							Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
+							hs_unloadable.add(p);
+						}
 						removePatchLoadingLock(plock);
 						unlock();
 						plock.unlock();
@@ -438,20 +484,20 @@ public class FSLoader extends Loader {
 					// update all clients of the stack, if any
 					if (null != slice) {
 						String rel_path = getPath(p); // possibly relative
-						int r_isl = rel_path.lastIndexOf("-----#slice");
+						final int r_isl = rel_path.lastIndexOf("-----#slice");
 						if (-1 != r_isl) rel_path = rel_path.substring(0, r_isl); // should always happen
-						for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
-							Map.Entry entry = (Map.Entry)it.next();
-							String str = (String)entry.getValue(); // this is like calling getPath(p)
+						for (Iterator<Map.Entry<Long,String>> it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
+							final Map.Entry<Long,String> entry = it.next();
+							final String str = entry.getValue(); // this is like calling getPath(p)
 							//Utils.log2("processing " + str);
 							if (0 != str.indexOf(rel_path)) {
 								Utils.log2("SKIP str is: " + str + "\t but path is: " + rel_path);
 								continue; // get only those whose path is identical, of course!
 							}
-							int isl = str.lastIndexOf("-----#slice=");
+							final int isl = str.lastIndexOf("-----#slice=");
 							if (-1 != isl) {
 								//int i_slice = Integer.parseInt(str.substring(isl + 12));
-								long lid = ((Long)entry.getKey()).longValue(); // really, J jate java
+								final long lid = entry.getKey();
 								imps.put(lid, imp);
 								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
 								// kludge, but what else short of a gigantic hashtable
@@ -464,7 +510,7 @@ public class FSLoader extends Loader {
 							}
 						}
 						// set proper active slice
-						int ia = Integer.parseInt(slice.substring(12));
+						final int ia = Integer.parseInt(slice.substring(12));
 						imp.setSlice(ia);
 						if (Layer.IMAGEPROCESSOR == format) ip = imp.getStack().getProcessor(ia); // otherwise creates one new for nothing
 					} else {
@@ -496,14 +542,35 @@ public class FSLoader extends Loader {
 		}
 	}
 
+	/** Loaded in full from XML file */
 	public Object[] fetchLabel(DLabel label) {
 		return null;
 	}
 
-	/** Does NOT return the original image, but the working. The original image is not stored if a working image exists. */
-	synchronized public ImagePlus fetchOriginal(Patch patch) {
-		Utils.showMessage("The original image was NOT stored.");
-		return fetchImagePlus(patch);
+	/** Loads and returns the original image, which is not cached, or returns null if it's not different than the working image. */
+	synchronized public ImagePlus fetchOriginal(final Patch patch) {
+		String original_path = patch.getOriginalPath();
+		if (null == original_path) return null;
+		// else, reserve memory and open it:
+		long n_bytes = estimateImageFileSize(patch, 0);
+		// reserve memory:
+		synchronized (db_lock) {
+			lock();
+			max_memory -= n_bytes;
+			unlock();
+		}
+		try {
+			return openImage(original_path);
+		} catch (Throwable t) {
+			IJError.print(t);
+		} finally {
+			synchronized (db_lock) {
+				lock();
+				max_memory += n_bytes;
+				unlock();
+			}
+		}
+		return null;
 	}
 
 	public void prepare(Layer layer) {
@@ -511,7 +578,7 @@ public class FSLoader extends Loader {
 		super.prepare(layer);
 	}
 
-	/* GENERIC, from DBObject calls. Records the id of the object in the Hashtable ht_dbo.
+	/* GENERIC, from DBObject calls. Records the id of the object in the HashMap ht_dbo.
 	 * Always returns true. Does not check if another object has the same id.
 	 */
 	public boolean addToDatabase(final DBObject ob) {
@@ -529,84 +596,9 @@ public class FSLoader extends Loader {
 
 	public boolean updateInDatabase(final DBObject ob, final String key) {
 		setChanged(true);
-		if (ob.getClass().equals(Patch.class)) {
-			try {
-				Patch p = (Patch)ob;
-				if (key.equals("tiff_working")) {
-					String path = getAbsolutePath(p);
-					String slice = null;
-					// path can be null if the image is pasted, or from a copy
-					if (null != path) {
-						int i_sl = path.lastIndexOf("-----#slice=");
-						if (-1 != i_sl) {
-							slice = path.substring(i_sl);
-							path = path.substring(0, i_sl);
-						}
-					}
-					boolean overwrite = null != path;
-					if (overwrite) {
-						//Utils.printCaller(this, 10);
-						YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "Overwrite '" + p.getTitle() + "'\nat " + path + "' ?");
-						if (yn.cancelPressed()) {
-							return false;
-						} else if (!yn.yesPressed()) { // so, 'no' button pressed
-							overwrite = false;
-						}
-					}
-					if (overwrite) {
-						// save as a separate image and update path
-						path = path.substring(0, path.lastIndexOf('/') + 1) + p.getTitle();
-						if (path.length() -4 == path.lastIndexOf(".tif")) {
-							path = path.substring(0, path.length() -4);
-						}
-						// remove previous time stamp, if any
-						int i = 0;
-						for (i=path.length()-1; i>-1; i--) {
-							if (Character.isDigit(path.charAt(i))) continue;
-							break;
-						}
-						if (-1 != i && path.length() - i >= 12) { // otherwise it may not be a time stamp
-							path = path.substring(0, i+1);
-						} else {
-							path += "_";
-						}
-						path += System.currentTimeMillis() + ".tif";
-						path = super.exportImage(p, path, true);
-						Utils.log2("Saved original " + ht_paths.get(p.getId()) + "\n\t at: " + path);
-						// make path relative if possible
-						if (null != project_file_path) { // project may be unsaved
-							File fxml = new File(project_file_path);
-							String parent_dir = fxml.getParent().replace('\\', '/');
-							if (!parent_dir.endsWith("/")) parent_dir += "/";
-							if (0 == path.indexOf((String)ht_paths.get(p.getId()))) {
-								path = path.substring(path.length());
-							}
-						}
-						// update paths' hashtable
-						if (null == slice) {
-							updatePatchPath(p, path);
-						} else {
-							// update all slices
-							for (Iterator it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
-								Map.Entry entry = (Map.Entry)it.next();
-								String str = (String)entry.getValue();
-								int isl = str.lastIndexOf("-----#slice=");
-								if (-1 != isl) {
-									entry.setValue(path + str.substring(isl));
-								}
-							}
-						}
-						return true;
-					} else {
-						// else 'yes' button pressed: overwrite image file
-						Utils.log2("overwriting image at " + path);
-						exportImage(p, path, true);
-					}
-				}
-			} catch (Exception e) {
-				IJError.print(e);
-				return false;
-			}
+		if (ob.getClass() == Patch.class) {
+			Patch p = (Patch)ob;
+			if (key.equals("tiff_working")) return null != setImageFile(p, fetchImagePlus(p));
 		}
 		return true;
 	}
@@ -621,7 +613,7 @@ public class FSLoader extends Loader {
 			if (ob instanceof Patch) {
 				// STRATEGY change: images are not owned by the FSLoader.
 				Patch p = (Patch)ob;
-				removeMipMaps(p);
+				if (!ob.getProject().getBooleanProperty("keep_mipmaps")) removeMipMaps(p);
 				ht_paths.remove(p.getId()); // after removeMipMaps !
 				mawts.removeAndFlush(loid);
 				final ImagePlus imp = imps.remove(loid);
@@ -634,6 +626,7 @@ public class FSLoader extends Loader {
 						Loader.flush(imp);
 					}
 				}
+				cannot_regenerate.remove(p);
 				unlock();
 				flushMipMaps(p.getId()); // locks on its own
 				return true;
@@ -643,11 +636,151 @@ public class FSLoader extends Loader {
 		return true;
 	}
 
+	/** Returns the absolute path to a file that contains the given ImagePlus image - which may be the path as described in the ImagePlus FileInfo object itself, or a totally new file.
+	 *  If the Patch p current image path is different than its original image path, then the file is overwritten if it exists already.
+	 */
+	public String setImageFile(final Patch p, final ImagePlus imp) {
+		if (null == imp) return null;
+		try {
+			String path = getAbsolutePath(p);
+			String slice = null;
+			//
+			// path can be null if the image is pasted, or from a copy, or totally new
+			if (null != path) {
+				int i_sl = path.lastIndexOf("-----#slice=");
+				if (-1 != i_sl) {
+					slice = path.substring(i_sl);
+					path = path.substring(0, i_sl);
+				}
+			} else {
+				// no path, inspect image FileInfo's path if the image has no changes
+				if (!imp.changes) {
+					final FileInfo fi = imp.getOriginalFileInfo();
+					if (null != fi && null != fi.directory && null != fi.fileName) {
+						final String fipath = fi.directory.replace('\\', '/') + "/" + fi.fileName;
+						if (new File(fipath).exists()) {
+							// no need to save a new image, it exists and has no changes
+							updatePaths(p, fipath, null != slice);
+							cacheAll(p, imp);
+							Utils.log2("Reusing image file: path exists for fileinfo at " + fipath);
+							return fipath;
+						}
+					}
+				}
+			}
+			if (null != path) {
+				final String starting_path = path;
+				// Save as a separate image in a new path within the storage folder
+
+				String filename = path.substring(path.lastIndexOf('/') +1);
+
+				//Utils.log2("filename 1: " + filename);
+
+				// remove .tif extension if there
+				if (filename.endsWith(".tif")) filename = filename.substring(0, filename.length() -3); // keep the dot
+
+				//Utils.log2("filename 2: " + filename);
+
+				// check if file ends with a tag of form ".id1234." where 1234 is p.getId()
+				final String tag = ".id" + p.getId() + ".";
+				if (!filename.endsWith(tag)) filename += tag.substring(1); // without the starting dot, since it has one already
+				// reappend extension
+				filename += "tif";
+
+				//Utils.log2("filename 3: " + filename);
+
+				path = getImageStorageFolder() + filename;
+
+				if (path.equals(p.getOriginalPath())) {
+					// Houston, we have a problem: a user reused a non-original image
+					File file = null;
+					int i = 1;
+					final int itag = path.lastIndexOf(tag);
+					do {
+						path = path.substring(0, itag) + "." + i + tag + "tif";
+						i++;
+						file = new File(path);
+					} while (file.exists());
+				}
+
+				//Utils.log2("path to use: " + path);
+
+				final String path2 = super.exportImage(p, imp, path, true);
+
+				//Utils.log2("path exported to: " + path2);
+
+				// update paths' hashtable
+				if (null != path2) {
+					updatePaths(p, path2, null != slice);
+					cacheAll(p, imp);
+					hs_unloadable.remove(p);
+					return path2;
+				} else {
+					Utils.log("WARNING could not save image at " + path);
+					// undo
+					updatePaths(p, starting_path, null != slice);
+					return null;
+				}
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
+	}
+
+	private final String makeFileTitle(final Patch p) {
+		String title = p.getTitle();
+		if (null == title) return "image-" + p.getId();
+		title = asSafePath(title);
+		if (0 == title.length()) return "image-" + p.getId();
+		return title;
+	}
+
+	/** Associate patch with imp, and all slices as well if any. */
+	private void cacheAll(final Patch p, final ImagePlus imp) {
+		if (p.isStack()) {
+			for (Patch pa : p.getStackPatches()) {
+				cache(pa, imp);
+			}
+		} else {
+			cache(p, imp);
+		}
+	}
+
+	/** For the Patch and for any associated slices if the patch is part of a stack. */
+	private void updatePaths(final Patch patch, final String path, final boolean is_stack) {
+		synchronized (db_lock) {
+			lock();
+			try {
+				// ensure the old path is cached in the Patch, to get set as the original if there is no original.
+				if (is_stack) {
+					for (Patch p : patch.getStackPatches()) {
+						long pid = p.getId();
+						String str = ht_paths.get(pid);
+						int isl = str.lastIndexOf("-----#slice=");
+						updatePatchPath(p, path + str.substring(isl));
+					}
+				} else {
+					Utils.log2("path to set: " + path);
+					Utils.log2("path before: " + ht_paths.get(patch.getId()));
+					updatePatchPath(patch, path);
+					Utils.log2("path after: " + ht_paths.get(patch.getId()));
+				}
+			} catch (Throwable e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+	}
+
 	/** With slice info appended at the end; only if it exists, otherwise null. */
 	public String getAbsolutePath(final Patch patch) {
-		Object ob = ht_paths.get(patch.getId());
-		if (null == ob) return null;
-		String path = (String)ob;
+		String abs_path = patch.getCurrentPath();
+		if (null != abs_path) return abs_path;
+		// else, compute, set and return it:
+		String path = ht_paths.get(patch.getId());
+		if (null == path) return null;
 		// substract slice info if there
 		int i_sl = path.lastIndexOf("-----#slice=");
 		String slice = null;
@@ -666,6 +799,8 @@ public class FSLoader extends Loader {
 		}
 		// reappend slice info if existent
 		if (null != slice) path += slice;
+		// set it
+		patch.cacheCurrentPath(path);
 		return path;
 	}
 
@@ -699,6 +834,8 @@ public class FSLoader extends Loader {
 			// avoid the potential C:// of windows and the starting // of a samba network
 			path = path.substring(0, start) + path.substring(start).replace("//", "/");
 		}
+		// cache path as absolute
+		patch.cacheCurrentPath(isRelativePath(path) ? getParentFolder() + path : path);
 		// if path is absolute, try to make it relative
 		path = makeRelativePath(path);
 		// store
@@ -706,37 +843,16 @@ public class FSLoader extends Loader {
 		//Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
 	}
 
-	/** Overriding superclass method; if a path for the given Patch exists in the ht_paths Hashtable, it will be returned (meaning, the image exists already); if not, then an attempt is made to save it in the given path. The overwrite flag is used in the second case, to avoid creating a new image every time the Patch pixels are edited. The original image is never overwritten in any case. */
-	public String exportImage(Patch patch, String path, boolean overwrite) {
-		Object ob = ht_paths.get(patch.getId());
-		if (null == ob) {
-			// means, the image has no related source file
-			if (null == path) {
-				if (null == project_file_path) {
-					this.project_file_path = save(patch.getProject());
-					if (null == project_file_path) {
-						return null;
-					}
-				}
-				path = makePatchesDir(new File(project_file_path)) + "/" + patch.getTitle().replace(' ', '_');
-			}
-			path = super.exportImage(patch, path, overwrite);
-			// record
-			Utils.log2("patch: " + patch + "  and path: " + path);
-			updatePatchPath(patch, path);
-			return path;
-		} else {
-			//Utils.printCaller(this, 7);
-			//Utils.log2("FSLoader.exportImage: path is " + ob.toString());
-			return (String)ob; // the path of the source image file
-		}
+	/** Takes a String and returns a copy with the following conversions: / to -, space to _, and \ to -. */
+	public String asSafePath(final String name) {
+		return name.trim().replace('/', '-').replace(' ', '_').replace('\\','-');
 	}
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
 	public String save(final Project project) {
 		String result = null;
 		if (null == project_file_path) {
-			String xml_path = super.saveAs(project);
+			String xml_path = super.saveAs(project, null, false);
 			if (null == xml_path) return null;
 			else {
 				this.project_file_path = xml_path;
@@ -752,7 +868,7 @@ public class FSLoader extends Loader {
 	}
 
 	public String saveAs(Project project) {
-		String path = super.saveAs(project);
+		String path = super.saveAs(project, null, false);
 		if (null != path) {
 			// update the xml path to point to the new one
 			this.project_file_path = path;
@@ -762,10 +878,47 @@ public class FSLoader extends Loader {
 		return path;
 	}
 
-	/** Returns the stored path for the given Patch image, which may be relative.*/
+	/** Meant for programmatic access, such as calls to project.saveAs(path, overwrite) which call exactly this method. */
+	public String saveAs(final String path, final boolean overwrite) {
+		if (null == path) {
+			Utils.log("Cannot save on null path.");
+			return null;
+		}
+		String path2 = path;
+		if (!path2.endsWith(".xml")) path2 += ".xml";
+		File fxml = new File(path2);
+		if (!fxml.canWrite()) {
+			// write to storage folder instead
+			String path3 = path2;
+			path2 = getStorageFolder() + fxml.getName();
+			Utils.logAll("WARNING can't write to " + path3 + "\n  --> will write instead to " + path2);
+			fxml = new File(path2);
+		}
+		if (!overwrite) {
+			int i = 1;
+			while (fxml.exists()) {
+				String parent = fxml.getParent().replace('\\','/');
+				if (!parent.endsWith("/")) parent += "/";
+				String name = fxml.getName();
+				name = name.substring(0, name.length() - 4);
+				path2 =  parent + name + "-" +  i + ".xml";
+				fxml = new File(path2);
+				i++;
+			}
+		}
+		Project project = Project.findProject(this);
+		path2 = super.saveAs(project, path2, false);
+		if (null != path2) {
+			project_file_path = path2;
+			Utils.logAll("After saveAs, new xml path is: " + path2);
+			ControlWindow.updateTitle(project);
+		}
+		return path2;
+	}
+
+	/** Returns the stored path for the given Patch image, which may be relative and may contain slice information appended.*/
 	public String getPath(final Patch patch) {
-		final Object ob = ht_paths.get(patch.getId());
-		return (String)ob; // casting a null is ok
+		return ht_paths.get(patch.getId());
 	}
 
 	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
@@ -909,7 +1062,7 @@ public class FSLoader extends Loader {
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
-	public void parseXMLOptions(final Hashtable ht_attributes) {
+	public void parseXMLOptions(final HashMap ht_attributes) {
 		Object ob = ht_attributes.remove("preprocessor");
 		if (null != ob) {
 			setPreprocessor((String)ob);
@@ -1018,6 +1171,85 @@ public class FSLoader extends Loader {
 		return dir_mipmaps;
 	}
 
+	private final BufferedImage half(final Image awt, final int w, final int h, final Object hint, final IndexColorModel icm) {
+		BufferedImage bi;
+		if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
+		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
+		final Graphics2D g = bi.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, hint);
+		g.drawImage(awt, 0, 0, w, h, null);
+		return bi;
+	}
+
+	private Object getHint(final int mode) {
+		Object hint = null;
+		switch (mode) {
+			case Loader.BICUBIC:
+				hint = RenderingHints.VALUE_INTERPOLATION_BICUBIC; break;
+			case Loader.BILINEAR:
+				hint = RenderingHints.VALUE_INTERPOLATION_BILINEAR; break;
+			case Loader.NEAREST_NEIGHBOR:
+			default:
+				hint = RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR; break;
+		}
+		return hint;
+	}
+
+	/*
+	static final private byte[] resize(final FloatProcessor source, final ByteProcessor alpha_mask, final int source_width, final int source_height, final int target_width, final int target_height) {
+		if (null == alpha_mask) return gaussianBlurResizeInHalf(source, target_width, target_height);
+		return alphaWeightedScaleAreaAverageResizeInHalf(source, alpha_mask, source_width, source_height, target_width, target_height);
+	}
+	*/
+ 
+	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
+	static final private byte[] gaussianBlurResizeInHalf(final FloatProcessorT2 source, final int source_width, final int source_height, final int target_width, final int target_height) {
+		source.setPixels(source_width, source_height, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])source.getPixels(), source_width, source_height), 0.75f).data);
+		source.setPixels(target_width, target_width, (float[])source.resize(target_width, target_height).getPixels());
+		return (byte[])source.convertToByte(false).getPixels(); // no interpolation: gaussian took care of that
+	}
+
+	/** NoReallyIMeanExactlyWhatTheMethodNameSays. WARNING: the source FloatProcessorT2 is resized in place. The alpha_mask is left untouched. */
+	static final private byte[] alphaWeightedScaleAreaAverageResizeInHalf(final FloatProcessorT2 source, final FloatProcessor alpha_mask, final int source_width, final int source_height, final int target_width, final int target_height) {
+		// resize using the alpha_mask values as weights
+		final float[] data = (float[])source.getPixels(); // in source_width, source_height
+		final byte[] alpha = (byte[])alpha_mask.getPixels(); // in target_width, target_height
+		final byte[] pixels = new byte[target_width * target_height];
+		final float[] new_data = new float[pixels.length];
+		float val = 0;
+		int x, y;
+		// 
+		// 'i' iterates over source array
+		// 'k' iterates over target array (half the size)
+		for (int i=0, k=0; k<pixels.length; i+=2, k++) {
+
+			// add same
+			val += alpha[i] * data[i];
+
+			// No boundary checks needed, source image is exactly double the size as target image
+
+			// add right:
+			val += alpha[i+1] * data[i+1];
+
+			// add bottom: 
+			val += alpha[i+source_width] * data[i+source_width];
+
+			// add bottom-right
+			val += alpha[i+source_width+1] * data[i+source_width+1];
+
+			new_data[k] = val;
+
+			final int v = (int)( (val/4) + 0.5f); // proper rounding
+
+			pixels[k] = (byte)( v - (v < 128 ? 0 : 256) ); // map 0,255 to -128,127 range, where 0 = 0, 127 = 127, -128 = 128, and 255 = -1.
+
+		}
+
+		source.setPixels(target_width, target_height, new_data);
+
+		return pixels;
+	}
+
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
@@ -1031,6 +1263,7 @@ public class FSLoader extends Loader {
 		final String path = getAbsolutePath(patch);
 		if (null == path) {
 			Utils.log2("generateMipMaps: cannot find path for Patch " + patch);
+			cannot_regenerate.add(patch);
 			return false;
 		}
 		synchronized (gm_lock) {
@@ -1044,9 +1277,31 @@ public class FSLoader extends Loader {
 			hs_regenerating_mipmaps.add(patch);
 			gm_unlock();
 		}
-		boolean ok = true;
+
+		String srmode = patch.getProject().getProperty("image_resizing_mode");
+		int resizing_mode = GAUSSIAN;
+		if (null != srmode) resizing_mode = Loader.getMode(srmode);
+
 		try {
-			final ImageProcessor ip = fetchImageProcessor(patch);
+			ImageProcessor ip = fetchImageProcessor(patch);
+
+			/* // NOT READY YET
+			final boolean is_nlt = patch.isNonLinearlyDeformed();
+			final int type = is_nlt ? ImagePlus.COLOR_RGB : patch.getType();
+
+			// Convert to an RGB image with alpha channel if non-linearly deformed
+			if (is_nlt) {
+				ImageProcessor[] def = deform(patch, ip);
+				ip = def[0];
+				alpha_mask = def[1];
+			}
+			*/
+			ImageProcessor alpha_mask = null;
+			final int type = patch.getType();
+
+
+
+
 			final String filename = new File(path).getName() + "." + patch.getId() + ".jpg";
 			int w = ip.getWidth();
 			int h = ip.getHeight();
@@ -1054,82 +1309,165 @@ public class FSLoader extends Loader {
 			//    where 0.5 is the estimated sigma for a full-scale image
 			//  which means sigma = 0.75 for the full-scale image (has level 0)
 			// prepare a 0.75 sigma image from the original
-			final ColorModel cm = ip.getColorModel();
+			ColorModel cm = ip.getColorModel();
 			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 				   //   but since we scale 50% relative the previous, it's always 0.75
-			if (ImagePlus.COLOR_RGB == patch.getType()) {
+			if (ImagePlus.COLOR_RGB == type) {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
-				ColorProcessor cp = (ColorProcessor)ip;
-				FloatProcessor red = cp.toFloat(0, new FloatProcessor(w, h));
-				FloatProcessor green = cp.toFloat(1, new FloatProcessor(w, h));
-				FloatProcessor blue = cp.toFloat(2, new FloatProcessor(w, h));
-				while (w >= 64 && h >= 64) { // not smaller than 32x32
-					// 1 - blur the previous image to 0.75 sigma
-					red = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])red.getPixels(), w, h), 0.75f).data, cm);
-					green = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])green.getPixels(), w, h), 0.75f).data, cm);
-					blue = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])blue.getPixels(), w, h), 0.75f).data, cm);
-					// 2 - prepare values for the next scaled image
-					w /= 2;
-					h /= 2;
-					k++;
-					// 3 - check that the target folder for the desired scale exists
-					String target_dir = getScaleDir(dir_mipmaps, k);
-					if (null == target_dir) continue;
-					// 4 - generate scaled image
-					red = (FloatProcessor)red.resize(w, h);
-					green = (FloatProcessor)green.resize(w, h);
-					blue = (FloatProcessor)blue.resize(w, h);
-					// compose ColorProcessor
-					int[] pix = new int[w * h];
-					byte[] r = (byte[])red.convertToByte(false).getPixels();
-					byte[] g = (byte[])green.convertToByte(false).getPixels();
-					byte[] b = (byte[])blue.convertToByte(false).getPixels();
-					for (int i=0; i<pix.length; i++) {
-						pix[i] = (r[i]<<16) + (g[i]<<8) + b[i];
+				final ColorProcessor cp = (ColorProcessor)ip;
+				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
+				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
+				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
+				final FloatProcessorT2 falpha = new FloatProcessorT2(w, h, (byte[])alpha_mask.getPixels(), 0, 255);
+				falpha.setInterpolate(true); // TODO perhaps false?
+				int sw, sh;
+
+				if (null != alpha_mask) {
+					while (w >= 64 && h >= 64) {
+						// 1 - Prepare values for the next scaled image
+						sw = w;
+						sh = h;
+						w /= 2;
+						h /= 2;
+						k++;
+						// 2 - Check that the target folder for the desired scale exists
+						final String target_dir = getScaleDir(dir_mipmaps, k);
+						if (null == target_dir) continue;
+						// 3 - Scale the images, using scale area averaging weighted by the alpha mask
+						final byte[] r = alphaWeightedScaleAreaAverageResizeInHalf(red, falpha, sw, sh, w, h);   // resizes 'red' in place
+						final byte[] g = alphaWeightedScaleAreaAverageResizeInHalf(green, falpha, sw, sh, w, h); // idem
+						final byte[] b = alphaWeightedScaleAreaAverageResizeInHalf(blue, falpha, sw, sh, w, h);  // idem
+						falpha.resizeInPlace(w, h); // after all the above
+						final byte[] alpha = (byte[])alpha_mask.getPixels();
+						// 4 - Compose pixel array
+						final int[] pix = new int[w * h];
+						for (int i=0; i<pix.length; i++) {
+							pix[i] = (alpha[i]<<24) + (r[i]<<16) + (g[i]<<8) + b[i];
+						}
+						// 5 - Compose BufferedImage and save it with alpha channel
+						final BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+						bi.createGraphics().drawImage(new ColorProcessor(w, h, pix).createImage(), 0, 0, null);
+						bi.getAlphaRaster().setPixels(0, 0, w, h, falpha.getFloatPixels());
+						// 6 - save as jpeg
+						if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi, dir_mipmaps + k + "/" + filename, 0.85f)) {
+							cannot_regenerate.add(patch);
+							break;
+						}
 					}
-					ColorProcessor cp2 = new ColorProcessor(w, h, pix);
-					cp2.setMinAndMax(patch.getMin(), patch.getMax());
-					// 5 - save as jpeg
-					ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f, false);
+				} else {
+					// No alpha channel:
+					//  - use gaussian resizing
+					//  - use standard ImageJ java.awt.Image creation
+					while (w >= 64 && h >= 64) { // not smaller than 32x32
+						// 1 - Prepare values for the next scaled image
+						sw = w;
+						sh = h;
+						w /= 2;
+						h /= 2;
+						k++;
+						// 2 - Check that the target folder for the desired scale exists
+						final String target_dir = getScaleDir(dir_mipmaps, k);
+						if (null == target_dir) continue;
+						// 3 - Blur the previous image to 0.75 sigma, and scale it
+						final byte[] r = gaussianBlurResizeInHalf(red, sw, sh, w, h);   // will resize 'red' FloatProcessor in place.
+						final byte[] g = gaussianBlurResizeInHalf(green, sw, sh, w, h); // idem
+						final byte[] b = gaussianBlurResizeInHalf(blue, sw, sh, w, h);  // idem
+						// 4 - Compose ColorProcessor
+						final int[] pix = new int[w * h];
+						for (int i=0; i<pix.length; i++) {
+							pix[i] = (r[i]<<16) + (g[i]<<8) + b[i];
+						}
+						final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
+						cp2.setMinAndMax(patch.getMin(), patch.getMax());
+						// 5 - save as jpeg
+						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, dir_mipmaps + k + "/" + filename, 0.85f, false)) {
+							cannot_regenerate.add(patch);
+							break;
+						}
+					}
 				}
 			} else {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
-				FloatProcessor fp = (FloatProcessor)ip.convertToFloat();
-				final boolean as_grey = ImagePlus.COLOR_256 != patch.getType();
-				while (w >= 64 && h >= 64) { // not smaller than 32x32
-					// 1 - blur the previous image to 0.75 sigma
-					fp = new FloatProcessor(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
-					// 2 - prepare values for the next scaled image
-					w /= 2;
-					h /= 2;
-					k++;
-					// 3 - check that the target folder for the desired scale exists
-					String target_dir = getScaleDir(dir_mipmaps, k);
-					if (null == target_dir) continue;
-					// 4 - generate scaled image
-					fp = (FloatProcessor)fp.resize(w, h);
-					// 5 - save as 8-bit jpeg
-					ImageProcessor ip2 = Utils.convertTo(fp, patch.getType(), false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
-					ip2.setMinAndMax(patch.getMin(), patch.getMax());
-					ip2.setColorModel(cm); // the LUT
-					ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey);
+				final boolean as_grey = !ip.isColorLut();
+				if (as_grey && null == cm) { // TODO needs fixing for'half' method
+					cm = GRAY_LUT;
+				} else cm = null;
+				if (Loader.GAUSSIAN == resizing_mode) {
+					FloatProcessor fp = Utils.fastConvertToFloat(ip, type); //(FloatProcessor)ip.convertToFloat();
+					final double min = fp.getMin();
+					final double max = fp.getMax();
+					while (w >= 64 && h >= 64) { // not smaller than 32x32
+						// 1 - blur the previous image to 0.75 sigma
+						fp = new FloatProcessorT2(w, h, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), w, h), 0.75f).data, cm);
+						// 2 - prepare values for the next scaled image
+						w /= 2;
+						h /= 2;
+						k++;
+						// 3 - check that the target folder for the desired scale exists
+						String target_dir = getScaleDir(dir_mipmaps, k);
+						if (null == target_dir) continue;
+						// 4 - generate scaled image
+						fp = (FloatProcessor)fp.resize(w, h);
+						// 5 - save as 8-bit jpeg
+						ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
+						ip2.setMinAndMax(patch.getMin(), patch.getMax());
+						if (null != cm) ip2.setColorModel(cm); // the LUT
+						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, dir_mipmaps + k + "/" + filename, 0.85f, as_grey)) {
+							cannot_regenerate.add(patch);
+							break;
+						}
+					}
+				} else {
+					// use java hardware-accelerated resizing
+					Image awt = ip.createImage();
+					BufferedImage bi = null;
+					final Object hint = getHint(resizing_mode);
+					final StringBuffer sb = new StringBuffer();
+					final IndexColorModel icm = (IndexColorModel)cm;
+					while (w >= 64 && h >= 64) {
+						// check that the target folder for the desired scale exists
+						String target_dir = getScaleDir(dir_mipmaps, k);
+						if (null == target_dir) continue;
+						// obtain half image
+						bi = half(awt, w, h, hint, icm);
+						// prepate next iteration
+						awt.flush();
+						awt = bi;
+						w /= 2;
+						h /= 2;
+						k++;
+						// save this iteration
+						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(bi, sb.append(dir_mipmaps).append(k).append('/').append(filename).toString(), 0.85f, as_grey)) {
+							cannot_regenerate.add(patch);
+							break;
+						}
+						sb.setLength(0);
+					}
+					bi.flush();
 				}
 			}
-		} catch (Exception e) {
+			return true;
+		} catch (Throwable e) {
 			IJError.print(e);
-			ok = false; //can't return, need to unlock Patch first
+			cannot_regenerate.add(patch);
+			return false;
+		} finally {
+			// gets executed even when returning from the catch statement or within the try/catch block
+			synchronized (gm_lock) {
+				gm_lock();
+				hs_regenerating_mipmaps.remove(patch);
+				gm_unlock();
+			}
 		}
-		synchronized (gm_lock) {
-			gm_lock();
-			hs_regenerating_mipmaps.remove(patch);
-			gm_unlock();
-		}
-		return ok;
 	}
 
-	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.*/
+	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.
+	 *
+	 * @param al : the list of Patch instances to generate mipmaps for.
+	 * @param overwrite : whether to overwrite any existing mipmaps, or save only those that don't exist yet for whatever reason. This flag provides the means for minimal effort mipmap regeneration.)
+	 * */
 	public Bureaucrat generateMipMaps(final ArrayList al, final boolean overwrite) {
 		if (null == al || 0 == al.size()) return null;
 		if (null == dir_mipmaps) createMipMapsDir(null);
@@ -1323,18 +1661,18 @@ public class FSLoader extends Loader {
 		}
 	}
 
-	/** Gets data from the Patch and forks a new Thread to do the file removal. */
+	/** Gets data from the Patch and queues a new task to do the file removal in a separate task manager thread. */
 	public void removeMipMaps(final Patch p) {
 		if (null == dir_mipmaps) return;
 		try {
 			// remove the files
 			final int width = (int)p.getWidth();
 			final int height = (int)p.getHeight();
-			String path = getAbsolutePath(p);
+			final String path = getAbsolutePath(p);
 			if (null == path) return; // missing file
 			final String filename = new File(path).getName() + "." + p.getId() + ".jpg";
-			new Thread() {
-				public void run() {
+			// cue the task in a dispatcher:
+			dispatcher.exec(new Runnable() { public void run() {
 
 			int w = width;
 			int h = height;
@@ -1343,7 +1681,7 @@ public class FSLoader extends Loader {
 				w /= 2;
 				h /= 2;
 				k++;
-				File f = new File(dir_mipmaps + k + "/" + filename);
+				final File f = new File(dir_mipmaps + k + "/" + filename);
 				if (f.exists()) {
 					try {
 						if (!f.delete()) {
@@ -1355,8 +1693,7 @@ public class FSLoader extends Loader {
 				}
 			}
 
-				}
-			}.start();
+			}});
 		} catch (Exception e) {
 			IJError.print(e);
 		}
@@ -1434,13 +1771,15 @@ public class FSLoader extends Loader {
 	/** Checks if the mipmap file for the Patch and closest upper level to the desired magnification exists. */
 	public boolean checkMipMapFileExists(final Patch p, final double magnification) {
 		if (null == dir_mipmaps) return false;
-		final int level = getMipMapLevel(magnification);
+		final int level = getMipMapLevel(magnification, maxDim(p));
 		if (isURL(dir_mipmaps)) return true; // just assume that it does
 		if (new File(dir_mipmaps + level + "/" + new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg").exists()) return true;
 		return false;
 	}
 
-	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. */
+	final HashSet<Patch> cannot_regenerate = new HashSet<Patch>();
+
+	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. Does not frees memory on its own. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
 		if (null == dir_mipmaps) {
 			Utils.log2("null dir_mipmaps");
@@ -1452,7 +1791,7 @@ public class FSLoader extends Loader {
 
 			final int max_level = getHighestMipMapLevel(patch);
 
-			final String filepath = getFileName(patch);
+			final String filepath = getInternalFileName(patch);
 			if (null == filepath) {
 				Utils.log2("null filepath!");
 				return null;
@@ -1477,8 +1816,15 @@ public class FSLoader extends Loader {
 			}
 			if (null != img) return img;
 
+
 			// if we got so far ... try to regenerate the mipmaps
 			if (!mipmaps_regen) {
+				return null;
+			}
+
+			// check that REALLY the file doesn't exist.
+			if (cannot_regenerate.contains(patch)) {
+				Utils.log("Cannot regenerate mipmaps for patch " + patch);
 				return null;
 			}
 
@@ -1548,7 +1894,7 @@ public class FSLoader extends Loader {
 			case ImagePlus.COLOR_256:
 				bytes_per_pixel = 1;
 				// check jpeg, which can only encode RGB (taken care of above) and 8-bit and 8-bit color images:
-				String path = (String)ht_paths.get(p.getId());
+				String path = ht_paths.get(p.getId());
 				if (null != path && path.endsWith(".jpg")) bytes_per_pixel = 5; //4 for the int[] and 1 for the byte[]
 				break;
 			default:
@@ -1585,4 +1931,19 @@ public class FSLoader extends Loader {
 		Utils.log2("Saved a copy into the storage folder:\n" + dir_storage + fi.fileName);
 		return dir_storage + fi.fileName;
 	}
+
+	/** Generates layer-wise mipmaps with constant tile width and height. The mipmaps include only images.
+	 *  Mipmaps area generated all the way down until the entire canvas fits within one single tile.
+	 */
+	public Bureaucrat generateLayerMipMaps(final Layer[] la, final int starting_level) {
+		// hard-coded dimensions for layer mipmaps.
+		final int WIDTH = 512;
+		final int HEIGHT = 512;
+		//
+		// Each tile needs some coding system on where it belongs. For example in its file name, such as <layer_id>_Xi_Yi
+		// 
+		// Generate the starting level mipmaps, and then the others from it by gaussian or whatever is indicated in the project image_resizing_mode property.
+		return null;
+	}
+
 }

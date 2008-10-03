@@ -34,19 +34,25 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
 import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Iterator;
+import java.util.TreeMap;
+import java.util.Collection;
 
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.Image;
 
-public class Layer extends DBObject {
+public class Layer extends DBObject implements Bucketable {
 
 	private final ArrayList<Displayable> al_displayables = new ArrayList<Displayable>();
+	/** For fast search. */
+	Bucket root = null;
+	private HashMap<Displayable,ArrayList<Bucket>> db_map = null;
 
 	private double z;
 	private double thickness;
@@ -70,13 +76,14 @@ public class Layer extends DBObject {
 	}
 
 	/** Reconstruct from XML file. */
-	public Layer(Project project, long id, Hashtable ht_attributes) {
+	public Layer(Project project, long id, HashMap ht_attributes) {
 		super(project, id);
 		this.parent = null;
 		// parse data
-		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht_attributes.get(key);
+		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("z")) {
 				this.z = Double.parseDouble(data);
 			} else if (key.equals("thickness")) {
@@ -154,9 +161,9 @@ public class Layer extends DBObject {
 		String title = lt.getTitle();
 		if (null == title) title = "";
 		else title = title.replace(' ', '_');
-		StringBuffer sb = new StringBuffer().append(parent.indexOf(this) + 1);
-		String s_size = Integer.toString(parent.size());
-		while (sb.length() < s_size.length()) {
+		final StringBuffer sb = new StringBuffer().append(parent.indexOf(this) + 1);
+		final int s_size = Integer.toString(parent.size()).length();
+		while (sb.length() < s_size) {
 			sb.insert(0, '0');
 		}
 		sb.append('_').append('_').append(title).append('_').append('_').append('z').append(Utils.cutNumber(this.z, 3, true));
@@ -164,7 +171,7 @@ public class Layer extends DBObject {
 	}
 
 	public String toString() {
-		if (null == parent) return "z=" + Utils.cutNumber(z, 4);
+		if (null == parent) return new StringBuffer("z=").append(Utils.cutNumber(z, 4)).toString();
 		//return "z=" + Utils.cutNumber(z / parent.getCalibration().pixelDepth * z !!!?? I don't have the actual depth to correct with.
 		return "z=" + Utils.cutNumber(z, 4);
 	}
@@ -176,12 +183,13 @@ public class Layer extends DBObject {
 		add(displ, update_displays, true);
 	}
 
-	public void add(Displayable displ, boolean update_displays, boolean update_db) {
+	public void add(final Displayable displ, final boolean update_displays, final boolean update_db) {
 		if (null == displ || -1 != al_displayables.indexOf(displ)) return;
 
 		int i=-1, j=-1;
-		Displayable[] d = new Displayable[al_displayables.size()];
+		final Displayable[] d = new Displayable[al_displayables.size()];
 		al_displayables.toArray(d);
+		int stack_index = 0;
 		// what is it?
 		if (displ instanceof Patch) {
 			// find last Patch (which start at 0)
@@ -191,11 +199,17 @@ public class Layer extends DBObject {
 			}
 			if (-1 != j) {
 				j++;
-				if (j >= d.length) al_displayables.add(displ); // at the end
-				else al_displayables.add(j, displ);
+				if (j >= d.length) {
+					al_displayables.add(displ); // at the end
+					stack_index = d.length;
+				} else {
+					al_displayables.add(j, displ);
+					stack_index = j;
+				}
 			} else {
 				// no patches
 				al_displayables.add(0, displ); // at the very beggining
+				stack_index = 0;
 			}
 		} else if (displ instanceof Profile) {
 			// find first LayerSet or if none, first DLabel, add before it
@@ -204,11 +218,12 @@ public class Layer extends DBObject {
 			}
 			if (-1 != j) {
 				j++;
-				if (j >= d.length) al_displayables.add(displ);
-				else al_displayables.add(j, displ);
+				if (j >= d.length) { al_displayables.add(displ); stack_index = d.length; }
+				else { al_displayables.add(j, displ); stack_index = j; }
 			} else {
 				// no labels or LayerSets
 				al_displayables.add(displ); // at the end
+				stack_index = d.length;
 			}
 		} else if (displ instanceof LayerSet) {
 			// find first DLabel, add before it
@@ -217,25 +232,46 @@ public class Layer extends DBObject {
 			}
 			if (-1 != j) {
 				j++; // add it after the non-label one, displacing the label one position
-				if (j >= d.length) al_displayables.add(displ); // at the end
-				else al_displayables.add(j, displ);
+				if (j >= d.length) { al_displayables.add(displ); stack_index = d.length; } // at the end
+				else { al_displayables.add(j, displ); stack_index = j; }
 			} else {
 				// no labels
 				al_displayables.add(displ); // at the end
+				stack_index = d.length;
 			}
 		} else {
 			// displ is a DLabel
 			al_displayables.add(displ); // at the end
+			stack_index = d.length;
 		}
+
 		if (update_db) {
 			updateInDatabase("stack_index"); // of the displayables ...
 			displ.setLayer(this);
 		} else {
 			displ.setLayer(this, false);
 		}
+
+		// insert into bucket
+		if (null != root) {
+			if (d.length == stack_index) {
+				// append at the end
+				root.put(stack_index, displ, displ.getBoundingBox(null));
+			} else {
+				// add as last first, then update
+				root.put(d.length, displ, displ.getBoundingBox(null));
+				// find and update the range of affected Displayable objects
+				root.update(this, displ, stack_index, d.length); // first to last indices affected
+			}
+		}
+
 		if (update_displays) {
 			Display.add(this, displ);
 		}
+	}
+
+	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap() {
+		return db_map;
 	}
 
 	/** Used for reconstruction purposes. Assumes the displ are given in the proper order! */
@@ -250,9 +286,11 @@ public class Layer extends DBObject {
 		}
 	}
 
-	/** Remove the Layer only if it's empty. */
-	public boolean remove(Displayable displ) {
+	public boolean remove(final Displayable displ) {
 		if (null == displ || null == al_displayables || -1 == al_displayables.indexOf(displ)) return false;
+		// remove from Bucket before modifying stack index
+		if (null != root) Bucket.remove(displ, db_map);
+		// now remove proper, so stack_index hasn't changed yet
 		al_displayables.remove(displ);
 		Display.remove(this, displ);
 		return true;
@@ -338,7 +376,7 @@ public class Layer extends DBObject {
 	/** Returns true if any of the Displayable objects are of the given class. */
 	public boolean contains(final Class c) {
 		for (Object ob : al_displayables) {
-			if (ob.getClass().equals(c)) return true;
+			if (ob.getClass() == c) return true;
 		}
 		return false;
 	}
@@ -347,7 +385,7 @@ public class Layer extends DBObject {
 	public int count(final Class c) {
 		int n = 0;
 		for (Object ob : al_displayables) {
-			if (ob.getClass().equals(c)) n++;
+			if (ob.getClass() == c) n++;
 		}
 		return n;
 	}
@@ -361,6 +399,11 @@ public class Layer extends DBObject {
 		return (ArrayList<Displayable>)al_displayables.clone();
 	}
 
+	/** Returns the real list of displayables, not a copy. If you modify this list, Thor may ground you with His lightning. */
+	public final ArrayList<Displayable> getDisplayableList() {
+		return al_displayables;
+	}
+
 	public int getNDisplayables() {
 		return al_displayables.size();
 	}
@@ -369,28 +412,31 @@ public class Layer extends DBObject {
 	public ArrayList<Displayable> getDisplayables(final Class c) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (null == c) return al;
-		if (c.equals(Displayable.class)) {
+		if (Displayable.class == c) {
 			al.addAll(al_displayables);
 			return al;
 		}
 		for (Object ob : al_displayables) {
-			if (c.equals(ob.getClass())) al.add((Displayable)ob); // cast only the few added, not all as it would in looping with  Displayabe d : al_displayables
+			if (ob.getClass() == c) al.add((Displayable)ob); // cast only the few added, not all as it would in looping with  Displayabe d : al_displayables
 		}
 		return al;
 	}
 
-	/** Returns a list of all Displayable of class c that intersect the given roi. */
+	/** Returns a list of all Displayable of class c that intersect the given rectangle. */
 	public ArrayList<Displayable> getDisplayables(final Class c, final Rectangle roi) {
+		return getDisplayables(c, new Area(roi), true);
+	}
+
+	/** Returns a list of all Displayable of class c that intersect the given area. */
+	public ArrayList<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
 		final ArrayList<Displayable> al = getDisplayables(c);
-		final Area aroi = new Area(roi);
-		for (Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
+		for (Iterator<Displayable> it = al.iterator(); it.hasNext(); ) {
 			Displayable d = it.next();
+			if (visible_only && !d.isVisible()) { it.remove(); continue; }
 			Area area = new Area(d.getPerimeter());
 			area.intersect(aroi);
 			Rectangle b = area.getBounds();
-			if (0 == b.width || 0 == b.height) {
-				it.remove();
-			}
+			if (0 == b.width || 0 == b.height) it.remove();
 		}
 		return al;
 	}
@@ -409,11 +455,17 @@ public class Layer extends DBObject {
 		return parent.getLayerHeight();
 	}
 
-	/** Find the Displayable objects that contains the point. */
-	public ArrayList<Displayable> find(int x, int y) {
+	public Collection<Displayable> find(final int x, final int y) {
+		return find(x, y, false);
+	}
+
+	/** Find the Displayable objects that contain the point. */
+	public Collection<Displayable> find(final int x, final int y, final boolean visible_only) {
+		if (null != root) return root.find(x, y, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Displayable d = (Displayable)al_displayables.get(i);
+			if (visible_only && !d.isVisible()) continue;
 			if (d.contains(x, y)) {
 				al.add(d);
 			}
@@ -421,10 +473,34 @@ public class Layer extends DBObject {
 		return al;
 	}
 
-	/** Find the Displayable objects that intersect with the rectangle. */
-	public ArrayList<Displayable> find(final Rectangle r) {
+	public Collection<Displayable> find(final Class c, final int x, final int y) {
+		return find(c, x, y, false);
+	}
+
+	/** Find the Displayable objects of Class c that contain the point. */
+	public Collection<Displayable> find(final Class c, final int x, final int y, final boolean visible_only) {
+		if (Displayable.class == c) return find(x, y); // search among all
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (int i = al_displayables.size() -1; i>-1; i--) {
+			Displayable d = (Displayable)al_displayables.get(i);
+			if (visible_only && !d.isVisible()) continue;
+			if (d.getClass() == c && d.contains(x, y)) {
+				al.add(d);
+			}
+		}
+		return al;
+	}
+
+	public Collection<Displayable> find(final Rectangle r) {
+		return find(r, false);
+	}
+
+	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
+	public Collection<Displayable> find(final Rectangle r, final boolean visible_only) {
+		if (null != root && root.isBetter(r, this)) return root.find(r, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (Displayable d : al_displayables) {
+			if (visible_only && !d.isVisible()) continue;
 			if (d.getBoundingBox().intersects(r)) {
 				al.add(d);
 			}
@@ -432,12 +508,16 @@ public class Layer extends DBObject {
 		return al;
 	}
 
-	/** Find the Displayable objects of class 'target' whose bounding box intersects the given Displayable (which is itself not included if present in this very Layer). */
-	public ArrayList<Displayable> getIntersecting(final Displayable d, final Class target) {
-		ArrayList<Displayable> al = new ArrayList();
+	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself not included if present in this very Layer). */
+	public Collection<Displayable> getIntersecting(final Displayable d, final Class target) {
+		if (null != root) {
+			final Area area = new Area(d.getPerimeter());
+			if (root.isBetter(area.getBounds(), this)) return root.find(area, this, false);
+		}
+		final ArrayList<Displayable> al = new ArrayList();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Object ob = al_displayables.get(i);
-			if (!ob.getClass().equals(target)) continue;
+			if (ob.getClass() != target) continue;
 			Displayable da = (Displayable)ob;
 			if (d.intersects(da)) {
 				al.add(da);
@@ -449,48 +529,52 @@ public class Layer extends DBObject {
 	}
 
 	/** Returns -1 if not found. */
-	public int indexOf(Displayable d) {
+	public final int indexOf(final Displayable d) {
 		return al_displayables.indexOf(d);
 	}
 
-	/** Within its own class only. */ // 'up' is at the last element of the ArrayList (since when painting, the first one gets painted first, and thus gets buried the most while the last paints last, on top)
-	public void moveUp(Displayable d) {
-		int i = al_displayables.indexOf(d);
+	/** Within its own class only.
+	 * 'up' is at the last element of the ArrayList (since when painting, the first one gets painted first, and thus gets buried the most while the last paints last, on top). */
+	public void moveUp(final Displayable d) {
+		final int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || al_displayables.size() -1 == i) return;
-		if (al_displayables.get(i+1).getClass().equals(d.getClass())) {
+		if (al_displayables.get(i+1).getClass() == d.getClass()) {
 			//swap
 			al_displayables.remove(d);
 			al_displayables.add(i+1, d);
-		}
+		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
+		if (null != root) root.update(this, d, i, i+1);
 	}
 
 	/** Within its own class only. */
-	public void moveDown(Displayable d) {
-		int i = al_displayables.indexOf(d);
+	public void moveDown(final Displayable d) {
+		final int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || 0 == i) return;
-		if (al_displayables.get(i-1).getClass().equals(d.getClass())) {
+		if (al_displayables.get(i-1).getClass() == d.getClass()) {
 			//swap
 			Displayable o = al_displayables.remove(i-1);
 			al_displayables.add(i, o);
-		}
+		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
+		if (null != root) root.update(this, d, i-1, i);
 	}
 
 	/** Within its own class only. */
-	public void moveTop(Displayable d) { // yes I could have made several lists and make my live easier. Whatever
-		int i = al_displayables.indexOf(d);
-		int size = al_displayables.size();
+	public void moveTop(final Displayable d) { // yes I could have made several lists and make my life easier. Whatever
+		final int i = al_displayables.indexOf(d);
+		final int size = al_displayables.size();
 		if (null == d || -1 == i || size -1 == i) return;
-		Class c = d.getClass();
+		final Class c = d.getClass();
 		boolean done = false;
-		for (i=i+1; i<size; i++) {
-			if (al_displayables.get(i).getClass().equals(c)) continue;
+		int j = i + 1;
+		for (; j<size; j++) {
+			if (al_displayables.get(j).getClass() == c) continue;
 			else {
 				al_displayables.remove(d);
-				al_displayables.add(i-1, d);
+				al_displayables.add(--j, d); // j-1
 				done = true;
 				break;
 			}
@@ -500,22 +584,25 @@ public class Layer extends DBObject {
 			//add at the end
 			al_displayables.remove(d);
 			al_displayables.add(d);
+			j = size-1;
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
+		if (null != root) root.update(this, d, i, j);
 	}
 
 	/** Within its own class only. */
-	public void moveBottom(Displayable d) {
-		int i = al_displayables.indexOf(d);
+	public void moveBottom(final Displayable d) {
+		final int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || 0 == i) return;
 		Class c = d.getClass();
 		boolean done = false;
-		for (i=i-1; i > -1; i--) {
-			if (al_displayables.get(i).getClass().equals(c)) continue;
+		int j = i - 1;
+		for (; j > -1; j--) {
+			if (al_displayables.get(j).getClass() == c) continue;
 			else {
 				al_displayables.remove(d);
-				al_displayables.add(i+1, d);
+				al_displayables.add(++j, d); // j+1
 				done = true;
 				break;
 			}
@@ -524,36 +611,38 @@ public class Layer extends DBObject {
 		if (!done) {
 			al_displayables.remove(d);
 			al_displayables.add(0, d);
+			j = 0;
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
+		if (null != root) root.update(this, d, j, i);
 	}
 
 	/** Within its own class only. */
-	public boolean isTop(Displayable d) {
-		int i = al_displayables.indexOf(d);
-		int size = al_displayables.size();
+	public boolean isTop(final Displayable d) {
+		final int i = al_displayables.indexOf(d);
+		final int size = al_displayables.size();
 		if (size -1 == i) return true;
-		if (al_displayables.get(i+1).getClass().equals(d.getClass())) return false;
+		if (al_displayables.get(i+1).getClass() == d.getClass()) return false;
 		return true;
 	} // these two methods will throw an Exception if the Displayable is not found (-1 == i) (the null.getClass() *should* throw it)
 	/** Within its own class only. */
-	public boolean isBottom(Displayable d) {
-		int i = al_displayables.indexOf(d);
+	public boolean isBottom(final Displayable d) {
+		final int i = al_displayables.indexOf(d);
 		if (0 == i) return true;
-		if (al_displayables.get(i-1).getClass().equals(d.getClass())) return false;
+		if (al_displayables.get(i-1).getClass() == d.getClass()) return false;
 		return true;
 	}
 
 	/** Get the index of the given Displayable relative to the rest of its class. Beware that the order of the al_displayables is bottom at zero, top at last, but the relative index returned here is inverted: top at zero, bottom at last -to match the tabs' vertical orientation in a Display.*/
-	public int relativeIndexOf(Displayable d) {
+	public int relativeIndexOf(final Displayable d) {
 		int k = al_displayables.indexOf(d);
 		if (-1 == k) return -1;
 		Class c = d.getClass();
 		int size = al_displayables.size();
 		int i = k+1;
 		for (; i<size; i++) {
-			if (al_displayables.get(i).getClass().equals(c)) continue;
+			if (al_displayables.get(i).getClass() == c) continue;
 			else {
 				return i - k -1;
 			}
@@ -565,20 +654,21 @@ public class Layer extends DBObject {
 		return 0;
 	}
 
-	/** Note: Non-recursive into embedded LayerSet objects. */
-	public void setVisible(String type, boolean visible, boolean repaint) {
+	/** Note: Not recursive into embedded LayerSet objects. Returns the hash set of objects whose visibility has changed. */
+	public HashSet<Displayable> setVisible(String type, boolean visible, boolean repaint) {
 		type = type.toLowerCase();
-		Iterator it = al_displayables.iterator();
-		while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
-			if (d.getClass().getName().toLowerCase().endsWith(type)) {
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
+		for (Displayable d : al_displayables) {
+			if (visible != d.isVisible() && d.getClass().getName().toLowerCase().endsWith(type)) {
 				d.setVisible(visible, false); // don't repaint
 				Display.updateVisibilityCheckbox(this, d, null);
+				hs.add(d);
 			}
 		}
 		if (repaint) {
 			Display.repaint(this);
 		}
+		return hs;
 	}
 	public void setAllVisible(boolean repaint) {
 		for (Displayable d : al_displayables) {
@@ -586,11 +676,16 @@ public class Layer extends DBObject {
 		}
 	}
 
-	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. */
-	public void hideExcept(ArrayList<Class> type, boolean repaint) {
+	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */
+	public HashSet<Displayable> hideExcept(ArrayList<Class> type, boolean repaint) {
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (Displayable d : al_displayables) {
-			if (!type.contains(d.getClass())) d.setVisible(false, repaint);
+			if (!type.contains(d.getClass()) && d.isVisible()) {
+				d.setVisible(false, repaint);
+				hs.add(d);
+			}
 		}
+		return hs;
 	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
@@ -656,12 +751,13 @@ public class Layer extends DBObject {
 
 	/** Preconcatenate the given AffineTransform to all Displayable objects of class c, without respecting their links. */
 	public void apply(final Class c, final AffineTransform at) {
-		boolean all = c.equals(Displayable.class);
+		boolean all = Displayable.class == c;
 		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
 			final Displayable d = (Displayable)it.next();
-			if (all || d.getClass().equals(c)) {
+			if (all || d.getClass() == c) {
 				d.getAffineTransform().preConcatenate(at);
 				d.updateInDatabase("transform");
+				d.updateBucket();
 			}
 		}
 	}
@@ -723,7 +819,7 @@ public class Layer extends DBObject {
 	// private to the package
 	void linkPatchesR() {
 		for (Displayable d : al_displayables) {
-			if (d.getClass().equals(LayerSet.class)) ((LayerSet)d).linkPatchesR();
+			if (d.getClass() == LayerSet.class) ((LayerSet)d).linkPatchesR();
 			d.linkPatches(); // Patch.class does nothing
 		}
 	}
@@ -734,5 +830,38 @@ public class Layer extends DBObject {
 		for (Displayable d : getDisplayables(LayerSet.class)) {
 			((LayerSet)d).updateLayerTree();
 		}
+	}
+
+	/** Don't use this for fast pixel grabbing; this is intended for the dropper tool and status bar reporting by mouse motion. */
+	public int[] getPixel(final int x, final int y, final double mag) {
+		// find Patch under cursor
+		final Collection<Displayable> under = find(Patch.class, x, y);
+		if (null == under || under.isEmpty()) return new int[3]; // zeros
+		final Patch pa = (Patch)under.iterator().next();// get(0) // the top one, since they are ordered like html divs
+		// TODO: edit here when adding layer mipmaps
+		return pa.getPixel(x, y, mag);
+	}
+
+	public void recreateBuckets() {
+		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
+		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
+		this.root.populate(this, db_map);
+		//root.debug();
+	}
+
+	/** Update buckets of a position change for the given Displayable. */
+	public void updateBucket(final Displayable d) {
+		if (null != root) root.updatePosition(d, db_map);
+	}
+
+	public void checkBuckets() {
+		if (use_buckets && (null == root || null == db_map)) recreateBuckets();
+	}
+
+	private boolean use_buckets = true;
+
+	public void setBucketsEnabled(boolean b) {
+		this.use_buckets = b;
+		if (!use_buckets) this.root = null;
 	}
 }

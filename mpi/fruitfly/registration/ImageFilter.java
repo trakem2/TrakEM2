@@ -597,13 +597,13 @@ public class ImageFilter
         return output;
     }
 
-    public static FloatArray2D computeGaussianFastMirror(FloatArray2D input, float sigma)
+    public static FloatArray2D computeGaussianFastMirror(final FloatArray2D input, final float sigma)
     {
-        FloatArray2D output = new FloatArray2D(input.width, input.height);
+        final FloatArray2D output = new FloatArray2D(input.width, input.height);
 
         float avg, kernelsum = 0;
-        float[] kernel = createGaussianKernel1D(sigma, true);
-        int filterSize = kernel.length;
+        final float[] kernel = createGaussianKernel1D(sigma, true);
+        final int filterSize = kernel.length;
 
         // get kernel sum
         for (double value : kernel)
@@ -627,9 +627,9 @@ public class ImageFilter
                 }
 
         // fold in y
+        final float[] temp = new float[input.height];
         for (int x = 0; x < input.width; x++)
             {
-                float[] temp = new float[input.height];
 
                 for (int y = 0; y < input.height; y++)
                 {

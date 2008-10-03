@@ -64,7 +64,7 @@ public class VectorString3D implements VectorString {
 
 	private Calibration cal = null;
 
-	/** Dependent arrays that will get resampled along. */
+	/** Dependent arrays that will get resampled along. */ // TODO for calibration pruposes, they should be associated with a specific x, y, or z
 	private double[][] dep;
 
 	// DANGER: the orientation of the curve can't be checked like in 2D. There is no up and down in the 3D space.
@@ -815,7 +815,7 @@ public class VectorString3D implements VectorString {
 		return vs;
 	}
 
-	/** Scale to match cal.pixelWidth, cal.pixelHeight and cal.pixelDepth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. So it brings all values to cal.units, such as microns. */
+	/** Scale to match cal.pixelWidth, cal.pixelHeight and computed depth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. So it brings all values to cal.units, such as microns. */
 	public void calibrate(final Calibration cal) {
 		if (null == cal) return;
 		this.cal = cal;
@@ -1068,11 +1068,18 @@ public class VectorString3D implements VectorString {
 		return new Vector3d(x[length-1] - x[0], y[length-1] - y[0], z[length-1] - z[0]);
 	}
 
-	static public double distance(double x1, double y1, double z1,
-			              double x2, double y2, double z2) {
+	static public final double distance(final double x1, final double y1, final double z1,
+			              final double x2, final double y2, final double z2) {
 		return Math.sqrt(Math.pow(x1 - x2, 2)
 			       + Math.pow(y1 - y2, 2)
 			       + Math.pow(z1 - z2, 2));
+	}
+
+	static public final double sqDistance(final double x1, final double y1, final double z1,
+			              final double x2, final double y2, final double z2) {
+		return Math.pow(x1 - x2, 2)
+		      + Math.pow(y1 - y2, 2)
+		      + Math.pow(z1 - z2, 2);
 	}
 
 	/** If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
@@ -1086,15 +1093,15 @@ public class VectorString3D implements VectorString {
 			max_len = Math.max(max_len, o1[i].length());
 			max_len = Math.max(max_len, o2[i].length());
 		}
-		max_len = 1/max_len;
+		final double K = 1/max_len;
 		for (int i=0; i<3; i++) {
-			o1[i].scale(max_len);
-			o2[i].scale(max_len);
+			o1[i].scale(K);
+			o2[i].scale(K);
 		}
-		return max_len;
+		return K;
 	}
 
-	/** Match together any number of orgins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
+	/** Match together any number of origins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
 	 *  @return the applied scaling factor.
 	 * */
 	static public final double matchOrigins(Vector3d[][] o, final int transform_type) {
@@ -1106,13 +1113,13 @@ public class VectorString3D implements VectorString {
 				max_len = Math.max(max_len, o[k][i].length());
 			}
 		}
-		max_len = 1/max_len;
+		final double K = 1/max_len;
 		for (int k=0; k<o.length; k++) {
 			for (int i=0; i<3; i++) { // can't do o[k].length because 4==len, the fourth being the origin of coordinates of the given origin axes.
-				o[k][i].scale(max_len);
+				o[k][i].scale(K);
 			}
 		}
-		return max_len;
+		return K;
 	}
 
 	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates.
@@ -1201,7 +1208,7 @@ public class VectorString3D implements VectorString {
 		}
 
 		if (Compare.TRANS_ROT == transform_type || Compare.TRANS_ROT_SCALE == transform_type) {
-			// compute medial vector: perpendicular to the plane made by peduncle and dorsal lobe
+			// 1 - compute MEDIAL vector: perpendicular to the plane made by peduncle and dorsal lobe
 			Vector3d vc_medial = new Vector3d();
 			vc_medial.cross(vz, vy);
 			// check orientation:
@@ -1210,10 +1217,10 @@ public class VectorString3D implements VectorString {
 			// if the sum is smaller, then it means it should be inverted (it was the other side)
 			if (vc_med.length() < vx.length()) {
 				vc_medial.scale(-1);
-				Utils.log("Mirroring X axis");
+				Utils.log2("Mirroring X axis");
 			}
 
-			// compute dorsal vector: perpedicular to the plane made by v1 and vc_medial
+			// 2 - compute DORSAL vector: perpedicular to the plane made by v1 and vc_medial
 			Vector3d vc_dorsal = new Vector3d();
 			vc_dorsal.cross(vz, vc_medial);
 			// check orientation
@@ -1233,11 +1240,36 @@ public class VectorString3D implements VectorString {
 
 			v1 = vc_medial;
 			v2 = vc_dorsal;
-			//v3 = vz; // already done
+			//v3 = vz; // already done, the peduncle
 		
 		}
 		// else if (Compare.TRANS_ROT_SCALE_SHEAR == transform_type)
-			// use vectors AS THEY ARE
+			// use AS THEY ARE
+
+		/* // This is wrong, yet something must be done in this direction
+		 * // to compensate for the differential lengths of the axes
+		if (Compare.TRANS_ROT != transform_type) {
+			// Use vectors with whatever length they have
+			// BUT: make sure the final proportions are correct,
+			// which means the shorter axes have to be scaled up
+			// to the inverse of their length proportion to the longest one.
+			final double v1_len = v1.length();
+			final double v2_len = v2.length();
+			final double v3_len = v3.length();
+			final double max_len = Math.max(v1_len, Math.max(v2_len, v3_len));
+			// can't use a switch statement with floating point? Great.
+			if (max_len == v1_len) {
+				v2.scale(v1_len / v2_len);
+				v3.scale(v1_len / v3_len);
+			} else if (max_len == v2_len) {
+				v1.scale(v2_len / v1_len);
+				v3.scale(v2_len / v3_len);
+			} else { // v3_len:
+				v1.scale(v3_len / v1_len);
+				v2.scale(v3_len / v2_len);
+			}
+		}
+		*/
 
 		return new Vector3d[]{
 			v1, // X axis : medial lobe
@@ -1247,14 +1279,14 @@ public class VectorString3D implements VectorString {
 		};
 	}
 
-	static public double distance(VectorString3D vs1, int i, VectorString3D vs2, int j) {
+	static public final double distance(final VectorString3D vs1, final int i, final VectorString3D vs2, int j) {
 		return distance(vs1.x[i], vs1.y[i], vs1.z[i],
 				vs2.x[j], vs2.y[j], vs2.z[j]);
 	}
 
 	/** Distance from point i in this to point j in vs2. */
-	public double distance(int i, VectorString vs, int j) {
-		VectorString3D vs2 = (VectorString3D)vs;
+	public double distance(final int i, final VectorString vs, final int j) {
+		final VectorString3D vs2 = (VectorString3D)vs;
 		return distance(x[i], y[i], z[i],
 				vs2.x[j], vs2.y[j], vs2.z[j]);
 	}
@@ -1515,6 +1547,21 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
+	/** Makes a substring starting at @param first (inclusive) and finishing at @param last (non-inclusive, aka last-1). */
+	public VectorString3D substring(final int first, final int last) {
+		if (first < 0 || last > length) return null;
+		final int len = last - first; // no +1 because last is non-inclusive
+		final double[] x2 = Utils.copy(x, first, len);
+		final double[] y2 = Utils.copy(y, first, len);
+		final double[] z2 = Utils.copy(z, first, len);
+		try {
+			return new VectorString3D(x2, y2, z2, false);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+	}
+
 	public int getDimensions() { return 3; }
 
 	static public final double getAverageVectorLength(final int[] i, final VectorString3D[] vs) {
@@ -1525,5 +1572,23 @@ public class VectorString3D implements VectorString {
 			len += Math.sqrt(Math.pow(v.x[j], 2) + Math.pow(v.y[j], 2) + Math.pow(v.z[j], 2));
 		}
 		return len / vs.length;
+	}
+
+	/** Determine if any point of the given VectorString3D falls within a radius of half the length of this VectorString3D, as measured from the center point of this VectorString3D. */
+	public boolean isNear(final VectorString3D vs, final double radius) {
+		final double xc = x[length/2];
+		final double yc = y[length/2];
+		final double zc = z[length/2];
+		final double sq_radius = radius * radius; // * radius;
+		Utils.log2("center: " + length/2);
+		for (int i=0; i<vs.length; i++) {
+			double sqd = sqDistance(xc, yc, zc, vs.x[i], vs.y[i], vs.z[i]);
+			Utils.log("radius: " + sq_radius + " sqd: " + sqd);
+			if (sqd <= sq_radius) {
+				Utils.log2("Found nearby " + vs);
+				return true;
+			}
+		}
+		return false;
 	}
 }

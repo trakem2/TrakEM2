@@ -27,8 +27,8 @@ import java.awt.geom.*;
 import java.awt.event.*;
 import javax.swing.*;
 import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.HashSet;
 import java.util.Vector;
@@ -83,16 +83,17 @@ public class DLabel extends Displayable {
 	}
 
 	/** To reconstruct from an XML entry. */
-	public DLabel(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public DLabel(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		// default:
 		int font_size = 12;
 		int font_style = Font.PLAIN;
 		String font_family = "Courier";
 		// parse data
-		for (Enumeration e = ht.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht.get(key);
+		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("style")) {
 				String[] s1 = data.split(";");
 				for (int i=0; i<s1.length; i++) {
@@ -141,17 +142,20 @@ public class DLabel extends Displayable {
 		frame = null;
 		Display.updateTransform(this); // need to update the Selection with the actual width and height!
 		updateInDatabase("dimensions");
+		layer.updateBucket(this);
 	}
 
 	private void reload() {
 		// reload
 		Object[] ob = project.getLoader().fetchLabel(this);
+		if (null == ob) return;
 		title = (String)ob[0];
 		font = new Font((String)ob[1], ((Integer)ob[2]).intValue(), ((Integer)ob[3]).intValue());
 	}
 
 	public String getShortTitle() {
 		if (null == title) reload();
+		if (null == title || title.length() < 1) return "";
 		int[] ib = new int[] {
 			title.indexOf('\n'),
 			/*title.indexOf(','),*/

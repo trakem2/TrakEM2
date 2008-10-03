@@ -23,20 +23,38 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.imaging;
 
 import static mpi.fruitfly.math.General.*;
-import mpi.fruitfly.general.*;
-import mpi.fruitfly.math.datastructures.*;
+import mpi.fruitfly.general.ImageArrayConverter;
+import mpi.fruitfly.general.MultiThreading;
+
+//////
+import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.FloatArray2DSIFT;
 import mpi.fruitfly.registration.Feature;
-import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.PointMatch;
+/////
+
 import mpi.fruitfly.registration.ImageFilter;
+
+//////
 import mpi.fruitfly.registration.Tile;
 import mpi.fruitfly.registration.Model;
-import mpi.fruitfly.registration.AffineModel2D;
 import mpi.fruitfly.registration.TModel2D;
 import mpi.fruitfly.registration.TRModel2D;
-import mpi.fruitfly.registration.RANSAC;
+//////
+
+
 import mpi.fruitfly.analysis.FitLine;
+
+/* // New package, with AffineModel2D
+import mpicbg.imagefeatures.Feature;
+import mpicbg.imagefeatures.FloatArray2DSIFT;
+import mpicbg.imagefeatures.FloatArray2D;
+import mpicbg.models.Tile;
+import mpicbg.models.Model;
+import mpicbg.models.AffineModel2D;
+import mpicbg.models.RigidModel2D;
+import mpicbg.models.TranslationModel2D;
+*/
 
 import ini.trakem2.Project;
 import ini.trakem2.display.*;
@@ -112,6 +130,9 @@ public class Registration {
 				break;
 			case GLOBAL_MINIMIZATION:
 				gd.addCheckbox("Tiles are rougly registered: ", false);
+				gd.addCheckbox("Consider largest graph only, in each layer", false);
+				gd.addCheckbox("Hide tiles from non-largest graph", false);
+				gd.addCheckbox("Delete tiles from non-largest graph", false);
 				break;
 		}
 		//TODO//gd.addCheckbox("Transform segmentations", true);
@@ -120,7 +141,14 @@ public class Registration {
 		final int i_first = gd.getNextChoiceIndex();
 		final int i_start = layer.getParent().indexOf(layer);
 		final int i_last = gd.getNextChoiceIndex();
-		final boolean option = gd.getNextBoolean();
+		final boolean[] option = new boolean[5]; // by default all slots are false
+		option[0] = gd.getNextBoolean();
+		if (kind == GLOBAL_MINIMIZATION) {
+			option[1] = gd.getNextBoolean(); // largest graph only
+			option[2] = gd.getNextBoolean(); // hide other tiles
+			option[3] = gd.getNextBoolean(); // delete other tiles
+		}
+		option[4] = true; // show dialog
 		//TODO//final boolean tr_seg = gd.getNextBoolean();
 		switch (kind) {
 			case GLOBAL_MINIMIZATION:
@@ -129,7 +157,7 @@ public class Registration {
 				la = lla.toArray(la);
 				return registerTilesSIFT(la, option);
 			case LAYER_SIFT:
-				return registerLayers(layer.getParent(), i_first, i_start, i_last, option);
+				return registerLayers(layer.getParent(), i_first, i_start, i_last, option[0]);
 		}
 		return null;
 	}
@@ -241,6 +269,12 @@ public class Registration {
 			// trim and polish:
 			layer_set.setMinimumDimensions();
 
+			// redistribute images to buckets:
+			HashSet<Layer> all_layers = new HashSet<Layer>();
+			all_layers.addAll(list1);
+			all_layers.addAll(list2);
+			layer_set.getProject().getLoader().recreateBuckets(all_layers);
+
 		} catch (Exception e) {
 			IJError.print(e);
 		}
@@ -276,11 +310,6 @@ public class Registration {
 			result = registerSIFT(la1, la2, null, sp);
 			// !@#$% TODO this needs fine-tuning
 			la1.getProject().getLoader().releaseToFit(Loader.MIN_FREE_BYTES * 20);
-
-			// debug: at least we get chunks done
-			if (!ControlWindow.isGUIEnabled() && System.getProperty("user.name").equals("cardona")) {
-				la1.getProject().save();
-			}
 		}
 
 		//Loader.runGCAll();
@@ -313,8 +342,8 @@ public class Registration {
 			Rectangle box2 = layer2.getMinimalBoundingBox(Patch.class);
 			ImagePlus imp2 = layer2.getProject().getLoader().getFlatImage(layer2, box2, sp.scale, 0xFFFFFFFF, ImagePlus.GRAY8, Patch.class, true);
 
-			FloatProcessor fp1 = (FloatProcessor)imp1.getProcessor().convertToFloat();
-			FloatProcessor fp2 = (FloatProcessor)imp2.getProcessor().convertToFloat();
+			FloatProcessor fp1 = Utils.fastConvertToFloat(imp1.getProcessor(), imp1.getType()); // (FloatProcessor)imp1.getProcessor().convertToFloat();
+			FloatProcessor fp2 = Utils.fastConvertToFloat(imp2.getProcessor(), imp1.getType()); //(FloatProcessor)imp2.getProcessor().convertToFloat();
 			if (null == cached) { // created locally, flushed locally since there's no caching
 				Loader.flush(imp1);
 				imp1 = null;
@@ -362,6 +391,9 @@ public class Registration {
 			// repaint the second Layer, if it is showing in any Display:
 			// no need // Display.repaint(layer2, null, 0);
 
+			// redistribute images to buckets:
+			layer2.recreateBuckets();
+
 		} catch (Exception e) {
 			IJError.print(e);
 		}
@@ -406,23 +438,24 @@ public class Registration {
 		
 		final Vector< PointMatch > inliers = new Vector< PointMatch >();
 
-		AffineModel2D model;
+		Model model;
 		if (1 == sp.dimension) {
 			// translation and rotation
-			model = new TRModel2D();
-		} else {
-			// translation only
-			model = new TModel2D();
-		}
-		if ( !RANSAC.runForBest(
-				model,
+			model = TRModel2D.estimateBestModel(
 				candidates,
 				inliers,
-				1000,
 				sp.min_epsilon,
 				sp.max_epsilon,
-				sp.min_inlier_ratio ) )
-			model = null;
+				sp.min_inlier_ratio );
+		} else {
+			// translation only
+			model = TModel2D.estimateBestModel(
+				candidates,
+				inliers,
+				sp.min_epsilon,
+				sp.max_epsilon,
+				sp.min_inlier_ratio );
+		}
 
 		final AffineTransform at = new AffineTransform();
 
@@ -455,7 +488,7 @@ public class Registration {
 
 	/** Returns a sorted list of the SIFT features extracted from the given ImagePlus. */
 	final static public Vector<Feature> getSIFTFeatures(ImageProcessor ip, final Registration.SIFTParameters sp) {
-		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToFloat());
+		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(Utils.fastConvertToFloat(ip)); //ip.convertToFloat());
 		ip = null; // enable GC
 		ImageFilter.enhance( fa, 1.0f ); // done in place
 		fa = ImageFilter.computeGaussianFastMirror(
@@ -512,7 +545,7 @@ public class Registration {
 			final Patch p = (Patch)it.next();
 			if (hs_done.contains(p)) continue;
 			// skip linked images within the same layer
-			if (p.getLayer().equals(slice.getLayer())) continue;
+			if (p.getLayer() == slice.getLayer()) continue;
 			// ensure there are no negative numbers in the x,y
 			slice.getLayer().getParent().setMinimumDimensions();
 			// go
@@ -615,6 +648,7 @@ public class Registration {
 			at_moving.setTransform(atr);
 			// pre-apply the base's transform
 			at_moving.preConcatenate(base.getAffineTransform());
+			moving.updateBucket();
 			at_moving = null;
 
 			if (ControlWindow.isGUIEnabled()) {
@@ -755,14 +789,14 @@ public class Registration {
 
 		// test rotation first TODO
 
-		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0);
+		final double[] pc = StitchingTEM.correlate(base, moving, 1f, scale, StitchingTEM.TOP_BOTTOM, 0, 0, base.getProject().getProperty("min_R", StitchingTEM.DEFAULT_MIN_R));
 		if (pc[2] != StitchingTEM.SUCCESS) {
 			// R is too low to be trusted
 			Utils.log2("Bad R coefficient, skipping " + moving);
 			return null; // don't move
 		}
 		Utils.log2("BASE: x, y " + base.getX() + " , " + base.getY() + "\n\t pc x,y: " + pc[0] + ", " + pc[1]);
-		Utils.showStatus("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId());
+		Utils.showStatus("--- Done correlating target #" + moving.getId() + "  to base #" + base.getId(), false);
 		
 		AffineTransform at = new AffineTransform();
 		at.translate(pc[0], pc[1]);
@@ -783,7 +817,19 @@ public class Registration {
 	 *
 	 */
 	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean overlapping_only) {
+		return registerTilesSIFT(layer, new boolean[]{overlapping_only, false, false, false, false});
+	}
+	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean[] options) {
+		return registerTilesSIFT(layer, options, 512, 0.5f);
+	}
+	static public Bureaucrat registerTilesSIFT(final Layer[] layer, final boolean[] options, final int max_size, final float scale) {
 		if (null == layer || 0 == layer.length) return null;
+
+		final boolean overlapping_only = options[0];
+		final boolean largest_graph_only = options[1];
+		final boolean hide_other_tiles = options[2];
+		final boolean delete_other_tiles = options[3];
+		final boolean show_dialog = options[4];
 
 		final Worker worker_ = new Worker("Free tile registration") {
 			public void run() {
@@ -804,44 +850,50 @@ public class Registration {
 		sp.fdsize = 8;
 		sp.fdbins = 8;
 		sp.min_size = 64;
-		sp.max_size = 512;
+		sp.max_size = max_size;
 		sp.min_epsilon = 1.0f;
 		sp.max_epsilon = 10.0f;
 		sp.cs_min_epsilon = 1.0f;
 		sp.cs_max_epsilon = 50.0f;
 		sp.min_inlier_ratio = 0.05f;
-		sp.scale = 1.0f;
+		sp.scale = scale;
 		sp.tiles_prealigned = overlapping_only;
 
-		// Simple setup
-		GenericDialog gds = new GenericDialog("Setup");
-		gds.addNumericField("maximum_image_size :", sp.max_size, 0);
-		gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
-		gds.addCheckbox("Layers_are_roughly_prealigned", sp.tiles_prealigned);
-		gds.addCheckbox("Advanced setup", false);
-		gds.showDialog();
-		if (gds.wasCanceled()) {
-			finishedWorking();
-			return;
-		}
-		sp.max_size = (int)gds.getNextNumber();
-		sp.max_epsilon = (float)gds.getNextNumber();
-		sp.tiles_prealigned = gds.getNextBoolean();
-		boolean advanced_setup = gds.getNextBoolean();
+		boolean global_optimization = false;
 
-		if (advanced_setup) {
-			if (!sp.setup()) {
+		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), "Options for coarse layer registration", true);
+
+		if (show_dialog) {
+			// 1 - Simple setup
+			GenericDialog gds = new GenericDialog("Setup");
+			gds.addNumericField("maximum_image_size :", sp.max_size, 0);
+			gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
+			gds.addCheckbox("Layers_are_roughly_prealigned", sp.tiles_prealigned);
+			gds.addCheckbox("Disable global optimization", global_optimization);
+			gds.addCheckbox("Advanced setup", false);
+			gds.showDialog();
+			if (gds.wasCanceled()) {
 				finishedWorking();
 				return;
 			}
-		}
+			sp.max_size = (int)gds.getNextNumber();
+			sp.max_epsilon = (float)gds.getNextNumber();
+			sp.tiles_prealigned = gds.getNextBoolean();
+			global_optimization = gds.getNextBoolean();
+			boolean advanced_setup = gds.getNextBoolean();
 
-		// for inter-layer registration
-		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), "Options for coarse layer registration", true);
-		if (advanced_setup) {
-			if (!sp_gross_interlayer.setup()) {
-				finishedWorking();
-				return;
+			// 2 - Optional advanced setup
+			if (advanced_setup) {
+				if (!sp.setup()) {
+					finishedWorking();
+					return;
+				}
+
+				// 3 - Inter-layer registration setup
+				if (!sp_gross_interlayer.setup()) {
+					finishedWorking();
+					return;
+				}
 			}
 		}
 
@@ -946,7 +998,51 @@ public class Registration {
 			// identify connected graphs
 			ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( tiles2 );
 			Utils.log2( graphs.size() + " graphs detected." );
-			
+
+			if (largest_graph_only) {
+				final ArrayList<Patch> other_patches = new ArrayList<Patch>();
+				// remove graphs other than the largest, and remove tiles from tiles2 as well
+				if (1 != graphs.size()) {
+					int len = 0;
+					ArrayList<Tile> largest = null;
+					for (ArrayList<Tile> graph : graphs) {
+						if (graph.size() > len) {
+							len = graph.size();
+							largest = graph;
+						}
+					}
+					// remove all tiles from tiles2 except those that belong to the largest graph
+					//tiles2.retainAll(largest); // all other tiles are removed
+					// Can't ... patches2 would not be in synch, so:
+					graphs.remove(largest);
+					for (ArrayList<Tile> graph : graphs) {
+						for (Tile tile : graph) {
+							int index = tiles2.indexOf(tile);
+							other_patches.add(patches2.remove(index));
+							tiles2.remove(index);
+						}
+					}
+
+					int n_graphs = graphs.size();
+					graphs.clear();
+					graphs.add(largest); // so now graphs contains only one
+					Utils.log2("Removed " + n_graphs + "\n\t--> focusing on largest graph with " + largest.size() + " tiles.");
+				}
+				if (hide_other_tiles || delete_other_tiles) {
+					if (other_patches.size() > 0) {
+						for (Patch pa : other_patches) {
+							if (delete_other_tiles) {
+								pa.unlink(); // just in case: it could stop all
+								pa.remove(false);
+							} else if (hide_other_tiles) pa.setVisible(false);
+						}
+						Patch first = other_patches.get(0);
+						if (delete_other_tiles) Utils.log("Layer " + first.getLayer() + ": Deleted " + other_patches.size() + " images.");
+						else if (hide_other_tiles) Utils.log("Layer " + first.getLayer() + ": Hided " + other_patches.size() + " images.");
+					}
+				}
+			}
+
 			if ( sp.tiles_prealigned && graphs.size() > 1 )
 			{
 				/**
@@ -955,9 +1051,8 @@ public class Registration {
 				 * tiles.
 				 */
 				Utils.log2( "Synthetically connecting graphs using the given alignment." );
-				
 				Registration.connectDisconnectedGraphs( graphs, tiles2, patches2 );
-				
+
 				/**
 				 * check the connectivity graphs again.  Hopefully there is
 				 * only one graph now.  If not, we still have to fix one tile
@@ -972,10 +1067,10 @@ public class Registration {
 
 			// update all tiles, for error and distance correction
 			for ( Tile tile : tiles2 ) tile.update();
-			
+
 			// optimize the pose of all tiles in the current layer
 			Registration.minimizeAll( tiles2, patches2, layer_fixed_tiles, set, sp.max_epsilon, worker );
-			
+
 			// repaint all Displays showing a Layer of the edited LayerSet
 			Display.update( set );
 
@@ -1153,6 +1248,7 @@ public class Registration {
 						( ( TRModel2D )tile.getModel() ).preConcatenate( model );
 				
 					// repaint all Displays showing a Layer of the edited LayerSet
+					layer.recreateBuckets();
 					Display.update( layer );
 				}
 				Registration.identifyCrossLayerCorrespondences(
@@ -1218,7 +1314,15 @@ public class Registration {
 		for ( Tile tile : all_tiles ) tile.update();
 
 		// global minimization
-		Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, sp.cs_max_epsilon, worker );
+		try {
+			if (global_optimization) {
+				Utils.log("Performing global minimization...");
+				Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, sp.cs_max_epsilon, worker );
+				Utils.log("Done!");
+			}
+		} catch (Throwable t) {
+			IJError.print(t);
+		}
 
 		// update selection internals in all open Displays
 		Display.updateSelection( Display.getFront() );
@@ -1252,7 +1356,7 @@ public class Registration {
 	static private final void connectDisconnectedGraphs(
 			final List< ArrayList< Tile > > graphs,
 			final List< Tile > tiles,
-			final List< Patch > patches )
+			final List< Patch > patches)
 	{
 		/**
 		 * We have to trust the given alignment.  Try to add synthetic
@@ -1402,6 +1506,14 @@ public class Registration {
 			float max_error,
 			Worker worker)
 	{
+
+		// find all affected layers and disable their buckets
+		final HashSet<Layer> hsla = new HashSet<Layer>();
+		for (Patch pa : patches) hsla.add(pa.getLayer());
+		for (Layer la : hsla) la.setBucketsEnabled(false);
+
+		try {
+
 		int num_patches = patches.size();
 
 		double od = Double.MAX_VALUE;
@@ -1441,7 +1553,7 @@ public class Registration {
 			cd /= tiles.size();
 			dd = Math.abs( od - cd );
 			od = cd;
-			if (0 == next % 100) Utils.showStatus( "displacement: " + Utils.cutNumber( od, 3) + " [" + Utils.cutNumber( min_d, 3 ) + "; " + Utils.cutNumber( max_d, 3 ) + "] after " + iteration + " iterations");
+			if (0 == next % 100) Utils.showStatus( "displacement: " + Utils.cutNumber( od, 3) + " [" + Utils.cutNumber( min_d, 3 ) + "; " + Utils.cutNumber( max_d, 3 ) + "] after " + iteration + " iterations", false);
 			
 			//observer.add( od );			
 			//Utils.log( observer.i + " " + observer.v + " " + observer.d + " " + observer.m + " " + observer.std );
@@ -1480,12 +1592,21 @@ public class Registration {
 			++iteration;
 		}
 
-		Display.update( set );
-
 		Utils.log2( "Successfully optimized configuration of " + tiles.size() + " tiles:" );
 		Utils.log2( "  average displacement: " + Utils.cutNumber( od, 3 ) + "px" );
 		Utils.log2( "  minimal displacement: " + Utils.cutNumber( min_d, 3 ) + "px" );
 		Utils.log2( "  maximal displacement: " + Utils.cutNumber( max_d, 3 ) + "px" );
+
+		} catch (Throwable t) {
+			IJError.print(t);
+		}
+
+		// re-enable buckets and recreate them.
+		for (Layer la : hsla) la.setBucketsEnabled(true);
+		set.getProject().getLoader().recreateBuckets(hsla);
+
+		Display.update( set );
+
 	}
 
 	/**
@@ -1578,6 +1699,8 @@ public class Registration {
 
 		final Loader loader = pa[0].getProject().getLoader();
 
+		final AtomicInteger count = new AtomicInteger(0);
+
 		for (int ithread = 0; ithread < threads.length; ++ithread) {
 			final int si = ithread;
 			threads[ ithread ] = new Thread(new Runnable() {
@@ -1607,25 +1730,38 @@ public class Registration {
 							fsets[k] = null;
 						}
 						Utils.log2(fs.size() + " features");
-						// Create Tile
+						// Create Tile, with a specific model:
 						Model model;
 						if (0 == sp.dimension) model = new TModel2D(); // translation only
 						else model = new TRModel2D(); // both translation and rotation
 						model.getAffine().setTransform(patch.getAffineTransform());
 						tls[k] = new Tile((float)patch.getWidth(), (float)patch.getHeight(), model);
 
+						Utils.showProgress((double)count.incrementAndGet() / num_pa);
+						Utils.showStatus(new StringBuffer("Extracted features for ").append(count.get()).append('/').append(num_pa).append(" tiles").toString(), false);
+
 					}
 				}
 			});
 		}
 		MultiThreading.startAndJoin(threads);
+		Utils.showProgress(1);
 	}
 
 	/** Test all to all or all to overlapping only, and make appropriate connections between tiles. */
-	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, Vector<Feature>[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
-		// TODO: multithread this, but careful to synchronize current_tile.connect method
+	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, final Vector<Feature>[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
 		final int num_patches = patches.size();
-		for ( int i = 0; i < num_patches; ++i )
+		final AtomicInteger count = new AtomicInteger(0);
+
+		final Lock lock = new Lock();
+		final AtomicInteger ai = new AtomicInteger(0);
+
+		final Thread[] threads = MultiThreading.newThreads();
+		for (int ithread=0; ithread<threads.length; ithread++) {
+			threads[ithread] = new Thread() { public void run() {
+				try {
+
+		for ( int i = ai.getAndIncrement(); i < num_patches; i = ai.getAndIncrement() )
 		{
 			if (worker.hasQuitted()) return;
 			final Patch current_patch = patches.get( i );
@@ -1638,17 +1774,17 @@ public class Registration {
 				final Tile other_tile = tiles.get( j );
 				if ( !sp.tiles_prealigned || current_patch.intersects( other_patch ) )
 				{
-					long start_time = System.currentTimeMillis();
-					System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
+					//long start_time = System.currentTimeMillis();
+					//System.out.print( "Tiles " + i + " and " + j + ": identifying correspondences using brute force ..." );
 					Vector< PointMatch > correspondences = FloatArray2DSIFT.createMatches(
 								fsi, // featureSets.get( i ),
 								(null == fsets[j] ? Registration.deserialize(other_patch, sp, storage_folder) : fsets[j]), //featureSets.get( j ),
 								1.25f,
 								null,
 								Float.MAX_VALUE );
-					Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
+					//Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 					
-					Utils.log2( "Tiles " + i + " and " + j + " have " + correspondences.size() + " potentially corresponding features." );
+					Utils.log2( new StringBuffer("Tiles ").append(i).append(" and ").append(j).append(" have ").append(correspondences.size()).append(" potentially corresponding features.").toString() );
 					
 					final Vector< PointMatch > inliers = new Vector< PointMatch >();
 
@@ -1658,12 +1794,33 @@ public class Registration {
 							sp.min_epsilon,
 							sp.max_epsilon,
 							sp.min_inlier_ratio );
-					
-					if ( model != null ) // that implies that inliers is not empty
-						current_tile.connect( other_tile, inliers );
+
+					if ( model != null ) { // that implies that inliers is not empty
+						// Global (and excessive) locking, but it's hard to avoid deadlocks
+						// when in need of synch over two objects at the same time (current_tile and other_tile)
+						// In addition the connect call is very cheap compared to the model extraction.
+						synchronized (lock) {
+							current_tile.connect( other_tile, inliers );
+						}
+					}
+
+					Utils.showProgress((double)count.incrementAndGet() / num_patches);
+					Utils.showStatus(new StringBuffer("Connected ").append(count.get()).append('/').append(num_patches).append(" tiles").toString(), false);
 				}
 			}
 		}
+				} catch (Exception e) {
+					Utils.log("Failed connecting tiles!");
+					IJError.print(e);
+					worker.quit();
+				}
+
+			}};
+		}
+		MultiThreading.startAndJoin(threads);
+
+
+		Utils.showProgress(1);
 	}
 
 	/** Will find a fixed tile for each graph, and Will also update each tile.
@@ -1688,7 +1845,7 @@ public class Registration {
 		return fixed_tiles;
 	}
 
-	/** Freely register all-to-all the given set of patches; optionally provide a fixed Patch. */
+	/** Freely register all-to-all the given set of patches; optionally provide a fixed Patch. Will respect locked tiles. */
 	static public Bureaucrat registerTilesSIFT(final HashSet<Patch> hs_patches, final Patch fixed, final Registration.SIFTParameters sp_, final boolean overlapping_only) {
 		if (null == hs_patches || hs_patches.size() < 2) return null;
 
@@ -1753,6 +1910,13 @@ public class Registration {
 		} else {
 			// find one tile per graph to nail down
 			fixed_tiles.addAll(Registration.pickFixedTiles(graphs));
+		}
+
+		// in addition, respect locked tiles (add them as fixed if not there already)
+		int il = 0;
+		for (Patch patch : patches) {
+			if (patch.isLocked2() && !fixed_tiles.contains(patch)) fixed_tiles.add(tls[il]);
+			il++;
 		}
 
 		// again, for error and distance correction

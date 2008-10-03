@@ -46,7 +46,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.util.Hashtable;
 import java.util.Iterator;
-import java.util.Enumeration;
+//import java.util.Enumeration;
 import java.util.ArrayList;
 import java.util.HashSet;
 
@@ -63,7 +63,7 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 	private DefaultMutableTreeNode selected_node = null;
 
 	public LayerTree(Project project, LayerThing root) {
-		super(project, DNDTree.makeNode(root), new Color(200, 200, 255));
+		super(project, DNDTree.makeNode(root), new Color(230, 235, 255)); // Color(200, 200, 255));
 		setEditable(false);
 		addMouseListener(this);
 		// enable multiple discontiguous selection
@@ -324,11 +324,8 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 				LayerSet ls = (LayerSet)thing.getObject();
 				Display.showCentered(ls.getParent(), ls, false, false);
 			} else if (command.equals("Delete...")) {
-				if (null == thing.getParent()) return; // can't remove the root LayerSet
-				if (thing.remove(true)) {
-					((DefaultTreeModel)this.getModel()).removeNodeFromParent(selected_node);
-					this.updateUILater();
-				}
+				remove(true, thing, selected_node);
+				return;
 			} else if (command.equals("Import stack...")) {
 
 				DBObject dbo = (DBObject)thing.getObject();
@@ -661,5 +658,10 @@ public class LayerTree extends DNDTree implements MouseListener, ActionListener 
 		// what the hell:
 		this.getSelectionModel().setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
 	}
-}
 
+	/** If the given node is null, it will be searched for. */
+	public boolean remove(boolean check, LayerThing thing, DefaultMutableTreeNode node) {
+		if (null == thing || null == thing.getParent()) return false; // can't remove the root LayerSet
+		return thing.remove(check) && removeNode(null != node ? node : findNode(thing, this));
+	}
+}

@@ -27,7 +27,11 @@ import java.awt.Image;
 import java.awt.Window;
 import java.awt.Color;
 import java.awt.geom.Point2D;
+import java.awt.geom.AffineTransform;
 import java.awt.image.PixelGrabber;
+import java.awt.image.BufferedImage;
+import java.awt.image.IndexColorModel;
+import java.awt.Graphics2D;
 import java.util.Properties;
 import java.util.HashSet;
 import ij.*;
@@ -40,6 +44,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 
 
 
@@ -94,6 +99,12 @@ public class PatchStack extends ImagePlus {
 		return null;
 	}
 
+	/** From 0 to getNSlices() -1, otherwise null. */
+	public Patch getPatch(int i) {
+		if (i<0 || i>patch.length) return null;
+		return patch[i];
+	}
+
 	/** Returns the Patch corresponding to the current slice. */
 	public Patch getCurrentPatch() {
 		return patch[currentSlice-1];
@@ -131,6 +142,10 @@ public class PatchStack extends ImagePlus {
 	}
 
 	private void revert2(Patch p) {
+		/* // TODO
+		 *    needs rewrite: should just flush away and swap paths, and perhaps remove copy of image.
+		 *
+		 *
 		// TODO this is overkill. If only the lut and so on has changed, one could just undo that by calling ip.reset etc. as in ContrastAdjuster
 		Loader loader = p.getProject().getLoader();
 		ImagePlus current = loader.fetchImagePlus(p);
@@ -157,6 +172,7 @@ public class PatchStack extends ImagePlus {
 
 		// TODO this method needs heavy revision and updating
 		Display.repaint(p.getLayer(), box, 5); // the previous dimensions
+		*/
 	}
 
 	/** Reset temporary changes such as from dragging B&C sliders and so on, in the current slice (the current Patch). */
@@ -453,56 +469,13 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public int[] getPixel(int x, int y) {
-		final int[] pvalue = new int[4];
-		Display front = Display.getFront();
-		double mag = front.getCanvas().getMagnification();
-		if (null == front || mag < 0.249) return pvalue; // ignore if the magnification is too low (would load a lot of ImagePlus for almost nothing)
-
-		final Patch pa = patch[currentSlice-1];
-		final Image img = pa.getProject().getLoader().fetchImage(pa, mag);
-		int w = img.getWidth(null);
-		double scale = w / pa.getWidth(); // pa.getWidth() returns a double
-		Point2D.Double pd = pa.inverseTransformPoint(x, y);
-		int x2 = (int)(pd.x * scale);
-		int y2 = (int)(pd.y * scale);
-		PixelGrabber pg = new PixelGrabber(img, x2, y2, 1, 1, pvalue, 0, w);
 		try {
-			pg.grabPixels();
-		} catch (InterruptedException ie) {
-			return pvalue;
+			double mag = Display.getFront().getCanvas().getMagnification();
+			return patch[currentSlice-1].getPixel(x, y, mag);
+		} catch (Exception e) {
+			IJError.print(e);
 		}
-		switch (pa.getType()) {
-			case ImagePlus.COLOR_256:
-				PixelGrabber pg2 = new PixelGrabber(img,x2,y2,1,1,false);
-				try {
-					pg2.grabPixels();
-				} catch (InterruptedException ie) {
-					return pvalue;
-				}
-				byte[] pix8 = (byte[])pg2.getPixels();
-				pvalue[3] = null != pix8 ? pix8[0]&0xff : 0;
-				// fall through to get RGB values
-			case ImagePlus.COLOR_RGB:
-				int c = pvalue[0];
-				pvalue[0] = (c&0xff0000)>>16; // R
-				pvalue[1] = (c&0xff00)>>8;    // G
-				pvalue[2] = c&0xff;           // B
-				break;
-			default:
-				pvalue[0] = pvalue[0]&0xff;
-				break;
-		}
-
-		return pvalue;
-
-		/* // always returns 0, because ImagePlus.getPixel depends on the awt.Image and it has none
-		Utils.log2("x, y : " + x + "," + y + "   " + x2 + ", " + y2);
-		int[] iArray = imp.getPixel(x2, y2);
-		StringBuffer val = new StringBuffer();
-		for (int i=0; i<iArray.length; i++) val.append(iArray[i]).append(" ");
-		Utils.log2(imp + " " + val.toString());
-		return iArray;
-		*/
+		return new int[4];
 	}
 
 	public ImageStack createEmptyStack() {
@@ -612,9 +585,11 @@ public class PatchStack extends ImagePlus {
 	public synchronized void flush() {}
 
 	public Calibration getCalibration() {
+		/*
 		if (null != getGlobalCalibration()) {
 			return getGlobalCalibration();
 		}
+		*/
 		return getLocalCalibration();
 	}
 
@@ -797,8 +772,9 @@ public class PatchStack extends ImagePlus {
 	// WARNING This method will fail if the stack has slices of different dimensions
 	/** Does not respect local transform of the patches, this is intended for confocal stacks. */
 	public ImagePlus createGray8Copy() {
-		final int width = (int)Math.ceil(patch[0].getWidth());
-		final int height =  (int)Math.ceil(patch[0].getHeight());
+		final Rectangle box = patch[0].getBoundingBox();
+		final int width = box.width;
+		final int height = box.height;
 		// compute minimum bounding box
 		ImageStack st = new ImageStack(width, height);
 		Loader loader = patch[0].getProject().getLoader();
@@ -807,16 +783,17 @@ public class PatchStack extends ImagePlus {
 			st.addSlice(Integer.toString(i), this.stack.getProcessor(i).convertToByte(true));
 		}
 		ImagePlus imp = new ImagePlus("byte", st);
-		imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
+		imp.setCalibration(patch[0].getLayer().getParent().getCalibrationCopy());
+		//imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
 		return imp;
 	}
 
-	// WARNING This method will failif the stack has slices of different dimensions
+	// WARNING This method will fail if the stack has slices of different dimensions
 	/** Does not respect local transform of the patches, this is intended for confocal stacks. */
 	public ImagePlus createColor256Copy() {
-
-		final int width = (int)patch[0].getWidth();
-		final int height = (int)patch[0].getHeight();
+		final Rectangle box = patch[0].getBoundingBox();
+		final int width = box.width;
+		final int height = box.height;
 		Loader loader = patch[0].getProject().getLoader();
 		patch[0].getProject().getLoader().releaseToFit(4 * patch.length * width * height); // the montage, in RGB
 		final ColorProcessor montage = new ColorProcessor(width*patch.length, height);
@@ -833,7 +810,8 @@ public class PatchStack extends ImagePlus {
 			st.addSlice(null, m2.crop());
         	}
 		ImagePlus imp = new ImagePlus("color256", st);
-		imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
+		imp.setCalibration(patch[0].getLayer().getParent().getCalibrationCopy());
+		//imp.getCalibration().pixelDepth = patch[0].getLayer().getThickness();
 		return imp;
 	}
 }

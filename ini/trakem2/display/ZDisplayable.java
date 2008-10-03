@@ -27,7 +27,7 @@ import ini.trakem2.Project;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Rectangle;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -51,19 +51,15 @@ public abstract class ZDisplayable extends Displayable {
 	}
 
 	/** For reconstruction from an XML file. */
-	public ZDisplayable(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public ZDisplayable(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		Object data = ht.get("layer_set_id");
 		if (null != data) {
 			// construct a dummy layerset
 			this.layer_set = new LayerSet(project, Long.parseLong((String)data));
 			// TODO fix this hack
+			//  -- one year later: seems like it will stay.
 		}
-	}
-
-	/** For reconstruction from a t2 file. */
-	public ZDisplayable(final Project project, final char[] src, final int first, final int last) {
-		super(project, src, first, last);
 	}
 
 	public void setLayerSet(LayerSet layer_set) {
@@ -80,9 +76,6 @@ public abstract class ZDisplayable extends Displayable {
 
 	// Overriding, for repainting the proper part, without updating the database
 	public void setLayer(Layer layer) { this.layer = layer; }
-
-	/** Test whether the ZDisplayable contains the given point at the given layer. */
-	abstract public boolean contains(Layer layer, int x, int y);
 
 	/** Link the Patch objects that lay underneath the part of the bounding box of this profile that shows in the current layer, so that they cannot be dragged independently. */
 	abstract public void linkPatches();
@@ -104,6 +97,10 @@ public abstract class ZDisplayable extends Displayable {
 	/** Transform points falling within the given layer; translate by dx,dy and rotate by rot relative to origin xo,yo*/
 	@Deprecated
 	public void transformPoints(Layer layer, double dx, double dy, double rot, double xo, double yo) {}
+
+	protected boolean remove2(boolean check) {
+		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here
+	}
 
 	public boolean remove(boolean check) {
 		if (check && !Utils.check("Really remove " + this.toString() + " ?")) return false;
@@ -145,5 +142,9 @@ public abstract class ZDisplayable extends Displayable {
 		}
 		updateInDatabase("visible");
 		Display.updateVisibilityCheckbox(layer, this, null);
+	}
+
+	public Bucketable getBucketable() {
+		return this.layer_set;
 	}
 }

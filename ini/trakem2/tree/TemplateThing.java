@@ -28,8 +28,7 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.Project;
 
 import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -39,7 +38,7 @@ public class TemplateThing extends DBObject implements Thing {
 	private String type;
 	private TemplateThing parent = null;
 	private ArrayList al_children = null;
-	private Hashtable ht_attributes = null;
+	private HashMap ht_attributes = null;
 	/** The string or numeric value, if any, contained in the XML file between the opening and closing tags. */
 	private String value = null;
 
@@ -62,7 +61,7 @@ public class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** For reconstruction purposes. */
-	public void setup(ArrayList al_children, Hashtable ht_attributes) {
+	public void setup(ArrayList al_children, HashMap ht_attributes) {
 		if (null == al_children || 0 == al_children.size()) {
 			this.al_children = null;
 		} else {
@@ -86,8 +85,8 @@ public class TemplateThing extends DBObject implements Thing {
 		this.id = project.getLoader().getNextId();
 		super.addToDatabase();
 		if (null != ht_attributes && !ht_attributes.isEmpty()) {
-			for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-				TemplateAttribute ta = (TemplateAttribute)ht_attributes.get(e.nextElement());
+			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
+				TemplateAttribute ta = (TemplateAttribute)it.next();
 				ta.addToDatabase(project);
 			}
 		}
@@ -219,7 +218,7 @@ public class TemplateThing extends DBObject implements Thing {
 	public boolean addAttribute(String title, Object contents) {
 		if (null == title/* || null == contents*/) return false;
 		if (title.equals("id")) return true; // no need to store the id as an attribute (but will exists as such in the XML file)
-		if (null == ht_attributes) ht_attributes = new Hashtable();
+		if (null == ht_attributes) ht_attributes = new HashMap();
 		if (null == ht_attributes.get(title)) {
 			ht_attributes.put(title, new TemplateAttribute(title, contents));
 			return true;
@@ -229,7 +228,7 @@ public class TemplateThing extends DBObject implements Thing {
 		}
 	}
 
-	public Hashtable getAttributes() {
+	public HashMap getAttributes() {
 		return ht_attributes;
 	}
 
@@ -258,7 +257,7 @@ public class TemplateThing extends DBObject implements Thing {
 		// collect all existing TemplateThing instances, to avoid concurrent modifications
 		ArrayList al = collectAllChildren(new ArrayList());
 		// now start replacing
-		Hashtable ht = new Hashtable();
+		HashMap ht = new HashMap();
 		ht.put(type, this); // unnecessary
 		for (Iterator it = al.iterator(); it.hasNext(); ) {
 			TemplateThing tt = (TemplateThing)it.next();
@@ -277,7 +276,7 @@ public class TemplateThing extends DBObject implements Thing {
 	*/
 
 	/** Recursive into children. The parent of each stored TemplateThing are not meaningful for a tree; only the children are meaningful. */
-	public Hashtable getUniqueTypes(Hashtable ht) {
+	public HashMap<String,TemplateThing> getUniqueTypes(HashMap<String,TemplateThing> ht) {
 		if (ht.containsKey(this.type)) return ht;
 		ht.put(this.type, this);
 		if (null == al_children || al_children.isEmpty()) return ht;
@@ -337,9 +336,8 @@ public class TemplateThing extends DBObject implements Thing {
 		}
 		// remove the attributes
 		if (null != ht_attributes) {
-			Enumeration e = ht_attributes.keys();
-			while (e.hasMoreElements()) {
-				if (! ((TemplateAttribute)ht_attributes.get(e.nextElement())).remove(false)) {
+			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
+				if (! ((TemplateAttribute)it.next()).remove(false)) {
 					Utils.showMessage("Deletion incomplete at attributes, check database for thing: " + this);
 					return false;
 				}
@@ -429,9 +427,8 @@ public class TemplateThing extends DBObject implements Thing {
 		sb_header.append(indent).append("<!ATTLIST ").append(tag).append(" id NMTOKEN #REQUIRED>\n"); // 'id' exists separate from the other attributes
 		if (null != ht_attributes && !ht_attributes.isEmpty() ){
 			// the rest of the attributes:
-			for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-				String key = (String)e.nextElement();
-				TemplateAttribute ta = (TemplateAttribute)ht_attributes.get(key);
+			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
+				TemplateAttribute ta = (TemplateAttribute)it.next();
 				sb_header.append("\t<!ATTLIST ").append(tag).append(" ").append(ta.getTitle()).append(" NMTOKEN #REQUIRED>\n");
 			}
 		}
@@ -476,9 +473,8 @@ public class TemplateThing extends DBObject implements Thing {
 		sb_body.append(indent).append("<").append(type).append(" id=\"").append(id).append("\"");
 		if (null != ht_attributes && !ht_attributes.isEmpty() ){
 			// the rest of the attributes:
-			for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-				String key = (String)e.nextElement();
-				TemplateAttribute ta = (TemplateAttribute)ht_attributes.get(key);
+			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
+				TemplateAttribute ta = (TemplateAttribute)it.next();
 				sb_body.append(" ").append(ta.getTitle()).append("=\"").append(ta.getObject().toString()).append("\"");
 				if (write_attr) sb_header.append("\t<!ATTLIST ").append(type).append(" ").append(ta.getTitle()).append(" NMTOKEN #REQUIRED>\n");
 			}
@@ -536,7 +532,7 @@ public class TemplateThing extends DBObject implements Thing {
 		copy.addToDatabase();
 		// clone attributes
 		if (null != ht_attributes) {
-			copy.ht_attributes = new Hashtable();
+			copy.ht_attributes = new HashMap();
 			for (Iterator<Map.Entry> it = this.ht_attributes.entrySet().iterator(); it.hasNext(); ) {
 				Map.Entry entry = it.next();
 				copy.ht_attributes.put(entry.getKey(), ((TemplateAttribute)entry.getValue()).clone(pr, copy_id)); // String is a final class ... again, not turtles all the way down.

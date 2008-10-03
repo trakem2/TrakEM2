@@ -22,24 +22,34 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 
 
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.render3d.Perimeter2D;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.tree.Thing;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.vector.VectorString2D;
+import ini.trakem2.vector.SkinMaker;
 
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Polygon;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
+import java.awt.geom.Area;
 import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -50,13 +60,7 @@ import java.awt.Graphics2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
 
-import ini.trakem2.tree.Thing;
-import ini.trakem2.tree.ProjectThing;
 import javax.vecmath.Point3f;
-import ini.trakem2.vector.VectorString2D;
-import ini.trakem2.vector.SkinMaker;
-import java.util.Arrays;
-import ini.trakem2.utils.IJError;
 
 
 /** A class to be a user-outlined profile over an image, which is painted with a particular color and also holds an associated text label.
@@ -166,12 +170,13 @@ public class Profile extends Displayable {
 	}
 
 	/** Construct a Bezier Profile from an XML entry. */
-	public Profile(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public Profile(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		// parse data
-		for (Enumeration e = ht.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht.get(key);
+		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("d")) {
 				// parse the SVG points data
 				ArrayList al_p = new ArrayList();
@@ -770,6 +775,7 @@ public class Profile extends Displayable {
 	protected void calculateBoundingBox(boolean adjust_position) {
 		if (0 == n_points) {
 			this.width = this.height = 0.0D;
+			layer.updateBucket(this);
 			return;
 		}
 		//go over all points and control points and find the max and min
@@ -810,6 +816,7 @@ public class Profile extends Displayable {
 			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 			updateInDatabase("transform");
 		}
+		layer.updateBucket(this);
 		updateInDatabase("dimensions");
 	}
 
@@ -1413,7 +1420,8 @@ public class Profile extends Displayable {
 		}
 		ArrayList al = pt.getChildren(); // should be sorted by Z already
 		if (al.size() < 2) {
-			Utils.log2("profile_list " + pt + " has less than two profiles: can't render in 3D.");
+			Utils.log("profile_list " + pt + " has less than two profiles: can't render in 3D.");
+			return null;
 		}
 		// collect all Profile
 		final HashSet hs = new HashSet();
@@ -1536,10 +1544,12 @@ public class Profile extends Displayable {
 		return last;
 	}
 
+	/** Make a mesh as a calibrated list of 3D triangles.*/
 	static private List<Point3f> makeTriangles(final Profile[] p, final double scale) {
 		try {
 			final VectorString2D[] sv = new VectorString2D[p.length];
 			boolean closed = true; // dummy initialization
+			final Calibration cal = p[0].getLayerSet().getCalibration();
 			for (int i=0; i<p.length; i++) {
 				if (-1 == p[i].n_points) p[i].setupForDisplay();
 				if (0 == p[i].n_points) continue;
@@ -1559,11 +1569,120 @@ public class Profile extends Displayable {
 					}
 				}
 				sv[i] = new VectorString2D(x, y, p[i].layer.getZ(), p[i].closed);
+				sv[i].calibrate(cal);
 			}
 			return SkinMaker.generateTriangles(sv, -1, -1, closed);
 		} catch (Exception e) {
 			IJError.print(e);
 		}
 		return null;
+	}
+
+	protected boolean remove2(boolean check) {
+		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here
+	}
+
+	/** Calibrated for pixel width only (that is, it assumes pixel aspect ratio 1:1), in units as specified at getLayerSet().getCalibration().getUnit() */
+	public double computeLength() {
+		if (-1 == n_points || 0 == this.p_i[0].length) setupForDisplay();
+		if (this.p_i[0].length < 2) return 0;
+		final double[][] p_i = transformPoints(this.p_i);
+		double len = 0;
+		for (int i=1; i<p_i[0].length; i++) {
+			len += Math.sqrt(Math.pow(p_i[0][i] - p_i[0][i-1], 2) + Math.pow(p_i[1][i] - p_i[1][i-1], 2));
+		}
+		if (closed) {
+			int last = p[0].length -1;
+			len += Math.sqrt(Math.pow(p_i[0][last] - p_i[0][0], 2) + Math.pow(p_i[1][last] - p_i[1][0], 2));
+		}
+		// to calibrate for pixelWidth and pixelHeight, I'd have to multiply each x,y values above separately
+		return len * getLayerSet().getCalibration().pixelWidth;
+	}
+
+	/** Calibrated, in units as specified at getLayerSet().getCalibration().getUnit() -- returns zero if this profile is not closed. */
+	public double computeArea() {
+		if (-1 == n_points) setupForDisplay();
+		if (n_points < 2) return 0;
+		if (!closed) return 0;
+		if (0 == p_i[0].length) generateInterpolatedPoints(0.05);
+		Calibration cal = getLayerSet().getCalibration();
+		return Utils.measureArea(new Area(getPerimeter()), getProject().getLoader()) * cal.pixelWidth * cal.pixelHeight;
+	}
+
+	/** Measures the calibrated length, the lateral surface as the length times the layer thickness, and the volume (if closed) as the area times the layer thickness. */
+	public ResultsTable measure(ResultsTable rt) {
+		if (null == rt) rt = Utils.createResultsTable("Profile results", new String[]{"id", "length", "side surface: length x thickness", "volume: area x thickness"});
+		if (-1 == n_points) setupForDisplay();
+		if (n_points < 2) return null;
+		if (0 == p_i[0].length) generateInterpolatedPoints(0.05);
+		final Calibration cal = getLayerSet().getCalibration();
+		// computeLength returns a calibrated length, so only calibrate the layer thickness:
+		final double len = computeLength();
+		final double surface_flat = len * layer.getThickness() * cal.pixelWidth;
+		rt.incrementCounter();
+		rt.addLabel("units", cal.getUnit());
+		rt.addValue(0, id);
+		rt.addValue(1, len);
+		rt.addValue(2, surface_flat);
+		final double volume = closed ? computeArea() * layer.getThickness() * cal.pixelWidth : 0;
+		rt.addValue(3, volume);
+		return rt;
+	}
+
+	/** Assumes Z-coord sorted list of profiles, as stored in a "profile_list" ProjectThing type. . */
+	static public ResultsTable measure(final Profile[] profiles, ResultsTable rt, final long profile_list_id) {
+		Utils.log2("profiles.length" + profiles.length);
+		if (null == profiles || 0 == profiles.length) return null;
+		if (1 == profiles.length) {
+			// don't measure if there is only one
+			return rt;
+		}
+		if (null == rt) rt = Utils.createResultsTable("Profile list results", new String[]{"id", "interpolated surface", "surface: sum of length x thickness", "volume"});
+		Calibration cal = profiles[0].getLayerSet().getCalibration();
+		// else, interpolate skin and measure each triangle
+		List<Point3f> tri = makeTriangles(profiles, 1.0); // already calibrated
+		final int n_tri = tri.size();
+		if (0 != n_tri % 3) {
+			Utils.log("Profile.measure error: triangle verts list not a multiple of 3 for profile list id " + profile_list_id);
+			return rt;
+		}
+		// Surface: calibrated sum of the area of all triangles in the mesh.
+		double surface = 0;
+		for (int i=2; i<n_tri; i+=3) {
+			surface += Utils.measureArea(tri.get(i-2), tri.get(i-1), tri.get(i));
+		}
+		// add capping ends
+		double area_first = profiles[0].computeArea();
+		double area_last = profiles[profiles.length-1].computeArea();
+		if (profiles[0].closed) surface += area_first;
+		if (profiles[profiles.length-1].closed) surface += area_last;
+
+		// calibrate surface measurement
+		surface *= Math.pow(cal.pixelWidth, 3);
+
+		// Surface flat: sum of the perimeter lengths times the layer thickness
+		double surface_flat = 0;
+		for (int i=0; i<profiles.length; i++) {
+			if (0 == profiles[i].p_i[0].length) profiles[i].generateInterpolatedPoints(0.05);
+			surface_flat += profiles[i].computeLength() * profiles[i].layer.getThickness() * cal.pixelWidth;
+		}
+
+		// Volume: area times layer thickness
+		double volume = area_first * profiles[0].layer.getThickness();
+		for (int i=1; i<profiles.length-1; i++) {
+			volume += profiles[i].computeArea() * profiles[i].layer.getThickness();
+		}
+		volume += area_last * profiles[profiles.length-1].layer.getThickness();
+
+		// calibrate volume: the Z is still in pixels
+		volume *= cal.pixelWidth;
+
+		rt.incrementCounter();
+		rt.addLabel("units", cal.getUnit());
+		rt.addValue(0, profile_list_id);
+		rt.addValue(1, surface);
+		rt.addValue(2, surface_flat);
+		rt.addValue(3, volume);
+		return rt;
 	}
 }

@@ -22,6 +22,9 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
@@ -38,7 +41,8 @@ import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Hashtable;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.awt.Graphics;
@@ -48,6 +52,7 @@ import java.awt.AlphaComposite;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.Area;
+import java.awt.Shape;
 
 import javax.vecmath.Point3f;
 
@@ -71,6 +76,8 @@ public class Pipe extends ZDisplayable {
 	/**The interpolated width for each interpolated point. */
 	protected double[] p_width_i = new double[0];
 
+	static private double last_radius = 1;
+
 	public Pipe(Project project, String title, double x, double y) {
 		super(project, title, x, y);
 		n_points = 0;
@@ -93,12 +100,13 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** Construct a Pipe from an XML entry. */
-	public Pipe(Project project, long id, Hashtable ht, Hashtable ht_links) {
+	public Pipe(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
 		// parse specific data
-		for (java.util.Enumeration e = ht.keys(); e.hasMoreElements(); ) {
-			String key = (String)e.nextElement();
-			String data = (String)ht.get(key);
+		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			String key = (String)entry.getKey();
+			String data = (String)entry.getValue();
 			if (key.equals("d")) {
 				// parse the points
 				// parse the SVG points data
@@ -324,7 +332,7 @@ public class Pipe extends ZDisplayable {
 			p[0][n_points] = p_l[0][n_points] = p_r[0][n_points] = x_p;
 			p[1][n_points] = p_l[1][n_points] = p_r[1][n_points] = y_p;
 			p_layer[n_points] = layer_id;
-			p_width[n_points] = (0 == n_points ? 1.0D : p_width[n_points -1]); // either 1.0 or the same as the last point
+			p_width[n_points] = (0 == n_points ? last_radius : p_width[n_points -1]); // either 1.0 or the same as the last point
 			index = n_points;
 		} else if (-1 == index) {
 			// decide whether to append at the end or prepend at the beginning
@@ -573,11 +581,11 @@ public class Pipe extends ZDisplayable {
 			double a90 = Math.toRadians(90);
 			double a180 = Math.toRadians(180);
 			double a270 = Math.toRadians(270);
-			int n = p_i[0].length;
-			double[] r_side_x = new double[n];
-			double[] r_side_y = new double[n];
-			double[] l_side_x = new double[n];
-			double[] l_side_y = new double[n];
+			final int n = p_i[0].length;
+			final double[] r_side_x = new double[n];
+			final double[] r_side_y = new double[n];
+			final double[] l_side_x = new double[n];
+			final double[] l_side_y = new double[n];
 			int m = n-1;
 
 			for (int i=0; i<n-1; i++) {
@@ -750,6 +758,7 @@ public class Pipe extends ZDisplayable {
 				} else if (me.isShiftDown()) {
 					// resize radius
 					p_width[index] = Math.sqrt((x_d - p[0][index])*(x_d - p[0][index]) + (y_d - p[1][index])*(y_d - p[1][index]));
+					last_radius = p_width[index];
 					Utils.showStatus("radius: " + p_width[index], false);
 				} else { //TODO in linux the alt+click is stolen by the KDE window manager but then the middle-click works as if it was the alt+click. Weird!
 					//drag both control points symmetrically
@@ -822,6 +831,7 @@ public class Pipe extends ZDisplayable {
 		double max_y = 0.0D;
 		if (0 == n_points) {
 			this.width = this.height = 0;
+			layer_set.updateBucket(this);
 			return;
 		}
 		// get perimeter of the tube, without the transform
@@ -864,6 +874,8 @@ public class Pipe extends ZDisplayable {
 			updateInDatabase("transform");
 		}
 		updateInDatabase("dimensions");
+
+		layer_set.updateBucket(this);
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -1105,6 +1117,12 @@ public class Pipe extends ZDisplayable {
 		return 0 == n_points;
 	}
 
+	/** The number of clicked, backbone points in this pipe. */
+	public int length() {
+		if (-1 == n_points) setupForDisplay();
+		return n_points;
+	}
+
 	/** Test whether the Pipe contains the given point at the given layer. What it does: generates subpolygons that are present in the given layer, and tests whether the point is contained in any of them. */
 	public boolean contains(final Layer layer, int x, int y) {
 		if (-1 == n_points) setupForDisplay(); // reload points
@@ -1117,16 +1135,18 @@ public class Pipe extends ZDisplayable {
 			if (Math.abs(p[0][0] - x) < 3 && Math.abs(p[1][0] - y) < 3) return true; // error in clicked precision of 3 pixels
 			else return false;
 		}
+		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
+
 		double angle = 0;
 		double a0 = Math.toRadians(0);
 		double a90 = Math.toRadians(90);
 		double a180 = Math.toRadians(180);
 		double a270 = Math.toRadians(270);
 		int n = p_i[0].length; // the number of interpolated points
-		double[] r_side_x = new double[n];
-		double[] r_side_y = new double[n];
-		double[] l_side_x = new double[n];
-		double[] l_side_y = new double[n];
+		final double[] r_side_x = new double[n];
+		final double[] r_side_y = new double[n];
+		final double[] l_side_x = new double[n];
+		final double[] l_side_y = new double[n];
 		int m = n-1;
 
 		for (int i=0; i<n-1; i++) {
@@ -1149,15 +1169,15 @@ public class Pipe extends ZDisplayable {
 		l_side_y[m] = p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
 
 		final long layer_id = layer.getId();
-		//double z_given = layer.getZ();
-		//double z = 0;
+		final double z_current = layer.getZ();
+
 		int first = 0; // the first backbone point in the subpolygon present in the layer
 		int last = 0; // the last backbone point in the subpolygon present in the layer
 
 		boolean add_pol = false;
 
-		for (int j=0; j<n_points; j++) { // at least looping through 2 points, as guaratneed by the preconditions checking
-			if (layer_id != p_layer[j]) {
+		for (int j=0; j<n_points; j++) { // at least looping through 2 points, as guaranteed by the preconditions checking
+			if (!no_color_cues && layer_id != p_layer[j]) {
 				first = j + 1; // perhaps next, not this j
 				continue;
 			}
@@ -1166,24 +1186,76 @@ public class Pipe extends ZDisplayable {
 			if (j == n_points -1 || layer_id != p_layer[j+1]) {
 				add_pol = true;
 			}
+			int fi=0, la=0;
+			if (no_color_cues) {
+				// else if crossed the current layer, check segment as well
+				if (0 == j) continue;
+				first = j -1;
+				final double z1 = layer_set.getLayer(p_layer[j-1]).getZ();
+				final double z2 = layer_set.getLayer(p_layer[j]).getZ();
+				
+				// 20 points is the length of interpolated points between any two backbone bezier 'j' points.
+				// 10 points is half that.
+				//
+				// Painting with cues paints the points on the layer padded 10 points to before and after, and when no points are in the layer, then just some padded area in between.
+				//
+				// When approaching from below or from above, or when leaving torwards below or towards above, the segment to check is only half the length, as painted.
+
+				if (z1 == z_current && z_current == z2) {
+					add_pol = true;
+					fi = ((j-1) * 20) - 10;
+					la = ( j    * 20) + 10;
+				} else if (  (z1 < z_current && z_current == z2)
+				          || (z1 > z_current && z_current == z2) ) {
+					add_pol = true;
+					fi = ((j-1) * 20) + 10;
+					la = ( j    * 20) + 10;
+				} else if (  (z1 == z_current && z_current < z2)
+				          || (z1 == z_current && z_current > z2) ) {
+					add_pol = true;
+					fi = ((j-1) * 20) - 10;
+					la = ( j    * 20) - 10;
+				} else if (  (z1 < z_current && z_current < z2)
+				          || (z1 > z_current && z_current > z2) ) {
+					add_pol = true;
+					// crossing by without a point: short polygons
+					fi = ((j-1) * 20) + 10;
+					la = ( j    * 20) - 10;
+				} else {
+					//add_pol = false;
+					continue;
+				}
+				// correct ends
+				if (0 == j-1) fi = 0;
+				if (n_points-1 == j) la = n_points * 20;
+			}
 			if (add_pol) {
 				// compute sub polygon
-				int fi = 0;
-				int la = last * 20 -1;
-				if (0 != first) fi = (first * 20) - 10; // 10 is half a segment
-				if (n_points -1 != last) la += 10; // same //= last * 20 + 9;
-				int length = la - fi + 1; // +1 because fi and la are indexes
+				if (!no_color_cues) {
+					fi = 0;
+					la = last * 20 -1;
+					if (0 != first) fi = (first * 20) - 10; // 10 is half a segment
+					if (n_points -1 != last) la += 10; // same //= last * 20 + 9;
+				} else {
+					if (fi < 0) fi = 0;
+				}
+				if (la >= r_side_x.length) la = r_side_x.length-1; // quick fix
+				final int length = la - fi + 1; // +1 because fi and la are indices
 
-				int [] pol_x = new int[length * 2];
-				int [] pol_y = new int[length * 2];
+				final int [] pol_x = new int[length * 2];
+				final int [] pol_y = new int[length * 2];
 				for (int k=0, g=fi; g<=la; g++, k++) {
 					pol_x[k] = (int)r_side_x[g];
 					pol_y[k] = (int)r_side_y[g];
 					pol_x[length + k] = (int)l_side_x[la - k];
 					pol_y[length + k] = (int)l_side_y[la - k];
 				}
-				Polygon pol = new Polygon(pol_x, pol_y, pol_x.length);
-				if (pol.contains(x, y)) return true;
+				final Polygon pol = new Polygon(pol_x, pol_y, pol_x.length);
+				if (pol.contains(x, y)) {
+					//Utils.log2("first, last : " + first + ", " + last);
+					//showShape(pol);
+					return true;
+				}
 				// reset
 				first = j + 1;
 				add_pol = false;
@@ -1535,12 +1607,13 @@ public class Pipe extends ZDisplayable {
 		return copy;
 	}
 
+	/** Calibrated. */
 	synchronized public List generateTriangles(double scale, int parallels, int resample) {
 		if (n_points < 2) return null;
 		// check minimum requirements.
 		if (parallels < 3) parallels = 3;
 		//
-		double[][][] all_points = generateJoints(parallels, resample);
+		double[][][] all_points = generateJoints(parallels, resample, layer_set.getCalibrationCopy());
 		return Pipe.generateTriangles(all_points, scale);
 	}
 
@@ -1566,7 +1639,7 @@ public class Pipe extends ZDisplayable {
 	}
 
 	/** From my former program, A_3D_Editing.java and Pipe.java  */
-	private double[][][] generateJoints(final int parallels, final int resample) {
+	private double[][][] generateJoints(final int parallels, final int resample, final Calibration cal) {
 		if (-1 == n_points) setupForDisplay();
 		
 		// local pointers, since they may be transformed
@@ -1614,16 +1687,21 @@ public class Pipe extends ZDisplayable {
 		z_values[n-1] = layer_set.getLayer(p_layer[mm-1]).getZ();
 
 
-		return makeTube(p_i[0], p_i[1], z_values, p_width_i, resample, parallels);
+		return makeTube(p_i[0], p_i[1], z_values, p_width_i, resample, parallels, cal);
 	}
 
-	static public double[][][] makeTube(double[] px, double[] py, double[] pz, double[] p_width_i, final int resample, final int parallels) {
+	static public double[][][] makeTube(double[] px, double[] py, double[] pz, double[] p_width_i, final int resample, final int parallels, final Calibration cal) {
 
 		int n = px.length;
 
 		// Resampling to get a smoother pipe
 		try {
 			VectorString3D vs = new VectorString3D(px, py, pz, false);
+			if (null != cal) {
+				vs.calibrate(cal);
+				for (int i=0; i<p_width_i.length; i++)
+					p_width_i[i] *= cal.pixelWidth;
+			}
 			vs.addDependent(p_width_i);
 			vs.resample(vs.getAverageDelta() * resample);
 			px = vs.getPoints(0);
@@ -1635,7 +1713,6 @@ public class Pipe extends ZDisplayable {
 		} catch (Exception e) {
 			IJError.print(e);
 		}
-
 
 
 		double[][][] all_points = new double[n+2][parallels+1][3];
@@ -1876,13 +1953,16 @@ public class Pipe extends ZDisplayable {
 	public String getInfo() {
 		if (-1 == n_points) setupForDisplay(); //reload
 		// measure length
-		VectorString3D vs = asVectorString3D();
-		vs.calibrate(this.layer_set.getCalibration());
-		double len = vs.computeLength(); // no resampling
+		double len = 0;
+		if (n_points > 1) {
+			VectorString3D vs = asVectorString3D();
+			vs.calibrate(this.layer_set.getCalibration());
+			len = vs.computeLength(); // no resampling
+		}
 		return new StringBuffer("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
 	}
 
-	/** @param roi is expected in world coordinates. */
+	/** @param area is expected in world coordinates. */
 	public boolean intersects(final Area area, final double z_first, final double z_last) {
 		// find lowest and highest Z
 		double min_z = Double.MAX_VALUE;
@@ -1896,13 +1976,87 @@ public class Pipe extends ZDisplayable {
 		// check the roi
 		for (int i=0; i<n_points; i++)  {
 			final Polygon[] pol = getSubPerimeters(layer_set.getLayer(p_layer[i]));
+			if (null == pol) continue;
 			for (int k=0; k<pol.length; k++) {
-				Area a = new Area(pol[k]).createTransformedArea(this.at);
+				Area a = new Area(pol[k]); // perimeters already in world coords
 				a.intersect(area);
 				Rectangle r = a.getBounds();
 				if (0 != r.width && 0 != r.height) return true;
 			}
 		}
 		return false;
+	}
+
+	/** Expects Rectangle in world coords. */
+	public boolean intersects(final Layer layer, final Rectangle r) {
+		final Polygon[] pol = getSubPerimeters(layer); // transformed
+		if (null == pol) return false;
+		for (Polygon p : pol) if (new Area(p).intersects(r.x, r.y, r.width, r.height)) return true;
+		return false;
+	}
+	/** Expects Area in world coords. */
+	public boolean intersects(final Layer layer, final Area area) {
+		final Polygon[] pol = getSubPerimeters(layer); // transformed
+		if (null == pol) return false;
+		for (Polygon p : pol) if (Utils.intersects(new Area(p), area)) return true;
+		return false;
+	}
+
+	/** Returns the bounds of this object as it shows in the given layer, set into @param r. */
+	public Rectangle getBounds(final Rectangle r, final Layer layer) {
+		// obtain the already transformed subperimeters
+		final Polygon[] pol = getSubPerimeters(layer);
+		if (null == pol) {
+			if (null == r) return new Rectangle();
+			r.x = 0;
+			r.y = 0;
+			r.width = 0;
+			r.height = 0;
+			return r;
+		}
+		final Area area = new Area();
+		for (Polygon p : pol) {
+			area.add(new Area(p));
+		}
+		final Rectangle b = area.getBounds();
+		if (null == r) return b;
+		r.setBounds(b.x, b.y, b.width, b.height);
+
+		return r;
+	}
+
+	// debug ---------------
+	static private void showShape(final Shape shape) {
+		Area area = new Area(shape);
+		Rectangle b = area.getBounds();
+		AffineTransform trans = new AffineTransform();
+		trans.translate(-b.x, -b.y);
+		area = area.createTransformedArea(trans);
+		ij.process.ByteProcessor bp = new ij.process.ByteProcessor(b.width, b.height);
+		ij.gui.ShapeRoi sr = new ij.gui.ShapeRoi(area);
+		ij.ImagePlus imp = new ij.ImagePlus("pipe area", bp);
+		imp.setRoi(sr);
+		bp.setValue(255);
+		sr.drawPixels(bp);
+		imp.show();
+	}
+
+	public ResultsTable measure(ResultsTable rt) {
+		if (-1 == n_points) setupForDisplay(); //reload
+		if (0 == n_points) return rt;
+		if (null == rt) rt = Utils.createResultsTable("Pipe results", new String[]{"id", "length"});
+		// measure length
+		double len = 0;
+		Calibration cal = layer_set.getCalibration();
+		if (n_points > 1) {
+			VectorString3D vs = asVectorString3D();
+			vs.calibrate(cal);
+			len = vs.computeLength(); // no resampling
+		}
+		rt.incrementCounter();
+		rt.addLabel("units", cal.getUnit());
+		rt.addValue(0, this.id);
+		rt.addValue(1, len);
+		return rt;
 	}
 }
