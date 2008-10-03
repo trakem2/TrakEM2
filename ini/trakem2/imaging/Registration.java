@@ -859,7 +859,7 @@ public class Registration {
 		sp.scale = scale;
 		sp.tiles_prealigned = overlapping_only;
 
-		boolean global_optimization = false;
+		boolean global_optimization = true;
 
 		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), "Options for coarse layer registration", true);
 
@@ -869,7 +869,7 @@ public class Registration {
 			gds.addNumericField("maximum_image_size :", sp.max_size, 0);
 			gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
 			gds.addCheckbox("Layers_are_roughly_prealigned", sp.tiles_prealigned);
-			gds.addCheckbox("Disable global optimization", global_optimization);
+			gds.addCheckbox("Disable global optimization", !global_optimization);
 			gds.addCheckbox("Advanced setup", false);
 			gds.showDialog();
 			if (gds.wasCanceled()) {
@@ -879,7 +879,7 @@ public class Registration {
 			sp.max_size = (int)gds.getNextNumber();
 			sp.max_epsilon = (float)gds.getNextNumber();
 			sp.tiles_prealigned = gds.getNextBoolean();
-			global_optimization = gds.getNextBoolean();
+			global_optimization = !gds.getNextBoolean();
 			boolean advanced_setup = gds.getNextBoolean();
 
 			// 2 - Optional advanced setup
