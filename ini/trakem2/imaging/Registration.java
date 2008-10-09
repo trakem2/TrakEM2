@@ -1564,12 +1564,12 @@ public class Registration {
 			cc = dd < 0.001 ? cc + 1 : 0;
 
 			if (dall.length  == next) {
-				double[] dall2 = new double[dall.length + 100];
+				final double[] dall2 = new double[dall.length + 100];
 				System.arraycopy(dall, 0, dall2, 0, dall.length);
 				dall = dall2;
 			}
 			dall[next++] = dd;
-			
+
 			// Attempt to stop if at least min_iterations have passed, and there's convergence:
 			if (next > min_iterations) {
 				final double[] dn = new double[100];
