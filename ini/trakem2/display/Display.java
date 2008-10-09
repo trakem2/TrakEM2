@@ -3276,6 +3276,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Display display = front;
 		if (null == display || display.layer.getParent() != layer.getParent()) {
 			display = new Display(layer.getProject(), layer, null); // gets set to front
+		} else {
+			display.setLayer(layer);
 		}
 	}
 

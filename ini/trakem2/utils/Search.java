@@ -95,7 +95,7 @@ public class Search {
 			search_field.addKeyListener(new VKEnterListener());
 			JButton b = new JButton("Search");
 			b.addActionListener(new ButtonListener());
-			pulldown = new JComboBox(new String[]{"All", "All displayables", "Labels", "Images", "Area Lists", "Profiles", "Tubes", "Spheres", "Layers", "Dissectors"});
+			pulldown = new JComboBox(new String[]{"All", "All displayables", "Labels", "Images", "Area Lists", "Profiles", "Pipes", "Balls", "Layers", "Dissectors"});
 			JPanel top = new JPanel();
 			top.add(search_field);
 			top.add(b);
@@ -142,7 +142,7 @@ public class Search {
 		public String getColumnName(int col) {
 			if (0 == col) return "Type";
 			else if (1 == col) return "Info";
-			else if (2 == col) return "Title";
+			else if (2 == col) return "Matched";
 			else return "";
 		}
 		public int getRowCount() { return v_obs.size(); }
@@ -150,8 +150,11 @@ public class Search {
 		public Object getValueAt(int row, int col) {
 			if (0 == col) return Project.getName(v_obs.get(row).getClass());
 			else if (1 == col) return ((DBObject)v_obs.get(row)).getShortTitle();
-			else if (2 == col) return ((DBObject)v_obs.get(row)).getTitle().replace('\n', ' ');//v_txt.get(row).toString();
+			else if (2 == col) return v_txt.get(row).toString();
 			else return "";
+		}
+		public DBObject getDBObjectAt(int row) {
+			return (DBObject)v_obs.get(row);
 		}
 		public Displayable getDisplayableAt(int row) {
 			return (Displayable)v_obs.get(row);
@@ -178,12 +181,11 @@ public class Search {
 	}
 
 	private void executeSearch() {
-		String pattern = search_field.getText();//((JTextField)((Container)((Container)search_frame.getContentPane().getComponent(0)).getComponent(0)).getComponent(0)).getText();
+		String pattern = search_field.getText();
 		if (null == pattern || 0 == pattern.length()) {
 			return;
 		}
 		// fix pattern
-		//Utils.log2("pattern before: " + pattern);
 		final String typed_pattern = pattern;
 		final StringBuffer sb = new StringBuffer(); // I hate java
 		if (!pattern.startsWith("^")) sb.append("^.*");
@@ -195,6 +197,7 @@ public class Search {
 		final Pattern pat = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
 		//Utils.log2("pattern after: " + pattern);
 		final ArrayList al = new ArrayList();
+		Utils.log("types[pulldown] = " + types[pulldown.getSelectedIndex()]);
 		find(ControlWindow.getActive().getRootLayerSet(), al, types[pulldown.getSelectedIndex()]);
 		//Utils.log2("found labels: " + al.size());
 		if (0 == al.size()) return;
@@ -202,15 +205,34 @@ public class Search {
 		final Vector v_txt = new Vector();
 		for (Iterator it = al.iterator(); it.hasNext(); ) {
 			final DBObject dbo = (DBObject)it.next();
-			final String title =  (dbo instanceof Displayable ? dbo.getProject().getMeaningfulTitle((Displayable)dbo) : dbo.getTitle());
-			if (null == title || !pat.matcher(title).matches()) {
-				continue;
+			boolean matched = false;
+			// Search in its title
+			String txt =  dbo instanceof Displayable ?
+				  dbo.getProject().getMeaningfulTitle((Displayable)dbo)
+				: dbo.getTitle();
+			matched = pat.matcher(txt).matches();
+			long id = dbo.getId();
+			if (87 == id) Utils.log2("Searching title: " + txt + (matched ? "********** TRUE" : ""));
+			if (!matched) {
+				// Search also in its toString()
+				txt = dbo.toString();
+				matched = pat.matcher(txt).matches();
+				if (87 == id) Utils.log2("Searching toString: " + txt + (matched ? "********** TRUE" : ""));
 			}
-			String txt = title.substring(0, title.length() < 30 ? title.length() : 27);
-			if (title.length() > 30) txt += "...";
+			if (!matched) {
+				// Search also in its id
+				txt = Long.toString(dbo.getId());
+				matched = pat.matcher(txt).matches();
+				if (matched) txt = "id: #" + txt;
+				if (87 == id) Utils.log2("Searching ID: " + txt + (matched ? "********** TRUE" : ""));
+			}
+			if (!matched) continue;
+
+			//txt = txt.length() > 30 ? txt.substring(0, 27) + "..." : txt;
 			v_obs.add(dbo);
 			v_txt.add(txt);
 		}
+
 		if (0 == v_obs.size()) {
 			Utils.showMessage("Nothing found.");
 			return;
@@ -251,44 +273,77 @@ public class Search {
 	/** Listen to double clicks in the table rows. */
 	private class DisplayableListListener extends MouseAdapter {
 		public void mousePressed(MouseEvent me) {
-			if (2 != me.getClickCount()) return;
-			Object source = me.getSource();
-			// is a table//Utils.log2("LLL source is " + source);
-			JTable table = (JTable)source;
-			// JTable is AN ABSOLUTE PAIN to work with
-			// ???? THERE IS NO OBVIOUS WAY to retrieve the data. How lame.
-			// Ah, a "model" ... since when a model holds the DATA (!!), same with JTree, how lame.
-			Object ob = ((DisplayableTableModel)table.getModel()).getDisplayableAt(table.rowAtPoint(me.getPoint()));
-			if (ob instanceof Displayable) {
-				Displayable displ = (Displayable)ob;
-				Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
-			} else if (ob instanceof Layer) {
-				Display.showFront((Layer)ob);
-			} else {
-				Utils.log2("Search: Unhandable table selection: " + ob);
+			final JTable table = (JTable)me.getSource();
+			final DBObject ob = ((DisplayableTableModel)table.getModel()).getDBObjectAt(table.rowAtPoint(me.getPoint()));
+			if (2 == me.getClickCount()) {
+				// is a table//Utils.log2("LLL source is " + me.getSource());
+				// JTable is AN ABSOLUTE PAIN to work with
+				// ???? THERE IS NO OBVIOUS WAY to retrieve the data. How lame.
+				// Ah, a "model" ... since when a model holds the DATA (!!), same with JTree, how lame.
+				if (ob instanceof Displayable) {
+					Displayable displ = (Displayable)ob;
+					Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
+				} else if (ob instanceof Layer) {
+					Display.showFront((Layer)ob);
+				} else {
+					Utils.log2("Search: Unhandable table selection: " + ob);
+				}
+			} else if (Utils.isPopupTrigger(me)) {
+				JPopupMenu popup = new JPopupMenu();
+				final String show2D = "Show";
+				final String select = "Select in display";
+				ActionListener listener = new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						final String command = ae.getActionCommand();
+						if (command.equals(show2D)) {
+							if (ob instanceof Displayable) {
+								Displayable displ = (Displayable)ob;
+								Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
+							} else if (ob instanceof Layer) {
+								Display.showFront((Layer)ob);
+							}
+						} else if (command.equals(select)) {
+							if (ob instanceof Layer) {
+								Display.showFront((Layer)ob);
+							} else if (ob instanceof Displayable) {
+								Displayable displ = (Displayable)ob;
+								if (!displ.isVisible()) displ.setVisible(true);
+								Display display = Display.getFront(displ.getProject());
+								if (null == display) return;
+								boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
+								display.select(displ, shift_down);
+							}
+						}
+					}
+				};
+				JMenuItem item = new JMenuItem(show2D); popup.add(item); item.addActionListener(listener);
+				item = new JMenuItem(select); popup.add(item); item.addActionListener(listener);
+				popup.show(table, me.getX(), me.getY());
 			}
 		}
 	}
 
-	/** Recursive search into nested LayerSet instances, accumulating DLabel instances into al_labels. */
-	private void find(final LayerSet set, final  ArrayList al, final Class type) {
-		if (type.equals(DBObject.class)) {
+	/** Recursive search into nested LayerSet instances, accumulating instances of type into the list al. */
+	private void find(final LayerSet set, final ArrayList al, final Class type) {
+		if (type == DBObject.class) {
 			al.add(set);
 		}
-		for (Iterator it = set.getLayers().iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
-			if (DBObject.class.equals(type) || Layer.class.equals(type)) {
+		for (ZDisplayable zd : set.getZDisplayables()) {
+			if (DBObject.class == type || Displayable.class == type) {
+				al.add(zd);
+			} else if (zd.getClass() == type) {
+				al.add(zd);
+			}
+		}
+		for (Layer layer : set.getLayers()) {
+			if (DBObject.class == type || Layer.class == type) {
 				al.add(layer);
 			}
-			for (Iterator dit = layer.getDisplayables().iterator(); dit.hasNext(); ) {
-				Object ob = dit.next();
-				if (DBObject.class.equals(type) || Displayable.class.equals(type)) {
-					if (ob instanceof LayerSet) {
-						find((LayerSet)ob, al, type);
-					} else {
-						al.add(ob);
-					}
-				} else if (ob.getClass().equals(type)) {
+			for (Displayable ob : layer.getDisplayables()) {
+				if (DBObject.class == type || Displayable.class == type) {
+					if (ob instanceof LayerSet) find((LayerSet)ob, al, type);
+					else al.add(ob);
+				} else if (ob.getClass() == type) {
 					al.add(ob);
 				}
 			}
