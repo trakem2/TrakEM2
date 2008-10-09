@@ -85,11 +85,12 @@ public class AreaList extends ZDisplayable {
 	/** Flag to repaint faster even if the object is selected. */
 	static private boolean brushing = false;
 
-	/** Paint as outlines (false) or as solid areas (false; default).*/
-	private boolean fill_paint = false;
+	/** Paint as outlines (false) or as solid areas (true; default, with a default alpha of 0.4f).*/
+	private boolean fill_paint = true;
 
 	public AreaList(Project project, String title, double x, double y) {
 		super(project, title, x, y);
+		this.alpha = 0.4f;
 		addToDatabase();
 	}
 
