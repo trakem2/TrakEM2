@@ -119,6 +119,7 @@ public class Search {
 
 	synchronized private void destroy() {
 		if (null != instance) {
+			if (null != search_frame) search_frame.dispose();
 			search_frame = null;
 			search_tabs = null;
 			search_field = null;
