@@ -1205,7 +1205,7 @@ public class FSLoader extends Loader {
 	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
 	static final private byte[] gaussianBlurResizeInHalf(final FloatProcessorT2 source, final int source_width, final int source_height, final int target_width, final int target_height) {
 		source.setPixels(source_width, source_height, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])source.getPixels(), source_width, source_height), 0.75f).data);
-		source.setPixels(target_width, target_width, (float[])source.resize(target_width, target_height).getPixels());
+		source.resizeInPlace(target_width, target_height);
 		return (byte[])source.convertToByte(false).getPixels(); // no interpolation: gaussian took care of that
 	}
 
@@ -1319,11 +1319,11 @@ public class FSLoader extends Loader {
 				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
 				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
 				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
-				final FloatProcessorT2 falpha = new FloatProcessorT2(w, h, (byte[])alpha_mask.getPixels(), 0, 255);
-				falpha.setInterpolate(true); // TODO perhaps false?
 				int sw, sh;
 
 				if (null != alpha_mask) {
+					final FloatProcessorT2 falpha = new FloatProcessorT2(w, h, (byte[])alpha_mask.getPixels(), 0, 255);
+					falpha.setInterpolate(true); // TODO perhaps false?
 					while (w >= 64 && h >= 64) {
 						// 1 - Prepare values for the next scaled image
 						sw = w;
