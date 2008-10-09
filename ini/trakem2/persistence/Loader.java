@@ -912,15 +912,15 @@ abstract public class Loader {
 	}
 
 	protected class PatchLoadingLock extends Lock {
-		String key;
-		PatchLoadingLock(String key) { this.key = key; }
+		final String key;
+		PatchLoadingLock(final String key) { this.key = key; }
 	}
 
 	/** Table of dynamic locks, a single one per Patch if any. */
-	private Hashtable<String,PatchLoadingLock> ht_plocks = new Hashtable<String,PatchLoadingLock>();
+	private final Hashtable<String,PatchLoadingLock> ht_plocks = new Hashtable<String,PatchLoadingLock>();
 
 	protected final PatchLoadingLock getOrMakePatchLoadingLock(final Patch p, final int level) {
-		final String key = p.getId() + "." + level;
+		final String key = new StringBuffer().append(p.getId()).append('.').append(level).toString();
 		PatchLoadingLock plock = ht_plocks.get(key);
 		if (null != plock) return plock;
 		plock = new PatchLoadingLock(key);
@@ -1051,6 +1051,8 @@ abstract public class Loader {
 			}
 		}
 
+		// level is zero
+
 		synchronized (db_lock) {
 			try {
 				lock();
@@ -1115,7 +1117,7 @@ abstract public class Loader {
 	}
 
 	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
-	public ImagePlus getCachedImagePlus(long id) {
+	public ImagePlus getCachedImagePlus(final long id) {
 		synchronized(db_lock) {
 			ImagePlus imp = null;
 			lock();
