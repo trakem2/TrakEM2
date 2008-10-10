@@ -840,9 +840,11 @@ abstract public class Loader {
 
 		int level = (int)(0.0001 + Math.log(1/mag) / Math.log(2)); // compensating numerical instability: 1/0.25 should be 2 eaxctly
 		int max_level = (int)(0.5 + (Math.log(size) - Math.log(32)) / Math.log(2)); // no +1, this is not the length of the images[] array but the actual highest level
+		/*
 		if (max_level > 6) {
 			Utils.log2("ERROR max_level > 6: " + max_level + ", size: " + size);
 		}
+		*/
 		return Math.min(level, max_level);
 
 		/*
