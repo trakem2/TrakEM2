@@ -9,10 +9,9 @@ import java.util.List;
 import java.util.Random;
 import java.awt.geom.AffineTransform;
 
-public class TRModel2D extends AffineModel2D {
+public class TRModel2D extends Model {
 
-	static final private int MIN_SET_SIZE = 2;
-	public int getMIN_SET_SIZE(){ return MIN_SET_SIZE; }
+	static final public int MIN_SET_SIZE = 2;
 
 	final private AffineTransform affine = new AffineTransform();
 	public AffineTransform getAffine() { return affine; }
@@ -57,7 +56,7 @@ public class TRModel2D extends AffineModel2D {
 	}
 	
 	@Override
-	public boolean fitMinimalSet( PointMatch[] min_matches )
+	public boolean fit( PointMatch[] min_matches )
 	{
 		PointMatch m1 = min_matches[ 0 ];
 		PointMatch m2 = min_matches[ 1 ];
@@ -100,7 +99,7 @@ public class TRModel2D extends AffineModel2D {
 		return ( "[3,3](" + affine + ") " + error );
 	}
 
-	public void fit( Collection< PointMatch > matches )
+	public void minimize( Collection< PointMatch > matches )
 	{
 		// center of mass:
 		float xo1 = 0, yo1 = 0;
@@ -209,6 +208,178 @@ public class TRModel2D extends AffineModel2D {
 		}
 		
 		affine.rotate( rnd.nextGaussian() * ( float )rd * scale, center[ 0 ], center[ 1 ] );
+	}
+
+	/**
+	 * estimate the transformation model for a set of feature correspondences
+	 * containing a high number of outliers using RANSAC
+	 *
+	 * @param candidates set of correspondence candidates
+	 * @param inliers set ot correspondences that fit the finally estimated model if any
+	 * @param iterations number of iterations
+	 * @param epsilon maximally allowed displacement
+	 * @param min_inlier_ratio minimal amount of inliers
+	 * 
+	 * @return TRModel2D or null
+	 * 
+	 * 
+	 * Bibtex reference:
+	 * <pre>
+	 * @article{FischlerB81,
+	 * 	author			= {Martin A. Fischler and Robert C. Bolles},
+	 * 	title			= {Random sample consensus: a paradigm for model fitting with applications to image analysis and automated cartography},
+	 * 	journal			= {Communications of the ACM},
+	 * 	volume			= {24},
+	 * 	number			= {6},
+	 * 	year			= {1981},
+	 * 	pages			= {381--395},
+	 * 	publisher		= {ACM Press},
+	 * 	address			= {New York, NY, USA},
+	 * 	issn			= {0001-0782},
+	 * 	doi				= {http://doi.acm.org/10.1145/358669.358692},
+	 * }
+	 * </pre>
+	 * 
+	 */
+	static public TRModel2D estimateModel(
+			List< PointMatch > candidates,
+			Collection< PointMatch > inliers,
+			int iterations,
+			float epsilon,
+			float min_inlier_ratio )
+	{
+		inliers.clear();
+		
+		if ( candidates.size() < MIN_SET_SIZE )
+		{
+			System.err.println( candidates.size() + " correspondence candidates are not enough to estimate a model, at least " + TRModel2D.MIN_SET_SIZE + " required." );
+			return null;
+		}
+		
+		TRModel2D model = new TRModel2D();		//!< the final model to be estimated
+
+		int i = 0;
+		while ( i < iterations )
+		{
+			// choose T::MIN_SET_SIZE disjunctive matches randomly
+			PointMatch[] min_matches = new PointMatch[ MIN_SET_SIZE ];
+			int[] keys = new int[ MIN_SET_SIZE ];
+			
+			for ( int j = 0; j < MIN_SET_SIZE; ++j )
+			{
+				int key;
+				boolean in_set = false;
+				do
+				{
+					key = ( int )( rnd.nextDouble() * candidates.size() );
+					in_set = false;
+					
+					// check if this key exists already
+					for ( int k = 0; k < j; ++k )
+					{
+						if ( key == keys[ k ] )
+						{
+							in_set = true;
+							break;
+						}
+					}
+				}
+				while ( in_set );
+				keys[ j ] = key;
+				min_matches[ j ] = candidates.get( key );
+			}
+
+			TRModel2D m = new TRModel2D();
+			final ArrayList< PointMatch > temp_inliers = new ArrayList< PointMatch >();
+			m.fit( min_matches );
+			int num_inliers = 0;
+			boolean is_good = m.test( candidates, temp_inliers, epsilon, min_inlier_ratio );
+			while ( is_good && num_inliers < temp_inliers.size() )
+			{
+				num_inliers = temp_inliers.size();
+				m.minimize( temp_inliers );
+				is_good = m.test( candidates, temp_inliers, epsilon, min_inlier_ratio );
+			}
+			if (
+					is_good &&
+					m.betterThan( model ) &&
+					temp_inliers.size() >= 3 * MIN_SET_SIZE ) // now at least 6 matches required
+			{
+				model = m.clone();
+				inliers.clear();
+				inliers.addAll( temp_inliers );
+			}
+			++i;
+		}
+		if ( inliers.size() == 0 )
+			return null;
+
+		return model;
+	}
+	
+	/**
+	 * estimate the transformation model for a set of feature correspondences
+	 * containing a high number of outliers using RANSAC
+	 * 
+	 * increase the error as long as not more inliers occur 
+	 */
+	static public TRModel2D estimateBestModel(
+			List< PointMatch > candidates,
+			Collection< PointMatch > inliers,
+			float min_epsilon,
+			float max_epsilon,
+			float min_inlier_ratio )
+	{
+		inliers.clear();
+		TRModel2D model = null;
+		float epsilon = 0.0f;
+		if ( candidates.size() > MIN_SET_SIZE )
+		{
+			int highest_num_inliers = 0;
+			int convergence_count = 0;
+			TRModel2D m = null;
+			do
+			{
+				final ArrayList< PointMatch > temp_inliers = new ArrayList< PointMatch >();
+				epsilon += min_epsilon;
+				// 1000 iterations lead to a probability of < 0.01% that only bad data values were found
+				m = estimateModel(
+						candidates,					//!< point correspondence candidates
+						temp_inliers,
+						1000,						//!< iterations
+						epsilon,					//!< maximal alignment error for a good point pair when fitting the model
+						min_inlier_ratio );				//!< minimal partition (of 1.0) of inliers
+						
+				if ( m != null )
+				{
+					int num_inliers = temp_inliers.size();
+					if ( num_inliers <= highest_num_inliers )
+					{
+						++convergence_count;
+					}
+					else
+					{
+						model = m.clone();
+						inliers.clear();
+						inliers.addAll( temp_inliers );
+						convergence_count = 0;
+						highest_num_inliers = num_inliers;
+					}
+				}
+			}
+			while ( ( m == null || convergence_count < 4 ) && epsilon < max_epsilon );
+		}
+		if ( model == null )
+		{
+			Utils.log2( "No model found." );
+		}
+		else
+		{
+			Utils.log2( "Model with epsilon <= " + epsilon + " for " + inliers.size() + " inliers found." );
+			Utils.log2( "  Affine transform: " + model.getAffine().toString() );
+		}
+				
+		return model;
 	}
 
 	

@@ -156,7 +156,7 @@ public class Tile
 	 */
 	final public void minimizeModel()
 	{
-		model.fit( matches );
+		model.minimize( matches );
 		update();
 	}
 	
