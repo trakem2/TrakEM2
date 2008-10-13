@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2007 Albert Cardona and Rodney Douglas.
+Copyright (C) 2008 Albert Cardona and Stephan Preibisch.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -33,6 +33,11 @@ import java.util.Iterator;
 import java.util.Map;
 import java.awt.Image;
 
+/** A cache for TrakEM2's rolling memory of java.awt.Image instances.
+ *  Uses both a list and a map. When the list goes beyond a certain LINEAR_SEARCH_LIMIT, then the map is used.
+ *  Each image is added as a CacheImageMipMaps.Entry, which stores the image, the corresponding Patch id and the level of the image (0, 1, 2 ... mipmap level of descresing power of 2 sizes).
+ *  The map contains unique Patch id keys versus Image arrays of values, where the array index is the index.
+ */
 public class CacheImageMipMaps {
 
 	private final LinkedList<Entry> cache;
@@ -86,7 +91,7 @@ public class CacheImageMipMaps {
 	}
 
 	/** The position in the array is the Math.max(width, height) of an image. */
-	private final static int[] max_levels = new int[50000]; // don't change to smaller than 33
+	private final static int[] max_levels = new int[50000]; // don't change to smaller than 33. Here 50000 is the maximum width or height for which precomputed mipmap levels will exist.
 	static {
 		// from 0 to 31 all zeros
 		for (int i=32; i<max_levels.length; i++) {
@@ -177,6 +182,7 @@ public class CacheImageMipMaps {
 
 	/** A call to this method puts the element at the end of the list, and returns it. Returns null if not found. */
 	public final Image get(final long id, final int level) {
+		if (0 == LINEAR_SEARCH_LIMIT) return getFromMap(id, level);
 		final ListIterator<Entry> li = cache.listIterator(cache.size());
 		int i = 0;
 		while (li.hasPrevious()) { // images are more likely to be close to the end
@@ -223,6 +229,7 @@ public class CacheImageMipMaps {
 
 	/** Find the cached image of the given level or its closest but smaller image (larger level), or null if none found. */
 	public final Image getClosestBelow(final long id, final int level) {
+		if (0 == LINEAR_SEARCH_LIMIT) return getBelowFromMap(id, level);
 		Entry ee = null;
 		int lev = Integer.MAX_VALUE;
 		final ListIterator<Entry> li = cache.listIterator(cache.size());
@@ -254,6 +261,7 @@ public class CacheImageMipMaps {
 
 	/** Find the cached image of the given level or its closest but larger image (smaller level), or null if none found. */
 	public final Image getClosestAbove(final long id, final int level) {
+		if (0 == LINEAR_SEARCH_LIMIT) return getAboveFromMap(id, level);
 		int lev = -1;
 		Entry ee = null;
 		final ListIterator<Entry> li = cache.listIterator(cache.size());

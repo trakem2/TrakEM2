@@ -115,6 +115,8 @@ public class Registration {
 
 	static public final int GLOBAL_MINIMIZATION = 0;
 	static public final int LAYER_SIFT = 1;
+	/** Number of iterations the optimizer will run before attempting to stop if converging. */
+	static public int min_iterations = 2000;
 
 	static public Bureaucrat registerLayers(final Layer layer, final int kind) {
 		if (layer.getParent().size() <= 1) {
@@ -859,7 +861,7 @@ public class Registration {
 		sp.scale = scale;
 		sp.tiles_prealigned = overlapping_only;
 
-		boolean global_optimization = false;
+		boolean global_optimization = true;
 
 		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), "Options for coarse layer registration", true);
 
@@ -869,7 +871,7 @@ public class Registration {
 			gds.addNumericField("maximum_image_size :", sp.max_size, 0);
 			gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
 			gds.addCheckbox("Layers_are_roughly_prealigned", sp.tiles_prealigned);
-			gds.addCheckbox("Disable global optimization", global_optimization);
+			gds.addCheckbox("Disable global optimization", !global_optimization);
 			gds.addCheckbox("Advanced setup", false);
 			gds.showDialog();
 			if (gds.wasCanceled()) {
@@ -879,7 +881,7 @@ public class Registration {
 			sp.max_size = (int)gds.getNextNumber();
 			sp.max_epsilon = (float)gds.getNextNumber();
 			sp.tiles_prealigned = gds.getNextBoolean();
-			global_optimization = gds.getNextBoolean();
+			global_optimization = !gds.getNextBoolean();
 			boolean advanced_setup = gds.getNextBoolean();
 
 			// 2 - Optional advanced setup
@@ -1562,18 +1564,18 @@ public class Registration {
 			cc = dd < 0.001 ? cc + 1 : 0;
 
 			if (dall.length  == next) {
-				double[] dall2 = new double[dall.length + 100];
+				final double[] dall2 = new double[dall.length + 100];
 				System.arraycopy(dall, 0, dall2, 0, dall.length);
 				dall = dall2;
 			}
 			dall[next++] = dd;
-			
-			// cut the last 'n'
-			if (next > 100) { // wait until completing at least 'n' iterations
-				double[] dn = new double[100];
+
+			// Attempt to stop if at least min_iterations have passed, and there's convergence:
+			if (next > min_iterations) {
+				final double[] dn = new double[100];
 				System.arraycopy(dall, dall.length - 100, dn, 0, 100);
 				// fit curve
-				double[] ft = FitLine.fitLine(dn);
+				final double[] ft = FitLine.fitLine(dn);
 				// ft[1] StdDev
 				// ft[2] m (slope)
 				//if ( Math.abs( ft[ 1 ] ) < 0.001 )

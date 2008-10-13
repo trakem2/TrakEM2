@@ -58,6 +58,9 @@ public class Ball extends ZDisplayable {
 	/**The width of each point. */
 	protected double[] p_width;
 
+	/** Every new Ball will have, for its first point, the last user-adjusted radius value or the radius of the last user-selected point. */
+	static private double last_radius = -1;
+
 	public Ball(Project project, String title, double x, double y) {
 		super(project, title, x, y);
 		n_points = 0;
@@ -162,6 +165,7 @@ public class Ball extends ZDisplayable {
 
 	static private double getFirstWidth() {
 		if (null == Display.getFront()) return 10;
+		if (-1 != last_radius) return last_radius;
 		return 10 / Display.getFront().getCanvas().getMagnification(); // 10 pixels in the screen
 	}
 
@@ -269,6 +273,10 @@ public class Ball extends ZDisplayable {
 						return;
 					}
 				} else index = -1; // disable if not in the front layer (so a new point will be added)
+				if (-1 != index) {
+					// Make the radius for newly added balls that of the last selected 
+					last_radius = p_width[index];
+				}
 			}
 			if (-1 == index) {
 				index = addPoint(x_p, y_p, mag, layer_id);
@@ -297,6 +305,7 @@ public class Ball extends ZDisplayable {
 			if (-1 != index) {
 				if (me.isShiftDown()) {
 					p_width[index] = Math.sqrt((x_d - p[0][index])*(x_d - p[0][index]) + (y_d - p[1][index])*(y_d - p[1][index]));
+					last_radius = p_width[index];
 					Utils.showStatus("radius: " + p_width[index], false);
 				} else {
 					dragPoint(index, x_d - x_d_old, y_d - y_d_old);

@@ -143,10 +143,12 @@ public class Utils implements ij.plugin.PlugIn {
 			while (go) {
 				try {
 					synchronized (this) { wait(); }
+					String msg = null;
 					synchronized (cache) {
-						if (0 != cache.length()) IJ.log(cache.toString());
+						if (0 != cache.length()) msg = cache.toString();
 						cache.setLength(0);
 					}
+					IJ.log(msg);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}

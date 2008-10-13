@@ -33,6 +33,7 @@ import ini.trakem2.utils.Render;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
+import ini.trakem2.utils.Dispatcher;
 
 import java.awt.Color;
 import java.awt.Event;
@@ -100,19 +101,19 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		return popup;
 	}
 
-	public void mousePressed(MouseEvent me) {
-		Object source = me.getSource();
-		if (!source.equals(this) || !Project.getInstance(this).isInputEnabled()) {
+	public void mousePressed(final MouseEvent me) {
+		super.dispatcher.execSwing(new Runnable() { public void run() {
+		if (!me.getSource().equals(ProjectTree.this) || !Project.getInstance(ProjectTree.this).isInputEnabled()) {
 			return;
 		}
-		int x = me.getX();
-		int y = me.getY();
+		final int x = me.getX();
+		final int y = me.getY();
 		// find the node and set it selected
-		TreePath path = getPathForLocation(x, y);
+		final TreePath path = getPathForLocation(x, y);
 		if (null == path) {
 			return;
 		}
-		this.setSelectionPath(path);
+		ProjectTree.this.setSelectionPath(path);
 		selected_node = (DefaultMutableTreeNode)path.getLastPathComponent();
 
 		if (2 == me.getClickCount() && !me.isPopupTrigger() && MouseEvent.BUTTON1 == me.getButton()) {
@@ -132,9 +133,10 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		} else if (me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
 			JPopupMenu popup = getPopupMenu(selected_node);
 			if (null == popup) return;
-			popup.show(this, x, y);
+			popup.show(ProjectTree.this, x, y);
 			return;
 		}
+		}});
 	}
 
 	public void rename(ProjectThing thing) {
@@ -461,9 +463,9 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		return tt;
 	}
 
-	public void keyPressed(KeyEvent ke) {
-		Object source = ke.getSource();
-		if (!source.equals(this) || !Project.getInstance(this).isInputEnabled()) {
+	public void keyPressed(final KeyEvent ke) {
+		super.dispatcher.execSwing(new Runnable() { public void run() {
+		if (!ke.getSource().equals(ProjectTree.this) || !Project.getInstance(ProjectTree.this).isInputEnabled()) {
 			return;
 		}
 		// get the first selected node only
@@ -471,7 +473,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 		if (null == path) return;
 		DefaultMutableTreeNode node = (DefaultMutableTreeNode)path.getLastPathComponent();
 		if (null == node) return;
-		ProjectThing pt = (ProjectThing)node.getUserObject();
+		final ProjectThing pt = (ProjectThing)node.getUserObject();
 		if (null == pt) return;
 		//
 		int key_code = ke.getKeyCode();
@@ -486,10 +488,14 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				ke.consume(); // in any case
 				break;
 			case KeyEvent.VK_S:
-				pt.getProject().getLoader().save(pt.getProject());
+				// outside swing:
+				ProjectTree.super.dispatcher.exec(new Runnable() { public void run() {
+					pt.getProject().getLoader().save(pt.getProject());
+				}});
 				ke.consume();
 				break;
 		}
+		}});
 	}
 	public void keyReleased(KeyEvent ke) {}
 	public void keyTyped(KeyEvent ke) {}

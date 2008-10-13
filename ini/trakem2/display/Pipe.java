@@ -76,7 +76,8 @@ public class Pipe extends ZDisplayable {
 	/**The interpolated width for each interpolated point. */
 	protected double[] p_width_i = new double[0];
 
-	static private double last_radius = 1;
+	/** Every new Pipe will have, for its first point, the last user-adjusted radius value. */
+	static private double last_radius = -1;
 
 	public Pipe(Project project, String title, double x, double y) {
 		super(project, title, x, y);
@@ -317,6 +318,13 @@ public class Pipe extends ZDisplayable {
 		p_adjusted[0][index] = p[0][index] + hypothenusa * Math.sin(angle); // it's sin and not cos because of stupid Math.atan2 way of delivering angles
 		p_adjusted[1][index] = p[1][index] + hypothenusa * Math.cos(angle);
 	}
+
+	static private double getFirstWidth() {
+		if (null == Display.getFront()) return 1;
+		if (-1 != last_radius) return last_radius;
+		return 10 / Display.getFront().getCanvas().getMagnification(); // 10 pixels in the screen
+	}
+
 	/**Add a point either at the end or between two existing points, with accuracy depending on magnification. The width of the new point is that of the closest point after which it is inserted.*/
 	synchronized protected int addPoint(int x_p, int y_p, double magnification, double bezier_finess, long layer_id) {
 		if (-1 == n_points) setupForDisplay(); //reload
@@ -332,7 +340,7 @@ public class Pipe extends ZDisplayable {
 			p[0][n_points] = p_l[0][n_points] = p_r[0][n_points] = x_p;
 			p[1][n_points] = p_l[1][n_points] = p_r[1][n_points] = y_p;
 			p_layer[n_points] = layer_id;
-			p_width[n_points] = (0 == n_points ? last_radius : p_width[n_points -1]); // either 1.0 or the same as the last point
+			p_width[n_points] = (0 == n_points ? Pipe.getFirstWidth() : p_width[n_points -1]); // either 1.0 or the same as the last point
 			index = n_points;
 		} else if (-1 == index) {
 			// decide whether to append at the end or prepend at the beginning
@@ -697,7 +705,11 @@ public class Pipe extends ZDisplayable {
 					index = index_r = index_l = -1;
 					repaint(false);
 					return;
-				} else if (me.isAltDown()) {
+				}
+				// Make the radius for newly added balls that of the last selected 
+				last_radius = p_width[index];
+				//
+				if (me.isAltDown()) {
 					resetControlPoints(index);
 					return;
 				}
