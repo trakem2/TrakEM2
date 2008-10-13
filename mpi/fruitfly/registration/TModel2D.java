@@ -9,12 +9,10 @@ import java.util.List;
 import java.util.Random;
 import java.awt.geom.AffineTransform;
 
-public class TModel2D extends Model {
+public class TModel2D extends AffineModel2D {
 
-	static final public int MIN_SET_SIZE = 1;
-
-	final private AffineTransform affine = new AffineTransform();
-	public AffineTransform getAffine() { return affine; }
+	static final private int MIN_SET_SIZE = 1;
+	public int getMIN_SET_SIZE(){ return MIN_SET_SIZE; }
 	
 	@Override
 	public float[] apply( float[] point )
@@ -56,7 +54,7 @@ public class TModel2D extends Model {
 	}
 	
 	@Override
-	public boolean fit( PointMatch[] min_matches )
+	public boolean fitMinimalSet( PointMatch[] min_matches )
 	{
 		PointMatch m1 = min_matches[ 0 ];
 		
@@ -78,7 +76,7 @@ public class TModel2D extends Model {
 		return ( "[3,3](" + affine + ") " + error );
 	}
 
-	public void minimize( Collection< PointMatch > matches )
+	public void fit( Collection< PointMatch > matches )
 	{
 		// center of mass:
 		float xo1 = 0, yo1 = 0;
@@ -143,127 +141,6 @@ public class TModel2D extends Model {
 		affine.translate(
 				rnd.nextGaussian() * ( float )xd * scale,
 				rnd.nextGaussian() * ( float )yd );
-	}
-
-	/**
-	 * estimate the transformation model for a set of feature correspondences
-	 * containing a high number of outliers using RANSAC
-	 */
-	static public TModel2D estimateModel(
-			List< PointMatch > candidates,
-			Collection< PointMatch > inliers,
-			int iterations,
-			float epsilon,
-			float min_inliers )
-	{
-		inliers.clear();
-		
-		if ( candidates.size() < MIN_SET_SIZE )
-		{
-			System.err.println( candidates.size() + " correspondences are not enough to estimate a model, at least " + MIN_SET_SIZE + " correspondences required." );
-			return null;
-		}
-		
-		TModel2D model = new TModel2D();		//!< the final model to be estimated
-		
-		int i = 0;
-		while ( i < iterations )
-		{
-			PointMatch[] min_matches = new PointMatch[ MIN_SET_SIZE ];
-			
-			min_matches[ 0 ] = candidates.get( ( int )( rnd.nextDouble() * candidates.size() ) );
-
-			TModel2D m = new TModel2D();
-			final ArrayList< PointMatch > temp_inliers = new ArrayList< PointMatch >();
-			m.fit( min_matches );
-			int num_inliers = 0;
-			boolean is_good = m.test( candidates, temp_inliers, epsilon, min_inliers );
-			while ( is_good && num_inliers < temp_inliers.size() )
-			{
-				num_inliers = temp_inliers.size();
-				m.minimize( temp_inliers );
-				is_good = m.test( candidates, temp_inliers, epsilon, min_inliers );
-			}
-			if (
-					is_good &&
-					m.betterThan( model ) &&
-					temp_inliers.size() >= 3 * MIN_SET_SIZE ) // now at least 3 matches required
-			{
-				model = m.clone();
-				inliers.clear();
-				inliers.addAll( temp_inliers );
-			}
-			++i;
-		}
-		if ( inliers.size() == 0 )
-			return null;
-
-		return model;
-	}
-	
-	/**
-	 * estimate the transformation model for a set of feature correspondences
-	 * containing a high number of outliers using RANSAC
-	 * 
-	 * increase the error as long as not more inliers occur 
-	 */
-	static public TModel2D estimateBestModel(
-			List< PointMatch > candidates,
-			Collection< PointMatch > inliers,
-			float min_epsilon,
-			float max_epsilon,
-			float min_inlier_ratio )
-	{
-		inliers.clear();
-		TModel2D model = null;
-		float epsilon = 0.0f;
-		if ( candidates.size() > MIN_SET_SIZE )
-		{
-			int highest_num_inliers = 0;
-			int convergence_count = 0;
-			TModel2D m = null;
-			do
-			{
-				final ArrayList< PointMatch > temp_inliers = new ArrayList< PointMatch >();
-				epsilon += min_epsilon;
-				// 1000 iterations lead to a probability of < 0.01% that only bad data values were found
-				m = estimateModel(
-						candidates,					//!< point correspondence candidates
-						temp_inliers,
-						1000,						//!< iterations
-						epsilon,					//!< maximal alignment error for a good point pair when fitting the model
-						min_inlier_ratio );			//!< minimal partition (of 1.0) of inliers
-						
-				if ( m != null )
-				{
-					int num_inliers = temp_inliers.size();
-					if ( num_inliers <= highest_num_inliers )
-					{
-						++convergence_count;
-					}
-					else
-					{
-						model = m.clone();
-						inliers.clear();
-						inliers.addAll( temp_inliers );
-						convergence_count = 0;
-						highest_num_inliers = num_inliers;
-					}
-				}
-			}
-			while ( ( m == null || convergence_count < 4 ) && epsilon < max_epsilon );
-		}
-		if ( model == null )
-		{
-			Utils.log2( "No sufficient model found, keeping original transformation." );
-		}
-		else
-		{
-			Utils.log2( "Model with epsilon <= " + epsilon + " for " + inliers.size() + " inliers found." );
-			Utils.log2( "  Affine transform: " + model.getAffine().toString() );
-		}
-				
-		return model;
 	}
 
 	public TModel2D clone()

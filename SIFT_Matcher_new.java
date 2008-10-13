@@ -1,5 +1,3 @@
-//package mpi.fruitfly.registration;
-
 import mpi.fruitfly.general.*;
 import mpi.fruitfly.math.datastructures.*;
 import mpi.fruitfly.registration.FloatArray2DScaleOctave;
@@ -8,6 +6,7 @@ import mpi.fruitfly.registration.TRModel2D;
 import mpi.fruitfly.registration.PointMatch;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.registration.Feature;
+import mpi.fruitfly.registration.RANSAC;
 
 import imagescience.transforms.*;
 import imagescience.images.Image;
@@ -28,7 +27,68 @@ import java.awt.event.KeyListener;
 
 import java.io.*;
 
-
+/**
+ * Align a stack consecutively using automatically extracted robust landmark
+ * correspondences.
+ * 
+ * The plugin uses the Scale Invariant Feature Transform (SIFT) by David Lowe
+ * \cite{Lowe04} and the Random Sample Consensus (RANSAC) by Fishler and Bolles
+ * \citet{FischlerB81} to identify landmark correspondences.
+ * 
+ * It identifies a rigid transformation for the second of two slices that maps
+ * the correspondences of the second optimally to those of the first.
+ * 
+ * BibTeX:
+ * <pre>
+ * &#64;article{Lowe04,
+ *   author    = {David G. Lowe},
+ *   title     = {Distinctive Image Features from Scale-Invariant Keypoints},
+ *   journal   = {International Journal of Computer Vision},
+ *   year      = {2004},
+ *   volume    = {60},
+ *   number    = {2},
+ *   pages     = {91--110},
+ * }
+ * &#64;article{FischlerB81,
+ *	 author    = {Martin A. Fischler and Robert C. Bolles},
+ *   title     = {Random sample consensus: a paradigm for model fitting with applications to image analysis and automated cartography},
+ *   journal   = {Communications of the ACM},
+ *   volume    = {24},
+ *   number    = {6},
+ *   year      = {1981},
+ *   pages     = {381--395},
+ *   publisher = {ACM Press},
+ *   address   = {New York, NY, USA},
+ *   issn      = {0001-0782},
+ *   doi       = {http://doi.acm.org/10.1145/358669.358692},
+ * }
+ * </pre>
+ * 
+ * License: GPL
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License 2
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * 
+ * NOTE:
+ * The SIFT-method is protected by U.S. Patent 6,711,293: "Method and
+ * apparatus for identifying scale invariant features in an image and use of
+ * same for locating an object in an image" by the University of British
+ * Columbia.  That is, for commercial applications the permission of the author
+ * is required.
+ *
+ * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @version 0.1b
+ */
 public class SIFT_Matcher_new implements PlugIn, KeyListener
 {
 	private static final String[] schemes = {
@@ -338,15 +398,15 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 
 			Vector< PointMatch > inliers = new Vector< PointMatch >();
 			
-			TRModel2D model = TRModel2D.estimateBestModel(
+			TRModel2D model = new TRModel2D();
+			if ( RANSAC.runForBest(
+					model,
 					candidates,
 					inliers,
+					1000,
 					min_epsilon,
 					max_epsilon,
-					min_inlier_ratio );
-			float epsilon = 0.0f;
-			
-			if ( model != null )
+					min_inlier_ratio ) )
 			{
 				if ( show_info )
 				{
@@ -363,7 +423,7 @@ public class SIFT_Matcher_new implements PlugIn, KeyListener
 						ip3.drawDot( ( int )Math.round( vis_scale / scale * m_p1[ 0 ] ), ( int )Math.round( vis_scale / scale * m_p1[ 1 ] ) );
 					}
 				}
-
+				
 				/**
 				 * append the estimated transformation model
 				 * 
