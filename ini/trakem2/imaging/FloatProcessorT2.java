@@ -29,13 +29,17 @@ public class FloatProcessorT2 extends FloatProcessor {
 	}
 
 	/** Set pixels and change image dimensions if width and height are different than the current. */
-	public void setPixels(final int width, final int height, final float[] pixels) {
+	public final void setPixels(final int width, final int height, final float[] pixels) {
 		this.width = width;
 		this.height = height;
+		this.roiX = 0;
+		this.roiY = 0;
+		this.roiWidth = width;
+		this.roiHeight = height;
 		super.setPixels(pixels);
 	}
 
-	public void resizeInPlace(final int w, final int h) {
+	public final void resizeInPlace(final int w, final int h) {
 		this.setPixels(w, h, (float[])super.resize(w, h).getPixels());
 	}
 
@@ -93,5 +97,5 @@ public class FloatProcessorT2 extends FloatProcessor {
 		super.findMinAndMax();
 	}
 
-	public float[] getFloatPixels() { return (float[])getPixels(); } // I luv pointlessly private fields
+	public final float[] getFloatPixels() { return (float[])getPixels(); } // I luv pointlessly private fields
 }

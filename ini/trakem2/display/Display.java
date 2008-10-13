@@ -553,9 +553,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		TransparencySliderListener tsl = new TransparencySliderListener();
 		this.transp_slider.addChangeListener(tsl);
 		this.transp_slider.addMouseListener(tsl);
-		KeyListener[] kl = this.transp_slider.getKeyListeners();
-		for (int i=0; i<kl.length; i++) {
-			this.transp_slider.removeKeyListener(kl[i]);
+		for (KeyListener kl : this.transp_slider.getKeyListeners()) {
+			this.transp_slider.removeKeyListener(kl);
 		}
 
 		// Tabbed pane on the left
@@ -969,7 +968,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	/** Context-sensitive: to a Displayable, or to a channel. */
-	private void setTransparency(float value) {
+	private void setTransparency(final float value) {
 		JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
 		if (scroll == scroll_channels) {
 			for (int i=0; i<4; i++) {
@@ -979,12 +978,16 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				}
 			}
 		} else if (null != active) {
-			canvas.invalidateVolatile();
-			active.setAlpha(value);
+			if (value != active.getAlpha()) { // because there's a callback from setActive that would then affect all other selected Displayable without having dragged the slider, i.e. just by being selected.
+				canvas.invalidateVolatile();
+				for (Displayable displ : selection.getSelected()) {
+					displ.setAlpha(value);
+				}
+			}
 		}
 	}
 
-	public void setTransparencySlider(float transp) {
+	public void setTransparencySlider(final float transp) {
 		if (transp >= 0.0f && transp <= 1.0f) {
 			// fire event
 			transp_slider.setValue((int)(transp * 100));
@@ -3273,6 +3276,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		Display display = front;
 		if (null == display || display.layer.getParent() != layer.getParent()) {
 			display = new Display(layer.getProject(), layer, null); // gets set to front
+		} else {
+			display.setLayer(layer);
 		}
 	}
 

@@ -228,6 +228,7 @@ public class Compare {
 		gd.addCheckbox("Substring matching", false);
 		gd.addCheckbox("Direct (no reverse matches)", true);
 		gd.addNumericField("Point interdistance (calibrated; zero means auto): ", 0, 2);
+		gd.addChoice("Sort by: ", distance_types, distance_types[3]);
 
 		//////
 
@@ -270,13 +271,14 @@ public class Compare {
 			Utils.log("Nonsense delta: " + delta);
 			return null;
 		}
+		final int distance_type = gd.getNextChoiceIndex();
 
 		// check that the Calibration units are the same
 		if (!matchUnits(pipe.getLayerSet().getCalibration().getUnit(), all[iproject].getRootLayerSet().getCalibration().getUnit(), all[iproject].getTitle())) {
 			return null;
 		}
 
-		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true, score_mut, substring_matching, direct, delta);
+		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true, score_mut, substring_matching, direct, delta, distance_type);
 	}
 
 	static private int[] findXYZAxes(final String[] presets, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
@@ -321,7 +323,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut, final boolean substring_matching, final boolean direct, final double delta) {
+	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut, final boolean substring_matching, final boolean direct, final double delta, final int sort_by_distance_type) {
 		Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
@@ -460,7 +462,7 @@ public class Compare {
 		if (show_gui) {
 			// add to the GUI (will sort them by phys_dist)
 			qh.addMatches(qm);
-			qh.sortMatches(new ChainMatchComparator());
+			qh.sortMatches(new ChainMatchComparator(sort_by_distance_type));
 			qh.createGUI(vs_axes, vs_axes_ref);
 		}
 
@@ -892,6 +894,11 @@ public class Compare {
 	}
 
 	static private class ChainMatchComparator implements Comparator {
+		/** Sort by the given distance type. */
+		final int distance_type;
+		ChainMatchComparator(final int distance_type) {
+			this.distance_type = distance_type;
+		}
 		public int compare(final Object ob1, final Object ob2) {
 			ChainMatch cm1 = (ChainMatch)ob1;
 			ChainMatch cm2 = (ChainMatch)ob2;
@@ -905,10 +912,42 @@ public class Compare {
 			*/
 
 			// Select the largest score
-			final double val = cm1.score - cm2.score;
+			//
+			double val = 0;
+
+			switch (distance_type) {
+				case COMBINED:
+					val = cm2.score - cm1.score;
+					break;
+				case LEVENSHTEIN: // Levenshtein
+					val = cm2.ed.getDistance() - cm1.ed.getDistance();
+					break;
+				case DISSIMILARITY: // Dissimilarity
+					val = cm1.seq_sim - cm2.seq_sim; // INVERTED ORDER because each would need an inversion: 1 - cmX.seq_sim
+					break;
+				case AVG_PHYS_DIST: // average physical distance between mutation pairs only
+					val = cm2.phys_dist - cm1.phys_dist;
+					break;
+				case MEDIAN_PHYS_DIST: // median physical distance between all pairs
+					val = cm2.median - cm1.median;
+					break;
+				case CUM_PHYST_DIST: // cummulative physical distance between all pairs
+					val = cm2.cum_phys_dist - cm1.cum_phys_dist;
+					break;
+				case STD_DEV: // stdDev of distances between mutation pairs only
+					val = cm2.stdDev - cm1.stdDev;
+					break;
+				case PROXIMITY: // cummulative distance relative to largest physical length of the two sequences
+					val = cm2.proximity - cm1.proximity;
+					break;
+				case PROXIMITY_MUT: // cummulative distance of mutation pairs relative to largest physical length of the two sequences
+					val = cm2.proximity_mut - cm1.proximity_mut;
+					break;
+			}
+
 			if (val > 0) return -1;
 			if (val < 0) return 1;
-			return 0; // same distance
+			return 0; // same
 		}
 	}
 	static private class ChainMatchComparatorSim implements Comparator {
@@ -1102,6 +1141,8 @@ public class Compare {
 	static public final int PROXIMITY = 7;
 	static public final int PROXIMITY_MUT = 8;
 	static public final int STD_DEV_ALL = 9;
+
+	static private final String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs"};
 
 	// Weights as empirically approximated with some lineages, with S. Preibisch ( see Test_Scoring.java )
 	static public final double[] W = new double[]{1.3345290383577453, -0.0012626693452889859, -0.012764729437173508, -0.13344076489951817};
@@ -1335,7 +1376,7 @@ public class Compare {
 			// Now, sort matches by physical distance.
 			qh.addMatches(qm);
 			qh.relative = ignore_orientation;
-			qh.sortMatches(ignore_orientation ? new ChainMatchComparatorSim() : new ChainMatchComparator());
+			qh.sortMatches(ignore_orientation ? new ChainMatchComparatorSim() : new ChainMatchComparator(MEDIAN_PHYS_DIST));
 			qh.createGUI(null, null);
 		}
 
@@ -1528,8 +1569,8 @@ public class Compare {
 				case 2: return "Score";
 				case 3: return "Seq Sim"; // sequence similarity
 				case 4: return "Lev Dist";
-				case 5: return null != qh.cal2 ? "Dist (" + qh.cal2.getUnits() + ")" : "Dist";
-				case 6: return "Median";
+				case 5: return null != qh.cal2 ? "Median (" + qh.cal2.getUnits() + ")" : "Median";
+				case 6: return null != qh.cal2 ? "Avg Dist (" + qh.cal2.getUnits() + ")" : "Avg Dist";
 				case 7: return null != qh.cal2 ? "Cum Dist (" + qh.cal2.getUnits() + ")" : "Cum Dist";
 				case 8: return "Std Dev";
 				case 9: return "Prop Mut";
@@ -1547,9 +1588,9 @@ public class Compare {
 				case 1: return cm.get(row).ref.getCellTitle();
 				case 2: return Utils.cutNumber(cm.get(row).score, 2); // combined score
 				case 3: return Utils.cutNumber(cm.get(row).seq_sim * 100, 2) + " %"; // 1 - seq_sim, to convert from dissimilarity to similarity
-				case 4: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2);
-				case 5: return Utils.cutNumber(cm.get(row).phys_dist, 2);
-				case 6: return Utils.cutNumber(cm.get(row).median, 2);
+				case 4: return Utils.cutNumber(cm.get(row).ed.getDistance(), 2); // Levenhtein
+				case 5: return Utils.cutNumber(cm.get(row).median, 2);
+				case 6: return Utils.cutNumber(cm.get(row).phys_dist, 2); // average
 				case 7: return Utils.cutNumber(cm.get(row).cum_phys_dist, 2);
 				case 8: return Utils.cutNumber(cm.get(row).stdDev, 2);
 				case 9: return Utils.cutNumber(cm.get(row).prop_mut * 100, 2) + " %"; // the proportion of mutations, relative to the query sequence length
@@ -1639,7 +1680,6 @@ public class Compare {
 		}
 	}
 
-
 	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
 	 *
 	 * @param to_file Whether to save the results to a file and popup a save dialog for it or not. In any case the results are stored in the worker's load, which you can retrieve like:
@@ -1670,7 +1710,6 @@ public class Compare {
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
 		gd.addChoice("Presets: ", preset_names, preset_names[0]);
 		gd.addMessage("");
-		String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs"};
 		gd.addChoice("Scoring type: ", distance_types, distance_types[3]);
 		final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
 		if (to_file) {
