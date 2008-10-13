@@ -47,6 +47,7 @@ import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.image.ColorModel;
+import java.awt.event.MouseEvent;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -228,7 +229,7 @@ public class Selection {
 			this.x = x;
 			this.y = y;
 		}
-		abstract void drag(int dx, int dy);
+		abstract void drag(MouseEvent me, int dx, int dy);
 	}
 
 	private class BoxHandle extends Handle {
@@ -240,7 +241,7 @@ public class Selection {
 			final int y = (int)((this.y - srcRect.y)*mag);
 			DisplayCanvas.drawHandle(g, x, y, 1.0); // ignoring magnification for the sizes, since Selection is painted differently
 		}
-		public void drag(int dx, int dy) {
+		public void drag(MouseEvent me, int dx, int dy) {
 			Rectangle box_old = (Rectangle)box.clone();
 			//Utils.log2("dx,dy: " + dx + "," + dy + " before mod");
 			double res = dx / 2.0;
@@ -326,7 +327,7 @@ public class Selection {
 		}
 	}
 
-	private final double rotate() {
+	private final double rotate(MouseEvent me) {
 		// center of rotation is the floater
 		double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
 		//double sin = Math.sqrt(1 - cos*cos);
@@ -336,6 +337,21 @@ public class Selection {
 		// cross-product:
 		// a = (3,0,0) and b = (0,2,0)
 		// a x b = (3,0,0) x (0,2,0) = ((0 x 0 - 2 x 0), -(3 x 0 - 0 x 0), (3 x 2 - 0 x 0)) = (0,0,6).
+
+		if (me.isControlDown()) {
+			delta = Math.toDegrees(delta);
+			if (me.isShiftDown()) {
+				// 1 degree angle increments
+				delta = (int)(delta + 0.5);
+			} else {
+				// 10 degrees angle increments: snap to closest
+				delta = (int)((delta + 5.5 * (delta < 0 ? -1 : 1)) / 10) * 10;
+			}
+			Utils.showStatus("Angle: " + delta + " degrees");
+			delta = Math.toRadians(delta);
+
+			// TODO: the angle above is just the last increment on mouse drag, not the total amount of angle accumulated since starting this mousePressed-mouseDragged-mouseReleased cycle, neither the actual angle of the selected elements. So we need to store the accumulated angle and diff from it to do the above roundings.
+		}
 
 		if (Double.isNaN(delta)) {
 			Utils.log2("Selection rotation handle: ignoring NaN angle");
@@ -392,12 +408,12 @@ public class Selection {
 			 && y - radius <= y_p && y + radius >= y_p) return true;
 			return false;
 		}
-		public void drag(int dx, int dy) {
+		public void drag(MouseEvent me, int dx, int dy) {
 			/// Bad design, I know, I'm ignoring the dx,dy
 			// how:
 			// center is the floater
 
-			rotate();
+			rotate(me);
 		}
 	}
 
@@ -420,7 +436,7 @@ public class Selection {
 			b.height = this.y + 31;
 			return b;
 		}
-		public void drag(int dx, int dy) {
+		public void drag(MouseEvent me, int dx, int dy) {
 			this.x += dx;
 			this.y += dy;
 			RO.x = this.x;
@@ -798,7 +814,7 @@ public class Selection {
 			dragging = true;
 		}
 	}
-	public void mouseDragged(int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		this.x_d = x_d;
 		this.y_d = y_d;
 		this.x_d_old = x_d_old;
@@ -807,7 +823,7 @@ public class Selection {
 		int dy = y_d - y_d_old;
 		if (null != grabbed) {
 			// drag the handle and perform whatever task it has assigned
-			grabbed.drag(dx, dy);
+			grabbed.drag(me, dx, dy);
 		} else if (dragging) {
 			// drag all selected and linked
 			for (Displayable d : hs) d.translate(dx, dy, false); // false because the linked ones are already included in the HashSet

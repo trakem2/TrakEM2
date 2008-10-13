@@ -816,7 +816,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				Rectangle box2;
 				switch (tool) {
 				case ProjectToolbar.SELECT:
-					selection.mouseDragged(x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+					selection.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 					box2 = selection.getLinkedBox();
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
