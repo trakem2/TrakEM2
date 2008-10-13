@@ -22,28 +22,29 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.imaging;
 
-import static mpi.fruitfly.math.General.*;
-import mpi.fruitfly.general.ImageArrayConverter;
+//import static mpi.fruitfly.math.General.*;
+//import mpi.fruitfly.general.ImageArrayConverter;
 import mpi.fruitfly.general.MultiThreading;
 
 //////
-import mpi.fruitfly.math.datastructures.FloatArray2D;
-import mpi.fruitfly.registration.FloatArray2DSIFT;
-import mpi.fruitfly.registration.Feature;
-import mpi.fruitfly.registration.PointMatch;
+//import mpi.fruitfly.math.datastructures.FloatArray2D;
+//import mpi.fruitfly.registration.FloatArray2DSIFT;
+//import mpi.fruitfly.registration.Feature;
+//import mpi.fruitfly.registration.PointMatch;
 /////
 
-import mpi.fruitfly.registration.ImageFilter;
+//import mpi.fruitfly.registration.ImageFilter;
 
 //////
-import mpi.fruitfly.registration.Tile;
-import mpi.fruitfly.registration.Model;
-import mpi.fruitfly.registration.TModel2D;
-import mpi.fruitfly.registration.TRModel2D;
+//import mpi.fruitfly.registration.Tile;
+//import mpi.fruitfly.registration.Model;
+//import mpi.fruitfly.registration.TModel2D;
+//import mpi.fruitfly.registration.TRModel2D;
 //////
+import mpicbg.models.*;
+import mpicbg.imagefeatures.*;
 
-
-import mpi.fruitfly.analysis.FitLine;
+//import mpi.fruitfly.analysis.FitLine;
 
 /* // New package, with AffineModel2D
 import mpicbg.imagefeatures.Feature;
@@ -112,6 +113,8 @@ SIFT consumes plenty of memory:
 </pre>
  * */
 public class Registration {
+	
+	static private float rod = 0.92f;
 
 	static public final int GLOBAL_MINIMIZATION = 0;
 	static public final int LAYER_SIFT = 1;
@@ -434,34 +437,42 @@ public class Registration {
 		ip2 = null;
 		//Loader.runGCAll();
 		// compare in the order that image2 should be moved relative to imag1
-		final Vector< PointMatch > candidates = FloatArray2DSIFT.createMatches( fs2, fs1, 1.5f, null, Float.MAX_VALUE );
+		final Vector< PointMatch > candidates = FloatArray2DSIFT.createMatches( fs2, fs1, 1.5f, null, Float.MAX_VALUE, rod );
 		
 		final Vector< PointMatch > inliers = new Vector< PointMatch >();
 
-		Model model;
+		AbstractAffineModel2D< ? > model;
+		
 		if (1 == sp.dimension) {
 			// translation and rotation
-			model = TRModel2D.estimateBestModel(
-				candidates,
-				inliers,
-				sp.min_epsilon,
-				sp.max_epsilon,
-				sp.min_inlier_ratio );
+			model = new RigidModel2D();
 		} else {
 			// translation only
-			model = TModel2D.estimateBestModel(
-				candidates,
-				inliers,
-				sp.min_epsilon,
-				sp.max_epsilon,
-				sp.min_inlier_ratio );
+			model = new TranslationModel2D();
+		}
+		
+		boolean modelFound = false;
+		try
+		{
+			modelFound = model.filterRansac(
+					candidates,
+					inliers,
+					1000,
+					sp.max_epsilon,
+					sp.min_inlier_ratio );
+		}
+		catch ( NotEnoughDataPointsException ex )
+		{
+			modelFound = false;
 		}
 
 		final AffineTransform at = new AffineTransform();
 
-		if (model != null) {
+		if ( modelFound && inliers.size() >= sp.min_num_inliers )
+		{
+			Utils.log( inliers.size() + " inliers for model.cost <= " + model.getCost() );
 			// debug
-			Utils.log2( "inliers: " + inliers.size() + "  corresp: " + candidates.size());
+			//Utils.log2( "inliers: " + inliers.size() + "  corresp: " + candidates.size());
 			// images may have different sizes
 			/**
 			 * TODO Different sizes are no problem as long as the top left
@@ -490,10 +501,10 @@ public class Registration {
 	final static public Vector<Feature> getSIFTFeatures(ImageProcessor ip, final Registration.SIFTParameters sp) {
 		FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(Utils.fastConvertToFloat(ip)); //ip.convertToFloat());
 		ip = null; // enable GC
-		ImageFilter.enhance( fa, 1.0f ); // done in place
-		fa = ImageFilter.computeGaussianFastMirror(
-				fa,
-				(float)Math.sqrt(sp.initial_sigma * sp.initial_sigma - 0.25));
+		Filter.enhance( fa, 1.0f ); // done in place
+		float[] initialGaussianKernel = Filter.createGaussianKernel( ( float )Math.sqrt( sp.initial_sigma * sp.initial_sigma - 0.25 ), true );
+		fa = Filter.convolveSeparable( fa, initialGaussianKernel, initialGaussianKernel );
+		
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT(sp.fdsize, sp.fdbins);
 		sift.init(fa, sp.steps, sp.initial_sigma, sp.min_size, sp.max_size);
 		fa = null; // enableGC
@@ -674,15 +685,13 @@ public class Registration {
 		public int min_size = 64;
 		public int max_size = 1024;
 		/** Maximal initial drift of landmark relative to its matching landmark in the other image, to consider when searching.  Also used as increment for epsilon when there was no sufficient model found.*/
-		public float min_epsilon = 2.0f;
 		public float max_epsilon = 100.0f;
 		/** Minimal percent of good landmarks found */
 		public float min_inlier_ratio = 0.05f;
+		public int min_num_inliers = 12;
 
 		/** A message to show within the dialog, at the top, for information purposes. */
 		public String msg = null;
-		/** Minimal allowed alignment error in px (across sections) */
-		public float cs_min_epsilon = 1.0f;
 		/** Maximal allowed alignment error in px (across sections) */
 		public float cs_max_epsilon = 50.0f;
 		/** 0 means only translation, 1 means both translation and rotation. */
@@ -714,7 +723,6 @@ public class Registration {
 				   .append("\tfeature descriptor orientation bins: ").append(fdbins).append('\n')
 				   .append("\tminimum image size: ").append(min_size).append('\n')
 				   .append("\tmaximum image size: ").append(max_size).append('\n')
-				   .append("\tminimal alignment error: ").append(min_epsilon).append('\n')
 				   .append("\tmaximal alignment error: ").append(max_epsilon).append('\n')
 				   .append("\tminimal inlier ratio: ").append(min_inlier_ratio)
 				   .toString());
@@ -730,10 +738,8 @@ public class Registration {
 			gd.addNumericField("feature_descriptor_orientation_bins :", fdbins, 0);
 			gd.addNumericField("minimum_image_size :", min_size, 0);
 			gd.addNumericField("maximum_image_size :", max_size, 0);
-			gd.addNumericField("minimal_alignment_error :", min_epsilon, 2);
 			gd.addNumericField("maximal_alignment_error :", max_epsilon, 2);
 			if (cross_layer) {
-				gd.addNumericField("cs_min_epsilon :", cs_min_epsilon, 2);
 				gd.addNumericField("cs_max_epsilon :", cs_max_epsilon, 2);
 			}
 			gd.addNumericField("minimal_inlier_ratio :", min_inlier_ratio, 2);
@@ -749,10 +755,8 @@ public class Registration {
 			this.fdbins = (int)gd.getNextNumber();
 			this.min_size = (int)gd.getNextNumber();
 			this.max_size = (int)gd.getNextNumber();
-			this.min_epsilon = (float)gd.getNextNumber();
 			this.max_epsilon = (float)gd.getNextNumber();
 			if (cross_layer) {
-				this.cs_min_epsilon = (float)gd.getNextNumber();
 				this.cs_max_epsilon = (float)gd.getNextNumber();
 			}
 			this.min_inlier_ratio = (float)gd.getNextNumber();
@@ -840,9 +844,6 @@ public class Registration {
 
 		final LayerSet set = layer[0].getParent();
 
-		final String[] dimensions = { "translation", "translation and rotation" };
-		int dimension_ = 1;
-
 		// Parameters for tile-to-tile registration
 		final SIFTParameters sp = new SIFTParameters(set.getProject(), "Options for tile-to-tile registration", false);
 		sp.steps = 3;
@@ -851,15 +852,13 @@ public class Registration {
 		sp.fdbins = 8;
 		sp.min_size = 64;
 		sp.max_size = max_size;
-		sp.min_epsilon = 1.0f;
 		sp.max_epsilon = 10.0f;
-		sp.cs_min_epsilon = 1.0f;
 		sp.cs_max_epsilon = 50.0f;
 		sp.min_inlier_ratio = 0.05f;
 		sp.scale = scale;
 		sp.tiles_prealigned = overlapping_only;
 
-		boolean global_optimization = false;
+		boolean disableGlobalOptimization = false;
 
 		final Registration.SIFTParameters sp_gross_interlayer = new Registration.SIFTParameters(set.getProject(), "Options for coarse layer registration", true);
 
@@ -869,7 +868,7 @@ public class Registration {
 			gds.addNumericField("maximum_image_size :", sp.max_size, 0);
 			gds.addNumericField("maximal_alignment_error :", sp.max_epsilon, 2);
 			gds.addCheckbox("Layers_are_roughly_prealigned", sp.tiles_prealigned);
-			gds.addCheckbox("Disable global optimization", global_optimization);
+			gds.addCheckbox("Disable global optimization", disableGlobalOptimization);
 			gds.addCheckbox("Advanced setup", false);
 			gds.showDialog();
 			if (gds.wasCanceled()) {
@@ -879,7 +878,7 @@ public class Registration {
 			sp.max_size = (int)gds.getNextNumber();
 			sp.max_epsilon = (float)gds.getNextNumber();
 			sp.tiles_prealigned = gds.getNextBoolean();
-			global_optimization = gds.getNextBoolean();
+			disableGlobalOptimization = gds.getNextBoolean();
 			boolean advanced_setup = gds.getNextBoolean();
 
 			// 2 - Optional advanced setup
@@ -914,14 +913,14 @@ public class Registration {
 
 
 		final ArrayList< Patch > patches1 = new ArrayList< Patch >();
-		final ArrayList< Tile > tiles1 = new ArrayList< Tile >();
+		final ArrayList< Tile< ? > > tiles1 = new ArrayList< Tile< ? > >();
 		final ArrayList< Patch > patches2 = new ArrayList< Patch >();
-		final ArrayList< Tile > tiles2 = new ArrayList< Tile >();
+		final ArrayList< Tile< ? > > tiles2 = new ArrayList< Tile< ? > >();
 
-		final ArrayList< Tile > all_tiles = new ArrayList< Tile >();
+		final ArrayList< Tile< ? > > all_tiles = new ArrayList< Tile< ? > >();
 		final ArrayList< Patch > all_patches = new ArrayList< Patch >();
 
-		final ArrayList< Tile > fixed_tiles = new ArrayList< Tile >();
+		final ArrayList< Tile< ? > > fixed_tiles = new ArrayList< Tile< ? > >();
 
 		Layer previous_layer = null;
 
@@ -942,7 +941,7 @@ public class Registration {
 		for ( Layer layer : layers )
 		{
 			if (hasQuitted()) return;
-			final ArrayList< Tile > layer_fixed_tiles = new ArrayList< Tile >();
+			final ArrayList< Tile< ? > > layer_fixed_tiles = new ArrayList< Tile< ? > >();
 
 			Utils.log( "Registering layer " + ( set.indexOf( layer ) + 1 ) + " of " + set.size() );
 
@@ -978,7 +977,7 @@ public class Registration {
 			//  (multi threaded version)
 			// "generic array creation" error ? //fsets2 = new Vector<Feature>[ patches2.size() ];
 			fsets2 = (Vector<Feature>[])new Vector[ patches2.size() ];
-			final Tile[] tls = new Tile[ fsets2.length ];
+			final Tile< ? >[] tls = new Tile[ fsets2.length ];
 			Registration.generateTilesAndFeatures(patches2, tls, fsets2, sp, storage_folder, worker);
 
 			if (hasQuitted()) return;
@@ -996,7 +995,7 @@ public class Registration {
 			Registration.connectTiles(patches2, tiles2, /*featureSets2*/ fsets2, sp, storage_folder, worker);
 
 			// identify connected graphs
-			ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( tiles2 );
+			ArrayList< Set< Tile< ? > > > graphs = Tile.identifyConnectedGraphs( tiles2 );
 			Utils.log2( graphs.size() + " graphs detected." );
 
 			if (largest_graph_only) {
@@ -1004,8 +1003,8 @@ public class Registration {
 				// remove graphs other than the largest, and remove tiles from tiles2 as well
 				if (1 != graphs.size()) {
 					int len = 0;
-					ArrayList<Tile> largest = null;
-					for (ArrayList<Tile> graph : graphs) {
+					Set< Tile< ? > > largest = null;
+					for ( Set< Tile< ? > > graph : graphs) {
 						if (graph.size() > len) {
 							len = graph.size();
 							largest = graph;
@@ -1014,9 +1013,9 @@ public class Registration {
 					// remove all tiles from tiles2 except those that belong to the largest graph
 					//tiles2.retainAll(largest); // all other tiles are removed
 					// Can't ... patches2 would not be in synch, so:
-					graphs.remove(largest);
-					for (ArrayList<Tile> graph : graphs) {
-						for (Tile tile : graph) {
+					graphs.remove( largest );
+					for ( Set< Tile< ? > > graph : graphs) {
+						for (Tile< ? > tile : graph) {
 							int index = tiles2.indexOf(tile);
 							other_patches.add(patches2.remove(index));
 							tiles2.remove(index);
@@ -1164,12 +1163,15 @@ public class Registration {
 						layer_coords[ 1 ] = layer_coords[ 1 ] / sp_gross_interlayer.scale + layer_box.y;
 						
 						// find the tile whose center is closest to the points in previous_layer
-						Tile previous_layer_closest_tile = null;
+						Tile< ? > previous_layer_closest_tile = null;
 						float previous_layer_min_d = Float.MAX_VALUE;
-						for ( Tile tile : tiles1 )
+						for ( Tile< ? > tile : tiles1 )
 						{
+							final Patch patch = patches1.get( tiles1.indexOf( tile ) );
 							tile.update();
-							float[] tw = tile.getWC();
+							final float[] tw = new float[]{ ( float )patch.getWidth() / 2, ( float )patch.getHeight() / 2 };
+							tile.getModel().applyInPlace( tw );
+							
 							float dx = tw[ 0 ] - previous_layer_coords[ 0 ];
 							dx *= dx;
 							float dy = tw[ 1 ] - previous_layer_coords[ 1 ];
@@ -1188,12 +1190,15 @@ public class Registration {
 						
 						
 						// find the tile whose center is closest to the points in layer
-						Tile layer_closest_tile = null;
+						Tile< ? > layer_closest_tile = null;
 						float layer_min_d = Float.MAX_VALUE;
-						for ( Tile tile : tiles2 )
+						for ( Tile< ? > tile : tiles2 )
 						{
+							final Patch patch = patches2.get( tiles2.indexOf( tile ) );
 							tile.update();
-							float[] tw = tile.getWC();
+							final float[] tw = new float[]{ ( float )patch.getWidth() / 2, ( float )patch.getHeight() / 2 };
+							tile.getModel().applyInPlace( tw );
+							
 							float dx = tw[ 0 ] - layer_coords[ 0 ];
 							dx *= dx;
 							float dy = tw[ 1 ] - layer_coords[ 1 ];
@@ -1216,15 +1221,15 @@ public class Registration {
 //							Utils.log2( "world coordinates in layer: " + layer_coords[ 0 ] + ", " + layer_coords[ 1 ] );
 							
 							// transfer the world coordinates to local tile coordinates
-							previous_layer_closest_tile.getModel().applyInverseInPlace( previous_layer_coords );
-							layer_closest_tile.getModel().applyInverseInPlace( layer_coords );
+							( ( InvertibleModel< ? > )previous_layer_closest_tile.getModel() ).applyInverseInPlace( previous_layer_coords );
+							( ( InvertibleModel< ? > )layer_closest_tile.getModel() ).applyInverseInPlace( layer_coords );
 							
 //							Utils.log2( "local coordinates in previous layer: " + previous_layer_coords[ 0 ] + ", " + previous_layer_coords[ 1 ] );
 //							Utils.log2( "local coordinates in layer: " + layer_coords[ 0 ] + ", " + layer_coords[ 1 ] );
 							
 							// create PointMatch for both tiles
-							mpi.fruitfly.registration.Point previous_layer_point = new mpi.fruitfly.registration.Point( previous_layer_coords );
-							mpi.fruitfly.registration.Point layer_point = new mpi.fruitfly.registration.Point( layer_coords );
+							mpicbg.models.Point previous_layer_point = new mpicbg.models.Point( previous_layer_coords );
+							mpicbg.models.Point layer_point = new mpicbg.models.Point( layer_coords );
 							
 							previous_layer_closest_tile.addMatch(
 									new PointMatch(
@@ -1242,10 +1247,10 @@ public class Registration {
 						}
 					}
 					
-					TRModel2D model = new TRModel2D();
+					RigidModel2D model = new RigidModel2D();
 					model.getAffine().setTransform( at );
 					for ( Tile tile : tiles2 )
-						( ( TRModel2D )tile.getModel() ).preConcatenate( model );
+						( ( RigidModel2D )tile.getModel() ).preConcatenate( model );
 				
 					// repaint all Displays showing a Layer of the edited LayerSet
 					layer.recreateBuckets();
@@ -1264,7 +1269,7 @@ public class Registration {
 						worker);
 
 				// check the connectivity graphs
-				ArrayList< Tile > both_layer_tiles = new ArrayList< Tile >();
+				ArrayList< Tile< ? > > both_layer_tiles = new ArrayList< Tile< ? > >();
 				both_layer_tiles.addAll( tiles1 );
 				both_layer_tiles.addAll( tiles2 );
 				graphs = Tile.identifyConnectedGraphs( both_layer_tiles );
@@ -1303,7 +1308,7 @@ public class Registration {
 		 * of solutions.
 		 */
 		
-		ArrayList< ArrayList< Tile > > graphs = Tile.identifyConnectedGraphs( all_tiles );
+		ArrayList< Set< Tile< ? > > > graphs = Tile.identifyConnectedGraphs( all_tiles );
 		Utils.log2( graphs.size() + " global graphs detected." );
 		
 		fixed_tiles.clear();
@@ -1315,7 +1320,7 @@ public class Registration {
 
 		// global minimization
 		try {
-			if (global_optimization) {
+			if (!disableGlobalOptimization) {
 				Utils.log("Performing global minimization...");
 				Registration.minimizeAll( all_tiles, all_patches, fixed_tiles, set, sp.cs_max_epsilon, worker );
 				Utils.log("Done!");
@@ -1354,8 +1359,8 @@ public class Registration {
 	 * @param patches
 	 */
 	static private final void connectDisconnectedGraphs(
-			final List< ArrayList< Tile > > graphs,
-			final List< Tile > tiles,
+			final List< Set< Tile< ? > > > graphs,
+			final List< Tile< ? > > tiles,
 			final List< Patch > patches)
 	{
 		/**
@@ -1365,29 +1370,29 @@ public class Registration {
 		 */
 		Utils.log2( "Synthetically connecting graphs using the given alignment." );
 		
-		ArrayList< Tile > empty_tiles = new ArrayList< Tile >();
-		for ( ArrayList< Tile > graph : graphs )
+		ArrayList< Tile< ? > > empty_tiles = new ArrayList< Tile< ? > >();
+		for ( Set< Tile< ? > > graph : graphs )
 		{
 			if ( graph.size() == 1 )
 			{
 				/**
 				 *  This is a single unconnected tile.
 				 */
-				empty_tiles.add( graph.get( 0 ) );
+				empty_tiles.add( graph.iterator().next() );
 			}
 		}
-		for ( ArrayList< Tile > graph : graphs )
+		for ( Set< Tile< ? > > graph : graphs )
 		{
-			for ( Tile tile : graph )
+			for ( Tile< ? > tile : graph )
 			{
 				boolean is_empty = empty_tiles.contains( tile );
 				Patch patch = patches.get( tiles.indexOf( tile ) );
 				final Rectangle r = patch.getBoundingBox();
 				// check this patch against each patch of the other graphs
-				for ( ArrayList< Tile > other_graph : graphs )
+				for ( Set< Tile< ? > > other_graph : graphs )
 				{
 					if ( other_graph.equals( graph ) ) continue;
-					for ( Tile other_tile : other_graph )
+					for ( Tile< ? > other_tile : other_graph )
 					{
 						Patch other_patch = patches.get( tiles.indexOf( other_tile ) );
 						if ( patch.intersects( other_patch ) )
@@ -1407,13 +1412,13 @@ public class Registration {
 							Point2D.Double dcp2 = patch.inverseTransformPoint( xp2, yp2 );
 							Point2D.Double dp1 = other_patch.inverseTransformPoint( xp1, yp1 );
 							Point2D.Double dp2 = other_patch.inverseTransformPoint( xp2, yp2 );
-							mpi.fruitfly.registration.Point cp1 = new mpi.fruitfly.registration.Point(
+							mpicbg.models.Point cp1 = new mpicbg.models.Point(
 									new float[]{ ( float )dcp1.x, ( float )dcp1.y } );
-							mpi.fruitfly.registration.Point cp2 = new mpi.fruitfly.registration.Point(
+							mpicbg.models.Point cp2 = new mpicbg.models.Point(
 									new float[]{ ( float )dcp2.x, ( float )dcp2.y } );
-							mpi.fruitfly.registration.Point p1 = new mpi.fruitfly.registration.Point(
+							mpicbg.models.Point p1 = new mpicbg.models.Point(
 									new float[]{ ( float )dp1.x, ( float )dp1.y } );
-							mpi.fruitfly.registration.Point p2 = new mpi.fruitfly.registration.Point(
+							mpicbg.models.Point p2 = new mpicbg.models.Point(
 									new float[]{ ( float )dp2.x, ( float )dp2.y } );
 							ArrayList< PointMatch > a1 = new ArrayList<PointMatch>();
 							a1.add( new PointMatch( cp1, p1, 1.0f ) );
@@ -1448,38 +1453,6 @@ public class Registration {
 		}
 	}
 
-	static private class TrendObserver
-	{
-		public int i;			// iteration
-		public double v;		// value
-		public double d;		// first derivative
-		public double m;		// mean
-		public double var;		// variance
-		public double std;		// standard-deviation
-		
-		public void add( double new_value )
-		{
-			if ( i == 0 )
-			{
-				i = 1;
-				v = new_value;
-				d = 0.0;
-				m = v;
-				var = 0.0;
-				std = 0.0;
-			}
-			else
-			{
-				d = new_value - v;
-				v = new_value;
-				m = ( v + m * ( double )i++ ) / ( double )i;
-				double tmp = v - m;
-				var += tmp * tmp / ( double )i;
-				std = Math.sqrt( var );
-			}
-		}
-	}
-
 	/**
 	 * minimize the overall displacement of a set of tiles, propagate the
 	 * estimated models to a corresponding set of patches and redraw
@@ -1499,9 +1472,9 @@ public class Registration {
 	 *   correpondence check.  Thank you, Johannes, great hint!
 	 */
 	static private final void minimizeAll(
-			final List< Tile > tiles,
+			final List< Tile< ? > > tiles,
 			final List< Patch > patches,
-			final List< Tile > fixed_tiles,
+			final List< Tile< ? > > fixed_tiles,
 			final LayerSet set,
 			float max_error,
 			Worker worker)
@@ -1516,84 +1489,63 @@ public class Registration {
 
 		int num_patches = patches.size();
 
-		double od = Double.MAX_VALUE;
-		double dd = Double.MAX_VALUE;
+		final ErrorStatistic observer = new ErrorStatistic();
+		
+		double d = Double.MAX_VALUE;
 		double min_d = Double.MAX_VALUE;
 		double max_d = Double.MIN_VALUE;
-		int iteration = 1;
-		int cc = 0;
-		double[] dall = new double[100];
-		int next = 0;
-		// debug:
-		//TrendObserver observer = new TrendObserver();
+		int iteration = 0;
 		
-		while ( next < 100000 )  // safety check
+		while ( iteration < 100000 )  // safety check
 		{
 			if (worker.hasQuitted()) return;
 			for ( int i = 0; i < num_patches; ++i )
 			{
-				Tile tile = tiles.get( i );
+				Tile< ? > tile = tiles.get( i );
 				if ( fixed_tiles.contains( tile ) ) continue;
 				tile.update();
-				tile.minimizeModel();
+				tile.fitModel();
 				tile.update();
-				patches.get( i ).getAffineTransform().setTransform( tile.getModel().getAffine() );
+				patches.get( i ).getAffineTransform().setTransform( ( ( AbstractAffineModel2D< ? > )tile.getModel() ).getAffine() );
 			}
-			double cd = 0.0;
+			d = 0.0;
 			min_d = Double.MAX_VALUE;
 			max_d = Double.MIN_VALUE;
-			for ( Tile t : tiles )
+			for ( Tile< ? > t : tiles )
 			{
 				t.update();
-				double d = t.getDistance();
-				if ( d < min_d ) min_d = d;
-				if ( d > max_d ) max_d = d;
-				cd += d;
-			}
-			cd /= tiles.size();
-			dd = Math.abs( od - cd );
-			od = cd;
-			if (0 == next % 100) Utils.showStatus( "displacement: " + Utils.cutNumber( od, 3) + " [" + Utils.cutNumber( min_d, 3 ) + "; " + Utils.cutNumber( max_d, 3 ) + "] after " + iteration + " iterations", false);
-			
-			//observer.add( od );			
-			//Utils.log( observer.i + " " + observer.v + " " + observer.d + " " + observer.m + " " + observer.std );
-			
-			//cc = d < 0.00025 ? cc + 1 : 0;
-			cc = dd < 0.001 ? cc + 1 : 0;
-
-			if (dall.length  == next) {
-				double[] dall2 = new double[dall.length + 100];
-				System.arraycopy(dall, 0, dall2, 0, dall.length);
-				dall = dall2;
-			}
-			dall[next++] = dd;
-			
-			// cut the last 'n'
-			if (next > 100) { // wait until completing at least 'n' iterations
-				double[] dn = new double[100];
-				System.arraycopy(dall, dall.length - 100, dn, 0, 100);
-				// fit curve
-				double[] ft = FitLine.fitLine(dn);
-				// ft[1] StdDev
-				// ft[2] m (slope)
-				//if ( Math.abs( ft[ 1 ] ) < 0.001 )
-
-				// TODO revise convergence check or start from better guesses
-				if ( od < max_error && ft[ 2 ] >= 0.0 )
+				final double td = t.getDistance();
+				for ( PointMatch m : t.getMatches() )
 				{
-					Utils.log2( "Exiting at iteration " + next + " with slope " + Utils.cutNumber( ft[ 2 ], 3 ) );
-					break;
+					final double md = m.getDistance();
+					if ( md < min_d ) min_d = md;
+					if ( md > max_d ) max_d = md;
 				}
-
+				d += td;
+			}
+			d /= tiles.size();
+			
+			observer.add( d );
+			if ( 0 == iteration % 100 ) Utils.showStatus( "displacement: " + Utils.cutNumber( d, 3) + " [" + Utils.cutNumber( min_d, 3 ) + "; " + Utils.cutNumber( max_d, 3 ) + "] after " + iteration + " iterations", false);
+			
+			// Sloppy: min 2000 iterations, slope observation width is 200
+			if (
+					iteration >= 2000 &&
+					d < max_error &&
+					Math.abs( observer.getWideSlope( 200 ) ) <= 0.0001 &&
+					Math.abs( observer.getWideSlope( 100 ) ) <= 0.0001 )
+			{
+				Utils.log2( "Exiting at iteration " + iteration + " with slope " + Utils.cutNumber( observer.getWideSlope( 200 ), 3 ) );
+				break;
 			}
 
-			if (0 == next % 100) Display.update( set );
+			if ( 0 == iteration % 100 ) Display.update( set );
 
 			++iteration;
 		}
 
 		Utils.log2( "Successfully optimized configuration of " + tiles.size() + " tiles:" );
-		Utils.log2( "  average displacement: " + Utils.cutNumber( od, 3 ) + "px" );
+		Utils.log2( "  average displacement: " + Utils.cutNumber( d, 3 ) + "px" );
 		Utils.log2( "  minimal displacement: " + Utils.cutNumber( min_d, 3 ) + "px" );
 		Utils.log2( "  maximal displacement: " + Utils.cutNumber( max_d, 3 ) + "px" );
 
@@ -1622,10 +1574,10 @@ public class Registration {
 	 * @param patches2
 	 */
 	static private final void identifyCrossLayerCorrespondences(
-			List< Tile > tiles1,
+			List< Tile< ? > > tiles1,
 			List< Patch > patches1,
 			Vector<Feature>[] fsets1, //List< Vector< Feature > > featureSets1,
-			List< Tile > tiles2,
+			List< Tile< ? > > tiles2,
 			List< Patch > patches2,
 			Vector<Feature>[] fsets2, //List< Vector< Feature > > featureSets2,
 			boolean is_prealigned,
@@ -1639,13 +1591,13 @@ public class Registration {
 		{
 			if (worker.hasQuitted()) return;
 			final Patch current_patch = patches2.get( i );
-			final Tile current_tile = tiles2.get( i );
+			final Tile< ? > current_tile = tiles2.get( i );
 			final Vector<Feature> fsi = (null == fsets2[i] ? Registration.deserialize(current_patch, sp,  storage_folder) : fsets2[i]);
 			for ( int j = 0; j < num_patches1; ++j )
 			{
 				if (worker.hasQuitted()) return;
 				Patch other_patch = patches1.get( j );
-				Tile other_tile = tiles1.get( j );
+				Tile< ? > other_tile = tiles1.get( j );
 				if ( !is_prealigned || current_patch.intersects( other_patch ) )
 				{
 					long start_time = System.currentTimeMillis();
@@ -1655,23 +1607,35 @@ public class Registration {
 								(null == fsets1[j] ? Registration.deserialize(other_patch, sp, storage_folder) : fsets1[j]), //featureSets1.get( j ),
 								1.25f,
 								null,
-								Float.MAX_VALUE );
+								Float.MAX_VALUE,
+								rod );
 					Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 					
 					Utils.log2( "Tiles " + i + " and " + j + " have " + candidates.size() + " potentially corresponding features." );
 					
 					final Vector< PointMatch > inliers = new Vector< PointMatch >();
 					
-					TRModel2D mo = TRModel2D.estimateBestModel(
-							candidates,
-							inliers,
-							sp.cs_min_epsilon,
-							sp.cs_max_epsilon,
-							sp.min_inlier_ratio);
-
-					if ( mo != null )
+					RigidModel2D mo = new RigidModel2D();
+					boolean modelFound = false;
+					
+					try
 					{
-						Utils.log2( inliers.size() + " of them are good." );
+						modelFound = mo.filterRansac(
+								candidates,
+								inliers,
+								1000,
+								sp.cs_max_epsilon,
+								sp.min_inlier_ratio);
+					}
+					catch ( NotEnoughDataPointsException ex )
+					{
+						modelFound = false;
+					}
+
+					if ( modelFound && inliers.size() >= sp.min_num_inliers )
+					{
+						Utils.log( inliers.size() + " inliers for model.cost <= " + mo.getCost() );
+						//Utils.log2( inliers.size() + " of them are good." );
 						current_tile.connect( other_tile, inliers );								
 					}
 					else
@@ -1688,7 +1652,7 @@ public class Registration {
 	 *  Multithreaded, runs in as many available CPU cores as possible.
 	 *  Will write to fsets only in the event that features cannot be serialized to disk.
 	 */
-	static private void generateTilesAndFeatures(final ArrayList<Patch> patches, final Tile[] tls, final Vector[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
+	static private void generateTilesAndFeatures(final ArrayList<Patch> patches, final Tile< ? >[] tls, final Vector[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
 		final Thread[] threads = MultiThreading.newThreads();
 		// roughly, we expect about 1000 features per 512x512 image
 		final long feature_size = (long)((sp.max_size * sp.max_size) / (512 * 512) * 1000 * FloatArray2DSIFT.getFeatureObjectSize(sp.fdsize, sp.fdbins) * 1.5);
@@ -1700,6 +1664,8 @@ public class Registration {
 		final Loader loader = pa[0].getProject().getLoader();
 
 		final AtomicInteger count = new AtomicInteger(0);
+		
+		final float[] initialGaussianKernel = Filter.createGaussianKernel( (float)Math.sqrt(sp.initial_sigma * sp.initial_sigma - 0.25), true );
 
 		for (int ithread = 0; ithread < threads.length; ++ithread) {
 			final int si = ithread;
@@ -1716,8 +1682,8 @@ public class Registration {
 							final ImageProcessor ip = patch.getImageProcessor();
 							FloatArray2D fa = ImageArrayConverter.ImageToFloatArray2D(ip.convertToByte(true));
 							loader.releaseToFit(ip.getWidth() * ip.getHeight() * 96L + feature_size);
-							ImageFilter.enhance(fa, 1.0f);
-							fa = ImageFilter.computeGaussianFastMirror(fa, (float)Math.sqrt(sp.initial_sigma * sp.initial_sigma - 0.25));
+							Filter.enhance(fa, 1.0f);
+							fa = Filter.convolveSeparable( fa, initialGaussianKernel, initialGaussianKernel );
 							sift.init(fa, sp.steps, sp.initial_sigma, sp.min_size, sp.max_size);
 							fs = sift.run(sp.max_size);
 							Collections.sort(fs);
@@ -1731,12 +1697,12 @@ public class Registration {
 						}
 						Utils.log2(fs.size() + " features");
 						// Create Tile, with a specific model:
-						Model model;
-						if (0 == sp.dimension) model = new TModel2D(); // translation only
-						else model = new TRModel2D(); // both translation and rotation
-						model.getAffine().setTransform(patch.getAffineTransform());
-						tls[k] = new Tile((float)patch.getWidth(), (float)patch.getHeight(), model);
-
+						if (0 == sp.dimension)
+							tls[ k ] = new Tile< TranslationModel2D >( new TranslationModel2D() ); // translation only
+						else
+							tls[ k ] = new Tile< RigidModel2D >( new RigidModel2D() ); // both translation and rotation
+						( ( AbstractAffineModel2D< ? > )tls[ k ].getModel() ).getAffine().setTransform(patch.getAffineTransform());
+						
 						Utils.showProgress((double)count.incrementAndGet() / num_pa);
 						Utils.showStatus(new StringBuffer("Extracted features for ").append(count.get()).append('/').append(num_pa).append(" tiles").toString(), false);
 
@@ -1749,7 +1715,7 @@ public class Registration {
 	}
 
 	/** Test all to all or all to overlapping only, and make appropriate connections between tiles. */
-	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList<Tile> tiles, final Vector<Feature>[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
+	static private void connectTiles(final ArrayList<Patch> patches, final ArrayList< Tile< ? > > tiles, final Vector<Feature>[] fsets, final SIFTParameters sp, final String storage_folder, final Worker worker) {
 		final int num_patches = patches.size();
 		final AtomicInteger count = new AtomicInteger(0);
 
@@ -1765,13 +1731,13 @@ public class Registration {
 		{
 			if (worker.hasQuitted()) return;
 			final Patch current_patch = patches.get( i );
-			final Tile current_tile = tiles.get( i );
+			final Tile< ? > current_tile = tiles.get( i );
 			final Vector<Feature> fsi = (null == fsets[i] ? Registration.deserialize(current_patch, sp, storage_folder) : fsets[i]);
 			for ( int j = i + 1; j < num_patches; ++j )
 			{
 				if (worker.hasQuitted()) return;
 				final Patch other_patch = patches.get( j );
-				final Tile other_tile = tiles.get( j );
+				final Tile< ? > other_tile = tiles.get( j );
 				if ( !sp.tiles_prealigned || current_patch.intersects( other_patch ) )
 				{
 					//long start_time = System.currentTimeMillis();
@@ -1781,25 +1747,36 @@ public class Registration {
 								(null == fsets[j] ? Registration.deserialize(other_patch, sp, storage_folder) : fsets[j]), //featureSets.get( j ),
 								1.25f,
 								null,
-								Float.MAX_VALUE );
+								Float.MAX_VALUE,
+								rod );
 					//Utils.log2( " took " + ( System.currentTimeMillis() - start_time ) + "ms" );
 					
 					Utils.log2( new StringBuffer("Tiles ").append(i).append(" and ").append(j).append(" have ").append(correspondences.size()).append(" potentially corresponding features.").toString() );
 					
 					final Vector< PointMatch > inliers = new Vector< PointMatch >();
 
-					TRModel2D model = TRModel2D.estimateBestModel(
+					RigidModel2D model = new RigidModel2D();
+					boolean modelFound = false;
+					try
+					{
+						modelFound = model.filterRansac(
 							correspondences,
 							inliers,
-							sp.min_epsilon,
+							1000,
 							sp.max_epsilon,
 							sp.min_inlier_ratio );
+					}
+					catch ( NotEnoughDataPointsException ex )
+					{
+						modelFound = false;
+					}
 
-					if ( model != null ) { // that implies that inliers is not empty
+					if ( modelFound && inliers.size() >= sp.min_num_inliers ) { // that implies that inliers is not empty
 						// Global (and excessive) locking, but it's hard to avoid deadlocks
 						// when in need of synch over two objects at the same time (current_tile and other_tile)
 						// In addition the connect call is very cheap compared to the model extraction.
 						synchronized (lock) {
+							Utils.log( inliers.size() + " inliers for model.cost <= " + model.getCost() );
 							current_tile.connect( other_tile, inliers );
 						}
 					}
@@ -1826,15 +1803,15 @@ public class Registration {
 	/** Will find a fixed tile for each graph, and Will also update each tile.
 	 *  Returns the array of fixed tiles, at one per graph.
 	 */
-	static private ArrayList<Tile> pickFixedTiles(ArrayList<ArrayList<Tile>> graphs) {
-		final ArrayList<Tile> fixed_tiles = new ArrayList<Tile>();
+	static private ArrayList< Tile< ? > > pickFixedTiles( ArrayList< Set< Tile< ? > > > graphs) {
+		final ArrayList<Tile< ? >> fixed_tiles = new ArrayList<Tile< ? >>();
 		// fix one tile per graph, meanwhile update the tiles
-		for (ArrayList<Tile> graph : graphs) {
-			Tile fixed = null;
+		for ( Set< Tile< ? > > graph : graphs) {
+			Tile< ? > fixed = null;
 			int max_num_matches = 0;
-			for (Tile tile : graph) {
+			for ( Tile< ? > tile : graph) {
 				tile.update();
-				int num_matches = tile.getNumMatches();
+				int num_matches = tile.getMatches().size();
 				if (max_num_matches < num_matches) {
 					max_num_matches = num_matches;
 					fixed = tile;
@@ -1883,12 +1860,12 @@ public class Registration {
 		final ArrayList<Patch> patches = new ArrayList<Patch>();
 		patches.addAll(hs_patches);
 		Tile[] tls = new Tile[patches.size()];
-		Vector[] fsets = new Vector[tls.length];
+		Vector< Feature >[] fsets = new Vector[tls.length];
 
 		Registration.generateTilesAndFeatures(patches, tls, fsets, sp, storage_folder, worker);
 
 		// java noise: filling datastructures
-		final ArrayList<Tile> tiles = new ArrayList<Tile>();
+		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
 		//ArrayList<Vector<Feature>> featureSets = new ArrayList<Vector<Feature>>();
 		for (int k=0; k<tls.length; k++) {
 			tiles.add(tls[k]);
@@ -1899,17 +1876,17 @@ public class Registration {
 
 		//featureSets = null;
 
-		ArrayList<ArrayList<Tile>> graphs = Tile.identifyConnectedGraphs(tiles);
+		ArrayList< Set< Tile< ? > > > graphs = Tile.identifyConnectedGraphs(tiles);
 		Utils.log2(graphs.size() + " graphs detected.");
 
-		final ArrayList<Tile> fixed_tiles = new ArrayList<Tile>();
+		final ArrayList< Tile< ? > > fixed_tiles = new ArrayList< Tile< ? > >();
 		int i = patches.indexOf(fixed);
 
 		if (null != fixed && -1 != i && 1 == graphs.size()) {
 			fixed_tiles.add(tls[i]);
 		} else {
 			// find one tile per graph to nail down
-			fixed_tiles.addAll(Registration.pickFixedTiles(graphs));
+			fixed_tiles.addAll(Registration.pickFixedTiles( graphs ) );
 		}
 
 		// in addition, respect locked tiles (add them as fixed if not there already)
@@ -1940,6 +1917,11 @@ public class Registration {
 
 	/** A tuple. */
 	static final class Features implements Serializable {
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -6003898109784050099L;
+		
 		Registration.SIFTParameters sp;
 		Vector<Feature> v;
 		Features(final Registration.SIFTParameters sp, final Vector<Feature> v) {
