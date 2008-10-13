@@ -161,6 +161,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			//
 			final Graphics2D g = volatileImage.createGraphics();
 
+			// FLAGS
+			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+
 			// 0 - set clipRect
 			if (null != clipRect) g.setClip(clipRect);
 
@@ -2172,6 +2175,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				layer.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
 				final BufferedImage target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT);
 				final Graphics2D g = (Graphics2D)target.getGraphics();
+
+				g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 
 				g.setTransform(atc); //at_original);
 
