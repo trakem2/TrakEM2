@@ -1208,11 +1208,12 @@ public class AreaList extends ZDisplayable {
 
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == ht_areas.size()) return rt;
-		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume"});
+		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "name-id"});
 		rt.incrementCounter();
 		rt.addLabel("units", "cubic " + layer_set.getCalibration().getUnit());
 		rt.addValue(0, this.id);
 		rt.addValue(1, measureVolume());
+		rt.addValue(2, getNameId());
 		return rt;
 	}
 

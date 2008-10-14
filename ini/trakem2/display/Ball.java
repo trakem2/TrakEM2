@@ -918,13 +918,7 @@ public class Ball extends ZDisplayable {
 			rt.addValue(3, p[1][i] * cal.pixelHeight);
 			rt.addValue(4, layer_set.getLayer(p_layer[i]).getZ() * cal.pixelWidth);
 			rt.addValue(5, p_width[i] * cal.pixelWidth);
-			double nameid = 0;
-			if (null != this.title) {
-				try {
-					nameid = Double.parseDouble(this.title.trim());
-				} catch (NumberFormatException nfe) {}
-			}
-			rt.addValue(6, nameid);
+			rt.addValue(6, getNameId());
 		}
 		return rt;
 	}

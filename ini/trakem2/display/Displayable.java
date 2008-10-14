@@ -1364,4 +1364,15 @@ public abstract class Displayable extends DBObject {
 	public Bucketable getBucketable() {
 		return this.layer;
 	}
+
+	/** If the title is purely numeric, returns it as a double; otherwise returns 0. */
+	protected double getNameId() {
+		double nameid = 0;
+		if (null != this.title) {
+			try {
+				nameid = Double.parseDouble(this.title.trim());
+			} catch (NumberFormatException nfe) {}
+		}
+		return nameid;
+	}
 }
