@@ -108,14 +108,22 @@ public class VectorString3D implements VectorString {
 	/** If not resampled, the returned delta is zero. */
 	public double getDelta() { return delta; }
 
-	/** Homogenize the average point interdistance to 'delta'. */
+
 	public void resample(double delta) {
+		resample(delta, false);
+	}
+
+	/** Homogenize the average point interdistance to 'delta'.
+	 * If delta is the same as the desired, it WILL RETURN NULL even if with_source is true.
+	 * If with_source, then returns the list of lists of points that contributed to each resampled point.
+	 */
+	public ArrayList<ArrayList<Point3d>> resample(double delta, boolean with_source) {
 		if (Math.abs(delta - this.delta) < 0.0000001) {
 			// delta is the same
-			return;
+			return null;
 		}
 		this.delta = delta; // store for checking purposes
-		this.resample();
+		return this.resample(with_source);
 	}
 
 	/** The length of this string, that is, the number of points (and vectors) in it. */
@@ -390,7 +398,7 @@ public class VectorString3D implements VectorString {
 			this.y = arr[1][0];
 			this.z = arr[2][0];
 		}
-		Point3d asPoint3d() {
+		final Point3d asPoint3d() {
 			return new Point3d(x, y, z);
 		}
 	}
@@ -414,7 +422,8 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
-	private void resample() {
+	/** If argument with_source is true, then returns an ArrayList of ArraList of Point3d, with lists of all points that contributed to each point. */
+	private ArrayList<ArrayList<Point3d>> resample(final boolean with_source) {
 		// parameters
 		final int MAX_AHEAD = 6;
 		final double MAX_DISTANCE = 2.5 * delta;
@@ -441,6 +450,9 @@ public class VectorString3D implements VectorString {
 		int next_ahead;
 		for (next_ahead = 0; next_ahead < MAX_AHEAD; next_ahead++) ve[next_ahead] = new Vector();
 		final int[] ahead = new int[MAX_AHEAD];
+
+		// The source points that generate each point:
+		final ArrayList<ArrayList<Point3d>> source = with_source ? new ArrayList<ArrayList<Point3d>>() : null;
 
 		try {
 
@@ -470,6 +482,13 @@ public class VectorString3D implements VectorString {
 				dist1 = vector.length();
 				vector.setLength(delta);
 				vector.put(j, r);
+
+				final ArrayList<Point3d> ap = with_source ? new ArrayList<Point3d>() : null;
+				if (with_source) {
+					ap.add(new Point3d(x[i], y[i], x[i])); // the next point is 'i'
+					source.add(ap);
+				}
+
 				if (null != dep) r.setDeps(j, dep, new int[]{i}, new double[]{1.0}, 1);
 
 				//Utils.log2("j: " + j + " (ZERO)  " + vector.computeLength() + "  " + vector.length());
@@ -514,13 +533,20 @@ public class VectorString3D implements VectorString {
 				}
 				// Now, make a vector for each point with the corresponding weight
 				vector.set(0, 0, 0);
+
+				final ArrayList<Point3d> ap = with_source ? new ArrayList<Point3d>() : null;
+
 				for (u=0; u<next_ahead; u++) {
 					iu = i + u;
 					if (iu >= this.length) iu -= this.length;
 					ve[u].set(x[iu] - r.x(j-1), y[iu] - r.y(j-1), z[iu] - r.z(j-1));
 					ve[u].setLength(w[u] * delta);
 					vector.add(ve[u], u == next_ahead-1); // compute the length only on the last iteration
+					if (with_source) ap.add(new Point3d(x[iu], y[iu], z[iu]));
 				}
+
+				if (with_source) source.add(ap);
+
 				// correct potential errors
 				if (Math.abs(vector.length() - delta) > 0.00000001) {
 					vector.setLength(delta);
@@ -588,6 +614,9 @@ public class VectorString3D implements VectorString {
 		// done!
 		r.put(this, j); // j acts as length of resampled points and vectors
 		// vector at zero is left as 0,0 which makes no sense. Should be the last point that has no vector, or has it only in the event that the list of points is declared as closed: a vector to the first point. Doesn't really matter though, as long as it's clear: as of right now, the first point has no vector unless the path is closed, in which case it contains the vector from the last-to-first.
+
+
+		return source;
 	}
 
 	/** Reorder the arrays so that the index zero becomes new_zero -the arrays are circular. */
@@ -677,7 +706,7 @@ public class VectorString3D implements VectorString {
 			vs.reverse();
 			if (delta != 0 && null != vx) {
 				vs.delta = this.delta;
-				vs.resample();
+				vs.resample(false);
 				if (null != rvx) {
 					vs.relative();
 				}
