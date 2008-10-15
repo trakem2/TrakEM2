@@ -362,6 +362,10 @@ public class Compare {
 		final Vector3d trans1 = new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z); 
 		final Transform3D rot1 = VectorString3D.createOriginRotationTransform(o1);
 
+		// TODO: to both rot1 and rot2, concatenate two scaling transforms:
+		//  First, to correct for axes proportions, constrained to the reference ones (for shear to mean anything)
+		//  Second, to restore calibration: peduncle of length 1 should be of length X (whatever it was before).
+
 		// transform the axes themselves (already calibrated)
 		for (int i=0; i<3; i++) {
 			vs_axes[i].translate(trans1);
