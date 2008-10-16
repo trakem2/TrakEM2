@@ -2056,7 +2056,7 @@ public class Pipe extends ZDisplayable {
 	public ResultsTable measure(ResultsTable rt) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return rt;
-		if (null == rt) rt = Utils.createResultsTable("Pipe results", new String[]{"id", "length"});
+		if (null == rt) rt = Utils.createResultsTable("Pipe results", new String[]{"id", "length", "name-id"});
 		// measure length
 		double len = 0;
 		Calibration cal = layer_set.getCalibration();
@@ -2069,6 +2069,7 @@ public class Pipe extends ZDisplayable {
 		rt.addLabel("units", cal.getUnit());
 		rt.addValue(0, this.id);
 		rt.addValue(1, len);
+		rt.addValue(2, getNameId());
 		return rt;
 	}
 }

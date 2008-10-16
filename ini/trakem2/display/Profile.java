@@ -1611,7 +1611,7 @@ public class Profile extends Displayable {
 
 	/** Measures the calibrated length, the lateral surface as the length times the layer thickness, and the volume (if closed) as the area times the layer thickness. */
 	public ResultsTable measure(ResultsTable rt) {
-		if (null == rt) rt = Utils.createResultsTable("Profile results", new String[]{"id", "length", "side surface: length x thickness", "volume: area x thickness"});
+		if (null == rt) rt = Utils.createResultsTable("Profile results", new String[]{"id", "length", "side surface: length x thickness", "volume: area x thickness", "name-id"});
 		if (-1 == n_points) setupForDisplay();
 		if (n_points < 2) return null;
 		if (0 == p_i[0].length) generateInterpolatedPoints(0.05);
@@ -1626,6 +1626,7 @@ public class Profile extends Displayable {
 		rt.addValue(2, surface_flat);
 		final double volume = closed ? computeArea() * layer.getThickness() * cal.pixelWidth : 0;
 		rt.addValue(3, volume);
+		rt.addValue(4, getNameId());
 		return rt;
 	}
 
@@ -1637,7 +1638,7 @@ public class Profile extends Displayable {
 			// don't measure if there is only one
 			return rt;
 		}
-		if (null == rt) rt = Utils.createResultsTable("Profile list results", new String[]{"id", "interpolated surface", "surface: sum of length x thickness", "volume"});
+		if (null == rt) rt = Utils.createResultsTable("Profile list results", new String[]{"id", "interpolated surface", "surface: sum of length x thickness", "volume", "name-id"});
 		Calibration cal = profiles[0].getLayerSet().getCalibration();
 		// else, interpolate skin and measure each triangle
 		List<Point3f> tri = makeTriangles(profiles, 1.0); // already calibrated
@@ -1683,6 +1684,11 @@ public class Profile extends Displayable {
 		rt.addValue(1, surface);
 		rt.addValue(2, surface_flat);
 		rt.addValue(3, volume);
+		double nameid = 0;
+		try {
+			nameid = Double.parseDouble(profiles[0].project.findProjectThing(profiles[0]).getParent().getTitle());
+		} catch (NumberFormatException nfe) {}
+		rt.addValue(4, nameid);
 		return rt;
 	}
 }

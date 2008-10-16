@@ -897,11 +897,14 @@ public class Ball extends ZDisplayable {
 		return false;
 	}
 
-	/** Returns a listing of all balls contained here, one per row with index, x, y, z, and radius, all calibrated. */
+	/** Returns a listing of all balls contained here, one per row with index, x, y, z, and radius, all calibrated.
+	 * 'name-id' is a column that displays the title of this Ball object only when such title is purely a number.
+	 *
+	 * */
 	public ResultsTable measure(ResultsTable rt) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return rt;
-		if (null == rt) rt = Utils.createResultsTable("Ball results", new String[]{"id", "index", "x", "y", "z", "radius"});
+		if (null == rt) rt = Utils.createResultsTable("Ball results", new String[]{"id", "index", "x", "y", "z", "radius", "name-id"});
 		final Object[] ob = getTransformedData();
 		double[][] p = (double[][])ob[0];
 		double[] p_width = (double[])ob[1];
@@ -915,6 +918,7 @@ public class Ball extends ZDisplayable {
 			rt.addValue(3, p[1][i] * cal.pixelHeight);
 			rt.addValue(4, layer_set.getLayer(p_layer[i]).getZ() * cal.pixelWidth);
 			rt.addValue(5, p_width[i] * cal.pixelWidth);
+			rt.addValue(6, getNameId());
 		}
 		return rt;
 	}

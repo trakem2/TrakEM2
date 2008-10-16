@@ -262,7 +262,7 @@ public class Dissector extends ZDisplayable {
 			}
 		}
 
-		final void addResults(ResultsTable rt, Calibration cal) {
+		final void addResults(final ResultsTable rt, final Calibration cal, final double nameid) {
 			for (int i=0; i<n_points; i++) {
 				Layer la = layer_set.getLayer(p_layer[i]); 
 				if (null == layer) {
@@ -278,6 +278,7 @@ public class Dissector extends ZDisplayable {
 				rt.addValue(3, po.y * cal.pixelHeight);
 				rt.addValue(4, la.getZ() * cal.pixelWidth); // layer Z is in pixels
 				rt.addValue(5, radius * cal.pixelWidth);
+				rt.addValue(6, nameid);
 			}
 		}
 
@@ -665,8 +666,8 @@ public class Dissector extends ZDisplayable {
 
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == al_items.size()) return rt;
-		if (null == rt) rt = Utils.createResultsTable("Dissector results", new String[]{"id", "tag", "x", "y", "z", "radius"});
-		for (Item item : al_items) item.addResults(rt, layer_set.getCalibration());
+		if (null == rt) rt = Utils.createResultsTable("Dissector results", new String[]{"id", "tag", "x", "y", "z", "radius", "nameid"});
+		for (Item item : al_items) item.addResults(rt, layer_set.getCalibration(), getNameId());
 		return rt;
 	}
 }
