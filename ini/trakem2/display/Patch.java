@@ -54,6 +54,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.io.File;
 
+import mpicbg.models.InvertibleCoordinateTransform;
+
 public class Patch extends Displayable {
 
 	private int type = -1; // unknown
@@ -68,6 +70,15 @@ public class Patch extends Displayable {
 	private String current_path = null;
 	/** To be read from XML, or set when the file ImagePlus has been updated and the current_path points to something else. */
 	private String original_path = null;
+
+	private InvertibleCoordinateTransform ict = null;
+	private boolean has_alpha_channel = false;
+	// TODO include in the cloning
+
+	/** A Patch may have an alpha channel so that it's appeareance on the screen does not need to be a rectangle. For example, as a result of a paste from a non-rectangular ROI, or by non-linearly deforming the Patch. */
+	public boolean hasAlphaChannel() {
+		return has_alpha_channel;
+	}
 
 	/** Construct a Patch from an image. */
 	public Patch(Project project, String title, double x, double y, ImagePlus imp) {
