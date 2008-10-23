@@ -68,6 +68,8 @@ public class VectorString3D implements VectorString {
 	private double[][] dep;
 
 	// DANGER: the orientation of the curve can't be checked like in 2D. There is no up and down in the 3D space.
+	/** A list of lists of Point3d, each one containing the points from which the points in this VectorString3D come from. */
+	private ArrayList<ArrayList<Point3d>> source = null;
 
 	public VectorString3D(double[] x, double[] y, double[] z, boolean closed) throws Exception {
 		if (!(x.length == y.length && x.length == z.length)) throw new Exception("x,y,z must have the same length.");
@@ -117,13 +119,13 @@ public class VectorString3D implements VectorString {
 	 * If delta is the same as the desired, it WILL RETURN NULL even if with_source is true.
 	 * If with_source, then returns the list of lists of points that contributed to each resampled point.
 	 */
-	public ArrayList<ArrayList<Point3d>> resample(double delta, boolean with_source) {
+	public void resample(double delta, boolean with_source) {
 		if (Math.abs(delta - this.delta) < 0.0000001) {
 			// delta is the same
-			return null;
+			return;
 		}
 		this.delta = delta; // store for checking purposes
-		return this.resample(with_source);
+		this.resample(with_source);
 	}
 
 	/** The length of this string, that is, the number of points (and vectors) in it. */
@@ -422,8 +424,8 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
-	/** If argument with_source is true, then returns an ArrayList of ArraList of Point3d, with lists of all points that contributed to each point. */
-	private ArrayList<ArrayList<Point3d>> resample(final boolean with_source) {
+	/** If argument with_source is true, then returns an ArrayList of ArrayList of Point3d, with lists of all points that contributed to each point. */
+	private void resample(final boolean with_source) {
 		// parameters
 		final int MAX_AHEAD = 6;
 		final double MAX_DISTANCE = 2.5 * delta;
@@ -452,7 +454,18 @@ public class VectorString3D implements VectorString {
 		final int[] ahead = new int[MAX_AHEAD];
 
 		// The source points that generate each point:
-		final ArrayList<ArrayList<Point3d>> source = with_source ? new ArrayList<ArrayList<Point3d>>() : null;
+		if (with_source && null == this.source) {
+			// add all original points to a new list of lists (so that many VectorString3D may be combined, while keeping all source points for each final point)
+			this.source = new ArrayList<ArrayList<Point3d>>();
+			for (int g=0; g<length; g++) {
+				final ArrayList<Point3d> ap = new ArrayList<Point3d>();
+				ap.add(new Point3d(x[i], y[i], z[i]));
+				this.source.add(ap);
+			}
+		}
+
+		final ArrayList<ArrayList<Point3d>> new_source = with_source ?
+						new ArrayList<ArrayList<Point3d>>() : null;
 
 		try {
 
@@ -483,10 +496,9 @@ public class VectorString3D implements VectorString {
 				vector.setLength(delta);
 				vector.put(j, r);
 
-				final ArrayList<Point3d> ap = with_source ? new ArrayList<Point3d>() : null;
 				if (with_source) {
-					ap.add(new Point3d(x[i], y[i], x[i])); // the next point is 'i'
-					source.add(ap);
+					// shallow clone: shared Point3d instances (but no shared lists)
+					new_source.add((ArrayList<Point3d>)this.source.get(i).clone()); // the next point is 'i'
 				}
 
 				if (null != dep) r.setDeps(j, dep, new int[]{i}, new double[]{1.0}, 1);
@@ -542,7 +554,9 @@ public class VectorString3D implements VectorString {
 					ve[u].set(x[iu] - r.x(j-1), y[iu] - r.y(j-1), z[iu] - r.z(j-1));
 					ve[u].setLength(w[u] * delta);
 					vector.add(ve[u], u == next_ahead-1); // compute the length only on the last iteration
-					if (with_source) ap.add(new Point3d(x[iu], y[iu], z[iu]));
+					if (with_source) {
+						ap.addAll(this.source.get(iu));
+					}
 				}
 
 				if (with_source) source.add(ap);
@@ -614,9 +628,11 @@ public class VectorString3D implements VectorString {
 		// done!
 		r.put(this, j); // j acts as length of resampled points and vectors
 		// vector at zero is left as 0,0 which makes no sense. Should be the last point that has no vector, or has it only in the event that the list of points is declared as closed: a vector to the first point. Doesn't really matter though, as long as it's clear: as of right now, the first point has no vector unless the path is closed, in which case it contains the vector from the last-to-first.
+	}
 
-
-		return source;
+	/** Returns a list of lists of Point3d, one list of lists for each point in this VectorString3D; may be null. */
+	public ArrayList<ArrayList<Point3d>> getSource() {
+		return this.source;
 	}
 
 	/** Reorder the arrays so that the index zero becomes new_zero -the arrays are circular. */
@@ -691,6 +707,15 @@ public class VectorString3D implements VectorString {
 			if (null != rvx) vs.rvx = Utils.copy(rvx, length);
 			if (null != rvy) vs.rvy = Utils.copy(rvy, length);
 			if (null != rvz) vs.rvz = Utils.copy(rvz, length);
+			if (null != source) {
+				// deep clone the source points
+				vs.source = new ArrayList<ArrayList<Point3d>>();
+				for (ArrayList<Point3d> ap : this.source) {
+					final ArrayList<Point3d> ap2 = new ArrayList<Point3d>();
+					vs.source.add(ap2);
+					for (Point3d p : ap) ap2.add((Point3d)ap.clone()); // what is generics good for, if clone() doesn't use them?
+				}
+			}
 			vs.tags = this.tags;
 			vs.cal = null == this.cal ? null : this.cal.copy();
 			return vs;
@@ -952,7 +977,11 @@ public class VectorString3D implements VectorString {
 		final Vector v_i1 = new Vector();
 		final double[] d = new double[3];
 
-
+		final boolean with_source = (null != this.source
+				          && null != other.source);
+		final ArrayList<ArrayList<Point3d>> the_source = with_source ?
+								new ArrayList<ArrayList<Point3d>>()
+							      : null;
 		try {
 
 		for (int e=start; e<end; e++) {
@@ -965,6 +994,14 @@ public class VectorString3D implements VectorString {
 			} else {
 				if (i == n) i -= 1;
 				if (j == m) j -= 1;
+			}
+
+			if (with_source) {
+				// merge j, i without deep cloning
+				final ArrayList<Point3d> ap = new ArrayList<Point3d>();
+				ap.addAll(this.source.get(i));
+				ap.addAll(other.source.get(j));
+				the_source.add(ap);
 			}
 
 			// TODO: add dependents!
@@ -1028,7 +1065,9 @@ public class VectorString3D implements VectorString {
 		}
 
 
-		return new VectorString3D(px, py, pz, isClosed());
+		final VectorString3D vs_interp = new VectorString3D(px, py, pz, isClosed());
+		vs_interp.source = the_source;
+		return vs_interp;
 	}
 
 	/** Where axis is any of VectorString.X_AXIS, .Y_AXIS or .Z_AXIS,
@@ -1093,7 +1132,7 @@ public class VectorString3D implements VectorString {
 	}
 
 	/** The sum of all vectors, or what is the same: a vector from first to last points. */
-	public Vector3d makeAverageVector() {
+	public Vector3d sumVector() {
 		return new Vector3d(x[length-1] - x[0], y[length-1] - y[0], z[length-1] - z[0]);
 	}
 
@@ -1133,7 +1172,7 @@ public class VectorString3D implements VectorString {
 	/** Match together any number of origins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
 	 *  @return the applied scaling factor.
 	 * */
-	static public final double matchOrigins(Vector3d[][] o, final int transform_type) {
+	static public final double matchOrigins(final Vector3d[][] o, final int transform_type) {
 		if (Compare.TRANS_ROT == transform_type) return 1; // nothing to change, vectors are normalized
 		// else, scale vectors to make the longest one be of length 1.0
 		double max_len = 0;
@@ -1161,10 +1200,10 @@ public class VectorString3D implements VectorString {
 	 *   @return normalized vectors for transform_type == Compare.TRANS_ROT, otherwise NOT normalized.
 	 */
 	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type) {
-		// Aproximate a origin of coordinates
-		VectorString3D[] vs = new VectorString3D[]{z, y, x};
-		ArrayList<Point3d> ps = new ArrayList<Point3d>();
-		int[] dir = new int[]{1, 1, 1};
+		// Aproximate an origin of coordinates
+		final VectorString3D[] vs = new VectorString3D[]{z, y, x};
+		final ArrayList<Point3d> ps = new ArrayList<Point3d>();
+		final int[] dir = new int[]{1, 1, 1};
 
 		for (int i=0; i<vs.length; i++) {
 			for (int k=i+1; k<vs.length; k++) {
@@ -1189,7 +1228,7 @@ public class VectorString3D implements VectorString {
 				// WARNING: we don't check for the case where it contradicts
 			}
 		}
-		Vector3d origin = new Vector3d();
+		final Vector3d origin = new Vector3d();
 		final int len = ps.size();
 		for (Point3d p : ps) {
 			p.x /= len;
@@ -1199,9 +1238,9 @@ public class VectorString3D implements VectorString {
 		for (Point3d p : ps) origin.add(p);
 
 		// aproximate a vector for each axis
-		Vector3d vz = z.makeAverageVector(); // v1 is peduncle
-		Vector3d vy = y.makeAverageVector(); // v2 is dorsal lobe
-		Vector3d vx = x.makeAverageVector(); // v3 is medial lobe
+		Vector3d vz = z.sumVector(); // v1 is peduncle
+		Vector3d vy = y.sumVector(); // v2 is dorsal lobe
+		Vector3d vx = x.sumVector(); // v3 is medial lobe
 
 		// adjust orientation, so vectors point away from the origin towards the other end of the vectorstring
 		vz.scale(dir[0]);
@@ -1274,31 +1313,6 @@ public class VectorString3D implements VectorString {
 		}
 		// else if (Compare.TRANS_ROT_SCALE_SHEAR == transform_type)
 			// use AS THEY ARE
-
-		/* // This is wrong, yet something must be done in this direction
-		 * // to compensate for the differential lengths of the axes
-		if (Compare.TRANS_ROT != transform_type) {
-			// Use vectors with whatever length they have
-			// BUT: make sure the final proportions are correct,
-			// which means the shorter axes have to be scaled up
-			// to the inverse of their length proportion to the longest one.
-			final double v1_len = v1.length();
-			final double v2_len = v2.length();
-			final double v3_len = v3.length();
-			final double max_len = Math.max(v1_len, Math.max(v2_len, v3_len));
-			// can't use a switch statement with floating point? Great.
-			if (max_len == v1_len) {
-				v2.scale(v1_len / v2_len);
-				v3.scale(v1_len / v3_len);
-			} else if (max_len == v2_len) {
-				v1.scale(v2_len / v1_len);
-				v3.scale(v2_len / v3_len);
-			} else { // v3_len:
-				v1.scale(v3_len / v1_len);
-				v2.scale(v3_len / v2_len);
-			}
-		}
-		*/
 
 		return new Vector3d[]{
 			v1, // X axis : medial lobe

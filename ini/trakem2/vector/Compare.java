@@ -54,7 +54,9 @@ import java.awt.Rectangle;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Matrix4d;
 import javax.media.j3d.Transform3D;
+
 
 import java.io.*;
 
@@ -339,6 +341,9 @@ public class Compare {
 			quit();
 			return;
 		}
+		
+		/* OLD STYLE: was bringing all to a half-way transformation, to mushroom body space.
+
 
 		// obtain axes origin vectors for pipe's project
 		Object[] pack1 = obtainOrigin(axes, transform_type); // calibrates axes
@@ -362,34 +367,81 @@ public class Compare {
 		final Vector3d trans1 = new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z); 
 		final Transform3D rot1 = VectorString3D.createOriginRotationTransform(o1);
 
-		// TODO: to both rot1 and rot2, concatenate two scaling transforms:
-		//  First, to correct for axes proportions, constrained to the reference ones (for shear to mean anything)
-		//  Second, to restore calibration: peduncle of length 1 should be of length X (whatever it was before).
-
-		// transform the axes themselves (already calibrated)
-		for (int i=0; i<3; i++) {
-			vs_axes[i].translate(trans1);
-			vs_axes[i].transform(rot1);
-		}
-
 		// obtain transformation for the ref axes
 		final Vector3d trans2 = new Vector3d(-o2[3].x, -o2[3].y, -o2[3].z);
 		final Transform3D rot2 = VectorString3D.createOriginRotationTransform(o2);
 		final Calibration cal2 = pipes_ref.get(0).getLayerSet().getCalibration();
 
-		// transform the reference axes themselves
+		// obtain transformation to scale back to real resolution and calibration
+		final Transform3D scale = VectorString3D.createScalingTransform(vs_axes, o1, vs_axes_ref, o2);
+
+		// TODO: to both rot1 and rot2, concatenate two scaling transforms:
+		//  First, to correct for axes proportions, constrained to the reference ones (for shear to mean anything)
+		//  Second, to restore calibration: peduncle of length 1 should be of length X (whatever it was before).
+
+
+		// transform the axes themselves (already calibrated)
 		for (int i=0; i<3; i++) {
 			// Axes are already calibrated
+
+			// Query axes
+			vs_axes[i].translate(trans1);
+			vs_axes[i].transform(rot1);
+
+			// Ref axes
 			vs_axes_ref[i].translate(trans2);
 			vs_axes_ref[i].transform(rot2);
+		}
+
+		*/
+
+		// NEW style: bring query brain to reference brain space.
+		// WARNING: will only work as expected with transform_type=TRANS_ROT_SCALE_SHEAR
+		//          ... because it's the only transform type that leaves the axes as they are, unscaled.
+
+		final Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibration() : null);
+		final Calibration cal2 = pipes_ref.get(0).getLayerSet().getCalibration();
+
+		// obtain origin vectors for reference project
+		Object[] pack2 = obtainOrigin(axes_ref, transform_type); // calibrates axes
+		VectorString3D[] vs_axes_ref = (VectorString3D[])pack2[0];
+		Vector3d[] o2 = (Vector3d[])pack2[1];
+
+		final Transform3D M_ref = new Transform3D(new Matrix4d(
+			// X        Y        Z        Trans
+			   o2[0].x, o2[1].x, o2[2].x, o2[3].x,
+			   o2[0].y, o2[1].y, o2[2].y, o2[3].y,
+			   o2[0].z, o2[1].z, o2[2].z, o2[3].z,
+			   0,       0,       0,       1));
+
+		// obtain axes origin vectors for pipe's project
+		Object[] pack1 = obtainOrigin(axes, transform_type); // calibrates axes
+		VectorString3D[] vs_axes = (VectorString3D[])pack1[0];
+		Vector3d[] o1 = (Vector3d[])pack1[1];
+
+		final Transform3D M_query = new Transform3D(new Matrix4d(
+			// X        Y        Z        Trans
+			   o1[0].x, o1[1].x, o1[2].x, o1[3].x,
+			   o1[0].y, o1[1].y, o1[2].y, o1[3].y,
+			   o1[0].z, o1[1].z, o1[2].z, o1[3].z,
+			   0,       0,       0,       1));
+
+		// The transfer transform: from query axes to reference axes: M_ref * M_query^{-1}
+		final Transform3D T = new Transform3D(M_ref);
+		T.mulInverse(M_query); // in place
+
+		// Transform the query axes only (the reference ones stay the same)
+		for (int i=0; i<3; i++) {
+			// axes are already calibrated
+			vs_axes[i].transform(T);
 		}
 
 		// If chain_branches, the query must also be split into as many branches as it generates.
 		// Should generate a tab for each potential branch? Or better, a tab but not with a table but with a list of labels, one per potential branch, and underneath as many tables in more tabs?
 
 		// the queries to do, according to how many different chains the query pipe is part of
-		final QueryHolder qh = new QueryHolder(cal1, trans1, rot1,
-				                       cal2, trans2, rot2);
+		final QueryHolder qh = new QueryHolder(cal1, cal2, T);
+
 		ArrayList<Chain> chains_ref;
 
 		if (chain_branches) {
@@ -673,12 +725,9 @@ public class Compare {
 		final ArrayList<Chain> queries = new ArrayList<Chain>();
 
 		Calibration cal1;
-		Vector3d trans1;
-		Transform3D rot1;
-
 		Calibration cal2;
-		Vector3d trans2;
-		Transform3D rot2;
+		// The transfer transform: from query space to reference space
+		Transform3D T;
 
 		final Hashtable<Chain,ArrayList<ChainMatch>> matches = new Hashtable<Chain,ArrayList<ChainMatch>>();
 
@@ -690,28 +739,24 @@ public class Compare {
 		// these chains are kept only calibrated, NOT transformed. Because each query will resample it to its own delta, and then transform it.
 		final ArrayList<Chain> chains_ref = new ArrayList<Chain>();
 
-		QueryHolder(Calibration cal1, Vector3d trans1, Transform3D rot1, Calibration cal2, Vector3d trans2, Transform3D rot2) {
+		QueryHolder(Calibration cal1, Calibration cal2, Transform3D T) {
 			this.cal1 = cal1;
-			this.trans1 = trans1;
-			this.rot1 = rot1;
-
 			this.cal2 = cal2;
-			this.trans2 = trans2;
-			this.rot2 = rot2;
+			this.T = T;
 		}
 
 		/** Will calibrate and transform the chain's VectorString3D. */
 		final void addQuery(final Chain chain) {
 			final VectorString3D vs = chain.vs;
 			// Order is important:
-			// 1 - calibrate
+			// 1 - calibrate: bring to user-space microns, whatever
 			if (null != cal1) vs.calibrate(cal1);
-			// 2 - resample
+			// 2 - transform into reference
+			if (null != T) vs.transform(T);
+			// 3 - resample, within reference space
 			double delta = vs.getAverageDelta();
 			vs.resample(delta);
-			// 3 - transform to axes
-			if (null != trans1) vs.translate(trans1);
-			if (null != rot1) vs.transform(rot1); // contains scale and shear as well, but not translation
+
 			// Store all
 			queries.add(chain);
 		}
@@ -734,42 +779,35 @@ public class Compare {
 			}
 		}
 
-		/** Returns a resampled and transformed copy of the ref VectorString3D. */
-		/*
-		final VectorString3D makeVS(final Chain ref, final double delta) {
-			final VectorString3D vs = (VectorString3D)ref.vs.clone();
-			vs.resample(delta);
-			if (null != trans2) vs.translate(trans2);
-			if (null != rot2) vs.transform(rot2);
-			return vs;
-		}
-		*/
-
-		/* WARNING should be the same as above, but it's not. The only difference is the check for calibraiton, which looks correct (the vs is already calibrated).
-		 * */
+		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
 		final VectorString3D makeVS2(final Chain ref, final double delta) {
-			return bringTo((VectorString3D)ref.vs.clone(), delta, cal2, trans2, rot2);
+			return asVS2((VectorString3D)ref.vs.clone(), delta);
 		}
-
-		final VectorString3D makeVS1(final Chain q, final double delta) {
-			return bringTo((VectorString3D)q.vs.clone(), delta, cal1, trans1, rot1);
-		}
-
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
 		final VectorString3D makeVS2(final Pipe ref, final double delta) {
-			return bringTo(ref.asVectorString3D(), delta, cal2, trans2, rot2);
+			return asVS2(ref.asVectorString3D(), delta);
+		}
+
+		final private VectorString3D asVS2(final VectorString3D vs, final double delta) {
+			if (null != cal2 && !vs.isCalibrated()) vs.calibrate(cal2);
+			vs.resample(delta);
+			return vs;
+		}
+
+		/** Bring Chain q (query) to reference space. */
+		final VectorString3D makeVS1(final Chain q, final double delta) {
+			return asVS1((VectorString3D)q.vs.clone(), delta);
 		}
 
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
 		final VectorString3D makeVS1(final Pipe q, final double delta) {
-			return bringTo(q.asVectorString3D(), delta, cal1, trans1, rot1);
+			return asVS1(q.asVectorString3D(), delta);
 		}
 
-		final VectorString3D bringTo(final VectorString3D vs, final double delta, final Calibration cal, final Vector3d trans, final Transform3D rot) {
-			if (null != cal && !vs.isCalibrated()) vs.calibrate(cal);
+		final private VectorString3D asVS1(final VectorString3D vs, final double delta) {
+			if (null != cal1 && !vs.isCalibrated()) vs.calibrate(cal1);
 			vs.resample(delta);
-			if (null != trans) vs.translate(trans);
-			if (null != rot) vs.transform(rot);
+			if (null != T) vs.transform(T);
 			return vs;
 		}
 
@@ -792,8 +830,7 @@ public class Compare {
 			for (Pipe p : getAllQueriedPipes()) {
 				VectorString3D vs = p.asVectorString3D();
 				if (null != cal1) vs.calibrate(cal1);
-				if (null != trans1) vs.translate(trans1);
-				if (null != rot1) vs.transform(rot1);
+				if (null != T) vs.transform(T); // to reference space
 				ht.put(p, vs);
 			}
 			return ht;
@@ -1267,8 +1304,7 @@ public class Compare {
 		Calibration cal = null;
 		if (!ignore_calibration) cal = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibration() : null);
 
-		final QueryHolder qh = new QueryHolder(cal, null, null,
-				                       null, null, null);
+		final QueryHolder qh = new QueryHolder(cal, null, null);
 		ArrayList<Chain> chains_ref = new ArrayList<Chain>();
 
 		final ArrayList<VectorString3D> reversed_queries = new ArrayList<VectorString3D>();
@@ -2095,5 +2131,11 @@ public class Compare {
 		if (null != worker && worker.hasQuitted()) return null;
 
 		return scores;
+	}
+
+	/** Do an all-to-all distance matrix of the given vs, then do a neighbor joining, do a weighted merge of the two VectorString3D being merged, and then finally output the resulting condensed unique VectorString3D with its source array full with all points that make each point in it. */
+	public VectorString3D condense(final VectorString[] vs) {
+		// TODO
+		return null;
 	}
 }
