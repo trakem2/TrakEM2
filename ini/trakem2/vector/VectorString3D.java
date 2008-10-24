@@ -1153,7 +1153,7 @@ public class VectorString3D implements VectorString {
 	/** If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
 	 *  @return the applied scaling factor.
 	 * */
-	static public final double matchOrigins(Vector3d[] o1, Vector3d[] o2, final int transform_type) {
+	/*static public final double matchOrigins(Vector3d[] o1, Vector3d[] o2, final int transform_type) {
 		if (Compare.TRANS_ROT == transform_type) return 1; // nothing to change, vectors are normalized
 		// else, scale vectors to make the longest one be of length 1.0
 		double max_len = 0;
@@ -1168,11 +1168,12 @@ public class VectorString3D implements VectorString {
 		}
 		return K;
 	}
+	*/
 
 	/** Match together any number of origins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
 	 *  @return the applied scaling factor.
 	 * */
-	static public final double matchOrigins(final Vector3d[][] o, final int transform_type) {
+	/*static public final double matchOrigins(final Vector3d[][] o, final int transform_type) {
 		if (Compare.TRANS_ROT == transform_type) return 1; // nothing to change, vectors are normalized
 		// else, scale vectors to make the longest one be of length 1.0
 		double max_len = 0;
@@ -1189,6 +1190,7 @@ public class VectorString3D implements VectorString {
 		}
 		return K;
 	}
+	*/
 
 	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates.
 	 *
@@ -1200,6 +1202,10 @@ public class VectorString3D implements VectorString {
 	 *   @return normalized vectors for transform_type == Compare.TRANS_ROT, otherwise NOT normalized.
 	 */
 	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type) {
+		Utils.log2("WARNING TODO shouldn't be using this method ever");
+		return createOrigin(x, y, z, transform_type, null);
+	}
+	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type, final Vector3d[] o_ref) {
 		// Aproximate an origin of coordinates
 		final VectorString3D[] vs = new VectorString3D[]{z, y, x};
 		final ArrayList<Point3d> ps = new ArrayList<Point3d>();
@@ -1228,6 +1234,7 @@ public class VectorString3D implements VectorString {
 				// WARNING: we don't check for the case where it contradicts
 			}
 		}
+
 		final Vector3d origin = new Vector3d();
 		final int len = ps.size();
 		for (Point3d p : ps) {
@@ -1238,9 +1245,9 @@ public class VectorString3D implements VectorString {
 		for (Point3d p : ps) origin.add(p);
 
 		// aproximate a vector for each axis
-		Vector3d vz = z.sumVector(); // v1 is peduncle
-		Vector3d vy = y.sumVector(); // v2 is dorsal lobe
-		Vector3d vx = x.sumVector(); // v3 is medial lobe
+		Vector3d vz = z.sumVector();
+		Vector3d vy = y.sumVector();
+		Vector3d vx = x.sumVector();
 
 		// adjust orientation, so vectors point away from the origin towards the other end of the vectorstring
 		vz.scale(dir[0]);
@@ -1260,33 +1267,40 @@ public class VectorString3D implements VectorString {
 
 		// TRANS_ROT:
 		//     - peduncle rules (vz), and the others are cross products of it
-		//     - normalized vectors
+		//     - query axes vectors made of same length as reference
 		//
 		// TRANS_ROT_SCALE:
-		//     - same as TRANS_ROT, but normalized to make the longest be 1.0
+		//     - peduncle rules (vz), and the others are cross products of it
 		//
 		// TRANS_ROT_SCALE_SHEAR:
 		//     - use axes vectors as they are, but normalized to make the longest be 1.0
 
 
+		/* // old way: MB space
 		if (Compare.TRANS_ROT == transform_type) {
 			vx.normalize();
 			vy.normalize();
 			vz.normalize();
 		}
+		*/
 
 		if (Compare.TRANS_ROT == transform_type || Compare.TRANS_ROT_SCALE == transform_type) {
 			// 1 - compute MEDIAL vector: perpendicular to the plane made by peduncle and dorsal lobe
 			Vector3d vc_medial = new Vector3d();
 			vc_medial.cross(vz, vy);
+			/* // OLD WAY
 			// check orientation:
 			Vector3d vc_med = new Vector3d(vc_medial);
-			vc_med.add(vx); // adding the actual medial lobe vector
+			vc_med.normalize();
+			Vector3d vx_norm = new Vector3d(vx);
+			vx_norm.normalize();
+			vc_med.add(vx_norm); // adding the actual medial lobe vector
 			// if the sum is smaller, then it means it should be inverted (it was the other side)
-			if (vc_med.length() < vx.length()) {
+			if (vc_med.length() < vx_norm.length()) {
 				vc_medial.scale(-1);
 				Utils.log2("Mirroring X axis");
 			}
+			*/
 
 			// 2 - compute DORSAL vector: perpedicular to the plane made by v1 and vc_medial
 			Vector3d vc_dorsal = new Vector3d();
@@ -1300,15 +1314,25 @@ public class VectorString3D implements VectorString {
 				Utils.log("Mirroring Y axis");
 			}
 
+			/*
 			if (Compare.TRANS_ROT == transform_type) {
 				// just in case, for rounding issues
 				vc_medial.normalize();
 				vc_dorsal.normalize();
 			}
+			*/
 
 			v1 = vc_medial;
 			v2 = vc_dorsal;
 			//v3 = vz; // already done, the peduncle
+
+			if (Compare.TRANS_ROT == transform_type && null != o_ref) {
+				// Scale each query axis to length of the reference one
+				// so that there are no scaling differences.
+				v1.normalize();		v1.scale(o_ref[0].length());
+				v2.normalize();		v2.scale(o_ref[1].length());
+				v3.normalize();		v3.scale(o_ref[2].length());
+			}
 		
 		}
 		// else if (Compare.TRANS_ROT_SCALE_SHEAR == transform_type)
@@ -1332,17 +1356,6 @@ public class VectorString3D implements VectorString {
 		final VectorString3D vs2 = (VectorString3D)vs;
 		return distance(x[i], y[i], z[i],
 				vs2.x[j], vs2.y[j], vs2.z[j]);
-	}
-
-	static public Transform3D createOriginRotationTransform(final Vector3d[] o) {
-		final Matrix3d rotm = new Matrix3d(
-				o[0].x, o[1].x, o[2].x,
-				o[0].y, o[1].y, o[2].y,
-				o[0].z, o[1].z, o[2].z
-		);
-		final Transform3D rot = new Transform3D(rotm, new Vector3d(), 1.0);
-		rot.invert();
-		return rot;
 	}
 
 	public void translate(final Vector3d v) {

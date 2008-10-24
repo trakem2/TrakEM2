@@ -302,7 +302,7 @@ public class Compare {
 	}
 
 	/** Generate calibrated origin of coordinates. */
-	static public Object[] obtainOrigin(final Pipe[] axes, final int transform_type) {
+	static public Object[] obtainOrigin(final Pipe[] axes, final int transform_type, final Vector3d[] o_ref) {
 		// pipe's axes
 		final VectorString3D[] vs = new VectorString3D[3];
 		for (int i=0; i<3; i++) vs[i] = axes[i].asVectorString3D();
@@ -312,14 +312,14 @@ public class Compare {
 		if (null != cal) {
 			for (int i=0; i<3; i++) vs[i].calibrate(cal);
 		}
-		// 2 - resample
+		// 2 - resample (although it's done before transforming, it's only for aesthetic purposes: it doesn't matter, won't ever go into dynamic programming machinery)
 		double delta = 0;
 		for (int i=0; i<3; i++) delta += vs[i].getAverageDelta();
 		delta /= 3;
 		for (int i=0; i<3; i++) vs[i].resample(delta);
 
 		// return origin vectors for pipe's project
-		final Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2], transform_type); // requires resampled vs
+		final Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2], transform_type, o_ref); // requires resampled vs
 
 		return new Object[]{vs, o};
 	}
@@ -403,28 +403,18 @@ public class Compare {
 		final Calibration cal2 = pipes_ref.get(0).getLayerSet().getCalibration();
 
 		// obtain origin vectors for reference project
-		Object[] pack2 = obtainOrigin(axes_ref, transform_type); // calibrates axes
+		Object[] pack2 = obtainOrigin(axes_ref, transform_type, null); // calibrates axes
 		VectorString3D[] vs_axes_ref = (VectorString3D[])pack2[0];
 		Vector3d[] o2 = (Vector3d[])pack2[1];
 
-		final Transform3D M_ref = new Transform3D(new Matrix4d(
-			// X        Y        Z        Trans
-			   o2[0].x, o2[1].x, o2[2].x, o2[3].x,
-			   o2[0].y, o2[1].y, o2[2].y, o2[3].y,
-			   o2[0].z, o2[1].z, o2[2].z, o2[3].z,
-			   0,       0,       0,       1));
+		final Transform3D M_ref = Compare.createTransform(o2);
 
 		// obtain axes origin vectors for pipe's project
-		Object[] pack1 = obtainOrigin(axes, transform_type); // calibrates axes
+		Object[] pack1 = obtainOrigin(axes, transform_type, o2); // calibrates axes
 		VectorString3D[] vs_axes = (VectorString3D[])pack1[0];
 		Vector3d[] o1 = (Vector3d[])pack1[1];
 
-		final Transform3D M_query = new Transform3D(new Matrix4d(
-			// X        Y        Z        Trans
-			   o1[0].x, o1[1].x, o1[2].x, o1[3].x,
-			   o1[0].y, o1[1].y, o1[2].y, o1[3].y,
-			   o1[0].z, o1[1].z, o1[2].z, o1[3].z,
-			   0,       0,       0,       1));
+		final Transform3D M_query = Compare.createTransform(o1);
 
 		// The transfer transform: from query axes to reference axes: M_ref * M_query^{-1}
 		final Transform3D T = new Transform3D(M_ref);
@@ -433,7 +423,9 @@ public class Compare {
 		// Transform the query axes only (the reference ones stay the same)
 		for (int i=0; i<3; i++) {
 			// axes are already calibrated
+			//Utils.log2("Axis " + i + " Length before transforming: " + vs_axes[i].computeLength());
 			vs_axes[i].transform(T);
+			//Utils.log2("Axis " + i + " Length after transforming: " + vs_axes[i].computeLength());
 		}
 
 		// If chain_branches, the query must also be split into as many branches as it generates.
@@ -754,8 +746,7 @@ public class Compare {
 			// 2 - transform into reference
 			if (null != T) vs.transform(T);
 			// 3 - resample, within reference space
-			double delta = vs.getAverageDelta();
-			vs.resample(delta);
+			vs.resample(vs.getAverageDelta());
 
 			// Store all
 			queries.add(chain);
@@ -798,6 +789,10 @@ public class Compare {
 		final VectorString3D makeVS1(final Chain q, final double delta) {
 			return asVS1((VectorString3D)q.vs.clone(), delta);
 		}
+		/** Bring Chain q (query) to reference space. Will resample after transforming it, to its own average delta. */
+		final VectorString3D makeVS1(final Chain q) {
+			return asVS1((VectorString3D)q.vs.clone(), 0);
+		}
 
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
 		final VectorString3D makeVS1(final Pipe q, final double delta) {
@@ -806,8 +801,11 @@ public class Compare {
 
 		final private VectorString3D asVS1(final VectorString3D vs, final double delta) {
 			if (null != cal1 && !vs.isCalibrated()) vs.calibrate(cal1);
-			vs.resample(delta);
+			//Utils.log2("VS1: Length before transforming: " + vs.computeLength());
 			if (null != T) vs.transform(T);
+			//Utils.log2("VS1: Length after transforming: " + vs.computeLength());
+			// Resample after transforming, of course!
+			vs.resample(0 == delta ? vs.getAverageDelta() : delta);
 			return vs;
 		}
 
@@ -1044,7 +1042,7 @@ public class Compare {
 			reset();
 			if (!query_shows) showAxesAndQueried();
 			ArrayList<ChainMatch> matches = qh.matches.get(query);
-			final VectorString3D vs_query = qh.makeVS1(query, query.vs.getDelta());
+			final VectorString3D vs_query = qh.makeVS1(query);
 			final double radius = vs_query.computeLength() * 2;
 			for (ChainMatch match : matches) {
 				VectorString3D vs_ref = qh.makeVS2(match.ref, query.vs.getDelta());
@@ -1822,16 +1820,16 @@ public class Compare {
 		}
 		final int n_chains = chains.size();
 
-		// compute global average delta
-		if (0 == delta) {
-			for (Chain chain : chains) {
-				delta += ( chain.vs.getAverageDelta() / n_chains );
-			}
-		}
-		Utils.log2("Using delta: " + delta);
-
 		// register all, or relative
 		if (3 == transform_type) {
+			// compute global average delta
+			if (0 == delta) {
+				for (Chain chain : chains) {
+					delta += ( chain.vs.getAverageDelta() / n_chains );
+				}
+			}
+			Utils.log2("Using delta: " + delta);
+
 			for (Chain chain : chains) {
 				chain.vs.resample(delta); // BEFORE making it relative
 				chain.vs.relative();
@@ -1861,25 +1859,39 @@ public class Compare {
 					Object[] pack = obtainOrigin(new Pipe[]{(Pipe)pipes.get(s[0]),
 									     (Pipe)pipes.get(s[1]),
 									     (Pipe)pipes.get(s[2])},
-									     transform_type);
+									     transform_type,
+									     o[0]); // will be null for the first, which will then be non-null and act as the reference for the others.
 
 					// no need //vs_axes[i] = (VectorString3D[])pack[0];
 					o[i] = (Vector3d[])pack[1];
 				}
+				/* // OLD WAY
 				// match the scales to make the largest be 1.0
 				final double scaling_factor = VectorString3D.matchOrigins(o, transform_type);
 				Utils.log2("matchOrigins scaling factor: " + scaling_factor + " for transform_type " + transform_type);
-				// transform all
-				for (int i=0; i<p.length; i++) {
+				*/
+				// transform all except the first (which acts as reference)
+				final Transform3D M_ref = Compare.createTransform(o[0]);
+				for (int i=1; i<p.length; i++) {
 					Vector3d trans = new Vector3d(-o[i][3].x, -o[i][3].y, -o[i][3].z);
-					Transform3D rot = VectorString3D.createOriginRotationTransform(o[i]);
+					final Transform3D M_query = Compare.createTransform(o[i]);
+					// The transfer T transform: from query space to reference space.
+					final Transform3D T = new Transform3D(M_ref);
+					T.mulInverse(M_query);
 					for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
-						chain.vs.translate(trans);
-						chain.vs.transform(rot);
+						chain.vs.transform(T); // in place
 					}
 				}
 			}
 			// else, direct
+
+			// compute global average delta, after correcting calibration and transformation
+			if (0 == delta) {
+				for (Chain chain : chains) {
+					delta += ( chain.vs.getAverageDelta() / n_chains );
+				}
+			}
+			Utils.log2("Using delta: " + delta);
 
 			// After calibration and transformation, resample all to the same delta
 			for (Chain chain : chains) chain.vs.resample(delta);
@@ -2131,6 +2143,16 @@ public class Compare {
 		if (null != worker && worker.hasQuitted()) return null;
 
 		return scores;
+	}
+
+	/** Creates a transform with the 4 given vectors: X, Y, Z and translation of origin. */
+	static public Transform3D createTransform(final Vector3d[] o) {
+		return new Transform3D(new Matrix4d(
+			// X        Y        Z        Trans
+			   o[0].x, o[1].x, o[2].x, o[3].x,
+			   o[0].y, o[1].y, o[2].y, o[3].y,
+			   o[0].z, o[1].z, o[2].z, o[3].z,
+			   0,       0,       0,       1));
 	}
 
 	/** Do an all-to-all distance matrix of the given vs, then do a neighbor joining, do a weighted merge of the two VectorString3D being merged, and then finally output the resulting condensed unique VectorString3D with its source array full with all points that make each point in it. */
