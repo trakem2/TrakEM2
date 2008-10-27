@@ -114,6 +114,11 @@ public class VectorString2D implements VectorString {
 		return d / x.length;
 	}
 
+	/** Same as resample(delta). */
+	public void resample(double delta, boolean with_source) {
+		resample(delta);
+	}
+
 	/** Homogenize the average point interdistance to 'delta'. */ // There are problems with the last point.
 	public void resample(double delta) {
 		if (Math.abs(delta - this.delta) < 0.0000001) {

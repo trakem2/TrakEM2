@@ -353,9 +353,13 @@ public class Editions {
 	}
 
 	final private void init() {
+		final boolean with_source = (vs1 instanceof VectorString3D && vs2 instanceof VectorString3D) ?
+			null != ((VectorString3D)vs1).getSource() && null != ((VectorString3D)vs2).getSource()
+		      : false;
+		Utils.log2("Editions.init() : With source: " + with_source);
 		// equalize point interdistance in both strings of vectors and create the actual vectors
-		vs1.resample(delta);
-		vs2.resample(delta);
+		vs1.resample(delta, with_source);
+		vs2.resample(delta, with_source);
 		// fetch the optimal matrix
 		final double[][] matrix = findMinimumEditDistance();
 

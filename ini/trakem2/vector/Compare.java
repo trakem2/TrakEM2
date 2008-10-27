@@ -35,6 +35,7 @@ import ij.gui.YesNoCancelDialog;
 import ij.measure.Calibration;
 import ij.io.SaveDialog;
 import ij.io.OpenDialog;
+import ij.gui.Plot;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -51,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.awt.Rectangle;
+import java.util.regex.Pattern;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
@@ -341,63 +343,8 @@ public class Compare {
 			quit();
 			return;
 		}
-		
-		/* OLD STYLE: was bringing all to a half-way transformation, to mushroom body space.
-
-
-		// obtain axes origin vectors for pipe's project
-		Object[] pack1 = obtainOrigin(axes, transform_type); // calibrates axes
-
-		VectorString3D[] vs_axes = (VectorString3D[])pack1[0];
-		Vector3d[] o1 = (Vector3d[])pack1[1];
-
-		// obtain origin vectors for reference project
-		Object[] pack2 = obtainOrigin(axes_ref, transform_type); // calibrates axes
-
-		VectorString3D[] vs_axes_ref = (VectorString3D[])pack2[0];
-		Vector3d[] o2 = (Vector3d[])pack2[1];
-
-
-		// fix axes according to the transform type
-		final double scaling_factor = VectorString3D.matchOrigins(o1, o2, transform_type);
-		Utils.log2("matchOrigins scaling factor: " + scaling_factor + " for transform_type " + transform_type);
-
-		// obtain transformation for query axes
-		final Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibration() : null);
-		final Vector3d trans1 = new Vector3d(-o1[3].x, -o1[3].y, -o1[3].z); 
-		final Transform3D rot1 = VectorString3D.createOriginRotationTransform(o1);
-
-		// obtain transformation for the ref axes
-		final Vector3d trans2 = new Vector3d(-o2[3].x, -o2[3].y, -o2[3].z);
-		final Transform3D rot2 = VectorString3D.createOriginRotationTransform(o2);
-		final Calibration cal2 = pipes_ref.get(0).getLayerSet().getCalibration();
-
-		// obtain transformation to scale back to real resolution and calibration
-		final Transform3D scale = VectorString3D.createScalingTransform(vs_axes, o1, vs_axes_ref, o2);
-
-		// TODO: to both rot1 and rot2, concatenate two scaling transforms:
-		//  First, to correct for axes proportions, constrained to the reference ones (for shear to mean anything)
-		//  Second, to restore calibration: peduncle of length 1 should be of length X (whatever it was before).
-
-
-		// transform the axes themselves (already calibrated)
-		for (int i=0; i<3; i++) {
-			// Axes are already calibrated
-
-			// Query axes
-			vs_axes[i].translate(trans1);
-			vs_axes[i].transform(rot1);
-
-			// Ref axes
-			vs_axes_ref[i].translate(trans2);
-			vs_axes_ref[i].transform(rot2);
-		}
-
-		*/
 
 		// NEW style: bring query brain to reference brain space.
-		// WARNING: will only work as expected with transform_type=TRANS_ROT_SCALE_SHEAR
-		//          ... because it's the only transform type that leaves the axes as they are, unscaled.
 
 		final Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibration() : null);
 		final Calibration cal2 = pipes_ref.get(0).getLayerSet().getCalibration();
@@ -1718,124 +1665,125 @@ public class Compare {
 		}
 	}
 
-	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
-	 *
-	 * @param to_file Whether to save the results to a file and popup a save dialog for it or not. In any case the results are stored in the worker's load, which you can retrieve like:
-	 *     Bureaucrat bu = Compare.compareAllToAll(true);
-	 *     Object result = bu.getWorker().getResult();
-	 *     float[][] scores = (float[][])result[0];
-	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
-	 * @param normalize Whether to normalize the score values so that the maximum value is 1 and the minimum is 0, or not.
-	 */
-	static public Bureaucrat compareAllToAll(final boolean to_file) {
-		final GenericDialog gd = new GenericDialog("All to all");
-		gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
-		gd.addNumericField("point interdistance: ", 0, 2);
-		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", true);
-		gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
-		gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
-		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
-
-		final String[] transforms = {"translate and rotate",
-			                     "translate, rotate and scale",
-					     "translate, rotate, scale and shear",
-					     "relative",
-					     "direct"};
-		gd.addChoice("Transform_type: ", transforms, transforms[2]);
-		gd.addCheckbox("Chain_branches", true);
-
+	/** Compare all to all parameters. */
+	static private class CATAParameters {
+		double delta;
+		boolean skip_ends;
+		int max_mut;
+		float min_chunk;
+		int transform_type;
+		boolean chain_branches;
+		String[] preset;
 		final String[][] presets = {{"medial lobe", "dorsal lobe", "peduncle"}};
 		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
-		gd.addChoice("Presets: ", preset_names, preset_names[0]);
-		gd.addMessage("");
-		gd.addChoice("Scoring type: ", distance_types, distance_types[3]);
+		String format;
 		final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
-		if (to_file) {
-			gd.addChoice("File format: ", formats, formats[2]);
-		}
-		gd.addCheckbox("normalize", false);
-		gd.addCheckbox("direct", true);
-		gd.addCheckbox("substring_matching", true);
+		int distance_type;
+		boolean normalize;
+		boolean direct;
+		boolean substring_matching;
+		String regex;
+		boolean with_source = false;
 
-		//////
+		CATAParameters() {}
 
-		gd.showDialog();
-		if (gd.wasCanceled()) return null;
+		private boolean setup(final boolean to_file, final String regex) {
+			final GenericDialog gd = new GenericDialog("All to all");
+			gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
+			gd.addNumericField("point_interdistance: ", 0, 2);
+			gd.addCheckbox("skip insertion/deletion strings at ends when scoring", true);
+			gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
+			gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
+			Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
 
+			final String[] transforms = {"translate and rotate",
+						     "translate, rotate and scale",
+						     "translate, rotate, scale and shear",
+						     "relative",
+						     "direct"};
+			gd.addChoice("Transform_type: ", transforms, transforms[2]);
+			gd.addCheckbox("Chain_branches", true);
 
-		// gather all open projects
-		final Project[] p = Project.getProjects().toArray(new Project[0]);
-
-		final Worker worker = new Worker("Comparing all to all") {
-			public void run() {
-				startedWorking();
-				try {
-
-		double delta = gd.getNextNumber();
-		boolean skip_ends = gd.getNextBoolean();
-		int max_mut = (int)gd.getNextNumber();
-		float min_chunk = (float)gd.getNextNumber();
-		if (skip_ends) {
-			if (max_mut < 0) max_mut = 0;
-			if (min_chunk <= 0) skip_ends = false;
-			if (min_chunk > 1) min_chunk = 1;
-		}
-		int transform_type = gd.getNextChoiceIndex();
-		boolean chain_branches = gd.getNextBoolean();
-		String[] preset = presets[gd.getNextChoiceIndex()];
-
-		int distance_type = gd.getNextChoiceIndex();
-
-		String format = formats[0];
-		if (to_file) format = gd.getNextChoice().trim();
-
-		boolean normalize = gd.getNextBoolean();
-		boolean direct = gd.getNextBoolean();
-		boolean substring_matching = gd.getNextBoolean();
-
-		String filename = null,
-		       dir = null;
-
-		if (to_file) {
-			SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
-			filename = sd.getFileName();
-			if (null == filename) {
-				finishedWorking();
-				return;
+			gd.addChoice("Presets: ", preset_names, preset_names[0]);
+			gd.addMessage("");
+			gd.addChoice("Scoring type: ", distance_types, distance_types[3]);
+			if (to_file) {
+				gd.addChoice("File format: ", formats, formats[2]);
 			}
-			dir = sd.getDirectory().replace('\\', '/');
-			if (!dir.endsWith("/")) dir += "/";
+			gd.addCheckbox("normalize", false);
+			gd.addCheckbox("direct", true);
+			gd.addCheckbox("substring_matching", true);
+			gd.addStringField("regex: ", null != regex ? regex : ""); 
+
+			//////
+
+			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+
+			delta = gd.getNextNumber();
+			skip_ends = gd.getNextBoolean();
+			max_mut = (int)gd.getNextNumber();
+			min_chunk = (float)gd.getNextNumber();
+			if (skip_ends) {
+				if (max_mut < 0) max_mut = 0;
+				if (min_chunk <= 0) skip_ends = false;
+				if (min_chunk > 1) min_chunk = 1;
+			}
+			transform_type = gd.getNextChoiceIndex();
+			chain_branches = gd.getNextBoolean();
+			preset = presets[gd.getNextChoiceIndex()];
+
+			distance_type = gd.getNextChoiceIndex();
+
+			format = formats[0];
+			if (to_file) format = gd.getNextChoice().trim();
+
+			normalize = gd.getNextBoolean();
+			direct = gd.getNextBoolean();
+			substring_matching = gd.getNextBoolean();
+			this.regex = gd.getNextString();
+
+			return true;
 		}
 
+		final Pattern makePattern() {
+			return
+				null == regex ?
+					null
+					: Pattern.compile("^.*" + regex + ".*$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+		}
+	}
 
+	/** Gather chains for all projects considering the cp.regex. */
+	static public final Object[] gatherChains(final Project[] p, final CATAParameters cp) throws Exception {
 		// gather all chains
 		final ArrayList[] p_chains = new ArrayList[p.length]; // to keep track of each project's chains
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
-		for (int i=0; i<p.length; i++) {
+		for (int i=0; i<p.length; i++) { // for each project:
 			p_chains[i] = createPipeChains(p[i].getRootProjectThing(), p[i].getRootLayerSet());
 			chains.addAll(p_chains[i]);
 			// calibrate
-			Calibration cal = p[i].getRootLayerSet().getCalibrationCopy();
+			final Calibration cal = p[i].getRootLayerSet().getCalibrationCopy();
 			for (Chain chain : (ArrayList<Chain>)p_chains[i]) chain.vs.calibrate(cal);
 		}
 		final int n_chains = chains.size();
 
 		// register all, or relative
-		if (3 == transform_type) {
+		if (3 == cp.transform_type) {
 			// compute global average delta
-			if (0 == delta) {
+			if (0 == cp.delta) {
 				for (Chain chain : chains) {
-					delta += ( chain.vs.getAverageDelta() / n_chains );
+					cp.delta += ( chain.vs.getAverageDelta() / n_chains );
 				}
 			}
-			Utils.log2("Using delta: " + delta);
+			Utils.log2("Using delta: " + cp.delta);
 
 			for (Chain chain : chains) {
-				chain.vs.resample(delta); // BEFORE making it relative
+				chain.vs.resample(cp.delta, cp.with_source); // BEFORE making it relative
 				chain.vs.relative();
 			}
 		} else {
-			if (transform_type < 3) {
+			if (cp.transform_type < 3) {
 				// no need //VectorString3D[][] vs_axes = new VectorString3D[p.length][];
 				Vector3d[][] o = new Vector3d[p.length][];
 				for (int i=0; i<p.length; i++) {
@@ -1845,21 +1793,20 @@ public class Compare {
 					for (int k=0; k<pipes.size(); k++) {
 						pipe_names[k] = p[i].getMeaningfulTitle(pipes.get(k));
 					}
-					int[] s = findXYZAxes(preset, pipes, pipe_names);
+					int[] s = findXYZAxes(cp.preset, pipes, pipe_names);
 
 					// if axes are -1, forget it: not found
 					if (-1 == s[0] || -1 == s[1] || -1 == s[2]) {
 						Utils.log("Can't find axes for project " + p[i]);
 						o = null;
-						finishedWorking();
-						return;
+						return null;
 					}
 
 					// obtain axes and origin
 					Object[] pack = obtainOrigin(new Pipe[]{(Pipe)pipes.get(s[0]),
 									     (Pipe)pipes.get(s[1]),
 									     (Pipe)pipes.get(s[2])},
-									     transform_type,
+									     cp.transform_type,
 									     o[0]); // will be null for the first, which will then be non-null and act as the reference for the others.
 
 					// no need //vs_axes[i] = (VectorString3D[])pack[0];
@@ -1886,21 +1833,75 @@ public class Compare {
 			// else, direct
 
 			// compute global average delta, after correcting calibration and transformation
-			if (0 == delta) {
+			if (0 == cp.delta) {
 				for (Chain chain : chains) {
-					delta += ( chain.vs.getAverageDelta() / n_chains );
+					cp.delta += ( chain.vs.getAverageDelta() / n_chains );
 				}
 			}
-			Utils.log2("Using delta: " + delta);
+			Utils.log2("Using delta: " + cp.delta);
 
 			// After calibration and transformation, resample all to the same delta
-			for (Chain chain : chains) chain.vs.resample(delta);
+			for (Chain chain : chains) chain.vs.resample(cp.delta, cp.with_source);
 		}
+
+		return new Object[]{chains, p_chains};
+	}
+
+	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
+	 *
+	 * @param to_file Whether to save the results to a file and popup a save dialog for it or not. In any case the results are stored in the worker's load, which you can retrieve like:
+	 *     Bureaucrat bu = Compare.compareAllToAll(true);
+	 *     Object result = bu.getWorker().getResult();
+	 *     float[][] scores = (float[][])result[0];
+	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
+	 * @param normalize Whether to normalize the score values so that the maximum value is 1 and the minimum is 0, or not.
+	 */
+	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex) {
+
+		// gather all open projects
+		final Project[] p = Project.getProjects().toArray(new Project[0]);
+
+		final Worker worker = new Worker("Comparing all to all") {
+			public void run() {
+				startedWorking();
+				try {
+
+		final CATAParameters cp = new CATAParameters();
+		if (!cp.setup(to_file, regex)) {
+			finishedWorking();
+			return;
+		}
+
+
+		String filename = null,
+		       dir = null;
+
+		if (to_file) {
+			SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
+			filename = sd.getFileName();
+			if (null == filename) {
+				finishedWorking();
+				return;
+			}
+			dir = sd.getDirectory().replace('\\', '/');
+			if (!dir.endsWith("/")) dir += "/";
+		}
+
+		Object[] ob = gatherChains(p, cp);
+		final ArrayList<Chain> chains = (ArrayList<Chain>)ob[0];
+		final ArrayList[] p_chains = (ArrayList[])ob[2]; // to keep track of each project's chains
+		ob = null;
+		if (null == chains) {
+			finishedWorking();
+			return;
+		}
+
+		final int n_chains = chains.size();
 
 		// compare all to all
 		final VectorString3D[] vs = new VectorString3D[n_chains];
 		for (int i=0; i<n_chains; i++) vs[i] = chains.get(i).vs;
-		final float[][] scores = Compare.scoreAllToAll(vs, distance_type, delta, skip_ends, max_mut, min_chunk, direct, substring_matching, this);
+		final float[][] scores = Compare.scoreAllToAll(vs, cp.distance_type, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.direct, cp.substring_matching, this);
 
 		if (null == scores) {
 			finishedWorking();
@@ -1920,7 +1921,7 @@ public class Compare {
 		final OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
 
 		// Normalize matrix to largest value of 1.0
-		if (normalize) {
+		if (cp.normalize) {
 			float max = 0;
 			for (int i=0; i<scores.length; i++) { // traverse half matrix ony: it's mirrored
 				for (int j=i; j<scores[0].length; j++) {
@@ -1935,7 +1936,7 @@ public class Compare {
 		}
 
 		// write chain titles, with project prefix
-		if (format.equals(formats[0])) {
+		if (cp.format.equals(cp.formats[0])) {
 			// as csv:
 			try {
 				StringBuffer[] titles = new StringBuffer[n_chains];
@@ -1962,7 +1963,7 @@ public class Compare {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-		} else if (format.equals(formats[1])) {
+		} else if (cp.format.equals(cp.formats[1])) {
 			// as XML:
 			try {
 				StringBuffer sb = new StringBuffer("<?xml version=\"1.0\"?>\n<!DOCTYPE ggobidata SYSTEM \"ggobi.dtd\">\n");
@@ -2003,7 +2004,7 @@ public class Compare {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-		} else if (format.equals(formats[2])) {
+		} else if (cp.format.equals(cp.formats[2])) {
 			// as Phylip .dis
 			try {
 				// collect different projects
@@ -2155,9 +2156,222 @@ public class Compare {
 			   0,       0,       0,       1));
 	}
 
+	static public Bureaucrat variabilityAnalysis() {
+		// gather all open projects
+		final Project[] p = Project.getProjects().toArray(new Project[0]);
+
+		final Worker worker = new Worker("Comparing all to all") {
+			public void run() {
+				startedWorking();
+				try {
+
+		Utils.log2("Asking for CATAParameters...");
+
+		final CATAParameters cp = new CATAParameters();
+		if (!cp.setup(false, cp.regex)) {
+			finishedWorking();
+			return;
+		}
+		cp.with_source = true; // so source points are stored in VectorString3D for each resampled and interpolated point
+
+		Utils.log2("Gathering chains...");
+
+		Object[] ob = gatherChains(p, cp); // will transform them as well to the reference found in the first project in the p array
+		ArrayList<Chain> chains = (ArrayList<Chain>)ob[0];
+		final ArrayList[] p_chains = (ArrayList[])ob[1]; // to keep track of each project's chains
+		ob = null;
+		if (null == chains) {
+			finishedWorking();
+			return;
+		}
+
+		Utils.log2("Collecting bundles...");
+
+		// Sort out into groups by unique names of lineage bundles
+		final HashMap<String,ArrayList<Chain>> bundles = new HashMap<String,ArrayList<Chain>>();
+		for (Chain chain : chains) {
+			String title = chain.getCellTitle();
+			final String t = title.toLowerCase();
+			// ignore:
+			if (-1 != t.indexOf("unknown")) continue;
+			if (-1 != t.indexOf("peduncle")) continue;
+			if (-1 != t.indexOf("medial lobe")) continue;
+			if (-1 != t.indexOf("dorsal lobe")) continue;
+			if (0 == t.indexOf("lineage") || 0 == t.indexOf("branch")) continue; // unnamed
+			if (0 == t.indexOf('[') || 0 == t.indexOf('#')) continue; // unnamed
+
+			// DEBUG:
+			if (! (title.startsWith("DPLd") || title.startsWith("BAmv1")) ) continue;
+
+			Utils.log("Accepting " + title);
+
+			title = title.substring(0, title.indexOf(' '));
+
+			ArrayList<Chain> bc = bundles.get(title); // lineage bundle instance chains
+			if (null == bc) {
+				bc = new ArrayList<Chain>();
+				bundles.put(title, bc);
+			}
+			bc.add(chain);
+		}
+
+		Utils.log2("Found " + bundles.size() + " bundles.");
+
+		chains = null;
+
+		final HashMap<String,VectorString3D> condensed = new HashMap<String,VectorString3D>();
+
+		Utils.log2("Condensing each bundle...");
+
+		// Condense each into a single VectorString3D
+		for (Map.Entry<String,ArrayList<Chain>> entry : bundles.entrySet()) {
+			ArrayList<Chain> bc = entry.getValue();
+			VectorString3D[] vs = new VectorString3D[bc.size()];
+			for (int i=0; i<vs.length; i++) vs[i] = bc.get(i).vs;
+			condensed.put(entry.getKey(), condense(cp, vs, this));
+			if (this.hasQuitted()) return;
+		}
+
+		Utils.log2("Plotting stdDev for each condensed bundle...");
+
+		// Gather source for each, compute stdDev at each point and make a plot with it
+		//  X axis: from first to last point
+		//  Y axis: the stdDev at each point, computed from the group of points that contribute to each
+		for (Map.Entry<String,VectorString3D> e : condensed.entrySet()) {
+			final String name = e.getKey();
+			final double[] stdDev = e.getValue().getStdDevAtEachPoint();
+			final double[] index = new double[stdDev.length];
+			for (int i=0; i<index.length; i++) index[i] = i;
+			Plot plot = new Plot(name, "index", "stdDev", index, stdDev);
+			plot.show();
+		}
+
+		// DEBUG: show all condensed in 3D
+
+		for (String name : bundles.keySet()) {
+			ArrayList<Chain> bc = bundles.get(name);
+			VectorString3D vs_merged = condensed.get(name);
+			LayerSet common_ls = new LayerSet(bc.get(0).getRoot().getProject(), -1, "Common", 10, 10, 0, 0, 0, 512, 512, false, 2, new AffineTransform());
+			Display3D d3d = Display3D.getDisplay(common_ls);
+			for (Chain chain : bc) d3d.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
+			d3d.addMesh(common_ls, vs_merged, name, Color.red);
+		}
+
+		Utils.log2("Done.");
+
+				} catch (Exception e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, p[0]);
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	static private final class Cell<T> {
+		final T t1, t2;
+		Cell(final T t1, final T t2) {
+			this.t1 = t1;
+			this.t2 = t2;
+		}
+		public final boolean equals(final Object ob1, final Object ob2) {
+			final Cell cell1 = (Cell)ob1;
+			final Cell cell2 = (Cell)ob2;
+			return (cell1.t1 == cell2.t1 && cell1.t2 == cell2.t2)
+			    || (cell2.t1 == cell1.t1 && cell2.t2 == cell1.t2);
+		}
+	}
+
 	/** Do an all-to-all distance matrix of the given vs, then do a neighbor joining, do a weighted merge of the two VectorString3D being merged, and then finally output the resulting condensed unique VectorString3D with its source array full with all points that make each point in it. */
-	public VectorString3D condense(final VectorString[] vs) {
-		// TODO
-		return null;
+	static private VectorString3D condense(final CATAParameters cp, final VectorString3D[] vs, final Worker worker) throws Exception {
+		// Trivial case 1:
+		if (1 == vs.length) return vs[0];
+
+		// Estimate delta
+		if (0 == cp.delta) {
+			for (int i=0; i<vs.length; i++) {
+				cp.delta += vs[i].getAverageDelta();
+			}
+			cp.delta /= vs.length;
+		}
+		// Resample all:
+		for (int i=0; i<vs.length; i++) vs[i].resample(cp.delta, true);
+
+		// Trivial case 2:
+		try {
+			if (2 == vs.length) VectorString3D.createInterpolatedPoints(new Editions(vs[0], vs[1], cp.delta, false), 0.5f);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+
+		// Else, do neighbor joining
+		final float[][] scores = Compare.scoreAllToAll(vs, cp.distance_type, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.direct, cp.substring_matching, worker);
+		final HashMap<Compare.Cell<VectorString3D>,Float> table = new HashMap<Compare.Cell<VectorString3D>,Float>();
+		// Input the half matrix only into the table, since it's mirrored. And without the diagonal of zeros:
+		for (int i=1; i<scores.length; i++) {
+			for (int j=0; j<i; j++) {
+				table.put(new Cell(vs[i], vs[j]), scores[i][j]);
+			}
+		}
+
+		final HashSet<VectorString3D> remaining = new HashSet<VectorString3D>();
+		for (VectorString3D v : vs) remaining.add(v);
+
+		while (table.size() > 0) {
+			if (worker.hasQuitted()) {
+				return null;
+			}
+			// find smallest value
+			float min = Float.MAX_VALUE;
+			Cell<VectorString3D> cell = null;
+			for (Map.Entry<Cell<VectorString3D>,Float> e : table.entrySet()) {
+				final float f = e.getValue();
+				if (f < min) {
+					min = f;
+					cell = e.getKey();
+				}
+			}
+			// pop cells from table
+			// done below//table.remove(cell);
+			for (Iterator<Cell<VectorString3D>> it =  table.keySet().iterator(); it.hasNext(); ) {
+				final Cell<VectorString3D> c = it.next();
+				if (c.t1 == cell.t1 || c.t2 == cell.t2
+				 || c.t2 == cell.t1 || c.t1 == cell.t2) {
+					it.remove();
+				}
+			}
+			// pop the two merged VectorString3D
+			remaining.remove(cell.t1);
+			remaining.remove(cell.t2);
+
+			// merge, weighted by number of sources of each
+			final double alpha = (double)(cell.t1.getNSources()) / (double)(cell.t1.getNSources() + cell.t2.getNSources()); // in createInterpolated, the alpha is the opposite of what one would think: a 0.2 alpha means 0.8 for the first and 0.2 for the second. So alpha should be 1-alpha
+			final VectorString3D vs_merged = VectorString3D.createInterpolatedPoints(new Editions(cell.t1, cell.t2, cp.delta, false), alpha);
+			vs_merged.resample(cp.delta, true);
+
+			// add a new cell for each possible comparison with all other unique vs
+			for (VectorString3D v : remaining) {
+				Object[] ob = findBestMatch(vs_merged, v, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching);
+				Editions ed = (Editions)ob[0];
+				float score = (float)getScore(ed, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type);
+				table.put(new Cell(vs_merged, v), score);
+			}
+
+			// add the new VectorString3D
+			remaining.add(vs_merged);
+		}
+
+		// Only the last vs_merged should remain:
+
+		// test:
+		if (1 != remaining.size()) {
+			Utils.log2("WARNING: remaining.size() == " + remaining.size());
+		}
+
+		return remaining.iterator().next();
 	}
 }

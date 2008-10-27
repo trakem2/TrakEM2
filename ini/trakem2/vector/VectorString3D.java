@@ -70,6 +70,8 @@ public class VectorString3D implements VectorString {
 	// DANGER: the orientation of the curve can't be checked like in 2D. There is no up and down in the 3D space.
 	/** A list of lists of Point3d, each one containing the points from which the points in this VectorString3D come from. */
 	private ArrayList<ArrayList<Point3d>> source = null;
+	/** The number of VectorString3D that have contributed to this one, via createInterpolated and others. */
+	private int n_sources = 1;
 
 	public VectorString3D(double[] x, double[] y, double[] z, boolean closed) throws Exception {
 		if (!(x.length == y.length && x.length == z.length)) throw new Exception("x,y,z must have the same length.");
@@ -434,9 +436,26 @@ public class VectorString3D implements VectorString {
 		final ResamplingData r = new ResamplingData(this.length, this.dep);
 		final Vector vector = new Vector();
 
+		// The source points that generate each point:
+		if (with_source && null == this.source) {
+			// add all original points to a new list of lists (so that many VectorString3D may be combined, while keeping all source points for each final point)
+			this.source = new ArrayList<ArrayList<Point3d>>();
+			for (int g=0; g<length; g++) {
+				final ArrayList<Point3d> ap = new ArrayList<Point3d>();
+				ap.add(new Point3d(x[g], y[g], z[g]));
+				this.source.add(ap);
+			}
+		}
+
+		final ArrayList<ArrayList<Point3d>> new_source = with_source ?
+						new ArrayList<ArrayList<Point3d>>() : null;
+
+
 		// first resampled point is the same as point zero
 		r.setP(0, x[0], y[0], z[0]);
 		// the first vector is 0,0,0 unless the path is closed, in which case it contains the vector from last-to-first.
+
+		if (with_source) new_source.add((ArrayList<Point3d>)this.source.get(0).clone());
 
 		// index over x,y,z
 		int i = 1;
@@ -452,20 +471,6 @@ public class VectorString3D implements VectorString {
 		int next_ahead;
 		for (next_ahead = 0; next_ahead < MAX_AHEAD; next_ahead++) ve[next_ahead] = new Vector();
 		final int[] ahead = new int[MAX_AHEAD];
-
-		// The source points that generate each point:
-		if (with_source && null == this.source) {
-			// add all original points to a new list of lists (so that many VectorString3D may be combined, while keeping all source points for each final point)
-			this.source = new ArrayList<ArrayList<Point3d>>();
-			for (int g=0; g<length; g++) {
-				final ArrayList<Point3d> ap = new ArrayList<Point3d>();
-				ap.add(new Point3d(x[i], y[i], z[i]));
-				this.source.add(ap);
-			}
-		}
-
-		final ArrayList<ArrayList<Point3d>> new_source = with_source ?
-						new ArrayList<ArrayList<Point3d>>() : null;
 
 		try {
 
@@ -559,7 +564,7 @@ public class VectorString3D implements VectorString {
 					}
 				}
 
-				if (with_source) source.add(ap);
+				if (with_source) new_source.add(ap);
 
 				// correct potential errors
 				if (Math.abs(vector.length() - delta) > 0.00000001) {
@@ -621,19 +626,30 @@ public class VectorString3D implements VectorString {
 				// resize it to length delta
 				vector.setLength(delta);
 				vector.put(j, r);
+				if (with_source) new_source.add((ArrayList<Point3d>)this.source.get(last_i).clone());
 				j++;
 				dist_ahead = r.distance(j-1, x[last_i], y[last_i], z[last_i]);
 			}
 		}
 		// done!
 		r.put(this, j); // j acts as length of resampled points and vectors
+		// Above, 'r' sets the length to j as well.
+
 		// vector at zero is left as 0,0 which makes no sense. Should be the last point that has no vector, or has it only in the event that the list of points is declared as closed: a vector to the first point. Doesn't really matter though, as long as it's clear: as of right now, the first point has no vector unless the path is closed, in which case it contains the vector from the last-to-first.
+
+		if (with_source) this.source = new_source;
+
+		Utils.log2("resampling with_source: " + with_source + "    n_sources = " + n_sources);
+
+		// debug:
+		if (with_source && j != new_source.size()) Utils.log2("WARNING: len: " + j + ", sources length: " + new_source.size());
+		if (with_source && n_sources > 1) Utils.log2("n_sources=" + n_sources + " lengths: " + j + ", " + new_source.size());
 	}
 
 	/** Returns a list of lists of Point3d, one list of lists for each point in this VectorString3D; may be null. */
-	public ArrayList<ArrayList<Point3d>> getSource() {
-		return this.source;
-	}
+	public ArrayList<ArrayList<Point3d>> getSource() { return this.source; }
+	/** Returns the number of VectorString3D that have contributed to this VectorString3D, via merging with createInterpolated(...). */
+	public int getNSources() { return n_sources; }
 
 	/** Reorder the arrays so that the index zero becomes new_zero -the arrays are circular. */
 	public void reorder(final int new_zero) {
@@ -1067,6 +1083,7 @@ public class VectorString3D implements VectorString {
 
 		final VectorString3D vs_interp = new VectorString3D(px, py, pz, isClosed());
 		vs_interp.source = the_source;
+		vs_interp.n_sources = this.n_sources + other.n_sources;
 		return vs_interp;
 	}
 
@@ -1521,7 +1538,7 @@ public class VectorString3D implements VectorString {
 	/** Create a new VectorString3D which is the weighted average between the two VectorString3D that make the Editions.
 	 * @param alpha is the weight, between 0 and 1.
 	 * */
-	static public VectorString3D createInterpolatedPoints(Editions ed, float alpha) {
+	static public VectorString3D createInterpolatedPoints(final Editions ed, final double alpha) {
 		try {
 			final VectorString3D vs1 = (VectorString3D)ed.vs1;
 			if (alpha <= 0) return (VectorString3D)vs1.clone();
@@ -1534,6 +1551,12 @@ public class VectorString3D implements VectorString {
 			final int len1 = vs1.length();
 			final int len2 = vs2.length();
 
+			final boolean with_source = (null != vs1.source
+					          && null != vs2.source);
+			final ArrayList<ArrayList<Point3d>> the_source = with_source ?
+									new ArrayList<ArrayList<Point3d>>()
+								      : null;
+
 			for (int k=0; k<ed.editions.length; k++) {
 				int[] e = ed.editions[k];
 				int i = e[1];	if (i >= len1) i = len1 -1; // patching error that I don't understand TODO
@@ -1541,10 +1564,22 @@ public class VectorString3D implements VectorString {
 				x[k] = vs1.x[i] * alpha + vs2.x[j] * (1 - alpha);
 				y[k] = vs1.y[i] * alpha + vs2.y[j] * (1 - alpha);
 				z[k] = vs1.z[i] * alpha + vs2.z[j] * (1 - alpha);
+
+				if (with_source) {
+					// merge i, j without deep cloning
+					final ArrayList<Point3d> ap = new ArrayList<Point3d>();
+					ap.addAll(vs1.source.get(i));
+					ap.addAll(vs2.source.get(j));
+					the_source.add(ap);
+				}
 			}
 
+			Utils.log2("createInterpolatedPoints: lengths " + ed.editions.length + ", " + the_source.size());
+
 			VectorString3D vs = new VectorString3D(x, y, z, ed.vs1.isClosed());
-			vs.resample(vs1.delta);
+			vs.source = the_source;
+			vs.n_sources = vs1.n_sources + vs2.n_sources;
+			vs.resample(vs1.delta, with_source);
 
 			return vs;
 
@@ -1646,5 +1681,24 @@ public class VectorString3D implements VectorString {
 			}
 		}
 		return false;
+	}
+
+	/** If null != source, compute the StdDev at each point in this VectorString3D, by comparing it with its associated source points. Returns null if there is no source.  */
+	public double[] getStdDevAtEachPoint() {
+		if (null == source) return null;
+		final double[] stdDev = new double[length];
+		int i = 0;
+		Utils.log2("len x: " + length + "  len source: " + source.size());
+		for (ArrayList<Point3d> ap : source) {
+			// 1 - Expected: the current position
+			final Point3d expected = new Point3d(x[i], y[i], z[i]);
+			// 2 - Sum of squares of differences of the distances to the expected position
+			double sd = 0;
+			for (Point3d p : ap) sd += Math.pow(p.distance(expected), 2);
+			// 3 - stdDev
+			stdDev[i] = Math.sqrt(sd / ap.size());
+			i++;
+		}
+		return stdDev;
 	}
 }
