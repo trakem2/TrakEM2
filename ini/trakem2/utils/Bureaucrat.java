@@ -115,7 +115,7 @@ public class Bureaucrat extends Thread {
 	public boolean isActive() {
 		return worker.isWorking();
 	}
-	public Thread getWorker() {
+	public Worker getWorker() {
 		return worker;
 	}
 }
