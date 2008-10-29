@@ -937,6 +937,12 @@ public class VectorString3D implements VectorString {
 
 	/** Create an interpolated VectorString3D between this and the given one, with the proper weight 'alpha' which must be 0 &lt;= weight &lt;= 1 (otherwise returns null) */
 	public VectorString3D createInterpolated(final VectorString3D other, final Editions ed, final double alpha) throws Exception {
+
+
+		Utils.logAll("THIS METHOD IS BROKEN IN SOME UNKNOWN HORRIBLE WAY.\nFor now, use VectorString3D.createInterpolatedPoints(...) method, which is known to work -- even if conceptually not fully accurate.");
+
+
+
 		// check deltas: must be equal
 		if (Math.abs(this.delta - other.delta) > 0.00000001) {
 			throw new Exception("deltas are not the same: this.delta=" + this.delta + "  other.delta=" + other.delta);
