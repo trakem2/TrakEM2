@@ -35,7 +35,9 @@ import ij.gui.YesNoCancelDialog;
 import ij.measure.Calibration;
 import ij.io.SaveDialog;
 import ij.io.OpenDialog;
+import ij.io.FileSaver;
 import ij.gui.Plot;
+import ij.io.DirectoryChooser;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -1684,10 +1686,12 @@ public class Compare {
 		boolean substring_matching;
 		String regex;
 		boolean with_source = false;
+		double plot_max_x, plot_max_y;
+		int plot_width, plot_height;
 
 		CATAParameters() {}
 
-		private boolean setup(final boolean to_file, final String regex) {
+		private boolean setup(final boolean to_file, final String regex, final boolean plot) {
 			final GenericDialog gd = new GenericDialog("All to all");
 			gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
 			gd.addNumericField("point_interdistance: ", 0, 2);
@@ -1714,6 +1718,12 @@ public class Compare {
 			gd.addCheckbox("direct", true);
 			gd.addCheckbox("substring_matching", true);
 			gd.addStringField("regex: ", null != regex ? regex : ""); 
+			if (plot) {
+				gd.addNumericField("plot_width: ", 700, 0);
+				gd.addNumericField("plot_height: ", 400, 0);
+				gd.addNumericField("plot_max_x: ", 270, 2);
+				gd.addNumericField("plot_max_y: ", 30, 2);
+			}
 
 			//////
 
@@ -1742,6 +1752,12 @@ public class Compare {
 			direct = gd.getNextBoolean();
 			substring_matching = gd.getNextBoolean();
 			this.regex = gd.getNextString();
+			if (plot) {
+				plot_width = (int)gd.getNextNumber();
+				plot_height = (int)gd.getNextNumber();
+				plot_max_x = gd.getNextNumber();
+				plot_max_y = gd.getNextNumber();
+			}
 
 			return true;
 		}
@@ -1867,7 +1883,7 @@ public class Compare {
 				try {
 
 		final CATAParameters cp = new CATAParameters();
-		if (!cp.setup(to_file, regex)) {
+		if (!cp.setup(to_file, regex, false)) {
 			finishedWorking();
 			return;
 		}
@@ -2168,11 +2184,20 @@ public class Compare {
 		Utils.log2("Asking for CATAParameters...");
 
 		final CATAParameters cp = new CATAParameters();
-		if (!cp.setup(false, cp.regex)) {
+		if (!cp.setup(false, cp.regex, true)) { // no regex used so far.
 			finishedWorking();
 			return;
 		}
 		cp.with_source = true; // so source points are stored in VectorString3D for each resampled and interpolated point
+
+		DirectoryChooser dc = new DirectoryChooser("Choose plots directory");
+		String plot_dir = dc.getDirectory();
+		if (null == plot_dir) {
+			finishedWorking();
+			return;
+		}
+		if (IJ.isWindows()) plot_dir = plot_dir.replace('\\', '/');
+		if (plot_dir.endsWith("/")) plot_dir += "/";
 
 		Utils.log2("Gathering chains...");
 
@@ -2201,7 +2226,7 @@ public class Compare {
 			if (0 == t.indexOf('[') || 0 == t.indexOf('#')) continue; // unnamed
 
 			// DEBUG:
-			if (! (title.startsWith("DPLd") || title.startsWith("BAmv1")) ) continue;
+			//if (! (title.startsWith("DPLd") || title.startsWith("BAmv1")) ) continue;
 
 			Utils.log("Accepting " + title);
 
@@ -2242,12 +2267,17 @@ public class Compare {
 			final double[] stdDev = e.getValue().getStdDevAtEachPoint();
 			final double[] index = new double[stdDev.length];
 			for (int i=0; i<index.length; i++) index[i] = i;
-			Plot plot = new Plot(name, "index", "stdDev", index, stdDev);
-			plot.show();
+			Plot plot = new Plot(name, "Point index", "Std Dev", index, stdDev);
+			plot.setLimits(0, cp.plot_max_x, 0, cp.plot_max_y);
+			plot.setSize(cp.plot_width, cp.plot_height);
+			plot.setLineWidth(2);
+			//plot.show();
+			new FileSaver(plot.getImagePlus()).saveAsPng(plot_dir + name.replace('/', '-') + ".png");
 		}
 
 		// DEBUG: show all condensed in 3D
 
+		/*
 		for (String name : bundles.keySet()) {
 			ArrayList<Chain> bc = bundles.get(name);
 			VectorString3D vs_merged = condensed.get(name);
@@ -2256,6 +2286,7 @@ public class Compare {
 			for (Chain chain : bc) d3d.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
 			d3d.addMesh(common_ls, vs_merged, name, Color.red);
 		}
+		*/
 
 		Utils.log2("Done.");
 
