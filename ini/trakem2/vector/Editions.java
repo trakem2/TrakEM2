@@ -764,7 +764,7 @@ public class Editions {
 		return s1.append(se).append(s2).toString();
 	}
 
-	private class Chunk {
+	static public class Chunk {
 		int i_start, i_end;
 		Chunk(int i_start, int i_end) {
 			this.i_start = i_start;
@@ -786,11 +786,7 @@ public class Editions {
 	}
 	*/
 
-	/** Find the longest chunk of mutations (which can include chunks of up to max_non_mut of non-mutations),
-	 *  then take the center point and split both vector strings there, perform matching towards the ends,
-	 *  and assemble a new Editions object.
-	 */
-	public Editions recreateFromCenter(final int max_non_mut) throws Exception {
+	public Chunk findLargestMutationChunk(final int max_non_mut) {
 		// find the longest chunk of contiguous mutations
 		// with no interruptions (insertions or deletions) longer than max_non_mut
 		final ArrayList<Chunk> chunks = new ArrayList<Chunk>();
@@ -862,9 +858,21 @@ public class Editions {
 				Map.Entry entry = (Map.Entry)it.next();
 				if ( ((Double)entry.getValue()).doubleValue() == dist[0]) {
 					chunk = (Chunk)entry.getKey();
+					break;
 				}
 			}
 		}
+
+		return chunk;
+	}
+
+	/** Find the longest chunk of mutations (which can include chunks of up to max_non_mut of non-mutations),
+	 *  then take the center point and split both vector strings there, perform matching towards the ends,
+	 *  and assemble a new Editions object.
+	 */
+	public Editions recreateFromCenter(final int max_non_mut) throws Exception {
+
+		final Chunk chunk = findLargestMutationChunk(max_non_mut);
 
 		// from the midpoint, create two vector strings and reverse them, and compute editions for them
 		// (so: get new edition sequence from chunk's midpoint to zero)

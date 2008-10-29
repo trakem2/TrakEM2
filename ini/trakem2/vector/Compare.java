@@ -220,8 +220,7 @@ public class Compare {
 		});
 
 		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", false);
-		gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
-		//gd.addNumericField("minimum_percentage that must remain: ", 1.0, 2);
+		gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 2, 0);
 		gd.addSlider("minimum_percentage that must remain: ", 1, 100, 100);
 		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
 
@@ -1688,14 +1687,15 @@ public class Compare {
 		boolean with_source = false;
 		double plot_max_x, plot_max_y;
 		int plot_width, plot_height;
+		boolean cut_uneven_ends = false;
 
 		CATAParameters() {}
 
-		private boolean setup(final boolean to_file, final String regex, final boolean plot) {
+		private boolean setup(final boolean to_file, final String regex, final boolean plot, final boolean condense) {
 			final GenericDialog gd = new GenericDialog("All to all");
 			gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
 			gd.addNumericField("point_interdistance: ", 0, 2);
-			gd.addCheckbox("skip insertion/deletion strings at ends when scoring", true);
+			gd.addCheckbox("skip insertion/deletion strings at ends when scoring", false);
 			gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
 			gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
 			Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
@@ -1716,13 +1716,16 @@ public class Compare {
 			}
 			gd.addCheckbox("normalize", false);
 			gd.addCheckbox("direct", true);
-			gd.addCheckbox("substring_matching", true);
+			gd.addCheckbox("substring_matching", false);
 			gd.addStringField("regex: ", null != regex ? regex : ""); 
 			if (plot) {
 				gd.addNumericField("plot_width: ", 700, 0);
 				gd.addNumericField("plot_height: ", 400, 0);
 				gd.addNumericField("plot_max_x: ", 270, 2);
 				gd.addNumericField("plot_max_y: ", 30, 2);
+			}
+			if (condense) {
+				gd.addCheckbox("cut_uneven_ends", false);
 			}
 
 			//////
@@ -1757,6 +1760,9 @@ public class Compare {
 				plot_height = (int)gd.getNextNumber();
 				plot_max_x = gd.getNextNumber();
 				plot_max_y = gd.getNextNumber();
+			}
+			if (condense) {
+				cut_uneven_ends = gd.getNextBoolean();
 			}
 
 			return true;
@@ -1883,7 +1889,7 @@ public class Compare {
 				try {
 
 		final CATAParameters cp = new CATAParameters();
-		if (!cp.setup(to_file, regex, false)) {
+		if (!cp.setup(to_file, regex, false, false)) {
 			finishedWorking();
 			return;
 		}
@@ -2184,7 +2190,7 @@ public class Compare {
 		Utils.log2("Asking for CATAParameters...");
 
 		final CATAParameters cp = new CATAParameters();
-		if (!cp.setup(false, cp.regex, true)) { // no regex used so far.
+		if (!cp.setup(false, cp.regex, true, true)) { // no regex used so far.
 			finishedWorking();
 			return;
 		}
@@ -2251,6 +2257,10 @@ public class Compare {
 		// Condense each into a single VectorString3D
 		for (Map.Entry<String,ArrayList<Chain>> entry : bundles.entrySet()) {
 			ArrayList<Chain> bc = entry.getValue();
+			if (bc.size() < 2) {
+				Utils.log2("Skipping single: " + entry.getKey());
+				continue;
+			}
 			VectorString3D[] vs = new VectorString3D[bc.size()];
 			for (int i=0; i<vs.length; i++) vs[i] = bc.get(i).vs;
 			condensed.put(entry.getKey(), condense(cp, vs, this));
@@ -2264,13 +2274,15 @@ public class Compare {
 		//  Y axis: the stdDev at each point, computed from the group of points that contribute to each
 		for (Map.Entry<String,VectorString3D> e : condensed.entrySet()) {
 			final String name = e.getKey();
-			final double[] stdDev = e.getValue().getStdDevAtEachPoint();
+			final VectorString3D c = e.getValue();
+			final double[] stdDev = c.getStdDevAtEachPoint();
 			final double[] index = new double[stdDev.length];
 			for (int i=0; i<index.length; i++) index[i] = i;
-			Plot plot = new Plot(name, "Point index", "Std Dev", index, stdDev);
+			Plot plot = new Plot(name, name + " -- Point index (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + c.getCalibrationCopy().getUnits() + ")", "Std Dev", index, stdDev);
 			plot.setLimits(0, cp.plot_max_x, 0, cp.plot_max_y);
 			plot.setSize(cp.plot_width, cp.plot_height);
 			plot.setLineWidth(2);
+			//FAILS//plot.addLabel(10, cp.plot_height-5, name); // must be added after setting size
 			//plot.show();
 			new FileSaver(plot.getImagePlus()).saveAsPng(plot_dir + name.replace('/', '-') + ".png");
 		}
@@ -2381,7 +2393,38 @@ public class Compare {
 
 			// merge, weighted by number of sources of each
 			final double alpha = (double)(cell.t1.getNSources()) / (double)(cell.t1.getNSources() + cell.t2.getNSources()); // in createInterpolated, the alpha is the opposite of what one would think: a 0.2 alpha means 0.8 for the first and 0.2 for the second. So alpha should be 1-alpha
-			final VectorString3D vs_merged = VectorString3D.createInterpolatedPoints(new Editions(cell.t1, cell.t2, cp.delta, false), alpha);
+			final Editions eds = new Editions(cell.t1, cell.t2, cp.delta, false);
+			VectorString3D vs_merged = null;
+			if (cp.cut_uneven_ends) {
+				// crop ends to eliminate strings of insertions or deletions sparsed by strings of max cp.max_mut mutations inside
+				// (This reduces or eliminates variability noise caused by unequal sequence length)
+				final int[][] editions = eds.getEditions();
+				int first = 0;
+				int last = editions.length-1;
+				int n_mut = 0;
+				for (int i=0; i<last; i++) {
+					if (Editions.MUTATION == editions[i][0]) {
+						n_mut++;
+						if (n_mut > cp.max_mut) {
+							first = i - n_mut + 1;
+							break;
+						}
+					}
+				}
+				n_mut = 0; // reset
+				for (int i=last; i>first; i--) {
+					if (Editions.MUTATION == editions[i][0]) {
+						n_mut++;
+						if (n_mut > cp.max_mut) {
+							last = i + n_mut - 1;
+							break;
+						}
+					}
+				}
+				vs_merged = VectorString3D.createInterpolatedPoints(eds, alpha, first, last);
+			} else {
+				vs_merged = VectorString3D.createInterpolatedPoints(eds, alpha);
+			}
 			vs_merged.resample(cp.delta, true);
 
 			// add a new cell for each possible comparison with all other unique vs

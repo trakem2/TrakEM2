@@ -32,6 +32,7 @@ import ij.measure.Calibration;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.ArrayList;
+import java.util.Collections;
 import Jama.Matrix;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.Point3d;
@@ -724,12 +725,10 @@ public class VectorString3D implements VectorString {
 			if (null != rvy) vs.rvy = Utils.copy(rvy, length);
 			if (null != rvz) vs.rvz = Utils.copy(rvz, length);
 			if (null != source) {
-				// deep clone the source points
+				// shallow clone the source points
 				vs.source = new ArrayList<ArrayList<Point3d>>();
 				for (ArrayList<Point3d> ap : this.source) {
-					final ArrayList<Point3d> ap2 = new ArrayList<Point3d>();
-					vs.source.add(ap2);
-					for (Point3d p : ap) ap2.add((Point3d)ap.clone()); // what is generics good for, if clone() doesn't use them?
+					vs.source.add((ArrayList<Point3d>)ap.clone());
 				}
 			}
 			vs.tags = this.tags;
@@ -741,9 +740,23 @@ public class VectorString3D implements VectorString {
 		return null;
 	}
 
+	private ArrayList<ArrayList<Point3d>> cloneSource(final int first, final int last) {
+		if (null == source) return null;
+		final ArrayList<ArrayList<Point3d>> s = new ArrayList<ArrayList<Point3d>>();
+		int i = 0;
+		for (ArrayList<Point3d> ap : source) { // looping with get(i) would be paint-bucket problem
+			if (i < first) continue;
+			if (i > last) break;
+			s.add((ArrayList<Point3d>)ap.clone());
+			i++;
+		}
+		return s;
+	}
+
 	public VectorString3D makeReversedCopy() {
 		try {
 			final VectorString3D vs = new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), isClosed());
+			vs.source = cloneSource(0, length-1);
 			vs.reverse();
 			if (delta != 0 && null != vx) {
 				vs.delta = this.delta;
@@ -885,7 +898,9 @@ public class VectorString3D implements VectorString {
 		return vs;
 	}
 
-	/** Scale to match cal.pixelWidth, cal.pixelHeight and computed depth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. So it brings all values to cal.units, such as microns. */
+	/** Scale to match cal.pixelWidth, cal.pixelHeight and computed depth. If cal is null, returns immediately. Will make all vectors null, so you must call resample(delta) again after calibrating. So it brings all values to cal.units, such as microns.
+	 * Beware: if calibrated, then the Calibration has been applied to the points, but the callibration's pixelWidth and pixelHeight remain the same, not set to 1 and 1 respectively. So they can be used to uncalibrate, or to read out the units.
+	 */
 	public void calibrate(final Calibration cal) {
 		if (null == cal) return;
 		this.cal = cal;
@@ -923,6 +938,7 @@ public class VectorString3D implements VectorString {
 		if (null != rvx || null != rvy || null != rvz) {
 			rvx = rvy = rvz = null;
 		}
+		if (null != source) Collections.reverse(source);
 	}
 
 	public boolean isReversed() {
@@ -1505,14 +1521,13 @@ public class VectorString3D implements VectorString {
 	}
 	/** Create a new VectorString for the given range. If last &lt; first, it will be created as reversed. */
 	public VectorString subVectorString(int first, int last) throws Exception {
-		boolean reverse = false;
-		if (last < first) {
+		final boolean reverse = last < first;
+		if (reverse) {
 			int tmp = first;
 			first = last;
 			last = tmp;
-			reverse = true;
 		}
-		int len = last - first + 1;
+		final int len = last - first + 1;
 		double[] x = new double[len];
 		double[] y = new double[len];
 		double[] z = new double[len];
@@ -1520,7 +1535,12 @@ public class VectorString3D implements VectorString {
 		System.arraycopy(this.y, first, y, 0, len);
 		System.arraycopy(this.z, first, z, 0, len);
 		final VectorString3D vs = new VectorString3D(x, y, z, this.isClosed());
+		vs.source = cloneSource(first, last);
 		if (reverse) vs.reverse();
+		vs.cal = null == this.cal ? null : this.cal.copy();
+		vs.tags = this.tags;
+		vs.delta = this.delta;
+
 		if (null != this.vx) {
 			// this is resampled, so:
 			vs.delta = this.delta;
@@ -1545,13 +1565,21 @@ public class VectorString3D implements VectorString {
 	 * @param alpha is the weight, between 0 and 1.
 	 * */
 	static public VectorString3D createInterpolatedPoints(final Editions ed, final double alpha) {
+		return createInterpolatedPoints(ed, alpha, 0, ed.editions.length -1);
+	}
+	/** Create a new VectorString3D which is the weighted average between the two VectorString3D that make the Editions.
+	 * @param alpha is the weight, between 0 and 1.
+	 * @param first is the first index to consider for the interpolated VectorString3D.
+	 * @param last is the last index to consider for the interpolated VectorString3D.
+	 * */
+	static public VectorString3D createInterpolatedPoints(final Editions ed, final double alpha, final int first, final int last) {
 		try {
 			final VectorString3D vs1 = (VectorString3D)ed.vs1;
 			if (alpha <= 0) return (VectorString3D)vs1.clone();
 			final VectorString3D vs2 = (VectorString3D)ed.vs2;
 			if (alpha >= 1) return (VectorString3D)vs2.clone();
 			// else make weighted average
-			double[] x = new double[ed.editions.length];
+			double[] x = new double[last - first + 1];
 			double[] y = new double[x.length];
 			double[] z = new double[x.length];
 			final int len1 = vs1.length();
@@ -1563,13 +1591,13 @@ public class VectorString3D implements VectorString {
 									new ArrayList<ArrayList<Point3d>>()
 								      : null;
 
-			for (int k=0; k<ed.editions.length; k++) {
+			for (int k=first, next=0; k<=last; k++, next++) {
 				int[] e = ed.editions[k];
 				int i = e[1];	if (i >= len1) i = len1 -1; // patching error that I don't understand TODO
 				int j = e[2];	if (j >= len2) j = len2 -1;
-				x[k] = vs1.x[i] * alpha + vs2.x[j] * (1 - alpha);
-				y[k] = vs1.y[i] * alpha + vs2.y[j] * (1 - alpha);
-				z[k] = vs1.z[i] * alpha + vs2.z[j] * (1 - alpha);
+				x[next] = vs1.x[i] * alpha + vs2.x[j] * (1 - alpha);
+				y[next] = vs1.y[i] * alpha + vs2.y[j] * (1 - alpha);
+				z[next] = vs1.z[i] * alpha + vs2.z[j] * (1 - alpha);
 
 				if (with_source) {
 					// merge i, j without deep cloning
@@ -1580,11 +1608,12 @@ public class VectorString3D implements VectorString {
 				}
 			}
 
-			Utils.log2("createInterpolatedPoints: lengths " + ed.editions.length + ", " + the_source.size());
+			Utils.log2("createInterpolatedPoints: lengths " + ed.editions.length + ", " + the_source.size() + " first,last: " + first + ", " + last);
 
 			VectorString3D vs = new VectorString3D(x, y, z, ed.vs1.isClosed());
 			vs.source = the_source;
 			vs.n_sources = vs1.n_sources + vs2.n_sources;
+			vs.cal = null == vs1.cal ? null : vs1.cal.copy();
 			vs.resample(vs1.delta, with_source);
 
 			return vs;
