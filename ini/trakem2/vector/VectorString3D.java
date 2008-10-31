@@ -1397,6 +1397,12 @@ public class VectorString3D implements VectorString {
 				vs2.x[j], vs2.y[j], vs2.z[j]);
 	}
 
+	/** Distance from the point at i to p.*/
+	public final double distance(final int i, final Point3d p) {
+		return distance(p.x, p.y, p.z,
+				x[i], y[i], z[i]);
+	}
+
 	public void translate(final Vector3d v) {
 		for (int i=0; i<length; i++) {
 			x[i] += v.x;

@@ -844,6 +844,11 @@ public class Display3D {
 
 	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
 	static public Thread addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color) {
+		return addMesh(ref_ls, vs, title, color, null, 1.0f);
+	}
+
+	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
+	static public Thread addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color, final double[] widths, final float alpha) {
 		Thread thread = new Thread() {
 			public void run() {
 				setPriority(Thread.NORM_PRIORITY);
@@ -856,12 +861,25 @@ public class Display3D {
 		final Display3D d3d = Display3D.get(ref_ls);
 		final double scale = d3d.scale;
 		final double width = d3d.width;
+		float transp = 1 - alpha;
+		if (transp < 0) transp = 0;
+		if (transp > 1) transp = 1;
+		if (1 == transp) {
+			Utils.log("WARNING: adding a 3D object fully transparent.");
+		}
 
-		// temporary:
-		double[] wi = new double[vs.getPoints(0).length];
-		//Utils.log2("len: " + wi.length + vs.getPoints(0).length + vs.getPoints(1).length);
-		Arrays.fill(wi, 2.0);
+		double[] wi = widths;
+		if (null == widths) {
+			wi = new double[vs.getPoints(0).length];
+			//Utils.log2("len: " + wi.length + vs.getPoints(0).length + vs.getPoints(1).length);
+			Arrays.fill(wi, 2.0);
+		} else if (widths.length != vs.length()) {
+			Utils.log("ERROR: widths.length != VectorString3D.length()");
+			return;
+		}
+
 		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), scale);
+
 		// add to 3D view (synchronized)
 		synchronized (d3d.u_lock) {
 			d3d.u_lock.lock();
@@ -872,7 +890,7 @@ public class Display3D {
 				//Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
 				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
 				Content ct = d3d.universe.getContent(title);
-				// no need, it's default //ct.setTransparency(1f);
+				ct.setTransparency(transp);
 				ct.toggleLock();
 			} catch (Exception e) {
 				IJError.print(e);

@@ -54,7 +54,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.awt.Rectangle;
-import java.util.regex.Pattern;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
@@ -1667,31 +1666,32 @@ public class Compare {
 	}
 
 	/** Compare all to all parameters. */
-	static private class CATAParameters {
-		double delta;
-		boolean skip_ends;
-		int max_mut;
-		float min_chunk;
-		int transform_type;
-		boolean chain_branches;
-		String[] preset;
-		final String[][] presets = {{"medial lobe", "dorsal lobe", "peduncle"}};
-		final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
-		String format;
-		final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
-		int distance_type;
-		boolean normalize;
-		boolean direct;
-		boolean substring_matching;
-		String regex;
-		boolean with_source = false;
-		double plot_max_x, plot_max_y;
-		int plot_width, plot_height;
-		boolean cut_uneven_ends = false;
+	static public class CATAParameters {
+		public double delta;
+		public boolean skip_ends;
+		public int max_mut;
+		public float min_chunk;
+		public int transform_type;
+		public boolean chain_branches;
+		public String[] preset;
+		public final String[][] presets = {{"medial lobe", "dorsal lobe", "peduncle"}};
+		public final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
+		public String format;
+		public final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
+		public int distance_type;
+		public boolean normalize;
+		public boolean direct;
+		public boolean substring_matching;
+		public String regex;
+		public boolean with_source = false;
+		public double plot_max_x, plot_max_y;
+		public int plot_width, plot_height;
+		public boolean cut_uneven_ends = true;
+		public int envelope_type = 2;
 
-		CATAParameters() {}
+		public CATAParameters() {}
 
-		private boolean setup(final boolean to_file, final String regex, final boolean plot, final boolean condense) {
+		public boolean setup(final boolean to_file, final String regex, final boolean plot, final boolean condense) {
 			final GenericDialog gd = new GenericDialog("All to all");
 			gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
 			gd.addNumericField("point_interdistance: ", 0, 2);
@@ -1726,6 +1726,8 @@ public class Compare {
 			}
 			if (condense) {
 				gd.addCheckbox("cut_uneven_ends", false);
+				final String[] env = {"1 std dev", "2 std dev", "3 std dev", "average", "maximum"};
+				gd.addChoice("envelope", env, env[0]);
 			}
 
 			//////
@@ -1754,7 +1756,10 @@ public class Compare {
 			normalize = gd.getNextBoolean();
 			direct = gd.getNextBoolean();
 			substring_matching = gd.getNextBoolean();
+
 			this.regex = gd.getNextString();
+			if (0 == this.regex.length()) this.regex = null;
+
 			if (plot) {
 				plot_width = (int)gd.getNextNumber();
 				plot_height = (int)gd.getNextNumber();
@@ -1763,16 +1768,10 @@ public class Compare {
 			}
 			if (condense) {
 				cut_uneven_ends = gd.getNextBoolean();
+				envelope_type = gd.getNextChoiceIndex();
 			}
 
 			return true;
-		}
-
-		final Pattern makePattern() {
-			return
-				null == regex ?
-					null
-					: Pattern.compile("^.*" + regex + ".*$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 		}
 	}
 
@@ -1782,7 +1781,17 @@ public class Compare {
 		final ArrayList[] p_chains = new ArrayList[p.length]; // to keep track of each project's chains
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
 		for (int i=0; i<p.length; i++) { // for each project:
-			p_chains[i] = createPipeChains(p[i].getRootProjectThing(), p[i].getRootLayerSet());
+			if (null == cp.regex) {
+				p_chains[i] = createPipeChains(p[i].getRootProjectThing(), p[i].getRootLayerSet());
+			} else {
+				// Search (shallow) for cp.regex matches
+				for (ProjectThing pt : p[i].getRootProjectThing().findChildren(cp.regex, true)) {
+					final ArrayList<Chain> ac = createPipeChains(pt, p[i].getRootLayerSet());
+					if (null == p_chains[i]) p_chains[i] = ac;
+					else p_chains[i].addAll(ac);
+				}
+				if (null == p_chains[i]) p_chains[i] = new ArrayList<Chain>(); // empty
+			}
 			chains.addAll(p_chains[i]);
 			// calibrate
 			final Calibration cal = p[i].getRootLayerSet().getCalibrationCopy();
@@ -2179,8 +2188,26 @@ public class Compare {
 	}
 
 	static public Bureaucrat variabilityAnalysis() {
+		return variabilityAnalysis(null, null, false, false, null);
+	}
+
+	/** If @param reference_project is null, then the first one found in the Project.getProjects() lists is used.
+	 * If regex is not null, then only ProjectThing nodes with the matching regex are analyzed (shallow: none of their children are questioned, but pipes will be built from them all).
+	 * if show_plots, plots are shown -- otherwise, a directory is asked for and they are saved as png files.
+	 * */
+	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex, final boolean show_plots, final boolean show_3D, final Map<String,VectorString3D> map_condensed) {
 		// gather all open projects
 		final Project[] p = Project.getProjects().toArray(new Project[0]);
+		// make the reference_project be the first in the array
+		if (null != reference_project && reference_project != p[0]) {
+			for (int i=0; i<p.length; i++) {
+				if (reference_project == p[i]) {
+					p[i] = p[0];
+					p[0] = reference_project;
+					break;
+				}
+			}
+		}
 
 		final Worker worker = new Worker("Comparing all to all") {
 			public void run() {
@@ -2190,20 +2217,24 @@ public class Compare {
 		Utils.log2("Asking for CATAParameters...");
 
 		final CATAParameters cp = new CATAParameters();
-		if (!cp.setup(false, cp.regex, true, true)) { // no regex used so far.
+		if (!cp.setup(false, regex, true, true)) { // no regex used so far.
 			finishedWorking();
 			return;
 		}
 		cp.with_source = true; // so source points are stored in VectorString3D for each resampled and interpolated point
 
-		DirectoryChooser dc = new DirectoryChooser("Choose plots directory");
-		String plot_dir = dc.getDirectory();
-		if (null == plot_dir) {
-			finishedWorking();
-			return;
+		String plot_dir = null;
+		if (!show_plots) {
+			// Save plots
+			DirectoryChooser dc = new DirectoryChooser("Choose plots directory");
+			plot_dir = dc.getDirectory();
+			if (null == plot_dir) {
+				finishedWorking();
+				return;
+			}
+			if (IJ.isWindows()) plot_dir = plot_dir.replace('\\', '/');
+			if (plot_dir.endsWith("/")) plot_dir += "/";
 		}
-		if (IJ.isWindows()) plot_dir = plot_dir.replace('\\', '/');
-		if (plot_dir.endsWith("/")) plot_dir += "/";
 
 		Utils.log2("Gathering chains...");
 
@@ -2275,30 +2306,26 @@ public class Compare {
 		for (Map.Entry<String,VectorString3D> e : condensed.entrySet()) {
 			final String name = e.getKey();
 			final VectorString3D c = e.getValue();
-			final double[] stdDev = c.getStdDevAtEachPoint();
-			final double[] index = new double[stdDev.length];
-			for (int i=0; i<index.length; i++) index[i] = i;
-			Plot plot = new Plot(name, name + " -- Point index (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + c.getCalibrationCopy().getUnits() + ")", "Std Dev", index, stdDev);
-			plot.setLimits(0, cp.plot_max_x, 0, cp.plot_max_y);
-			plot.setSize(cp.plot_width, cp.plot_height);
-			plot.setLineWidth(2);
+			final Plot plot = makePlot(cp, name, c);
 			//FAILS//plot.addLabel(10, cp.plot_height-5, name); // must be added after setting size
-			//plot.show();
-			new FileSaver(plot.getImagePlus()).saveAsPng(plot_dir + name.replace('/', '-') + ".png");
+			if (show_plots) plot.show();
+			else if (null != plot_dir) new FileSaver(plot.getImagePlus()).saveAsPng(plot_dir + name.replace('/', '-') + ".png");
 		}
 
-		// DEBUG: show all condensed in 3D
-
-		/*
-		for (String name : bundles.keySet()) {
-			ArrayList<Chain> bc = bundles.get(name);
-			VectorString3D vs_merged = condensed.get(name);
-			LayerSet common_ls = new LayerSet(bc.get(0).getRoot().getProject(), -1, "Common", 10, 10, 0, 0, 0, 512, 512, false, 2, new AffineTransform());
-			Display3D d3d = Display3D.getDisplay(common_ls);
-			for (Chain chain : bc) d3d.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
-			d3d.addMesh(common_ls, vs_merged, name, Color.red);
+		// Show all condensed in 3D
+		if (show_3D) {
+			final LayerSet common_ls = new LayerSet(p[0], -1, "Common", 10, 10, 0, 0, 0, 512, 512, false, 2, new AffineTransform());
+			final Display3D d3d = Display3D.getDisplay(common_ls);
+			for (String name : bundles.keySet()) {
+				ArrayList<Chain> bc = bundles.get(name);
+				VectorString3D vs_merged = condensed.get(name);
+				for (Chain chain : bc) d3d.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
+				d3d.addMesh(common_ls, vs_merged, name, Color.red);
+			}
 		}
-		*/
+		if (null != map_condensed) {
+			map_condensed.putAll(condensed);
+		}
 
 		Utils.log2("Done.");
 
@@ -2312,6 +2339,56 @@ public class Compare {
 		Bureaucrat burro = new Bureaucrat(worker, p[0]);
 		burro.goHaveBreakfast();
 		return burro;
+	}
+
+	static public Plot makePlot(final CATAParameters cp, final String name, final VectorString3D c) {
+		final double[] stdDev = c.getStdDevAtEachPoint();
+		final double[] index = new double[stdDev.length];
+		for (int i=0; i<index.length; i++) index[i] = i;
+		final Plot plot = new Plot(name, name + " -- Point index (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + c.getCalibrationCopy().getUnits() + ")", "Std Dev", index, stdDev);
+		plot.setLimits(0, cp.plot_max_x, 0, cp.plot_max_y);
+		plot.setSize(cp.plot_width, cp.plot_height);
+		plot.setLineWidth(2);
+		return plot;
+	}
+
+	/** From a condensed VectorString3D, create the radius at each point. */
+	static public double[] makeEnvelope(final CATAParameters cp, final VectorString3D c) {
+		if (cp.envelope_type <= 0) { // defensive programming
+			// one std dev
+			return c.getStdDevAtEachPoint();
+		}
+
+		final double[] width = new double[c.length()];
+
+		if (cp.envelope_type < 3) { // 1 or 2
+			// two or three std dev
+			final double[] std = c.getStdDevAtEachPoint();
+			final int f = cp.envelope_type + 1; // so: 2 or 3
+			for (int i=0; i<std.length; i++) {
+				width[i] = f * std[i];
+			}
+		} else if (3 == cp.envelope_type) {
+			// average distance from condensed to all sources
+			int i=0;
+			for (ArrayList<Point3d> ap : c.getSource()) {
+				double sum = 0;
+				for (Point3d p : ap) sum += c.distance(i, p);
+				width[i] = sum / ap.size();
+				i++;
+			}
+		} else if (4 == cp.envelope_type) {
+			// max distance from condensed to all sources
+			int i=0;
+			for (ArrayList<Point3d> ap : c.getSource()) {
+				double max = 0;
+				for (Point3d p : ap) max = Math.max(max, c.distance(i, p));
+				width[i] = max;
+				i++;
+			}
+		}
+
+		return width;
 	}
 
 	static private final class Cell<T> {
@@ -2328,8 +2405,8 @@ public class Compare {
 		}
 	}
 
-	/** Do an all-to-all distance matrix of the given vs, then do a neighbor joining, do a weighted merge of the two VectorString3D being merged, and then finally output the resulting condensed unique VectorString3D with its source array full with all points that make each point in it. */
-	static private VectorString3D condense(final CATAParameters cp, final VectorString3D[] vs, final Worker worker) throws Exception {
+	/** Do an all-to-all distance matrix of the given vs, then do a neighbor joining, do a weighted merge of the two VectorString3D being merged, and then finally output the resulting condensed unique VectorString3D with its source array full with all points that make each point in it. Expects VectorString3D which are already calibrated and transformed. */
+	static public VectorString3D condense(final CATAParameters cp, final VectorString3D[] vs, final Worker worker) throws Exception {
 		// Trivial case 1:
 		if (1 == vs.length) return vs[0];
 
@@ -2365,7 +2442,7 @@ public class Compare {
 		for (VectorString3D v : vs) remaining.add(v);
 
 		while (table.size() > 0) {
-			if (worker.hasQuitted()) {
+			if (null != worker && worker.hasQuitted()) {
 				return null;
 			}
 			// find smallest value
