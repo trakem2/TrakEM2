@@ -531,7 +531,7 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		// remove zeros from the end
 		if (remove_trailing_zeros) {
-			for (int i=sb.length()-1; i>i_dot+1; i--) { // leep at least one zero after the comma
+			for (int i=sb.length()-1; i>i_dot+1; i--) { // leave at least one zero after the comma
 				if ('0' == sb.charAt(i)) {
 					sb.setLength(i);
 				} else {
