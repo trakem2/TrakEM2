@@ -2343,16 +2343,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	public void updateTitle() {
 		// From ij.ImagePlus class, the solution:
 		String scale = "";
-		double magnification = canvas.getMagnification();
+		final double magnification = canvas.getMagnification();
 		if (magnification!=1.0) {
-			double percent = magnification*100.0;
-			if (percent==(int)percent)
-				scale = " (" + Utils.d2s(percent,0) + "%)";
-			else
-				scale = " (" + Utils.d2s(percent,1) + "%)";
+			final double percent = magnification*100.0;
+			scale = new StringBuffer(" (").append(Utils.d2s(percent, percent==(int)percent ? 0 : 1)).append("%)").toString();
 		}
-		Calibration cal = layer.getParent().getCalibration();
-		String title = new StringBuffer().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(layer.getParent().getLayerWidth() * cal.pixelWidth).append('x').append(layer.getParent().getLayerHeight() * cal.pixelHeight).append(' ').append(cal.getUnit()).toString();
+		final Calibration cal = layer.getParent().getCalibration();
+		String title = new StringBuffer().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(Utils.cutNumber(layer.getParent().getLayerWidth() * cal.pixelWidth, 2, true)).append('x').append(Utils.cutNumber(layer.getParent().getLayerHeight() * cal.pixelHeight, 2, true)).append(' ').append(cal.getUnit()).toString();
 		frame.setTitle(title);
 		// fix the title for the FakeImageWindow and thus the WindowManager listing in the menus
 		canvas.getFakeImagePlus().setTitle(title);
