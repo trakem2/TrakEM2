@@ -45,6 +45,7 @@ import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -587,11 +588,29 @@ public class ProjectThing extends DBObject implements Thing {
 		return pt;
 	}
 
+	/** Recursive into children, searches for the things whose object.toString() matches the given regex, case insensitive. If shallow, the recursive search does not look into the children of a parent that matches. */
+	public ArrayList<ProjectThing> findChildren(final String regex, final boolean shallow) {
+		final ArrayList<ProjectThing> found = new ArrayList<ProjectThing>();
+		findChildren(found, Pattern.compile("^.*" + regex + ".*$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL), shallow);
+		return found;
+	}
+	/** Recursive into children, searches for things whose object.toString() matches the given regex pattern, and stores the found ProjectThing in the given ArrayList. If shallow, the recursive search does not look into the children of a parent that matches. */
+	public void findChildren(final ArrayList<ProjectThing> found, final Pattern pat, final boolean shallow) {
+		if (null != object && pat.matcher(object.toString()).matches()) {
+			found.add(this);
+			if (shallow) return; // don't look into children
+		}
+		if (null == al_children) return;
+		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			((ProjectThing)it.next()).findChildren(found, pat, shallow);
+		}
+	}
+
 	/** Recursive search for the thing that contains the given object. */
-	public Thing findChild(Object ob) {
+	public Thing findChild(final Object ob) {
 		if (null != object && object.equals(ob)) return this;
 		if (null == al_children) return null;
-		Iterator it = al_children.iterator();
+		final Iterator it = al_children.iterator();
 		while (it.hasNext()) {
 			Thing found = ((Thing)it.next()).findChild(ob);
 			if (null != found) return found;
@@ -600,10 +619,10 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Recursive search for the thing of the given id. */
-	public ProjectThing findChild(long id) {
+	public ProjectThing findChild(final long id) {
 		if (id == this.id) return this;
 		if (null == al_children) return null;
-		Iterator it = al_children.iterator();
+		final Iterator it = al_children.iterator();
 		while (it.hasNext()) {
 			ProjectThing found = ((ProjectThing)it.next()).findChild(id);
 			if (null != found) return found;
@@ -612,7 +631,7 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Recursive search for the object with the given id. */
-	public DBObject findObject(long id) {
+	public DBObject findObject(final long id) {
 		if (id == this.id) return this;
 		if (null != object && object instanceof DBObject) {
 			DBObject dbo = (DBObject)object;
