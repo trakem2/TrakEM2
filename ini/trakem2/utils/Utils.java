@@ -75,6 +75,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Vector;
 import java.util.Calendar;
+import java.lang.Iterable;
+import java.util.Iterator;
+import java.util.Map;
 
 import javax.vecmath.Point3f;
 import javax.vecmath.Vector3f;
@@ -261,8 +264,78 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Intended for developers: prints to terminal. */
-	static public void log2(String msg) {
+	static public void log2(final String msg) {
 		System.out.println(msg);
+	}
+
+	/** Pretty-print the object, for example arrays as [0, 1, 2]. */
+	static public void log2(final Object ob) {
+		Utils.log2(null, ob);
+	}
+	/** Pretty-print the object, for example arrays as [0, 1, 2]. */
+	static public void log2(final String msg, final Object ob) {
+		Utils.log2((null != msg ? msg : "") + ob + "\n\t" + Utils.toString(ob));
+	}
+	static public void log2(final String msg, final Object ob1, final Object... ob) {
+		StringBuffer sb = new StringBuffer(null == msg ? "" : msg + "\n");
+		sb.append(ob1.toString()).append(" : ").append(Utils.toString(ob1)).append('\n');
+		for (int i=0; i<ob.length; i++) sb.append(ob.toString()).append(" : ").append(Utils.toString(ob[i])).append('\n');
+		sb.setLength(sb.length()-1);
+		Utils.log2(sb.toString());
+	}
+
+	/** Print an object; if it's an array, print each element, recursively, as [0, 1, 2] or [[0, 1, 2], [3, 4, 5]], etc, same for Iterable and Map objects. */
+	static public String toString(final Object ob) {
+		if (null == ob) return "null";
+		// Clojure could do this so much easier with a macro
+		final StringBuffer sb = new StringBuffer();
+		sb.append('[');
+		char closing = ']';
+		if (ob instanceof String[]) { // could be done with Object[] and recursive calls, but whatever
+			final String[] s = (String[])ob;
+			for (int i=0; i<s.length; i++) sb.append(s[i]).append(", ");
+		} else if (ob instanceof int[]) {
+			final int[] s = (int[])ob;
+			for (int i=0; i<s.length; i++) sb.append(s[i]).append(", ");
+		} else if (ob instanceof double[]) {
+			final double[] s = (double[])ob;
+			for (int i=0; i<s.length; i++) sb.append(s[i]).append(", ");
+		} else if (ob instanceof float[]) {
+			final float[] s = (float[])ob;
+			for (int i=0; i<s.length; i++) sb.append(s[i]).append(", ");
+		} else if (ob instanceof char[]) {
+			final char[] s = (char[])ob;
+			for (int i=0; i<s.length; i++) sb.append(s[i]).append(", ");
+		} else if (ob instanceof Object[]) {
+			final Object[] s = (Object[])ob;
+			for (int i=0; i<s.length; i++) sb.append(Utils.toString(s[i])).append(", ");
+		} else if (ob instanceof Iterable) {
+			final Iterable s = (Iterable)ob;
+			for (Iterator it = s.iterator(); it.hasNext(); ) sb.append(Utils.toString(it.next())).append(", ");
+		} else if (ob instanceof Map) {
+			sb.setCharAt(0, '{');
+			closing = '}';
+			final Map s = (Map)ob;
+			for (Iterator it = s.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry e = (Map.Entry)it.next();
+				sb.append(Utils.toString(e.getKey())).append(" => ").append(Utils.toString(e.getValue())).append(", ");
+			}
+		} else if (ob instanceof long[]) {
+			final long[] s = (long[])ob;
+			for (int i=0; i<s.length; i++) sb.append(s[i]).append(", ");
+		} else if (ob instanceof short[]) {
+			final short[] s = (short[])ob;
+			for (int i=0; i<s.length; i++) sb.append(s[i]).append(", ");
+		} else if (ob instanceof boolean[]) {
+			final boolean[] s = (boolean[])ob;
+			for (int i=0; i<s.length; i++) sb.append(s[i]).append(", ");
+		} else {
+			return ob.toString();
+		}
+		sb.setLength(sb.length()-2);
+		sb.append(closing);
+		sb.append('\n');
+		return sb.toString();
 	}
 
 	static public void setDebug(boolean debug) {
