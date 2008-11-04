@@ -59,7 +59,7 @@ public class ProjectThing extends DBObject implements Thing {
 	/** Can be null - a ProjectThing with a null parent is by definition a root Thing. */
 	private ProjectThing parent;
 
-	private ArrayList al_children = null;
+	private ArrayList<ProjectThing> al_children = null;
 
 	/** The object holded by this ProjectThing. Can be a simple String when it holds no object. The title of a Thing is the title of the object it holds, or the String itself. The title is always accessed with Object.toString(). */
 	private Object object;
@@ -81,7 +81,7 @@ public class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Reconstruct a ProjectThing from the database, used in  combination with the 'setup' method. */
-	public ProjectThing(TemplateThing template, Project project, long id, Object ob, ArrayList al_children, HashMap ht_attributes) {
+	public ProjectThing(TemplateThing template, Project project, long id, Object ob, ArrayList<ProjectThing> al_children, HashMap ht_attributes) {
 		// call super constructor
 		super(project, id);
 		// specifics:
@@ -125,9 +125,7 @@ public class ProjectThing extends DBObject implements Thing {
 			}
 		}
 		if (null != al_children) {
-			Iterator it = al_children.iterator();
-			while (it.hasNext()) {
-				ProjectThing child = (ProjectThing)it.next();
+			for (ProjectThing child : al_children) {
 				child.parent = this;
 				child.setup();
 			}
@@ -162,12 +160,12 @@ public class ProjectThing extends DBObject implements Thing {
 
 	public boolean addChild(Thing child) {
 		// check if the child is allowed in this ProjectThing
-		if (!template.canHaveAsChild(child) || (null != al_children && -1 != al_children.indexOf(child))) { // paranoid avoidance of duplicates
+		if (!template.canHaveAsChild(child) || (null != al_children && -1 != al_children.indexOf((ProjectThing)child))) { // paranoid avoidance of duplicates
 			return false;
 		}
 		// proceed to add the child
-		if (null == al_children) al_children = new ArrayList();
-		al_children.add(child);
+		if (null == al_children) al_children = new ArrayList<ProjectThing>();
+		al_children.add((ProjectThing)child);
 		child.setParent(this);
 		return true;
 	}
@@ -179,7 +177,7 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		// proceed to add the child
 		if (null == al_children) {
-			al_children = new ArrayList();
+			al_children = new ArrayList<ProjectThing>();
 			al_children.add(child);
 		} else {
 			if (index < 0) al_children.add(0, child);
@@ -194,7 +192,7 @@ public class ProjectThing extends DBObject implements Thing {
 		return true;
 	}
 
-	public ArrayList getChildren() {
+	public ArrayList<ProjectThing> getChildren() {
 		return al_children;
 	}
 
@@ -236,15 +234,12 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		// remove the children, which will propagate to their own objects
 		if (null != al_children) {
-			Object[] children = new Object[al_children.size()];
-			al_children.toArray(children); // can't delete directly from the al_children because the child will call removeChild on its parent
+			// can't delete directly from the al_children because the child will call removeChild on its parent
+			final ProjectThing[] children = al_children.toArray(new ProjectThing[al_children.size()]);
 			for (int i=0; i<children.length; i++) {
-				Object ob = children[i];
-				if (ob instanceof DBObject) {
-					if (!((DBObject)ob).remove(false)) {
-						Utils.showMessage("Deletion incomplete, check database, for child: " + ob.toString());
-						return false;
-					}
+				if (!children[i].remove(false)) {
+					Utils.showMessage("Deletion incomplete, check database, for child: " + children[i]);
+					return false;
 				}
 			}
 		}
@@ -315,15 +310,13 @@ public class ProjectThing extends DBObject implements Thing {
 			updateInDatabase("title");
 			// find any children that are using this title in addition to their own for the DisplayablePanel, and update it.
 			if (null != al_children) {
-				for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-					ProjectThing pt = (ProjectThing)it.next();
+				for (ProjectThing pt : al_children) {
 					if (pt.object instanceof Displayable) {
 						Displayable d = (Displayable)pt.object;
 						Display.updateTitle(d.getLayer(), d);
 					} else if (pt.getType().equals("profile_list")) {
 						if (null == pt.al_children) continue;
-						for (Iterator pit = pt.al_children.iterator(); pit.hasNext(); ) {
-							ProjectThing pd = (ProjectThing)pit.next();
+						for (ProjectThing pd : pt.al_children) {
 							Displayable d = (Displayable)pd.object;
 							Display.updateTitle(d.getLayer(), d);
 						}
@@ -470,9 +463,7 @@ public class ProjectThing extends DBObject implements Thing {
 			((Displayable)object).setVisible(b);
 		}
 		if (null != al_children) {
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				((ProjectThing)it.next()).setVisible(b);
-			}
+			for (ProjectThing pt : al_children) pt.setVisible(b);
 		}
 	}
 
@@ -601,8 +592,8 @@ public class ProjectThing extends DBObject implements Thing {
 			if (shallow) return; // don't look into children
 		}
 		if (null == al_children) return;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			((ProjectThing)it.next()).findChildren(found, pat, shallow);
+		for (ProjectThing pt : al_children) {
+			pt.findChildren(found, pat, shallow);
 		}
 	}
 
@@ -610,9 +601,8 @@ public class ProjectThing extends DBObject implements Thing {
 	public Thing findChild(final Object ob) {
 		if (null != object && object.equals(ob)) return this;
 		if (null == al_children) return null;
-		final Iterator it = al_children.iterator();
-		while (it.hasNext()) {
-			Thing found = ((Thing)it.next()).findChild(ob);
+		for (ProjectThing child : al_children) {
+			Thing found = child.findChild(ob);
 			if (null != found) return found;
 		}
 		return null;
@@ -622,9 +612,8 @@ public class ProjectThing extends DBObject implements Thing {
 	public ProjectThing findChild(final long id) {
 		if (id == this.id) return this;
 		if (null == al_children) return null;
-		final Iterator it = al_children.iterator();
-		while (it.hasNext()) {
-			ProjectThing found = ((ProjectThing)it.next()).findChild(id);
+		for (ProjectThing child : al_children) {
+			ProjectThing found = child.findChild(id);
 			if (null != found) return found;
 		}
 		return null;
@@ -638,8 +627,8 @@ public class ProjectThing extends DBObject implements Thing {
 			if (dbo.getId() == id) return dbo;
 		}
 		if (null == al_children) return null;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			DBObject dbo = ((ProjectThing)it.next()).findObject(id);
+		for (ProjectThing child : al_children) {
+			DBObject dbo = child.findObject(id);
 			if (null != dbo) return dbo;
 		}
 		return null;
@@ -666,15 +655,12 @@ public class ProjectThing extends DBObject implements Thing {
 		// profile list: always special ...
 		if (template.getType().equals("profile_list") && null != al_children && al_children.size() > 1) {
 			Profile[] p = new Profile[al_children.size()];
-			for (int i=0; i<al_children.size(); i++) p[i] = (Profile)((ProjectThing)al_children.get(i)).object;
+			for (int i=0; i<al_children.size(); i++) p[i] = (Profile)al_children.get(i).object;
 			ResultsTable rt = Profile.measure(p, ht.get(Profile.class), this.id);
 			if (null != rt) ht.put(Profile_List.class, rt);
 			//return ht; // don't return: do each profile separately as well
 		}
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			ProjectThing child = (ProjectThing)it.next();
-			child.measure(ht);
-		}
+		for (ProjectThing child : al_children) child.measure(ht);
 		return ht;
 	}
 
@@ -705,19 +691,18 @@ public class ProjectThing extends DBObject implements Thing {
 			data.append(indent).append("<g type=\"").append(type).append("\" title=\"").append(null != object ? object.toString() : type).append("\"");
 			data.append(" id=\"").append(id).append("\">\n");
 			String in = indent + "\t";
-			for (Iterator it=al_children.iterator(); it.hasNext(); ) { 
-				((ProjectThing)it.next()).exportSVG(data, z_scale, in);
+			for (ProjectThing child : al_children) { 
+				child.exportSVG(data, z_scale, in);
 			}
 			data.append(indent).append("</g>\n");
 		}
 	}
 
 	/** Check if this Thing directly contains any child of the given type, and return them all. */
-	public ArrayList findChildrenOfType(String type) {
+	public ArrayList findChildrenOfType(final String type) {
 		ArrayList al = new ArrayList();
 		if (null == al_children) return al;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			ProjectThing pt = (ProjectThing)it.next();
+		for (ProjectThing pt : al_children) {
 			if (pt.template.getType().equals(type)) {
 				al.add(pt);
 			}
@@ -727,16 +712,15 @@ public class ProjectThing extends DBObject implements Thing {
 
 	/** Recursive into children. */
 	public HashSet findChildrenOfTypeR(final String type) {
-		return findChildrenOfTypeR(new HashSet(), type);
+		return findChildrenOfTypeR(new HashSet<ProjectThing>(), type);
 	}
 	/** Recursive into children. */
-	public HashSet findChildrenOfTypeR(HashSet hs, final String type) {
-		if (null == hs) hs = new HashSet();
+	public HashSet<ProjectThing> findChildrenOfTypeR(HashSet<ProjectThing> hs, final String type) {
+		if (null == hs) hs = new HashSet<ProjectThing>();
 		else if (hs.contains(this)) return hs;
 		if (template.getType().equals(type)) hs.add(this);
 		if (null == al_children) return hs;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			ProjectThing child = (ProjectThing)it.next();
+		for (ProjectThing child : al_children) {
 			child.findChildrenOfTypeR(hs, type);
 		}
 		return hs;
@@ -758,8 +742,7 @@ public class ProjectThing extends DBObject implements Thing {
 		if (Project.isBasicType(template.getType())) hs_basic.add(this); // I don't return here because I make no assumptions of Basic types not having children in the future, plus profile_list is basic and has children, even if useless at the moment
 		// search children
 		if (null == al_children) return hs_basic;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			ProjectThing child = (ProjectThing)it.next();
+		for (ProjectThing child : al_children) {
 			child.findBasicTypeChildren(hs_basic, hs_visited); // ignoring returned HashSet pointer; the object should never change
 		}
 		return hs_basic;
@@ -777,8 +760,8 @@ public class ProjectThing extends DBObject implements Thing {
 			Display.updateTitle(d.getLayer(), d);
 		}
 		if (null != al_children && 0 != al_children.size()) {
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				((ProjectThing)it.next()).updateTitle(old_type);
+			for (ProjectThing child : al_children) {
+				child.updateTitle(old_type);
 			}
 		}
 	}
@@ -790,24 +773,24 @@ public class ProjectThing extends DBObject implements Thing {
 			updateTitle(old_type);
 		}
 		if (null == al_children || al_children.isEmpty()) return;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			((ProjectThing)it.next()).updateType(new_type, old_type);
+		for (ProjectThing child : al_children) {
+			child.updateType(new_type, old_type);
 		}
 	}
 
 	/** Recursive into children, find those of the given type that have the same parent chain as the given TemplateThing. */
-	public HashSet collectSimilarThings(TemplateThing tt, HashSet hs) {
+	public HashSet collectSimilarThings(final TemplateThing tt, HashSet hs) {
 		if (template.getType().equals(tt.getType()) && parent.template.getType().equals(tt.getParent().getType())) {
 			hs.add(this);
 		}
 		if (null == al_children || al_children.isEmpty()) return hs;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			hs = ((ProjectThing)it.next()).collectSimilarThings(tt, hs);
+		for (ProjectThing child : al_children) {
+			hs = child.collectSimilarThings(tt, hs);
 		}
 		return hs;
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	public void exportXML(final StringBuffer sb_body, String indent, Object any) {
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
 		String in = indent + "\t";
 		// 1 - opening tag with attributes:
@@ -835,9 +818,8 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		// 2 - list of children:
 		if (null != al_children && 0 != al_children.size()) {
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				DBObject dbo = (DBObject)it.next();
-				dbo.exportXML(sb_body, in, any);
+			for (ProjectThing child : al_children) {
+				child.exportXML(sb_body, in, any);
 			}
 		}
 		// 3 - closing tag:
@@ -859,8 +841,8 @@ public class ProjectThing extends DBObject implements Thing {
 				System.out.println("INDENT OVER 20 !");
 				return;
 			}
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				((Thing)it.next()).debug(indent + "\t");
+			for (ProjectThing child : al_children) {
+				child.debug(indent + "\t");
 			}
 		}
 		if (null != object) {
@@ -873,20 +855,17 @@ public class ProjectThing extends DBObject implements Thing {
 		if (!this.template.getType().equals("profile_list")) return false;
 		if (null == al_children || al_children.size() < 2) return true; // no need
 		// fix Z ordering in the tree
-		HashMap ht = new HashMap();
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			ProjectThing child = (ProjectThing)it.next();
+		final HashMap<Double,ArrayList<ProjectThing>> ht = new HashMap<Double,ArrayList<ProjectThing>>();
+		for (ProjectThing child : al_children) {
 			Profile p = (Profile)child.object;
 			Layer layer = p.getLayer();
 			Double z = new Double(layer.getZ()); // contortions: there could be more than one profile in the same layer
-			Object ob_al = ht.get(z);
-			ArrayList al;
-			if (null == ob_al) {
-				al = new ArrayList();
+			ArrayList<ProjectThing> al = ht.get(z);
+			if (null == al) {
+				al = new ArrayList<ProjectThing>();
 				al.add(child);
 				ht.put(z, al);
 			} else {
-				al = (ArrayList)ob_al;
 				al.add(child);
 			}
 		}
@@ -895,7 +874,7 @@ public class ProjectThing extends DBObject implements Thing {
 		Arrays.sort(zs);
 		al_children.clear();
 		for (int i=0; i<zs.length; i++) {
-			al_children.addAll((ArrayList)ht.get(zs[i]));
+			al_children.addAll(ht.get(zs[i]));
 		}
 		return true;
 	}
@@ -923,9 +902,8 @@ public class ProjectThing extends DBObject implements Thing {
 		hs.add(this);
 		info.append('\n').append(getNodeInfo());
 		if (null == al_children) return;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			ProjectThing pt = (ProjectThing)it.next();
-			pt.getInfo(hs, info);
+		for (ProjectThing child : al_children) {
+			child.getInfo(hs, info);
 		}
 	}
 
@@ -938,9 +916,8 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		final ProjectThing copy = new ProjectThing(pr.getTemplateThing(this.template.getType()), pr, this.id, ob, new ArrayList(), new HashMap());
 		if (null != this.al_children) {
-			copy.al_children = new ArrayList();
-			for (Iterator it = this.al_children.iterator(); it.hasNext(); ) {
-				ProjectThing child = (ProjectThing)it.next();
+			copy.al_children = new ArrayList<ProjectThing>();
+			for (ProjectThing child : this.al_children) {
 				ProjectThing cc = child.subclone(pr);
 				// check object:
 				if (child.object instanceof DBObject && null == cc.object) continue; // don't add: the object was not cloned and thus not found.
@@ -983,8 +960,8 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		ap.add(this);
 		if (null == al_children) return ht;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			((ProjectThing)it.next()).getByType(ht);
+		for (ProjectThing child : al_children) {
+			child.getByType(ht);
 		}
 		return ht;
 	}
