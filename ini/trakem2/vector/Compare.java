@@ -159,8 +159,10 @@ public class Compare {
 		final Object[] holder = new Object[]{pipe_names_ref};
 
 		// automatically find for the first preset
-		int[] s = findXYZAxes(presets[0], pipes, pipe_names);
-		int[] t = findXYZAxes(presets[0], pipes_ref, pipe_names_ref);
+		final Pipe[] query_axes = findXYZAxes(presets[0], pipe);
+		final int[] s = findXYZAxes(query_axes, pipes, pipe_names);
+		final int[] t = findFirstXYZAxes(presets[0], pipes_ref, pipe_names_ref);
+
 		// check if none found
 		for (int i=0; i<3; i++) {
 			if (-1 == s[i]) s[i] = 0;
@@ -173,10 +175,15 @@ public class Compare {
 		/* 3 */ gd.addChoice("Z_source: ", pipe_names, pipe_names[s[2]]);
 
 		gd.addMessage("Reference project:");
-		String[] options = new String[all.length];
+		final String[] options = new String[all.length];
 		for (int i=0; i<all.length; i++) {
 			options[i] = all[i].toString();
 		}
+
+		//debug:
+		Utils.log2("t is: ", t);
+		Utils.log2("query_axes is: ", query_axes);
+
 		/* 4 */ gd.addChoice("Project: ", options, options[iother]);
 		/* 5 */ gd.addChoice("X_ref: ", pipe_names_ref, pipe_names_ref[t[0]]);
 		/* 6 */ gd.addChoice("Y_ref: ", pipe_names_ref, pipe_names_ref[t[1]]);
@@ -194,7 +201,7 @@ public class Compare {
 				String project_name = (String)ie.getItem();
 				Project project = null;
 				for (int i=0; i<all.length; i++) {
-					if (all[i].getTitle().equals(project_name)) {
+					if (all[i].toString().equals(project_name)) {
 						project = all[i];
 						break;
 					}
@@ -204,16 +211,15 @@ public class Compare {
 				pipes_ref.addAll(project.getRootLayerSet().getZDisplayables(Pipe.class));
 				String[] pipe_names_ref = new String[pipes_ref.size()];
 				holder[0] = pipe_names_ref;
-				int[] s = findXYZAxes(presets[cpre.getSelectedIndex()], pipes_ref, pipe_names_ref);
+				int[] s = findFirstXYZAxes(presets[cpre.getSelectedIndex()], pipes_ref, pipe_names_ref);
 				for (int i=0; i<3; i++) {
 					if (-1 == s[i]) s[i] = 0;
-					int index = ref[i].getSelectedIndex();
 					ref[i].removeAll();
 					for (int k=0; k<pipe_names_ref.length; k++) {
 						ref[i].add(pipe_names_ref[k]);
 					}
 					if (0 != s[i]) ref[i].select(s[i]);
-					else ref[i].select(index); // previous one
+					else ref[i].select(0);
 				}
 			}
 		});
@@ -285,22 +291,76 @@ public class Compare {
 		return findSimilarWithAxes(pipe, axes, axes_ref, pipes_ref, skip_ends, max_mut, min_chunk, transform_type, chain_branches, true, score_mut, substring_matching, direct, delta, distance_type);
 	}
 
-	static private int[] findXYZAxes(final String[] presets, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
-		int[] s = new int[]{-1, -1, -1};
+	/** Finds the first three X,Y,Z axes as specified by the names in preset. */
+	static private int[] findFirstXYZAxes(final String[] preset, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
+		final int[] s = new int[]{-1, -1, -1};
 		int next = 0;
 		for (ZDisplayable zd : pipes) {
 			pipe_names[next] = zd.getProject().getShortMeaningfulTitle(zd);
-			final String lc = pipe_names[next].toLowerCase();
-			if (lc.contains(presets[0])) {
-				s[0] = next;
-			} else if (lc.contains(presets[1])) {
-				s[1] = next;
-			} else if (lc.contains(presets[2])) {
-				s[2] = next;
+			if (-1 != s[0] && -1 != s[1] && -1 != s[2]) {
+				 // Already all found, just filling names
+				next++;
+				continue;
 			}
+			final String name = pipe_names[next].toLowerCase();
+			if (-1 != name.indexOf(preset[0])) s[0] = next;
+			else if (-1 != name.indexOf(preset[1])) s[1] = next;
+			else if (-1 != name.indexOf(preset[2])) s[2] = next;
 			next++;
 		}
 		return s;
+	}
+
+	/** Find the indices of the axes pipes in the pipes array list, and fills in the pipe_names array. */
+	static private int[] findXYZAxes(final Pipe[] axes, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
+		final int[] s = new int[]{-1, -1, -1};
+		int next = 0;
+		for (ZDisplayable pipe : pipes) {
+			pipe_names[next] = pipe.getProject().getShortMeaningfulTitle(pipe);
+			if (pipe == axes[0]) s[0] = next;
+			else if (pipe == axes[1]) s[1] = next;
+			else if (pipe == axes[2]) s[2] = next;
+
+			next++;
+		}
+		return s;
+	}
+
+	static private void trySetAsAxis(final Pipe[] axes, final String[] preset, final ProjectThing pt) {
+		final Object ob = pt.getObject();
+		if (null == ob || ob.getClass() != Pipe.class) return;
+		final Pipe pipe = (Pipe)ob;
+		final String title = pipe.getProject().getShortMeaningfulTitle(pt, pipe).toLowerCase();
+		if (-1 != title.indexOf(preset[0])) axes[0] = pipe;
+		else if (-1 != title.indexOf(preset[1])) axes[1] = pipe;
+		else if (-1 != title.indexOf(preset[2])) axes[2] = pipe;
+	}
+
+	/** Finds the 3 pipes named according to the presets (such as "medial lobe", "dorsal lobe" and "peduncle"), that are structurally closest to the query_pipe in the Project Tree. In this fashion, if there are more than one hemisphere, the correct set of axes will be found for the query pipe.*/
+	static public Pipe[] findXYZAxes(final String[] preset, final Pipe query_pipe) {
+		if (preset.length < 3) {
+			Utils.log2("findXYZAxes: presets must be of length 3");
+			return null;
+		}
+		final Pipe[] axes = new Pipe[3];
+		// Step up level by level looking for pipes with the given preset names
+		final Project project = query_pipe.getProject();
+		ProjectThing last = project.findProjectThing(query_pipe);
+		trySetAsAxis(axes, preset, last);
+		final String type = last.getType();
+		do {
+			final ProjectThing parent = (ProjectThing)last.getParent();
+			if (null == parent) return axes;
+			for (ProjectThing child : parent.getChildren()) {
+				if (child == last) continue; // already searched
+				HashSet<ProjectThing> al = child.findChildrenOfTypeR(new HashSet<ProjectThing>(), type);
+				for (ProjectThing pt : al) {
+					trySetAsAxis(axes, preset, pt);
+				}
+				if (null != axes[0] && null != axes[1] && null != axes[2]) return axes;
+			}
+			last = parent;
+		} while (true);
 	}
 
 	/** Generate calibrated origin of coordinates. */
@@ -1824,7 +1884,7 @@ public class Compare {
 					for (int k=0; k<pipes.size(); k++) {
 						pipe_names[k] = p[i].getMeaningfulTitle(pipes.get(k));
 					}
-					int[] s = findXYZAxes(cp.preset, pipes, pipe_names);
+					int[] s = findFirstXYZAxes(cp.preset, pipes, pipe_names);
 
 					// if axes are -1, forget it: not found
 					if (-1 == s[0] || -1 == s[1] || -1 == s[2]) {
