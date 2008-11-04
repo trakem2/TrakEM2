@@ -930,8 +930,8 @@ public class DBLoader extends Loader {
 		return new ProjectThing(tt, project, id, ob, getChildrenProjectThings(project, id, type, hs_tt, hs_d), getProjectAttributes(project, id));
 	}
 
-	private ArrayList getChildrenProjectThings(Project project, long parent_id, String parent_type, HashMap hs_tt, HashMap hs_d) throws Exception {
-		ArrayList al_children = new ArrayList();
+	private ArrayList<ProjectThing> getChildrenProjectThings(Project project, long parent_id, String parent_type, HashMap hs_tt, HashMap hs_d) throws Exception {
+		final ArrayList<ProjectThing> al_children = new ArrayList<ProjectThing>();
 		ResultSet r = null;
 		if (-1 == parent_id) Utils.log("parent_id = -1 for parent_type=" + parent_type);
 		if (parent_type.equals("profile_list")) {
