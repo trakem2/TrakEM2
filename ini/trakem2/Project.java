@@ -773,6 +773,12 @@ public class Project extends DBObject {
 	public String getShortMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
+		return getShortMeaningfulTitle(thing, d);
+	}
+	public String getShortMeaningfulTitle(final ProjectThing thing, final Displayable d) {
+		if (thing.getObject() != d) {
+			return thing.toString();
+		}
 		ProjectThing parent = (ProjectThing)thing.getParent();
 		String title = "#" + d.getId();
 		while (null != parent) {
