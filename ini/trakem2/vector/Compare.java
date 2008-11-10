@@ -180,10 +180,6 @@ public class Compare {
 			options[i] = all[i].toString();
 		}
 
-		//debug:
-		Utils.log2("t is: ", t);
-		Utils.log2("query_axes is: ", query_axes);
-
 		/* 4 */ gd.addChoice("Project: ", options, options[iother]);
 		/* 5 */ gd.addChoice("X_ref: ", pipe_names_ref, pipe_names_ref[t[0]]);
 		/* 6 */ gd.addChoice("Y_ref: ", pipe_names_ref, pipe_names_ref[t[1]]);
