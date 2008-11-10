@@ -3033,13 +3033,13 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			Utils.log2("Di Using: " + min + ", " + max + ", " + drift_hist_peak + " use_selected_images: " + use_selected_images);
 			if (use_selected_images) {
 				ArrayList al_images = selection.getSelected(Patch.class);
-				if (al_images.size() < 1) {
-					Utils.log2("You need at least 2 images selected.");
-					return;
-				}
 				if (independent) {
 					project.getLoader().optimizeContrast(al_images);
 				} else {
+					if (al_images.size() < 2) {
+						Utils.log("You need at least 2 images selected.");
+						return;
+					}
 					project.getLoader().homogenizeContrast(al_images, min, max, drift_hist_peak);
 				}
 			} else {
