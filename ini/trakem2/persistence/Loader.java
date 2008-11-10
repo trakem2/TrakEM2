@@ -4275,7 +4275,6 @@ abstract public class Loader {
 				p.setMinAndMax(ip.getMin(), ip.getMax());
 			}
 
-
 			// 7 - recreate mipmap files
 			if (isMipMapsEnabled()) {
 				ArrayList al = new ArrayList();
@@ -4710,7 +4709,8 @@ abstract public class Loader {
 	static public final int BILINEAR = 1;
 	static public final int BICUBIC = 2;
 	static public final int GAUSSIAN = 3;
-	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic", "Gaussian"};
+	static public final int AREA_AVERAGING = 4;
+	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic", "Gaussian", "Area averaging"};
 
 	static public final int getMode(final String mode) {
 		for (int i=0; i<modes.length; i++) {

@@ -1177,6 +1177,11 @@ public class FSLoader extends Loader {
 		if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
 		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
 		final Graphics2D g = bi.createGraphics();
+		if (interpolation_hint.getClass() == Integer.class && Loader.AREA_AVERAGING == ((Integer)interpolation_hint).intValue()) {
+			final Image img = awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING); // Creates ALWAYS an RGB image, so must repaint back to a single-channel image, avoiding unnecessary blow up of memory.
+			g.drawImage(img, 0, 0, w, h, null);
+			return bi;
+		}
 		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation_hint);
 		g.drawImage(awt, 0, 0, w, h, null);
 		return bi;
@@ -1189,6 +1194,8 @@ public class FSLoader extends Loader {
 				hint = RenderingHints.VALUE_INTERPOLATION_BICUBIC; break;
 			case Loader.BILINEAR:
 				hint = RenderingHints.VALUE_INTERPOLATION_BILINEAR; break;
+			case Loader.AREA_AVERAGING:
+				hint = new Integer(mode); break;
 			case Loader.NEAREST_NEIGHBOR:
 			default:
 				hint = RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR; break;
