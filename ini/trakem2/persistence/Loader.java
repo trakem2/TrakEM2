@@ -44,6 +44,7 @@ import ij.io.Opener;
 import ij.io.OpenDialog;
 import ij.io.TiffEncoder;
 import ij.plugin.filter.PlugInFilter;
+import ij.plugin.ContrastEnhancer;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
@@ -135,6 +136,8 @@ import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 
 /** Handle all data-related issues with a virtualization engine, including load/unload and saving, saving as and overwriting. */
@@ -4185,7 +4188,7 @@ abstract public class Loader {
 			if (null == pa) return false; // error
 			if (0 == pa.length) return true; // done
 			// 0 - check that all images are of the same size and type
-			int ptype = pa[0].getType();
+			final int ptype = pa[0].getType();
 			double pw = pa[0].getWidth();
 			double ph = pa[0].getHeight();
 			for (int e=1; e<pa.length; e++) {
@@ -4199,6 +4202,7 @@ abstract public class Loader {
 					return false;
 				}
 			}
+
 			// Set min and max for all images
 			double min = 0;
 			double max = 0;
@@ -4246,88 +4250,32 @@ abstract public class Loader {
 					i++;
 				}
 			}
-			if (null != worker && worker.hasQuitted()) {
-				return false;
-			}
-			// 3 - compute common histogram for the middle 50% images
+
+			// USE internal ContrastEnhancer plugin with a virtual stack made of the middle 50% of images
 			final Patch[] p50 = new Patch[al_p.size()];
 			al_p.toArray(p50);
-			final ImageStatistics stats = 1 == p50.length ? p50[0].getImagePlus().getStatistics() : new StackStatistics(new PatchStack(p50, 1));
-			int n = 1;
-			switch (type) {
-				case ImagePlus.GRAY16:
-				case ImagePlus.GRAY32:
-					n = 2;
-					break;
+			PatchStack ps = new PatchStack(p50, 1);
+			final StackStatistics stats = new StackStatistics(ps);
+			final ContrastEnhancer ce = new ContrastEnhancer();
+			Field fnormalize = ContrastEnhancer.class.getDeclaredField("normalize");
+			fnormalize.setAccessible(true);
+			fnormalize.set(ce, true);
+			// Show the dialog:
+			if (ControlWindow.isGUIEnabled()) {
+				Method m = ContrastEnhancer.class.getDeclaredMethod("showDialog", new Class[]{ImagePlus.class});
+				m.setAccessible(true);
+				m.invoke(ce, new Object[]{ps});
 			}
-			// 4 - compute autoAdjust min and max values
-			// extracting code from ij.plugin.frame.ContrastAdjuster, method autoAdjust
-			int autoThreshold = 0;
-			// once for 8-bit and color, twice for 16 and 32-bit (thus the 2501 autoThreshold value)
-			int limit = stats.pixelCount/10;
-			int[] histogram = stats.histogram;
-			//if (autoThreshold<10) autoThreshold = 5000;
-			//else autoThreshold /= 2;
-			if (ImagePlus.GRAY16 == type || ImagePlus.GRAY32 == type) autoThreshold = 2500;
-			else autoThreshold = 5000;
-			int threshold = stats.pixelCount / autoThreshold;
-			int i = -1;
-			boolean found = false;
-			int count;
-			do {
-				i++;
-				count = histogram[i];
-				if (count>limit) count = 0;
-				found = count > threshold;
-			} while (!found && i<255);
-			int hmin = i;
-			i = 256;
-			do {
-				i--;
-				count = histogram[i];
-				if (count > limit) count = 0;
-				found = count > threshold;
-			} while (!found && i>0);
-			int hmax = i;
-			if (hmax >= hmin) {
-				min = stats.histMin + hmin*stats.binSize;
-				max = stats.histMin + hmax*stats.binSize;
-				if (min == max) {
-					min = stats.min;
-					max = stats.max;
-				}
+
+			// Apply to all
+			for (Patch p : pa) {
+				ImageProcessor ip = p.getImageProcessor();
+				ip.resetMinAndMax();
+				ce.stretchHistogram(ip, 0.5, stats); // 0.5 saturation
+				p.setMinAndMax(ip.getMin(), ip.getMax());
 			}
-			// 5 - compute common mean within min,max range
-			final double target_mean = getMeanOfRange(stats, min, max);
-			//Utils.log2("Loader min,max: " + min + ", " + max + ",   target mean: " + target_mean + "\nApplying to " + al_p2.size() + " images.");
-			// override values with given defaults if appropriate
-			if (-1 != min_ && -1 != max_) {
-				min = min_;
-				max = max_;
-			}
-			// 6 - apply to all
-			Utils.log2("Lo HC Using: " + min + ", " + max + ", " + drift_hist_peak);
-			for (i=al_p2.size()-1; i>-1; i--) {
-				if (null != worker && worker.hasQuitted()) {
-					return false;
-				}
-				Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
-				if (drift_hist_peak) {
-					double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
-					p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-				} else {
-					p.setMinAndMax(min, max);
-				}
-				synchronized (db_lock) {
-					lock();
-					try {
-						ImagePlus imp = imps.get(p.getId());
-						if (null != imp) p.putMinAndMax(imp);
-						// else, it will be put when reloading the file
-					} catch (Exception e) { IJError.print(e); }
-					unlock();
-				}
-			}
+
+
 			// 7 - recreate mipmap files
 			if (isMipMapsEnabled()) {
 				ArrayList al = new ArrayList();
@@ -4340,9 +4288,9 @@ abstract public class Loader {
 			// 8 - flush away any existing awt images, so that they'll be reloaded or recreated
 			synchronized (db_lock) {
 				lock();
-				for (i=0; i<pa.length; i++) {
-					mawts.removeAndFlush(pa[i].getId());
-					Utils.log2(i + " removing mawt for " + pa[i].getId());
+				for (int k=0; k<pa.length; k++) {
+					mawts.removeAndFlush(pa[k].getId());
+					Utils.log2(k + " removing mawt for " + pa[k].getId());
 				}
 				unlock();
 			}
