@@ -437,7 +437,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 			} else if (ob instanceof Ball) {
 				tt = getOrCreateChildTemplateThing(tt_is, "ball");
 			} else {
-				// ignore
+				Utils.log("insertSegmentations: ignoring " + ob);
 				continue;
 			}
 			//Utils.log2("tt is " + tt);
