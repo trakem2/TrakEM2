@@ -973,7 +973,7 @@ public class Display3D {
 		}
 	}
 
-	static private String makeTitle(final Displayable d) {
+	static public String makeTitle(final Displayable d) {
 		return d.getProject().getMeaningfulTitle(d) + " #" + d.getId();
 	}
 	static public String makeTitle(final Patch p) {
