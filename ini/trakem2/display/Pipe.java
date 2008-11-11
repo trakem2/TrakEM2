@@ -57,7 +57,7 @@ import java.awt.Shape;
 import javax.vecmath.Point3f;
 
 
-public class Pipe extends ZDisplayable {
+public class Pipe extends ZDisplayable implements Line3D {
 
 	/**The number of points.*/
 	protected int n_points;
@@ -232,7 +232,7 @@ public class Pipe extends ZDisplayable {
 		this.p_width = p_width_copy;
 	}
 
-	/**Find a point in an array, with a precision dependent on the magnification. Only points in the current layer are found, the rest are ignored.*/
+	/**Find a point in an array, with a precision dependent on the magnification. Only points in the current layer are found, the rest are ignored. Returns -1 if none found. */
 	synchronized protected int findPoint(double[][] a, int x_p, int y_p, double magnification) {
 		int index = -1;
 		double d = (10.0D / magnification);
@@ -278,7 +278,8 @@ public class Pipe extends ZDisplayable {
 		updateInDatabase("points");
 	}
 	/**Calculate distance from one point to another.*/
-	protected double distance(double x1, double y1, double x2, double y2) {
+	static public double distance(final double x1, final double y1,
+			              final double x2, final double y2) {
 		return (Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1)));
 	}
 
@@ -537,11 +538,6 @@ public class Pipe extends ZDisplayable {
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g.setComposite(original_composite);
-		}
-
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;
 		double[][] p = this.p;
@@ -693,7 +689,7 @@ public class Pipe extends ZDisplayable {
 		if (ProjectToolbar.PEN == tool) {
 
 			if (me.isControlDown() && me.isShiftDown()) {
-				index = findNearestPoint(p, n_points, x_p, y_p);
+				index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
 			} else {
 				index = findPoint(p, x_p, y_p, mag);
 			}
@@ -706,7 +702,7 @@ public class Pipe extends ZDisplayable {
 					repaint(false);
 					return;
 				}
-				// Make the radius for newly added balls that of the last selected 
+				// Make the radius for newly added point that of the last added 
 				last_radius = p_width[index];
 				//
 				if (me.isAltDown()) {
@@ -813,7 +809,7 @@ public class Pipe extends ZDisplayable {
 			if (is_new_point) {
 				// update all points, since the index may have changed
 				updateInDatabase("points");
-			} else if (-1 != index && index != n_points) { //second condition happens when thelast point has been removed
+			} else if (-1 != index && index != n_points) { //second condition happens when the last point has been removed
 				updateInDatabase(getUpdatePointForSQL(index));
 			} else if (-1 != index_r) {
 				updateInDatabase(getUpdateRightControlPointForSQL(index_r));
@@ -1411,6 +1407,7 @@ public class Pipe extends ZDisplayable {
 					if (perimeters[i].intersects(displ.getBoundingBox(box))) {
 						// Link the patch
 						this.link(displ);
+						break; // no need to check more perimeters
 					}
 				}
 			}
