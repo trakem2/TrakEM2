@@ -627,6 +627,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 		this.ht_tabs.put(ZDisplayable.class, scroll_zdispl);
 		this.ht_tabs.put(AreaList.class, scroll_zdispl);
 		this.ht_tabs.put(Pipe.class, scroll_zdispl);
+		this.ht_tabs.put(Polyline.class, scroll_zdispl);
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
@@ -1775,6 +1776,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 	}
 
 	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Polyline d) { selectTab((ZDisplayable)d); }
 	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
 	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Dissector d) { selectTab((ZDisplayable)d); }

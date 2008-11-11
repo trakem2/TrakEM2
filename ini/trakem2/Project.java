@@ -598,14 +598,17 @@ public class Project extends DBObject {
 	}
 
 	/** Make an object of the type the TemplateThing can hold. */
-	public Object makeObject(TemplateThing tt) {
-		String type = tt.getType();
+	public Object makeObject(final TemplateThing tt) {
+		final String type = tt.getType();
 		if (type.equals("profile")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN); // this should go elsewhere, in display issues.
 			return new Profile(this, "profile", 0, 0);
 		} else if (type.equals("pipe")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Pipe(this, "pipe", 0, 0);
+		} else if (type.equals("polyline")) {
+			ProjectToolbar.setTool(ProjectToolbar.PEN);
+			return new Polyline(this, "polyline");
 		} else if (type.equals("area_list")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN); // may need adjustment ...
 			return new AreaList(this, "area_list", 0, 0);
@@ -810,9 +813,11 @@ public class Project extends DBObject {
 			ht_unique_tt.put("profile_list", tpl);
 		}
 		if (!ht_unique_tt.containsKey("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
+		if (!ht_unique_tt.containsKey("polyline")) ht_unique_tt.put("polyline", new TemplateThing("polyline"));
 		if (!ht_unique_tt.containsKey("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
 		if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
 		if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
+		// this should be done automagically by querying the classes in the package ... but java can't do that without peeking into the .jar .class files. Buh.
 
 		TemplateThing project_tt = ht_unique_tt.remove("project");
 		/* // debug
@@ -922,6 +927,7 @@ public class Project extends DBObject {
 		DLabel.exportDTD(sb_header, hs, indent);
 		Patch.exportDTD(sb_header, hs, indent);
 		Pipe.exportDTD(sb_header, hs, indent);
+		Polyline.exportDTD(sb_header, hs, indent);
 		Profile.exportDTD(sb_header, hs, indent);
 		AreaList.exportDTD(sb_header, hs, indent);
 		Dissector.exportDTD(sb_header, hs, indent);
@@ -1101,6 +1107,7 @@ public class Project extends DBObject {
 		boolean link_labels = addBox(gd, DLabel.class);
 		boolean link_arealist = addBox(gd, AreaList.class);
 		boolean link_pipes = addBox(gd, Pipe.class);
+		boolean link_polylines = addBox(gd, Polyline.class);
 		boolean link_balls = addBox(gd, Ball.class);
 		boolean link_dissectors = addBox(gd, Dissector.class);
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
@@ -1132,6 +1139,7 @@ public class Project extends DBObject {
 		setLinkProp(link_labels, gd.getNextBoolean(), DLabel.class);
 		setLinkProp(link_arealist, gd.getNextBoolean(), AreaList.class);
 		setLinkProp(link_pipes, gd.getNextBoolean(), Pipe.class);
+		setLinkProp(link_polylines, gd.getNextBoolean(), Polyline.class);
 		setLinkProp(link_balls, gd.getNextBoolean(), Ball.class);
 		setLinkProp(link_dissectors, gd.getNextBoolean(), Dissector.class);
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {

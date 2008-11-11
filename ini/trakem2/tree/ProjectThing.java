@@ -31,7 +31,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.Display3D;
-import ini.trakem2.display.Pipe;
+import ini.trakem2.display.Line3D;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -422,7 +422,7 @@ public class ProjectThing extends DBObject implements Thing {
 			addPopupItem("Show centered in Display", listener, al_items);
 		}
 
-		if (null != object && object instanceof Pipe) {
+		if (null != object && object instanceof Line3D) {
 			addPopupItem("Identify...", listener, al_items);
 			addPopupItem("Identify with axes...", listener, al_items);
 		}
@@ -709,6 +709,17 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		return al;
 	}
+	/** Check if this Thing directly contains any child of the given object class, and return them all. */
+	public ArrayList findChildrenOfType(final Class c) {
+		ArrayList al = new ArrayList();
+		if (null == al_children) return al;
+		for (ProjectThing pt : al_children) {
+			if (c.isInstance(pt.object)) {
+				al.add(pt);
+			}
+		}
+		return al;
+	}
 
 	/** Recursive into children. */
 	public HashSet findChildrenOfTypeR(final String type) {
@@ -722,6 +733,22 @@ public class ProjectThing extends DBObject implements Thing {
 		if (null == al_children) return hs;
 		for (ProjectThing child : al_children) {
 			child.findChildrenOfTypeR(hs, type);
+		}
+		return hs;
+	}
+
+	/** Recursive into children. */
+	public HashSet findChildrenOfTypeR(final Class c) {
+		return findChildrenOfTypeR(new HashSet<ProjectThing>(), c);
+	}
+	/** Recursive into children. */
+	public HashSet<ProjectThing> findChildrenOfTypeR(HashSet<ProjectThing> hs, final Class c) {
+		if (null == hs) hs = new HashSet<ProjectThing>();
+		else if (hs.contains(this)) return hs;
+		if (c.isInstance(object)) hs.add(this);
+		if (null == al_children) return hs;
+		for (ProjectThing child : al_children) {
+			child.findChildrenOfTypeR(hs, c);
 		}
 		return hs;
 	}

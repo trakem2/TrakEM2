@@ -788,16 +788,26 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		return true;
 	}
 
-	/** Returns a list of ZDisplayable of class c only.*/
 	public ArrayList<ZDisplayable> getZDisplayables(final Class c) {
+		return getZDisplayables(c, false);
+	}
+
+	/** Returns a list of ZDisplayable of class c only.*/
+	public ArrayList<ZDisplayable> getZDisplayables(final Class c, final boolean instance_of) {
 		final ArrayList<ZDisplayable> al = new ArrayList<ZDisplayable>();
 		if (null == c) return al;
 		if (Displayable.class == c || ZDisplayable.class == c) {
 			al.addAll(al_zdispl);
 			return al;
 		}
-		for (ZDisplayable zd : al_zdispl) {
-			if (zd.getClass() == c) al.add(zd);
+		if (instance_of) {
+			for (ZDisplayable zd : al_zdispl) {
+				if (c.isInstance(zd)) al.add(zd);
+			}
+		} else {
+			for (ZDisplayable zd : al_zdispl) {
+				if (zd.getClass() == c) al.add(zd);
+			}
 		}
 		return al;
 	}

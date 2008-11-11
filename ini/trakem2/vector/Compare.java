@@ -78,7 +78,7 @@ public class Compare {
 
 	private Compare() {}
 
-	static public final Bureaucrat findSimilar(final Pipe pipe) {
+	static public final Bureaucrat findSimilar(final Line3D pipe) {
 		ArrayList<Project> pro = Project.getProjects();
 		Project[] all = new Project[pro.size()];
 		pro.toArray(all);
@@ -133,7 +133,7 @@ public class Compare {
 		return findSimilar(pipe, ref, ignore_orientation, ignore_calibration, mirror, chain_branches, true);
 	}
 
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe) {
+	static public final Bureaucrat findSimilarWithAxes(final Line3D pipe) {
 		final ArrayList<Project> pro = Project.getProjects();
 		if (pro.size() < 2) {
 			Utils.log("Compare.findSimilarWithAxes needs at least 2 open projects.");
@@ -144,9 +144,9 @@ public class Compare {
 		pro.toArray(all);
 		GenericDialog gd = new GenericDialog("Indentify with axes");
 		gd.addMessage("Will search for a match to:");
-		gd.addMessage(pipe.getProject().getShortMeaningfulTitle(pipe));
+		gd.addMessage(pipe.getProject().getShortMeaningfulTitle((ZDisplayable)pipe));
 
-		ArrayList<ZDisplayable> pipes = pipe.getLayerSet().getZDisplayables(Pipe.class);
+		ArrayList<ZDisplayable> pipes = pipe.getLayerSet().getZDisplayables(Line3D.class, true);
 		final String[] pipe_names = new String[pipes.size()];
 
 		final String[][] presets = {{"medial lobe", "dorsal lobe", "peduncle"}};
@@ -154,12 +154,12 @@ public class Compare {
 		/* 0 */ gd.addChoice("Presets: ", preset_names, preset_names[0]);
 		final Choice cpre = (Choice)gd.getChoices().get(0);
 
-		final ArrayList<ZDisplayable> pipes_ref = all[iother].getRootLayerSet().getZDisplayables(Pipe.class);
+		final ArrayList<ZDisplayable> pipes_ref = all[iother].getRootLayerSet().getZDisplayables(Line3D.class, true);
 		final String[] pipe_names_ref = new String[pipes_ref.size()];
 		final Object[] holder = new Object[]{pipe_names_ref};
 
 		// automatically find for the first preset
-		final Pipe[] query_axes = findXYZAxes(presets[0], pipe);
+		final Line3D[] query_axes = findXYZAxes(presets[0], pipe);
 		final int[] s = findXYZAxes(query_axes, pipes, pipe_names);
 		final int[] t = findFirstXYZAxes(presets[0], pipes_ref, pipe_names_ref);
 
@@ -192,7 +192,6 @@ public class Compare {
 		ref[1] = (Choice)gd.getChoices().get(6);
 		ref[2] = (Choice)gd.getChoices().get(7);
 		project_choice.addItemListener(new ItemListener() {
-			// TODO something is wrong here when there are more than 2 projects involved.
 			public void itemStateChanged(ItemEvent ie) {
 				String project_name = (String)ie.getItem();
 				Project project = null;
@@ -204,7 +203,7 @@ public class Compare {
 				}
 				if (null == project) return;
 				pipes_ref.clear();
-				pipes_ref.addAll(project.getRootLayerSet().getZDisplayables(Pipe.class));
+				pipes_ref.addAll(project.getRootLayerSet().getZDisplayables(Line3D.class, true));
 				String[] pipe_names_ref = new String[pipes_ref.size()];
 				holder[0] = pipe_names_ref;
 				int[] s = findFirstXYZAxes(presets[cpre.getSelectedIndex()], pipes_ref, pipe_names_ref);
@@ -244,18 +243,18 @@ public class Compare {
 		// ok, ready
 		int ipresets = gd.getNextChoiceIndex();
 
-		Pipe[] axes = new Pipe[]{
-			(Pipe)pipes.get(gd.getNextChoiceIndex()),
-			(Pipe)pipes.get(gd.getNextChoiceIndex()),
-			(Pipe)pipes.get(gd.getNextChoiceIndex())
+		Line3D[] axes = new Line3D[]{
+			(Line3D)pipes.get(gd.getNextChoiceIndex()),
+			(Line3D)pipes.get(gd.getNextChoiceIndex()),
+			(Line3D)pipes.get(gd.getNextChoiceIndex())
 		};
 
 		int iproject = gd.getNextChoiceIndex();
 
-		Pipe[] axes_ref = new Pipe[]{
-			(Pipe)pipes_ref.get(gd.getNextChoiceIndex()),
-			(Pipe)pipes_ref.get(gd.getNextChoiceIndex()),
-			(Pipe)pipes_ref.get(gd.getNextChoiceIndex())
+		Line3D[] axes_ref = new Line3D[]{
+			(Line3D)pipes_ref.get(gd.getNextChoiceIndex()),
+			(Line3D)pipes_ref.get(gd.getNextChoiceIndex()),
+			(Line3D)pipes_ref.get(gd.getNextChoiceIndex())
 		};
 
 		boolean skip_ends = gd.getNextBoolean();
@@ -308,7 +307,7 @@ public class Compare {
 	}
 
 	/** Find the indices of the axes pipes in the pipes array list, and fills in the pipe_names array. */
-	static private int[] findXYZAxes(final Pipe[] axes, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
+	static private int[] findXYZAxes(final Line3D[] axes, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
 		final int[] s = new int[]{-1, -1, -1};
 		int next = 0;
 		for (ZDisplayable pipe : pipes) {
@@ -322,26 +321,26 @@ public class Compare {
 		return s;
 	}
 
-	static private void trySetAsAxis(final Pipe[] axes, final String[] preset, final ProjectThing pt) {
+	static private void trySetAsAxis(final Line3D[] axes, final String[] preset, final ProjectThing pt) {
 		final Object ob = pt.getObject();
-		if (null == ob || ob.getClass() != Pipe.class) return;
-		final Pipe pipe = (Pipe)ob;
-		final String title = pipe.getProject().getShortMeaningfulTitle(pt, pipe).toLowerCase();
+		if (null == ob || ob.getClass() != Line3D.class) return;
+		final Line3D pipe = (Line3D)ob;
+		final String title = pipe.getProject().getShortMeaningfulTitle(pt, (ZDisplayable)pipe).toLowerCase();
 		if (-1 != title.indexOf(preset[0])) axes[0] = pipe;
 		else if (-1 != title.indexOf(preset[1])) axes[1] = pipe;
 		else if (-1 != title.indexOf(preset[2])) axes[2] = pipe;
 	}
 
 	/** Finds the 3 pipes named according to the presets (such as "medial lobe", "dorsal lobe" and "peduncle"), that are structurally closest to the query_pipe in the Project Tree. In this fashion, if there are more than one hemisphere, the correct set of axes will be found for the query pipe.*/
-	static public Pipe[] findXYZAxes(final String[] preset, final Pipe query_pipe) {
+	static public Line3D[] findXYZAxes(final String[] preset, final Line3D query_pipe) {
 		if (preset.length < 3) {
 			Utils.log2("findXYZAxes: presets must be of length 3");
 			return null;
 		}
-		final Pipe[] axes = new Pipe[3];
+		final Line3D[] axes = new Line3D[3];
 		// Step up level by level looking for pipes with the given preset names
 		final Project project = query_pipe.getProject();
-		ProjectThing last = project.findProjectThing(query_pipe);
+		ProjectThing last = project.findProjectThing((ZDisplayable)query_pipe);
 		trySetAsAxis(axes, preset, last);
 		final String type = last.getType();
 		do {
@@ -360,7 +359,7 @@ public class Compare {
 	}
 
 	/** Generate calibrated origin of coordinates. */
-	static public Object[] obtainOrigin(final Pipe[] axes, final int transform_type, final Vector3d[] o_ref) {
+	static public Object[] obtainOrigin(final Line3D[] axes, final int transform_type, final Vector3d[] o_ref) {
 		// pipe's axes
 		final VectorString3D[] vs = new VectorString3D[3];
 		for (int i=0; i<3; i++) vs[i] = axes[i].asVectorString3D();
@@ -383,7 +382,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Pipe pipe, final Pipe[] axes, final Pipe[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut, final boolean substring_matching, final boolean direct, final double delta, final int sort_by_distance_type) {
+	static public final Bureaucrat findSimilarWithAxes(final Line3D pipe, final Line3D[] axes, final Line3D[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut, final boolean substring_matching, final boolean direct, final double delta, final int sort_by_distance_type) {
 		Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
@@ -453,7 +452,7 @@ public class Compare {
 			// just add a single-pipe chain for each ref pipe
 			chains_ref = new ArrayList<Chain>();
 			for (ZDisplayable zd : pipes_ref) {
-				chains_ref.add(new Chain((Pipe)zd));
+				chains_ref.add(new Chain((Line3D)zd));
 			}
 		}
 
@@ -569,8 +568,8 @@ public class Compare {
 			if (hs_c_done.contains(child)) continue;
 			hs_c_done.add(child);
 
-			if (child.getType().equals("pipe")) {
-				Pipe pipe = (Pipe)child.getObject();
+			if (child.getObject() instanceof Line3D) {
+				Line3D pipe = (Line3D)child.getObject();
 				if (!pipe.getLayerSet().equals(ls) || pipe.length() < 2) continue; // not from the same LayerSet, maybe from a nested one.
 				if (null == chain) {
 					chain = new Chain(pipe);
@@ -585,7 +584,7 @@ public class Compare {
 					ProjectThing c = (ProjectThing)cc.next();
 					if (hs_c_done.contains(c)) continue; // already visited
 					// c is at the same tree level as child (which contains a pipe directly)
-					ArrayList child_pipes = c.findChildrenOfType("pipe");
+					ArrayList child_pipes = c.findChildrenOfType(Line3D.class);
 					if (child_pipes.size() > 0) {
 						Chain ca;
 						if (first) {
@@ -605,7 +604,7 @@ public class Compare {
 			}
 
 			// if it does not have direct pipe children, cut chain - but keep inspecting
-			if (0 == child.findChildrenOfType("pipe").size()) {
+			if (0 == child.findChildrenOfType(Line3D.class).size()) {
 				chain = null;
 			}
 
@@ -616,14 +615,14 @@ public class Compare {
 
 	/** Represents a list of concatenated pipes, where each pipe is parent of the next within the ProjectTree. */
 	static public class Chain {
-		final ArrayList<Pipe> pipes = new ArrayList<Pipe>();
+		final ArrayList<Line3D> pipes = new ArrayList<Line3D>();
 		public VectorString3D vs; // the complete path of chained pipes
 		private Chain() {}
-		public Chain(Pipe root) {
+		public Chain(Line3D root) {
 			this.pipes.add(root);
 			this.vs = root.asVectorString3D();
 		}
-		final public void append(Pipe p) throws Exception {
+		final public void append(Line3D p) throws Exception {
 			//if (pipes.contains(p)) throw new Exception("Already contains pipe #" + p.getId());
 			pipes.add(p);
 			vs = vs.chain(p.asVectorString3D());
@@ -635,27 +634,20 @@ public class Compare {
 			return chain;
 		}
 		public String toString() {
-			/*
-			StringBuffer sb = new StringBuffer("root: #");
-			sb.append(pipes.get(0).getId()).append("  len: ").append(pipes.size());
-			sb.append("\tchain: ");
-			for (Pipe p : pipes) sb.append('#').append(p.getId()).append(' ');
-			return sb.toString();
-			*/
 			StringBuffer sb = new StringBuffer("len: ");
 			sb.append(pipes.size()).append("   ");
-			for (Pipe p : pipes) sb.append('#').append(p.getId()).append(' ');
+			for (Line3D p : pipes) sb.append('#').append(p.getId()).append(' ');
 			return sb.toString();
 		}
 		final public String getTitle() {
 			final StringBuffer sb = new StringBuffer(pipes.get(0).getProject().getTitle());
 			sb.append(' ');
-			for (Pipe p : pipes) sb.append(' ').append('#').append(p.getId());
+			for (Line3D p : pipes) sb.append(' ').append('#').append(p.getId());
 			return sb.toString();
 		}
 		final public String getCellTitle() {
-			Pipe root = pipes.get(0);
-			String mt = root.getProject().getShortMeaningfulTitle(root);
+			Line3D root = pipes.get(0);
+			String mt = root.getProject().getShortMeaningfulTitle((ZDisplayable)root);
 			if (1 == pipes.size()) return mt;
 			//else, chain the ids of the rest
 			final StringBuffer sb = new StringBuffer(mt);
@@ -664,8 +656,8 @@ public class Compare {
 		}
 		/** Returns max 10 chars, solely the name of the parent's parent node of the root pipe (aka the [lineage] containing the [branch]) or the id if too long. Intended for the 10-digit limitation in the problem in .dis files for Phylip. */
 		final public String getShortCellTitle() {
-			Pipe root = pipes.get(0);
-			ProjectThing pt = root.getProject().findProjectThing(root);
+			Line3D root = pipes.get(0);
+			ProjectThing pt = root.getProject().findProjectThing((ZDisplayable)root);
 			String short_title = null;
 			// investigate the [branch] title
 			pt = (ProjectThing)pt.getParent(); // the [branch]
@@ -695,20 +687,21 @@ public class Compare {
 		final public Color getColor() {
 			return pipes.get(0).getColor();
 		}
-		final public Pipe getRoot() {
+		final public Line3D getRoot() {
 			return pipes.get(0);
 		}
 		/** Show centered, set visible and select. */
 		final public void showCentered2D(boolean shift_down) {
 			Rectangle b = null;
 			Display display = Display.getFront();
-			for (Pipe p : pipes) {
+			for (Line3D line3d : pipes) {
+				ZDisplayable p = (ZDisplayable)line3d;
 				if (null == b) b = p.getBoundingBox();
 				else b.add(p.getBoundingBox());
 				p.setVisible(true);
 				display.select(p, shift_down);
 			}
-			display.select(pipes.get(0), shift_down); // the root as active
+			display.select((ZDisplayable)pipes.get(0), shift_down); // the root as active
 			display.getCanvas().showCentered(b);
 		}
 	}
@@ -778,7 +771,7 @@ public class Compare {
 			return asVS2((VectorString3D)ref.vs.clone(), delta);
 		}
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
-		final VectorString3D makeVS2(final Pipe ref, final double delta) {
+		final VectorString3D makeVS2(final Line3D ref, final double delta) {
 			return asVS2(ref.asVectorString3D(), delta);
 		}
 
@@ -798,7 +791,7 @@ public class Compare {
 		}
 
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
-		final VectorString3D makeVS1(final Pipe q, final double delta) {
+		final VectorString3D makeVS1(final Line3D q, final double delta) {
 			return asVS1(q.asVectorString3D(), delta);
 		}
 
@@ -819,16 +812,16 @@ public class Compare {
 			}
 		}
 		/** Returns all pipes involved in the query chains. */
-		HashSet<Pipe> getAllQueriedPipes() {
-			final HashSet<Pipe> hs = new HashSet<Pipe>();
+		HashSet<Line3D> getAllQueriedLine3Ds() {
+			final HashSet<Line3D> hs = new HashSet<Line3D>();
 			for (Chain c : queries) {
 				hs.addAll(c.pipes);
 			}
 			return hs;
 		}
-		Hashtable<Pipe,VectorString3D> getAllQueried() {
-			Hashtable<Pipe,VectorString3D> ht = new Hashtable<Pipe,VectorString3D>();
-			for (Pipe p : getAllQueriedPipes()) {
+		Hashtable<Line3D,VectorString3D> getAllQueried() {
+			Hashtable<Line3D,VectorString3D> ht = new Hashtable<Line3D,VectorString3D>();
+			for (Line3D p : getAllQueriedLine3Ds()) {
 				VectorString3D vs = p.asVectorString3D();
 				if (null != cal1) vs.calibrate(cal1);
 				if (null != T) vs.transform(T); // to reference space
@@ -1015,7 +1008,7 @@ public class Compare {
 			this.vs_axes = vs_axes;
 			this.vs_axes_ref = vs_axes_ref;
 			// create common LayerSet space
-			Pipe pipe = qh.getAllQueriedPipes().iterator().next();
+			Line3D pipe = qh.getAllQueriedLine3Ds().iterator().next();
 			LayerSet ls = pipe.getLayerSet();
 			Calibration cal1 = ls.getCalibration();
 			this.common = new LayerSet(pipe.getProject(), pipe.getProject().getLoader().getNextId(), "Common", 10, 10, 0, 0, 0, ls.getLayerWidth() * cal1.pixelWidth, ls.getLayerHeight() * cal1.pixelHeight, false, 2, new AffineTransform());
@@ -1028,7 +1021,7 @@ public class Compare {
 			reset();
 			if (!query_shows) showAxesAndQueried();
 			VectorString3D vs = qh.makeVS2(ref, query.vs.getDelta()); // was: makeVS
-			// The LayerSet is that of the Pipe being queried, not the given pipe to show which belongs to the reference project (and thus not to the queried pipe project)
+			// The LayerSet is that of the Line3D being queried, not the given pipe to show which belongs to the reference project (and thus not to the queried pipe project)
 			String title = ref.getCellTitle();
 			if (Display3D.contains(common, title)) return;
 			Display3D.addMesh(common, vs, title, ref.getColor());
@@ -1055,12 +1048,12 @@ public class Compare {
 			}
 		}
 		void showNode3D(Chain chain, boolean as_query) {
-			Pipe root = chain.getRoot();
-			ProjectThing pt = (ProjectThing)root.getProject().findProjectThing(root).getParent();
-			HashSet hs = pt.findChildrenOfTypeR("pipe");
+			Line3D root = chain.getRoot();
+			ProjectThing pt = (ProjectThing)root.getProject().findProjectThing((ZDisplayable)root).getParent();
+			HashSet hs = pt.findChildrenOfTypeR(Line3D.class);
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				Pipe p = (Pipe)((ProjectThing)it.next()).getObject();
-				String title = p.getProject().getShortMeaningfulTitle(p);
+				Line3D p = (Line3D)((ProjectThing)it.next()).getObject();
+				String title = p.getProject().getShortMeaningfulTitle((ZDisplayable)p);
 				if (Display3D.contains(common, title)) continue; // add only any missing ones
 				VectorString3D vs;
 				if (as_query) {
@@ -1074,10 +1067,10 @@ public class Compare {
 		public void showAxesAndQueried() {
 			reset();
 			Color qcolor = null;
-			final Hashtable<Pipe,VectorString3D> queried = qh.getAllQueried();
+			final Hashtable<Line3D,VectorString3D> queried = qh.getAllQueried();
 			for (Iterator it = queried.entrySet().iterator(); it.hasNext(); ) {
 				Map.Entry entry = (Map.Entry)it.next();
-				Pipe p = (Pipe)entry.getKey();
+				ZDisplayable p = (ZDisplayable)entry.getKey();
 				// if already there, ignore request
 				String title = p.getProject().getShortMeaningfulTitle(p);
 				if (Display3D.contains(common, title)) continue;
@@ -1289,7 +1282,7 @@ public class Compare {
 	}
 
 	/** Compare the given pipe with other pipes in the given standard project(s). WARNING: the calibrations will work ONLY IF all pipes found to compare with come from LayerSets which have the same units of measurement! For example, all in microns. */
-	static public final Bureaucrat findSimilar(final Pipe pipe, final Project[] ref, final boolean ignore_orientation, final boolean ignore_calibration, final boolean mirror, final boolean chain_branches, final boolean show_gui) {
+	static public final Bureaucrat findSimilar(final Line3D pipe, final Project[] ref, final boolean ignore_orientation, final boolean ignore_calibration, final boolean mirror, final boolean chain_branches, final boolean show_gui) {
 		final Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
@@ -1314,7 +1307,7 @@ public class Compare {
 			// collect the full set of ref pipes from each project
 			for (int i=0; i<ref.length; i++) {
 				for (Chain c : createPipeChains(ref[i].getRootProjectThing(), ref[i].getRootLayerSet())) {
-					if (c.getRoot().equals(pipe)) continue; // slip!
+					if (c.getRoot().equals(pipe)) continue; // skip!
 					chains_ref.add(c);
 				}
 			}
@@ -1333,9 +1326,9 @@ public class Compare {
 			qh.addQuery(chain); // calibrates it
 			reversed_queries.add(chain.vs.makeReversedCopy());
 			for (int i=0; i<ref.length; i++) {
-				for (ZDisplayable zd : ref[i].getRootLayerSet().getZDisplayables(Pipe.class)) {
-					if (zd.equals(pipe)) continue; // skip!
-					chains_ref.add(new Chain((Pipe)zd));
+				for (ZDisplayable zd : ref[i].getRootLayerSet().getZDisplayables(Line3D.class, true)) {
+					if (zd == pipe) continue; // skip!
+					chains_ref.add(new Chain((Line3D)zd));
 				}
 			}
 		}
@@ -1875,7 +1868,7 @@ public class Compare {
 				Vector3d[][] o = new Vector3d[p.length][];
 				for (int i=0; i<p.length; i++) {
 					// 1 - find pipes to work as axes for each project
-					ArrayList<ZDisplayable> pipes = p[i].getRootLayerSet().getZDisplayables(Pipe.class);
+					ArrayList<ZDisplayable> pipes = p[i].getRootLayerSet().getZDisplayables(Line3D.class, true);
 					String[] pipe_names = new String[pipes.size()];
 					for (int k=0; k<pipes.size(); k++) {
 						pipe_names[k] = p[i].getMeaningfulTitle(pipes.get(k));
@@ -1890,9 +1883,9 @@ public class Compare {
 					}
 
 					// obtain axes and origin
-					Object[] pack = obtainOrigin(new Pipe[]{(Pipe)pipes.get(s[0]),
-									     (Pipe)pipes.get(s[1]),
-									     (Pipe)pipes.get(s[2])},
+					Object[] pack = obtainOrigin(new Line3D[]{(Line3D)pipes.get(s[0]),
+									     (Line3D)pipes.get(s[1]),
+									     (Line3D)pipes.get(s[2])},
 									     cp.transform_type,
 									     o[0]); // will be null for the first, which will then be non-null and act as the reference for the others.
 

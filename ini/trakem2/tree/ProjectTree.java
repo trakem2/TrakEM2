@@ -227,15 +227,15 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				selectInDisplay(thing, shift_down);
 			} else if (command.equals("Identify...")) {
 				// for pipes only for now
-				if (!(obd instanceof Pipe)) return;
-				ini.trakem2.vector.Compare.findSimilar((Pipe)obd);
+				if (!(obd instanceof Line3D)) return;
+				ini.trakem2.vector.Compare.findSimilar((Line3D)obd);
 			} else if (command.equals("Identify with axes...")) {
-				if (!(obd instanceof Pipe)) return;
+				if (!(obd instanceof Line3D)) return;
 				if (Project.getProjects().size() < 2) {
 					Utils.showMessage("You need at least two projects open:\n-A reference project\n-The current project with the pipe to identify");
 					return;
 				}
-				ini.trakem2.vector.Compare.findSimilarWithAxes((Pipe)obd);
+				ini.trakem2.vector.Compare.findSimilarWithAxes((Line3D)obd);
 			} else if (command.equals("Show centered in Display")) {
 				if (obd instanceof Displayable) {
 					Displayable displ = (Displayable)obd;
@@ -434,6 +434,8 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				tt = getOrCreateChildTemplateThing(tt_is, "area_list");
 			} else if (ob instanceof Pipe) {
 				tt = getOrCreateChildTemplateThing(tt_is, "pipe");
+			} else if (ob instanceof Polyline) {
+				tt = getOrCreateChildTemplateThing(tt_is, "polyline");
 			} else if (ob instanceof Ball) {
 				tt = getOrCreateChildTemplateThing(tt_is, "ball");
 			} else {

@@ -1119,6 +1119,12 @@ public abstract class Displayable extends DBObject {
 		return index;
 	}
 
+	/** For a point px,py return its distance to a line defined by lx1,ly1 and lx2,ly2. Formula as in http://mathworld.wolfram.com/Point-LineDistance2-Dimensional.html at 2008-11-11 20:19 Zurich time.*/
+	static public double distancePointToLine(final double px, final double py, final double lx1, final double ly1, final double lx2, final double ly2) {
+		        return Math.abs( (lx2 - lx1) * (ly1 - py) - (lx1 - px) * (ly2 - ly1) )
+			     / Math.sqrt( Math.pow(lx2 - lx1, 2) + Math.pow(ly2 - ly1, 2) );
+	}
+
 	/** Performs a deep copy of this object. */
 	public Object clone() {
 		return clone(this.project);

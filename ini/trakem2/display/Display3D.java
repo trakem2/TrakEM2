@@ -744,7 +744,7 @@ public class Display3D {
 		}
 	}
 
-	static private final int MAX_THREADS = 1; //Runtime.getRuntime().availableProcessors();
+	static private final int MAX_THREADS = Runtime.getRuntime().availableProcessors();
 	static private final Vector v_threads = new Vector(MAX_THREADS); // synchronized
 
 	/** Creates a mesh for the given Displayable in a separate Thread. */
