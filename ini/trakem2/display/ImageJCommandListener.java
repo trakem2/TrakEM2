@@ -99,7 +99,7 @@ public class ImageJCommandListener implements CommandListener {
 		// 2 - identify project
 		final FakeImagePlus fimp = (FakeImagePlus)current;
 		final Display display = fimp.getDisplay();
-		final LayerSet layerset = display.getLayer().getParent();
+		final LayerSet layer_set = display.getLayer().getParent();
 		final Project project = display.getProject();
 		final ProjectTree ptree = project.getProjectTree();
 		final Displayable active = display.getActive();
@@ -379,8 +379,12 @@ public class ImageJCommandListener implements CommandListener {
 		}
 
 		// PLUGINS menu
-		else if (in(command, new String[]{"3D Viewer", "Volume Viewer"})) {
-			return runOnVirtualLayerSet(command, layerset);
+		else if (command.equals("Volume Viewer")) {
+			return runOnVirtualLayerSet(command, layer_set);
+		} else  if (command.equals("3D Viewer")) {
+			// it's virtual and non-caching, will appear as a regular ImageJ stack
+			layer_set.createLayerStack().getImagePlus().show();
+			return command;
 		}
 
 		// PROCESS menu and submenus

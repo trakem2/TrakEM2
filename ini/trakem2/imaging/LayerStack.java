@@ -27,13 +27,14 @@ public class LayerStack extends ImageStack {
 	private LayerImagePlus layer_imp = null;
 
 	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz) {
-		super((int)layer_set.getLayerWidth(), (int)layer_set.getLayerHeight(), Patch.DCM);
+		super((int)(layer_set.getLayerWidth() * (scale > 1 ? 1 : scale)), (int)(layer_set.getLayerHeight() * (scale > 1 ? 1 : scale)), Patch.DCM);
 		this.layer_set = layer_set;
 		this.type = type;
 		this.scale = scale > 1 ? 1 : scale;
 		this.clazz = clazz;
 	}
 
+	/*
 	public int getWidth() {
 		return (int)(layer_set.getLayerWidth() * scale);
 	}
@@ -41,6 +42,7 @@ public class LayerStack extends ImageStack {
 	public int getHeight() {
 		return (int)(layer_set.getLayerHeight() * scale);
 	}
+	*/
 
 	/** Does nothing. */
 	public void addSlice(String sliceLabel, Object pixels) {
