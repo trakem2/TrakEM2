@@ -346,15 +346,16 @@ public class Pipe extends ZDisplayable implements Line3D {
 		} else if (-1 == index) {
 			// decide whether to append at the end or prepend at the beginning
 			// compute distance in the 3D space to the first and last points
+			final Calibration cal = layer_set.getCalibration();
 			final double lz = layer_set.getLayer(layer_id).getZ();
 			final double p0z =layer_set.getLayer(p_layer[0]).getZ();
 			final double pNz =layer_set.getLayer(p_layer[n_points -1]).getZ();
-			double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p)
-				         + (p[1][0] - y_p) * (p[1][0] - y_p)
-					 + (lz - p0z) * (lz - p0z);
-			double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p)
-				         + (p[1][n_points-1] - y_p) * (p[1][n_points-1] - y_p)
-					 + (lz - pNz) * (lz - pNz);
+			double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p) * cal.pixelWidth * cal.pixelWidth
+				         + (p[1][0] - y_p) * (p[1][0] - y_p) * cal.pixelHeight * cal.pixelHeight
+					 + (lz - p0z) * (lz - p0z) * cal.pixelWidth * cal.pixelWidth;
+			double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p) * cal.pixelWidth * cal.pixelWidth
+				         + (p[1][n_points-1] - y_p) * (p[1][n_points-1] - y_p) * cal.pixelHeight * cal.pixelHeight
+					 + (lz - pNz) * (lz - pNz) * cal.pixelWidth * cal.pixelWidth;
 			if (sqdistN < sqdist0) {
 				//append at the end
 				p[0][n_points] = p_l[0][n_points] = p_r[0][n_points] = x_p;
