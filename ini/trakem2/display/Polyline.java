@@ -77,10 +77,10 @@ public class Polyline extends ZDisplayable implements Line3D {
 	}
 
 	/** Reconstruct from XML. */
-	public Polyline(final Project project, final long id, final HashMap ht, final HashMap ht_links) {
-		super(project, id, ht, ht_links);
+	public Polyline(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
+		super(project, id, ht_attr, ht_links);
 		// parse specific data
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
+		for (Iterator it = ht_attr.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			String key = (String)entry.getKey();
 			String data = (String)entry.getValue();
@@ -104,10 +104,14 @@ public class Polyline extends ZDisplayable implements Line3D {
 					int i_end = i_L;
 					if (-1 == i_L) i_end = data.length();
 					p[1][next] = Double.parseDouble(data.substring(i_comma+1, i_end));
+			
 					// prepare next point
 					i_start = i_L;
 					next++;
 				}
+				n_points = next;
+				// scale arrays back, so minimal size and also same size as p_layer
+				p = new double[][]{Utils.copy(p[0], n_points), Utils.copy(p[1], n_points)};
 			} else if (key.equals("layer_ids")) {
 				// parse comma-separated list of layer ids. Creates empty Layer instances with the proper id, that will be replaced later.
 				final String[] layer_ids = data.replaceAll(" ", "").trim().split(",");
@@ -118,8 +122,13 @@ public class Polyline extends ZDisplayable implements Line3D {
 				}
 			}
 		}
-		// finish up
-		this.n_points = p[0].length;
+		/*
+		// debug:
+		Utils.log2("Parsed " + n_points + " points");
+		for (int i=0; i<n_points; i++) {
+			Utils.log2(i + " : " + p[0][i] + ", " + p[1][i] + ", lid=" + p_layer[i]);
+		}
+		*/
 	}
 
 	/**Increase the size of the arrays by 5.*/
@@ -204,15 +213,16 @@ public class Polyline extends ZDisplayable implements Line3D {
 		} else if (-1 == index) {
 			// decide whether to append at the end or prepend at the beginning
 			// compute distance in the 3D space to the first and last points
+			final Calibration cal = layer_set.getCalibration();
 			final double lz = layer_set.getLayer(layer_id).getZ();
 			final double p0z =layer_set.getLayer(p_layer[0]).getZ();
 			final double pNz =layer_set.getLayer(p_layer[n_points -1]).getZ();
-			double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p)
-				         + (p[1][0] - y_p) * (p[1][0] - y_p)
-					 + (lz - p0z) * (lz - p0z);
-			double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p)
-				         + (p[1][n_points-1] - y_p) * (p[1][n_points-1] - y_p)
-					 + (lz - pNz) * (lz - pNz);
+			double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p) * cal.pixelWidth * cal.pixelWidth
+				         + (p[1][0] - y_p) * (p[1][0] - y_p) * cal.pixelHeight * cal.pixelHeight
+					 + (lz - p0z) * (lz - p0z) * cal.pixelWidth * cal.pixelWidth; // double multiplication by pixelWidth, ok, since it's what it's used to compute the pixel position in Z
+			double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p) * cal.pixelWidth * cal.pixelWidth
+				         + (p[1][n_points-1] - y_p) * (p[1][n_points-1] - y_p) * cal.pixelHeight * cal.pixelHeight
+					 + (lz - pNz) * (lz - pNz) * cal.pixelWidth * cal.pixelWidth;
 			if (sqdistN < sqdist0) {
 				//append at the end
 				p[0][n_points] = x_p;
@@ -279,50 +289,53 @@ public class Polyline extends ZDisplayable implements Line3D {
 		}
 
 		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
-
 		final long layer_id = active_layer.getId();
-
 		final double z_current = active_layer.getZ();
 
-		// draw/fill points
-		for (int j=0; j<n_points; j++) {
-			if (no_color_cues) {
-				// paint a tiny bit where it should!
+		// Different approach: a point paints itself and towards the next, except the last point.
+		// First point:
+		double z = layer_set.getLayer(p_layer[0]).getZ();
+		boolean paint = true;
+		if (z < z_current) {
+			if (no_color_cues) paint = false;
+			else g.setColor(Color.red);
+		} else if (z == z_current) g.setColor(this.color);
+		else if (no_color_cues) paint = false;
+		else g.setColor(Color.blue);
+
+		// Paint half line:
+		if (paint && n_points > 1) {
+			g.drawLine((int)p[0][0], (int)p[1][0],
+				   (int)((p[0][0] + p[0][1])/2), (int)((p[1][0] + p[1][1])/2));
+		}
+		// Paint handle if active:
+		if (layer_id == p_layer[0]) {
+			g.setColor(this.color);
+			DisplayCanvas.drawHandle(g, (int)p[0][0], (int)p[1][0], magnification);
+		}
+
+		for (int i=1; i<n_points; i++) {
+			// Determine color
+			z = layer_set.getLayer(p_layer[i]).getZ();
+			if (z < z_current) {
+				if (no_color_cues) paint = false;
+				else g.setColor(Color.red);
+			} else if (z == z_current) g.setColor(this.color);
+			else if (no_color_cues) paint = false;
+			else g.setColor(Color.blue);
+			if (!paint) continue;
+			// paint half line towards previous point:
+			g.drawLine((int)p[0][i], (int)p[1][i],
+				   (int)((p[0][i] + p[0][i-1])/2), (int)((p[1][i] + p[1][i-1])/2));
+			// paint half line towards next point:
+			if (i < n_points -1) {
+				g.drawLine((int)p[0][i], (int)p[1][i],
+					   (int)((p[0][i] + p[0][i+1])/2), (int)((p[1][i] + p[1][i+1])/2));
+			}
+			// Paint handle if active:
+			if (layer_id == p_layer[i]) {
 				g.setColor(this.color);
-			}
-
-			final boolean active_point = layer_id == p_layer[j];
-
-			if (no_color_cues) {
-				if (active_point) {
-					// paint normally
-				} else {
-					// else if crossed the current layer, paint segment as well
-					if (0 == j) continue;
-					double z1 = layer_set.getLayer(p_layer[j-1]).getZ();
-					double z2 = layer_set.getLayer(p_layer[j]).getZ();
-					if ( (z1 < z_current && z_current < z2)
-					  || (z2 < z_current && z_current < z1) ) {
-						// paint normally, in this pipe's color
-					} else {
-						continue;
-					}
-				}
-			} else {
-				double z = layer_set.getLayer(p_layer[j]).getZ();
-				if (z < z_current) g.setColor(Color.red);
-				else if (z == z_current) g.setColor(this.color);
-				else g.setColor(Color.blue);
-			}
-
-			if (j < n_points -1) {
-				g.drawLine((int)p[j][0], (int)p[j][1], (int)p[j+1][0], (int)p[j+1][1]);
-			}
-
-			if (active_point) {
-				g.setColor(this.color);
-				//draw big ovals
-				DisplayCanvas.drawHandle(g, (int)p[0][j], (int)p[1][j], magnification);
+				DisplayCanvas.drawHandle(g, (int)p[0][i], (int)p[1][i], magnification);
 			}
 		}
 
