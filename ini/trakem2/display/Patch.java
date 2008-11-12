@@ -54,7 +54,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.io.File;
 
-import mpicbg.models.InvertibleCoordinateTransform;
+//import mpicbg.models.InvertibleCoordinateTransform;
 
 public class Patch extends Displayable {
 
@@ -71,7 +71,7 @@ public class Patch extends Displayable {
 	/** To be read from XML, or set when the file ImagePlus has been updated and the current_path points to something else. */
 	private String original_path = null;
 
-	private InvertibleCoordinateTransform ict = null;
+	// NOT YET// private InvertibleCoordinateTransform ict = null;
 	private boolean has_alpha_channel = false;
 	// TODO include in the cloning
 
