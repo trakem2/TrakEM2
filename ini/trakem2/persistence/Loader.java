@@ -2556,7 +2556,7 @@ abstract public class Loader {
 				}
 				if (null != stack) {
 					imp = new ImagePlus("z=" + layer[0].getZ() + " to z=" + layer[layer.length-1].getZ(), stack);
-					imp.getCalibration().pixelDepth = voxel_depth;
+					imp.setCalibration(layer[0].getParent().getCalibrationCopy());
 				}
 			} else {
 				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, quality);
@@ -2618,6 +2618,7 @@ abstract public class Loader {
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
 		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality);
 		final ImagePlus imp = new ImagePlus(layer.getPrintableTitle(), bi);
+		imp.setCalibration(layer.getParent().getCalibrationCopy());
 		bi.flush();
 		return imp;
 	}
