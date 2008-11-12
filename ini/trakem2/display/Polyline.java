@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 import ij.gui.Toolbar;
 import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
@@ -122,13 +123,6 @@ public class Polyline extends ZDisplayable implements Line3D {
 				}
 			}
 		}
-		/*
-		// debug:
-		Utils.log2("Parsed " + n_points + " points");
-		for (int i=0; i<n_points; i++) {
-			Utils.log2(i + " : " + p[0][i] + ", " + p[1][i] + ", lid=" + p_layer[i]);
-		}
-		*/
 	}
 
 	/**Increase the size of the arrays by 5.*/
@@ -363,7 +357,26 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 		final int tool = ProjectToolbar.getToolId();
 
-		if (ProjectToolbar.PEN == tool) {
+		if (ProjectToolbar.PENCIL == tool && n_points > 0) {
+			// Use Mark Longair's tracing: from the clicked point to the last one
+			if (null == hs_linked) {
+				Utils.log("There are no images linked to this Polyline.\nPlease Click on top of an image.");
+				return;
+			}
+			HashSet<Patch> hs = new HashSet<Patch>();
+			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+				Object ob = it.next();
+				if (Patch.class != ob.getClass()) continue;
+				hs.add((Patch)ob);
+			}
+			if (0 == hs.size()) {
+				Utils.log("There are no images linked to this Polyline.\nPlease Click on top of an image.");
+				return;
+			}
+			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
+			// TODO
+
+		} else if (ProjectToolbar.PEN == tool) {
 
 			final long layer_id = Display.getFrontLayer(this.project).getId();
 
@@ -781,5 +794,25 @@ public class Polyline extends ZDisplayable implements Line3D {
 			len = vs.computeLength(); // no resampling
 		}
 		return new StringBuffer("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
+	}
+
+	public ResultsTable measure(ResultsTable rt) {
+		if (-1 == n_points) setupForDisplay(); //reload
+		if (0 == n_points) return rt;
+		if (null == rt) rt = Utils.createResultsTable("Polyline results", new String[]{"id", "length", "name-id"});
+		// measure length
+		double len = 0;
+		Calibration cal = layer_set.getCalibration();
+		if (n_points > 1) {
+			VectorString3D vs = asVectorString3D();
+			vs.calibrate(cal);
+			len = vs.computeLength(); // no resampling
+		}
+		rt.incrementCounter();
+		rt.addLabel("units", cal.getUnit());
+		rt.addValue(0, this.id);
+		rt.addValue(1, len);
+		rt.addValue(2, getNameId());
+		return rt;
 	}
 }
