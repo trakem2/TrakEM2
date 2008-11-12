@@ -24,7 +24,7 @@ public class LayerStack extends ImageStack {
 	final private double scale;
 	/** The class of the objects included. */
 	final private Class clazz;
-	private LayerImagePlus layer_imp = null;
+	private ImagePlus layer_imp = null;
 
 	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz) {
 		super((int)(layer_set.getLayerWidth() * (scale > 1 ? 1 : scale)), (int)(layer_set.getLayerHeight() * (scale > 1 ? 1 : scale)), Patch.DCM);
@@ -137,27 +137,10 @@ public class LayerStack extends ImageStack {
 	}
 
 	public ImagePlus getImagePlus() {
-		if (null == layer_imp) layer_imp = new LayerImagePlus("LayerSet Stack", this);
+		if (null == layer_imp) {
+			layer_imp = new ImagePlus("LayerSet Stack", this);
+			layer_imp.setCalibration(layer_set.getCalibrationCopy());
+		}
 		return layer_imp;
-	}
-
-	private class LayerImagePlus extends ImagePlus {
-
-		public LayerImagePlus(String title, ImageStack stack) {
-			super(title, stack);
-			super.setCalibration(layer_set.getCalibrationCopy());
-		}
-
-		/** Prevent premature calls to getPixels. */
-		public synchronized void setSlice(int index) {
-			if (index == currentSlice) {
-				return;
-			}
-			if (index>= 1 && index <=layer_set.size()) {
-				currentSlice = index;
-			}
-			super.ip = getProcessor(); // creates a new one for the stack
-			super.ip.setPixels(getPixels(currentSlice));
-		}
 	}
 }
