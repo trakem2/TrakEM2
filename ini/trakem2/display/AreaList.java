@@ -28,6 +28,7 @@ import ij.gui.OvalRoi;
 import ij.gui.ShapeRoi;
 import ij.gui.Toolbar;
 import ij.gui.GenericDialog;
+import ij.io.FileSaver;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.ImagePlus;
@@ -1180,9 +1181,8 @@ public class AreaList extends ZDisplayable {
 		return false;
 	}
 
-	/** Export for Amira: limited to 255 AreaList instances (their limitation, not mine). */
-	static public void exportAsLabels(final java.util.List list, final ij.gui.Roi roi, float scale, int first_layer, int last_layer) {
-		Utils.log("exportAsLabels: not yet implemented.");
+	/** Export all given AreaLists as one per pixel value, what is called a "labels" file; a file dialog is offered to save the image as a tiff stack. */
+	static public void exportAsLabels(final java.util.List<? extends Displayable> list, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file) {
 		// survive everything:
 		if (null == list || 0 == list.size()) {
 			Utils.log("Null or empty list.");
@@ -1192,18 +1192,70 @@ public class AreaList extends ZDisplayable {
 			Utils.log("Improper scale value. Must be 0 < scale <= 1");
 			return;
 		}
-		LayerSet layer_set = ((Displayable)list.get(0)).getLayerSet();
-		if (first_layer < last_layer) {
+		LayerSet layer_set = list.get(0).getLayerSet();
+		if (first_layer > last_layer) {
 			int tmp = first_layer;
 			first_layer = last_layer;
 			last_layer = tmp;
 			if (first_layer < 0) first_layer = 0;
 			if (last_layer >= layer_set.size()) last_layer = layer_set.size()-1;
 		}
-		// ready
-		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
-			// TODO
+		// Create image according to roi and scale
+		int width, height;
+		Rectangle broi = null;
+		if (null == roi) {
+			width = (int)(layer_set.getLayerWidth() * scale);
+			height = (int)(layer_set.getLayerHeight() * scale);
+		} else {
+			broi = roi.getBounds();
+			width = (int)(broi.width * scale);
+			height = (int)(broi.height * scale);
 		}
+		final ImageStack stack = new ImageStack(width, height);
+		// processor type:
+		int type = ImagePlus.GRAY8;
+		if (list.size() > 255) { // 0 is background, and 255 different arealists
+			type = ImagePlus.GRAY16;
+			if (list.size() > 65535) { // 0 is background, and 65535 different arealists
+				type = ImagePlus.GRAY32;
+			}
+		}
+		Calibration cal = layer_set.getCalibration();
+
+		int count = 1;
+		final float len = last_layer - first_layer + 1;
+
+		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
+			Utils.showProgress(count/len);
+			count++;
+			ImageProcessor ip = Utils.createProcessor(type, width, height);
+			// paint here all arealist that paint to the layer 'la'
+			int value = 0;
+			for (Displayable d : list) {
+				value++; // zero is background
+				ip.setValue(value);
+				if (visible_only && !d.isVisible()) continue;
+				AreaList ali = (AreaList)d;
+				Area area = ali.getArea(la);
+				if (null == area) continue;
+				// Transform: the scale and the roi
+				AffineTransform aff = new AffineTransform();
+				// reverse order of transformations:
+				/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
+				/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
+				/* 1 - To world coordinates: */ aff.concatenate(ali.at);
+				ShapeRoi sroi = new ShapeRoi(aff.createTransformedShape(area));
+				ip.setRoi(sroi);
+				ip.fill(sroi.getMask());
+			}
+			stack.addSlice(la.getZ() * cal.pixelWidth + "", ip);
+		}
+		Utils.showProgress(0);
+		// Save via file dialog:
+		ImagePlus imp = new ImagePlus("Labels", stack); 
+		imp.setCalibration(layer_set.getCalibrationCopy());
+		if (to_file) new FileSaver(imp).saveAsTiff();
+		else imp.show();
 	}
 
 	public ResultsTable measure(ResultsTable rt) {

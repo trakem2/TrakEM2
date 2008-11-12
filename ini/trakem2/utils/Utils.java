@@ -1248,4 +1248,14 @@ public class Utils implements ij.plugin.PlugIn {
 		//
 		return rt;
 	}
+
+	static public final ImageProcessor createProcessor(final int type, final int width, final int height) {
+		switch (type) {
+			case ImagePlus.GRAY8: return new ByteProcessor(width, height);
+			case ImagePlus.GRAY16: return new ShortProcessor(width, height);
+			case ImagePlus.GRAY32: return new FloatProcessor(width, height);
+			case ImagePlus.COLOR_RGB: return new ColorProcessor(width, height);
+		}
+		return null;
+	}
 }

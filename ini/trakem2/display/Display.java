@@ -3085,22 +3085,19 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			final String[] options = {"All area list", "Selected area lists"};
 			gd.addChoice("Export: ", options, options[0]);
 			Utils.addLayerRangeChoices(layer, gd);
+			gd.addCheckbox("Visible only", true);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			final float scale = (float)(gd.getNextNumber() / 100);
-			java.util.List al = 0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelected(AreaList.class);
+			java.util.List<? extends Displayable> al = 0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelected(AreaList.class);
 			if (null == al) {
 				Utils.log("No area lists found to export.");
 				return;
 			}
-			if (al.size() > 255) {
-				YesNoCancelDialog yn = new YesNoCancelDialog(frame, "WARNING", "Found more than 255 area lists to export:\nExport only the first 255?");
-				if (yn.cancelPressed()) return;
-				if (yn.yesPressed()) al = al.subList(0, 255); // only 255 total: the 0 is left for background
-			}
 			int first = gd.getNextChoiceIndex();
 			int last  = gd.getNextChoiceIndex();
-			AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last);
+			boolean visible_only = gd.getNextBoolean();
+			AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last, visible_only, false);
 		} else if (command.equals("Project properties...")) {
 			project.adjustProperties();
 		} else if (command.equals("Release memory...")) {
