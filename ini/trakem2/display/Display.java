@@ -2858,7 +2858,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			gd.addStringField("image_preprocessor: ", null == preprocessor ? "" : preprocessor);
 			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
 			double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();
-			gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsDimension());
+			gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsMaxDimension());
 			// --------
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
@@ -2889,7 +2889,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			}
 			//
 			layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
-			layer.getParent().setPixelsDimension((int)gd.getNextNumber());
+			layer.getParent().setPixelsMaxDimension((int)gd.getNextNumber());
 		} else if (command.equals("Search...")) {
 			new Search();
 		} else if (command.equals("Select all")) {

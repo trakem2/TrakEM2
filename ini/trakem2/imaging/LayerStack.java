@@ -15,94 +15,31 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Hashtable;
 
-/** This class represents an entire LayerSet, as it is presented read-only to ImageJ. */
+/** This class represents an entire LayerSet of Patch objects only, as it is presented read-only to ImageJ. */
 public class LayerStack extends ImageStack {
-	int nSlices;
-	private LayerSet layer_set;
-	/** The Displayable objects to represent. If null, all are represented. */
-	private ArrayList al_displ = null;
-	/** The PatchStack objects among the displayables, with the Patch as key. */
-	private Hashtable ht_ps = null;
 
-	private LayerImagePlus layer_imp;
+	final private LayerSet layer_set;
+	final private int type;
+	/** The virtualization scale. */
+	final private double scale;
+	/** The class of the objects included. */
+	final private Class clazz;
+	private LayerImagePlus layer_imp = null;
 
-	private Rectangle box = null;
-
-	private boolean flag = true;
-
-	private Display display;
-
-	public LayerStack(final LayerSet layer_set, final int width, final int height, final Display display) {
-		super(width, height, Patch.DCM);
+	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz) {
+		super((int)layer_set.getLayerWidth(), (int)layer_set.getLayerHeight(), Patch.DCM);
 		this.layer_set = layer_set;
-		this.display = display;
+		this.type = type;
+		this.scale = scale > 1 ? 1 : scale;
+		this.clazz = clazz;
 	}
 
 	public int getWidth() {
-		return box.width;
+		return (int)(layer_set.getLayerWidth() * scale);
 	}
 
 	public int getHeight() {
-		return box.height;
-	}
-
-	/** Accepts only Displayable objects in the ArrayList. */
-	public void setDisplayables(ArrayList al_displ) {
-		if (null == al_displ || 0 == al_displ.size()) {
-			this.al_displ = null;
-			box = layer_set.get2DBounds();
-			flushCache();
-			return;
-		}
-		// check if all objects are identical, although in different order (to save from flushing away perfectly valid cached images)
-		if (null != this.al_displ && this.al_displ.size() == al_displ.size()) {
-			int n = this.al_displ.size();
-			for (Iterator it = al_displ.iterator(); it.hasNext(); ) {
-				if (this.al_displ.contains(it.next())) n--;
-			}
-			if (0 == n) {
-				// lists are identical
-				this.al_displ = al_displ; // updating pointer
-				return;
-			}
-		}
-		// assign new list
-		this.al_displ = al_displ;
-		this.ht_ps = new Hashtable();
-		// compute new box
-		box = null;
-		try {
-			for (Iterator it = al_displ.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				if (!(ob instanceof Displayable)) {
-					Utils.log2("LayerStack: rejecting non-Displayable object " + ob);
-					continue;
-				}
-				if (ob instanceof Patch) {
-					ht_ps.put(ob, ((Patch)ob).makePatchStack());
-				}
-				Displayable d = (Displayable)ob;
-				Rectangle r = d.getBoundingBox(null);
-				if (null == box) box = r;
-				else box.add(r);
-			}
-		} catch (Exception e) {
-			IJError.print(e);
-			// set box to everything
-			box = layer_set.get2DBounds();
-		}
-		flushCache();
-		this.layer_imp = new LayerImagePlus(layer_set.getTitle(), this);
-	}
-
-	private void flushCache() {
-		// flush away all cached ImagePlus
-		long[] lid = new long[layer_set.size()];
-		ArrayList al = layer_set.getLayers();
-		for (int i=layer_set.size()-1; i>-1; i--) {
-			lid[i] = ((Layer)al.get(i)).getId();
-		}
-		layer_set.getProject().getLoader().decacheImagePlus(lid);
+		return (int)(layer_set.getLayerHeight() * scale);
 	}
 
 	/** Does nothing. */
@@ -145,42 +82,10 @@ public class LayerStack extends ImageStack {
 		were 1<=n<=nslices. Returns null if the stack is empty.
 	*/
 	public ImageProcessor getProcessor(int n) {
-		//Utils.printCaller(this, 6);
 		if (n < 1 || n > layer_set.size()) return null;
-		if (0 == box.width || 0 == box.height) {
-			// necessary when creating a new, empty non-Patch Displayable
-			return new ByteProcessor(2,2); // dummy
-		}
-		Rectangle box = this.box;
-		Roi roi = display.getCanvas().getFakeImagePlus().getRoi();
-		if (null != roi) {
-			box = roi.getBounds();
-		}
-		// else, create a flat image on the fly with everything on it, and return its processor.
+		// Create a flat image on the fly with everything on it, and return its processor.
 		final Layer layer = layer_set.getLayer(n-1);
-		//Utils.log2("LayerStack: layer is " + layer + " from n=" + n);
-		final Loader loader = layer_set.getProject().getLoader();
-		ImagePlus flat = loader.getCachedImagePlus(layer.getId());
-		if (null == flat || flat.getWidth() != box.width || flat.getHeight() != box.height) {
-			// TODO fix cache, store as Patch with x,y
-			ArrayList al = new ArrayList();
-			for (Iterator it = al_displ.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				if (ob instanceof Patch) {
-					Patch p = (Patch)ob;
-					// add the patch corresponding to this layer, if any
-					p = ((PatchStack)ht_ps.get(ob)).getPatch(layer, p);
-					if (null != p) al.add(p);
-				} else {
-					al.add(ob);
-				}
-			}
-			int c_alphas = 0xffffffff;
-			if (null != Display.getFront()) c_alphas = Display.getFront().getDisplayChannelAlphas();
-			flat = loader.getFlatImage(layer, box, layer_set.getPixelsVirtualizationScale(box), c_alphas, ImagePlus.COLOR_RGB, Displayable.class, al);
-			loader.cacheImagePlus(layer.getId(), flat);
-		}
-		return flat.getProcessor();
+		return layer.getProject().getLoader().getFlatImage(layer, layer_set.get2DBounds(), this.scale, 0xffffffff, ImagePlus.COLOR_RGB, this.clazz, null).getProcessor();
 	}
  
 	 /** Returns the number of slices in this stack. */
@@ -223,10 +128,14 @@ public class LayerStack extends ImageStack {
 	}
 
 	/** Does nothing. */
-	public void trim() {
+	public void trim() {}
+
+	public int getType() {
+		return type;
 	}
 
 	public ImagePlus getImagePlus() {
+		if (null == layer_imp) layer_imp = new LayerImagePlus("LayerSet Stack", this);
 		return layer_imp;
 	}
 
@@ -245,13 +154,8 @@ public class LayerStack extends ImageStack {
 			if (index>= 1 && index <=layer_set.size()) {
 				currentSlice = index;
 			}
-			ip = getProcessor(); // creates a new one for the stack
-			ip.setPixels(getPixels(currentSlice));
-		}
-
-		public void setCalibration(Calibration cal) {
-			layer_set.setCalibration(cal);
-			super.setCalibration(cal);
+			super.ip = getProcessor(); // creates a new one for the stack
+			super.ip.setPixels(getPixels(currentSlice));
 		}
 	}
 }

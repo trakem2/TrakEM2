@@ -984,6 +984,14 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		}
 		return al;
 	}
+	/** Return all the Displayable objects from all the layers of this LayerSet of the given class that intersect the given area. Does not include the ZDisplayables. */
+	public ArrayList<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (Layer layer : al_layers) {
+			al.addAll(layer.getDisplayables(c, aroi, visible_only));
+		}
+		return al;
+	}
 
 	/** From zero to size-1. */
 	public int indexOf(Layer layer) {
@@ -1412,29 +1420,26 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		return (Displayable)copy;
 	}
 
-	public LayerStack makeLayerStack(Display display) {
-		return new LayerStack(this, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height), display);
+	/** Create a virtual layer stack that acts as a virtual ij.ImageStack, in RGB and set to a scale of max_dimension / Math.max(layer_width, layer_height). */
+	public LayerStack createLayerStack() {
+		return new LayerStack(this,
+				      getVirtualizationScale(),
+				      ImagePlus.COLOR_RGB,
+				      Displayable.class);
 	}
 
-	/** Will return the virtual_scale value if different than -1, or else a scale value automatically computed to fit the largest dimension of the box to max_dimension.*/
-	public double getPixelsVirtualizationScale(Rectangle box) {
-		// else automatic mode: limit size to 1024 width and 1024 height, keeping aspect ratio
-		if (box.width > box.height) {
-			return max_dimension / (double)box.width;
-		} else {
-			return max_dimension / (double)box.height;
-		}
-	}
-
-	public int getPixelsDimension() { return max_dimension; }
-	public void setPixelsDimension(int d) {
-		Utils.log2("LayerSet.setPixelsDimension not implemented yet."); // TODO
+	public int getPixelsMaxDimension() { return max_dimension; }
+	public double getVirtualizationScale() { return max_dimension / Math.max(layer_width, layer_height); }
+	public void setPixelsMaxDimension(int d) {
+		if (d > 2) max_dimension = d;
+		else Utils.log("Can't set virtualization max pixels dimension to smaller than 2!");
 	}
 
 	public void setPixelsVirtualizationEnabled(boolean b) { this.virtualization_enabled = b; }
 	public boolean isPixelsVirtualizationEnabled() { return virtualization_enabled; }
 
 
+	/** Returns a new Rectangle of 0, 0, layer_width, layer_height. */
 	public Rectangle get2DBounds() {
 		return new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
 	}

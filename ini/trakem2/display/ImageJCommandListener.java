@@ -83,6 +83,12 @@ public class ImageJCommandListener implements CommandListener {
 		return command;
 	}
 
+	private String runOnVirtualLayerSet(final String command, final LayerSet ls) {
+		ImagePlus imp = ls.createLayerStack().getImagePlus();
+		WindowManager.setTempCurrentImage(imp);
+		return command;
+	}
+
 	// I know, I could create a hashtable and then map methods of this class to each command key ... this is just easier, and performance-wise nobody cares
 	//  Or even a hastable with String command keys and then a number as value, and use a gigantic switch block. So much pain to write. WHAT I REALLY WANT is a switch that takes a String and is fast because it has its own hash setup.
 	public String commandExecuting(final String command) {
@@ -93,6 +99,7 @@ public class ImageJCommandListener implements CommandListener {
 		// 2 - identify project
 		final FakeImagePlus fimp = (FakeImagePlus)current;
 		final Display display = fimp.getDisplay();
+		final LayerSet layerset = display.getLayer().getParent();
 		final Project project = display.getProject();
 		final ProjectTree ptree = project.getProjectTree();
 		final Displayable active = display.getActive();
@@ -369,6 +376,11 @@ public class ImageJCommandListener implements CommandListener {
 		} else if (command.equals("Label")) {
 			notAvailable(command);
 			return null;
+		}
+
+		// PLUGINS menu
+		else if (in(command, new String[]{"3D Viewer", "Volume Viewer"})) {
+			return runOnVirtualLayerSet(command, layerset);
 		}
 
 		// PROCESS menu and submenus
