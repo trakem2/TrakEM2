@@ -646,6 +646,7 @@ public class Project extends DBObject {
 		if (type.equals("label")) return true;
 		if (type.equals("profile")) return true;
 		if (type.equals("pipe")) return true;
+		if (type.equals("polyline")) return true;
 		if (type.equals("ball")) return true;
 		if (type.equals("layer")) return true;
 		if (type.equals("layer set")) return true; // for XML ...
