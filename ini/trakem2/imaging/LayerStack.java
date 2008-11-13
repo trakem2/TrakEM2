@@ -24,14 +24,17 @@ public class LayerStack extends ImageStack {
 	final private double scale;
 	/** The class of the objects included. */
 	final private Class clazz;
+	final private int c_alphas;
+
 	private ImagePlus layer_imp = null;
 
-	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz) {
+	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz, final int c_alphas) {
 		super((int)(layer_set.getLayerWidth() * (scale > 1 ? 1 : scale)), (int)(layer_set.getLayerHeight() * (scale > 1 ? 1 : scale)), Patch.DCM);
 		this.layer_set = layer_set;
 		this.type = type;
 		this.scale = scale > 1 ? 1 : scale;
 		this.clazz = clazz;
+		this.c_alphas = c_alphas;
 	}
 
 	/*
@@ -87,7 +90,7 @@ public class LayerStack extends ImageStack {
 		if (n < 1 || n > layer_set.size()) return null;
 		// Create a flat image on the fly with everything on it, and return its processor.
 		final Layer layer = layer_set.getLayer(n-1);
-		return layer.getProject().getLoader().getFlatImage(layer, layer_set.get2DBounds(), this.scale, 0xffffffff, ImagePlus.COLOR_RGB, this.clazz, null).getProcessor();
+		return layer.getProject().getLoader().getFlatImage(layer, layer_set.get2DBounds(), this.scale, this.c_alphas, this.type, this.clazz, null).getProcessor();
 	}
  
 	 /** Returns the number of slices in this stack. */
@@ -101,9 +104,13 @@ public class LayerStack extends ImageStack {
 		return layer_set.getLayer(n-1).getTitle();
 	}
 
-	/** Returns null. */
+	/** Returns a linear array for each slice, real (not virtual)! */
 	public Object[] getImageArray() {
-		return null;
+		final Object[] ia = new Object[getSize()];
+		for (int i=0; i<ia.length; i++) {
+			ia[i] = getProcessor(i+1).getPixels(); // slices 1<=slice<=n_slices
+		}
+		return ia;
 	}
 
 	/** Does nothing. */
@@ -139,7 +146,12 @@ public class LayerStack extends ImageStack {
 	public ImagePlus getImagePlus() {
 		if (null == layer_imp) {
 			layer_imp = new ImagePlus("LayerSet Stack", this);
-			layer_imp.setCalibration(layer_set.getCalibrationCopy());
+			Calibration cal = layer_set.getCalibrationCopy();
+			// adjust to scale
+			cal.pixelWidth *= scale;
+			cal.pixelHeight *= scale;
+			cal.pixelDepth *= scale;
+			layer_imp.setCalibration(cal);
 		}
 		return layer_imp;
 	}
