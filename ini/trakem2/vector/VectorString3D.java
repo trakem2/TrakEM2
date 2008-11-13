@@ -640,11 +640,11 @@ public class VectorString3D implements VectorString {
 
 		if (with_source) this.source = new_source;
 
-		Utils.log2("resampling with_source: " + with_source + "    n_sources = " + n_sources);
+		//Utils.log2("resampling with_source: " + with_source + "    n_sources = " + n_sources);
 
 		// debug:
-		if (with_source && j != new_source.size()) Utils.log2("WARNING: len: " + j + ", sources length: " + new_source.size());
-		if (with_source && n_sources > 1) Utils.log2("n_sources=" + n_sources + " lengths: " + j + ", " + new_source.size());
+		//if (with_source && j != new_source.size()) Utils.log2("WARNING: len: " + j + ", sources length: " + new_source.size());
+		//if (with_source && n_sources > 1) Utils.log2("n_sources=" + n_sources + " lengths: " + j + ", " + new_source.size());
 	}
 
 	/** Returns a list of lists of Point3d, one list of lists for each point in this VectorString3D; may be null. */
