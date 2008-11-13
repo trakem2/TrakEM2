@@ -245,6 +245,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		addMouseWheelListener(this);
 	}
 
+	public Display getDisplay() { return display; }
+
 	/** Used to constrain magnification so that only snapshots are used for painting when opening a new, large and filled Display. */
 	protected void setInitialMagnification(double mag) { // calling this method 'setMagnification' would conflict with the super class homonimous method.
 		this.magnification = mag; // don't save in the database. This value is overriden when reopening from the database by calling the setup method.
@@ -589,10 +591,9 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				Profile prof = (Profile) active;
 				this.freehandProfile = new FreeHandProfile(prof);
 				freehandProfile.mousePressed(x_p, y_p);
-			} else {
-				Utils.showMessage("Select a profile first.");
+				return;
 			}
-			return;
+			break;
 		case Toolbar.RECTANGLE:
 		case Toolbar.OVAL:
 		case Toolbar.POLYGON:
@@ -1664,7 +1665,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		Displayable active = display.getActive();
 
-		if (ProjectToolbar.getToolId() == ProjectToolbar.PENCIL) {
+		if (ProjectToolbar.getToolId() == ProjectToolbar.PENCIL && active.getClass() == Profile.class) {
 			if (null != freehandProfile) {
 				freehandProfile.abort();
 			}

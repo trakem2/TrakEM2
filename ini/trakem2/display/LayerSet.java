@@ -673,7 +673,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		return given;
 	}
 
-	public int getLayerIndex(long id) {
+	public int getLayerIndex(final long id) {
 		for (int i=al_layers.size()-1; i>-1; i--) {
 			if (((Layer)al_layers.get(i)).getId() == id) return i;
 		}
@@ -681,7 +681,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	}
 
 	/** Find a layer by index, or null if none. */
-	public Layer getLayer(int i) {
+	public Layer getLayer(final int i) {
 		if (i >=0 && i < al_layers.size()) return (Layer)al_layers.get(i);
 		return null;
 	}
@@ -1421,15 +1421,20 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 	}
 
 	/** Create a virtual layer stack that acts as a virtual ij.ImageStack, in RGB and set to a scale of max_dimension / Math.max(layer_width, layer_height). */
-	public LayerStack createLayerStack() {
+	public LayerStack createLayerStack(Class clazz, int type, int c_alphas) {
 		return new LayerStack(this,
 				      getVirtualizationScale(),
-				      ImagePlus.COLOR_RGB,
-				      Displayable.class);
+				      type,
+				      clazz,
+				      c_alphas);
 	}
 
 	public int getPixelsMaxDimension() { return max_dimension; }
-	public double getVirtualizationScale() { return max_dimension / Math.max(layer_width, layer_height); }
+	/** From 0.000... to 1. */
+	public double getVirtualizationScale() {
+		double scale = max_dimension / Math.max(layer_width, layer_height);
+		return scale > 1 ? 1 : scale;
+	}
 	public void setPixelsMaxDimension(int d) {
 		if (d > 2) max_dimension = d;
 		else Utils.log("Can't set virtualization max pixels dimension to smaller than 2!");

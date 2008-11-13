@@ -23,13 +23,17 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import ij.gui.Toolbar;
+import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 
+import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.Project;
+import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 import ini.trakem2.vector.VectorString3D;
 
 import java.awt.AlphaComposite;
@@ -50,6 +54,13 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import features.ComputeCurvatures;
+import tracing.Path;
+import tracing.SearchThread;
+import tracing.TracerThread;
+import tracing.SearchProgressCallback;
+
 
 /** A sequence of points that make multiple chained line segments. */
 public class Polyline extends ZDisplayable implements Line3D {
@@ -89,6 +100,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 				// parse the points
 				// parse the SVG points data
 				ArrayList al_p = new ArrayList();
+				// M: Move To
+				// L: Line To
 				// sequence is: M p[0][0],p[1][0] L p[0][1],p[1][1] L p[0][2],p[1][2] ...
 				// first point:
 				int i_start = data.indexOf('M');
@@ -127,11 +140,14 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	/**Increase the size of the arrays by 5.*/
 	synchronized protected void enlargeArrays() {
+		enlargeArrays(5);
+	}
+	synchronized protected void enlargeArrays(int n_more) {
 		//catch length
 		int length = p[0].length;
 		//make copies
-		double[][] p_copy = new double[2][length + 5];
-		long[] p_layer_copy = new long[length + 5];
+		double[][] p_copy = new double[2][length + n_more];
+		long[] p_layer_copy = new long[length + n_more];
 		//copy values
 		System.arraycopy(p[0], 0, p_copy[0], 0, length);
 		System.arraycopy(p[1], 0, p_copy[1], 0, length);
@@ -260,6 +276,17 @@ public class Polyline extends ZDisplayable implements Line3D {
 		return index;
 	}
 
+	synchronized protected void appendPoints(double[] px, double[] py, long[] p_layer_ids, int len) {
+		for (int i=0, next=n_points; i<len; i++, next++) {
+			if (next == p[0].length) enlargeArrays();
+			p[0][next] = px[i];
+			p[1][next] = py[i];
+			p_layer[next] = p_layer_ids[i];
+		}
+		n_points += len;
+		updateInDatabase("points");
+	}
+
 	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
@@ -302,8 +329,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 			g.drawLine((int)p[0][0], (int)p[1][0],
 				   (int)((p[0][0] + p[0][1])/2), (int)((p[1][0] + p[1][1])/2));
 		}
-		// Paint handle if active:
-		if (layer_id == p_layer[0]) {
+		// Paint handle if active and in the current layer
+		if (active && layer_id == p_layer[0]) {
 			g.setColor(this.color);
 			DisplayCanvas.drawHandle(g, (int)p[0][0], (int)p[1][0], magnification);
 		}
@@ -326,8 +353,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 				g.drawLine((int)p[0][i], (int)p[1][i],
 					   (int)((p[0][i] + p[0][i+1])/2), (int)((p[1][i] + p[1][i+1])/2));
 			}
-			// Paint handle if active:
-			if (layer_id == p_layer[i]) {
+			// Paint handle if active and in the current layer
+			if (active && layer_id == p_layer[i]) {
 				g.setColor(this.color);
 				DisplayCanvas.drawHandle(g, (int)p[0][i], (int)p[1][i], magnification);
 			}
@@ -340,15 +367,40 @@ public class Polyline extends ZDisplayable implements Line3D {
 	}
 
 	public void keyPressed(KeyEvent ke) {
-		//Utils.log2("Pipe.keyPressed not implemented.");
+		int keyCode = ke.getKeyCode();
+		switch (keyCode) {
+			case KeyEvent.VK_ESCAPE:
+				if (null != tracer) {
+					tracer.requestStop();
+					tracer = null;
+					ke.consume();
+				}
+				return;
+			case KeyEvent.VK_R: // reset tracing
+				tr_update = true;
+				tr_virtual = null;
+				tr_scale = 1;
+				tr_hessian = null;
+				ke.consume();
+				Utils.log("Reset tracing data for Polyline " + this);
+				return;
+		}
 	}
 
 	/**Helper vars for mouse events. It's safe to have them static since only one Pipe will be edited at a time.*/
 	static private int index;
 	static private boolean is_new_point = false;
 
+	boolean tr_update = true;
+	ImagePlus tr_virtual = null;
+	double tr_scale = 1;
+	ComputeCurvatures tr_hessian = null;
+	TracerThread tracer = null;
+
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
+		int x_pd = x_p;
+		int y_pd = y_p;
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
 			x_p = (int)po.x;
@@ -357,24 +409,131 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 		final int tool = ProjectToolbar.getToolId();
 
+		final Display display = ((DisplayCanvas)me.getSource()).getDisplay();
+
 		if (ProjectToolbar.PENCIL == tool && n_points > 0) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
-			if (null == hs_linked) {
-				Utils.log("There are no images linked to this Polyline.\nPlease Click on top of an image.");
-				return;
-			}
-			HashSet<Patch> hs = new HashSet<Patch>();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				if (Patch.class != ob.getClass()) continue;
-				hs.add((Patch)ob);
-			}
-			if (0 == hs.size()) {
-				Utils.log("There are no images linked to this Polyline.\nPlease Click on top of an image.");
-				return;
-			}
+			final double scale = layer_set.getVirtualizationScale();
 			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
-			// TODO
+			final Worker[] worker = new Worker[2];
+			if (tr_update) {
+				worker[0] = new Worker("Preparing Hessian...") { public void run() {
+					startedWorking();
+					try {
+				Utils.log("Push ESCAPE key to cancel autotrace anytime.");
+				ImagePlus virtual = new LayerStack(layer_set, scale, ImagePlus.GRAY8, Patch.class, display.getDisplayChannelAlphas()).getImagePlus();
+				virtual.show();
+				Calibration cal = virtual.getCalibration();
+				double minimumSeparation = 1;
+				if (cal != null) minimumSeparation = Math.min(cal.pixelWidth,
+									      Math.min(cal.pixelHeight,
+										       cal.pixelDepth));
+				ComputeCurvatures hessian = new ComputeCurvatures(virtual, minimumSeparation, null, cal != null);
+				hessian.run();
+
+				Polyline.this.tr_virtual = virtual;
+				Polyline.this.tr_scale = scale;
+				Polyline.this.tr_hessian = hessian;
+				Polyline.this.tr_update = false;
+
+					} catch (Exception e) {
+						IJError.print(e);
+					}
+					finishedWorking();
+				}};
+				new Bureaucrat(worker[0], project).goHaveBreakfast();
+			}
+
+			Point2D.Double po = transformPoint(p[0][n_points-1], p[1][n_points-1]);
+			final int start_x = (int)po.x;
+			final int start_y = (int)po.y;
+			final int start_z = layer_set.indexOf(layer_set.getLayer(p_layer[n_points-1])) + 1; // slices range 1<=slice<=n_slices
+			final int goal_x = (int)(x_pd * scale); // must transform into virtual space
+			final int goal_y = (int)(y_pd * scale);
+			final int goal_z = layer_set.indexOf(display.getLayer()) + 1; // layer index, in slices (hence +1)
+
+			Utils.log2("x_pd, y_pd : " + x_pd + ", " + y_pd);
+			Utils.log2("scale: " + scale);
+			Utils.log2("start: " + start_x + "," + start_y + ", " + start_z);
+			Utils.log2("goal: " + goal_x + "," + goal_y + ", " + goal_z);
+			Utils.log2("virtual: " + tr_virtual);
+
+			worker[1] = new Worker("Tracer - waiting on hessian") { public void run() {
+				startedWorking();
+				try {
+				if (null != worker[0]) {
+					// Wait until hessian is ready
+					worker[0].join();
+				}
+				setTaskName("Tracing path");
+				final int reportEveryMilliseconds = 2000;
+				Polyline.this.tracer = new TracerThread(Polyline.this.tr_virtual, 0, 255,
+						                       120,  // timeout seconds
+								       reportEveryMilliseconds,
+								       start_x, start_y, start_z,
+								       goal_x, goal_y, goal_z,
+								       true, // reciproal pix values at start and goal
+								       Polyline.this.tr_virtual.getStackSize() == 1,
+								       Polyline.this.tr_hessian,
+								       null == Polyline.this.tr_hessian ? 1 : 4,
+								       null,
+								       null != Polyline.this.tr_hessian);
+				tracer.addProgressListener(new SearchProgressCallback() {
+					public void pointsInSearch(SearchThread source, int inOpen, int inClosed) {
+						worker[1].setTaskName("Tracing path: open=" + inOpen + " closed=" + inClosed);
+					}
+					public void finished(SearchThread source, boolean success) {
+						if (!success) {
+							Utils.logAll("Could NOT trace a path");
+						}
+					}
+					public void threadStatus(SearchThread source, int currentStatus) {
+						// This method gets called every reportEveryMilliseconds
+						if (worker[1].hasQuitted()) {
+							source.requestStop();
+						}
+					}
+				});
+				tracer.run();
+				final Path result = tracer.getResult();
+				if (null == result) {
+					Utils.log("Finding a path failed"); //: "+ 
+						// not public //SearchThread.exitReasonStrings[tracer.getExitReason()]);
+					return;
+				}
+				// Transform points: undo scale, and bring to this Polyline AffineTransform:
+				final AffineTransform aff = new AffineTransform();
+				/* Inverse order: */
+				/* 2 */ aff.concatenate(Polyline.this.at.createInverse());
+				/* 1 */ aff.scale(1/scale, 1/scale);
+				final double[] po = new double[result.points * 2];
+				for (int i=0; i<result.points; i+=2) {
+					po[i] = result.x_positions[i];
+					po[i+1] = result.y_positions[i];
+				}
+				final double[] po2 = new double[result.points * 2];
+				aff.transform(po, 0, po2, 0, result.points); // what a stupid format: consecutive x,y pairs
+
+				final long[] p_layer_ids = new long[result.points];
+				final double[] pox = new double[result.points];
+				final double[] poy = new double[result.points];
+				for (int i=0, j=0; i<p_layer_ids.length; i++, j+=2) {
+					p_layer_ids[i] = layer_set.getLayer(result.z_positions[i]-1).getId();
+					pox[i] = po2[j];
+					poy[i] = po2[j+1];
+				}
+
+				Polyline.this.appendPoints(pox, poy, p_layer_ids, result.points);
+
+				Polyline.this.repaint(true);
+				Utils.logAll("Added " + result.x_positions.length + " new points.");
+
+				} catch (Exception e) { IJError.print(e); }
+				finishedWorking();
+			}};
+			new Bureaucrat(worker[1], project).goHaveBreakfast();
+
+			return;
 
 		} else if (ProjectToolbar.PEN == tool) {
 
