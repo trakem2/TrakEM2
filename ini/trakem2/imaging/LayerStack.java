@@ -106,6 +106,8 @@ public class LayerStack extends ImageStack {
 
 	/** Returns a linear array for each slice, real (not virtual)! */
 	public Object[] getImageArray() {
+		// Release 3 times an RGB stack with this dimensions.
+		layer_set.getProject().getLoader().releaseToFit((long)(getSize() * getWidth() * getHeight() * 4 * 3));
 		final Object[] ia = new Object[getSize()];
 		for (int i=0; i<ia.length; i++) {
 			ia[i] = getProcessor(i+1).getPixels(); // slices 1<=slice<=n_slices
