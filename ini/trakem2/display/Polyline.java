@@ -276,7 +276,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		return index;
 	}
 
-	synchronized protected void appendPoints(double[] px, double[] py, long[] p_layer_ids, int len) {
+	synchronized protected void appendPoints(final double[] px, final double[] py, final long[] p_layer_ids, int len) {
 		for (int i=0, next=n_points; i<len; i++, next++) {
 			if (next == p[0].length) enlargeArrays();
 			p[0][next] = px[i];
@@ -422,7 +422,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 					try {
 				Utils.log("Push ESCAPE key to cancel autotrace anytime.");
 				ImagePlus virtual = new LayerStack(layer_set, scale, ImagePlus.GRAY8, Patch.class, display.getDisplayChannelAlphas()).getImagePlus();
-				virtual.show();
+				//virtual.show();
 				Calibration cal = virtual.getCalibration();
 				double minimumSeparation = 1;
 				if (cal != null) minimumSeparation = Math.min(cal.pixelWidth,
@@ -447,10 +447,10 @@ public class Polyline extends ZDisplayable implements Line3D {
 			Point2D.Double po = transformPoint(p[0][n_points-1], p[1][n_points-1]);
 			final int start_x = (int)po.x;
 			final int start_y = (int)po.y;
-			final int start_z = layer_set.indexOf(layer_set.getLayer(p_layer[n_points-1])) + 1; // slices range 1<=slice<=n_slices
+			final int start_z = layer_set.indexOf(layer_set.getLayer(p_layer[n_points-1])); // 0-based
 			final int goal_x = (int)(x_pd * scale); // must transform into virtual space
 			final int goal_y = (int)(y_pd * scale);
-			final int goal_z = layer_set.indexOf(display.getLayer()) + 1; // layer index, in slices (hence +1)
+			final int goal_z = layer_set.indexOf(display.getLayer());
 
 			Utils.log2("x_pd, y_pd : " + x_pd + ", " + y_pd);
 			Utils.log2("scale: " + scale);
@@ -501,32 +501,39 @@ public class Polyline extends ZDisplayable implements Line3D {
 						// not public //SearchThread.exitReasonStrings[tracer.getExitReason()]);
 					return;
 				}
+				// Remove bogus points: those at the end with 0,0 coords
+				int len = result.points;
+				for (int i=len-1; i>-1; i--) {
+					if (0 == result.x_positions[i] && 0 == result.y_positions[i]) {
+						len--;
+					} else break;
+				}
 				// Transform points: undo scale, and bring to this Polyline AffineTransform:
 				final AffineTransform aff = new AffineTransform();
 				/* Inverse order: */
 				/* 2 */ aff.concatenate(Polyline.this.at.createInverse());
 				/* 1 */ aff.scale(1/scale, 1/scale);
-				final double[] po = new double[result.points * 2];
-				for (int i=0; i<result.points; i+=2) {
-					po[i] = result.x_positions[i];
-					po[i+1] = result.y_positions[i];
+				final double[] po = new double[len * 2];
+				for (int i=0, j=0; i<len; i++, j+=2) {
+					po[j] = result.x_positions[i];
+					po[j+1] = result.y_positions[i];
 				}
-				final double[] po2 = new double[result.points * 2];
-				aff.transform(po, 0, po2, 0, result.points); // what a stupid format: consecutive x,y pairs
+				final double[] po2 = new double[len * 2];
+				aff.transform(po, 0, po2, 0, len); // what a stupid format: consecutive x,y pairs
 
-				final long[] p_layer_ids = new long[result.points];
-				final double[] pox = new double[result.points];
-				final double[] poy = new double[result.points];
-				for (int i=0, j=0; i<p_layer_ids.length; i++, j+=2) {
-					p_layer_ids[i] = layer_set.getLayer(result.z_positions[i]-1).getId();
+				final long[] p_layer_ids = new long[len];
+				final double[] pox = new double[len];
+				final double[] poy = new double[len];
+				for (int i=0, j=0; i<len; i++, j+=2) {
+					p_layer_ids[i] = layer_set.getLayer(result.z_positions[i]).getId(); // z_positions in 0-(N-1), not in 0-N like slices!
 					pox[i] = po2[j];
 					poy[i] = po2[j+1];
 				}
 
-				Polyline.this.appendPoints(pox, poy, p_layer_ids, result.points);
+				Polyline.this.appendPoints(pox, poy, p_layer_ids, len);
 
 				Polyline.this.repaint(true);
-				Utils.logAll("Added " + result.x_positions.length + " new points.");
+				Utils.logAll("Added " + len + " new points.");
 
 				} catch (Exception e) { IJError.print(e); }
 				finishedWorking();
