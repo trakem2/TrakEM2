@@ -584,10 +584,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 				me.translatePoint(-(int) active.getX(), -(int) active.getY());
 				super.mousePressed(me);
 				repaint();
+				// TODO should use LayerStack virtualization ... then scale back the ROI
 			}
 			return;
 		case ProjectToolbar.PENCIL:
-			if (active.isVisible() && active instanceof Profile) {
+			if (active.isVisible() && active.getClass() == Profile.class) {
 				Profile prof = (Profile) active;
 				this.freehandProfile = new FreeHandProfile(prof);
 				freehandProfile.mousePressed(x_p, y_p);
@@ -766,27 +767,34 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		//Utils.log2("x_d,y_d : " + x_d + "," + y_d + "   x_d_old, y_d_old : " + x_d_old + "," + y_d_old + "  dx, dy : " + (x_d_old - x_d) + "," + (y_d_old - y_d));
 
 		// Code for Matthias' FreehandProfile (TODO this should be done on mousePressed, not on mouseDragged)
-		try {
-			if (r == null) {
-				r = new Robot(this.getGraphicsConfiguration().getDevice());
+
+		Displayable active = display.getActive();
+		if (active.getClass() == Profile.class) {
+			try {
+				if (r == null) {
+					r = new Robot(this.getGraphicsConfiguration().getDevice());
+				}
+			} catch (AWTException e) {
+				e.printStackTrace();
 			}
-		} catch (AWTException e) {
-			e.printStackTrace();
 		}
 
 		switch (tool) {
 		case ProjectToolbar.PENCIL:
-			if (freehandProfile == null)
-				return; // starting painting out of the DisplayCanvas border
-			double dx = x_d - x_d_old;
-			double dy = y_d - y_d_old;
-			freehandProfile.mouseDragged(me, x_d, y_d, dx, dy);
-			repaint();
-			// Point screenLocation = getLocationOnScreen();
-			// mousePos[0] += screenLocation.x;
-			// mousePos[1] += screenLocation.y;
-			// r.mouseMove( mousePos[0], mousePos[1]);
-			return;
+			if (active.isVisible() && active.getClass() == Profile.class) {
+				if (freehandProfile == null)
+					return; // starting painting out of the DisplayCanvas border
+				double dx = x_d - x_d_old;
+				double dy = y_d - y_d_old;
+				freehandProfile.mouseDragged(me, x_d, y_d, dx, dy);
+				repaint();
+				// Point screenLocation = getLocationOnScreen();
+				// mousePos[0] += screenLocation.x;
+				// mousePos[1] += screenLocation.y;
+				// r.mouseMove( mousePos[0], mousePos[1]);
+				return;
+			}
+			break;
 		case Toolbar.RECTANGLE:
 		case Toolbar.OVAL:
 		case Toolbar.POLYGON:
@@ -807,9 +815,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		// check:
 		if (display.isReadOnly()) return;
-
-
-		Displayable active = display.getActive();
 
 		if (null != active && active.isVisible()) {
 			// prevent dragging beyond the layer limits
@@ -924,17 +929,22 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		this.xMouse = x_r;
 		this.yMouse = y_r;
 
+		Displayable active = display.getActive();
+
 		switch (tool) {
 			case ProjectToolbar.PENCIL:
-				if (freehandProfile == null)
-					return; // starting painting out of the DisplayCanvas boarder
-				freehandProfile.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
-				freehandProfile = null;
-				//repaint(true);
-				Selection selection = display.getSelection();
-				selection.updateTransform(display.getActive());
-				Display.repaint(display.getLayer(), selection.getBox(), Selection.PADDING); // repaints the navigator as well
-				return;
+				if (active.isVisible() && active.getClass() == Profile.class) {
+					if (freehandProfile == null)
+						return; // starting painting out of the DisplayCanvas boarder
+					freehandProfile.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+					freehandProfile = null;
+					//repaint(true);
+					Selection selection = display.getSelection();
+					selection.updateTransform(display.getActive());
+					Display.repaint(display.getLayer(), selection.getBox(), Selection.PADDING); // repaints the navigator as well
+					return;
+				}
+				break;
 			case Toolbar.RECTANGLE:
 			case Toolbar.OVAL:
 			case Toolbar.POLYGON:
@@ -958,8 +968,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		if (tool >= ProjectToolbar.SELECT) {
 			if (null != roi) imp.killRoi();
 		} else return; // #SET_ROI
-
-		Displayable active = display.getActive();
 
 		Selection selection = display.getSelection();
 

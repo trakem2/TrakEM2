@@ -449,7 +449,14 @@ public class Polyline extends ZDisplayable implements Line3D {
 		final Display display = ((DisplayCanvas)me.getSource()).getDisplay();
 		final long layer_id = display.getLayer().getId();
 
-		if (ProjectToolbar.PENCIL == tool && n_points > 0) {
+
+		if (me.isControlDown() && me.isShiftDown()) {
+			index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
+		} else {
+			index = findPoint(x_p, y_p, layer_id, mag);
+		}
+
+		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !me.isControlDown() && !me.isAltDown()) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
 			final double scale = layer_set.getVirtualizationScale();
 			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
@@ -602,12 +609,6 @@ public class Polyline extends ZDisplayable implements Line3D {
 		}
 
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
-
-			if (me.isControlDown() && me.isShiftDown()) {
-				index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
-			} else {
-				index = findPoint(x_p, y_p, layer_id, mag);
-			}
 
 			if (-1 != index) {
 				if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
@@ -804,7 +805,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		return n_points;
 	}
 
-	public boolean contains(final Layer layer, int x, int y) {
+	synchronized public boolean contains(final Layer layer, int x, int y) {
 		Display front = Display.getFront();
 		double radius = 10;
 		if (null != front) {
