@@ -25,6 +25,7 @@ package ini.trakem2.display;
 import ini.trakem2.Project;
 import ini.trakem2.vector.VectorString3D;
 import java.awt.Color;
+import java.util.List;
 
 /** By definition, only ZDisplayable objects may implement Line3D. */
 public interface Line3D {
@@ -36,4 +37,5 @@ public interface Line3D {
 	public long getId();
 	public int length();
 	public Color getColor();
+	public List generateTriangles(double scale, int parallels, int resample);
 }

@@ -770,9 +770,10 @@ public class Display3D {
 		} else if (displ instanceof Ball) {
 			double[][][] globe = Ball.generateGlobe(12, 12);
 			triangles = ((Ball)displ).generateTriangles(scale, globe);
-		} else if (displ instanceof Pipe) {
+		} else if (displ instanceof Line3D) {
+			// Pipe and Polyline
 			// adjustResampling();  // fails horribly, needs first to correct mesh-generation code
-			triangles = ((Pipe)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
+			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 		}
