@@ -323,9 +323,10 @@ public class Compare {
 
 	static private void trySetAsAxis(final Line3D[] axes, final String[] preset, final ProjectThing pt) {
 		final Object ob = pt.getObject();
-		if (null == ob || ob.getClass() != Line3D.class) return;
+		if (null == ob || !(ob instanceof Line3D)) return;
 		final Line3D pipe = (Line3D)ob;
 		final String title = pipe.getProject().getShortMeaningfulTitle(pt, (ZDisplayable)pipe).toLowerCase();
+		Utils.log2("title is " + title);
 		if (-1 != title.indexOf(preset[0])) axes[0] = pipe;
 		else if (-1 != title.indexOf(preset[1])) axes[1] = pipe;
 		else if (-1 != title.indexOf(preset[2])) axes[2] = pipe;

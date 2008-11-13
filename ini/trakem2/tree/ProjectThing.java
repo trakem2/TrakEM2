@@ -709,7 +709,7 @@ public class ProjectThing extends DBObject implements Thing {
 		}
 		return al;
 	}
-	/** Check if this Thing directly contains any child of the given object class, and return them all. */
+	/** Check if this Thing directly contains any child of the given object class (including interfaces), and return them all. */
 	public ArrayList findChildrenOfType(final Class c) {
 		ArrayList al = new ArrayList();
 		if (null == al_children) return al;
