@@ -83,8 +83,8 @@ public class ImageJCommandListener implements CommandListener {
 		return command;
 	}
 
-	private String runOnVirtualLayerSet(final String command, final LayerSet ls) {
-		ImagePlus imp = ls.createLayerStack().getImagePlus();
+	private String runOnVirtualLayerSet(final String command, final LayerSet layer_set, Display display) {
+		ImagePlus imp = layer_set.createLayerStack(Displayable.class, ImagePlus.COLOR_RGB, display.getDisplayChannelAlphas()).getImagePlus();
 		WindowManager.setTempCurrentImage(imp);
 		return command;
 	}
@@ -380,10 +380,10 @@ public class ImageJCommandListener implements CommandListener {
 
 		// PLUGINS menu
 		else if (command.equals("Volume Viewer")) {
-			return runOnVirtualLayerSet(command, layer_set);
+			return runOnVirtualLayerSet(command, layer_set, display);
 		} else  if (command.equals("3D Viewer")) {
 			// it's virtual and non-caching, will appear as a regular ImageJ stack
-			layer_set.createLayerStack().getImagePlus().show();
+			layer_set.createLayerStack(Displayable.class, ImagePlus.COLOR_RGB, display.getDisplayChannelAlphas()).getImagePlus().show();
 			return command;
 		}
 
