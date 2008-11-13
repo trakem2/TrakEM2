@@ -326,7 +326,7 @@ public class Compare {
 		if (null == ob || !(ob instanceof Line3D)) return;
 		final Line3D pipe = (Line3D)ob;
 		final String title = pipe.getProject().getShortMeaningfulTitle(pt, (ZDisplayable)pipe).toLowerCase();
-		Utils.log2("title is " + title);
+		//Utils.log2("title is " + title);
 		if (-1 != title.indexOf(preset[0])) axes[0] = pipe;
 		else if (-1 != title.indexOf(preset[1])) axes[1] = pipe;
 		else if (-1 != title.indexOf(preset[2])) axes[2] = pipe;
@@ -855,11 +855,11 @@ public class Compare {
 			}
 		}
 
-		void remove(Displayable d) {
+		void remove(final Displayable d) {
 			// from the queries (and thus the tabs as well)
 			for (Iterator<Chain> i = queries.iterator(); i.hasNext(); ) {
 				Chain chain = i.next();
-				if (chain.equals(d)) {
+				if (chain.pipes.contains(d)) {
 					Component comp = findTab(chain);
 					if (null != comp) {
 						ht_tabs.remove(comp);
@@ -877,6 +877,33 @@ public class Compare {
 					}
 				}
 			}
+			Utils.updateComponent(frame);
+		}
+
+		/** Remove all queries and refs that belong to the given project. */
+		void remove(Project project) {
+			// from the queries (and thus the tabs as well)
+			for (Iterator<Chain> i = queries.iterator(); i.hasNext(); ) {
+				Chain chain = i.next();
+				if (chain.pipes.get(0).getProject() == project) {
+					Component comp = findTab(chain);
+					if (null != comp) {
+						ht_tabs.remove(comp);
+						tabs.remove(comp);
+					}
+					i.remove();
+					matches.remove(chain);
+				}
+			}
+			// from the matches list of each query chain
+			for (ArrayList<ChainMatch> acm : matches.values()) {
+				for (Iterator<ChainMatch> i = acm.iterator(); i.hasNext(); ) {
+					if (i.next().ref.pipes.get(0).getProject() == project) {
+						i.remove();
+					}
+				}
+			}
+			Utils.updateComponent(frame);
 		}
 	}
 
@@ -1649,6 +1676,7 @@ public class Compare {
 			final QueryHolderTableModel model = (QueryHolderTableModel)table.getModel();
 
 			final int row = table.rowAtPoint(me.getPoint());
+			if (-1 == row) return;
 			final Chain ref = model.cm.get(row).ref;
 
 			if (2 == me.getClickCount()) {
@@ -2574,5 +2602,26 @@ public class Compare {
 		}
 
 		return remaining.iterator().next();
+	}
+
+	/** Iterates all tabs, removing those that contain queries from the given project. */
+	static public void removeProject(final Project project) {
+		if (null == ht_tabs) return;
+		// avoid concurrent modifications
+		HashSet<Map.Entry<JScrollPane,Chain>> set = new HashSet<Map.Entry<JScrollPane,Chain>>();
+		set.addAll(ht_tabs.entrySet());
+		for (Iterator<Map.Entry<JScrollPane,Chain>> it = set.iterator(); it.hasNext(); ) {
+			Map.Entry<JScrollPane,Chain> e = it.next();
+			JScrollPane jsp = e.getKey();
+			JTable table = (JTable)jsp.getViewport().getView();
+			QueryHolderTableModel qt = (QueryHolderTableModel)table.getModel();
+			// uff!
+			qt.qh.remove(project);
+			Chain chain = e.getValue();
+			if (0 == table.getRowCount() || chain.pipes.get(0).getProject() == project) {
+				ht_tabs.remove(jsp);
+				tabs.remove(jsp);
+			}
+		}
 	}
 }

@@ -64,6 +64,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
+import ini.trakem2.display.Polyline;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
@@ -251,6 +252,7 @@ abstract public class Loader {
 		}
 		Utils.showStatus("Releasing all memory ...", false);
 		destroyCache();
+		Project p = Project.findProject(this);
 		if (null != v_loaders) {
 			v_loaders.remove(this); // sync issues when deleting two loaders consecutively
 			if (0 == v_loaders.size()) v_loaders = null;
@@ -741,6 +743,8 @@ abstract public class Loader {
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
 					Utils.log2("Loader.releaseMemory: empty cache.");
+					// Remove any autotraces
+					Polyline.flushTraceCache(Project.findProject(this));
 					// in any case, can't release more:
 					mawts.gc();
 					return released;

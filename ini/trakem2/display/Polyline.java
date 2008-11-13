@@ -193,6 +193,11 @@ public class Polyline extends ZDisplayable implements Line3D {
 			}
 		}
 
+		// Reset or fix autotracing records
+		if (index < last_autotrace_start && n_points > 0) {
+			last_autotrace_start--;
+		} else last_autotrace_start = -1;
+
 		//update in database
 		updateInDatabase("points");
 	}
@@ -202,6 +207,11 @@ public class Polyline extends ZDisplayable implements Line3D {
 		if (index < 0 || index >= n_points) return;
 		p[0][index] += dx;
 		p[1][index] += dy;
+
+		// Reset autotracing records
+		if (-1 != last_autotrace_start && index >= last_autotrace_start) {
+			last_autotrace_start = -1;
+		}
 	}
 
 	/**Add a point either at the end or between two existing points, with accuracy depending on magnification. The width of the new point is that of the closest point after which it is inserted.*/
@@ -220,6 +230,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 			p[1][n_points] = y_p;
 			p_layer[n_points] = layer_id;
 			index = n_points;
+
+			last_autotrace_start = -1;
 		} else if (-1 == index) {
 			// decide whether to append at the end or prepend at the beginning
 			// compute distance in the 3D space to the first and last points
@@ -239,6 +251,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 				p[1][n_points] = y_p;
 				p_layer[n_points] = layer_id;
 				index = n_points;
+
+				last_autotrace_start = -1;
 			} else {
 				// prepend at the beginning
 				for (int i=n_points-1; i>-1; i--) {
@@ -250,6 +264,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 				p[1][0] = y_p;
 				p_layer[0] = layer_id;
 				index = 0;
+
+				if (-1 != last_autotrace_start) last_autotrace_start++;
 			}
 		} else {
 			//insert at index:
@@ -269,6 +285,11 @@ public class Polyline extends ZDisplayable implements Line3D {
 			System.arraycopy(p_copy[0], 0, p[0], index+1, sh_length);
 			System.arraycopy(p_copy[1], 0, p[1], index+1, sh_length);
 			System.arraycopy(p_layer_copy, 0, p_layer, index+1, sh_length);
+
+			// Reset autotracing records
+			if (index < last_autotrace_start) {
+				last_autotrace_start++;
+			}
 		}
 		//add one up
 		this.n_points++;
@@ -369,13 +390,17 @@ public class Polyline extends ZDisplayable implements Line3D {
 	public void keyPressed(KeyEvent ke) {
 		int keyCode = ke.getKeyCode();
 		switch (keyCode) {
-			case KeyEvent.VK_ESCAPE:
-				TraceParameters tr = tr_map.get(layer_set);
-				if (null != tr) {
-					TracerThread tt = tr.tracer;
-					if (null != tt) tt.requestStop();
-					ke.consume();
+			case KeyEvent.VK_D:
+				if (-1 == last_autotrace_start) {
+					if (0 > n_points) Utils.log("Cannot remove last set of autotraced points:\n  Manual editions exist, or never autotraced.");
+					return;
 				}
+				// Else, remove:
+				final int len = n_points - last_autotrace_start;
+				n_points = last_autotrace_start;
+				last_autotrace_start = -1;
+				repaint(true);
+				Utils.log("Removed " + len + " autotraced points.");
 				return;
 			case KeyEvent.VK_R: // reset tracing
 				tr_map.remove(layer_set);
@@ -390,6 +415,15 @@ public class Polyline extends ZDisplayable implements Line3D {
 	static private boolean is_new_point = false;
 
 	final static private HashMap<LayerSet,TraceParameters> tr_map = new HashMap<LayerSet,TraceParameters>();
+	private int last_autotrace_start = -1;
+
+	static public void flushTraceCache(final Project project) {
+		synchronized (tr_map) {
+			for (Iterator<LayerSet> it = tr_map.keySet().iterator(); it.hasNext(); ) {
+				if (it.next().getProject() == project) it.remove();
+			}
+		}
+	}
 
 	/** Shared between all Polyline of the same LayerSet. The issue of locking doesn't arise because there is only one source of mouse input. If you try to run it programatically with synthetic MouseEvent, that's your problem. */
 	static private class TraceParameters {
@@ -423,7 +457,11 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 			TraceParameters tr_ = tr_map.get(layer_set);
 			final TraceParameters tr = null == tr_ ? new TraceParameters() : tr_;
-			if (null == tr_) tr_map.put(layer_set, tr);
+			if (null == tr_) {
+				synchronized (tr_map) {
+					tr_map.put(layer_set, tr);
+				}
+			}
 
 			if (tr.update) {
 				worker[0] = new Worker("Preparing Hessian...") { public void run() {
@@ -461,11 +499,13 @@ public class Polyline extends ZDisplayable implements Line3D {
 			final int goal_y = (int)(y_pd * scale);
 			final int goal_z = layer_set.indexOf(display.getLayer());
 
+			/*
 			Utils.log2("x_pd, y_pd : " + x_pd + ", " + y_pd);
 			Utils.log2("scale: " + scale);
 			Utils.log2("start: " + start_x + "," + start_y + ", " + start_z);
 			Utils.log2("goal: " + goal_x + "," + goal_y + ", " + goal_z);
 			Utils.log2("virtual: " + tr.virtual);
+			*/
 
 			worker[1] = new Worker("Tracer - waiting on hessian") { public void run() {
 				startedWorking();
@@ -544,6 +584,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 					poy[i] = po2[j+1];
 				}
 
+				// Record the first newly-added autotraced point index:
+				last_autotrace_start = Polyline.this.n_points;
 				Polyline.this.appendPoints(pox, poy, p_layer_ids, len);
 
 				Polyline.this.repaint(true);
