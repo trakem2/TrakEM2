@@ -92,7 +92,7 @@ public class ImageJCommandListener implements CommandListener {
 	// I know, I could create a hashtable and then map methods of this class to each command key ... this is just easier, and performance-wise nobody cares
 	//  Or even a hastable with String command keys and then a number as value, and use a gigantic switch block. So much pain to write. WHAT I REALLY WANT is a switch that takes a String and is fast because it has its own hash setup.
 	public String commandExecuting(final String command) {
-		Utils.log2("Command: " + command);
+		//Utils.log2("Command: " + command);
 		// 1 - check source
 		ImagePlus current = WindowManager.getCurrentImage();
 		if (!(current instanceof FakeImagePlus)) return command;  // not a trakem2 display: continue happily
@@ -396,10 +396,10 @@ public class ImageJCommandListener implements CommandListener {
 			return duplicate(command, active);
 
 
-		} else {
+		} /*else {
 			// continue happily
-			Utils.log2("Skipping " + command);
-		}
+			//Utils.log2("Skipping " + command);
+		}*/
 
 		// give it back to ImageJ for execution
 		return command;
