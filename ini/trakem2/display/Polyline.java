@@ -370,17 +370,15 @@ public class Polyline extends ZDisplayable implements Line3D {
 		int keyCode = ke.getKeyCode();
 		switch (keyCode) {
 			case KeyEvent.VK_ESCAPE:
-				if (null != tracer) {
-					tracer.requestStop();
-					tracer = null;
+				TraceParameters tr = tr_map.get(layer_set);
+				if (null != tr) {
+					TracerThread tt = tr.tracer;
+					if (null != tt) tt.requestStop();
 					ke.consume();
 				}
 				return;
 			case KeyEvent.VK_R: // reset tracing
-				tr_update = true;
-				tr_virtual = null;
-				tr_scale = 1;
-				tr_hessian = null;
+				tr_map.remove(layer_set);
 				ke.consume();
 				Utils.log("Reset tracing data for Polyline " + this);
 				return;
@@ -391,11 +389,16 @@ public class Polyline extends ZDisplayable implements Line3D {
 	static private int index;
 	static private boolean is_new_point = false;
 
-	boolean tr_update = true;
-	ImagePlus tr_virtual = null;
-	double tr_scale = 1;
-	ComputeCurvatures tr_hessian = null;
-	TracerThread tracer = null;
+	final static private HashMap<LayerSet,TraceParameters> tr_map = new HashMap<LayerSet,TraceParameters>();
+
+	/** Shared between all Polyline of the same LayerSet. The issue of locking doesn't arise because there is only one source of mouse input. If you try to run it programatically with synthetic MouseEvent, that's your problem. */
+	static private class TraceParameters {
+		boolean update = true;
+		ImagePlus virtual = null;
+		double scale = 1;
+		ComputeCurvatures hessian = null;
+		TracerThread tracer = null; // catched thread for KeyEvent to attempt to stop it
+	}
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
@@ -410,13 +413,19 @@ public class Polyline extends ZDisplayable implements Line3D {
 		final int tool = ProjectToolbar.getToolId();
 
 		final Display display = ((DisplayCanvas)me.getSource()).getDisplay();
+		final long layer_id = display.getLayer().getId();
 
 		if (ProjectToolbar.PENCIL == tool && n_points > 0) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
 			final double scale = layer_set.getVirtualizationScale();
 			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
 			final Worker[] worker = new Worker[2];
-			if (tr_update) {
+
+			TraceParameters tr_ = tr_map.get(layer_set);
+			final TraceParameters tr = null == tr_ ? new TraceParameters() : tr_;
+			if (null == tr_) tr_map.put(layer_set, tr);
+
+			if (tr.update) {
 				worker[0] = new Worker("Preparing Hessian...") { public void run() {
 					startedWorking();
 					try {
@@ -431,10 +440,10 @@ public class Polyline extends ZDisplayable implements Line3D {
 				ComputeCurvatures hessian = new ComputeCurvatures(virtual, minimumSeparation, null, cal != null);
 				hessian.run();
 
-				Polyline.this.tr_virtual = virtual;
-				Polyline.this.tr_scale = scale;
-				Polyline.this.tr_hessian = hessian;
-				Polyline.this.tr_update = false;
+				tr.virtual = virtual;
+				tr.scale = scale;
+				tr.hessian = hessian;
+				tr.update = false;
 
 					} catch (Exception e) {
 						IJError.print(e);
@@ -456,7 +465,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 			Utils.log2("scale: " + scale);
 			Utils.log2("start: " + start_x + "," + start_y + ", " + start_z);
 			Utils.log2("goal: " + goal_x + "," + goal_y + ", " + goal_z);
-			Utils.log2("virtual: " + tr_virtual);
+			Utils.log2("virtual: " + tr.virtual);
 
 			worker[1] = new Worker("Tracer - waiting on hessian") { public void run() {
 				startedWorking();
@@ -467,18 +476,18 @@ public class Polyline extends ZDisplayable implements Line3D {
 				}
 				setTaskName("Tracing path");
 				final int reportEveryMilliseconds = 2000;
-				Polyline.this.tracer = new TracerThread(Polyline.this.tr_virtual, 0, 255,
+				tr.tracer = new TracerThread(tr.virtual, 0, 255,
 						                       120,  // timeout seconds
 								       reportEveryMilliseconds,
 								       start_x, start_y, start_z,
 								       goal_x, goal_y, goal_z,
 								       true, // reciproal pix values at start and goal
-								       Polyline.this.tr_virtual.getStackSize() == 1,
-								       Polyline.this.tr_hessian,
-								       null == Polyline.this.tr_hessian ? 1 : 4,
+								       tr.virtual.getStackSize() == 1,
+								       tr.hessian,
+								       null == tr.hessian ? 1 : 4,
 								       null,
-								       null != Polyline.this.tr_hessian);
-				tracer.addProgressListener(new SearchProgressCallback() {
+								       null != tr.hessian);
+				tr.tracer.addProgressListener(new SearchProgressCallback() {
 					public void pointsInSearch(SearchThread source, int inOpen, int inClosed) {
 						worker[1].setTaskName("Tracing path: open=" + inOpen + " closed=" + inClosed);
 					}
@@ -494,8 +503,13 @@ public class Polyline extends ZDisplayable implements Line3D {
 						}
 					}
 				});
-				tracer.run();
-				final Path result = tracer.getResult();
+
+				tr.tracer.run();
+
+				final Path result = tr.tracer.getResult();
+
+				tr.tracer = null;
+
 				if (null == result) {
 					Utils.log("Finding a path failed"); //: "+ 
 						// not public //SearchThread.exitReasonStrings[tracer.getExitReason()]);
@@ -540,11 +554,12 @@ public class Polyline extends ZDisplayable implements Line3D {
 			}};
 			new Bureaucrat(worker[1], project).goHaveBreakfast();
 
+			index = -1;
 			return;
 
-		} else if (ProjectToolbar.PEN == tool) {
+		}
 
-			final long layer_id = Display.getFrontLayer(this.project).getId();
+		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
 
 			if (me.isControlDown() && me.isShiftDown()) {
 				index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
@@ -562,8 +577,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 				}
 			}
 
-
 			if (-1 != index && layer_id != p_layer[index]) index = -1; // disable!
+
 			//if no conditions are met, attempt to add point
 			else if (-1 == index && !me.isShiftDown() && !me.isAltDown()) {
 				//add a new point
@@ -591,7 +606,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 		final int tool = ProjectToolbar.getToolId();
 
-		if (ProjectToolbar.PEN == tool) {
+		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
 			//if a point in the backbone is found, then:
 			if (-1 != index && !me.isAltDown() && !me.isShiftDown()) {
 				dragPoint(index, x_d - x_d_old, y_d - y_d_old);
@@ -605,7 +620,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 		final int tool = ProjectToolbar.getToolId();
 
-		if (ProjectToolbar.PEN == tool) {
+		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
 			repaint(); //needed at least for the removePoint
 		}
 
