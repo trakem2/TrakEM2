@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ij.gui.Plot;
 import ij.gui.Toolbar;
 import ij.ImagePlus;
 import ij.measure.Calibration;
@@ -31,6 +32,7 @@ import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
@@ -54,12 +56,15 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import features.ComputeCurvatures;
 import tracing.Path;
 import tracing.SearchThread;
 import tracing.TracerThread;
 import tracing.SearchProgressCallback;
+
+import javax.vecmath.Vector3d;
 
 
 /** A sequence of points that make multiple chained line segments. */
@@ -456,7 +461,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 			index = findPoint(x_p, y_p, layer_id, mag);
 		}
 
-		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !me.isControlDown() && !me.isAltDown()) {
+		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !me.isControlDown()) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
 			final double scale = layer_set.getVirtualizationScale();
 			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
@@ -513,6 +518,9 @@ public class Polyline extends ZDisplayable implements Line3D {
 			Utils.log2("goal: " + goal_x + "," + goal_y + ", " + goal_z);
 			Utils.log2("virtual: " + tr.virtual);
 			*/
+
+
+			final boolean simplify = me.isAltDown();
 
 			worker[1] = new Worker("Tracer - waiting on hessian") { public void run() {
 				startedWorking();
@@ -582,13 +590,22 @@ public class Polyline extends ZDisplayable implements Line3D {
 				final double[] po2 = new double[len * 2];
 				aff.transform(po, 0, po2, 0, len); // what a stupid format: consecutive x,y pairs
 
-				final long[] p_layer_ids = new long[len];
-				final double[] pox = new double[len];
-				final double[] poy = new double[len];
+				long[] p_layer_ids = new long[len];
+				double[] pox = new double[len];
+				double[] poy = new double[len];
 				for (int i=0, j=0; i<len; i++, j+=2) {
 					p_layer_ids[i] = layer_set.getLayer(result.z_positions[i]).getId(); // z_positions in 0-(N-1), not in 0-N like slices!
 					pox[i] = po2[j];
 					poy[i] = po2[j+1];
+				}
+
+				// Simplify path: to steps of 5 calibration units, or 5 pixels when not calibrated.
+				if (simplify) {
+					Object[] ob = Polyline.simplify(pox, poy, p_layer_ids, 10000, layer_set);
+					pox = (double[])ob[0];
+					poy = (double[])ob[1];
+					p_layer_ids = (long[])ob[2];
+					len = pox.length;
 				}
 
 				// Record the first newly-added autotraced point index:
@@ -821,10 +838,10 @@ public class Polyline extends ZDisplayable implements Line3D {
 		for (int i=0; i<n_points; i++) {
 			if (lid == p_layer[i]) {
 				// check both lines:
-				if (i > 0 && Displayable.distancePointToLine(x, y, p[0][i-1], p[1][i-1], p[0][i], p[1][i]) < radius) {
+				if (i > 0 && M.distancePointToLine(x, y, p[0][i-1], p[1][i-1], p[0][i], p[1][i]) < radius) {
 					return true;
 				}
-				if (i < n_points && Displayable.distancePointToLine(x, y, p[0][i], p[1][i], p[0][i+1], p[1][i+1]) < radius) {
+				if (i < n_points && M.distancePointToLine(x, y, p[0][i], p[1][i], p[0][i+1], p[1][i+1]) < radius) {
 					return true;
 				}
 			} else if (i > 0) {
@@ -833,7 +850,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 				if ( (z1 < z && z < z2)
 				  || (z2 < z && z < z1) ) {
 					// line between j and j-1 crosses the given layer
-					if (Displayable.distancePointToLine(x, y, p[0][i-1], p[1][i-1], p[0][i], p[1][i]) < radius) {
+					if (M.distancePointToLine(x, y, p[0][i-1], p[1][i-1], p[0][i], p[1][i]) < radius) {
 						return true;
 					}
 				}
@@ -1038,5 +1055,153 @@ public class Polyline extends ZDisplayable implements Line3D {
 		rt.addValue(1, len);
 		rt.addValue(2, getNameId());
 		return rt;
+	}
+
+	/** Resample the curve to, first, a number of points as resulting from resampling to a point interdistance of delta, and second, as adjustment by random walk of those points towards the original points. */
+	static public Object[] simplify(final double[] px, final double[] py, final long[] p_layer_ids, /*final double delta, final double allowed_error_per_point,*/ final int max_iterations, final LayerSet layer_set) throws Exception {
+		if (px.length != py.length || py.length != p_layer_ids.length) return null;
+
+		final double[] pz = new double[px.length];
+		for (int i=0; i<pz.length; i++) {
+			pz[i] = layer_set.getLayer(p_layer_ids[i]).getZ();
+		}
+
+		/*
+		// Resample:
+		VectorString3D vs = new VectorString3D(px, py, pz, false);
+		Calibration cal = layer_set.getCalibrationCopy();
+		vs.calibrate(cal);
+		vs.resample(delta);
+		cal.pixelWidth = 1 / cal.pixelWidth;
+		cal.pixelHeight = 1 / cal.pixelHeight;
+		vs.calibrate(cal); // undo it, since source points are in pixels
+
+		Pth path = new Pth(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2));
+		vs = null;
+
+		// The above fails with strangely jagged lines.
+		*/
+
+		// Instead, just a line:
+		Calibration cal = layer_set.getCalibrationCopy();
+		double one_unit = 1 / cal.pixelWidth; // in pixels
+		double traced_length = M.distance(px[0], py[0], pz[0],
+				         px[px.length-1], py[py.length-1], pz[pz.length-1]);
+		double segment_length = (one_unit * 5);
+		int n_new_points = (int)(traced_length / segment_length) + 1;
+		double[] rx = new double[n_new_points];
+		double[] ry = new double[n_new_points];
+		double[] rz = new double[n_new_points];
+		rx[0] = px[0];  rx[rx.length-1] = px[px.length-1];
+		ry[0] = py[0];  ry[ry.length-1] = py[py.length-1];
+		rz[0] = pz[0];  rz[rz.length-1] = pz[pz.length-1];
+		Vector3d v = new Vector3d(rx[n_new_points-1] - rx[0],
+				          ry[n_new_points-1] - ry[0],
+					  rz[n_new_points-1] - rz[0]);
+		v.normalize();
+		v.scale(segment_length);
+		for (int i=1; i<n_new_points-1; i++) {
+			rx[i] = rx[0] + v.x * i;
+			ry[i] = ry[0] + v.y * i;
+			rz[i] = rz[0] + v.z * i;
+		}
+		Pth path = new Pth(rx, ry, rz);
+		rx = ry = rz = null;
+
+		//final double lowest_error = px.length * allowed_error_per_point;
+		final double d = 1;
+		final Random rand = new Random(System.currentTimeMillis());
+
+		double current_error = Double.MAX_VALUE;
+		int i = 0;
+		//double[] er = new double[max_iterations];
+		//double[] index = new double[max_iterations];
+		int missed_in_a_row = 0;
+		for (; i<max_iterations; i++) {
+			final Pth copy = path.copy().shakeUpOne(d, rand);
+			double error = copy.measureErrorSq(px, py, pz);
+			// If less error, keep the copy
+			if (error < current_error) {
+				current_error = error;
+				path = copy;
+				//er[i] = error;
+				//index[i] = i;
+				missed_in_a_row = 0;
+			} else {
+				//er[i] = current_error;
+				//index[i] = i;
+				missed_in_a_row++;
+				if (missed_in_a_row > 10 * path.px.length) {
+					Utils.log2("Stopped random walk at iteration " + i);
+					break;
+				}
+				continue;
+			}
+			/*
+			// If below lowest_error, quit searching
+			if (current_error < lowest_error) {
+				Utils.log2("Stopped at iteration " + i);
+				break;
+			}
+			*/
+		}
+
+		/*
+		Plot plot = new Plot("error", "iteration", "error", index, er);
+		plot.setLineWidth(2);
+		plot.show();
+		*/
+
+		if (max_iterations == i) {
+			Utils.log2("Reached max iterations -- current error: " + current_error);
+		}
+
+		// Approximate new Z to a layer id:
+		long[] plids = new long[path.px.length];
+		plids[0] = p_layer_ids[0]; // first point untouched
+		for (int k=1; k<path.pz.length; k++) {
+			plids[k] = layer_set.getNearestLayer(path.pz[k]).getId();
+		}
+
+		return new Object[]{path.px, path.py, plids};
+	}
+
+	/** A path of points in 3D. */
+	static private class Pth {
+		final double[] px, py, pz;
+		Pth(double[] px, double[] py, double[] pz) {
+			this.px = px;
+			this.py = py;
+			this.pz = pz;
+		}
+		/** Excludes first and last points. */
+		final Pth shakeUpOne(final double d, final Random rand) {
+			final int i = rand.nextInt(px.length-1) + 1;
+			px[i] += d * (rand.nextBoolean() ? 1 : -1);
+			py[i] += d * (rand.nextBoolean() ? 1 : -1);
+			pz[i] += d * (rand.nextBoolean() ? 1 : -1);
+			return this;
+		}
+		final Pth copy() {
+			return new Pth( Utils.copy(px, px.length),
+					Utils.copy(py, py.length),
+					Utils.copy(pz, pz.length) );
+		}
+		/** Excludes first and last points. */
+		final double measureErrorSq(final double[] ox, final double[] oy, final double[] oz) {
+			double error = 0;
+			for (int i=1; i<ox.length -1; i++) {
+				double min_dist = Double.MAX_VALUE;
+				for (int j=1; j<px.length; j++) {
+					// distance from a original point to a line defined by two consecutive new points
+					double dist = M.distancePointToSegmentSq(ox[i], oy[i], oz[i],
+							                         px[j-1], py[j-1], pz[j-1],
+									         px[j], py[j], pz[j]);
+					if (dist < min_dist) min_dist = dist;
+				}
+				error += min_dist;
+			}
+			return error;
+		}
 	}
 }
