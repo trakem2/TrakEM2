@@ -50,9 +50,12 @@ import java.lang.reflect.Field;
 /** One Display3D instance for each LayerSet (maximum). */
 public class Display3D {
 
+	/** The threading is so poorly done ... it BARELY works, it's fragile. */
 
 	/** Table of LayerSet and Display3D - since there is a one to one relationship.  */
 	static private Hashtable ht_layer_sets = new Hashtable();
+	/**Control calls to new Display3D. */
+	static private Lock htlock = new Lock();
 
 	/** The sky will fall on your head if you modify any of the objects contained in this table -- which is a copy of the original, but the objects are the originals. */
 	static public Hashtable getMasterTable() {
@@ -339,39 +342,45 @@ public class Display3D {
 
 	/** Get an existing Display3D for the given LayerSet, or create a new one for it (and cache it). */
 	static private Display3D get(final LayerSet ls) {
-		try {
-			// test:
+		synchronized (htlock) {
+			htlock.lock();
 			try {
-				Class p3f = Class.forName("javax.vecmath.Point3f");
-			} catch (ClassNotFoundException cnfe) {
-				Utils.log("Java 3D not installed.");
-				return null;
-			}
-			try {
-				Class ij3d = Class.forName("ij3d.ImageWindow3D");
-			} catch (ClassNotFoundException cnfe) {
-				Utils.log("ImageJ_3D_Viewer.jar not installed.");
-				return null;
-			}
-			//
-			Object ob = ht_layer_sets.get(ls);
-			if (null == ob) {
-				final boolean[] done = new boolean[]{false};
-				javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
-					Display3D ob = new Display3D(ls);
-					ht_layer_sets.put(ls, ob);
-					done[0] = true;
-				}});
-				// wait to avoid crashes in amd64
-				try { Thread.sleep(500); } catch (Exception e) {}
-				while (!done[0]) {
-					try { Thread.sleep(50); } catch (Exception e) {}
+				// test:
+				try {
+					Class p3f = Class.forName("javax.vecmath.Point3f");
+				} catch (ClassNotFoundException cnfe) {
+					Utils.log("Java 3D not installed.");
+					return null;
 				}
-				ob = ht_layer_sets.get(ls);
+				try {
+					Class ij3d = Class.forName("ij3d.ImageWindow3D");
+				} catch (ClassNotFoundException cnfe) {
+					Utils.log("ImageJ_3D_Viewer.jar not installed.");
+					return null;
+				}
+				//
+				Object ob = ht_layer_sets.get(ls);
+				if (null == ob) {
+					final boolean[] done = new boolean[]{false};
+					javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+						Display3D ob = new Display3D(ls);
+						ht_layer_sets.put(ls, ob);
+						done[0] = true;
+					}});
+					// wait to avoid crashes in amd64
+					// try { Thread.sleep(500); } catch (Exception e) {}
+					while (!done[0]) {
+						try { Thread.sleep(50); } catch (Exception e) {}
+					}
+					ob = ht_layer_sets.get(ls);
+				}
+				return (Display3D)ob;
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				// executed even when returning from within the try-catch block
+				htlock.unlock();
 			}
-			return (Display3D)ob;
-		} catch (Exception e) {
-			IJError.print(e);
 		}
 		return null;
 	}
@@ -859,7 +868,8 @@ public class Display3D {
 				v_threads.add(this);
 				try {
 		/////
-		final Display3D d3d = Display3D.get(ref_ls);
+		Display3D d3d = null;
+			d3d = Display3D.get(ref_ls);
 		final double scale = d3d.scale;
 		final double width = d3d.width;
 		float transp = 1 - alpha;
