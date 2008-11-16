@@ -25,6 +25,7 @@ package ini.trakem2.display;
 
 import ij.IJ;
 import ij.gui.OvalRoi;
+import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.gui.Toolbar;
 import ij.gui.GenericDialog;
@@ -930,13 +931,19 @@ public class AreaList extends ZDisplayable {
 	public int getNAreas() { return ht_areas.size(); }
 
 	public Area getArea(Layer la) {
-		Object ob = ht_areas.get(new Long(la.getId()));
+		if (null == la) return null;
+		return getArea(la.getId());
+	}
+	public Area getArea(long layer_id) {
+		Object ob = ht_areas.get(new Long(layer_id));
 		if (null != ob) {
-			if (UNLOADED == ob) ob = loadLayer(la.getId());
+			if (UNLOADED == ob) ob = loadLayer(layer_id);
 			return (Area)ob;
 		}
 		return null;
 	}
+
+
 
 	/** Performs a deep copy of this object, without the links. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
@@ -1071,10 +1078,74 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Directly place an Area for the specified layer. Keep in mind it will be added in this AreaList coordinate space, not the overall LayerSet coordinate space. Does not make it local, you should call calculateBoundingBox() after setting an area. */
-	public void setArea(long layer_id, Area area) {
+	public void setArea(final long layer_id, final Area area) {
 		if (null == area) return;
-		ht_areas.put(new Long(layer_id), area);
+		ht_areas.put(layer_id, area);
 		updateInDatabase("points=" + layer_id);
+	}
+
+	/** Add an Area object to the existing, if any, area object at Layer with layer_id as given, or if not existing, just set it. The area is expected in this AreaList coordinate space. Does not make it local, you should call calculateBoundingBox when done. */
+	public void addArea(final long layer_id, final Area area) {
+		if (null == area) return;
+		Area a = getArea(layer_id);
+		if (null == a) ht_areas.put(layer_id, area);
+		else a.add(area);
+		updateInDatabase("points=" + layer_id);
+	}
+
+	/** Adds the given ROI, which is expected in world/LayerSet coordinates, to the area present at Layer with id layer_id, or set it if none present yet. */
+	public void add(final long layer_id, final ShapeRoi roi) throws NoninvertibleTransformException{
+		if (null == roi) return;
+		Area a = getArea(layer_id);
+		if (null == a) a = new Area();
+		a.add(Utils.getArea(roi).createTransformedArea(this.at.createInverse()));
+		calculateBoundingBox();
+		updateInDatabase("points=" + layer_id);
+	}
+	/** Subtracts the given ROI, which is expected in world/LayerSet coordinates, to the area present at Layer with id layer_id, or set it if none present yet. */
+	public void subtract(final long layer_id, final ShapeRoi roi) throws NoninvertibleTransformException {
+		if (null == roi) return;
+		Area a = getArea(layer_id);
+		if (null == a) return;
+		a.subtract(Utils.getArea(roi).createTransformedArea(this.at.createInverse()));
+		calculateBoundingBox();
+		updateInDatabase("points=" + layer_id);
+	}
+
+	public void keyPressed(KeyEvent ke) {
+		DisplayCanvas dc = (DisplayCanvas)ke.getSource();
+		Roi roi = dc.getFakeImagePlus().getRoi();
+		Utils.log2("roi is " + roi);
+		if (null == roi) return;
+		// Check ROI
+		switch (roi.getType()) {
+			case Roi.POLYLINE:
+			case Roi.FREELINE:
+			case Roi.LINE:
+			case Roi.POINT:
+				Utils.log("AreaList only accepts region ROIs.");
+				return;
+		}
+		ShapeRoi sroi = new ShapeRoi(roi);
+		int keyCode = ke.getKeyCode();
+		Layer la = dc.getDisplay().getLayer();
+		long layer_id = la.getId();
+		try {
+			switch (keyCode) {
+				case KeyEvent.VK_A:
+					add(layer_id, sroi);
+					ke.consume();
+					break;
+				case KeyEvent.VK_D: // VK_S is for 'save' always
+					subtract(layer_id, sroi);
+					ke.consume();
+					break;
+			}
+			Display.repaint(la, getBoundingBox(), 5);
+			linkPatches();
+		} catch (NoninvertibleTransformException e) {
+			Utils.log("Could not add ROI to area at layer " + dc.getDisplay().getLayer() + " : " + e);
+		}
 	}
 
 	/** Measure the volume (in voxels) of this AreaList,

@@ -1121,7 +1121,7 @@ public class Utils implements ij.plugin.PlugIn {
 				shape_field = ShapeRoi.class.getDeclaredField("shape");
 				shape_field.setAccessible(true);
 			}
-			return (Shape)shape_field.get((ShapeRoi)roi);
+			return (Shape)shape_field.get(roi);
 		} catch (Exception e) {
 			IJError.print(e);
 		}

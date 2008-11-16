@@ -1670,6 +1670,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 		*/
 
+		Utils.log2("kp 1");
+
 
 		Displayable active = display.getActive();
 
@@ -1705,10 +1707,14 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			break;
 		}
 
+		Utils.log2("kp 2");
+
 		if (used) {
 			ke.consume(); // otherwise ImageJ would use it!
 			return;
 		}
+
+		Utils.log2("kp 3");
 
 		if (input_disabled) {
 			if (KeyEvent.VK_ESCAPE == keyCode) {
@@ -1732,6 +1738,8 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			return;
 		}
 
+		Utils.log2("kp 4");
+
 		// if display is not read-only, check for other keys:
 		switch (keyChar) {
 		case '<':
@@ -1746,7 +1754,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			return;
 		}
 
-		if (null != imp.getRoi()) {
+		if ((null == active || Patch.class == active.getClass()) && null != imp.getRoi()) {
 			IJ.getInstance().keyPressed(ke);
 			return;
 		}
