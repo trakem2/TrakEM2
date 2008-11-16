@@ -498,6 +498,7 @@ public class ProjectTree extends DNDTree implements MouseListener, ActionListene
 				break;
 		}
 		}});
+		ke.consume();
 	}
 	public void keyReleased(KeyEvent ke) {}
 	public void keyTyped(KeyEvent ke) {}
