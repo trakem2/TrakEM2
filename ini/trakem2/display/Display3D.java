@@ -340,24 +340,39 @@ public class Display3D {
 		//Utils.log2("scale, width, height: " + scale + ", " + width + ", " + height);
 	}
 
+	static private boolean check_j3d = true;
+	static private boolean has_j3d_3dviewer = false;
+
+	static private boolean hasLibs() {
+		if (check_j3d) {
+			check_j3d = false;
+			try {
+				Class p3f = Class.forName("javax.vecmath.Point3f");
+				has_j3d_3dviewer = true;
+			} catch (ClassNotFoundException cnfe) {
+				Utils.log("Java 3D not installed.");
+				has_j3d_3dviewer = false;
+				return false;
+			}
+			try {
+				Class ij3d = Class.forName("ij3d.ImageWindow3D");
+				has_j3d_3dviewer = true;
+			} catch (ClassNotFoundException cnfe) {
+				Utils.log("3D Viewer not installed.");
+				has_j3d_3dviewer = false;
+				return false;
+			}
+		}
+		return has_j3d_3dviewer;
+	}
+
 	/** Get an existing Display3D for the given LayerSet, or create a new one for it (and cache it). */
 	static private Display3D get(final LayerSet ls) {
 		synchronized (htlock) {
 			htlock.lock();
 			try {
 				// test:
-				try {
-					Class p3f = Class.forName("javax.vecmath.Point3f");
-				} catch (ClassNotFoundException cnfe) {
-					Utils.log("Java 3D not installed.");
-					return null;
-				}
-				try {
-					Class ij3d = Class.forName("ij3d.ImageWindow3D");
-				} catch (ClassNotFoundException cnfe) {
-					Utils.log("ImageJ_3D_Viewer.jar not installed.");
-					return null;
-				}
+				if (!hasLibs()) return null;
 				//
 				Object ob = ht_layer_sets.get(ls);
 				if (null == ob) {
@@ -869,7 +884,7 @@ public class Display3D {
 				try {
 		/////
 		Display3D d3d = null;
-			d3d = Display3D.get(ref_ls);
+		d3d = Display3D.get(ref_ls);
 		final double scale = d3d.scale;
 		final double width = d3d.width;
 		float transp = 1 - alpha;
