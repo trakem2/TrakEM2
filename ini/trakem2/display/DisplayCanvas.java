@@ -1670,9 +1670,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		}
 		*/
 
-		Utils.log2("kp 1");
-
-
 		Displayable active = display.getActive();
 
 		if (ProjectToolbar.getToolId() == ProjectToolbar.PENCIL && null != active && active.getClass() == Profile.class) {
@@ -1707,14 +1704,11 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			break;
 		}
 
-		Utils.log2("kp 2");
 
 		if (used) {
 			ke.consume(); // otherwise ImageJ would use it!
 			return;
 		}
-
-		Utils.log2("kp 3");
 
 		if (input_disabled) {
 			if (KeyEvent.VK_ESCAPE == keyCode) {
@@ -1737,8 +1731,6 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			ke.consume();
 			return;
 		}
-
-		Utils.log2("kp 4");
 
 		// if display is not read-only, check for other keys:
 		switch (keyChar) {
