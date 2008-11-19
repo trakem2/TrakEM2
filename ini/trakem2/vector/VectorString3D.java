@@ -430,8 +430,9 @@ public class VectorString3D implements VectorString {
 	/** If argument with_source is true, then returns an ArrayList of ArrayList of Point3d, with lists of all points that contributed to each point. */
 	private void resample(final boolean with_source) {
 		// parameters
-		final int MAX_AHEAD = 6;
 		final double MAX_DISTANCE = 2.5 * delta;
+		final int MA = (int)(MAX_DISTANCE / getAverageDelta());
+		final int MAX_AHEAD = MA < 6 ? 6 : MA;
 
 		// convenient data carrier and editor
 		final ResamplingData r = new ResamplingData(this.length, this.dep);
