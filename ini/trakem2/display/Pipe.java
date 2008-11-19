@@ -1713,7 +1713,12 @@ public class Pipe extends ZDisplayable implements Line3D {
 					p_width_i[i] *= cal.pixelWidth;
 			}
 			vs.addDependent(p_width_i);
-			vs.resample(vs.getAverageDelta() * resample);
+			// Resample to the largest of the two:
+			double avg_delta = vs.getAverageDelta();
+			double unit = null != cal ? 1 / cal.pixelWidth : 1;
+			vs.resample(Math.max(avg_delta, unit) * resample);
+			//vs.resample(vs.getAverageDelta() * resample);
+
 			px = vs.getPoints(0);
 			py = vs.getPoints(1);
 			pz = vs.getPoints(2);
