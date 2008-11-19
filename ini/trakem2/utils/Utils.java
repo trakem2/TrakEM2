@@ -232,7 +232,7 @@ public class Utils implements ij.plugin.PlugIn {
 	static private StatusDispatcher status = new StatusDispatcher();
 
 	/** Initialize house keeping threads. */
-	static public void setup(final ControlWindow master) { // the ControlWindow acts as a switch: nobody cna controls this because the CW constructor is private
+	static public void setup(final ControlWindow master) { // the ControlWindow acts as a switch: nobody can controls this because the CW constructor is private
 		if (null == status) status = new StatusDispatcher();
 		if (null == logger) logger = new LogDispatcher();
 	}
