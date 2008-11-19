@@ -588,7 +588,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 			}
 			return;
 		case ProjectToolbar.PENCIL:
-			if (active.isVisible() && active.getClass() == Profile.class) {
+			if (null != active && active.isVisible() && active.getClass() == Profile.class) {
 				Profile prof = (Profile) active;
 				this.freehandProfile = new FreeHandProfile(prof);
 				freehandProfile.mousePressed(x_p, y_p);
@@ -769,7 +769,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 		// Code for Matthias' FreehandProfile (TODO this should be done on mousePressed, not on mouseDragged)
 
 		Displayable active = display.getActive();
-		if (active.getClass() == Profile.class) {
+		if (null != active && active.getClass() == Profile.class) {
 			try {
 				if (r == null) {
 					r = new Robot(this.getGraphicsConfiguration().getDevice());
@@ -781,7 +781,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		switch (tool) {
 		case ProjectToolbar.PENCIL:
-			if (active.isVisible() && active.getClass() == Profile.class) {
+			if (null != active && active.isVisible() && active.getClass() == Profile.class) {
 				if (freehandProfile == null)
 					return; // starting painting out of the DisplayCanvas border
 				double dx = x_d - x_d_old;
@@ -933,7 +933,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		switch (tool) {
 			case ProjectToolbar.PENCIL:
-				if (active.isVisible() && active.getClass() == Profile.class) {
+				if (null != active && active.isVisible() && active.getClass() == Profile.class) {
 					if (freehandProfile == null)
 						return; // starting painting out of the DisplayCanvas boarder
 					freehandProfile.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
@@ -1675,7 +1675,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 
 		Displayable active = display.getActive();
 
-		if (ProjectToolbar.getToolId() == ProjectToolbar.PENCIL && active.getClass() == Profile.class) {
+		if (ProjectToolbar.getToolId() == ProjectToolbar.PENCIL && null != active && active.getClass() == Profile.class) {
 			if (null != freehandProfile) {
 				freehandProfile.abort();
 			}
