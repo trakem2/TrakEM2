@@ -445,11 +445,12 @@ public class Compare {
 
 			// add all possible query chains, starting at the parent of the chosen pipe
 			for (Chain chain : createPipeChains((ProjectThing)pipe.getProject().findProjectThing(pipe).getParent(), pipe.getLayerSet())) {
-				qh.addQuery(chain);
+				qh.addQuery(chain, 0 == delta ? chain.vs.getAverageDelta() : delta);
 			}
 		} else {
 			// no branching: single query of one single-pipe chain
-			qh.addQuery(new Chain(pipe));
+			Chain ch = new Chain(pipe);
+			qh.addQuery(ch, 0 == delta ? ch.vs.getAverageDelta() : delta);
 			// just add a single-pipe chain for each ref pipe
 			chains_ref = new ArrayList<Chain>();
 			for (ZDisplayable zd : pipes_ref) {
@@ -735,7 +736,7 @@ public class Compare {
 		}
 
 		/** Will calibrate and transform the chain's VectorString3D. */
-		final void addQuery(final Chain chain) {
+		final void addQuery(final Chain chain, final double delta) {
 			final VectorString3D vs = chain.vs;
 			// Order is important:
 			// 1 - calibrate: bring to user-space microns, whatever
@@ -743,7 +744,7 @@ public class Compare {
 			// 2 - transform into reference
 			if (null != T) vs.transform(T);
 			// 3 - resample, within reference space
-			vs.resample(vs.getAverageDelta());
+			vs.resample(delta);
 
 			// Store all
 			queries.add(chain);
@@ -822,11 +823,15 @@ public class Compare {
 		}
 		Hashtable<Line3D,VectorString3D> getAllQueried() {
 			Hashtable<Line3D,VectorString3D> ht = new Hashtable<Line3D,VectorString3D>();
-			for (Line3D p : getAllQueriedLine3Ds()) {
-				VectorString3D vs = p.asVectorString3D();
-				if (null != cal1) vs.calibrate(cal1);
-				if (null != T) vs.transform(T); // to reference space
-				ht.put(p, vs);
+			for (Chain c : queries) {
+				double delta = c.vs.getDelta();
+				for (Line3D p : c.pipes) {
+					VectorString3D vs = p.asVectorString3D();
+					if (null != cal1) vs.calibrate(cal1);
+					if (null != T) vs.transform(T); // to reference space
+					vs.resample(delta);
+					ht.put(p, vs);
+				}
 			}
 			return ht;
 		}
@@ -1341,7 +1346,7 @@ public class Compare {
 			}
 			// add all possible query chains, starting at the parent of the chosen pipe
 			for (Chain chain : createPipeChains((ProjectThing)pipe.getProject().findProjectThing(pipe).getParent(), pipe.getLayerSet())) {
-				qh.addQuery(chain); // calibrates it
+				qh.addQuery(chain, chain.vs.getAverageDelta()); // calibrates it
 				if (ignore_orientation) {
 					if (mirror) chain.vs.mirror(VectorString3D.X_AXIS);
 					chain.vs.relative();
@@ -1351,7 +1356,7 @@ public class Compare {
 		} else {
 			// no branching: single query of one single-pipe chain
 			Chain chain = new Chain(pipe);
-			qh.addQuery(chain); // calibrates it
+			qh.addQuery(chain, chain.vs.getAverageDelta()); // calibrates it
 			reversed_queries.add(chain.vs.makeReversedCopy());
 			for (int i=0; i<ref.length; i++) {
 				for (ZDisplayable zd : ref[i].getRootLayerSet().getZDisplayables(Line3D.class, true)) {
