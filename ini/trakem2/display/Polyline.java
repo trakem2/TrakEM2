@@ -1204,4 +1204,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 			return error;
 		}
 	}
+
+	public void setPosition(FallLine fl) {
+		// Where are we now?
+	}
 }
