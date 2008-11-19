@@ -147,4 +147,6 @@ public abstract class ZDisplayable extends Displayable {
 	public Bucketable getBucketable() {
 		return this.layer_set;
 	}
+
+	public void setPosition(FallLine fl) {}
 }
