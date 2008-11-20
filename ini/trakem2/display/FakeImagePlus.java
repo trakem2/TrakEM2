@@ -42,16 +42,19 @@ public class FakeImagePlus extends ImagePlus {
 	private int w;
 	private int h;
 	private Display display;
+	private int type;
 	
 	public FakeImagePlus(int width, int height, Display display) {
 		w = width;
 		h = height;
 		this.display = display;
 		setProcessor("", new FakeProcessor(width, height));
+		type = ImagePlus.GRAY8;
 	}
 	protected Display getDisplay() {
 		return display;
 	}
+	public int getType() { return type; }
 	public int getWidth() {
 		// trick the canvas, but not the ROIs
 		//Class dc = null; try { dc = Class.forName("ini.trakem2.DisplayCanvas"); } catch (Exception e) {}
@@ -73,7 +76,8 @@ public class FakeImagePlus extends ImagePlus {
 
 	public int[] getPixel(int x, int y) {
 		try {
-			return display.getLayer().getPixel(x, y, display.getCanvas().getMagnification());
+			//return display.getLayer().getPixel(x, y, display.getCanvas().getMagnification());
+			return ((FakeProcessor)getProcessor()).getPixel(display.getCanvas().getMagnification(), x, y, null);
 		} catch (Exception e) {
 			IJError.print(e);
 		}
@@ -86,38 +90,40 @@ public class FakeImagePlus extends ImagePlus {
 			super(4,4);
 		}
 		/** Override to return the pixel of the Patch under x,y, if any. */
-		public int getPixel(int x, int y) {
-			ArrayList al = display.getLayer().getDisplayables();
-			Displayable[] d = new Displayable[al.size()];
+		public int getPixel(final int x, final int y) {
+			return getPixel(1.0, x, y);
+		}
+		public int getPixel(final double mag, final int x, final int y) {
+			final ArrayList al = display.getLayer().getDisplayables();
+			final Displayable[] d = new Displayable[al.size()];
 			al.toArray(d);
 			int pixel = 0; // will return black if nothing found
 			// reverse lookup, for the top ones are at the bottom of the array
 			for (int i=d.length -1; i>-1; i--) {
-				if (d[i] instanceof Patch && d[i].contains(x, y)) {
-					// DON'T CREATE a new processor on every mouse move!! //pixel = ((Patch)d[i]).getProcessor().getPixel(x - (int)d[i].getX(), y - (int)d[i].getY());
-					ImagePlus imp = d[i].getProject().getLoader().fetchImagePlus((Patch)d[i]);
-					pixel = imp.getProcessor().getPixel(x - (int)d[i].getX(), y - (int)d[i].getY());
-					break;
+				if (d[i].getClass() == Patch.class && d[i].contains(x, y)) {
+					Patch p = (Patch)d[i];
+					FakeImagePlus.this.type = p.getType(); // for proper value string display
+					return p.getPixel(mag, x, y);
 				}
 			}
 			return pixel;
 		}
 		public int[] getPixel(int x, int y, int[] iArray) {
-			if ((display.getCanvas().getMagnification() - 0.25) < 0.001) return iArray; // ignore if the magnification is too low
+			return getPixel(1.0, x, y, iArray);
+		}
+		public int[] getPixel(double mag, int x, int y, int[] iArray) {
 			ArrayList al = display.getLayer().getDisplayables();
-			Displayable[] d = new Displayable[al.size()];
+			final Displayable[] d = new Displayable[al.size()];
 			al.toArray(d);
 			// reverse lookup, for the top ones are at the bottom of the array
 			for (int i=d.length -1; i>-1; i--) {
-				if (d[i] instanceof Patch && d[i].contains(x, y)) {
-					try {
-						ImagePlus imp = d[i].getProject().getLoader().fetchImagePlus((Patch)d[i]);
-						iArray = imp.getProcessor().getPixel(x - (int)d[i].getX(), y - (int)d[i].getY(), iArray);
-					} catch (Exception e) {} // will throw it if the imp is flushed in the middle of it
-					break;
+				if (d[i].getClass() == Patch.class && d[i].contains(x, y)) {
+					Patch p = (Patch)d[i];
+					FakeImagePlus.this.type = p.getType(); // for proper value string display
+					return p.getPixel(mag, x, y, iArray);
 				}
 			}
-			return iArray;
+			return null == iArray ? new int[4] : iArray;
 		}
 		public int getWidth() { return w; }
 		public int getHeight() { return h; }
@@ -127,6 +133,7 @@ public class FakeImagePlus extends ImagePlus {
 		}
 	}
 
+	// TODO: use layerset virtualization
 	public ImageStatistics getStatistics(int mOptions, int nBins, double histMin, double histMax) {
 		Displayable active = display.getActive();
 		if (null == active || !(active instanceof Patch)) {

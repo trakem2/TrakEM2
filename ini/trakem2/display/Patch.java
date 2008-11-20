@@ -780,6 +780,28 @@ public class Patch extends Displayable {
 		}
 	}
 
+	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y). Expects x,y in world coordinates. */
+	public int getPixel(double mag, final int x, final int y) {
+		final int[] iArray = getPixel(x, y, mag);
+		if (ImagePlus.COLOR_RGB == this.type) {
+			return (iArray[0]<<16) + (iArray[1]<<8) + iArray[2];
+		}
+		return iArray[0];
+	}
+
+	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y, iArray). Expects x,y in world coordinates.*/
+	public int[] getPixel(double mag, final int x, final int y, final int[] iArray) {
+		final int[] ia = getPixel(x, y, mag);
+		if(null != iArray) {
+			iArray[0] = ia[0];
+			iArray[1] = ia[1];
+			iArray[2] = ia[2];
+			return iArray;
+		}
+		return ia;
+	}
+
+	/** Expects x,y in world coordinates. */
 	public int[] getPixel(final int x, final int y, final double mag) {
 		if (1 == mag && project.getLoader().isUnloadable(this)) return new int[4];
 		final Image img = project.getLoader().fetchImage(this, mag);
