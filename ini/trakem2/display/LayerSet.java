@@ -904,7 +904,7 @@ public class LayerSet extends Displayable implements Bucketable { // Displayable
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		try {
 			project.getLoader().startLargeUpdate();
-			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist")) {
+			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist") || type.equals("polyline")) {
 				for (ZDisplayable zd : al_zdispl) {
 					if (visible != zd.isVisible() && zd.getClass().getName().toLowerCase().endsWith(type)) { // endsWith, because DLabel is called as Label
 						zd.setVisible(visible, false); // don't repaint
