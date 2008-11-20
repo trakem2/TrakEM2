@@ -959,9 +959,7 @@ abstract public class Loader {
 		// SLOW, very slow ...
 
 		// find an equal or larger existing pyramid awt
-		Image mawt = null;
 		final long id = p.getId();
-		long n_bytes = 0;
 		PatchLoadingLock plock = null;
 
 		synchronized (db_lock) {
@@ -970,9 +968,9 @@ abstract public class Loader {
 				if (null == mawts) {
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
-				if (level > 0 && isMipMapsEnabled()) {
+				if (level >= 0 && isMipMapsEnabled()) {
 					// 1 - check if the exact level is cached
-					mawt = mawts.get(id, level);
+					final Image mawt = mawts.get(id, level);
 					if (null != mawt) {
 						//Utils.log2("returning cached exact mawt for level " + level);
 						return mawt;
@@ -988,8 +986,11 @@ abstract public class Loader {
 			}
 		}
 
+		Image mawt = null;
+		long n_bytes = 0;
+
 		// 2 - check if the exact file is present for the desired level
-		if (level > 0 && isMipMapsEnabled()) {
+		if (level >= 0 && isMipMapsEnabled()) {
 			synchronized (plock) {
 				plock.lock();
 
@@ -1025,9 +1026,9 @@ abstract public class Loader {
 							return mawt;
 						}
 						// 3 - else, load closest level to it but still giving a larger image
-						int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
+						final int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
 						//Utils.log2("closest mipmap level is " + lev);
-						if (lev > 0) {
+						if (lev >= 0) {
 							mawt = mawts.getClosestAbove(id, lev);
 							boolean newly_cached = false;
 							if (null == mawt) {
@@ -1060,7 +1061,7 @@ abstract public class Loader {
 			}
 		}
 
-		// level is zero
+		// level is zero or nonsensically lower than zero, or was not found
 
 		synchronized (db_lock) {
 			try {
