@@ -35,6 +35,7 @@ import ini.trakem2.imaging.LayerStack;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.awt.image.ColorModel;
+import java.awt.geom.Point2D;
 
 /** Need a non-null ImagePlus for the ImageCanvas, even if fake. */
 public class FakeImagePlus extends ImagePlus {
@@ -93,7 +94,8 @@ public class FakeImagePlus extends ImagePlus {
 		public int getPixel(final int x, final int y) {
 			return getPixel(1.0, x, y);
 		}
-		public int getPixel(final double mag, final int x, final int y) {
+		public int getPixel(double mag, final int x, final int y) {
+			if (mag > 1) mag = 1;
 			final ArrayList al = display.getLayer().getDisplayables();
 			final Displayable[] d = new Displayable[al.size()];
 			al.toArray(d);
@@ -112,6 +114,7 @@ public class FakeImagePlus extends ImagePlus {
 			return getPixel(1.0, x, y, iArray);
 		}
 		public int[] getPixel(double mag, int x, int y, int[] iArray) {
+			if (mag > 1) mag = 1;
 			ArrayList al = display.getLayer().getDisplayables();
 			final Displayable[] d = new Displayable[al.size()];
 			al.toArray(d);
@@ -120,6 +123,11 @@ public class FakeImagePlus extends ImagePlus {
 				if (d[i].getClass() == Patch.class && d[i].contains(x, y)) {
 					Patch p = (Patch)d[i];
 					FakeImagePlus.this.type = p.getType(); // for proper value string display
+					if (Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
+						// Gather the ImagePlus: will be faster than using a PixelGrabber on an awt image
+						Point2D.Double po = p.inverseTransformPoint(x, y);
+						return p.getImagePlus().getProcessor().getPixel((int)po.x, (int)po.y, iArray);
+					}
 					return p.getPixel(mag, x, y, iArray);
 				}
 			}
