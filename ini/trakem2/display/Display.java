@@ -2140,6 +2140,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			popup.add(adjust_menu);
 			popup.addSeparator();
 
+			// Would get so much simpler with a clojure macro ...
+
 			try {
 				menu = new JMenu("Hide/Unhide");
 				boolean none = 0 == selection.getNSelected();
@@ -2168,6 +2170,11 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 				item = new JMenuItem("Hide all pipes"); item.addActionListener(this); menu.add(item);
 				if (none) item.setEnabled(false);
 				item = new JMenuItem("Unhide all pipes"); item.addActionListener(this); menu.add(item);
+				if (none) item.setEnabled(false);
+				none = ! layer.getParent().contains(Polyline.class);
+				item = new JMenuItem("Hide all polylines"); item.addActionListener(this); menu.add(item);
+				if (none) item.setEnabled(false);
+				item = new JMenuItem("Unhide all polylines"); item.addActionListener(this); menu.add(item);
 				if (none) item.setEnabled(false);
 				none = ! layer.getParent().contains(Ball.class);
 				item = new JMenuItem("Hide all balls"); item.addActionListener(this); menu.add(item);
