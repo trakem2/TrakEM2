@@ -4266,11 +4266,20 @@ abstract public class Loader {
 			Field fnormalize = ContrastEnhancer.class.getDeclaredField("normalize");
 			fnormalize.setAccessible(true);
 			fnormalize.set(ce, true);
-			// Show the dialog:
-			if (ControlWindow.isGUIEnabled()) {
+
+			if (null == worker || Boolean.FALSE != worker.getProperty("ContrastEnhancer-dialog")) {
+				// Show the dialog
 				Method m = ContrastEnhancer.class.getDeclaredMethod("showDialog", new Class[]{ImagePlus.class});
 				m.setAccessible(true);
-				m.invoke(ce, new Object[]{ps});
+				if (Boolean.FALSE == m.invoke(ce, new Object[]{ps})) {
+					Utils.log2("Canceled ContrastEnhancer dialog.");
+					return false;
+				}
+
+				if (null != worker && null == worker.getProperty("ContrastEnhancer-dialog")) {
+					// Avoid subsequent calls to the dialog
+					worker.setProperty("ContrastEnhancer-dialog", Boolean.FALSE);
+				}
 			}
 
 			// Apply to all
