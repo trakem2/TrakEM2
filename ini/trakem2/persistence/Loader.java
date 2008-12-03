@@ -4246,6 +4246,9 @@ abstract public class Loader {
 			fnormalize.setAccessible(true);
 			fnormalize.set(ce, true);
 
+			Utils.log2("Worker is: " + worker);
+			if (null != worker) Utils.log2("property is: " + worker.getProperty("ContrastEnhancer-dialog"));
+
 			if (null == worker || Boolean.FALSE != worker.getProperty("ContrastEnhancer-dialog")) {
 				// Show the dialog
 				Method m = ContrastEnhancer.class.getDeclaredMethod("showDialog", new Class[]{ImagePlus.class});
