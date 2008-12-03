@@ -4103,26 +4103,17 @@ abstract public class Loader {
 				final Worker wo = this;
 				try {
 
-					///////// Multithreading ///////
-					final AtomicInteger ai = new AtomicInteger(0);
-					final Thread[] threads = new Thread[1]; // MultiThreading.newThreads();
-
 					// USING one single thread, for the locking is so bad, to access
 					//  the imps and to releaseToFit, that it's not worth it: same images
 					//  are being reloaded many times just because they all don't fit in
 					//  at the same time.
 
-					for (int ithread = 0; ithread < threads.length; ++ithread) {
-						threads[ithread] = new Thread() {
-							public void run() {
-					///////////////////////////////
-
 					// when quited, rollback() and Display.repaint(layer)
-					for (int i = ai.getAndIncrement(); i < la.length; i = ai.getAndIncrement()) {
+					for (int i = 0; i < la.length; i++) {
 						if (wo.hasQuitted()) {
 							break;
 						}
-						setTaskName("Homogenizing contrast for layer " + (i+1) + " of " + la.length);
+						setTaskName("Homogenize contrast, layer z=" + Utils.cutNumber(la[i].getZ(), 2) + " " + (i+1) + "/" + la.length);
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
@@ -4130,13 +4121,6 @@ abstract public class Loader {
 							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
 						}
 					}
-
-					/////////////////////////   - where are my lisp macros .. and no, mapping a function with reflection is not elegant, but rather a verbosity and constriction attack
-							}
-						};
-					}
-					MultiThreading.startAndJoin(threads);
-					/////////////////////////
 
 					if (wo.hasQuitted()) {
 						rollback();
@@ -4182,12 +4166,6 @@ abstract public class Loader {
 		return burro;
 	}
 
-	/*
-	public boolean homogenizeContrast(final Layer layer, final Patch[] pa) {
-		return homogenizeContrast(layer, pa, -1, -1, true, null);
-	}
-	*/
-
 	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. Needs a layer to repaint when done. */
 	public boolean homogenizeContrast(final Layer layer, final Patch[] pa, final double min_, final double max_, final boolean drift_hist_peak, final Worker worker) {
 		try {
@@ -4208,6 +4186,7 @@ abstract public class Loader {
 					return false;
 				}
 			}
+
 
 			// Set min and max for all images
 			double min = 0;
@@ -4260,7 +4239,7 @@ abstract public class Loader {
 			// USE internal ContrastEnhancer plugin with a virtual stack made of the middle 50% of images
 			final Patch[] p50 = new Patch[al_p.size()];
 			al_p.toArray(p50);
-			PatchStack ps = new PatchStack(p50, 1);
+			PatchStack ps = new PatchStack(p50, 1); // is an ImagePlus
 			final StackStatistics stats = new StackStatistics(ps);
 			final ContrastEnhancer ce = new ContrastEnhancer();
 			Field fnormalize = ContrastEnhancer.class.getDeclaredField("normalize");
@@ -4281,8 +4260,10 @@ abstract public class Loader {
 					worker.setProperty("ContrastEnhancer-dialog", Boolean.FALSE);
 				}
 			}
+			// The above ContrastEnhancer will be applied to all, but the stats are computed for the middle 50%. This is a patched solution to avoid noise-rich tiles.
 
-			// Apply to all
+
+			// Apply ContrastEnhancer to all
 			for (Patch p : pa) {
 				ImageProcessor ip = p.getImageProcessor();
 				ip.resetMinAndMax();
