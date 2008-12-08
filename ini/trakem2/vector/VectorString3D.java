@@ -905,10 +905,11 @@ public class VectorString3D implements VectorString {
 	public void calibrate(final Calibration cal) {
 		if (null == cal) return;
 		this.cal = cal;
+		final int sign = cal.pixelDepth < 0 ? -1 : 1;
 		for (int i=0; i<x.length; i++) {
 			x[i] *= cal.pixelWidth;
 			y[i] *= cal.pixelHeight; // should be the same as pixelWidth
-			z[i] *= cal.pixelWidth; // not pixelDepth, see day notes 20080227
+			z[i] *= cal.pixelWidth * sign; // not pixelDepth, see day notes 20080227
 			// it's pixelWidth because that is what is used to generate the pixel Z coordinates of the layers, multiplying by pixelDepth. So, layer Z coords are:  pixelDepth / pixelWidth (i.e. microns divided by microns/px gives px)
 		}
 		// reset vectors

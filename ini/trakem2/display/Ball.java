@@ -824,6 +824,7 @@ public class Ball extends ZDisplayable {
 			p = (double[][])ob[0];
 			p_width = (double[])ob[1];
 		}
+		final int sign = cal.pixelDepth < 0 ? -1 : 1;
 		// for each ball
 		for (int i=0; i<n_points; i++) {
 			// create local globe for the ball, and translate it to z,y,z
@@ -833,7 +834,7 @@ public class Ball extends ZDisplayable {
 					// the line below says: to each globe point, multiply it by the radius of the particular ball, then translate to the ball location, then translate to this Displayable's location, then scale to the Display3D scale.
 					ball[z][k][0] = (globe[z][k][0] * p_width[i] + p[0][i]) * scale * cal.pixelWidth;
 					ball[z][k][1] = (globe[z][k][1] * p_width[i] + p[1][i]) * scale * cal.pixelHeight;
-					ball[z][k][2] = (globe[z][k][2] * p_width[i] + layer_set.getLayer(p_layer[i]).getZ()) * scale * cal.pixelWidth; // not pixelDepth, see day notes 20080227. Because pixelDepth is in microns/px, not in px/microns, and the z coord here is taken from the z of the layer, which is in pixels.
+					ball[z][k][2] = (globe[z][k][2] * p_width[i] + layer_set.getLayer(p_layer[i]).getZ()) * scale * cal.pixelWidth * sign; // not pixelDepth, see day notes 20080227. Because pixelDepth is in microns/px, not in px/microns, and the z coord here is taken from the z of the layer, which is in pixels.
 				}
 			}
 			// create triangular faces and add them to the list
