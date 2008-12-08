@@ -24,6 +24,7 @@ package ini.trakem2.io;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Worker;
 import ini.trakem2.tree.Thing;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.AreaList;
@@ -41,6 +42,7 @@ import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
 
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -48,6 +50,9 @@ import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Collections;
 
 
 /** Parses an amira labelfield and imports the labels as AreaList instances into the project tree.*/
@@ -195,5 +200,66 @@ public class AmiraImporter {
 			IJError.print(e);
 			return null;
 		}
+	}
+
+	/** Accepts an optional worker thread to manage task interruption; may be null. */
+	static public List<AreaList> extractAreaLists(final ImagePlus imp, final Layer first_layer, final double base_x, final double base_y, final float alpha, final boolean add_background, final Worker worker) {
+		boolean error = false;
+		final ArrayList<AreaList> ar = new ArrayList<AreaList>();
+		try {
+			final HashSet<Float> labels = new HashSet<Float>();
+			final ImageStack stack = imp.getStack(); // works even for images that are not stacks: it creates one
+			// How many different labels? Which?
+			// Brute force:
+			for (int i=imp.getNSlices(); i>0; i--) { // from 1 to N, both inclusive
+				final ImageProcessor ip = stack.getProcessor(i);
+				if (null != worker && worker.hasQuitted()) return ar;
+				for (int y=ip.getHeight()-1; y>-1; y--) {
+					for (int x=ip.getWidth()-1; x>-1; x--) {
+						labels.add(ip.getPixelValue(x, y));
+					}
+				}
+			}
+			if (!add_background) labels.remove(new Float(0));
+			// One AreaList per label
+			ArrayList<Float> al = new ArrayList<Float>();
+			al.addAll(labels);
+			Collections.sort(al);
+			float hue = 0;
+			int k = 0;
+			for (Float f : al) {
+				if (null != worker && worker.hasQuitted()) return ar;
+				int label = (int)f.floatValue();
+				ArrayList areas = extractLabelAreas(label, stack);
+				AreaList ali = new AreaList(first_layer.getProject(), "Label " + label, base_x, base_y);
+				final double thickness = first_layer.getThickness();
+				for (int i=0; i<areas.size(); i++) {
+					Area area = (Area)areas.get(i);
+					if (area.isEmpty()) continue;
+					double z = first_layer.getZ() + i * thickness;
+					Layer layer = first_layer.getParent().getLayer(z, thickness, true);
+					ali.setArea(layer.getId(), area);
+				}
+				first_layer.getParent().add(ali);
+				ali.calculateBoundingBox();
+				ali.setColor(Color.getHSBColor(hue, 1, 1));
+				ali.setAlpha(alpha);
+				hue += 60 / 255.0f;
+				if (hue > 1) hue = 1 - hue;
+				ar.add(ali);
+				k++;
+				Utils.showProgress(k / (double)al.size());
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+			error = true;
+		} finally {
+			if (error || (null != worker && worker.hasQuitted())) {
+				// remove from LayerSet and repaint
+				for (AreaList ali : ar) first_layer.getParent().remove(ali);
+			}
+		}
+		if (error) ar.clear();
+		return ar;
 	}
 }

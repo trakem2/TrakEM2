@@ -2199,6 +2199,7 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			item = new JMenuItem("Import grid..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Import sequence as grid..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Import from text file..."); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Import labels as arealists..."); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
 
 			menu = new JMenu("Display");
@@ -2720,6 +2721,8 @@ public class Display extends DBObject implements ActionListener, ImageListener {
 			project.getLoader().importSequenceAsGrid(layer);
 		} else if (command.equals("Import from text file...")) {
 			project.getLoader().importImages(layer);
+		} else if (command.equals("Import labels as arealists...")) {
+			project.getLoader().importLabelsAsAreaLists(layer, null, Double.MAX_VALUE, 0, 0.4f, false);
 		} else if (command.equals("Make flat image...")) {
 			// if there's a ROI, just use that as cropping rectangle
 			Rectangle srcRect = null;
