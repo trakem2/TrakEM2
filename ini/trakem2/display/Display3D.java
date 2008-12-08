@@ -65,11 +65,10 @@ public class Display3D {
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
 	private Hashtable ht_pt_meshes = new Hashtable();
 
-	private Display3DUniverse universe;
+	private Image3DUniverse universe;
 
 	private Lock u_lock = new Lock();
 
-	private ImageWindow3D win;
 	private LayerSet layer_set;
 	private double width, height;
 	private int resample = -1; // unset
@@ -83,147 +82,17 @@ public class Display3D {
 	/** Defaults to parallel projection. */
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
-		this.universe = new Display3DUniverse(512, 512); // size of the initial canvas, not the universe itself
+		this.universe = new Image3DUniverse(512, 512); // size of the initial canvas, not the universe itself
 		this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
 		computeScale(ls);
-		this.win = new ImageWindow3D("3D Viewer", this.universe);
-		this.win.addWindowListener(new IW3DListener(ls));
-		this.win.setMenuBar(new CustomImage3DMenubar(universe));
-		this.universe.setWindow(win);
+		this.universe.show();
+		this.universe.getWindow().addWindowListener(new IW3DListener(ls));
+
 		// register
 		Display3D.ht_layer_sets.put(ls, this);
 	}
 
-	private class CustomImage3DMenubar extends Image3DMenubar {
-		CustomImage3DMenubar(Image3DUniverse univ) {
-			super(univ);
-		}
-		public void actionPerformed(ActionEvent ae) {
-			String command = ae.getActionCommand();
-			Field f_univ = null;
-			try {
-				f_univ = Image3DMenubar.class.getDeclaredField("univ");
-				f_univ.setAccessible(true);
-				if ("Quit".equals(command)) {
-					for (Iterator it = ht_layer_sets.entrySet().iterator(); it.hasNext(); ) {
-						Map.Entry entry = (Map.Entry)it.next();
-						Display3D d3d = (Display3D)entry.getValue();
-						if (null == d3d || d3d.universe == f_univ.get(this)) it.remove();
-					}
-				}
-			} catch (Exception e) {
-				IJError.print(e);
-			}
-			super.actionPerformed(ae);
-		}
-	}
-
-	private class Display3DUniverse extends Image3DUniverse {
-		boolean noOffscreen = true;
-		Display3DUniverse(int w, int h) {
-			super(w, h);
-			noOffscreen = "true".equals(System.getProperty("j3d.noOffScreen"));
-		}
-		void setWindow(ImageWindow3D win) {
-			this.win = win;
-		}
-
-		/** The transforms given as arguments are applied to the following transform groups,
-		 *  each one in control of the named property:
-		 *
-		 *  scaleTG contains rotationsTG
-		 *  rotationsTG contains translateTG
-		 *  translateTG contains centerTG
-		 *  centerTG contains the whole scene.
-		 *
-		 *  Any null arg implies the default transform for that parameter.
-		 */
-		public ImagePlus makeSnapshot(final Transform3D scale, final Transform3D rotate, final Transform3D translate, final Transform3D center) {
-			// freeze view
-			try {
-				getCanvas().getView().stopView();
-			} catch (Exception e) {
-				e.printStackTrace();
-				return null;
-			}
-
-			ImagePlus imp = null;
-
-			try {
-				// record current transform
-				Transform3D s = new Transform3D();	scaleTG.getTransform(s);
-				Transform3D r = new Transform3D();	rotationsTG.getTransform(r);
-				Transform3D t = new Transform3D();	translateTG.getTransform(t);
-				Transform3D c = new Transform3D();	centerTG.getTransform(c);
-
-				// set transforms
-				getViewingPlatform().setNominalViewingTransform();
-				Transform3D tg = null;
-				if (null != scale) {
-					scaleTG.setTransform(scale);
-					transformChanged(-1, scaleTG);
-				}
-				if (null != rotate) {
-					rotationsTG.setTransform(rotate);
-					transformChanged(-1, rotationsTG);
-				}
-				if (null != translate) {
-					translateTG.setTransform(translate);
-					transformChanged(-1, translateTG);
-				}
-				if (null != center) {
-					centerTG.setTransform(center);
-					transformChanged(-1, centerTG);
-				}
-
-				// capture
-				// 1. Pre-render: renders the previous position,
-				//    prior to acknowledging that any transforms have changed.
-				getCanvas().getView().renderOnce();
-				Utils.sleep(100);
-				// 2. Actual render with the new conditions.
-				getCanvas().getView().renderOnce();
-				Utils.sleep(100);
-
-				// bring window to front
-				if (noOffscreen) {
-					win.toFront();
-					Utils.sleep(300);
-				}
-
-				// capture from offscreen or from a screenshot -hence needs toFront()
-				win.updateImagePlus();
-				imp = new ImagePlus("snapshot", win.getImagePlus().getProcessor().duplicate());
-
-				// restore
-				scaleTG.setTransform(s);	transformChanged(-1, scaleTG);
-				rotationsTG.setTransform(r);	transformChanged(-1, rotationsTG);
-				translateTG.setTransform(t);	transformChanged(-1, translateTG);
-				centerTG.setTransform(c);	transformChanged(-1, centerTG);
-			} catch (Exception ee) {
-				ee.printStackTrace();
-			} finally {
-				// resume view
-				getCanvas().getView().startView();
-			}
-
-			return imp;
-		}
-
-		/** Print the current transform of each TransformGroup in charge of scaling, rotation, translation, and centering. */
-		public void printTransforms() {
-			Transform3D s = new Transform3D();	scaleTG.getTransform(s);
-			Transform3D r = new Transform3D();	rotationsTG.getTransform(r);
-			Transform3D t = new Transform3D();	translateTG.getTransform(t);
-			Transform3D c = new Transform3D();	centerTG.getTransform(c);
-			Utils.log2("Current scaleTG transform: " + s);
-			Utils.log2("Current rotationsTG transform: " + r);
-			Utils.log2("Current translateTG transform: " + t);
-			Utils.log2("Current centerTG transform: " + c);
-		}
-	}
-
-	public Display3DUniverse getUniverse() {
+	public Image3DUniverse getUniverse() {
 		return universe;
 	}
 
@@ -256,17 +125,17 @@ public class Display3D {
 	 * WARNING: if your java3d setup does not support offscreen rendering, the Display3D window will be brought to the front and a screen snapshot cropped to it to perform the snapshot capture. Don't cover the Display3D window with any other windows (not even an screen saver).
 	 *
 	 */
-	public ImagePlus makeSnapshot(final Transform3D scale, final Transform3D rotate, final Transform3D translate, final Transform3D center) {
+	/*public ImagePlus makeSnapshot(final Transform3D scale, final Transform3D rotate, final Transform3D translate, final Transform3D center) {
 		return universe.makeSnapshot(scale, rotate, translate, center);
-	}
+	}*/
 
 	/** Uses current scaling, translation and centering transforms! */
-	public ImagePlus makeSnapshotXY() { // aka posterior
+	/*public ImagePlus makeSnapshotXY() { // aka posterior
 		// default view
 		return universe.makeSnapshot(null, new Transform3D(), null, null);
-	}
+	}*/
 	/** Uses current scaling, translation and centering transforms! */
-	public ImagePlus makeSnapshotXZ() { // aka dorsal
+	/*public ImagePlus makeSnapshotXZ() { // aka dorsal
 		Transform3D rot1 = new Transform3D();
 		rot1.rotZ(-Math.PI/2);
 		Transform3D rot2 = new Transform3D();
@@ -274,20 +143,25 @@ public class Display3D {
 		rot1.mul(rot2);
 		return universe.makeSnapshot(null, rot1, null, null);
 	}
+	*/
 	/** Uses current scaling, translation and centering transforms! */
+	/*
 	public ImagePlus makeSnapshotYZ() { // aka lateral
 		Transform3D rot = new Transform3D();
 		rot.rotY(Math.PI/2);
 		return universe.makeSnapshot(null, rot, null, null);
-	}
+	}*/
 
+	/*
 	public ImagePlus makeSnapshotZX() { // aka frontal
 		Transform3D rot = new Transform3D();
 		rot.rotX(-Math.PI/2);
 		return universe.makeSnapshot(null, rot, null, null);
 	}
+	*/
 
 	/** Uses current scaling, translation and centering transforms! Opposite side of XZ. */
+	/*
 	public ImagePlus makeSnapshotXZOpp() {
 		Transform3D rot1 = new Transform3D();
 		rot1.rotX(-Math.PI/2); // 90 degrees clockwise
@@ -295,7 +169,7 @@ public class Display3D {
 		rot2.rotY(Math.PI); // 180 degrees around Y, to the other side.
 		rot1.mul(rot2);
 		return universe.makeSnapshot(null, rot1, null, null);
-	}
+	}*/
 
 	private class IW3DListener extends WindowAdapter {
 		private LayerSet ls;
@@ -303,10 +177,15 @@ public class Display3D {
 			this.ls = ls;
 		}
 		public void windowClosing(WindowEvent we) {
-			Object ob = ht_layer_sets.remove(ls);
-			if (null != ob) {
+			Utils.log2("Display3D.windowClosing");
+			/*Object ob =*/ ht_layer_sets.remove(ls);
+			/*if (null != ob) {
 				Utils.log2("Removed Display3D from table for LayerSet " + ls);
-			}
+			}*/
+		}
+		public void windowClosed(WindowEvent we) {
+			Utils.log2("Display3D.windowClosed");
+			ht_layer_sets.remove(ls);
 		}
 	}
 
@@ -407,13 +286,13 @@ public class Display3D {
 
 	static public void setWaitingCursor() {
 		for (Iterator it = ht_layer_sets.values().iterator(); it.hasNext(); ) {
-			((Display3D)it.next()).win.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+			((Display3D)it.next()).universe.getWindow().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 		}
 	}
 
 	static public void doneWaiting() {
 		for (Iterator it = ht_layer_sets.values().iterator(); it.hasNext(); ) {
-			((Display3D)it.next()).win.setCursor(Cursor.getDefaultCursor());
+			((Display3D)it.next()).universe.getWindow().setCursor(Cursor.getDefaultCursor());
 		}
 	}
 
@@ -523,8 +402,8 @@ public class Display3D {
 		// d expects: m01 m02 m03 m04, m11 m12 ...
 		ct.applyTransform(new Transform3D(new double[]{a[0], a[2], 0, a[4] * cal.pixelWidth,
 			                                       a[1], a[3], 0, a[5] * cal.pixelWidth,
-					                          0,    0, 1,    p.getLayer().getZ() * cal.pixelWidth,
-					                          0,    0, 0,    1}));
+					                          0,    0, 1, p.getLayer().getZ() * cal.pixelWidth,
+					                          0,    0, 0, 1}));
 	}
 
 	/** Returns a stack suitable for the ImageJ 3D Viewer, either 8-bit gray or 8-bit color.
@@ -843,7 +722,8 @@ public class Display3D {
 				// ensure proper default transform
 				//universe.resetView();
 				//
-				universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
+				//universe.ensureScale((float)(width*scale));
+				universe.addMesh(triangles, new Color3f(color), title, (float)(width*scale), 1);
 				Content ct = universe.getContent(title);
 				ct.setTransparency(1f - alpha);
 				ct.toggleLock();
@@ -914,7 +794,8 @@ public class Display3D {
 				//d3d.universe.resetView();
 				//
 				//Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
-				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(1.0 / (width*scale)), 1);
+				//d3d.universe.ensureScale((float)(width*scale));
+				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(width*scale), 1);
 				Content ct = d3d.universe.getContent(title);
 				ct.setTransparency(transp);
 				ct.toggleLock();
