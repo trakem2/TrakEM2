@@ -60,7 +60,7 @@ import java.util.Collections;
 import java.io.File;
 
 /** A class to hold a tree of Thing nodes */
-public class ProjectTree extends DNDTree implements MouseListener, ActionListener, KeyListener {
+public final class ProjectTree extends DNDTree implements MouseListener, ActionListener, KeyListener {
 
 	/*
 	static {

@@ -58,7 +58,7 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
-public class LayerTree extends DNDTree implements MouseListener, ActionListener {
+public final class LayerTree extends DNDTree implements MouseListener, ActionListener {
 
 	private DefaultMutableTreeNode selected_node = null;
 

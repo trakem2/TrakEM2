@@ -47,7 +47,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.Image;
 
-public class Layer extends DBObject implements Bucketable {
+public final class Layer extends DBObject implements Bucketable {
 
 	private final ArrayList<Displayable> al_displayables = new ArrayList<Displayable>();
 	/** For fast search. */

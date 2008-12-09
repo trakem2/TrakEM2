@@ -26,7 +26,7 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.Project;
 
 
-public class TemplateAttribute extends DBObject implements Attribute {
+public final class TemplateAttribute extends DBObject implements Attribute {
 
 	private String title;
 	private Object object;

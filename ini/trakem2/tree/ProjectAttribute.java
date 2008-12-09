@@ -28,7 +28,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
 
-public class ProjectAttribute extends DBObject implements Attribute { // stupid Java! I have to duplicate all the code just because there isn't multiple inheritance!
+public final class ProjectAttribute extends DBObject implements Attribute { // stupid Java! I have to duplicate all the code just because there isn't multiple inheritance!
 	private String title;
 	private Object object;
 	private Thing owner;

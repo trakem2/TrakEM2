@@ -32,7 +32,7 @@ import java.awt.Event;
 import java.awt.Dimension;
 
 
-public class DisplayablePanel extends JPanel implements MouseListener, ItemListener {
+public final class DisplayablePanel extends JPanel implements MouseListener, ItemListener {
 
 	static public final int HEIGHT = 52;
 
@@ -118,7 +118,7 @@ public class DisplayablePanel extends JPanel implements MouseListener, ItemListe
 		title.setText(makeUpdatedTitle());
 	}
 
-	public void itemStateChanged(ItemEvent ie) {
+	public void itemStateChanged(final ItemEvent ie) {
 		Object source = ie.getSource();
 		if (source.equals(c)) {
 			if (ie.getStateChange() == ItemEvent.SELECTED) {
@@ -137,7 +137,7 @@ public class DisplayablePanel extends JPanel implements MouseListener, ItemListe
 		}
 	}
 
-	public void mousePressed(MouseEvent me) {
+	public void mousePressed(final MouseEvent me) {
 		if (display.isTransforming()) return;
 		display.select(d, me.isShiftDown());
 		if (me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) {

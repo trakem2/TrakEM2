@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import ini.trakem2.utils.Lock;
 
 
-public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
+public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
 	private Display display;
 
@@ -2039,7 +2039,7 @@ public class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusLi
 	/** Minimum time an offscreen thread will run before it can be quit, in miliseconds. */
 	static private final int min_time = 200;
 
-	private class OffscreenThread extends AbstractOffscreenThread {
+	private final class OffscreenThread extends AbstractOffscreenThread {
 		final private Layer layer;
 		final private int g_width;
 		final private int g_height;

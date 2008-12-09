@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 
-public class TemplateThing extends DBObject implements Thing {
+public final class TemplateThing extends DBObject implements Thing {
 
 	private String type;
 	private TemplateThing parent = null;

@@ -107,7 +107,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
-public class FSLoader extends Loader {
+public final class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;

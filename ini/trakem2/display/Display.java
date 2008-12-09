@@ -56,7 +56,7 @@ import java.io.File;
 import java.io.Writer;
 
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
-public class Display extends DBObject implements ActionListener, ImageListener {
+public final class Display extends DBObject implements ActionListener, ImageListener {
 
 	/** The Layer this Display is showing. */
 	private Layer layer;

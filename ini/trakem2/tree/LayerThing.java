@@ -35,7 +35,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JMenu;
 import java.awt.event.ActionListener;
 
-public class LayerThing extends DBObject implements Thing {
+public final class LayerThing extends DBObject implements Thing {
 
 	/** The model for this LayerThing instance. */
 	private TemplateThing template;

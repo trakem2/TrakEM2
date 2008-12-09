@@ -59,7 +59,7 @@ import java.util.Collection;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
-public class LayerSet extends Displayable implements Bucketable { // Displayable is already extending DBObject
+public final class LayerSet extends Displayable implements Bucketable { // Displayable is already extending DBObject
 
 	// the anchors for resizing
 	static public final int NORTH = 0;

@@ -48,7 +48,7 @@ import java.lang.reflect.Field;
 
 
 /** One Display3D instance for each LayerSet (maximum). */
-public class Display3D {
+public final class Display3D {
 
 	/** The threading is so poorly done ... it BARELY works, it's fragile. */
 

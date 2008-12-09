@@ -915,7 +915,7 @@ abstract public class Loader {
 		return awt;
 	}
 
-	protected class PatchLoadingLock extends Lock {
+	protected final class PatchLoadingLock extends Lock {
 		final String key;
 		PatchLoadingLock(final String key) { this.key = key; }
 	}
@@ -4501,7 +4501,7 @@ abstract public class Loader {
 	}
 
 	/** Manages available CPU cores for loading images in the background. */
-	static private class Preloader extends Thread {
+	static private final class Preloader extends Thread {
 		private final LinkedList<Tuple> queue = new LinkedList<Tuple>();
 		/** IdentityHashMap uses ==, not .equals() ! */
 		private final IdentityHashMap<Patch,HashMap<Integer,Tuple>> map = new IdentityHashMap<Patch,HashMap<Integer,Tuple>>();
@@ -4670,7 +4670,7 @@ abstract public class Loader {
 		preloader.remove(patches, magnification);
 	}
 
-	static private class ImageLoaderThread extends Thread {
+	static private final class ImageLoaderThread extends Thread {
 		/** Controls access to Patch etc. */
 		private final Lock lock = new Lock();
 		/** Limits access to the load method while a previous image is being worked on. */
