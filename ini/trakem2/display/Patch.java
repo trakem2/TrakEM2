@@ -26,6 +26,7 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.io.FileSaver;
+import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
@@ -940,23 +941,65 @@ public final class Patch extends Displayable {
 		return true;
 	}
 
-	public void setCoordinateTransform(final CoordinateTransform ct) {
+	// TEMPORARY TODO
+	private boolean ct_is_new = false;
+
+	public final void setCoordinateTransform(final CoordinateTransform ct) {
 		this.ct = ct;
+		updateInDatabase("ct_transform");
+
+		// Adjust the AffineTransform to correct for bounding box displacement
+		// TODO for now, delayed in a horrible way to createTransformedImage
+		ct_is_new = true; // i.e. update the AffineTransform when you get the box
+
+		// Updating the mipmaps will call createTransformedImage below
+		updateMipmaps();
 	}
 
-	public Object createTransformedImage() {
+	public final CoordinateTransform getCoordinateTransform() { return ct; }
+
+	public final Patch.CTImage createTransformedImage() {
 		if (null == ct) return null;
 		
 		final ImageProcessor source = getImageProcessor();
+
+		Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());
 		
 		final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
 		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 		
 		final ImageProcessor target = mapping.createMappedImage( source );
-		final ImageProcessor mask = source.duplicate();
-		mask.setColor( Color.white );
+		final ByteProcessor mask = new ByteProcessor( source.getWidth(), source.getHeight() );
+		mask.setValue(255);
 		mask.fill();
-		
-		return new Object[]{ target, mapping.createMappedImage( mask ), mesh.getBoundingBox() };
+
+		final Rectangle box = mesh.getBoundingBox();
+
+		// TEMPORARY TODO
+		if (ct_is_new) {
+			ct_is_new = false;
+			this.at.translate(box.x, box.y);
+			updateInDatabase("transform"); // the AffineTransform
+		}
+
+		Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
+		Utils.log2("box: " + box);
+
+		return new CTImage( target, (ByteProcessor) mapping.createMappedImage( mask ), box );
+	}
+
+	public final class CTImage {
+		/** The transformed image. */
+		final public ImageProcessor target;
+		/** The alpha mask. */
+		final public ByteProcessor mask;
+		/** The bounding box of the transformed image relative to the pixels of the original image. */
+		final public Rectangle box;
+
+		private CTImage( ImageProcessor target, ByteProcessor mask, Rectangle box ) {
+			this.target = target;
+			this.mask = mask;
+			this.box = box;
+		}
 	}
 }

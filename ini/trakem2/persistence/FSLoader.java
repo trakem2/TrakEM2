@@ -1298,34 +1298,31 @@ public final class FSLoader extends Loader {
 		if (null != srmode) resizing_mode = Loader.getMode(srmode);
 
 		try {
-			// The original image, from the file:
-			ImageProcessor ip = fetchImageProcessor(patch);
-
 			// Now:
 			// 1 - Ask the Patch to apply a coordinate transform, or rather, create a function that gets the coordinate transform from the Patch and applies it to the 'ip'.
 			// 2 - Then (1) should return both the transformed image and the alpha mask
 
+			ImageProcessor ip;
+			ByteProcessor alpha_mask = null;
 
-			/* // NOT READY YET
-			final boolean is_nlt = patch.isNonLinearlyDeformed();
-			final int type = is_nlt ? ImagePlus.COLOR_RGB : patch.getType();
-
-			// Convert to an RGB image with alpha channel if non-linearly deformed
-			if (is_nlt) {
-				ImageProcessor[] def = deform(patch, ip);
-				ip = def[0];
-				alpha_mask = def[1];
+			Patch.CTImage cti = patch.createTransformedImage();
+			if (null == cti) {
+				// The original image, from the file:
+				ip = fetchImageProcessor(patch);
+			} else {
+				// The non-linearly transformed image
+				ip = cti.target.convertToRGB();
+				alpha_mask = cti.mask;
+				cti = null;
 			}
-			*/
-			ImageProcessor alpha_mask = null;
-			final int type = patch.getType();
 
-
+			final int type = null == cti ? patch.getType() : ImagePlus.COLOR_RGB;
 
 
 			final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
 			int w = ip.getWidth();
 			int h = ip.getHeight();
+
 			// sigma = sqrt(2^level - 0.5^2)
 			//    where 0.5 is the estimated sigma for a full-scale image
 			//  which means sigma = 0.75 for the full-scale image (has level 0)
@@ -1841,21 +1838,26 @@ public final class FSLoader extends Loader {
 			}
 			final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filepath).append('.').append(patch.getId()).append(".jpg").toString();
 			Image img = null;
-			switch (patch.getType()) {
-				case ImagePlus.GRAY16:
-				case ImagePlus.GRAY8:
-				case ImagePlus.GRAY32:
-					img = ImageSaver.openGreyJpeg(path);
-					break;
-				default:
-					IJ.redirectErrorMessages();
-					ImagePlus imp = opener.openImage(path); // considers URL as well
-					if (null != imp) return patch.createImage(imp); // considers c_alphas
-					//img = patch.adjustChannels(Toolkit.getDefaultToolkit().createImage(path)); // doesn't work
-					//img = patch.adjustChannels(ImageSaver.openColorJpeg(path)); // doesn't work
-					//Utils.log2("color jpeg path: "+ path);
-					//Utils.log2("exists ? " + new File(path).exists());
-					break;
+
+			if (null != patch.getCoordinateTransform()) {
+				img = ImageSaver.openJpegAlpha(path);
+			} else {
+				switch (patch.getType()) {
+					case ImagePlus.GRAY16:
+					case ImagePlus.GRAY8:
+					case ImagePlus.GRAY32:
+						img = ImageSaver.openGreyJpeg(path);
+						break;
+					default:
+						IJ.redirectErrorMessages();
+						ImagePlus imp = opener.openImage(path); // considers URL as well
+						if (null != imp) return patch.createImage(imp); // considers c_alphas
+						//img = patch.adjustChannels(Toolkit.getDefaultToolkit().createImage(path)); // doesn't work
+						//img = patch.adjustChannels(ImageSaver.openColorJpeg(path)); // doesn't work
+						//Utils.log2("color jpeg path: "+ path);
+						//Utils.log2("exists ? " + new File(path).exists());
+						break;
+				}
 			}
 			if (null != img) return img;
 
