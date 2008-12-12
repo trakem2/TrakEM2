@@ -56,7 +56,9 @@ import java.util.Set;
 import java.io.File;
 
 import mpicbg.trakem2.CoordinateTransform;
-import mpicbg.models.TransformMesh;
+import mpicbg.trakem2.TransformMeshMapping;
+import mpicbg.models.PointMatch;
+import mpicbg.trakem2.TransformMesh;
 
 public final class Patch extends Displayable {
 
@@ -942,14 +944,19 @@ public final class Patch extends Displayable {
 		this.ct = ct;
 	}
 
-	public Object getTransformedImage() {
+	public Object createTransformedImage() {
 		if (null == ct) return null;
-		TransformMesh mesh = new TransformMesh(32, o_width, o_height);
-		// TODO
-		return null;
-	}
-
-	public void updateMesh() {
-		//Set< PointMatch > vertices = mesh.getVA().getKeySet();
+		
+		final ImageProcessor source = getImageProcessor();
+		
+		final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
+		
+		final ImageProcessor target = mapping.createMappedImage( source );
+		final ImageProcessor mask = source.duplicate();
+		mask.setColor( Color.white );
+		mask.fill();
+		
+		return new Object[]{ target, mapping.createMappedImage( mask ), mesh.getBoundingBox() };
 	}
 }
