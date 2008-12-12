@@ -52,9 +52,11 @@ import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 import java.io.File;
 
 import mpicbg.trakem2.CoordinateTransform;
+import mpicbg.models.TransformMesh;
 
 public final class Patch extends Displayable {
 
@@ -65,6 +67,8 @@ public final class Patch extends Displayable {
 	/** To generate contrasted images non-destructively. */
 	private double min = 0;
 	private double max = 255;
+
+	private int o_width, o_height;
 
 	/** To be set after the first successful query on whether this file exists, from the Loader, via the setCurrentPath method. This works as a good path cache to avoid excessive calls to File.exists(), which shows up as a huge performance drag. */
 	private String current_path = null;
@@ -81,8 +85,10 @@ public final class Patch extends Displayable {
 		this.min = imp.getProcessor().getMin();
 		this.max = imp.getProcessor().getMax();
 		checkMinMax();
-		this.width = imp.getWidth();
-		this.height = imp.getHeight();
+		this.o_width = imp.getWidth();
+		this.o_height = imp.getHeight();
+		this.width = (int)o_width;
+		this.height = (int)o_height;
 		project.getLoader().cache(this, imp);
 		addToDatabase();
 	}
@@ -119,6 +125,10 @@ public final class Patch extends Displayable {
 				hasmax = true;
 			} else if (key.equals("original_path")) {
 				this.original_path = data;
+			} else if (key.equals("o_width")) {
+				this.o_width = Integer.parseInt(data);
+			} else if (key.equals("o_height")) {
+				this.o_height = Integer.parseInt(data);
 			}
 		}
 		if (hasmin && hasmax) {
@@ -691,6 +701,8 @@ public final class Patch extends Displayable {
 		sb_body.append(in).append("type=\"").append(type /*null == any ? ImagePlus.GRAY8 : type*/).append("\"\n")
 		       .append(in).append("file_path=\"").append(rel_path).append("\"\n")
 		       .append(in).append("style=\"fill-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";\"\n")
+		       .append(in).append("o_width=\"").append(o_width).append("\"\n")
+		       .append(in).append("o_height=\"").append(o_height).append("\"\n")
 		;
 		if (null != original_path) {
 			sb_body.append(in).append("original_path=\"").append(original_path).append("\"\n");
@@ -731,6 +743,8 @@ public final class Patch extends Displayable {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" original_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" type").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" ct").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" o_width").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
 		;
 	}
 
@@ -922,5 +936,20 @@ public final class Patch extends Displayable {
 		Display.repaint(layer, this, 0);
 		Utils.showStatus("Reverted patch " + getTitle(), false);
 		return true;
+	}
+
+	public void setCoordinateTransform(final CoordinateTransform ct) {
+		this.ct = ct;
+	}
+
+	public Object getTransformedImage() {
+		if (null == ct) return null;
+		TransformMesh mesh = new TransformMesh(32, o_width, o_height);
+		// TODO
+		return null;
+	}
+
+	public void updateMesh() {
+		//Set< PointMatch > vertices = mesh.getVA().getKeySet();
 	}
 }
