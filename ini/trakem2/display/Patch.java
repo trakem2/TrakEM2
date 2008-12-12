@@ -54,7 +54,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.io.File;
 
-//import mpicbg.models.InvertibleCoordinateTransform;
+import mpicbg.trakem2.CoordinateTransform;
 
 public final class Patch extends Displayable {
 
@@ -71,14 +71,8 @@ public final class Patch extends Displayable {
 	/** To be read from XML, or set when the file ImagePlus has been updated and the current_path points to something else. */
 	private String original_path = null;
 
-	//private InvertibleCoordinateTransform ict = null;
-	private boolean has_alpha_channel = false;
-	// TODO include in the cloning
-
-	/** A Patch may have an alpha channel so that it's appeareance on the screen does not need to be a rectangle. For example, as a result of a paste from a non-rectangular ROI, or by non-linearly deforming the Patch. */
-	public boolean hasAlphaChannel() {
-		return has_alpha_channel;
-	}
+	/** The CoordinateTransform that transfers image data to mipmap image data. The AffineTransform is then applied to the mipmap image data. */
+	private CoordinateTransform ct = null;
 
 	/** Construct a Patch from an image. */
 	public Patch(Project project, String title, double x, double y, ImagePlus imp) {
@@ -703,7 +697,12 @@ public final class Patch extends Displayable {
 		}
 		if (0 != min) sb_body.append(in).append("min=\"").append(min).append("\"\n");
 		if (max != Patch.getMaxMax(type)) sb_body.append(in).append("max=\"").append(max).append("\"\n");
-		sb_body.append(indent).append("/>\n");
+
+		if (null == ct) sb_body.append(indent).append("/>\n");
+		else {
+			sb_body.append(ct.toXML(in));
+			sb_body.append('\n').append(indent).append("</patch>\n");
+		}
 	}
 
 	static private final double getMaxMax(final int type) {
@@ -719,12 +718,19 @@ public final class Patch extends Displayable {
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		String type = "t2_patch";
 		if (hs.contains(type)) return;
-		sb_header.append(indent).append("<!ELEMENT t2_patch EMPTY>\n");
+		// The InvertibleCoordinateTransform and a list of:
+		sb_header.append(indent).append("<!ELEMENT t2_ctransform EMPTY>\n");
+		sb_header.append(indent).append(TAG_ATTR1).append("t2_ctransform class").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append("t2_ctransform data").append(TAG_ATTR2);
+		sb_header.append(indent).append("<!ELEMENT t2_ctransform_list (t2_ctransform)>\n");
+
+		// The Patch itself:
+		sb_header.append(indent).append("<!ELEMENT t2_patch (t2_ctransform,t2_ctransform_list)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" file_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" original_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" type").append(TAG_ATTR2)
-			 .append(indent).append(TAG_ATTR1).append(type).append(" ict").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" ct").append(TAG_ATTR2)
 		;
 	}
 
