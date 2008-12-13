@@ -26,7 +26,8 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.io.FileSaver;
-import ij.process.ByteProcessor;
+//import ij.process.ByteProcessor;
+import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
@@ -957,6 +958,12 @@ public final class Patch extends Displayable {
 	private boolean ct_is_new = false;
 
 	public final void setCoordinateTransform(final CoordinateTransform ct) {
+		if (null == ct) {
+			// restore image without the transform
+			// TODO read the rectangle from this.ct, then:
+			// this.at.translate(-box.x, -box.y);
+		}
+
 		this.ct = ct;
 		updateInDatabase("ict_transform");
 
@@ -964,7 +971,7 @@ public final class Patch extends Displayable {
 		// TODO for now, delayed in a horrible way to createTransformedImage
 		ct_is_new = true; // i.e. update the AffineTransform when you get the box
 
-		// Updating the mipmaps will call createTransformedImage below
+		// Updating the mipmaps will call createTransformedImage below if ct is not null
 		updateMipmaps();
 	}
 
@@ -981,10 +988,10 @@ public final class Patch extends Displayable {
 		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 		
 		ImageProcessor target = mapping.createMappedImage( source );
-		ByteProcessor mask = new ByteProcessor( source.getWidth(), source.getHeight() );
+		FloatProcessor mask = new FloatProcessor( source.getWidth(), source.getHeight() );
 		mask.setValue(255);
 		mask.fill();
-		mask = (ByteProcessor) mapping.createMappedImage( mask );
+		mask = (FloatProcessor) mapping.createMappedImage( mask );
 
 		final Rectangle box = mesh.getBoundingBox();
 
@@ -1032,11 +1039,11 @@ public final class Patch extends Displayable {
 		/** The transformed image. */
 		final public ImageProcessor target;
 		/** The alpha mask. */
-		final public ByteProcessor mask;
+		final public FloatProcessor mask;
 		/** The bounding box of the transformed image relative to the pixels of the original image. */
 		final public Rectangle box;
 
-		private CTImage( ImageProcessor target, ByteProcessor mask, Rectangle box ) {
+		private CTImage( ImageProcessor target, FloatProcessor mask, Rectangle box ) {
 			this.target = target;
 			this.mask = mask;
 			this.box = box;

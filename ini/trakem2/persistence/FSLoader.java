@@ -1303,25 +1303,19 @@ public final class FSLoader extends Loader {
 			// 2 - Then (1) should return both the transformed image and the alpha mask
 
 			ImageProcessor ip;
-			ByteProcessor alpha_mask = null;
-			int type = patch.getType();
+			FloatProcessor alpha_mask = null;
+			final int type = patch.getType();
 
 			Patch.CTImage cti = patch.createTransformedImage();
 			if (null == cti) {
-				Utils.log2("null cti");
 				// The original image, from the file:
 				ip = fetchImageProcessor(patch);
 			} else {
-				Utils.log2("ok cti");
 				// The non-linearly transformed image
 				ip = cti.target.convertToRGB();
 				alpha_mask = cti.mask;
-				type = ImagePlus.COLOR_RGB;
 				cti = null;
 			}
-
-			Utils.log2("type is " + type + " COLOR_RGB is " + ImagePlus.COLOR_RGB);
-
 
 			final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
 			int w = ip.getWidth();
@@ -1334,6 +1328,7 @@ public final class FSLoader extends Loader {
 			ColorModel cm = ip.getColorModel();
 			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 				   //   but since we scale 50% relative the previous, it's always 0.75
+
 			if (ImagePlus.COLOR_RGB == type) {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
@@ -1341,80 +1336,39 @@ public final class FSLoader extends Loader {
 				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
 				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
 				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
+				final FloatProcessorT2 alpha = null != alpha_mask ? new FloatProcessorT2(alpha_mask) : null;     //null != alpha_mask ? new FloatProcessorT2(w, h, 0, 255) : null; if (null != alpha_mask) alpha_mask.toFloat(0, alpha);
+
 				int sw=w, sh=h;
 
 				final String target_dir0 = getLevelDir(dir_mipmaps, 0);
+				// No alpha channel:
+				//  - use gaussian resizing
+				//  - use standard ImageJ java.awt.Image creation
 
-				if (null != alpha_mask) {
-					final FloatProcessorT2 falpha = new FloatProcessorT2(w, h, (byte[])alpha_mask.getPixels(), 0, 255);
-					falpha.setInterpolate(true); // TODO perhaps false?
-
-					// Generate level 0 first:
-					if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(
-								createARGBImage(w, h, (int[])cp.getPixels(), (float[])falpha.getPixels()),
-								target_dir0 + filename,
-								0.85f))
-					{
-						cannot_regenerate.add(patch);
-					} else {
-						do {
-							// 1 - Prepare values for the next scaled image
-							sw = w;
-							sh = h;
-							w /= 2;
-							h /= 2;
-							k++;
-							// 2 - Check that the target folder for the desired scale exists
-							final String target_dir = getLevelDir(dir_mipmaps, k);
-							if (null == target_dir) continue;
-							// 3 - Scale the images, using scale area averaging weighted by the alpha mask
-							final byte[] r = alphaWeightedScaleAreaAverageResizeInHalf(red, falpha, sw, sh, w, h);   // resizes 'red' in place
-							final byte[] g = alphaWeightedScaleAreaAverageResizeInHalf(green, falpha, sw, sh, w, h); // idem
-							final byte[] b = alphaWeightedScaleAreaAverageResizeInHalf(blue, falpha, sw, sh, w, h);  // idem
-							falpha.resizeInPlace(w, h); // after all the above
-							final float[] alpha = (float[])falpha.getPixels();
-							// 4 - Compose pixel array
-							final int[] pix = new int[w * h];
-							for (int i=0; i<pix.length; i++) {
-								pix[i] = (((int)alpha[i])<<24) + (r[i]<<16) + (g[i]<<8) + b[i];
-							}
-							// TODO WARNING no min and max are being set to the image
-							// 5 - Compose BufferedImage and save it with alpha channel
-							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(
-										createARGBImage(w, h, pix, falpha.getFloatPixels()),
-										target_dir + filename,
-										0.85f))
-							{
-								cannot_regenerate.add(patch);
-								break;
-							}
-						} while (w >= 64 && h >= 64);
-					}
+				// Generate level 0 first:
+				if (!(null == alpha ? ini.trakem2.io.ImageSaver.saveAsJpeg(cp, target_dir0 + filename, 0.85f, false)
+						   : ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, (int[])cp.getPixels(), (float[])alpha.getPixels()), target_dir0 + filename, 0.85f))) {
+					cannot_regenerate.add(patch);
 				} else {
-					// No alpha channel:
-					//  - use gaussian resizing
-					//  - use standard ImageJ java.awt.Image creation
-
-					// Generate level 0 first:
-					if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp, target_dir0 + filename, 0.85f, false)) {
-						cannot_regenerate.add(patch);
-					} else {
-						do {
-							// 1 - Prepare values for the next scaled image
-							sw = w;
-							sh = h;
-							w /= 2;
-							h /= 2;
-							k++;
-							// 2 - Check that the target folder for the desired scale exists
-							final String target_dir = getLevelDir(dir_mipmaps, k);
-							if (null == target_dir) continue;
-							// 3 - Blur the previous image to 0.75 sigma, and scale it
-							final byte[] r = gaussianBlurResizeInHalf(red, sw, sh, w, h);   // will resize 'red' FloatProcessor in place.
-							final byte[] g = gaussianBlurResizeInHalf(green, sw, sh, w, h); // idem
-							final byte[] b = gaussianBlurResizeInHalf(blue, sw, sh, w, h);  // idem
-							// 4 - Compose ColorProcessor
-							final int[] pix = new int[w * h];
+					do {
+						// 1 - Prepare values for the next scaled image
+						sw = w;
+						sh = h;
+						w /= 2;
+						h /= 2;
+						k++;
+						// 2 - Check that the target folder for the desired scale exists
+						final String target_dir = getLevelDir(dir_mipmaps, k);
+						if (null == target_dir) continue;
+						// 3 - Blur the previous image to 0.75 sigma, and scale it
+						final byte[] r = gaussianBlurResizeInHalf(red, sw, sh, w, h);   // will resize 'red' FloatProcessor in place.
+						final byte[] g = gaussianBlurResizeInHalf(green, sw, sh, w, h); // idem
+						final byte[] b = gaussianBlurResizeInHalf(blue, sw, sh, w, h);  // idem
+						final byte[] a = null == alpha ? null
+					                       : gaussianBlurResizeInHalf(alpha, sw, sh, w, h); // idem
+						// 4 - Compose ColorProcessor
+						final int[] pix = new int[w * h];
+						if (null == alpha) {
 							for (int i=0; i<pix.length; i++) {
 								pix[i] = (r[i]<<16) + (g[i]<<8) + b[i];
 							}
@@ -1425,8 +1379,17 @@ public final class FSLoader extends Loader {
 								cannot_regenerate.add(patch);
 								break;
 							}
-						} while (w >= 64 && h >= 64); // not smaller than 32x32
-					}
+						} else {
+							// LIKELY no need to set alpha raster later in createARGBImage ... TODO
+							for (int i=0; i<pix.length; i++) {
+								pix[i] = (a[i]<<24) + (r[i]<<16) + (g[i]<<8) + b[i];
+							}
+							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix, (float[])alpha.getPixels()), target_dir + filename, 0.85f)) {
+								cannot_regenerate.add(patch);
+								break;
+							}
+						}
+					} while (w >= 64 && h >= 64); // not smaller than 32x32
 				}
 			} else {
 				// Greyscale:
@@ -1434,31 +1397,51 @@ public final class FSLoader extends Loader {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				final boolean as_grey = !ip.isColorLut();
-				if (as_grey && null == cm) { // TODO needs fixing for'half' method
+				if (as_grey && null == cm) { // TODO needs fixing for 'half' method
 					cm = GRAY_LUT;
 				} else cm = null;
 
 				if (Loader.GAUSSIAN == resizing_mode) {
-					FloatProcessor fp = Utils.fastConvertToFloat(ip, type); //(FloatProcessor)ip.convertToFloat();
+					FloatProcessor fp = /*Utils.fastConvertToFloat(ip, type);*/ (FloatProcessor)ip.convertToFloat();
+					FloatProcessor fp_alpha = alpha_mask;
 					int sw=w, sh=h;
 					do {
 						// 0 - blur the previous image to 0.75 sigma
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
 							fp = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), sw, sh), 0.75f).data, cm);
+							if (null != fp_alpha) fp_alpha = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp_alpha.getPixels(), sw, sh), 0.75f).data, null); // TODO should use something trivial, like nearest-neighbor? Or just this fading gradient?
 						}
 						// 1 - check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
 						if (null == target_dir) continue;
 						// 2 - generate scaled image
-						if (0 != k) fp = (FloatProcessor)fp.resize(w, h);
-						// 3 - save as 8-bit jpeg
-						final ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
-						ip2.setMinAndMax(patch.getMin(), patch.getMax());
-						if (null != cm) ip2.setColorModel(cm); // the LUT
-						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, target_dir + filename, 0.85f, as_grey)) {
-							cannot_regenerate.add(patch);
-							break;
+						if (0 != k) {
+							fp = (FloatProcessor)fp.resize(w, h);
+							if (null != fp_alpha) fp_alpha = (FloatProcessor)fp_alpha.resize(w, h);
 						}
+						if (null != alpha_mask) {
+							// 3 - save as jpeg with alpha
+							final int[] pix = (int[])fp.convertToRGB().getPixels();
+							final float[] a = (float[])fp_alpha.getPixels();
+							for (int i=0; i<pix.length; i++) {
+								pix[i] &= (((int)a[i])<<24);
+							}
+							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix, a), target_dir + filename, 0.85f)) {
+								cannot_regenerate.add(patch);
+								break;
+							}
+						} else {
+							// 3 - save as 8-bit jpeg
+							final ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
+							ip2.setMinAndMax(patch.getMin(), patch.getMax());
+							if (null != cm) ip2.setColorModel(cm); // the LUT
+
+							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, target_dir + filename, 0.85f, as_grey)) {
+								cannot_regenerate.add(patch);
+								break;
+							}
+						}
+
 						// 4 - prepare values for the next scaled image
 						sw = w;
 						sh = h;
