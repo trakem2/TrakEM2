@@ -41,6 +41,9 @@ import org.xml.sax.SAXParseException;
 import org.xml.sax.InputSource;
 import org.xml.sax.Attributes;
 
+import mpicbg.trakem2.CoordinateTransform;
+import mpicbg.trakem2.CoordinateTransformList;
+
 /** Creates the project objects from an XML file (TrakEM2 Markup Language Handler). */
 public class TMLHandler extends DefaultHandler {
 
@@ -72,6 +75,8 @@ public class TMLHandler extends DefaultHandler {
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
 	private Dissector last_dissector = null;
+	private Patch last_patch = null;
+	private CoordinateTransformList last_ct_list = null;
 	private boolean open_displays = true;
 
 
@@ -252,6 +257,8 @@ public class TMLHandler extends DefaultHandler {
 				// Add a project pointer to all template things
 				this.root_tt.addToDatabase(this.project);
 				thing = root_pt;
+			} else if (qualified_name.startsWith("ict_transform")) {
+				makeCoordinateTransform(qualified_name, ht_attributes);
 			} else if (!qualified_name.equals("trakem2")) {
 				// Any abstract object
 				thing = makeProjectThing(qualified_name, ht_attributes);
@@ -301,6 +308,10 @@ public class TMLHandler extends DefaultHandler {
 			last_area_list = null;
 		} else if (orig_qualified_name.equals("t2_dissector")) {
 			last_dissector = null;
+		} else if (orig_qualified_name.equals("t2_patch")) {
+			last_patch = null;
+		} else if (orig_qualified_name.equals("ict_transform_list")) {
+			last_ct_list = null;
 		}
 	}
 	public void characters(char[] c, int start, int length) {}
@@ -453,13 +464,6 @@ public class TMLHandler extends DefaultHandler {
 							       Integer.parseInt((String)ht_attributes.get("radius")),
 							       (String)ht_attributes.get("points"));
 				}
-			} else if (type.equals("dissector")) {
-				Dissector dissector = new Dissector(this.project, oid, ht_attributes, ht_links);
-				dissector.addToDatabase();
-				last_dissector = dissector;
-				ht_displayables.put(new Long(oid), dissector);
-				ht_zdispl.put(new Long(oid), dissector);
-				addToLastOpenLayerSet(dissector);
 			} else if (type.equals("label")) {
 				DLabel label = new DLabel(project, oid, ht_attributes, ht_links);
 				label.addToDatabase();
@@ -471,7 +475,15 @@ public class TMLHandler extends DefaultHandler {
 				patch.addToDatabase();
 				ht_displayables.put(new Long(oid), patch);
 				addToLastOpenLayer(patch);
+				last_patch = patch;
 				return null;
+			} else if (type.equals("dissector")) {
+				Dissector dissector = new Dissector(this.project, oid, ht_attributes, ht_links);
+				dissector.addToDatabase();
+				last_dissector = dissector;
+				ht_displayables.put(new Long(oid), dissector);
+				ht_zdispl.put(new Long(oid), dissector);
+				addToLastOpenLayerSet(dissector);
 			} else if (type.equals("layer")) {
 				// find last open LayerSet, if any
 				for (int i = al_layer_sets.size() -1; i>-1; i--) {
@@ -506,5 +518,28 @@ public class TMLHandler extends DefaultHandler {
 		}
 		// default:
 		return null;
+	}
+
+	private void makeCoordinateTransform(String type, HashMap ht_attributes) {
+		try {
+			type = type.toLowerCase();
+			CoordinateTransform ct = null;
+
+			if (type.equals("ict_transform")) {
+				ct = (CoordinateTransform) Class.forName((String)ht_attributes.get("class")).newInstance();
+				ct.init((String)ht_attributes.get("data"));
+			} else if (type.equals("ict_transform_list")) {
+				last_ct_list = new CoordinateTransformList();
+				ct = last_ct_list;
+			}
+
+			if (null != ct) {
+				// Add it to the last CoordinateTransformList or, if absent, to the last Patch:
+				if (null != last_ct_list) last_ct_list.add(ct);
+				else if (null != last_patch) last_patch.setCoordinateTransformSilently(ct);
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 	}
 }

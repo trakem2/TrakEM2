@@ -1221,7 +1221,7 @@ public final class FSLoader extends Loader {
 	static final private byte[] alphaWeightedScaleAreaAverageResizeInHalf(final FloatProcessorT2 source, final FloatProcessor alpha_mask, final int source_width, final int source_height, final int target_width, final int target_height) {
 		// resize using the alpha_mask values as weights
 		final float[] data = (float[])source.getPixels(); // in source_width, source_height
-		final byte[] alpha = (byte[])alpha_mask.getPixels(); // in target_width, target_height
+		final float[] alpha = (float[])alpha_mask.getPixels(); // in target_width, target_height
 		final byte[] pixels = new byte[target_width * target_height];
 		final float[] new_data = new float[pixels.length];
 		float val = 0;
@@ -1304,19 +1304,23 @@ public final class FSLoader extends Loader {
 
 			ImageProcessor ip;
 			ByteProcessor alpha_mask = null;
+			int type = patch.getType();
 
 			Patch.CTImage cti = patch.createTransformedImage();
 			if (null == cti) {
+				Utils.log2("null cti");
 				// The original image, from the file:
 				ip = fetchImageProcessor(patch);
 			} else {
+				Utils.log2("ok cti");
 				// The non-linearly transformed image
 				ip = cti.target.convertToRGB();
 				alpha_mask = cti.mask;
+				type = ImagePlus.COLOR_RGB;
 				cti = null;
 			}
 
-			final int type = null == cti ? patch.getType() : ImagePlus.COLOR_RGB;
+			Utils.log2("type is " + type + " COLOR_RGB is " + ImagePlus.COLOR_RGB);
 
 
 			final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
@@ -1347,7 +1351,7 @@ public final class FSLoader extends Loader {
 
 					// Generate level 0 first:
 					if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(
-								createARGBImage(w, h, (int[])cp.getPixels(), falpha.getFloatPixels()),
+								createARGBImage(w, h, (int[])cp.getPixels(), (float[])falpha.getPixels()),
 								target_dir0 + filename,
 								0.85f))
 					{
@@ -1368,11 +1372,11 @@ public final class FSLoader extends Loader {
 							final byte[] g = alphaWeightedScaleAreaAverageResizeInHalf(green, falpha, sw, sh, w, h); // idem
 							final byte[] b = alphaWeightedScaleAreaAverageResizeInHalf(blue, falpha, sw, sh, w, h);  // idem
 							falpha.resizeInPlace(w, h); // after all the above
-							final byte[] alpha = (byte[])alpha_mask.getPixels();
+							final float[] alpha = (float[])falpha.getPixels();
 							// 4 - Compose pixel array
 							final int[] pix = new int[w * h];
 							for (int i=0; i<pix.length; i++) {
-								pix[i] = (alpha[i]<<24) + (r[i]<<16) + (g[i]<<8) + b[i];
+								pix[i] = (((int)alpha[i])<<24) + (r[i]<<16) + (g[i]<<8) + b[i];
 							}
 							// TODO WARNING no min and max are being set to the image
 							// 5 - Compose BufferedImage and save it with alpha channel

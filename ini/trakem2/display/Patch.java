@@ -71,7 +71,7 @@ public final class Patch extends Displayable {
 	private double min = 0;
 	private double max = 255;
 
-	private int o_width, o_height;
+	private int o_width = 0, o_height = 0;
 
 	/** To be set after the first successful query on whether this file exists, from the Loader, via the setCurrentPath method. This works as a good path cache to avoid excessive calls to File.exists(), which shows up as a huge performance drag. */
 	private String current_path = null;
@@ -102,6 +102,8 @@ public final class Patch extends Displayable {
 		this.type = type;
 		this.min = min;
 		this.max = max;
+		if (0 == o_width) o_width = (int)width;
+		if (0 == o_height) o_height = (int)height;
 		checkMinMax();
 	}
 
@@ -134,6 +136,10 @@ public final class Patch extends Displayable {
 				this.o_height = Integer.parseInt(data);
 			}
 		}
+
+		if (0 == o_width) o_width = (int)width;
+		if (0 == o_height) o_height = (int)height;
+
 		if (hasmin && hasmax) {
 			checkMinMax();
 		} else {
@@ -715,8 +721,9 @@ public final class Patch extends Displayable {
 
 		if (null == ct) sb_body.append(indent).append("/>\n");
 		else {
+			sb_body.append(indent).append(">\n");
 			sb_body.append(ct.toXML(in));
-			sb_body.append('\n').append(indent).append("</patch>\n");
+			sb_body.append('\n').append(indent).append("</t2_patch>\n");
 		}
 	}
 
@@ -734,13 +741,13 @@ public final class Patch extends Displayable {
 		String type = "t2_patch";
 		if (hs.contains(type)) return;
 		// The InvertibleCoordinateTransform and a list of:
-		sb_header.append(indent).append("<!ELEMENT t2_ctransform EMPTY>\n");
-		sb_header.append(indent).append(TAG_ATTR1).append("t2_ctransform class").append(TAG_ATTR2)
-			 .append(indent).append(TAG_ATTR1).append("t2_ctransform data").append(TAG_ATTR2);
-		sb_header.append(indent).append("<!ELEMENT t2_ctransform_list (t2_ctransform)>\n");
+		sb_header.append(indent).append("<!ELEMENT ict_transform EMPTY>\n");
+		sb_header.append(indent).append(TAG_ATTR1).append("ict_transform class").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append("ict_transform data").append(TAG_ATTR2);
+		sb_header.append(indent).append("<!ELEMENT ict_transform_list (ict_transform)>\n");
 
 		// The Patch itself:
-		sb_header.append(indent).append("<!ELEMENT t2_patch (t2_ctransform,t2_ctransform_list)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_patch (ict_transform,ict_transform_list)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" file_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" original_path").append(TAG_ATTR2)
@@ -941,12 +948,17 @@ public final class Patch extends Displayable {
 		return true;
 	}
 
+	/** For reconstruction purposes. */
+	public void setCoordinateTransformSilently(final CoordinateTransform ct) {
+		this.ct = ct;
+	}
+
 	// TEMPORARY TODO
 	private boolean ct_is_new = false;
 
 	public final void setCoordinateTransform(final CoordinateTransform ct) {
 		this.ct = ct;
-		updateInDatabase("ct_transform");
+		updateInDatabase("ict_transform");
 
 		// Adjust the AffineTransform to correct for bounding box displacement
 		// TODO for now, delayed in a horrible way to createTransformedImage
@@ -968,24 +980,52 @@ public final class Patch extends Displayable {
 		final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
 		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 		
-		final ImageProcessor target = mapping.createMappedImage( source );
-		final ByteProcessor mask = new ByteProcessor( source.getWidth(), source.getHeight() );
+		ImageProcessor target = mapping.createMappedImage( source );
+		ByteProcessor mask = new ByteProcessor( source.getWidth(), source.getHeight() );
 		mask.setValue(255);
 		mask.fill();
+		mask = (ByteProcessor) mapping.createMappedImage( mask );
 
 		final Rectangle box = mesh.getBoundingBox();
 
 		// TEMPORARY TODO
 		if (ct_is_new) {
 			ct_is_new = false;
+			Utils.log2("box: " + box);
 			this.at.translate(box.x, box.y);
-			updateInDatabase("transform"); // the AffineTransform
+			this.width = box.width;
+			this.height = box.height;
+			updateInDatabase("transform+dimensions"); // the AffineTransform
 		}
+
+		// DEBUG: the TransformMeshMapping is not working, so just to see the alpha:
+		/*
+		target = source.createProcessor(source.getWidth() + 100, source.getHeight() + 100);
+		target.setValue(150);
+		target.fill();
+		box.x = -50;
+		box.y = -50;
+		box.width = target.getWidth();
+		box.height = target.getHeight();
+		this.width = box.width;
+		this.height = box.height;
+		*/
 
 		Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
 		Utils.log2("box: " + box);
 
-		return new CTImage( target, (ByteProcessor) mapping.createMappedImage( mask ), box );
+		// DEBUG
+		/*
+		// Fake mask
+		//ByteProcessor mask2 = ;
+		ByteProcessor mask2 = new ByteProcessor(target.getWidth(), target.getHeight());
+		mask2.setRoi(new ij.gui.OvalRoi(0,0,box.width,box.height));
+		mask2.setValue(255);
+		mask2.fill(mask2.getMask());
+		mask = mask2;
+		*/
+
+		return new CTImage( target, mask , box );
 	}
 
 	public final class CTImage {

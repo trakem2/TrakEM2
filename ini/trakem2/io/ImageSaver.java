@@ -325,6 +325,7 @@ public class ImageSaver {
 			ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next(); // just the first one
 			if (null != writer) {
 				ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
+				iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 				iwp.setCompressionQuality(0.85f); // <---------------------------------------------------------- THIS IS ALL I WANTED
 				writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
 				writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
