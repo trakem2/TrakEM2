@@ -1172,19 +1172,38 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Image to BufferedImage. Can be used for hardware-accelerated resizing, since the whole awt is painted to a target w,h area in the returned new BufferedImage. */
-	private final BufferedImage IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final IndexColorModel icm) {
+	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final IndexColorModel icm, final BufferedImage alpha) {
 		BufferedImage bi;
+		final boolean area_averaging = interpolation_hint.getClass() == Integer.class && Loader.AREA_AVERAGING == ((Integer)interpolation_hint).intValue();
 		if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
+		else if (null != alpha) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
 		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
 		final Graphics2D g = bi.createGraphics();
-		if (interpolation_hint.getClass() == Integer.class && Loader.AREA_AVERAGING == ((Integer)interpolation_hint).intValue()) {
+		if (area_averaging) {
 			final Image img = awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING); // Creates ALWAYS an RGB image, so must repaint back to a single-channel image, avoiding unnecessary blow up of memory.
-			g.drawImage(img, 0, 0, w, h, null);
-			return bi;
+			g.drawImage(img, 0, 0, null);
+		} else {
+			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation_hint);
+			g.drawImage(awt, 0, 0, w, h, null); // draws it scaled
 		}
-		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation_hint);
-		g.drawImage(awt, 0, 0, w, h, null);
-		return bi;
+		BufferedImage ba = alpha;
+		if (null != alpha) {
+			FloatProcessor fp_alpha = null;
+			// resize alpha mask if necessary:
+			if (w != awt.getWidth(null) || h != awt.getHeight(null)) {
+				ba = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
+				if (area_averaging) {
+					ba.createGraphics().drawImage(alpha.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING), 0, 0, null); // getScaledInstance returns an RGB image always, hence must paint it to a gray one
+				} else {
+					final Graphics2D ga = ba.createGraphics();
+					ga.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation_hint);
+					ga.drawImage(alpha, 0, 0, w, h, null); // draws it scaled to target area w*h
+				}
+			}
+			fp_alpha = (FloatProcessor) new ByteProcessor(ba).convertToFloat();
+			bi.getAlphaRaster().setPixels(0, 0, w, h, (float[])fp_alpha.getPixels());
+		}
+		return new BufferedImage[]{bi, ba};
 	}
 
 	private Object getHint(final int mode) {
@@ -1358,7 +1377,7 @@ public final class FSLoader extends Loader {
 
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
-					fp.setMinAndMax(patch.getMin(), patch.getMax());
+					fp.setMinAndMax(patch.getMin(), patch.getMax()); // no scaling, so values should do fine directly.
 					FloatProcessor fp_alpha = alpha_mask;
 					int sw=w, sh=h;
 					do {
@@ -1406,6 +1425,26 @@ public final class FSLoader extends Loader {
 				} else {
 					// use java hardware-accelerated resizing
 					Image awt = ip.createImage();
+					/* // will be done anyway by IToBI function
+					if (null != alpha_mask) {
+						BufferedImage bu = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+						bu.createGraphics().drawImage(awt, 0, 0, null);
+						bu.getAlphaRaster().setPixels(0, 0, w, h, (float[])alpha_mask.getPixels());
+						awt = bu;
+					}
+					*/
+
+					BufferedImage balpha = null;
+					if (null != alpha_mask) {
+						alpha_mask.setMinAndMax(0, 255);
+						Image aa = alpha_mask.createImage();
+						if (aa instanceof BufferedImage) balpha = (BufferedImage)aa;
+						else {
+							balpha = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
+							balpha.createGraphics().drawImage(aa, 0, 0, null);
+						}
+					}
+
 					BufferedImage bi = null;
 					final Object hint = getHint(resizing_mode);
 					final IndexColorModel icm = (IndexColorModel)cm;
@@ -1415,7 +1454,9 @@ public final class FSLoader extends Loader {
 						if (null == target_dir) continue;
 						// obtain half image
 							// for level 0 and others, when awt is not a bi or needs to be reduced in size (to new w,h)
-						bi = IToBI(awt, w, h, hint, icm); // can't just cast even if it's a BI already, because color type is wrong
+						final BufferedImage[] res = IToBI(awt, w, h, hint, icm, balpha); // can't just cast even if it's a BI already, because color type is wrong
+						bi = res[0];
+						balpha = res[1];
 						// prepare next iteration
 						if (awt != bi) awt.flush();
 						awt = bi;
@@ -1423,7 +1464,10 @@ public final class FSLoader extends Loader {
 						h /= 2;
 						k++;
 						// save this iteration
-						if (!ini.trakem2.io.ImageSaver.saveAsJpeg(bi, target_dir + filename, 0.85f, as_grey)) {
+						if ( (null != alpha_mask &&
+						      !ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi, target_dir + filename, 0.85f))
+						   || (null == alpha_mask &&
+						      !ini.trakem2.io.ImageSaver.saveAsJpeg(bi, target_dir + filename, 0.85f, as_grey))) {
 							cannot_regenerate.add(patch);
 							break;
 						}
