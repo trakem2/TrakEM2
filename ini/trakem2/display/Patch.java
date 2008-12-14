@@ -26,7 +26,7 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.io.FileSaver;
-//import ij.process.ByteProcessor;
+import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
@@ -989,10 +989,12 @@ public final class Patch extends Displayable {
 		
 		ImageProcessor target = mapping.createMappedImageInterpolated( source );
 		target.setMinAndMax(min, max);
-		FloatProcessor mask = new FloatProcessor( source.getWidth(), source.getHeight() );
+		ByteProcessor mask = new ByteProcessor( source.getWidth(), source.getHeight() );
 		mask.setValue(255);
 		mask.fill();
-		mask = (FloatProcessor) mapping.createMappedImage( mask );
+		mask = (ByteProcessor) mapping.createMappedImage( mask );
+		// erode the mask one pixel, to avoid edge problems
+		mask.dilate(); // it's not inverted LUT, so opposite
 
 		final Rectangle box = mesh.getBoundingBox();
 
@@ -1033,7 +1035,7 @@ public final class Patch extends Displayable {
 		mask = mask2;
 		*/
 
-		return new CTImage( target, mask , box );
+		return new CTImage( target, (FloatProcessor) mask.convertToFloat() , box );
 	}
 
 	public final class CTImage {
