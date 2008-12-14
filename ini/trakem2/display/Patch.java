@@ -988,6 +988,7 @@ public final class Patch extends Displayable {
 		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 		
 		ImageProcessor target = mapping.createMappedImage( source );
+		target.setMinAndMax(min, max);
 		FloatProcessor mask = new FloatProcessor( source.getWidth(), source.getHeight() );
 		mask.setValue(255);
 		mask.fill();

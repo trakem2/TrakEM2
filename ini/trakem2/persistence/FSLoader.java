@@ -1203,59 +1203,11 @@ public final class FSLoader extends Loader {
 		return hint;
 	}
 
-	/*
-	static final private byte[] resize(final FloatProcessor source, final ByteProcessor alpha_mask, final int source_width, final int source_height, final int target_width, final int target_height) {
-		if (null == alpha_mask) return gaussianBlurResizeInHalf(source, target_width, target_height);
-		return alphaWeightedScaleAreaAverageResizeInHalf(source, alpha_mask, source_width, source_height, target_width, target_height);
-	}
-	*/
- 
 	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
 	static final private byte[] gaussianBlurResizeInHalf(final FloatProcessorT2 source, final int source_width, final int source_height, final int target_width, final int target_height) {
 		source.setPixels(source_width, source_height, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])source.getPixels(), source_width, source_height), 0.75f).data);
 		source.resizeInPlace(target_width, target_height);
 		return (byte[])source.convertToByte(false).getPixels(); // no interpolation: gaussian took care of that
-	}
-
-	/** NoReallyIMeanExactlyWhatTheMethodNameSays. WARNING: the source FloatProcessorT2 is resized in place. The alpha_mask is left untouched. */
-	static final private byte[] alphaWeightedScaleAreaAverageResizeInHalf(final FloatProcessorT2 source, final FloatProcessor alpha_mask, final int source_width, final int source_height, final int target_width, final int target_height) {
-		// resize using the alpha_mask values as weights
-		final float[] data = (float[])source.getPixels(); // in source_width, source_height
-		final float[] alpha = (float[])alpha_mask.getPixels(); // in target_width, target_height
-		final byte[] pixels = new byte[target_width * target_height];
-		final float[] new_data = new float[pixels.length];
-		float val = 0;
-		int x, y;
-		// 
-		// 'i' iterates over source array
-		// 'k' iterates over target array (half the size)
-		for (int i=0, k=0; k<pixels.length; i+=2, k++) {
-
-			// add same
-			val += alpha[i] * data[i];
-
-			// No boundary checks needed, source image is exactly double the size as target image
-
-			// add right:
-			val += alpha[i+1] * data[i+1];
-
-			// add bottom: 
-			val += alpha[i+source_width] * data[i+source_width];
-
-			// add bottom-right
-			val += alpha[i+source_width+1] * data[i+source_width+1];
-
-			new_data[k] = val;
-
-			final int v = (int)( (val/4) + 0.5f); // proper rounding
-
-			pixels[k] = (byte)( v - (v < 128 ? 0 : 256) ); // map 0,255 to -128,127 range, where 0 = 0, 127 = 127, -128 = 128, and 255 = -1.
-
-		}
-
-		source.setPixels(target_width, target_height, new_data);
-
-		return pixels;
 	}
 
 	private static final BufferedImage createARGBImage(final int width, final int height, final int[] pix, final float[] alpha) {
@@ -1312,7 +1264,7 @@ public final class FSLoader extends Loader {
 				ip = fetchImageProcessor(patch);
 			} else {
 				// The non-linearly transformed image
-				ip = cti.target.convertToRGB();
+				ip = cti.target;
 				alpha_mask = cti.mask;
 				cti = null;
 			}
@@ -1336,9 +1288,12 @@ public final class FSLoader extends Loader {
 				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
 				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
 				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
-				final FloatProcessorT2 alpha = null != alpha_mask ? new FloatProcessorT2(alpha_mask) : null;     //null != alpha_mask ? new FloatProcessorT2(w, h, 0, 255) : null; if (null != alpha_mask) alpha_mask.toFloat(0, alpha);
+				final FloatProcessorT2 alpha = null != alpha_mask ? new FloatProcessorT2(alpha_mask) : null;
 
-				int sw=w, sh=h;
+				// sw,sh are the dimensions of the image to blur
+				//  w,h are the dimensions to scale the blurred image to
+				int sw = w,
+				    sh = h;
 
 				final String target_dir0 = getLevelDir(dir_mipmaps, 0);
 				// No alpha channel:
@@ -1396,13 +1351,14 @@ public final class FSLoader extends Loader {
 				//
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
-				final boolean as_grey = !ip.isColorLut();
+				final boolean as_grey = !ip.isColorLut(); // TODO won't work with alpha masks, I guess
 				if (as_grey && null == cm) { // TODO needs fixing for 'half' method
 					cm = GRAY_LUT;
 				} else cm = null;
 
 				if (Loader.GAUSSIAN == resizing_mode) {
-					FloatProcessor fp = /*Utils.fastConvertToFloat(ip, type);*/ (FloatProcessor)ip.convertToFloat();
+					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
+					fp.setMinAndMax(patch.getMin(), patch.getMax());
 					FloatProcessor fp_alpha = alpha_mask;
 					int sw=w, sh=h;
 					do {
@@ -1417,15 +1373,13 @@ public final class FSLoader extends Loader {
 						// 2 - generate scaled image
 						if (0 != k) {
 							fp = (FloatProcessor)fp.resize(w, h);
+							fp.setMinAndMax(patch.getMin(), patch.getMax()); // the resize doesn't preserve the min and max!
 							if (null != fp_alpha) fp_alpha = (FloatProcessor)fp_alpha.resize(w, h);
 						}
 						if (null != alpha_mask) {
 							// 3 - save as jpeg with alpha
 							final int[] pix = (int[])fp.convertToRGB().getPixels();
 							final float[] a = (float[])fp_alpha.getPixels();
-							for (int i=0; i<pix.length; i++) {
-								pix[i] &= (((int)a[i])<<24);
-							}
 							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix, a), target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
 								break;
