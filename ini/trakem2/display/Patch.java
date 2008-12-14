@@ -992,10 +992,8 @@ public final class Patch extends Displayable {
 		ByteProcessor mask = new ByteProcessor( source.getWidth(), source.getHeight() );
 		mask.setValue(255);
 		mask.fill();
-		mask = (ByteProcessor) mapping.createMappedImage( mask );
-		// erode the mask one pixel, to avoid edge problems
-		mask.dilate(); // it's not inverted LUT, so opposite
-
+		mask = (ByteProcessor) mapping.createMappedImageInterpolated( mask );
+		
 		final Rectangle box = mesh.getBoundingBox();
 
 		// TEMPORARY TODO
