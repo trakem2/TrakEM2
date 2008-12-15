@@ -1201,6 +1201,10 @@ public final class FSLoader extends Loader {
 				}
 			}
 			fp_alpha = (FloatProcessor) new ByteProcessor(ba).convertToFloat();
+			// Set all non-white pixels to zero (eliminate shadowy border caused by interpolation)
+			final float[] pix = (float[])fp_alpha.getPixels();
+			for (int i=0; i<pix.length; i++)
+				if (Math.abs(pix[i] - 255) > 0.001f) pix[i] = 0;
 			bi.getAlphaRaster().setPixels(0, 0, w, h, (float[])fp_alpha.getPixels());
 		}
 		return new BufferedImage[]{bi, ba};
@@ -1340,6 +1344,13 @@ public final class FSLoader extends Loader {
 						final byte[] b = gaussianBlurResizeInHalf(blue, sw, sh, w, h);  // idem
 						final byte[] a = null == alpha ? null
 					                       : gaussianBlurResizeInHalf(alpha, sw, sh, w, h); // idem
+						if (null != a) {
+							// set all non-white pixels to black: solves border problem
+							for (int i=0; i<a.length; i++) {
+								if (255 != (a[i]&0xff)) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
+							}
+						}
+
 						// 4 - Compose ColorProcessor
 						final int[] pix = new int[w * h];
 						if (null == alpha) {
@@ -1399,6 +1410,9 @@ public final class FSLoader extends Loader {
 							// 3 - save as jpeg with alpha
 							final int[] pix = (int[])fp.convertToRGB().getPixels();
 							final float[] a = (float[])fp_alpha.getPixels();
+							// Set all non-white pixels to zero
+							for (int g=0; g<a.length; g++)
+								if (Math.abs(a[g] - 255) > 0.001f) a[g] = 0;
 							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix, a), target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
 								break;

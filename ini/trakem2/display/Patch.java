@@ -989,11 +989,15 @@ public final class Patch extends Displayable {
 		
 		ImageProcessor target = mapping.createMappedImageInterpolated( source );
 		target.setMinAndMax(min, max);
-		ByteProcessor mask = new ByteProcessor( source.getWidth(), source.getHeight() );
+		FloatProcessor mask = new FloatProcessor( source.getWidth(), source.getHeight() );
 		mask.setValue(255);
 		mask.fill();
-		mask = (ByteProcessor) mapping.createMappedImageInterpolated( mask );
-		
+		mask = (FloatProcessor) mapping.createMappedImageInterpolated( mask );
+		// Set all non-white pixels to zero
+		final float[] pix = (float[]) mask.getPixels();
+		for (int i=0; i<pix.length; i++)
+			if (Math.abs(pix[i] - 255) > 0.001f) pix[i] = 0;
+
 		final Rectangle box = mesh.getBoundingBox();
 
 		// TEMPORARY TODO
@@ -1033,7 +1037,7 @@ public final class Patch extends Displayable {
 		mask = mask2;
 		*/
 
-		return new CTImage( target, (FloatProcessor) mask.convertToFloat() , box );
+		return new CTImage( target, (FloatProcessor) mask , box );
 	}
 
 	public final class CTImage {
