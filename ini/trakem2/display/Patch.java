@@ -962,12 +962,16 @@ public final class Patch extends Displayable {
 	public final void setCoordinateTransform(final CoordinateTransform ct) {
 		if (null == ct && null != this.ct) {
 			// restore image without the transform
-			this.at.translate((int)(width - o_width)/2, (int)(height - o_height)/2);
+			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+			final Rectangle box = mesh.getBoundingBox();
+			this.at.translate(-box.x, -box.y);
 			updateInDatabase("transform+dimensions");
 		}
 
 		this.ct = ct;
 		updateInDatabase("ict_transform");
+
+		if (null == this.ct) return;
 
 		// Adjust the AffineTransform to correct for bounding box displacement
 		// TODO for now, delayed in a horrible way to createTransformedImage
