@@ -456,7 +456,7 @@ public final class Patch extends Displayable {
 		g.drawImage(image, atp, null);
 
 		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
+		if (null != original_composite) {
 			g.setComposite(original_composite);
 		}
 	}
