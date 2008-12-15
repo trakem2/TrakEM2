@@ -960,6 +960,11 @@ public final class Patch extends Displayable {
 	/** Set a CoordinateTransform to this Patch.
 	 *  The resulting image of applying the coordinate transform does not need to be rectangular: an alpha mask will take care of the borders. You should call updateMipmaps() afterwards to update the mipmap images used for painting this Patch to the screen. */
 	public final void setCoordinateTransform(final CoordinateTransform ct) {
+		if (isLinked()) {
+			Utils.log("Cannot set coordinate transform: patch is linked!");
+			return;
+		}
+
 		if (null == ct && null != this.ct) {
 			// restore image without the transform
 			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
