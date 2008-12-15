@@ -34,7 +34,7 @@ import java.util.Collection;
  *
  *
  */
-public class DisplayableChooser implements ActionListener {
+public final class DisplayableChooser implements ActionListener {
 
 	protected Collection al_under;
 	protected boolean waiting = true;

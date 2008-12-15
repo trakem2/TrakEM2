@@ -570,10 +570,15 @@ public class Polyline extends ZDisplayable implements Line3D {
 						// not public //SearchThread.exitReasonStrings[tracer.getExitReason()]);
 					return;
 				}
+
+				// TODO: precise_x_positions etc are likely to be broken (calibrated or something)
+
+
 				// Remove bogus points: those at the end with 0,0 coords
 				int len = result.points;
+				final double[][] pos = result.getXYZUnscaled();
 				for (int i=len-1; i>-1; i--) {
-					if (0 == result.x_positions[i] && 0 == result.y_positions[i]) {
+					if (0 == pos[0][i] && 0 == pos[1][i]) {
 						len--;
 					} else break;
 				}
@@ -584,8 +589,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 				/* 1 */ aff.scale(1/scale, 1/scale);
 				final double[] po = new double[len * 2];
 				for (int i=0, j=0; i<len; i++, j+=2) {
-					po[j] = result.x_positions[i];
-					po[j+1] = result.y_positions[i];
+					po[j] = pos[0][i];
+					po[j+1] = pos[1][i];
 				}
 				final double[] po2 = new double[len * 2];
 				aff.transform(po, 0, po2, 0, len); // what a stupid format: consecutive x,y pairs
@@ -594,7 +599,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 				double[] pox = new double[len];
 				double[] poy = new double[len];
 				for (int i=0, j=0; i<len; i++, j+=2) {
-					p_layer_ids[i] = layer_set.getLayer(result.z_positions[i]).getId(); // z_positions in 0-(N-1), not in 0-N like slices!
+					p_layer_ids[i] = layer_set.getNearestLayer(pos[2][i]).getId(); // z_positions in 0-(N-1), not in 0-N like slices!
 					pox[i] = po2[j];
 					poy[i] = po2[j+1];
 				}

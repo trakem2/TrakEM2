@@ -56,7 +56,7 @@ import java.io.File;
 
 //import mpicbg.models.InvertibleCoordinateTransform;
 
-public class Patch extends Displayable {
+public final class Patch extends Displayable {
 
 	private int type = -1; // unknown
 	/** The channels that the currently existing awt image has ready for painting. */
@@ -71,7 +71,7 @@ public class Patch extends Displayable {
 	/** To be read from XML, or set when the file ImagePlus has been updated and the current_path points to something else. */
 	private String original_path = null;
 
-	// NOT YET// private InvertibleCoordinateTransform ict = null;
+	//private InvertibleCoordinateTransform ict = null;
 	private boolean has_alpha_channel = false;
 	// TODO include in the cloning
 
@@ -724,6 +724,7 @@ public class Patch extends Displayable {
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" file_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" original_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" type").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" ict").append(TAG_ATTR2)
 		;
 	}
 

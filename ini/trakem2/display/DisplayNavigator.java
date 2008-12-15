@@ -42,7 +42,7 @@ import java.util.HashSet;
 import ini.trakem2.utils.*;
 import java.awt.geom.AffineTransform;
 
-public class DisplayNavigator extends JPanel implements MouseListener, MouseMotionListener {
+public final class DisplayNavigator extends JPanel implements MouseListener, MouseMotionListener {
 
 	private Display display;
 	private Layer layer;
@@ -144,11 +144,11 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		paint(g);
 	}
 
-	private class UpdateGraphicsThread extends AbstractOffscreenThread {
+	private final class UpdateGraphicsThread extends AbstractOffscreenThread {
 
-		private Rectangle clipRect;
+		private final Rectangle clipRect;
 
-		UpdateGraphicsThread(Rectangle clipRect) {
+		UpdateGraphicsThread(final Rectangle clipRect) {
 			super("T2-Navigator-UpdateGraphics");
 			this.clipRect = clipRect;
 			synchronized (updating_ob) {
@@ -292,7 +292,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		}
 	}
 
-	public void paint(Graphics g) {
+	public void paint(final Graphics g) {
 		final Graphics2D g2d = (Graphics2D)g;
 		synchronized (updating_ob) {
 			while (updating) { try { updating_ob.wait(); } catch (InterruptedException ie) {} }
@@ -332,7 +332,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 
 	private boolean drag = false;
 
-	public void mousePressed(MouseEvent me) {
+	public void mousePressed(final MouseEvent me) {
 		x_p = me.getX();
 		y_p = me.getY();
 		this.srcRect = (Rectangle)display.getCanvas().getSrcRect().clone();
@@ -342,7 +342,7 @@ public class DisplayNavigator extends JPanel implements MouseListener, MouseMoti
 		}
 	}
 
-	public void mouseDragged(MouseEvent me) {
+	public void mouseDragged(final MouseEvent me) {
 		if (!drag) return;
 		// prevent action if the srcRect takes over the whole area
 		if (this.srcRect.width == display.getLayer().getLayerWidth() && this.srcRect.height == display.getLayer().getLayerHeight()) {

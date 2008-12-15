@@ -109,7 +109,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Avoid waiting on the AWT thread repainting ImageJ's log window. */
-	static private class LogDispatcher extends Thread {
+	static private final class LogDispatcher extends Thread {
 		private final StringBuffer cache = new StringBuffer();
 		private boolean loading = false;
 		private boolean go = true;
@@ -232,19 +232,19 @@ public class Utils implements ij.plugin.PlugIn {
 	static private StatusDispatcher status = new StatusDispatcher();
 
 	/** Initialize house keeping threads. */
-	static public void setup(final ControlWindow master) { // the ControlWindow acts as a switch: nobody can controls this because the CW constructor is private
+	static public final void setup(final ControlWindow master) { // the ControlWindow acts as a switch: nobody can controls this because the CW constructor is private
 		if (null == status) status = new StatusDispatcher();
 		if (null == logger) logger = new LogDispatcher();
 	}
 
 	/** Destroy house keeping threads. */
-	static public void destroy(final ControlWindow master) {
+	static public final void destroy(final ControlWindow master) {
 		if (null != status) { status.quit(); status = null; }
 		if (null != logger) { logger.quit(); logger = null; }
 	}
 
 	/** Intended for the user to see. */
-	static public void log(final String msg) {
+	static public final void log(final String msg) {
 		if (ControlWindow.isGUIEnabled() && null != logger) {
 			logger.log(msg);
 		} else {
@@ -253,7 +253,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Print in all printable places: log window, System.out.println, and status bar.*/
-	static public void logAll(final String msg) {
+	static public final void logAll(final String msg) {
 		if (!ControlWindow.isGUIEnabled()) {
 			System.out.println(msg);
 			return;
@@ -264,20 +264,20 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Intended for developers: prints to terminal. */
-	static public void log2(final String msg) {
+	static public final void log2(final String msg) {
 		System.out.println(msg);
 	}
 
 	/** Pretty-print the object, for example arrays as [0, 1, 2]. */
-	static public void log2(final Object ob) {
+	static public final void log2(final Object ob) {
 		Utils.log2(null, ob);
 	}
 	/** Pretty-print the object, for example arrays as [0, 1, 2]. */
-	static public void log2(final String msg, final Object ob) {
+	static public final void log2(final String msg, final Object ob) {
 		Utils.log2((null != msg ? msg : "") + ob + "\n\t" + Utils.toString(ob));
 	}
-	static public void log2(final String msg, final Object ob1, final Object... ob) {
-		StringBuffer sb = new StringBuffer(null == msg ? "" : msg + "\n");
+	static public final void log2(final String msg, final Object ob1, final Object... ob) {
+		final StringBuffer sb = new StringBuffer(null == msg ? "" : msg + "\n");
 		sb.append(ob1.toString()).append(" : ").append(Utils.toString(ob1)).append('\n');
 		for (int i=0; i<ob.length; i++) sb.append(ob.toString()).append(" : ").append(Utils.toString(ob[i])).append('\n');
 		sb.setLength(sb.length()-1);
@@ -285,7 +285,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Print an object; if it's an array, print each element, recursively, as [0, 1, 2] or [[0, 1, 2], [3, 4, 5]], etc, same for Iterable and Map objects. */
-	static public String toString(final Object ob) {
+	static public final String toString(final Object ob) {
 		if (null == ob) return "null";
 		// Clojure could do this so much easier with a macro
 		final StringBuffer sb = new StringBuffer();
@@ -352,7 +352,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I had the same problem for Pipe.java in the A_3D_editing plugin)
 	    Using schemata in JavaAngles.ai as reference */
-	static public double fixAtan2Angle(double angle) {
+	static public final double fixAtan2Angle(double angle) {
 
 		double a = angle;
 		//fix too large angles
@@ -374,7 +374,7 @@ public class Utils implements ij.plugin.PlugIn {
 	static public int count = 0;
 
 	/** Find out which method from which class called the method where the printCaller is used; for debugging purposes.*/
-	static public void printCaller(Object called_object) {
+	static public final void printCaller(Object called_object) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
 			log2("Stack trace too short! No useful info");
@@ -384,7 +384,7 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
-	static public void printCaller(Object called_object, int lines) {
+	static public final void printCaller(Object called_object, int lines) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
 			log2("Stack trace too short! No useful info");
@@ -397,7 +397,7 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
-	static public String caller(Object called) {
+	static public final String caller(Object called) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
 			log2("Stack trace too short! No useful info");
@@ -408,7 +408,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/**Restore ImageJ's MenuBar*/
-	static public void restoreMenuBar() {
+	static public final void restoreMenuBar() {
 		MenuBar menu_bar = Menus.getMenuBar();
 		final int n_menus = menu_bar.getMenuCount();
 		for (int i=0; i<n_menus;i++) {
@@ -430,13 +430,13 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
-	static public void showMessage(String msg) {
+	static public final void showMessage(String msg) {
 		if (!ControlWindow.isGUIEnabled()) System.out.println(msg);
 		else IJ.showMessage(msg);
 	}
 
 	/** Runs the showMessage in a separate Thread. */
-	static public void showMessageT(final String msg) {
+	static public final void showMessageT(final String msg) {
 		new Thread() {
 			public void run() {
 				setPriority(Thread.NORM_PRIORITY);
@@ -568,8 +568,8 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** remove_trailing_zeros will leave at least one zero after the comma if appropriate. */
-	static public String cutNumber(final double d, final int n_decimals, final boolean remove_trailing_zeros) {
-		String num = new Double(d).toString();
+	static public final String cutNumber(final double d, final int n_decimals, final boolean remove_trailing_zeros) {
+		final String num = new Double(d).toString();
 		int i_e = num.indexOf("E-");
 		if (-1 != i_e) {
 			final int exp = Integer.parseInt(num.substring(i_e+2));
@@ -597,8 +597,8 @@ public class Utils implements ij.plugin.PlugIn {
 			return sb.toString();
 		}
 		// else, there is no scientific notation to worry about
-		int i_dot = num.indexOf('.');
-		StringBuffer sb = new StringBuffer(num.substring(0, i_dot+1));
+		final int i_dot = num.indexOf('.');
+		final StringBuffer sb = new StringBuffer(num.substring(0, i_dot+1));
 		for (int i=i_dot+1; i < (n_decimals + i_dot + 1) && i < num.length(); i++) {
 			sb.append(num.charAt(i));
 		}
@@ -615,7 +615,7 @@ public class Utils implements ij.plugin.PlugIn {
 		return sb.toString();
 	}
 
-	static public boolean check(String msg) {
+	static public final boolean check(final String msg) {
 		YesNoCancelDialog dialog = new YesNoCancelDialog(IJ.getInstance(), "Execute?", msg);
 		if (dialog.yesPressed()) {
 			return true;
@@ -623,19 +623,19 @@ public class Utils implements ij.plugin.PlugIn {
 		return false;
 	}
 
-	static public boolean checkYN(String msg) {
+	static public final boolean checkYN(String msg) {
 		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Execute?", msg);
 		if (yn.yesPressed()) return true;
 		return false;
 	}
 
-	static public String d2s(double d, int n_decimals) {
+	static public final String d2s(double d, int n_decimals) {
 		return IJ.d2s(d, n_decimals);
 	}
 
 	// from utilities.c in my CurveMorphing C module ... from C! Java is a low level language with the disadvantages of the high level languages ...
 	/** Returns the angle in radians of the given polar coordinates, correcting the Math.atan2 output. */
-	static public double getAngle(double x, double y) {
+	static public final double getAngle(double x, double y) {
 		// calculate angle
 		double a = Math.atan2(x, y);
 		// fix too large angles (beats me why are they ever generated)
@@ -654,7 +654,7 @@ public class Utils implements ij.plugin.PlugIn {
 		return a;
 	}
 
-	static public String[] getHexRGBColor(Color color) {
+	static public final String[] getHexRGBColor(Color color) {
 		int c = color.getRGB();
 		String r = Integer.toHexString(((c&0x00FF0000)>>16));
 		if (1 == r.length()) r = "0" + r;
@@ -665,14 +665,14 @@ public class Utils implements ij.plugin.PlugIn {
 		return new String[]{r, g, b};
 	}
 
-	static public Color getRGBColorFromHex(String hex) {
+	static public final Color getRGBColorFromHex(String hex) {
 		if (hex.length() < 6) return null;
 		return new Color(Integer.parseInt(hex.substring(0, 2), 16), // parse in hexadecimal radix
 				 Integer.parseInt(hex.substring(2, 4), 16),
 				 Integer.parseInt(hex.substring(4, 6), 16));
 	}
 
-	static public final int[] get4Ints(int hex) {
+	static public final int[] get4Ints(final int hex) {
 		return new int[]{((hex&0xFF000000)>>24),
 			         ((hex&0x00FF0000)>>16),
 				 ((hex&0x0000FF00)>> 8),
@@ -683,12 +683,12 @@ public class Utils implements ij.plugin.PlugIn {
 		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH\nUniversity of California Los Angeles");
 	}
 
-	static public File chooseFile(String name, String extension) {
+	static public final File chooseFile(String name, String extension) {
 		return Utils.chooseFile(null, name, extension);
 	}
 
 	/** Select a file from the file system, for saving purposes. Prompts for overwritting if the file exists, unless the ControlWindow.isGUIEnabled() returns false (i.e. there is no GUI). */
-	static public File chooseFile(String default_dir, String name, String extension) {
+	static public final File chooseFile(String default_dir, String name, String extension) {
 		// using ImageJ's JFileChooser or internal FileDialog, according to user preferences.
 		String user = System.getProperty("user.name");
 		String name2 = null;
@@ -719,7 +719,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Returns null or the selected directory and file. */
-	static public String[] selectFile(String title_msg) {
+	static public final String[] selectFile(String title_msg) {
 		OpenDialog od = new OpenDialog("Select file", OpenDialog.getDefaultDirectory(), null);
 		String file = od.getFileName();
 		if (null == file || file.toLowerCase().startsWith("null")) return null;
@@ -737,7 +737,7 @@ public class Utils implements ij.plugin.PlugIn {
 		return new String[]{dir, file};
 	}
 
-	static public boolean saveToFile(File f, String contents) {
+	static public final boolean saveToFile(File f, String contents) {
 		if (null == f) return false;
 		try {
 			/*
@@ -755,7 +755,7 @@ public class Utils implements ij.plugin.PlugIn {
 		return true;
 	}
 
-	static public boolean saveToFile(String name, String extension, String contents) {
+	static public final boolean saveToFile(String name, String extension, String contents) {
 		if (null == contents) {
 			Utils.log2("Utils.saveToFile: contents is null");
 			return false;
@@ -766,7 +766,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Converts sequences of spaces into single space, and trims the ends. */
-	static public String cleanString(String s) {
+	static public final String cleanString(String s) {
 		s = s.trim();
 		while (-1 != s.indexOf("\u0020\u0020")) { // \u0020 equals a single space
 			s = s.replaceAll("\u0020\u0020", "\u0020");

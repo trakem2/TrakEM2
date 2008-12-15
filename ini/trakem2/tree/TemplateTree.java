@@ -43,7 +43,7 @@ import ij.gui.YesNoCancelDialog;
 import java.util.regex.Pattern;
 
 
-public class TemplateTree extends DNDTree implements MouseListener, ActionListener {
+public final class TemplateTree extends DNDTree implements MouseListener, ActionListener {
 
 	private DefaultMutableTreeNode selected_node = null;
 	private TemplateThing root;

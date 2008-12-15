@@ -455,6 +455,7 @@ public class VectorString3D implements VectorString {
 
 		// first resampled point is the same as point zero
 		r.setP(0, x[0], y[0], z[0]);
+		r.setDeps(0, dep, new int[]{0}, new double[]{1.0}, 1);
 		// the first vector is 0,0,0 unless the path is closed, in which case it contains the vector from last-to-first.
 
 		if (with_source) new_source.add((ArrayList<Point3d>)this.source.get(0).clone());
@@ -905,10 +906,11 @@ public class VectorString3D implements VectorString {
 	public void calibrate(final Calibration cal) {
 		if (null == cal) return;
 		this.cal = cal;
+		final int sign = cal.pixelDepth < 0 ? -1 : 1;
 		for (int i=0; i<x.length; i++) {
 			x[i] *= cal.pixelWidth;
 			y[i] *= cal.pixelHeight; // should be the same as pixelWidth
-			z[i] *= cal.pixelWidth; // not pixelDepth, see day notes 20080227
+			z[i] *= cal.pixelWidth * sign; // not pixelDepth, see day notes 20080227
 			// it's pixelWidth because that is what is used to generate the pixel Z coordinates of the layers, multiplying by pixelDepth. So, layer Z coords are:  pixelDepth / pixelWidth (i.e. microns divided by microns/px gives px)
 		}
 		// reset vectors

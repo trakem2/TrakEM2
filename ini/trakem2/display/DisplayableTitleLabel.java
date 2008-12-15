@@ -28,7 +28,7 @@ import javax.swing.JLabel;
  * and enable the display of only part of the text when too large
  *
  */
-public class DisplayableTitleLabel extends JLabel {
+public final class DisplayableTitleLabel extends JLabel {
 
 	private String short_text;
 

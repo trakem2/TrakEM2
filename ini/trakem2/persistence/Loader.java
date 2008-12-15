@@ -24,12 +24,6 @@ package ini.trakem2.persistence;
 
 import ini.trakem2.utils.IJError;
 
-/**
- * Database cleanup copy-paste:
-drop table ab_attributes, ab_ball_points, ab_displayables, ab_displays, ab_labels, ab_layer_sets, ab_layers, ab_links, ab_patches, ab_pipe_points, ab_profiles, ab_projects, ab_things, ab_zdisplayables; drop sequence ab_ids;
-
- * 
- */
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -56,6 +50,7 @@ import ij.measure.Calibration;
 import ij.measure.Measurements;
 
 import ini.trakem2.Project;
+import ini.trakem2.display.AreaList;
 import ini.trakem2.display.Ball;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
@@ -920,7 +915,7 @@ abstract public class Loader {
 		return awt;
 	}
 
-	protected class PatchLoadingLock extends Lock {
+	protected final class PatchLoadingLock extends Lock {
 		final String key;
 		PatchLoadingLock(final String key) { this.key = key; }
 	}
@@ -2400,6 +2395,76 @@ abstract public class Loader {
 			}
 		};
 		Bureaucrat burro = new Bureaucrat(worker, base_layer.getProject());
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	public Bureaucrat importLabelsAsAreaLists(final Layer layer) {
+		return importLabelsAsAreaLists(layer, null, 0, 0, 0.4f, false);
+	}
+
+	/** If base_x or base_y are Double.MAX_VALUE, then those values are asked for in a GenericDialog. */
+	public Bureaucrat importLabelsAsAreaLists(final Layer first_layer, final String path_, final double base_x_, final double base_y_, final float alpha_, final boolean add_background_) {
+		Worker worker = new Worker("Import labels as arealists") {
+			public void run() {
+				startedWorking();
+				try {
+					String path = path_;
+					if (null == path) {
+						OpenDialog od = new OpenDialog("Select stack", "");
+						String name = od.getFileName();
+						if (null == name || 0 == name.length()) {
+							return;
+						}
+						String dir = od.getDirectory().replace('\\', '/');
+						if (!dir.endsWith("/")) dir += "/";
+						path = dir + name;
+					}
+					if (path.toLowerCase().endsWith(".xml")) {
+						Utils.log("Avoided opening a TrakEM2 project.");
+						return;
+					}
+					double base_x = base_x_;
+					double base_y = base_y_;
+					float alpha = alpha_;
+					boolean add_background = add_background_;
+					if (Double.MAX_VALUE == base_x || Double.MAX_VALUE == base_y || alpha < 0 || alpha > 1) {
+						GenericDialog gd = new GenericDialog("Base x, y");
+						gd.addNumericField("Base_X:", 0, 0);
+						gd.addNumericField("Base_Y:", 0, 0);
+						gd.addSlider("Alpha:", 0, 100, 40);
+						gd.addCheckbox("Add background (zero)", false);
+						gd.showDialog();
+						if (gd.wasCanceled()) {
+							return;
+						}
+						base_x = gd.getNextNumber();
+						base_y = gd.getNextNumber();
+						if (Double.isNaN(base_x) || Double.isNaN(base_y)) {
+							Utils.log("Base x or y is NaN!");
+							return;
+						}
+						alpha = (float)(gd.getNextNumber() / 100);
+						add_background = gd.getNextBoolean();
+					}
+					releaseMemory();
+					final ImagePlus imp = opener.openImage(path);
+					if (null == imp) {
+						Utils.log("Could not open image at " + path);
+						return;
+					}
+					List<AreaList> alis = AmiraImporter.extractAreaLists(imp, first_layer, base_x, base_y, alpha, add_background, this);
+					if (!hasQuitted() && alis.size() > 0) {
+						first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), alis);
+					}
+				} catch (Exception e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, first_layer.getProject());
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -4436,7 +4501,7 @@ abstract public class Loader {
 	}
 
 	/** Manages available CPU cores for loading images in the background. */
-	static private class Preloader extends Thread {
+	static private final class Preloader extends Thread {
 		private final LinkedList<Tuple> queue = new LinkedList<Tuple>();
 		/** IdentityHashMap uses ==, not .equals() ! */
 		private final IdentityHashMap<Patch,HashMap<Integer,Tuple>> map = new IdentityHashMap<Patch,HashMap<Integer,Tuple>>();
@@ -4605,7 +4670,7 @@ abstract public class Loader {
 		preloader.remove(patches, magnification);
 	}
 
-	static private class ImageLoaderThread extends Thread {
+	static private final class ImageLoaderThread extends Thread {
 		/** Controls access to Patch etc. */
 		private final Lock lock = new Lock();
 		/** Limits access to the load method while a previous image is being worked on. */
