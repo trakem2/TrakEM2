@@ -1507,6 +1507,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 	}
 
+	/** Call repaint on all open Displays. */
+	static public void repaint() {
+		if (repaint_disabled) {
+			Utils.logAll("Can't repaint -- repainting is disabled!");
+			return;
+		}
+		for (final Display d : al_displays) {
+			d.navigator.repaint(true);
+			d.canvas.repaint(true);
+		}
+	}
+
 	static private boolean repaint_disabled = false;
 
 	/** Set a flag to enable/disable repainting of all Display instances. */
