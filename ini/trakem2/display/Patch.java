@@ -155,7 +155,7 @@ public final class Patch extends Displayable {
 		return this.project.getLoader().fetchImagePlus(this);
 	}
 
-	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I adivse you to call this method everytime you need the processor. */
+	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I advise you to call this method everytime you need the processor. */
 	public ImageProcessor getImageProcessor() {
 		return this.project.getLoader().fetchImageProcessor(this);
 	}
@@ -957,11 +957,13 @@ public final class Patch extends Displayable {
 	// TEMPORARY TODO
 	private boolean ct_is_new = false;
 
+	/** Set a CoordinateTransform to this Patch.
+	 *  The resulting image of applying the coordinate transform does not need to be rectangular: an alpha mask will take care of the borders. You should call updateMipmaps() afterwards to update the mipmap images used for painting this Patch to the screen. */
 	public final void setCoordinateTransform(final CoordinateTransform ct) {
-		if (null == ct) {
+		if (null == ct && null != this.ct) {
 			// restore image without the transform
-			// TODO read the rectangle from this.ct, then:
-			// this.at.translate(-box.x, -box.y);
+			this.at.translate((int)(width - o_width)/2, (int)(height - o_height)/2);
+			updateInDatabase("transform+dimensions");
 		}
 
 		this.ct = ct;
@@ -972,7 +974,7 @@ public final class Patch extends Displayable {
 		ct_is_new = true; // i.e. update the AffineTransform when you get the box
 
 		// Updating the mipmaps will call createTransformedImage below if ct is not null
-		updateMipmaps();
+		/* DISABLED */ //updateMipmaps();
 	}
 
 	public final CoordinateTransform getCoordinateTransform() { return ct; }
@@ -1045,7 +1047,7 @@ public final class Patch extends Displayable {
 		final public ImageProcessor target;
 		/** The alpha mask. */
 		final public FloatProcessor mask;
-		/** The bounding box of the transformed image relative to the pixels of the original image. */
+		/** The bounding box of the transformed image, with x,y as the displacement relative to the pixels of the original image. */
 		final public Rectangle box;
 
 		private CTImage( ImageProcessor target, FloatProcessor mask, Rectangle box ) {
