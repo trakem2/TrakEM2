@@ -1237,7 +1237,7 @@ public class AreaList extends ZDisplayable {
 		return new StringBuffer("Volume: ").append(IJ.d2s(volume, 2)).append(" (cubic pixels)\nLateral surface: ").append(IJ.d2s(surface, 2)).append(" (square pixels)\n").toString();
 	}
 
-	/** @param roi is expected in world coordinates. */
+	/** @param area is expected in world coordinates. */
 	public boolean intersects(final Area area, final double z_first, final double z_last) {
 		for (Iterator<Map.Entry> it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = it.next();
