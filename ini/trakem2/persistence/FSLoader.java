@@ -1395,7 +1395,7 @@ public final class FSLoader extends Loader {
 						// 0 - blur the previous image to 0.75 sigma
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
 							fp = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), sw, sh), 0.75f).data, cm);
-							if (null != fp_alpha) fp_alpha = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp_alpha.getPixels(), sw, sh), 0.75f).data, null); // TODO should use something trivial, like nearest-neighbor? Or just this fading gradient?
+							if (null != fp_alpha) fp_alpha = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp_alpha.getPixels(), sw, sh), 0.75f).data, null);
 						}
 						// 1 - check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
