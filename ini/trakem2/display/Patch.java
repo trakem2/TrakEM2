@@ -136,7 +136,7 @@ public final class Patch extends Displayable {
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
-	/** Fetches the ImagePlus from the cache. Be warned: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache. */
+	/** Fetches the ImagePlus from the cache; <b>be warned</b>: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache; use @getImageProcessor to get the pixels guaranteed not to be ever null. */
 	public ImagePlus getImagePlus() {
 		return this.project.getLoader().fetchImagePlus(this);
 	}
@@ -781,7 +781,7 @@ public final class Patch extends Displayable {
 		}
 	}
 
-	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y). Expects x,y in world coordinates. */
+	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y). Expects x,y in world coordinates. This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method.*/
 	public int getPixel(double mag, final int x, final int y) {
 		final int[] iArray = getPixel(x, y, mag);
 		if (ImagePlus.COLOR_RGB == this.type) {
@@ -790,7 +790,7 @@ public final class Patch extends Displayable {
 		return iArray[0];
 	}
 
-	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y, iArray). Expects x,y in world coordinates.*/
+	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y, iArray). Expects x,y in world coordinates.  This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method.*/
 	public int[] getPixel(double mag, final int x, final int y, final int[] iArray) {
 		final int[] ia = getPixel(x, y, mag);
 		if(null != iArray) {
@@ -802,7 +802,7 @@ public final class Patch extends Displayable {
 		return ia;
 	}
 
-	/** Expects x,y in world coordinates. */
+	/** Expects x,y in world coordinates.  This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method. */
 	public int[] getPixel(final int x, final int y, final double mag) {
 		if (1 == mag && project.getLoader().isUnloadable(this)) return new int[4];
 		final Image img = project.getLoader().fetchImage(this, mag);
