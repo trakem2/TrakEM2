@@ -73,8 +73,7 @@ import javax.vecmath.Point3f;
 /** A list of brush painted areas similar to a set of labelfields in Amira.
  * 
  * For each layer where painting has been done, there is an entry in the ht_areas HashMap that contains the layer's id as a Long, and a java.awt.geom.Area object.
- * Area objects are stored with the top left 0,0 of the LayerSet as their 0,0 coordinate. This is out of necessity: this class x,y,with,height (defined in superclass Displayable) are but the bounding box of the last selected Area in the HashMap. TODO the latter must change because it won't work properly for multiple displays showing different Layers of the same LayerSet
- *
+ * All Area objects are local to this AreaList's AffineTransform.
  */
 public class AreaList extends ZDisplayable {
 
