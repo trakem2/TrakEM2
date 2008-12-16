@@ -27,9 +27,10 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Pipe;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.imaging.FloatProcessorT2;
-
+import ini.trakem2.vector.VectorString3D;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -39,6 +40,7 @@ import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.gui.OvalRoi;
 import ij.text.TextWindow;
 import ij.measure.ResultsTable;
 import ij.process.*;
@@ -1257,5 +1259,26 @@ public class Utils implements ij.plugin.PlugIn {
 			case ImagePlus.COLOR_RGB: return new ColorProcessor(width, height);
 		}
 		return null;
+	}
+
+	/** Paints an approximation of the pipe into the set of slices. */
+	public void paint(final Pipe pipe, final Map<Layer,ImageProcessor> slices, final int value, final float scale) {
+		VectorString3D vs = pipe.asVectorString3D();
+		vs.resample(1); // one pixel
+		double[] px = vs.getPoints(0);
+		double[] py = vs.getPoints(1);
+		double[] pz = vs.getPoints(2);
+		double[] pr = vs.getDependent(0);
+		// For each point
+		for (int i=0; i<px.length-1; i++) {
+			ImageProcessor ip = slices.get(pipe.getLayerSet().getNearestLayer(pz[i]));
+			if (null == ip) continue;
+			OvalRoi ov = new OvalRoi((int)((px[i] - pr[i]) * scale),
+					         (int)((py[i] - pr[i]) * scale),
+						 (int)(pr[i]*2*scale), (int)(pr[i]*2*scale));
+			ip.setRoi(ov);
+			ip.setValue(value);
+			ip.fill(ip.getMask());
+		}
 	}
 }
