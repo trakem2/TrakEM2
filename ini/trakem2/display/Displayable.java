@@ -1023,6 +1023,7 @@ public abstract class Displayable extends DBObject {
 		}
 		sb_body.append(in).append("links=\"");
 		if (null != hs_linked && 0 != hs_linked.size()) {
+			/*
 			int ii = 0;
 			int len = hs_linked.size();
 			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
@@ -1031,6 +1032,14 @@ public abstract class Displayable extends DBObject {
 				if (ii != len-1) sb_body.append(',');
 				ii++;
 			}
+			*/
+			// Sort the ids: so resaving the file saves an identical file (otherwise, ids are in different order).
+			final long[] ids = new long[hs_linked.size()];
+			int ii = 0;
+			for (final Object ob : hs_linked) ids[ii++] = ((DBObject)ob).getId();
+			Arrays.sort(ids);
+			for (int g=0; g<ids.length; g++) sb_body.append(ids[g]).append(',');
+			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
 		}
 		sb_body.append("\"\n");
 	}
