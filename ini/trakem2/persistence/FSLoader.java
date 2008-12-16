@@ -1384,7 +1384,7 @@ public final class FSLoader extends Loader {
 				final boolean as_grey = !ip.isColorLut(); // TODO won't work with alpha masks, I guess
 				if (as_grey && null == cm) { // TODO needs fixing for 'half' method
 					cm = GRAY_LUT;
-				} else cm = null;
+				}
 
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
