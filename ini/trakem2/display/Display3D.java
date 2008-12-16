@@ -83,7 +83,7 @@ public final class Display3D {
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
 		this.universe = new Image3DUniverse(512, 512); // size of the initial canvas, not the universe itself
-		this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
+		//this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
 		computeScale(ls);
 		this.universe.show();
 		this.universe.getWindow().addWindowListener(new IW3DListener(ls));
