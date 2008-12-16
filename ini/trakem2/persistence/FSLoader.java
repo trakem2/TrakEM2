@@ -1374,7 +1374,7 @@ public final class FSLoader extends Loader {
 								break;
 							}
 						}
-					} while (w >= 64 && h >= 64); // not smaller than 32x32
+					} while (w >= 32 && h >= 32); // not smaller than 32x32
 				}
 			} else {
 				// Greyscale:
