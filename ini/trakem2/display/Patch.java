@@ -369,7 +369,8 @@ public final class Patch extends Displayable {
 
 		checkChannels(channels, magnification);
 
-		final Image image = project.getLoader().fetchImage(this, magnification);
+		final double sc = magnification * Math.max(at.getScaleX(), at.getScaleY());
+		final Image image = project.getLoader().fetchImage(this, sc);
 		//Utils.log2("Patch " + id + " painted image " + image);
 
 		if (null == image) {
@@ -377,12 +378,12 @@ public final class Patch extends Displayable {
 			return; // TEMPORARY from lazy repaints after closing a Project
 		}
 
-		// fix dimensions (may be smaller; either a snap or a smaller awt)
+		// fix dimensions: may be smaller or bigger mipmap than the image itself
 		final int iw = image.getWidth(null);
-		if (iw < this.width) {  // no need to check height
+		final int ih = image.getHeight(null);
+		if (iw != this.width || ih != this.height) {
 			atp = (AffineTransform)atp.clone();
-			final double K = this.width / (double)iw;
-			atp.scale(K, K);
+			atp.scale(this.width / iw, this.height / ih);
 		}
 
 		//arrange transparency
@@ -408,15 +409,17 @@ public final class Patch extends Displayable {
 
 		checkChannels(channels, magnification);
 
-		Image image = project.getLoader().getCachedClosestAboveImage(this, magnification); // above or equal
+		final double sc = magnification * Math.max(at.getScaleX(), at.getScaleY());
+
+		Image image = project.getLoader().getCachedClosestAboveImage(this, sc); // above or equal
 		if (null == image) {
-			image = project.getLoader().getCachedClosestBelowImage(this, magnification); // below, not equal
+			image = project.getLoader().getCachedClosestBelowImage(this, sc); // below, not equal
 			boolean thread = false;
 			if (null == image) {
 				// fetch the proper image, nothing is cached
-				if (magnification <= 0.5001) {
+				if (sc <= 0.5001) {
 					// load the mipmap
-					image = project.getLoader().fetchImage(this, magnification);
+					image = project.getLoader().fetchImage(this, sc);
 				} else {
 					// load a smaller mipmap, and then load the larger one and repaint on load.
 					image = project.getLoader().fetchImage(this, 0.25);
@@ -429,7 +432,7 @@ public final class Patch extends Displayable {
 			}
 			if (thread && !Loader.NOT_FOUND.equals(image)) {
 				// use the lower resolution image, but ask to repaint it on load
-				Loader.preload(this, magnification, true);
+				Loader.preload(this, sc, true);
 			}
 		}
 
@@ -438,12 +441,12 @@ public final class Patch extends Displayable {
 			return; // TEMPORARY from lazy repaints after closing a Project
 		}
 
-		// fix dimensions (may be smaller; either a snap or a smaller awt)
+		// fix dimensions: may be smaller or bigger mipmap than the image itself
 		final int iw = image.getWidth(null);
-		if (iw < this.width) {  // no need to check height
+		final int ih = image.getHeight(null);
+		if (iw != this.width || ih != this.height) {
 			atp = (AffineTransform)atp.clone();
-			final double K = this.width / (double)iw;
-			atp.scale(K, K);
+			atp.scale(this.width / iw, this.height / ih);
 		}
 
 		//arrange transparency
