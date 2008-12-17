@@ -3535,9 +3535,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	static public boolean willPaint(final Displayable displ, final double magnification) {
 		Rectangle box = null; ;
 		for (final Display d : al_displays) {
-			if (d.canvas.getMagnification() != magnification) {
+			/* // Can no longer do this check, because 'magnification' is now affected by the Displayable AffineTransform! And thus it would not paint after the prePaint.
+			if (Math.abs(d.canvas.getMagnification() - magnification) > 0.00000001) {
 				continue;
 			}
+			*/
 			if (null == box) box = displ.getBoundingBox(null);
 			if (d.canvas.getSrcRect().intersects(box)) {
 				return true;
