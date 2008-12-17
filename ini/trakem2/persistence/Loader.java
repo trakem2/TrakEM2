@@ -840,8 +840,8 @@ abstract public class Loader {
 		//
 
 
-		int level = (int)(0.0001 + Math.log(1/mag) / Math.log(2)); // compensating numerical instability: 1/0.25 should be 2 eaxctly
-		int max_level = (int)(0.5 + (Math.log(size) - Math.log(32)) / Math.log(2)); // no +1, this is not the length of the images[] array but the actual highest level
+		final int level = (int)(0.0001 + Math.log(1/mag) / Math.log(2)); // compensating numerical instability: 1/0.25 should be 2 eaxctly
+		final int max_level = (int)(0.5 + (Math.log(size) - Math.log(32)) / Math.log(2)); // no +1, this is not the length of the images[] array but the actual highest level
 		/*
 		if (max_level > 6) {
 			Utils.log2("ERROR max_level > 6: " + max_level + ", size: " + size);
@@ -4757,16 +4757,7 @@ abstract public class Loader {
 
 	/** Returns the highest mipmap level for which a mipmap image may have been generated given the dimensions of the Patch. The minimum that this method may return is zero. */
 	public static final int getHighestMipMapLevel(final Patch p) {
-		// TODO the level value could be computed analytically, not numerically like below
-		int level = 0;
-		int w = (int)p.getWidth();
-		int h = (int)p.getHeight();
-		while (w >= 64 && h >= 64) {
-			w /= 2;
-			h /= 2;
-			level++;
-		}
-		return level;
+		return (int)(0.5 + (Math.log(Math.max(p.getWidth(), p.getHeight())) - Math.log(32)) / Math.log(2));
 	}
 
 	static public final int NEAREST_NEIGHBOR = 0;
