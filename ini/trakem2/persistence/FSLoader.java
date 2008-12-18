@@ -1230,7 +1230,7 @@ public final class FSLoader extends Loader {
 	static final private byte[] gaussianBlurResizeInHalf(final FloatProcessorT2 source, final int source_width, final int source_height, final int target_width, final int target_height) {
 		source.setPixels(source_width, source_height, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])source.getPixels(), source_width, source_height), 0.75f).data);
 		source.resizeInPlace(target_width, target_height);
-		return (byte[])source.convertToByte(false).getPixels(); // no interpolation: gaussian took care of that
+		return (byte[])source.convertToByte(false).getPixels(); // no scaling
 	}
 
 	private static final BufferedImage createARGBImage(final int width, final int height, final int[] pix, final float[] alpha) {
@@ -1279,7 +1279,7 @@ public final class FSLoader extends Loader {
 
 			ImageProcessor ip;
 			FloatProcessor alpha_mask = null;
-			final int type = patch.getType();
+			int type = patch.getType();
 
 			Patch.CTImage cti = patch.createTransformedImage();
 			if (null == cti) {
@@ -1304,10 +1304,19 @@ public final class FSLoader extends Loader {
 			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 				   //   but since we scale 50% relative the previous, it's always 0.75
 
+			// Proper support for LUT images: treat them as RGB
+			if (ip.isColorLut()) {
+				ip.setMinAndMax(patch.getMin(), patch.getMax());
+				ip = ip.convertToRGB();
+				cm = null;
+				type = ImagePlus.COLOR_RGB;
+			}
+
 			if (ImagePlus.COLOR_RGB == type) {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				final ColorProcessor cp = (ColorProcessor)ip;
+				if (patch.getType() == ImagePlus.COLOR_RGB) cp.setMinAndMax(patch.getMin(), patch.getMax());
 				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
 				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
 				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
@@ -1355,10 +1364,10 @@ public final class FSLoader extends Loader {
 						final int[] pix = new int[w * h];
 						if (null == alpha) {
 							for (int i=0; i<pix.length; i++) {
-								pix[i] = (r[i]<<16) + (g[i]<<8) + b[i];
+								pix[i] = 0xff000000 | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
 							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
-							cp2.setMinAndMax(patch.getMin(), patch.getMax());
+							if (patch.getType() == ImagePlus.COLOR_RGB) cp2.setMinAndMax(patch.getMin(), patch.getMax());
 							// 5 - Save as jpeg
 							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, target_dir + filename, 0.85f, false)) {
 								cannot_regenerate.add(patch);
@@ -1367,7 +1376,7 @@ public final class FSLoader extends Loader {
 						} else {
 							// LIKELY no need to set alpha raster later in createARGBImage ... TODO
 							for (int i=0; i<pix.length; i++) {
-								pix[i] = (a[i]<<24) + (r[i]<<16) + (g[i]<<8) + b[i];
+								pix[i] = ((a[i]&0xff)<<24) | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
 							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix, (float[])alpha.getPixels()), target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
