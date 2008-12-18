@@ -1312,10 +1312,16 @@ public final class FSLoader extends Loader {
 			}
 			*/
 			ImageProcessor alpha_mask = null;
-			final int type = patch.getType();
+			int type = patch.getType();
 
 
-
+                        // Proper support for LUT images: treat them as RGB
+                        if (ip.isColorLut()) {
+                                ip.setMinAndMax(patch.getMin(), patch.getMax());
+                                ip = ip.convertToRGB();
+                                cm = null;
+                                type = ImagePlus.COLOR_RGB;
+                        }
 
 			final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
 			int w = ip.getWidth();
@@ -1369,7 +1375,7 @@ public final class FSLoader extends Loader {
 							// 4 - Compose pixel array
 							final int[] pix = new int[w * h];
 							for (int i=0; i<pix.length; i++) {
-								pix[i] = (alpha[i]<<24) + (r[i]<<16) + (g[i]<<8) + b[i];
+								pix[i] = ((alpha[i]&0xff)<<24) | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
 							// TODO WARNING no min and max are being set to the image
 							// 5 - Compose BufferedImage and save it with alpha channel
@@ -1409,7 +1415,7 @@ public final class FSLoader extends Loader {
 							// 4 - Compose ColorProcessor
 							final int[] pix = new int[w * h];
 							for (int i=0; i<pix.length; i++) {
-								pix[i] = (r[i]<<16) + (g[i]<<8) + b[i];
+								pix[i] = 0xff000000 | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
 							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 							cp2.setMinAndMax(patch.getMin(), patch.getMax());
