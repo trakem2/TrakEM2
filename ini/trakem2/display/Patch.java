@@ -383,7 +383,13 @@ public final class Patch extends Displayable {
 
 		checkChannels(channels, magnification);
 
-		final double sc = magnification * Math.max(at.getScaleX(), at.getScaleY());
+		// Consider all possible scaling components: m00, m01
+		//                                           m10, m11
+		double sc = magnification * Math.max(Math.abs(at.getScaleX()),
+				                     Math.max(Math.abs(at.getScaleY()),
+							      Math.max(Math.abs(at.getShearX()),
+								       Math.abs(at.getShearY()))));
+		if (sc < 0) sc = magnification;
 		final Image image = project.getLoader().fetchImage(this, sc);
 		//Utils.log2("Patch " + id + " painted image " + image);
 
@@ -423,7 +429,13 @@ public final class Patch extends Displayable {
 
 		checkChannels(channels, magnification);
 
-		final double sc = magnification * Math.max(at.getScaleX(), at.getScaleY());
+		// Consider all possible scaling components: m00, m01
+		//                                           m10, m11
+		double sc = magnification * Math.max(Math.abs(at.getScaleX()),
+				                     Math.max(Math.abs(at.getScaleY()),
+							      Math.max(Math.abs(at.getShearX()),
+								       Math.abs(at.getShearY()))));
+		if (sc < 0) sc = magnification;
 
 		Image image = project.getLoader().getCachedClosestAboveImage(this, sc); // above or equal
 		if (null == image) {
