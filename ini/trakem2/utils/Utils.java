@@ -90,7 +90,7 @@ import javax.vecmath.Vector3f;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.6a 2008-11-13";
+	static public String version = "0.6b 2008-12-18";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
