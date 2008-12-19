@@ -24,7 +24,7 @@ package ini.trakem2.persistence;
 
 import ij.IJ;
 import ij.ImagePlus;
-import ini.trakem2.imaging.VirtualStack; //import ij.VirtualStack; // only after 1.38q
+import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
@@ -1017,6 +1017,7 @@ public final class FSLoader extends Loader {
 				if (!vs_dir.endsWith("/")) vs_dir += "/";
 				String iname = vs.getFileName(i);
 				patch_path = vs_dir + iname;
+				Utils.log2("virtual stack: patch path is " + patch_path);
 				releaseMemory();
 				imp_patch_i = openImage(patch_path);
 			} else {
@@ -1045,7 +1046,7 @@ public final class FSLoader extends Loader {
 				//Utils.log2("type is " + imp_stack.getType());
 			}
 			addedPatchFrom(patch_path, patch);
-			if (!as_copy) {
+			if (!as_copy && !virtual) {
 				cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
 			}
 			if (isMipMapsEnabled()) generateMipMaps(patch);
@@ -1319,7 +1320,6 @@ public final class FSLoader extends Loader {
                         if (ip.isColorLut()) {
                                 ip.setMinAndMax(patch.getMin(), patch.getMax());
                                 ip = ip.convertToRGB();
-                                cm = null;
                                 type = ImagePlus.COLOR_RGB;
                         }
 

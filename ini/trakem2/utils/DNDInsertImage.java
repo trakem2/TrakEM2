@@ -37,7 +37,7 @@ import ij.io.*;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ini.trakem2.imaging.VirtualStack; //import ij.VirtualStack; // only after 1.38q
+import ij.VirtualStack; // only after 1.38q
 import ini.trakem2.display.*;
 import ini.trakem2.*;
 import ini.trakem2.persistence.*;
