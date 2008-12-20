@@ -123,10 +123,11 @@ public class FakeImagePlus extends ImagePlus {
 				if (d[i].getClass() == Patch.class && d[i].contains(x, y)) {
 					Patch p = (Patch)d[i];
 					FakeImagePlus.this.type = p.getType(); // for proper value string display
-					if (Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
+					if (!p.isStack() && Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
 						// Gather the ImagePlus: will be faster than using a PixelGrabber on an awt image
 						Point2D.Double po = p.inverseTransformPoint(x, y);
-						return p.getImagePlus().getProcessor().getPixel((int)po.x, (int)po.y, iArray);
+						ImageProcessor ip = p.getImageProcessor();
+						if (null != ip) return ip.getPixel((int)po.x, (int)po.y, iArray);
 					}
 					return p.getPixel(mag, x, y, iArray);
 				}

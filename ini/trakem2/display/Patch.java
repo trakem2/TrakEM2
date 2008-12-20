@@ -136,7 +136,7 @@ public final class Patch extends Displayable {
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
-	/** Fetches the ImagePlus from the cache. Be warned: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache. */
+	/** Fetches the ImagePlus from the cache; <b>be warned</b>: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache; use @getImageProcessor to get the pixels guaranteed not to be ever null. */
 	public ImagePlus getImagePlus() {
 		return this.project.getLoader().fetchImagePlus(this);
 	}
@@ -369,7 +369,14 @@ public final class Patch extends Displayable {
 
 		checkChannels(channels, magnification);
 
-		final Image image = project.getLoader().fetchImage(this, magnification);
+		// Consider all possible scaling components: m00, m01
+		//                                           m10, m11
+		double sc = magnification * Math.max(Math.abs(at.getScaleX()),
+				                     Math.max(Math.abs(at.getScaleY()),
+							      Math.max(Math.abs(at.getShearX()),
+								       Math.abs(at.getShearY()))));
+		if (sc < 0) sc = magnification;
+		final Image image = project.getLoader().fetchImage(this, sc);
 		//Utils.log2("Patch " + id + " painted image " + image);
 
 		if (null == image) {
@@ -377,12 +384,12 @@ public final class Patch extends Displayable {
 			return; // TEMPORARY from lazy repaints after closing a Project
 		}
 
-		// fix dimensions (may be smaller; either a snap or a smaller awt)
+		// fix dimensions: may be smaller or bigger mipmap than the image itself
 		final int iw = image.getWidth(null);
-		if (iw < this.width) {  // no need to check height
+		final int ih = image.getHeight(null);
+		if (iw != this.width || ih != this.height) {
 			atp = (AffineTransform)atp.clone();
-			final double K = this.width / (double)iw;
-			atp.scale(K, K);
+			atp.scale(this.width / iw, this.height / ih);
 		}
 
 		//arrange transparency
@@ -408,15 +415,23 @@ public final class Patch extends Displayable {
 
 		checkChannels(channels, magnification);
 
-		Image image = project.getLoader().getCachedClosestAboveImage(this, magnification); // above or equal
+		// Consider all possible scaling components: m00, m01
+		//                                           m10, m11
+		double sc = magnification * Math.max(Math.abs(at.getScaleX()),
+				                     Math.max(Math.abs(at.getScaleY()),
+							      Math.max(Math.abs(at.getShearX()),
+								       Math.abs(at.getShearY()))));
+		if (sc < 0) sc = magnification;
+
+		Image image = project.getLoader().getCachedClosestAboveImage(this, sc); // above or equal
 		if (null == image) {
-			image = project.getLoader().getCachedClosestBelowImage(this, magnification); // below, not equal
+			image = project.getLoader().getCachedClosestBelowImage(this, sc); // below, not equal
 			boolean thread = false;
 			if (null == image) {
 				// fetch the proper image, nothing is cached
-				if (magnification <= 0.5001) {
+				if (sc <= 0.5001) {
 					// load the mipmap
-					image = project.getLoader().fetchImage(this, magnification);
+					image = project.getLoader().fetchImage(this, sc);
 				} else {
 					// load a smaller mipmap, and then load the larger one and repaint on load.
 					image = project.getLoader().fetchImage(this, 0.25);
@@ -429,7 +444,7 @@ public final class Patch extends Displayable {
 			}
 			if (thread && !Loader.NOT_FOUND.equals(image)) {
 				// use the lower resolution image, but ask to repaint it on load
-				Loader.preload(this, magnification, true);
+				Loader.preload(this, sc, true);
 			}
 		}
 
@@ -438,12 +453,12 @@ public final class Patch extends Displayable {
 			return; // TEMPORARY from lazy repaints after closing a Project
 		}
 
-		// fix dimensions (may be smaller; either a snap or a smaller awt)
+		// fix dimensions: may be smaller or bigger mipmap than the image itself
 		final int iw = image.getWidth(null);
-		if (iw < this.width) {  // no need to check height
+		final int ih = image.getHeight(null);
+		if (iw != this.width || ih != this.height) {
 			atp = (AffineTransform)atp.clone();
-			final double K = this.width / (double)iw;
-			atp.scale(K, K);
+			atp.scale(this.width / iw, this.height / ih);
 		}
 
 		//arrange transparency
@@ -456,7 +471,7 @@ public final class Patch extends Displayable {
 		g.drawImage(image, atp, null);
 
 		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
+		if (null != original_composite) {
 			g.setComposite(original_composite);
 		}
 	}
@@ -781,7 +796,7 @@ public final class Patch extends Displayable {
 		}
 	}
 
-	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y). Expects x,y in world coordinates. */
+	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y). Expects x,y in world coordinates. This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method.*/
 	public int getPixel(double mag, final int x, final int y) {
 		final int[] iArray = getPixel(x, y, mag);
 		if (ImagePlus.COLOR_RGB == this.type) {
@@ -790,7 +805,7 @@ public final class Patch extends Displayable {
 		return iArray[0];
 	}
 
-	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y, iArray). Expects x,y in world coordinates.*/
+	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y, iArray). Expects x,y in world coordinates.  This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method.*/
 	public int[] getPixel(double mag, final int x, final int y, final int[] iArray) {
 		final int[] ia = getPixel(x, y, mag);
 		if(null != iArray) {
@@ -802,7 +817,7 @@ public final class Patch extends Displayable {
 		return ia;
 	}
 
-	/** Expects x,y in world coordinates. */
+	/** Expects x,y in world coordinates.  This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method. */
 	public int[] getPixel(final int x, final int y, final double mag) {
 		if (1 == mag && project.getLoader().isUnloadable(this)) return new int[4];
 		final Image img = project.getLoader().fetchImage(this, mag);

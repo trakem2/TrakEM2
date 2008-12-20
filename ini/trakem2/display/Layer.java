@@ -375,7 +375,7 @@ public final class Layer extends DBObject implements Bucketable {
 
 	/** Returns true if any of the Displayable objects are of the given class. */
 	public boolean contains(final Class c) {
-		for (Object ob : al_displayables) {
+		for (final Object ob : al_displayables) {
 			if (ob.getClass() == c) return true;
 		}
 		return false;
@@ -384,7 +384,7 @@ public final class Layer extends DBObject implements Bucketable {
 	/** Count instances of the given Class. */
 	public int count(final Class c) {
 		int n = 0;
-		for (Object ob : al_displayables) {
+		for (final Object ob : al_displayables) {
 			if (ob.getClass() == c) n++;
 		}
 		return n;
@@ -416,7 +416,7 @@ public final class Layer extends DBObject implements Bucketable {
 			al.addAll(al_displayables);
 			return al;
 		}
-		for (Object ob : al_displayables) {
+		for (final Object ob : al_displayables) {
 			if (ob.getClass() == c) al.add((Displayable)ob); // cast only the few added, not all as it would in looping with  Displayabe d : al_displayables
 		}
 		return al;
@@ -442,7 +442,7 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	public Displayable get(final long id) {
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (d.getId() == id) return d;
 		}
 		return null;
@@ -499,7 +499,7 @@ public final class Layer extends DBObject implements Bucketable {
 	public Collection<Displayable> find(final Rectangle r, final boolean visible_only) {
 		if (null != root && root.isBetter(r, this)) return root.find(r, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (visible_only && !d.isVisible()) continue;
 			if (d.getBoundingBox().intersects(r)) {
 				al.add(d);
@@ -655,10 +655,10 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Note: Not recursive into embedded LayerSet objects. Returns the hash set of objects whose visibility has changed. */
-	public HashSet<Displayable> setVisible(String type, boolean visible, boolean repaint) {
+	public HashSet<Displayable> setVisible(String type, final boolean visible, final boolean repaint) {
 		type = type.toLowerCase();
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (visible != d.isVisible() && d.getClass().getName().toLowerCase().endsWith(type)) {
 				d.setVisible(visible, false); // don't repaint
 				Display.updateVisibilityCheckbox(this, d, null);
@@ -670,16 +670,16 @@ public final class Layer extends DBObject implements Bucketable {
 		}
 		return hs;
 	}
-	public void setAllVisible(boolean repaint) {
-		for (Displayable d : al_displayables) {
+	public void setAllVisible(final boolean repaint) {
+		for (final Displayable d : al_displayables) {
 			if (!d.isVisible()) d.setVisible(true, repaint);
 		}
 	}
 
 	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */
-	public HashSet<Displayable> hideExcept(ArrayList<Class> type, boolean repaint) {
+	public HashSet<Displayable> hideExcept(final Collection<Class> type, final boolean repaint) {
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (!type.contains(d.getClass()) && d.isVisible()) {
 				d.setVisible(false, repaint);
 				hs.add(d);
@@ -767,9 +767,8 @@ public final class Layer extends DBObject implements Bucketable {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Layer copy = new Layer(pr, nid, z, thickness);
 		copy.parent = ls;
-		for (Iterator it = find(roi).iterator(); it.hasNext(); ) {
-			Displayable dc = ((Displayable)it.next()).clone(pr, copy_id);
-			copy.addSilently(dc);
+		for (final Displayable d : find(roi)) {
+			copy.addSilently(d.clone(pr, copy_id));
 		}
 		final AffineTransform transform = new AffineTransform();
 		transform.translate(-roi.x, -roi.y);
@@ -810,7 +809,7 @@ public final class Layer extends DBObject implements Bucketable {
 
 	public DBObject findById(final long id) {
 		if (this.id == id) return this;
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (d.getId() == id) return d;
 		}
 		return null;
@@ -818,7 +817,7 @@ public final class Layer extends DBObject implements Bucketable {
 
 	// private to the package
 	void linkPatchesR() {
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (d.getClass() == LayerSet.class) ((LayerSet)d).linkPatchesR();
 			d.linkPatches(); // Patch.class does nothing
 		}
@@ -827,7 +826,7 @@ public final class Layer extends DBObject implements Bucketable {
 	/** Recursive into nested LayerSet objects.*/
 	public void updateLayerTree() {
 		project.getLayerTree().addLayer(parent, this);
-		for (Displayable d : getDisplayables(LayerSet.class)) {
+		for (final Displayable d : getDisplayables(LayerSet.class)) {
 			((LayerSet)d).updateLayerTree();
 		}
 	}

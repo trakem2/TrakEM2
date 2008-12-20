@@ -28,13 +28,6 @@ import ini.trakem2.Project;
 public class Open_Project implements PlugIn {
 
 	public void run(String arg) {
-		//BigBrother bb = new BigBrother("TrakEM2");
-		//new Thread(bb, "Open_Project_thread") {
-		//	public void run() {
-				Project.openFSProject(null);
-		//	}
-		//}.start();
-		//
-		// The big brother ThreadGroup approach makes the ij.Macro not find the proper arguments, so that XML projets are no londer readable from macro files. Plus I don't get for free all other threads to belong to this group.
+		Project.openFSProject(null);
 	}
 }

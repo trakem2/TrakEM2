@@ -408,7 +408,7 @@ public class Registration {
 	 * - the AffineTransform defining the registration of the second image relative to the first.
 	 *
 	 * The given @param fs1 may be null, in which case it will be generated from the first ImagePlus. It is here so that caching is possible.
-	 * @param initial_sigma is adjustable, so that high magnification steps can be skipped for noisy or highly variable datasets, which show most similarity at coarser, lower magnification levels.
+	 * Parameter initial_sigma in @param sp is adjustable, so that high magnification steps can be skipped for noisy or highly variable datasets, which show most similarity at coarser, lower magnification levels.
 	 *
 	 * Returns null if the model is not significant.
 	 */

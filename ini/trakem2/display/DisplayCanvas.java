@@ -2179,7 +2179,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 				// create new graphics
 				layer.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
-				final BufferedImage target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT);
+				final BufferedImage target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT); // creates a BufferedImage.TYPE_INT_ARGB image in my T60p ATI FireGL laptop
 				final Graphics2D g = (Graphics2D)target.getGraphics();
 
 				g.setTransform(atc); //at_original);
@@ -2234,7 +2234,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					g.fill(r2);
 				}
 
-				Thread.yield();
+				// Not needed.
+				//Thread.yield();
 
 				if (quit && canQuit()) {
 					g.dispose();

@@ -874,7 +874,7 @@ public class Ball extends ZDisplayable {
 		return new Object[]{p, p_width};
 	}
 
-	/** @param roi is expected in world coordinates. */
+	/** @param area is expected in world coordinates. */
 	public boolean intersects(final Area area, final double z_first, final double z_last) {
 		// find lowest and highest Z
 		double min_z = Double.MAX_VALUE;
