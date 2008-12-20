@@ -102,6 +102,11 @@ public class Utils implements ij.plugin.PlugIn {
 	/** The error to use in floating-point or double floating point literal comparisons. */
 	static public final double FL_ERROR = 0.0000001;
 
+	/** Compares two floating point numbers, returns true if the absolute value of subtracting one to the other is smaller than Utils.FL_ERROR. */
+	static public final boolean equal(final double a, final double b) {
+		return FL_ERROR > Math.abs(a - b);
+	}
+
 	static public void debug(String msg) {
 		if (debug) IJ.log(msg);
 	}
