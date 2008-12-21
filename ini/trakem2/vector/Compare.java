@@ -2389,7 +2389,7 @@ public class Compare {
 		for (Map.Entry<String,VectorString3D> e : condensed.entrySet()) {
 			final String name = e.getKey();
 			final VectorString3D c = e.getValue();
-			final Plot plot = makePlot(cp, name, c);
+			final Plot plot = makePlot(cp, name, c, bundles.get(name).size());
 			//FAILS//plot.addLabel(10, cp.plot_height-5, name); // must be added after setting size
 			if (show_plots) plot.show();
 			else if (null != plot_dir) new FileSaver(plot.getImagePlus()).saveAsPng(plot_dir + name.replace('/', '-') + ".png");
@@ -2424,11 +2424,18 @@ public class Compare {
 		return burro;
 	}
 
-	static public Plot makePlot(final CATAParameters cp, final String name, final VectorString3D c) {
+	/**
+	 * @param cp: The CATAParameters that specify. among others, the plot dimensions and boundaries.
+	 * @param name: the name given to the objects from which the VectorString3D were generated and then condensed into @param c.
+	 * @param c: the condensed VectorString3D.
+	 * @param n_vs: number of VectorString3D that were condensed into @param c.
+	 */
+	static public Plot makePlot(final CATAParameters cp, final String name, final VectorString3D c, final int n_vs) {
 		final double[] stdDev = c.getStdDevAtEachPoint();
 		final double[] index = new double[stdDev.length];
 		for (int i=0; i<index.length; i++) index[i] = i;
-		final Plot plot = new Plot(name, name + " -- Point index (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + c.getCalibrationCopy().getUnits() + ")", "Std Dev", index, stdDev);
+		final Calibration cal = c.getCalibrationCopy();
+		final Plot plot = new Plot(name, name + " -- " + cal.getUnits() + " (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + cal.getUnits() + "; n="+ n_vs +")", "Std Dev", index, stdDev);
 		plot.setLimits(0, cp.plot_max_x, 0, cp.plot_max_y);
 		plot.setSize(cp.plot_width, cp.plot_height);
 		plot.setLineWidth(2);
