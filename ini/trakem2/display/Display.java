@@ -679,7 +679,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		gb.setConstraints(split.getRightComponent(), c);
 
 		// JFrame to show the split pane
-		this.frame = new JFrame(layer.toString());
+		this.frame = ControlWindow.createJFrame(layer.toString());
 		if (IJ.isMacintosh() && IJ.getInstance()!=null) {
 			IJ.wait(10); // may be needed for Java 1.4 on OS X
 			this.frame.setMenuBar(ij.Menus.getMenuBar());

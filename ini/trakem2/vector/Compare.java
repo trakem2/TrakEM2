@@ -1539,7 +1539,7 @@ public class Compare {
 
 	static private final void makeGUI() {
 		if (null == frame) {
-			frame = new JFrame("Comparator");
+			frame = ControlWindow.createJFrame("Comparator");
 			frame.addWindowListener(new WindowAdapter() {
 				public void windowClosing(WindowEvent we) {
 					destroy();

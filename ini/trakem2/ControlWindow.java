@@ -23,6 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2;
 
 import ij.IJ;
+import ij.ImageJ;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.display.YesNoDialog;
@@ -38,6 +39,9 @@ import ini.trakem2.persistence.Loader;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.ImageProducer;
+import java.lang.reflect.Field;
+import java.net.URL;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -175,7 +179,7 @@ public class ControlWindow {
 					});
 					hooked = true;
 				}
-				frame = new JFrame("TrakEM2");
+				frame = createJFrame("TrakEM2");
 				frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 				frame.addWindowListener(new WindowAdapter() {
 					public void windowClosing(WindowEvent we) {
@@ -503,5 +507,28 @@ public class ControlWindow {
 		Component tab = (Component)ht_projects.get(project);
 		if (null == tab) return -1;
 		return tabs.indexOfComponent(tab);
+	}
+
+	static private Image icon = null;
+
+	/** Returns a new JFrame with the proper icon from ImageJ.iconPath set, if any. */
+	static public JFrame createJFrame(final String title) {
+		if (null == instance) return new JFrame(title);
+		return instance.newJFrame(title);
+	}
+	synchronized private JFrame newJFrame(final String title) {
+		final JFrame frame = new JFrame(title);
+
+		if (null == icon) {
+			try {
+				Field mic = ImageJ.class.getDeclaredField("iconPath");
+				mic.setAccessible(true);
+				String path = (String) mic.get(IJ.getInstance());
+				icon = IJ.getInstance().createImage((ImageProducer) new URL("file:" + path).getContent());
+			} catch (Exception e) {}
+		}
+
+		if (null != icon) frame.setIconImage(icon);
+		return frame;
 	}
 }

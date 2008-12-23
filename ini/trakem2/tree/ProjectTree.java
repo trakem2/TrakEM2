@@ -497,6 +497,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}});
 				ke.consume();
 				break;
+			case KeyEvent.VK_F2:
+				rename(pt);
+				ke.consume();
+				break;
 		}
 		}});
 		ke.consume();
