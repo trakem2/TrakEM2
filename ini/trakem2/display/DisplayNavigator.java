@@ -144,6 +144,9 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		paint(g);
 	}
 
+
+	private int snapshots_mode = 0;
+
 	private final class UpdateGraphicsThread extends AbstractOffscreenThread {
 
 		private final Rectangle clipRect;
@@ -165,10 +168,13 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			}
 			Thread.yield();
 			setPriority(Thread.NORM_PRIORITY);
-			if (null != DisplayNavigator.this.image && 2 == layer.getParent().getSnapshotsMode()) {
+			final int snapshots_mode = layer.getParent().getSnapshotsMode();
+			if (null != DisplayNavigator.this.image && 2 == snapshots_mode && DisplayNavigator.this.snapshots_mode == snapshots_mode) {
 				DisplayNavigator.this.redraw_displayables = false;
 				RT.paintFromOff(clipRect, this.start);
 				return;
+			} else {
+				DisplayNavigator.this.snapshots_mode = snapshots_mode;
 			}
 			// else recreate offscreen data:
 			start();

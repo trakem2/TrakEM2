@@ -87,7 +87,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	static public final String[] snapshot_modes = new String[]{"Full","Outlines","Disabled"};
 
-	/** 0, 1, 2 -- corresponding to snapshot_modes entries. */
+	/** 0, 1, 2 -- corresponding to snapshot_modes entries above. */
 	private int snapshots_mode = 0;
 
 	static public final String[] ANCHORS =  new String[]{"north", "north east", "east", "southeast", "south", "south west", "west", "north west", "center"};
