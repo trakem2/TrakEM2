@@ -326,7 +326,7 @@ public class ImageSaver {
 			if (null != writer) {
 				ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
 				iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-				iwp.setCompressionQuality(0.85f); // <---------------------------------------------------------- THIS IS ALL I WANTED
+				iwp.setCompressionQuality(quality); // <---------------------------------------------------------- THIS IS ALL I WANTED
 				writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
 				writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
 				return true; // only one: com.sun.imageio.plugins.jpeg.JPEGImageWriter
