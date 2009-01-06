@@ -150,6 +150,11 @@ public final class Patch extends Displayable {
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
+	/** The original width of the pixels in the source image file. */
+	public int getOWidth() { return o_width; }
+	/** The original height of the pixels in the source image file. */
+	public int getOHeight() { return o_height; }
+
 	/** Fetches the ImagePlus from the cache; <b>be warned</b>: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache; use @getImageProcessor to get the pixels guaranteed not to be ever null. */
 	public ImagePlus getImagePlus() {
 		return this.project.getLoader().fetchImagePlus(this);
@@ -1003,7 +1008,7 @@ public final class Patch extends Displayable {
 
 	public final CoordinateTransform getCoordinateTransform() { return ct; }
 
-	public final Patch.CTImage createTransformedImage() {
+	public final Patch.PatchImage createCoordinateTransformedImage() {
 		if (null == ct) return null;
 		
 		final ImageProcessor source = getImageProcessor();
@@ -1015,9 +1020,12 @@ public final class Patch extends Displayable {
 		
 		ImageProcessor target = mapping.createMappedImageInterpolated( source );
 		target.setMinAndMax(min, max);
-		FloatProcessor mask = new FloatProcessor( source.getWidth(), source.getHeight() );
-		mask.setValue(255);
-		mask.fill();
+		FloatProcessor mask = project.getLoader().fetchImageMask(this);
+		if (null == mask) {
+			mask = new FloatProcessor( source.getWidth(), source.getHeight() );
+			mask.setValue(255);
+			mask.fill();
+		}
 		mask = (FloatProcessor) mapping.createMappedImageInterpolated( mask );
 		// Set all non-white pixels to zero
 		final float[] pix = (float[]) mask.getPixels();
@@ -1036,48 +1044,59 @@ public final class Patch extends Displayable {
 			updateInDatabase("transform+dimensions"); // the AffineTransform
 		}
 
-		// DEBUG: the TransformMeshMapping is not working, so just to see the alpha:
-		/*
-		target = source.createProcessor(source.getWidth() + 100, source.getHeight() + 100);
-		target.setValue(150);
-		target.fill();
-		box.x = -50;
-		box.y = -50;
-		box.width = target.getWidth();
-		box.height = target.getHeight();
-		this.width = box.width;
-		this.height = box.height;
-		*/
+		//Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
+		//Utils.log2("box: " + box);
 
-		Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
-		Utils.log2("box: " + box);
-
-		// DEBUG
-		/*
-		// Fake mask
-		//ByteProcessor mask2 = ;
-		ByteProcessor mask2 = new ByteProcessor(target.getWidth(), target.getHeight());
-		mask2.setRoi(new ij.gui.OvalRoi(0,0,box.width,box.height));
-		mask2.setValue(255);
-		mask2.fill(mask2.getMask());
-		mask = mask2;
-		*/
-
-		return new CTImage( target, (FloatProcessor) mask , box );
+		return new PatchImage( target, (FloatProcessor) mask , box );
 	}
 
-	public final class CTImage {
-		/** The transformed image. */
+	public final class PatchImage {
+		/** The image, coordinate-transformed if null != ct. */
 		final public ImageProcessor target;
-		/** The alpha mask. */
+		/** The alpha mask, coordinate-transformed if null != ct. */
 		final public FloatProcessor mask;
-		/** The bounding box of the transformed image, with x,y as the displacement relative to the pixels of the original image. */
+		/** The bounding box of the image relative to the original, with x,y as the displacement relative to the pixels of the original image. */
 		final public Rectangle box;
 
-		private CTImage( ImageProcessor target, FloatProcessor mask, Rectangle box ) {
+		private PatchImage( ImageProcessor target, FloatProcessor mask, Rectangle box ) {
 			this.target = target;
 			this.mask = mask;
 			this.box = box;
 		}
+	}
+
+	/** Returns a PatchImage object containing the bottom-of-transformation-stack image and alpha mask, if any (except the AffineTransform, which is used for direct hw-accel screen rendering). */
+	public Patch.PatchImage createTransformedImage() {
+		final Patch.PatchImage pi = createCoordinateTransformedImage();
+		if (null != pi) return pi;
+		// else, a new one with the untransformed, original image:
+		return new PatchImage(project.getLoader().fetchImageProcessor(this), project.getLoader().fetchImageMask(this), new Rectangle(0, 0, o_width, o_height));
+	}
+
+	private boolean has_alpha = false;
+	private boolean alpha_path_checked = false;
+
+	/** Caching system to avoid repeated checks. No automatic memoization ... snif */
+	private final boolean hasMask() {
+		if (alpha_path_checked) return has_alpha;
+		// else, see if the path exists:
+		try {
+			has_alpha = new File(project.getLoader().getAlphaPath(this)).exists();
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		alpha_path_checked = true;
+		return has_alpha;
+	}
+
+	public boolean hasAlphaChannel() {
+		return null != ct || hasMask();
+	}
+
+	public void setAlphaMask(FloatProcessor fp) throws IllegalArgumentException {
+		if (o_width != fp.getWidth() || o_height != fp.getHeight()) {
+			throw new IllegalArgumentException("Need a mask of identical dimensions as the original image.");
+		}
+		project.getLoader().storeAlphaMask(this, fp);
 	}
 }

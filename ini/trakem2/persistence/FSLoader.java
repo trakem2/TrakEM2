@@ -118,6 +118,8 @@ public final class FSLoader extends Loader {
 	private String dir_mipmaps = null;
 	/** Path to the directory the user provided when creating the project. */
 	private String dir_storage = null;
+	/** Path to the directory hosting the alpha masks. */
+	private String dir_masks = null;
 
 	/** Path to dir_storage + "trakem2.images/" */
 	private String dir_image_storage = null;
@@ -539,6 +541,51 @@ public final class FSLoader extends Loader {
 
 				}
 			}
+		}
+	}
+
+	/** Returns the alpha mask image from a file, or null if none stored. */
+	public FloatProcessor fetchImageMask(final Patch p) {
+		// Else, see if there is a file for the Patch:
+		final String path = getAlphaPath(p);
+		if (null == path) return null;
+		// Open the mask image, which should be a compressed float tif.
+		final ImagePlus imp = opener.openImage(path);
+		if (null == imp) {
+			Utils.log2("Could not open mask image for patch " + p + " from " + path);
+			return null;
+		}
+		return (FloatProcessor) imp.getProcessor().convertToFloat(); // the convertToFloat returns the self if it's already a FloatProcessor.
+	}
+
+	public String getAlphaPath(final Patch p) {
+		final String filename = getInternalFileName(p);
+		if (null == filename) {
+			Utils.log2("null filepath!");
+			return null;
+		}
+		final String dir = getMasksFolder();
+		return new StringBuffer(dir).append(filename).append('.').append(p.getId()).append(".zip").toString();
+	}
+
+	public void storeAlphaMask(final Patch p, final FloatProcessor fp) {
+		// would fail if user deletes the trakem2.masks/ folder from the storage folder after having set dir_masks. But that is his problem.
+		new FileSaver(new ImagePlus("mask", fp)).saveAsZip(getAlphaPath(p));
+	}
+
+	public final String getMasksFolder() {
+		if (null == dir_masks) createMasksFolder();
+		return dir_masks;
+	}
+
+	synchronized private final void createMasksFolder() {
+		if (null == dir_masks) dir_masks = getStorageFolder() + "trakem2.masks";
+		final File f = new File(dir_masks);
+		if (f.exists() && f.isDirectory()) return;
+		try {
+			f.mkdir();
+		} catch (Exception e) {
+			IJError.print(e);
 		}
 	}
 
@@ -1281,16 +1328,11 @@ public final class FSLoader extends Loader {
 			FloatProcessor alpha_mask = null;
 			int type = patch.getType();
 
-			Patch.CTImage cti = patch.createTransformedImage();
-			if (null == cti) {
-				// The original image, from the file:
-				ip = fetchImageProcessor(patch);
-			} else {
-				// The non-linearly transformed image
-				ip = cti.target;
-				alpha_mask = cti.mask;
-				cti = null;
-			}
+			// Obtain an image which may be coordinate-transformed, and an alpha mask.
+			Patch.PatchImage pai = patch.createTransformedImage();
+			ip = pai.target;
+			alpha_mask = pai.mask; // can be null
+			pai = null;
 
 			final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
 			int w = ip.getWidth();
@@ -1847,7 +1889,7 @@ public final class FSLoader extends Loader {
 			final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filepath).append('.').append(patch.getId()).append(".jpg").toString();
 			Image img = null;
 
-			if (null != patch.getCoordinateTransform()) {
+			if (patch.hasAlphaChannel()) {
 				img = ImageSaver.openJpegAlpha(path);
 			} else {
 				switch (patch.getType()) {
@@ -1998,5 +2040,4 @@ public final class FSLoader extends Loader {
 		// Generate the starting level mipmaps, and then the others from it by gaussian or whatever is indicated in the project image_resizing_mode property.
 		return null;
 	}
-
 }

@@ -1111,6 +1111,18 @@ abstract public class Loader {
 		}
 	}
 
+	/** Returns null.*/
+	public FloatProcessor fetchImageMask(final Patch p) {
+		return null;
+	}
+
+	public String getAlphaPath(final Patch p) {
+		return null;
+	}
+
+	/** Does nothing unless overriden. */
+	public void storeAlphaMask(final Patch p, final FloatProcessor fp) {}
+
 	/** Must be called within synchronized db_lock. */
 	private final Image fetchMipMapAWT2(final Patch p, final int level) {
 		final long size = estimateImageFileSize(p, level);
