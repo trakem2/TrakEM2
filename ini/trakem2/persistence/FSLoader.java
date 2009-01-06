@@ -579,7 +579,7 @@ public final class FSLoader extends Loader {
 	}
 
 	synchronized private final void createMasksFolder() {
-		if (null == dir_masks) dir_masks = getStorageFolder() + "trakem2.masks";
+		if (null == dir_masks) dir_masks = getStorageFolder() + "trakem2.masks/";
 		final File f = new File(dir_masks);
 		if (f.exists() && f.isDirectory()) return;
 		try {

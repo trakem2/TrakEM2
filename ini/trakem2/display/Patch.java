@@ -138,6 +138,7 @@ public final class Patch extends Displayable {
 			}
 		}
 
+		// Should really read from the image ... old XML files will be wrong.
 		if (0 == o_width) o_width = (int)width;
 		if (0 == o_height) o_height = (int)height;
 
@@ -1093,6 +1094,7 @@ public final class Patch extends Displayable {
 		return null != ct || hasMask();
 	}
 
+	/** Must call updateMipmaps() afterwards. */
 	public void setAlphaMask(FloatProcessor fp) throws IllegalArgumentException {
 		if (o_width != fp.getWidth() || o_height != fp.getHeight()) {
 			throw new IllegalArgumentException("Need a mask of identical dimensions as the original image.");
