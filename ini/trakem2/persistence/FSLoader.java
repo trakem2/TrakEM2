@@ -1222,8 +1222,8 @@ public final class FSLoader extends Loader {
 	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final IndexColorModel icm, final BufferedImage alpha) {
 		BufferedImage bi;
 		final boolean area_averaging = interpolation_hint.getClass() == Integer.class && Loader.AREA_AVERAGING == ((Integer)interpolation_hint).intValue();
-		if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
-		else if (null != alpha) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+		if (null != alpha) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+		else if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
 		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
 		final Graphics2D g = bi.createGraphics();
 		if (area_averaging) {
@@ -1409,7 +1409,7 @@ public final class FSLoader extends Loader {
 								pix[i] = 0xff000000 | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
 							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
-							if (patch.getType() == ImagePlus.COLOR_RGB) cp2.setMinAndMax(patch.getMin(), patch.getMax());
+							if (patch.getType() == ImagePlus.COLOR_RGB) cp2.setMinAndMax(patch.getMin(), patch.getMax()); // can't use 'type', could be a color LUT image as well.
 							// 5 - Save as jpeg
 							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, target_dir + filename, 0.85f, false)) {
 								cannot_regenerate.add(patch);
@@ -1490,7 +1490,8 @@ public final class FSLoader extends Loader {
 				} else {
 					// use java hardware-accelerated resizing
 					Image awt = ip.createImage();
-					/* // will be done anyway by IToBI function
+
+					/* // Is done anyway at IToBI
 					if (null != alpha_mask) {
 						BufferedImage bu = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
 						bu.createGraphics().drawImage(awt, 0, 0, null);

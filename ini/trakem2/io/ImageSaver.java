@@ -362,6 +362,7 @@ public class ImageSaver {
 		} catch (FileNotFoundException fnfe) {
 			Utils.log2("openJpegAlpha: Path not found: " + path);
 		} catch (Exception e) {
+			Utils.log2("openJpegAlpha: cannot open " + path);
 			IJError.print(e);
 		}
 		return null;

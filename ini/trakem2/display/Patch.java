@@ -138,9 +138,26 @@ public final class Patch extends Displayable {
 			}
 		}
 
-		// Should really read from the image ... old XML files will be wrong.
-		if (0 == o_width) o_width = (int)width;
-		if (0 == o_height) o_height = (int)height;
+		if (0 == o_width || 0 == o_height) {
+			// The original image width and height are unknown.
+			if (at.getType() == AffineTransform.TYPE_TRANSLATION) {
+				o_width = (int)width;
+				o_height = (int)height;
+			} else {
+				try { 
+					Utils.log2("Restoring original width/height from file");
+					// Do it from the file
+					Image awt = project.getLoader().fetchImage(this, 1.0);
+					o_width = awt.getWidth(null);
+					o_height = awt.getHeight(null);
+				} catch (Exception e) {
+					Utils.log("Could not read source data width/height for patch " + this);
+					o_width = (int)width;
+					o_height = (int)height;
+					IJError.print(e);
+				}
+			}
+		}
 
 		if (hasmin && hasmax) {
 			checkMinMax();
