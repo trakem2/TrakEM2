@@ -1279,6 +1279,27 @@ public final class FSLoader extends Loader {
 		source.resizeInPlace(target_width, target_height);
 		return (byte[])source.convertToByte(false).getPixels(); // no scaling
 	}
+	
+	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
+	static final private byte[] meanResizeInHalf(final FloatProcessorT2 source, final int sourceWidth, final int sourceHeight, final int targetWidth, final int targetHeight) {
+		final float[] sourceData = source.getFloatPixels();
+		final float[] targetData = new float[targetWidth * targetHeight];
+		int rs = 0;
+		for (int r = 0; r < targetData.length; r += targetWidth) {
+			int xs = -1;
+			for (int x = 0; x < targetWidth; ++x)
+				targetData[r + x] = sourceData[rs + ++xs] + sourceData[rs + ++xs];
+			rs += sourceWidth;
+			xs = -1;
+			for (int x = 0; x < targetWidth; ++x) {
+				targetData[r + x] += sourceData[rs + ++xs] + sourceData[rs + ++xs];
+				targetData[r + x] /= 4;
+			}
+			rs += sourceWidth;
+		}
+		source.setPixels(targetWidth, targetHeight, targetData);
+		return (byte[])source.convertToByte(false).getPixels();
+	}
 
 	private static final BufferedImage createARGBImage(final int width, final int height, final int[] pix, final float[] alpha) {
 		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
