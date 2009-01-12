@@ -522,7 +522,7 @@ public class Project extends DBObject {
 	}
 
 	public boolean destroy() {
-		if (loader.hasChanges()) { // DBLoader always returns false
+		if (loader.hasChanges() && !getBooleanProperty("no_shutdown_hook")) { // DBLoader always returns false
 			if (ControlWindow.isGUIEnabled()) {
 				final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "There are unsaved changes in project " + title + ". Save them?");
 				if (yn.yesPressed()) {
@@ -1136,6 +1136,8 @@ public class Project extends DBObject {
 		gd.addCheckbox("Keep_mipmaps_when_deleting_images", keep_mipmaps); // coping with the fact that thee is no Action context ... there should be one in the Worker thread.
 		int bucket_side = (int)getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
 		gd.addNumericField("Bucket side length: ", bucket_side, 0);
+		boolean no_shutdown_hook = "true".equals(ht_props.get("no_shutdown_hook"));
+		gd.addCheckbox("No_shutdown_hook to save the project", no_shutdown_hook);
 		//
 		gd.showDialog();
 		//
@@ -1174,5 +1176,6 @@ public class Project extends DBObject {
 			setProperty("bucket_side", Integer.toString(bucket_side));
 			layer_set.recreateBuckets(true);
 		}
+		adjustProp("no_shutdown_hook", no_shutdown_hook, gd.getNextBoolean());
 	}
 }
