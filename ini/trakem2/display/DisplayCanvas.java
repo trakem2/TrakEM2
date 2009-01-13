@@ -277,7 +277,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		this.paint(g);
 	}
 
-	private AtomicInteger counter = new AtomicInteger(0); // threads' tag
+	//private AtomicInteger counter = new AtomicInteger(0); // threads' tag
 
 	private long last_paint = 0;
 
@@ -2046,7 +2046,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final private Displayable active;
 		final private int c_alphas;
 		final private Rectangle clipRect;
-		public final int label = counter.getAndIncrement();
+		//public final int label = counter.getAndIncrement();
 		OffscreenThread(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
 			super("T2-Canvas-Offscreen");
 			this.clipRect = clipRect;
