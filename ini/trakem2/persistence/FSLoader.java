@@ -1315,8 +1315,7 @@ public final class FSLoader extends Loader {
 	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
 	private static final int[] embedAlpha( final int[] pix, final byte[] alpha){
 		for (int i=0; i<pix.length; ++i)
-			//pix[i] = pix[i] | ((alpha[i]&0xff)<<24);
-			pix[i] = pix[i] | ((0x88)<<24);
+			pix[i] = (pix[i]&0x00ffffff) | ((alpha[i]&0xff)<<24);
 		return pix;
 	}
 	
@@ -1424,8 +1423,6 @@ public final class FSLoader extends Loader {
 				//  - use gaussian resizing
 				//  - use standard ImageJ java.awt.Image creation
 				
-				new ImagePlus( "alpha", alpha_mask ).show();
-
 				// Generate level 0 first:
 				// TODO Add alpha information into the int[] pixel array or make the image visible some ohter way
 				if (!(null == alpha ? ini.trakem2.io.ImageSaver.saveAsJpeg(cp, target_dir0 + filename, 0.85f, false)
