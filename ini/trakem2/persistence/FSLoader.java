@@ -1328,10 +1328,21 @@ public final class FSLoader extends Loader {
 	
 	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
 	private static final int[] embedAlpha( final int[] pix, final byte[] alpha){
-		for (int i=0; i<pix.length; ++i)
-			pix[i] = (pix[i]&0x00ffffff) | ((alpha[i]&0xff)<<24);
+		return embedAlpha(pix, alpha, null);
+	}
+	private static final int[] embedAlpha( final int[] pix, final byte[] alpha, final byte[] outside) {
+		if (null == outside) {
+			for (int i=0; i<pix.length; ++i)
+				pix[i] = (pix[i]&0x00ffffff) | ((alpha[i]&0xff)<<24);
+		} else {
+			for (int i=0; i<pix.length; ++i) {
+				pix[i] = (pix[i]&0x00ffffff) | ( (outside[i]&0xff) != 255  ? 0 : ((alpha[i]&0xff)<<24) );
+			}
+		}
 		return pix;
 	}
+
+
 	
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
@@ -1440,7 +1451,7 @@ public final class FSLoader extends Loader {
 				// Generate level 0 first:
 				// TODO Add alpha information into the int[] pixel array or make the image visible some ohter way
 				if (!(null == alpha ? ini.trakem2.io.ImageSaver.saveAsJpeg(cp, target_dir0 + filename, 0.85f, false)
-						   : ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, embedAlpha((int[])cp.getPixels(), (byte[])alpha_mask.getPixels())), target_dir0 + filename, 0.85f))) {
+						   : ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, embedAlpha((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels())), target_dir0 + filename, 0.85f))) {
 					cannot_regenerate.add(patch);
 				} else {
 					do {
