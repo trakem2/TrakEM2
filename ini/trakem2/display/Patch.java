@@ -1110,8 +1110,15 @@ public final class Patch extends Displayable {
 		return null != ct || hasMask();
 	}
 
-	/** Must call updateMipmaps() afterwards. */
+	/** Must call updateMipmaps() afterwards. Set it to null to remove it. */
 	public void setAlphaMask(ByteProcessor bp) throws IllegalArgumentException {
+		if (null == bp && hasMask()) {
+			if (project.getLoader().removeAlphaMask(this)) {
+				alpha_path_checked = false;
+			}
+			return;
+		}
+
 		if (o_width != bp.getWidth() || o_height != bp.getHeight()) {
 			throw new IllegalArgumentException("Need a mask of identical dimensions as the original image.");
 		}

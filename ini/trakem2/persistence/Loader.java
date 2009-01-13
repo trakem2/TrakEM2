@@ -1123,6 +1123,9 @@ abstract public class Loader {
 	/** Does nothing unless overriden. */
 	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {}
 
+	/** Does nothing unless overriden. */
+	public boolean removeAlphaMask(final Patch p) { return false; }
+
 	/** Must be called within synchronized db_lock. */
 	private final Image fetchMipMapAWT2(final Patch p, final int level) {
 		final long size = estimateImageFileSize(p, level);

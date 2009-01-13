@@ -592,6 +592,20 @@ public final class FSLoader extends Loader {
 		}
 	}
 
+	/** Remove the file containing the given Patch's alpha mask. */
+	public final boolean removeAlphaMask(final Patch p) {
+		try {
+			File f = new File(getAlphaPath(p));
+			if (f.exists()) {
+				return f.delete();
+			}
+			return true;
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return false;
+	}
+
 	/** Loaded in full from XML file */
 	public Object[] fetchLabel(DLabel label) {
 		return null;
@@ -1487,21 +1501,42 @@ public final class FSLoader extends Loader {
 				//
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
-				final boolean as_grey = !ip.isColorLut(); // TODO won't work with alpha masks, I guess
-				if (as_grey && null == cm) { // TODO needs fixing for 'half' method
+				final boolean as_grey = !ip.isColorLut();
+				if (as_grey && null == cm) {
 					cm = GRAY_LUT;
+				}
+
+				FloatProcessor alpha;
+				FloatProcessor outside;
+				if (null != alpha_mask) {
+					alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
+				} else {
+					alpha = null;
+				}
+				if (null != outside_mask) {
+					outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
+					if (null == alpha) {
+						alpha = outside;
+						alpha_mask = outside_mask;
+					}
+				} else {
+					outside = null;
 				}
 
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
 					fp.setMinAndMax(patch.getMin(), patch.getMax()); // no scaling, so values should do fine directly.
-					FloatProcessor fp_alpha = (FloatProcessor)alpha_mask.convertToFloat();
 					int sw=w, sh=h;
 					do {
 						// 0 - blur the previous image to 0.75 sigma
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
 							fp = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), sw, sh), 0.75f).data, cm);
-							if (null != fp_alpha) fp_alpha = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp_alpha.getPixels(), sw, sh), 0.75f).data, null);
+							if (null != alpha) {
+								alpha = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])alpha.getPixels(), sw, sh), 0.75f).data, null);
+								if (alpha != outside && outside != null) {
+									outside = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])outside.getPixels(), sw, sh), 0.75f).data, null);
+								}
+							}
 						}
 						// 1 - check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
@@ -1510,15 +1545,31 @@ public final class FSLoader extends Loader {
 						if (0 != k) {
 							fp = (FloatProcessor)fp.resize(w, h);
 							fp.setMinAndMax(patch.getMin(), patch.getMax()); // the resize doesn't preserve the min and max!
-							if (null != fp_alpha) fp_alpha = (FloatProcessor)fp_alpha.resize(w, h);
+							if (null != alpha) {
+								alpha = (FloatProcessor)alpha.resize(w, h);
+								if (alpha != outside && null != outside) {
+									outside = (FloatProcessor)outside.resize(w, h);
+								}
+							}
 						}
-						if (null != alpha_mask) {
+						if (null != alpha) {
 							// 3 - save as jpeg with alpha
-							final int[] pix = (int[])fp.convertToRGB().getPixels();
-							final float[] a = (float[])fp_alpha.getPixels();
-							// Set all non-white pixels to zero
-							for (int g=0; g<a.length; g++)
-								if (Math.abs(a[g] - 255) > 0.001f) a[g] = 0;
+							final byte[] a = (byte[])alpha.convertToByte(false).getPixels();
+							if (null != outside) {
+								final byte[] o;
+								if (alpha != outside) {
+									o = (byte[])outside.convertToByte(false).getPixels();
+								} else {
+									o = a;
+								}
+								// Remove all not completely inside pixels from the alphamask
+								// If there was no alpha mask, alpha is the outside itself
+								for (int i=0; i<o.length; i++) {
+									if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
+								}
+							}
+							final int[] pix  = embedAlpha((int[])fp.convertToRGB().getPixels(), a);
+
 							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix), target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
 								break;
@@ -1542,6 +1593,7 @@ public final class FSLoader extends Loader {
 						h /= 2;
 						k++;
 					} while (w >= 32 && h >= 32); // not smaller than 32x32
+
 				} else {
 					// use java hardware-accelerated resizing
 					Image awt = ip.createImage();
@@ -1556,7 +1608,7 @@ public final class FSLoader extends Loader {
 					*/
 
 					BufferedImage balpha = null;
-					if (null != alpha_mask) {
+					if (null != alpha) {
 						alpha_mask.setMinAndMax(0, 255);
 						Image aa = alpha_mask.createImage();
 						if (aa instanceof BufferedImage) balpha = (BufferedImage)aa;
