@@ -992,9 +992,6 @@ public final class Patch extends Displayable {
 		this.ct = ct;
 	}
 
-	// TEMPORARY TODO
-	private boolean ct_is_new = false;
-
 	/** Set a CoordinateTransform to this Patch.
 	 *  The resulting image of applying the coordinate transform does not need to be rectangular: an alpha mask will take care of the borders. You should call updateMipmaps() afterwards to update the mipmap images used for painting this Patch to the screen. */
 	public final void setCoordinateTransform(final CoordinateTransform ct) {
