@@ -1038,17 +1038,21 @@ public final class Patch extends Displayable {
 		
 		ImageProcessor target = mapping.createMappedImageInterpolated( source );
 		target.setMinAndMax(min, max);
-		FloatProcessor mask = project.getLoader().fetchImageMask(this);
-		if (null == mask) {
-			mask = new FloatProcessor( source.getWidth(), source.getHeight() );
-			mask.setValue(255);
-			mask.fill();
-		}
-		mask = (FloatProcessor) mapping.createMappedImageInterpolated( mask );
+		
+		ByteProcessor outside = new ByteProcessor( source.getWidth(), source.getHeight() );
+		outside.setValue(255);
+		outside.fill();
+		
+		outside = (ByteProcessor) mapping.createMappedImageInterpolated( outside );
+		
+		ByteProcessor mask = project.getLoader().fetchImageMask(this);
+		if (null != mask)
+			mask = (ByteProcessor) mapping.createMappedImageInterpolated( mask );
+		
 		// Set all non-white pixels to zero
-		final float[] pix = (float[]) mask.getPixels();
+		final byte[] pix = (byte[])outside.getPixels();
 		for (int i=0; i<pix.length; i++)
-			if (Math.abs(pix[i] - 255) > 0.001f) pix[i] = 0;
+			if ((pix[i]&0xff) != 255) pix[i] = 0;
 
 		final Rectangle box = mesh.getBoundingBox();
 
@@ -1065,20 +1069,23 @@ public final class Patch extends Displayable {
 		//Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
 		//Utils.log2("box: " + box);
 
-		return new PatchImage( target, (FloatProcessor) mask , box );
+		return new PatchImage( target, mask, outside, box );
 	}
 
 	public final class PatchImage {
 		/** The image, coordinate-transformed if null != ct. */
 		final public ImageProcessor target;
 		/** The alpha mask, coordinate-transformed if null != ct. */
-		final public FloatProcessor mask;
+		final public ByteProcessor mask;
+		/** The outside mask, coordinate-transformed if null != ct. */
+		final public ByteProcessor outside;
 		/** The bounding box of the image relative to the original, with x,y as the displacement relative to the pixels of the original image. */
 		final public Rectangle box;
 
-		private PatchImage( ImageProcessor target, FloatProcessor mask, Rectangle box ) {
+		private PatchImage( ImageProcessor target, ByteProcessor mask, ByteProcessor outside, Rectangle box ) {
 			this.target = target;
 			this.mask = mask;
+			this.outside = outside;
 			this.box = box;
 		}
 	}
@@ -1088,7 +1095,7 @@ public final class Patch extends Displayable {
 		final Patch.PatchImage pi = createCoordinateTransformedImage();
 		if (null != pi) return pi;
 		// else, a new one with the untransformed, original image:
-		return new PatchImage(project.getLoader().fetchImageProcessor(this), project.getLoader().fetchImageMask(this), new Rectangle(0, 0, o_width, o_height));
+		return new PatchImage(project.getLoader().fetchImageProcessor(this), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height));
 	}
 
 	private boolean has_alpha = false;
@@ -1112,10 +1119,11 @@ public final class Patch extends Displayable {
 	}
 
 	/** Must call updateMipmaps() afterwards. */
-	public void setAlphaMask(FloatProcessor fp) throws IllegalArgumentException {
-		if (o_width != fp.getWidth() || o_height != fp.getHeight()) {
+	public void setAlphaMask(ByteProcessor bp) throws IllegalArgumentException {
+		if (o_width != bp.getWidth() || o_height != bp.getHeight()) {
 			throw new IllegalArgumentException("Need a mask of identical dimensions as the original image.");
 		}
-		project.getLoader().storeAlphaMask(this, fp);
+		project.getLoader().storeAlphaMask(this, bp);
+		alpha_path_checked = false;
 	}
 }

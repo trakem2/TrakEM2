@@ -545,7 +545,8 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Returns the alpha mask image from a file, or null if none stored. */
-	public FloatProcessor fetchImageMask(final Patch p) {
+	@Override
+	public ByteProcessor fetchImageMask(final Patch p) {
 		// Else, see if there is a file for the Patch:
 		final String path = getAlphaPath(p);
 		if (null == path) return null;
@@ -555,9 +556,10 @@ public final class FSLoader extends Loader {
 			Utils.log2("Could not open mask image for patch " + p + " from " + path);
 			return null;
 		}
-		return (FloatProcessor) imp.getProcessor().convertToFloat(); // the convertToFloat returns the self if it's already a FloatProcessor.
+		return (ByteProcessor)imp.getProcessor().convertToByte(false);
 	}
 
+	@Override
 	public String getAlphaPath(final Patch p) {
 		final String filename = getInternalFileName(p);
 		if (null == filename) {
@@ -568,7 +570,8 @@ public final class FSLoader extends Loader {
 		return new StringBuffer(dir).append(filename).append('.').append(p.getId()).append(".zip").toString();
 	}
 
-	public void storeAlphaMask(final Patch p, final FloatProcessor fp) {
+	@Override
+	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {
 		// would fail if user deletes the trakem2.masks/ folder from the storage folder after having set dir_masks. But that is his problem.
 		new FileSaver(new ImagePlus("mask", fp)).saveAsZip(getAlphaPath(p));
 	}
@@ -1301,13 +1304,22 @@ public final class FSLoader extends Loader {
 		return (byte[])source.convertToByte(false).getPixels();
 	}
 
-	private static final BufferedImage createARGBImage(final int width, final int height, final int[] pix, final float[] alpha) {
+	private static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
 		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-		bi.createGraphics().drawImage(new ColorProcessor(width, height, pix).createImage(), 0, 0, null);
-		bi.getAlphaRaster().setPixels(0, 0, width, height, alpha);
+//		bi.createGraphics().drawImage(new ColorProcessor(width, height, pix).createImage(), 0, 0, null);
+//		bi.getAlphaRaster().setPixels(0, 0, width, height, alpha);
+		bi.setRGB( 0, 0, width, height, pix, 0, width );
 		return bi;
 	}
-
+	
+	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
+	private static final int[] embedAlpha( final int[] pix, final byte[] alpha){
+		for (int i=0; i<pix.length; ++i)
+			//pix[i] = pix[i] | ((alpha[i]&0xff)<<24);
+			pix[i] = pix[i] | ((0x88)<<24);
+		return pix;
+	}
+	
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
@@ -1346,15 +1358,17 @@ public final class FSLoader extends Loader {
 			// 2 - Then (1) should return both the transformed image and the alpha mask
 
 			ImageProcessor ip;
-			FloatProcessor alpha_mask = null;
+			ByteProcessor alpha_mask = null;
+			ByteProcessor outside_mask = null;
 			int type = patch.getType();
 
 			// Obtain an image which may be coordinate-transformed, and an alpha mask.
 			Patch.PatchImage pai = patch.createTransformedImage();
 			ip = pai.target;
 			alpha_mask = pai.mask; // can be null
+			outside_mask = pai.outside; // can be null
 			pai = null;
-
+			
 			final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
 			int w = ip.getWidth();
 			int h = ip.getHeight();
@@ -1383,8 +1397,23 @@ public final class FSLoader extends Loader {
 				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
 				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
 				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
-				final FloatProcessorT2 alpha = null != alpha_mask ? new FloatProcessorT2(alpha_mask) : null;
-
+				FloatProcessorT2 alpha;
+				final FloatProcessorT2 outside;
+				if (null != alpha_mask) {
+					alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
+				} else {
+					alpha = null;
+				}
+				if (null != outside_mask) {
+					outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
+					if ( null == alpha ) {
+						alpha = outside;
+						alpha_mask = outside_mask;
+					}
+				} else {
+					outside = null;
+				}
+				
 				// sw,sh are the dimensions of the image to blur
 				//  w,h are the dimensions to scale the blurred image to
 				int sw = w,
@@ -1394,10 +1423,13 @@ public final class FSLoader extends Loader {
 				// No alpha channel:
 				//  - use gaussian resizing
 				//  - use standard ImageJ java.awt.Image creation
+				
+				new ImagePlus( "alpha", alpha_mask ).show();
 
 				// Generate level 0 first:
+				// TODO Add alpha information into the int[] pixel array or make the image visible some ohter way
 				if (!(null == alpha ? ini.trakem2.io.ImageSaver.saveAsJpeg(cp, target_dir0 + filename, 0.85f, false)
-						   : ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, (int[])cp.getPixels(), (float[])alpha.getPixels()), target_dir0 + filename, 0.85f))) {
+						   : ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, embedAlpha((int[])cp.getPixels(), (byte[])alpha_mask.getPixels())), target_dir0 + filename, 0.85f))) {
 					cannot_regenerate.add(patch);
 				} else {
 					do {
@@ -1414,12 +1446,17 @@ public final class FSLoader extends Loader {
 						final byte[] r = gaussianBlurResizeInHalf(red, sw, sh, w, h);   // will resize 'red' FloatProcessor in place.
 						final byte[] g = gaussianBlurResizeInHalf(green, sw, sh, w, h); // idem
 						final byte[] b = gaussianBlurResizeInHalf(blue, sw, sh, w, h);  // idem
-						final byte[] a = null == alpha ? null
-					                       : gaussianBlurResizeInHalf(alpha, sw, sh, w, h); // idem
-						if (null != a) {
-							// set all non-white pixels to black: solves border problem
-							for (int i=0; i<a.length; i++) {
-								if (255 != (a[i]&0xff)) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
+						final byte[] a = null == alpha ? null : gaussianBlurResizeInHalf(alpha, sw, sh, w, h); // idem
+						if ( null != outside ) {
+							final byte[] o;
+							if (alpha != outside)
+								o = gaussianBlurResizeInHalf(outside, sw, sh, w, h); // idem
+							else
+								o = a;
+							// Remove all not completely inside pixels from the alphamask
+							// If there was no alpha mask, alpha is the outside itself
+							for (int i=0; i<o.length; i++) {
+								if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
 							}
 						}
 
@@ -1441,7 +1478,7 @@ public final class FSLoader extends Loader {
 							for (int i=0; i<pix.length; i++) {
 								pix[i] = ((a[i]&0xff)<<24) | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
-							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix, (float[])alpha.getPixels()), target_dir + filename, 0.85f)) {
+							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix), target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
 								break;
 							}
@@ -1461,7 +1498,7 @@ public final class FSLoader extends Loader {
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
 					fp.setMinAndMax(patch.getMin(), patch.getMax()); // no scaling, so values should do fine directly.
-					FloatProcessor fp_alpha = alpha_mask;
+					FloatProcessor fp_alpha = (FloatProcessor)alpha_mask.convertToFloat();
 					int sw=w, sh=h;
 					do {
 						// 0 - blur the previous image to 0.75 sigma
@@ -1485,7 +1522,7 @@ public final class FSLoader extends Loader {
 							// Set all non-white pixels to zero
 							for (int g=0; g<a.length; g++)
 								if (Math.abs(a[g] - 255) > 0.001f) a[g] = 0;
-							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix, a), target_dir + filename, 0.85f)) {
+							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix), target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
 								break;
 							}

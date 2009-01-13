@@ -1112,7 +1112,7 @@ abstract public class Loader {
 	}
 
 	/** Returns null.*/
-	public FloatProcessor fetchImageMask(final Patch p) {
+	public ByteProcessor fetchImageMask(final Patch p) {
 		return null;
 	}
 
@@ -1121,7 +1121,7 @@ abstract public class Loader {
 	}
 
 	/** Does nothing unless overriden. */
-	public void storeAlphaMask(final Patch p, final FloatProcessor fp) {}
+	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {}
 
 	/** Must be called within synchronized db_lock. */
 	private final Image fetchMipMapAWT2(final Patch p, final int level) {
