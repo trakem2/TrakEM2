@@ -1003,7 +1003,7 @@ public final class Patch extends Displayable {
 			return;
 		}
 
-		if (null == ct && null != this.ct) {
+		if (null != this.ct) {
 			// restore image without the transform
 			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
 			final Rectangle box = mesh.getBoundingBox();
@@ -1017,8 +1017,13 @@ public final class Patch extends Displayable {
 		if (null == this.ct) return;
 
 		// Adjust the AffineTransform to correct for bounding box displacement
-		// TODO for now, delayed in a horrible way to createTransformedImage
-		ct_is_new = true; // i.e. update the AffineTransform when you get the box
+
+		final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+		final Rectangle box = mesh.getBoundingBox();
+		this.at.translate(box.x, box.y);
+		this.width = box.width;
+		this.height = box.height;
+		updateInDatabase("transform+dimensions"); // the AffineTransform
 
 		// Updating the mipmaps will call createTransformedImage below if ct is not null
 		/* DISABLED */ //updateMipmaps();
@@ -1055,16 +1060,6 @@ public final class Patch extends Displayable {
 			if ((pix[i]&0xff) != 255) pix[i] = 0;
 
 		final Rectangle box = mesh.getBoundingBox();
-
-		// TEMPORARY TODO
-		if (ct_is_new) {
-			ct_is_new = false;
-			Utils.log2("box: " + box);
-			this.at.translate(box.x, box.y);
-			this.width = box.width;
-			this.height = box.height;
-			updateInDatabase("transform+dimensions"); // the AffineTransform
-		}
 
 		//Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
 		//Utils.log2("box: " + box);
