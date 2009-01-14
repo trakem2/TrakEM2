@@ -4254,15 +4254,15 @@ abstract public class Loader {
 			if (0 == pa.length) return true; // done
 			// 0 - check that all images are of the same size and type
 			final int ptype = pa[0].getType();
-			double pw = pa[0].getWidth();
-			double ph = pa[0].getHeight();
+			double pw = pa[0].getOWidth();
+			double ph = pa[0].getOHeight();
 			for (int e=1; e<pa.length; e++) {
 				if (pa[e].getType() != ptype) {
 					// can't continue
 					Utils.log("Can't homogenize histograms: images are not all of the same type.\nFirst offending image is: " + pa[e]);
 					return false;
 				}
-				if (pa[e].getWidth() != pw || pa[e].getHeight() != ph) {
+				if (pa[e].getOWidth() != pw || pa[e].getOHeight() != ph) {
 					Utils.log("Can't homogenize histograms: images are not all of the same size.\nFirst offending image is: " + pa[e]);
 					return false;
 				}

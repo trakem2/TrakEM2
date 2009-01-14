@@ -351,11 +351,15 @@ public final class FSLoader extends Loader {
 		return null;
 	}
 
+	/* Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImagePlust.getProcessor().
+	 * or just use the Patch.getImageProcessor() method which does it for you. */
 	public ImagePlus fetchImagePlus(final Patch p) {
 		return (ImagePlus)fetchImage(p, Layer.IMAGEPLUS);
 	}
 
-	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example. */
+	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example.
+	 * Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImageProcessor,
+	 * or just use the Patch.getImageProcessor() method which does it for you. */
 	public ImageProcessor fetchImageProcessor(final Patch p) {
 		return (ImageProcessor)fetchImage(p, Layer.IMAGEPROCESSOR);
 	}
@@ -1801,8 +1805,8 @@ public final class FSLoader extends Loader {
 						boolean ow = overwrite;
 						if (!overwrite) {
 							// check if all the files exists. If one doesn't, then overwrite all anyway
-							int w = (int)pa[k].getWidth();
-							int h = (int)pa[k].getHeight();
+							int w = (int)pa[k].getOWidth();
+							int h = (int)pa[k].getOHeight();
 							int level = 0;
 							final String filename = new File(getAbsolutePath(pa[k])).getName() + "." + pa[k].getId() + ".jpg";
 							while (w >= 64 && h >= 64) {
@@ -2011,7 +2015,7 @@ public final class FSLoader extends Loader {
 			if (isURL(dir_mipmaps)) {
 				if (level <= 0) return 0;
 				// choose the smallest dimension
-				final double dim = patch.getWidth() < patch.getHeight() ? patch.getWidth() : patch.getHeight();
+				final double dim = patch.getOWidth() < patch.getOHeight() ? patch.getOWidth() : patch.getOHeight();
 				// find max level that keeps dim over 64 pixels
 				int lev = 1;
 				while (true) {
@@ -2132,7 +2136,7 @@ public final class FSLoader extends Loader {
 
 			// Regenerate in the case of not asking for an image under 64x64
 			double scale = 1 / Math.pow(2, level);
-			if (level > 0 && (patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
+			if (level > 0 && (patch.getOWidth() * scale >= 64 || patch.getOHeight() * scale >= 64) && isMipMapsEnabled()) {
 				// regenerate
 				synchronized (gm_lock) {
 					gm_lock();

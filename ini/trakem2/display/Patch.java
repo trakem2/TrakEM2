@@ -176,12 +176,16 @@ public final class Patch extends Displayable {
 
 	/** Fetches the ImagePlus from the cache; <b>be warned</b>: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache; use @getImageProcessor to get the pixels guaranteed not to be ever null. */
 	public ImagePlus getImagePlus() {
-		return this.project.getLoader().fetchImagePlus(this);
+		final ImagePlus imp = this.project.getLoader().fetchImagePlus(this);
+		imp.getProcessor().setMinAndMax(min, max);
+		return imp;
 	}
 
 	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I advise you to call this method everytime you need the processor. */
 	public ImageProcessor getImageProcessor() {
-		return this.project.getLoader().fetchImageProcessor(this);
+		final ImageProcessor ip = this.project.getLoader().fetchImageProcessor(this);
+		ip.setMinAndMax(min, max);
+		return ip;
 	}
 
 	/** Recreate mipmaps and flush away any cached ones.
@@ -1088,7 +1092,7 @@ public final class Patch extends Displayable {
 		final Patch.PatchImage pi = createCoordinateTransformedImage();
 		if (null != pi) return pi;
 		// else, a new one with the untransformed, original image:
-		return new PatchImage(project.getLoader().fetchImageProcessor(this), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height));
+		return new PatchImage(getImageProcessor(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height));
 	}
 
 	private boolean has_alpha = false;
