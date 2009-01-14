@@ -25,6 +25,7 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.gui.ShapeRoi;
+import ij.gui.PointRoi;
 import ij.gui.Roi;
 
 import java.awt.Rectangle;
@@ -122,8 +123,9 @@ public class Selection {
 	}
 
 	/** Paint a white frame around the selected object and a pink frame around all others. Active is painted last, so white frame is always top. */
-	public void paint(Graphics g, Rectangle srcRect, double magnification) {
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification) {
 		// paint rectangle around selected Displayable elements
+		final Composite co = g.getComposite();
 		synchronized (queue_lock) {
 			try {
 				lock();
@@ -189,8 +191,20 @@ public class Selection {
 				RO.paint(g, srcRect, magnification);
 				((RotationHandle)RO).paintMoving(g, srcRect, magnification, display.getCanvas().getCursorLoc());
 			}
-			g2d.setStroke(original_stroke);
+
+			// Restore composite (undoes setXORColor)
+			g.setComposite(co);
+			if (null != affine_handles) {
+				for (final AffinePoint ap : affine_handles) {
+					ap.paint(g);
+				}
+			}
+
 			g2d.setTransform(original);
+			g2d.setStroke(original_stroke);
+		} else {
+			// Restore composite (undoes setXORColor)
+			g.setComposite(co);
 		}
 
 		/*
@@ -789,13 +803,76 @@ public class Selection {
 		display.getLayer().getParent().undoOneStep();
 		// reread all transforms and remake box
 		resetBox();
+		affine_handles = null;
 	}
 
 	public boolean isTransforming() { return this.transforming; }
 
-	public void mousePressed(int x_p, int y_p, double magnification) {
+	private class AffinePoint {
+		int x, y;
+		AffinePoint(int x, int y) {
+			this.x = x;
+			this.y = y;
+		}
+		public boolean equals(Object ob) {
+			//if (!ob.getClass().equals(AffinePoint.class)) return false;
+			AffinePoint ap = (AffinePoint) ob;
+			double mag = display.getCanvas().getMagnification();
+			double dx = mag * ( ap.x - this.x );
+			double dy = mag * ( ap.y - this.y );
+			double d =  dx * dx + dy * dy;
+			return  d < 64.0;
+		}
+		void translate(int dx, int dy) {
+			x += dx;
+			y += dy;
+		}
+		private void paint(Graphics g) {
+			int x = display.getCanvas().screenX(this.x);
+			int y = display.getCanvas().screenY(this.y);
+			g.setColor(Color.white);
+			g.drawLine(x-4, y+2, x+8, y+2);
+			g.drawLine(x+2, y-4, x+2, y+8);
+			g.setColor(Color.yellow);
+			g.fillRect(x+1,y+1,3,3);
+			g.setColor(Color.black);
+			g.drawRect(x, y, 4, 4);
+		}
+	}
+
+	private ArrayList<AffinePoint> affine_handles = null;
+
+	private void freeAffine(AffinePoint affp, int dx, int dy) {
+		affp.translate(dx, dy);
+		Utils.log("Free affine: " + dx + ", " + dy);
+	}
+
+	private AffinePoint affp = null;
+
+	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
 		grabbed = null; // reset
 		if (transforming) {
+			if (me.isShiftDown()) {
+				if (me.isControlDown() && null != affine_handles) {
+					affine_handles.remove(new AffinePoint(x_p, y_p));
+					if (0 == affine_handles.size()) affine_handles = null;
+					return;
+				}
+				if (null == affine_handles) {
+					affine_handles = new ArrayList<AffinePoint>();
+				}
+				if (affine_handles.size() < 3) {
+					affine_handles.add(new AffinePoint(x_p, y_p));
+				}
+				return;
+			} else if (null != affine_handles) {
+				int index = affine_handles.indexOf(new AffinePoint(x_p, y_p));
+				if (-1 != index) {
+					affp = affine_handles.get(index);
+					return;
+				}
+			}
+
 			// find scale handle
 			double radius = 4 / magnification;
 			if (radius < 1) radius = 1;
@@ -821,6 +898,12 @@ public class Selection {
 		this.y_d_old = y_d_old;
 		int dx = x_d - x_d_old;
 		int dy = y_d - y_d_old;
+
+		if (null != affp) {
+			freeAffine(affp, dx, dy);
+			return;
+		}
+
 		if (null != grabbed) {
 			// drag the handle and perform whatever task it has assigned
 			grabbed.drag(me, dx, dy);

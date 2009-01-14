@@ -412,7 +412,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			// paint a pink frame around selected objects, and a white frame around the active object
 			if (null != selection && ProjectToolbar.getToolId() < ProjectToolbar.PENCIL) { // i.e. PENCIL, PEN and ALIGN
-				selection.paint(g, srcRect, magnification);
+				selection.paint(g2d, srcRect, magnification);
 			}
 
 
@@ -646,7 +646,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		Selection selection = display.getSelection();
 		if (selection.isTransforming()) {
 			box = selection.getLinkedBox();
-			selection.mousePressed(x_p, y_p, magnification);
+			selection.mousePressed(me, x_p, y_p, magnification);
 			return;
 		}
 		// select or deselect another active Displayable, or add it to the selection group:
@@ -686,7 +686,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 			// gather initial box (for repainting purposes)
 			box = selection.getLinkedBox();
-			selection.mousePressed(x_p, y_p, magnification);
+			selection.mousePressed(me, x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
 			box = active.getBoundingBox();
@@ -1942,6 +1942,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					}
 					Display.repaint(display.getLayer().getParent());
 					ke.consume();
+				}
+				break;
+			case KeyEvent.VK_DELETE:
+				if (0 == ke.getModifiers()) {
+					display.getSelection().deleteAll();
 				}
 				break;
 			default:
