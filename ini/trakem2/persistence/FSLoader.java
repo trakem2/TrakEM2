@@ -1663,7 +1663,7 @@ public final class FSLoader extends Loader {
 
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
-					fp.setMinAndMax(patch.getMin(), patch.getMax()); // no scaling, so values should do fine directly.
+					fp.setMinAndMax(patch.getMin(), patch.getMax());
 					int sw=w, sh=h;
 
 					FloatProcessor alpha;
