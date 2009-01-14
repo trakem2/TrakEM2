@@ -1708,7 +1708,7 @@ public final class FSLoader extends Loader {
 					} while (w >= 32 && h >= 32); // not smaller than 32x32
 
 				} else {
-					final StopWatch timer = new StopWatch();
+					//final StopWatch timer = new StopWatch();
 
 					// use java hardware-accelerated resizing
 					Image awt = ip.createImage();
@@ -1745,7 +1745,7 @@ public final class FSLoader extends Loader {
 					} while (w >= 32 && h >= 32);
 					bi.flush();
 
-					timer.cumulative();
+					//timer.cumulative();
 				}
 			}
 
