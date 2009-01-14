@@ -80,11 +80,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	static private boolean quartzEnabled = false;
 	static private boolean ddscaleEnabled = false;
 
-	static private final Map<RenderingHints.Key, Object> hints = new HashMap<RenderingHints.Key, Object>();
-	static private final RenderingHints rhints;
+	// Private to the display package:
+	static final RenderingHints rhints;
  
 	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
 	static {
+		final Map<RenderingHints.Key, Object> hints = new HashMap<RenderingHints.Key, Object>();
 		try {
 			String openglProperty = System.getProperty("sun.java2d.opengl");
 			openglEnabled = openglProperty != null && Boolean.parseBoolean(openglProperty);
