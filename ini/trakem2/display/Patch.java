@@ -554,8 +554,9 @@ public final class Patch extends Displayable {
 			if (gd.wasCanceled()) return false;
 			boolean delete_empty_layers = gd.getNextBoolean();
 			// gather all
-			HashMap ht = new HashMap();
-			getStackPatches(ht);
+			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+			getStackPatchesNR(ht);
+			Utils.log("Stack patches: " + ht.size());
 			ArrayList al = new ArrayList();
 			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
 				Patch p = (Patch)it.next();
