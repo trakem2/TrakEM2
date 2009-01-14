@@ -129,11 +129,13 @@ public final class FSLoader extends Loader {
 	static private Dispatcher dispatcher = new Dispatcher();
 
 
+	/** Used to open a project from an existing XML file. */
 	public FSLoader() {
 		super(); // register
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
 
+	/** Used to create a new project, NOT from an XML file. */
 	public FSLoader(final String storage_folder) {
 		this();
 		if (null == storage_folder) this.dir_storage = super.getStorageFolder(); // home dir
@@ -143,16 +145,42 @@ public final class FSLoader extends Loader {
 			Utils.log("WARNING can't read/write to the storage_folder at " + dir_storage);
 		} else {
 			createMipMapsDir(this.dir_storage);
+			crashDetector();
 		}
 	}
 
-	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders.*/
+	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders. Used for creating subprojects. */
 	public FSLoader(final Loader source) {
 		this();
 		this.dir_storage = source.getStorageFolder(); // can never be null
 		this.dir_mipmaps = source.getMipMapsFolder();
 		if (null == this.dir_mipmaps) createMipMapsDir(this.dir_storage);
 		setPreprocessor(source.getPreprocessor());
+	}
+
+	/** Store a hidden file in trakem2.mipmaps directory that means: "the project is open", which is deleted when the project is closed. If the file is present on opening a project, it means the project has not been closed properly, and some mipmaps may be wrong. */
+	private void crashDetector() {
+		if (null == dir_mipmaps) {
+			Utils.log2("Could NOT create crash detection system: null dir_mipmaps.");
+			return;
+		}
+		File f = new File(dir_mipmaps + ".open.t2");
+		Utils.log2("Crash detector file is " + dir_mipmaps + ".open.t2");
+		try {
+			if (f.exists()) {
+				// crashed!
+				askAndExecMipmapRegeneration("TrakEM detected a crash!");
+			} else {
+				if (!f.createNewFile() && !dir_mipmaps.startsWith("http:")) {
+					Utils.showMessage("WARNING: could NOT create crash detection system:\nCannot write to mipmaps folder.");
+				} else {
+					Utils.log2("Created crash detection system.");
+				}
+			}
+		} catch (Exception e) {
+			Utils.log2("Crash detector error:" + e);
+			IJError.print(e);
+		}
 	}
 
 	public String getProjectXMLPath() {
@@ -277,6 +305,7 @@ public final class FSLoader extends Loader {
 		}
 		// else, good
 		super.v_loaders.add(this);
+		crashDetector();
 		return data;
 	}
 
@@ -317,6 +346,16 @@ public final class FSLoader extends Loader {
 			}).length) {
 				try { f.delete(); } catch (Exception e) { Utils.log("Could not remove empty trakem2.mipmaps directory."); }
 			}
+		}
+		// remove crash detector
+		File f = new File(dir_mipmaps + ".open.t2");
+		try {
+			if (!f.delete()) {
+				Utils.log2("WARNING: could not delete crash detector file .open.t2 from trakem2.mipmaps folder at " + dir_mipmaps);
+			}
+		} catch (Exception e) {
+			Utils.log2("WARNING: crash detector file trakem.mipmaps/.open.t2 may NOT have been deleted.");
+			IJError.print(e);
 		}
 	}
 
@@ -1197,28 +1236,32 @@ public final class FSLoader extends Loader {
 			// create a new one inside the dir_storage, which can't be null
 			createMipMapsDir(dir_storage);
 			if (null != this.dir_mipmaps && ControlWindow.isGUIEnabled() && null != IJ.getInstance()) {
-				Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
-				YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", "Generate mipmaps in the background for all images?");
-				if (yn.yesPressed()) {
-					final Loader lo = this;
-					new Thread() {
-						public void run() {
-							try {
-								// wait while parsing the rest of the XML file
-								while (!v_loaders.contains(lo)) {
-									Thread.sleep(1000);
-								}
-								Project pj = Project.findProject(lo);
-								lo.generateMipMaps(pj.getRootLayerSet().getDisplayables(Patch.class));
-							} catch (Exception e) {}
-						}
-					}.start();
-				}
+				askAndExecMipmapRegeneration(null);
 			}
 		}
 		// fix
 		if (null != this.dir_mipmaps && !this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
 		Utils.log2("mipmaps folder is " + this.dir_mipmaps);
+	}
+
+	private void askAndExecMipmapRegeneration(final String msg) {
+		Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
+		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", (null != msg ? msg  + "\n" : "") + "Generate mipmaps in the background for all images?");
+		if (yn.yesPressed()) {
+			final Loader lo = this;
+			new Thread() {
+				public void run() {
+					try {
+						// wait while parsing the rest of the XML file
+						while (!v_loaders.contains(lo)) {
+							Thread.sleep(1000);
+						}
+						Project pj = Project.findProject(lo);
+						lo.generateMipMaps(pj.getRootLayerSet().getDisplayables(Patch.class));
+					} catch (Exception e) {}
+				}
+			}.start();
+		}
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
