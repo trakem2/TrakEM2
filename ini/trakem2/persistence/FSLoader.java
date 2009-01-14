@@ -71,6 +71,7 @@ import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.image.ColorModel;
+import java.awt.image.PixelGrabber;
 import java.awt.RenderingHints;
 import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
@@ -1235,11 +1236,80 @@ public final class FSLoader extends Loader {
 		return dir_mipmaps;
 	}
 
+	static private IndexColorModel thresh_cm = null;
+
+	static private final IndexColorModel getThresholdLUT() {
+		if (null == thresh_cm) {
+			// An array of all black pixels (value 0) except at 255, which is white (value 255).
+			final byte[] c = new byte[256];
+			c[255] = (byte)255;
+			thresh_cm = new IndexColorModel(8, 256, c, c, c);
+		}
+		return thresh_cm;
+	}
+
+	private final BufferedImage createCroppedAlpha(final BufferedImage alpha, final BufferedImage outside) {
+		Utils.log2("createCroppedAlpha 1");
+		if (null == outside) return alpha;
+		final int width = outside.getWidth();
+		final int height = outside.getHeight();
+		// Create an outside image, thresholded: only pixels of 255 remain as 255, the rest is set to 0.
+		/* // DOESN'T work: creates a mask with "black" as 254 (???), and white 255 (correct).
+		final BufferedImage thresholded = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_INDEXED, getThresholdLUT());
+		thresholded.createGraphics().drawImage(outside, 0, 0, null);
+		*/
+
+		// So, instead: grab the pixels, fix them manually
+		final byte[] o;
+		final PixelGrabber pg = new PixelGrabber(outside, 0, 0, width, height, false);
+		try {   
+			// This works because "outside" is TYPE_BYTE_INDEXED BufferedImage.
+			pg.grabPixels();
+			o = (byte[])pg.getPixels();
+		} catch (InterruptedException e) { 
+			IJError.print(e);
+			return null;
+		}
+
+		byte[] a = o;
+		if (null != alpha) {
+			// for nearest-neighbor, alpha is a TYPE_BYTE_GRAY, otherwise TYPE_BYTE_INDEXED creates freckled alpha channel.
+			final BufferedImage ba = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+			ba.createGraphics().drawImage(alpha, 0, 0, null);
+			final PixelGrabber pga = new PixelGrabber(ba, 0, 0, width, height, false);
+			try {
+				pga.grabPixels();
+				a = (byte[])pga.getPixels();
+			} catch (InterruptedException e) {
+				IJError.print(e);
+			}
+		}
+
+		for (int i=0; i<o.length; i++) {
+			if ( (o[i]&0xff) < 255) a[i] = 0;
+		}
+
+		final BufferedImage thresholded = new BufferedImage(outside.getWidth(), outside.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+		thresholded.getRaster().setDataElements(0, 0, width, height, a);
+
+		return thresholded;
+	}
+
+	private final BufferedImage asBI(final ByteProcessor bp) {
+		bp.setMinAndMax(0, 255);
+		final Image aa = bp.createImage();
+		if (aa instanceof BufferedImage) return (BufferedImage)aa;
+		//else:
+		final BufferedImage bi = new BufferedImage(bp.getWidth(), bp.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+		bi.createGraphics().drawImage(aa, 0, 0, null);
+		return bi;
+	}
+
 	/** Image to BufferedImage. Can be used for hardware-accelerated resizing, since the whole awt is painted to a target w,h area in the returned new BufferedImage. */
-	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final IndexColorModel icm, final BufferedImage alpha) {
+	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final IndexColorModel icm, final BufferedImage alpha, final BufferedImage outside) {
 		BufferedImage bi;
 		final boolean area_averaging = interpolation_hint.getClass() == Integer.class && Loader.AREA_AVERAGING == ((Integer)interpolation_hint).intValue();
-		if (null != alpha) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+		if (null != alpha || null != outside) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
 		else if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
 		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
 		final Graphics2D g = bi.createGraphics();
@@ -1251,11 +1321,11 @@ public final class FSLoader extends Loader {
 			g.drawImage(awt, 0, 0, w, h, null); // draws it scaled
 		}
 		BufferedImage ba = alpha;
+		BufferedImage bo = outside;
 		if (null != alpha) {
-			FloatProcessor fp_alpha = null;
 			// resize alpha mask if necessary:
 			if (w != awt.getWidth(null) || h != awt.getHeight(null)) {
-				ba = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
+				ba = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY); // INDEXED results in speckled image with nearest-neighbor
 				if (area_averaging) {
 					ba.createGraphics().drawImage(alpha.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING), 0, 0, null); // getScaledInstance returns an RGB image always, hence must paint it to a gray one
 				} else {
@@ -1264,30 +1334,66 @@ public final class FSLoader extends Loader {
 					ga.drawImage(alpha, 0, 0, w, h, null); // draws it scaled to target area w*h
 				}
 			}
+		}
+		if (null != outside) {
+			// resize alpha mask if necessary:
+			if (w != awt.getWidth(null) || h != awt.getHeight(null)) {
+				bo = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+				if (area_averaging) {
+					bo.createGraphics().drawImage(outside.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING), 0, 0, null);
+				} else {
+					final Graphics2D go = bo.createGraphics();
+					go.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation_hint);
+					go.drawImage(outside, 0, 0, w, h, null); // draws it scaled to target area w*h
+				}
+			}
+		}
+		Utils.log2("step 1");
+
+		BufferedImage the_alpha = ba;
+		if (null != alpha) {
+			Utils.log2("step 2");
+			if (null != outside) {
+				Utils.log2("step 3");
+				the_alpha = createCroppedAlpha(ba, bo);
+			}
+		} else if (null != outside) {
+			Utils.log2("step 4");
+			the_alpha = createCroppedAlpha(null, bo);
+		}
+		if (null != the_alpha) {
+			Utils.log2("step 5");
+			bi.getAlphaRaster().setRect(the_alpha.getRaster());
+			//bi.getAlphaRaster().setPixels(0, 0, w, h, (float[])new ImagePlus("", the_alpha).getProcessor().convertToFloat().getPixels());
+		}
+
+		Utils.log2("bi is: " + bi.getType() + " BufferedImage.TYPE_INT_ARGB=" + BufferedImage.TYPE_INT_ARGB);
+
+			/*
+			FloatProcessor fp_alpha = null;
 			fp_alpha = (FloatProcessor) new ByteProcessor(ba).convertToFloat();
 			// Set all non-white pixels to zero (eliminate shadowy border caused by interpolation)
 			final float[] pix = (float[])fp_alpha.getPixels();
 			for (int i=0; i<pix.length; i++)
 				if (Math.abs(pix[i] - 255) > 0.001f) pix[i] = 0;
 			bi.getAlphaRaster().setPixels(0, 0, w, h, (float[])fp_alpha.getPixels());
-		}
-		return new BufferedImage[]{bi, ba};
+			*/
+
+		return new BufferedImage[]{bi, ba, bo};
 	}
 
-	private Object getHint(final int mode) {
-		Object hint = null;
+	private final Object getHint(final int mode) {
 		switch (mode) {
 			case Loader.BICUBIC:
-				hint = RenderingHints.VALUE_INTERPOLATION_BICUBIC; break;
+				return RenderingHints.VALUE_INTERPOLATION_BICUBIC;
 			case Loader.BILINEAR:
-				hint = RenderingHints.VALUE_INTERPOLATION_BILINEAR; break;
+				return RenderingHints.VALUE_INTERPOLATION_BILINEAR;
 			case Loader.AREA_AVERAGING:
-				hint = new Integer(mode); break;
+				return new Integer(mode);
 			case Loader.NEAREST_NEIGHBOR:
 			default:
-				hint = RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR; break;
+				return RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR;
 		}
-		return hint;
 	}
 
 	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
@@ -1517,27 +1623,29 @@ public final class FSLoader extends Loader {
 					cm = GRAY_LUT;
 				}
 
-				FloatProcessor alpha;
-				FloatProcessor outside;
-				if (null != alpha_mask) {
-					alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
-				} else {
-					alpha = null;
-				}
-				if (null != outside_mask) {
-					outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
-					if (null == alpha) {
-						alpha = outside;
-						alpha_mask = outside_mask;
-					}
-				} else {
-					outside = null;
-				}
-
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
 					fp.setMinAndMax(patch.getMin(), patch.getMax()); // no scaling, so values should do fine directly.
 					int sw=w, sh=h;
+					//StopWatch timer = new StopWatch();
+
+					FloatProcessor alpha;
+					FloatProcessor outside;
+					if (null != alpha_mask) {
+						alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
+					} else {
+						alpha = null;
+					}
+					if (null != outside_mask) {
+						outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
+						if (null == alpha) {
+							alpha = outside;
+							alpha_mask = outside_mask;
+						}
+					} else {
+						outside = null;
+					}
+
 					do {
 						// 0 - blur the previous image to 0.75 sigma
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
@@ -1605,7 +1713,11 @@ public final class FSLoader extends Loader {
 						k++;
 					} while (w >= 32 && h >= 32); // not smaller than 32x32
 
+					//timer.cumulative();
+
 				} else {
+					StopWatch timer = new StopWatch();
+
 					// use java hardware-accelerated resizing
 					Image awt = ip.createImage();
 
@@ -1618,16 +1730,8 @@ public final class FSLoader extends Loader {
 					}
 					*/
 
-					BufferedImage balpha = null;
-					if (null != alpha) {
-						alpha_mask.setMinAndMax(0, 255);
-						Image aa = alpha_mask.createImage();
-						if (aa instanceof BufferedImage) balpha = (BufferedImage)aa;
-						else {
-							balpha = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-							balpha.createGraphics().drawImage(aa, 0, 0, null);
-						}
-					}
+					BufferedImage balpha = null == alpha_mask ? null : asBI(alpha_mask);
+					BufferedImage boutside = null == outside_mask ? null : asBI(outside_mask);
 
 					BufferedImage bi = null;
 					final Object hint = getHint(resizing_mode);
@@ -1638,9 +1742,10 @@ public final class FSLoader extends Loader {
 						if (null == target_dir) continue;
 						// obtain half image
 							// for level 0 and others, when awt is not a bi or needs to be reduced in size (to new w,h)
-						final BufferedImage[] res = IToBI(awt, w, h, hint, icm, balpha); // can't just cast even if it's a BI already, because color type is wrong
+						final BufferedImage[] res = IToBI(awt, w, h, hint, icm, balpha, boutside); // can't just cast even if it's a BI already, because color type is wrong
 						bi = res[0];
 						balpha = res[1];
+						boutside = res[2];
 						// prepare next iteration
 						if (awt != bi) awt.flush();
 						awt = bi;
@@ -1648,15 +1753,16 @@ public final class FSLoader extends Loader {
 						h /= 2;
 						k++;
 						// save this iteration
-						if ( (null != alpha_mask &&
+						if ( ( (null != balpha || null != boutside) &&
 						      !ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi, target_dir + filename, 0.85f))
-						   || (null == alpha_mask &&
-						      !ini.trakem2.io.ImageSaver.saveAsJpeg(bi, target_dir + filename, 0.85f, as_grey))) {
+						   || ( null == balpha && null == boutside && !ini.trakem2.io.ImageSaver.saveAsJpeg(bi, target_dir + filename, 0.85f, as_grey))) {
 							cannot_regenerate.add(patch);
 							break;
 						}
 					} while (w >= 32 && h >= 32);
 					bi.flush();
+
+					timer.cumulative();
 				}
 			}
 			return true;

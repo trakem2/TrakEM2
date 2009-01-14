@@ -138,6 +138,7 @@ public final class Patch extends Displayable {
 			}
 		}
 
+		// TODO: doesn't work with stacks!
 		if (0 == o_width || 0 == o_height) {
 			// The original image width and height are unknown.
 			if (at.getType() == AffineTransform.TYPE_TRANSLATION) {
