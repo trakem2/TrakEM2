@@ -947,7 +947,7 @@ public class AreaList extends ZDisplayable {
 	/** Performs a deep copy of this object, without the links. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final ArrayList al_ul = new ArrayList();
-		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
+		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) { // TODO WARNING the layer ids are wrong if the project is different or copy_id is false! Should lookup closest layer by Z ...
 			al_ul.add(new Long(((Long)it.next()).longValue())); // clones of the Long that wrap layer ids
 		}
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
