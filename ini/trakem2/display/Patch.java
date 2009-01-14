@@ -1034,8 +1034,8 @@ public final class Patch extends Displayable {
 		
 		final ImageProcessor source = getImageProcessor();
 
-		Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());
-		
+		//Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());
+
 		final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
 		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 		
