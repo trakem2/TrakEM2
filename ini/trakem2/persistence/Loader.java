@@ -4058,6 +4058,7 @@ abstract public class Loader {
 
 	public void insertXMLOptions(StringBuffer sb_body, String indent) {}
 
+	// OBSOLETE
 	public Bureaucrat optimizeContrast(final ArrayList al_patches) {
 		final Patch[] pa = new Patch[al_patches.size()];
 		al_patches.toArray(pa);
@@ -4168,15 +4169,11 @@ abstract public class Loader {
 	}
 
 	public Bureaucrat homogenizeContrast(final Layer[] la) {
-		return homogenizeContrast(la, -1, -1, true, null);
-	}
-
-	public Bureaucrat homogenizeContrast(final Layer[] la, final double min, final double max, final boolean drift_hist_peak) {
-		return homogenizeContrast(la, min, max, drift_hist_peak, null);
+		return homogenizeContrast(la, null);
 	}
 
 	/** Homogenize contrast layer-wise, for all given layers, in a multithreaded manner. */
-	public Bureaucrat homogenizeContrast(final Layer[] la, final double min, final double max, final boolean drift_hist_peak, final Worker parent) {
+	public Bureaucrat homogenizeContrast(final Layer[] la, final Worker parent) {
 		if (null == la || 0 == la.length) return null;
 		Worker worker = new Worker("Homogenizing contrast") {
 			public void run() {
@@ -4198,7 +4195,7 @@ abstract public class Loader {
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
-						if (!homogenizeContrast(la[i], pa, min, max, drift_hist_peak, null == parent ? wo : parent)) {
+						if (!homogenizeContrast(la[i], pa, null == parent ? wo : parent)) {
 							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
 						}
 					}
@@ -4220,14 +4217,10 @@ abstract public class Loader {
 	}
 
 	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al) {
-		return homogenizeContrast(al, -1, -1, true, null);
+		return homogenizeContrast(al, null);
 	}
 
-	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final double min, final double max, final boolean drift_hist_peak) {
-		return homogenizeContrast(al, min, max, drift_hist_peak, null);
-	}
-
-	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final double min, final double max, final boolean drift_hist_peak, final Worker parent) {
+	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final Worker parent) {
 		if (null == al || al.size() < 2) return null;
 		final Patch[] pa = new Patch[al.size()];
 		al.toArray(pa);
@@ -4235,7 +4228,7 @@ abstract public class Loader {
 			public void run() {
 				startedWorking();
 				try {
-					homogenizeContrast(pa[0].getLayer(), pa, min, max, drift_hist_peak, null == parent ? this : parent);
+					homogenizeContrast(pa[0].getLayer(), pa, null == parent ? this : parent);
 				} catch (Exception e) {
 					IJError.print(e);
 				}
@@ -4248,7 +4241,7 @@ abstract public class Loader {
 	}
 
 	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. Needs a layer to repaint when done. */
-	public boolean homogenizeContrast(final Layer layer, final Patch[] pa, final double min_, final double max_, final boolean drift_hist_peak, final Worker worker) {
+	public boolean homogenizeContrast(final Layer layer, final Patch[] pa, final Worker worker) {
 		try {
 			if (null == pa) return false; // error
 			if (0 == pa.length) return true; // done
@@ -4268,10 +4261,6 @@ abstract public class Loader {
 				}
 			}
 
-
-			// Set min and max for all images
-			double min = 0;
-			double max = 0;
 			// 1 - fetch statistics for each image
 			final ArrayList al_st = new ArrayList();
 			final ArrayList al_p = new ArrayList(); // list of Patch ordered by stdDev ASC
@@ -4346,7 +4335,6 @@ abstract public class Loader {
 			}
 			// The above ContrastEnhancer will be applied to all, but the stats are computed for the middle 50%. This is a patched solution to avoid noise-rich tiles.
 
-
 			// Apply ContrastEnhancer to all
 			for (Patch p : pa) {
 				ImageProcessor ip = p.getImageProcessor();
@@ -4380,6 +4368,48 @@ abstract public class Loader {
 			return false;
 		}
 		return true;
+	}
+
+	public Bureaucrat setMinAndMax(final List<Displayable> patches, final double min, final double max) {
+		Worker worker = new Worker("Set min and max") {
+			public void run() {
+				try {
+					startedWorking();
+					if (Double.isNaN(min) || Double.isNaN(max)) {
+						Utils.log("WARNING:\nUnacceptable min and max values: " + min + ", " + max);
+						finishedWorking();
+						return;
+					}
+					final List<Displayable> pa = new ArrayList<Displayable>(patches);
+					final AtomicInteger ai = new AtomicInteger(0);
+					final AtomicInteger completed = new AtomicInteger(0);
+					final Thread[] threads = MultiThreading.newThreads();
+					for (int ithread = 0; ithread < threads.length; ithread++) {
+						threads[ithread] = new Thread() {
+							public void run() {
+								for (int i=ai.getAndIncrement(); i<patches.size(); i = ai.getAndIncrement()) {
+									Displayable d = pa.get(i);
+									if (d.getClass() != Patch.class) continue;
+									Patch p = (Patch)d;
+									p.setMinAndMax(min, max);
+									p.updateMipmaps();
+									Display.repaint(p);
+									Utils.showProgress(completed.incrementAndGet() / (double)pa.size());
+								}
+							}
+						};
+					}
+					MultiThreading.startAndJoin(threads);
+				} catch (Exception e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
+			}
+		};
+		Bureaucrat burro = new Bureaucrat(worker, Project.findProject(this));
+		burro.goHaveBreakfast();
+		return burro;
 	}
 
 	public long estimateImageFileSize(final Patch p, final int level) {
