@@ -332,9 +332,17 @@ public class Selection {
 			double px = (double)box.width / (double)box_old.width;
 			double py = (double)box.height / (double)box_old.height;
 			// displacement: specific of each element of the selection and their links, depending on where they are.
-			for (Displayable d : hs) {
-				d.scale(px, py, anchor_x, anchor_y, false); // false because the linked ones are already included in the HashSet
+
+			final AffineTransform at = new AffineTransform();
+			at.translate( anchor_x, anchor_y );
+			at.scale( px, py );
+			at.translate( -anchor_x, -anchor_y );
+
+			for (final Displayable d : hs) {
+				//d.scale(px, py, anchor_x, anchor_y, false); // false because the linked ones are already included in the HashSet
+				d.preTransform(at, false);
 			}
+			fixAffinePoints(at);
 
 			// finally:
 			setHandles(box); // overkill. As Graham said, most newly available chip resources are going to be wasted. They are already.
@@ -377,9 +385,12 @@ public class Selection {
 		if (zc < 0) {
 			delta = -delta;
 		}
+		/*
 		for (Displayable d : hs) {
 			d.rotate(delta, floater.x, floater.y, false); // false because the linked ones are already included in the HashSet
 		}
+		*/
+		rotate(Math.toDegrees(delta), floater.x, floater.y);
 		return delta;
 	}
 
@@ -804,6 +815,9 @@ public class Selection {
 		// reread all transforms and remake box
 		resetBox();
 		affine_handles = null;
+		model = null;
+		p = q = null;
+		matches = null;
 	}
 
 	public boolean isTransforming() { return this.transforming; }
@@ -850,6 +864,8 @@ public class Selection {
 		// Start from the previous one, if any:
 		if (null != model) 
 			freeaffine.preConcatenate(model.createAffine());
+
+		initial_affines = getTransformationsCopy();
 
 		int size = affine_handles.size();
 
@@ -902,6 +918,24 @@ public class Selection {
 		}
 	}
 
+	private void fixAffinePoints(final AffineTransform at) {
+		Utils.log2("fixAffinePoints 1");
+		if (null != matches) {
+			Utils.log2("fixAffinePoints 2");
+			float[] po = new float[2];
+			for (final AffinePoint affp : affine_handles) {
+				po[0] = affp.x;
+				po[1] = affp.y;
+				at.transform(po, 0, po, 0, 1);
+				affp.x = (int)po[0];
+				affp.y = (int)po[1];
+			}
+			// Model will be reinitialized when needed
+			freeaffine.setToIdentity();
+			model = null;
+		}
+	}
+
 	private AffinePoint affp = null;
 	private mpicbg.models.AbstractAffineModel2D<?> model = null;
 	private AffineTransform freeaffine = null;
@@ -913,8 +947,8 @@ public class Selection {
 			if (me.isShiftDown()) {
 				if (me.isControlDown() && null != affine_handles) {
 					if (affine_handles.remove(new AffinePoint(x_p, y_p))) {
-						initializeModel();
 						if (0 == affine_handles.size()) affine_handles = null;
+						else initializeModel();
 					}
 					return;
 				}
@@ -966,6 +1000,10 @@ public class Selection {
 
 		if (null != affp) {
 			affp.translate(dx, dy);
+			if (null == model) {
+				// Model has been canceled by a transformation from the other handles
+				initializeModel();
+			}
 			// Passing on the translation from start
 			freeAffine(affp);
 			return;
@@ -976,7 +1014,7 @@ public class Selection {
 			grabbed.drag(me, dx, dy);
 		} else if (dragging) {
 			// drag all selected and linked
-			for (Displayable d : hs) d.translate(dx, dy, false); // false because the linked ones are already included in the HashSet
+			translate(dx, dy);
 			//and the box!
 			box.x += dx;
 			box.y += dy;
@@ -1206,28 +1244,41 @@ public class Selection {
 	}
 
 	/** Rotate the objects in the current selection by the given angle, in degrees, relative to the floater position. */
-	public void rotate(double angle) {
-		for (Displayable d : hs) {
-			d.rotate(Math.toRadians(angle), floater.x, floater.y, false); // all linked ones included in the hashset
+	public void rotate(final double angle, final int xo, final int yo) {
+		final AffineTransform at = new AffineTransform();
+		at.rotate(Math.toRadians(angle), xo, yo);
+		for (final Displayable d : hs) {
+			d.preTransform(at, false); // all linked ones included in the hashset
 		}
+		fixAffinePoints(at);
 		resetBox();
 	}
 	/** Translate all selected objects and their links by the given differentials. The floater position is unaffected; if you want to update it call centerFloater() */
-	public void translate(double dx, double dy) {
-		for (Displayable d : hs) {
-			d.translate(dx, dy, false); // all linked ones already included in the hashset
+	public void translate(final double dx, final double dy) {
+		final AffineTransform at = new AffineTransform();
+		at.translate(dx, dy);
+		for (final Displayable d : hs) {
+			d.preTransform(at, false); // all linked ones already included in the hashset
 		}
+		fixAffinePoints(at);
 		resetBox();
 	}
 	/** Scale all selected objects and their links by by the given scales, relative to the floater position. . */
-	public void scale(double sx, double sy) {
+	public void scale(final double sx, final double sy) {
 		if (0 == sx || 0 == sy) {
 			Utils.showMessage("Cannot scale to 0.");
 			return;
 		}
-		for (Displayable d : hs) {
-			d.scale(sx, sy, floater.x, floater.y, false); // all linked ones already included in the hashset
+
+		final AffineTransform at = new AffineTransform();
+		at.translate(floater.x, floater.y);
+		at.scale(sx, sy);
+		at.translate(-floater.x, -floater.y);
+
+		for (final Displayable d : hs) {
+			d.preTransform(at, false); // all linked ones already included in the hashset
 		}
+		fixAffinePoints(at);
 		resetBox();
 	}
 
@@ -1403,7 +1454,7 @@ public class Selection {
 		double sx = gd.getNextNumber();
 		double sy = gd.getNextNumber();
 		if (0 != dx || 0 != dy) translate(dx, dy);
-		if (0 != rot) rotate(rot);
+		if (0 != rot) rotate(rot, floater.x, floater.y);
 		if (0 != sx && 0 != sy) scale(sx, sy);
 		else Utils.showMessage("Cannot scale to zero.");
 		sel_box.add(getLinkedBox());
@@ -1416,7 +1467,7 @@ public class Selection {
 		final Rectangle sel_box = getLinkedBox();
 		switch (what) {
 			case 0: translate(params[0], params[1]); break;
-			case 1: rotate(params[0]); break;
+			case 1: rotate(params[0], floater.x, floater.y); break;
 			case 2: scale(params[0], params[1]); break;
 		}
 		sel_box.add(getLinkedBox());
