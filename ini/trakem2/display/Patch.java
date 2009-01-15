@@ -1017,7 +1017,11 @@ public final class Patch extends Displayable {
 		this.ct = ct;
 		updateInDatabase("ict_transform");
 
-		if (null == this.ct) return;
+		if (null == this.ct) {
+			width = o_width;
+			height = o_height;
+			return;
+		}
 
 		// Adjust the AffineTransform to correct for bounding box displacement
 
