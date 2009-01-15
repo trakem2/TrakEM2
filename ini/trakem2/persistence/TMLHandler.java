@@ -41,8 +41,8 @@ import org.xml.sax.SAXParseException;
 import org.xml.sax.InputSource;
 import org.xml.sax.Attributes;
 
-import mpicbg.CoordinateTransform;
-import mpicbg.CoordinateTransformList;
+import mpicbg.transform.CoordinateTransform;
+import mpicbg.transform.CoordinateTransformList;
 
 /** Creates the project objects from an XML file (TrakEM2 Markup Language Handler). */
 public class TMLHandler extends DefaultHandler {
