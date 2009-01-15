@@ -792,7 +792,7 @@ public class Selection {
 		}}
 	}
 
-	public void setTransforming(boolean b) {
+	public void setTransforming(final boolean b) {
 		if (b == transforming) {
 			Utils.log2("Selection.setTransforming warning: trying to set the same mode");
 			return;
@@ -803,7 +803,9 @@ public class Selection {
 			floater.center();
 			display.getLayer().getParent().addUndoStep(getTransformationsCopy());
 		} else {
+			// the transform is already applied, just forget it:
 			transforming = false;
+			forgetAffine();
 		}
 	}
 
@@ -814,10 +816,7 @@ public class Selection {
 		display.getLayer().getParent().undoOneStep();
 		// reread all transforms and remake box
 		resetBox();
-		affine_handles = null;
-		model = null;
-		p = q = null;
-		matches = null;
+		forgetAffine();
 	}
 
 	public boolean isTransforming() { return this.transforming; }
@@ -855,11 +854,22 @@ public class Selection {
 	}
 
 	private ArrayList<AffinePoint> affine_handles = null;
-
 	private ArrayList< mpicbg.models.PointMatch > matches = null;
 	private mpicbg.models.Point[] p = null;
 	private mpicbg.models.Point[] q = null;
+	private mpicbg.models.AbstractAffineModel2D<?> model = null;
+	private AffineTransform freeaffine = null;
+	private HashMap initial_affines = null;
 	
+	private void forgetAffine() {
+		affine_handles = null;
+		matches = null;
+		p = q = null;
+		model = null;
+		freeaffine = null;
+		initial_affines = null;
+	}
+
 	private void initializeModel() {
 		// Start from the previous one, if any:
 		if (null != model) 
@@ -937,9 +947,6 @@ public class Selection {
 	}
 
 	private AffinePoint affp = null;
-	private mpicbg.models.AbstractAffineModel2D<?> model = null;
-	private AffineTransform freeaffine = null;
-	private HashMap initial_affines = null;
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
 		grabbed = null; // reset
