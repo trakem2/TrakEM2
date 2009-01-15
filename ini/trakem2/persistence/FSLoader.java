@@ -1432,30 +1432,6 @@ public final class FSLoader extends Loader {
 		return (byte[])source.convertToByte(false).getPixels();
 	}
 
-	private static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
-		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-		// In one step, set pixels that contain the alpha byte already:
-		bi.setRGB( 0, 0, width, height, pix, 0, width );
-		return bi;
-	}
-
-	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
-	private static final int[] embedAlpha( final int[] pix, final byte[] alpha){
-		return embedAlpha(pix, alpha, null);
-	}
-
-	private static final int[] embedAlpha( final int[] pix, final byte[] alpha, final byte[] outside) {
-		if (null == outside) {
-			for (int i=0; i<pix.length; ++i)
-				pix[i] = (pix[i]&0x00ffffff) | ((alpha[i]&0xff)<<24);
-		} else {
-			for (int i=0; i<pix.length; ++i) {
-				pix[i] = (pix[i]&0x00ffffff) | ( (outside[i]&0xff) != 255  ? 0 : ((alpha[i]&0xff)<<24) );
-			}
-		}
-		return pix;
-	}
-
 	
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />

@@ -1076,39 +1076,49 @@ abstract public class Loader {
 			}
 		}
 
-		// 5 - else, fetch the ImageProcessor and make an image from it of the proper size and quality
+		// 5 - else, fetch the (perhaps) transformed ImageProcessor and make an image from it of the proper size and quality
 
 		if (hs_unloadable.contains(p)) return NOT_FOUND;
 
-		final ImageProcessor ip = fetchImageProcessor(p);
+		synchronized (plock) {
+			try {
+				plock.lock();
+				Patch.PatchImage pai = p.createTransformedImage();
+				final ImageProcessor ip = pai.target;
+				ByteProcessor alpha_mask = pai.mask; // can be null;
+				final ByteProcessor outside_mask = pai.outside; // can be null
+				if (null != outside_mask && null == alpha_mask) {
+					alpha_mask = outside_mask;
+				}
+				pai = null;
+				if (null != alpha_mask && null != outside_mask) {
+					mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
+							       embedAlpha((int[])ip.convertToRGB().getPixels(),
+									  (byte[])alpha_mask.getPixels(),
+									  null == outside_mask ? null : (byte[])outside_mask.getPixels()));
+				} else {
+					mawt = ip.createImage();
+				}
+			} catch (Exception e) {
+				return NOT_FOUND;
+			} finally {
+				plock.unlock();
+			}
+		}
 
 		synchronized (db_lock) {
 			try {
 				lock();
-				if (null != ip && null != ip.getPixels()) {
-					// if NOT mag == 1.0 // but 0.75 also needs the 1.0 ... problem is, I can't cache level 1.5 or so
-					ImagePlus imp;
-					if (level < 0) {
-						imp = new ImagePlus("", Loader.scaleImage(new ImagePlus("", ip), level, p.getLayer().getParent().snapshotsQuality()));
-						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
-						p.putMinAndMax(imp);
-					} else {
-						imp = new ImagePlus("", ip);
-					}
-					mawt = p.createImage(imp); // could lock by calling fetchImagePlus if the imp was null, so CAREFUL
-					mawts.put(id, mawt, level);
-					Display.repaintSnapshot(p);
-					//Utils.log2("Returning from imp with level " + level);
-					return mawt;
-				}
-
+				mawts.put(id, mawt, level);
+				Display.repaintSnapshot(p);
+				return mawt;
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
 				unlock();
 			}
-			return NOT_FOUND;
 		}
+		return NOT_FOUND;
 	}
 
 	/** Returns null.*/
@@ -4875,4 +4885,30 @@ abstract public class Loader {
 	public String setImageFile(Patch p, ImagePlus imp) { return null; }
 
 	public boolean isUnloadable(final Patch p) { return hs_unloadable.contains(p); }
+
+	protected static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
+		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		// In one step, set pixels that contain the alpha byte already:
+		bi.setRGB( 0, 0, width, height, pix, 0, width );
+		return bi;
+	}
+
+	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
+	protected static final int[] embedAlpha( final int[] pix, final byte[] alpha){
+		return embedAlpha(pix, alpha, null);
+	}
+
+	protected static final int[] embedAlpha( final int[] pix, final byte[] alpha, final byte[] outside) {
+		if (null == outside) {
+			if (null == alpha)
+				return pix;
+			for (int i=0; i<pix.length; ++i)
+				pix[i] = (pix[i]&0x00ffffff) | ((alpha[i]&0xff)<<24);
+		} else {
+			for (int i=0; i<pix.length; ++i) {
+				pix[i] = (pix[i]&0x00ffffff) | ( (outside[i]&0xff) != 255  ? 0 : ((alpha[i]&0xff)<<24) );
+			}
+		}
+		return pix;
+	}
 }
