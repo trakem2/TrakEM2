@@ -1944,7 +1944,11 @@ public final class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			try {
-				mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
+				//mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
+				// Need to remove ALL now, since level 0 is also included as a mipmap:
+				for (final Image img : mawts.remove(id)) {
+					if (null != img) img.flush();
+				}
 			} catch (Exception e) { e.printStackTrace(); }
 			unlock();
 		}
@@ -2141,6 +2145,7 @@ public final class FSLoader extends Loader {
 							this.startedWorking();
 							try {
 								generateMipMaps(patch);
+								flushMipMaps(patch.getId());
 							} catch (Exception e) {
 								IJError.print(e);
 							}

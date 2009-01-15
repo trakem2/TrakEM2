@@ -1080,6 +1080,18 @@ abstract public class Loader {
 
 		if (hs_unloadable.contains(p)) return NOT_FOUND;
 
+		synchronized (db_lock) {
+			try {
+				lock();
+				releaseMemory();
+				plock = getOrMakePatchLoadingLock(p, level);
+			} catch (Exception e) {
+				return NOT_FOUND;
+			} finally {
+				unlock();
+			}
+		}
+
 		synchronized (plock) {
 			try {
 				plock.lock();
@@ -1100,7 +1112,8 @@ abstract public class Loader {
 					mawt = ip.createImage();
 				}
 			} catch (Exception e) {
-				return NOT_FOUND;
+				Utils.log2("Could not create an image for Patch " + p);
+				mawt = null;
 			} finally {
 				plock.unlock();
 			}
@@ -1109,15 +1122,19 @@ abstract public class Loader {
 		synchronized (db_lock) {
 			try {
 				lock();
-				mawts.put(id, mawt, level);
-				Display.repaintSnapshot(p);
-				return mawt;
+				if (null != mawt) {
+					mawts.put(id, mawt, level);
+					Display.repaintSnapshot(p);
+					return mawt;
+				}
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
+				removePatchLoadingLock(plock);
 				unlock();
 			}
 		}
+
 		return NOT_FOUND;
 	}
 
