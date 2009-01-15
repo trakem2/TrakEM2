@@ -1139,8 +1139,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Create an undo step involving all Displayable objects in the set. */
 	public void addUndoStep(final Set<Displayable> set) {
-		HashMap ht = new HashMap();
-		for (Displayable d : set) {
+		final HashMap ht = new HashMap();
+		for (final Displayable d : set) {
 			ht.put(d, d.getAffineTransformCopy());
 		}
 		addUndoStep(ht);
