@@ -1282,7 +1282,7 @@ public abstract class Displayable extends DBObject {
 		return p3;
 	}
 
-	/** Apply the given affine to this and all its linked objects. */
+	/** Concatenate the given affine to this and all its linked objects. */
 	public void transform(final AffineTransform at) {
 		for (Iterator it = getLinkedGroup(new HashSet()).iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
