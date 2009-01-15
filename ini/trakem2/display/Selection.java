@@ -929,9 +929,7 @@ public class Selection {
 	}
 
 	private void fixAffinePoints(final AffineTransform at) {
-		Utils.log2("fixAffinePoints 1");
 		if (null != matches) {
-			Utils.log2("fixAffinePoints 2");
 			float[] po = new float[2];
 			for (final AffinePoint affp : affine_handles) {
 				po[0] = affp.x;
