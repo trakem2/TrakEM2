@@ -842,20 +842,80 @@ public class Selection {
 
 	private ArrayList<AffinePoint> affine_handles = null;
 
-	private void freeAffine(AffinePoint affp, int dx, int dy) {
-		affp.translate(dx, dy);
-		Utils.log("Free affine: " + dx + ", " + dy);
+	private ArrayList< mpicbg.models.PointMatch > matches = null;
+	private mpicbg.models.Point[] p = null;
+	private mpicbg.models.Point[] q = null;
+	
+	private void initializeModel() {
+		// Start from the previous one, if any:
+		if (null != model) 
+			freeaffine.preConcatenate(model.createAffine());
+
+		int size = affine_handles.size();
+
+		switch (size) {
+			case 0:
+				model = null;
+				q = p = null;
+				matches = null;
+				return;
+			case 1:
+				model = new mpicbg.models.TranslationModel2D();
+				break;
+			case 2:
+				model = new mpicbg.models.SimilarityModel2D();
+				break;
+			case 3:
+				model = new mpicbg.models.AffineModel2D();
+				break;
+		}
+		p = new mpicbg.models.Point[size];
+		q = new mpicbg.models.Point[size];
+		matches = new ArrayList< mpicbg.models.PointMatch >();
+		int i = 0;
+		for (final AffinePoint ap : affine_handles) {
+			p[i] = new mpicbg.models.Point(new float[]{ap.x, ap.y});
+			q[i] = p[i].clone();
+			matches.add(new mpicbg.models.PointMatch(p[i], q[i]));
+			i++;
+		}
+	}
+
+	private void freeAffine(AffinePoint affp) {
+		// The selected point
+		final float[] w = q[affine_handles.indexOf(affp)].getW();
+		w[0] = affp.x;
+		w[1] = affp.y;
+
+		try {
+			model.fit(matches);
+		} catch (Exception e) {}
+		
+		AffineTransform model_affine = model.createAffine();
+		for (Iterator it = initial_affines.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry e = (Map.Entry)it.next();
+			Displayable d = (Displayable)e.getKey();
+			AffineTransform at = new AffineTransform((AffineTransform)e.getValue());
+			at.preConcatenate(freeaffine);
+			at.preConcatenate(model_affine);
+			d.setAffineTransform(at);
+		}
 	}
 
 	private AffinePoint affp = null;
+	private mpicbg.models.AbstractAffineModel2D<?> model = null;
+	private AffineTransform freeaffine = null;
+	private HashMap initial_affines = null;
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
 		grabbed = null; // reset
 		if (transforming) {
 			if (me.isShiftDown()) {
 				if (me.isControlDown() && null != affine_handles) {
-					affine_handles.remove(new AffinePoint(x_p, y_p));
-					if (0 == affine_handles.size()) affine_handles = null;
+					if (affine_handles.remove(new AffinePoint(x_p, y_p))) {
+						initializeModel();
+						if (0 == affine_handles.size()) affine_handles = null;
+					}
 					return;
 				}
 				if (null == affine_handles) {
@@ -863,6 +923,11 @@ public class Selection {
 				}
 				if (affine_handles.size() < 3) {
 					affine_handles.add(new AffinePoint(x_p, y_p));
+					if (1 == affine_handles.size()) {
+						freeaffine = new AffineTransform();
+						initial_affines = getTransformationsCopy();
+					}
+					initializeModel();
 				}
 				return;
 			} else if (null != affine_handles) {
@@ -900,7 +965,9 @@ public class Selection {
 		int dy = y_d - y_d_old;
 
 		if (null != affp) {
-			freeAffine(affp, dx, dy);
+			affp.translate(dx, dy);
+			// Passing on the translation from start
+			freeAffine(affp);
 			return;
 		}
 
@@ -944,6 +1011,7 @@ public class Selection {
 		grabbed = null;
 		dragging = false;
 		rotating = false;
+		affp = null;
 	}
 
 	/** Returns a copy of the box enclosing all selected ob, or null if none.*/
