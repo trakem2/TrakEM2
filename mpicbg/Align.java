@@ -23,6 +23,8 @@ import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
 import mpicbg.models.TileConfiguration;
+import mpicbg.transform.RigidModel2D;
+import mpicbg.transform.TranslationModel2D;
 
 public class Align
 {
@@ -409,7 +411,8 @@ public class Align
 		visited.add( tile );
 		for ( Tile< ? > t : tile.getConnectedTiles() )
 		{
-			// TODO continue here ...
+			if ( visited.contains( t ) ) continue;
+			pairwiseAlign( ( AbstractAffineTile2D< ? > )t, visited );
 		}
 	}
 	

@@ -17,20 +17,21 @@
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
-package mpicbg;
+package mpicbg.transform;
 
-public class TranslationModel2D extends mpicbg.models.TranslationModel2D implements CoordinateTransform
+public class RigidModel2D extends mpicbg.models.RigidModel2D implements CoordinateTransform
 {
 
 	//@Override
 	final public void init( final String data )
 	{
 		final String[] fields = data.split( "\\s+" );
-		if ( fields.length == 2 )
+		if ( fields.length == 3 )
 		{
-			final float tx = Float.parseFloat( fields[ 0 ] );
-			final float ty = Float.parseFloat( fields[ 1 ] );
-			set( tx, ty );
+			final float theta = Float.parseFloat( fields[ 0 ] );
+			final float tx = Float.parseFloat( fields[ 1 ] );
+			final float ty = Float.parseFloat( fields[ 2 ] );
+			set( theta, tx, ty );
 		}
 		else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
 	}
@@ -44,6 +45,6 @@ public class TranslationModel2D extends mpicbg.models.TranslationModel2D impleme
 	//@Override
 	final public String toDataString()
 	{
-		return tx + " " + ty;
+		return Math.atan2( sin, cos ) + " " + tx + " " + ty;
 	}
 }

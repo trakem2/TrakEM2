@@ -17,7 +17,7 @@
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de> and Albert Cardona <acardona@ini.phys.ethz.ch>
  *
  */
-package mpicbg;
+package mpicbg.transform;
 
 /**
  * {@link mpicbg.models.InvertibleCoordinateTransform} with {@link String}

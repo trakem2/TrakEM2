@@ -17,7 +17,7 @@
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
-package mpicbg;
+package mpicbg.transform;
 
 import java.awt.Rectangle;
 import java.util.Set;
