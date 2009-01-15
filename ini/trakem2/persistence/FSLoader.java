@@ -30,44 +30,19 @@ import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ColorProcessor;
-import ij.process.ImageStatistics;
-import ij.measure.Measurements;
-import ij.gui.YesNoCancelDialog;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
-import ini.trakem2.display.Ball;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
-import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.display.Pipe;
-import ini.trakem2.display.Profile;
 import ini.trakem2.display.YesNoDialog;
-import ini.trakem2.display.ZDisplayable;
-import ini.trakem2.tree.Attribute;
-import ini.trakem2.tree.LayerThing;
-import ini.trakem2.tree.ProjectAttribute;
-import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.tree.TemplateThing;
-import ini.trakem2.tree.TemplateAttribute;
-import ini.trakem2.tree.Thing;
-import ini.trakem2.tree.TrakEM2MLParser;
-import ini.trakem2.tree.DTDParser;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
 import ini.trakem2.imaging.FloatProcessorT2;
 
-import java.awt.Color;
-import java.awt.Cursor;
-import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.Point;
-import java.awt.Rectangle;
-import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.image.ColorModel;
@@ -76,15 +51,9 @@ import java.awt.RenderingHints;
 import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
 import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.FilenameFilter;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 
@@ -1848,11 +1817,11 @@ public final class FSLoader extends Loader {
 						boolean ow = overwrite;
 						if (!overwrite) {
 							// check if all the files exists. If one doesn't, then overwrite all anyway
-							int w = (int)pa[k].getOWidth();
-							int h = (int)pa[k].getOHeight();
+							int w = (int)pa[k].getWidth();
+							int h = (int)pa[k].getHeight();
 							int level = 0;
 							final String filename = new File(getAbsolutePath(pa[k])).getName() + "." + pa[k].getId() + ".jpg";
-							while (w >= 64 && h >= 64) {
+							while (w >= 32 && h >= 32) {
 								w /= 2;
 								h /= 2;
 								level++;
@@ -2020,7 +1989,7 @@ public final class FSLoader extends Loader {
 				int w = width;
 				int h = height;
 				int k = 0; // the level
-				while (w >= 64 && h >= 64) { // not smaller than 32x32
+				while (w >= 32 && h >= 32) { // not smaller than 32x32
 					final File f = new File(dir_mipmaps + k + "/" + filename);
 					if (f.exists()) {
 						try {
@@ -2059,10 +2028,10 @@ public final class FSLoader extends Loader {
 				if (level <= 0) return 0;
 				// choose the smallest dimension
 				final double dim = patch.getOWidth() < patch.getOHeight() ? patch.getOWidth() : patch.getOHeight();
-				// find max level that keeps dim over 64 pixels
+				// find max level that keeps dim over 32 pixels
 				int lev = 1;
 				while (true) {
-					if ((dim * (1 / Math.pow(2, lev))) < 64) {
+					if ((dim * (1 / Math.pow(2, lev))) < 32) {
 						lev--; // the previous one
 						break;
 					}
@@ -2177,9 +2146,9 @@ public final class FSLoader extends Loader {
 
 			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
 
-			// Regenerate in the case of not asking for an image under 64x64
+			// Regenerate in the case of not asking for an image under 32x32
 			double scale = 1 / Math.pow(2, level);
-			if (level > 0 && (patch.getOWidth() * scale >= 64 || patch.getOHeight() * scale >= 64) && isMipMapsEnabled()) {
+			if (level > 0 && (patch.getOWidth() * scale >= 32 || patch.getOHeight() * scale >= 32) && isMipMapsEnabled()) {
 				// regenerate
 				synchronized (gm_lock) {
 					gm_lock();
