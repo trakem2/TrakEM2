@@ -858,7 +858,7 @@ public class Selection {
 	private mpicbg.models.Point[] p = null;
 	private mpicbg.models.Point[] q = null;
 	private mpicbg.models.AbstractAffineModel2D<?> model = null;
-	private AffineTransform freeaffine = null;
+	private AffineTransform free_affine = null;
 	private HashMap initial_affines = null;
 	
 	private void forgetAffine() {
@@ -866,15 +866,12 @@ public class Selection {
 		matches = null;
 		p = q = null;
 		model = null;
-		freeaffine = null;
+		free_affine = null;
 		initial_affines = null;
 	}
 
 	private void initializeModel() {
-		// Start from the previous one, if any:
-		if (null != model) 
-			freeaffine.preConcatenate(model.createAffine());
-
+		free_affine = new AffineTransform();
 		initial_affines = getTransformationsCopy();
 
 		int size = affine_handles.size();
@@ -922,7 +919,7 @@ public class Selection {
 			Map.Entry e = (Map.Entry)it.next();
 			Displayable d = (Displayable)e.getKey();
 			AffineTransform at = new AffineTransform((AffineTransform)e.getValue());
-			at.preConcatenate(freeaffine);
+			at.preConcatenate(free_affine);
 			at.preConcatenate(model_affine);
 			d.setAffineTransform(at);
 		}
@@ -939,7 +936,7 @@ public class Selection {
 				affp.y = (int)po[1];
 			}
 			// Model will be reinitialized when needed
-			freeaffine.setToIdentity();
+			free_affine.setToIdentity();
 			model = null;
 		}
 	}
@@ -963,7 +960,7 @@ public class Selection {
 				if (affine_handles.size() < 3) {
 					affine_handles.add(new AffinePoint(x_p, y_p));
 					if (1 == affine_handles.size()) {
-						freeaffine = new AffineTransform();
+						free_affine = new AffineTransform();
 						initial_affines = getTransformationsCopy();
 					}
 					initializeModel();
