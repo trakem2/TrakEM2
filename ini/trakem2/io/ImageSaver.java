@@ -172,7 +172,7 @@ public class ImageSaver {
 				// decode
 				if (null != stream) bi = openJpeg2(stream, color_id);
 			} catch (Exception e2) {
-				IJError.print(e2);
+				IJError.print(e2, true);
 			}
 		} finally {
 			if (null != stream) { try { stream.close(); } catch (Exception e) {} }
@@ -197,10 +197,10 @@ public class ImageSaver {
 					return new URL(path).openStream();
 				}
 			} catch (Throwable e) {
-				IJError.print(e);
+				IJError.print(e, true);
 			}
 		} catch (Throwable t) {
-			IJError.print(t);
+			IJError.print(t, true);
 		}
 		return null;
 	}
@@ -338,7 +338,7 @@ public class ImageSaver {
 		} catch (FileNotFoundException fnfe) {
 			Utils.log2("saveAsJpegAlpha: Path not found: " + path);
 		} catch (Exception e) {
-			IJError.print(e);
+			IJError.print(e, true);
 		}
 		return false;
 	}
@@ -363,7 +363,7 @@ public class ImageSaver {
 			Utils.log2("openJpegAlpha: Path not found: " + path);
 		} catch (Exception e) {
 			Utils.log2("openJpegAlpha: cannot open " + path);
-			IJError.print(e);
+			IJError.print(e, true);
 		}
 		return null;
 	}
@@ -404,7 +404,7 @@ public class ImageSaver {
 		frame.setVisible(true);
 
 		// 1) check if 8-bit images can also be jpegs with an alpha channel: they can't
-		// 2) TODO: check if ImagePlus preserves the alpha channel as well
+		// 2) check if ImagePlus preserves the alpha channel as well: it doesn't
 	}
 
 }

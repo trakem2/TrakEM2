@@ -71,6 +71,7 @@ import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.awt.image.ColorModel;
+import java.awt.image.PixelGrabber;
 import java.awt.RenderingHints;
 import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
@@ -128,11 +129,13 @@ public final class FSLoader extends Loader {
 	static private Dispatcher dispatcher = new Dispatcher();
 
 
+	/** Used to open a project from an existing XML file. */
 	public FSLoader() {
 		super(); // register
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
 
+	/** Used to create a new project, NOT from an XML file. */
 	public FSLoader(final String storage_folder) {
 		this();
 		if (null == storage_folder) this.dir_storage = super.getStorageFolder(); // home dir
@@ -142,16 +145,42 @@ public final class FSLoader extends Loader {
 			Utils.log("WARNING can't read/write to the storage_folder at " + dir_storage);
 		} else {
 			createMipMapsDir(this.dir_storage);
+			crashDetector();
 		}
 	}
 
-	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders.*/
+	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders. Used for creating subprojects. */
 	public FSLoader(final Loader source) {
 		this();
 		this.dir_storage = source.getStorageFolder(); // can never be null
 		this.dir_mipmaps = source.getMipMapsFolder();
 		if (null == this.dir_mipmaps) createMipMapsDir(this.dir_storage);
 		setPreprocessor(source.getPreprocessor());
+	}
+
+	/** Store a hidden file in trakem2.mipmaps directory that means: "the project is open", which is deleted when the project is closed. If the file is present on opening a project, it means the project has not been closed properly, and some mipmaps may be wrong. */
+	private void crashDetector() {
+		if (null == dir_mipmaps) {
+			Utils.log2("Could NOT create crash detection system: null dir_mipmaps.");
+			return;
+		}
+		File f = new File(dir_mipmaps + ".open.t2");
+		Utils.log2("Crash detector file is " + dir_mipmaps + ".open.t2");
+		try {
+			if (f.exists()) {
+				// crashed!
+				askAndExecMipmapRegeneration("TrakEM detected a crash!");
+			} else {
+				if (!f.createNewFile() && !dir_mipmaps.startsWith("http:")) {
+					Utils.showMessage("WARNING: could NOT create crash detection system:\nCannot write to mipmaps folder.");
+				} else {
+					Utils.log2("Created crash detection system.");
+				}
+			}
+		} catch (Exception e) {
+			Utils.log2("Crash detector error:" + e);
+			IJError.print(e);
+		}
 	}
 
 	public String getProjectXMLPath() {
@@ -276,6 +305,7 @@ public final class FSLoader extends Loader {
 		}
 		// else, good
 		super.v_loaders.add(this);
+		crashDetector();
 		return data;
 	}
 
@@ -317,6 +347,16 @@ public final class FSLoader extends Loader {
 				try { f.delete(); } catch (Exception e) { Utils.log("Could not remove empty trakem2.mipmaps directory."); }
 			}
 		}
+		// remove crash detector
+		File f = new File(dir_mipmaps + ".open.t2");
+		try {
+			if (!f.delete()) {
+				Utils.log2("WARNING: could not delete crash detector file .open.t2 from trakem2.mipmaps folder at " + dir_mipmaps);
+			}
+		} catch (Exception e) {
+			Utils.log2("WARNING: crash detector file trakem.mipmaps/.open.t2 may NOT have been deleted.");
+			IJError.print(e);
+		}
 	}
 
 	/** Get the next unique id, not shared by any other object within the same project. */
@@ -350,11 +390,15 @@ public final class FSLoader extends Loader {
 		return null;
 	}
 
+	/* Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImagePlust.getProcessor().
+	 * or just use the Patch.getImageProcessor() method which does it for you. */
 	public ImagePlus fetchImagePlus(final Patch p) {
 		return (ImagePlus)fetchImage(p, Layer.IMAGEPLUS);
 	}
 
-	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example. */
+	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example.
+	 * Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImageProcessor,
+	 * or just use the Patch.getImageProcessor() method which does it for you. */
 	public ImageProcessor fetchImageProcessor(final Patch p) {
 		return (ImageProcessor)fetchImage(p, Layer.IMAGEPROCESSOR);
 	}
@@ -1192,28 +1236,32 @@ public final class FSLoader extends Loader {
 			// create a new one inside the dir_storage, which can't be null
 			createMipMapsDir(dir_storage);
 			if (null != this.dir_mipmaps && ControlWindow.isGUIEnabled() && null != IJ.getInstance()) {
-				Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
-				YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", "Generate mipmaps in the background for all images?");
-				if (yn.yesPressed()) {
-					final Loader lo = this;
-					new Thread() {
-						public void run() {
-							try {
-								// wait while parsing the rest of the XML file
-								while (!v_loaders.contains(lo)) {
-									Thread.sleep(1000);
-								}
-								Project pj = Project.findProject(lo);
-								lo.generateMipMaps(pj.getRootLayerSet().getDisplayables(Patch.class));
-							} catch (Exception e) {}
-						}
-					}.start();
-				}
+				askAndExecMipmapRegeneration(null);
 			}
 		}
 		// fix
 		if (null != this.dir_mipmaps && !this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
 		Utils.log2("mipmaps folder is " + this.dir_mipmaps);
+	}
+
+	private void askAndExecMipmapRegeneration(final String msg) {
+		Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
+		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", (null != msg ? msg  + "\n" : "") + "Generate mipmaps in the background for all images?");
+		if (yn.yesPressed()) {
+			final Loader lo = this;
+			new Thread() {
+				public void run() {
+					try {
+						// wait while parsing the rest of the XML file
+						while (!v_loaders.contains(lo)) {
+							Thread.sleep(1000);
+						}
+						Project pj = Project.findProject(lo);
+						lo.generateMipMaps(pj.getRootLayerSet().getDisplayables(Patch.class));
+					} catch (Exception e) {}
+				}
+			}.start();
+		}
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
@@ -1235,11 +1283,96 @@ public final class FSLoader extends Loader {
 		return dir_mipmaps;
 	}
 
+
+	/*
+	static private IndexColorModel thresh_cm = null;
+
+	static private final IndexColorModel getThresholdLUT() {
+		if (null == thresh_cm) {
+			// An array of all black pixels (value 0) except at 255, which is white (value 255).
+			final byte[] c = new byte[256];
+			c[255] = (byte)255;
+			thresh_cm = new IndexColorModel(8, 256, c, c, c);
+		}
+		return thresh_cm;
+	}
+	*/
+
+	/** Returns the array of pixels, whose type depends on the bi.getType(); for example, for a BufferedImage.TYPE_BYTE_INDEXED, returns a byte[]. */
+	static public final Object grabPixels(final BufferedImage bi) {
+		final PixelGrabber pg = new PixelGrabber(bi, 0, 0, bi.getWidth(), bi.getHeight(), false);
+		try {
+			pg.grabPixels();
+			return pg.getPixels();
+		} catch (InterruptedException e) {
+			IJError.print(e);
+		}
+		return null;
+	}
+
+	private final BufferedImage createCroppedAlpha(final BufferedImage alpha, final BufferedImage outside) {
+		if (null == outside) return alpha;
+
+		final int width = outside.getWidth();
+		final int height = outside.getHeight();
+
+		// Create an outside image, thresholded: only pixels of 255 remain as 255, the rest is set to 0.
+		/* // DOESN'T work: creates a mask with "black" as 254 (???), and white 255 (correct).
+		final BufferedImage thresholded = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_INDEXED, getThresholdLUT());
+		thresholded.createGraphics().drawImage(outside, 0, 0, null);
+		*/
+
+		// So, instead: grab the pixels, fix them manually
+		// The cast to byte[] works because "outside" and "alpha" are TYPE_BYTE_INDEXED.
+		final byte[] o = (byte[])grabPixels(outside); 
+		if (null == o) return null;
+		final byte[] a = null == alpha ? o : (byte[])grabPixels(alpha);
+
+		// Set each non-255 pixel in outside to 0 in alpha:
+		for (int i=0; i<o.length; i++) {
+			if ( (o[i]&0xff) < 255) a[i] = 0;
+		}
+
+		// Put the pixels back into an image:
+		final BufferedImage thresholded = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+		thresholded.getRaster().setDataElements(0, 0, width, height, a);
+
+		return thresholded;
+	}
+
+	static public final BufferedImage convertToBufferedImage(final ByteProcessor bp) {
+		bp.setMinAndMax(0, 255);
+		final Image img = bp.createImage();
+		if (img instanceof BufferedImage) return (BufferedImage)img;
+		//else:
+		final BufferedImage bi = new BufferedImage(bp.getWidth(), bp.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+		bi.createGraphics().drawImage(bi, 0, 0, null);
+		return bi;
+	}
+
+	/** Scale a BufferedImage.TYPE_BYTE_INDEXED into another of the same type but dimensions target_width,target_height. */
+	static private final BufferedImage scaleAndFlush(final Image img, final int target_width, final int target_height, final boolean area_averaging, final Object interpolation_hint) {
+		final BufferedImage bi = new BufferedImage(target_width, target_height, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+		if (area_averaging) {
+			bi.createGraphics().drawImage(img.getScaledInstance(target_width, target_height, Image.SCALE_AREA_AVERAGING), 0, 0, null);
+		} else {
+			final Graphics2D g = bi.createGraphics();
+			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation_hint);
+			g.drawImage(img, 0, 0, target_width, target_height, null); // draws it scaled to target area w*h
+		}
+		// Release native resources
+		img.flush();
+
+		return bi;
+	}
+
 	/** Image to BufferedImage. Can be used for hardware-accelerated resizing, since the whole awt is painted to a target w,h area in the returned new BufferedImage. */
-	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final IndexColorModel icm, final BufferedImage alpha) {
+	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final IndexColorModel icm, final BufferedImage alpha, final BufferedImage outside) {
 		BufferedImage bi;
 		final boolean area_averaging = interpolation_hint.getClass() == Integer.class && Loader.AREA_AVERAGING == ((Integer)interpolation_hint).intValue();
-		if (null != alpha) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+		final boolean must_scale = (w != awt.getWidth(null) || h != awt.getHeight(null));
+
+		if (null != alpha || null != outside) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
 		else if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
 		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
 		final Graphics2D g = bi.createGraphics();
@@ -1251,43 +1384,55 @@ public final class FSLoader extends Loader {
 			g.drawImage(awt, 0, 0, w, h, null); // draws it scaled
 		}
 		BufferedImage ba = alpha;
-		if (null != alpha) {
-			FloatProcessor fp_alpha = null;
-			// resize alpha mask if necessary:
-			if (w != awt.getWidth(null) || h != awt.getHeight(null)) {
-				ba = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-				if (area_averaging) {
-					ba.createGraphics().drawImage(alpha.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING), 0, 0, null); // getScaledInstance returns an RGB image always, hence must paint it to a gray one
-				} else {
-					final Graphics2D ga = ba.createGraphics();
-					ga.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation_hint);
-					ga.drawImage(alpha, 0, 0, w, h, null); // draws it scaled to target area w*h
-				}
-			}
-			fp_alpha = (FloatProcessor) new ByteProcessor(ba).convertToFloat();
-			// Set all non-white pixels to zero (eliminate shadowy border caused by interpolation)
-			final float[] pix = (float[])fp_alpha.getPixels();
-			for (int i=0; i<pix.length; i++)
-				if (Math.abs(pix[i] - 255) > 0.001f) pix[i] = 0;
-			bi.getAlphaRaster().setPixels(0, 0, w, h, (float[])fp_alpha.getPixels());
+		BufferedImage bo = outside;
+		if (null != alpha && must_scale) {
+			ba = scaleAndFlush(alpha, w, h, area_averaging, interpolation_hint);
 		}
-		return new BufferedImage[]{bi, ba};
+		if (null != outside && must_scale) {
+			bo = scaleAndFlush(outside, w, h, area_averaging, interpolation_hint);
+		}
+
+		BufferedImage the_alpha = ba;
+		if (null != alpha) {
+			if (null != outside) {
+				the_alpha = createCroppedAlpha(ba, bo);
+			}
+		} else if (null != outside) {
+			the_alpha = createCroppedAlpha(null, bo);
+		}
+		if (null != the_alpha) {
+			bi.getAlphaRaster().setRect(the_alpha.getRaster());
+			//bi.getAlphaRaster().setPixels(0, 0, w, h, (float[])new ImagePlus("", the_alpha).getProcessor().convertToFloat().getPixels());
+			the_alpha.flush();
+		}
+
+		//Utils.log2("bi is: " + bi.getType() + " BufferedImage.TYPE_INT_ARGB=" + BufferedImage.TYPE_INT_ARGB);
+
+		/*
+		FloatProcessor fp_alpha = null;
+		fp_alpha = (FloatProcessor) new ByteProcessor(ba).convertToFloat();
+		// Set all non-white pixels to zero (eliminate shadowy border caused by interpolation)
+		final float[] pix = (float[])fp_alpha.getPixels();
+		for (int i=0; i<pix.length; i++)
+			if (Math.abs(pix[i] - 255) > 0.001f) pix[i] = 0;
+		bi.getAlphaRaster().setPixels(0, 0, w, h, (float[])fp_alpha.getPixels());
+		*/
+
+		return new BufferedImage[]{bi, ba, bo};
 	}
 
-	private Object getHint(final int mode) {
-		Object hint = null;
+	private final Object getHint(final int mode) {
 		switch (mode) {
 			case Loader.BICUBIC:
-				hint = RenderingHints.VALUE_INTERPOLATION_BICUBIC; break;
+				return RenderingHints.VALUE_INTERPOLATION_BICUBIC;
 			case Loader.BILINEAR:
-				hint = RenderingHints.VALUE_INTERPOLATION_BILINEAR; break;
+				return RenderingHints.VALUE_INTERPOLATION_BILINEAR;
 			case Loader.AREA_AVERAGING:
-				hint = new Integer(mode); break;
+				return new Integer(mode);
 			case Loader.NEAREST_NEIGHBOR:
 			default:
-				hint = RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR; break;
+				return RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR;
 		}
-		return hint;
 	}
 
 	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
@@ -1320,16 +1465,16 @@ public final class FSLoader extends Loader {
 
 	private static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
 		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-//		bi.createGraphics().drawImage(new ColorProcessor(width, height, pix).createImage(), 0, 0, null);
-//		bi.getAlphaRaster().setPixels(0, 0, width, height, alpha);
+		// In one step, set pixels that contain the alpha byte already:
 		bi.setRGB( 0, 0, width, height, pix, 0, width );
 		return bi;
 	}
-	
+
 	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
 	private static final int[] embedAlpha( final int[] pix, final byte[] alpha){
 		return embedAlpha(pix, alpha, null);
 	}
+
 	private static final int[] embedAlpha( final int[] pix, final byte[] alpha, final byte[] outside) {
 		if (null == outside) {
 			for (int i=0; i<pix.length; ++i)
@@ -1341,7 +1486,6 @@ public final class FSLoader extends Loader {
 		}
 		return pix;
 	}
-
 
 	
 	/** Given an image and its source file name (without directory prepended), generate
@@ -1517,27 +1661,28 @@ public final class FSLoader extends Loader {
 					cm = GRAY_LUT;
 				}
 
-				FloatProcessor alpha;
-				FloatProcessor outside;
-				if (null != alpha_mask) {
-					alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
-				} else {
-					alpha = null;
-				}
-				if (null != outside_mask) {
-					outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
-					if (null == alpha) {
-						alpha = outside;
-						alpha_mask = outside_mask;
-					}
-				} else {
-					outside = null;
-				}
-
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
-					fp.setMinAndMax(patch.getMin(), patch.getMax()); // no scaling, so values should do fine directly.
+					fp.setMinAndMax(patch.getMin(), patch.getMax());
 					int sw=w, sh=h;
+
+					FloatProcessor alpha;
+					FloatProcessor outside;
+					if (null != alpha_mask) {
+						alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
+					} else {
+						alpha = null;
+					}
+					if (null != outside_mask) {
+						outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
+						if (null == alpha) {
+							alpha = outside;
+							alpha_mask = outside_mask;
+						}
+					} else {
+						outside = null;
+					}
+
 					do {
 						// 0 - blur the previous image to 0.75 sigma
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
@@ -1573,7 +1718,7 @@ public final class FSLoader extends Loader {
 								} else {
 									o = a;
 								}
-								// Remove all not completely inside pixels from the alphamask
+								// Remove all not completely inside pixels from the alpha mask
 								// If there was no alpha mask, alpha is the outside itself
 								for (int i=0; i<o.length; i++) {
 									if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
@@ -1606,28 +1751,13 @@ public final class FSLoader extends Loader {
 					} while (w >= 32 && h >= 32); // not smaller than 32x32
 
 				} else {
+					//final StopWatch timer = new StopWatch();
+
 					// use java hardware-accelerated resizing
 					Image awt = ip.createImage();
 
-					/* // Is done anyway at IToBI
-					if (null != alpha_mask) {
-						BufferedImage bu = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-						bu.createGraphics().drawImage(awt, 0, 0, null);
-						bu.getAlphaRaster().setPixels(0, 0, w, h, (float[])alpha_mask.getPixels());
-						awt = bu;
-					}
-					*/
-
-					BufferedImage balpha = null;
-					if (null != alpha) {
-						alpha_mask.setMinAndMax(0, 255);
-						Image aa = alpha_mask.createImage();
-						if (aa instanceof BufferedImage) balpha = (BufferedImage)aa;
-						else {
-							balpha = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-							balpha.createGraphics().drawImage(aa, 0, 0, null);
-						}
-					}
+					BufferedImage balpha = null == alpha_mask ? null : convertToBufferedImage(alpha_mask);
+					BufferedImage boutside = null == outside_mask ? null : convertToBufferedImage(outside_mask);
 
 					BufferedImage bi = null;
 					final Object hint = getHint(resizing_mode);
@@ -1637,10 +1767,11 @@ public final class FSLoader extends Loader {
 						final String target_dir = getLevelDir(dir_mipmaps, k);
 						if (null == target_dir) continue;
 						// obtain half image
-							// for level 0 and others, when awt is not a bi or needs to be reduced in size (to new w,h)
-						final BufferedImage[] res = IToBI(awt, w, h, hint, icm, balpha); // can't just cast even if it's a BI already, because color type is wrong
+						//   for level 0 and others, when awt is not a BufferedImage or needs to be reduced in size (to new w,h)
+						final BufferedImage[] res = IToBI(awt, w, h, hint, icm, balpha, boutside);
 						bi = res[0];
 						balpha = res[1];
+						boutside = res[2];
 						// prepare next iteration
 						if (awt != bi) awt.flush();
 						awt = bi;
@@ -1648,17 +1779,19 @@ public final class FSLoader extends Loader {
 						h /= 2;
 						k++;
 						// save this iteration
-						if ( (null != alpha_mask &&
+						if ( ( (null != balpha || null != boutside) &&
 						      !ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi, target_dir + filename, 0.85f))
-						   || (null == alpha_mask &&
-						      !ini.trakem2.io.ImageSaver.saveAsJpeg(bi, target_dir + filename, 0.85f, as_grey))) {
+						   || ( null == balpha && null == boutside && !ini.trakem2.io.ImageSaver.saveAsJpeg(bi, target_dir + filename, 0.85f, as_grey))) {
 							cannot_regenerate.add(patch);
 							break;
 						}
 					} while (w >= 32 && h >= 32);
 					bi.flush();
+
+					//timer.cumulative();
 				}
 			}
+
 			return true;
 		} catch (Throwable e) {
 			IJError.print(e);
@@ -1715,8 +1848,8 @@ public final class FSLoader extends Loader {
 						boolean ow = overwrite;
 						if (!overwrite) {
 							// check if all the files exists. If one doesn't, then overwrite all anyway
-							int w = (int)pa[k].getWidth();
-							int h = (int)pa[k].getHeight();
+							int w = (int)pa[k].getOWidth();
+							int h = (int)pa[k].getOHeight();
 							int level = 0;
 							final String filename = new File(getAbsolutePath(pa[k])).getName() + "." + pa[k].getId() + ".jpg";
 							while (w >= 64 && h >= 64) {
@@ -1925,7 +2058,7 @@ public final class FSLoader extends Loader {
 			if (isURL(dir_mipmaps)) {
 				if (level <= 0) return 0;
 				// choose the smallest dimension
-				final double dim = patch.getWidth() < patch.getHeight() ? patch.getWidth() : patch.getHeight();
+				final double dim = patch.getOWidth() < patch.getOHeight() ? patch.getOWidth() : patch.getOHeight();
 				// find max level that keeps dim over 64 pixels
 				int lev = 1;
 				while (true) {
@@ -2046,7 +2179,7 @@ public final class FSLoader extends Loader {
 
 			// Regenerate in the case of not asking for an image under 64x64
 			double scale = 1 / Math.pow(2, level);
-			if (level > 0 && (patch.getWidth() * scale >= 64 || patch.getHeight() * scale >= 64) && isMipMapsEnabled()) {
+			if (level > 0 && (patch.getOWidth() * scale >= 64 || patch.getOHeight() * scale >= 64) && isMipMapsEnabled()) {
 				// regenerate
 				synchronized (gm_lock) {
 					gm_lock();

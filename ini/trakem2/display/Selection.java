@@ -25,6 +25,7 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.gui.ShapeRoi;
+import ij.gui.PointRoi;
 import ij.gui.Roi;
 
 import java.awt.Rectangle;
@@ -122,8 +123,9 @@ public class Selection {
 	}
 
 	/** Paint a white frame around the selected object and a pink frame around all others. Active is painted last, so white frame is always top. */
-	public void paint(Graphics g, Rectangle srcRect, double magnification) {
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification) {
 		// paint rectangle around selected Displayable elements
+		final Composite co = g.getComposite();
 		synchronized (queue_lock) {
 			try {
 				lock();
@@ -189,8 +191,20 @@ public class Selection {
 				RO.paint(g, srcRect, magnification);
 				((RotationHandle)RO).paintMoving(g, srcRect, magnification, display.getCanvas().getCursorLoc());
 			}
-			g2d.setStroke(original_stroke);
+
+			// Restore composite (undoes setXORColor)
+			g.setComposite(co);
+			if (null != affine_handles) {
+				for (final AffinePoint ap : affine_handles) {
+					ap.paint(g);
+				}
+			}
+
 			g2d.setTransform(original);
+			g2d.setStroke(original_stroke);
+		} else {
+			// Restore composite (undoes setXORColor)
+			g.setComposite(co);
 		}
 
 		/*
@@ -789,13 +803,141 @@ public class Selection {
 		display.getLayer().getParent().undoOneStep();
 		// reread all transforms and remake box
 		resetBox();
+		affine_handles = null;
 	}
 
 	public boolean isTransforming() { return this.transforming; }
 
-	public void mousePressed(int x_p, int y_p, double magnification) {
+	private class AffinePoint {
+		int x, y;
+		AffinePoint(int x, int y) {
+			this.x = x;
+			this.y = y;
+		}
+		public boolean equals(Object ob) {
+			//if (!ob.getClass().equals(AffinePoint.class)) return false;
+			AffinePoint ap = (AffinePoint) ob;
+			double mag = display.getCanvas().getMagnification();
+			double dx = mag * ( ap.x - this.x );
+			double dy = mag * ( ap.y - this.y );
+			double d =  dx * dx + dy * dy;
+			return  d < 64.0;
+		}
+		void translate(int dx, int dy) {
+			x += dx;
+			y += dy;
+		}
+		private void paint(Graphics g) {
+			int x = display.getCanvas().screenX(this.x);
+			int y = display.getCanvas().screenY(this.y);
+			g.setColor(Color.white);
+			g.drawLine(x-4, y+2, x+8, y+2);
+			g.drawLine(x+2, y-4, x+2, y+8);
+			g.setColor(Color.yellow);
+			g.fillRect(x+1,y+1,3,3);
+			g.setColor(Color.black);
+			g.drawRect(x, y, 4, 4);
+		}
+	}
+
+	private ArrayList<AffinePoint> affine_handles = null;
+
+	private ArrayList< mpicbg.models.PointMatch > matches = null;
+	private mpicbg.models.Point[] p = null;
+	private mpicbg.models.Point[] q = null;
+	
+	private void initializeModel() {
+		// Start from the previous one, if any:
+		if (null != model) 
+			freeaffine.preConcatenate(model.createAffine());
+
+		int size = affine_handles.size();
+
+		switch (size) {
+			case 0:
+				model = null;
+				q = p = null;
+				matches = null;
+				return;
+			case 1:
+				model = new mpicbg.models.TranslationModel2D();
+				break;
+			case 2:
+				model = new mpicbg.models.SimilarityModel2D();
+				break;
+			case 3:
+				model = new mpicbg.models.AffineModel2D();
+				break;
+		}
+		p = new mpicbg.models.Point[size];
+		q = new mpicbg.models.Point[size];
+		matches = new ArrayList< mpicbg.models.PointMatch >();
+		int i = 0;
+		for (final AffinePoint ap : affine_handles) {
+			p[i] = new mpicbg.models.Point(new float[]{ap.x, ap.y});
+			q[i] = p[i].clone();
+			matches.add(new mpicbg.models.PointMatch(p[i], q[i]));
+			i++;
+		}
+	}
+
+	private void freeAffine(AffinePoint affp) {
+		// The selected point
+		final float[] w = q[affine_handles.indexOf(affp)].getW();
+		w[0] = affp.x;
+		w[1] = affp.y;
+
+		try {
+			model.fit(matches);
+		} catch (Exception e) {}
+		
+		AffineTransform model_affine = model.createAffine();
+		for (Iterator it = initial_affines.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry e = (Map.Entry)it.next();
+			Displayable d = (Displayable)e.getKey();
+			AffineTransform at = new AffineTransform((AffineTransform)e.getValue());
+			at.preConcatenate(freeaffine);
+			at.preConcatenate(model_affine);
+			d.setAffineTransform(at);
+		}
+	}
+
+	private AffinePoint affp = null;
+	private mpicbg.models.AbstractAffineModel2D<?> model = null;
+	private AffineTransform freeaffine = null;
+	private HashMap initial_affines = null;
+
+	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
 		grabbed = null; // reset
 		if (transforming) {
+			if (me.isShiftDown()) {
+				if (me.isControlDown() && null != affine_handles) {
+					if (affine_handles.remove(new AffinePoint(x_p, y_p))) {
+						initializeModel();
+						if (0 == affine_handles.size()) affine_handles = null;
+					}
+					return;
+				}
+				if (null == affine_handles) {
+					affine_handles = new ArrayList<AffinePoint>();
+				}
+				if (affine_handles.size() < 3) {
+					affine_handles.add(new AffinePoint(x_p, y_p));
+					if (1 == affine_handles.size()) {
+						freeaffine = new AffineTransform();
+						initial_affines = getTransformationsCopy();
+					}
+					initializeModel();
+				}
+				return;
+			} else if (null != affine_handles) {
+				int index = affine_handles.indexOf(new AffinePoint(x_p, y_p));
+				if (-1 != index) {
+					affp = affine_handles.get(index);
+					return;
+				}
+			}
+
 			// find scale handle
 			double radius = 4 / magnification;
 			if (radius < 1) radius = 1;
@@ -821,6 +963,14 @@ public class Selection {
 		this.y_d_old = y_d_old;
 		int dx = x_d - x_d_old;
 		int dy = y_d - y_d_old;
+
+		if (null != affp) {
+			affp.translate(dx, dy);
+			// Passing on the translation from start
+			freeAffine(affp);
+			return;
+		}
+
 		if (null != grabbed) {
 			// drag the handle and perform whatever task it has assigned
 			grabbed.drag(me, dx, dy);
@@ -861,6 +1011,7 @@ public class Selection {
 		grabbed = null;
 		dragging = false;
 		rotating = false;
+		affp = null;
 	}
 
 	/** Returns a copy of the box enclosing all selected ob, or null if none.*/

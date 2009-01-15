@@ -30,6 +30,7 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
+import java.awt.image.VolatileImage;
 import java.awt.Graphics2D;
 import java.awt.BasicStroke;
 import java.awt.Rectangle;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import ini.trakem2.utils.*;
 import java.awt.geom.AffineTransform;
+import java.awt.GraphicsConfiguration;
 
 public final class DisplayNavigator extends JPanel implements MouseListener, MouseMotionListener {
 
@@ -58,6 +60,9 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 	private final Object updating_ob = new Object();
 	private boolean updating = false;
+
+	private VolatileImage volatileImage;
+	private boolean invalid_volatile = false;
 
 	DisplayNavigator(Display display, double layer_width, double layer_height) { // contorsions to avoid java bugs ( a.k.a. the 'this' is not functional until the object in question has finished initialization.
 		this.display = display;
@@ -94,6 +99,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			setMinimumSize(d);
 			setMaximumSize(d); //this triple set *should* update the values in the super class JPanel
 			redraw_displayables = true;
+			invalid_volatile = true;
 			this.height = height;
 		}
 		//Utils.log2("w,h: " + FIXED_WIDTH + "," + height + ",   scale: " + scale);
@@ -105,6 +111,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 	public void repaint(boolean update_graphics) {
 		redraw_displayables = update_graphics;
+		invalid_volatile = true;
 		repaint();
 	}
 
@@ -112,6 +119,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	public void repaint(Displayable d) {
 		if (display.getCanvas().isDragging()) return;
 		redraw_displayables = true;
+		invalid_volatile = true;
 		final Rectangle r = d.getBoundingBox(null);
 		r.x = (int)(r.x * scale);
 		r.y = (int)(r.y * scale);
@@ -298,26 +306,69 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		}
 	}
 
+	private void renderVolatileImage(final BufferedImage bufferedImage) {
+		do {
+			final int w = FIXED_WIDTH, h = this.height;
+			final GraphicsConfiguration gc = getGraphicsConfiguration();
+			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != w 
+					|| volatileImage.getHeight() != h
+					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
+				if (volatileImage != null) {
+					volatileImage.flush();
+				}
+				volatileImage = gc.createCompatibleVolatileImage(w, h);
+				volatileImage.setAccelerationPriority(1.0f);
+				invalid_volatile = false;
+			}
+			// 
+			// Now paint the BufferedImage into the accelerated image
+			//
+			final Graphics2D g = volatileImage.createGraphics();
+			g.drawImage(bufferedImage, 0, 0, FIXED_WIDTH, this.height, null);
+
+			// paint red rectangle indicating srcRect
+			final Rectangle srcRect = display.getCanvas().getSrcRect();
+			g.setColor(Color.red);
+			g.setStroke(new BasicStroke(2.0f));
+			int gw = (int)(srcRect.width * scale) -2;
+			int gh = (int)(srcRect.height * scale) -2;
+			if (gw < 5) gw = 5;
+			if (gh < 5) gh = 5;
+			g.drawRect((int)(srcRect.x * scale) +1, (int)(srcRect.y * scale) +1, gw, gh);
+
+		} while (volatileImage.contentsLost());
+	}
+
+	private void render(final Graphics g) {
+		final Graphics2D g2d = (Graphics2D) g.create();
+		g2d.setRenderingHints(DisplayCanvas.rhints);
+		do {
+			if (invalid_volatile || null == volatileImage
+			 || volatileImage.validate(getGraphicsConfiguration()) != VolatileImage.IMAGE_OK)
+			{
+				renderVolatileImage(image);
+			}
+			g2d.drawImage(volatileImage, 0, 0, null);
+		} while (volatileImage.contentsLost());
+
+		g2d.dispose();
+	}
+
 	public void paint(final Graphics g) {
 		final Graphics2D g2d = (Graphics2D)g;
 		synchronized (updating_ob) {
 			while (updating) { try { updating_ob.wait(); } catch (InterruptedException ie) {} }
 			updating = true;
+			/*
 			if (null != image) {
 				g.drawImage(image, 0, 0, FIXED_WIDTH, this.height, null);
 			}
+			*/
+			render(g);
+
 			updating = false;
 			updating_ob.notifyAll();
 		}
-		// paint red rectangle indicating srcRect
-		final Rectangle srcRect = display.getCanvas().getSrcRect();
-		g.setColor(Color.red);
-		g2d.setStroke(new BasicStroke(2.0f));
-		int gw = (int)(srcRect.width * scale) -2;
-		int gh = (int)(srcRect.height * scale) -2;
-		if (gw < 5) gw = 5;
-		if (gh < 5) gh = 5;
-		g.drawRect((int)(srcRect.x * scale) +1, (int)(srcRect.y * scale) +1, gw, gh);
 	}
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
@@ -342,7 +393,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		x_p = me.getX();
 		y_p = me.getY();
 		this.srcRect = (Rectangle)display.getCanvas().getSrcRect().clone();
-		// prevent dragging unless mouse is inside he red box
+		// prevent dragging unless mouse is inside the red box
 		if (srcRect.contains((int)(x_p / scale), (int)(y_p / scale))) {
 			drag = true;
 		}
@@ -375,6 +426,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		DisplayCanvas canvas = display.getCanvas();
 		canvas.setSrcRect(new_x, new_y, this.srcRect.width, this.srcRect.height);
 		canvas.repaint(true);
+		invalid_volatile = true;
 		this.repaint();
 	}
 

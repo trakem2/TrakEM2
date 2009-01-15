@@ -2147,7 +2147,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
 
 			item = new JMenuItem("Homogenize contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
-			item = new JMenuItem("Set Min and Max..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Homogenize contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 			popup.add(adjust_menu);
 			popup.addSeparator();
 
@@ -3017,7 +3019,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					}
 					break;
 			}
-		} else if (command.equals("Homogenize contrast (selected images)")) {
+		} else if (command.equals("Homogenize contrast (selected images)...")) {
 			ArrayList al = selection.getSelected(Patch.class);
 			if (al.size() < 2) return;
 			getProject().getLoader().homogenizeContrast(al);
@@ -3031,54 +3033,51 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Layer[] la = new Layer[list.size()];
 			list.toArray(la);
 			project.getLoader().homogenizeContrast(la);
-		} else if (command.equals("Set Min and Max...")) {
-			final GenericDialog gd = new GenericDialog("Choices");
-			gd.addMessage("Either process all images of all layers\nwithin the selected range,\nor check the box for using selected images only.");
+		} else if (command.equals("Set Min and Max layer-wise...")) {
+			Displayable active = getActive();
+			double min = 0;
+			double max = 0;
+			if (null != active && active.getClass() == Patch.class) {
+				min = ((Patch)active).getMin();
+				max = ((Patch)active).getMax();
+			}
+			final GenericDialog gd = new GenericDialog("Min and Max");
+			gd.addMessage("Set min and max to all images in the layer range");
 			Utils.addLayerRangeChoices(Display.this.layer, gd);
-			gd.addCheckbox("use_selected_images_only", false);
-			gd.addMessage("-------");
-			gd.addNumericField("min: ", 0, 2);
-			gd.addNumericField("max: ", 255, 2);
-			gd.addCheckbox("drift_mean", true);
-			gd.addMessage("Or let each image find its optimal:");
-			gd.addCheckbox("independent", false);
+			gd.addNumericField("min: ", min, 2);
+			gd.addNumericField("max: ", max, 2);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
-			boolean use_selected_images = gd.getNextBoolean();
-			double min = gd.getNextNumber();
-			double max = gd.getNextNumber();
-			if (Double.isNaN(min) || Double.isNaN(max) || min < 0 || max < min) {
-				Utils.showMessage("Improper min and max values.");
-				return;
+			//
+			min = gd.getNextNumber();
+			max = gd.getNextNumber();
+			ArrayList<Displayable> al = new ArrayList<Displayable>();
+			for (final Layer la : layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1)) { // exclusive end
+				al.addAll(la.getDisplayables(Patch.class));
 			}
-			boolean drift_hist_peak = gd.getNextBoolean();
-			boolean independent = gd.getNextBoolean();
-			Utils.log2("Di Using: " + min + ", " + max + ", " + drift_hist_peak + " use_selected_images: " + use_selected_images);
-			if (use_selected_images) {
-				ArrayList al_images = selection.getSelected(Patch.class);
-				if (independent) {
-					project.getLoader().optimizeContrast(al_images);
-				} else {
-					if (al_images.size() < 2) {
-						Utils.log("You need at least 2 images selected.");
-						return;
-					}
-					project.getLoader().homogenizeContrast(al_images, min, max, drift_hist_peak);
-				}
-			} else {
-				java.util.List list = list = layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1); // exclusive end
-				Layer[] la = new Layer[list.size()];
-				list.toArray(la);
-				if (independent) {
-					ArrayList al_images = new ArrayList();
-					for (int i=0; i<la.length; i++) {
-						al_images.addAll(la[i].getDisplayables(Patch.class));
-					}
-					project.getLoader().optimizeContrast(al_images);
-				} else {
-					project.getLoader().homogenizeContrast(la, min, max, drift_hist_peak);
-				}
+			project.getLoader().setMinAndMax(al, min, max);
+		} else if (command.equals("Set Min and Max (selected images)...")) {
+			Displayable active = getActive();
+			double min = 0;
+			double max = 0;
+			if (null != active && active.getClass() == Patch.class) {
+				min = ((Patch)active).getMin();
+				max = ((Patch)active).getMax();
 			}
+			final GenericDialog gd = new GenericDialog("Min and Max");
+			gd.addMessage("Set min and max to all selected images");
+			gd.addNumericField("min: ", min, 2);
+			gd.addNumericField("max: ", max, 2);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			//
+			min = gd.getNextNumber();
+			max = gd.getNextNumber();
+			project.getLoader().setMinAndMax(selection.getSelected(Patch.class), min, max);
+		} else if (command.equals("Enhance contrast (selected images)...")) {
+			Utils.log("Not implemented yet");
+		} else if (command.equals("Enhance contrast layer-wise...")) {
+			Utils.log("Not implemented yet");
 		} else if (command.equals("Create subproject")) {
 			Roi roi = canvas.getFakeImagePlus().getRoi();
 			if (null == roi) return; // the menu item is not active unless there is a ROI

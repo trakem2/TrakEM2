@@ -77,6 +77,12 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 		final Graphics2D g2d = (Graphics2D)g;
 		g2d.scale(scale, scale);
 
+		// Avoid painting images that have an alpha mask: takes forever.
+		if (d.getClass() == Patch.class && ((Patch)d).hasAlphaChannel()) {
+			d.paintAsBox((Graphics2D)g);
+			return;
+		}
+
 		d.paintSnapshot(g2d, scale);
 
 	}

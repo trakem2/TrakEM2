@@ -124,8 +124,7 @@ public class Project extends DBObject {
 	}
 
 	static public Project getProject(final String title) {
-		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
-			Project pr = (Project)it.next();
+		for (final Project pr : al_open_projects) {
 			if (pr.title.equals(title)) return pr;
 		}
 		return null;
