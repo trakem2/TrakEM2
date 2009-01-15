@@ -57,10 +57,10 @@ import java.util.HashSet;
 import java.util.Set;
 import java.io.File;
 
-import mpicbg.trakem2.CoordinateTransform;
-import mpicbg.trakem2.TransformMeshMapping;
+import mpicbg.CoordinateTransform;
+import mpicbg.TransformMesh;
+import mpicbg.TransformMeshMapping;
 import mpicbg.models.PointMatch;
-import mpicbg.trakem2.TransformMesh;
 
 public final class Patch extends Displayable {
 
