@@ -1181,19 +1181,7 @@ public abstract class Displayable extends DBObject {
 		if (Double.isNaN(dx) || Double.isNaN(dy)) return;
 		final AffineTransform at2 = new AffineTransform();
 		at2.translate(dx, dy);
-		if (linked) {
-			final HashSet hs_linked = getLinkedGroup(null); // includes the self
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				d.at.preConcatenate(at2);
-				d.updateInDatabase("transform");
-				d.updateBucket();
-			}
-		} else {
-			this.at.preConcatenate(at2);
-			this.updateInDatabase("transform");
-			updateBucket();
-		}
+		preTransform(at2, linked);
 	}
 
 	public void translate(double dx, double dy) {
@@ -1210,19 +1198,7 @@ public abstract class Displayable extends DBObject {
 		if (Double.isNaN(radians) || Double.isNaN(xo) || Double.isNaN(yo)) return;
 		final AffineTransform at2 = new AffineTransform();
 		at2.rotate(radians, xo, yo);
-		if (linked) {
-			final HashSet hs_linked = getLinkedGroup(null); // includes the self
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				d.at.preConcatenate(at2);
-				d.updateInDatabase("transform");
-				d.updateBucket();
-			}
-		} else {
-			this.at.preConcatenate(at2);
-			this.updateInDatabase("transform");
-			updateBucket();
-		}
+		preTransform(at2, linked);
 	}
 
 	/** Commands the parent container (a Layer or a LayerSet) to update the bucket position of this Displayable. */
@@ -1238,30 +1214,11 @@ public abstract class Displayable extends DBObject {
 	/** Scale relative to an anchor point (will translate as necessary). */
 	public void scale(double sx, double sy, double xo, double yo, boolean linked) {
 		if (Double.isNaN(sx) || Double.isNaN(sy) || Double.isNaN(xo) || Double.isNaN(yo)) return;
-		if (linked) {
-			final HashSet hs_linked = getLinkedGroup(null); // includes the self
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				d.scale2(sx, sy, xo, yo);
-			}
-		} else {
-			this.scale2(sx, sy, xo, yo);
-		}
-	}
-
-	/** Scales this instance only, no linked ones, relative to the anchor point. */
-	private void scale2(double sx, double sy, double xo, double yo) {
-		// It took a while to find out, that the bounding box is already included in x0 and y0 ;)
-		// Stephan Saalfeld AffineTransform magic as usual (thanks!):
-
 		final AffineTransform at2 = new AffineTransform();
 		at2.translate( xo, yo );
 		at2.scale( sx, sy );
 		at2.translate( -xo, -yo );
-
-		at.preConcatenate( at2 );
-		updateInDatabase( "transform" );
-		updateBucket();
+		preTransform(at2, linked);
 	}
 
 	/** Sets the top left of the bounding box to x,y. Warning: does not check that the object will remain within layer bounds. Does NOT affect linked Displayables. */
@@ -1333,6 +1290,22 @@ public abstract class Displayable extends DBObject {
 			d.updateInDatabase("transform");
 			d.updateBucket();
 			//Utils.log("applying transform to " + d);
+		}
+	}
+
+	/** preConcatenate the given affine transform to this Displayable's affine. */
+	public void preTransform(final AffineTransform at, final boolean linked) {
+		if (linked) {
+			for (Iterator it = getLinkedGroup(null).iterator(); it.hasNext(); ) {
+				final Displayable d = (Displayable)it.next();
+				d.at.preConcatenate(at);
+				d.updateInDatabase("transform");
+				d.updateBucket();
+			}
+		} else {
+			this.at.preConcatenate(at);
+			this.updateInDatabase("transform");
+			this.updateBucket();
 		}
 	}
 
