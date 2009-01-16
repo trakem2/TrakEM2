@@ -1113,6 +1113,38 @@ public class AreaList extends ZDisplayable {
 
 	public void keyPressed(KeyEvent ke) {
 		DisplayCanvas dc = (DisplayCanvas)ke.getSource();
+		Layer la = dc.getDisplay().getLayer();
+		int keyCode = ke.getKeyCode();
+
+		try {
+			switch (keyCode) {
+				case KeyEvent.VK_C: // COPY
+					Area area = (Area) ht_areas.get(la.getId());
+					if (null != area) {
+						DisplayCanvas.setCopyBuffer(AreaList.class, area.createTransformedArea(this.at));
+					}
+					ke.consume();
+					return;
+				case KeyEvent.VK_V: // PASTE
+					// Casting a null is fine, and addArea survives a null.
+					Area a = (Area) DisplayCanvas.getCopyBuffer(AreaList.class);
+					if (null != a) {
+						addArea(la.getId(), a.createTransformedArea(this.at.createInverse()));
+						calculateBoundingBox();
+					}
+					ke.consume();
+					return;
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+		} finally {
+			if (ke.isConsumed()) {
+				Display.repaint(la, getBoundingBox(), 5);
+				linkPatches();
+				return;
+			}
+		}
+
 		Roi roi = dc.getFakeImagePlus().getRoi();
 		Utils.log2("roi is " + roi);
 		if (null == roi) return;
@@ -1126,8 +1158,6 @@ public class AreaList extends ZDisplayable {
 				return;
 		}
 		ShapeRoi sroi = new ShapeRoi(roi);
-		int keyCode = ke.getKeyCode();
-		Layer la = dc.getDisplay().getLayer();
 		long layer_id = la.getId();
 		try {
 			switch (keyCode) {

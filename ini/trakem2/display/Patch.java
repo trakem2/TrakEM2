@@ -59,6 +59,8 @@ import java.io.File;
 
 import mpicbg.models.PointMatch;
 import mpicbg.transform.CoordinateTransform;
+import mpicbg.models.AffineModel2D;
+import mpicbg.transform.CoordinateTransformList;
 import mpicbg.transform.TransformMesh;
 import mpicbg.transform.TransformMeshMapping;
 
@@ -1020,6 +1022,7 @@ public final class Patch extends Displayable {
 		if (null == this.ct) {
 			width = o_width;
 			height = o_height;
+			updateBucket();
 			return;
 		}
 
@@ -1031,6 +1034,7 @@ public final class Patch extends Displayable {
 		this.width = box.width;
 		this.height = box.height;
 		updateInDatabase("transform+dimensions"); // the AffineTransform
+		updateBucket();
 
 		// Updating the mipmaps will call createTransformedImage below if ct is not null
 		/* DISABLED */ //updateMipmaps();
@@ -1134,5 +1138,44 @@ public final class Patch extends Displayable {
 		}
 		project.getLoader().storeAlphaMask(this, bp);
 		alpha_path_checked = false;
+	}
+
+	public void keyPressed(KeyEvent ke) {
+		switch (ke.getKeyCode()) {
+			case KeyEvent.VK_C:
+				// copy into ImageJ clipboard
+				int mod = ke.getModifiers();
+
+				// Ignoring masks: outside is already black, and ImageJ cannot handle alpha masks.
+				if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
+					CoordinateTransformList list = null;
+					if (null != ct) {
+						list = new CoordinateTransformList();
+						list.add(this.ct);
+					}
+					if (0 == mod) { //SHIFT is down
+						AffineModel2D am = new AffineModel2D();
+						am.set(this.at);
+						if (null == list) list = new CoordinateTransformList();
+						list.add(am);
+					}
+					ImageProcessor ip;
+					if (null != list) {
+						TransformMesh mesh = new TransformMesh(list, 32, o_width, o_height);
+						TransformMeshMapping mapping = new TransformMeshMapping(mesh);
+						ip = mapping.createMappedImageInterpolated(getImageProcessor());
+					} else {
+						ip = getImageProcessor();
+					}
+					new ImagePlus(this.title, ip).copy(false);
+				} else if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
+					// On shift down (and no other flags!):
+					// Place the source image, untransformed, into clipboard:
+					ImagePlus imp = getImagePlus();
+					if (null != imp) imp.copy(false);
+				}
+				ke.consume();
+				break;
+		}
 	}
 }
