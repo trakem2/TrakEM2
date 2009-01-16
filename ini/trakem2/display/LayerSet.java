@@ -1674,4 +1674,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void checkBuckets() {
 		if (null == root || null == db_map) recreateBuckets(false);
 	}
+
+	public Rectangle getMinimalBoundingBox(final Class c) {
+		Rectangle r = null;
+		for (final Layer la : al_layers) {
+			if (null == r) r = la.getMinimalBoundingBox(c);
+			else r.add(la.getMinimalBoundingBox(c));
+		}
+		return r;
+	}
 }
