@@ -97,6 +97,7 @@ public final class FSLoader extends Loader {
 	/** Queue and execute Runnable tasks. */
 	static private Dispatcher dispatcher = new Dispatcher();
 
+	private Vector<Patch> touched_mipmaps = new Vector<Patch>();
 
 	/** Used to open a project from an existing XML file. */
 	public FSLoader() {
@@ -302,6 +303,17 @@ public final class FSLoader extends Loader {
 	public void destroy() {
 		super.destroy();
 		Utils.showStatus("", false);
+		// delete mipmap files that where touched and not cleared as saved (i.e. the project was not saved)
+		for (final Patch p : touched_mipmaps) {
+			File f = new File(getAbsolutePath(p));
+			Utils.log2("File f is " + f);
+			if (f.exists()) {
+				Utils.log2("Removing mipmaps for " + p);
+				// Cannot run in the dispatcher: is a daemon, and would be interrupted.
+				removeMipMaps(f.getName() + "." + p.getId() + ".jpg", (int)p.getWidth(), (int)p.getHeight()); // needs the dispatcher!
+			}
+		}
+		//
 		dispatcher.quit();
 		// remove empty trakem2.mipmaps folder if any
 		if (null != dir_mipmaps && !dir_mipmaps.equals(dir_storage)) {
@@ -687,7 +699,7 @@ public final class FSLoader extends Loader {
 			// remove from the hashtable
 			final long loid = ob.getId();
 			Utils.log2("removing " + Project.getName(ob.getClass()) + " " + ob);
-			if (ob instanceof Patch) {
+			if (ob.getClass() == Patch.class) {
 				// STRATEGY change: images are not owned by the FSLoader.
 				Patch p = (Patch)ob;
 				if (!ob.getProject().getBooleanProperty("keep_mipmaps")) removeMipMaps(p);
@@ -706,6 +718,7 @@ public final class FSLoader extends Loader {
 				cannot_regenerate.remove(p);
 				unlock();
 				flushMipMaps(p.getId()); // locks on its own
+				touched_mipmaps.remove(p);
 				return true;
 			}
 			unlock();
@@ -940,7 +953,10 @@ public final class FSLoader extends Loader {
 			File fxml = new File(project_file_path);
 			result = super.export(project, fxml, false);
 		}
-		if (null != result) Utils.logAll(Utils.now() + " Saved " + project);
+		if (null != result) {
+			Utils.logAll(Utils.now() + " Saved " + project);
+			touched_mipmaps.clear();
+		}
 		return result;
 	}
 
@@ -989,6 +1005,7 @@ public final class FSLoader extends Loader {
 			project_file_path = path2;
 			Utils.logAll("After saveAs, new xml path is: " + path2);
 			ControlWindow.updateTitle(project);
+			touched_mipmaps.clear();
 		}
 		return path2;
 	}
@@ -1460,6 +1477,8 @@ public final class FSLoader extends Loader {
 			hs_regenerating_mipmaps.add(patch);
 			gm_unlock();
 		}
+
+		touched_mipmaps.add(patch);
 
 		String srmode = patch.getProject().getProperty("image_resizing_mode");
 		int resizing_mode = GAUSSIAN;
@@ -1958,7 +1977,6 @@ public final class FSLoader extends Loader {
 	public void removeMipMaps(final Patch p) {
 		if (null == dir_mipmaps) return;
 		try {
-			// remove the files
 			final int width = (int)p.getWidth();
 			final int height = (int)p.getHeight();
 			final String path = getAbsolutePath(p);
@@ -1966,27 +1984,31 @@ public final class FSLoader extends Loader {
 			final String filename = new File(path).getName() + "." + p.getId() + ".jpg";
 			// cue the task in a dispatcher:
 			dispatcher.exec(new Runnable() { public void run() { // copy-paste as a replacement for (defmacro ... we luv java
-				int w = width;
-				int h = height;
-				int k = 0; // the level
-				while (w >= 32 && h >= 32) { // not smaller than 32x32
-					final File f = new File(dir_mipmaps + k + "/" + filename);
-					if (f.exists()) {
-						try {
-							if (!f.delete()) {
-								Utils.log2("Could not remove file " + f.getAbsolutePath());
-							}
-						} catch (Exception e) {
-							IJError.print(e);
-						}
-					}
-					w /= 2;
-					h /= 2;
-					k++;
-				}
+				removeMipMaps(filename, width, height);
 			}});
 		} catch (Exception e) {
 			IJError.print(e);
+		}
+	}
+
+	private void removeMipMaps(final String filename, final int width, final int height) {
+		int w = width;
+		int h = height;
+		int k = 0; // the level
+		while (w >= 32 && h >= 32) { // not smaller than 32x32
+			final File f = new File(dir_mipmaps + k + "/" + filename);
+			if (f.exists()) {
+				try {
+					if (!f.delete()) {
+						Utils.log2("Could not remove file " + f.getAbsolutePath());
+					}
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+			}
+			w /= 2;
+			h /= 2;
+			k++;
 		}
 	}
 

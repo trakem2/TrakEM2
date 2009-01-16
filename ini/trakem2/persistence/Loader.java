@@ -167,9 +167,24 @@ abstract public class Loader {
 	}
 	*/
 
+	static public final IndexColorModel GRAY_LUT = makeGrayLut();
+
+	static public final IndexColorModel makeGrayLut() {
+		final byte[] r = new byte[256];
+		final byte[] g = new byte[256];
+		final byte[] b = new byte[256];
+		for (int i=0; i<256; i++) {
+			r[i]=(byte)i;
+			g[i]=(byte)i;
+			b[i]=(byte)i;
+		}
+		return new IndexColorModel(8, 256, r, g, b);
+	}
+
+
 	protected final HashSet<Patch> hs_unloadable = new HashSet<Patch>();
 
-	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_BINARY);
+	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
 	static {
 		Graphics2D g = NOT_FOUND.createGraphics();
 		g.setColor(Color.white);
@@ -1095,6 +1110,19 @@ abstract public class Loader {
 		synchronized (plock) {
 			try {
 				plock.lock();
+
+				// Check if a previous call made it while waiting:
+				mawt = mawts.getClosestAbove(id, level);
+				if (null != mawt) {
+					synchronized (db_lock) {
+						lock();
+						removePatchLoadingLock(plock);
+						unlock();
+					}
+					return mawt;
+				}
+
+				// Else, create the mawt:
 				Patch.PatchImage pai = p.createTransformedImage();
 				final ImageProcessor ip = pai.target;
 				ByteProcessor alpha_mask = pai.mask; // can be null;
@@ -4883,20 +4911,6 @@ abstract public class Loader {
 		return fsf.canWrite() && fsf.canRead();
 	}
 
-
-	static public final IndexColorModel GRAY_LUT = makeGrayLut();
-
-	static public final IndexColorModel makeGrayLut() {
-		final byte[] r = new byte[256];
-		final byte[] g = new byte[256];
-		final byte[] b = new byte[256];
-		for (int i=0; i<256; i++) {
-			r[i]=(byte)i;
-			g[i]=(byte)i;
-			b[i]=(byte)i;
-		}
-		return new IndexColorModel(8, 256, r, g, b);
-	}
 
 	/** Does nothing and returns null unless overridden. */
 	public String setImageFile(Patch p, ImagePlus imp) { return null; }
