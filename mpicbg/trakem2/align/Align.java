@@ -1,7 +1,7 @@
 /**
  * 
  */
-package mpicbg.align;
+package mpicbg.trakem2.align;
 
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
-import ij.process.ImageProcessor;
 
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
@@ -35,8 +34,8 @@ import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
-import mpicbg.transform.RigidModel2D;
-import mpicbg.transform.TranslationModel2D;
+import mpicbg.trakem2.transform.RigidModel2D;
+import mpicbg.trakem2.transform.TranslationModel2D;
 
 public class Align
 {
@@ -70,7 +69,7 @@ public class Align
 			sift.fdSize = 8;
 		}
 		
-		protected void addFields( final GenericDialog gd )
+		public void addFields( final GenericDialog gd )
 		{
 			SIFT.addFields( gd, sift );
 			
@@ -82,7 +81,7 @@ public class Align
 			gd.addChoice( "expected_transformation :", modelStrings, modelStrings[ modelIndex ] );
 		}
 		
-		protected boolean readFields( final GenericDialog gd )
+		public boolean readFields( final GenericDialog gd )
 		{
 			SIFT.readFields( gd, sift );
 			
@@ -145,7 +144,7 @@ public class Align
 		public int maxPlateauwidth = 200;
 		
 		@Override
-		protected void addFields( final GenericDialog gd )
+		public void addFields( final GenericDialog gd )
 		{
 			super.addFields( gd );
 			
@@ -155,7 +154,7 @@ public class Align
 		}
 		
 		@Override
-		protected boolean readFields( final GenericDialog gd )
+		public boolean readFields( final GenericDialog gd )
 		{
 			super.readFields( gd );
 			
@@ -485,8 +484,8 @@ public class Align
 		final TileConfiguration tc = new TileConfiguration();
 		tc.addTiles( tiles );
 		
-		ArrayList< Set< Tile< ?  > > > graphs = Tile.identifyConnectedGraphs( tiles );
-		for ( Set< Tile< ?  > > graph : graphs )
+		ArrayList< Set< Tile< ? > > > graphs = Tile.identifyConnectedGraphs( tiles );
+		for ( Set< Tile< ? > > graph : graphs )
 		{
 			boolean pleaseFix = true;
 			if ( fixedTiles != null )
@@ -610,7 +609,7 @@ public class Align
 		}
 	}
 	
-	final static protected void tilesFromPatches(
+	final static public void tilesFromPatches(
 			final Param p,
 			final List< ? extends Patch > patches,
 			final List< ? extends Patch > fixedPatches,

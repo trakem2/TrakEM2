@@ -49,7 +49,7 @@ import ini.trakem2.tree.*;
 import javax.swing.*;
 import javax.swing.event.*;
 
-import mpicbg.align.Align;
+import mpicbg.trakem2.align.Align;
 
 import java.awt.*;
 import java.awt.event.*;

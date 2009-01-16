@@ -1,7 +1,7 @@
 /**
  * 
  */
-package mpicbg.align;
+package mpicbg.trakem2.align;
 
 import java.awt.geom.AffineTransform;
 

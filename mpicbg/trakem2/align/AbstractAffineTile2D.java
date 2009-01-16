@@ -17,7 +17,7 @@
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
-package mpicbg.align;
+package mpicbg.trakem2.align;
 
 import ij.process.ByteProcessor;
 import ini.trakem2.display.Patch;

@@ -58,9 +58,9 @@ import java.util.Set;
 import java.io.File;
 
 import mpicbg.models.PointMatch;
-import mpicbg.transform.CoordinateTransform;
-import mpicbg.transform.TransformMesh;
-import mpicbg.transform.TransformMeshMapping;
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.TransformMesh;
+import mpicbg.trakem2.transform.TransformMeshMapping;
 
 public final class Patch extends Displayable {
 
