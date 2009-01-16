@@ -17,7 +17,7 @@
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
-package mpicbg.transform;
+package mpicbg.trakem2.transform;
 
 import ij.process.ImageProcessor;
 import java.awt.Rectangle;

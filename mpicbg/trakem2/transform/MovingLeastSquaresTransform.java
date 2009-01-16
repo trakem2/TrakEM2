@@ -17,7 +17,7 @@
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
-package mpicbg.transform;
+package mpicbg.trakem2.transform;
 
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.Point;

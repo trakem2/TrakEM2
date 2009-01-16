@@ -17,34 +17,28 @@
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
-package mpicbg.transform;
+package mpicbg.trakem2.transform;
 
-public class RigidModel2D extends mpicbg.models.RigidModel2D implements CoordinateTransform
+public class CoordinateTransformList extends mpicbg.models.CoordinateTransformList implements CoordinateTransform
 {
-
 	//@Override
 	final public void init( final String data )
 	{
-		final String[] fields = data.split( "\\s+" );
-		if ( fields.length == 3 )
-		{
-			final float theta = Float.parseFloat( fields[ 0 ] );
-			final float tx = Float.parseFloat( fields[ 1 ] );
-			final float ty = Float.parseFloat( fields[ 2 ] );
-			set( theta, tx, ty );
-		}
-		else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
+		throw new NumberFormatException( "There is no parameter based initialisation for " + this.getClass().getCanonicalName() );
 	}
 
 	//@Override
 	final public String toXML( final String indent )
 	{
-		return indent + "<ict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\"/>";
+		String s = indent + "<ict_transform_list>";
+		for ( mpicbg.models.CoordinateTransform t : l )
+			s += "\n" + indent + ( ( CoordinateTransform )t ).toXML( indent + "\t" );
+		return s + "\n" + indent + "<ict_transformlist>";
 	}
 	
 	//@Override
 	final public String toDataString()
 	{
-		return Math.atan2( sin, cos ) + " " + tx + " " + ty;
+		return "";
 	}
 }
