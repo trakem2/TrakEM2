@@ -75,6 +75,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private boolean input_disabled = false;
 	private boolean input_disabled2 = false;
 
+	/** Store a copy of whatever data as each Class may define it, one such data object per class.
+	 * Private to the package. */
+	static private Hashtable<Class,Object> copy_buffer = new Hashtable<Class,Object>();
+
+	static void setCopyBuffer(final Class c, final Object ob) { copy_buffer.put(c, ob); }
+	static Object getCopyBuffer(final Class c) { return copy_buffer.get(c); }
 
 	static private boolean openglEnabled = false;
 	static private boolean quartzEnabled = false;
@@ -1905,31 +1911,32 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					ke.consume();
 				}
 				break;
-			case KeyEvent.VK_V: // paste image
+			case KeyEvent.VK_V:
 				if (0 == ke.getModifiers()) {
-					ImagePlus clipboard = ImagePlus.getClipboard();
-					if (null != clipboard) {
-						ImagePlus imp = new ImagePlus(clipboard.getTitle() + "_" + System.currentTimeMillis(), clipboard.getProcessor().crop());
-						Object info = clipboard.getProperty("Info");
-						if (null != info) imp.setProperty("Info", (String)info);
-						double x = srcRect.x + srcRect.width/2 - imp.getWidth()/2;
-						double y = srcRect.y + srcRect.height/2 - imp.getHeight()/2;
-						// save the image somewhere:
-						Patch pa = display.getProject().getLoader().addNewImage(imp, x, y);
-						display.getLayer().add(pa);
+					if (null == active || active.getClass() == Patch.class) {
+						// paste a new image
+						ImagePlus clipboard = ImagePlus.getClipboard();
+						if (null != clipboard) {
+							ImagePlus imp = new ImagePlus(clipboard.getTitle() + "_" + System.currentTimeMillis(), clipboard.getProcessor().crop());
+							Object info = clipboard.getProperty("Info");
+							if (null != info) imp.setProperty("Info", (String)info);
+							double x = srcRect.x + srcRect.width/2 - imp.getWidth()/2;
+							double y = srcRect.y + srcRect.height/2 - imp.getHeight()/2;
+							// save the image somewhere:
+							Patch pa = display.getProject().getLoader().addNewImage(imp, x, y);
+							display.getLayer().add(pa);
+							ke.consume();
+						} // TODO there isn't much ImageJ integration in the pasting. Can't paste to a selected image, for example.
+					} else {
+						// Each type may know how to paste data from the copy buffer into itself:
+						active.keyPressed(ke);
 						ke.consume();
-					} // TODO there isn't much ImageJ integration in the pasting. Can't paste to a selected image, for example.
+					}
 				}
 				break;
-			case KeyEvent.VK_C: // copy active Patch if any into ImageJ clipboard
-				if (0 == ke.getModifiers()) {
-					if (active.getClass() == Patch.class) {
-						ImagePlus imp = ((Patch)active).getImagePlus();
-						if (null != imp) {
-							imp.copy(false);
-							ke.consume();
-						}
-					}
+			case KeyEvent.VK_C:
+				if (null != active) {
+					active.keyPressed(ke);
 				}
 				break;
 			case KeyEvent.VK_P:
