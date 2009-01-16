@@ -1478,7 +1478,10 @@ public final class FSLoader extends Loader {
 			gm_unlock();
 		}
 
+		// Record Patch as modified
 		touched_mipmaps.add(patch);
+		// Remove serialized features, if any
+		removeSerializedFeatures(patch);
 
 		String srmode = patch.getProject().getProperty("image_resizing_mode");
 		int resizing_mode = GAUSSIAN;
@@ -1769,6 +1772,21 @@ public final class FSLoader extends Loader {
 				gm_unlock();
 			}
 		}
+	}
+
+	/** Remove the file, if it exists, with serialized features for patch.
+	 * Returns true when no such file or on success; false otherwise. */
+	public boolean removeSerializedFeatures(final Patch patch) {
+		final File f = new File(new StringBuffer(dir_storage).append("features.ser/features_").append(patch.getId()).append(".ser").toString());
+		if (f.exists()) {
+			try {
+				f.delete();
+				return true;
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			}
+		} else return true;
 	}
 
 	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.
