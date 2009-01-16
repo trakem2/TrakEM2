@@ -1099,11 +1099,11 @@ abstract public class Loader {
 				final ImageProcessor ip = pai.target;
 				ByteProcessor alpha_mask = pai.mask; // can be null;
 				final ByteProcessor outside_mask = pai.outside; // can be null
-				if (null != outside_mask && null == alpha_mask) {
+				if (null == alpha_mask) {
 					alpha_mask = outside_mask;
 				}
 				pai = null;
-				if (null != alpha_mask && null != outside_mask) {
+				if (null != alpha_mask) {
 					mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
 							       embedAlpha((int[])ip.convertToRGB().getPixels(),
 									  (byte[])alpha_mask.getPixels(),
