@@ -512,6 +512,10 @@ public class Selection {
 		}
 	}
 
+	public Displayable getActive() {
+		return active;
+	}
+
 	public void add(Displayable d) {
 		if (null == d) {
 			Utils.log2("Selection.add warning: skipping null ob");
