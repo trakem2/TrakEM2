@@ -1340,6 +1340,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		layer.getParent().removeFromUndo(displ);
 		canvas.invalidateVolatile(); // removing active, no need to update offscreen but yes the volatile
 		repaint(displ, null, 5, true, false);
+		// from Selection.deleteAll this method is called ... but it's ok: same thread, no locking problems.
 		selection.remove(displ);
 	}
 

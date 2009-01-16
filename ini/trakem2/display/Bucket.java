@@ -362,7 +362,7 @@ public class Bucket {
 	}
 	*/
 
-	/** Returns whether this bucket is empty of Displayable objects. */
+	/** Returns whether this bucket is empty of Displayable objects, and accumulates removed Displayable in the set. */
 	final private boolean remove(final int stack_index, final Set<Displayable> hs) {
 		if (null != children) {
 			this.empty = true;
@@ -373,6 +373,7 @@ public class Bucket {
 		} else if (null != map) {
 			final Displayable d = map.remove(stack_index);
 			if (null != d) hs.add(d);
+			else Utils.log2("Bucket could not remove Displayable at stack index " + stack_index);
 			return map.isEmpty();
 		}
 		return true;
