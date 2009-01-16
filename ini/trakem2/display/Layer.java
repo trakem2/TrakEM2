@@ -287,7 +287,10 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	public boolean remove(final Displayable displ) {
-		if (null == displ || null == al_displayables || -1 == al_displayables.indexOf(displ)) return false;
+		if (null == displ || null == al_displayables || -1 == al_displayables.indexOf(displ)) {
+			Utils.log2("Layer can't remove Displayable " + displ.getId());
+			return false;
+		}
 		// remove from Bucket before modifying stack index
 		if (null != root) Bucket.remove(displ, db_map);
 		// now remove proper, so stack_index hasn't changed yet

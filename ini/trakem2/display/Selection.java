@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.HashSet;
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Map;
@@ -61,8 +62,8 @@ public class Selection {
 
 	private Display display;
 	/** Queue of all selected objects. */
-	private final LinkedList queue = new LinkedList();
-	private final LinkedList queue_prev = new LinkedList();
+	private final LinkedList<Displayable> queue = new LinkedList<Displayable>();
+	private final LinkedList<Displayable> queue_prev = new LinkedList<Displayable>();
 	private final Object queue_lock = new Object();
 	private boolean queue_locked = false;
 	/** All selected objects plus their links. */
@@ -636,32 +637,50 @@ public class Selection {
 
 	/** Delete all selected objects from their Layer. */
 	public boolean deleteAll() {
-		Displayable[] d = null;
 		if (null == active) return true; // nothing to remove
 		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
 		// obtain a list of displayables to remove
+		TreeMap<Integer,Displayable> sorted_d = null;
+		TreeMap<Integer,Displayable> sorted_zd = null;
 		synchronized (queue_lock) {
 			try {
 				lock();
 				setPrev(queue);
 				if (null != display) display.setActive(null);
 				this.active = null;
-				d = new Displayable[queue.size()];
-				queue.toArray(d);
+
+				// Order by stack index (for buckets; see later)
+				sorted_d = new TreeMap<Integer,Displayable>();
+				sorted_zd = new TreeMap<Integer,Displayable>();
+
+				for (final Displayable d : queue) {
+					if (d instanceof ZDisplayable) {
+						ZDisplayable zd = (ZDisplayable)d;
+						sorted_zd.put(d.getLayerSet().indexOf(zd), d);
+					} else {
+						sorted_d.put(d.getLayer().indexOf(d), d);
+					}
+				}
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
 				unlock();
 			}
 		}
+
+		final ArrayList<Displayable> al_d = new ArrayList<Displayable>(sorted_d.values());
+		al_d.addAll(sorted_zd.values());
+		// Remove starting with higher stack index numbers:
+		Collections.reverse(al_d);
+
 		// remove one by one, skip those that fail and log the error
 		StringBuffer sb = new StringBuffer();
 		try {
 			display.getProject().getLoader().startLargeUpdate();
-			for (int i=0; i<d.length; i++) {
+			for (final Displayable d : al_d) {
 				// Remove from the trees and from the Layer/LayerSet
-				if (!d[i].remove2(false)) {
-					sb.append(d[i].getTitle()).append('\n');
+				if (!d.remove2(false)) {
+					sb.append(d.getTitle()).append('\n');
 					continue;
 				}
 			}
