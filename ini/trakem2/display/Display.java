@@ -48,6 +48,9 @@ import ini.trakem2.tree.*;
 
 import javax.swing.*;
 import javax.swing.event.*;
+
+import mpicbg.align.Align;
+
 import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
@@ -2986,17 +2989,16 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				Utils.showMessage("Please select only images.");
 				return;
 			}
-			for (final Object ob : selection.getSelected()) {
-				if (!(ob instanceof Patch)) {
-					Utils.showMessage("Please select only images.\nCurrently, a " + Project.getName(ob.getClass()) + " is also selected.");
+			Set<Displayable> affected = selection.getAffected();
+			for (Displayable d : affected)
+				if (d.isLinked()) {
+					Utils.showMessage( "You cannot montage linked objects." );
 					return;
 				}
-			}
-			HashSet hs = new HashSet();
-			hs.addAll(selection.getSelected(Patch.class));
 			// make an undo step!
-			layer.getParent().addUndoStep(selection.getAffected());
-			Registration.registerTilesSIFT(hs, (Patch)active, null, false);
+			layer.getParent().addUndoStep(affected);
+			Align.alignSelectedPatches( selection, Runtime.getRuntime().availableProcessors() );
+			repaint(layer);
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");
 			gd.addMessage("Linking images to images (within their own layer only):");

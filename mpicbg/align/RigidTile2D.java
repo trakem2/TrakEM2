@@ -1,29 +1,38 @@
 /**
  * 
  */
-package mpicbg;
+package mpicbg.align;
 
 import java.awt.geom.AffineTransform;
 
+import mpicbg.models.RigidModel2D;
+
 import ini.trakem2.display.Patch;
 
-import mpicbg.models.SimilarityModel2D;
-
-public class SimilarityTile2D extends AbstractAffineTile2D< SimilarityModel2D >
+public class RigidTile2D extends AbstractAffineTile2D< mpicbg.models.RigidModel2D >
 {
-	public SimilarityTile2D( final SimilarityModel2D model, final Patch patch )
+	public RigidTile2D( final mpicbg.models.RigidModel2D model, final Patch patch )
 	{
 		super( model, patch );
+	}
+	
+	public RigidTile2D( final Patch patch )
+	{
+		this( new RigidModel2D(), patch );
 	}
 	
 	/**
 	 * Initialize the model with the parameters of the {@link AffineTransform}
 	 * of the {@link Patch}.  The {@link AffineTransform} should be a
-	 * Similarity, otherwise the results will not be what you might expect.
-	 * This means, that:
+	 * Rigid Transformation, otherwise the results will not be what you might
+	 * expect.  This means, that:
 	 * <pre>
 	 *   {@link AffineTransform#getScaleX()} == {@link AffineTransform#getScaleY()}
 	 *   {@link AffineTransform#getShearX()} == -{@link AffineTransform#getShearY()}
+	 * </pre>
+	 * and
+	 * <pre>
+	 *   {@link AffineTransform#getScaleX()}<sup>2</sup> + {@link AffineTransform#getShearX()}<sup>2</sup> == 1
 	 * </pre>
 	 */
 	@Override

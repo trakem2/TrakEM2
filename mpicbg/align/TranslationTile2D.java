@@ -1,9 +1,11 @@
 /**
  * 
  */
-package mpicbg;
+package mpicbg.align;
 
 import java.awt.geom.AffineTransform;
+
+import mpicbg.models.TranslationModel2D;
 
 import ini.trakem2.display.Patch;
 
@@ -12,6 +14,11 @@ public class TranslationTile2D extends AbstractAffineTile2D< mpicbg.models.Trans
 	public TranslationTile2D( final mpicbg.models.TranslationModel2D model, final Patch patch )
 	{
 		super( model, patch );
+	}
+	
+	public TranslationTile2D( final Patch patch )
+	{
+		this( new TranslationModel2D(), patch );
 	}
 	
 	/**

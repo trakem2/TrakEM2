@@ -1,0 +1,816 @@
+/**
+ * 
+ */
+package mpicbg.align;
+
+import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
+import java.io.File;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import ij.IJ;
+import ij.ImagePlus;
+import ij.gui.GenericDialog;
+import ij.process.ImageProcessor;
+
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.Selection;
+import ini.trakem2.persistence.Loader;
+
+import mpicbg.ij.FeatureTransform;
+import mpicbg.ij.SIFT;
+import mpicbg.imagefeatures.Feature;
+import mpicbg.imagefeatures.FloatArray2DSIFT;
+import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.AffineModel2D;
+import mpicbg.models.NotEnoughDataPointsException;
+import mpicbg.models.PointMatch;
+import mpicbg.models.SimilarityModel2D;
+import mpicbg.models.Tile;
+import mpicbg.transform.RigidModel2D;
+import mpicbg.transform.TranslationModel2D;
+
+public class Align
+{
+	static public class Param
+	{	
+		final public FloatArray2DSIFT.Param sift = new FloatArray2DSIFT.Param();
+
+		/**
+		 * Closest/next closest neighbour distance ratio
+		 */
+		public float rod = 0.92f;
+		
+		/**
+		 * Maximal allowed alignment error in px
+		 */
+		public float maxEpsilon = 100.0f;
+		
+		/**
+		 * Inlier/candidates ratio
+		 */
+		public float minInlierRatio = 0.05f;
+		
+		/**
+		 * Implemeted transformation models for choice
+		 */
+		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine" };
+		public int modelIndex = 1;
+		
+		public Param()
+		{
+			sift.fdSize = 8;
+		}
+		
+		protected void addFields( final GenericDialog gd )
+		{
+			SIFT.addFields( gd, sift );
+			
+			gd.addNumericField( "closest/next_closest_ratio :", rod, 2 );
+			
+			gd.addMessage( "Geometric Consensus Filter:" );
+			gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
+			gd.addNumericField( "inlier_ratio :", minInlierRatio, 2 );
+			gd.addChoice( "expected_transformation :", modelStrings, modelStrings[ modelIndex ] );
+		}
+		
+		protected boolean readFields( final GenericDialog gd )
+		{
+			SIFT.readFields( gd, sift );
+			
+			rod = ( float )gd.getNextNumber();
+			
+			maxEpsilon = ( float )gd.getNextNumber();
+			minInlierRatio = ( float )gd.getNextNumber();
+			modelIndex = gd.getNextChoiceIndex();
+			
+			return !gd.invalidNumber();
+		}
+	
+		public boolean setup( final String title )
+		{
+			final GenericDialog gd = new GenericDialog( title );
+			
+			addFields( gd );
+			
+			do
+			{
+				gd.showDialog();
+				if ( gd.wasCanceled() ) return false;
+			}			
+			while ( !readFields( gd ) );
+			
+			return true;
+		}
+		
+		public Param clone()
+		{
+			Param p = new Param();
+			
+			p.sift.initialSigma = this.sift.initialSigma;
+			p.sift.steps = this.sift.steps;
+			p.sift.minOctaveSize = this.sift.minOctaveSize;
+			p.sift.maxOctaveSize = this.sift.maxOctaveSize;
+			p.sift.fdSize = this.sift.fdSize;
+			p.sift.fdBins = this.sift.fdBins;
+					
+			p.rod = rod;
+			p.maxEpsilon = maxEpsilon;
+			p.minInlierRatio = minInlierRatio;
+			p.modelIndex = modelIndex;
+			
+			return p;
+		}
+	}
+	
+	static public class ParamOptimize extends Param
+	{
+		/**
+		 * Maximal number of iteration allowed for the optimizer.
+		 */
+		public int maxIterations = 2000;
+		
+		/**
+		 * Maximal number of iterations allowed to not change the parameter to
+		 * be optimized.
+		 */
+		public int maxPlateauwidth = 200;
+		
+		@Override
+		protected void addFields( final GenericDialog gd )
+		{
+			super.addFields( gd );
+			
+			gd.addMessage( "Optimizer:" );
+			gd.addNumericField( "maximal_iterations :", maxIterations, 0 );
+			gd.addNumericField( "maximal_plateauwidth :", maxPlateauwidth, 0 );
+		}
+		
+		@Override
+		protected boolean readFields( final GenericDialog gd )
+		{
+			super.readFields( gd );
+			
+			maxIterations = ( int )gd.getNextNumber();
+			maxPlateauwidth = ( int )gd.getNextNumber();
+			
+			return !gd.invalidNumber();
+		}
+		
+		@Override
+		final public boolean setup( final String title )
+		{
+			final GenericDialog gd = new GenericDialog( title );
+			
+			addFields( gd );
+			
+			do
+			{
+				gd.showDialog();
+				if ( gd.wasCanceled() ) return false;
+			}			
+			while ( !readFields( gd ) );
+			
+			return true;
+		}
+		
+		@Override
+		final public ParamOptimize clone()
+		{
+			ParamOptimize p = new ParamOptimize();
+			
+			p.sift.initialSigma = this.sift.initialSigma;
+			p.sift.steps = this.sift.steps;
+			p.sift.minOctaveSize = this.sift.minOctaveSize;
+			p.sift.maxOctaveSize = this.sift.maxOctaveSize;
+			p.sift.fdSize = this.sift.fdSize;
+			p.sift.fdBins = this.sift.fdBins;
+					
+			p.rod = rod;
+			p.maxEpsilon = maxEpsilon;
+			p.minInlierRatio = minInlierRatio;
+			p.modelIndex = modelIndex;
+			p.maxIterations = maxIterations;
+			p.maxPlateauwidth = maxPlateauwidth;
+			
+			return p;
+		}
+	}
+	
+	final static private class Features implements Serializable
+	{
+		FloatArray2DSIFT.Param p;
+		ArrayList< Feature > features;
+		Features( final FloatArray2DSIFT.Param p, final ArrayList< Feature > features )
+		{
+			this.p = p;
+			this.features = features;
+		}
+	}
+	
+	/**
+	 * Extracts {@link Feature SIFT-features} from a {@link List} of
+	 * {@link AbstractAffineTile2D Tiles} and saves them to disk.
+	 */
+	final static protected class ExtractFeaturesThread extends Thread
+	{
+		final protected Param p;
+		final protected List< AbstractAffineTile2D< ? > > tiles;
+//		final protected HashMap< AbstractAffineTile2D< ? >, Collection< Feature > > tileFeatures;
+		final protected AtomicInteger ai;
+		final protected AtomicInteger ap;
+		final protected int steps;
+		
+		public ExtractFeaturesThread(
+				final Param p,
+				final List< AbstractAffineTile2D< ? > > tiles,
+//				final HashMap< AbstractAffineTile2D< ? >, Collection< Feature > > tileFeatures,
+				final AtomicInteger ai,
+				final AtomicInteger ap,
+				final int steps )
+		{
+			this.p = p;
+			this.tiles = tiles;
+//			this.tileFeatures = tileFeatures;
+			this.ai = ai;
+			this.ap = ap;
+			this.steps = steps;
+		}
+		
+		@Override
+		final public void run()
+		{
+			FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
+			SIFT ijSIFT = new SIFT( sift );
+
+			for ( int i = ai.getAndIncrement(); i < tiles.size(); i = ai.getAndIncrement() )
+			{
+				AbstractAffineTile2D< ? > tile = tiles.get( i );
+				Collection< Feature > features = deserializeFeatures( p, tile );
+				if ( features == null )
+				{
+					features = new ArrayList< Feature >();
+					long s = System.currentTimeMillis();
+					ijSIFT.extractFeatures( tile.createMaskedByteImage(), features );
+//					tileFeatures.put( tile, features );
+					IJ.log( features.size() + " features extracted in tile " + i + " \"" + tile.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+					if ( !serializeFeatures( p, tile, features ) )
+						IJ.log( "Saving features failed for tile: " + tile.getPatch() );
+				}
+				else
+				{
+					IJ.log( features.size() + " features loaded for tile " + i + " \"" + tile.getPatch().getTitle() + "\"." );
+					IJ.showProgress( ap.getAndIncrement(), steps );
+				}
+				
+			}
+		}
+	}
+		
+	
+	final static protected class MatchFeaturesAndFindModelThread extends Thread
+	{
+		final protected Param p;
+		final protected List< AbstractAffineTile2D< ? > > tiles;
+		//final protected HashMap< AbstractAffineTile2D< ? >, Collection< Feature > > tileFeatures;
+		final protected List< AbstractAffineTile2D< ? >[] > tilePairs;
+		final protected AtomicInteger ai;
+		final protected AtomicInteger ap;
+		final protected int steps;
+		
+		public MatchFeaturesAndFindModelThread(
+				final Param p,
+				final List< AbstractAffineTile2D< ? > > tiles,
+				//final HashMap< AbstractAffineTile2D< ? >, Collection< Feature > > tileFeatures,
+				final List< AbstractAffineTile2D< ? >[] > tilePairs,
+				final AtomicInteger ai,
+				final AtomicInteger ap,
+				final int steps )
+		{
+			this.p = p;
+			this.tiles = tiles;
+			//this.tileFeatures = tileFeatures;
+			this.tilePairs = tilePairs;
+			this.ai = ai;
+			this.ap = ap;
+			this.steps = steps;
+		}
+		
+		@Override
+		final public void run()
+		{
+			final List< PointMatch > candidates = new ArrayList< PointMatch >();
+			final List< PointMatch > inliers = new ArrayList< PointMatch >();
+				
+			for ( int i = ai.getAndIncrement(); i < tilePairs.size(); i = ai.getAndIncrement() )
+			{
+				candidates.clear();
+				inliers.clear();
+				
+				final AbstractAffineTile2D< ? >[] tilePair = tilePairs.get( i );
+				long s = System.currentTimeMillis();
+				
+				FeatureTransform.matchFeatures(
+					fetchFeatures( p, tilePair[ 0 ] ),
+					fetchFeatures( p, tilePair[ 1 ] ),
+					candidates,
+					p.rod );
+
+				final AbstractAffineModel2D< ? > model;
+				switch ( p.modelIndex )
+				{
+				case 0:
+					model = new TranslationModel2D();
+					break;
+				case 1:
+					model = new RigidModel2D();
+					break;
+				case 2:
+					model = new SimilarityModel2D();
+					break;
+				case 3:
+					model = new AffineModel2D();
+					break;
+				default:
+					return;
+				}
+	
+				boolean modelFound;
+				try
+				{
+					modelFound = model.filterRansac(
+							candidates,
+							inliers,
+							1000,
+							p.maxEpsilon,
+							p.minInlierRatio,
+							3 * model.getMinNumMatches(),
+							3 );
+				}
+				catch ( NotEnoughDataPointsException e )
+				{
+					modelFound = false;
+				}
+				
+				if ( modelFound )
+				{
+					IJ.log( "Model found for tiles \"" + tilePair[ 0 ].getPatch().getTitle() + "\" and \"" + tilePair[ 1 ].getPatch().getTitle() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+					tilePair[ 0 ].connect( tilePair[ 1 ], inliers );
+					tilePair[ 0 ].clearVirtualMatches();
+					tilePair[ 1 ].clearVirtualMatches();
+				}
+				else
+					IJ.log( "No model found for tiles " + tilePair[ 0 ] + " and " + tilePair[ 1 ] + "." );
+				
+				IJ.showProgress( ap.getAndIncrement(), steps );
+			}
+		}
+	}
+	
+	final static protected boolean serializeFeatures( final Param p, AbstractAffineTile2D< ? > t, final Collection< Feature > f )
+	{
+		final ArrayList< Feature > list = new ArrayList< Feature >();
+		list.addAll( f );
+		final Patch patch = t.getPatch();
+		final Loader loader = patch.getProject().getLoader();
+		final String storageFolder = loader.getStorageFolder() + "features.ser/";
+		File dir = new File( storageFolder );
+		if ( !dir.exists() )
+		{
+			try { dir.mkdir(); }
+			catch ( Exception e ) { return false; }
+		}
+		final Features fe = new Features( p.sift, list );
+		return loader.serialize( fe, new StringBuffer( storageFolder ).append( "features_" ).append( patch.getId() ).append( ".ser" ).toString() );
+	}
+
+	/**
+	 * Retrieve the features only if saved with the exact same relevant SIFT parameters.
+	 */
+	final static protected Collection< Feature > deserializeFeatures( final Param p, final AbstractAffineTile2D< ? > t )
+	{
+		final Patch patch = t.getPatch();
+		final Loader loader = patch.getProject().getLoader();
+		final String storageFolder = loader.getStorageFolder() + "features.ser/";
+		
+		final Object ob = loader.deserialize( new StringBuffer( storageFolder ).append( "features_" ).append( patch.getId() ).append( ".ser" ).toString() );
+		if ( null != ob )
+		{
+			try
+			{
+				final Features fe = ( Features )ob;
+				if ( p.sift.equals( fe.p ) && null != fe.p )
+				{
+					return fe.features;
+				}
+			}
+			catch ( Exception e )
+			{
+				e.printStackTrace();
+			}
+		}
+		return null;
+	}
+	
+	
+	final static protected Collection< Feature > fetchFeatures(
+			final Param p,
+			final AbstractAffineTile2D< ? > t )
+	{
+		Collection< Feature > features = deserializeFeatures( p, t );
+		if ( features == null )
+		{
+			final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
+			final SIFT ijSIFT = new SIFT( sift );
+			features = new ArrayList< Feature >();
+			long s = System.currentTimeMillis();
+			ijSIFT.extractFeatures( t.createMaskedByteImage(), features );
+			IJ.log( features.size() + " features extracted in tile \"" + t.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+			if ( !serializeFeatures( p, t, features ) )
+				IJ.log( "Saving features failed for tile: " + t.getPatch() );
+		}
+		return features;
+	}
+		
+	/**
+	 * Align a set of overlapping {@link AbstractAffineTile2D tiles} using
+	 * the following procedure:
+	 * 
+	 * <ol>
+	 * <li>Extract {@link Feature SIFT-features} from all
+	 * {@link AbstractAffineTile2D tiles}.</li>
+	 * <li>Establish {@link PointMatch point-correspondences} from
+	 * consistent sets of {@link Feature feature} matches among overlapping
+	 * tiles.</li>
+	 * <li>Globally align the tile configuration.</li>
+	 * </ol>
+	 * 
+	 * Both
+	 * {@link SIFT#extractFeatures(ij.process.ImageProcessor, Collection) feature extraction}
+	 * and {@link FeatureTransform#matchFeatures(Collection, Collection, List, float) matching}
+	 * are executed in multiple {@link Thread Threads}, with the number of
+	 * {@link Thread Threads} being a parameter of the method.
+	 * 
+	 * @param p
+	 * @param tiles
+	 * @param numThreads
+	 */
+	final static public void alignTiles(
+			final ParamOptimize p,
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? > > fixedTiles,
+			final int numThreads )
+	{
+		connectTiles( p, tiles, numThreads );
+		optimizeTileConfiguration( p, tiles, fixedTiles );
+	}
+	
+	/**
+	 * Align a set of {@link AbstractAffineTile2D tiles} that are
+	 * interconnected by {@link PointMatch point-correspondences}.
+	 */
+	final static public void optimizeTileConfiguration(
+			final ParamOptimize p,
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? > > fixedTiles )
+	{
+		final TileConfiguration tc = new TileConfiguration();
+		tc.addTiles( tiles );
+		
+		ArrayList< Set< Tile< ?  > > > graphs = Tile.identifyConnectedGraphs( tiles );
+		for ( Set< Tile< ?  > > graph : graphs )
+		{
+			boolean pleaseFix = true;
+			if ( fixedTiles != null )
+				for ( final Tile< ? > t : fixedTiles )
+					if ( graph.contains( t ) )
+					{
+						pleaseFix = false;
+					}
+			if ( pleaseFix )
+				tc.fixTile( graph.iterator().next() );
+		}
+		for ( final Tile< ? > t : fixedTiles )
+			tc.fixTile( t );
+		
+		try
+		{
+			tc.optimize( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth );
+		}
+		catch ( Exception e ) { IJ.error( e.getMessage() + " " + e.getStackTrace() ); }
+	}
+	
+	
+	final static protected void pairwiseAlign(
+			AbstractAffineTile2D< ? > tile,
+			Set< AbstractAffineTile2D< ? > > visited )
+	{
+		visited.add( tile );
+		for ( Tile< ? > t : tile.getConnectedTiles() )
+		{
+			if ( visited.contains( t ) ) continue;
+			pairwiseAlign( ( AbstractAffineTile2D< ? > )t, visited );
+			// TODO Actually do it ...
+		}
+	}
+	
+		
+	final static public void pairwiseAlignTileConfiguration(
+			final List< AbstractAffineTile2D< ? > > tiles )
+	{
+		// TODO Implement it
+	}
+	
+	
+	/**
+	 * 
+	 * @param p
+	 * @param tiles
+	 * @param numThreads
+	 */
+	final static public void connectTiles(
+			final Param p,
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final int numThreads )
+	{
+//		final HashMap< AbstractAffineTile2D< ? >, Collection< Feature > > tileFeatures = new HashMap< AbstractAffineTile2D< ? >, Collection< Feature > >();
+		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
+		for ( int a = 0; a < tiles.size(); ++a )
+		{
+			for ( int b = a + 1; b < tiles.size(); ++b )
+			{
+				final AbstractAffineTile2D< ? > ta = tiles.get( a );
+				final AbstractAffineTile2D< ? > tb = tiles.get( b );
+				if ( ta.intersects( tb ) )
+				{
+					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
+					/**
+					 * TODO
+					 *   Create virtual connections among overlapping
+					 *   tiles if required by the user.  These connections
+					 *   will be removed as soon as a model was found that
+					 *   connects a tile to another one sufficiently.
+					 * 
+					 * TODO
+					 *   Is this valid for two disconnected graphs of
+					 *   tiles?
+					 */
+				}
+			}
+		}
+		final AtomicInteger ai = new AtomicInteger( 0 );
+		final AtomicInteger ap = new AtomicInteger( 0 );
+		final int steps = tiles.size() + tilePairs.size();
+		final List< ExtractFeaturesThread > extractFeaturesThreads = new ArrayList< ExtractFeaturesThread >();
+		final List< MatchFeaturesAndFindModelThread > matchFeaturesAndFindModelThreads = new ArrayList< MatchFeaturesAndFindModelThread >();
+		
+		/** Extract and save Features */
+		for ( int i = 0; i < numThreads; ++i )
+		{
+			final ExtractFeaturesThread thread = new ExtractFeaturesThread( p.clone(), tiles, ai, ap, steps );
+			extractFeaturesThreads.add( thread );
+			thread.start();
+		}
+		try
+		{
+			for ( final ExtractFeaturesThread thread : extractFeaturesThreads )
+				thread.join();
+		}
+		catch ( InterruptedException e )
+		{
+			IJ.error( "Feature extraction failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
+			return;
+		}
+		
+		/** Establish correspondences */
+		ai.set( 0 );
+		for ( int i = 0; i < numThreads; ++i )
+		{
+			MatchFeaturesAndFindModelThread thread = new MatchFeaturesAndFindModelThread( p.clone(), tiles, tilePairs, ai, ap, steps );
+			matchFeaturesAndFindModelThreads.add( thread );
+			thread.start();
+		}
+		try
+		{
+			for ( final MatchFeaturesAndFindModelThread thread : matchFeaturesAndFindModelThreads )
+				thread.join();
+		}
+		catch ( InterruptedException e )
+		{
+			IJ.error( "Establishing feature correspondences failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
+			return;
+		}
+	}
+	
+	final static protected void tilesFromPatches(
+			final Param p,
+			final List< ? extends Patch > patches,
+			final List< ? extends Patch > fixedPatches,
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? > > fixedTiles )
+	{
+		for ( final Patch patch : patches )
+		{
+			final AbstractAffineTile2D< ? > t;
+			switch ( p.modelIndex )
+			{
+			case 0:
+				t = new TranslationTile2D( patch );
+				break;
+			case 1:
+				t = new RigidTile2D( patch );
+				break;
+			case 2:
+				t = new SimilarityTile2D( patch );
+				break;
+			case 3:
+				t = new AffineTile2D( patch );
+				break;
+			default:
+				return;
+			}
+			tiles.add( t );
+			if ( ( fixedPatches != null && fixedPatches.contains( patch ) ) || patch.isLocked() )
+				fixedTiles.add( t );
+		}
+	}
+	
+	
+	/**
+	 * Align a selection of {@link Patch patches} in a Layer.
+	 * 
+	 * @param layer
+	 */
+	final static public void alignSelectedPatches( Selection selection, final int numThreads )
+	{
+		final List< Patch > patches = new ArrayList< Patch >();
+		for ( final Displayable d : selection.getSelected() )
+			if ( d instanceof Patch ) patches.add(  ( Patch )d );
+		
+		if ( patches.size() < 2 ) return;
+		
+		final ParamOptimize p = new ParamOptimize();
+		if ( !p.setup( "Align selected patches" ) ) return;
+		
+		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		List< Patch > fixedPatches = new ArrayList< Patch >();
+		final Displayable active = selection.getActive();
+		if ( active != null && active instanceof Patch )
+			fixedPatches.add( ( Patch )active );
+		tilesFromPatches( p, patches, fixedPatches, tiles, fixedTiles );
+		
+		alignTiles( p, tiles, fixedTiles, numThreads );
+		
+		for ( AbstractAffineTile2D< ? > t : tiles )
+			t.getPatch().setAffineTransform( t.getModel().createAffine() );
+	}
+	
+	
+	/**
+	 * Align all {@link Patch patches} in a Layer.
+	 * 
+	 * @param layer
+	 */
+	final static public void alignLayer( final Layer layer, final int numThreads )
+	{
+		ParamOptimize p = new ParamOptimize();
+		if ( !p.setup( "Align patches in layer" ) ) return;
+		
+		List< Displayable > displayables = layer.getDisplayables( Patch.class );
+		List< Patch > patches = new ArrayList< Patch >();
+		for ( Displayable d : displayables )
+			patches.add( ( Patch )d );
+		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		tilesFromPatches( p, patches, null, tiles, fixedTiles );
+		
+		alignTiles( p, tiles, fixedTiles, numThreads );
+		
+		for ( AbstractAffineTile2D< ? > t : tiles )
+			t.getPatch().setAffineTransform( t.getModel().createAffine() );
+	}
+	
+	
+	final static public void alignLayersLinearly( final List< Layer > layers, final int numThreads )
+	{
+		Param p = new Param();
+		p.sift.maxOctaveSize = 1600;
+		
+		if ( !p.setup( "Align layers linearly" ) ) return;
+		
+		final Rectangle box = layers.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
+		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
+		p = p.clone();
+		p.maxEpsilon *= scale;
+		
+		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
+		final SIFT ijSIFT = new SIFT( sift );
+		
+		Rectangle box1 = null;
+		Rectangle box2 = null;
+		final Collection< Feature > features1 = new ArrayList< Feature >();
+		final Collection< Feature > features2 = new ArrayList< Feature >();
+		List< PointMatch > candidates = new ArrayList< PointMatch >();
+		List< PointMatch > inliers = new ArrayList< PointMatch >();
+		
+		AffineTransform a = new AffineTransform();
+		
+		int i = 0;
+		for ( Layer l : layers )
+		{
+			long s = System.currentTimeMillis();
+			
+			features1.clear();
+			features1.addAll( features2 );
+			features2.clear();
+			
+			final Rectangle box3 = l.getMinimalBoundingBox( Patch.class );
+			
+			if ( box3 == null ) continue;
+			
+			box1 = box2;
+			box2 = box3;
+			
+			ijSIFT.extractFeatures(
+					l.getProject().getLoader().getFlatImage( l, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor(),
+					features2 );
+			IJ.log( features2.size() + " features extracted in layer \"" + l.getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+			
+			if ( features1.size() > 0 )
+			{
+				s = System.currentTimeMillis();
+				
+				candidates.clear();
+				
+				FeatureTransform.matchFeatures(
+					features2,
+					features1,
+					candidates,
+					p.rod );
+
+				final AbstractAffineModel2D< ? > model;
+				switch ( p.modelIndex )
+				{
+				case 0:
+					model = new TranslationModel2D();
+					break;
+				case 1:
+					model = new RigidModel2D();
+					break;
+				case 2:
+					model = new SimilarityModel2D();
+					break;
+				case 3:
+					model = new AffineModel2D();
+					break;
+				default:
+					return;
+				}
+	
+				boolean modelFound;
+				try
+				{
+					modelFound = model.filterRansac(
+							candidates,
+							inliers,
+							1000,
+							p.maxEpsilon,
+							p.minInlierRatio,
+							3 * model.getMinNumMatches(),
+							3 );
+				}
+				catch ( NotEnoughDataPointsException e )
+				{
+					modelFound = false;
+				}
+				
+				if ( modelFound )
+				{
+					IJ.log( "Model found for layer \"" + l.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+					final AffineTransform b = new AffineTransform();
+					b.translate( box1.x, box1.y );
+					b.scale( 1.0f / scale, 1.0f / scale );
+					b.concatenate( model.createAffine() );
+					b.scale( scale, scale );
+					b.translate( -box2.x, -box2.y);
+					
+					a.concatenate( b );
+					l.apply( Displayable.class, a );
+					Display.repaint( l );
+				}
+				else
+					IJ.log( "No model found for layer \"" + l.getTitle() + "\" and its predecessor." );
+			}
+			IJ.showProgress( ++i, layers.size() );	
+		}
+	}
+}
