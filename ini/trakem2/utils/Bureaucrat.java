@@ -36,10 +36,11 @@ public class Bureaucrat extends Thread {
 	private boolean started = false;
 
 	/** Registers itself in the project loader job queue. */
-	public Bureaucrat(Worker worker, Project project) {
-		this(worker, new Project[]{project});
+	private Bureaucrat(ThreadGroup tg, Worker worker, Project project) {
+		this(tg, worker, new Project[]{project});
 	}
-	public Bureaucrat(Worker worker, Project[] project) {
+	private Bureaucrat(ThreadGroup tg, Worker worker, Project[] project) {
+		super(tg, "T2-Bureaucrat");
 		this.worker = worker;
 		this.project = project;
 		onset = System.currentTimeMillis();
@@ -50,13 +51,31 @@ public class Bureaucrat extends Thread {
 		setPriority(Thread.NORM_PRIORITY);
 	}
 
+	/** Creates but does not start the Bureaucrat thread. */
+	static public Bureaucrat create(Worker worker, Project project) {
+		return create (worker, new Project[]{project});
+	}
+
+	/** Creates but does not start the Bureaucrat thread. */
+	static public Bureaucrat create(Worker worker, Project[] project) {
+		ThreadGroup tg = new ThreadGroup("T2-Bureaucrat for " + worker.getTaskName());
+		return new Bureaucrat(tg, worker, project);
+	}
+
+	/** Creates and start the Bureaucrat thread. */
 	static public Bureaucrat createAndStart(Worker worker, Project project) {
-		Bureaucrat burro = new Bureaucrat(worker, project);
+		return createAndStart(worker, new Project[]{project});
+	}
+
+	/** Creates and start the Bureaucrat thread. */
+	static public Bureaucrat createAndStart(Worker worker, Project[] project) {
+		ThreadGroup tg = new ThreadGroup("T2-Bureaucrat for " + worker.getTaskName());
+		Bureaucrat burro = new Bureaucrat(tg, worker, project);
 		burro.goHaveBreakfast();
 		return burro;
 	}
 
-	/** Sets the worker to work and monitors it until it finishes.*/
+	/** Starts the Bureaucrat thread: sets the worker to work and monitors it until it finishes.*/
 	public void goHaveBreakfast() {
 		worker.start();
 		// Make sure we start AFTER the worker has started.
@@ -114,9 +133,11 @@ public class Bureaucrat extends Thread {
 	public String getTaskName() {
 		return worker.getTaskName();
 	}
-	/** Waits until worker finishes before returning. */
+	/** Waits until worker finishes before returning.
+	 *  Calls quit() on the Worker and interrupt() on each threads in this ThreadGroup and subgroups. */
 	public void quit() {
 		worker.quit();
+		getThreadGroup().interrupt();
 		try {
 			Utils.log("Waiting for worker to quit...");
 			worker.join();

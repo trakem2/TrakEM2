@@ -500,7 +500,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 					}
 					finishedWorking();
 				}};
-				new Bureaucrat(worker[0], project).goHaveBreakfast();
+				Bureaucrat.createAndStart(worker[0], project);
 			}
 
 			Point2D.Double po = transformPoint(p[0][n_points-1], p[1][n_points-1]);
@@ -623,7 +623,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 				} catch (Exception e) { IJError.print(e); }
 				finishedWorking();
 			}};
-			new Bureaucrat(worker[1], project).goHaveBreakfast();
+			Bureaucrat.createAndStart(worker[1], project);
 
 			index = -1;
 			return;
@@ -937,7 +937,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		String type = "t2_polyline";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_polyline EMPTY>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_polyline (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" d").append(TAG_ATTR2)
 		;

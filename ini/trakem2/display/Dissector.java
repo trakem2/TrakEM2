@@ -605,7 +605,7 @@ public class Dissector extends ZDisplayable {
 		String type = "t2_dissector";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_dissector (t2_dd_item)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_dissector (").append(Displayable.commonDTDChildren()).append(",t2_dd_item)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent); // all ATTLIST of a Displayable
 		sb_header.append(indent).append("<!ELEMENT t2_dd_item EMPTY>\n")
 			 .append(indent).append("<!ATTLIST t2_dd_item radius NMTOKEN #REQUIRED>\n")

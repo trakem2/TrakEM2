@@ -1329,7 +1329,7 @@ public class Profile extends Displayable {
 		String type = "t2_profile";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_profile EMPTY>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_profile (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" d").append(TAG_ATTR2)
 		;

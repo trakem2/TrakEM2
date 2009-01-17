@@ -677,7 +677,7 @@ public class Ball extends ZDisplayable {
 		String type = "t2_ball";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_ball (t2_ball_ob)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_ball (").append(Displayable.commonDTDChildren()).append(",t2_ball_ob)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append("<!ELEMENT t2_ball_ob EMPTY>\n")
 			 .append(indent).append("<!ATTLIST t2_ball_ob x NMTOKEN #REQUIRED>\n")

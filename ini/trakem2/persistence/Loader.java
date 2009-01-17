@@ -2150,9 +2150,7 @@ abstract public class Loader {
 		};
 
 		// watcher thread
-		Bureaucrat burro = new Bureaucrat(worker, layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, layer.getProject());
 	}
 
 	public Bureaucrat importImages(final Layer ref_layer) {
@@ -2467,9 +2465,7 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, base_layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, base_layer.getProject());
 	}
 
 	public Bureaucrat importLabelsAsAreaLists(final Layer layer) {
@@ -2537,9 +2533,7 @@ abstract public class Loader {
 				}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, first_layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, first_layer.getProject());
 	}
 
 	public void recreateBuckets(final Collection<Layer> col) {
@@ -2714,9 +2708,7 @@ abstract public class Loader {
 			}
 			finishedWorking();
 		}}; // I miss my lisp macros, you have no idea
-		Bureaucrat burro = new Bureaucrat(worker, layer[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, layer[0].getProject());
 	}
 
 	/** Will never overwrite, rather, add an underscore and ordinal to the file name. */
@@ -3121,9 +3113,7 @@ abstract public class Loader {
 		};
 
 		// watcher thread
-		Bureaucrat burro = new Bureaucrat(worker, layer[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, layer[0].getProject());
 	}
 
 	/** Will overwrite if the file path exists. */
@@ -3199,9 +3189,7 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, layer.getProject());
 	}
 
 	public Patch importImage(Project project, double x, double y) {
@@ -3480,9 +3468,7 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, first_layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, first_layer.getProject());
 	}
 
 	public String handlePathlessImage(ImagePlus imp) { return null; }
@@ -4219,9 +4205,7 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, pa[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, pa[0].getProject());
 
 	}
 
@@ -4268,9 +4252,7 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, la[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, la[0].getProject());
 	}
 
 	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al) {
@@ -4292,9 +4274,7 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, pa[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, pa[0].getProject());
 	}
 
 	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. Needs a layer to repaint when done. */
@@ -4464,9 +4444,7 @@ abstract public class Loader {
 				}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, Project.findProject(this));
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, Project.findProject(this));
 	}
 
 	public long estimateImageFileSize(final Patch p, final int level) {

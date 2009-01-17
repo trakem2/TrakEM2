@@ -1000,6 +1000,27 @@ public abstract class Displayable extends DBObject {
 		;
 	}
 
+	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+		if (!hs.contains("t2_prop")) {
+			sb_header.append(indent).append("<!ELEMENT t2_prop EMPTY>\n")
+				 .append(indent).append(TAG_ATTR1).append("t2_prop name").append(TAG_ATTR2)
+			         .append(indent).append(TAG_ATTR1).append("t2_prop value").append(TAG_ATTR2)
+			;
+		}
+		if (!hs.contains("t2_link")) {
+			sb_header.append(indent).append("<!ELEMENT t2_link EMPTY>\n")
+				 .append(indent).append(TAG_ATTR1).append("t2_link class").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_link origin_id").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_link target_id").append(TAG_ATTR2)
+			;
+		}
+	}
+
+	static protected String commonDTDChildren() {
+		return "t2_prop,t2_link"; // never commas at beginning or end, only in between
+					  // never returns empty
+	}
+
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
 	public void exportXML(StringBuffer sb_body, String in, Object any) {
 		final double[] a = new double[6];

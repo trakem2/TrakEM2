@@ -409,7 +409,7 @@ public class DLabel extends Displayable {
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		if (hs.contains("t2_label")) return;
-		sb_header.append(indent).append("<!ELEMENT t2_label EMPTY>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_label (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD("t2_label", sb_header, hs, indent);
 	}
 

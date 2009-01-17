@@ -1071,7 +1071,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		String type = "t2_layer_set";
 		if (!hs.contains(type)) {
-			sb_header.append(indent).append("<!ELEMENT t2_layer_set (t2_layer,t2_pipe,t2_ball,t2_area_list,t2_calibration)>\n");
+			sb_header.append(indent).append("<!ELEMENT t2_layer_set (").append(Displayable.commonDTDChildren()).append(",t2_layer,t2_pipe,t2_ball,t2_area_list,t2_calibration)>\n");
 			Displayable.exportDTD(type, sb_header, hs, indent);
 			sb_header.append(indent).append(TAG_ATTR1).append(type).append(" layer_width").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" layer_height").append(TAG_ATTR2)

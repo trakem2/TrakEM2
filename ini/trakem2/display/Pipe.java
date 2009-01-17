@@ -1577,7 +1577,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 		String type = "t2_pipe";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_pipe EMPTY>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_pipe (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" d").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" p_width").append(TAG_ATTR2)
