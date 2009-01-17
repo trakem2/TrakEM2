@@ -2870,7 +2870,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			}
 		} else if (command.equals("Align layers (layer-wise)")) {
-			Registration.registerLayers(layer, Registration.LAYER_SIFT);
+			AlignTask.alignLayersLinearly( layer );
 		} else if (command.equals("Align layers (tile-wise global minimization)")) {
 			Registration.registerLayers(layer, Registration.GLOBAL_MINIMIZATION);
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
