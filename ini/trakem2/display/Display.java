@@ -50,6 +50,7 @@ import javax.swing.*;
 import javax.swing.event.*;
 
 import mpicbg.trakem2.align.Align;
+import mpicbg.trakem2.align.AlignTask;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -2993,7 +2994,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			// make an undo step!
 			layer.getParent().addUndoStep(affected);
-			Align.alignSelectedPatches( selection, Runtime.getRuntime().availableProcessors() );
+			AlignTask.alignSelection( selection );
 			repaint(layer);
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");
