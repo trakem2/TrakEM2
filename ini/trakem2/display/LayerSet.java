@@ -33,6 +33,7 @@ import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.History;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.tree.LayerThing;
@@ -49,6 +50,7 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.HashSet;
@@ -108,14 +110,29 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	private boolean snapshots_quality = true;
 
 	/** Store HashMaps of displayable/transformation pairs for undo. */
-	private LinkedList undo_queue = new LinkedList();
-	/** Store HashMaps of displayable/transformation pairs for redo, as they are popped out of the undo_queue list. This list will be cleared the moment a new action is stored in the undo_queue.*/
-	//private LinkedList redo_queue = new LinkedList();
-	/** The index of the current set of Transformations in the undo/redo queues. */
-	private int current = 0;
-	/** A flag to indicate that the user is undoing/redoing without adding new undo steps. Gets reset to false when a new undo step is added. */
-	private boolean cycle_flag = false;
-	private int MAX_UNDO_STEPS = 40; // should be editable, or rather, adaptable: count not the max steps but the max amount of memory used, computed by counting the number of AffineTransforms stored and the size of a single AffineTransform
+	private History history = new History(30);
+
+	private class TransformationStep implements History.Step<Displayable> {
+		final HashMap<Displayable,AffineTransform> ht;
+		TransformationStep(final HashMap<Displayable,AffineTransform> ht) {
+			this.ht = ht;
+		}
+		public List<Displayable> remove(final long id) {
+			final List<Displayable> al = new ArrayList<Displayable>();
+			for (Iterator<Displayable> it = ht.keySet().iterator(); it.hasNext(); ) {
+				final Displayable d = it.next();
+				if (d.getId() == id) {
+					it.remove();
+				}
+				al.add(d);
+			}
+			return al;
+		}
+		public boolean isEmpty() {
+			return ht.isEmpty();
+		}
+	}
+
 	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
 	private Align align = null;
 
@@ -435,11 +452,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					d.updateInDatabase("transform");
 				}
 				// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
-				for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
-					HashMap ht = (HashMap)it.next();
-					for (Iterator hi = ht.values().iterator(); hi.hasNext(); ) {
-						AffineTransform at = (AffineTransform)hi.next();
-						at.preConcatenate(at2);
+				for (final History.Step step : history.getAll()) {
+					if (step instanceof TransformationStep) {
+						for (final AffineTransform at : ((TransformationStep)step).ht.values()) {
+							at.preConcatenate(at2);
+						}
 					}
 				}
 				project.getLoader().commitLargeUpdate();
@@ -1112,92 +1129,43 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** The @param ht should be a hastable of Displayable keys and Transform values, such as those obtained from selection.getTransformationsCopy() . By adding a new undo step, the redo steps are cleared. */
-	public void addUndoStep(HashMap ht) {
+	public void addUndoStep(final HashMap<Displayable,AffineTransform> ht) {
 		if (ht.isEmpty()) return;
-		if (undo_queue.size() == MAX_UNDO_STEPS) {
-			undo_queue.removeFirst();
-			current--;
-		}
-		//Utils.log("addUndoStep A: current: " + current + "  total: " + undo_queue.size());
-		// clear undo_queue beyond current
-		while (undo_queue.size() > current) {
-			if (0 == undo_queue.size()) {
-				Utils.log2("attempted to remove from empty list: current is " + current);
-				break;
-			}
-			undo_queue.removeLast();
-		}
-		// reset
-		cycle_flag = false;
-		undo_queue.add(ht);
-		current = undo_queue.size(); // current is not stored, is beyond bounds. What was just stored was the previous to current
-		//Utils.log("current: " + current + "   total: " + undo_queue.size());
-		/*
-		// discard redo steps
-		redo_queue.clear(); */
+		Utils.log2("Add undo step");
+		history.add(new TransformationStep(ht));
 	}
 
 	/** Create an undo step involving all Displayable objects in the set. */
 	public void addUndoStep(final Set<Displayable> set) {
-		final HashMap ht = new HashMap();
+		final HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
 		for (final Displayable d : set) {
 			ht.put(d, d.getAffineTransformCopy());
 		}
 		addUndoStep(ht);
 	}
 
-	/** Usable only when undoing the last step, to catch the current step (which is not in the undo queue).*/
-	void appendCurrent(HashMap ht) {
-		if (ht.isEmpty() || undo_queue.size() != current || cycle_flag) return;
-		Utils.log2("appendCurrent: undo queue size: " + undo_queue.size() + " and current: " + current);
-		undo_queue.add(ht);
-		// current doesn't change, but now it exists in the undo_queue
-	}
-
 	public boolean canUndo() {
-		return current > 0; //0 != undo_queue.size();
+		return history.canUndo();
 	}
 	public boolean canRedo() {
-		return current < undo_queue.size(); //0 != redo_queue.size();
+		return history.canRedo();
 	}
+
 	public void undoOneStep() {
-		if (current < 1 || 0 == undo_queue.size()) return;
-		if (cycle_flag && undo_queue.size() == current) current--; // compensate
-		current--;
-		if (current < 0) current = 0; // patching ...
-		HashMap step = (HashMap)undo_queue.get(current);
-		applyStep(step);
-		cycle_flag = true;
-		Utils.log2("undoing to current=" + current);
-		/*
-		HashMap last = (HashMap)undo_queue.removeLast();
-		if (null != current) redo_queue.add(current);
-		current = last;
-		applyStep(last);
-		*/
-		//Utils.log2("undoing " + step);
+		History.Step step = history.undoOneStep();
+		if (step instanceof TransformationStep) {
+			TransformationStep ts = (TransformationStep)step;
+			applyStep(ts.ht);
+		}
+		Utils.log2("Undoing: index is " + history.index());
 	}
 	public void redoOneStep() {
-		//if (/*0 == redo_queue.size()*/ 0 == undo_queue.size() || current == undo_queue.size() -2) return;
-		current += 1;
-		if (current >= undo_queue.size()) {
-			Utils.log2("prevented redoing to current=" + current);
-			current = undo_queue.size();
-			return;
+		History.Step step = history.redoOneStep();
+		if (step instanceof TransformationStep) {
+			TransformationStep ts = (TransformationStep)step;
+			applyStep(ts.ht);
 		}
-		HashMap step = (HashMap)undo_queue.get(current);
-		applyStep(step);
-		/*
-		HashMap next = (HashMap)redo_queue.removeLast();
-		if (null != current) undo_queue.add(current);
-		current = next;
-		applyStep(next);
-		if (0 == redo_queue.size()) {
-			current = null; // reset
-		}
-		*/
-		//Utils.log2("redoing " + step);
-		Utils.log2("redoing to current=" + current);
+		Utils.log2("Redoing: index is " + history.index());
 	}
 	private void applyStep(HashMap ht) {
 		// apply:
@@ -1227,24 +1195,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Find the given Displayable in the undo/redo queues and clear it. This functionality is used when an object is removed, for which there is no undo. */
 	public void removeFromUndo(final Displayable d) {
-		// from the undo_queue
-		for (Iterator it = undo_queue.iterator(); it.hasNext(); ) {
-			HashMap ht = (HashMap)it.next();
-			for (Iterator itd = ht.keySet().iterator(); itd.hasNext(); ) {
-				if (d == itd.next()) {
-					itd.remove();
-					break; // the inner loop only
-				}
-			}
-		}
+		history.remove(d.getId());
 	}
 
 	/** Used when there has been no real transformation (for example, a mouse click and release, but no drag. */
 	void discardLastUndo() {
-		if (0 == undo_queue.size()) return;
-		//Utils.log2("discarding last undo!");
-		undo_queue.removeLast();
-		current--;
+		Utils.log2("discard last undo");
+		history.removeLast();
 	}
 
 	public void destroy() {
@@ -1258,10 +1215,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
-		this.undo_queue.clear();
-		this.undo_queue = null;
-		//this.redo_queue.clear();
-		//this.redo_queue = null;
+		this.history.clear();
 		if (null != align) {
 			align.destroy();
 			align = null;

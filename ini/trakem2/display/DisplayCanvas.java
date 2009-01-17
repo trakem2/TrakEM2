@@ -75,6 +75,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private boolean input_disabled = false;
 	private boolean input_disabled2 = false;
 
+	private static final int NONE = 0;
+	private static final int MOUSE = 1;
+	private static final int KEY_MOVE = 2;
+	private static final int Z_KEY = 4; // the undo system
+	private int last_action = NONE;
+
 	/** Store a copy of whatever data as each Class may define it, one such data object per class.
 	 * Private to the package. */
 	static private Hashtable<Class,Object> copy_buffer = new Hashtable<Class,Object>();
@@ -665,7 +671,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		// store for undo:
 		if (!selection.isEmpty() && ProjectToolbar.SELECT == tool && null == display.getLayer().getParent().getAlign() && !selection.isTransforming()) {
-			display.getLayer().getParent().addUndoStep(selection.getTransformationsCopy());
+			// if there is one step, don't add it.
+			if (!display.getLayer().getParent().canUndo()) display.getLayer().getParent().addUndoStep(selection.getTransformationsCopy());
 		}
 
 		if (ProjectToolbar.ALIGN == tool) {
@@ -853,6 +860,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	public void mouseReleased(MouseEvent me) {
+		last_action = MOUSE;
 		boolean dragging2 = dragging;
 		dragging = false;
 		if (popup) {
@@ -925,9 +933,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		flags &= ~InputEvent.BUTTON2_MASK; // make sure button 2 bit is not set
 		flags &= ~InputEvent.BUTTON3_MASK; // make sure button 3 bit is not set
 
+		/*
 		if (!dragging2) {
 			// no real change
 			display.getLayer().getParent().discardLastUndo();
+		}
+		*/
+		if (dragging2) {
+			display.getLayer().getParent().addUndoStep(display.getSelection().getTransformationsCopy());
 		}
 
 		int x_r = srcRect.x + (int)(me.getX() / magnification);
@@ -1801,13 +1814,17 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_Z:
 				int mod = ke.getModifiers();
 				if (0 == (mod ^ Event.SHIFT_MASK)) {
-					if (!layer.getParent().canRedo()) {
+					// If it's the last step and the last action was not Z_KEY undo action, then store current:
+					if (!layer.getParent().canRedo() && Z_KEY != last_action) {
 						// catch the current
-						display.getLayer().getParent().appendCurrent(display.getSelection().getTransformationsCopy());
+						display.getLayer().getParent().addUndoStep(display.getSelection().getTransformationsCopy());
+						Utils.log2("Storing current at key pressed.");
 					}
+					last_action = Z_KEY;
 					display.getLayer().getParent().undoOneStep();
 					ke.consume();
 				} else if (0 == (mod ^ Event.ALT_MASK)) {
+					last_action = Z_KEY;
 					display.getLayer().getParent().redoOneStep();
 					ke.consume();
 				}
@@ -1957,6 +1974,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					display.getSelection().deleteAll();
 				}
 				break;
+			case KeyEvent.VK_UP:
+			case KeyEvent.VK_DOWN:
+			case KeyEvent.VK_LEFT:
+			case KeyEvent.VK_RIGHT:
+				last_action = KEY_MOVE;
+				// bleed to active:
 			default:
 				// forward event to active
 				if (null != active) {
