@@ -794,7 +794,7 @@ public final class Patch extends Displayable {
 		sb_header.append(indent).append("<!ELEMENT ict_transform_list (ict_transform)>\n");
 
 		// The Patch itself:
-		sb_header.append(indent).append("<!ELEMENT t2_patch (ict_transform,ict_transform_list)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_patch (").append(Displayable.commonDTDChildren()).append(",ict_transform,ict_transform_list)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" file_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" original_path").append(TAG_ATTR2)

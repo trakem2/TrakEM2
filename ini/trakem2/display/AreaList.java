@@ -549,7 +549,7 @@ public class AreaList extends ZDisplayable {
 		String type = "t2_area_list";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_area_list (t2_area)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_area_list (").append(Displayable.commonDTDChildren()).append(",t2_area)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent); // all ATTLIST of a Displayable
 		sb_header.append(indent).append("<!ATTLIST t2_area_list fill_paint NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ELEMENT t2_area (t2_path)>\n")
