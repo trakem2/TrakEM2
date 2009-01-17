@@ -24,11 +24,12 @@ public class History {
 	/** Append a new step. If max_size is set, resizes the list if larger than max_size,
 	 *  and returns all removed elements. Otherwise returns an empty list. */
 	synchronized public List<Step> add(final Step step) {
-		index++;
+		++index;
 		if (list.size() == index) {
 			list.add(step);
 		} else {
 			list = list.subList(0, index);
+			list.add( step );
 		}
 		if (-1 != max_size) return resize(max_size);
 		return new ArrayList<Step>();
@@ -36,7 +37,7 @@ public class History {
 
 	/** Returns null if there aren't any more steps to undo. */
 	synchronized public Step undoOneStep() {
-		if (0 == index) return null;
+		if (index < 1) return null;
 		return list.get(--index);
 	}
 
@@ -51,10 +52,9 @@ public class History {
 		final List<Step> al = new ArrayList<Step>();
 		for (Iterator<Step> it = list.iterator(); it.hasNext(); ) {
 			Step step = it.next();
-			if (id == step.id) {
+			if (id == step.getId()) {
 				index--;
-				//it.remove();
-				list.remove(step);
+				it.remove();
 				al.add(step);
 			}
 		}
@@ -84,10 +84,7 @@ public class History {
 		return list.size();
 	}
 
-	public abstract class Step {
-		public final long id;
-		public Step(final long id) {
-			this.id = id;
-		}
+	public interface Step {
+		public long getId();
 	}
 }
