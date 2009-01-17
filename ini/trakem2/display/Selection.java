@@ -1183,10 +1183,9 @@ public class Selection {
 	}
 
 	/** Returns a hash table with all selected Displayables as keys, and a copy of their affine transform as value. This is useful to easily create undo steps. */
-	protected HashMap getTransformationsCopy() {
-		HashMap ht_copy = new HashMap(hs.size());
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+	protected HashMap<Displayable,AffineTransform> getTransformationsCopy() {
+		final HashMap<Displayable,AffineTransform> ht_copy = new HashMap<Displayable,AffineTransform>(hs.size());
+		for (final Displayable d : hs) {
 			ht_copy.put(d, d.getAffineTransformCopy());
 		}
 		return ht_copy;
