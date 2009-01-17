@@ -26,7 +26,7 @@ public class History {
 	/** Append a new step. If max_size is set, resizes the list if larger than max_size,
 	 *  and returns all removed elements. Otherwise returns an empty list. */
 	synchronized public List<Step> add(final Step step) {
-		Utils.printCaller(this, 3);
+		//Utils.printCaller(this, 3);
 		++index;
 		if (list.size() == index) {
 			list.add(step);
