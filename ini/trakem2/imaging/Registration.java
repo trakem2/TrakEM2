@@ -286,9 +286,7 @@ public class Registration {
 			}
 		};
 		// watcher thread
-		final Bureaucrat burro = new Bureaucrat(worker, layer_set.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, layer_set.getProject());
 	}
 	static private void checkLayerList(final List list) {
 		for (Iterator it = list.iterator(); it.hasNext(); ) {
@@ -530,9 +528,7 @@ public class Registration {
 			}
 		};
 		// watcher thread
-		final Bureaucrat burro = new Bureaucrat(worker, base_slice.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, base_slice.getProject());
 	}
 	/** Recursive into linked images in other layers. */
 	static private void correlateSlices(final Patch slice, final HashSet hs_done, final Worker worker, final Registration.SIFTParameters sp, final Vector<Feature> fs_slice) {
@@ -1340,9 +1336,7 @@ public class Registration {
 				}
 			}};
 
-		Bureaucrat burro = new Bureaucrat(worker_, layer[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker_, layer[0].getProject());
 	}
 
 	/**
@@ -1935,9 +1929,7 @@ public class Registration {
 				}
 			}};
 
-		Bureaucrat burro = new Bureaucrat(worker_, set.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker_, set.getProject());
 	}
 
 	/** A tuple. */

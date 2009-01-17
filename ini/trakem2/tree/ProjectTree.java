@@ -256,7 +256,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				//}
 			} else if (command.equals("Measure")) {
 				// block displays while measuring
-				new Bureaucrat(new Worker("Measuring") { public void run() {
+				Bureaucrat.createAndStart(new Worker("Measuring") { public void run() {
 					startedWorking();
 					try {
 						thing.measure();
@@ -265,7 +265,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					} finally {
 						finishedWorking();
 					}
-				}}, thing.getProject()).goHaveBreakfast();
+				}}, thing.getProject());
 			}/* else if (command.equals("Export 3D...")) {
 				GenericDialog gd = ControlWindow.makeGenericDialog("Export 3D");
 				String[] choice = new String[]{".svg [preserves links and hierarchical grouping]", ".shapes [limited to one profile per layer per profile_list]"};

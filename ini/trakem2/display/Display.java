@@ -531,9 +531,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			}
 		};
-		final Bureaucrat burro = new Bureaucrat(worker, ((Display)ht_later.keySet().iterator().next()).getProject()); // gets the project from the first Display
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, ((Display)ht_later.keySet().iterator().next()).getProject()); // gets the project from the first Display
 	}
 
 	private void makeGUI(final Layer layer, final Object[] props) {
@@ -3121,7 +3119,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Project properties...")) {
 			project.adjustProperties();
 		} else if (command.equals("Release memory...")) {
-			new Bureaucrat(new Worker("Releasing memory") {
+			Bureaucrat.createAndStart(new Worker("Releasing memory") {
 				public void run() {
 					startedWorking();
 					try {
@@ -3139,7 +3137,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 						finishedWorking();
 					}
 				}
-			}, project).goHaveBreakfast();
+			}, project);
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
@@ -3200,9 +3198,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, getProject());
 	}
 
 	protected Bureaucrat importNextImage() {
@@ -3228,9 +3224,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, getProject());
 	}
 
 

@@ -1866,9 +1866,7 @@ public final class FSLoader extends Loader {
 				this.finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, ((Patch)al.get(0)).getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, ((Patch)al.get(0)).getProject());
 	}
 
 	private final String getLevelDir(final String dir_mipmaps, final int level) {
@@ -2195,7 +2193,7 @@ public final class FSLoader extends Loader {
 							this.finishedWorking();
 						}
 					};
-					Bureaucrat burro = new Bureaucrat(worker, patch.getProject());
+					Bureaucrat burro = Bureaucrat.create(worker, patch.getProject());
 					burro.goHaveBreakfast();
 
 					gm_unlock();

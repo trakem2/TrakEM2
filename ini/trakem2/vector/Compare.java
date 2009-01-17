@@ -530,9 +530,7 @@ public class Compare {
 		Project[] p;
 		if (other.equals(pipe.getProject())) p = new Project[]{other};
 		else p = new Project[]{other, pipe.getProject()};
-		Bureaucrat burro = new Bureaucrat(worker, p);
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, p);
 	}
 
 	/** For a given pipe, create a VectorString3D for each possible path, as determined by the Project Tree structure and the parent/child relationships.
@@ -1459,9 +1457,7 @@ public class Compare {
 		hsp.add(pipe.getProject());
 		for (int i=0; i<ref.length; i++) hsp.add(ref[i]);
 		Project[] p = (Project[])hsp.toArray(new Project[0]);
-		Bureaucrat burro = new Bureaucrat(worker, p);
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, p);
 	}
 
 	static private class Match {
@@ -2195,9 +2191,7 @@ public class Compare {
 				}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, p);
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, p);
 	}
 
 	/** Returns the half matrix of scores, with values copied from one half matrix to the other, and a diagonal of zeros.
@@ -2419,9 +2413,7 @@ public class Compare {
 				}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, p[0]);
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, p[0]);
 	}
 
 	static public Plot makePlot(final CATAParameters cp, final String name, final VectorString3D c) {
