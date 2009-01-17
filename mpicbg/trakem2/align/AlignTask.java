@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import mpicbg.imagefeatures.FloatArray2DSIFT.Param;
 import mpicbg.models.Tile;
 
 import ij.gui.GenericDialog;
@@ -29,10 +28,10 @@ final public class AlignTask
 			if ( d instanceof Patch ) patches.add( ( Patch )d );
 		
 		final Align.ParamOptimize p = new Align.ParamOptimize();
-		final GenericDialog gd = new GenericDialog( "Align selected tiles" );
+		final GenericDialog gd = new GenericDialog( "Align Selected Tiles" );
 		p.addFields( gd );
 		
-		gd.addMessage( "Fancy Usability Field Section 1:" );
+		gd.addMessage( "Miscellaneous:" );
 		gd.addCheckbox( "Tiles are rougly in place.", false );
 		gd.addCheckbox( "Consider largest graph only.", false );
 		gd.addCheckbox( "Hide tiles from non-largest graph.", false );
@@ -75,13 +74,22 @@ final public class AlignTask
 			for ( Tile< ? > t : largestGraph )
 				interestingTiles.add( ( AbstractAffineTile2D< ? > )t );
 			
-			//if ( hideDisconnectedTiles )
-				
+			if ( hideDisconnectedTiles )
+				for ( AbstractAffineTile2D< ? > t : tiles )
+					if ( !interestingTiles.contains( t ) )
+						t.getPatch().setVisible( false );
+			if ( deleteDisconnectedTiles )
+				for ( AbstractAffineTile2D< ? > t : tiles )
+					if ( !interestingTiles.contains( t ) )
+						t.getPatch().remove( false );
 		}
 		else
 			interestingTiles = tiles;
 			
 		// align the largest graph only
 		Align.optimizeTileConfiguration( p, interestingTiles, fixedTiles );
+		
+		for ( AbstractAffineTile2D< ? > t : tiles )
+			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 	}
 }
