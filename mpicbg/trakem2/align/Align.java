@@ -468,7 +468,9 @@ public class Align
 			final List< AbstractAffineTile2D< ? > > fixedTiles,
 			final int numThreads )
 	{
-		connectTiles( p, tiles, numThreads );
+		final ArrayList< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D<?>[] >();
+		AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
+		connectTilePairs( p, tiles, tilePairs, numThreads );
 		optimizeTileConfiguration( p, tiles, fixedTiles );
 	}
 	
@@ -530,41 +532,19 @@ public class Align
 	
 	
 	/**
+	 * Connect a {@link List} of {@link AbstractAffineTile2D Tiles} by
+	 * geometrically consistent {@link Feature SIFT-feature} correspondences.
 	 * 
 	 * @param p
 	 * @param tiles
 	 * @param numThreads
 	 */
-	final static public void connectTiles(
+	final static public void connectTilePairs(
 			final Param p,
 			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? >[] > tilePairs,
 			final int numThreads )
 	{
-//		final HashMap< AbstractAffineTile2D< ? >, Collection< Feature > > tileFeatures = new HashMap< AbstractAffineTile2D< ? >, Collection< Feature > >();
-		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
-		for ( int a = 0; a < tiles.size(); ++a )
-		{
-			for ( int b = a + 1; b < tiles.size(); ++b )
-			{
-				final AbstractAffineTile2D< ? > ta = tiles.get( a );
-				final AbstractAffineTile2D< ? > tb = tiles.get( b );
-				if ( ta.intersects( tb ) )
-				{
-					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
-					/**
-					 * TODO
-					 *   Create virtual connections among overlapping
-					 *   tiles if required by the user.  These connections
-					 *   will be removed as soon as a model was found that
-					 *   connects a tile to another one sufficiently.
-					 * 
-					 * TODO
-					 *   Is this valid for two disconnected graphs of
-					 *   tiles?
-					 */
-				}
-			}
-		}
 		final AtomicInteger ai = new AtomicInteger( 0 );
 		final AtomicInteger ap = new AtomicInteger( 0 );
 		final int steps = tiles.size() + tilePairs.size();

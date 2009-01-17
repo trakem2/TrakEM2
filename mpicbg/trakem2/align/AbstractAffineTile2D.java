@@ -23,7 +23,9 @@ import ij.process.ByteProcessor;
 import ini.trakem2.display.Patch;
 
 import java.awt.geom.AffineTransform;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import mpicbg.models.AbstractAffineModel2D;
@@ -167,5 +169,76 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 	final public boolean intersects( AbstractAffineTile2D< ? > t )
 	{
 		return patch.intersects( t.patch );
+	}
+	
+	
+	/**
+	 * Pair all {@link List} of {@link AbstractAffineTile2D Tiles} for
+	 * overlapping pairs.  Adds the pairs into tilePairs.
+	 * 
+	 * @param tiles
+	 * @param tilePairs
+	 */
+	final static public void pairTiles(
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? >[] > tilePairs )
+	{
+		for ( int a = 0; a < tiles.size(); ++a )
+		{
+			for ( int b = a + 1; b < tiles.size(); ++b )
+			{
+				final AbstractAffineTile2D< ? > ta = tiles.get( a );
+				final AbstractAffineTile2D< ? > tb = tiles.get( b );
+				tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
+				/**
+				 * TODO
+				 *   Create virtual connections among overlapping
+				 *   tiles if required by the user.  These connections
+				 *   will be removed as soon as a model was found that
+				 *   connects a tile to another one sufficiently.
+				 * 
+				 * TODO
+				 *   Is this valid for two disconnected graphs of
+				 *   tiles?
+				 */
+			}
+		}		
+	}
+	
+	
+	/**
+	 * Search a {@link List} of {@link AbstractAffineTile2D Tiles} for
+	 * overlapping pairs.  Adds the pairs into tilePairs.
+	 * 
+	 * @param tiles
+	 * @param tilePairs
+	 */
+	final static public void pairOverlappingTiles(
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? >[] > tilePairs )
+	{
+		for ( int a = 0; a < tiles.size(); ++a )
+		{
+			for ( int b = a + 1; b < tiles.size(); ++b )
+			{
+				final AbstractAffineTile2D< ? > ta = tiles.get( a );
+				final AbstractAffineTile2D< ? > tb = tiles.get( b );
+				if ( ta.intersects( tb ) )
+				{
+					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
+					/**
+					 * TODO
+					 *   Create virtual connections among overlapping
+					 *   tiles if required by the user.  These connections
+					 *   will be removed as soon as a model was found that
+					 *   connects a tile to another one sufficiently.
+					 * 
+					 * TODO
+					 *   Is this valid for two disconnected graphs of
+					 *   tiles?
+					 */
+				}
+			}
+		}		
 	}
 }
