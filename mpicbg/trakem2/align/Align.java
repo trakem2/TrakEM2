@@ -250,7 +250,7 @@ public class Align
 			FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
 			SIFT ijSIFT = new SIFT( sift );
 
-			for ( int i = ai.getAndIncrement(); i < tiles.size(); i = ai.getAndIncrement() )
+			for ( int i = ai.getAndIncrement(); i < tiles.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
 				AbstractAffineTile2D< ? > tile = tiles.get( i );
 				Collection< Feature > features = deserializeFeatures( p, tile );
@@ -309,7 +309,7 @@ public class Align
 			final List< PointMatch > candidates = new ArrayList< PointMatch >();
 			final List< PointMatch > inliers = new ArrayList< PointMatch >();
 				
-			for ( int i = ai.getAndIncrement(); i < tilePairs.size(); i = ai.getAndIncrement() )
+			for ( int i = ai.getAndIncrement(); i < tilePairs.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
 				candidates.clear();
 				inliers.clear();
@@ -565,7 +565,7 @@ public class Align
 		}
 		catch ( InterruptedException e )
 		{
-			IJ.error( "Feature extraction failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
+			IJ.log( "Feature extraction failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
 			return;
 		}
 		
@@ -584,7 +584,7 @@ public class Align
 		}
 		catch ( InterruptedException e )
 		{
-			IJ.error( "Establishing feature correspondences failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
+			IJ.log( "Establishing feature correspondences failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
 			return;
 		}
 	}

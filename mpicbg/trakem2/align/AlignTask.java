@@ -43,7 +43,6 @@ import ini.trakem2.utils.Utils;
  */
 final public class AlignTask
 {
-
 	final static public Bureaucrat alignSelectionTask ( final Selection selection )
 	{
 		Worker worker = new Worker("Aligning selected images", false, true) {
@@ -215,8 +214,9 @@ final public class AlignTask
 		int s = 0;
 		for ( final Layer layer : layerRange )
 		{
-
-			long t = System.currentTimeMillis();
+			if ( Thread.currentThread().isInterrupted() ) break;
+			
+ 			long t = System.currentTimeMillis();
 			
 			features1.clear();
 			features1.addAll( features2 );
@@ -224,7 +224,7 @@ final public class AlignTask
 			
 			final Rectangle box3 = layer.getMinimalBoundingBox( Patch.class );
 			
-			if ( box3 == null ) continue;
+			if ( box3 == null || ( box.width == 0 && box.height == 0 ) ) continue;
 			
 			box1 = box2;
 			box2 = box3;
@@ -299,7 +299,7 @@ final public class AlignTask
 				else
 					IJ.log( "No model found for layer \"" + layer.getTitle() + "\" and its predecessor." );
 			}
-			IJ.showProgress( ++s, layers.size() );	
+			IJ.showProgress( ++s, layerRange.size() );	
 		}
 		if ( propagateTransform )
 		{
