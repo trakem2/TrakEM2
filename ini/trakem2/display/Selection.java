@@ -53,6 +53,7 @@ import java.awt.event.MouseEvent;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.Project;
 
 /** Keeps track of selected objects and mediates their transformation.*/ 
 public class Selection {
@@ -1508,5 +1509,37 @@ public class Selection {
 		// reduce stacks to a single Patch
 		// TODO
 		if (!Utils.check("Really change LUT for " + al.size() + " images?")) return;
+	}
+
+	/** Returns the Project of the Display, or if the latter is null, that of the first selected Displayable. */
+	public Project getProject() {
+		if (null != display) return  display.getProject();
+		synchronized (queue_lock) {
+			lock();
+			try {
+				if (queue.size() > 0) return queue.get(0).getProject();
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+		return null;
+	}
+
+	/** Returns the Layer of the Display, or if the latter is null, that of the first selected Displayable. */
+	public Layer getLayer() {
+		if (null != display) return  display.getLayer();
+		synchronized (queue_lock) {
+			lock();
+			try {
+				if (queue.size() > 0) return queue.get(0).getLayer();
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+		return null;
 	}
 }

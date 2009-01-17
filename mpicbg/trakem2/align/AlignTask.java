@@ -32,6 +32,10 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
+import ini.trakem2.utils.Worker;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 
 /**
  * Methods collection to be called from the GUI for alignment tasks.
@@ -39,11 +43,39 @@ import ini.trakem2.display.Selection;
  */
 final public class AlignTask
 {
+
+	final static public Bureaucrat alignSelectionTask ( final Selection selection )
+	{
+		Worker worker = new Worker("Aligning selected images", false, true) {
+			public void run() {
+				startedWorking();
+				try {
+					alignSelection( selection );
+				} catch (Throwable e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
+			}
+			public void cleanup() {
+				if (!selection.isEmpty())
+					selection.getLayer().getParent().undoOneStep();
+			}
+		};
+		return Bureaucrat.createAndStart( worker, selection.getProject() );
+	}
+
 	final static public void alignSelection( final Selection selection )
 	{
 		List< Patch > patches = new ArrayList< Patch >();
 		for ( Displayable d : Display.getFront().getSelection().getSelected() )
 			if ( d instanceof Patch ) patches.add( ( Patch )d );
+
+		if ( patches.size() < 2 )
+		{
+			Utils.log("No images to align in the selection.");
+			return;
+		}
 		
 		final Align.ParamOptimize p = new Align.ParamOptimize();
 		final GenericDialog gd = new GenericDialog( "Align Selected Tiles" );
@@ -110,8 +142,25 @@ final public class AlignTask
 		for ( AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 	}
-	
-	
+
+	final static public Bureaucrat alignLayersLinearlyTask ( final Layer l )
+	{
+		Worker worker = new Worker("Aligning layers", false, true) {
+			public void run() {
+				startedWorking();
+				try {
+					alignLayersLinearly(l);
+				} catch (Throwable e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
+			}
+		};
+		return Bureaucrat.createAndStart(worker, l.getProject());
+	}
+
+	/** Accept optional worker to watch for graceful task interruption. */
 	final static public void alignLayersLinearly( final Layer l )
 	{
 		final List< Layer > layers = l.getParent().getLayers();
@@ -166,6 +215,7 @@ final public class AlignTask
 		int s = 0;
 		for ( final Layer layer : layerRange )
 		{
+
 			long t = System.currentTimeMillis();
 			
 			features1.clear();

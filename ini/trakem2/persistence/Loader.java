@@ -3012,7 +3012,7 @@ abstract public class Loader {
 		Utils.log("Using jpeg quality: " + jpeg_quality);
 
 		Worker worker = new Worker("Creating prescaled tiles") {
-			private void cleanup() {
+			private void cleanUp() {
 				finishedWorking();
 			}
 			public void run() {
@@ -3046,7 +3046,7 @@ abstract public class Loader {
 
 		for (int iz=0; iz<layer.length; iz++) {
 			if (this.quit) {
-				cleanup();
+				cleanUp();
 				return;
 			}
 
@@ -3090,7 +3090,7 @@ abstract public class Loader {
 					for (int row=0; row<n_et; row++) {
 						for (int col=0; col<n_et; col++) {
 							if (this.quit) {
-								cleanup();
+								cleanUp();
 								return;
 							}
 							Rectangle tile_src = new Rectangle(srcRect.x + tile_side*row,
@@ -3114,7 +3114,7 @@ abstract public class Loader {
 		} catch (Exception e) {
 			IJError.print(e);
 		}
-		cleanup();
+		cleanUp();
 		finishedWorking();
 
 			}// end of run method

@@ -2866,7 +2866,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			}
 		} else if (command.equals("Align layers (layer-wise)")) {
-			AlignTask.alignLayersLinearly( layer );
+			AlignTask.alignLayersLinearlyTask( layer );
 		} else if (command.equals("Align layers (tile-wise global minimization)")) {
 			Registration.registerLayers(layer, Registration.GLOBAL_MINIMIZATION);
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
@@ -2994,7 +2994,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			// make an undo step!
 			layer.getParent().addUndoStep(affected);
-			AlignTask.alignSelection( selection );
+			AlignTask.alignSelectionTask( selection );
 			repaint(layer);
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");

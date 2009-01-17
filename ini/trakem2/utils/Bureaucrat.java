@@ -50,13 +50,21 @@ public class Bureaucrat extends Thread {
 		setPriority(Thread.NORM_PRIORITY);
 	}
 
+	static public Bureaucrat createAndStart(Worker worker, Project project) {
+		Bureaucrat burro = new Bureaucrat(worker, project);
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
 	/** Sets the worker to work and monitors it until it finishes.*/
 	public void goHaveBreakfast() {
 		worker.start();
+		// Make sure we start AFTER the worker has started.
 		while (!worker.hasStarted()) {
 			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
 		}
 		start();
+		// Make sure we return AFTER having started.
 		while (!started) {
 			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
 		}
@@ -73,8 +81,11 @@ public class Bureaucrat extends Thread {
 		// wait until worker starts
 		while (!worker.isWorking()) {
 			try { Thread.sleep(50); } catch (InterruptedException ie) {}
-			if (worker.hasQuitted()) {
+			if (worker.hasQuitted() || worker.isInterrupted()) {
+				Utils.log("Cleaning up...");
+				worker.cleanup2();
 				cleanup();
+				Utils.log("...done.");
 				return;
 			}
 		}
