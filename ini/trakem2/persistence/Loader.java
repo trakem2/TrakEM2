@@ -1123,7 +1123,9 @@ abstract public class Loader {
 				}
 
 				// Else, create the mawt:
+				plock.unlock();
 				Patch.PatchImage pai = p.createTransformedImage();
+				plock.lock();
 				final ImageProcessor ip = pai.target;
 				ByteProcessor alpha_mask = pai.mask; // can be null;
 				final ByteProcessor outside_mask = pai.outside; // can be null
