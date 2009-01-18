@@ -888,10 +888,6 @@ public class Selection {
 			floater.center();
 		} else {
 			if (null != history) {
-				// apply last, which could be equal to first
-				if (history.size() > 1) {
-					display.getLayer().getParent().applyStep(((TransformationStep)history.getCurrent()).ht);
-				}
 				history.clear();
 				history = null;
 			}
