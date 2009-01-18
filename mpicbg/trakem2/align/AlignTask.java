@@ -50,6 +50,7 @@ final public class AlignTask
 				startedWorking();
 				try {
 					alignSelection( selection );
+					Display.repaint(selection.getLayer());
 				} catch (Throwable e) {
 					IJError.print(e);
 				} finally {
