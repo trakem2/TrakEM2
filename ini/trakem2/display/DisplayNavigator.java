@@ -136,7 +136,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 	/** Box is given in offscreen canvas coords. */
 	public void repaint(Rectangle box) {
-		if (display.getCanvas().isDragging()) return;
+		if (null == box || display.getCanvas().isDragging()) return;
 		// bring box to the scale
 		Rectangle b = new Rectangle((int)(box.x * scale), (int)(box.y * scale), (int)Math.ceil(box.width * scale), (int)Math.ceil(box.height * scale));
 		RT.paint(b, redraw_displayables);
