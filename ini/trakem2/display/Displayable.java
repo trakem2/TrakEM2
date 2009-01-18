@@ -57,6 +57,28 @@ public abstract class Displayable extends DBObject {
 	/** The Displayable objects this one is linked to. Can be null. */
 	protected HashSet hs_linked = null;
 
+	protected Hashtable<String,String> properties = null;
+
+	/** Retruns false if key/value pair NOT added, which happens when key is an invalid identifier (that is, does not start with a letter, and contains characters other than just letters, numbers and underscore. */
+	synchronized public boolean setProperty(final String key, final String value) {
+		if (null == key || null == value) return false;
+		if (!Utils.matches("^[a-zA-Z]+[a-zA-Z1-9_]*$", key)) {
+			Utils.log("Invalid key identifier " + key);
+			return false;
+		}
+		if (null == properties) properties = new Hashtable<String,String>();
+		properties.put(key, value);
+		return true;
+	}
+
+	/** If key is null or not found, returns default_value; otherwise returns the stored value for key. */
+	synchronized public String getProperty(final String key, final String default_value) {
+		if (null == key) return default_value;
+		final String val = properties.get(key);
+		if (null == val) return default_value;
+		return val;
+	}
+
 	////////////////////////////////////////////////////
 	public void setLocked(boolean lock) {
 		if (lock) this.locked = lock;

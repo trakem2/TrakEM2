@@ -80,6 +80,7 @@ import java.util.Calendar;
 import java.lang.Iterable;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import javax.vecmath.Point3f;
 import javax.vecmath.Vector3f;
@@ -1280,5 +1281,9 @@ public class Utils implements ij.plugin.PlugIn {
 			ip.setValue(value);
 			ip.fill(ip.getMask());
 		}
+	}
+
+	static final public boolean matches(final String pattern, final String s) {
+		return Pattern.compile(pattern).matcher(s).matches();
 	}
 }
