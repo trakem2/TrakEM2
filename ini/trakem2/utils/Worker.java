@@ -27,8 +27,10 @@ import ij.IJ;
 import java.util.HashMap;
 
 
-public abstract class Worker extends Thread {
+public abstract class Worker implements Runnable {
+	private String thread_name;
 	private String task_name;
+	private Thread thread;
 	private boolean working = false;
 	protected boolean quit = false;
 	private boolean started = false;
@@ -39,16 +41,19 @@ public abstract class Worker extends Thread {
 
 	public Worker(String task_name) {
 		this(task_name, !ControlWindow.isGUIEnabled() || null == IJ.getInstance());
-		setPriority(Thread.NORM_PRIORITY);
 	}
 	public Worker(String task_name, boolean headless_mode) {
-		super((headless_mode ? "Run$_": "") +  "Worker"); // the Run$_ tag is for ImageJ to properly grant it Macro.getOptions()
+		super(); // the Run$_ tag is for ImageJ to properly grant it Macro.getOptions()
+		this.thread_name = (headless_mode ? "Run$_": "") +  "Worker";
 		this.task_name = task_name;
-		setPriority(Thread.NORM_PRIORITY);
 	}
 	public Worker(String task_name, boolean headless_mode, boolean interrupt_on_quit) {
 		this(task_name, headless_mode);
 		this.interrupt_on_quit = interrupt_on_quit;
+	}
+	// private to the package
+	void setThread(Thread t) {
+		this.thread = t;
 	}
 	public void setTaskName(String name) { this.task_name = name; }
 	protected void startedWorking() {
@@ -59,11 +64,19 @@ public abstract class Worker extends Thread {
 	protected void finishedWorking() { this.working = false; this.quit = true; }
 	public boolean isWorking() { return working; }
 	public String getTaskName() { return task_name; }
+	public String getThreadName() { return thread_name; }
+	public void setPriority(int priority) {
+		if (null != this.thread) thread.setPriority(priority);
+	}
+	/** If interrupt_on_quit, then it will call thread.getThreadGroup().interrupt() to set a quit flag to each child thread. */
 	public void quit() {
 		this.quit = true;
 		if (interrupt_on_quit) {
-			interrupt();
+			if (null != thread) thread.getThreadGroup().interrupt();
 		}
+	}
+	public void join() throws InterruptedException {
+		if (null != thread) thread.join();
 	}
 	public boolean hasQuitted() { return this.quit; }
 	protected void setAsBackground(boolean b) { this.background = b; }

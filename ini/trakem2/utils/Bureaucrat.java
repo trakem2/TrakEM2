@@ -31,6 +31,7 @@ import ini.trakem2.utils.Utils;
 /** Sets a Worker thread to work, and waits until it finishes, blocking all user interface input until then, except for zoom and pan, for all given projects. */
 public class Bureaucrat extends Thread {
 	private Worker worker;
+	private Thread worker_thread;
 	private long onset;
 	private Project[] project;
 	private boolean started = false;
@@ -41,14 +42,17 @@ public class Bureaucrat extends Thread {
 	}
 	private Bureaucrat(ThreadGroup tg, Worker worker, Project[] project) {
 		super(tg, "T2-Bureaucrat");
+		setPriority(Thread.NORM_PRIORITY);
 		this.worker = worker;
+		this.worker_thread = new Thread(tg, worker, worker.getThreadName());
+		this.worker_thread.setPriority(NORM_PRIORITY);
+		worker.setThread(worker_thread);
 		this.project = project;
 		onset = System.currentTimeMillis();
 		for (int i=0; i<project.length; i++) {
 			project[i].setReceivesInput(false);
 			project[i].getLoader().addJob(this);
 		}
-		setPriority(Thread.NORM_PRIORITY);
 	}
 
 	/** Creates but does not start the Bureaucrat thread. */
@@ -77,7 +81,7 @@ public class Bureaucrat extends Thread {
 
 	/** Starts the Bureaucrat thread: sets the worker to work and monitors it until it finishes.*/
 	public void goHaveBreakfast() {
-		worker.start();
+		worker_thread.start();
 		// Make sure we start AFTER the worker has started.
 		while (!worker.hasStarted()) {
 			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
@@ -100,7 +104,7 @@ public class Bureaucrat extends Thread {
 		// wait until worker starts
 		while (!worker.isWorking()) {
 			try { Thread.sleep(50); } catch (InterruptedException ie) {}
-			if (worker.hasQuitted() || worker.isInterrupted()) {
+			if (worker.hasQuitted() || worker_thread.isInterrupted()) {
 				Utils.log("Cleaning up...");
 				worker.cleanup2();
 				cleanup();
@@ -136,13 +140,33 @@ public class Bureaucrat extends Thread {
 	/** Waits until worker finishes before returning.
 	 *  Calls quit() on the Worker and interrupt() on each threads in this ThreadGroup and subgroups. */
 	public void quit() {
-		worker.quit();
-		getThreadGroup().interrupt();
+		try {
+			Utils.log2("ThreadGroup is " + getThreadGroup());
+
+			Utils.log2("ThreadGroup active thread count: " + getThreadGroup().activeCount());
+			Utils.log2("ThreadGroup active group count: " + getThreadGroup().activeGroupCount());
+
+			Thread[] active = new Thread[getThreadGroup().activeCount()];
+			int count = getThreadGroup().enumerate(active);
+			Utils.log2("Active threads: " + active);
+			for (int i=0; i < count; i++) {
+				Utils.log2("Active thread: " + active[i]);
+			}
+
+			// Set flag to each thread and thread in subgroup to quit:
+			worker.quit();
+			getThreadGroup().interrupt();
+
+		} catch (Exception e) {
+			IJError.print(e);
+		} // wait until worker finishes
 		try {
 			Utils.log("Waiting for worker to quit...");
-			worker.join();
+			worker_thread.join();
 			Utils.log("Worker quitted.");
-		} catch (InterruptedException ie) {} // wait until worker finishes
+		} catch (InterruptedException ie) {
+			IJError.print(ie);
+		} // wait until worker finishes
 	}
 	public boolean isActive() {
 		return worker.isWorking();
