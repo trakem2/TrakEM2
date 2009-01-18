@@ -1681,7 +1681,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				pop.setVisible(false);
 
 				// fix selection bug: never receives mouseReleased event when the popup shows
-				selection.mouseReleased(x_p, y_p, x_p, y_p, x_p, y_p);
+				selection.mouseReleased(null, x_p, y_p, x_p, y_p, x_p, y_p);
 			}
 		}.start();
 	}
@@ -2993,7 +2993,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			// make an undo step!
 			layer.getParent().addUndoStep(affected);
 			AlignTask.alignSelectionTask( selection );
-			repaint(layer);
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");
 			gd.addMessage("Linking images to images (within their own layer only):");

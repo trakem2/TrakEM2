@@ -26,16 +26,34 @@ public class History {
 	/** Append a new step. If max_size is set, resizes the list if larger than max_size,
 	 *  and returns all removed elements. Otherwise returns an empty list. */
 	synchronized public List<Step> add(final Step step) {
-		//Utils.printCaller(this, 3);
-		++index;
-		if (list.size() == index) {
-			list.add(step);
+		if (-1 == index) {
+			if (list.size() > 0) list.clear();
 		} else {
-			list = list.subList(0, index);
-			list.add( step );
+			// Crop list: from start to index, inclusive
+			list = list.subList(0, index+1);
 		}
+		// TODO above some steps may not be returned!
+
+		++index;
+		list.add(step);
+
+		Utils.log2("Added step: index=" + index + " list.size=" + list.size());
+
 		if (-1 != max_size) return resize(max_size);
 		return new ArrayList<Step>();
+	}
+
+	/** Appends a step at the end of the list, without modifying the current index.
+	 *  If max_size is set, resizes the list if larger than max_size. */
+	synchronized public List<Step> append(final Step step) {
+		list.add(step);
+		if (-1 != max_size) return resize(max_size);
+		return new ArrayList<Step>();
+	}
+
+	synchronized public Step getCurrent() {
+		if (-1 == index) return null;
+		return list.get(index);
 	}
 
 	/** Returns null if there aren't any more steps to undo. */
@@ -73,7 +91,11 @@ public class History {
 		final List<Step> al = new ArrayList<Step>();
 		if (list.size() < size) return al;
 		// else:
+		// fix index
 		final int cut = list.size() - size;
+		if (index < cut) index = 0;
+		else index -= cut;
+		// cut list
 		al.addAll(list.subList(0, cut));
 		list = list.subList(cut, list.size());
 		return al;
@@ -92,12 +114,30 @@ public class History {
 		return new ArrayList<Step>(list);
 	}
 
+	/** Cut the list after the index, leaving from 0 to index, inclusive, inside.
+	 *  Returns removed steps. */
+	synchronized public List<Step> clip() {
+		final ArrayList<Step> al = new ArrayList<Step>();
+		if (indexAtEnd()) return al;
+		al.addAll(list.subList(index+1, list.size()));
+		list = list.subList(0, index+1);
+		return al;
+	}
+
 	synchronized public int size() {
 		return list.size();
 	}
 
 	synchronized public int index() {
 		return index;
+	}
+
+	synchronized public boolean indexAtStart() {
+		return 0 == index;
+	}
+
+	synchronized public boolean indexAtEnd() {
+		return (index + 1) == list.size();
 	}
 
 	synchronized public boolean canUndo() {

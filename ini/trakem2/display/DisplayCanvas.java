@@ -669,12 +669,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		active = display.getActive();
 		selection = display.getSelection();
 
-		// store for undo:
-		if (!selection.isEmpty() && ProjectToolbar.SELECT == tool && null == display.getLayer().getParent().getAlign() && !selection.isTransforming()) {
-			// if there is one step, don't add it.
-			if (!display.getLayer().getParent().canUndo()) display.getLayer().getParent().addUndoStep(selection.getTransformationsCopy());
-		}
-
 		if (ProjectToolbar.ALIGN == tool) {
 			LayerSet set = display.getLayer().getParent();
 			if (!set.isAligning()) {
@@ -933,16 +927,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		flags &= ~InputEvent.BUTTON2_MASK; // make sure button 2 bit is not set
 		flags &= ~InputEvent.BUTTON3_MASK; // make sure button 3 bit is not set
 
-		/*
-		if (!dragging2) {
-			// no real change
-			display.getLayer().getParent().discardLastUndo();
-		}
-		*/
-		if (dragging2) {
-			display.getLayer().getParent().addUndoStep(display.getSelection().getTransformationsCopy());
-		}
-
 		int x_r = srcRect.x + (int)(me.getX() / magnification);
 		int y_r = srcRect.y + (int)(me.getY() / magnification);
 
@@ -993,7 +977,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		if (snapping) {
 			// finish dragging
-			selection.mouseReleased(x_p, y_p, x_d, y_d, x_r, y_r);
+			selection.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 			box.add(selection.getLinkedBox());
 			Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
 			StitchingTEM.snap(active, display); // will repaint whatever is appropriate (the visible linked group snapped along)
@@ -1005,7 +989,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (null != active && active.isVisible()) {
 			switch(tool) {
 			case ProjectToolbar.SELECT:
-				selection.mouseReleased(x_p, y_p, x_d, y_d, x_r, y_r);
+				selection.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 				box.add(selection.getLinkedBox());
 				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass() == Patch.class); // does not repaint the navigator
 				break;
@@ -1815,17 +1799,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				int mod = ke.getModifiers();
 				if (0 == (mod ^ Event.SHIFT_MASK)) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
-					if (!layer.getParent().canRedo() && Z_KEY != last_action) {
-						// catch the current
-						display.getLayer().getParent().addUndoStep(display.getSelection().getTransformationsCopy());
-						Utils.log2("Storing current at key pressed.");
-					}
-					last_action = Z_KEY;
-					display.getLayer().getParent().undoOneStep();
+					display.getSelection().undoOneStep();
 					ke.consume();
 				} else if (0 == (mod ^ Event.ALT_MASK)) {
 					last_action = Z_KEY;
-					display.getLayer().getParent().redoOneStep();
+					display.getSelection().redoOneStep();
 					ke.consume();
 				}
 				// else, the 'z' command restores the image using ImageJ internal undo

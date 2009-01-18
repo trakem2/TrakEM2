@@ -112,27 +112,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Store HashMaps of displayable/transformation pairs for undo. */
 	private History history = new History(30);
 
-	private class TransformationStep implements History.Step<Displayable> {
-		final HashMap<Displayable,AffineTransform> ht;
-		TransformationStep(final HashMap<Displayable,AffineTransform> ht) {
-			this.ht = ht;
-		}
-		public List<Displayable> remove(final long id) {
-			final List<Displayable> al = new ArrayList<Displayable>();
-			for (Iterator<Displayable> it = ht.keySet().iterator(); it.hasNext(); ) {
-				final Displayable d = it.next();
-				if (d.getId() == id) {
-					it.remove();
-				}
-				al.add(d);
-			}
-			return al;
-		}
-		public boolean isEmpty() {
-			return ht.isEmpty();
-		}
-	}
-
 	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
 	private Align align = null;
 
@@ -1118,6 +1097,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		addUndoStep(ht_undo);
 	}
 
+	// private to the package
+	History getHistory() {
+		return history;
+	}
+
 	/** Creates an undo step that contains transformations for all Displayable objects in the given Layer. */
 	public void createUndoStep(final Layer layer) {
 		if (null == layer) return;
@@ -1151,6 +1135,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return history.canRedo();
 	}
 
+	/** Undoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
 	public void undoOneStep() {
 		History.Step step = history.undoOneStep();
 		if (step instanceof TransformationStep) {
@@ -1159,6 +1144,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		Utils.log2("Undoing: index is " + history.index());
 	}
+	/** Redoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
 	public void redoOneStep() {
 		History.Step step = history.redoOneStep();
 		if (step instanceof TransformationStep) {
@@ -1167,19 +1153,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		Utils.log2("Redoing: index is " + history.index());
 	}
-	private void applyStep(HashMap ht) {
+	/** Apply an undo step. */
+	public void applyStep(final HashMap<Displayable,AffineTransform> ht) {
 		// apply:
 		Rectangle box = null;
 		Rectangle b = new Rectangle(); // tmp
 		project.getLoader().startLargeUpdate();
 		try {
-			for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next(); // I hate java
-				Displayable d = (Displayable)entry.getKey();
+			for (Map.Entry<Displayable,AffineTransform> e : ht.entrySet()) {
+				Displayable d = e.getKey();
 				// add both the previous and the after box, for repainting
 				if (null == box) box = d.getBoundingBox(b);
 				else box.add(d.getBoundingBox(b));
-				d.setAffineTransform((AffineTransform)entry.getValue());
+				d.setAffineTransform(e.getValue());
 				box.add(d.getBoundingBox(b));
 			}
 			project.getLoader().commitLargeUpdate();

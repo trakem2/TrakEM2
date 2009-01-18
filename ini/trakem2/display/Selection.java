@@ -53,6 +53,7 @@ import java.awt.event.MouseEvent;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.History;
 import ini.trakem2.Project;
 
 /** Keeps track of selected objects and mediates their transformation.*/ 
@@ -99,8 +100,9 @@ public class Selection {
 	private final Floater floater = new Floater(0, 0, FLOATER);
 	private final Handle[] handles;
 	private Handle grabbed = null;
-	private boolean dragging = false;
+	private boolean dragging = false; // means: dragging the whole transformation box
 	private boolean rotating = false;
+	private boolean mouse_dragged = false;
 
 	private int x_d_old, y_d_old, x_d, y_d; // for rotations
 
@@ -340,6 +342,8 @@ public class Selection {
 			at.scale( px, py );
 			at.translate( -anchor_x, -anchor_y );
 
+			addUndoStep();
+
 			for (final Displayable d : hs) {
 				//d.scale(px, py, anchor_x, anchor_y, false); // false because the linked ones are already included in the HashSet
 				d.preTransform(at, false);
@@ -349,6 +353,64 @@ public class Selection {
 			// finally:
 			setHandles(box); // overkill. As Graham said, most newly available chip resources are going to be wasted. They are already.
 		}
+	}
+
+	/** Add an undo step to the internal history. */
+	private void addUndoStep() {
+		if (mouse_dragged || isEmpty()) return;
+		if (transforming) {
+			if (null == history) return;
+			if (history.indexAtStart() || history.indexAtEnd()) {
+				history.add(new TransformationStep(getTransformationsCopy()));
+			} else {
+				// remove history elements from index+1 to end
+				history.clip();
+			}
+		} else if (null != display) {
+			HashSet<Displayable> set;
+			synchronized (queue_lock) {
+				lock();
+				set = new HashSet<Displayable>(queue);
+				unlock();
+			}
+			display.getLayer().getParent().addUndoStep(set);
+		}
+	}
+
+	// TODO STILL DUPLICATE endings ... ??? <<<<<<<<<<-----------------------####
+
+	void undoOneStep() {
+		LayerSet layerset = display.getLayer().getParent();
+		if (transforming) {
+			if (null == history) return;
+			// store the current state if at end:
+			Utils.log2("index at end: " + history.indexAtEnd());
+			if (history.indexAtEnd()) history.append(new TransformationStep(getTransformationsCopy()));
+			// undo one step
+			TransformationStep step = (TransformationStep)history.undoOneStep();
+			if (null == step) return; // no more steps
+			layerset.applyStep(step.ht);
+		} else {
+			// store the current state if at end:
+			Utils.log2("index at end: " + layerset.getHistory().indexAtEnd());
+			if (layerset.getHistory().indexAtEnd()) {
+				layerset.getHistory().append(new TransformationStep(getTransformationsCopy()));
+			}
+			layerset.undoOneStep();
+		}
+		resetBox();
+	}
+
+	void redoOneStep() {
+		if (transforming) {
+			if (null == history) return;
+			TransformationStep step = (TransformationStep)history.redoOneStep();
+			if (null == step) return; // no more steps
+			display.getLayer().getParent().applyStep(step.ht);
+		} else {
+			display.getLayer().getParent().redoOneStep();
+		}
+		resetBox();
 	}
 
 	private final double rotate(MouseEvent me) {
@@ -387,11 +449,6 @@ public class Selection {
 		if (zc < 0) {
 			delta = -delta;
 		}
-		/*
-		for (Displayable d : hs) {
-			d.rotate(delta, floater.x, floater.y, false); // false because the linked ones are already included in the HashSet
-		}
-		*/
 		rotate(Math.toDegrees(delta), floater.x, floater.y);
 		return delta;
 	}
@@ -816,6 +873,8 @@ public class Selection {
 		}}
 	}
 
+	private History history = null;
+
 	public void setTransforming(final boolean b) {
 		if (b == transforming) {
 			Utils.log2("Selection.setTransforming warning: trying to set the same mode");
@@ -823,10 +882,19 @@ public class Selection {
 		}
 		if (b) {
 			// start transform
+			history = new History(); // unlimited
+			history.add(new TransformationStep(getTransformationsCopy()));
 			transforming = true;
 			floater.center();
-			display.getLayer().getParent().addUndoStep(getTransformationsCopy());
 		} else {
+			if (null != history) {
+				// apply last, which could be equal to first
+				if (history.size() > 1) {
+					display.getLayer().getParent().applyStep(((TransformationStep)history.getCurrent()).ht);
+				}
+				history.clear();
+				history = null;
+			}
 			// the transform is already applied, just forget it:
 			transforming = false;
 			forgetAffine();
@@ -1017,6 +1085,7 @@ public class Selection {
 		}
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+
 		this.x_d = x_d;
 		this.y_d = y_d;
 		this.x_d_old = x_d_old;
@@ -1024,6 +1093,13 @@ public class Selection {
 		int dx = x_d - x_d_old;
 		int dy = y_d - y_d_old;
 
+		execDrag(me, dx, dy);
+
+		mouse_dragged = true; // after execDrag, so the first undo step is added.
+	}
+
+	private void execDrag(MouseEvent me, int dx, int dy) {
+		if (0 == dx && 0 == dy) return;
 		if (null != affp) {
 			affp.translate(dx, dy);
 			if (null == model) {
@@ -1062,7 +1138,11 @@ public class Selection {
 	}
 	*/
 
-	public void mouseReleased(int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+
+		// me is null when calling from Display, because of popup interfering with mouseReleased
+		if (null != me) execDrag(me, x_r - x_d, y_r - y_d);
+
 		if (transforming) {
 			// recalculate box
 			resetBox();
@@ -1076,6 +1156,7 @@ public class Selection {
 		dragging = false;
 		rotating = false;
 		affp = null;
+		mouse_dragged = false;
 	}
 
 	/** Returns a copy of the box enclosing all selected ob, or null if none.*/
@@ -1136,7 +1217,7 @@ public class Selection {
 		synchronized (queue_lock) {
 			try {
 				lock();
-				return 0 == queue.size(); // active must always exists if selection is not empty
+				return 0 == queue.size();
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
@@ -1272,6 +1353,9 @@ public class Selection {
 	public void rotate(final double angle, final int xo, final int yo) {
 		final AffineTransform at = new AffineTransform();
 		at.rotate(Math.toRadians(angle), xo, yo);
+
+		addUndoStep();
+
 		for (final Displayable d : hs) {
 			d.preTransform(at, false); // all linked ones included in the hashset
 		}
@@ -1282,6 +1366,9 @@ public class Selection {
 	public void translate(final double dx, final double dy) {
 		final AffineTransform at = new AffineTransform();
 		at.translate(dx, dy);
+
+		addUndoStep();
+
 		for (final Displayable d : hs) {
 			d.preTransform(at, false); // all linked ones already included in the hashset
 		}
@@ -1299,6 +1386,8 @@ public class Selection {
 		at.translate(floater.x, floater.y);
 		at.scale(sx, sy);
 		at.translate(-floater.x, -floater.y);
+
+		addUndoStep();
 
 		for (final Displayable d : hs) {
 			d.preTransform(at, false); // all linked ones already included in the hashset
