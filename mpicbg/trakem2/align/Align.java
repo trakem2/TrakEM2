@@ -267,9 +267,8 @@ public class Align
 				else
 				{
 					IJ.log( features.size() + " features loaded for tile " + i + " \"" + tile.getPatch().getTitle() + "\"." );
-					IJ.showProgress( ap.getAndIncrement(), steps );
 				}
-				
+				IJ.showProgress( ap.getAndIncrement(), steps );				
 			}
 		}
 	}

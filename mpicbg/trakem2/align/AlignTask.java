@@ -109,6 +109,8 @@ final public class AlignTask
 		
 		Align.connectTilePairs( p, tiles, tilePairs, Runtime.getRuntime().availableProcessors() );
 		
+		if ( Thread.currentThread().isInterrupted() ) return;
+		
 		List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( tiles );
 		
 		final List< AbstractAffineTile2D< ? > > interestingTiles;
@@ -136,7 +138,8 @@ final public class AlignTask
 		else
 			interestingTiles = tiles;
 			
-		// align the largest graph only
+		if ( Thread.currentThread().isInterrupted() ) return;
+		
 		Align.optimizeTileConfiguration( p, interestingTiles, fixedTiles );
 		
 		for ( AbstractAffineTile2D< ? > t : tiles )
