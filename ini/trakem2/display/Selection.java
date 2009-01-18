@@ -905,7 +905,10 @@ public class Selection {
 		transforming = false;
 		if (null == active) return;
 		// restoring transforms
-		display.getLayer().getParent().undoOneStep();
+		if (null != history) {
+			// apply first
+			display.getLayer().getParent().applyStep(((TransformationStep)history.get(0)).ht);
+		}
 		// reread all transforms and remake box
 		resetBox();
 		forgetAffine();
@@ -1273,13 +1276,13 @@ public class Selection {
 		return ht_copy;
 	}
 
-	// this method should be removed TODO
 	void update() {
 		synchronized (queue_lock) {
 		try {
 			lock();
 			if (transforming) {
-				Utils.log("Selection.update warning: shouldn't be doing this while transforming!");
+				Utils.log2("Selection.update warning: shouldn't be doing this while transforming!");
+				return;
 			}
 			Utils.log2("updating selection");
 			hs.clear();

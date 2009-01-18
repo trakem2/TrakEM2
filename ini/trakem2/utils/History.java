@@ -114,6 +114,11 @@ public class History {
 		return new ArrayList<Step>(list);
 	}
 
+	synchronized public Step get(final int i) {
+		if (i < 0 || i >= list.size()) return null;
+		return list.get(i);
+	}
+
 	/** Cut the list after the index, leaving from 0 to index, inclusive, inside.
 	 *  Returns removed steps. */
 	synchronized public List<Step> clip() {
