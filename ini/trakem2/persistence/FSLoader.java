@@ -1141,8 +1141,9 @@ public final class FSLoader extends Loader {
 			}
 			Utils.log2("B: " + i + " : " + patch_path);
 			addedPatchFrom(patch_path, patch);
-			if (!as_copy && !virtual) {
-				cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
+			if (!as_copy) {
+				if (virtual) cache(patch, imp_patch_i); // each slice separately
+				else cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
 			}
 			if (isMipMapsEnabled()) generateMipMaps(patch);
 			if (null != previous_patch) patch.link(previous_patch);
