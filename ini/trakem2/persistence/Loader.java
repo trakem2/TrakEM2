@@ -3283,8 +3283,11 @@ abstract public class Loader {
 	public Bureaucrat importStack(Layer first_layer, ImagePlus imp_stack_, boolean ask_for_data) {
 		return importStack(first_layer, imp_stack_, ask_for_data, null);
 	}
-	/** Imports an image stack from a multitiff file and places each slice in the proper layer, creating new layers as it goes. If the given stack is null, popup a file dialog to choose one*/
 	public Bureaucrat importStack(final Layer first_layer, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
+		return importStack(first_layer, -1, -1, imp_stack_, ask_for_data, filepath_);
+	}
+	/** Imports an image stack from a multitiff file and places each slice in the proper layer, creating new layers as it goes. If the given stack is null, popup a file dialog to choose one*/
+	public Bureaucrat importStack(final Layer first_layer, final int x, final int y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
 		Utils.log2("Loader.importStack filepath: " + filepath_);
 		if (null == first_layer) return null;
 
@@ -3296,23 +3299,23 @@ abstract public class Loader {
 
 		String filepath = filepath_;
 		/* On drag and drop the stack is not null! */ //Utils.log2("imp_stack_ is " + imp_stack_);
-		ImagePlus[] imp_stacks = null;
+		ImagePlus[] stks = null;
 		if (null == imp_stack_) {
-			imp_stacks = Utils.findOpenStacks();
+			stks = Utils.findOpenStacks();
 		} else {
-			imp_stacks = new ImagePlus[]{imp_stack_};
+			stks = new ImagePlus[]{imp_stack_};
 		}
 		ImagePlus imp_stack = null;
 		// ask to open a stack if it's null
-		if (null == imp_stacks) {
-			imp_stack = openStack();
-		} else {
+		if (null == stks) {
+			imp_stack = openStack(); // choose one
+		} else if (stks.length > 1) {
 			// choose one from the list
 			GenericDialog gd = new GenericDialog("Choose one");
 			gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
-			String[] list = new String[imp_stacks.length +1];
+			String[] list = new String[stks.length +1];
 			for (int i=0; i<list.length -1; i++) {
-				list[i] = imp_stacks[i].getTitle();
+				list[i] = stks[i].getTitle();
 			}
 			list[list.length-1] = "[  Open stack...  ]";
 			gd.addChoice("choose stack: ", list, list[0]);
@@ -3325,8 +3328,10 @@ abstract public class Loader {
 			if (list.length-1 == i_choice) { // the open... command
 				imp_stack = first_layer.getProject().getLoader().openStack();
 			} else {
-				imp_stack = imp_stacks[i_choice];
+				imp_stack = stks[i_choice];
 			}
+		} else {
+			imp_stack = imp_stack_;
 		}
 		// check:
 		if (null == imp_stack) {
@@ -3365,7 +3370,7 @@ abstract public class Loader {
 			gd.addCheckbox("Lock stack", false);
 			gd.showDialog();
 			if (gd.wasCanceled()) {
-				if (null == imp_stacks) { // flush only if it was not open before
+				if (null == stks) { // flush only if it was not open before
 					flush(imp_stack);
 				}
 				finishedWorking();
@@ -3379,15 +3384,18 @@ abstract public class Loader {
 			thickness = gd.getNextNumber();
 			// check provided thickness with that of the first layer:
 			if (thickness != current_thickness) {
+				boolean adjust_thickness = false;
 				if (!(1 == first_layer.getParent().size() && first_layer.isEmpty())) {
 					YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The current layer's thickness is " + current_thickness + "\nwhich is " + (thickness < current_thickness ? "larger":"smaller") + " than\nthe desired " + thickness + " for each stack slice.\nAdjust current layer's thickness to " + thickness + " ?");
-					if (!yn.yesPressed()) {
+					if (yn.cancelPressed()) {
 						if (null != imp_stack_) flush(imp_stack); // was opened new
 						finishedWorking();
 						return;
+					} else if (yn.yesPressed()) {
+						adjust_thickness = true;
 					}
-				} // else adjust silently
-				first_layer.setThickness(thickness);
+				}
+				if (adjust_thickness) first_layer.setThickness(thickness);
 			}
 		}
 
@@ -3437,7 +3445,7 @@ abstract public class Loader {
 		}
 
 		// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
-		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
+		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, x, y, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
 		if (null != last_patch) last_patch.setLocked(lock_stack);
 
 		if (expand_layer_set) {
@@ -3473,7 +3481,10 @@ abstract public class Loader {
 
 	public String handlePathlessImage(ImagePlus imp) { return null; }
 
-	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath);
+	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath) {
+		return importStackAsPatches(project, first_layer, Integer.MAX_VALUE, Integer.MAX_VALUE, stack, as_copy, filepath);
+	}
+	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final int x, final int y, final ImagePlus stack, final boolean as_copy, String filepath);
 
 	protected String export(Project project, File fxml) {
 		return export(project, fxml, true);

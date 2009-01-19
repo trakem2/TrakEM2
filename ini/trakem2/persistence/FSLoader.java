@@ -24,7 +24,7 @@ package ini.trakem2.persistence;
 
 import ij.IJ;
 import ij.ImagePlus;
-import ini.trakem2.imaging.VirtualStack; //import ij.VirtualStack; // only after 1.38q
+import ij.VirtualStack;
 import ij.io.*;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
@@ -1073,7 +1073,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Returns the last Patch. */
-	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
+	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final int x, final int y, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
 		Utils.log2("FSLoader.importStackAsPatches filepath=" + filepath);
 		String target_dir = null;
 		if (as_copy) {
@@ -1087,8 +1087,8 @@ public final class FSLoader extends Loader {
 
 		final boolean virtual = imp_stack.getStack().isVirtual();
 
-		int pos_x = (int)first_layer.getLayerWidth()/2 - imp_stack.getWidth()/2;
-		int pos_y = (int)first_layer.getLayerHeight()/2 - imp_stack.getHeight()/2;
+		int pos_x = Integer.MAX_VALUE != x ? x : (int)first_layer.getLayerWidth()/2 - imp_stack.getWidth()/2;
+		int pos_y = Integer.MAX_VALUE != y ? y : (int)first_layer.getLayerHeight()/2 - imp_stack.getHeight()/2;
 		final double thickness = first_layer.getThickness();
 		final String title = Utils.removeExtension(imp_stack.getTitle()).replace(' ', '_');
 		Utils.showProgress(0);
@@ -1112,6 +1112,7 @@ public final class FSLoader extends Loader {
 				String iname = vs.getFileName(i);
 				patch_path = vs_dir + iname;
 				releaseMemory();
+				Utils.log2(i + " : " + patch_path);
 				imp_patch_i = openImage(patch_path);
 			} else {
 				ImageProcessor ip = imp_stack.getStack().getProcessor(i);
@@ -1138,8 +1139,9 @@ public final class FSLoader extends Loader {
 				patch.addToDatabase();
 				//Utils.log2("type is " + imp_stack.getType());
 			}
+			Utils.log2("B: " + i + " : " + patch_path);
 			addedPatchFrom(patch_path, patch);
-			if (!as_copy) {
+			if (!as_copy && !virtual) {
 				cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
 			}
 			if (isMipMapsEnabled()) generateMipMaps(patch);
@@ -1149,8 +1151,10 @@ public final class FSLoader extends Loader {
 			Utils.showProgress(i * (1.0 / n));
 		}
 		Utils.showProgress(1.0);
+
 		// update calibration
-		//if ( TODO
+		// TODO
+
 		// return the last patch
 		return previous_patch;
 	}
