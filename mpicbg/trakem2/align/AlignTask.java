@@ -77,9 +77,9 @@ final public class AlignTask
 			return;
 		}
 		
-		final Align.ParamOptimize p = new Align.ParamOptimize();
+		//final Align.ParamOptimize p = Align.paramOptimize;
 		final GenericDialog gd = new GenericDialog( "Align Selected Tiles" );
-		p.addFields( gd );
+		Align.paramOptimize.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
 		gd.addCheckbox( "tiles are rougly in place", false );
@@ -90,17 +90,21 @@ final public class AlignTask
 		gd.showDialog();
 		if ( gd.wasCanceled() ) return;
 		
-		p.readFields( gd );
+		Align.paramOptimize.readFields( gd );
 		final boolean tilesAreInPlace = gd.getNextBoolean();
 		final boolean largestGraphOnly = gd.getNextBoolean();
 		final boolean hideDisconnectedTiles = gd.getNextBoolean();
 		final boolean deleteDisconnectedTiles = gd.getNextBoolean();
-			
+		
+		final Align.ParamOptimize p = Align.paramOptimize.clone();
 		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
-		List< Patch > fixedPatches = new ArrayList< Patch > ();
-		
+		List< Patch > fixedPatches = new ArrayList< Patch >();
+		final Displayable active = selection.getActive();
+		if ( active != null && active instanceof Patch )
+			fixedPatches.add( ( Patch )active );
 		Align.tilesFromPatches( p, patches, fixedPatches, tiles, fixedTiles );
+		
 		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
 		if ( tilesAreInPlace )
 			AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
@@ -171,15 +175,15 @@ final public class AlignTask
 		for ( int i = 0; i < layers.size(); ++i )
 			layerTitles[ i ] = layers.get( i ).getTitle();
 		
-		Param p = new Param();
-		p.sift.maxOctaveSize = 1600;
+		//Param p = Align.param;
+		Align.param.sift.maxOctaveSize = 1600;
 		
 		final GenericDialog gd = new GenericDialog( "Align Layers Linearly" );
 		
 		gd.addMessage( "Layer Range:" );
 		gd.addChoice( "first :", layerTitles, l.getTitle() );
 		gd.addChoice( "last :", layerTitles, l.getTitle() );
-		p.addFields( gd );
+		Align.param.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
 		gd.addCheckbox( "propagate after last transform", false );
@@ -191,12 +195,12 @@ final public class AlignTask
 		final int last = gd.getNextChoiceIndex();
 		final int d = first < last ? 1 : -1;
 		
-		p.readFields( gd );
+		Align.param.readFields( gd );
 		final boolean propagateTransform = gd.getNextBoolean();
 		
+		final Align.Param p = Align.param.clone();
 		final Rectangle box = layers.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
 		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
-		p = p.clone();
 		p.maxEpsilon *= scale;
 		
 		final List< Layer > layerRange = new ArrayList< Layer >();
@@ -251,7 +255,7 @@ final public class AlignTask
 					p.rod );
 
 				final AbstractAffineModel2D< ? > model;
-				switch ( p.modelIndex )
+				switch ( p.expectedModelIndex )
 				{
 				case 0:
 					model = new TranslationModel2D();
