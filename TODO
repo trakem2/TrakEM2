@@ -1,0 +1,11 @@
+2009-01-21 Saalfeld:
+  Caching features and point matches in the file system uses the project
+  specific id of a patch as a unique identifier for a patch.  This will fail
+  if several independent projects share the same directory in the file system.
+  I have seen this happening in Janelia Farm for several dozens of projects.
+  What about using a hash-code (md5?) of the absolute path to an image instead?
+  
+2009-01-21 Saalfeld:
+  Invalidate cached PointMatches when updating the mipmaps in the same way as
+  cached feature extractions.
+  
