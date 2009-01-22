@@ -857,7 +857,7 @@ abstract public class Loader {
 		}
 
 		final int level = (int)(0.0001 + Math.log(1/mag) / Math.log(2)); // compensating numerical instability: 1/0.25 should be 2 eaxctly
-		final int max_level = (int)(0.5 + (Math.log(size) - Math.log(32)) / Math.log(2)); // no +1, this is not the length of the images[] array but the actual highest level
+		final int max_level = getHighestMipMapLevel(size);
 		/*
 		if (max_level > 6) {
 			Utils.log2("ERROR max_level > 6: " + max_level + ", size: " + size);
@@ -963,7 +963,10 @@ abstract public class Loader {
 		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
 
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
-		final int level = Loader.getMipMapLevel(mag, maxDim(p));
+		int level = Loader.getMipMapLevel(mag, maxDim(p));
+		int max_level = Loader.getHighestMipMapLevel(p);
+		//Utils.log2("level=" + level + "  max_level=" + max_level);
+		if (level > max_level) level = max_level;
 
 		// testing:
 		// if (level > 0) level--; // passing an image double the size, so it's like interpolating when doing nearest neighbor since the images are blurred with sigma 0.5
@@ -1073,6 +1076,7 @@ abstract public class Loader {
 		}
 
 		// level is zero or nonsensically lower than zero, or was not found
+		//Utils.log2("not found!");
 
 		synchronized (db_lock) {
 			try {
@@ -1155,6 +1159,7 @@ abstract public class Loader {
 				if (null != mawt) {
 					mawts.put(id, mawt, level);
 					Display.repaintSnapshot(p);
+					//Utils.log2("Created mawt from scratch.");
 					return mawt;
 				}
 			} catch (Exception e) {
@@ -4861,7 +4866,15 @@ abstract public class Loader {
 		return level;
 		*/
 		// Analytically:
-		return (int)(0.5 + (Math.log(Math.max(p.getWidth(), p.getHeight())) - Math.log(32)) / Math.log(2));
+		// For images of width or height of at least 32 pixels, need to test for log(64) like in the loop above
+		// because this is NOT a do/while but a while, so we need to stop one step earlier.
+		return (int)(0.5 + (Math.log(Math.min(p.getWidth(), p.getHeight())) - Math.log(64)) / Math.log(2));
+		// Same as:
+		// return getHighestMipMapLevel(Math.min(p.getWidth(), p.getHeight()));
+	}
+
+	public static final int getHighestMipMapLevel(final double size) {
+		return (int)(0.5 + (Math.log(size) - Math.log(64)) / Math.log(2));
 	}
 
 	static public final int NEAREST_NEIGHBOR = 0;

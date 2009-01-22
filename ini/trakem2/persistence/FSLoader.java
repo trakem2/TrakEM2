@@ -1834,12 +1834,12 @@ public final class FSLoader extends Loader {
 					try {
 						boolean ow = overwrite;
 						if (!overwrite) {
-							// check if all the files exists. If one doesn't, then overwrite all anyway
+							// check if all the files exist. If one doesn't, then overwrite all anyway
 							int w = (int)pa[k].getWidth();
 							int h = (int)pa[k].getHeight();
 							int level = 0;
 							final String filename = new File(getAbsolutePath(pa[k])).getName() + "." + pa[k].getId() + ".jpg";
-							while (w >= 32 && h >= 32) {
+							do {
 								w /= 2;
 								h /= 2;
 								level++;
@@ -1847,7 +1847,7 @@ public final class FSLoader extends Loader {
 									ow = true;
 									break;
 								}
-							}
+							} while (w >= 32 && h >= 32);
 						}
 						if (!ow) continue;
 						if ( ! generateMipMaps(pa[k]) ) {
@@ -2016,7 +2016,7 @@ public final class FSLoader extends Loader {
 		int w = width;
 		int h = height;
 		int k = 0; // the level
-		while (w >= 32 && h >= 32) { // not smaller than 32x32
+		do {
 			final File f = new File(dir_mipmaps + k + "/" + filename);
 			if (f.exists()) {
 				try {
@@ -2030,7 +2030,7 @@ public final class FSLoader extends Loader {
 			w /= 2;
 			h /= 2;
 			k++;
-		}
+		} while (w >= 32 && h >= 32); // not smaller than 32x32
 	}
 
 	/** Checks whether this Loader is using a directory of image pyramids for each Patch or not. */
@@ -2050,31 +2050,19 @@ public final class FSLoader extends Loader {
 			if (isURL(dir_mipmaps)) {
 				if (level <= 0) return 0;
 				// choose the smallest dimension
-				final double dim = patch.getOWidth() < patch.getOHeight() ? patch.getOWidth() : patch.getOHeight();
 				// find max level that keeps dim over 32 pixels
-				int lev = 1;
-				while (true) {
-					if ((dim * (1 / Math.pow(2, lev))) < 32) {
-						lev--; // the previous one
-						break;
-					}
-					lev++;
-				}
+				final int lev = getHighestMipMapLevel(Math.min(patch.getWidth(), patch.getHeight()));
 				if (level > lev) return lev;
 				return level;
 			} else {
-				while (true) {
-					File f = new File(dir_mipmaps + level + "/" + filename);
+				do {
+					final File f = new File(new StringBuffer(dir_mipmaps).append(level).append('/').append(filename).toString());
 					if (f.exists()) {
 						return level;
 					}
-					// stop at 50% images (there are no mipmaps for level 0)
-					if (level <= 1) {
-						return 0;
-					}
 					// try the next level
 					level--;
-				}
+				} while (level >= 0);
 			}
 		} catch (Exception e) {
 			IJError.print(e);
@@ -2125,6 +2113,8 @@ public final class FSLoader extends Loader {
 
 			final int max_level = getHighestMipMapLevel(patch);
 
+			//Utils.log2("level is: " + max_level);
+
 			final String filepath = getInternalFileName(patch);
 			if (null == filepath) {
 				Utils.log2("null filepath!");
@@ -2171,7 +2161,7 @@ public final class FSLoader extends Loader {
 
 			// Regenerate in the case of not asking for an image under 32x32
 			double scale = 1 / Math.pow(2, level);
-			if (level > 0 && (patch.getOWidth() * scale >= 32 || patch.getOHeight() * scale >= 32) && isMipMapsEnabled()) {
+			if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsEnabled()) {
 				// regenerate
 				synchronized (gm_lock) {
 					gm_lock();
