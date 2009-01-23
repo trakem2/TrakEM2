@@ -1286,4 +1286,13 @@ public class Utils implements ij.plugin.PlugIn {
 	static final public boolean matches(final String pattern, final String s) {
 		return Pattern.compile(pattern).matcher(s).matches();
 	}
+
+	static final public boolean isValidIdentifier(final String s) {
+		if (null == s) return false;
+		if (!Utils.matches("^[a-zA-Z]+[a-zA-Z1-9_]*$", s)) {
+			Utils.log("Invalid identifier " + s);
+			return false;
+		}
+		return true;
+	}
 }

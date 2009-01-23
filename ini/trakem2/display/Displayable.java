@@ -38,6 +38,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
 import ini.trakem2.vector.Compare;
+import ini.trakem2.display.link.*;
 
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject {
@@ -57,24 +58,22 @@ public abstract class Displayable extends DBObject {
 	/** The Displayable objects this one is linked to. Can be null. */
 	protected HashSet hs_linked = null;
 
-	protected Hashtable<String,String> properties = null;
+	protected HashSet<? extends Link> links = null;
+
+	protected Hashtable<String,String> props = null;
 
 	/** Retruns false if key/value pair NOT added, which happens when key is an invalid identifier (that is, does not start with a letter, and contains characters other than just letters, numbers and underscore. */
 	synchronized public boolean setProperty(final String key, final String value) {
-		if (null == key || null == value) return false;
-		if (!Utils.matches("^[a-zA-Z]+[a-zA-Z1-9_]*$", key)) {
-			Utils.log("Invalid key identifier " + key);
-			return false;
-		}
-		if (null == properties) properties = new Hashtable<String,String>();
-		properties.put(key, value);
+		if (null == key || null == value || !Utils.isValidIdentifier(key)) return false;
+		if (null == props) props = new Hashtable<String,String>();
+		props.put(key, value);
 		return true;
 	}
 
 	/** If key is null or not found, returns default_value; otherwise returns the stored value for key. */
 	synchronized public String getProperty(final String key, final String default_value) {
 		if (null == key) return default_value;
-		final String val = properties.get(key);
+		final String val = props.get(key);
 		if (null == val) return default_value;
 		return val;
 	}
@@ -676,7 +675,7 @@ public abstract class Displayable extends DBObject {
 		return false;
 	}
 
-	/** Check if thisobject is directly linked to the given Displayable. */
+	/** Check if this object is directly linked to the given Displayable. */
 	public boolean isLinked(final Displayable d) {
 		if (null == hs_linked) return false;
 		return hs_linked.contains(d);
@@ -747,7 +746,7 @@ public abstract class Displayable extends DBObject {
 		}
 		for (i=0; i<n; i++) {
 			if (dall[i].getClass().equals(c)) {
-			unlink((Displayable)dall[i]);
+				unlink((Displayable)dall[i]);
 			}
 		}
 	}
@@ -820,7 +819,7 @@ public abstract class Displayable extends DBObject {
 	/** Does nothing unless overriden. Used for profile, pipe and ball points when preventing dragging beyond the screen, to snap to cursor when this reenters. */
 	public void snapTo(int cx, int cy, int x_p, int y_p) {}
 
-	/** Shows a dialog to adjust properties of this object. */
+	/** Shows a dialog to adjust properties of this object; does not include the hashtable of properties. */
 	public void adjustProperties() {
 		GenericDialog gd = makeAdjustPropertiesDialog();
 		gd.showDialog();
@@ -1085,6 +1084,31 @@ public abstract class Displayable extends DBObject {
 			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
 		}
 		sb_body.append("\"\n");
+	}
+
+	/** Add properties, links, etc. Does NOT close the tag. */
+	protected void restXML(StringBuffer sb_body, String in, Object any) {
+		// Properties:
+		if (null != props && !props.isEmpty()) {
+			for (Map.Entry<String,String> e : props.entrySet()) {
+				String value = e.getValue();
+				if (-1 != value.indexOf('"')) {
+					Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a \" which is being replaced by '.");
+					value = value.replace('"', '\'');
+				}
+				if (-1 != value.indexOf('\n')) {
+					Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a newline char which is being replaced by a space.");
+					value.replace('\n', ' ');
+				}
+				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append(" value=\"").append(value).append("\" />\n");
+			}
+		}
+		// Links:
+		if (null != links && 0 != links.size()) {
+			for (Link link : links) {
+				sb_body.append(link.toXML(in));
+			}
+		}
 	}
 
 	// I'm sure it could be made more efficient, but I'm too tired!
