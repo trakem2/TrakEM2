@@ -12,6 +12,7 @@ public abstract class Link {
 
 	protected Displayable origin, target;
 
+	/** Needed to instantiate by reflection. */
 	public Link() {}
 
 	public Link(final Displayable origin, final Displayable target) throws IllegalArgumentException {
@@ -23,7 +24,7 @@ public abstract class Link {
 	}
 
 	/** Returns false on failure. */
-	abstract public boolean init(final Project project, final String data) throws IllegalArgumentException;
+	abstract public boolean init(final Displayable origin, final String data) throws IllegalArgumentException;
 
 	public Displayable getOrigin() { return origin; }
 
@@ -67,15 +68,22 @@ public abstract class Link {
 			sb.append("<t2_link class=\"").append(this.getClass().getName())
 			  .append("\" data=\"").append(this.asXML());
 		if (null == props) {
-			sb.append("\" />\n");
+			sb.append("\"/>\n");
 		} else {
-			sb.append("\"\n");
+			sb.append("\">\n");
 			for (Map.Entry<String,String> e : props.entrySet()) {
 				// NOT checking validity of the property as an XML-undisruptive string.
-				sb.append(indent).append("\t<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(e.getValue()).append("\" />\n");
+				sb.append(indent).append("\t<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(e.getValue()).append("\"/>\n");
 			}
 			sb.append(indent).append("/>\n");
 		}
 		return sb.toString();
+	}
+
+	/** Checks for identity of origin and target, not any properties. */
+	public final boolean equals(final Object ob) {
+		if (!(ob instanceof Link)) return false;
+		final Link ln = (Link) ob;
+		return ln.origin == this.origin && ln.target == this.target;
 	}
 }

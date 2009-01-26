@@ -1083,7 +1083,7 @@ public class DBLoader extends Loader {
 					Object ob2 = hs_pt.get(id2);
 					if (null != ob1 && null != ob2) {
 						Displayable d = (Displayable)ob1;
-						d.link((Displayable)ob2, false);
+						d.link((Displayable)ob2); //, false);
 					} else {
 						Utils.log("Loader: broken link between " + id1 + " and " + id2);
 					}

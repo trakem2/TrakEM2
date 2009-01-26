@@ -2018,7 +2018,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					}
 					item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
-					HashSet hs = active.getLinked(Patch.class);
+					final Set hs = active.getLinked(Patch.class);
 					if (null == hs || 0 == hs.size()) item.setEnabled(false);
 					item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
 					if (null == hs || 0 == hs.size()) item.setEnabled(false); // if no Patch instances among the directly linked, then it's not a stack
@@ -2607,8 +2607,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (-1 == end) end = command.length();
 			double lz = Double.parseDouble(command.substring(iz, end));
 			Layer target = layer.getParent().getLayer(lz);
-			HashSet hs = active.getLinkedGroup(new HashSet());
-			layer.getParent().move(hs, active.getLayer(), target);
+			layer.getParent().move(active.getLinkedGroup(new HashSet()), active.getLayer(), target);
 		} else if (command.equals("Unlink")) {
 			if (null == active || active instanceof Patch) return;
 			active.unlink();
@@ -2850,9 +2849,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				final Patch slice = (Patch)getActive();
 				if (slice.isStack()) {
 					// check linked group
-					final HashSet hs = slice.getLinkedGroup(new HashSet());
-					for (Iterator it = hs.iterator(); it.hasNext(); ) {
-						if (it.next().getClass() != Patch.class) {
+					for (final Displayable d : slice.getLinkedGroup(new HashSet<Displayable>())) {
+						if (d.getClass() != Patch.class) {
 							Utils.showMessage("Images are linked to other objects, can't proceed to cross-correlate them."); // labels should be fine, need to check that
 							return;
 						}

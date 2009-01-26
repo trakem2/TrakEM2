@@ -31,6 +31,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.display.link.Link;
 
 import java.awt.*;
 import java.awt.event.MouseEvent;
@@ -638,15 +639,11 @@ public class Ball extends ZDisplayable {
 		    .append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n")
 		    .append(in).append("links=\"")
 		;
-		if (null != hs_linked && 0 != hs_linked.size()) {
-			int ii = 0;
-			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				data.append(((DBObject)ob).getId());
-				if (ii != len-1) data.append(",");
-				ii++;
+		if (null != links && 0 != links.size()) {
+			for (final Link link : links) {
+				data.append(link.getTarget().getId()).append(',');
 			}
+			data.setLength(data.length()-1); // remove last comma
 		}
 		data.append("\"\n")
 		    .append(indent).append(">\n");

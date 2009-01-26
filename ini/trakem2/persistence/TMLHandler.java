@@ -146,7 +146,7 @@ public class TMLHandler extends DefaultHandler {
 					continue;
 				}
 				Displayable partner = (Displayable)ht_displayables.get(lid);
-				if (null != partner) d.link(partner, false);
+				if (null != partner) d.link(partner); //, false);
 				else Utils.log("TMLHandler: can't find partner with id=" + links[i] + " for Displayable with id=" + d.getId());
 			}
 		}

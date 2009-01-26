@@ -33,7 +33,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.render3d.Perimeter2D;
-import ini.trakem2.display.Display3D;
+import ini.trakem2.display.link.Link;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.tree.Thing;
 import ini.trakem2.tree.ProjectThing;
@@ -51,6 +51,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.Iterator;
 import java.util.List;
 import java.awt.geom.AffineTransform;
@@ -982,15 +983,11 @@ public class Profile extends Displayable {
 		    .append(in).append("z=\"").append(layer.getZ() * z_scale).append("\"\n")
 		    .append(in).append("links=\"")
 		;
-		if (null != hs_linked && 0 != hs_linked.size()) {
-			int ii = 0;
-			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				data.append(((DBObject)ob).getId());
-				if (ii != len-1) data.append(',');
-				ii++;
+		if (isLinked()) {
+			for (final Link link : links) {
+				data.append(link.getTarget().getId()).append(',');
 			}
+			data.setLength(data.length()-1); // remove last comma
 		}
 		data.append("\"\n")
 		    .append(indent).append("/>\n")
@@ -1013,22 +1010,12 @@ public class Profile extends Displayable {
 		return 0 == n_points;
 	}
 
-	/** Returns true if it's linked to at least one patch in the same Layer. Otherwise returns false. */
-	public boolean isLinked() {
-		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			if (d instanceof Patch && d.layer.equals(this.layer)) return true;
-		}
-		return false;
-	}
-
 	/** Returns false if the target_layer contains a profile that is directly linked to this profile. */
 	public boolean canSendTo(Layer target_layer) {
-		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			if (d instanceof Profile && d.layer.equals(target_layer)) return false;
+		if (!isLinked()) return false;
+		for (final Link link : links) {
+			final Displayable d = (Displayable)link.getTarget();
+			if (d instanceof Profile && d.layer == target_layer) return false;
 		}
 		return true;
 	}
@@ -1374,17 +1361,16 @@ public class Profile extends Displayable {
 
 	public void setColor(Color c) {
 		// propagate to al linked profiles within the same profile_list
-		setColor(c, new HashSet());
+		setColor(c, new HashSet<Displayable>());
 	}
 
 	/** Exploits the fact that Profile instances among the directly linked as returned by getLinked(Profile.class) will be members of the same profile_list. */
-	private void setColor(Color c, HashSet hs_done) {
+	private void setColor(Color c, HashSet<Displayable> hs_done) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		super.setColor(c);
-		HashSet hs = getLinked(Profile.class);
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Profile p = (Profile)it.next();
+		for (final Displayable d : getLinked(Profile.class)) {
+			Profile p = (Profile)d;
 			p.setColor(c, hs_done);
 		}
 	}
@@ -1502,7 +1488,7 @@ public class Profile extends Displayable {
 
 	/** Recursive; returns the last added profile. */
 	static private Profile accumulate(final HashSet hs_done, final ArrayList al, final Profile step, int z_trend) {
-		final HashSet hs_linked = step.getLinked(Profile.class);
+		final Set<Displayable> hs_linked = step.getLinked(Profile.class);
 		if (al.size() > 1 && hs_linked.size() > 2) {
 			// base found
 			return step;
