@@ -624,6 +624,7 @@ public class Dissector extends ZDisplayable {
 		for (Item item : al_items) {
 			item.exportXML(sb_body, in);
 		}
+		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append("</t2_dissector>\n");
 	}
 

@@ -60,22 +60,28 @@ public abstract class Displayable extends DBObject {
 
 	protected HashSet<? extends Link> links = null;
 
-	protected Hashtable<String,String> props = null;
+	protected Map<String,String> props = null;
 
 	/** Retruns false if key/value pair NOT added, which happens when key is an invalid identifier (that is, does not start with a letter, and contains characters other than just letters, numbers and underscore. */
 	synchronized public boolean setProperty(final String key, final String value) {
 		if (null == key || null == value || !Utils.isValidIdentifier(key)) return false;
-		if (null == props) props = new Hashtable<String,String>();
+		if (null == props) props = new HashMap<String,String>();
 		props.put(key, value);
 		return true;
 	}
 
 	/** If key is null or not found, returns default_value; otherwise returns the stored value for key. */
 	synchronized public String getProperty(final String key, final String default_value) {
-		if (null == key) return default_value;
+		if (null == key || null == props) return default_value;
 		final String val = props.get(key);
 		if (null == val) return default_value;
 		return val;
+	}
+
+	/** Returns a copy of this object's properties, or null if none. */
+	synchronized public Map getProperties() {
+		if (null == props) return null;
+		return new HashMap(props);
 	}
 
 	////////////////////////////////////////////////////
@@ -1087,7 +1093,7 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
-	protected void restXML(StringBuffer sb_body, String in, Object any) {
+	synchronized protected void restXML(StringBuffer sb_body, String in, Object any) {
 		// Properties:
 		if (null != props && !props.isEmpty()) {
 			for (Map.Entry<String,String> e : props.entrySet()) {
@@ -1100,7 +1106,7 @@ public abstract class Displayable extends DBObject {
 					Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a newline char which is being replaced by a space.");
 					value.replace('\n', ' ');
 				}
-				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append(" value=\"").append(value).append("\" />\n");
+				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(value).append("\" />\n");
 			}
 		}
 		// Links:

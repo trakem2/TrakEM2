@@ -929,7 +929,9 @@ public class Polyline extends ZDisplayable implements Line3D {
 			}
 			sb_body.append("\"\n");
 		}
-		sb_body.append(indent).append("/>\n");
+		sb_body.append(indent).append(">\n");
+		super.restXML(sb_body, in, any);
+		sb_body.append(indent).append("</t2_polyline>\n");
 	}
 
 	/** Exports to type t2_polyline. */

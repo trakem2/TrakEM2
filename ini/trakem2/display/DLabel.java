@@ -404,7 +404,9 @@ public class DLabel extends Displayable {
 		       .append(";fill:#").append(RGB[0]).append(RGB[1]).append(RGB[2])
 		       .append(";fill-opacity:").append(alpha).append(";\"\n")
 		;
-		sb_body.append(indent).append("/>\n");
+		sb_body.append(indent).append(">\n");
+		super.restXML(sb_body, in, any);
+		sb_body.append(indent).append("</t2_label>\n");
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {

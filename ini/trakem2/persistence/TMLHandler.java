@@ -76,6 +76,7 @@ public class TMLHandler extends DefaultHandler {
 	private AreaList last_area_list = null;
 	private Dissector last_dissector = null;
 	private Patch last_patch = null;
+	private Displayable last_displayable = null;
 	private CoordinateTransformList last_ct_list = null;
 	private boolean open_displays = true;
 
@@ -301,18 +302,15 @@ public class TMLHandler extends DefaultHandler {
 			}
 		}
 		// terminate non-single clause objects
-		if (orig_qualified_name.equals("ball")) {
-			last_ball = null;
-		} else if (orig_qualified_name.equals("t2_area_list")) {
+		last_ball = null;
+		if (orig_qualified_name.equals("t2_area_list")) {
 			last_area_list.__endReconstructing();
 			last_area_list = null;
-		} else if (orig_qualified_name.equals("t2_dissector")) {
-			last_dissector = null;
-		} else if (orig_qualified_name.equals("t2_patch")) {
-			last_patch = null;
-		} else if (orig_qualified_name.equals("ict_transform_list")) {
-			last_ct_list = null;
 		}
+		last_dissector = null;
+		last_patch = null;
+		last_ct_list = null;
+		last_displayable = null;
 	}
 	public void characters(char[] c, int start, int length) {}
 
@@ -411,17 +409,20 @@ public class TMLHandler extends DefaultHandler {
 				profile.addToDatabase();
 				ht_displayables.put(new Long(oid), profile);
 				addToLastOpenLayer(profile);
+				last_displayable = profile;
 				return null;
 			} else if (type.equals("pipe")) {
 				Pipe pipe = new Pipe(this.project, oid, ht_attributes, ht_links);
 				pipe.addToDatabase();
 				ht_displayables.put(new Long(oid), pipe);
 				ht_zdispl.put(new Long(oid), pipe);
+				last_displayable = pipe;
 				addToLastOpenLayerSet(pipe);
 				return null;
 			} else if (type.equals("polyline")) {
 				Polyline pline = new Polyline(this.project, oid, ht_attributes, ht_links);
 				pline.addToDatabase();
+				last_displayable = pline;
 				ht_displayables.put(new Long(oid), pline);
 				ht_zdispl.put(new Long(oid), pline);
 				addToLastOpenLayerSet(pline);
@@ -437,6 +438,7 @@ public class TMLHandler extends DefaultHandler {
 				AreaList area = new AreaList(this.project, oid, ht_attributes, ht_links);
 				area.addToDatabase(); // why? This looks like an onion
 				last_area_list = area;
+				last_displayable = area;
 				ht_displayables.put(new Long(oid), area);
 				ht_zdispl.put(new Long(oid), area);
 				addToLastOpenLayerSet(area);
@@ -454,6 +456,7 @@ public class TMLHandler extends DefaultHandler {
 				Ball ball = new Ball(this.project, oid, ht_attributes, ht_links);
 				ball.addToDatabase();
 				last_ball = ball;
+				last_displayable = ball;
 				ht_displayables.put(new Long(oid), ball);
 				ht_zdispl.put(new Long(oid), ball);
 				addToLastOpenLayerSet(ball);
@@ -469,6 +472,7 @@ public class TMLHandler extends DefaultHandler {
 				label.addToDatabase();
 				ht_displayables.put(new Long(oid), label);
 				addToLastOpenLayer(label);
+				last_displayable = label;
 				return null;
 			} else if (type.equals("patch")) {
 				Patch patch = new Patch(project, oid, ht_attributes, ht_links);
@@ -476,11 +480,13 @@ public class TMLHandler extends DefaultHandler {
 				ht_displayables.put(new Long(oid), patch);
 				addToLastOpenLayer(patch);
 				last_patch = patch;
+				last_displayable = patch;
 				return null;
 			} else if (type.equals("dissector")) {
 				Dissector dissector = new Dissector(this.project, oid, ht_attributes, ht_links);
 				dissector.addToDatabase();
 				last_dissector = dissector;
+				last_displayable = dissector;
 				ht_displayables.put(new Long(oid), dissector);
 				ht_zdispl.put(new Long(oid), dissector);
 				addToLastOpenLayerSet(dissector);
@@ -497,6 +503,7 @@ public class TMLHandler extends DefaultHandler {
 				}
 			} else if (type.equals("layer_set")) {
 				LayerSet set = new LayerSet(project, oid, ht_attributes, ht_links);
+				last_displayable = set;
 				set.addToDatabase();
 				ht_displayables.put(new Long(oid), set);
 				al_layer_sets.add(set);
@@ -509,6 +516,11 @@ public class TMLHandler extends DefaultHandler {
 					LayerSet set = (LayerSet)al_layer_sets.get(i);
 					set.restoreCalibration(ht_attributes);
 					return null;
+				}
+			} else if (type.equals("prop")) {
+				// Add property to last created Displayable
+				if (null != last_displayable) {
+					last_displayable.setProperty((String)ht_attributes.get("key"), (String)ht_attributes.get("value"));
 				}
 			} else {
 				Utils.log2("TMLHandler Unknown type: " + type);

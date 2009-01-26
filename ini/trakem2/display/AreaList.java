@@ -575,6 +575,7 @@ public class AreaList extends ZDisplayable {
 			exportArea(sb_body, in + "\t", area);
 			sb_body.append(in).append("</t2_area>\n");
 		}
+		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append("</t2_area_list>\n");
 	}
 

@@ -670,6 +670,7 @@ public class Ball extends ZDisplayable {
 		for (int i=0; i<n_points; i++) {
 			sb_body.append(in).append("<t2_ball_ob x=\"").append(p[0][i]).append("\" y=\"").append(p[1][i]).append("\" layer_id=\"").append(p_layer[i]).append("\" r=\"").append(p_width[i]).append("\" />\n");
 		}
+		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append("</t2_ball>\n");
 	}
 

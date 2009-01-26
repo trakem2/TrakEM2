@@ -1570,7 +1570,9 @@ public class Pipe extends ZDisplayable implements Line3D {
 			}
 			sb_body.append("\"\n");
 		}
-		sb_body.append(indent).append("/>\n");
+		sb_body.append(indent).append(">\n");
+		super.restXML(sb_body, in, any);
+		sb_body.append(indent).append("</t2_pipe>\n");
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {

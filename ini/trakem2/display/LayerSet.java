@@ -1043,6 +1043,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				writer.write(sb_body.toString());
 			}
 		}
+		super.restXML(sb_body, in, any);
 		writer.write("</t2_layer_set>\n");
 	}
 

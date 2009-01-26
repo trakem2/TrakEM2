@@ -766,12 +766,15 @@ public final class Patch extends Displayable {
 		if (0 != min) sb_body.append(in).append("min=\"").append(min).append("\"\n");
 		if (max != Patch.getMaxMax(type)) sb_body.append(in).append("max=\"").append(max).append("\"\n");
 
-		if (null == ct) sb_body.append(indent).append("/>\n");
-		else {
-			sb_body.append(indent).append(">\n");
+		sb_body.append(indent).append(">\n");
+
+		if (null != ct) {
 			sb_body.append(ct.toXML(in));
-			sb_body.append('\n').append(indent).append("</t2_patch>\n");
 		}
+
+		super.restXML(sb_body, in, any);
+
+		sb_body.append(indent).append("</t2_patch>\n");
 	}
 
 	static private final double getMaxMax(final int type) {
