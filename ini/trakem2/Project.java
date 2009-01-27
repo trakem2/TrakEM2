@@ -909,15 +909,17 @@ public class Project extends DBObject {
 	/** Export a complete DTD listing to export the project as XML. */
 	public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		// 1 - TrakEM2 tag that encloses all hierarchies
-		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display)>\n");
+		sb_header.append(indent).append("<!ELEMENT trakem2 (project,t2_layer_set,t2_display)>\n");
 		// 2 - export user-defined templates
 		//TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
-		sb_header.append(indent).append("<!ELEMENT ").append("project (").append(root_tt.getType()).append(")>\n");
-		sb_header.append(indent).append("<!ATTLIST project id NMTOKEN #REQUIRED>\n");
-		sb_header.append(indent).append("<!ATTLIST project title NMTOKEN #REQUIRED>\n");
-		sb_header.append(indent).append("<!ATTLIST project preprocessor NMTOKEN #REQUIRED>\n");
-		sb_header.append(indent).append("<!ATTLIST project mipmaps_folder NMTOKEN #REQUIRED>\n");
-		sb_header.append(indent).append("<!ATTLIST project storage_folder NMTOKEN #REQUIRED>\n");
+		sb_header.append(indent).append("<!ELEMENT ").append("project (").append(root_tt.getType()).append(")>\n")
+			.append(indent).append("<!ATTLIST project id NMTOKEN #REQUIRED>\n")
+			.append(indent).append("<!ATTLIST project title NMTOKEN #REQUIRED>\n")
+			.append(indent).append("<!ATTLIST project preprocessor NMTOKEN #REQUIRED>\n")
+			.append(indent).append("<!ATTLIST project mipmaps_folder NMTOKEN #REQUIRED>\n")
+			.append(indent).append("<!ATTLIST project storage_folder NMTOKEN #REQUIRED>\n")
+		;
+
 		for (Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry prop = (Map.Entry)it.next();
 			sb_header.append(indent).append("<!ATTLIST project ").append((String)prop.getKey()).append(" NMTOKEN #REQUIRED>\n");

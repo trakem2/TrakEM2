@@ -2,11 +2,13 @@ package ini.trakem2.display.link;
 import ini.trakem2.Project;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.PropertiesTable;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
 /** A default directional link between two Displayable objects, with a set of properties. */
-public abstract class Link {
+public abstract class Link implements PropertiesTable {
 
 	protected Map<String,String> props = null;
 
@@ -58,15 +60,20 @@ public abstract class Link {
 		return new HashMap(props);
 	}
 
-	/** Returns an XML-attribute content safe String representation of this link, which can then
-	 *  be passed to the init() function to recreate it. */
-	abstract public String asXML();
+	/** Make internal TrakEM2 Link classes be short, without package name chain, to avoid XML verbosity attack. */
+	private final String getClassName() {
+		final String name = this.getClass().getName();
+		final int lastdot = name.lastIndexOf('.'); // can't be -1
+		final String pkg = name.substring(0, lastdot);
+		if (0 == name.indexOf(pkg)) return name.substring(lastdot+1);
+		return name;
+	}
 
 	/** Returns a full XML description of this object, with tags and properties (if any) included. */
 	public String toXML(final String indent) {
 		StringBuffer sb = new StringBuffer(indent);
-			sb.append("<t2_link class=\"").append(this.getClass().getName())
-			  .append("\" data=\"").append(this.asXML());
+			sb.append("<t2_link class=\"").append(getClassName())
+			  .append("\" data=\"").append(target.getId());
 		if (null == props) {
 			sb.append("\"/>\n");
 		} else {
@@ -78,6 +85,15 @@ public abstract class Link {
 			sb.append(indent).append("/>\n");
 		}
 		return sb.toString();
+	}
+
+	static public void exportDTD(final StringBuffer sb_header, final HashSet hs, final String indent) {
+		if (!hs.contains("t2_link")) {
+			sb_header.append(indent).append("<!ELEMENT t2_link (t2_prop)>\n")
+				 .append(indent).append("<!ATTLIST t2_link class NMTOKEN #REQUIRED>\n")
+				 .append(indent).append("<!ATTLIST t2_link data NMTOKEN #REQUIRED>\n")
+			;
+		}
 	}
 
 	/** Checks for identity of origin and target, not any properties. */

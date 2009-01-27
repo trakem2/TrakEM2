@@ -27,10 +27,4 @@ public class TransformationLink extends Link {
 		this.target = (Displayable) dbo;
 		return true;
 	}
-
-	/** Returns an XML attribute content safe String representation of this link (that is, no ")
-	 *  which can then be passed to the init function to recreate it. */
-	public String asXML() {
-		return new StringBuffer().append(origin.getId()).append(' ').append(target.getId()).toString();
-	}
 }

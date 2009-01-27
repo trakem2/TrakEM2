@@ -37,11 +37,12 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
+import ini.trakem2.utils.PropertiesTable;
 import ini.trakem2.vector.Compare;
 import ini.trakem2.display.link.*;
 
 /** The class that any element to be drawn on a Display must extend. */
-public abstract class Displayable extends DBObject {
+public abstract class Displayable extends DBObject implements PropertiesTable {
 
 	final protected AffineTransform at = new AffineTransform();
 
@@ -202,6 +203,7 @@ public abstract class Displayable extends DBObject {
 						Utils.log("ERROR at reading style: " + es);
 					}
 				} else if (key.equals("links")) {
+					// [Old style links, must support for backward compatibility]
 					// This is hard one, must be stored until all objects exist and then processed
 					if (null != data && data.length() > 0) ht_links.put(this, data);
 				} else if (key.equals("title")) {
@@ -447,6 +449,11 @@ public abstract class Displayable extends DBObject {
 		return hs;
 	}
 
+	/** Returns a copy of the links list (with the actual Link objects in it), or null if none. */
+	public Set<Link> getLinks() {
+		return null == links ? null : new HashSet<Link>(links);
+	}
+
 	/** Return the HashSet of all diretly and indirectly linked objects. */
 	public Set<Displayable> getLinkedGroup(Set<Displayable> hs) {
 		if (null == hs) hs = new HashSet<Displayable>();
@@ -624,10 +631,10 @@ public abstract class Displayable extends DBObject {
 		return link(d);
 	}
 
-	/** Bidirectional transformation link: link the given Displayable with this Displayable, and then tell the given Displayable to link this. */
+	/** Bidirectional transformation link: link the given Displayable with this Displayable, and then tell the given Displayable to link this.
+	 *  Returns the two newly created links, if any. */
 	public Link[] link(final Displayable d) {
 		if (this == d) return null;
-		if (null == this.links) this.links = new HashSet<Link>();
 		final Link[] ln = new Link[2];
 		ln[0] = this.setTransformationLink(d);
 		ln[1] = d.setTransformationLink(this);
@@ -638,19 +645,18 @@ public abstract class Displayable extends DBObject {
 	 *  Returns the created TransformationLink. */
 	public Link setTransformationLink(final Displayable target) {
 		if (null == target) return null;
-		if (null == links) links = new HashSet<Link>();
-		final TransformationLink tl = new TransformationLink(this, target);
-		/*
-		if (links.contains(tl)) {
-			// should return the existing one ...
-			// ... but sets don't return the match, and the "contains" iterates anyway.
-		}
-		*/
-		for (final Link link : links) {
-			if (tl.equals(link)) return link;
-		}
-		links.add(tl); // I HATE JAVA
-		return tl;
+		return setLink(new TransformationLink(this, target));
+	}
+
+	/** If the link already exists, replaces it with the given one, which may have different properties.
+	 *  Returns the newly added Link, if any. */
+	public Link setLink(final Link link) {
+		if (null == link) return null;
+		if (null == this.links) this.links = new HashSet<Link>();
+		// replace any existing link with identical origin and target Displayables:
+		links.remove(link);
+		links.add(link);
+		return link;
 	}
 
 	/** Bidrectional: remove all transformation links held by this Displayable, and tell their targets to unlink this Displayable.
@@ -1030,17 +1036,11 @@ public abstract class Displayable extends DBObject {
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		if (!hs.contains("t2_prop")) {
 			sb_header.append(indent).append("<!ELEMENT t2_prop EMPTY>\n")
-				 .append(indent).append(TAG_ATTR1).append("t2_prop name").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_prop key").append(TAG_ATTR2)
 			         .append(indent).append(TAG_ATTR1).append("t2_prop value").append(TAG_ATTR2)
 			;
 		}
-		if (!hs.contains("t2_link")) {
-			sb_header.append(indent).append("<!ELEMENT t2_link EMPTY>\n")
-				 .append(indent).append(TAG_ATTR1).append("t2_link class").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append("t2_link origin_id").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append("t2_link target_id").append(TAG_ATTR2)
-			;
-		}
+		Link.exportDTD(sb_header, hs, indent);
 	}
 
 	static protected String commonDTDChildren() {

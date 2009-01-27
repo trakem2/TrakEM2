@@ -34,6 +34,7 @@ import ini.trakem2.tree.*;
 import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.Project;
+import ini.trakem2.display.link.*;
 
 import org.xml.sax.helpers.DefaultHandler;
 import org.xml.sax.SAXException;
@@ -59,8 +60,56 @@ public class TMLHandler extends DefaultHandler {
 	private boolean skip = false;
 	private String base_dir;
 	private String xml_path;
-	/** Stores the object and its String with coma-separated links, to construct links when all objects exist. */
+	/** Stores the object and its String with coma-separated links, to construct links when all objects exist.
+	 *  These are the old-style links, as comma-separated values in a "links" attribute of each Displayable. */
 	private HashMap ht_links = new HashMap();
+
+	// Store link data to rebuild links
+	private class StagedLink {
+		Displayable origin;
+		String data;
+		Link link;
+		StagedLink(final Displayable origin, final Link link, final String data) {
+			this.origin = origin;
+			this.link = link;
+			this.data = data;
+		}
+		final boolean init() {
+			if (!link.init(origin, data)) {
+				Utils.log("Could not restore link of #" + origin.getId() + " to #" + data);
+				return false;
+			}
+			origin.setLink(link);
+			return true;
+		}
+	}
+
+	/** Create and store a temporary StagedLink. Returns null if it could not be instantiated. */
+	private Link storeLink(final Displayable origin, final String classname, final String data) {
+		Link link = null;
+		try {
+			Class c = null;
+			if (classname.equals("TransformationLink")) {
+				c = TransformationLink.class;
+			} else if (classname.equals("SliceLink")) {
+				c = SliceLink.class;
+			} else {
+				// Any other
+				c = Class.forName(classname);
+			}
+			link = (Link) c.newInstance();
+			links.add(new StagedLink(origin, link, data));
+		} catch (ClassNotFoundException cnfe) {
+			Utils.log2("Could not find Link class " + classname);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+		return link;
+	}
+
+	/** Store temporary link data to rebuild links. */
+	private ArrayList<StagedLink> links = new ArrayList<StagedLink>();
 
 	private Thing current_thing = null;
 	private ArrayList al_open = new ArrayList();
@@ -77,9 +126,14 @@ public class TMLHandler extends DefaultHandler {
 	private Dissector last_dissector = null;
 	private Patch last_patch = null;
 	private Displayable last_displayable = null;
+	private PropertiesTable last_propertiestable = null;
 	private CoordinateTransformList last_ct_list = null;
 	private boolean open_displays = true;
 
+	private void setLastDisplayable(Displayable d) {
+		last_displayable = d;
+		last_propertiestable = d;
+	}
 
 	/** @param path The XML file that contains the project data in XML format.
 	 *  @param loader The FSLoader for the project.
@@ -149,6 +203,10 @@ public class TMLHandler extends DefaultHandler {
 				if (null != partner) d.link(partner); //, false);
 				else Utils.log("TMLHandler: can't find partner with id=" + links[i] + " for Displayable with id=" + d.getId());
 			}
+		}
+		// Reconstruct links from stored StagedLinks:
+		for (final StagedLink sl : links) {
+			sl.init();
 		}
 
 		// 2 - Add Displayable objects to ProjectThing that can contain them
@@ -301,16 +359,27 @@ public class TMLHandler extends DefaultHandler {
 				break;
 			}
 		}
+
 		// terminate non-single clause objects
-		last_ball = null;
 		if (orig_qualified_name.equals("t2_area_list")) {
 			last_area_list.__endReconstructing();
 			last_area_list = null;
+		} else if (orig_qualified_name.equals("t2_patch")) {
+			last_patch = null;
+		} else if (orig_qualified_name.equals("ict_transform")) {
+			last_ct_list = null;
+		} else if (orig_qualified_name.equals("t2_dissector")) {
+			last_dissector = null;
+		} else if (orig_qualified_name.equals("t2_ball")) {
+			last_ball = null;
 		}
-		last_dissector = null;
-		last_patch = null;
-		last_ct_list = null;
-		last_displayable = null;
+
+		if (orig_qualified_name.equals("t2_link")) {
+			last_propertiestable = last_displayable; // the parent of the link, so now it can accept properties, if any
+		} else {
+			last_displayable = null;
+			last_propertiestable = null;
+		}
 	}
 	public void characters(char[] c, int start, int length) {}
 
@@ -404,29 +473,17 @@ public class TMLHandler extends DefaultHandler {
 			Object soid = ht_attributes.get("oid");
 			if (null != soid) oid = Long.parseLong((String)soid);
 
-			if (type.equals("profile")) {
-				Profile profile = new Profile(this.project, oid, ht_attributes, ht_links);
-				profile.addToDatabase();
-				ht_displayables.put(new Long(oid), profile);
-				addToLastOpenLayer(profile);
-				last_displayable = profile;
+			if (type.equals("patch")) {
+				Patch patch = new Patch(project, oid, ht_attributes, ht_links);
+				patch.addToDatabase();
+				ht_displayables.put(new Long(oid), patch);
+				addToLastOpenLayer(patch);
+				last_patch = patch;
+				setLastDisplayable(patch);
 				return null;
-			} else if (type.equals("pipe")) {
-				Pipe pipe = new Pipe(this.project, oid, ht_attributes, ht_links);
-				pipe.addToDatabase();
-				ht_displayables.put(new Long(oid), pipe);
-				ht_zdispl.put(new Long(oid), pipe);
-				last_displayable = pipe;
-				addToLastOpenLayerSet(pipe);
-				return null;
-			} else if (type.equals("polyline")) {
-				Polyline pline = new Polyline(this.project, oid, ht_attributes, ht_links);
-				pline.addToDatabase();
-				last_displayable = pline;
-				ht_displayables.put(new Long(oid), pline);
-				ht_zdispl.put(new Long(oid), pline);
-				addToLastOpenLayerSet(pline);
-				return null;
+			} else if (type.equals("link")) {
+				Link link = storeLink(last_displayable, (String)ht_attributes.get("class"), (String)ht_attributes.get("data"));
+				if (null != link) last_propertiestable = link;
 			} else if (type.equals("path")) {
 				last_area_list.__addPath((String)ht_attributes.get("d"));
 				return null;
@@ -438,10 +495,26 @@ public class TMLHandler extends DefaultHandler {
 				AreaList area = new AreaList(this.project, oid, ht_attributes, ht_links);
 				area.addToDatabase(); // why? This looks like an onion
 				last_area_list = area;
-				last_displayable = area;
+				setLastDisplayable(area);
 				ht_displayables.put(new Long(oid), area);
 				ht_zdispl.put(new Long(oid), area);
 				addToLastOpenLayerSet(area);
+				return null;
+			} else if (type.equals("pipe")) {
+				Pipe pipe = new Pipe(this.project, oid, ht_attributes, ht_links);
+				pipe.addToDatabase();
+				ht_displayables.put(new Long(oid), pipe);
+				ht_zdispl.put(new Long(oid), pipe);
+				setLastDisplayable(pipe);
+				addToLastOpenLayerSet(pipe);
+				return null;
+			} else if (type.equals("polyline")) {
+				Polyline pline = new Polyline(this.project, oid, ht_attributes, ht_links);
+				pline.addToDatabase();
+				setLastDisplayable(pline);
+				ht_displayables.put(new Long(oid), pline);
+				ht_zdispl.put(new Long(oid), pline);
+				addToLastOpenLayerSet(pline);
 				return null;
 			} else if (type.equals("ball_ob")) {
 				// add a ball to the last open Ball
@@ -456,7 +529,7 @@ public class TMLHandler extends DefaultHandler {
 				Ball ball = new Ball(this.project, oid, ht_attributes, ht_links);
 				ball.addToDatabase();
 				last_ball = ball;
-				last_displayable = ball;
+				setLastDisplayable(ball);
 				ht_displayables.put(new Long(oid), ball);
 				ht_zdispl.put(new Long(oid), ball);
 				addToLastOpenLayerSet(ball);
@@ -472,21 +545,13 @@ public class TMLHandler extends DefaultHandler {
 				label.addToDatabase();
 				ht_displayables.put(new Long(oid), label);
 				addToLastOpenLayer(label);
-				last_displayable = label;
-				return null;
-			} else if (type.equals("patch")) {
-				Patch patch = new Patch(project, oid, ht_attributes, ht_links);
-				patch.addToDatabase();
-				ht_displayables.put(new Long(oid), patch);
-				addToLastOpenLayer(patch);
-				last_patch = patch;
-				last_displayable = patch;
+				setLastDisplayable(label);
 				return null;
 			} else if (type.equals("dissector")) {
 				Dissector dissector = new Dissector(this.project, oid, ht_attributes, ht_links);
 				dissector.addToDatabase();
 				last_dissector = dissector;
-				last_displayable = dissector;
+				setLastDisplayable(dissector);
 				ht_displayables.put(new Long(oid), dissector);
 				ht_zdispl.put(new Long(oid), dissector);
 				addToLastOpenLayerSet(dissector);
@@ -503,7 +568,7 @@ public class TMLHandler extends DefaultHandler {
 				}
 			} else if (type.equals("layer_set")) {
 				LayerSet set = new LayerSet(project, oid, ht_attributes, ht_links);
-				last_displayable = set;
+				setLastDisplayable(set);
 				set.addToDatabase();
 				ht_displayables.put(new Long(oid), set);
 				al_layer_sets.add(set);
@@ -518,10 +583,17 @@ public class TMLHandler extends DefaultHandler {
 					return null;
 				}
 			} else if (type.equals("prop")) {
-				// Add property to last created Displayable
-				if (null != last_displayable) {
-					last_displayable.setProperty((String)ht_attributes.get("key"), (String)ht_attributes.get("value"));
+				// Add property to last created Displayable or Link, an object that implements PropertiesTable
+				if (null != last_propertiestable) {
+					last_propertiestable.setProperty((String)ht_attributes.get("key"), (String)ht_attributes.get("value"));
 				}
+			} else if (type.equals("profile")) {
+				Profile profile = new Profile(this.project, oid, ht_attributes, ht_links);
+				profile.addToDatabase();
+				ht_displayables.put(new Long(oid), profile);
+				addToLastOpenLayer(profile);
+				setLastDisplayable(profile);
+				return null;
 			} else {
 				Utils.log2("TMLHandler Unknown type: " + type);
 			}
