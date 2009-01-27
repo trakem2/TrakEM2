@@ -654,7 +654,14 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 		if (null == link) return null;
 		if (null == this.links) this.links = new HashSet<Link>();
 		// replace any existing link with identical origin and target Displayables:
-		links.remove(link);
+		else {
+			for (final Iterator<Link> it = links.iterator(); it.hasNext(); ) {
+				if (it.next().equals(link)) {
+					it.remove();
+				}
+			}
+		}
+
 		links.add(link);
 		return link;
 	}
@@ -735,17 +742,16 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
-		// catch all displayables of the current Layer
-		final ArrayList al = layer.getDisplayables(Patch.class);
-
 		// this bounding box:
 		final Polygon perimeter = getPerimeter(); //displaced by this object's position!
 		if (null == perimeter) return; // happens when a profile with zero points is deleted
 
+		// catch all displayables of the current Layer
+		final ArrayList<Displayable> patches = layer.getDisplayables(Patch.class);
+
 		// for each Patch, check if it underlays this profile's bounding box
-		Rectangle box = new Rectangle();
-		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
-			final Displayable displ = (Displayable)itd.next();
+		final Rectangle box = new Rectangle();
+		for (final Displayable displ : patches) {
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			if (perimeter.intersects(displ.getBoundingBox(box))) {
 				// Link the patch
@@ -1075,7 +1081,7 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 	synchronized protected void restXML(StringBuffer sb_body, String in, Object any) {
 		// Properties:
 		if (null != props && !props.isEmpty()) {
-			for (Map.Entry<String,String> e : props.entrySet()) {
+			for (final Map.Entry<String,String> e : props.entrySet()) {
 				String value = e.getValue();
 				if (-1 != value.indexOf('"')) {
 					Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a \" which is being replaced by '.");
@@ -1090,7 +1096,7 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 		}
 		// Links:
 		if (null != links && 0 != links.size()) {
-			for (Link link : links) {
+			for (final Link link : links) {
 				sb_body.append(link.toXML(in));
 			}
 		}
