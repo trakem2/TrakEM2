@@ -1351,7 +1351,7 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 				d.updateBucket();
 			}
 		} else {
-			this.at.preConcatenate(at);
+			this.at.preConcatenate(affine);
 			this.updateInDatabase("transform");
 			this.updateBucket();
 		}
