@@ -456,7 +456,7 @@ public class Align
 			catch ( Exception e ) { return false; }
 		}
 		final Features fe = new Features( p.sift, list );
-		return loader.serialize( fe, new StringBuffer( storageFolder ).append( "features_" ).append( patch.getId() ).append( ".ser" ).toString() );
+		return loader.serialize( fe, new StringBuffer( storageFolder ).append( "features_" ).append( patch.getUniqueIdentifier() ).append( ".ser" ).toString() );
 	}
 
 	/**
@@ -468,7 +468,7 @@ public class Align
 		final Loader loader = patch.getProject().getLoader();
 		final String storageFolder = loader.getStorageFolder() + "features.ser/";
 		
-		final Object ob = loader.deserialize( new StringBuffer( storageFolder ).append( "features_" ).append( patch.getId() ).append( ".ser" ).toString() );
+		final Object ob = loader.deserialize( new StringBuffer( storageFolder ).append( "features_" ).append( patch.getUniqueIdentifier() ).append( ".ser" ).toString() );
 		if ( null != ob )
 		{
 			try
@@ -527,7 +527,7 @@ public class Align
 			catch ( Exception e ) { return false; }
 		}
 		final PointMatches pm = new PointMatches( p, list );
-		return loader.serialize( pm, new StringBuffer( storageFolder ).append( "pointmatches_" ).append( p1.getId() ).append( "_" ).append( p2.getId() ).append( ".ser" ).toString() );
+		return loader.serialize( pm, new StringBuffer( storageFolder ).append( "pointmatches_" ).append( p1.getUniqueIdentifier() ).append( "_" ).append( p2.getUniqueIdentifier() ).append( ".ser" ).toString() );
 	}
 	
 	
@@ -541,7 +541,7 @@ public class Align
 		final Loader loader = p1.getProject().getLoader();
 		final String storageFolder = loader.getStorageFolder() + "pointmatches.ser/";
 		
-		final Object ob = loader.deserialize( new StringBuffer( storageFolder ).append( "pointmatches_" ).append( p1.getId() ).append( "_" ).append( p2.getId() ).append( ".ser" ).toString() );
+		final Object ob = loader.deserialize( new StringBuffer( storageFolder ).append( "pointmatches_" ).append( p1.getUniqueIdentifier() ).append( "_" ).append( p2.getUniqueIdentifier() ).append( ".ser" ).toString() );
 		if ( null != ob )
 		{
 			try
