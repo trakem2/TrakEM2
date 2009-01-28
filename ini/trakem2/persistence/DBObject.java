@@ -54,6 +54,22 @@ public class DBObject {
 	}
 
 	public final long getId() { return id; }
+	
+	/**
+	 *  Create a unique String identifier for this object instance.
+	 *  
+	 *  TODO
+	 *    The default implementation returns the project-specific id.
+	 *    This behaviour has to be overridden in order to get an identifier
+	 *    that is unique beyond the project scope, e.g. for use in cache file
+	 *    names.
+	 *    
+	 * @return Unique name
+	 */
+	public String getUniqueIdentifier()
+	{
+		return Long.toString(this.id);
+	}
 
 	public final Project getProject() { return project; }
 
