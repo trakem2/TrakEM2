@@ -818,6 +818,10 @@ public final class FSLoader extends Loader {
 		return null;
 	}
 
+	/**
+	 * TODO
+	 *   Never used.  Was this planned to be what we do no with DBObject.getUniqueId()?
+	 */
 	private final String makeFileTitle(final Patch p) {
 		String title = p.getTitle();
 		if (null == title) return "image-" + p.getId();
@@ -1483,10 +1487,14 @@ public final class FSLoader extends Loader {
 			gm_unlock();
 		}
 
-		// Record Patch as modified
+		/** Record Patch as modified */
 		touched_mipmaps.add(patch);
-		// Remove serialized features, if any
+		
+		/** Remove serialized features, if any */
 		removeSerializedFeatures(patch);
+
+		/** Remove serialized pointmatches, if any */
+		removeSerializedPointMatches(patch);
 
 		String srmode = patch.getProject().getProperty("image_resizing_mode");
 		int resizing_mode = GAUSSIAN;
@@ -1782,7 +1790,7 @@ public final class FSLoader extends Loader {
 	/** Remove the file, if it exists, with serialized features for patch.
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedFeatures(final Patch patch) {
-		final File f = new File(new StringBuffer(dir_storage).append("features.ser/features_").append(patch.getId()).append(".ser").toString());
+		final File f = new File(new StringBuffer(dir_storage).append("features.ser/features_").append(patch.getUniqueIdentifier()).append(".ser").toString());
 		if (f.exists()) {
 			try {
 				f.delete();
@@ -1792,6 +1800,30 @@ public final class FSLoader extends Loader {
 				return false;
 			}
 		} else return true;
+	}
+
+	/** Remove the file, if it exists, with serialized point matches for patch.
+	 * Returns true when no such file or on success; false otherwise. */
+	public boolean removeSerializedPointMatches(final Patch patch) {
+		boolean success = true;
+		final File d = new File(new StringBuffer(dir_storage).append("pointmatches.ser").toString());
+		if (d.exists()&&d.isDirectory()) {
+			final String[] files = d.list();
+			if ( files != null )
+			{
+				for ( final String f : files ) {
+					if ( f.matches( ".*_" + patch.getUniqueIdentifier() + "(_|\\.).*" ) ) {
+						try {
+							new File( d.getAbsolutePath() + "/" + f ).delete();
+						} catch (Exception e) {
+							IJError.print(e);
+							success = false;
+						}
+					}
+				}
+			}
+		}
+		return success;
 	}
 
 	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.
