@@ -33,6 +33,7 @@ import ij.gui.GenericDialog;
 import ij.io.FileSaver;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
+import ij.process.FloatPolygon;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
@@ -44,6 +45,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.render3d.Perimeter2D;
+import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -417,7 +419,7 @@ public class AreaList extends ZDisplayable {
 		/** The last point on which a paint event was done. */
 		private Point previous_p = null;
 		private boolean paint = true;
-		private int brush_size;
+		private int brush_size; // the diameter
 		private Area brush;
 		final private int leftClick=16, alt=9;
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
@@ -444,18 +446,20 @@ public class AreaList extends ZDisplayable {
 		}
 		final void quit() {
 			this.paint = false;
+			// Make interpolated points effect add or subtract operations
 			synchronized (this) {
-				// merge the temporary Area, if any, with the general one
-				if (area == target_area) return;
 				if (points.size() < 2) {
-					this.target_area.add(area);
+					// merge the temporary Area, if any, with the general one
+					if (adding) this.target_area.add(area);
 					return;
 				}
+
+				try {
 
 				// paint the regions between points
 				// A cheap way would be to just make a rectangle between both points, with thickess radius.
 				// A better, expensive way is to fit a spline first, then add each one as a circle.
-				// The spline way is wasteful, but way more precise and beautiful. Since there's only one repaint, should be ok!
+				// The spline way is wasteful, but way more precise and beautiful. Since there's only one repaint, it's not excessively slow.
 				int[] xp = new int[points.size()];
 				int[] yp = new int[xp.length];
 				int j = 0;
@@ -465,36 +469,58 @@ public class AreaList extends ZDisplayable {
 					j++;
 				}
 				points.clear();
+
 				PolygonRoi proi = new PolygonRoi(xp, yp, xp.length, Roi.POLYLINE);
 				proi.fitSpline();
-				xp = proi.getXCoordinates();
-				yp = proi.getYCoordinates();
-				final Rectangle b = proi.getBounds();
-				final int bx = b.x;
-				final int by = b.y;
+				FloatPolygon fp = proi.getFloatPolygon();
+				proi = null;
+
+				double[] xpd = new double[fp.npoints];
+				double[] ypd = new double[fp.npoints];
+				// Fails: fp contains float[], which for some reason cannot be copied into double[]
+				//System.arraycopy(fp.xpoints, 0, xpd, 0, xpd.length);
+				//System.arraycopy(fp.ypoints, 0, ypd, 0, ypd.length);
+				for (int i=0; i<xpd.length; i++) {
+					xpd[i] = fp.xpoints[i];
+					ypd[i] = fp.ypoints[i];
+				}
+				fp = null;
+
+				try {
+					// VectorString2D resampling doesn't work
+					VectorString3D vs = new VectorString3D(xpd, ypd, new double[xpd.length], false);
+					double delta = ((double)brush_size) / 10;
+					if (delta < 1) delta = 1;
+					vs.resample(delta);
+					xpd = vs.getPoints(0);
+					ypd = vs.getPoints(1);
+					vs = null;
+				} catch (Exception e) { IJError.print(e); }
+
 
 				final AffineTransform atb = new AffineTransform();
 
-				// Not good enough!
-				// If one moves slowly, then fast, it ends up with disconnected regions
-				// because the fitted spline makes a long stride.
-				// Must resample to homogenize point interdistance
+				final AffineTransform inv_at = at.createInverse();
 
 				if (adding) {
 					adding = false;
-					for (int i=0; i<xp.length; i++) {
-						atb.translate(xp[i] + bx, yp[i] + by);
-						area.add(createSlash(atb, null));
-						atb.setToIdentity();
+					for (int i=0; i<xpd.length; i++) {
+						atb.setToTranslation((int)xpd[i], (int)ypd[i]); // always integers
+						atb.preConcatenate(inv_at);
+						area.add(slashInInts(brush.createTransformedArea(atb)));
 					}
 					this.target_area.add(area);
 				} else {
 					// subtract
-					for (int i=0; i<xp.length; i++) {
-						atb.translate(xp[i] + bx, yp[i] + by);
-						target_area.subtract(createSlash(atb, null));
-						atb.setToIdentity();
+					for (int i=0; i<xpd.length; i++) {
+						atb.setToTranslation((int)xpd[i], (int)ypd[i]); // always integers
+						atb.preConcatenate(inv_at);
+						target_area.subtract(slashInInts(brush.createTransformedArea(atb)));
 					}
+				}
+
+				} catch (Exception ee) {
+					IJError.print(ee);
 				}
 			}
 		}
