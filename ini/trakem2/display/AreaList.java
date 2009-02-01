@@ -27,6 +27,7 @@ import ij.IJ;
 import ij.gui.OvalRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.gui.PolygonRoi;
 import ij.gui.Toolbar;
 import ij.gui.GenericDialog;
 import ij.io.FileSaver;
@@ -137,12 +138,13 @@ public class AreaList extends ZDisplayable {
 		if (fill_paint) g.fill(area.createTransformedArea(this.at));
 		else 		g.draw(area.createTransformedArea(this.at));  // the contour only
 
+		// If adding, check
 		if (null != last) {
 			try {
 				final Area tmp = last.getTmpArea();
 				if (null != tmp) {
-					if (fill_paint) g.fill(area.createTransformedArea(tmp));
-					else            g.draw(area.createTransformedArea(tmp)); // won't be perfect except on mouse release
+					if (fill_paint) g.fill(tmp.createTransformedArea(this.at));
+					else            g.draw(tmp.createTransformedArea(this.at)); // won't be perfect except on mouse release
 				}
 			} catch (Exception e) {}
 		}
@@ -315,7 +317,8 @@ public class AreaList extends ZDisplayable {
 				updateInDatabase("points=" + lid);
 			}
 		} else {
-			brush_thread = new BrushThread(area, mag);
+			if (null != last) last.quit();
+			last = new BrushThread(area, mag);
 			brushing = true;
 		}
 	}
@@ -330,7 +333,10 @@ public class AreaList extends ZDisplayable {
 			return;
 		}
 		brushing = false;
-		if (null != last) last.quit();
+		if (null != last) {
+			last.quit();
+			last = null;
+		}
 		long lid = Display.getFrontLayer(this.project).getId();
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
@@ -406,6 +412,8 @@ public class AreaList extends ZDisplayable {
 		final private Area target_area;
 		/** The temporary area to paint to, which is only different than target_area when adding. */
 		final private Area area;
+		/** The list of all painted points. */
+		private final ArrayList<Point> points = new ArrayList<Point>();
 		/** The last point on which a paint event was done. */
 		private Point previous_p = null;
 		private boolean paint = true;
@@ -419,20 +427,16 @@ public class AreaList extends ZDisplayable {
 		BrushThread(Area area, double mag) {
 			super("BrushThread");
 			setPriority(Thread.NORM_PRIORITY);
-			this.area = area;
 			// if adding areas, make it be a copy, to be added on mouse release
 			// (In this way, the receiving Area is small and can be operated on fast)
 			if (adding) {
 				this.target_area = area;
-				this.area = new Area(area);
+				this.area = new Area();
 			} else {
 				this.target_area = area;
 				this.area = area;
 			}
 
-			// cancel other BrushThreads if any
-			if (null != last) last.quit();
-			last = this;
 			brush_size = ProjectToolbar.getBrushSize();
 			brush = makeBrush(brush_size, mag);
 			if (null == brush) return;
@@ -441,10 +445,56 @@ public class AreaList extends ZDisplayable {
 		final void quit() {
 			this.paint = false;
 			synchronized (this) {
+				// merge the temporary Area, if any, with the general one
+				if (area == target_area) return;
+				if (points.size() < 2) {
+					this.target_area.add(area);
+					return;
+				}
+
+				// paint the regions between points
+				// A cheap way would be to just make a rectangle between both points, with thickess radius.
+				// A better, expensive way is to fit a spline first, then add each one as a circle.
+				// The spline way is wasteful, but way more precise and beautiful. Since there's only one repaint, should be ok!
+				int[] xp = new int[points.size()];
+				int[] yp = new int[xp.length];
+				int j = 0;
+				for (final Point p : points) {
+					xp[j] = p.x;
+					yp[j] = p.y;
+					j++;
+				}
+				points.clear();
+				PolygonRoi proi = new PolygonRoi(xp, yp, xp.length, Roi.POLYLINE);
+				proi.fitSpline();
+				xp = proi.getXCoordinates();
+				yp = proi.getYCoordinates();
+				final Rectangle b = proi.getBounds();
+				final int bx = b.x;
+				final int by = b.y;
+
+				final AffineTransform atb = new AffineTransform();
+
+				// Not good enough!
+				// If one moves slowly, then fast, it ends up with disconnected regions
+				// because the fitted spline makes a long stride.
+				// Must resample to homogenize point interdistance
+
 				if (adding) {
 					adding = false;
-					// merge the temporary Area with the general one
+					for (int i=0; i<xp.length; i++) {
+						atb.translate(xp[i] + bx, yp[i] + by);
+						area.add(createSlash(atb, null));
+						atb.setToIdentity();
+					}
 					this.target_area.add(area);
+				} else {
+					// subtract
+					for (int i=0; i<xp.length; i++) {
+						atb.translate(xp[i] + bx, yp[i] + by);
+						target_area.subtract(createSlash(atb, null));
+						atb.setToIdentity();
+					}
 				}
 			}
 		}
@@ -470,19 +520,11 @@ public class AreaList extends ZDisplayable {
 				}
 				// bring to offscreen position of the mouse
 				atb.translate(p.x, p.y);
-				Area slash = brush.createTransformedArea(atb); // + int transform, no problem
 				// capture bounds while still in offscreen coordinates
-				final Rectangle r = slash.getBounds();
-				// bring to the current transform, if any
-				if (!at.isIdentity()) {
-					try {
-						slash = slash.createTransformedArea(at.createInverse());
-					} catch (NoninvertibleTransformException nite) {
-						IJError.print(nite);
-					}
-				}
-				// avoid problems with floating-point points, for example inability to properly fill areas or delete them.
-				slash = slashInInts(slash);
+				final Rectangle r = new Rectangle();
+				final Area slash = createSlash(atb, r);
+				if(null == slash) continue;
+
 				if (0 == (flags & alt)) {
 					// no modifiers, just add
 					area.add(slash);
@@ -490,6 +532,7 @@ public class AreaList extends ZDisplayable {
 					// with alt down, substract
 					area.subtract(slash);
 				}
+				points.add(p);
 				previous_p = p;
 
 				final Rectangle copy = (Rectangle)r.clone();
@@ -501,6 +544,23 @@ public class AreaList extends ZDisplayable {
 				// reset
 				atb.setToIdentity();
 			}
+		}
+
+		/** Sets the bounds of the created slash, in offscreen coords, to r if r is not null. */
+		private Area createSlash(final AffineTransform atb, final Rectangle r) {
+				Area slash = brush.createTransformedArea(atb); // + int transform, no problem
+				if (null != r) r.setRect(slash.getBounds());
+				// bring to the current transform, if any
+				if (!at.isIdentity()) {
+					try {
+						slash = slash.createTransformedArea(at.createInverse());
+					} catch (NoninvertibleTransformException nite) {
+						IJError.print(nite);
+						return null;
+					}
+				}
+				// avoid problems with floating-point points, for example inability to properly fill areas or delete them.
+				return slashInInts(slash);
 		}
 
 		private final Area slashInInts(final Area area) {
