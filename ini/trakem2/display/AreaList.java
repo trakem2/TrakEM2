@@ -137,6 +137,16 @@ public class AreaList extends ZDisplayable {
 		if (fill_paint) g.fill(area.createTransformedArea(this.at));
 		else 		g.draw(area.createTransformedArea(this.at));  // the contour only
 
+		if (null != last) {
+			try {
+				final Area tmp = last.getTmpArea();
+				if (null != tmp) {
+					if (fill_paint) g.fill(area.createTransformedArea(tmp));
+					else            g.draw(area.createTransformedArea(tmp)); // won't be perfect except on mouse release
+				}
+			} catch (Exception e) {}
+		}
+
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
 			g.setComposite(original_composite);
@@ -305,7 +315,7 @@ public class AreaList extends ZDisplayable {
 				updateInDatabase("points=" + lid);
 			}
 		} else {
-			new BrushThread(area, mag);
+			brush_thread = new BrushThread(area, mag);
 			brushing = true;
 		}
 	}
@@ -392,39 +402,62 @@ public class AreaList extends ZDisplayable {
 
 	/** Modeled after the ij.gui.RoiBrush class from ImageJ. */
 	private class BrushThread extends Thread {
-		/** The area to paint into. */
-		private Area area;
+		/** The area to paint into when done or when removing. */
+		final private Area target_area;
+		/** The temporary area to paint to, which is only different than target_area when adding. */
+		final private Area area;
 		/** The last point on which a paint event was done. */
 		private Point previous_p = null;
 		private boolean paint = true;
 		private int brush_size;
 		private Area brush;
+		final private int leftClick=16, alt=9;
+		final private DisplayCanvas dc = Display.getFront().getCanvas();
+		final private int flags = dc.getModifiers();
+		private boolean adding = (0 == (flags & alt));
+
 		BrushThread(Area area, double mag) {
 			super("BrushThread");
 			setPriority(Thread.NORM_PRIORITY);
 			this.area = area;
+			// if adding areas, make it be a copy, to be added on mouse release
+			// (In this way, the receiving Area is small and can be operated on fast)
+			if (adding) {
+				this.target_area = area;
+				this.area = new Area(area);
+			} else {
+				this.target_area = area;
+				this.area = area;
+			}
+
 			// cancel other BrushThreads if any
-			if (null != last) last.paint = false;
+			if (null != last) last.quit();
 			last = this;
 			brush_size = ProjectToolbar.getBrushSize();
 			brush = makeBrush(brush_size, mag);
 			if (null == brush) return;
 			start();
 		}
-		public void quit() {
+		final void quit() {
 			this.paint = false;
+			synchronized (this) {
+				if (adding) {
+					adding = false;
+					// merge the temporary Area with the general one
+					this.target_area.add(area);
+				}
+			}
+		}
+		final Area getTmpArea() {
+			if (area != target_area) return area;
+			return null;
 		}
 		/** For best smoothness, each mouse dragged event should be captured!*/
 		public void run() {
 			// create brush
-			final DisplayCanvas dc = Display.getFront().getCanvas();
 			Point p;
 			final AffineTransform atb = new AffineTransform();
-			int flags;
-			final int leftClick=16, alt=9;
-			double sqrt2 = Math.sqrt(2) + 0.001;
 			while (paint) {
-				flags = dc.getModifiers();
 				// detect mouse up
 				if (0 == (flags & leftClick)) {
 					quit();
