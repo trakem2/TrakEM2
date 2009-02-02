@@ -31,17 +31,17 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
 import ij.measure.ResultsTable;
-import ij.WindowManager;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
+import ini.trakem2.utils.PropertiesTable;
 import ini.trakem2.vector.Compare;
 import ini.trakem2.display.link.*;
 
 /** The class that any element to be drawn on a Display must extend. */
-public abstract class Displayable extends DBObject {
+public abstract class Displayable extends DBObject implements PropertiesTable {
 
 	final protected AffineTransform at = new AffineTransform();
 
@@ -55,10 +55,8 @@ public abstract class Displayable extends DBObject {
 	protected float alpha = 1.0f; // from 0 to 1 (0 is full transparency)
 	protected boolean visible = true;
 	protected Layer layer;
-	/** The Displayable objects this one is linked to. Can be null. */
-	protected HashSet hs_linked = null;
 
-	protected HashSet<? extends Link> links = null;
+	protected Set<Link> links = null;
 
 	protected Map<String,String> props = null;
 
@@ -94,12 +92,12 @@ public abstract class Displayable extends DBObject {
 		}
 		updateInDatabase("locked");
 	}
-	private void unlockAllLinked(HashSet hs) {
+	private void unlockAllLinked(final HashSet hs) {
 		if (hs.contains(this)) return;
 		hs.add(this);
-		if (null == hs_linked) return;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		if (null == links) return;
+		for (final Link link : links) {
+			final Displayable d = link.getTarget();
 			if (d.locked) d.locked = false;
 			d.unlockAllLinked(hs);
 		}
@@ -113,13 +111,13 @@ public abstract class Displayable extends DBObject {
 		if (locked) return true;
 		return isLocked(new HashSet());
 	}
-	private boolean isLocked(HashSet hs) {
+	private boolean isLocked(final HashSet hs) {
 		if (locked) return true;
 		else if (hs.contains(this)) return false;
 		hs.add(this);
-		if (null != hs_linked && hs_linked.size() > 0) {
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+		if (null != links && links.size() > 0) {
+			for (final Link link : links) {
+				Displayable d = (Displayable)link.getTarget();
 				if (d.isLocked(hs)) return true;
 			}
 		}
@@ -204,6 +202,7 @@ public abstract class Displayable extends DBObject {
 						Utils.log("ERROR at reading style: " + es);
 					}
 				} else if (key.equals("links")) {
+					// [Old style links, must support for backward compatibility]
 					// This is hard one, must be stored until all objects exist and then processed
 					if (null != data && data.length() > 0) ht_links.put(this, data);
 				} else if (key.equals("title")) {
@@ -429,28 +428,39 @@ public abstract class Displayable extends DBObject {
 	public Color getColor() { return color; }
 
 	/** Return the HashSet of directly linked Displayable objects. */
-	public HashSet getLinked() { return hs_linked; }
+	public Set<Displayable> getLinked() {
+		final Set<Displayable> linked = new HashSet<Displayable>();
+		if (null == links) return linked;
+		for (final Link link : links) {
+			linked.add(link.getTarget());
+		}
+		return linked;
+	}
 
 	/** Return those of Class c from among the directly linked. */
-	public HashSet getLinked(Class c) {
-		if (null == hs_linked) return null;
-		HashSet hs = new HashSet();
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if (ob.getClass().equals(c)) hs.add(ob);
+	public Set<Displayable> getLinked(final Class c) {
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
+		if (null == links) return hs;
+		for (final Link link : links) {
+			final Displayable d = link.getTarget();
+			if (d.getClass() == c) hs.add(d);
 		}
 		return hs;
 	}
 
+	/** Returns a copy of the links list (with the actual Link objects in it), or null if none. */
+	public Set<Link> getLinks() {
+		return null == links ? null : new HashSet<Link>(links);
+	}
+
 	/** Return the HashSet of all diretly and indirectly linked objects. */
-	public HashSet getLinkedGroup(HashSet hs) {
-		if (null == hs) hs = new HashSet();
+	public Set<Displayable> getLinkedGroup(Set<Displayable> hs) {
+		if (null == hs) hs = new HashSet<Displayable>();
 		else if (hs.contains(this)) return hs;
 		hs.add(this);
-		if (null != hs_linked && hs_linked.size() > 0) {
-			Iterator it = hs_linked.iterator();
-			while (it.hasNext()) {
-				((Displayable)it.next()).getLinkedGroup(hs);
+		if (null != links && links.size() > 0) {
+			for (final Link link : links) {
+				link.getTarget().getLinkedGroup(hs);
 			}
 		}
 		return hs;
@@ -615,96 +625,108 @@ public abstract class Displayable extends DBObject {
 		return false;
 	}
 
-	/** Link the given Displayable with this Displayable, and then tell the given Displayable to link this. Since the link is stored as Displayable objects in a HashSet, there'll never be repeated entries. */
-	public void link(Displayable d) {
-		link(d, true);
+	public Link[] link(final Displayable d, final boolean update_database) {
+		// Ignoring database
+		return link(d);
 	}
 
-	/** Link the given Displayable with this Displayable, and then tell the given Displayable to link this. Since the link is stored as Displayable objects in a HashSet, there'll never be repeated entries.*/
-	public void link(Displayable d, boolean update_database) { // the boolean is used by the loader when reconstructing links.
+	/** Bidirectional transformation link: link the given Displayable with this Displayable, and then tell the given Displayable to link this.
+	 *  Returns the two newly created links, if any. */
+	public Link[] link(final Displayable d) {
+		if (this == d) return null;
+		final Link[] ln = new Link[2];
+		ln[0] = this.setTransformationLink(d);
+		ln[1] = d.setTransformationLink(this);
+		return ln;
+	}
+
+	/** Unidirectional: whenever this Displayable is affine transformed, the given target Displayable will be too, but not the other way around.
+	 *  Returns the created TransformationLink. */
+	public Link setTransformationLink(final Displayable target) {
+		if (null == target) return null;
+		return setLink(new TransformationLink(this, target));
+	}
+
+	/** If the link already exists, replaces it with the given one, which may have different properties.
+	 *  Returns the newly added Link, if any. */
+	public Link setLink(final Link link) {
+		if (null == link) return null;
+		if (null == this.links) this.links = new HashSet<Link>();
+		// replace any existing link with identical origin and target Displayables:
+		else {
+			for (final Iterator<Link> it = links.iterator(); it.hasNext(); ) {
+				if (it.next().equals(link)) {
+					it.remove();
+				}
+			}
+		}
+
+		links.add(link);
+		return link;
+	}
+
+	/** Bidrectional: remove all transformation links held by this Displayable, and tell their targets to unlink this Displayable.
+	 *  Returns the set of all removed links. */
+	public Set<Link> unlink() {
+		if (null == this.links) return null;
+		for (Iterator<Link> it = links.iterator(); it.hasNext(); ) {
+			it.next().getTarget().unlink(this);
+			//it.remove(); // no need
+		}
+		final Set<Link> lns = links;
+		links = null;
+		return lns;
+	}
+
+	/** Bidrectional: remove the link with the given Displayable, and tell the given Displayable to remove the link with this. */
+	public void unlink(final Displayable d) {
 		if (this == d) return;
-		if (null == this.hs_linked) this.hs_linked = new HashSet();
-		// link the other to this
-		this.hs_linked.add(d);
-		// link this to the other
-		if (null == d.hs_linked) d.hs_linked = new HashSet();
-		d.hs_linked.add(this);
-		// update the database
-		if (update_database) project.getLoader().addCrossLink(project.getId(), this.id, d.id);
-	}
-
-	/** Remove all links held by this Displayable.*/
-	public void unlink() {
-		if (null == this.hs_linked) return;
-		Iterator it = hs_linked.iterator();
-		Displayable[] displ = new Displayable[hs_linked.size()];
-		int next = 0;
-		while (it.hasNext()) {
-			displ[next++] = (Displayable)it.next();
-		}
-		// all these redundancy because of the [typical] 'concurrent modification exception'
-		for (int i=0; i<next; i++) {
-			unlink(displ[i]);
-		}
-		this.hs_linked = null;
-	}
-
-	/** Remove the link with the given Displayable, and tell the given Displayable to remove the link with this. */
-	public void unlink(Displayable d) {
-		//Utils.log("Displayable.unlink(Displayable)");
-		if (this == d) {
-			return; // should not happen
-		}
-		if (null == this.hs_linked) return; // should not happen
+		if (null == this.links) return; // should not happen
 		// unlink the other from this, and this from the other
-		if (!( hs_linked.remove(d) && d.hs_linked.remove(this))) {
+		if (!(this.links.remove(new TransformationLink(this, d)) &&
+		      d.links.remove(new TransformationLink(d, this)))) {
 			// signal database inconsistency (should not happen)
-			Utils.log("Database inconsistency: two displayables had a non-reciprocal link. BEWARE of other errors.");
+			Utils.log("Database inconsistency: two displayables #" + this.id + ", #" + d.id + " + had a non-reciprocal link. BEWARE of other errors.");
 		}
-		// update the database in any case
-		project.getLoader().removeCrossLink(this.id, d.id);
 	}
 
 	/** Check if this object is directly linked to any other Displayable objects.*/
 	public boolean isLinked() {
-		if (null == hs_linked) return false;
-		return !hs_linked.isEmpty();
+		if (null == links) return false;
+		return !links.isEmpty();
 	}
 
 	/** Check if this object is directly linked to a Displayable object of the given Class. */
 	public boolean isLinked(final Class c) {
-		if (null == hs_linked) return false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if (c.isInstance(ob)) return true;
+		if (null == links) return false;
+		for (final Link link : links) {
+			if (c.isInstance(link)) return true;
 		}
 		return false;
 	}
 
 	/** Check if this object is directly linked to the given Displayable. */
 	public boolean isLinked(final Displayable d) {
-		if (null == hs_linked) return false;
-		return hs_linked.contains(d);
+		if (null == links) return false;
+		return links.contains(new TransformationLink(this, d));
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class (returns true) or to none (returns true as well).*/
-	public boolean isOnlyLinkedTo(Class c) {
-		if (null == hs_linked || hs_linked.isEmpty()) return true;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			//Utils.log2(this + " is linked to " + ob);
-			if (! ob.getClass().equals(c)) return false;
+	public boolean isOnlyLinkedTo(final Class c) {
+		if (null == links || links.isEmpty()) return true;
+		for (final Link link : links) {
+			if (link.getTarget().getClass() != c) return false;
 		}
 		return true;
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
-	public boolean isOnlyLinkedTo(Class c, Layer layer) {
-		if (null == hs_linked || hs_linked.isEmpty()) return true;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+	public boolean isOnlyLinkedTo(final Class c, final Layer layer) {
+		if (null == links|| links.isEmpty()) return true;
+		for (final Link link : links) {
 			// if the class is not the asked one, or the object is not in the same layer, return false!
-			if (!d.getClass().equals(c) || !d.layer.equals(this.layer)) return false;
+			final Displayable d = link.getTarget();
+			if (d.getClass() != c || d.layer != layer) return false;
 		}
 		return true;
 	}
@@ -719,17 +741,16 @@ public abstract class Displayable extends DBObject {
 
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
-		// catch all displayables of the current Layer
-		final ArrayList al = layer.getDisplayables(Patch.class);
-
 		// this bounding box:
 		final Polygon perimeter = getPerimeter(); //displaced by this object's position!
 		if (null == perimeter) return; // happens when a profile with zero points is deleted
 
+		// catch all displayables of the current Layer
+		final ArrayList<Displayable> patches = layer.getDisplayables(Patch.class);
+
 		// for each Patch, check if it underlays this profile's bounding box
-		Rectangle box = new Rectangle();
-		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
-			final Displayable displ = (Displayable)itd.next();
+		final Rectangle box = new Rectangle();
+		for (final Displayable displ : patches) {
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			if (perimeter.intersects(displ.getBoundingBox(box))) {
 				// Link the patch
@@ -737,22 +758,15 @@ public abstract class Displayable extends DBObject {
 			}
 		}
 	}
-	/** Unlink all Displayable objects of the given type linked by this. */
-	public void unlinkAll(Class c) {
-		if (!this.isLinked() || null == hs_linked) {
-			return;
-		}
+	/** Unlink all Displayable objects of the given type directly linked by this. */
+	public void unlinkAll(final Class c) {
+		if (!this.isLinked() || null == links) return;
 		// catch Displayables, or the iterators will go mad when deleting objects
-		int n = hs_linked.size();
-		Object[] dall = new Object[n];
-		int i = 0;
-		Iterator it = hs_linked.iterator();
-		while (it.hasNext()) {
-			dall[i++] = it.next();
-		}
-		for (i=0; i<n; i++) {
-			if (dall[i].getClass().equals(c)) {
-				unlink((Displayable)dall[i]);
+		final Link[] ln = new Link[links.size()];
+		links.toArray(ln);
+		for (int i=0; i<ln.length; i++) {
+			if (ln[i].getTarget().getClass() == c) {
+				unlink(ln[i].getTarget());
 			}
 		}
 	}
@@ -786,22 +800,20 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Returns the sum of bounding boxes of all linked Displayables. */
-	public Rectangle getLinkedBox(boolean same_layer) {
-		if (null == hs_linked || hs_linked.isEmpty()) return getBoundingBox();
-		Rectangle box = new Rectangle();
-		accumulateLinkedBox(same_layer, new HashSet(), box);
+	public Rectangle getLinkedBox(final boolean same_layer) {
+		if (null == links || !links.isEmpty()) return getBoundingBox();
+		final Rectangle box = new Rectangle();
+		accumulateLinkedBox(same_layer, new HashSet<Displayable>(), box);
 		return box;
 	}
 
 	/** Accumulates in the box. */
-	private void accumulateLinkedBox(boolean same_layer, HashSet hs_done, Rectangle box) {
+	private void accumulateLinkedBox(final boolean same_layer, final HashSet<Displayable> hs_done, final Rectangle box) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		box.add(getBoundingBox(null));
-		Iterator it = hs_linked.iterator();
-		while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
-			// add ZDisplayables regardless, for their 'layer' pointer is used to know which part of them must be painted.
+		for (final Link link : links) {
+			final Displayable d = link.getTarget();
 			if (same_layer && !(d instanceof ZDisplayable) && !d.layer.equals(this.layer)) continue;
 			d.accumulateLinkedBox(same_layer, hs_done, box);
 		}
@@ -906,10 +918,9 @@ public abstract class Displayable extends DBObject {
 
 	protected void processAdjustPropertiesDialog(final GenericDialog gd) {
 		// store old transforms for undo
-		HashSet hs = getLinkedGroup(new HashSet());
-		HashMap ht = new HashMap();
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		final Set<Displayable> hs = getLinkedGroup(new HashSet<Displayable>());
+		final HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
+		for (final Displayable d : hs) {
 			ht.put(d, d.getAffineTransformCopy());
 		}
 		layer.getParent().addUndoStep(ht);
@@ -1030,17 +1041,11 @@ public abstract class Displayable extends DBObject {
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		if (!hs.contains("t2_prop")) {
 			sb_header.append(indent).append("<!ELEMENT t2_prop EMPTY>\n")
-				 .append(indent).append(TAG_ATTR1).append("t2_prop name").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_prop key").append(TAG_ATTR2)
 			         .append(indent).append(TAG_ATTR1).append("t2_prop value").append(TAG_ATTR2)
 			;
 		}
-		if (!hs.contains("t2_link")) {
-			sb_header.append(indent).append("<!ELEMENT t2_link EMPTY>\n")
-				 .append(indent).append(TAG_ATTR1).append("t2_link class").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append("t2_link origin_id").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append("t2_link target_id").append(TAG_ATTR2)
-			;
-		}
+		Link.exportDTD(sb_header, hs, indent);
 	}
 
 	static protected String commonDTDChildren() {
@@ -1069,34 +1074,13 @@ public abstract class Displayable extends DBObject {
 		if (null != title && title.length() > 0) {
 			sb_body.append(in).append("title=\"").append(title.replaceAll("\"", "^#^")).append("\"\n"); // fix possible harm by '"' characters (backslash should be taken care of as well TODO)
 		}
-		sb_body.append(in).append("links=\"");
-		if (null != hs_linked && 0 != hs_linked.size()) {
-			/*
-			int ii = 0;
-			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				sb_body.append(((DBObject)ob).getId());
-				if (ii != len-1) sb_body.append(',');
-				ii++;
-			}
-			*/
-			// Sort the ids: so resaving the file saves an identical file (otherwise, ids are in different order).
-			final long[] ids = new long[hs_linked.size()];
-			int ii = 0;
-			for (final Object ob : hs_linked) ids[ii++] = ((DBObject)ob).getId();
-			Arrays.sort(ids);
-			for (int g=0; g<ids.length; g++) sb_body.append(ids[g]).append(',');
-			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
-		}
-		sb_body.append("\"\n");
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
 	synchronized protected void restXML(StringBuffer sb_body, String in, Object any) {
 		// Properties:
 		if (null != props && !props.isEmpty()) {
-			for (Map.Entry<String,String> e : props.entrySet()) {
+			for (final Map.Entry<String,String> e : props.entrySet()) {
 				String value = e.getValue();
 				if (-1 != value.indexOf('"')) {
 					Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a \" which is being replaced by '.");
@@ -1111,18 +1095,16 @@ public abstract class Displayable extends DBObject {
 		}
 		// Links:
 		if (null != links && 0 != links.size()) {
-			for (Link link : links) {
+			for (final Link link : links) {
 				sb_body.append(link.toXML(in));
 			}
 		}
 	}
 
-	// I'm sure it could be made more efficient, but I'm too tired!
-	public boolean hasLinkedGroupWithinLayer(Layer la) {
-		HashSet hs = getLinkedGroup(new HashSet());
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			if (!d.layer.equals(la)) return false;
+	// I'm sure it could be made more efficient
+	public boolean hasLinkedGroupWithinLayer(final Layer la) {
+		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
+			if (d.layer != la) return false;
 		}
 		return true;
 	}
@@ -1356,10 +1338,9 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Concatenate the given affine to this and all its linked objects. */
-	public void transform(final AffineTransform at) {
-		for (Iterator it = getLinkedGroup(new HashSet()).iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			d.at.concatenate(at);
+	public void transform(final AffineTransform affine) {
+		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
+			d.at.concatenate(affine);
 			d.updateInDatabase("transform");
 			d.updateBucket();
 			//Utils.log("applying transform to " + d);
@@ -1367,16 +1348,15 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** preConcatenate the given affine transform to this Displayable's affine. */
-	public void preTransform(final AffineTransform at, final boolean linked) {
+	public void preTransform(final AffineTransform affine, final boolean linked) {
 		if (linked) {
-			for (Iterator it = getLinkedGroup(null).iterator(); it.hasNext(); ) {
-				final Displayable d = (Displayable)it.next();
-				d.at.preConcatenate(at);
+			for (final Displayable d : getLinkedGroup(null)) {
+				d.at.preConcatenate(affine);
 				d.updateInDatabase("transform");
 				d.updateBucket();
 			}
 		} else {
-			this.at.preConcatenate(at);
+			this.at.preConcatenate(affine);
 			this.updateInDatabase("transform");
 			this.updateBucket();
 		}

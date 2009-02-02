@@ -30,6 +30,7 @@ import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
+import ini.trakem2.display.link.*;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
@@ -604,11 +605,12 @@ public final class Patch extends Displayable {
 
 	/** Returns true if this Patch holds direct links to at least one other image in a different layer. Doesn't check for total overlap. */
 	public boolean isStack() {
-		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		final Iterator it = hs_linked.iterator();
-		while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
-			if (d instanceof Patch && d.layer.getId() != this.layer.getId()) return true;
+		if (null == links || links.isEmpty()) return false;
+		for (final Link link : links) {
+			if (link instanceof SliceLink) {
+				Displayable d = link.getTarget();
+				if (d instanceof Patch && d.layer.getId() != this.layer.getId()) return true;
+			}
 		}
 		return false;
 	}
@@ -656,22 +658,19 @@ public final class Patch extends Displayable {
 	private void getStackPatches(HashMap<Double,Patch> ht) {
 		if (ht.containsKey(this)) return;
 		ht.put(new Double(layer.getZ()), this);
-		if (null != hs_linked && hs_linked.size() > 0) {
-			/*
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Displayable ob = (Displayable)it.next();
-				if (ob instanceof Patch && !ob.layer.equals(this.layer)) {
-					((Patch)ob).getStackPatches(ht);
+		if (null != links && links.size() > 0) {
+			// avoid stack overflow (with as little as 114 layers ... !!!)
+			final ArrayList<Displayable> asl= new ArrayList<Displayable>();
+			for (final Link link : links) {
+				if (link instanceof SliceLink) {
+					final Displayable d = link.getTarget();
+					if (d.getClass() == Patch.class && d.layer != this.layer) asl.add(d); // SliceLink should always be like that ... this is just paranoia
 				}
 			}
-			*/
-			// avoid stack overflow (with as little as 114 layers ... !!!)
-			Displayable[] d = new Displayable[hs_linked.size()];
-			hs_linked.toArray(d);
+			final Displayable[] d = new Displayable[asl.size()];
+			asl.toArray(d);
 			for (int i=0; i<d.length; i++) {
-				if (d[i] instanceof Patch && d[i].layer.equals(this.layer)) {
-					((Patch)d[i]).getStackPatches(ht);
-				}
+				((Patch)d[i]).getStackPatches(ht);
 			}
 		}
 	}
@@ -683,12 +682,11 @@ public final class Patch extends Displayable {
 		final ArrayList<Patch> list2 = new ArrayList<Patch>();
 		while (list1.size() > 0) {
 			list2.clear();
-			for (Patch p : list1) {
-				if (null != p.hs_linked) {
-					for (Iterator it = p.hs_linked.iterator(); it.hasNext(); ) {
-						Object ln = it.next();
-						if (ln instanceof Patch) {
-							Patch pa = (Patch)ln;
+			for (final Patch p : list1) {
+				if (null != p.links) {
+					for (final Link link : links) {
+						if (link instanceof SliceLink && link.getTarget().getClass() == Patch.class) {
+							final Patch pa = (Patch)link.getTarget();
 							if (!ht.containsValue(pa)) {
 								ht.put(pa.layer.getZ(), pa);
 								list2.add(pa);
@@ -844,9 +842,10 @@ public final class Patch extends Displayable {
 		}
 	}
 
+	/** Add a bidirectional TransformationLink between patches. */
 	static protected void crosslink(final ArrayList patches, final boolean overlapping_only) {
 		if (null == patches) return;
-		final ArrayList<Patch> al = new ArrayList<Patch>();
+		final HashSet<Patch> al = new HashSet<Patch>();
 		for (Object ob : patches) if (ob instanceof Patch) al.add((Patch)ob); // ... 
 		final int len = al.size();
 		if (len < 2) return;

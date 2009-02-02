@@ -20,7 +20,6 @@ import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
-import mpicbg.trakem2.align.Align.Param;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
 
@@ -43,6 +42,11 @@ import ini.trakem2.utils.Utils;
  */
 final public class AlignTask
 {
+	static protected boolean tilesAreInPlace = false;
+	static protected boolean largestGraphOnly = false;
+	static protected boolean hideDisconnectedTiles = false;
+	static protected boolean deleteDisconnectedTiles = false;
+	
 	final static public Bureaucrat alignSelectionTask ( final Selection selection )
 	{
 		Worker worker = new Worker("Aligning selected images", false, true) {
@@ -91,10 +95,10 @@ final public class AlignTask
 		if ( gd.wasCanceled() ) return;
 		
 		Align.paramOptimize.readFields( gd );
-		final boolean tilesAreInPlace = gd.getNextBoolean();
-		final boolean largestGraphOnly = gd.getNextBoolean();
-		final boolean hideDisconnectedTiles = gd.getNextBoolean();
-		final boolean deleteDisconnectedTiles = gd.getNextBoolean();
+		tilesAreInPlace = gd.getNextBoolean();
+		largestGraphOnly = gd.getNextBoolean();
+		hideDisconnectedTiles = gd.getNextBoolean();
+		deleteDisconnectedTiles = gd.getNextBoolean();
 		
 		final Align.ParamOptimize p = Align.paramOptimize.clone();
 		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
@@ -140,7 +144,17 @@ final public class AlignTask
 						t.getPatch().remove( false );
 		}
 		else
+		{
 			interestingTiles = tiles;
+			/** Virtually interconnect disconnected intersecting graphs */
+			if ( graphs.size() > 1 && tilesAreInPlace )
+			{
+				for ( AbstractAffineTile2D< ? >[] tilePair : tilePairs )
+					for ( Set< Tile< ? > > graph : graphs )
+						if ( graph.contains( tilePair[ 0 ] ) && !graph.contains( tilePair[ 1 ] ) )
+							tilePair[ 0 ].makeVirtualConnection( tilePair[ 1 ] );
+			}
+		}
 			
 		if ( Thread.currentThread().isInterrupted() ) return;
 		

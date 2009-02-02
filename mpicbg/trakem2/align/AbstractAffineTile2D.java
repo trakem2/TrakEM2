@@ -22,13 +22,17 @@ package mpicbg.trakem2.align;
 import ij.process.ByteProcessor;
 import ini.trakem2.display.Patch;
 
+import java.awt.Polygon;
+import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
-import java.util.ArrayList;
+import java.awt.geom.Area;
+import java.awt.geom.PathIterator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.NoninvertibleModelException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.TileConfiguration;
@@ -166,9 +170,64 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 		return target;
 	}
 	
-	final public boolean intersects( AbstractAffineTile2D< ? > t )
+	final public boolean intersects( final AbstractAffineTile2D< ? > t )
 	{
 		return patch.intersects( t.patch );
+	}
+	
+	
+	/**
+	 * Add a virtual {@linkplain PointMatch connection} between two
+	 * {@linkplain AbstractAffineTile2D Tiles}.  The
+	 * {@linkplain PointMatch connection} is placed in the center of the
+	 * intersection area of both tiles.
+	 * 
+	 * @param t
+	 */
+	final public void makeVirtualConnection( final AbstractAffineTile2D< ? > t )
+	{
+		final Area a = new Area( patch.getPerimeter() );
+		final Area b = new Area( t.patch.getPerimeter() );
+		a.intersect( b );
+		
+		final float[] fa = new float[ 2 ];
+		int i = 0;
+		
+		final float[] coords = new float[ 6 ];
+		
+		final PathIterator p = a.getPathIterator( null );
+		while ( !p.isDone() )
+		{
+			p.currentSegment( coords );
+			fa[ 0 ] += coords[ 0 ];
+			fa[ 1 ] += coords[ 1 ];
+			++i;
+			p.next();
+		}
+		
+		if ( i > 0 )
+		{
+			fa[ 0 ] /= i;
+			fa[ 1 ] /= i;
+			
+			final float[] fb = fa. clone();
+			try
+			{
+				model.applyInverseInPlace( fa );
+				t.model.applyInverseInPlace( fb );
+			}
+			catch ( NoninvertibleModelException e ) { return; }
+			
+			final Point pa = new Point( fa );
+			final Point pb = new Point( fb );
+			final PointMatch ma = new PointMatch( pa, pb, 0.1f );
+			final PointMatch mb = new PointMatch( pb, pa, 0.1f );
+			
+			addVirtualMatch( ma );
+			addConnectedTile( t );
+			t.addVirtualMatch( mb );
+			t.addConnectedTile( this );
+		}
 	}
 	
 	
@@ -226,17 +285,6 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 				if ( ta.intersects( tb ) )
 				{
 					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
-					/**
-					 * TODO
-					 *   Create virtual connections among overlapping
-					 *   tiles if required by the user.  These connections
-					 *   will be removed as soon as a model was found that
-					 *   connects a tile to another one sufficiently.
-					 * 
-					 * TODO
-					 *   Is this valid for two disconnected graphs of
-					 *   tiles?
-					 */
 				}
 			}
 		}		

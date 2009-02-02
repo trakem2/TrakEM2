@@ -1,6 +1,8 @@
 package ini.trakem2.display.link;
 import ini.trakem2.Project;
 import ini.trakem2.display.Displayable;
+import ini.trakem2.persistence.DBObject;
+import ini.trakem2.utils.Utils;
 
 /** Keeps the AffineTransform of two displayable objects linked: when one is modified, so is the other. */
 public class TransformationLink extends Link {
@@ -11,22 +13,24 @@ public class TransformationLink extends Link {
 
 	public TransformationLink() {}
 
-	public boolean init(final Project project, final String data) throws IllegalArgumentException {
-		final int ispace = data.indexOf(' ');
-		if (-1 == ispace || 0 == ispace || data.length() -1 == ispace) {
-			throw new IllegalArgumentException("Cannot reconstruct link from: " + data);
+	public boolean init(final Displayable origin, final String data) throws IllegalArgumentException {
+		if (null == origin) {
+			throw new IllegalArgumentException("Cannot create a link for a null origin!");
 		}
-		this.origin = (Displayable) project.getRootLayerSet().findById(Long.parseLong(data.substring(0, ispace)));
-		this.target = (Displayable) project.getRootLayerSet().findById(Long.parseLong(data.substring(ispace+1)));
-		if (null == origin || null == target) {
-			throw new IllegalArgumentException("Invalid Link: can't point to a null Displayable!\nProblematic data string was: " + data);
+		long target_id = -1;
+		try {
+			target_id = Long.parseLong(data);
+		} catch (NumberFormatException nfe) {
+			throw new IllegalArgumentException("Cannot reconstruct link for origin #" + origin.getId() + " with data: " + data + " -- data is not a number.");
 		}
+		this.origin = origin;
+		Utils.log2("origin layer: " + origin.getLayer());
+		Utils.log2("origin layerset: " + origin.getLayerSet());
+		final DBObject dbo = origin.getLayerSet().findById(target_id); // calls to getProject().findById() or getProject().getRootLayerSet().findById would fail, because the project's layer_set is not setup yet.
+		if (null == origin || !(dbo instanceof Displayable)) {
+			throw new IllegalArgumentException("Invalid Link: can't find target!\nProblematic origin #" + origin.getId() + " data string was: " + data);
+		}
+		this.target = (Displayable) dbo;
 		return true;
-	}
-
-	/** Returns an XML attribute content safe String representation of this link (that is, no ")
-	 *  which can then be passed to the init function to recreate it. */
-	public String asXML() {
-		return new StringBuffer().append(origin.getId()).append(' ').append(target.getId()).toString();
 	}
 }

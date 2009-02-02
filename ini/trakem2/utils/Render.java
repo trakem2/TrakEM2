@@ -153,7 +153,7 @@ public class Render {
 
 	/** Recursive; returns the last added profile. */
 	private Profile accumulate(final HashSet hs_done, final ArrayList al, final Profile step, int z_trend) {
-		final HashSet hs_linked = step.getLinked(Profile.class);
+		final Set hs_linked = step.getLinked(Profile.class);
 		if (al.size() > 1 && hs_linked.size() > 2) {
 			// base found
 			return step;
