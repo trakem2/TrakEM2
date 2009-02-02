@@ -175,6 +175,15 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 		return patch.intersects( t.patch );
 	}
 	
+	
+	/**
+	 * Add a virtual {@linkplain PointMatch connection} between two
+	 * {@linkplain AbstractAffineTile2D Tiles}.  The
+	 * {@linkplain PointMatch connection} is placed in the center of the
+	 * intersection area of both tiles.
+	 * 
+	 * @param t
+	 */
 	final public void makeVirtualConnection( final AbstractAffineTile2D< ? > t )
 	{
 		final Area a = new Area( patch.getPerimeter() );
