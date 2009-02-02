@@ -161,7 +161,7 @@ public class Align
 		}
 	}
 	
-	final static Param param = new Param();
+	final static public Param param = new Param();
 	
 	static public class ParamOptimize extends Param
 	{
@@ -248,7 +248,7 @@ public class Align
 		}
 	}
 	
-	final static ParamOptimize paramOptimize = new ParamOptimize();
+	final static public ParamOptimize paramOptimize = new ParamOptimize();
 	
 	final static private class Features implements Serializable
 	{
