@@ -22,8 +22,6 @@ package mpicbg.trakem2.align;
 import ij.process.ByteProcessor;
 import ini.trakem2.display.Patch;
 
-import java.awt.Polygon;
-import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.PathIterator;
@@ -232,8 +230,8 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 	
 	
 	/**
-	 * Pair all {@link List} of {@link AbstractAffineTile2D Tiles} for
-	 * overlapping pairs.  Adds the pairs into tilePairs.
+	 * Pair all {@link AbstractAffineTile2D Tiles} from a {@link List}.
+	 * Adds the pairs into tilePairs.
 	 * 
 	 * @param tiles
 	 * @param tilePairs
@@ -249,17 +247,6 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 				final AbstractAffineTile2D< ? > ta = tiles.get( a );
 				final AbstractAffineTile2D< ? > tb = tiles.get( b );
 				tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
-				/**
-				 * TODO
-				 *   Create virtual connections among overlapping
-				 *   tiles if required by the user.  These connections
-				 *   will be removed as soon as a model was found that
-				 *   connects a tile to another one sufficiently.
-				 * 
-				 * TODO
-				 *   Is this valid for two disconnected graphs of
-				 *   tiles?
-				 */
 			}
 		}		
 	}
@@ -283,9 +270,7 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 				final AbstractAffineTile2D< ? > ta = tiles.get( a );
 				final AbstractAffineTile2D< ? > tb = tiles.get( b );
 				if ( ta.intersects( tb ) )
-				{
 					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
-				}
 			}
 		}		
 	}
