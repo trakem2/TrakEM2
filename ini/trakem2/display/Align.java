@@ -143,13 +143,13 @@ public class Align {
 			return landmarks.size();
 		}
 		/** Returns all displayables under all landmarks and their linked ones. */
-		HashSet<Displayable> getDisplayables() {
-			HashSet<Displayable> hs = new HashSet<Displayable>();
+		HashSet getDisplayables() {
+			HashSet hs = new HashSet();
 			for (Point p : landmarks) {
 				for (Iterator itd = layer.find(p.x, p.y).iterator(); itd.hasNext(); ) {
 					Displayable d = (Displayable)itd.next();
 					if (hs.contains(d)) continue;
-					d.getLinkedGroup(hs);
+					hs = d.getLinkedGroup(hs);
 				}
 			}
 			return hs;

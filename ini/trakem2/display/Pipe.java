@@ -26,7 +26,6 @@ import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 
 import ini.trakem2.Project;
-import ini.trakem2.display.link.Link;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
@@ -1468,11 +1467,15 @@ public class Pipe extends ZDisplayable implements Line3D {
 		}
 		data.append("\"\n")
 		    .append(in).append("links=\"");
-		if (isLinked()) {
-			for (final Link link : links) {
-				data.append(link.getTarget().getId()).append(',');
+		if (null != hs_linked && 0 != hs_linked.size()) {
+			int ii = 0;
+			int len = hs_linked.size();
+			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+				Object ob = it.next();
+				data.append(((DBObject)ob).getId());
+				if (ii != len-1) data.append(",");
+				ii++;
 			}
-			data.setLength(data.length()-1); // remove last comma
 		}
 		data.append(indent).append("\"\n/>\n");
 	}

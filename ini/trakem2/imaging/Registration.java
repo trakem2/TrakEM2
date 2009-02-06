@@ -536,7 +536,7 @@ public class Registration {
 		hs_done.add(slice);
 		// iterate over all Patches directly linked to the given slice
 		// recursive version: has memory releasing problems.
-		final Set hs = slice.getLinked(Patch.class);
+		HashSet hs = slice.getLinked(Patch.class);
 		Utils.log2("@@@ size: " + hs.size());
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			if (worker.hasQuitted()) return;
