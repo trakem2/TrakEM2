@@ -1947,7 +1947,7 @@ abstract public class Loader {
 		Display.clearSelection(layer);
 
 		if (homogenize_contrast) {
-			setTaskName("homogenizing contrast");
+			setTaskName("Enhancing contrast");
 			// 0 - check that all images are of the same type
 			int tmp_type = pa[0].getType();
 			for (int e=1; e<pa.length; e++) {
@@ -4232,7 +4232,7 @@ abstract public class Loader {
 	/** Homogenize contrast layer-wise, for all given layers, in a multithreaded manner. */
 	public Bureaucrat homogenizeContrast(final Layer[] la, final Worker parent) {
 		if (null == la || 0 == la.length) return null;
-		Worker worker = new Worker("Homogenizing contrast") {
+		Worker worker = new Worker("Enhancing contrast") {
 			public void run() {
 				startedWorking();
 				final Worker wo = this;
@@ -4248,7 +4248,7 @@ abstract public class Loader {
 						if (wo.hasQuitted()) {
 							break;
 						}
-						setTaskName("Homogenize contrast, layer z=" + Utils.cutNumber(la[i].getZ(), 2) + " " + (i+1) + "/" + la.length);
+						setTaskName("Enhance contrast, layer z=" + Utils.cutNumber(la[i].getZ(), 2) + " " + (i+1) + "/" + la.length);
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
@@ -4276,10 +4276,10 @@ abstract public class Loader {
 	}
 
 	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final Worker parent) {
-		if (null == al || al.size() < 2) return null;
+		if (null == al || al.size() < 1) return null;
 		final Patch[] pa = new Patch[al.size()];
 		al.toArray(pa);
-		Worker worker = new Worker("Homogenizing contrast") {
+		Worker worker = new Worker("Enhance contrast") {
 			public void run() {
 				startedWorking();
 				try {
@@ -4359,11 +4359,19 @@ abstract public class Loader {
 				}
 			}
 
-			// USE internal ContrastEnhancer plugin with a virtual stack made of the middle 50% of images
-			final Patch[] p50 = new Patch[al_p.size()];
-			al_p.toArray(p50);
-			PatchStack ps = new PatchStack(p50, 1); // is an ImagePlus
-			final StackStatistics stats = new StackStatistics(ps);
+			final ImageStatistics stats;
+			PatchStack ps = null;
+
+			if (al_p.size() > 1) {
+				// USE internal ContrastEnhancer plugin with a virtual stack made of the middle 50% of images
+				final Patch[] p50 = new Patch[al_p.size()];
+				al_p.toArray(p50);
+				ps = new PatchStack(p50, 1); // is an ImagePlus
+				stats = new StackStatistics(ps);
+			} else {
+				stats = fetchImagePlus((Patch)al_p.get(0)).getStatistics();
+			}
+
 			final ContrastEnhancer ce = new ContrastEnhancer();
 			Field fnormalize = ContrastEnhancer.class.getDeclaredField("normalize");
 			fnormalize.setAccessible(true);
@@ -4376,7 +4384,7 @@ abstract public class Loader {
 				// Show the dialog
 				Method m = ContrastEnhancer.class.getDeclaredMethod("showDialog", new Class[]{ImagePlus.class});
 				m.setAccessible(true);
-				if (Boolean.FALSE == m.invoke(ce, new Object[]{ps})) {
+				if (Boolean.FALSE == m.invoke(ce, new Object[]{ null != ps ? ps : fetchImagePlus((Patch)al_p.get(0)) } )) {
 					Utils.log2("Canceled ContrastEnhancer dialog.");
 					return false;
 				}

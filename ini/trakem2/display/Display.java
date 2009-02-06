@@ -2131,11 +2131,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					}
 					popup.add(menu);
 					popup.addSeparator();
-
-
-					item = new JMenuItem("Homogenize contrast (selected images)"); item.addActionListener(this); adjust_menu.add(item);
-					if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
-
 				}
 			}
 		}
@@ -2149,8 +2144,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
 
-			item = new JMenuItem("Homogenize contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
-			item = new JMenuItem("Homogenize contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 			item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 			item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 			popup.add(adjust_menu);
@@ -3016,11 +3011,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					}
 					break;
 			}
-		} else if (command.equals("Homogenize contrast (selected images)...")) {
+		} else if (command.equals("Enhance contrast (selected images)...")) {
 			ArrayList al = selection.getSelected(Patch.class);
-			if (al.size() < 2) return;
 			getProject().getLoader().homogenizeContrast(al);
-		} else if (command.equals("Homogenize contrast layer-wise...")) {
+		} else if (command.equals("Enhance contrast layer-wise...")) {
 			// ask for range of layers
 			final GenericDialog gd = new GenericDialog("Choose range");
 			Utils.addLayerRangeChoices(Display.this.layer, gd);
