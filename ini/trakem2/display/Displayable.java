@@ -56,8 +56,6 @@ public abstract class Displayable extends DBObject {
 	/** The Displayable objects this one is linked to. Can be null. */
 	protected HashSet hs_linked = null;
 
-	protected HashSet<? extends Link> links = null;
-
 	protected Map<String,String> props = null;
 
 	protected Map<Displayable,Map<String,String>> linked_props = null;
@@ -85,14 +83,14 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Add a propertty that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
-	synchronized public false setLinkedProperty(final Displayable target, final String key, final String value) {
+	synchronized public boolean setLinkedProperty(final Displayable target, final String key, final String value) {
 		if (null == target || null == key || null == value) return false;
 		if (target.project != this.project) {
 			Utils.log("Cannot link to a Displayable from another project!");
 			return false;
 		}
 		if (null == linked_props) linked_props = new HashMap<Displayable,Map<String,String>>();
-		HashMap<String,String> p = linked_props.get(target);
+		Map<String,String> p = linked_props.get(target);
 		if (null == p) {
 			p = new HashMap<String,String>();
 			linked_props.put(target, p);
@@ -109,7 +107,7 @@ public abstract class Displayable extends DBObject {
 			return default_value;
 		}
 		if (null == linked_props) return default_value;
-		final HashMap<String,String> p = linked_props.get(target);
+		final Map<String,String> p = linked_props.get(target);
 		if (null == p) return default_value;
 		return p.get(key);
 	}
@@ -1139,12 +1137,6 @@ public abstract class Displayable extends DBObject {
 				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(value).append("\" />\n");
 			}
 		}
-		// Links:
-		if (null != links && 0 != links.size()) {
-			for (Link link : links) {
-				sb_body.append(link.toXML(in));
-			}
-		}
 	}
 
 	// I'm sure it could be made more efficient, but I'm too tired!
@@ -1397,11 +1389,11 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** preConcatenate the given affine transform to this Displayable's affine. */
-	public void preTransform(final AffineTransform at, final boolean linked) {
+	public void preTransform(final AffineTransform affine, final boolean linked) {
 		if (linked) {
 			for (Iterator it = getLinkedGroup(null).iterator(); it.hasNext(); ) {
 				final Displayable d = (Displayable)it.next();
-				d.at.preConcatenate(at);
+				d.at.preConcatenate(affine);
 				d.updateInDatabase("transform");
 				d.updateBucket();
 			}
