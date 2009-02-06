@@ -364,26 +364,21 @@ public class TMLHandler extends DefaultHandler {
 		if (orig_qualified_name.equals("t2_area_list")) {
 			last_area_list.__endReconstructing();
 			last_area_list = null;
-			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_patch")) {
 			last_patch = null;
-			last_displayable = null;
-		} else if (orig_qualified_name.equals("t2_link")) {
-			last_propertiestable = last_displayable; // the parent of the link, so now it can accept properties, if any
 		} else if (orig_qualified_name.equals("ict_transform")) {
 			last_ct_list = null;
-		} else if (orig_qualified_name.equals("t2_pipe")
-			 || orig_qualified_name.equals("t2_polyline")
-			 || orig_qualified_name.equals("t2_profile")
-			 || orig_qualified_name.equals("t2_layer_set"))
-		{
-			last_displayable = null;
-		} else if (orig_qualified_name.equals("t2_ball")) {
-			last_ball = null;
-			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_dissector")) {
 			last_dissector = null;
+		} else if (orig_qualified_name.equals("t2_ball")) {
+			last_ball = null;
+		}
+
+		if (orig_qualified_name.equals("t2_link")) {
+			last_propertiestable = last_displayable; // the parent of the link, so now it can accept properties, if any
+		} else {
 			last_displayable = null;
+			last_propertiestable = null;
 		}
 	}
 	public void characters(char[] c, int start, int length) {}
@@ -560,7 +555,6 @@ public class TMLHandler extends DefaultHandler {
 				ht_displayables.put(new Long(oid), dissector);
 				ht_zdispl.put(new Long(oid), dissector);
 				addToLastOpenLayerSet(dissector);
-				return null;
 			} else if (type.equals("layer")) {
 				// find last open LayerSet, if any
 				for (int i = al_layer_sets.size() -1; i>-1; i--) {

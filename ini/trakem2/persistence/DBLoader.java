@@ -1234,7 +1234,7 @@ public class DBLoader extends Loader {
 			Arrays.sort(si); // will it sort an array of integers correctly? Who knows!
 			for (int i=0; i<si.length; i++) {
 				//Utils.log("Loader layer.addSilently: adding " + (DBObject)hs_d.get(si[i]));
-				layer.addSilently((Displayable)hs_d.get(si[i]));
+				layer.addSilently((DBObject)hs_d.get(si[i]));
 			}
 
 
