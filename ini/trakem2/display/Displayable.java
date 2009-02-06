@@ -711,7 +711,7 @@ public abstract class Displayable extends DBObject {
 		return false;
 	}
 
-	/** Check if this object is directly linked to the given Displayable. */
+	/** Check if thisobject is directly linked to the given Displayable. */
 	public boolean isLinked(final Displayable d) {
 		if (null == hs_linked) return false;
 		return hs_linked.contains(d);
@@ -782,7 +782,7 @@ public abstract class Displayable extends DBObject {
 		}
 		for (i=0; i<n; i++) {
 			if (dall[i].getClass().equals(c)) {
-				unlink((Displayable)dall[i]);
+			unlink((Displayable)dall[i]);
 			}
 		}
 	}
@@ -855,7 +855,7 @@ public abstract class Displayable extends DBObject {
 	/** Does nothing unless overriden. Used for profile, pipe and ball points when preventing dragging beyond the screen, to snap to cursor when this reenters. */
 	public void snapTo(int cx, int cy, int x_p, int y_p) {}
 
-	/** Shows a dialog to adjust properties of this object; does not include the hashtable of properties. */
+	/** Shows a dialog to adjust properties of this object. */
 	public void adjustProperties() {
 		GenericDialog gd = makeAdjustPropertiesDialog();
 		gd.showDialog();
