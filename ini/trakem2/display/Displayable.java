@@ -54,8 +54,10 @@ public abstract class Displayable extends DBObject {
 	protected float alpha = 1.0f; // from 0 to 1 (0 is full transparency)
 	protected boolean visible = true;
 	protected Layer layer;
+	/** The Displayable objects this one is linked to. Can be null. */
+	protected HashSet hs_linked = null;
 
-	protected Set<Link> links = null;
+	protected HashSet<? extends Link> links = null;
 
 	protected Map<String,String> props = null;
 
@@ -142,13 +144,13 @@ public abstract class Displayable extends DBObject {
 		if (locked) return true;
 		return isLocked(new HashSet());
 	}
-	private boolean isLocked(final HashSet hs) {
+	private boolean isLocked(HashSet hs) {
 		if (locked) return true;
 		else if (hs.contains(this)) return false;
 		hs.add(this);
-		if (null != links && links.size() > 0) {
-			for (final Link link : links) {
-				Displayable d = (Displayable)link.getTarget();
+		if (null != hs_linked && hs_linked.size() > 0) {
+			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
 				if (d.isLocked(hs)) return true;
 			}
 		}
@@ -458,34 +460,28 @@ public abstract class Displayable extends DBObject {
 	public Color getColor() { return color; }
 
 	/** Return the HashSet of directly linked Displayable objects. */
-	public Set<Displayable> getLinked() {
-		final Set<Displayable> linked = new HashSet<Displayable>();
-		if (null == links) return linked;
-		for (final Link link : links) {
-			linked.add(link.getTarget());
-		}
-		return linked;
-	}
+	public HashSet getLinked() { return hs_linked; }
 
 	/** Return those of Class c from among the directly linked. */
-	public Set<Displayable> getLinked(final Class c) {
-		final HashSet<Displayable> hs = new HashSet<Displayable>();
-		if (null == links) return hs;
-		for (final Link link : links) {
-			final Displayable d = link.getTarget();
-			if (d.getClass() == c) hs.add(d);
+	public HashSet getLinked(Class c) {
+		if (null == hs_linked) return null;
+		HashSet hs = new HashSet();
+		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+			Object ob = it.next();
+			if (ob.getClass().equals(c)) hs.add(ob);
 		}
 		return hs;
 	}
 
 	/** Return the HashSet of all diretly and indirectly linked objects. */
-	public Set<Displayable> getLinkedGroup(Set<Displayable> hs) {
-		if (null == hs) hs = new HashSet<Displayable>();
+	public HashSet getLinkedGroup(HashSet hs) {
+		if (null == hs) hs = new HashSet();
 		else if (hs.contains(this)) return hs;
 		hs.add(this);
-		if (null != links && links.size() > 0) {
-			for (final Link link : links) {
-				link.getTarget().getLinkedGroup(hs);
+		if (null != hs_linked && hs_linked.size() > 0) {
+			Iterator it = hs_linked.iterator();
+			while (it.hasNext()) {
+				((Displayable)it.next()).getLinkedGroup(hs);
 			}
 		}
 		return hs;
@@ -650,102 +646,96 @@ public abstract class Displayable extends DBObject {
 		return false;
 	}
 
-	public Link[] link(final Displayable d, final boolean update_database) {
-		// Ignoring database
-		return link(d);
+	/** Link the given Displayable with this Displayable, and then tell the given Displayable to link this. Since the link is stored as Displayable objects in a HashSet, there'll never be repeated entries. */
+	public void link(Displayable d) {
+		link(d, true);
 	}
 
-	/** Bidirectional transformation link: link the given Displayable with this Displayable, and then tell the given Displayable to link this. */
-	public Link[] link(final Displayable d) {
-		if (this == d) return null;
-		if (null == this.links) this.links = new HashSet<Link>();
-		final Link[] ln = new Link[2];
-		ln[0] = this.setTransformationLink(d);
-		ln[1] = d.setTransformationLink(this);
-		return ln;
-	}
-
-	/** Unidirectional: whenever this Displayable is affine transformed, the given target Displayable will be too, but not the other way around.
-	 *  Returns the created TransformationLink. */
-	public Link setTransformationLink(final Displayable target) {
-		if (null == target) return null;
-		if (null == links) links = new HashSet<Link>();
-		final TransformationLink tl = new TransformationLink(this, target);
-		/*
-		if (links.contains(tl)) {
-			// should return the existing one ...
-			// ... but sets don't return the match, and the "contains" iterates anyway.
-		}
-		*/
-		for (final Link link : links) {
-			if (tl.equals(link)) return link;
-		}
-		links.add(tl); // I HATE JAVA
-		return tl;
-	}
-
-	/** Bidrectional: remove all transformation links held by this Displayable, and tell their targets to unlink this Displayable.
-	 *  Returns the set of all removed links. */
-	public Set<Link> unlink() {
-		if (null == this.links) return null;
-		for (Iterator<Link> it = links.iterator(); it.hasNext(); ) {
-			it.next().getTarget().unlink(this);
-			//it.remove(); // no need
-		}
-		final Set<Link> lns = links;
-		links = null;
-		return lns;
-	}
-
-	/** Bidrectional: remove the link with the given Displayable, and tell the given Displayable to remove the link with this. */
-	public void unlink(final Displayable d) {
+	/** Link the given Displayable with this Displayable, and then tell the given Displayable to link this. Since the link is stored as Displayable objects in a HashSet, there'll never be repeated entries.*/
+	public void link(Displayable d, boolean update_database) { // the boolean is used by the loader when reconstructing links.
 		if (this == d) return;
-		if (null == this.links) return; // should not happen
-		// unlink the other from this, and this from the other
-		if (!(this.links.remove(new TransformationLink(this, d)) &&
-		      d.links.remove(new TransformationLink(d, this)))) {
-			// signal database inconsistency (should not happen)
-			Utils.log("Database inconsistency: two displayables #" + this.id + ", #" + d.id + " + had a non-reciprocal link. BEWARE of other errors.");
+		if (null == this.hs_linked) this.hs_linked = new HashSet();
+		// link the other to this
+		this.hs_linked.add(d);
+		// link this to the other
+		if (null == d.hs_linked) d.hs_linked = new HashSet();
+		d.hs_linked.add(this);
+		// update the database
+		if (update_database) project.getLoader().addCrossLink(project.getId(), this.id, d.id);
+	}
+
+	/** Remove all links held by this Displayable.*/
+	public void unlink() {
+		if (null == this.hs_linked) return;
+		Iterator it = hs_linked.iterator();
+		Displayable[] displ = new Displayable[hs_linked.size()];
+		int next = 0;
+		while (it.hasNext()) {
+			displ[next++] = (Displayable)it.next();
 		}
+		// all these redundancy because of the [typical] 'concurrent modification exception'
+		for (int i=0; i<next; i++) {
+			unlink(displ[i]);
+		}
+		this.hs_linked = null;
+	}
+
+	/** Remove the link with the given Displayable, and tell the given Displayable to remove the link with this. */
+	public void unlink(Displayable d) {
+		//Utils.log("Displayable.unlink(Displayable)");
+		if (this == d) {
+			return; // should not happen
+		}
+		if (null == this.hs_linked) return; // should not happen
+		// unlink the other from this, and this from the other
+		if (!( hs_linked.remove(d) && d.hs_linked.remove(this))) {
+			// signal database inconsistency (should not happen)
+			Utils.log("Database inconsistency: two displayables had a non-reciprocal link. BEWARE of other errors.");
+		}
+		// update the database in any case
+		project.getLoader().removeCrossLink(this.id, d.id);
 	}
 
 	/** Check if this object is directly linked to any other Displayable objects.*/
 	public boolean isLinked() {
-		if (null == links) return false;
-		return !links.isEmpty();
+		if (null == hs_linked) return false;
+		return !hs_linked.isEmpty();
 	}
 
 	/** Check if this object is directly linked to a Displayable object of the given Class. */
 	public boolean isLinked(final Class c) {
-		if (null == links) return false;
-		for (final Link link : links) {
-			if (c.isInstance(link)) return true;
+		if (null == hs_linked) return false;
+		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+			Object ob = it.next();
+			if (c.isInstance(ob)) return true;
 		}
 		return false;
 	}
 
 	/** Check if this object is directly linked to the given Displayable. */
 	public boolean isLinked(final Displayable d) {
-		if (null == links) return false;
-		return links.contains(new TransformationLink(this, d));
+		if (null == hs_linked) return false;
+		return hs_linked.contains(d);
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class (returns true) or to none (returns true as well).*/
-	public boolean isOnlyLinkedTo(final Class c) {
-		if (null == links || links.isEmpty()) return true;
-		for (final Link link : links) {
-			if (link.getTarget().getClass() != c) return false;
+	public boolean isOnlyLinkedTo(Class c) {
+		if (null == hs_linked || hs_linked.isEmpty()) return true;
+		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+			Object ob = it.next();
+			//Utils.log2(this + " is linked to " + ob);
+			if (! ob.getClass().equals(c)) return false;
 		}
 		return true;
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
-	public boolean isOnlyLinkedTo(final Class c, final Layer layer) {
-		if (null == links|| links.isEmpty()) return true;
-		for (final Link link : links) {
+	public boolean isOnlyLinkedTo(Class c, Layer layer) {
+		if (null == hs_linked || hs_linked.isEmpty()) return true;
+		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
 			// if the class is not the asked one, or the object is not in the same layer, return false!
-			final Displayable d = link.getTarget();
-			if (d.getClass() != c || d.layer != layer) return false;
+			if (!d.getClass().equals(c) || !d.layer.equals(this.layer)) return false;
 		}
 		return true;
 	}
@@ -778,15 +768,22 @@ public abstract class Displayable extends DBObject {
 			}
 		}
 	}
-	/** Unlink all Displayable objects of the given type directly linked by this. */
-	public void unlinkAll(final Class c) {
-		if (!this.isLinked() || null == links) return;
+	/** Unlink all Displayable objects of the given type linked by this. */
+	public void unlinkAll(Class c) {
+		if (!this.isLinked() || null == hs_linked) {
+			return;
+		}
 		// catch Displayables, or the iterators will go mad when deleting objects
-		final Link[] ln = new Link[links.size()];
-		links.toArray(ln);
-		for (int i=0; i<ln.length; i++) {
-			if (ln[i].getTarget().getClass() == c) {
-				unlink(ln[i].getTarget());
+		int n = hs_linked.size();
+		Object[] dall = new Object[n];
+		int i = 0;
+		Iterator it = hs_linked.iterator();
+		while (it.hasNext()) {
+			dall[i++] = it.next();
+		}
+		for (i=0; i<n; i++) {
+			if (dall[i].getClass().equals(c)) {
+				unlink((Displayable)dall[i]);
 			}
 		}
 	}
@@ -820,20 +817,22 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Returns the sum of bounding boxes of all linked Displayables. */
-	public Rectangle getLinkedBox(final boolean same_layer) {
-		if (null == links || !links.isEmpty()) return getBoundingBox();
-		final Rectangle box = new Rectangle();
-		accumulateLinkedBox(same_layer, new HashSet<Displayable>(), box);
+	public Rectangle getLinkedBox(boolean same_layer) {
+		if (null == hs_linked || hs_linked.isEmpty()) return getBoundingBox();
+		Rectangle box = new Rectangle();
+		accumulateLinkedBox(same_layer, new HashSet(), box);
 		return box;
 	}
 
 	/** Accumulates in the box. */
-	private void accumulateLinkedBox(final boolean same_layer, final HashSet<Displayable> hs_done, final Rectangle box) {
+	private void accumulateLinkedBox(boolean same_layer, HashSet hs_done, Rectangle box) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		box.add(getBoundingBox(null));
-		for (final Link link : links) {
-			final Displayable d = link.getTarget();
+		Iterator it = hs_linked.iterator();
+		while (it.hasNext()) {
+			Displayable d = (Displayable)it.next();
+			// add ZDisplayables regardless, for their 'layer' pointer is used to know which part of them must be painted.
 			if (same_layer && !(d instanceof ZDisplayable) && !d.layer.equals(this.layer)) continue;
 			d.accumulateLinkedBox(same_layer, hs_done, box);
 		}
@@ -938,9 +937,10 @@ public abstract class Displayable extends DBObject {
 
 	protected void processAdjustPropertiesDialog(final GenericDialog gd) {
 		// store old transforms for undo
-		final Set<Displayable> hs = getLinkedGroup(new HashSet<Displayable>());
-		final HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
-		for (final Displayable d : hs) {
+		HashSet hs = getLinkedGroup(new HashSet());
+		HashMap ht = new HashMap();
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
 			ht.put(d, d.getAffineTransformCopy());
 		}
 		layer.getParent().addUndoStep(ht);
@@ -1100,6 +1100,27 @@ public abstract class Displayable extends DBObject {
 		if (null != title && title.length() > 0) {
 			sb_body.append(in).append("title=\"").append(title.replaceAll("\"", "^#^")).append("\"\n"); // fix possible harm by '"' characters (backslash should be taken care of as well TODO)
 		}
+		sb_body.append(in).append("links=\"");
+		if (null != hs_linked && 0 != hs_linked.size()) {
+			/*
+			int ii = 0;
+			int len = hs_linked.size();
+			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+				Object ob = it.next();
+				sb_body.append(((DBObject)ob).getId());
+				if (ii != len-1) sb_body.append(',');
+				ii++;
+			}
+			*/
+			// Sort the ids: so resaving the file saves an identical file (otherwise, ids are in different order).
+			final long[] ids = new long[hs_linked.size()];
+			int ii = 0;
+			for (final Object ob : hs_linked) ids[ii++] = ((DBObject)ob).getId();
+			Arrays.sort(ids);
+			for (int g=0; g<ids.length; g++) sb_body.append(ids[g]).append(',');
+			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
+		}
+		sb_body.append("\"\n");
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
