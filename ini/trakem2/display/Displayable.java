@@ -56,16 +56,31 @@ public abstract class Displayable extends DBObject {
 	/** The Displayable objects this one is linked to. Can be null. */
 	protected HashSet<Displayable> hs_linked = null;
 
+	/** The table of key/value property pairs of this Displayable. */
 	protected Map<String,String> props = null;
 
+	/** The table of tables of properties: for any target Displayable, there is a set of properties specific of the relationship between this Displayable and the target one. */
 	protected Map<Displayable,Map<String,String>> linked_props = null;
 
-	/** Retruns false if key/value pair NOT added, which happens when key is an invalid identifier (that is, does not start with a letter, and contains characters other than just letters, numbers and underscore. */
+	/** The call back hooks to remove any linked properties in other Displayable instances when this Displayable is removed. */
+	protected Set<Displayable> linked_props_origins = null;
+
+	/** Set a key/valye property pair; to remove a property, set the value to null. */
 	synchronized public boolean setProperty(final String key, final String value) {
-		if (null == key || null == value || !Utils.isValidIdentifier(key)) return false;
-		if (null == props) props = new HashMap<String,String>();
-		props.put(key, value);
+		if (null == key) return false;
+		if (null != props && null == value) {
+			props.remove(key);
+			if (props.isEmpty()) props = null;
+		} else {
+			if (null == props) props = new HashMap<String,String>();
+			props.put(key, value);
+		}
 		return true;
+	}
+
+	/** If key is null or not found, returns null; otherwise returns the stored value for key. */
+	public String getProperty(final String key) {
+		return getProperty(key, null);
 	}
 
 	/** If key is null or not found, returns default_value; otherwise returns the stored value for key. */
@@ -82,21 +97,94 @@ public abstract class Displayable extends DBObject {
 		return new HashMap(props);
 	}
 
-	/** Add a propertty that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
+	/** Add a property that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
 	synchronized public boolean setLinkedProperty(final Displayable target, final String key, final String value) {
-		if (null == target || null == key || null == value) return false;
+		if (null == target || null == key) return false;
 		if (target.project != this.project) {
 			Utils.log("Cannot link to a Displayable from another project!");
 			return false;
 		}
+		if (null != linked_props && null == value) {
+			// Remove the key and cleanup if necessary
+			Map<String,String> p = linked_props.get(target);
+			if (null != p) {
+				p.remove(key);
+				if (p.isEmpty()) {
+					linked_props.remove(target);
+					if (linked_props.isEmpty()) {
+						linked_props = null;
+					}
+				}
+			}
+		} else {
+			linkedProps(target).put(key, value);
+		}
+		return true;
+	}
+
+	/** Obtain the existing or a new, if null, map of linked properties with target. Also sets the remove callback hook to remove the map of linked properties when the target is removed. */
+	private final Map<String,String> linkedProps(final Displayable target) {
 		if (null == linked_props) linked_props = new HashMap<Displayable,Map<String,String>>();
 		Map<String,String> p = linked_props.get(target);
 		if (null == p) {
 			p = new HashMap<String,String>();
 			linked_props.put(target, p);
 		}
-		p.put(key, value);
-		return true;
+		// Add hook on the target side: (so when the target is deleted, it will call removeLinkedProperties here)
+		if (null == target.linked_props_origins) {
+			target.linked_props_origins = new HashSet<Displayable>();
+		}
+		target.linked_props_origins.add(this);
+		//
+		return p;
+	}
+
+	/** Add all the properties in map p as properties linked to the target Displayable. If any keys already existed their values will be overwritten by those in p. Any keys whose value is null will be removed. */
+	synchronized public void setLinkedProperties(final Displayable target, final Map<String,String> p) {
+		if (null == target || null == p) return;
+		if (target.project != this.project) {
+			Utils.log("Cannot link to a Displayable from another project!");
+			return;
+		}
+		final Map<String,String> lp = linkedProps(target);
+		for (final Map.Entry<String,String> e : p.entrySet()) {
+			final String value = e.getValue();
+			if (null == value) {
+				// Remove key from table
+				lp.remove(e.getKey());
+			} else {
+				lp.put(e.getKey(), value);
+			}
+		}
+		// clean up:
+		if (lp.isEmpty()) {
+			linked_props.remove(target);
+		}
+	}
+
+	/** Removes and returns the table of properties lined to the target Displayable. May be empty. */
+	synchronized public Map<String,String> removeLinkedProperties(final Displayable target) {
+		if (null == target || null == linked_props) return new HashMap<String,String>();
+		final Map<String,String> p = linked_props.remove(target);
+		if (linked_props.isEmpty()) {
+			linked_props = null;
+		}
+		if (null == p) return new HashMap<String,String>();
+		return p;
+	}
+
+	/** Tell any other Displayable that has a linked property with this Displayable to remove it. */
+	protected void removeLinkedPropertiesFromOrigins() {
+		if (null != this.linked_props_origins) {
+			for (final Displayable origin : linked_props_origins) {
+				origin.removeLinkedProperties(this);
+			}
+		}
+	}
+
+	/** If the key is null or not found, or the aren't any properties linked to the target, returns null; otherwise returns the stored value for key and target. */
+	public String getLinkedProperty(final Displayable target, final String key) {
+		return getLinkedProperty(target, key, null);
 	}
 
 	/** If the key is null or not found, or the aren't any properties linked to the target, returns default_value; otherwise returns the stored value for key and target. */
@@ -109,7 +197,27 @@ public abstract class Displayable extends DBObject {
 		if (null == linked_props) return default_value;
 		final Map<String,String> p = linked_props.get(target);
 		if (null == p) return default_value;
-		return p.get(key);
+		final String value = p.get(key);
+		if (null == value) return default_value;
+		return value;
+	}
+
+	/** Returns a copy of this object's linked properties table for the given Displayable, which may be empty. */
+	synchronized public Map<String,String> getLinkedProperties(final Displayable target) {
+		if (null == target || null == linked_props) return null;
+		final Map<String,String> m = linked_props.get(target);
+		if (null == m) return new HashMap<String,String>();
+		return new HashMap<String,String>(m);
+	}
+
+	/** Returns a copy of this object's linked properties, which may be empty. */
+	synchronized public Map<Displayable,Map<String,String>> getLinkedProperties() {
+		final Map<Displayable,Map<String,String>> lp = new HashMap<Displayable,Map<String,String>>();
+		if (null == linked_props) return lp;
+		for (final Map.Entry<Displayable,Map<String,String>> e : linked_props.entrySet()) {
+			lp.put(e.getKey(), new HashMap<String,String>(e.getValue()));
+		}
+		return lp;
 	}
 
 	////////////////////////////////////////////////////
@@ -472,6 +580,7 @@ public abstract class Displayable extends DBObject {
 		if (null == hs) hs = new HashSet<Displayable>();
 		else if (hs.contains(this)) return hs;
 		hs.add(this);
+		if (null == hs_linked) return hs;
 		for (final Displayable d : hs_linked) {
 			d.getLinkedGroup(hs);
 		}
@@ -628,6 +737,7 @@ public abstract class Displayable extends DBObject {
 	public boolean remove(final boolean check) {
 		if (super.remove(check) && layer.remove(this)) {
 			unlink();
+			removeLinkedPropertiesFromOrigins();
 			Search.remove(this);
 			Compare.remove(this);
 			Display.flush(this);
@@ -1042,22 +1152,22 @@ public abstract class Displayable extends DBObject {
 			         .append(indent).append(TAG_ATTR1).append("t2_prop value").append(TAG_ATTR2)
 			;
 		}
-		if (!hs.contains("t2_link")) {
-			sb_header.append(indent).append("<!ELEMENT t2_link EMPTY>\n")
-				 .append(indent).append(TAG_ATTR1).append("t2_link class").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append("t2_link origin_id").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append("t2_link target_id").append(TAG_ATTR2)
+		if (!hs.contains("t2_linked_prop")) {
+			sb_header.append(indent).append("<!ELEMENT t2_linked_prop EMPTY>\n")
+				 .append(indent).append(TAG_ATTR1).append("t2_linked_prop target_id").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_linked_prop key").append(TAG_ATTR2)
+			         .append(indent).append(TAG_ATTR1).append("t2_linked_prop value").append(TAG_ATTR2)
 			;
 		}
 	}
 
 	static protected String commonDTDChildren() {
-		return "t2_prop"; // never commas at beginning or end, only in between
+		return "t2_prop,t2_linked_prop"; // never commas at beginning or end, only in between
 					  // never returns empty
 	}
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
-	public void exportXML(StringBuffer sb_body, String in, Object any) {
+	public void exportXML(final StringBuffer sb_body, final String in, final Object any) {
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
@@ -1091,22 +1201,38 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
-	synchronized protected void restXML(StringBuffer sb_body, String in, Object any) {
+	synchronized protected void restXML(final StringBuffer sb_body, final String in, final Object any) {
 		// Properties:
 		if (null != props && !props.isEmpty()) {
-			for (Map.Entry<String,String> e : props.entrySet()) {
-				String value = e.getValue();
-				if (-1 != value.indexOf('"')) {
-					Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a \" which is being replaced by '.");
-					value = value.replace('"', '\'');
-				}
-				if (-1 != value.indexOf('\n')) {
-					Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a newline char which is being replaced by a space.");
-					value.replace('\n', ' ');
-				}
-				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(value).append("\" />\n");
+			for (final Map.Entry<String,String> e : props.entrySet()) {
+				final String value = e.getValue();
+				if (null == value) continue; // impossible, but with reflection one may set it so
+				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(cleanAttr(e, value)).append("\" />\n");
 			}
 		}
+		if (null != linked_props && !linked_props.isEmpty()) {
+			for (final Map.Entry<Displayable,Map<String,String>> et : linked_props.entrySet()) {
+				final Displayable target = et.getKey();
+				for (final Map.Entry<String,String> e : et.getValue().entrySet()) {
+					final String value = e.getValue();
+					if (null == value) continue; // impossible, but with reflection one may set it so
+					sb_body.append(in).append("<t2_linked_prop target_id=\"").append(target.id).append("\" key=\"").append(e.getKey()).append("\" value=\"").append(cleanAttr(e, value)).append("\" />\n");
+				}
+			}
+		}
+	}
+
+	// Make sure the value is valid for an XML attribute content inside double quotes.
+	final private String cleanAttr(final Map.Entry<String,String> e, String value) {
+		if (-1 != value.indexOf('"')) {
+			Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a \" which is being replaced by '.");
+			value = value.replace('"', '\'');
+		}
+		if (-1 != value.indexOf('\n')) {
+			Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a newline char which is being replaced by a space.");
+			value = value.replace('\n', ' ');
+		}
+		return value;
 	}
 
 	// I'm sure it could be made more efficient, but I'm too tired!

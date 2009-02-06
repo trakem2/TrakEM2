@@ -151,6 +151,19 @@ public class TMLHandler extends DefaultHandler {
 			}
 		}
 
+		// 1.2 - Reconstruct linked properties
+		for (final Map.Entry<Displayable,Map<Long,Map<String,String>>> lpe : all_linked_props.entrySet()) {
+			final Displayable origin = lpe.getKey();
+			for (final Map.Entry<Long,Map<String,String>> e : lpe.getValue().entrySet()) {
+				final Displayable target = (Displayable)ht_displayables.get(e.getKey());
+				if (null == target) {
+					Utils.log("Setting linked properties for origin " + origin.getId() + ":\n\t* Could not find target displayable #" + e.getKey());
+					continue;
+				}
+				origin.setLinkedProperties(target, e.getValue());
+			}
+		}
+
 		// 2 - Add Displayable objects to ProjectThing that can contain them
 		for (Iterator it = ht_oid_pt.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
@@ -391,6 +404,46 @@ public class TMLHandler extends DefaultHandler {
 		}
 	}
 
+	final private Map<Displayable,Map<Long,Map<String,String>>> all_linked_props = new HashMap<Displayable,Map<Long,Map<String,String>>>();
+
+	private void putLinkedProperty(final Displayable origin, final HashMap ht_attributes) {
+		final String stid = (String)ht_attributes.get("target_id");
+		if (null == stid) {
+			Utils.log2("Can't setLinkedProperty to null target id for origin Displayable " + origin.getId());
+			return;
+		}
+		Long target_id;
+		try {
+			target_id = Long.parseLong(stid);
+		} catch (NumberFormatException e) {
+			Utils.log2("Unparseable target_id: " + stid + ", for origin " + origin.getId());
+			return;
+		}
+		String key = (String)ht_attributes.get("key");
+		String value = (String)ht_attributes.get("value");
+		if (null == key || null == value) {
+			Utils.log("Skipping linked property for Displayable " + origin.getId() + ": null key or value");
+			return;
+		}
+		key = key.trim();
+		value = value.trim();
+		if (0 == key.length() || 0 == value.length()) {
+			Utils.log("Skipping linked property for Displayable " + origin.getId() + ": empty key or value");
+			return;
+		}
+		Map<Long,Map<String,String>> linked_props = all_linked_props.get(origin);
+		if (null == linked_props) {
+			linked_props = new HashMap<Long,Map<String,String>>();
+			all_linked_props.put(origin, linked_props);
+		}
+		Map<String,String> p = linked_props.get(target_id);
+		if (null == p) {
+			p = new HashMap<String,String>();
+			linked_props.put(target_id, p);
+		}
+		p.put(key, value);
+	}
+
 	private LayerThing makeLayerThing(String type, HashMap ht_attributes) {
 		try {
 			type = type.toLowerCase();
@@ -521,6 +574,11 @@ public class TMLHandler extends DefaultHandler {
 				// Add property to last created Displayable
 				if (null != last_displayable) {
 					last_displayable.setProperty((String)ht_attributes.get("key"), (String)ht_attributes.get("value"));
+				}
+			} else if (type.equals("linked_prop")) {
+				// Add linked property to last created Displayable. Has to wait until the Displayable ids have been resolved to instances.
+				if (null != last_displayable) {
+					putLinkedProperty(last_displayable, ht_attributes);
 				}
 			} else {
 				Utils.log2("TMLHandler Unknown type: " + type);

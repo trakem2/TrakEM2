@@ -574,6 +574,7 @@ public final class Patch extends Displayable {
 					return false;
 				}
 				p.unlink();
+				p.removeLinkedPropertiesFromOrigins();
 				//no need//it.remove();
 				al.add(p.layer);
 				if (p.layer.isEmpty()) Display.close(p.layer);
@@ -593,6 +594,7 @@ public final class Patch extends Displayable {
 		} else {
 			if (isOnlyLinkedTo(Patch.class, this.layer) && layer.remove(this) && removeFromDatabase()) { // don't alow to remove linked patches (unless only linked to other patches in the same layer)
 				unlink();
+				removeLinkedPropertiesFromOrigins();
 				Search.remove(this);
 				return true;
 			} else {
