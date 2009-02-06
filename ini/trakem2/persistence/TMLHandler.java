@@ -315,16 +315,34 @@ public class TMLHandler extends DefaultHandler {
 			}
 		}
 		// terminate non-single clause objects
-		last_ball = null;
 		if (orig_qualified_name.equals("t2_area_list")) {
 			last_area_list.__endReconstructing();
 			last_area_list = null;
+			last_displayable = null;
+		} else if (orig_qualified_name.equals("ict_transform_list")) {
+			last_ct_list = null;
+		} else if (orig_qualified_name.equals("t2_patch")) {
+			last_patch = null;
+			last_displayable = null;
+		} else if (orig_qualified_name.equals("t2_ball")) {
+			last_ball = null;
+		} else if (orig_qualified_name.equals("t2_dissector")) {
+			last_dissector = null;
+			last_displayable = null;
+		} else if (in(orig_qualified_name, all_displayables)) {
+			last_displayable = null;
 		}
-		last_dissector = null;
-		last_patch = null;
-		last_ct_list = null;
-		last_displayable = null;
 	}
+
+	static private final String[] all_displayables = new String[]{"t2_area_list", "t2_patch", "t2_pipe", "t2_polyline", "t2_ball", "t2_label", "t2_dissector", "t2_profile"};
+
+	private final boolean in(final String s, final String[] all) {
+		for (int i=all.length-1; i>-1; i--) {
+			if (s.equals(all[i])) return true;
+		}
+		return false;
+	}
+
 	public void characters(char[] c, int start, int length) {}
 
 	public void fatalError(SAXParseException e) {
