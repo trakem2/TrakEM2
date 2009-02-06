@@ -54,7 +54,7 @@ public abstract class Displayable extends DBObject {
 	protected boolean visible = true;
 	protected Layer layer;
 	/** The Displayable objects this one is linked to. Can be null. */
-	protected HashSet hs_linked = null;
+	protected HashSet<Displayable> hs_linked = null;
 
 	protected Map<String,String> props = null;
 
@@ -126,8 +126,7 @@ public abstract class Displayable extends DBObject {
 		if (hs.contains(this)) return;
 		hs.add(this);
 		if (null == hs_linked) return;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : hs_linked) {
 			if (d.locked) d.locked = false;
 			d.unlockAllLinked(hs);
 		}
@@ -146,8 +145,7 @@ public abstract class Displayable extends DBObject {
 		else if (hs.contains(this)) return false;
 		hs.add(this);
 		if (null != hs_linked && hs_linked.size() > 0) {
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+			for (final Displayable d : hs_linked) {
 				if (d.isLocked(hs)) return true;
 			}
 		}
@@ -457,29 +455,25 @@ public abstract class Displayable extends DBObject {
 	public Color getColor() { return color; }
 
 	/** Return the HashSet of directly linked Displayable objects. */
-	public HashSet getLinked() { return hs_linked; }
+	public HashSet<Displayable> getLinked() { return hs_linked; }
 
 	/** Return those of Class c from among the directly linked. */
-	public HashSet getLinked(Class c) {
+	public HashSet<Displayable> getLinked(final Class c) {
 		if (null == hs_linked) return null;
-		HashSet hs = new HashSet();
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if (ob.getClass().equals(c)) hs.add(ob);
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
+		for (final Displayable d : hs_linked) {
+			if (d.getClass() == c) hs.add(d);
 		}
 		return hs;
 	}
 
-	/** Return the HashSet of all diretly and indirectly linked objects. */
-	public HashSet getLinkedGroup(HashSet hs) {
-		if (null == hs) hs = new HashSet();
+	/** Return the HashSet of all directly and indirectly linked objects. */
+	public HashSet<Displayable> getLinkedGroup(HashSet<Displayable> hs) {
+		if (null == hs) hs = new HashSet<Displayable>();
 		else if (hs.contains(this)) return hs;
 		hs.add(this);
-		if (null != hs_linked && hs_linked.size() > 0) {
-			Iterator it = hs_linked.iterator();
-			while (it.hasNext()) {
-				((Displayable)it.next()).getLinkedGroup(hs);
-			}
+		for (final Displayable d : hs_linked) {
+			d.getLinkedGroup(hs);
 		}
 		return hs;
 	}
@@ -626,12 +620,12 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Remove also from the trees if present; does nothing more than remove(boolean) unless overriden. */
-	protected boolean remove2(boolean check) {
+	protected boolean remove2(final boolean check) {
 		return remove(check);
 	}
 
 	/** Remove from both the database and any Display that shows the Layer in which this Displayable is shown. */
-	public boolean remove(boolean check) {
+	public boolean remove(final boolean check) {
 		if (super.remove(check) && layer.remove(this)) {
 			unlink();
 			Search.remove(this);
@@ -644,14 +638,14 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Link the given Displayable with this Displayable, and then tell the given Displayable to link this. Since the link is stored as Displayable objects in a HashSet, there'll never be repeated entries. */
-	public void link(Displayable d) {
+	public void link(final Displayable d) {
 		link(d, true);
 	}
 
 	/** Link the given Displayable with this Displayable, and then tell the given Displayable to link this. Since the link is stored as Displayable objects in a HashSet, there'll never be repeated entries.*/
-	public void link(Displayable d, boolean update_database) { // the boolean is used by the loader when reconstructing links.
+	public void link(final Displayable d, final boolean update_database) { // the boolean is used by the loader when reconstructing links.
 		if (this == d) return;
-		if (null == this.hs_linked) this.hs_linked = new HashSet();
+		if (null == this.hs_linked) this.hs_linked = new HashSet<Displayable>();
 		// link the other to this
 		this.hs_linked.add(d);
 		// link this to the other
@@ -664,21 +658,18 @@ public abstract class Displayable extends DBObject {
 	/** Remove all links held by this Displayable.*/
 	public void unlink() {
 		if (null == this.hs_linked) return;
-		Iterator it = hs_linked.iterator();
-		Displayable[] displ = new Displayable[hs_linked.size()];
-		int next = 0;
-		while (it.hasNext()) {
-			displ[next++] = (Displayable)it.next();
-		}
+		final Displayable[] displ = new Displayable[hs_linked.size()];
+		hs_linked.toArray(displ);
+
 		// all these redundancy because of the [typical] 'concurrent modification exception'
-		for (int i=0; i<next; i++) {
+		for (int i=0; i<displ.length; i++) {
 			unlink(displ[i]);
 		}
 		this.hs_linked = null;
 	}
 
 	/** Remove the link with the given Displayable, and tell the given Displayable to remove the link with this. */
-	public void unlink(Displayable d) {
+	public void unlink(final Displayable d) {
 		//Utils.log("Displayable.unlink(Displayable)");
 		if (this == d) {
 			return; // should not happen
@@ -702,9 +693,8 @@ public abstract class Displayable extends DBObject {
 	/** Check if this object is directly linked to a Displayable object of the given Class. */
 	public boolean isLinked(final Class c) {
 		if (null == hs_linked) return false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if (c.isInstance(ob)) return true;
+		for (final Displayable d : hs_linked) {
+			if (c.isInstance(d)) return true;
 		}
 		return false;
 	}
@@ -716,23 +706,20 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class (returns true) or to none (returns true as well).*/
-	public boolean isOnlyLinkedTo(Class c) {
+	public boolean isOnlyLinkedTo(final Class c) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			//Utils.log2(this + " is linked to " + ob);
-			if (! ob.getClass().equals(c)) return false;
+		for (final Displayable d : hs_linked) {
+			if (d.getClass() != c) return false;
 		}
 		return true;
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
-	public boolean isOnlyLinkedTo(Class c, Layer layer) {
+	public boolean isOnlyLinkedTo(final Class c, final Layer layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : hs_linked) {
 			// if the class is not the asked one, or the object is not in the same layer, return false!
-			if (!d.getClass().equals(c) || !d.layer.equals(this.layer)) return false;
+			if (d.getClass() != c || d.layer != this.layer) return false;
 		}
 		return true;
 	}
@@ -766,21 +753,16 @@ public abstract class Displayable extends DBObject {
 		}
 	}
 	/** Unlink all Displayable objects of the given type linked by this. */
-	public void unlinkAll(Class c) {
+	public void unlinkAll(final Class c) {
 		if (!this.isLinked() || null == hs_linked) {
 			return;
 		}
 		// catch Displayables, or the iterators will go mad when deleting objects
-		int n = hs_linked.size();
-		Object[] dall = new Object[n];
-		int i = 0;
-		Iterator it = hs_linked.iterator();
-		while (it.hasNext()) {
-			dall[i++] = it.next();
-		}
-		for (i=0; i<n; i++) {
-			if (dall[i].getClass().equals(c)) {
-			unlink((Displayable)dall[i]);
+		final Displayable[] displ = new Displayable[hs_linked.size()];
+		hs_linked.toArray(displ);
+		for (int i=0; i<displ.length; i++) {
+			if (displ[i].getClass() == c) {
+				unlink(displ[i]);
 			}
 		}
 	}
@@ -814,23 +796,21 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Returns the sum of bounding boxes of all linked Displayables. */
-	public Rectangle getLinkedBox(boolean same_layer) {
+	public Rectangle getLinkedBox(final boolean same_layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return getBoundingBox();
-		Rectangle box = new Rectangle();
+		final Rectangle box = new Rectangle();
 		accumulateLinkedBox(same_layer, new HashSet(), box);
 		return box;
 	}
 
 	/** Accumulates in the box. */
-	private void accumulateLinkedBox(boolean same_layer, HashSet hs_done, Rectangle box) {
+	private void accumulateLinkedBox(final boolean same_layer, final HashSet hs_done, final Rectangle box) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		box.add(getBoundingBox(null));
-		Iterator it = hs_linked.iterator();
-		while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : hs_linked) {
 			// add ZDisplayables regardless, for their 'layer' pointer is used to know which part of them must be painted.
-			if (same_layer && !(d instanceof ZDisplayable) && !d.layer.equals(this.layer)) continue;
+			if (same_layer && !(d instanceof ZDisplayable) && d.layer != this.layer) continue;
 			d.accumulateLinkedBox(same_layer, hs_done, box);
 		}
 	}
@@ -1099,20 +1079,10 @@ public abstract class Displayable extends DBObject {
 		}
 		sb_body.append(in).append("links=\"");
 		if (null != hs_linked && 0 != hs_linked.size()) {
-			/*
-			int ii = 0;
-			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				sb_body.append(((DBObject)ob).getId());
-				if (ii != len-1) sb_body.append(',');
-				ii++;
-			}
-			*/
 			// Sort the ids: so resaving the file saves an identical file (otherwise, ids are in different order).
 			final long[] ids = new long[hs_linked.size()];
 			int ii = 0;
-			for (final Object ob : hs_linked) ids[ii++] = ((DBObject)ob).getId();
+			for (final Displayable d : hs_linked) ids[ii++] = d.id;
 			Arrays.sort(ids);
 			for (int g=0; g<ids.length; g++) sb_body.append(ids[g]).append(',');
 			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
