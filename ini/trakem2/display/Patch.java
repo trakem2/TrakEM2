@@ -25,40 +25,31 @@ package ini.trakem2.display;
 
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
-import ij.io.FileSaver;
 import ij.process.ByteProcessor;
-import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.link.*;
 import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
-import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.DirectColorModel;
-import java.awt.image.IndexColorModel;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.image.PixelGrabber;
-import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Set;
 import java.io.File;
 
-import mpicbg.models.PointMatch;
 import mpicbg.models.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.TransformMesh;
@@ -1040,6 +1031,28 @@ public final class Patch extends Displayable {
 
 		// Updating the mipmaps will call createTransformedImage below if ct is not null
 		/* DISABLED */ //updateMipmaps();
+	}
+	
+	/**
+	 * Append a {@link CoordinateTransform} to the current
+	 * {@link CoordinateTransformList}.  If there is no transform yet, it just
+	 * sets it.  If there is only one transform, it replaces it by a list
+	 * containing both.
+	 */
+	public final void appendCoordinateTransform(final CoordinateTransform ct) {
+		if (null == this.ct)
+			setCoordinateTransform(ct);
+		else {
+			final CoordinateTransformList ctl;
+			if (this.ct instanceof CoordinateTransformList)
+				ctl = (CoordinateTransformList)this.ct;
+			else {
+				ctl = new CoordinateTransformList();
+				ctl.add(this.ct);
+			}
+			ctl.add(ct);
+			setCoordinateTransform(ctl);
+		}
 	}
 
 	public final CoordinateTransform getCoordinateTransform() { return ct; }
