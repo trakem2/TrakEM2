@@ -1531,7 +1531,7 @@ public final class FSLoader extends Loader {
 
 			// Proper support for LUT images: treat them as RGB
 			if (ip.isColorLut()) {
-				ip.setMinAndMax(patch.getMin(), patch.getMax());
+				//ip.setMinAndMax(patch.getMin(), patch.getMax()); // Already done at Patch.createTransformedImage
 				ip = ip.convertToRGB();
 				cm = null;
 				type = ImagePlus.COLOR_RGB;
@@ -1541,7 +1541,7 @@ public final class FSLoader extends Loader {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				final ColorProcessor cp = (ColorProcessor)ip;
-				if (patch.getType() == ImagePlus.COLOR_RGB) cp.setMinAndMax(patch.getMin(), patch.getMax());
+				//if (patch.getType() == ImagePlus.COLOR_RGB) cp.setMinAndMax(patch.getMin(), patch.getMax()); // already done at Patch.createTransformedImage 
 				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
 				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
 				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
@@ -1613,7 +1613,7 @@ public final class FSLoader extends Loader {
 								pix[i] = 0xff000000 | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
 							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
-							if (patch.getType() == ImagePlus.COLOR_RGB) cp2.setMinAndMax(patch.getMin(), patch.getMax()); // can't use 'type', could be a color LUT image as well.
+							if (patch.getType() == ImagePlus.COLOR_RGB) cp2.setMinAndMax(patch.getMin(), patch.getMax()); // can't use 'type', could be a color LUT image as well. Must setMinAndMax because its a new ColorProcessor.
 							// 5 - Save as jpeg
 							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, target_dir + filename, 0.85f, false)) {
 								cannot_regenerate.add(patch);
@@ -1643,7 +1643,7 @@ public final class FSLoader extends Loader {
 
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
-					fp.setMinAndMax(patch.getMin(), patch.getMax());
+					//fp.setMinAndMax(patch.getMin(), patch.getMax()); // Already done at Patch.createTransformedImage
 					int sw=w, sh=h;
 
 					FloatProcessor alpha;
@@ -1680,7 +1680,7 @@ public final class FSLoader extends Loader {
 						// 2 - generate scaled image
 						if (0 != k) {
 							fp = (FloatProcessor)fp.resize(w, h);
-							fp.setMinAndMax(patch.getMin(), patch.getMax()); // the resize doesn't preserve the min and max!
+							fp.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done: the resize doesn't preserve the min and max!
 							if (null != alpha) {
 								alpha = (FloatProcessor)alpha.resize(w, h);
 								if (alpha != outside && null != outside) {
@@ -1713,7 +1713,7 @@ public final class FSLoader extends Loader {
 						} else {
 							// 3 - save as 8-bit jpeg
 							final ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
-							ip2.setMinAndMax(patch.getMin(), patch.getMax());
+							ip2.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done, it's a new ImageProcessor
 							if (null != cm) ip2.setColorModel(cm); // the LUT
 
 							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, target_dir + filename, 0.85f, as_grey)) {
