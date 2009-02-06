@@ -170,14 +170,12 @@ public final class Patch extends Displayable {
 	/** Fetches the ImagePlus from the cache; <b>be warned</b>: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache; use @getImageProcessor to get the pixels guaranteed not to be ever null. */
 	public ImagePlus getImagePlus() {
 		final ImagePlus imp = this.project.getLoader().fetchImagePlus(this);
-		imp.getProcessor().setMinAndMax(min, max);
 		return imp;
 	}
 
 	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I advise you to call this method everytime you need the processor. */
 	public ImageProcessor getImageProcessor() {
 		final ImageProcessor ip = this.project.getLoader().fetchImageProcessor(this);
-		ip.setMinAndMax(min, max);
 		return ip;
 	}
 
@@ -1071,7 +1069,6 @@ public final class Patch extends Displayable {
 		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 		
 		ImageProcessor target = mapping.createMappedImageInterpolated( source );
-		target.setMinAndMax(min, max);
 		
 		ByteProcessor outside = new ByteProcessor( source.getWidth(), source.getHeight() );
 		outside.setValue(255);
@@ -1093,7 +1090,7 @@ public final class Patch extends Displayable {
 		//Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
 		//Utils.log2("box: " + box);
 
-		return new PatchImage( target, mask, outside, box );
+		return new PatchImage( target, mask, outside, box, true );
 	}
 
 	public final class PatchImage {
@@ -1105,12 +1102,15 @@ public final class Patch extends Displayable {
 		final public ByteProcessor outside;
 		/** The bounding box of the image relative to the original, with x,y as the displacement relative to the pixels of the original image. */
 		final public Rectangle box;
+		/** Whether the image was generated with a CoordinateTransform or not. */
+		final public boolean coordinate_transformed;
 
-		private PatchImage( ImageProcessor target, ByteProcessor mask, ByteProcessor outside, Rectangle box ) {
+		private PatchImage( ImageProcessor target, ByteProcessor mask, ByteProcessor outside, Rectangle box, boolean coordinate_transformed ) {
 			this.target = target;
 			this.mask = mask;
 			this.outside = outside;
 			this.box = box;
+			this.coordinate_transformed = coordinate_transformed;
 		}
 	}
 
@@ -1118,8 +1118,9 @@ public final class Patch extends Displayable {
 	public Patch.PatchImage createTransformedImage() {
 		final Patch.PatchImage pi = createCoordinateTransformedImage();
 		if (null != pi) return pi;
-		// else, a new one with the untransformed, original image:
-		return new PatchImage(getImageProcessor(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height));
+		// else, a new one with the untransformed, original image (a duplicate):
+		project.getLoader().releaseToFit(o_width, o_height, type, 3);
+		return new PatchImage(getImageProcessor().duplicate(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
 	}
 
 	private boolean has_alpha = false;

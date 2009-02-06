@@ -2068,7 +2068,7 @@ abstract public class Loader {
 					Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
 					double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
 					p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-					p.putMinAndMax(fetchImagePlus(p));
+					// OBSOLETE and wrong //p.putMinAndMax(fetchImagePlus(p));
 				}
 
 				if (isMipMapsEnabled()) {
