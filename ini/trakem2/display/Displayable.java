@@ -60,6 +60,8 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 
 	protected Map<String,String> props = null;
 
+	protected Map<Displayable,Map<String,String>> linked_props = null;
+
 	/** Retruns false if key/value pair NOT added, which happens when key is an invalid identifier (that is, does not start with a letter, and contains characters other than just letters, numbers and underscore. */
 	synchronized public boolean setProperty(final String key, final String value) {
 		if (null == key || null == value || !Utils.isValidIdentifier(key)) return false;
@@ -80,6 +82,36 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 	synchronized public Map getProperties() {
 		if (null == props) return null;
 		return new HashMap(props);
+	}
+
+	/** Add a propertty that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
+	synchronized public false setLinkedProperty(final Displayable target, final String key, final String value) {
+		if (null == target || null == key || null == value) return false;
+		if (target.project != this.project) {
+			Utils.log("Cannot link to a Displayable from another project!");
+			return false;
+		}
+		if (null == linked_props) linked_props = new HashMap<Displayable,Map<String,String>>();
+		HashMap<String,String> p = linked_props.get(target);
+		if (null == p) {
+			p = new HashMap<String,String>();
+			linked_props.put(target, p);
+		}
+		p.put(key, value);
+		return true;
+	}
+
+	/** If the key is null or not found, or the aren't any properties linked to the target, returns default_value; otherwise returns the stored value for key and target. */
+	synchronized public String getLinkedProperty(final Displayable target, final String key, final String default_value) {
+		if (null == target || null == key) return default_value;
+		if (target.project != this.project) {
+			Utils.log("You attempted to get a property for a Displayable of another project, which is impossible.");
+			return default_value;
+		}
+		if (null == linked_props) return default_value;
+		final HashMap<String,String> p = linked_props.get(target);
+		if (null == p) return default_value;
+		return p.get(key);
 	}
 
 	////////////////////////////////////////////////////
