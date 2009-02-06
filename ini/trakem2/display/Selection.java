@@ -605,9 +605,10 @@ public class Selection {
 			if (!hs.contains(d)) {
 				hs.add(d);
 				// now, grab the linked group and add it as well to the hashtable
-				final Set<Displayable> hsl = d.getLinkedGroup(new HashSet());
+				HashSet hsl = d.getLinkedGroup(new HashSet());
 				if (null != hsl) {
-					for (final Displayable displ : hsl) {
+					for (Iterator it = hsl.iterator(); it.hasNext(); ) {
+						Displayable displ = (Displayable)it.next();
 						if (!hs.contains(displ)) hs.add(displ);
 					}
 				}
@@ -667,9 +668,10 @@ public class Selection {
 				if (hs.contains(d)) continue;
 				hs.add(d);
 				// now, grab the linked group and add it as well to the hashset
-				final Set<Displayable> hsl = d.getLinkedGroup(new HashSet());
+				HashSet hsl = d.getLinkedGroup(new HashSet());
 				if (null != hsl) {
-					for (final Displayable displ : hsl) {
+					for (Iterator hit = hsl.iterator(); hit.hasNext(); ) {
+						Displayable displ = (Displayable)hit.next();
 						if (!hs.contains(displ)) hs.add(displ);
 					}
 				}
@@ -808,13 +810,15 @@ public class Selection {
 				return;
 			}
 			// now, remove linked ones from the hs
-			final Set<Displayable> hs_to_remove = d.getLinkedGroup(new HashSet());
-			final Set<Displayable> hs_to_keep = new HashSet();
-			for (final Displayable displ : queue) {
-				displ.getLinkedGroup(hs_to_keep); //accumulates into the hashset
+			HashSet hs_to_remove = d.getLinkedGroup(new HashSet());
+			HashSet hs_to_keep = new HashSet();
+			for (Iterator it = queue.iterator(); it.hasNext(); ) {
+				Displayable displ = (Displayable)it.next();
+				hs_to_keep = displ.getLinkedGroup(hs_to_keep); //accumulates into the hashset
 			}
-			for (Iterator<Displayable> it = hs.iterator(); it.hasNext(); ) {
-				if (hs_to_keep.contains(it.next())) continue; // avoid linked ones still in queue or linked to those in queue
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				Object ob = it.next();
+				if (hs_to_keep.contains(ob)) continue; // avoid linked ones still in queue or linked to those in queue
 				it.remove();
 			}
 			// recompute box
@@ -1278,10 +1282,11 @@ public class Selection {
 			}
 			Utils.log2("updating selection");
 			hs.clear();
-			final Set<Displayable> hsl = new HashSet();
-			for (final Displayable d : queue) {
+			HashSet hsl = new HashSet();
+			for (Iterator it = queue.iterator(); it.hasNext(); ) {
+				Displayable d = (Displayable)it.next();
 				// collect all linked ones into the hs
-				d.getLinkedGroup(hsl);
+				hsl = d.getLinkedGroup(hsl);
 			}
 			if (0 == hsl.size()) {
 				active = null;

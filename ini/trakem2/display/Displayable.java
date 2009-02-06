@@ -36,12 +36,10 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
-import ini.trakem2.utils.PropertiesTable;
 import ini.trakem2.vector.Compare;
-import ini.trakem2.display.link.*;
 
 /** The class that any element to be drawn on a Display must extend. */
-public abstract class Displayable extends DBObject implements PropertiesTable {
+public abstract class Displayable extends DBObject {
 
 	final protected AffineTransform at = new AffineTransform();
 
@@ -55,17 +53,34 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 	protected float alpha = 1.0f; // from 0 to 1 (0 is full transparency)
 	protected boolean visible = true;
 	protected Layer layer;
+	/** The Displayable objects this one is linked to. Can be null. */
+	protected HashSet<Displayable> hs_linked = null;
 
-	protected Set<Link> links = null;
-
+	/** The table of key/value property pairs of this Displayable. */
 	protected Map<String,String> props = null;
 
-	/** Retruns false if key/value pair NOT added, which happens when key is an invalid identifier (that is, does not start with a letter, and contains characters other than just letters, numbers and underscore. */
+	/** The table of tables of properties: for any target Displayable, there is a set of properties specific of the relationship between this Displayable and the target one. */
+	protected Map<Displayable,Map<String,String>> linked_props = null;
+
+	/** The call back hooks to remove any linked properties in other Displayable instances when this Displayable is removed. */
+	protected Set<Displayable> linked_props_origins = null;
+
+	/** Set a key/valye property pair; to remove a property, set the value to null. */
 	synchronized public boolean setProperty(final String key, final String value) {
-		if (null == key || null == value || !Utils.isValidIdentifier(key)) return false;
-		if (null == props) props = new HashMap<String,String>();
-		props.put(key, value);
+		if (null == key) return false;
+		if (null != props && null == value) {
+			props.remove(key);
+			if (props.isEmpty()) props = null;
+		} else {
+			if (null == props) props = new HashMap<String,String>();
+			props.put(key, value);
+		}
 		return true;
+	}
+
+	/** If key is null or not found, returns null; otherwise returns the stored value for key. */
+	public String getProperty(final String key) {
+		return getProperty(key, null);
 	}
 
 	/** If key is null or not found, returns default_value; otherwise returns the stored value for key. */
@@ -82,6 +97,129 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 		return new HashMap(props);
 	}
 
+	/** Add a property that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
+	synchronized public boolean setLinkedProperty(final Displayable target, final String key, final String value) {
+		if (null == target || null == key) return false;
+		if (target.project != this.project) {
+			Utils.log("Cannot link to a Displayable from another project!");
+			return false;
+		}
+		if (null != linked_props && null == value) {
+			// Remove the key and cleanup if necessary
+			Map<String,String> p = linked_props.get(target);
+			if (null != p) {
+				p.remove(key);
+				if (p.isEmpty()) {
+					linked_props.remove(target);
+					if (linked_props.isEmpty()) {
+						linked_props = null;
+					}
+				}
+			}
+		} else {
+			linkedProps(target).put(key, value);
+		}
+		return true;
+	}
+
+	/** Obtain the existing or a new, if null, map of linked properties with target. Also sets the remove callback hook to remove the map of linked properties when the target is removed. */
+	private final Map<String,String> linkedProps(final Displayable target) {
+		if (null == linked_props) linked_props = new HashMap<Displayable,Map<String,String>>();
+		Map<String,String> p = linked_props.get(target);
+		if (null == p) {
+			p = new HashMap<String,String>();
+			linked_props.put(target, p);
+		}
+		// Add hook on the target side: (so when the target is deleted, it will call removeLinkedProperties here)
+		if (null == target.linked_props_origins) {
+			target.linked_props_origins = new HashSet<Displayable>();
+		}
+		target.linked_props_origins.add(this);
+		//
+		return p;
+	}
+
+	/** Add all the properties in map p as properties linked to the target Displayable. If any keys already existed their values will be overwritten by those in p. Any keys whose value is null will be removed. */
+	synchronized public void setLinkedProperties(final Displayable target, final Map<String,String> p) {
+		if (null == target || null == p) return;
+		if (target.project != this.project) {
+			Utils.log("Cannot link to a Displayable from another project!");
+			return;
+		}
+		final Map<String,String> lp = linkedProps(target);
+		for (final Map.Entry<String,String> e : p.entrySet()) {
+			final String value = e.getValue();
+			if (null == value) {
+				// Remove key from table
+				lp.remove(e.getKey());
+			} else {
+				lp.put(e.getKey(), value);
+			}
+		}
+		// clean up:
+		if (lp.isEmpty()) {
+			linked_props.remove(target);
+		}
+	}
+
+	/** Removes and returns the table of properties lined to the target Displayable. May be empty. */
+	synchronized public Map<String,String> removeLinkedProperties(final Displayable target) {
+		if (null == target || null == linked_props) return new HashMap<String,String>();
+		final Map<String,String> p = linked_props.remove(target);
+		if (linked_props.isEmpty()) {
+			linked_props = null;
+		}
+		if (null == p) return new HashMap<String,String>();
+		return p;
+	}
+
+	/** Tell any other Displayable that has a linked property with this Displayable to remove it. */
+	protected void removeLinkedPropertiesFromOrigins() {
+		if (null != this.linked_props_origins) {
+			for (final Displayable origin : linked_props_origins) {
+				origin.removeLinkedProperties(this);
+			}
+		}
+	}
+
+	/** If the key is null or not found, or the aren't any properties linked to the target, returns null; otherwise returns the stored value for key and target. */
+	public String getLinkedProperty(final Displayable target, final String key) {
+		return getLinkedProperty(target, key, null);
+	}
+
+	/** If the key is null or not found, or the aren't any properties linked to the target, returns default_value; otherwise returns the stored value for key and target. */
+	synchronized public String getLinkedProperty(final Displayable target, final String key, final String default_value) {
+		if (null == target || null == key) return default_value;
+		if (target.project != this.project) {
+			Utils.log("You attempted to get a property for a Displayable of another project, which is impossible.");
+			return default_value;
+		}
+		if (null == linked_props) return default_value;
+		final Map<String,String> p = linked_props.get(target);
+		if (null == p) return default_value;
+		final String value = p.get(key);
+		if (null == value) return default_value;
+		return value;
+	}
+
+	/** Returns a copy of this object's linked properties table for the given Displayable, which may be empty. */
+	synchronized public Map<String,String> getLinkedProperties(final Displayable target) {
+		if (null == target || null == linked_props) return null;
+		final Map<String,String> m = linked_props.get(target);
+		if (null == m) return new HashMap<String,String>();
+		return new HashMap<String,String>(m);
+	}
+
+	/** Returns a copy of this object's linked properties, which may be empty. */
+	synchronized public Map<Displayable,Map<String,String>> getLinkedProperties() {
+		final Map<Displayable,Map<String,String>> lp = new HashMap<Displayable,Map<String,String>>();
+		if (null == linked_props) return lp;
+		for (final Map.Entry<Displayable,Map<String,String>> e : linked_props.entrySet()) {
+			lp.put(e.getKey(), new HashMap<String,String>(e.getValue()));
+		}
+		return lp;
+	}
+
 	////////////////////////////////////////////////////
 	public void setLocked(boolean lock) {
 		if (lock) this.locked = lock;
@@ -92,12 +230,11 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 		}
 		updateInDatabase("locked");
 	}
-	private void unlockAllLinked(final HashSet hs) {
+	private void unlockAllLinked(HashSet hs) {
 		if (hs.contains(this)) return;
 		hs.add(this);
-		if (null == links) return;
-		for (final Link link : links) {
-			final Displayable d = link.getTarget();
+		if (null == hs_linked) return;
+		for (final Displayable d : hs_linked) {
 			if (d.locked) d.locked = false;
 			d.unlockAllLinked(hs);
 		}
@@ -111,13 +248,12 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 		if (locked) return true;
 		return isLocked(new HashSet());
 	}
-	private boolean isLocked(final HashSet hs) {
+	private boolean isLocked(HashSet hs) {
 		if (locked) return true;
 		else if (hs.contains(this)) return false;
 		hs.add(this);
-		if (null != links && links.size() > 0) {
-			for (final Link link : links) {
-				Displayable d = (Displayable)link.getTarget();
+		if (null != hs_linked && hs_linked.size() > 0) {
+			for (final Displayable d : hs_linked) {
 				if (d.isLocked(hs)) return true;
 			}
 		}
@@ -202,7 +338,6 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 						Utils.log("ERROR at reading style: " + es);
 					}
 				} else if (key.equals("links")) {
-					// [Old style links, must support for backward compatibility]
 					// This is hard one, must be stored until all objects exist and then processed
 					if (null != data && data.length() > 0) ht_links.put(this, data);
 				} else if (key.equals("title")) {
@@ -428,40 +563,26 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 	public Color getColor() { return color; }
 
 	/** Return the HashSet of directly linked Displayable objects. */
-	public Set<Displayable> getLinked() {
-		final Set<Displayable> linked = new HashSet<Displayable>();
-		if (null == links) return linked;
-		for (final Link link : links) {
-			linked.add(link.getTarget());
-		}
-		return linked;
-	}
+	public HashSet<Displayable> getLinked() { return hs_linked; }
 
 	/** Return those of Class c from among the directly linked. */
-	public Set<Displayable> getLinked(final Class c) {
+	public HashSet<Displayable> getLinked(final Class c) {
+		if (null == hs_linked) return null;
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
-		if (null == links) return hs;
-		for (final Link link : links) {
-			final Displayable d = link.getTarget();
+		for (final Displayable d : hs_linked) {
 			if (d.getClass() == c) hs.add(d);
 		}
 		return hs;
 	}
 
-	/** Returns a copy of the links list (with the actual Link objects in it), or null if none. */
-	public Set<Link> getLinks() {
-		return null == links ? null : new HashSet<Link>(links);
-	}
-
-	/** Return the HashSet of all diretly and indirectly linked objects. */
-	public Set<Displayable> getLinkedGroup(Set<Displayable> hs) {
+	/** Return the HashSet of all directly and indirectly linked objects. */
+	public HashSet<Displayable> getLinkedGroup(HashSet<Displayable> hs) {
 		if (null == hs) hs = new HashSet<Displayable>();
 		else if (hs.contains(this)) return hs;
 		hs.add(this);
-		if (null != links && links.size() > 0) {
-			for (final Link link : links) {
-				link.getTarget().getLinkedGroup(hs);
-			}
+		if (null == hs_linked) return hs;
+		for (final Displayable d : hs_linked) {
+			d.getLinkedGroup(hs);
 		}
 		return hs;
 	}
@@ -608,14 +729,15 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 	}
 
 	/** Remove also from the trees if present; does nothing more than remove(boolean) unless overriden. */
-	protected boolean remove2(boolean check) {
+	protected boolean remove2(final boolean check) {
 		return remove(check);
 	}
 
 	/** Remove from both the database and any Display that shows the Layer in which this Displayable is shown. */
-	public boolean remove(boolean check) {
+	public boolean remove(final boolean check) {
 		if (super.remove(check) && layer.remove(this)) {
 			unlink();
+			removeLinkedPropertiesFromOrigins();
 			Search.remove(this);
 			Compare.remove(this);
 			Display.flush(this);
@@ -625,108 +747,89 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 		return false;
 	}
 
-	public Link[] link(final Displayable d, final boolean update_database) {
-		// Ignoring database
-		return link(d);
+	/** Link the given Displayable with this Displayable, and then tell the given Displayable to link this. Since the link is stored as Displayable objects in a HashSet, there'll never be repeated entries. */
+	public void link(final Displayable d) {
+		link(d, true);
 	}
 
-	/** Bidirectional transformation link: link the given Displayable with this Displayable, and then tell the given Displayable to link this.
-	 *  Returns the two newly created links, if any. */
-	public Link[] link(final Displayable d) {
-		if (this == d) return null;
-		final Link[] ln = new Link[2];
-		ln[0] = this.setTransformationLink(d);
-		ln[1] = d.setTransformationLink(this);
-		return ln;
-	}
-
-	/** Unidirectional: whenever this Displayable is affine transformed, the given target Displayable will be too, but not the other way around.
-	 *  Returns the created TransformationLink. */
-	public Link setTransformationLink(final Displayable target) {
-		if (null == target) return null;
-		return setLink(new TransformationLink(this, target));
-	}
-
-	/** If the link already exists, replaces it with the given one, which may have different properties.
-	 *  Returns the newly added Link, if any. */
-	public Link setLink(final Link link) {
-		if (null == link) return null;
-		if (null == this.links) this.links = new HashSet<Link>();
-		// replace any existing link with identical origin and target Displayables:
-		else {
-			for (final Iterator<Link> it = links.iterator(); it.hasNext(); ) {
-				if (it.next().equals(link)) {
-					it.remove();
-				}
-			}
-		}
-
-		links.add(link);
-		return link;
-	}
-
-	/** Bidrectional: remove all transformation links held by this Displayable, and tell their targets to unlink this Displayable.
-	 *  Returns the set of all removed links. */
-	public Set<Link> unlink() {
-		if (null == this.links) return null;
-		for (Iterator<Link> it = links.iterator(); it.hasNext(); ) {
-			it.next().getTarget().unlink(this);
-			//it.remove(); // no need
-		}
-		final Set<Link> lns = links;
-		links = null;
-		return lns;
-	}
-
-	/** Bidrectional: remove the link with the given Displayable, and tell the given Displayable to remove the link with this. */
-	public void unlink(final Displayable d) {
+	/** Link the given Displayable with this Displayable, and then tell the given Displayable to link this. Since the link is stored as Displayable objects in a HashSet, there'll never be repeated entries.*/
+	public void link(final Displayable d, final boolean update_database) { // the boolean is used by the loader when reconstructing links.
 		if (this == d) return;
-		if (null == this.links) return; // should not happen
-		// unlink the other from this, and this from the other
-		if (!(this.links.remove(new TransformationLink(this, d)) &&
-		      d.links.remove(new TransformationLink(d, this)))) {
-			// signal database inconsistency (should not happen)
-			Utils.log("Database inconsistency: two displayables #" + this.id + ", #" + d.id + " + had a non-reciprocal link. BEWARE of other errors.");
+		if (null == this.hs_linked) this.hs_linked = new HashSet<Displayable>();
+		// link the other to this
+		this.hs_linked.add(d);
+		// link this to the other
+		if (null == d.hs_linked) d.hs_linked = new HashSet();
+		d.hs_linked.add(this);
+		// update the database
+		if (update_database) project.getLoader().addCrossLink(project.getId(), this.id, d.id);
+	}
+
+	/** Remove all links held by this Displayable.*/
+	public void unlink() {
+		if (null == this.hs_linked) return;
+		final Displayable[] displ = new Displayable[hs_linked.size()];
+		hs_linked.toArray(displ);
+
+		// all these redundancy because of the [typical] 'concurrent modification exception'
+		for (int i=0; i<displ.length; i++) {
+			unlink(displ[i]);
 		}
+		this.hs_linked = null;
+	}
+
+	/** Remove the link with the given Displayable, and tell the given Displayable to remove the link with this. */
+	public void unlink(final Displayable d) {
+		//Utils.log("Displayable.unlink(Displayable)");
+		if (this == d) {
+			return; // should not happen
+		}
+		if (null == this.hs_linked) return; // should not happen
+		// unlink the other from this, and this from the other
+		if (!( hs_linked.remove(d) && d.hs_linked.remove(this))) {
+			// signal database inconsistency (should not happen)
+			Utils.log("Database inconsistency: two displayables had a non-reciprocal link. BEWARE of other errors.");
+		}
+		// update the database in any case
+		project.getLoader().removeCrossLink(this.id, d.id);
 	}
 
 	/** Check if this object is directly linked to any other Displayable objects.*/
 	public boolean isLinked() {
-		if (null == links) return false;
-		return !links.isEmpty();
+		if (null == hs_linked) return false;
+		return !hs_linked.isEmpty();
 	}
 
 	/** Check if this object is directly linked to a Displayable object of the given Class. */
 	public boolean isLinked(final Class c) {
-		if (null == links) return false;
-		for (final Link link : links) {
-			if (c.isInstance(link)) return true;
+		if (null == hs_linked) return false;
+		for (final Displayable d : hs_linked) {
+			if (c.isInstance(d)) return true;
 		}
 		return false;
 	}
 
-	/** Check if this object is directly linked to the given Displayable. */
+	/** Check if thisobject is directly linked to the given Displayable. */
 	public boolean isLinked(final Displayable d) {
-		if (null == links) return false;
-		return links.contains(new TransformationLink(this, d));
+		if (null == hs_linked) return false;
+		return hs_linked.contains(d);
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class (returns true) or to none (returns true as well).*/
 	public boolean isOnlyLinkedTo(final Class c) {
-		if (null == links || links.isEmpty()) return true;
-		for (final Link link : links) {
-			if (link.getTarget().getClass() != c) return false;
+		if (null == hs_linked || hs_linked.isEmpty()) return true;
+		for (final Displayable d : hs_linked) {
+			if (d.getClass() != c) return false;
 		}
 		return true;
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
 	public boolean isOnlyLinkedTo(final Class c, final Layer layer) {
-		if (null == links|| links.isEmpty()) return true;
-		for (final Link link : links) {
+		if (null == hs_linked || hs_linked.isEmpty()) return true;
+		for (final Displayable d : hs_linked) {
 			// if the class is not the asked one, or the object is not in the same layer, return false!
-			final Displayable d = link.getTarget();
-			if (d.getClass() != c || d.layer != layer) return false;
+			if (d.getClass() != c || d.layer != this.layer) return false;
 		}
 		return true;
 	}
@@ -741,16 +844,17 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
+		// catch all displayables of the current Layer
+		final ArrayList al = layer.getDisplayables(Patch.class);
+
 		// this bounding box:
 		final Polygon perimeter = getPerimeter(); //displaced by this object's position!
 		if (null == perimeter) return; // happens when a profile with zero points is deleted
 
-		// catch all displayables of the current Layer
-		final ArrayList<Displayable> patches = layer.getDisplayables(Patch.class);
-
 		// for each Patch, check if it underlays this profile's bounding box
-		final Rectangle box = new Rectangle();
-		for (final Displayable displ : patches) {
+		Rectangle box = new Rectangle();
+		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
+			final Displayable displ = (Displayable)itd.next();
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			if (perimeter.intersects(displ.getBoundingBox(box))) {
 				// Link the patch
@@ -758,15 +862,17 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 			}
 		}
 	}
-	/** Unlink all Displayable objects of the given type directly linked by this. */
+	/** Unlink all Displayable objects of the given type linked by this. */
 	public void unlinkAll(final Class c) {
-		if (!this.isLinked() || null == links) return;
+		if (!this.isLinked() || null == hs_linked) {
+			return;
+		}
 		// catch Displayables, or the iterators will go mad when deleting objects
-		final Link[] ln = new Link[links.size()];
-		links.toArray(ln);
-		for (int i=0; i<ln.length; i++) {
-			if (ln[i].getTarget().getClass() == c) {
-				unlink(ln[i].getTarget());
+		final Displayable[] displ = new Displayable[hs_linked.size()];
+		hs_linked.toArray(displ);
+		for (int i=0; i<displ.length; i++) {
+			if (displ[i].getClass() == c) {
+				unlink(displ[i]);
 			}
 		}
 	}
@@ -801,20 +907,20 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 
 	/** Returns the sum of bounding boxes of all linked Displayables. */
 	public Rectangle getLinkedBox(final boolean same_layer) {
-		if (null == links || !links.isEmpty()) return getBoundingBox();
+		if (null == hs_linked || hs_linked.isEmpty()) return getBoundingBox();
 		final Rectangle box = new Rectangle();
-		accumulateLinkedBox(same_layer, new HashSet<Displayable>(), box);
+		accumulateLinkedBox(same_layer, new HashSet(), box);
 		return box;
 	}
 
 	/** Accumulates in the box. */
-	private void accumulateLinkedBox(final boolean same_layer, final HashSet<Displayable> hs_done, final Rectangle box) {
+	private void accumulateLinkedBox(final boolean same_layer, final HashSet hs_done, final Rectangle box) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		box.add(getBoundingBox(null));
-		for (final Link link : links) {
-			final Displayable d = link.getTarget();
-			if (same_layer && !(d instanceof ZDisplayable) && !d.layer.equals(this.layer)) continue;
+		for (final Displayable d : hs_linked) {
+			// add ZDisplayables regardless, for their 'layer' pointer is used to know which part of them must be painted.
+			if (same_layer && !(d instanceof ZDisplayable) && d.layer != this.layer) continue;
 			d.accumulateLinkedBox(same_layer, hs_done, box);
 		}
 	}
@@ -837,7 +943,7 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 	/** Does nothing unless overriden. Used for profile, pipe and ball points when preventing dragging beyond the screen, to snap to cursor when this reenters. */
 	public void snapTo(int cx, int cy, int x_p, int y_p) {}
 
-	/** Shows a dialog to adjust properties of this object; does not include the hashtable of properties. */
+	/** Shows a dialog to adjust properties of this object. */
 	public void adjustProperties() {
 		GenericDialog gd = makeAdjustPropertiesDialog();
 		gd.showDialog();
@@ -918,9 +1024,10 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 
 	protected void processAdjustPropertiesDialog(final GenericDialog gd) {
 		// store old transforms for undo
-		final Set<Displayable> hs = getLinkedGroup(new HashSet<Displayable>());
-		final HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
-		for (final Displayable d : hs) {
+		HashSet hs = getLinkedGroup(new HashSet());
+		HashMap ht = new HashMap();
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
 			ht.put(d, d.getAffineTransformCopy());
 		}
 		layer.getParent().addUndoStep(ht);
@@ -1045,16 +1152,22 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 			         .append(indent).append(TAG_ATTR1).append("t2_prop value").append(TAG_ATTR2)
 			;
 		}
-		Link.exportDTD(sb_header, hs, indent);
+		if (!hs.contains("t2_linked_prop")) {
+			sb_header.append(indent).append("<!ELEMENT t2_linked_prop EMPTY>\n")
+				 .append(indent).append(TAG_ATTR1).append("t2_linked_prop target_id").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_linked_prop key").append(TAG_ATTR2)
+			         .append(indent).append(TAG_ATTR1).append("t2_linked_prop value").append(TAG_ATTR2)
+			;
+		}
 	}
 
 	static protected String commonDTDChildren() {
-		return "t2_prop,t2_link"; // never commas at beginning or end, only in between
+		return "t2_prop,t2_linked_prop"; // never commas at beginning or end, only in between
 					  // never returns empty
 	}
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
-	public void exportXML(StringBuffer sb_body, String in, Object any) {
+	public void exportXML(final StringBuffer sb_body, final String in, final Object any) {
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
@@ -1074,37 +1187,60 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 		if (null != title && title.length() > 0) {
 			sb_body.append(in).append("title=\"").append(title.replaceAll("\"", "^#^")).append("\"\n"); // fix possible harm by '"' characters (backslash should be taken care of as well TODO)
 		}
+		sb_body.append(in).append("links=\"");
+		if (null != hs_linked && 0 != hs_linked.size()) {
+			// Sort the ids: so resaving the file saves an identical file (otherwise, ids are in different order).
+			final long[] ids = new long[hs_linked.size()];
+			int ii = 0;
+			for (final Displayable d : hs_linked) ids[ii++] = d.id;
+			Arrays.sort(ids);
+			for (int g=0; g<ids.length; g++) sb_body.append(ids[g]).append(',');
+			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
+		}
+		sb_body.append("\"\n");
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
-	synchronized protected void restXML(StringBuffer sb_body, String in, Object any) {
+	synchronized protected void restXML(final StringBuffer sb_body, final String in, final Object any) {
 		// Properties:
 		if (null != props && !props.isEmpty()) {
 			for (final Map.Entry<String,String> e : props.entrySet()) {
-				String value = e.getValue();
-				if (-1 != value.indexOf('"')) {
-					Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a \" which is being replaced by '.");
-					value = value.replace('"', '\'');
-				}
-				if (-1 != value.indexOf('\n')) {
-					Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a newline char which is being replaced by a space.");
-					value.replace('\n', ' ');
-				}
-				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(value).append("\" />\n");
+				final String value = e.getValue();
+				if (null == value) continue; // impossible, but with reflection one may set it so
+				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(cleanAttr(e, value)).append("\" />\n");
 			}
 		}
-		// Links:
-		if (null != links && 0 != links.size()) {
-			for (final Link link : links) {
-				sb_body.append(link.toXML(in));
+		if (null != linked_props && !linked_props.isEmpty()) {
+			for (final Map.Entry<Displayable,Map<String,String>> et : linked_props.entrySet()) {
+				final Displayable target = et.getKey();
+				for (final Map.Entry<String,String> e : et.getValue().entrySet()) {
+					final String value = e.getValue();
+					if (null == value) continue; // impossible, but with reflection one may set it so
+					sb_body.append(in).append("<t2_linked_prop target_id=\"").append(target.id).append("\" key=\"").append(e.getKey()).append("\" value=\"").append(cleanAttr(e, value)).append("\" />\n");
+				}
 			}
 		}
 	}
 
-	// I'm sure it could be made more efficient
-	public boolean hasLinkedGroupWithinLayer(final Layer la) {
-		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
-			if (d.layer != la) return false;
+	// Make sure the value is valid for an XML attribute content inside double quotes.
+	final private String cleanAttr(final Map.Entry<String,String> e, String value) {
+		if (-1 != value.indexOf('"')) {
+			Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a \" which is being replaced by '.");
+			value = value.replace('"', '\'');
+		}
+		if (-1 != value.indexOf('\n')) {
+			Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a newline char which is being replaced by a space.");
+			value = value.replace('\n', ' ');
+		}
+		return value;
+	}
+
+	// I'm sure it could be made more efficient, but I'm too tired!
+	public boolean hasLinkedGroupWithinLayer(Layer la) {
+		HashSet hs = getLinkedGroup(new HashSet());
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			if (!d.layer.equals(la)) return false;
 		}
 		return true;
 	}
@@ -1338,9 +1474,10 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 	}
 
 	/** Concatenate the given affine to this and all its linked objects. */
-	public void transform(final AffineTransform affine) {
-		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
-			d.at.concatenate(affine);
+	public void transform(final AffineTransform at) {
+		for (Iterator it = getLinkedGroup(new HashSet()).iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			d.at.concatenate(at);
 			d.updateInDatabase("transform");
 			d.updateBucket();
 			//Utils.log("applying transform to " + d);
@@ -1350,7 +1487,8 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 	/** preConcatenate the given affine transform to this Displayable's affine. */
 	public void preTransform(final AffineTransform affine, final boolean linked) {
 		if (linked) {
-			for (final Displayable d : getLinkedGroup(null)) {
+			for (Iterator it = getLinkedGroup(null).iterator(); it.hasNext(); ) {
+				final Displayable d = (Displayable)it.next();
 				d.at.preConcatenate(affine);
 				d.updateInDatabase("transform");
 				d.updateBucket();

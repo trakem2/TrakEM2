@@ -275,11 +275,11 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Used for reconstruction purposes. Assumes the displ are given in the proper order! */
-	public void addSilently(final Displayable displ) {
+	public void addSilently(final DBObject displ) { // why DBObject and not Displayable ?? TODO
 		if (null == displ || -1 != al_displayables.indexOf(displ)) return;
 		try {
-			displ.setLayer(this, false);
-			al_displayables.add(displ);
+			((Displayable)displ).setLayer(this, false);
+			al_displayables.add((Displayable)displ);
 		} catch (Exception e) {
 			Utils.log("Layer.addSilently: Not a Displayable/LayerSet, not adding DBObject id=" + displ.getId());
 			return;
