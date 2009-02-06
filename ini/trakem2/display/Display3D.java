@@ -83,7 +83,7 @@ public final class Display3D {
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
 		this.universe = new Image3DUniverse(512, 512); // size of the initial canvas, not the universe itself
-		this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
+		this.universe.getViewer().getView().setProjectionPolicy(View.PERSPECTIVE_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
 		computeScale(ls);
 		this.universe.show();
 		this.universe.getWindow().addWindowListener(new IW3DListener(ls));
@@ -723,7 +723,7 @@ public final class Display3D {
 				//universe.resetView();
 				//
 				//universe.ensureScale((float)(width*scale));
-				universe.addMesh(triangles, new Color3f(color), title, (float)(width*scale), 1);
+				universe.addMesh(triangles, new Color3f(color), title, 1); // had a (float)(width*scale) param in there before the 1
 				Content ct = universe.getContent(title);
 				ct.setTransparency(1f - alpha);
 				ct.toggleLock();
@@ -795,7 +795,7 @@ public final class Display3D {
 				//
 				//Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
 				//d3d.universe.ensureScale((float)(width*scale));
-				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(width*scale), 1);
+				d3d.universe.addMesh(triangles, new Color3f(color), title, /*(float)(width*scale),*/ 1);
 				Content ct = d3d.universe.getContent(title);
 				ct.setTransparency(transp);
 				ct.toggleLock();
