@@ -1,7 +1,6 @@
 package ini.trakem2.display.link;
 import ini.trakem2.Project;
 import ini.trakem2.display.Displayable;
-import ini.trakem2.persistence.DBObject;
 
 /** Keeps the AffineTransform of two displayable objects linked: when one is modified, so is the other. */
 public class TransformationLink extends Link {
@@ -12,19 +11,16 @@ public class TransformationLink extends Link {
 
 	public TransformationLink() {}
 
-	public boolean init(final Displayable origin, final String data) throws IllegalArgumentException {
-		long target_id = -1;
-		try {
-			target_id = Long.parseLong(data);
-		} catch (NumberFormatException nfe) {
-			throw new IllegalArgumentException("Cannot reconstruct link for origin #" + origin.getId() + " with data: " + data);
+	public boolean init(final Project project, final String data) throws IllegalArgumentException {
+		final int ispace = data.indexOf(' ');
+		if (-1 == ispace || 0 == ispace || data.length() -1 == ispace) {
+			throw new IllegalArgumentException("Cannot reconstruct link from: " + data);
 		}
-		this.origin = origin;
-		final DBObject dbo = origin.getProject().findById(target_id);
-		if (null == origin || !(dbo instanceof Displayable)) {
-			throw new IllegalArgumentException("Invalid Link: can't find target!\nProblematic origin #" + origin.getId() + " data string was: " + data);
+		this.origin = (Displayable) project.getRootLayerSet().findById(Long.parseLong(data.substring(0, ispace)));
+		this.target = (Displayable) project.getRootLayerSet().findById(Long.parseLong(data.substring(ispace+1)));
+		if (null == origin || null == target) {
+			throw new IllegalArgumentException("Invalid Link: can't point to a null Displayable!\nProblematic data string was: " + data);
 		}
-		this.target = (Displayable) dbo;
 		return true;
 	}
 

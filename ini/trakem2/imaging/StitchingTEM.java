@@ -61,7 +61,6 @@ import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Set;
 import java.util.Iterator;
 import java.util.Vector;
 import java.awt.geom.AffineTransform;
@@ -592,10 +591,11 @@ public class StitchingTEM {
 			al = d.getLayer().getIntersecting(d, Patch.class);
 			if (null == al || 0 == al.size()) { finishedWorking(); return; }
 			// remove from the intersecting group those Patch objects that are linked in the same layer (those linked that do not intersect simply return false on the al.remove(..) )
-			final Set<Displayable> hs_linked = d.getLinkedGroup(new HashSet());
+			HashSet hs_linked = d.getLinkedGroup(new HashSet());
 			//Utils.log2("linked patches: " + hs_linked.size());
 			Layer layer = d.getLayer();
-			for (final Displayable dob : hs_linked) {
+			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+				Displayable dob = (Displayable)it.next();
 				if (Patch.class == dob.getClass() && dob.getLayer() == layer) {
 					al.remove(dob);
 				}

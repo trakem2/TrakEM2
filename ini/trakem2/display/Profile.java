@@ -1374,16 +1374,17 @@ public class Profile extends Displayable {
 
 	public void setColor(Color c) {
 		// propagate to al linked profiles within the same profile_list
-		setColor(c, new HashSet<Displayable>());
+		setColor(c, new HashSet());
 	}
 
 	/** Exploits the fact that Profile instances among the directly linked as returned by getLinked(Profile.class) will be members of the same profile_list. */
-	private void setColor(Color c, HashSet<Displayable> hs_done) {
+	private void setColor(Color c, HashSet hs_done) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		super.setColor(c);
-		for (final Displayable d : getLinked(Profile.class)) {
-			Profile p = (Profile)d;
+		HashSet hs = getLinked(Profile.class);
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Profile p = (Profile)it.next();
 			p.setColor(c, hs_done);
 		}
 	}
@@ -1501,7 +1502,7 @@ public class Profile extends Displayable {
 
 	/** Recursive; returns the last added profile. */
 	static private Profile accumulate(final HashSet hs_done, final ArrayList al, final Profile step, int z_trend) {
-		final Set<Displayable> hs_linked = step.getLinked(Profile.class);
+		final HashSet hs_linked = step.getLinked(Profile.class);
 		if (al.size() > 1 && hs_linked.size() > 2) {
 			// base found
 			return step;

@@ -125,12 +125,12 @@ public abstract class Displayable extends DBObject {
 		}
 		updateInDatabase("locked");
 	}
-	private void unlockAllLinked(final HashSet hs) {
+	private void unlockAllLinked(HashSet hs) {
 		if (hs.contains(this)) return;
 		hs.add(this);
-		if (null == links) return;
-		for (final Link link : links) {
-			final Displayable d = link.getTarget();
+		if (null == hs_linked) return;
+		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
 			if (d.locked) d.locked = false;
 			d.unlockAllLinked(hs);
 		}
@@ -1148,10 +1148,12 @@ public abstract class Displayable extends DBObject {
 		}
 	}
 
-	// I'm sure it could be made more efficient
-	public boolean hasLinkedGroupWithinLayer(final Layer la) {
-		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
-			if (d.layer != la) return false;
+	// I'm sure it could be made more efficient, but I'm too tired!
+	public boolean hasLinkedGroupWithinLayer(Layer la) {
+		HashSet hs = getLinkedGroup(new HashSet());
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			if (!d.layer.equals(la)) return false;
 		}
 		return true;
 	}
@@ -1385,9 +1387,10 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Concatenate the given affine to this and all its linked objects. */
-	public void transform(final AffineTransform affine) {
-		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
-			d.at.concatenate(affine);
+	public void transform(final AffineTransform at) {
+		for (Iterator it = getLinkedGroup(new HashSet()).iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			d.at.concatenate(at);
 			d.updateInDatabase("transform");
 			d.updateBucket();
 			//Utils.log("applying transform to " + d);
@@ -1395,10 +1398,11 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** preConcatenate the given affine transform to this Displayable's affine. */
-	public void preTransform(final AffineTransform affine, final boolean linked) {
+	public void preTransform(final AffineTransform at, final boolean linked) {
 		if (linked) {
-			for (final Displayable d : getLinkedGroup(null)) {
-				d.at.preConcatenate(affine);
+			for (Iterator it = getLinkedGroup(null).iterator(); it.hasNext(); ) {
+				final Displayable d = (Displayable)it.next();
+				d.at.preConcatenate(at);
 				d.updateInDatabase("transform");
 				d.updateBucket();
 			}
