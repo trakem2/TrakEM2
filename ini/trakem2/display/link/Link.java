@@ -98,7 +98,6 @@ public abstract class Link implements PropertiesTable {
 
 	/** Checks for identity of origin and target, not any properties. */
 	public final boolean equals(final Object ob) {
-		Utils.log2("Calling Link.equals");
 		if (!(ob instanceof Link)) return false;
 		final Link ln = (Link) ob;
 		return ln.origin == this.origin && ln.target == this.target;

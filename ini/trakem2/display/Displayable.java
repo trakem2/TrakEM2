@@ -685,14 +685,7 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 		if (null == link) return null;
 		if (null == this.links) this.links = new HashSet<Link>();
 		// replace any existing link with identical origin and target Displayables:
-		else {
-			for (final Iterator<Link> it = links.iterator(); it.hasNext(); ) {
-				if (it.next().equals(link)) {
-					it.remove();
-				}
-			}
-		}
-
+		links.remove(link);
 		links.add(link);
 		return link;
 	}
@@ -1127,7 +1120,7 @@ public abstract class Displayable extends DBObject implements PropertiesTable {
 		}
 		// Links:
 		if (null != links && 0 != links.size()) {
-			for (final Link link : links) {
+			for (Link link : links) {
 				sb_body.append(link.toXML(in));
 			}
 		}
