@@ -1038,7 +1038,7 @@ public abstract class Displayable extends DBObject {
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		if (!hs.contains("t2_prop")) {
 			sb_header.append(indent).append("<!ELEMENT t2_prop EMPTY>\n")
-				 .append(indent).append(TAG_ATTR1).append("t2_prop name").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append("t2_prop key").append(TAG_ATTR2)
 			         .append(indent).append(TAG_ATTR1).append("t2_prop value").append(TAG_ATTR2)
 			;
 		}
@@ -1052,7 +1052,7 @@ public abstract class Displayable extends DBObject {
 	}
 
 	static protected String commonDTDChildren() {
-		return "t2_prop,t2_link"; // never commas at beginning or end, only in between
+		return "t2_prop"; // never commas at beginning or end, only in between
 					  // never returns empty
 	}
 
