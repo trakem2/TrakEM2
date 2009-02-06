@@ -451,10 +451,11 @@ public final class FSLoader extends Loader {
 
 				releaseMemory(); // ensure there is a minimum % of free memory
 				plock = getOrMakePatchLoadingLock(p, 0);
-				unlock();
 			} catch (Exception e) {
 				IJError.print(e);
 				return null;
+			} finally {
+				unlock();
 			}
 		}
 
@@ -526,14 +527,6 @@ public final class FSLoader extends Loader {
 								//int i_slice = Integer.parseInt(str.substring(isl + 12));
 								final long lid = entry.getKey();
 								imps.put(lid, imp);
-								imp.setSlice(Integer.parseInt(str.substring(isl + 12)));
-								// kludge, but what else short of a gigantic hashtable
-								try {
-									final Patch pa = (Patch)p.getLayerSet().findDisplayable(lid);
-									pa.putMinAndMax(imp);
-								} catch (Exception e) {
-									e.printStackTrace();
-								}
 							}
 						}
 						// set proper active slice
