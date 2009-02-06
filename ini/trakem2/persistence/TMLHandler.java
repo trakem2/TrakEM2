@@ -301,27 +301,16 @@ public class TMLHandler extends DefaultHandler {
 				break;
 			}
 		}
-
 		// terminate non-single clause objects
+		last_ball = null;
 		if (orig_qualified_name.equals("t2_area_list")) {
 			last_area_list.__endReconstructing();
 			last_area_list = null;
-		} else if (orig_qualified_name.equals("t2_patch")) {
-			last_patch = null;
-		} else if (orig_qualified_name.equals("ict_transform")) {
-			last_ct_list = null;
-		} else if (orig_qualified_name.equals("t2_dissector")) {
-			last_dissector = null;
-		} else if (orig_qualified_name.equals("t2_ball")) {
-			last_ball = null;
 		}
-
-		if (orig_qualified_name.equals("t2_link")) {
-			last_propertiestable = last_displayable; // the parent of the link, so now it can accept properties, if any
-		} else {
-			last_displayable = null;
-			last_propertiestable = null;
-		}
+		last_dissector = null;
+		last_patch = null;
+		last_ct_list = null;
+		last_displayable = null;
 	}
 	public void characters(char[] c, int start, int length) {}
 
