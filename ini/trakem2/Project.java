@@ -758,19 +758,30 @@ public class Project extends DBObject {
 	public String getMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
+		String title = new StringBuffer(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
+
+		if (!thing.getType().equals(d.getTitle())) {
+			return title;
+		}
+
 		ProjectThing parent = (ProjectThing)thing.getParent();
-		String title = new StringBuffer(thing.getType() != d.getTitle() ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
+		StringBuffer sb = new StringBuffer(title);
 		while (null != parent) {
 			Object ob = parent.getObject();
+			if (ob.getClass() == Project.class) break;
 			String type = parent.getType();
 			if (!ob.equals(type)) { // meaning, something else was typed in as a title
-				title =  ob.toString() + " [" + type + "]/" + title;
+				sb.insert(0, new StringBuffer(ob.toString()).append(' ').append('[').append(type).append(']').append('/').toString());
+				//title =  ob.toString() + " [" + type + "]/" + title;
 				break;
 			}
-			title = type + "/" + title;
+			sb.insert(0, '/');
+			sb.insert(0, type);
+			//title = type + "/" + title;
 			parent = (ProjectThing)parent.getParent();
 		}
-		return title;
+		//return title;
+		return sb.toString();
 	}
 
 	/** Returns the first upstream user-defined name and type, and the id of the displayable tagged at the end.
