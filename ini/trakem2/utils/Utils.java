@@ -1295,4 +1295,11 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		return true;
 	}
+
+	static final public int indexOf(final Object needle, final Object[] haystack) {
+		for (int i=0; i<haystack.length; i++) {
+			if (haystack[i].equals(needle)) return i;
+		}
+		return -1;
+	}
 }

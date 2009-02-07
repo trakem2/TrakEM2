@@ -1120,6 +1120,8 @@ public class Project extends DBObject {
 		gd.addCheckbox("Paint_color_cues", !no_color_cues);
 		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
 		String current_mode = ht_props.get("image_resizing_mode");
+		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
+		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
 		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
 		int current_R = (int)(100 * ini.trakem2.imaging.StitchingTEM.DEFAULT_MIN_R); // make the float a percent
 		try {
