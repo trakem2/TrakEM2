@@ -2146,8 +2146,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 			item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 			item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+			if (selection.isEmpty()) item.setEnabled(false);
 			item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 			item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+			if (selection.isEmpty()) item.setEnabled(false);
 			popup.add(adjust_menu);
 			popup.addSeparator();
 
@@ -2155,8 +2157,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 			try {
 				menu = new JMenu("Hide/Unhide");
-				boolean none = 0 == selection.getNSelected();
 				item = new JMenuItem("Hide deselected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK, true));
+				boolean none = 0 == selection.getNSelected();
 				if (none) item.setEnabled(false);
 				item = new JMenuItem("Hide deselected except images"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK | Event.ALT_MASK, true));
 				if (none) item.setEnabled(false);
