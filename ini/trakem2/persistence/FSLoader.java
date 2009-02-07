@@ -1354,14 +1354,13 @@ public final class FSLoader extends Loader {
 		return bi;
 	}
 
-	/** Image to BufferedImage. Can be used for hardware-accelerated resizing, since the whole awt is painted to a target w,h area in the returned new BufferedImage. */
-	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final IndexColorModel icm, final BufferedImage alpha, final BufferedImage outside) {
+	/** Image to BufferedImage. Can be used for hardware-accelerated resizing, since the whole awt is painted to a target w,h area in the returned new BufferedImage. Does not accept LUT images: only ARGB or GRAY. */
+	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final BufferedImage alpha, final BufferedImage outside) {
 		BufferedImage bi;
 		final boolean area_averaging = interpolation_hint.getClass() == Integer.class && Loader.AREA_AVERAGING == ((Integer)interpolation_hint).intValue();
 		final boolean must_scale = (w != awt.getWidth(null) || h != awt.getHeight(null));
 
 		if (null != alpha || null != outside) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-		else if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
 		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
 		final Graphics2D g = bi.createGraphics();
 		if (area_averaging) {
@@ -1738,14 +1737,16 @@ public final class FSLoader extends Loader {
 
 					BufferedImage bi = null;
 					final Object hint = getHint(resizing_mode);
-					final IndexColorModel icm = (IndexColorModel)cm;
+
+					ip = null;
+
 					do {
 						// check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
 						if (null == target_dir) continue;
 						// obtain half image
 						//   for level 0 and others, when awt is not a BufferedImage or needs to be reduced in size (to new w,h)
-						final BufferedImage[] res = IToBI(awt, w, h, hint, icm, balpha, boutside);
+						final BufferedImage[] res = IToBI(awt, w, h, hint, balpha, boutside);
 						bi = res[0];
 						balpha = res[1];
 						boutside = res[2];
