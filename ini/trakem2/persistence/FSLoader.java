@@ -1629,8 +1629,6 @@ public final class FSLoader extends Loader {
 				}
 			} else {
 				// Greyscale:
-				//
-				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				final boolean as_grey = !ip.isColorLut();
 				if (as_grey && null == cm) {
@@ -1675,7 +1673,11 @@ public final class FSLoader extends Loader {
 						// 2 - generate scaled image
 						if (0 != k) {
 							fp = (FloatProcessor)fp.resize(w, h);
-							fp.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done: the resize doesn't preserve the min and max!
+							if (ImagePlus.GRAY8 == type) {
+								fp.setMinAndMax(0, 255); // the min and max was expanded into 0,255 range at convertToFloat for 8-bit images, so the only limit to be added now to the FloatProcessor is that of the 8-bit range. The latter is done automatically for FloatProcessor class, but FloatProcessorT2 doesn't, to avoid the expensive (and here superfluous) operation of looping through all pixels in the findMinAndMax method.
+							} else {
+								fp.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done: the resize doesn't preserve the min and max!
+							}
 							if (null != alpha) {
 								alpha = (FloatProcessor)alpha.resize(w, h);
 								if (alpha != outside && null != outside) {
