@@ -801,6 +801,12 @@ public class Project extends DBObject {
 		return title;
 	}
 
+	static public String getType(final Class c) {
+		if (AreaList.class == c) return "area_list";
+		if (DLabel.class == c) return "label";
+		return c.getName().toLowerCase();
+	}
+
 	/** Returns the proper TemplateThing for the given type, complete with children and attributes if any. */
 	public TemplateThing getTemplateThing(String type) {
 		return ht_unique_tt.get(type);

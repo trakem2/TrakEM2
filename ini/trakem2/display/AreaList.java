@@ -1231,6 +1231,33 @@ public class AreaList extends ZDisplayable {
 		updateInDatabase("points=" + layer_id);
 	}
 
+	/** Subtracts the given ROI, and then creates a new AreaList with identical properties and the content of the subtracted part. Returns null if there is no intersection between sroi and the Area for layer_id. */
+	public AreaList part(final long layer_id, final ShapeRoi sroi) throws NoninvertibleTransformException {
+		// The Area to subtract, in world coordinates:
+		Area sub = Utils.getArea(sroi);
+		// The area to subtract from:
+		Area a = getArea(layer_id);
+		if (null == a || Utils.isEmpty(a)) return null;
+		// The intersection:
+		Area inter = a.createTransformedArea(this.at);
+		inter.intersect(sub);
+		if (Utils.isEmpty(inter)) return null;
+
+		// Subtract from this:
+		this.subtract(layer_id, sroi);
+
+		// Create new AreaList with the intersection area, and add it to the same LayerSet as this:
+		AreaList ali = new AreaList(this.project, this.title, 0, 0);
+		ali.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
+		ali.visible = this.visible;
+		ali.alpha = this.alpha;
+		ali.addArea(layer_id, inter);
+		this.layer_set.add(ali); // needed to call updateBucket
+		ali.calculateBoundingBox();
+
+		return ali;
+	}
+
 	public void keyPressed(KeyEvent ke) {
 		DisplayCanvas dc = (DisplayCanvas)ke.getSource();
 		Layer la = dc.getDisplay().getLayer();
@@ -1269,13 +1296,9 @@ public class AreaList extends ZDisplayable {
 		Utils.log2("roi is " + roi);
 		if (null == roi) return;
 		// Check ROI
-		switch (roi.getType()) {
-			case Roi.POLYLINE:
-			case Roi.FREELINE:
-			case Roi.LINE:
-			case Roi.POINT:
-				Utils.log("AreaList only accepts region ROIs.");
-				return;
+		if (!Utils.isAreaROI(roi)) {
+			Utils.log("AreaList only accepts region ROIs, not lines.");
+			return;
 		}
 		ShapeRoi sroi = new ShapeRoi(roi);
 		long layer_id = la.getId();
@@ -1287,6 +1310,13 @@ public class AreaList extends ZDisplayable {
 					break;
 				case KeyEvent.VK_D: // VK_S is for 'save' always
 					subtract(layer_id, sroi);
+					ke.consume();
+					break;
+				case KeyEvent.VK_K: // knive
+					AreaList p = part(layer_id, sroi);
+					if (null != p) {
+						project.getProjectTree().addSibling(this, p);
+					}
 					ke.consume();
 					break;
 			}

@@ -735,7 +735,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return layer;
 	}
 
-	/** Add a Displayable to be painted in all Layers, such as a Pipe. */
+	/** Add a Displayable to be painted in all Layers, such as a Pipe. Also updates open displays of the fact. */
 	public void add(final ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) {
 			Utils.log2("LayerSet: not adding zdispl");
