@@ -1185,12 +1185,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		history.remove(d.getId());
 	}
 
-	/** Used when there has been no real transformation (for example, a mouse click and release, but no drag. */
-	void discardLastUndo() {
-		Utils.log2("discard last undo");
-		history.removeLast();
-	}
-
 	public void destroy() {
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();

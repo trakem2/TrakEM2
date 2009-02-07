@@ -360,7 +360,7 @@ public class Selection {
 		if (mouse_dragged || isEmpty()) return;
 		if (transforming) {
 			if (null == history) return;
-			if (history.indexAtStart() || history.indexAtEnd()) {
+			if (history.indexAtStart() || (history.indexAtEnd() && -1 != history.index())) {
 				history.add(new TransformationStep(getTransformationsCopy()));
 			} else {
 				// remove history elements from index+1 to end
@@ -379,7 +379,7 @@ public class Selection {
 
 	// TODO STILL DUPLICATE endings ... ??? <<<<<<<<<<-----------------------####
 
-	void undoOneStep() {
+	synchronized void undoOneStep() {
 		LayerSet layerset = display.getLayer().getParent();
 		if (transforming) {
 			if (null == history) return;
@@ -401,7 +401,7 @@ public class Selection {
 		resetBox();
 	}
 
-	void redoOneStep() {
+	synchronized void redoOneStep() {
 		if (transforming) {
 			if (null == history) return;
 			TransformationStep step = (TransformationStep)history.redoOneStep();
@@ -875,7 +875,7 @@ public class Selection {
 
 	private History history = null;
 
-	public void setTransforming(final boolean b) {
+	synchronized public void setTransforming(final boolean b) {
 		if (b == transforming) {
 			Utils.log2("Selection.setTransforming warning: trying to set the same mode");
 			return;
@@ -897,7 +897,7 @@ public class Selection {
 		}
 	}
 
-	public void cancelTransform() {
+	synchronized public void cancelTransform() {
 		transforming = false;
 		if (null == active) return;
 		// restoring transforms
@@ -910,7 +910,7 @@ public class Selection {
 		forgetAffine();
 	}
 
-	public boolean isTransforming() { return this.transforming; }
+	synchronized public boolean isTransforming() { return this.transforming; }
 
 	private class AffinePoint {
 		int x, y;

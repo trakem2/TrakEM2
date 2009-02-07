@@ -26,6 +26,7 @@ public class History {
 	/** Append a new step. If max_size is set, resizes the list if larger than max_size,
 	 *  and returns all removed elements. Otherwise returns an empty list. */
 	synchronized public List<Step> add(final Step step) {
+		//Utils.log2("adding one step: index= " + index);
 		if (-1 == index) {
 			if (list.size() > 0) list.clear();
 		} else {
@@ -34,10 +35,16 @@ public class History {
 		}
 		// TODO above some steps may not be returned!
 
+		// Check if step is identical to last step in queue
+		if (list.size() > 0 && list.get(list.size()-1).isIdentical(step)) {
+			//Utils.log2("History: skipping adding and identical undo step");
+			return new ArrayList<Step>();
+		}
+
 		++index;
 		list.add(step);
 
-		Utils.log2("Added step: index=" + index + " list.size=" + list.size());
+		//Utils.log2("Added step: index=" + index + " list.size=" + list.size());
 
 		if (-1 != max_size) return resize(max_size);
 		return new ArrayList<Step>();
@@ -46,6 +53,12 @@ public class History {
 	/** Appends a step at the end of the list, without modifying the current index.
 	 *  If max_size is set, resizes the list if larger than max_size. */
 	synchronized public List<Step> append(final Step step) {
+		if (list.size() > 0) {
+			if (list.get(list.size()-1).isIdentical(step)) {
+				//Utils.log2("History: skipping appending an identical undo step.");
+				return new ArrayList<Step>();
+			}
+		}
 		list.add(step);
 		if (-1 != max_size) return resize(max_size);
 		return new ArrayList<Step>();
@@ -60,7 +73,8 @@ public class History {
 	synchronized public Step undoOneStep() {
 		if (index < 0) return null;
 		// Return the current Step at index, then decrease index.
-		return list.get(index--);
+		if (index > 0) index--; // cannot go beyond index 0, the first step
+		return list.get(index);
 	}
 
 	/** Returns null if there aren't any more steps to redo. */
@@ -77,13 +91,6 @@ public class History {
 			if (null != rm) al.addAll(rm);
 		}
 		return al;
-	}
-
-	/** Remove last step from the list, and return it, if any. */
-	synchronized public Step removeLast() {
-		if (0 == list.size()) return null;
-		if (list.size() == (index + 1)) --index;
-		return list.remove(list.size()-1);
 	}
 
 	/** Resize to maximum the given size, removing from the beginning. Returns all removed elements, or an empty list if none. */
@@ -158,5 +165,6 @@ public class History {
 		 *  and return a list of them. */
 		public List<T> remove(final long id);
 		public boolean isEmpty();
+		public boolean isIdentical(final Step step);
 	}
 }
