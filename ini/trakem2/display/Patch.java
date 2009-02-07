@@ -760,7 +760,7 @@ public final class Patch extends Displayable {
 		sb_body.append(indent).append(">\n");
 
 		if (null != ct) {
-			sb_body.append(ct.toXML(in));
+			sb_body.append(ct.toXML(in)).append('\n');
 		}
 
 		super.restXML(sb_body, in, any);
@@ -989,7 +989,7 @@ public final class Patch extends Displayable {
 		return true;
 	}
 
-	/** For reconstruction purposes. */
+	/** For reconstruction purposes, overwrites the present CoordinateTransform, if any, with the given one. */
 	public void setCoordinateTransformSilently(final CoordinateTransform ct) {
 		this.ct = ct;
 	}
