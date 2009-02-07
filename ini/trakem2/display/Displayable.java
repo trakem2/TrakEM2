@@ -927,7 +927,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Minimal info that identifies this object as unique, for display on a JTree node.*/
 	public String toString() {
-		return this.title + (!(this instanceof ZDisplayable) && null != layer ? " z=" + layer.getZ() : "")  + " #" + this.id; // the layer is null when recreating the object from the database and printing it for testing in the Loader
+		return new StringBuffer(this.title.length() + 20).append(this.title).append(!(this instanceof ZDisplayable) && null != layer ? " z=" + layer.getZ() : "").append(' ').append('#').append(this.id).toString(); // the layer is null when recreating the object from the database and printing it for testing in the Loader
 	}
 
 	abstract public boolean isDeletable();
