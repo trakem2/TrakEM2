@@ -1759,10 +1759,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (0 == (mod ^ Event.SHIFT_MASK)) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
 					display.getSelection().undoOneStep();
+					Display.repaint(display.getLayer());
 					ke.consume();
 				} else if (0 == (mod ^ Event.ALT_MASK)) {
 					last_action = Z_KEY;
 					display.getSelection().redoOneStep();
+					Display.repaint(display.getLayer());
 					ke.consume();
 				}
 				// else, the 'z' command restores the image using ImageJ internal undo
