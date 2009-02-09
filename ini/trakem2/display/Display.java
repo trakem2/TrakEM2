@@ -1144,6 +1144,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return layer;
 	}
 
+	public LayerSet getLayerSet() {
+		return layer.getParent();
+	}
+
 	public boolean isShowing(final Layer layer) {
 		return this.layer == layer;
 	}
@@ -1336,7 +1340,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (null == active || !selection.contains(displ)) {
 			canvas.setUpdateGraphics(true);
 		}
-		layer.getParent().removeFromUndo(displ);
 		canvas.invalidateVolatile(); // removing active, no need to update offscreen but yes the volatile
 		repaint(displ, null, 5, true, false);
 		// from Selection.deleteAll this method is called ... but it's ok: same thread, no locking problems.
@@ -2137,10 +2140,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		if (!canvas.isTransforming()) {
 
-			item = new JMenuItem("Undo transforms");item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Undo");item.addActionListener(this); popup.add(item);
 			if (!layer.getParent().canUndo() || canvas.isTransforming()) item.setEnabled(false);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.SHIFT_MASK, true));
-			item = new JMenuItem("Redo transforms");item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Redo");item.addActionListener(this); popup.add(item);
 			if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
 
@@ -2671,17 +2674,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				if (null == p.getOriginalPath()) Utils.log("No editions to save for patch " + p.getTitle() + " #" + p.getId());
 				else Utils.log("Could not revert Patch " + p.getTitle() + " #" + p.getId());
 			}
-		} else if (command.equals("Undo transforms")) {
-			if (canvas.isTransforming()) return;
+		} else if (command.equals("Undo")) {
 			layer.getParent().undoOneStep();
-		} else if (command.equals("Redo transforms")) {
-			if (canvas.isTransforming()) return;
+		} else if (command.equals("Redo")) {
 			layer.getParent().redoOneStep();
 		} else if (command.equals("Transform")) {
-			if (null == active) {
-				Utils.log2("Display \"Transform\": null active!");
-				return;
-			}
+			if (null == active) return;
 			canvas.setTransforming(true);
 		} else if (command.equals("Apply transform")) {
 			if (null == active) return;
@@ -2854,7 +2852,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 							return;
 						}
 					}
-					slice.getLayer().getParent().createUndoStep(); // full
+					slice.getLayerSet().addTransformStep(slice.getLinkedGroup(null));
 					Registration.registerStackSlices((Patch)getActive()); // will repaint
 				} else {
 					Utils.log("Align stack slices: selected image is not part of a stack.");
@@ -2988,7 +2986,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					return;
 				}
 			// make an undo step!
-			layer.getParent().addUndoStep(affected);
+			layer.getParent().addTransformStep(affected);
 			AlignTask.alignSelectionTask( selection );
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");

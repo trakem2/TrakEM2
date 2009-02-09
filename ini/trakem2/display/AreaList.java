@@ -961,7 +961,7 @@ public class AreaList extends ZDisplayable {
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		// superclass processing
-		processAdjustPropertiesDialog(gd);
+		final Displayable.DoEdit prev = processAdjustPropertiesDialog(gd);
 		// local proccesing
 		final boolean fp = !gd.getNextBoolean();
 		final boolean to_all = gd.getNextBoolean();
@@ -977,10 +977,16 @@ public class AreaList extends ZDisplayable {
 			}
 		} else {
 			if (this.fill_paint != fp) {
+				prev.add("fill_paint", fp);
 				this.fill_paint = fp;
 				updateInDatabase("fill_paint");
 			}
 		}
+
+		// Add current step, with the same modified keys
+		DoEdit current = new DoEdit(this).init(prev);
+		if (isLinked()) current.add(new Displayable.DoTransforms().addAll(getLinkedGroup(null)));
+		getLayerSet().addEditStep(current);
 	}
 
 	public boolean isFillPaint() { return this.fill_paint; }
@@ -1581,5 +1587,46 @@ public class AreaList extends ZDisplayable {
 		bi.flush();
 		// correct scale
 		return volume /= (scale * scale); // above, calibration is fixed while computing. Scale only corrects for the 2D plane.
+	}
+
+	@Override
+	boolean setDataPackage(final Displayable.DataPackage ob) {
+		if (ob.getClass() != DPAreaList.class) {
+			Utils.log2("ERROR: cannot set " + ob.getClass() + " to an AreaList!");
+			return false;
+		}
+		final DPAreaList dp = (DPAreaList) ob;
+		if (!super.setDataPackage(dp)) {
+			// something went wrong
+			return false;
+		}
+		this.ht_areas.clear();
+		for (final Object entry : dp.ht.entrySet()) {
+			Map.Entry e = (Map.Entry)entry;
+			Object area = e.getValue();
+			if (area.getClass() == Area.class) area = new Area((Area)area);
+			this.ht_areas.put(e.getKey(), area);
+		}
+		return true;
+	}
+
+	@Override
+	Object getDataPackage() {
+		// The width,height,links,transform and list of areas
+		return new DPAreaList(this);
+	}
+
+	static private final class DPAreaList extends Displayable.DataPackage {
+		final protected HashMap ht;
+		DPAreaList(final AreaList ali) {
+			super(ali);
+			this.ht = new HashMap();
+			for (final Object entry : ali.ht_areas.entrySet()) {
+				Map.Entry e = (Map.Entry)entry;
+				Object area = e.getValue();
+				if (area.getClass() == Area.class) area = new Area((Area)area);
+				this.ht.put(e.getKey(), area);
+			}
+		}
 	}
 }

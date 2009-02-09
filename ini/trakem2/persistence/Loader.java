@@ -2098,7 +2098,7 @@ abstract public class Loader {
 		if (stitch_tiles) {
 			setTaskName("stitching tiles");
 			// create undo
-			layer.getParent().createUndoStep(layer);
+			layer.getParent().addTransformStep(new HashSet<Displayable>(layer.getDisplayables(Patch.class)));
 			// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 			if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
 			Bureaucrat task = StitchingTEM.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true, stitching_rule);

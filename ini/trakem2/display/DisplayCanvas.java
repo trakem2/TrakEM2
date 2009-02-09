@@ -656,6 +656,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			selection.mousePressed(me, x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
+			display.getLayerSet().addPreDataEditStep(active);
 			box = active.getBoundingBox();
 			active.mousePressed(me, x_p, y_p, magnification);
 			invalidateVolatile();
@@ -966,6 +967,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					repaint(old_brush_box, 0, false);
 					old_brush_box = null; // from mouseMoved
 				}
+				display.getLayerSet().addDataEditStep(active);
 				break;
 			}
 		}
@@ -1758,12 +1760,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				int mod = ke.getModifiers();
 				if (0 == (mod ^ Event.SHIFT_MASK)) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
-					display.getSelection().undoOneStep();
+					if (isTransforming()) display.getSelection().undoOneStep();
+					else display.getLayerSet().undoOneStep();
 					Display.repaint(display.getLayer());
 					ke.consume();
 				} else if (0 == (mod ^ Event.ALT_MASK)) {
 					last_action = Z_KEY;
-					display.getSelection().redoOneStep();
+					if (isTransforming()) display.getSelection().redoOneStep();
+					else display.getLayerSet().redoOneStep();
 					Display.repaint(display.getLayer());
 					ke.consume();
 				}

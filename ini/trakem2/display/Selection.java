@@ -366,14 +366,6 @@ public class Selection {
 				// remove history elements from index+1 to end
 				history.clip();
 			}
-		} else if (null != display) {
-			HashSet<Displayable> set;
-			synchronized (queue_lock) {
-				lock();
-				set = new HashSet<Displayable>(queue);
-				unlock();
-			}
-			display.getLayer().getParent().addUndoStep(set);
 		}
 	}
 
@@ -389,14 +381,7 @@ public class Selection {
 			// undo one step
 			TransformationStep step = (TransformationStep)history.undoOneStep();
 			if (null == step) return; // no more steps
-			layerset.applyStep(step.ht);
-		} else {
-			// store the current state if at end:
-			Utils.log2("index at end: " + layerset.getHistory().indexAtEnd());
-			if (layerset.getHistory().indexAtEnd()) {
-				layerset.getHistory().append(new TransformationStep(getTransformationsCopy()));
-			}
-			layerset.undoOneStep();
+			LayerSet.applyTransforms(step.ht);
 		}
 		resetBox();
 	}
@@ -406,9 +391,7 @@ public class Selection {
 			if (null == history) return;
 			TransformationStep step = (TransformationStep)history.redoOneStep();
 			if (null == step) return; // no more steps
-			display.getLayer().getParent().applyStep(step.ht);
-		} else {
-			display.getLayer().getParent().redoOneStep();
+			LayerSet.applyTransforms(step.ht);
 		}
 		resetBox();
 	}
@@ -887,6 +870,11 @@ public class Selection {
 			transforming = true;
 			floater.center();
 		} else {
+			// Record current state of modified Displayable set:
+			if (!history.indexAtStart()) {
+				TransformationStep step = (TransformationStep)history.getCurrent();
+				LayerSet.applyTransforms(step.ht);
+			}
 			if (null != history) {
 				history.clear();
 				history = null;
@@ -903,7 +891,7 @@ public class Selection {
 		// restoring transforms
 		if (null != history) {
 			// apply first
-			display.getLayer().getParent().applyStep(((TransformationStep)history.get(0)).ht);
+			display.getLayer().getParent().applyTransforms(((TransformationStep)history.get(0)).ht);
 		}
 		// reread all transforms and remake box
 		resetBox();
@@ -1036,7 +1024,12 @@ public class Selection {
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
 		grabbed = null; // reset
-		if (transforming) {
+		Utils.log2("transforming: " + transforming);
+		if (!transforming) {
+			if (display.getLayerSet().prepareTransformStep(new ArrayList<Displayable>(queue))) {
+				display.getLayerSet().addTransformStep(new ArrayList<Displayable>(queue));
+			}
+		} else {
 			if (me.isShiftDown()) {
 				if (me.isControlDown() && null != affine_handles) {
 					if (affine_handles.remove(new AffinePoint(x_p, y_p))) {
@@ -1138,6 +1131,13 @@ public class Selection {
 	*/
 
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+
+		// Record current state for selected Displayable set, if there was any change:
+		final int dx = x_r - x_p;
+		final int dy = y_r - y_p;
+		if (!transforming && (0 != dx || 0 != dy)) {
+			display.getLayerSet().addTransformStep(hs); // all selected and their links: i.e. all that will change
+		}
 
 		// me is null when calling from Display, because of popup interfering with mouseReleased
 		if (null != me) execDrag(me, x_r - x_d, y_r - y_d);
@@ -1558,7 +1558,7 @@ public class Selection {
 		}
 		boolean tr = transforming;
 		if (!tr) setTransforming(true);
-		if (!tr) display.getLayer().getParent().addUndoStep(getTransformationsCopy());
+		if (!tr) display.getLayerSet().addTransformStep(active.getLinkedGroup(null));
 		final Rectangle sel_box = getLinkedBox();
 		setFloater((int)gd.getNextNumber(), (int)gd.getNextNumber());
 		double rot = gd.getNextNumber();
@@ -1630,4 +1630,7 @@ public class Selection {
 		}
 		return null;
 	}
+
+	//private class DoSelect implements DoStep {
+	//}
 }

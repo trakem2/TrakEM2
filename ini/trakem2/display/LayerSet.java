@@ -33,7 +33,6 @@ import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.History;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.tree.LayerThing;
@@ -52,6 +51,7 @@ import java.awt.geom.Area;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.util.Iterator;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -108,9 +108,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
-
-	/** Store HashMaps of displayable/transformation pairs for undo. */
-	private History history = new History(30);
 
 	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
 	private Align align = null;
@@ -429,14 +426,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					d.getAffineTransform().preConcatenate(at2);
 					//Utils.log2("AFTER: " + d.getBoundingBox());
 					d.updateInDatabase("transform");
-				}
-				// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
-				for (final History.Step step : history.getAll()) {
-					if (step instanceof TransformationStep) {
-						for (final AffineTransform at : ((TransformationStep)step).ht.values()) {
-							at.preConcatenate(at2);
-						}
-					}
 				}
 				project.getLoader().commitLargeUpdate();
 			} catch (Exception e) {
@@ -1087,104 +1076,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return this.snapshots_mode;
 	}
 
-	/** Creates an undo step that contains transformations for all Displayable objects of this LayerSet */
-	public void createUndoStep() {
-		final HashMap ht_undo = new HashMap();
-		for (Layer la : al_layers) {
-			for (Displayable d : la.getDisplayables()) {
-				ht_undo.put(d, d.getAffineTransformCopy());
-			}
-		}
-		addUndoStep(ht_undo);
-	}
-
-	// private to the package
-	History getHistory() {
-		return history;
-	}
-
-	/** Creates an undo step that contains transformations for all Displayable objects in the given Layer. */
-	public void createUndoStep(final Layer layer) {
-		if (null == layer) return;
-		final HashMap ht_undo = new HashMap();
-		for (Displayable d : layer.getDisplayables()) {
-			ht_undo.put(d, d.getAffineTransformCopy());
-		}
-		addUndoStep(ht_undo);
-	}
-
-	/** The @param ht should be a hastable of Displayable keys and Transform values, such as those obtained from selection.getTransformationsCopy() . By adding a new undo step, the redo steps are cleared. */
-	public void addUndoStep(final HashMap<Displayable,AffineTransform> ht) {
-		if (ht.isEmpty()) return;
-		Utils.log2("Add undo step");
-		history.add(new TransformationStep(ht));
-	}
-
-	/** Create an undo step involving all Displayable objects in the set. */
-	public void addUndoStep(final Set<Displayable> set) {
-		final HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
-		for (final Displayable d : set) {
-			ht.put(d, d.getAffineTransformCopy());
-		}
-		addUndoStep(ht);
-	}
-
-	public boolean canUndo() {
-		return history.canUndo();
-	}
-	public boolean canRedo() {
-		return history.canRedo();
-	}
-
-	/** Undoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
-	public void undoOneStep() {
-		History.Step step = history.undoOneStep();
-		if (step instanceof TransformationStep) {
-			TransformationStep ts = (TransformationStep)step;
-			applyStep(ts.ht);
-		}
-		Utils.log2("Undoing: index is " + history.index());
-	}
-	/** Redoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
-	public void redoOneStep() {
-		History.Step step = history.redoOneStep();
-		if (step instanceof TransformationStep) {
-			TransformationStep ts = (TransformationStep)step;
-			applyStep(ts.ht);
-		}
-		Utils.log2("Redoing: index is " + history.index());
-	}
-	/** Apply an undo step. */
-	public void applyStep(final HashMap<Displayable,AffineTransform> ht) {
-		// apply:
-		Rectangle box = null;
-		Rectangle b = new Rectangle(); // tmp
-		project.getLoader().startLargeUpdate();
-		try {
-			for (Map.Entry<Displayable,AffineTransform> e : ht.entrySet()) {
-				Displayable d = e.getKey();
-				// add both the previous and the after box, for repainting
-				if (null == box) box = d.getBoundingBox(b);
-				else box.add(d.getBoundingBox(b));
-				d.setAffineTransform(e.getValue());
-				box.add(d.getBoundingBox(b));
-			}
-			project.getLoader().commitLargeUpdate();
-		} catch (Exception e) {
-			IJError.print(e);
-			Utils.log("Rolling back");
-			project.getLoader().rollback();
-		}
-		Display.updateSelection();
-		Display.repaint(this, box);
-		Display.repaintSnapshots(this);
-	}
-
-	/** Find the given Displayable in the undo/redo queues and clear it. This functionality is used when an object is removed, for which there is no undo. */
-	public void removeFromUndo(final Displayable d) {
-		history.remove(d.getId());
-	}
-
 	public void destroy() {
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
@@ -1196,7 +1087,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
-		this.history.clear();
 		if (null != align) {
 			align.destroy();
 			align = null;
@@ -1617,5 +1507,174 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			else r.add(la.getMinimalBoundingBox(c));
 		}
 		return r;
+	}
+
+	/** Time vs DoStep. Not all steps may be specific for a single Displayable. */
+	final private TreeMap<Long,DoStep> edit_history = new TreeMap<Long,DoStep>();
+
+	/** Displayable vs its own set of time vs DoStep, for quick access, for those edits that are specific of a Displayable.
+	 *  It's necessary to set a ground, starting point for any Displayable whose data will be edited. */
+	final private Map<Displayable,TreeMap<Long,DoStep>> dedits = new HashMap<Displayable,TreeMap<Long,DoStep>>();
+
+	/** Time vs DoStep; as steps are removed from the end of edit_history, they are put here. */
+	final private TreeMap<Long,DoStep> redo = new TreeMap<Long,DoStep>();
+
+	/** Returns true if there is no step saved for any of the displayables involved. */
+	boolean prepareEditStep(final Displayable d) {
+		TreeMap<Long,DoStep> edits = dedits.get(d);
+		return null == edits || edits.isEmpty();
+	}
+
+	/** Whether an initial step should be added or not. */
+	boolean prepareTransformStep(final Collection<Displayable> col) {
+		synchronized (edit_history) {
+			if (0 == edit_history.size()) return true;
+			// Check if the last added entry contains the exact same elements and data
+			DoStep step = edit_history.get(edit_history.lastKey());
+			if (step instanceof Displayable.DoTransforms) {
+				return ! ((Displayable.DoTransforms)step).identicalTo(col);
+			}
+			return true;
+		}
+	}
+
+	/** Returns a list of all Displayable for which an edit step should be prepared. */
+	/*
+	HashSet<Displayable> prepareEditStep(final Set<Displayable> hs) {
+		final HashSet<Displayable> m = new HashSet<Displayable>();
+		for(final Displayable d : hs) {
+			if (prepareEditStep(d)) m.add(d);
+		}
+		return m;
+	}
+	*/
+
+	/** Will add a DoEdit step only if there isn't one already to which the object could be reverted to. */
+	boolean addPreDataEditStep(final Displayable d) {
+		if (prepareEditStep(d)) {
+			Displayable.DoEdit prev = new Displayable.DoEdit(d).fullCopy();
+			prev.add("data", d.getDataPackage()); // contains width,height,transform,links, and the data (points, areas, etc.)
+			return addEditStep(prev);
+		}
+		return false;
+	}
+
+	boolean addDataEditStep(final Displayable d) {
+		Displayable.DoEdit prev = new Displayable.DoEdit(d).fullCopy();
+		prev.add("data", d.getDataPackage()); // contains width,height,transform,links, and the data (points, areas, etc.)
+		return addEditStep(prev);
+	}
+
+	boolean addEditStep(final DoStep step) {
+		if (step.isEmpty()) {
+			Utils.log2("Warning: can't add empty step " + step);
+			return false;
+		}
+
+		synchronized (edit_history) {
+			final long time = System.currentTimeMillis();
+
+			// 1- Store for speedy access, if its Displayable-specific:
+			final Displayable d = step.getD();
+			if (null != d) {
+				TreeMap<Long,DoStep> edits = dedits.get(d);
+				if (null == edits) {
+					edits = new TreeMap<Long,DoStep>();
+					dedits.put(d, edits);
+				}
+				edits.put(time, step);
+			}
+
+			// 2- Store for general ordering
+			edit_history.put(time, step);
+			Utils.log2("Added edit history step");
+
+			// 3- Bye bye redo! Can't branch.
+			redo.clear();
+		}
+
+		return true;
+	}
+
+	/** Add an undo step for the transformations of all Displayable in the layer. */
+	public void addTransformStep(final Layer layer) {
+		addTransformStep(layer.getDisplayables());
+	}
+	/** Add an undo step for the transformations of all Displayable in hs. */
+	public void addTransformStep(final Collection<Displayable> col) {
+		Utils.log2("Added transform step for col");
+		addEditStep(new Displayable.DoTransforms().addAll(col));
+	}
+	/** Add an undo step for the transformations of all Displayable in all layers. */
+	public void addTransformStep() {
+		Utils.log2("Added transform step for all");
+		Displayable.DoTransforms dt = new Displayable.DoTransforms();
+		final HashSet<Displayable> hs = new HashSet<Displayable>();
+		for (final Layer la : al_layers) {
+			dt.addAll(la.getDisplayables());
+		}
+		addEditStep(dt);
+	}
+
+	public boolean canUndo() {
+		return edit_history.size() > 1; // the first step is the baseline
+	}
+	public boolean canRedo() {
+		return redo.size() > 0;
+	}
+
+	/** Undoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
+	public boolean undoOneStep() {
+		synchronized (edit_history) {
+			if (1 == edit_history.size()) return false;
+
+			Utils.log2("Undoing one step");
+
+			final long time = edit_history.lastKey();
+			// Remove one step from queues
+			final DoStep step = edit_history.remove(time);
+			if (null != step.getD()) {
+				dedits.get(step.getD()).remove(time);
+			}
+
+			redo.put(time, step);
+
+			if (!step.apply()) {
+				Utils.log("Undo: could not apply step!");
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** Redoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
+	public boolean redoOneStep() {
+		synchronized (edit_history) {
+			if (0 == redo.size()) return false;
+
+			Utils.log2("Undoing one step");
+
+			// Remove from undo queue:
+			final long time = redo.firstKey();
+			final DoStep step = redo.remove(time);
+
+			if (!step.apply()) {
+				Utils.log("Undo: could not apply step!");
+				return false;
+			}
+
+			// Readd to undo queue:
+			edit_history.put(time, step);
+			if (null != step.getD()) {
+				dedits.get(step.getD()).put(time, step);
+			}
+		}
+		return true;
+	}
+
+	static public void applyTransforms(final Map<Displayable,AffineTransform> m) {
+		for (final Map.Entry<Displayable,AffineTransform> e : m.entrySet()) {
+			e.getKey().setAffineTransform(e.getValue()); // updates buckets
+		}
 	}
 }
