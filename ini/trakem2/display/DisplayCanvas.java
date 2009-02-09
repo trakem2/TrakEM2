@@ -656,6 +656,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			selection.mousePressed(me, x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
+			display.getLayerSet().prepareUndoEdit(active);
 			box = active.getBoundingBox();
 			active.mousePressed(me, x_p, y_p, magnification);
 			invalidateVolatile();
@@ -905,6 +906,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					Selection selection = display.getSelection();
 					selection.updateTransform(display.getActive());
 					Display.repaint(display.getLayer(), selection.getBox(), Selection.PADDING); // repaints the navigator as well
+					display.getLayerSet().addUndoEdit(active);
 					return;
 				}
 				break;
@@ -966,6 +968,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					repaint(old_brush_box, 0, false);
 					old_brush_box = null; // from mouseMoved
 				}
+				display.getLayerSet().addUndoEdit(active);
 				break;
 			}
 		}
@@ -1766,6 +1769,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					display.getSelection().redoOneStep();
 					Display.repaint(display.getLayer());
 					ke.consume();
+				} else if (0 == (mod ^ Event.CTRL_MASK)) {
+					display.getLayerSet().undoOneEditStep();
+					ke.consume();
 				}
 				// else, the 'z' command restores the image using ImageJ internal undo
 				break;
@@ -2359,6 +2365,28 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					sim[i].flush();
 					break; // only one per layer_id
 				}
+			}
+		}
+	}
+
+	// Used by undo edits system
+	void replaceDisplayable(final Displayable dold, final Displayable dnew) {
+		synchronized (offscreen_lock) {
+			offscreen_lock.lock();
+			try {
+				int i = al_top.indexOf(dold);
+				if (-1 != i) {
+					al_top.remove(i);
+					al_top.add(i, dnew);
+				} else {
+					// must remake offscreen
+					update_graphics = true;
+				}
+				invalidateVolatile();
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				offscreen_lock.unlock();
 			}
 		}
 	}

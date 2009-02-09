@@ -40,4 +40,22 @@ public class TransformationStep implements History.Step<Displayable> {
 		}
 		return true;
 	}
+	/** Replace all Displayable pointers with the same id as dnew by dnew, but not the associated transformation. */
+	public Displayable replace(final Displayable dnew) {
+		AffineTransform a = null;
+		Displayable dold = null;
+		for (final Iterator<Map.Entry<Displayable,AffineTransform>> it = ht.entrySet().iterator(); it.hasNext(); ) {
+			final Map.Entry<Displayable,AffineTransform> e = it.next();
+			dold = e.getKey();
+			if (dold.getId() == dnew.getId()) {
+				a = e.getValue();
+				it.remove();
+				break;
+			}
+		}
+		if (null != a) {
+			ht.put(dnew, a);
+		}
+		return dold;
+	}
 }

@@ -58,6 +58,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.Collection;
+import java.util.TreeMap;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -781,6 +782,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		// now remove proper, so stack_index hasn't changed yet
 		al_zdispl.remove(zdispl);
 		Display.remove(zdispl);
+		removeFromUndoEdits(zdispl);
 		return true;
 	}
 
@@ -1617,5 +1619,192 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			else r.add(la.getMinimalBoundingBox(c));
 		}
 		return r;
+	}
+
+	// If there was structural sharing with final Area in AreaList, this would be very cheap. It can be done easily!
+	
+	/** Sorted by id, and within, sorted by creation time. */
+	private final HashMap<Long,TreeMap<Long,EditStep>> edit_history = new HashMap<Long,TreeMap<Long,EditStep>>();
+	/** Sorted by creation time. */
+	private final TreeMap<Long,EditStep> all_edits = new TreeMap<Long,EditStep>();
+	private final TreeMap<Long,EditStep> redo_edits = new TreeMap<Long,EditStep>();
+
+	static private final int MAX_EDIT_STEPS = 50;
+
+	private final class EditStep {
+		final long time;
+		final Displayable d;
+		final TreeMap<Long,EditStep> parent;
+		/** Will make a clone of d with properly set Layer and LayerSet pointers. */
+		EditStep(final long time, final Displayable d, final TreeMap<Long,EditStep> parent) {
+			this.time = time;
+			// Make a copy with the same id:
+			this.d = d.clone(d.getProject(), true);
+			// Set the copy's Layer and LayerSet pointer properly:
+			if (this.d instanceof ZDisplayable) {
+				((ZDisplayable)this.d).setLayerSet(d.getLayerSet());
+			}
+			this.d.setLayer(d.getLayer(), false);
+			this.parent = parent;
+		}
+		final void remove() {
+			parent.remove(time);
+		}
+	}
+
+	/** Add a first clone of d if there isn't at least one yet. */
+	void prepareUndoEdit(final Displayable d) {
+		TreeMap<Long,EditStep> edits = edit_history.get(d.getId());
+		if (null == edits) {
+			edits = new TreeMap<Long,EditStep>();
+			edit_history.put(d.getId(), edits);
+		} else if (0 != edits.size()) return; // there already is a first step to go back to
+
+		final long time = System.currentTimeMillis();
+		final EditStep step = new EditStep(time, d, edits);
+		edits.put(time, step);
+		all_edits.put(time, step);
+		Utils.log2("Prepared undo edit for " + d);
+	}
+
+	/** Add a clone of d to the edit history of d. */
+	void addUndoEdit(final Displayable d) {
+		final TreeMap<Long,EditStep> edits = edit_history.get(d.getId());
+		if (null != edits) {
+			final long time = System.currentTimeMillis();
+			final EditStep step = new EditStep(time, d, edits);
+			edits.put(time, step);
+			all_edits.put(time, step);
+			redo_edits.clear(); // bye bye, can't branch
+			resizeEditSteps();
+			Utils.log2("Added undo edit for " + d);
+		} else {
+			Utils.log("ERROR: undo edits does not contain an initial copy for #" + d.getId());
+		}
+	}
+
+	void removeEditSteps() {
+		edit_history.clear();
+		all_edits.clear();
+		redo_edits.clear();
+	}
+
+	void resizeEditSteps() {
+		final int excess = all_edits.size() - MAX_EDIT_STEPS;
+		if (excess < 1) return;
+		int next = 0;
+		Utils.log2("Resizing edit steps: " + excess);
+		// all edits are sorted by time: so remove oldest
+		for (final Iterator<Map.Entry<Long,EditStep>> it = all_edits.entrySet().iterator(); it.hasNext(); ) {
+			next++;
+			if (next > excess) break;
+			// Remove step from both lists:
+			final Map.Entry<Long,EditStep> e = it.next();
+			e.getValue().remove();
+			it.remove();
+		}
+	}
+
+	void undoOneEditStep() {
+		if (1 == all_edits.size()) return;
+		final EditStep step = all_edits.remove(all_edits.lastKey());
+		final TreeMap<Long,EditStep> edits = edit_history.get(step.d.getId());
+		if (1 == edits.size()) {
+			applyEditStep(step);
+			return; // the first is the last reference: can't undo more
+		}
+		step.remove(); // from the parent TreeMap
+		// Apply: find the Displayable with step.d.id in a Layer or LayerSet and replace it with step.d
+		applyEditStep(step);
+		// Store for redo
+		redo_edits.put(step.time, step);
+		Utils.log2("Undid one edit step");
+	}
+	boolean applyEditStep(final EditStep step) {
+		final Displayable dold; // the currently displayed Displayable
+		final Displayable dnew = step.d; // the one to replace the current with
+
+		if (dnew instanceof ZDisplayable) {
+			final ZDisplayable zdold = (ZDisplayable) this.findById(step.d.getId());
+			dold = zdold;
+			if (null == zdold) {
+				Utils.log2("ERROR: could not find the ZDisplayable #" + step.d.getId() + " to undo its edit!");
+				return false;
+			}
+			int i = al_zdispl.indexOf(zdold);
+			al_zdispl.remove(i);
+			al_zdispl.add(i, (ZDisplayable)dnew);
+
+			// replace in buckets:
+			if (null != root) {
+				root.replace(i, dnew);
+			}
+		} else {
+			dold = (Displayable) findById(step.d.getId());
+			if (null == dold) {
+				Utils.log2("ERROR: could not find the Displayable #" + dold.getId() + " to undo its edit!");
+				return false; // where are my lisp macros ...
+			}
+			dold.getLayer().replace(dold, dnew);
+
+			// replace in buckets:
+			if (null != dold.getLayer().root) {
+				dold.getLayer().root.replace(dold.getLayer().indexOf(dold), dnew);
+			}
+		}
+
+		// Replace in transformation undos
+		for (final History.Step trstep : history.getAll()) {
+			((TransformationStep)trstep).replace(dnew);
+		}
+
+		// Fix its links
+		if (dold.isLinked()) {
+			for (final Displayable dlink : dold.hs_linked) {
+				// Replace the back pointer of each linked Displayable:
+				dlink.hs_linked.remove(dold);
+				dlink.hs_linked.add(dnew);
+			}
+		}
+
+		// Replace in trees:
+		project.getProjectTree().replace(dold, dnew);
+
+		// Replace in panels and selection, and repaint
+		Display.replaceDisplayable(dold, dnew, true);
+
+		Utils.log2("Applied one edit step");
+
+		return true;
+	}
+
+	void redoOneEditStep() {
+		if (0 == redo_edits.size()) return;
+		final long time = redo_edits.firstKey(); // the oldest (smallest time stamp)
+		final EditStep step = redo_edits.remove(time);
+		applyEditStep(step);
+		// add back to undo queue
+		edit_history.get(step.d.getId()).put(time, step);
+	}
+
+	boolean canUndoEditStep() {
+		return 1 != all_edits.size();
+	}
+
+	boolean canRedoEditStep() {
+		return 0 != redo_edits.size();
+	}
+
+	void removeFromUndoEdits(final Displayable d) {
+		// From: edit_history, all_edits, redo_edits
+		final TreeMap<Long,EditStep> edits = edit_history.remove(d.getId());
+		if (null == edits) return; // not recorded as edited
+		for (final Long time : edits.keySet()) {
+			all_edits.remove(time);
+		}
+		if (redo_edits.isEmpty()) return; // done
+		for (final Iterator<EditStep> it = redo_edits.values().iterator(); it.hasNext(); ) {
+			if (it.next().d.getId() == d.getId()) it.remove(); // from the TreeMap redo_edits.
+		}
 	}
 }

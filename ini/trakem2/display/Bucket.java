@@ -199,12 +199,12 @@ public class Bucket {
 	private void find(final TreeMap<Integer,Displayable> accum, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
 		if (empty || !intersects(srcRect)) return;
 		if (null != children) {
-			for (Bucket bu : children) {
+			for (final Bucket bu : children) {
 				bu.find(accum, srcRect, layer, visible_only);
 			}
 		} else {
 			final Rectangle tmp = new Rectangle();
-			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
+			for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
 				if (d.getBoundingBox(tmp).intersects(srcRect)) {
@@ -213,6 +213,18 @@ public class Bucket {
 			}
 		}
 	}
+
+	synchronized final void replace(final int index, final Displayable dnew) {
+		if (empty) return;
+		if (null != children) {
+			for (final Bucket bu : children) {
+				bu.replace(index, dnew);
+			}
+		} else {
+			map.put(index, dnew);
+		}
+	}
+
 
 	/** Find all Displayable objects that contain the given point at the given layer (here layer acts as the Z coordinate, then) and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
 	synchronized final Collection<Displayable> find(final int px, final int py, final Layer layer, final boolean visible_only) {

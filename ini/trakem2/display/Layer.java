@@ -295,6 +295,7 @@ public final class Layer extends DBObject implements Bucketable {
 		if (null != root) Bucket.remove(displ, db_map);
 		// now remove proper, so stack_index hasn't changed yet
 		al_displayables.remove(displ);
+		parent.removeFromUndoEdits(displ);
 		Display.remove(this, displ);
 		return true;
 	}
@@ -864,5 +865,13 @@ public final class Layer extends DBObject implements Bucketable {
 	public void setBucketsEnabled(boolean b) {
 		this.use_buckets = b;
 		if (!use_buckets) this.root = null;
+	}
+
+	/** Replace the Displayable with the same id. */
+	boolean replace(final Displayable dold, final Displayable dnew) {
+		int i = al_displayables.indexOf(dold);
+		al_displayables.remove(i);
+		al_displayables.add(i, dnew);
+		return true;
 	}
 }

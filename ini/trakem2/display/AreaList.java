@@ -1071,10 +1071,17 @@ public class AreaList extends ZDisplayable {
 			al_ul.add(new Long(((Long)it.next()).longValue())); // clones of the Long that wrap layer ids
 		}
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		final AreaList copy = new AreaList(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.visible, al_ul, (AffineTransform)this.at.clone());
-		for (Iterator it = copy.ht_areas.entrySet().iterator(); it.hasNext(); ) {
+		final AreaList copy = new AreaList(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, al_ul, (AffineTransform)this.at.clone());
+
+		// Duplicate Area objects, loading them if necessary
+		for (final Iterator it = copy.ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
-			entry.setValue(((Area)this.ht_areas.get(entry.getKey())).clone());
+			Object ob = this.ht_areas.get(entry.getKey());
+			if (UNLOADED == ob) {
+				ob = loadLayer(((Long)entry.getKey()).longValue());
+			}
+			ob = new Area((Area)ob);
+			entry.setValue(ob);
 		}
 		return copy;
 	}

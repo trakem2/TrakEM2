@@ -1144,6 +1144,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return layer;
 	}
 
+	public LayerSet getLayerSet() {
+		return layer.getParent();
+	}
+
 	public boolean isShowing(final Layer layer) {
 		return this.layer == layer;
 	}
@@ -1686,8 +1690,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}.start();
 	}
 
+	void setActiveSilently(final Displayable displ) {
+		this.active = displ;
+	}
+
 	/** Used by the Selection exclusively. This method will change a lot in the near future, and may disappear in favor of getSelection().getActive(). All this method does is update GUI components related to the currently active and the newly active Displayable; called through SwingUtilities.invokeLater. */
-	protected void setActive(final Displayable displ) {
+	void setActive(final Displayable displ) {
 		final Displayable prev_active = this.active;
 		this.active = displ;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
@@ -2144,6 +2152,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
 
+			item = new JMenuItem("Undo edition"); item.addActionListener(this); popup.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.CTRL_MASK, true));
+			item.setEnabled(layer.getParent().canUndoEditStep());
+			item = new JMenuItem("Redo edition"); item.addActionListener(this); popup.add(item);
+			item.setEnabled(layer.getParent().canRedoEditStep());
+
 			item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 			item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 			if (selection.isEmpty()) item.setEnabled(false);
@@ -2440,27 +2454,65 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	static public void updatePanel(Layer layer, final Displayable displ) {
 		if (null == layer && null != front) layer = front.layer; // the front layer
 		for (final Display d : al_displays) {
-			if (d.layer == layer) {
+			if (displ instanceof ZDisplayable) {
+				d.updatePanel(displ, d.panel_zdispl);
+			} else if (d.layer == layer) {
 				d.updatePanel(displ);
 			}
 		}
 	}
 
-	private void updatePanel(Displayable d) {
+	private final void updatePanel(final Displayable d) {
+		JPanel c = findPanel(d);
+		if (null == c) return;
+		updatePanel(d, c);
+	}
+
+	private JPanel findPanel(final Displayable d) {
 		JPanel c = null;
-		if (d instanceof Profile) {
-			c = panel_profiles;
+		if (d instanceof ZDisplayable) {
+			c = panel_zdispl;
 		} else if (d instanceof Patch) {
 			c = panel_patches;
 		} else if (d instanceof DLabel) {
 			c = panel_labels;
-		} else if (d instanceof Pipe) {
-			c = panel_zdispl;
+		} else if (d instanceof Profile) {
+			c = panel_profiles;
 		}
-		if (null == c) return;
+		return c;
+	}
+
+	private final void updatePanel(final Displayable d, final JPanel c) {
 		DisplayablePanel dp = ht_panels.get(d);
 		dp.remake();
 		Utils.updateComponent(c);
+	}
+
+	// Private to the package. Used by LayerSet undo edits system
+	static final void replaceDisplayable(final Displayable dold, final Displayable dnew, final boolean repaint) {
+		for (final Display d : al_displays) {
+			if (dold instanceof ZDisplayable || dold.getLayer() == d.layer) {
+				// 1 - Replace panel
+				final DisplayablePanel dp = d.ht_panels.remove(dold);
+				if (null == dp) {
+					Utils.log2("Warning: could not find panel.");
+					continue;
+				}
+				dp.set(dnew);
+				d.ht_panels.put(dnew, dp);
+				JPanel p = d.findPanel(dold);
+				if (null == p) continue;
+				Utils.updateComponent(p);
+				// 2 - Replace in selection
+				d.selection.replace(dold, dnew);
+			}
+		}
+		// 3 - Repaint
+		if (repaint) {
+			Rectangle box = dold.getBoundingBox();
+			box.add(dnew.getBoundingBox());
+			Display.repaint(dnew.getLayerSet(), dnew, box, 5, true);
+		}
 	}
 
 	static public void updatePanelIndex(final Layer layer, final Displayable displ) {
@@ -2692,6 +2744,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Specify transform...")) {
 			if (null == active) return;
 			selection.specify();
+		} else if (command.equals("Undo edition")) {
+			layer.getParent().undoOneEditStep();
+		} else if (command.equals("Redo edition")) {
+			layer.getParent().redoOneEditStep();
 		} else if (command.equals("Hide all but images")) {
 			ArrayList<Class> type = new ArrayList<Class>();
 			type.add(Patch.class);

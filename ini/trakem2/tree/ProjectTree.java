@@ -617,4 +617,25 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		return node;
 	}
 
+	/** Replace the user object of the node containing dold for dnew, only
+	 * if they belong to the same project and have the same id (that means
+	 * they must be different instances of the conceptually the same
+	 * object). */
+	public void replace(final Displayable dold, final Displayable dnew) {
+		if (dold.getId() != dnew.getId()) {
+			Utils.log2("ERROR: can't replace: different id");
+			return;
+		}
+		if (dold.getProject() != dnew.getProject()) {
+			Utils.log2("ERROR: can't replace: different project");
+			return;
+		}
+		DefaultMutableTreeNode node = DNDTree.findNode2(dold, this);
+		if (null == node) {
+			Utils.log2("ERROR: could not find in project tree: dold " + dold);
+			return;
+		}
+		node.setUserObject(dnew);
+		updateUILater();
+	}
 }

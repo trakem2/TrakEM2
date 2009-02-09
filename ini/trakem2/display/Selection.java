@@ -1,4 +1,5 @@
 /**
+ * 
 
 TrakEM2 plugin for ImageJ(C).
 Copyright (C) 2005, 2006, 2007 Albert Cardona and Rodney Douglas.
@@ -601,18 +602,8 @@ public class Selection {
 			else box.add(b);
 			//Utils.log("box after adding: " + box);
 			setHandles(box);
-			// check if it was among the linked already before adding it's links and its transform
-			if (!hs.contains(d)) {
-				hs.add(d);
-				// now, grab the linked group and add it as well to the hashtable
-				HashSet hsl = d.getLinkedGroup(new HashSet());
-				if (null != hsl) {
-					for (Iterator it = hsl.iterator(); it.hasNext(); ) {
-						Displayable displ = (Displayable)it.next();
-						if (!hs.contains(displ)) hs.add(displ);
-					}
-				}
-			}
+			// now, grab the linked group and add it as well, to be transformed along:
+			addLinksOf(d);
 			// finally:
 			if (null != display) display.setActive(d);
 		} catch (Exception e) {
@@ -620,6 +611,17 @@ public class Selection {
 		} finally {
 			unlock();
 		}}
+	}
+
+	// To be used in a synchronized block
+	private void addLinksOf(final Displayable d) {
+		// The linked group includes d itself
+		HashSet<Displayable> hsl = d.getLinkedGroup(null);
+		if (null != hsl) {
+			for (final Displayable dlink : hsl) {
+				hs.add(dlink); // if already there, nothing happens
+			}
+		}
 	}
 
 	/** Select all objects in the Display's current layer, preserving the active one (if any) as active; includes all the ZDisplayables, whether visible in this layer or not. */
@@ -696,7 +698,7 @@ public class Selection {
 	/** Delete all selected objects from their Layer. */
 	public boolean deleteAll() {
 		if (null == active) return true; // nothing to remove
-		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
+		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?") + "\nThere is no undo!")) return false;
 		// obtain a list of displayables to remove
 		TreeMap<Integer,Displayable> sorted_d = null;
 		TreeMap<Integer,Displayable> sorted_zd = null;
@@ -1629,5 +1631,43 @@ public class Selection {
 			}
 		}
 		return null;
+	}
+
+	/** If the selection contains dold, replace it with dnew. Used by the undo edits system. */
+	void replace(final Displayable dold, final Displayable dnew) {
+		synchronized (queue_lock) {
+			lock();
+			try {
+				boolean selected = false;
+				if (active == dold) {
+					active = dnew;
+					if (null != display) display.setActiveSilently(dnew);
+					selected = true;
+				}
+				int i = queue.indexOf(dold);
+				if (-1 != i) {
+					queue.remove(i);
+					queue.add(i, dnew);
+					selected = true;
+				}
+				i = queue_prev.indexOf(dold);
+				if (-1 != i) {
+					queue_prev.remove(i);
+					queue_prev.add(i, dnew);
+					selected = true;
+				}
+
+				if (selected) {
+					Utils.log2("Replacing selected dold with dnew");
+					hs.remove(dold);
+					addLinksOf(dnew); // includes dnew itself
+					resetBox();
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
 	}
 }
