@@ -671,4 +671,36 @@ public class Dissector extends ZDisplayable {
 		for (Item item : al_items) item.addResults(rt, layer_set.getCalibration(), getNameId());
 		return rt;
 	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPDissector.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		return new DPDissector(this);
+	}
+
+	static private final class DPDissector extends Displayable.DataPackage {
+		final ArrayList<Item> items;
+
+		DPDissector(final Dissector dissector) {
+			super(dissector);
+			items = new ArrayList<Item>();
+			for (final Item item : dissector.al_items) {
+				items.add((Item)item.clone());
+			}
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Dissector dissector = (Dissector) d;
+			final ArrayList<Item> m = new ArrayList<Item>();
+			for (final Item item : items) { // no memfn ...
+				m.add((Item)item.clone());
+			}
+			dissector.al_items = m;
+			return true;
+		}
+	}
 }

@@ -1590,24 +1590,8 @@ public class AreaList extends ZDisplayable {
 	}
 
 	@Override
-	boolean setDataPackage(final Displayable.DataPackage ob) {
-		if (ob.getClass() != DPAreaList.class) {
-			Utils.log2("ERROR: cannot set " + ob.getClass() + " to an AreaList!");
-			return false;
-		}
-		final DPAreaList dp = (DPAreaList) ob;
-		if (!super.setDataPackage(dp)) {
-			// something went wrong
-			return false;
-		}
-		this.ht_areas.clear();
-		for (final Object entry : dp.ht.entrySet()) {
-			Map.Entry e = (Map.Entry)entry;
-			Object area = e.getValue();
-			if (area.getClass() == Area.class) area = new Area((Area)area);
-			this.ht_areas.put(e.getKey(), area);
-		}
-		return true;
+	Class getInternalDataPackageClass() {
+		return DPAreaList.class;
 	}
 
 	@Override
@@ -1627,6 +1611,18 @@ public class AreaList extends ZDisplayable {
 				if (area.getClass() == Area.class) area = new Area((Area)area);
 				this.ht.put(e.getKey(), area);
 			}
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final AreaList ali = (AreaList)d;
+			ali.ht_areas.clear();
+			for (final Object entry : ht.entrySet()) {
+				final Map.Entry e = (Map.Entry)entry;
+				Object area = e.getValue();
+				if (area.getClass() == Area.class) area = new Area((Area)area);
+				ali.ht_areas.put(e.getKey(), area);
+			}
+			return true;
 		}
 	}
 }

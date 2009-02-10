@@ -1522,13 +1522,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Returns true if there is no step saved for any of the displayables involved. */
 	boolean prepareEditStep(final Displayable d) {
 		TreeMap<Long,DoStep> edits = dedits.get(d);
-		return null == edits || edits.isEmpty();
+		return null == edits || edits.isEmpty() || redo.size() > 0; // Needs work: must avoid not adding a step when in the middle of a redo, but without adding a steo that is the same as the last undid one. TODO
 	}
 
 	/** Whether an initial step should be added or not. */
 	boolean prepareTransformStep(final Collection<Displayable> col) {
 		synchronized (edit_history) {
-			if (0 == edit_history.size()) return true;
+			if (0 == edit_history.size() || redo.size() > 0) return true;
 			// Check if the last added entry contains the exact same elements and data
 			DoStep step = edit_history.get(edit_history.lastKey());
 			if (step instanceof Displayable.DoTransforms) {
@@ -1537,17 +1537,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return true;
 		}
 	}
-
-	/** Returns a list of all Displayable for which an edit step should be prepared. */
-	/*
-	HashSet<Displayable> prepareEditStep(final Set<Displayable> hs) {
-		final HashSet<Displayable> m = new HashSet<Displayable>();
-		for(final Displayable d : hs) {
-			if (prepareEditStep(d)) m.add(d);
-		}
-		return m;
-	}
-	*/
 
 	/** Will add a DoEdit step only if there isn't one already to which the object could be reverted to. */
 	boolean addPreDataEditStep(final Displayable d) {
@@ -1570,6 +1559,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			Utils.log2("Warning: can't add empty step " + step);
 			return false;
 		}
+
+		// should check if it's identical to the last added one.
 
 		synchronized (edit_history) {
 			final long time = System.currentTimeMillis();
@@ -1623,6 +1614,22 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return redo.size() > 0;
 	}
 
+	private final DoStep pickLastStep() {
+		// Remove last step from queues
+		final long time = edit_history.lastKey();
+		final DoStep step = edit_history.remove(time);
+		if (null != step.getD()) {
+			dedits.get(step.getD()).remove(time);
+		}
+		redo.put(time, step);
+		// If at the end, the end represents the current state
+		// so we must remove yet another step:
+		if (1 == redo.size()) {
+			return pickLastStep();
+		}
+		return step;
+	}
+
 	/** Undoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
 	public boolean undoOneStep() {
 		synchronized (edit_history) {
@@ -1630,14 +1637,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 			Utils.log2("Undoing one step");
 
-			final long time = edit_history.lastKey();
-			// Remove one step from queues
-			final DoStep step = edit_history.remove(time);
-			if (null != step.getD()) {
-				dedits.get(step.getD()).remove(time);
-			}
-
-			redo.put(time, step);
+			final DoStep step = pickLastStep();
 
 			if (!step.apply()) {
 				Utils.log("Undo: could not apply step!");
@@ -1652,7 +1652,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		synchronized (edit_history) {
 			if (0 == redo.size()) return false;
 
-			Utils.log2("Undoing one step");
+			Utils.log2("Redoing one step");
 
 			// Remove from undo queue:
 			final long time = redo.firstKey();
@@ -1676,5 +1676,16 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		for (final Map.Entry<Displayable,AffineTransform> e : m.entrySet()) {
 			e.getKey().setAffineTransform(e.getValue()); // updates buckets
 		}
+	}
+
+	static {
+		// Undo background tasks: should be done in background threads,
+		// but on attempting to undo/redo, the undo/redo should wait
+		// until all tasks are done. For example, updating mipmaps when
+		// undoing/redoing min/max or CoordinateTransform.
+		// This could be done with futures: spawn and do in the
+		// background, but on redo/undo, call for the Future return
+		// value, which will block until there is one to return.
+		// Since blocking would block the EventDispatchThread, just refuse to undo/redo and notify the user.
 	}
 }

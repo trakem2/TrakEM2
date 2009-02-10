@@ -1711,33 +1711,31 @@ public abstract class Displayable extends DBObject {
 		}
 	}
 
-	boolean setDataPackage(final Displayable.DataPackage dp) {
+	synchronized final boolean setDataPackage(final Displayable.DataPackage pkg) {
+		if (pkg.getClass() != getInternalDataPackageClass()) {
+			Utils.log2("ERROR: cannot set " + pkg.getClass() + " to " + this.getClass());
+			return false;
+		}
 		try {
-			this.width = dp.width;
-			this.height = dp.height;
-			this.setAffineTransform(dp.at); // updated bucket
-			if (null == this.hs_linked) {
-				if (null != dp.hs_linked) this.hs_linked = new HashSet<Displayable>(dp.hs_linked);
-				// else both null, remain null
-			} else if (null == dp.hs_linked) {
-				// this not null, dp's null
-				this.hs_linked = null;
-			} else {
-				// both not null
-				this.hs_linked = new HashSet<Displayable>(dp.hs_linked);
-			}
-			return true;
+			return pkg.to2(this);
+
 		} catch (Exception e) {
 			IJError.print(e);
 			return false;
 		}
 	}
+
+	// Must be overriden by subclasses
 	Object getDataPackage() {
 		Utils.log2("Displayable.getDataPackage not implemented yet for " + getClass());
 		return null;
 	}
+	// Must be overriden by subclasses
+	Class getInternalDataPackageClass() {
+		return DataPackage.class;
+	}
 
-	static protected class DataPackage {
+	static abstract protected class DataPackage {
 		protected final double width, height;
 		protected final AffineTransform at;
 		protected final HashSet<Displayable> hs_linked;
@@ -1748,5 +1746,29 @@ public abstract class Displayable extends DBObject {
 			this.at = new AffineTransform(d.at);
 			this.hs_linked = null == d.hs_linked ? null : new HashSet<Displayable>(d.hs_linked);
 		}
+
+		/** Set the Displayable's fields. */
+		final boolean to1(final Displayable d) {
+			d.width = width;
+			d.height = height;
+			d.setAffineTransform(at); // updates bucket
+			if (null == d.hs_linked) {
+				if (null != hs_linked) d.hs_linked = new HashSet<Displayable>(hs_linked);
+				// else both null, remain null
+			} else if (null == hs_linked) {
+				// d's not null, pkg's null
+				d.hs_linked = null;
+			} else {
+				// both not null
+				d.hs_linked = new HashSet<Displayable>(hs_linked);
+			}
+			return true;
+		}
+		// Could simply use a single 'to' method (it works, tested),
+		// but if I ever was to cast inadvertendly to Displayable, then
+		// only the superclass' 'to' method would be invoked, not the
+		// subclass' one! I call it "defensive programming"
+		/** Set the subclass specific data fields. */
+		abstract boolean to2(final Displayable d);
 	}
 }
