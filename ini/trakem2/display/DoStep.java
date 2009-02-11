@@ -8,4 +8,6 @@ public interface DoStep {
 
 	/** May return null. */
 	public Displayable getD();
+
+	public boolean isIdenticalTo(Object ob); // bypassing equals
 }

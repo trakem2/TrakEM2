@@ -1580,6 +1580,9 @@ public abstract class Displayable extends DBObject {
 		DoEdit(final Displayable d) {
 			this.d = d;
 		}
+		public boolean isIdenticalTo(final Object ob) {
+			return false; // TODO
+		}
 		synchronized public Displayable getD() { return d; }
 		synchronized DoEdit fullCopy() {
 			return init(d, new String[]{"data", "width", "height", "locked", "title", "color", "alpha", "visible", "props", "linked_props"});
@@ -1700,7 +1703,9 @@ public abstract class Displayable extends DBObject {
 		}
 		public Displayable getD() { return null; }
 
-		public boolean identicalTo(final Collection<Displayable> col) {
+		public boolean isIdenticalTo(final Object ob) {
+			if (!(ob instanceof Collection)) return false;
+			final Collection<Displayable> col = (Collection<Displayable>) ob;
 			if (ht.size() != col.size()) return false;
 			for (final Displayable d : col) {
 				if (!d.getAffineTransform().equals(ht.get(d))) {

@@ -411,6 +411,18 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return false;
 		}
 
+		double w = xe - x;
+		double h = ye - y;
+		if (w <= 0 || h <= 0) {
+			Utils.log("LayerSet.setMinimumDimensions: zero width or height, NOT resizing.");
+			return false;
+		}
+
+		// Record previous state
+		if (prepareStep(this)) {
+			addEditStep(new LayerSet.DoResizeLayerSet(this));
+		}
+
 		// translate
 		if (0 != x || 0 != y) {
 			project.getLoader().startLargeUpdate();
@@ -431,18 +443,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			} catch (Exception e) {
 				IJError.print(e);
 				project.getLoader().rollback();
-				return false; //TODO no notice to the user ...
+				return false;
 			}
 		}
 
 		//Utils.log("x,y  xe,ye : " + x + "," + y + "  " + xe + "," + ye);
 		// finally, accept:
-		double w = xe - x;
-		double h = ye - y;
-		if (w < 0 || h < 0) {
-			Utils.log("LayerSet.setMinimumDimensions: zero width or height, NOT resizing.");
-			return false;
-		}
 		if (w != layer_width || h != layer_height) {
 			this.layer_width = Math.ceil(w); // stupid int to double conversions ... why floating point math is a non-solved problem? Well, it is for SBCL
 			this.layer_height = Math.ceil(h);
@@ -452,6 +458,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			Display.update(this);
 			Display.pack(this);
 		}
+
+		// Record current state:
+		addEditStep(new LayerSet.DoResizeLayerSet(this));
+
 		return true;
 	}
 
@@ -470,6 +480,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** May leave objects beyond the visible window. */
 	public void setDimensions(double x, double y, double layer_width, double layer_height) {
+		// Record previous state
+		if (prepareStep(this)) {
+			addEditStep(new LayerSet.DoResizeLayerSet(this));
+		}
+
 		this.layer_width = layer_width;
 		this.layer_height = layer_height;
 		final AffineTransform affine = new AffineTransform();
@@ -483,6 +498,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			recreateBuckets(true);
 		}
 		Display.update(this);
+
+		// Record new state
+		addEditStep(new LayerSet.DoResizeLayerSet(this));
 	}
 
 	/** Returns false if any Displayables are being partially or totally cropped away. */
@@ -491,6 +509,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (Double.isNaN(layer_width) || Double.isNaN(layer_height)) { Utils.log("LayerSet.setDimensions: NaNs! Not adjusting."); return false; }
 		if (layer_width <=0 || layer_height <= 0) { Utils.showMessage("LayerSet: can't accept zero or a minus for layer width or height"); return false; }
 		if (anchor < NORTH || anchor > CENTER) {  Utils.log("LayerSet: wrong anchor, not resizing."); return false; }
+
+		// Record previous state
+		if (prepareStep(this)) {
+			addEditStep(new LayerSet.DoResizeLayerSet(this));
+		}
+
 		// new coordinates:
 		double new_x = 0;// the x,y of the old 0,0
 		double new_y = 0;
@@ -575,6 +599,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		// and notify the Display
 		Display.update(this);
 		Display.pack(this);
+
+		// Record new state
+		addEditStep(new LayerSet.DoResizeLayerSet(this));
+
 		return true;
 	}
 
@@ -1488,7 +1516,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
 		this.root.populate(this, db_map);
 		if (layers) {
-			for (Layer la : al_layers) {
+			for (final Layer la : al_layers) {
 				// recreate only if there were any already
 				if (null != la.root) la.recreateBuckets();
 			}
@@ -1526,15 +1554,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Whether an initial step should be added or not. */
-	boolean prepareTransformStep(final Collection<Displayable> col) {
+	boolean prepareStep(final Object ob) {
 		synchronized (edit_history) {
 			if (0 == edit_history.size() || redo.size() > 0) return true;
 			// Check if the last added entry contains the exact same elements and data
 			DoStep step = edit_history.get(edit_history.lastKey());
-			if (step instanceof Displayable.DoTransforms) {
-				return ! ((Displayable.DoTransforms)step).identicalTo(col);
-			}
-			return true;
+			boolean b = step.isIdenticalTo(ob);
+			Utils.log2(b + " == prepareStep for " + ob);
+			// If identical, don't prepare one!
+			return !b;
 		}
 	}
 
@@ -1687,5 +1715,55 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		// background, but on redo/undo, call for the Future return
 		// value, which will block until there is one to return.
 		// Since blocking would block the EventDispatchThread, just refuse to undo/redo and notify the user.
+		//
+		// TODO
+	}
+
+	/** Keeps the width,height of a LayerSet and the AffineTransform of every Displayable in it. */
+	static private class DoResizeLayerSet implements DoStep {
+
+		final LayerSet ls;
+		final HashMap<Displayable,AffineTransform> affines;
+		final double width, height;
+
+		DoResizeLayerSet(final LayerSet ls) {
+			this.ls = ls;
+			this.width = ls.layer_width;
+			this.height = ls.layer_height;
+			this.affines = new HashMap<Displayable,AffineTransform>();
+
+			final ArrayList<Displayable> col = ls.getDisplayables(); // it's a new list
+			col.addAll(ls.getZDisplayables());
+			for (final Displayable d : col) {
+				this.affines.put(d, d.getAffineTransformCopy());
+			}
+		}
+		public boolean isIdenticalTo(final Object ob) {
+			if (!(ob instanceof LayerSet)) return false;
+			final LayerSet layerset = (LayerSet) ob;
+			if (layerset.layer_width != this.width || layerset.height != this.height || layerset != this.ls) return false;
+			final ArrayList<Displayable> col = ls.getDisplayables();
+			col.addAll(ls.getZDisplayables());
+			for (final Displayable d : col) {
+				final AffineTransform aff = this.affines.get(d);
+				if (null == aff) return false;
+				if (!aff.equals(d.getAffineTransform())) return false;
+			}
+			return true;
+		}
+
+		public boolean apply() {
+			ls.layer_width = width;
+			ls.layer_height = height;
+			for (final Map.Entry<Displayable,AffineTransform> e : affines.entrySet()) {
+				e.getKey().getAffineTransform().setTransform(e.getValue());
+			}
+			if (null != ls.root) ls.recreateBuckets(true);
+			Display.updateSelection();
+			Display.update(ls); //so it's not left out painted beyond borders
+			return true;
+		}
+		public boolean isEmpty() { return false; }
+		public Displayable getD() { return null; }
 	}
 }

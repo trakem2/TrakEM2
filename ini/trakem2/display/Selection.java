@@ -1026,7 +1026,7 @@ public class Selection {
 		grabbed = null; // reset
 		Utils.log2("transforming: " + transforming);
 		if (!transforming) {
-			if (display.getLayerSet().prepareTransformStep(new ArrayList<Displayable>(queue))) {
+			if (display.getLayerSet().prepareStep(new ArrayList<Displayable>(queue))) {
 				display.getLayerSet().addTransformStep(new ArrayList<Displayable>(queue));
 			}
 		} else {

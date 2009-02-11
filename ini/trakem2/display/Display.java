@@ -2676,8 +2676,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		} else if (command.equals("Undo")) {
 			layer.getParent().undoOneStep();
+			Display.repaint(layer.getParent());
 		} else if (command.equals("Redo")) {
 			layer.getParent().redoOneStep();
+			Display.repaint(layer.getParent());
 		} else if (command.equals("Transform")) {
 			if (null == active) return;
 			canvas.setTransforming(true);
