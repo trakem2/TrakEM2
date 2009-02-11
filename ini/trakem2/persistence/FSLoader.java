@@ -1619,10 +1619,13 @@ public final class FSLoader extends Loader {
 							for (int i=0; i<pix.length; i++) {
 								pix[i] = ((a[i]&0xff)<<24) | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
-							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix), target_dir + filename, 0.85f)) {
+							final BufferedImage bi_save = createARGBImage(w, h, pix);
+							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
+								bi_save.flush();
 								break;
 							}
+							bi_save.flush();
 						}
 					} while (w >= 32 && h >= 32); // not smaller than 32x32
 				}
@@ -1702,10 +1705,13 @@ public final class FSLoader extends Loader {
 							}
 							final int[] pix = embedAlpha((int[])fp.convertToRGB().getPixels(), a);
 
-							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix), target_dir + filename, 0.85f)) {
+							final BufferedImage bi_save = createARGBImage(w, h, pix);
+							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
+								bi_save.flush();
 								break;
 							}
+							bi_save.flush();
 						} else {
 							// 3 - save as 8-bit jpeg
 							final ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
