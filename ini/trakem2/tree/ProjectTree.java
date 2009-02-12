@@ -398,7 +398,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	*/
 
 	/** Creates a new node of basic type for each AreaList, Ball, or Pipe present in the ArrayList. Other elements are ignored. */
-	public void insertSegmentations(Project project, List al) {
+	public void insertSegmentations(final Project project, final List al) {
 		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there
 		final String imported_labels = "imported_labels";
@@ -579,4 +579,42 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 		}
 	}
+
+	/** Finds the node for the elder and adds the sibling next to it, under the same parent. */
+	public DefaultMutableTreeNode addSibling(final Displayable elder, final Displayable sibling) {
+		if (null == elder || null == sibling) return null;
+		if (elder.getProject() != sibling.getProject()) {
+			Utils.log2("Can't mix projects!");
+			return null;
+		}
+		DefaultMutableTreeNode enode = DNDTree.findNode2(elder, this);
+		if (null == enode) {
+			Utils.log2("Could not find a tree node for elder " + elder);
+			return null;
+		}
+		ProjectThing parent = (ProjectThing)((ProjectThing)enode.getUserObject()).getParent();
+		if (null == parent) {
+			Utils.log2("No parent for elder " + elder);
+			return null;
+		}
+		TemplateThing tt = elder.getProject().getTemplateThing(Project.getType(sibling.getClass()));
+		if (null == tt) {
+			Utils.log2("Could not find a template for class " + sibling.getClass());
+			return null;
+		}
+		ProjectThing pt;
+		try {
+			pt = new ProjectThing(tt, sibling.getProject(), sibling);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+		parent.addChild(pt);
+
+		DefaultMutableTreeNode node = new DefaultMutableTreeNode(pt);
+		int index = enode.getParent().getIndex(enode);
+		((DefaultTreeModel)getModel()).insertNodeInto(node, (DefaultMutableTreeNode)enode.getParent(), index + 1);
+		return node;
+	}
+
 }

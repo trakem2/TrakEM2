@@ -535,7 +535,7 @@ public final class FSLoader extends Loader {
 						if (Layer.IMAGEPROCESSOR == format) ip = imp.getStack().getProcessor(ia); // otherwise creates one new for nothing
 					} else {
 						// for non-stack images
-						p.putMinAndMax(imp); // non-destructive contrast: min and max
+						// OBSOLETE and wrong //p.putMinAndMax(imp); // non-destructive contrast: min and max -- WRONG, it's destructive for ColorProcessor and ByteProcessor!
 							// puts the Patch min and max values into the ImagePlus processor.
 						imps.put(p.getId(), imp);
 						if (Layer.IMAGEPROCESSOR == format) ip = imp.getProcessor();
@@ -571,7 +571,7 @@ public final class FSLoader extends Loader {
 		// Open the mask image, which should be a compressed float tif.
 		final ImagePlus imp = opener.openImage(path);
 		if (null == imp) {
-			Utils.log2("Could not open mask image for patch " + p + " from " + path);
+			Utils.log2("No mask found or could not open mask image for patch " + p + " from " + path);
 			return null;
 		}
 		return (ByteProcessor)imp.getProcessor().convertToByte(false);
@@ -1354,14 +1354,13 @@ public final class FSLoader extends Loader {
 		return bi;
 	}
 
-	/** Image to BufferedImage. Can be used for hardware-accelerated resizing, since the whole awt is painted to a target w,h area in the returned new BufferedImage. */
-	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final IndexColorModel icm, final BufferedImage alpha, final BufferedImage outside) {
+	/** Image to BufferedImage. Can be used for hardware-accelerated resizing, since the whole awt is painted to a target w,h area in the returned new BufferedImage. Does not accept LUT images: only ARGB or GRAY. */
+	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final BufferedImage alpha, final BufferedImage outside) {
 		BufferedImage bi;
 		final boolean area_averaging = interpolation_hint.getClass() == Integer.class && Loader.AREA_AVERAGING == ((Integer)interpolation_hint).intValue();
 		final boolean must_scale = (w != awt.getWidth(null) || h != awt.getHeight(null));
 
 		if (null != alpha || null != outside) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-		else if (null != icm) bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_INDEXED, icm);
 		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
 		final Graphics2D g = bi.createGraphics();
 		if (area_averaging) {
@@ -1501,6 +1500,7 @@ public final class FSLoader extends Loader {
 			ImageProcessor ip;
 			ByteProcessor alpha_mask = null;
 			ByteProcessor outside_mask = null;
+			final boolean coordinate_transformed;
 			int type = patch.getType();
 
 			// Obtain an image which may be coordinate-transformed, and an alpha mask.
@@ -1508,6 +1508,7 @@ public final class FSLoader extends Loader {
 			ip = pai.target;
 			alpha_mask = pai.mask; // can be null
 			outside_mask = pai.outside; // can be null
+			coordinate_transformed = pai.coordinate_transformed;
 			pai = null;
 			
 			final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
@@ -1522,9 +1523,12 @@ public final class FSLoader extends Loader {
 			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 				   //   but since we scale 50% relative the previous, it's always 0.75
 
+			// Set for the level 0 image, which is a duplicate of the one on the cache in any case
+			ip.setMinAndMax(patch.getMin(), patch.getMax());
+
+
 			// Proper support for LUT images: treat them as RGB
 			if (ip.isColorLut()) {
-				//ip.setMinAndMax(patch.getMin(), patch.getMax()); // Already done at Patch.createTransformedImage
 				ip = ip.convertToRGB();
 				cm = null;
 				type = ImagePlus.COLOR_RGB;
@@ -1534,7 +1538,6 @@ public final class FSLoader extends Loader {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				final ColorProcessor cp = (ColorProcessor)ip;
-				//if (patch.getType() == ImagePlus.COLOR_RGB) cp.setMinAndMax(patch.getMin(), patch.getMax()); // already done at Patch.createTransformedImage 
 				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
 				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
 				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
@@ -1606,7 +1609,6 @@ public final class FSLoader extends Loader {
 								pix[i] = 0xff000000 | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
 							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
-							if (patch.getType() == ImagePlus.COLOR_RGB) cp2.setMinAndMax(patch.getMin(), patch.getMax()); // can't use 'type', could be a color LUT image as well. Must setMinAndMax because its a new ColorProcessor.
 							// 5 - Save as jpeg
 							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, target_dir + filename, 0.85f, false)) {
 								cannot_regenerate.add(patch);
@@ -1617,17 +1619,18 @@ public final class FSLoader extends Loader {
 							for (int i=0; i<pix.length; i++) {
 								pix[i] = ((a[i]&0xff)<<24) | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
-							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix), target_dir + filename, 0.85f)) {
+							final BufferedImage bi_save = createARGBImage(w, h, pix);
+							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
+								bi_save.flush();
 								break;
 							}
+							bi_save.flush();
 						}
 					} while (w >= 32 && h >= 32); // not smaller than 32x32
 				}
 			} else {
 				// Greyscale:
-				//
-				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 5);
 				final boolean as_grey = !ip.isColorLut();
 				if (as_grey && null == cm) {
@@ -1636,7 +1639,6 @@ public final class FSLoader extends Loader {
 
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
-					//fp.setMinAndMax(patch.getMin(), patch.getMax()); // Already done at Patch.createTransformedImage
 					int sw=w, sh=h;
 
 					FloatProcessor alpha;
@@ -1673,7 +1675,11 @@ public final class FSLoader extends Loader {
 						// 2 - generate scaled image
 						if (0 != k) {
 							fp = (FloatProcessor)fp.resize(w, h);
-							fp.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done: the resize doesn't preserve the min and max!
+							if (ImagePlus.GRAY8 == type) {
+								fp.setMinAndMax(0, 255); // the min and max was expanded into 0,255 range at convertToFloat for 8-bit images, so the only limit to be added now to the FloatProcessor is that of the 8-bit range. The latter is done automatically for FloatProcessor class, but FloatProcessorT2 doesn't, to avoid the expensive (and here superfluous) operation of looping through all pixels in the findMinAndMax method.
+							} else {
+								fp.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done: the resize doesn't preserve the min and max!
+							}
 							if (null != alpha) {
 								alpha = (FloatProcessor)alpha.resize(w, h);
 								if (alpha != outside && null != outside) {
@@ -1697,16 +1703,19 @@ public final class FSLoader extends Loader {
 									if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
 								}
 							}
-							final int[] pix  = embedAlpha((int[])fp.convertToRGB().getPixels(), a);
+							final int[] pix = embedAlpha((int[])fp.convertToRGB().getPixels(), a);
 
-							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, pix), target_dir + filename, 0.85f)) {
+							final BufferedImage bi_save = createARGBImage(w, h, pix);
+							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
 								cannot_regenerate.add(patch);
+								bi_save.flush();
 								break;
 							}
+							bi_save.flush();
 						} else {
 							// 3 - save as 8-bit jpeg
 							final ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
-							ip2.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done, it's a new ImageProcessor
+							if (!coordinate_transformed) ip2.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done, it's a new ImageProcessor
 							if (null != cm) ip2.setColorModel(cm); // the LUT
 
 							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, target_dir + filename, 0.85f, as_grey)) {
@@ -1734,14 +1743,16 @@ public final class FSLoader extends Loader {
 
 					BufferedImage bi = null;
 					final Object hint = getHint(resizing_mode);
-					final IndexColorModel icm = (IndexColorModel)cm;
+
+					ip = null;
+
 					do {
 						// check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
 						if (null == target_dir) continue;
 						// obtain half image
 						//   for level 0 and others, when awt is not a BufferedImage or needs to be reduced in size (to new w,h)
-						final BufferedImage[] res = IToBI(awt, w, h, hint, icm, balpha, boutside);
+						final BufferedImage[] res = IToBI(awt, w, h, hint, balpha, boutside);
 						bi = res[0];
 						balpha = res[1];
 						boutside = res[2];

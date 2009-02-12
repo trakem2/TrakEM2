@@ -735,7 +735,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return layer;
 	}
 
-	/** Add a Displayable to be painted in all Layers, such as a Pipe. */
+	/** Add a Displayable to be painted in all Layers, such as a Pipe. Also updates open displays of the fact. */
 	public void add(final ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) {
 			Utils.log2("LayerSet: not adding zdispl");
@@ -1183,12 +1183,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Find the given Displayable in the undo/redo queues and clear it. This functionality is used when an object is removed, for which there is no undo. */
 	public void removeFromUndo(final Displayable d) {
 		history.remove(d.getId());
-	}
-
-	/** Used when there has been no real transformation (for example, a mouse click and release, but no drag. */
-	void discardLastUndo() {
-		Utils.log2("discard last undo");
-		history.removeLast();
 	}
 
 	public void destroy() {

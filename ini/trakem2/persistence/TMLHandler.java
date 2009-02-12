@@ -613,12 +613,14 @@ public class TMLHandler extends DefaultHandler {
 			type = type.toLowerCase();
 			CoordinateTransform ct = null;
 
+			boolean is_list = false;
+
 			if (type.equals("ict_transform")) {
 				ct = (CoordinateTransform) Class.forName((String)ht_attributes.get("class")).newInstance();
 				ct.init((String)ht_attributes.get("data"));
 			} else if (type.equals("ict_transform_list")) {
-				last_ct_list = new CoordinateTransformList();
-				ct = last_ct_list;
+				is_list = true;
+				ct = new CoordinateTransformList();
 			}
 
 			if (null != ct) {
@@ -626,6 +628,9 @@ public class TMLHandler extends DefaultHandler {
 				if (null != last_ct_list) last_ct_list.add(ct);
 				else if (null != last_patch) last_patch.setCoordinateTransformSilently(ct);
 			}
+
+			if (is_list) last_ct_list = (CoordinateTransformList)ct;
+
 		} catch (Exception e) {
 			IJError.print(e);
 		}

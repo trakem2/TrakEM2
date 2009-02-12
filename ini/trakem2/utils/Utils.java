@@ -1154,6 +1154,11 @@ public class Utils implements ij.plugin.PlugIn {
 		return area.createTransformedArea(at);
 	}
 
+	static public final boolean isEmpty(final Area area) {
+		final Rectangle b = area.getBounds();
+		return 0 == b.width || 0 == b.height;
+	}
+
 	/** Returns the approximated area of the given Area object. */
 	static public final double measureArea(Area area, final Loader loader) {
 		double sum = 0;
@@ -1201,6 +1206,18 @@ public class Utils implements ij.plugin.PlugIn {
 		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
 			new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
 		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
+	}
+
+	/** Returns true if the roi is of closed shape type like an OvalRoi, ShapeRoi, a Roi rectangle, etc. */
+	static public final boolean isAreaROI(final Roi roi) {
+		switch (roi.getType()) {
+			case Roi.POLYLINE:
+			case Roi.FREELINE:
+			case Roi.LINE:
+			case Roi.POINT:
+				return false;
+		}
+		return true;
 	}
 
 	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
@@ -1294,5 +1311,12 @@ public class Utils implements ij.plugin.PlugIn {
 			return false;
 		}
 		return true;
+	}
+
+	static final public int indexOf(final Object needle, final Object[] haystack) {
+		for (int i=0; i<haystack.length; i++) {
+			if (haystack[i].equals(needle)) return i;
+		}
+		return -1;
 	}
 }

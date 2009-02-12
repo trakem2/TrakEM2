@@ -2068,7 +2068,7 @@ abstract public class Loader {
 					Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
 					double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
 					p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-					p.putMinAndMax(fetchImagePlus(p));
+					// OBSOLETE and wrong //p.putMinAndMax(fetchImagePlus(p));
 				}
 
 				if (isMipMapsEnabled()) {
@@ -4890,7 +4890,7 @@ abstract public class Loader {
 	static public final int BICUBIC = 2;
 	static public final int GAUSSIAN = 3;
 	static public final int AREA_AVERAGING = 4;
-	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic", "Gaussian", "Area averaging"};
+	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic", "Gaussian"}; //, "Area averaging"};
 
 	static public final int getMode(final String mode) {
 		for (int i=0; i<modes.length; i++) {

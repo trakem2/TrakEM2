@@ -347,89 +347,58 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			synchronized (lock_paint) {
 				lock_paint.lock();
 			}
-			//display.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 
 			// ensure proper positioning
 			g.translate(0, 0); // ints!
 
 			final Rectangle clipRect = g.getClipBounds();
-			//Utils.log2("clip as offscreen: " + atc.createInverse().createTransformedShape(clipRect).getBounds());
 
 			final Displayable active = display.getActive();
 			final int c_alphas = display.getDisplayChannelAlphas();
-			final int sr_width = (int) (srcRect.width * magnification) + 1; // to make it a ceil operation
-			final int sr_height = (int) (srcRect.height * magnification) + 1;
 
-			final int g_width = getWidth(); // from the awt.Component (the awt.Canvas, i.e. the drawing area dimensions). Isn't this dstWidth and dstHeight in ImageCanvas ?
-			final int g_height = getHeight();
-
-			final Roi roi = imp.getRoi();
-
-			final Selection selection = display.getSelection();
 			final Layer active_layer = display.getLayer();
 
 			final Graphics2D g2d = (Graphics2D)g;
 
 			Displayable[] di = null;
 
-			/*if (ProjectToolbar.getToolId() == ProjectToolbar.PEN && (0 != (flags & InputEvent.BUTTON1_MASK)) && (0 == (flags & InputEvent.ALT_MASK)) && null != active && active.getClass() == AreaList.class && ((AreaList)active).isFillPaint()) {
-				// no background paint if painting in fill_paint mode and not erasing
-			} else {
-			*/
-				synchronized (offscreen_lock) {
-					offscreen_lock.lock();
-					try {
+			synchronized (offscreen_lock) {
+				offscreen_lock.lock();
+				try {
 
-						// prepare the canvas for the srcRect and magnification
-						final AffineTransform at_original = g2d.getTransform();
-						atc.setToIdentity();
-						atc.scale(magnification, magnification);
-						atc.translate(-srcRect.x, -srcRect.y);
-						at_original.preConcatenate(atc);
+					// prepare the canvas for the srcRect and magnification
+					final AffineTransform at_original = g2d.getTransform();
+					atc.setToIdentity();
+					atc.scale(magnification, magnification);
+					atc.translate(-srcRect.x, -srcRect.y);
+					at_original.preConcatenate(atc);
 
-						di = new Displayable[al_top.size()];
-						al_top.toArray(di);
+					di = new Displayable[al_top.size()];
+					al_top.toArray(di);
 
-						if (null != offscreen) {
-							//g.drawImage(offscreen, 0, 0, null);
-							if (dragging) invalidateVolatile(); // to update the active at least
-							render(g, active, di, active_layer, c_alphas, at_original, clipRect);
-						}
-
-						g2d.setTransform(at_original);
-
-					} catch (Exception e) {
-						e.printStackTrace();
+					if (null != offscreen) {
+						//g.drawImage(offscreen, 0, 0, null);
+						if (dragging) invalidateVolatile(); // to update the active at least
+						render(g, active, di, active_layer, c_alphas, at_original, clipRect);
 					}
-					offscreen_lock.unlock();
+
+					g2d.setTransform(at_original);
+
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
-			//}
+				offscreen_lock.unlock();
+			}
 
 			g2d.setStroke(this.stroke);
 
-			/*
-			// paint the active unless it's a Patch (since it's been painted offscreen already)
-			if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) {
-				active.paint(g2d, magnification, true, c_alphas, active_layer);
-			}
-
-			if (null != di) {
-				for (int i=0; i<di.length; i++) {
-					di[i].paint(g2d, magnification, false, c_alphas, active_layer);
-				}
-			}
-			*/
-
-			// always a stroke of 1.0, regardless of magnification
-			//g2d.setStroke(this.stroke);
-
 			// paint a pink frame around selected objects, and a white frame around the active object
+			final Selection selection = display.getSelection();
 			if (null != selection && ProjectToolbar.getToolId() < ProjectToolbar.PENCIL) { // i.e. PENCIL, PEN and ALIGN
 				selection.paint(g2d, srcRect, magnification);
 			}
 
-
-			// debug
+			// debug buckets
 			//if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification, Color.red);
 			//if (null != display.getLayer().getParent().root) display.getLayer().getParent().root.paint(g2d, srcRect, magnification, Color.blue);
 
@@ -451,12 +420,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
 			}
 
+			final Roi roi = imp.getRoi();
 			if (null != roi) {
 				roi.draw(g);
 			}
-
-			// restore cursor
-			//display.setCursor(Cursor.getDefaultCursor());
 
 			// Mathias code:
 			if (null != freehandProfile) {
@@ -473,14 +440,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
 			IJError.print(e);
 		} finally {
-			// restore cursor
-			/*
-			if (null == freehandProfile) {
-				setCursor(Cursor.getDefaultCursor());
-			} else {
-				setCursor(noCursor);
-			}
-			*/
 			synchronized (lock_paint) {
 				lock_paint.unlock();
 			}
@@ -1800,10 +1759,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (0 == (mod ^ Event.SHIFT_MASK)) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
 					display.getSelection().undoOneStep();
+					Display.repaint(display.getLayer());
 					ke.consume();
 				} else if (0 == (mod ^ Event.ALT_MASK)) {
 					last_action = Z_KEY;
 					display.getSelection().redoOneStep();
+					Display.repaint(display.getLayer());
 					ke.consume();
 				}
 				// else, the 'z' command restores the image using ImageJ internal undo

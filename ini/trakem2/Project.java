@@ -758,19 +758,30 @@ public class Project extends DBObject {
 	public String getMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
+		String title = new StringBuffer(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
+
+		if (!thing.getType().equals(d.getTitle())) {
+			return title;
+		}
+
 		ProjectThing parent = (ProjectThing)thing.getParent();
-		String title = new StringBuffer(thing.getType() != d.getTitle() ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
+		StringBuffer sb = new StringBuffer(title);
 		while (null != parent) {
 			Object ob = parent.getObject();
+			if (ob.getClass() == Project.class) break;
 			String type = parent.getType();
 			if (!ob.equals(type)) { // meaning, something else was typed in as a title
-				title =  ob.toString() + " [" + type + "]/" + title;
+				sb.insert(0, new StringBuffer(ob.toString()).append(' ').append('[').append(type).append(']').append('/').toString());
+				//title =  ob.toString() + " [" + type + "]/" + title;
 				break;
 			}
-			title = type + "/" + title;
+			sb.insert(0, '/');
+			sb.insert(0, type);
+			//title = type + "/" + title;
 			parent = (ProjectThing)parent.getParent();
 		}
-		return title;
+		//return title;
+		return sb.toString();
 	}
 
 	/** Returns the first upstream user-defined name and type, and the id of the displayable tagged at the end.
@@ -799,6 +810,12 @@ public class Project extends DBObject {
 		// if nothing found, prepend the type
 		if ('#' == title.charAt(0)) title = Project.getName(d.getClass()) + " " + title;
 		return title;
+	}
+
+	static public String getType(final Class c) {
+		if (AreaList.class == c) return "area_list";
+		if (DLabel.class == c) return "label";
+		return c.getName().toLowerCase();
 	}
 
 	/** Returns the proper TemplateThing for the given type, complete with children and attributes if any. */
@@ -1120,6 +1137,8 @@ public class Project extends DBObject {
 		gd.addCheckbox("Paint_color_cues", !no_color_cues);
 		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
 		String current_mode = ht_props.get("image_resizing_mode");
+		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
+		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
 		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
 		int current_R = (int)(100 * ini.trakem2.imaging.StitchingTEM.DEFAULT_MIN_R); // make the float a percent
 		try {
