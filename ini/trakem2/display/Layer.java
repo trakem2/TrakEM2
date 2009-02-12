@@ -913,12 +913,13 @@ public final class Layer extends DBObject implements Bucketable {
 			return true;
 		}
 		public boolean apply(int action) {
+			boolean failed = false;
 			for (final DoEditLayer one : all) {
 				if (!one.apply(action)) {
-					return false;
+					failed = true;
 				}
 			}
-			return true;
+			return !failed;
 		}
 	}
 

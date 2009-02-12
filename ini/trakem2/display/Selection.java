@@ -1203,18 +1203,59 @@ public class Selection {
 		synchronized (queue_lock) {
 			try {
 				lock();
-				for (Iterator it = queue.iterator(); it.hasNext(); ) {
-					Displayable d = (Displayable)it.next();
+				addDataEditStep(new String[]{"locked"});
+				for (final Displayable d : queue) {
 					d.setLocked(b);
 				}
+				addDataEditStep(new String[]{"locked"});
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
 				unlock();
 			}
 		}
-		// update the 'locked' field in the Transforms
-		update();
+		// update the 'locked' field in the Transforms (rather, in the linked group)
+		update(); // TODO this could be unnecessary
+	}
+
+	final void addDataEditStep(final String[] fields) {
+		if (null != display) display.getLayerSet().addDataEditStep(new HashSet<Displayable>(queue), fields);
+	}
+
+	public void setColor(final Color c) {
+		if (null == active) return; // empty
+		synchronized (queue_lock) {
+			try {
+				lock();
+				addDataEditStep(new String[]{"color"});
+				for (final Displayable d : queue) {
+					d.setColor(c);
+				}
+				addDataEditStep(new String[]{"color"});
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+	}
+	// no memfn ... viva copy/paste
+	public void setAlpha(final float alpha) {
+		if (null == active) return; // empty
+		synchronized (queue_lock) {
+			try {
+				lock();
+				// DONE on mouse release from transp_slider // addDataEditStep(new String[]{"alpha"});
+				for (final Displayable d : queue) {
+					d.setAlpha(alpha);
+				}
+				// DONE on mouse release from transp_slider // addDataEditStep(new String[]{"alpha"});
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
 	}
 
 	public boolean isEmpty() {

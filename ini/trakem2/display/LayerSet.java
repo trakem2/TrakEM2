@@ -1583,6 +1583,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return addEditStep(prev);
 	}
 
+	boolean addDataEditStep(final Set<Displayable> ds, final String[] fields) {
+		final Displayable.DoEdits edits = new Displayable.DoEdits(ds);
+		edits.init(fields);
+		return addEditStep(edits);
+	}
+
 	boolean addEditStep(final DoStep step) {
 		if (step.isEmpty()) {
 			Utils.log2("Warning: can't add empty step " + step);

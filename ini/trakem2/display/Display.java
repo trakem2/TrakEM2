@@ -975,9 +975,16 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			setTransparency(new_value / 100.0f);
 		}
 
+		public void mousePressed(MouseEvent me) {
+			JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
+			if (scroll != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
+		}
+
 		public void mouseReleased(MouseEvent me) {
 			// update navigator window
 			navigator.repaint(true);
+			JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
+			if (scroll != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
 		}
 	}
 
@@ -994,9 +1001,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (null != active) {
 			if (value != active.getAlpha()) { // because there's a callback from setActive that would then affect all other selected Displayable without having dragged the slider, i.e. just by being selected.
 				canvas.invalidateVolatile();
-				for (final Displayable displ : selection.getSelected()) {
-					displ.setAlpha(value);
-				}
+				selection.setAlpha(value);
 			}
 		}
 	}
@@ -3370,11 +3375,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// detect ColorPicker WARNING this will work even if the Display is not the window immediately active under the color picker.
 		if (this == front && updated instanceof ij.plugin.ColorPicker) {
 			if (null != active && project.isInputEnabled()) {
-				Color color = Toolbar.getForegroundColor();
-				for (Iterator it = selection.getSelected().iterator(); it.hasNext(); ) {
-					Displayable displ = (Displayable)it.next();
-					displ.setColor(color);
-				}
+				selection.setColor(Toolbar.getForegroundColor());
 			}
 			return;
 		}

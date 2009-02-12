@@ -1569,6 +1569,42 @@ public abstract class Displayable extends DBObject {
 	}
 
 	// UNDO machinery
+	
+	class DoEdits implements DoStep {
+		final HashSet<DoEdit> edits = new HashSet<DoEdit>();
+		DoEdits(final Set<Displayable> col) {
+			for (final Displayable d : col) {
+				edits.add(new DoEdit(d));
+			}
+		}
+		public Displayable getD() { return null; }
+		public boolean isIdenticalTo(final Object ob) {
+			if (!(ob instanceof DoEdits)) return false;
+			final DoEdits other = (DoEdits) ob;
+			if (this.edits.size() != other.edits.size()) return false;
+			final Iterator<DoEdit> it1 = this.edits.iterator();
+			final Iterator<DoEdit> it2 = other.edits.iterator();
+			for (; it1.hasNext() && it2.hasNext(); ) {
+				if ( ! it1.next().isIdenticalTo(it2.next())) return false;
+			}
+			return true;
+		}
+		public void init(final String[] fields) {
+			for (final DoEdit edit : edits) {
+				edit.init(edit.d, fields);
+			}
+		}
+		public boolean isEmpty() { return edits.isEmpty(); }
+		public boolean apply(int action) {
+			boolean failed = false;
+			for (final DoEdit edit : edits) {
+				if (!edit.apply(action)) {
+					failed = true;
+				}
+			}
+			return !failed;
+		}
+	}
 
 	/** For any Displayable data, including: title, visible, locked, color, alpha,
 	 *  and a 'data' type which includes the actual data (points, areas, etc.) and the links,width,height, and transformation (since all the latter are correlated).*/
@@ -1581,7 +1617,43 @@ public abstract class Displayable extends DBObject {
 			this.d = d;
 		}
 		public boolean isIdenticalTo(final Object ob) {
-			return false; // TODO
+			if (!(ob instanceof DoEdit)) return false;
+			final DoEdit other = (DoEdit) ob;
+			// same Displayable?
+			if (this.d != other.d) return false;
+			// dependents?
+			if (null != dependents) {
+				// TODO
+				return false;
+			}
+			// same number of fields to edit?
+			if (this.content.size() != other.content.size()) return false;
+			// same fields?
+			final Set<String> keys = content.keySet();
+			keys.removeAll(other.content.keySet());
+			if (!keys.isEmpty()) return false;
+			// same content of fields?
+			for (final Map.Entry<String,Object> e : this.content.entrySet()) {
+				final Object val = other.content.get(e.getKey());
+				if (val instanceof HashMap) {
+					if ( ! identical((HashMap)val, (HashMap)e.getValue())) return false;
+				} else if (ob instanceof Displayable.DataPackage) {
+					// TODO
+					return false;
+				} else if ( ! val.equals(e.getValue())) return false;
+			}
+			return true;
+		}
+		private boolean identical(final HashMap m1, final HashMap m2) {
+			if (m1.size() != m2.size()) return false;
+			final Set keys = m1.keySet();
+			keys.removeAll(m2.keySet());
+			if (!keys.isEmpty()) return false;
+			for (final Object entry : m1.entrySet()) {
+				final Map.Entry e = (Map.Entry) entry;
+				if ( ! e.getValue().equals(m2.get(e.getKey()))) return false;
+			}
+			return true;
 		}
 		synchronized public Displayable getD() { return d; }
 		synchronized DoEdit fullCopy() {
@@ -1675,6 +1747,7 @@ public abstract class Displayable extends DBObject {
 					if (!step.apply(action)) ok = false;
 				}
 			}
+			Display.update(d.getLayerSet());
 			return ok;
 		}
 		public boolean isEmpty() {
