@@ -462,6 +462,9 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	public void setExpandedSilently(final Thing thing, final boolean b) {
 		DefaultMutableTreeNode node = findNode(thing, this);
 		if (null == node) return;
+		setExpandedSilently(node, b);
+	}
+	public void setExpandedSilently(final DefaultMutableTreeNode node, final boolean b) {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
@@ -476,6 +479,10 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	public boolean isExpanded(final Thing thing) {
 		DefaultMutableTreeNode node = findNode(thing, this);
 		if (null == node) return false;
+		return isExpanded(node);
+	}
+
+	public boolean isExpanded(final DefaultMutableTreeNode node) {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
@@ -575,5 +582,54 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
 		this.updateUILater();
 		return true;
+	}
+
+	/** Shallow copy of the tree: returns a clone of the root node and cloned children, recursively, with all Thing cloned as well, but the Thing object is the same. */
+	public Thing duplicate(final HashMap<Thing,Boolean> expanded_state) {
+		DefaultMutableTreeNode root_node = (DefaultMutableTreeNode) this.getModel().getRoot();
+		Thing root = (Thing) root_node.getUserObject();
+		// Descend both the root_copy tree and the root_node tree, and build shallow copies of Thing with same expanded state
+		return duplicate(root_node, expanded_state);
+	}
+
+	/** Returns the copy of the node's Thing. */
+	private Thing duplicate(final DefaultMutableTreeNode node, final HashMap<Thing,Boolean> expanded_state) {
+		Thing thing = (Thing) node.getUserObject();
+		Thing copy = thing.shallowCopy();
+		if (null != expanded_state) {
+			expanded_state.put(copy, isExpanded(node)); 
+		}
+		final Enumeration e = node.children();
+		while (e.hasMoreElements()) {
+			DefaultMutableTreeNode child = (DefaultMutableTreeNode) e.nextElement();
+			copy.addChild(duplicate(child, expanded_state));
+		}
+		return copy;
+	}
+
+	/** For restoring purposes from an undo step. */
+	public void set(final Thing root, final HashMap<Thing,Boolean> expanded_state) {
+		// rebuild all nodes, restore their expansion state.
+		DefaultMutableTreeNode root_node = (DefaultMutableTreeNode) this.getModel().getRoot();
+		root_node.removeAllChildren();
+		set(root_node, root, expanded_state);
+		updateUILater();
+	}
+
+	/** Recursive */
+	private void set(final DefaultMutableTreeNode root, final Thing root_thing, final HashMap<Thing,Boolean> expanded_state) {
+		root.setUserObject(root_thing);
+		final ArrayList<Thing> al_children = root_thing.getChildren();
+		if (null != al_children) {
+			for (final Thing thing : al_children) {
+				DefaultMutableTreeNode child = new DefaultMutableTreeNode(thing);
+				root.add(child);
+				set(child, thing, expanded_state);
+			}
+		}
+		if (null != expanded_state) {
+			final Boolean b = expanded_state.get(root_thing);
+			if (null != b) setExpandedSilently(root, b.booleanValue());
+		}
 	}
 }

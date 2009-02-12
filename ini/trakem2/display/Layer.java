@@ -34,6 +34,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -864,5 +865,125 @@ public final class Layer extends DBObject implements Bucketable {
 	public void setBucketsEnabled(boolean b) {
 		this.use_buckets = b;
 		if (!use_buckets) this.root = null;
+	}
+
+	static class DoEditLayer implements DoStep {
+		final double z, thickness;
+		final Layer la;
+		DoEditLayer(final Layer layer) {
+			this.la = layer;
+			this.z = layer.z;
+			this.thickness = layer.thickness;
+		}
+		public Displayable getD() { return null; }
+		public boolean isEmpty() { return false; }
+		public boolean isIdenticalTo(final Object ob) {
+			if (!(ob instanceof Layer)) return false;
+			final Layer layer = (Layer) ob;
+			return this.la.id == layer.id && this.z == layer.z && this.thickness == layer.thickness;
+		}
+		public boolean apply(int action) {
+			la.z = this.z;
+			la.thickness = this.thickness;
+			la.getProject().getLayerTree().updateUILater();
+			Display.update(la.getParent());
+			return true;
+		}
+	}
+
+	static class DoEditLayers implements DoStep {
+		final ArrayList<DoEditLayer> all = new ArrayList<DoEditLayer>();
+		DoEditLayers(final List<Layer> all) {
+			for (final Layer la : all) {
+				this.all.add(new DoEditLayer(la));
+			}
+		}
+		public Displayable getD() { return null; }
+		public boolean isEmpty() { return all.isEmpty(); }
+		public boolean isIdenticalTo(final Object ob) {
+			if (!(ob instanceof DoEditLayers)) return false;
+			final DoEditLayers other = (DoEditLayers) ob;
+			if (all.size() != other.all.size()) return false;
+			// Order matters:
+			final Iterator<DoEditLayer> it1 = all.iterator();
+			final Iterator<DoEditLayer> it2 = other.all.iterator();
+			for (; it1.hasNext() && it2.hasNext(); ) {
+				if (!it1.next().isIdenticalTo(it2.next())) return false;
+			}
+			return true;
+		}
+		public boolean apply(int action) {
+			for (final DoEditLayer one : all) {
+				if (!one.apply(action)) {
+					return false;
+				}
+			}
+			return true;
+		}
+	}
+
+	/** Add an object that is Layer bound, such as Profile, Patch, DLabel and LayerSet. */
+	static class DoContentChange implements DoStep {
+		final Layer la;
+		final ArrayList<Displayable> al;
+		DoContentChange(final Layer la) {
+			this.la = la;
+			this.al = la.getDisplayables(); // a copy
+		}
+		public Displayable getD() { return null; }
+		public boolean isEmpty() { return false; }
+		/** Check that the Displayable objects of this layer are the same and in the same quantity and order. */
+		public boolean isIdenticalTo(Object ob) {
+			if (!(ob instanceof DoContentChange)) return false;
+			final DoContentChange dad = (DoContentChange) ob;
+			if (la != dad.la || al.size() != dad.al.size()) return false;
+			// Order matters:
+			final Iterator<Displayable> it1 = al.iterator();
+			final Iterator<Displayable> it2 = dad.al.iterator();
+			for (; it1.hasNext() && it2.hasNext(); ) {
+				if (it1.next() != it2.next()) return false;
+			}
+			return true;
+		}
+		public boolean apply(final int action) {
+			// find the subset in la.al_displayables that is not in this.al
+			final HashSet<Displayable> sub1 = new HashSet<Displayable>(la.al_displayables);
+			sub1.removeAll(this.al);
+			// find the subset in this.al that is not in la.al_displayables
+			final HashSet<Displayable> sub2 = new HashSet<Displayable>(this.al);
+			sub2.removeAll(la.al_displayables);
+
+			HashSet<Displayable> subA=null, subB=null;
+
+			if (action == DoStep.UNDO) {
+				subA = sub1;
+				subB = sub2;
+			} else if (action == DoStep.REDO) {
+				subA = sub2;
+				subB = sub1;
+			}
+			if (null != subA && null != subB) {
+				// Mark Patch for mipmap file removal
+				for (final Displayable d: subA) {
+					if (d.getClass() == Patch.class) {
+						d.getProject().getLoader().queueForMipmapRemoval((Patch)d, true);
+					}
+				}
+				// ... or unmark:
+				for (final Displayable d: subB) {
+					if (d.getClass() == Patch.class) {
+						d.getProject().getLoader().queueForMipmapRemoval((Patch)d, false);
+					}
+				}
+			}
+
+			la.al_displayables.clear();
+			la.al_displayables.addAll(this.al);
+			la.recreateBuckets();
+			Display.updateVisibleTabs();
+			Display.clearSelection();
+			Display.update(la);
+			return true;
+		}
 	}
 }

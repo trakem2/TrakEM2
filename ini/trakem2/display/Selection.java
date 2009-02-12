@@ -714,10 +714,12 @@ public class Selection {
 		// Remove starting with higher stack index numbers:
 		Collections.reverse(al_d);
 
+		if (null != display) display.getLayerSet().addChangeTreesStep();
+
 		// remove one by one, skip those that fail and log the error
 		StringBuffer sb = new StringBuffer();
 		try {
-			display.getProject().getLoader().startLargeUpdate();
+			if (null != display) display.getProject().getLoader().startLargeUpdate();
 			for (final Displayable d : al_d) {
 				// Remove from the trees and from the Layer/LayerSet
 				if (!d.remove2(false)) {
@@ -728,13 +730,16 @@ public class Selection {
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
-			display.getProject().getLoader().commitLargeUpdate();
+			if (null != display) display.getProject().getLoader().commitLargeUpdate();
 		}
 		if (sb.length() > 0) {
 			Utils.log("Could NOT delete:\n" + sb.toString());
 		}
 		//Display.repaint(display.getLayer(), box, 0);
 		Display.updateSelection(); // from all displays
+
+		if (null != display) display.getLayerSet().addChangeTreesStep();
+
 		return true;
 	}
 

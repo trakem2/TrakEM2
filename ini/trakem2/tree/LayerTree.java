@@ -192,6 +192,9 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 							return;
 						}
 					}
+					final ArrayList<Layer> al = new ArrayList<Layer>();
+					for (int i=0; i<layer.length; i++) al.add(layer[i]);
+					ls.addLayerEditedStep(al);
 					// ASSSUMING layers are already Z ordered! CHECK
 					for (int i=0, j=layer.length-1; i<layer.length/2; i++, j--) {
 						double z = layer[i].getZ();
@@ -199,6 +202,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 						layer[j].setZ(z);
 					}
 					updateList(ls);
+					ls.addLayerEditedStep(al);
 					Display.updateLayerScroller(ls);
 				} else if (command.equals("Translate layers in Z...")) {
 					GenericDialog gd = ControlWindow.makeGenericDialog("Range");

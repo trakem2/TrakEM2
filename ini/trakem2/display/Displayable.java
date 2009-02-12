@@ -1646,7 +1646,7 @@ public abstract class Displayable extends DBObject {
 			return ob;
 		}
 		/** Set the stored data to the stored Displayable. */
-		public boolean apply() {
+		public boolean apply(int action) {
 			final Class[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
 			for (final Map.Entry<String,Object> e : content.entrySet()) {
 				String field = e.getKey();
@@ -1672,7 +1672,7 @@ public abstract class Displayable extends DBObject {
 			boolean ok = true;
 			if (null != dependents) {
 				for (final DoStep step : dependents) {
-					if (!step.apply()) ok = false;
+					if (!step.apply(action)) ok = false;
 				}
 			}
 			return ok;
@@ -1684,21 +1684,27 @@ public abstract class Displayable extends DBObject {
 
 	protected class DoTransforms implements DoStep {
 		final private HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
+		final HashSet<Layer> layers = new HashSet<Layer>();
 
 		DoTransforms addAll(final Collection<Displayable> col) {
 			for (final Displayable d : col) {
 				ht.put(d, d.getAffineTransformCopy());
+				layers.add(d.getLayer());
 			}
 			return this;
 		}
 		public boolean isEmpty() {
 			return null == ht || ht.isEmpty();
 		}
-		public boolean apply() {
+		public boolean apply(int action) {
 			if (isEmpty()) return false;
 			for (final Map.Entry<Displayable,AffineTransform> e : ht.entrySet()) {
 				e.getKey().at.setTransform(e.getValue());
 			}
+			for (final Layer layer : layers) {
+				layer.recreateBuckets();
+			}
+			if (!layers.isEmpty()) layers.iterator().next().getParent().recreateBuckets(false);
 			return true;
 		}
 		public Displayable getD() { return null; }

@@ -66,6 +66,38 @@ public final class ProjectThing extends DBObject implements Thing {
 
 	private HashMap ht_attributes;
 
+	/** A new copy with same template, same object and cloned table of same attributes, but no parent and no children. */
+	public Thing shallowCopy() {
+		return new ProjectThing(this);
+	}
+
+	/** Recursively copy the tree of Thing that starts at this Thing, assigning as parent the given one. */
+	/*
+	public Thing shallowCopyR(final Thing parent) {
+		final ProjectThing copy = new ProjectThing(this.template, this.project, this.ob);
+		copy.parent = parent;
+		if (null != ht_attributes) {
+			copy.ht_attributes = (HashMap) ht_attributes.clone();
+		}
+		if (null != this.al_children) {
+			copy.al_children = new ArrayList<ProjectThing>(al_children.size());
+			for (final ProjectThing child : this.al_children) {
+				copy.al_children.add(child.shallowCopy(copy));
+			}
+		}
+		return copy;
+	}
+	*/
+
+	/** For shallow copying purposes. */
+	private ProjectThing(final ProjectThing pt) {
+		super(pt.project, pt.id);
+		this.object = pt.object;
+		if (null != pt.ht_attributes) {
+			this.ht_attributes = (HashMap) pt.ht_attributes.clone();
+		}
+	}
+
 	/** Create a new ProjectThing of the given type to contain the given Object. The object cannot be null. */
 	public ProjectThing(final TemplateThing template, Project project, Object ob) throws Exception {
 		// call super constructor

@@ -4954,4 +4954,7 @@ abstract public class Loader {
 		}
 		return pix;
 	}
+
+	/** Does nothing unless overriden. */
+	public void queueForMipmapRemoval(final Patch p, boolean yes) {}
 }

@@ -97,7 +97,7 @@ public final class FSLoader extends Loader {
 	/** Queue and execute Runnable tasks. */
 	static private Dispatcher dispatcher = new Dispatcher();
 
-	private Vector<Patch> touched_mipmaps = new Vector<Patch>();
+	private Set<Patch> touched_mipmaps = Collections.synchronizedSet(new HashSet<Patch>());
 
 	/** Used to open a project from an existing XML file. */
 	public FSLoader() {
@@ -1450,7 +1450,12 @@ public final class FSLoader extends Loader {
 		return (byte[])source.convertToByte(false).getPixels();
 	}
 
-	
+	/** Queue/unqueue for mipmap removal on shutdown without saving. */
+	public void queueForMipmapRemoval(final Patch p, boolean yes) {
+		if (yes) touched_mipmaps.add(p);
+		else touched_mipmaps.remove(p);
+	}
+
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />

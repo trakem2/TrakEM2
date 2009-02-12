@@ -1,8 +1,12 @@
 package ini.trakem2.display;
 
 public interface DoStep {
+
+	static public final int UNDO = 0;
+	static public final int REDO = 1;
+
 	/** Returns true on success. */
-	public boolean apply();
+	public boolean apply(int action);
 
 	public boolean isEmpty();
 

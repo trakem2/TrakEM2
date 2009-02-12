@@ -22,11 +22,11 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
-import ij.IJ;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Utils;
+import java.util.ArrayList;
 
 /** Sets a Worker thread to work, and waits until it finishes, blocking all user interface input until then, except for zoom and pan, for all given projects. */
 public class Bureaucrat extends Thread {
@@ -35,6 +35,8 @@ public class Bureaucrat extends Thread {
 	private long onset;
 	private Project[] project;
 	private boolean started = false;
+	/** A list of tasks to run when the Worker finishes of quits. */
+	private final ArrayList<Runnable> post_tasks = new ArrayList<Runnable>();
 
 	/** Registers itself in the project loader job queue. */
 	private Bureaucrat(ThreadGroup tg, Worker worker, Project project) {
@@ -131,6 +133,17 @@ public class Bureaucrat extends Thread {
 		}
 		ControlWindow.endWaitingCursor();
 		Utils.showStatus("Done " + worker.getTaskName(), !worker.onBackground());
+		try {
+			for (final Runnable r : post_tasks) {
+				try {
+					r.run();
+				} catch (Throwable t) {
+					IJError.print(t);
+				}
+			}
+		} catch(Throwable t) {
+			IJError.print(t);
+		}
 		cleanup();
 	}
 	/** Returns the task the worker is currently executing, which may change over time. */
@@ -173,5 +186,13 @@ public class Bureaucrat extends Thread {
 	}
 	public Worker getWorker() {
 		return worker;
+	}
+	/** Add a task to run after the Worker has finished or quit. Does not accept more tasks once the Worker no longer runs. */
+	public boolean addPostTask(final Runnable task) {
+		if (worker.hasQuitted()) return false;
+		synchronized (post_tasks) {
+			this.post_tasks.add(task);
+		}
+		return true;
 	}
 }

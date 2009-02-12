@@ -833,28 +833,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			((ZDisplayable)it.next()).setLayer(layer); // the active layer
 		}
 
-		// update only the visible tab
-		switch (tabs.getSelectedIndex()) {
-			case 0:
-				ht_panels.clear();
-				updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
-				break;
-			case 1:
-				ht_panels.clear();
-				updateTab(panel_profiles, "Profiles", layer.getDisplayables(Profile.class));
-				break;
-			case 2:
-				if (set_zdispl) {
-					ht_panels.clear();
-					updateTab(panel_zdispl, "Z-space objects", layer.getParent().getZDisplayables());
-				}
-				break;
-			// case 3: channel opacities
-			case 4:
-				ht_panels.clear();
-				updateTab(panel_labels, "Labels", layer.getDisplayables(DLabel.class));
-				break;
-		}
+		updateVisibleTab(set_zdispl);
 
 		// see if a lot has to be reloaded, put the relevant ones at the end
 		project.getLoader().prepare(layer);
@@ -905,6 +884,39 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		project.getProjectTree().updateUILater();
 		
 		setTempCurrentImage();
+	}
+
+	static public void updateVisibleTabs() {
+		for (final Display d : al_displays) {
+			d.updateVisibleTab(true);
+		}
+	}
+
+	/** Recreate the tab that is being shown. */
+	public void updateVisibleTab(boolean set_zdispl) {
+		// update only the visible tab
+		switch (tabs.getSelectedIndex()) {
+			case 0:
+				ht_panels.clear();
+				updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
+				break;
+			case 1:
+				ht_panels.clear();
+				updateTab(panel_profiles, "Profiles", layer.getDisplayables(Profile.class));
+				break;
+			case 2:
+				if (set_zdispl) {
+					ht_panels.clear();
+					updateTab(panel_zdispl, "Z-space objects", layer.getParent().getZDisplayables());
+				}
+				break;
+			// case 3: channel opacities
+			case 4:
+				ht_panels.clear();
+				updateTab(panel_labels, "Labels", layer.getDisplayables(DLabel.class));
+				break;
+		}
+
 	}
 
 	private void setLayerLater(final Layer layer, final Displayable active) {
@@ -2723,15 +2735,35 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Import next image")) {
 			importNextImage();
 		} else if (command.equals("Import stack...")) {
-			project.getLoader().importStack(layer, null, true);
+			Display.this.getLayerSet().addLayerContentStep(layer);
+			Bureaucrat burro = project.getLoader().importStack(layer, null, true);
+			burro.addPostTask(new Runnable() { public void run() {
+				Display.this.getLayerSet().addLayerContentStep(layer);
+			}});
 		} else if (command.equals("Import grid...")) {
-			project.getLoader().importGrid(layer);
+			Display.this.getLayerSet().addLayerContentStep(layer);
+			Bureaucrat burro = project.getLoader().importGrid(layer);
+			burro.addPostTask(new Runnable() { public void run() {
+				Display.this.getLayerSet().addLayerContentStep(layer);
+			}});
 		} else if (command.equals("Import sequence as grid...")) {
-			project.getLoader().importSequenceAsGrid(layer);
+			Display.this.getLayerSet().addLayerContentStep(layer);
+			Bureaucrat burro = project.getLoader().importSequenceAsGrid(layer);
+			burro.addPostTask(new Runnable() { public void run() {
+				Display.this.getLayerSet().addLayerContentStep(layer);
+			}});
 		} else if (command.equals("Import from text file...")) {
-			project.getLoader().importImages(layer);
+			Display.this.getLayerSet().addLayerContentStep(layer);
+			Bureaucrat burro = project.getLoader().importImages(layer);
+			burro.addPostTask(new Runnable() { public void run() {
+				Display.this.getLayerSet().addLayerContentStep(layer);
+			}});
 		} else if (command.equals("Import labels as arealists...")) {
-			project.getLoader().importLabelsAsAreaLists(layer, null, Double.MAX_VALUE, 0, 0.4f, false);
+			Display.this.getLayerSet().addChangeTreesStep();
+			Bureaucrat burro = project.getLoader().importLabelsAsAreaLists(layer, null, Double.MAX_VALUE, 0, 0.4f, false);
+			burro.addPostTask(new Runnable() { public void run() {
+				Display.this.getLayerSet().addChangeTreesStep();
+			}});
 		} else if (command.equals("Make flat image...")) {
 			// if there's a ROI, just use that as cropping rectangle
 			Rectangle srcRect = null;
@@ -3184,7 +3216,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Utils.showMessage("Could not open the image.");
 			return;
 		}
+
+		Display.this.getLayerSet().addLayerContentStep(layer);
+
 		layer.add(p); // will add it to the proper Displays
+
+		Display.this.getLayerSet().addLayerContentStep(layer);
 
 		///
 				} catch (Exception e) {
@@ -3211,7 +3248,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			finishedWorking();
 			return;
 		}
+
+		Display.this.getLayerSet().addLayerContentStep(layer);
+
 		layer.add(p); // will add it to the proper Displays
+
+		Display.this.getLayerSet().addLayerContentStep(layer);
 
 				} catch (Exception e) {
 					IJError.print(e);
@@ -3512,6 +3554,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	static public void clearSelection(final Layer layer) {
 		for (final Display d : al_displays) {
 			if (d.layer == layer) d.selection.clear();
+		}
+	}
+	static public void clearSelection() {
+		for (final Display d : al_displays) {
+			d.selection.clear();
 		}
 	}
 

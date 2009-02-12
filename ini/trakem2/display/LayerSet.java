@@ -36,6 +36,7 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.tree.LayerThing;
+import ini.trakem2.tree.Thing;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -1588,9 +1589,16 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return false;
 		}
 
-		// should check if it's identical to the last added one.
 
 		synchronized (edit_history) {
+			// 0 - Check if it's identical to the last added one.
+			if (edit_history.size() > 0) {
+				final DoStep last = edit_history.get(edit_history.lastKey());
+				if (last.getClass() == step.getClass() && last.isIdenticalTo(step)) {
+					return false;
+				}
+			}
+
 			final long time = System.currentTimeMillis();
 
 			// 1- Store for speedy access, if its Displayable-specific:
@@ -1635,6 +1643,31 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		addEditStep(dt);
 	}
 
+	/** Add a step to undo the addition or deletion of one or more objects in this project and LayerSet. */
+	public void addChangeTreesStep() {
+		DoStep step = new LayerSet.DoChangeTrees(this);
+		if (prepareStep(step)) {
+			Utils.log2("Added change trees step.");
+			addEditStep(step);
+		}
+	}
+	/** For the Displayable contained in a Layer: their number, and their stack order. */
+	public void addLayerContentStep(final Layer la) {
+		DoStep step = new Layer.DoContentChange(la);
+		if (prepareStep(step)) {
+			Utils.log2("Added layer content step.");
+			addEditStep(step);
+		}
+	}
+	/** For the Z and thickness of a layer. */
+	public void addLayerEditedStep(final Layer layer) {
+		addEditStep(new Layer.DoEditLayer(layer));
+	}
+	/** For the Z and thickness of a list of layers. */
+	public void addLayerEditedStep(final List<Layer> al) {
+		addEditStep(new Layer.DoEditLayers(al));
+	}
+
 	public boolean canUndo() {
 		return edit_history.size() > 1; // the first step is the baseline
 	}
@@ -1663,11 +1696,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		synchronized (edit_history) {
 			if (1 == edit_history.size()) return false;
 
-			Utils.log2("Undoing one step");
+			//Utils.log2("Undoing one step");
 
 			final DoStep step = pickLastStep();
 
-			if (!step.apply()) {
+			if (!step.apply(DoStep.UNDO)) {
 				Utils.log("Undo: could not apply step!");
 				return false;
 			}
@@ -1680,13 +1713,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		synchronized (edit_history) {
 			if (0 == redo.size()) return false;
 
-			Utils.log2("Redoing one step");
+			//Utils.log2("Redoing one step");
 
 			// Remove from undo queue:
 			final long time = redo.firstKey();
 			final DoStep step = redo.remove(time);
 
-			if (!step.apply()) {
+			if (!step.apply(DoStep.REDO)) {
 				Utils.log("Undo: could not apply step!");
 				return false;
 			}
@@ -1752,7 +1785,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return true;
 		}
 
-		public boolean apply() {
+		public boolean apply(int action) {
 			ls.layer_width = width;
 			ls.layer_height = height;
 			for (final Map.Entry<Displayable,AffineTransform> e : affines.entrySet()) {
@@ -1765,5 +1798,93 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		public boolean isEmpty() { return false; }
 		public Displayable getD() { return null; }
+	}
+
+	/** Records the state of the LayerSet.al_layers, each Layer.al_displayables and all the trees and unique types of Project. */
+	static private class DoChangeTrees implements DoStep {
+		final LayerSet ls;
+		final HashMap<Thing,Boolean> ttree_exp, ptree_exp, ltree_exp;
+		final Thing troot, proot, lroot;
+		final ArrayList<Layer> all_layers;
+		final HashMap<Layer,ArrayList<Displayable>> all_displ;
+		final ArrayList<ZDisplayable> all_zdispl;
+		final HashMap<Displayable,Set<Displayable>> links;
+
+		// TODO: does not consider recursive LayerSets!
+		public DoChangeTrees(final LayerSet ls) {
+			this.ls = ls;
+			final Project p = ls.getProject();
+
+			this.ttree_exp = new HashMap<Thing,Boolean>();
+			this.troot = p.getTemplateTree().duplicate(ttree_exp);
+			this.ptree_exp = new HashMap<Thing,Boolean>();
+			this.proot = p.getProjectTree().duplicate(ptree_exp);
+			this.ltree_exp = new HashMap<Thing,Boolean>();
+			this.lroot = p.getProjectTree().duplicate(ltree_exp);
+
+			this.all_layers = ls.getLayers(); // a copy
+			this.all_zdispl = ls.getZDisplayables(); // a copy
+
+			this.links = new HashMap<Displayable,Set<Displayable>>();
+			for (final ZDisplayable zd : this.all_zdispl) {
+				this.links.put(zd, zd.hs_linked); // LayerSet is a Displayable
+			}
+
+			this.all_displ = new HashMap<Layer,ArrayList<Displayable>>();
+			for (final Layer layer : all_layers) {
+				final ArrayList<Displayable> al = layer.getDisplayables(); // a copy
+				this.all_displ.put(layer, al);
+				for (final Displayable d : al) {
+					this.links.put(d, new HashSet<Displayable>(d.hs_linked));
+				}
+			}
+		}
+		public Displayable getD() { return null; }
+		public boolean isEmpty() { return false; }
+		public boolean isIdenticalTo(final Object ob) {
+			// TODO
+			return false;
+		}
+		public boolean apply(int action) {
+			// Replace all layers
+			ls.al_layers.clear();
+			ls.al_layers.addAll(this.all_layers);
+
+			// Replace all Displayable in each Layer
+			for (final Map.Entry<Layer,ArrayList<Displayable>> e : all_displ.entrySet()) {
+				final ArrayList<Displayable> al = e.getKey().getDisplayableList(); // the real one!
+				al.clear();
+				al.addAll(e.getValue());
+			}
+
+			// Replace all ZDisplayable
+			ls.al_zdispl.clear();
+			ls.al_zdispl.addAll(this.all_zdispl);
+
+			// Replace all trees
+			final Project p = ls.getProject();
+			p.getTemplateTree().set(this.troot, this.ttree_exp);
+			p.getProjectTree().set(this.proot, this.ptree_exp);
+			p.getLayerTree().set(this.lroot, this.ltree_exp);
+
+			// Replace all links
+			for (final Map.Entry<Displayable,Set<Displayable>> e : this.links.entrySet()) {
+				final Set<Displayable> hs = e.getKey().hs_linked;
+				if (null != hs) {
+					final Set<Displayable> hs2 = e.getValue();
+					if (null == hs2) e.getKey().hs_linked = null;
+					else {
+						hs.clear();
+						hs.addAll(hs2);
+					}
+				}
+			}
+
+			ls.recreateBuckets(true);
+
+			Display.update(ls);
+
+			return true;
+		}
 	}
 }
