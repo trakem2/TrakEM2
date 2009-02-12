@@ -3086,6 +3086,14 @@ abstract public class Loader {
 					int tile_side = (int)(256/scale); // 0 < scale <= 1, so no precision lost
 					for (int row=0; row<n_et; row++) {
 						for (int col=0; col<n_et; col++) {
+							final int i_tile = row * n_et + col;
+							Utils.showProgress(i_tile /  (double)(n_et * n_et));
+
+							if (0 == i_tile % 100) {
+								setMassiveMode(true);
+								releaseMemory();
+							}
+
 							if (this.quit) {
 								cleanUp();
 								return;
@@ -3110,6 +3118,8 @@ abstract public class Loader {
 		}
 		} catch (Exception e) {
 			IJError.print(e);
+		} finally {
+			Utils.showProgress(1);
 		}
 		cleanUp();
 		finishedWorking();
