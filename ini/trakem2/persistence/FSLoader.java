@@ -1703,6 +1703,9 @@ public final class FSLoader extends Loader {
 									if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
 								}
 							}
+							if (ImagePlus.GRAY8 != type) { // for 8-bit, the min,max has been applied when going to FloatProcessor
+								fp.setMinAndMax(patch.getMin(), patch.getMax());
+							}
 							final int[] pix = embedAlpha((int[])fp.convertToRGB().getPixels(), a);
 
 							final BufferedImage bi_save = createARGBImage(w, h, pix);
