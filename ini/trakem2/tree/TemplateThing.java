@@ -516,7 +516,7 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	public boolean isExpanded() {
-		return project.getLayerTree().isExpanded(this);
+		return project.getLayerTree().isExpanded(this); // TODO this is wrong! Or, at least, missleading
 	}
 
 	/** Return information on this node and its object. */

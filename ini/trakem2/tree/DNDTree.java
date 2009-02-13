@@ -549,8 +549,8 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	}
 
 	/** Will add only those for which a node doesn't exist already. */
-	public void addLeaves(final ArrayList<Thing> leaves) {
-		for (Thing th : leaves) {
+	public void addLeaves(final java.util.List<Thing> leaves) {
+		for (final Thing th : leaves) {
 			// find parent node
 			final DefaultMutableTreeNode parent = DNDTree.findNode(th.getParent(), this);
 			// see if it exists already as a child of that node

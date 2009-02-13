@@ -226,6 +226,8 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		} else {
 			TemplateThing tet = null;
 			boolean is_new = false;
+			String new_child_type = null;
+
 			if (command.equals("new...")) {
 				is_new = true;
 				// for adding a new child, prevent so in nested types
@@ -253,8 +255,9 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 					return;
 				}
 
-				tet = new TemplateThing(new_type, tt.getProject());
-				tt.getProject().addUniqueType(tet);
+				//tet = new TemplateThing(new_type, tt.getProject());
+				//tt.getProject().addUniqueType(tet);
+				new_child_type = new_type;
 			} else {
 				// create from a listed type
 				tet = tt.getProject().getTemplateThing(command);
@@ -266,54 +269,12 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 					return;
 				}
 				// else add as new
-				tet = new TemplateThing(command, tt.getProject());
+				new_child_type = command; //tet = new TemplateThing(command, tt.getProject());
 				// the 'profile_list' type needs an automatic 'profile' type inside
 			}
 
 			// add the new type to the database and to the tree, to all instances that are similar to tt (but not nested)
-			HashSet hs = root.collectSimilarThings2(tt, new HashSet());
-			TemplateThing tti, ttc;
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				tti = (TemplateThing)it.next();
-				if (tti.equals(tt)) {
-					tti = tt; // parent
-					ttc = tet; // child
-				} else {
-					ttc = new TemplateThing(tet.getType(), tt.getProject());
-				}
-				tti.addChild(ttc);
-				ttc.addToDatabase();
-				// find the parent
-				DefaultMutableTreeNode node_parent = DNDTree.findNode(tti, this);
-				DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(ttc);
-				((DefaultTreeModel)this.getModel()).insertNodeInto(node_child, node_parent, node_parent.getChildCount());
-
-
-				// generalize the code below to add all children of an exisiting type when adding it as a leaf somewhere else than it's first location
-				// 1 - find it the new 'tet' is of a type that existed already
-				if (!is_new) {
-					// 2 - add new TemplateThing nodes to fill in the whole subtree, preventing nested expansion
-					//Utils.log2("Calling fillChildren for " + tet);
-					fillChildren(tet, node_child); // recursive
-					DNDTree.expandAllNodes(this, node_child);
-				} else {
-					//Utils.log2("NOT Calling fillChildren for " + tet);
-				}
-
-				/*
-				if (tet.getType().equals("profile_list")) {
-					// add automatically a profile type inside
-					TemplateThing tep = new TemplateThing("profile", tt.getProject());
-					if (!tet.addChild(tep)) Utils.log2("Can't add child to profile_list type?");
-					DefaultMutableTreeNode nc = new DefaultMutableTreeNode(tep);
-					((DefaultTreeModel)this.getModel()).insertNodeInto(nc, node_child, node_child.getChildCount()); // here 'node_child' works as parent
-					DNDTree.expandAllNodes(this, nc);
-				} else {
-					DNDTree.expandAllNodes(this, node_child);
-				}
-				*/
-			}
-			this.updateUILater();
+			addNewChildType(tt, new_child_type);
 		}
 	}
 
@@ -345,4 +306,54 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		}
 	}
 
+	/** tt_parent is the parent TemplateThing
+	 *  tet_child is the child to add to tt parent, and to insert as child to all nodes that host the tt parent.
+	 *
+	 *  Returns the TemplateThing used, either new or a reused, unique, already-existing one. */
+	public TemplateThing addNewChildType(final TemplateThing tt_parent, String new_child_type) {
+		// check preconditions
+		if (null == tt_parent || null == new_child_type) return null;
+		// fix any potentially dangerous chars for the XML
+		new_child_type = new_child_type.trim().toLowerCase().replace(' ', '_').replace('-', '_').replace('\n','_').replace('\t','_'); // XML valid
+		// See if such TemplateThing exists already
+		TemplateThing tet_child = tt_parent.getProject().getTemplateThing(new_child_type);
+		boolean is_new = null == tet_child;
+		// In any case we need a copy to add as a node to the trees
+		tet_child = new TemplateThing(null == tet_child ? new_child_type : tet_child.getType(), tt_parent.getProject()); // reusing same String
+		if (is_new) {
+			tt_parent.getProject().addUniqueType(tet_child);
+		}
+
+		// add the new type to the database and to the tree, to all instances that are similar to tt (but not nested)
+		HashSet hs = root.collectSimilarThings2(tt_parent, new HashSet());
+		TemplateThing tti, ttc;
+		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			tti = (TemplateThing)it.next();
+			if (tti.equals(tt_parent)) {
+				tti = tt_parent; // parent
+				ttc = tet_child; // child
+			} else {
+				ttc = new TemplateThing(tet_child.getType(), tt_parent.getProject());
+			}
+			tti.addChild(ttc);
+			ttc.addToDatabase();
+			// find the parent
+			DefaultMutableTreeNode node_parent = DNDTree.findNode(tti, this);
+			DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(ttc);
+			((DefaultTreeModel)this.getModel()).insertNodeInto(node_child, node_parent, node_parent.getChildCount());
+
+			// generalize the code below to add all children of an exisiting type when adding it as a leaf somewhere else than it's first location
+			// 1 - find it the new 'tet' is of a type that existed already
+			if (!is_new) {
+				// 2 - add new TemplateThing nodes to fill in the whole subtree, preventing nested expansion
+				//Utils.log2("Calling fillChildren for " + tet);
+				fillChildren(tet_child, node_child); // recursive
+				DNDTree.expandAllNodes(this, node_child);
+			} else {
+				//Utils.log2("NOT Calling fillChildren for " + tet);
+			}
+		}
+		this.updateUILater();
+		return tet_child;
+	}
 }
