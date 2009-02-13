@@ -2401,7 +2401,6 @@ abstract public class Loader {
 								}
 							}
 							decacheImagePlus(patch.getId()); // no point in keeping it around
-							flushMipMaps(patch.getId()); // some may have been generated from the ImagePlus, and may look ugly/improper
 						}
 
 						wo.setTaskName("Imported " + (n_imported.getAndIncrement() + 1) + "/" + lines.length);

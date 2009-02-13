@@ -131,7 +131,6 @@ public final class Patch extends Displayable {
 			}
 		}
 
-		// TODO: doesn't work with stacks!
 		if (0 == o_width || 0 == o_height) {
 			// The original image width and height are unknown.
 			if (at.getType() == AffineTransform.TYPE_TRANSLATION) {
@@ -140,10 +139,11 @@ public final class Patch extends Displayable {
 			} else {
 				try { 
 					Utils.log2("Restoring original width/height from file");
-					// Do it from the file
-					Image awt = project.getLoader().fetchImage(this, 1.0);
+					// Do it from the 50% file -- only one pixel error if file had not even width and height (which is very unlikely in microscopy images)
+					Image awt = project.getLoader().fetchImage(this, 0.4999);
 					o_width = awt.getWidth(null);
 					o_height = awt.getHeight(null);
+					// awt will be flushed by the loader cache subsystem.
 				} catch (Exception e) {
 					Utils.log("Could not read source data width/height for patch " + this);
 					o_width = (int)width;

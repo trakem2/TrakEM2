@@ -1779,6 +1779,9 @@ public final class FSLoader extends Loader {
 				}
 			}
 
+			// flush any cached tiles
+			flushMipMaps(patch.getId());
+
 			return true;
 		} catch (Throwable e) {
 			IJError.print(e);
@@ -2217,7 +2220,6 @@ public final class FSLoader extends Loader {
 							this.startedWorking();
 							try {
 								generateMipMaps(patch);
-								flushMipMaps(patch.getId());
 							} catch (Exception e) {
 								IJError.print(e);
 							}
