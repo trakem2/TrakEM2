@@ -398,7 +398,7 @@ public class AreaList extends ZDisplayable {
 		this.width = box.width;
 		this.height = box.height;
 		updateInDatabase("transform+dimensions");
-		layer_set.updateBucket(this);
+		if (null != layer_set) layer_set.updateBucket(this);
 		if (0 != box.x || 0 != box.y) {
 			return true;
 		}
