@@ -322,6 +322,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		tet_child = new TemplateThing(null == tet_child ? new_child_type : tet_child.getType(), tt_parent.getProject()); // reusing same String
 		if (is_new) {
 			tt_parent.getProject().addUniqueType(tet_child);
+			tt_parent.addChild(tet_child);
 		}
 
 		// add the new type to the database and to the tree, to all instances that are similar to tt (but not nested)
@@ -340,10 +341,25 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 			// find the parent
 			DefaultMutableTreeNode node_parent = DNDTree.findNode(tti, this);
 			DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(ttc);
-			((DefaultTreeModel)this.getModel()).insertNodeInto(node_child, node_parent, node_parent.getChildCount());
+			// see first if there isn't already one such child
+			boolean add = true;
+			for (final Enumeration e = node_parent.children(); e.hasMoreElements(); ) {
+				DefaultMutableTreeNode nc = (DefaultMutableTreeNode) e.nextElement();
+				TemplateThing ttnc = (TemplateThing) nc.getUserObject();
+				if (ttnc.getType().equals(ttc.getType())) {
+					add = false;
+					break;
+				}
+			}
+			if (add) {
+				((DefaultTreeModel)this.getModel()).insertNodeInto(node_child, node_parent, node_parent.getChildCount());
+			}
+
+			Utils.log2("ttc parent: " + ttc.getParent());
+			Utils.log2("tti is parent: " + (tti == ttc.getParent()));
 
 			// generalize the code below to add all children of an exisiting type when adding it as a leaf somewhere else than it's first location
-			// 1 - find it the new 'tet' is of a type that existed already
+			// 1 - find if the new 'tet' is of a type that existed already
 			if (!is_new) {
 				// 2 - add new TemplateThing nodes to fill in the whole subtree, preventing nested expansion
 				//Utils.log2("Calling fillChildren for " + tet);
