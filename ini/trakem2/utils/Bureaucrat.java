@@ -36,7 +36,7 @@ public class Bureaucrat extends Thread {
 	private Project[] project;
 	private boolean started = false;
 	/** A list of tasks to run when the Worker finishes of quits. */
-	private final ArrayList<Runnable> post_tasks = new ArrayList<Runnable>();
+	private ArrayList<Runnable> post_tasks = new ArrayList<Runnable>();
 
 	/** Registers itself in the project loader job queue. */
 	private Bureaucrat(ThreadGroup tg, Worker worker, Project project) {
@@ -134,11 +134,13 @@ public class Bureaucrat extends Thread {
 		ControlWindow.endWaitingCursor();
 		Utils.showStatus("Done " + worker.getTaskName(), !worker.onBackground());
 		try {
-			for (final Runnable r : post_tasks) {
-				try {
-					r.run();
-				} catch (Throwable t) {
-					IJError.print(t);
+			if (null != post_tasks) {
+				for (final Runnable r : post_tasks) {
+					try {
+						r.run();
+					} catch (Throwable t) {
+						IJError.print(t);
+					}
 				}
 			}
 		} catch(Throwable t) {
@@ -154,6 +156,13 @@ public class Bureaucrat extends Thread {
 	 *  Calls quit() on the Worker and interrupt() on each threads in this ThreadGroup and subgroups. */
 	public void quit() {
 		try {
+
+			// Cancel post tasks:
+			synchronized (post_tasks) {
+				post_tasks.clear();
+				post_tasks = null;
+			}
+
 			Utils.log2("ThreadGroup is " + getThreadGroup());
 
 			Utils.log2("ThreadGroup active thread count: " + getThreadGroup().activeCount());
@@ -172,14 +181,15 @@ public class Bureaucrat extends Thread {
 
 		} catch (Exception e) {
 			IJError.print(e);
-		} // wait until worker finishes
+		}
+		// wait until worker finishes
 		try {
 			Utils.log("Waiting for worker to quit...");
 			worker_thread.join();
 			Utils.log("Worker quitted.");
 		} catch (InterruptedException ie) {
 			IJError.print(ie);
-		} // wait until worker finishes
+		}
 	}
 	public boolean isActive() {
 		return worker.isWorking();
@@ -189,7 +199,7 @@ public class Bureaucrat extends Thread {
 	}
 	/** Add a task to run after the Worker has finished or quit. Does not accept more tasks once the Worker no longer runs. */
 	public boolean addPostTask(final Runnable task) {
-		if (worker.hasQuitted()) return false;
+		if (worker.hasQuitted() || null == post_tasks) return false;
 		synchronized (post_tasks) {
 			this.post_tasks.add(task);
 		}
