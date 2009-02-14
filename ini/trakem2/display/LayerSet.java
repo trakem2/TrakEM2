@@ -1642,7 +1642,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void addTransformStep() {
 		Utils.log2("Added transform step for all");
 		Displayable.DoTransforms dt = new Displayable.DoTransforms();
-		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (final Layer la : al_layers) {
 			dt.addAll(la.getDisplayables());
 		}
@@ -1841,7 +1840,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				final ArrayList<Displayable> al = layer.getDisplayables(); // a copy
 				this.all_displ.put(layer, al);
 				for (final Displayable d : al) {
-					this.links.put(d, new HashSet<Displayable>(d.hs_linked));
+					this.links.put(d, null == d.hs_linked ? null : new HashSet<Displayable>(d.hs_linked));
 				}
 			}
 		}

@@ -2891,16 +2891,32 @@ public final class Display extends DBObject implements ActionListener, ImageList
 							return;
 						}
 					}
-					slice.getLayerSet().addTransformStep(slice.getLinkedGroup(null));
-					Registration.registerStackSlices((Patch)getActive()); // will repaint
+					final LayerSet ls = slice.getLayerSet();
+					final HashSet<Displayable> linked = slice.getLinkedGroup(null);
+					ls.addTransformStep(linked);
+					Bureaucrat burro = Registration.registerStackSlices((Patch)getActive()); // will repaint
+					burro.addPostTask(new Runnable() { public void run() {
+						// The current state when done
+						ls.addTransformStep(linked);
+					}});
 				} else {
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}
 			}
 		} else if (command.equals("Align layers (layer-wise)")) {
-			AlignTask.alignLayersLinearlyTask( layer );
+			final Layer la = layer;
+			la.getParent().addTransformStep(la);
+			Bureaucrat burro = AlignTask.alignLayersLinearlyTask( layer );
+			burro.addPostTask(new Runnable() { public void run() {
+				la.getParent().addTransformStep(la);
+			}});
 		} else if (command.equals("Align layers (tile-wise global minimization)")) {
-			Registration.registerLayers(layer, Registration.GLOBAL_MINIMIZATION);
+			final Layer la = layer; // caching, since scroll wheel may change it
+			la.getParent().addTransformStep();
+			Bureaucrat burro = Registration.registerLayers(la, Registration.GLOBAL_MINIMIZATION);
+			burro.addPostTask(new Runnable() { public void run() {
+				la.getParent().addTransformStep();
+			}});
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
 			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
 			//gd.addNumericField("layer_scroll_step: ", this.scroll_step, 0);
@@ -3018,15 +3034,19 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				Utils.showMessage("Please select only images.");
 				return;
 			}
-			Set<Displayable> affected = selection.getAffected();
-			for (Displayable d : affected)
+			final Set<Displayable> affected = new HashSet<Displayable>(selection.getAffected());
+			for (final Displayable d : affected)
 				if (d.isLinked()) {
 					Utils.showMessage( "You cannot montage linked objects." );
 					return;
 				}
 			// make an undo step!
-			layer.getParent().addTransformStep(affected);
-			AlignTask.alignSelectionTask( selection );
+			final LayerSet ls = layer.getParent();
+			ls.addTransformStep(affected);
+			Bureaucrat burro = AlignTask.alignSelectionTask( selection );
+			burro.addPostTask(new Runnable() { public void run() {
+				ls.addTransformStep(affected);
+			}});
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");
 			gd.addMessage("Linking images to images (within their own layer only):");
