@@ -1131,9 +1131,7 @@ public abstract class Displayable extends DBObject {
 			setLocked(locked1);
 		}
 
-		if (getLayerSet().prepareEditStep(this)) {
-			getLayerSet().addEditStep(prev); // contains the transformations of all others, if necessary.
-		}
+		getLayerSet().addEditStep(prev); // contains the transformations of all others, if necessary.
 
 		// it's lengthy to predict the precise box for each open Display, so just repaint all in all Displays.
 		Display.updateSelection();
@@ -1584,6 +1582,7 @@ public abstract class Displayable extends DBObject {
 			if (this.edits.size() != other.edits.size()) return false;
 			final Iterator<DoEdit> it1 = this.edits.iterator();
 			final Iterator<DoEdit> it2 = other.edits.iterator();
+			// Order matters: (but it shouldn't!) TODO
 			for (; it1.hasNext() && it2.hasNext(); ) {
 				if ( ! it1.next().isIdenticalTo(it2.next())) return false;
 			}
@@ -1616,6 +1615,9 @@ public abstract class Displayable extends DBObject {
 		DoEdit(final Displayable d) {
 			this.d = d;
 		}
+		public boolean containsKey(final String field) {
+			return content.containsKey(field);
+		}
 		public boolean isIdenticalTo(final Object ob) {
 			if (!(ob instanceof DoEdit)) return false;
 			final DoEdit other = (DoEdit) ob;
@@ -1628,29 +1630,26 @@ public abstract class Displayable extends DBObject {
 			}
 			// same number of fields to edit?
 			if (this.content.size() != other.content.size()) return false;
-			// same fields?
-			final Set<String> keys = content.keySet();
-			keys.removeAll(other.content.keySet());
-			if (!keys.isEmpty()) return false;
+			// any data? Currently comparisons of data are disabled
+			if (null != this.content.get("data") || null != other.content.get("data")) {
+				return false;
+			}
 			// same content of fields?
 			for (final Map.Entry<String,Object> e : this.content.entrySet()) {
 				final Object val = other.content.get(e.getKey());
 				if (val instanceof HashMap) {
-					if ( ! identical((HashMap)val, (HashMap)e.getValue())) return false;
-				} else if (ob instanceof Displayable.DataPackage) {
-					// TODO
-					return false;
+					if ( ! identical((HashMap)val, (HashMap)e.getValue())) {
+						return false;
+					}
 				} else if ( ! val.equals(e.getValue())) return false;
 			}
 			return true;
 		}
 		private boolean identical(final HashMap m1, final HashMap m2) {
 			if (m1.size() != m2.size()) return false;
-			final Set keys = m1.keySet();
-			keys.removeAll(m2.keySet());
-			if (!keys.isEmpty()) return false;
 			for (final Object entry : m1.entrySet()) {
 				final Map.Entry e = (Map.Entry) entry;
+				// TODO this could fail if value is null
 				if ( ! e.getValue().equals(m2.get(e.getKey()))) return false;
 			}
 			return true;
@@ -1659,6 +1658,7 @@ public abstract class Displayable extends DBObject {
 		synchronized DoEdit fullCopy() {
 			return init(d, new String[]{"data", "width", "height", "locked", "title", "color", "alpha", "visible", "props", "linked_props"});
 		}
+		/** With the same keys as 'de'. */
 		synchronized DoEdit init(final DoEdit de) {
 			return init(de.d, de.content.keySet().toArray(new String[0]));
 		}
@@ -1674,24 +1674,24 @@ public abstract class Displayable extends DBObject {
 		}
 		synchronized DoEdit init(final Displayable d, final String[] fields) {
 			final Class[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
-			for (final String field : fields) {
-				if ("data".equals(field)) {
-					content.put(field, d.getDataPackage());
+			for (int k=0; k<fields.length; k++) {
+				if ("data".equals(fields[k])) {
+					content.put(fields[k], d.getDataPackage());
 				} else {
 					boolean got_it = false;
 					for (int i=0; i<c.length; i++) {
 						try {
-							java.lang.reflect.Field f = c[i].getDeclaredField(field);
+							java.lang.reflect.Field f = c[i].getDeclaredField(fields[k]);
 							if (null == f) continue; // will throw a NoSuchFieldException, but just in case
 							f.setAccessible(true);
 							Object ob = f.get(d);
-							content.put(field, null != ob ? duplicate(ob, field) : null);
+							content.put(fields[k], null != ob ? duplicate(ob, fields[k]) : null);
 							got_it = true;
 						} catch (NoSuchFieldException nsfe) {
 						} catch (IllegalAccessException iae) {}
 					}
 					if (!got_it) {
-						Utils.log2("ERROR: could not get '" + field + "' field for " + d);
+						Utils.log2("ERROR: could not get '" + fields[k] + "' field for " + d);
 						return null;
 					}
 				}
@@ -1783,15 +1783,26 @@ public abstract class Displayable extends DBObject {
 		public Displayable getD() { return null; }
 
 		public boolean isIdenticalTo(final Object ob) {
-			if (!(ob instanceof Collection)) return false;
-			final Collection<Displayable> col = (Collection<Displayable>) ob;
-			if (ht.size() != col.size()) return false;
-			for (final Displayable d : col) {
-				if (!d.getAffineTransform().equals(ht.get(d))) {
-					return false;
+			if (ob instanceof Collection) {
+				final Collection<Displayable> col = (Collection<Displayable>) ob;
+				if (ht.size() != col.size()) return false;
+				for (final Displayable d : col) {
+					if (!d.getAffineTransform().equals(ht.get(d))) {
+						return false;
+					}
 				}
+				return true;
+			} else if (ob instanceof DoTransforms) {
+				final DoTransforms dt = (DoTransforms) ob;
+				if (dt.ht.size() != this.ht.size()) return false;
+				for (final Map.Entry<Displayable,AffineTransform> e : this.ht.entrySet()) {
+					if ( ! e.getValue().equals(dt.ht.get(e.getKey()))) {
+						return false;
+					}
+				}
+				return true;
 			}
-			return true;
+			return false;
 		}
 	}
 
@@ -1822,13 +1833,18 @@ public abstract class Displayable extends DBObject {
 	static abstract protected class DataPackage {
 		protected final double width, height;
 		protected final AffineTransform at;
-		protected final HashSet<Displayable> hs_linked;
+		protected HashMap<Displayable,HashSet<Displayable>> links = null;
 
 		DataPackage(final Displayable d) {
 			this.width = d.width;
 			this.height = d.height;
 			this.at = new AffineTransform(d.at);
-			this.hs_linked = null == d.hs_linked ? null : new HashSet<Displayable>(d.hs_linked);
+			if (null != d.hs_linked) {
+				this.links = new HashMap<Displayable,HashSet<Displayable>>();
+				for (final Displayable ln : d.hs_linked) {
+					this.links.put(ln, new HashSet<Displayable>(ln.hs_linked));
+				}
+			}
 		}
 
 		/** Set the Displayable's fields. */
@@ -1836,15 +1852,10 @@ public abstract class Displayable extends DBObject {
 			d.width = width;
 			d.height = height;
 			d.setAffineTransform(at); // updates bucket
-			if (null == d.hs_linked) {
-				if (null != hs_linked) d.hs_linked = new HashSet<Displayable>(hs_linked);
-				// else both null, remain null
-			} else if (null == hs_linked) {
-				// d's not null, pkg's null
-				d.hs_linked = null;
-			} else {
-				// both not null
-				d.hs_linked = new HashSet<Displayable>(hs_linked);
+			if (null != links) {
+				for (final Map.Entry<Displayable,HashSet<Displayable>> e : links.entrySet()) {
+					e.getKey().hs_linked = e.getValue();
+				}
 			}
 			return true;
 		}

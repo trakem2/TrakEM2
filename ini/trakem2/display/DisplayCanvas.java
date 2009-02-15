@@ -967,6 +967,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					repaint(old_brush_box, 0, false);
 					old_brush_box = null; // from mouseMoved
 				}
+				// The current state:
 				display.getLayerSet().addDataEditStep(active);
 				break;
 			}

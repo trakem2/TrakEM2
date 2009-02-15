@@ -1299,7 +1299,6 @@ public class AreaList extends ZDisplayable {
 		}
 
 		Roi roi = dc.getFakeImagePlus().getRoi();
-		Utils.log2("roi is " + roi);
 		if (null == roi) return;
 		// Check ROI
 		if (!Utils.isAreaROI(roi)) {

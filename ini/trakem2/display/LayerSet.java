@@ -1541,6 +1541,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Time vs DoStep. Not all steps may be specific for a single Displayable. */
 	final private TreeMap<Long,DoStep> edit_history = new TreeMap<Long,DoStep>();
 
+	/** The step representing the current diff state. */
+	private long current_edit_time = 0;
+	private DoStep current_edit_step = null;
+
 	/** Displayable vs its own set of time vs DoStep, for quick access, for those edits that are specific of a Displayable.
 	 *  It's necessary to set a ground, starting point for any Displayable whose data will be edited. */
 	final private Map<Displayable,TreeMap<Long,DoStep>> dedits = new HashMap<Displayable,TreeMap<Long,DoStep>>();
@@ -1548,14 +1552,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Time vs DoStep; as steps are removed from the end of edit_history, they are put here. */
 	final private TreeMap<Long,DoStep> redo = new TreeMap<Long,DoStep>();
 
-	/** Returns true if there is no step saved for any of the displayables involved. */
-	boolean prepareEditStep(final Displayable d) {
-		TreeMap<Long,DoStep> edits = dedits.get(d);
-		return null == edits || edits.isEmpty() || redo.size() > 0; // Needs work: must avoid not adding a step when in the middle of a redo, but without adding a steo that is the same as the last undid one. TODO
-	}
-
 	/** Whether an initial step should be added or not. */
-	boolean prepareStep(final Object ob) {
+	final boolean prepareStep(final Object ob) {
 		synchronized (edit_history) {
 			if (0 == edit_history.size() || redo.size() > 0) return true;
 			// Check if the last added entry contains the exact same elements and data
@@ -1567,66 +1565,28 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
-	/** Will add a DoEdit step only if there isn't one already to which the object could be reverted to. */
+	/** If last step is not a DoEdit "data" step for d, then call addDataEditStep(d). */
 	boolean addPreDataEditStep(final Displayable d) {
-		if (prepareEditStep(d)) {
-			Displayable.DoEdit prev = new Displayable.DoEdit(d).fullCopy();
-			prev.add("data", d.getDataPackage()); // contains width,height,transform,links, and the data (points, areas, etc.)
-			return addEditStep(prev);
+		if (  null == current_edit_step
+		  || (current_edit_step.getD() != d || !((DoEdit)current_edit_step).containsKey("data"))) {
+			//Utils.log2("Adding pre-data edit step");
+			//return addDataEditStep(d);
+			return addEditStep(new Displayable.DoEdit(d).init(d, new String[]{"data"}));
 		}
 		return false;
 	}
 
+	/** A new undo step for the "data" field of Displayable d. */
 	boolean addDataEditStep(final Displayable d) {
-		Displayable.DoEdit prev = new Displayable.DoEdit(d).fullCopy();
-		prev.add("data", d.getDataPackage()); // contains width,height,transform,links, and the data (points, areas, etc.)
-		return addEditStep(prev);
+		//Utils.log2("Adding data edit step");
+		// Adds "data", which contains width,height,affinetransform,links, and the data (points, areas, etc.)
+		return addEditStep(new Displayable.DoEdit(d).init(d, new String[]{"data"}));
 	}
 
 	boolean addDataEditStep(final Set<Displayable> ds, final String[] fields) {
 		final Displayable.DoEdits edits = new Displayable.DoEdits(ds);
 		edits.init(fields);
 		return addEditStep(edits);
-	}
-
-	boolean addEditStep(final DoStep step) {
-		if (step.isEmpty()) {
-			Utils.log2("Warning: can't add empty step " + step);
-			return false;
-		}
-
-
-		synchronized (edit_history) {
-			// 0 - Check if it's identical to the last added one.
-			if (edit_history.size() > 0) {
-				final DoStep last = edit_history.get(edit_history.lastKey());
-				if (last.getClass() == step.getClass() && last.isIdenticalTo(step)) {
-					return false;
-				}
-			}
-
-			final long time = System.currentTimeMillis();
-
-			// 1- Store for speedy access, if its Displayable-specific:
-			final Displayable d = step.getD();
-			if (null != d) {
-				TreeMap<Long,DoStep> edits = dedits.get(d);
-				if (null == edits) {
-					edits = new TreeMap<Long,DoStep>();
-					dedits.put(d, edits);
-				}
-				edits.put(time, step);
-			}
-
-			// 2- Store for general ordering
-			edit_history.put(time, step);
-			Utils.log2("Added edit history step");
-
-			// 3- Bye bye redo! Can't branch.
-			redo.clear();
-		}
-
-		return true;
 	}
 
 	/** Add an undo step for the transformations of all Displayable in the layer. */
@@ -1673,39 +1633,77 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		addEditStep(new Layer.DoEditLayers(al));
 	}
 
-	public boolean canUndo() {
-		return edit_history.size() > 1; // the first step is the baseline
-	}
-	public boolean canRedo() {
-		return redo.size() > 0;
+	boolean addEditStep(final DoStep step) {
+		if (null == step || step.isEmpty()) {
+			Utils.log2("Warning: can't add empty step " + step);
+			return false;
+		}
+
+		synchronized (edit_history) {
+			// Check if it's identical to current step
+			if (step.isIdenticalTo(current_edit_step)) {
+				Utils.log2("Skipping identical undo step of class " + step.getClass() + ": " + step);
+				return false;
+			}
+
+			// Store current in undo queue
+			if (null != current_edit_step) {
+				edit_history.put(current_edit_time, current_edit_step);
+				// Store for speedy access, if its Displayable-specific:
+				final Displayable d = current_edit_step.getD();
+				if (null != d) {
+					TreeMap<Long,DoStep> edits = dedits.get(d);
+					if (null == edits) {
+						edits = new TreeMap<Long,DoStep>();
+						dedits.put(d, edits);
+					}
+					edits.put(current_edit_time, current_edit_step);
+				}
+			}
+
+			// Set step as current
+			current_edit_time = System.currentTimeMillis();
+			current_edit_step = step;
+
+			// Bye bye redo! Can't branch.
+			redo.clear();
+		}
+
+		return true;
 	}
 
-	private final DoStep pickLastStep() {
-		// Remove last step from queues
-		final long time = edit_history.lastKey();
-		final DoStep step = edit_history.remove(time);
-		if (null != step.getD()) {
-			dedits.get(step.getD()).remove(time);
-		}
-		redo.put(time, step);
-		// If at the end, the end represents the current state
-		// so we must remove yet another step:
-		if (1 == redo.size()) {
-			return pickLastStep();
-		}
-		return step;
+	public boolean canUndo() {
+		return edit_history.size() > 0;
+	}
+	public boolean canRedo() {
+		return redo.size() > 0 || null != current_edit_step;
 	}
 
 	/** Undoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
 	public boolean undoOneStep() {
 		synchronized (edit_history) {
-			if (1 == edit_history.size()) return false;
+			if (0 == edit_history.size()) {
+				Utils.log2("Empty undo history.");
+				return false;
+			}
 
 			//Utils.log2("Undoing one step");
 
-			final DoStep step = pickLastStep();
+			// Add current (if any) to redo queue
+			if (null != current_edit_step) {
+				redo.put(current_edit_time, current_edit_step);
+			}
 
-			if (!step.apply(DoStep.UNDO)) {
+			// Remove last step from undo queue, and set it as current
+			current_edit_time = edit_history.lastKey();
+			current_edit_step = edit_history.remove(current_edit_time);
+
+			// Remove as well from dedits
+			if (null != current_edit_step.getD()) {
+				dedits.get(current_edit_step.getD()).remove(current_edit_time);
+			}
+
+			if (!current_edit_step.apply(DoStep.UNDO)) {
 				Utils.log("Undo: could not apply step!");
 				return false;
 			}
@@ -1716,23 +1714,31 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Redoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
 	public boolean redoOneStep() {
 		synchronized (edit_history) {
-			if (0 == redo.size()) return false;
-
-			//Utils.log2("Redoing one step");
-
-			// Remove from undo queue:
-			final long time = redo.firstKey();
-			final DoStep step = redo.remove(time);
-
-			if (!step.apply(DoStep.REDO)) {
-				Utils.log("Undo: could not apply step!");
+			if (0 == redo.size()) {
+				Utils.log2("Empty redo history.");
+				if (null != current_edit_step) {
+					return current_edit_step.apply(DoStep.REDO);
+				}
 				return false;
 			}
 
-			// Readd to undo queue:
-			edit_history.put(time, step);
-			if (null != step.getD()) {
-				dedits.get(step.getD()).put(time, step);
+			//Utils.log2("Redoing one step");
+
+			// Add current (if any) to undo queue
+			if (null != current_edit_step) {
+				edit_history.put(current_edit_time, current_edit_step);
+				if (null != current_edit_step.getD()) {
+					dedits.get(current_edit_step.getD()).put(current_edit_time, current_edit_step);
+				}
+			}
+
+			// Remove one step from undo queue and set it as current
+			current_edit_time = redo.firstKey();
+			current_edit_step = redo.remove(current_edit_time);
+
+			if (!current_edit_step.apply(DoStep.REDO)) {
+				Utils.log("Undo: could not apply step!");
+				return false;
 			}
 		}
 		return true;

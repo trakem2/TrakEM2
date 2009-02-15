@@ -3634,4 +3634,26 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		double new_height =gd.getNextNumber();
 		layer.getParent().setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
 	}
+
+	/*
+	// To record layer changes -- but it's annoying, this is visualization not data.
+	static class DoSetLayer implements DoStep {
+		final Display display;
+		final Layer layer;
+		DoSetLayer(final Display display) {
+			this.display = display;
+			this.layer = display.layer;
+		}
+		public Displayable getD() { return null; }
+		public boolean isEmpty() { return false; }
+		public boolean apply(final int action) {
+			display.setLayer(layer);
+		}
+		public boolean isIdenticalTo(final Object ob) {
+			if (!ob instanceof DoSetLayer) return false;
+			final DoSetLayer dsl = (DoSetLayer) ob;
+			return dsl.display == this.display && dsl.layer == this.layer;
+		}
+	}
+	*/
 }
