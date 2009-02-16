@@ -846,7 +846,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 				if (i > 0 && M.distancePointToLine(x, y, p[0][i-1], p[1][i-1], p[0][i], p[1][i]) < radius) {
 					return true;
 				}
-				if (i < n_points && M.distancePointToLine(x, y, p[0][i], p[1][i], p[0][i+1], p[1][i+1]) < radius) {
+				if (i < (n_points -1) && M.distancePointToLine(x, y, p[0][i], p[1][i], p[0][i+1], p[1][i+1]) < radius) {
 					return true;
 				}
 			} else if (i > 0) {
@@ -1214,5 +1214,37 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	public void setPosition(FallLine fl) {
 		// Where are we now?
+	}
+
+	@Override
+	final Class getInternalDataPackageClass() {
+		return DPPolyline.class;
+	}
+
+	@Override
+	synchronized Object getDataPackage() {
+		return new DPPolyline(this);
+	}
+
+	static private final class DPPolyline extends Displayable.DataPackage {
+		final double[][] p;
+		final long[] p_layer;
+
+		DPPolyline(final Polyline polyline) {
+			super(polyline);
+			// store copies of all arrays
+			this.p = new double[][]{Utils.copy(polyline.p[0], polyline.n_points), Utils.copy(polyline.p[1], polyline.n_points)};
+			this.p_layer = new long[polyline.n_points]; System.arraycopy(polyline.p_layer, 0, this.p_layer, 0, polyline.n_points);
+		}
+		@Override
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Polyline polyline = (Polyline)d;
+			final int len = p[0].length; // == n_points, since it was cropped on copy
+			polyline.p = new double[][]{Utils.copy(p[0], len), Utils.copy(p[1], len)};
+			polyline.n_points = p[0].length;
+			polyline.p_layer = new long[len]; System.arraycopy(p_layer, 0, polyline.p_layer, 0, len);
+			return true;
+		}
 	}
 }

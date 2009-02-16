@@ -33,10 +33,10 @@ import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.History;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.tree.LayerThing;
+import ini.trakem2.tree.Thing;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -52,6 +52,7 @@ import java.awt.geom.Area;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.util.Iterator;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -108,9 +109,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
-
-	/** Store HashMaps of displayable/transformation pairs for undo. */
-	private History history = new History(30);
 
 	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
 	private Align align = null;
@@ -414,6 +412,18 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return false;
 		}
 
+		double w = xe - x;
+		double h = ye - y;
+		if (w <= 0 || h <= 0) {
+			Utils.log("LayerSet.setMinimumDimensions: zero width or height, NOT resizing.");
+			return false;
+		}
+
+		// Record previous state
+		if (prepareStep(this)) {
+			addEditStep(new LayerSet.DoResizeLayerSet(this));
+		}
+
 		// translate
 		if (0 != x || 0 != y) {
 			project.getLoader().startLargeUpdate();
@@ -430,30 +440,16 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					//Utils.log2("AFTER: " + d.getBoundingBox());
 					d.updateInDatabase("transform");
 				}
-				// translate all undo steps as well TODO need a better undo system, to call 'undo resize layerset', a system of undo actions or something
-				for (final History.Step step : history.getAll()) {
-					if (step instanceof TransformationStep) {
-						for (final AffineTransform at : ((TransformationStep)step).ht.values()) {
-							at.preConcatenate(at2);
-						}
-					}
-				}
 				project.getLoader().commitLargeUpdate();
 			} catch (Exception e) {
 				IJError.print(e);
 				project.getLoader().rollback();
-				return false; //TODO no notice to the user ...
+				return false;
 			}
 		}
 
 		//Utils.log("x,y  xe,ye : " + x + "," + y + "  " + xe + "," + ye);
 		// finally, accept:
-		double w = xe - x;
-		double h = ye - y;
-		if (w < 0 || h < 0) {
-			Utils.log("LayerSet.setMinimumDimensions: zero width or height, NOT resizing.");
-			return false;
-		}
 		if (w != layer_width || h != layer_height) {
 			this.layer_width = Math.ceil(w); // stupid int to double conversions ... why floating point math is a non-solved problem? Well, it is for SBCL
 			this.layer_height = Math.ceil(h);
@@ -463,6 +459,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			Display.update(this);
 			Display.pack(this);
 		}
+
+		// Record current state:
+		addEditStep(new LayerSet.DoResizeLayerSet(this));
+
 		return true;
 	}
 
@@ -481,6 +481,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** May leave objects beyond the visible window. */
 	public void setDimensions(double x, double y, double layer_width, double layer_height) {
+		// Record previous state
+		if (prepareStep(this)) {
+			addEditStep(new LayerSet.DoResizeLayerSet(this));
+		}
+
 		this.layer_width = layer_width;
 		this.layer_height = layer_height;
 		final AffineTransform affine = new AffineTransform();
@@ -494,6 +499,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			recreateBuckets(true);
 		}
 		Display.update(this);
+
+		// Record new state
+		addEditStep(new LayerSet.DoResizeLayerSet(this));
 	}
 
 	/** Returns false if any Displayables are being partially or totally cropped away. */
@@ -502,6 +510,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (Double.isNaN(layer_width) || Double.isNaN(layer_height)) { Utils.log("LayerSet.setDimensions: NaNs! Not adjusting."); return false; }
 		if (layer_width <=0 || layer_height <= 0) { Utils.showMessage("LayerSet: can't accept zero or a minus for layer width or height"); return false; }
 		if (anchor < NORTH || anchor > CENTER) {  Utils.log("LayerSet: wrong anchor, not resizing."); return false; }
+
+		// Record previous state
+		if (prepareStep(this)) {
+			addEditStep(new LayerSet.DoResizeLayerSet(this));
+		}
+
 		// new coordinates:
 		double new_x = 0;// the x,y of the old 0,0
 		double new_y = 0;
@@ -586,6 +600,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		// and notify the Display
 		Display.update(this);
 		Display.pack(this);
+
+		// Record new state
+		addEditStep(new LayerSet.DoResizeLayerSet(this));
+
 		return true;
 	}
 
@@ -1087,104 +1105,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return this.snapshots_mode;
 	}
 
-	/** Creates an undo step that contains transformations for all Displayable objects of this LayerSet */
-	public void createUndoStep() {
-		final HashMap ht_undo = new HashMap();
-		for (Layer la : al_layers) {
-			for (Displayable d : la.getDisplayables()) {
-				ht_undo.put(d, d.getAffineTransformCopy());
-			}
-		}
-		addUndoStep(ht_undo);
-	}
-
-	// private to the package
-	History getHistory() {
-		return history;
-	}
-
-	/** Creates an undo step that contains transformations for all Displayable objects in the given Layer. */
-	public void createUndoStep(final Layer layer) {
-		if (null == layer) return;
-		final HashMap ht_undo = new HashMap();
-		for (Displayable d : layer.getDisplayables()) {
-			ht_undo.put(d, d.getAffineTransformCopy());
-		}
-		addUndoStep(ht_undo);
-	}
-
-	/** The @param ht should be a hastable of Displayable keys and Transform values, such as those obtained from selection.getTransformationsCopy() . By adding a new undo step, the redo steps are cleared. */
-	public void addUndoStep(final HashMap<Displayable,AffineTransform> ht) {
-		if (ht.isEmpty()) return;
-		Utils.log2("Add undo step");
-		history.add(new TransformationStep(ht));
-	}
-
-	/** Create an undo step involving all Displayable objects in the set. */
-	public void addUndoStep(final Set<Displayable> set) {
-		final HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
-		for (final Displayable d : set) {
-			ht.put(d, d.getAffineTransformCopy());
-		}
-		addUndoStep(ht);
-	}
-
-	public boolean canUndo() {
-		return history.canUndo();
-	}
-	public boolean canRedo() {
-		return history.canRedo();
-	}
-
-	/** Undoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
-	public void undoOneStep() {
-		History.Step step = history.undoOneStep();
-		if (step instanceof TransformationStep) {
-			TransformationStep ts = (TransformationStep)step;
-			applyStep(ts.ht);
-		}
-		Utils.log2("Undoing: index is " + history.index());
-	}
-	/** Redoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
-	public void redoOneStep() {
-		History.Step step = history.redoOneStep();
-		if (step instanceof TransformationStep) {
-			TransformationStep ts = (TransformationStep)step;
-			applyStep(ts.ht);
-		}
-		Utils.log2("Redoing: index is " + history.index());
-	}
-	/** Apply an undo step. */
-	public void applyStep(final HashMap<Displayable,AffineTransform> ht) {
-		// apply:
-		Rectangle box = null;
-		Rectangle b = new Rectangle(); // tmp
-		project.getLoader().startLargeUpdate();
-		try {
-			for (Map.Entry<Displayable,AffineTransform> e : ht.entrySet()) {
-				Displayable d = e.getKey();
-				// add both the previous and the after box, for repainting
-				if (null == box) box = d.getBoundingBox(b);
-				else box.add(d.getBoundingBox(b));
-				d.setAffineTransform(e.getValue());
-				box.add(d.getBoundingBox(b));
-			}
-			project.getLoader().commitLargeUpdate();
-		} catch (Exception e) {
-			IJError.print(e);
-			Utils.log("Rolling back");
-			project.getLoader().rollback();
-		}
-		Display.updateSelection();
-		Display.repaint(this, box);
-		Display.repaintSnapshots(this);
-	}
-
-	/** Find the given Displayable in the undo/redo queues and clear it. This functionality is used when an object is removed, for which there is no undo. */
-	public void removeFromUndo(final Displayable d) {
-		history.remove(d.getId());
-	}
-
 	public void destroy() {
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
@@ -1196,7 +1116,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
-		this.history.clear();
 		if (null != align) {
 			align.destroy();
 			align = null;
@@ -1598,7 +1517,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
 		this.root.populate(this, db_map);
 		if (layers) {
-			for (Layer la : al_layers) {
+			for (final Layer la : al_layers) {
 				// recreate only if there were any already
 				if (null != la.root) la.recreateBuckets();
 			}
@@ -1617,5 +1536,366 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			else r.add(la.getMinimalBoundingBox(c));
 		}
 		return r;
+	}
+
+	/** Time vs DoStep. Not all steps may be specific for a single Displayable. */
+	final private TreeMap<Long,DoStep> edit_history = new TreeMap<Long,DoStep>();
+
+	/** The step representing the current diff state. */
+	private long current_edit_time = 0;
+	private DoStep current_edit_step = null;
+
+	/** Displayable vs its own set of time vs DoStep, for quick access, for those edits that are specific of a Displayable.
+	 *  It's necessary to set a ground, starting point for any Displayable whose data will be edited. */
+	final private Map<Displayable,TreeMap<Long,DoStep>> dedits = new HashMap<Displayable,TreeMap<Long,DoStep>>();
+
+	/** Time vs DoStep; as steps are removed from the end of edit_history, they are put here. */
+	final private TreeMap<Long,DoStep> redo = new TreeMap<Long,DoStep>();
+
+	/** Whether an initial step should be added or not. */
+	final boolean prepareStep(final Object ob) {
+		synchronized (edit_history) {
+			if (0 == edit_history.size() || redo.size() > 0) return true;
+			// Check if the last added entry contains the exact same elements and data
+			DoStep step = edit_history.get(edit_history.lastKey());
+			boolean b = step.isIdenticalTo(ob);
+			Utils.log2(b + " == prepareStep for " + ob);
+			// If identical, don't prepare one!
+			return !b;
+		}
+	}
+
+	/** If last step is not a DoEdit "data" step for d, then call addDataEditStep(d). */
+	boolean addPreDataEditStep(final Displayable d) {
+		if (  null == current_edit_step
+		  || (current_edit_step.getD() != d || !((DoEdit)current_edit_step).containsKey("data"))) {
+			//Utils.log2("Adding pre-data edit step");
+			//return addDataEditStep(d);
+			return addEditStep(new Displayable.DoEdit(d).init(d, new String[]{"data"}));
+		}
+		return false;
+	}
+
+	/** A new undo step for the "data" field of Displayable d. */
+	boolean addDataEditStep(final Displayable d) {
+		//Utils.log2("Adding data edit step");
+		// Adds "data", which contains width,height,affinetransform,links, and the data (points, areas, etc.)
+		return addEditStep(new Displayable.DoEdit(d).init(d, new String[]{"data"}));
+	}
+
+	boolean addDataEditStep(final Set<Displayable> ds, final String[] fields) {
+		final Displayable.DoEdits edits = new Displayable.DoEdits(ds);
+		edits.init(fields);
+		return addEditStep(edits);
+	}
+
+	/** Add an undo step for the transformations of all Displayable in the layer. */
+	public void addTransformStep(final Layer layer) {
+		addTransformStep(layer.getDisplayables());
+	}
+	/** Add an undo step for the transformations of all Displayable in hs. */
+	public void addTransformStep(final Collection<Displayable> col) {
+		Utils.log2("Added transform step for col");
+		addEditStep(new Displayable.DoTransforms().addAll(col));
+	}
+	/** Add an undo step for the transformations of all Displayable in all layers. */
+	public void addTransformStep() {
+		Utils.log2("Added transform step for all");
+		Displayable.DoTransforms dt = new Displayable.DoTransforms();
+		for (final Layer la : al_layers) {
+			dt.addAll(la.getDisplayables());
+		}
+		addEditStep(dt);
+	}
+
+	/** Add a step to undo the addition or deletion of one or more objects in this project and LayerSet. */
+	public void addChangeTreesStep() {
+		DoStep step = new LayerSet.DoChangeTrees(this);
+		if (prepareStep(step)) {
+			Utils.log2("Added change trees step.");
+			addEditStep(step);
+		}
+	}
+	/** For the Displayable contained in a Layer: their number, and their stack order. */
+	public void addLayerContentStep(final Layer la) {
+		DoStep step = new Layer.DoContentChange(la);
+		if (prepareStep(step)) {
+			Utils.log2("Added layer content step.");
+			addEditStep(step);
+		}
+	}
+	/** For the Z and thickness of a layer. */
+	public void addLayerEditedStep(final Layer layer) {
+		addEditStep(new Layer.DoEditLayer(layer));
+	}
+	/** For the Z and thickness of a list of layers. */
+	public void addLayerEditedStep(final List<Layer> al) {
+		addEditStep(new Layer.DoEditLayers(al));
+	}
+
+	boolean addEditStep(final DoStep step) {
+		if (null == step || step.isEmpty()) {
+			Utils.log2("Warning: can't add empty step " + step);
+			return false;
+		}
+
+		synchronized (edit_history) {
+			// Check if it's identical to current step
+			if (step.isIdenticalTo(current_edit_step)) {
+				Utils.log2("Skipping identical undo step of class " + step.getClass() + ": " + step);
+				return false;
+			}
+
+			// Store current in undo queue
+			if (null != current_edit_step) {
+				edit_history.put(current_edit_time, current_edit_step);
+				// Store for speedy access, if its Displayable-specific:
+				final Displayable d = current_edit_step.getD();
+				if (null != d) {
+					TreeMap<Long,DoStep> edits = dedits.get(d);
+					if (null == edits) {
+						edits = new TreeMap<Long,DoStep>();
+						dedits.put(d, edits);
+					}
+					edits.put(current_edit_time, current_edit_step);
+				}
+			}
+
+			// Set step as current
+			current_edit_time = System.currentTimeMillis();
+			current_edit_step = step;
+
+			// Bye bye redo! Can't branch.
+			redo.clear();
+		}
+
+		return true;
+	}
+
+	public boolean canUndo() {
+		return edit_history.size() > 0;
+	}
+	public boolean canRedo() {
+		return redo.size() > 0 || null != current_edit_step;
+	}
+
+	/** Undoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
+	public boolean undoOneStep() {
+		synchronized (edit_history) {
+			if (0 == edit_history.size()) {
+				Utils.log2("Empty undo history.");
+				return false;
+			}
+
+			//Utils.log2("Undoing one step");
+
+			// Add current (if any) to redo queue
+			if (null != current_edit_step) {
+				redo.put(current_edit_time, current_edit_step);
+			}
+
+			// Remove last step from undo queue, and set it as current
+			current_edit_time = edit_history.lastKey();
+			current_edit_step = edit_history.remove(current_edit_time);
+
+			// Remove as well from dedits
+			if (null != current_edit_step.getD()) {
+				dedits.get(current_edit_step.getD()).remove(current_edit_time);
+			}
+
+			if (!current_edit_step.apply(DoStep.UNDO)) {
+				Utils.log("Undo: could not apply step!");
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** Redoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
+	public boolean redoOneStep() {
+		synchronized (edit_history) {
+			if (0 == redo.size()) {
+				Utils.log2("Empty redo history.");
+				if (null != current_edit_step) {
+					return current_edit_step.apply(DoStep.REDO);
+				}
+				return false;
+			}
+
+			//Utils.log2("Redoing one step");
+
+			// Add current (if any) to undo queue
+			if (null != current_edit_step) {
+				edit_history.put(current_edit_time, current_edit_step);
+				if (null != current_edit_step.getD()) {
+					dedits.get(current_edit_step.getD()).put(current_edit_time, current_edit_step);
+				}
+			}
+
+			// Remove one step from undo queue and set it as current
+			current_edit_time = redo.firstKey();
+			current_edit_step = redo.remove(current_edit_time);
+
+			if (!current_edit_step.apply(DoStep.REDO)) {
+				Utils.log("Undo: could not apply step!");
+				return false;
+			}
+		}
+		return true;
+	}
+
+	static public void applyTransforms(final Map<Displayable,AffineTransform> m) {
+		for (final Map.Entry<Displayable,AffineTransform> e : m.entrySet()) {
+			e.getKey().setAffineTransform(e.getValue()); // updates buckets
+		}
+	}
+
+	static {
+		// Undo background tasks: should be done in background threads,
+		// but on attempting to undo/redo, the undo/redo should wait
+		// until all tasks are done. For example, updating mipmaps when
+		// undoing/redoing min/max or CoordinateTransform.
+		// This could be done with futures: spawn and do in the
+		// background, but on redo/undo, call for the Future return
+		// value, which will block until there is one to return.
+		// Since blocking would block the EventDispatchThread, just refuse to undo/redo and notify the user.
+		//
+		// TODO
+	}
+
+	/** Keeps the width,height of a LayerSet and the AffineTransform of every Displayable in it. */
+	static private class DoResizeLayerSet implements DoStep {
+
+		final LayerSet ls;
+		final HashMap<Displayable,AffineTransform> affines;
+		final double width, height;
+
+		DoResizeLayerSet(final LayerSet ls) {
+			this.ls = ls;
+			this.width = ls.layer_width;
+			this.height = ls.layer_height;
+			this.affines = new HashMap<Displayable,AffineTransform>();
+
+			final ArrayList<Displayable> col = ls.getDisplayables(); // it's a new list
+			col.addAll(ls.getZDisplayables());
+			for (final Displayable d : col) {
+				this.affines.put(d, d.getAffineTransformCopy());
+			}
+		}
+		public boolean isIdenticalTo(final Object ob) {
+			if (!(ob instanceof LayerSet)) return false;
+			final LayerSet layerset = (LayerSet) ob;
+			if (layerset.layer_width != this.width || layerset.height != this.height || layerset != this.ls) return false;
+			final ArrayList<Displayable> col = ls.getDisplayables();
+			col.addAll(ls.getZDisplayables());
+			for (final Displayable d : col) {
+				final AffineTransform aff = this.affines.get(d);
+				if (null == aff) return false;
+				if (!aff.equals(d.getAffineTransform())) return false;
+			}
+			return true;
+		}
+
+		public boolean apply(int action) {
+			ls.layer_width = width;
+			ls.layer_height = height;
+			for (final Map.Entry<Displayable,AffineTransform> e : affines.entrySet()) {
+				e.getKey().getAffineTransform().setTransform(e.getValue());
+			}
+			if (null != ls.root) ls.recreateBuckets(true);
+			Display.updateSelection();
+			Display.update(ls); //so it's not left out painted beyond borders
+			return true;
+		}
+		public boolean isEmpty() { return false; }
+		public Displayable getD() { return null; }
+	}
+
+	/** Records the state of the LayerSet.al_layers, each Layer.al_displayables and all the trees and unique types of Project. */
+	static private class DoChangeTrees implements DoStep {
+		final LayerSet ls;
+		final HashMap<Thing,Boolean> ttree_exp, ptree_exp, ltree_exp;
+		final Thing troot, proot, lroot;
+		final ArrayList<Layer> all_layers;
+		final HashMap<Layer,ArrayList<Displayable>> all_displ;
+		final ArrayList<ZDisplayable> all_zdispl;
+		final HashMap<Displayable,Set<Displayable>> links;
+
+		// TODO: does not consider recursive LayerSets!
+		public DoChangeTrees(final LayerSet ls) {
+			this.ls = ls;
+			final Project p = ls.getProject();
+
+			this.ttree_exp = new HashMap<Thing,Boolean>();
+			this.troot = p.getTemplateTree().duplicate(ttree_exp);
+			this.ptree_exp = new HashMap<Thing,Boolean>();
+			this.proot = p.getProjectTree().duplicate(ptree_exp);
+			this.ltree_exp = new HashMap<Thing,Boolean>();
+			this.lroot = p.getProjectTree().duplicate(ltree_exp);
+
+			this.all_layers = ls.getLayers(); // a copy
+			this.all_zdispl = ls.getZDisplayables(); // a copy
+
+			this.links = new HashMap<Displayable,Set<Displayable>>();
+			for (final ZDisplayable zd : this.all_zdispl) {
+				this.links.put(zd, zd.hs_linked); // LayerSet is a Displayable
+			}
+
+			this.all_displ = new HashMap<Layer,ArrayList<Displayable>>();
+			for (final Layer layer : all_layers) {
+				final ArrayList<Displayable> al = layer.getDisplayables(); // a copy
+				this.all_displ.put(layer, al);
+				for (final Displayable d : al) {
+					this.links.put(d, null == d.hs_linked ? null : new HashSet<Displayable>(d.hs_linked));
+				}
+			}
+		}
+		public Displayable getD() { return null; }
+		public boolean isEmpty() { return false; }
+		public boolean isIdenticalTo(final Object ob) {
+			// TODO
+			return false;
+		}
+		public boolean apply(int action) {
+			// Replace all layers
+			ls.al_layers.clear();
+			ls.al_layers.addAll(this.all_layers);
+
+			// Replace all Displayable in each Layer
+			for (final Map.Entry<Layer,ArrayList<Displayable>> e : all_displ.entrySet()) {
+				final ArrayList<Displayable> al = e.getKey().getDisplayableList(); // the real one!
+				al.clear();
+				al.addAll(e.getValue());
+			}
+
+			// Replace all ZDisplayable
+			ls.al_zdispl.clear();
+			ls.al_zdispl.addAll(this.all_zdispl);
+
+			// Replace all trees
+			final Project p = ls.getProject();
+			p.getTemplateTree().set(this.troot, this.ttree_exp);
+			p.getProjectTree().set(this.proot, this.ptree_exp);
+			p.getLayerTree().set(this.lroot, this.ltree_exp);
+
+			// Replace all links
+			for (final Map.Entry<Displayable,Set<Displayable>> e : this.links.entrySet()) {
+				final Set<Displayable> hs = e.getKey().hs_linked;
+				if (null != hs) {
+					final Set<Displayable> hs2 = e.getValue();
+					if (null == hs2) e.getKey().hs_linked = null;
+					else {
+						hs.clear();
+						hs.addAll(hs2);
+					}
+				}
+			}
+
+			ls.recreateBuckets(true);
+
+			Display.update(ls);
+
+			return true;
+		}
 	}
 }

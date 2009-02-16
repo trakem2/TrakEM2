@@ -924,4 +924,38 @@ public class Ball extends ZDisplayable {
 		}
 		return rt;
 	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPBall.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		return new DPBall(this);
+	}
+
+	static private final class DPBall extends Displayable.DataPackage {
+		final double[][] p;
+		final double[] p_width;
+		final long[] p_layer;
+
+		DPBall(final Ball ball) {
+			super(ball);
+			// store copies of all arrays
+			this.p = new double[][]{Utils.copy(ball.p[0], ball.n_points), Utils.copy(ball.p[1], ball.n_points)};
+			this.p_width = Utils.copy(ball.p_width, ball.n_points);
+			this.p_layer = new long[ball.n_points]; System.arraycopy(ball.p_layer, 0, this.p_layer, 0, ball.n_points);
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Ball ball = (Ball)d;
+			final int len = p[0].length; // == n_points, since it was cropped on copy
+			ball.p = new double[][]{Utils.copy(p[0], len), Utils.copy(p[1], len)};
+			ball.n_points = p[0].length;
+			ball.p_layer = new long[len]; System.arraycopy(p_layer, 0, ball.p_layer, 0, len);
+			ball.p_width = Utils.copy(p_width, len);
+			return true;
+		}
+	}
 }

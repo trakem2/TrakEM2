@@ -480,4 +480,29 @@ public class DLabel extends Displayable {
 		copy.addToDatabase();
 		return copy;
 	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPDLabel.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		return new DPDLabel(this);
+	}
+
+	static private final class DPDLabel extends Displayable.DataPackage {
+		final Font font;
+
+		DPDLabel(final DLabel label) {
+			super(label);
+			// no clone method for font.
+			this.font = new Font(label.font.getFamily(), label.font.getStyle(), label.font.getSize());
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			((DLabel)d).font = new Font(font.getFamily(), font.getStyle(), font.getSize());
+			return true;
+		}
+	}
 }

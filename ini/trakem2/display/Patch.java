@@ -1197,4 +1197,47 @@ public final class Patch extends Displayable {
 				break;
 		}
 	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPPatch.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		return new DPPatch(this);
+	}
+
+	static private final class DPPatch extends Displayable.DataPackage {
+		final double min, max;
+		// TODO final CoordinateTransform ct;
+
+		DPPatch(final Patch patch) {
+			super(patch);
+			this.min = patch.min;
+			this.max = patch.max;
+			// TODO this.ct = (CoordinateTransform) patch.ct.clone();
+			// channels is visualization
+			// path is absolute
+			// type is dependent on path, so absolute
+			// o_width, o_height idem
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Patch p = (Patch) d;
+			boolean mipmaps = false;
+			if (p.min != min || p.max != max/* || !ct.equals(p.ct)*/) {
+				mipmaps = true;
+			}
+			p.min = min;
+			p.max = max;
+			// TODO p.ct = (CoordinateTransform) ct.clone();
+
+			if (mipmaps) {
+				Utils.log2("Now WOULD update mipmaps in a background task");
+				// TODO p.updateMipmaps();
+			}
+			return true;
+		}
+	}
 }
