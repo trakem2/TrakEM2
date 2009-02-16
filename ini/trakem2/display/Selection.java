@@ -875,11 +875,6 @@ public class Selection {
 			transforming = true;
 			floater.center();
 		} else {
-			// Record current state of modified Displayable set:
-			if (!history.indexAtStart()) {
-				TransformationStep step = (TransformationStep)history.getCurrent();
-				LayerSet.applyTransforms(step.ht);
-			}
 			if (null != history) {
 				history.clear();
 				history = null;
@@ -887,6 +882,8 @@ public class Selection {
 			// the transform is already applied, just forget it:
 			transforming = false;
 			forgetAffine();
+			// store current state for undo/redo:
+			if (null != display) display.getLayerSet().addTransformStep(active.getLinkedGroup(null));
 		}
 	}
 
