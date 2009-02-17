@@ -942,7 +942,6 @@ public class Project extends DBObject {
 		root_tt.exportDTD(sb_header, hs, indent);
 		// 3 - export all project objects DTD in the Top Level LayerSet
 		Layer.exportDTD(sb_header, hs, indent);
-		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		LayerSet.exportDTD(sb_header, hs, indent);
 		Ball.exportDTD(sb_header, hs, indent);
 		DLabel.exportDTD(sb_header, hs, indent);
@@ -952,6 +951,7 @@ public class Project extends DBObject {
 		Profile.exportDTD(sb_header, hs, indent);
 		AreaList.exportDTD(sb_header, hs, indent);
 		Dissector.exportDTD(sb_header, hs, indent);
+		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		// 4 - export Display
 		Display.exportDTD(sb_header, hs, indent);
 		// all the above could be done with reflection, automatically detecting the presence of an exportDTD method.
