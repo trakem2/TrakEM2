@@ -3396,6 +3396,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (this == front && updated instanceof ij.plugin.ColorPicker) {
 			if (null != active && project.isInputEnabled()) {
 				selection.setColor(Toolbar.getForegroundColor());
+				Display.repaint(front.layer, selection.getBox(), 0);
 			}
 			return;
 		}
