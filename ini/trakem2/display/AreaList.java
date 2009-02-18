@@ -1508,7 +1508,7 @@ public class AreaList extends ZDisplayable {
 
 		String amira_params = null;
 		if (as_amira_labels) {
-			final StringBuffer sb = new StringBuffer("Parameters {\n");
+			final StringBuffer sb = new StringBuffer("Materials {\nExterior {\n Id 0,\nColor 0 0 0\n}\n");
 			final float[] c = new float[3];
 			int value = 0;
 			for (final Displayable d : list) {
