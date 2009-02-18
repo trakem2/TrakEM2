@@ -81,6 +81,7 @@ import java.lang.Iterable;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 import javax.vecmath.Point3f;
 import javax.vecmath.Vector3f;
@@ -1311,6 +1312,32 @@ public class Utils implements ij.plugin.PlugIn {
 			return false;
 		}
 		return true;
+	}
+
+	/**
+	user=> (def pat #"\b[a-zA-Z]+[\w]*\b")
+	#'user/pat
+	user=>(re-seq pat "abc def 1a334")
+	("abc" "def")
+	user=> (re-seq pat "abc def a334")
+	("abc" "def" "a334")
+
+	Then concatenate all good words with underscores.
+	Returns null when nothing valid is found in 's'.
+	*/
+	static final public String makeValidIdentifier(final String s) {
+		if (null == s) return null;
+		// Concatenate all good groups with underscores:
+		final Pattern pat = Pattern.compile("\\b[a-zA-Z]+[\\w]*\\b");
+		final Matcher m = pat.matcher(s);
+		final StringBuffer sb = new StringBuffer();
+		while (m.find()) {
+			sb.append(m.group()).append('_');
+		}
+		if (0 == sb.length()) return null;
+		// Remove last underscore
+		sb.setLength(sb.length()-1);
+		return sb.toString();
 	}
 
 	static final public int indexOf(final Object needle, final Object[] haystack) {

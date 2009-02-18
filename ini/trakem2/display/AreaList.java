@@ -67,9 +67,12 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
+import java.io.File;
 
 import marchingcubes.MCTriangulator;
 import isosurface.Triangulator;
+import amira.AmiraMeshEncoder;
+import amira.AmiraParameters;
 
 import javax.vecmath.Point3f;
 
@@ -1441,7 +1444,7 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Export all given AreaLists as one per pixel value, what is called a "labels" file; a file dialog is offered to save the image as a tiff stack. */
-	static public void exportAsLabels(final java.util.List<? extends Displayable> list, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file) {
+	static public void exportAsLabels(final java.util.List<Displayable> list, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file, final boolean as_amira_labels) {
 		// survive everything:
 		if (null == list || 0 == list.size()) {
 			Utils.log("Null or empty list.");
@@ -1451,6 +1454,28 @@ public class AreaList extends ZDisplayable {
 			Utils.log("Improper scale value. Must be 0 < scale <= 1");
 			return;
 		}
+
+		// Current AmiraMeshEncoder supports ByteProcessor only: 256 labels max, including background at zero.
+		if (as_amira_labels && list.size() > 255) {
+			Utils.log("Saving ONLY first 255 AreaLists!\nDiscarded:");
+			StringBuffer sb = new StringBuffer();
+			for (final Displayable d : list.subList(256, list.size())) {
+				sb.append("    ").append(d.getProject().getShortMeaningfulTitle(d)).append('\n');
+			}
+			Utils.log(sb.toString());
+			ArrayList<Displayable> li = new ArrayList<Displayable>(list);
+			list.clear();
+			list.addAll(li.subList(0, 256));
+		}
+
+		String path = null;
+		if (to_file) {
+			String ext = as_amira_labels ? ".am" : ".tif";
+			File f = Utils.chooseFile("labels", ext);
+			if (null == f) return;
+			path = f.getAbsolutePath().replace('\\','/');
+		}
+
 		LayerSet layer_set = list.get(0).getLayerSet();
 		if (first_layer > last_layer) {
 			int tmp = first_layer;
@@ -1481,6 +1506,24 @@ public class AreaList extends ZDisplayable {
 		}
 		Calibration cal = layer_set.getCalibration();
 
+		String amira_params = null;
+		if (as_amira_labels) {
+			final StringBuffer sb = new StringBuffer("Parameters {\n");
+			final float[] c = new float[3];
+			int value = 0;
+			for (final Displayable d : list) {
+				value++; // 0 is background
+				d.getColor().getRGBColorComponents(c);
+				String s = d.getProject().getShortMeaningfulTitle(d);
+				s = s.replace('-', '_').replaceAll(" #", " id");
+				sb.append(Utils.makeValidIdentifier(s)).append(" {\n")
+				  .append("Id ").append(value).append(",\n")
+				  .append("Color ").append(c[0]).append(' ').append(c[1]).append(' ').append(c[2]).append("\n}\n");
+			}
+			sb.append("}\n");
+			amira_params = sb.toString();
+		}
+
 		int count = 1;
 		final float len = last_layer - first_layer + 1;
 
@@ -1490,7 +1533,7 @@ public class AreaList extends ZDisplayable {
 			ImageProcessor ip = Utils.createProcessor(type, width, height);
 			// paint here all arealist that paint to the layer 'la'
 			int value = 0;
-			for (Displayable d : list) {
+			for (final Displayable d : list) {
 				value++; // zero is background
 				ip.setValue(value);
 				if (visible_only && !d.isVisible()) continue;
@@ -1509,12 +1552,26 @@ public class AreaList extends ZDisplayable {
 			}
 			stack.addSlice(la.getZ() * cal.pixelWidth + "", ip);
 		}
-		Utils.showProgress(0);
+		Utils.showProgress(1);
 		// Save via file dialog:
 		ImagePlus imp = new ImagePlus("Labels", stack); 
+		if (as_amira_labels) imp.setProperty("Info", amira_params);
 		imp.setCalibration(layer_set.getCalibrationCopy());
-		if (to_file) new FileSaver(imp).saveAsTiff();
-		else imp.show();
+		if (to_file) {
+			if (as_amira_labels) {
+				AmiraMeshEncoder ame = new AmiraMeshEncoder(path);
+				if (!ame.open()) {
+					Utils.log("Could not write to file " + path);
+					return;
+				}
+				if (!ame.write(imp)) {
+					Utils.log("Error in writing Amira file!");
+					return;
+				}
+			} else {
+				new FileSaver(imp).saveAsTiff(path);
+			}
+		} else imp.show();
 	}
 
 	public ResultsTable measure(ResultsTable rt) {

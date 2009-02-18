@@ -2247,8 +2247,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
-			item = new JMenuItem("Export arealists as labels"); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Export arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
 			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+			item = new JMenuItem("Export arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
+			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+
 			item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 			if (menu.getItemCount() > 0) popup.add(menu);
 			menu = new JMenu("Selection");
@@ -3149,7 +3152,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			SwingUtilities.invokeLater(new Runnable() { public void run() {
 			d.canvas.showCentered(new Rectangle(0, 0, (int)subls.getLayerWidth(), (int)subls.getLayerHeight()));
 			}});
-		} else if (command.equals("Export arealists as labels")) {
+		} else if (command.startsWith("Export arealists as labels")) {
 			GenericDialog gd = new GenericDialog("Export labels");
 			gd.addSlider("Scale: ", 1, 100, 100);
 			final String[] options = {"All area list", "Selected area lists"};
@@ -3159,15 +3162,22 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			final float scale = (float)(gd.getNextNumber() / 100);
-			java.util.List<? extends Displayable> al = 0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelected(AreaList.class);
+			java.util.List al = 0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelected(AreaList.class);
 			if (null == al) {
 				Utils.log("No area lists found to export.");
 				return;
 			}
+			// Generics are ... a pain? I don't understand them? They fail when they shouldn't? And so easy to workaround that they are a shame?
+			al = (java.util.List<Displayable>) al;
+
 			int first = gd.getNextChoiceIndex();
 			int last  = gd.getNextChoiceIndex();
 			boolean visible_only = gd.getNextBoolean();
-			AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last, visible_only, false);
+			if (command.endsWith("(amira)")) {
+				AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last, visible_only, true, true);
+			} else if (command.endsWith("(tif)")) {
+				AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last, visible_only, false, false);
+			}
 		} else if (command.equals("Project properties...")) {
 			project.adjustProperties();
 		} else if (command.equals("Release memory...")) {
