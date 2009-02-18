@@ -1209,11 +1209,11 @@ public class AreaList extends ZDisplayable {
 		updateInDatabase("points=" + layer_id);
 	}
 
-	/** Add an Area object to the existing, if any, area object at Layer with layer_id as given, or if not existing, just set it. The area is expected in this AreaList coordinate space. Does not make it local, you should call calculateBoundingBox when done. */
+	/** Add a copy of an Area object to the existing, if any, area object at Layer with layer_id as given, or if not existing, just set the copy as it. The area is expected in this AreaList coordinate space. Does not make it local, you should call calculateBoundingBox when done. */
 	public void addArea(final long layer_id, final Area area) {
 		if (null == area) return;
 		Area a = getArea(layer_id);
-		if (null == a) ht_areas.put(layer_id, area);
+		if (null == a) ht_areas.put(layer_id, new Area(area));
 		else a.add(area);
 		updateInDatabase("points=" + layer_id);
 	}
@@ -1222,8 +1222,12 @@ public class AreaList extends ZDisplayable {
 	public void add(final long layer_id, final ShapeRoi roi) throws NoninvertibleTransformException{
 		if (null == roi) return;
 		Area a = getArea(layer_id);
-		if (null == a) a = new Area();
-		a.add(Utils.getArea(roi).createTransformedArea(this.at.createInverse()));
+		Area asr = Utils.getArea(roi).createTransformedArea(this.at.createInverse());
+		if (null == a) {
+			ht_areas.put(layer_id, asr);
+		} else {
+			a.add(asr);
+		}
 		calculateBoundingBox();
 		updateInDatabase("points=" + layer_id);
 	}
