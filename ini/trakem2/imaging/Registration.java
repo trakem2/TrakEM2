@@ -60,6 +60,7 @@ import ini.trakem2.Project;
 import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.imaging.StitchingTEM;
 
@@ -925,7 +926,7 @@ public class Registration {
 
 		// the storage folder for serialized features
 		final Loader loader = set.getProject().getLoader();
-		String storage_folder_ = loader.getStorageFolder() + "features.ser/";
+		String storage_folder_ = loader.getUNUIdFolder() + "features.ser/";
 		File sdir = new File(storage_folder_);
 		if (!sdir.exists()) {
 			try {
@@ -1865,7 +1866,7 @@ public class Registration {
 		}
 
 		// the storage folder for serialized features
-		String storage_folder = set.getProject().getLoader().getStorageFolder() + "features.ser/";
+		String storage_folder = set.getProject().getLoader().getUNUIdFolder() + "features.ser/";
 		File sdir = new File(storage_folder);
 		if (!sdir.exists()) {
 			try {
@@ -1945,7 +1946,7 @@ public class Registration {
 	static public boolean serialize(final Patch p, final Vector<Feature> v, final Registration.SIFTParameters sp, final String storage_folder) {
 		if (null == storage_folder) return false;
 		final Features fe = new Features(sp, v);
-		return p.getProject().getLoader().serialize(fe, new StringBuffer(storage_folder).append("features_").append(p.getId()).append(".ser").toString());
+		return p.getProject().getLoader().serialize(fe, new StringBuffer(storage_folder).append(FSLoader.createIdPath(Long.toString(p.getId()), "features", ".ser")).toString());
 	}
 
 	/** Retrieve the features only if saved with the exact same relevant SIFT parameters. */

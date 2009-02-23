@@ -169,6 +169,7 @@ public final class FSLoader extends Loader {
 		return project_file_path.toString(); // a copy of it
 	}
 
+	/** Return the folder selected by a user to store files into; it's also the parent folder of the UNUId folder, and the recommended folder to store the XML file into. */
 	public String getStorageFolder() {
 		if (null == dir_storage) return super.getStorageFolder(); // the user's home
 		return dir_storage.toString(); // a copy
@@ -177,7 +178,7 @@ public final class FSLoader extends Loader {
 	/** Returns a folder proven to be writable for images can be stored into. */
 	public String getImageStorageFolder() {
 		if (null == dir_image_storage) {
-			String s = getStorageFolder() + "trakem2.images/";
+			String s = getUNUIdFolder() + "trakem2.images/";
 			File f = new File(s);
 			if (f.exists() && f.isDirectory() && f.canWrite()) {
 				dir_image_storage = s;
@@ -1844,7 +1845,7 @@ public final class FSLoader extends Loader {
 	/** Remove the file, if it exists, with serialized features for patch.
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedFeatures(final Patch patch) {
-		final File f = new File(new StringBuffer(dir_storage).append("features.ser/features_").append(patch.getUniqueIdentifier()).append(".ser").toString());
+		final File f = new File(new StringBuffer(getUNUIdFolder()).append("features.ser/features_").append(patch.getUniqueIdentifier()).append(".ser").toString());
 		if (f.exists()) {
 			try {
 				f.delete();
@@ -1860,7 +1861,7 @@ public final class FSLoader extends Loader {
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedPointMatches(final Patch patch) {
 		boolean success = true;
-		final File d = new File(new StringBuffer(dir_storage).append("pointmatches.ser").toString());
+		final File d = new File(new StringBuffer(getUNUIdFolder()).append("pointmatches.ser").toString());
 		if (d.exists()&&d.isDirectory()) {
 			final String[] files = d.list();
 			if ( files != null )
@@ -2467,7 +2468,9 @@ public final class FSLoader extends Loader {
 		return createIdPath(Long.toString(p.getId()), new File(p.getCurrentPath()).getName(), ".jpg");
 	}
 
-	static private final String createIdPath(final String sid, final String filename, final String ext) {
+	/** For sid=12345 creates 12/34/5.${filename}.jpg
+	 *  Will be fine with other filename-valid chars in sid. */
+	static public final String createIdPath(final String sid, final String filename, final String ext) {
 		final StringBuffer sf = new StringBuffer(((sid.length() * 3) / 2) + 1);
 		final int len = sid.length();
 		for (int i=1; i<=len; i++) {

@@ -4101,6 +4101,14 @@ abstract public class Loader {
 	/** Serializes the given object into the path. Returns false on failure. */
 	public boolean serialize(final Object ob, final String path) {
 		try {
+			// 1 - Check that the parent chain of folders exists, and attempt to create it when not:
+			File fdir = new File(path).getParentFile();
+			if (null == fdir) return false;
+			if (!fdir.exists() && !fdir.mkdirs()) {
+				Utils.log2("Could not create folder " + fdir.getAbsolutePath());
+				return false;
+			}
+			// 2 - Serialize the given object:
 			final ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(path));
 			out.writeObject(ob);
 			out.close();
@@ -4970,6 +4978,12 @@ abstract public class Loader {
 
 	/** Get the Universal Near-Unique Id for the project hosted by this loader. */
 	public String getUNUId() {
+		// FSLoader overrides this method
 		return Long.toString(System.currentTimeMillis());
+	}
+
+	// FSLoader overrides this method
+	public String getUNUIdFolder() {
+		return "trakem2." + getUNUId() + "/";
 	}
 }
