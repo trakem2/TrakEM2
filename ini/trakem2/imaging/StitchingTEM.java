@@ -138,7 +138,7 @@ public class StitchingTEM {
 		}
 
 		Utils.log2("patch layer: " + patch[0].getLayer());
-		patch[0].getLayerSet().createUndoStep(patch[0].getLayer());
+		patch[0].getLayerSet().addTransformStep(patch[0].getLayer());
 
 		switch (stitching_rule) {
 			case StitchingTEM.TOP_LEFT_RULE:

@@ -781,12 +781,6 @@ public final class Patch extends Displayable {
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		String type = "t2_patch";
 		if (hs.contains(type)) return;
-		// The InvertibleCoordinateTransform and a list of:
-		sb_header.append(indent).append("<!ELEMENT ict_transform EMPTY>\n");
-		sb_header.append(indent).append(TAG_ATTR1).append("ict_transform class").append(TAG_ATTR2)
-			 .append(indent).append(TAG_ATTR1).append("ict_transform data").append(TAG_ATTR2);
-		sb_header.append(indent).append("<!ELEMENT ict_transform_list (ict_transform)>\n");
-
 		// The Patch itself:
 		sb_header.append(indent).append("<!ELEMENT t2_patch (").append(Displayable.commonDTDChildren()).append(",ict_transform,ict_transform_list)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
@@ -797,6 +791,12 @@ public final class Patch extends Displayable {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_width").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
 		;
+		// The InvertibleCoordinateTransform and a list of:
+		sb_header.append(indent).append("<!ELEMENT ict_transform EMPTY>\n");
+		sb_header.append(indent).append(TAG_ATTR1).append("ict_transform class").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append("ict_transform data").append(TAG_ATTR2);
+		sb_header.append(indent).append("<!ELEMENT ict_transform_list (ict_transform)>\n");
+
 	}
 
 	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */
@@ -1214,6 +1214,49 @@ public final class Patch extends Displayable {
 				}
 				ke.consume();
 				break;
+		}
+	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPPatch.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		return new DPPatch(this);
+	}
+
+	static private final class DPPatch extends Displayable.DataPackage {
+		final double min, max;
+		// TODO final CoordinateTransform ct;
+
+		DPPatch(final Patch patch) {
+			super(patch);
+			this.min = patch.min;
+			this.max = patch.max;
+			// TODO this.ct = (CoordinateTransform) patch.ct.clone();
+			// channels is visualization
+			// path is absolute
+			// type is dependent on path, so absolute
+			// o_width, o_height idem
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Patch p = (Patch) d;
+			boolean mipmaps = false;
+			if (p.min != min || p.max != max/* || !ct.equals(p.ct)*/) {
+				mipmaps = true;
+			}
+			p.min = min;
+			p.max = max;
+			// TODO p.ct = (CoordinateTransform) ct.clone();
+
+			if (mipmaps) {
+				Utils.log2("Now WOULD update mipmaps in a background task");
+				// TODO p.updateMipmaps();
+			}
+			return true;
 		}
 	}
 }

@@ -397,7 +397,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	}
 	*/
 
-	/** Creates a new node of basic type for each AreaList, Ball, or Pipe present in the ArrayList. Other elements are ignored. */
+	/** Creates a new node of basic type for each AreaList, Ball, Pipe or Polyline present in the ArrayList. Other elements are ignored. */
 	public void insertSegmentations(final Project project, final List al) {
 		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there

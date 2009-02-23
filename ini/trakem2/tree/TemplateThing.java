@@ -42,6 +42,19 @@ public final class TemplateThing extends DBObject implements Thing {
 	/** The string or numeric value, if any, contained in the XML file between the opening and closing tags. */
 	private String value = null;
 
+	/** A new copy with same type, same project, same id, but no parent and no children. */
+	public Thing shallowCopy() {
+		return new TemplateThing(this);
+	}
+
+	private TemplateThing(final TemplateThing tt) {
+		super(tt.project, tt.id);
+		this.type = tt.type;
+		if (null != tt.ht_attributes) {
+			this.ht_attributes = (HashMap) tt.ht_attributes.clone();
+		}
+	}
+
 	/** Create a new non-database-stored TemplateThing. */
 	public TemplateThing(String type) {
 		super(null, -1);
@@ -516,7 +529,7 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	public boolean isExpanded() {
-		return project.getLayerTree().isExpanded(this);
+		return project.getLayerTree().isExpanded(this); // TODO this is wrong! Or, at least, missleading
 	}
 
 	/** Return information on this node and its object. */

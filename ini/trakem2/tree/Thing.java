@@ -56,4 +56,6 @@ public interface Thing {
 	public boolean isExpanded();
 
 	public String getInfo();
+
+	public Thing shallowCopy();
 }

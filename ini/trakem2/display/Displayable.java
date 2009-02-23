@@ -1022,17 +1022,15 @@ public abstract class Displayable extends DBObject {
 		}
 	}
 
-	protected void processAdjustPropertiesDialog(final GenericDialog gd) {
+	protected DoEdit processAdjustPropertiesDialog(final GenericDialog gd) {
 		// store old transforms for undo
-		HashSet hs = getLinkedGroup(new HashSet());
-		HashMap ht = new HashMap();
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			ht.put(d, d.getAffineTransformCopy());
-		}
-		layer.getParent().addUndoStep(ht);
+		HashSet<Displayable> hs = getLinkedGroup(new HashSet<Displayable>());
+		layer.getParent().addTransformStep(hs);
 		// store old box
 		//Rectangle box = getLinkedBox(true);//getBoundingBox();
+
+		final HashSet<String> fields = new HashSet<String>();
+
 		// adjust values:
 		String title1 = gd.getNextString();
 		double x1 = gd.getNextNumber();
@@ -1041,20 +1039,32 @@ public abstract class Displayable extends DBObject {
 		double sy = gd.getNextNumber();
 		double rot1 = gd.getNextNumber();
 		float alpha1 = (float)gd.getNextNumber() / 100;
+
+		final DoEdit prev = new DoEdit(this);
+
 		if (Double.isNaN(x1) || Double.isNaN(y1) || Double.isNaN(sx) || Double.isNaN(sy) || Float.isNaN(alpha1)) {
 			Utils.showMessage("Invalid values!");
-			return;
+			return null;
 		}
+
 		Color co = new Color((int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
 		if (!co.equals(this.color)) {
+			prev.add("color", color);
 			color = co;
 			updateInDatabase("color");
 		}
 		boolean visible1 = gd.getNextBoolean();
 		boolean locked1 = gd.getNextBoolean();
 		if (!title.equals(title1)) {
+			prev.add("title", title1);
 			setTitle(title1); // will update the panel
 		}
+
+
+		// Add the transforms, even if not modified (too much pain)
+		if (null != hs) prev.add(new DoTransforms().addAll(hs));
+		else prev.add("at", this.getAffineTransformCopy());
+
 		final Rectangle b = getBoundingBox(null); // previous
 		if (x1 != b.x || y1 != b.y) {
 			if (null != hs) {
@@ -1068,7 +1078,7 @@ public abstract class Displayable extends DBObject {
 					} else {
 						//avoid division by zero
 						Utils.showMessage("Some error ocurred: zero width or height ob the object to adjust.\nUnlink this object '" + this + "' and adjust carefully");
-						return;
+						return null;
 					}
 				}
 				this.setLocation(x1, y1);
@@ -1108,19 +1118,26 @@ public abstract class Displayable extends DBObject {
 				this.rotate(rads, b.x+b.width/2, b.y+b.height/2, false);
 			}
 		}
-		if (alpha1 != alpha) setAlpha(alpha1, true);
-		if (visible1 != visible) setVisible(visible1);
-		if (locked1 != locked) setLocked(locked1);
-		/*
-		// repaint old position
-		Display.repaint(layer, box, 5);
-		// repaint new position
-		Display.repaint(layer, this, 5);
-		// If positions don't change, the threading system will prevent a useless repaint
-		*/
+		if (alpha1 != alpha) {
+			prev.add("alpha", alpha1);
+			setAlpha(alpha1, true);
+		}
+		if (visible1 != visible) {
+			prev.add("visible", visible1);
+			setVisible(visible1);
+		}
+		if (locked1 != locked) {
+			prev.add("locked", locked1);
+			setLocked(locked1);
+		}
+
+		getLayerSet().addEditStep(prev); // contains the transformations of all others, if necessary.
+
 		// it's lengthy to predict the precise box for each open Display, so just repaint all in all Displays.
 		Display.updateSelection();
 		Display.repaint(getLayer()); // not this.layer, so ZDisplayables are repainted properly
+
+		return prev;
 	}
 
 	static protected final String TAG_ATTR1 = "<!ATTLIST ";
@@ -1547,5 +1564,306 @@ public abstract class Displayable extends DBObject {
 			} catch (NumberFormatException nfe) {}
 		}
 		return nameid;
+	}
+
+	// UNDO machinery
+	
+	class DoEdits implements DoStep {
+		final HashSet<DoEdit> edits = new HashSet<DoEdit>();
+		DoEdits(final Set<Displayable> col) {
+			for (final Displayable d : col) {
+				edits.add(new DoEdit(d));
+			}
+		}
+		public Displayable getD() { return null; }
+		public boolean isIdenticalTo(final Object ob) {
+			if (!(ob instanceof DoEdits)) return false;
+			final DoEdits other = (DoEdits) ob;
+			if (this.edits.size() != other.edits.size()) return false;
+			final Iterator<DoEdit> it1 = this.edits.iterator();
+			final Iterator<DoEdit> it2 = other.edits.iterator();
+			// Order matters: (but it shouldn't!) TODO
+			for (; it1.hasNext() && it2.hasNext(); ) {
+				if ( ! it1.next().isIdenticalTo(it2.next())) return false;
+			}
+			return true;
+		}
+		public void init(final String[] fields) {
+			for (final DoEdit edit : edits) {
+				edit.init(edit.d, fields);
+			}
+		}
+		public boolean isEmpty() { return edits.isEmpty(); }
+		public boolean apply(int action) {
+			boolean failed = false;
+			for (final DoEdit edit : edits) {
+				if (!edit.apply(action)) {
+					failed = true;
+				}
+			}
+			return !failed;
+		}
+	}
+
+	/** For any Displayable data, including: title, visible, locked, color, alpha,
+	 *  and a 'data' type which includes the actual data (points, areas, etc.) and the links,width,height, and transformation (since all the latter are correlated).*/
+	class DoEdit implements DoStep {
+		private final HashMap<String,Object> content = new HashMap<String,Object>();
+		private ArrayList<DoStep> dependents = null;
+		private final Displayable d;
+		/** Returns self on success, otherwise null. */
+		DoEdit(final Displayable d) {
+			this.d = d;
+		}
+		public boolean containsKey(final String field) {
+			return content.containsKey(field);
+		}
+		public boolean isIdenticalTo(final Object ob) {
+			if (!(ob instanceof DoEdit)) return false;
+			final DoEdit other = (DoEdit) ob;
+			// same Displayable?
+			if (this.d != other.d) return false;
+			// dependents?
+			if (null != dependents) {
+				// TODO
+				return false;
+			}
+			// same number of fields to edit?
+			if (this.content.size() != other.content.size()) return false;
+			// any data? Currently comparisons of data are disabled
+			if (null != this.content.get("data") || null != other.content.get("data")) {
+				return false;
+			}
+			// same content of fields?
+			for (final Map.Entry<String,Object> e : this.content.entrySet()) {
+				final Object val = other.content.get(e.getKey());
+				if (val instanceof HashMap) {
+					if ( ! identical((HashMap)val, (HashMap)e.getValue())) {
+						return false;
+					}
+				} else if ( ! val.equals(e.getValue())) return false;
+			}
+			return true;
+		}
+		private boolean identical(final HashMap m1, final HashMap m2) {
+			if (m1.size() != m2.size()) return false;
+			for (final Object entry : m1.entrySet()) {
+				final Map.Entry e = (Map.Entry) entry;
+				// TODO this could fail if value is null
+				if ( ! e.getValue().equals(m2.get(e.getKey()))) return false;
+			}
+			return true;
+		}
+		synchronized public Displayable getD() { return d; }
+		synchronized DoEdit fullCopy() {
+			return init(d, new String[]{"data", "width", "height", "locked", "title", "color", "alpha", "visible", "props", "linked_props"});
+		}
+		/** With the same keys as 'de'. */
+		synchronized DoEdit init(final DoEdit de) {
+			return init(de.d, de.content.keySet().toArray(new String[0]));
+		}
+		synchronized public boolean add(final DoStep step) {
+			if (null == dependents) dependents = new ArrayList<DoStep>();
+			if (dependents.contains(step)) return false;
+			dependents.add(step);
+			return true;
+		}
+		synchronized public boolean add(final String field, final Object value) {
+			content.put(field, value);
+			return true;
+		}
+		synchronized DoEdit init(final Displayable d, final String[] fields) {
+			final Class[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
+			for (int k=0; k<fields.length; k++) {
+				if ("data".equals(fields[k])) {
+					content.put(fields[k], d.getDataPackage());
+				} else {
+					boolean got_it = false;
+					for (int i=0; i<c.length; i++) {
+						try {
+							java.lang.reflect.Field f = c[i].getDeclaredField(fields[k]);
+							if (null == f) continue; // will throw a NoSuchFieldException, but just in case
+							f.setAccessible(true);
+							Object ob = f.get(d);
+							content.put(fields[k], null != ob ? duplicate(ob, fields[k]) : null);
+							got_it = true;
+						} catch (NoSuchFieldException nsfe) {
+						} catch (IllegalAccessException iae) {}
+					}
+					if (!got_it) {
+						Utils.log2("ERROR: could not get '" + fields[k] + "' field for " + d);
+						return null;
+					}
+				}
+			}
+			return this;
+		}
+		/** Java's clone() is useless. */ // I HATE this imperative, fragile, ridiculous language that forces me to go around in circles and O(n) approaches when all I need is a PersistentHashMap with structural sharing, a clone() that WORKS ALWAYS, and metaprogramming abilities aka macros @#$%!
+		private final Object duplicate(final Object ob, final String field) {
+			if (ob instanceof Color) {
+				final Color c = (Color)ob;
+				return new Color(c.getRed(), c.getGreen(), c.getBlue());
+			} else if (ob instanceof HashMap) {
+				if (field.equals("linked_props")) {
+					final HashMap hm = new HashMap();
+					for (final Object e : ((HashMap)ob).entrySet()) {
+						final Map.Entry me = (Map.Entry)e;
+						hm.put(me.getKey(), ((HashMap)me.getValue()).clone());
+					}
+					return hm;
+				}
+				return new HashMap((HashMap)ob);
+			}
+			// Number, Boolean, String are all final classes:
+			return ob;
+		}
+		/** Set the stored data to the stored Displayable. */
+		public boolean apply(int action) {
+			final Class[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
+			for (final Map.Entry<String,Object> e : content.entrySet()) {
+				String field = e.getKey();
+				if ("data".equals(field)) {
+					if (!d.setDataPackage((DataPackage)e.getValue())) {
+						return false;
+					}
+				} else {
+					try {
+						for (int i=0; i<c.length; i++) {
+							java.lang.reflect.Field f = c[i].getDeclaredField(field);
+							f.setAccessible(true);
+							f.set(d, e.getValue());
+						}
+					} catch (NoSuchFieldException nsfe) {
+					} catch (IllegalAccessException iae) {
+					} catch (Exception ex) {
+						IJError.print(ex);
+						return false;
+					}
+				}
+			}
+			boolean ok = true;
+			if (null != dependents) {
+				for (final DoStep step : dependents) {
+					if (!step.apply(action)) ok = false;
+				}
+			}
+			Display.update(d.getLayerSet());
+			return ok;
+		}
+		public boolean isEmpty() {
+			return null == d || (content.isEmpty() && (null == dependents || dependents.isEmpty()));
+		}
+	}
+
+	protected class DoTransforms implements DoStep {
+		final private HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
+		final HashSet<Layer> layers = new HashSet<Layer>();
+
+		DoTransforms addAll(final Collection<Displayable> col) {
+			for (final Displayable d : col) {
+				ht.put(d, d.getAffineTransformCopy());
+				layers.add(d.getLayer());
+			}
+			return this;
+		}
+		public boolean isEmpty() {
+			return null == ht || ht.isEmpty();
+		}
+		public boolean apply(int action) {
+			if (isEmpty()) return false;
+			for (final Map.Entry<Displayable,AffineTransform> e : ht.entrySet()) {
+				e.getKey().at.setTransform(e.getValue());
+			}
+			for (final Layer layer : layers) {
+				layer.recreateBuckets();
+			}
+			if (!layers.isEmpty()) layers.iterator().next().getParent().recreateBuckets(false);
+			return true;
+		}
+		public Displayable getD() { return null; }
+
+		public boolean isIdenticalTo(final Object ob) {
+			if (ob instanceof Collection) {
+				final Collection<Displayable> col = (Collection<Displayable>) ob;
+				if (ht.size() != col.size()) return false;
+				for (final Displayable d : col) {
+					if (!d.getAffineTransform().equals(ht.get(d))) {
+						return false;
+					}
+				}
+				return true;
+			} else if (ob instanceof DoTransforms) {
+				final DoTransforms dt = (DoTransforms) ob;
+				if (dt.ht.size() != this.ht.size()) return false;
+				for (final Map.Entry<Displayable,AffineTransform> e : this.ht.entrySet()) {
+					if ( ! e.getValue().equals(dt.ht.get(e.getKey()))) {
+						return false;
+					}
+				}
+				return true;
+			}
+			return false;
+		}
+	}
+
+	synchronized final boolean setDataPackage(final Displayable.DataPackage pkg) {
+		if (pkg.getClass() != getInternalDataPackageClass()) {
+			Utils.log2("ERROR: cannot set " + pkg.getClass() + " to " + this.getClass());
+			return false;
+		}
+		try {
+			return pkg.to2(this);
+
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		}
+	}
+
+	// Must be overriden by subclasses
+	Object getDataPackage() {
+		Utils.log2("Displayable.getDataPackage not implemented yet for " + getClass());
+		return null;
+	}
+	// Must be overriden by subclasses
+	Class getInternalDataPackageClass() {
+		return DataPackage.class;
+	}
+
+	static abstract protected class DataPackage {
+		protected final double width, height;
+		protected final AffineTransform at;
+		protected HashMap<Displayable,HashSet<Displayable>> links = null;
+
+		DataPackage(final Displayable d) {
+			this.width = d.width;
+			this.height = d.height;
+			this.at = new AffineTransform(d.at);
+			if (null != d.hs_linked) {
+				this.links = new HashMap<Displayable,HashSet<Displayable>>();
+				for (final Displayable ln : d.hs_linked) {
+					this.links.put(ln, new HashSet<Displayable>(ln.hs_linked));
+				}
+			}
+		}
+
+		/** Set the Displayable's fields. */
+		final boolean to1(final Displayable d) {
+			d.width = width;
+			d.height = height;
+			d.setAffineTransform(at); // updates bucket
+			if (null != links) {
+				for (final Map.Entry<Displayable,HashSet<Displayable>> e : links.entrySet()) {
+					e.getKey().hs_linked = e.getValue();
+				}
+			}
+			return true;
+		}
+		// Could simply use a single 'to' method (it works, tested),
+		// but if I ever was to cast inadvertendly to Displayable, then
+		// only the superclass' 'to' method would be invoked, not the
+		// subclass' one! I call it "defensive programming"
+		/** Set the subclass specific data fields. */
+		abstract boolean to2(final Displayable d);
 	}
 }

@@ -116,6 +116,10 @@ public class DNDInsertImage implements DropTargetListener {
 
 	private boolean importImageFile(File f, String path, Point point) throws Exception {
 		if (f.exists()) {
+
+			final Layer layer = display.getLayer();
+			Bureaucrat burro = null;
+
 			if (f.isDirectory()) {
 				// ask:
 				GenericDialog gd = new GenericDialog("Import directory");
@@ -125,6 +129,9 @@ public class DNDInsertImage implements DropTargetListener {
 				if (gd.wasCanceled()) {
 					return true; // the user cancel it, so all is ok.
 				}
+
+				display.getLayerSet().addLayerContentStep(layer);
+
 				switch (gd.getNextChoiceIndex()) {
 				case 0: // as stack
 					// if importing image sequence as a stack:
@@ -149,20 +156,28 @@ public class DNDInsertImage implements DropTargetListener {
 						stack.addSlice(names[k]);
 					}
 					if (stack.getSize() > 0) {
-						display.getProject().getLoader().importStack(display.getLayer(), new ImagePlus("stack", stack), true, path);
+						burro = display.getProject().getLoader().importStack(layer, new ImagePlus("stack", stack), true, path);
 					}
 					break;
 				case 1: // as grid
-					display.getProject().getLoader().importGrid(display.getLayer(), path);
+					burro = display.getProject().getLoader().importGrid(layer, path);
 					break;
 				case 2: // sequence as grid
-					display.getProject().getLoader().importSequenceAsGrid(display.getLayer(), path);
+					burro = display.getProject().getLoader().importSequenceAsGrid(layer, path);
 					break;
 				}
 			} else {
+				layer.getParent().addLayerContentStep(layer);
+
 				// single image file (single image or a stack)
-				display.getProject().getLoader().importImage(display.getLayer(), point.x, point.y, path);
+				burro = display.getProject().getLoader().importImage(layer, point.x, point.y, path);
 			}
+
+			burro.addPostTask(new Runnable() { public void run() {
+				// The current state
+				layer.getParent().addLayerContentStep(layer);
+			}});
+
 			return true;
 		} else {
 			Utils.log("File not found: " + path);

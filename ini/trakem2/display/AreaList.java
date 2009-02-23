@@ -67,9 +67,12 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
+import java.io.File;
 
 import marchingcubes.MCTriangulator;
 import isosurface.Triangulator;
+import amira.AmiraMeshEncoder;
+import amira.AmiraParameters;
 
 import javax.vecmath.Point3f;
 
@@ -398,7 +401,7 @@ public class AreaList extends ZDisplayable {
 		this.width = box.width;
 		this.height = box.height;
 		updateInDatabase("transform+dimensions");
-		layer_set.updateBucket(this);
+		if (null != layer_set) layer_set.updateBucket(this);
 		if (0 != box.x || 0 != box.y) {
 			return true;
 		}
@@ -961,7 +964,7 @@ public class AreaList extends ZDisplayable {
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		// superclass processing
-		processAdjustPropertiesDialog(gd);
+		final Displayable.DoEdit prev = processAdjustPropertiesDialog(gd);
 		// local proccesing
 		final boolean fp = !gd.getNextBoolean();
 		final boolean to_all = gd.getNextBoolean();
@@ -977,10 +980,16 @@ public class AreaList extends ZDisplayable {
 			}
 		} else {
 			if (this.fill_paint != fp) {
+				prev.add("fill_paint", fp);
 				this.fill_paint = fp;
 				updateInDatabase("fill_paint");
 			}
 		}
+
+		// Add current step, with the same modified keys
+		DoEdit current = new DoEdit(this).init(prev);
+		if (isLinked()) current.add(new Displayable.DoTransforms().addAll(getLinkedGroup(null)));
+		getLayerSet().addEditStep(current);
 	}
 
 	public boolean isFillPaint() { return this.fill_paint; }
@@ -1203,11 +1212,11 @@ public class AreaList extends ZDisplayable {
 		updateInDatabase("points=" + layer_id);
 	}
 
-	/** Add an Area object to the existing, if any, area object at Layer with layer_id as given, or if not existing, just set it. The area is expected in this AreaList coordinate space. Does not make it local, you should call calculateBoundingBox when done. */
+	/** Add a copy of an Area object to the existing, if any, area object at Layer with layer_id as given, or if not existing, just set the copy as it. The area is expected in this AreaList coordinate space. Does not make it local, you should call calculateBoundingBox when done. */
 	public void addArea(final long layer_id, final Area area) {
 		if (null == area) return;
 		Area a = getArea(layer_id);
-		if (null == a) ht_areas.put(layer_id, area);
+		if (null == a) ht_areas.put(layer_id, new Area(area));
 		else a.add(area);
 		updateInDatabase("points=" + layer_id);
 	}
@@ -1216,8 +1225,12 @@ public class AreaList extends ZDisplayable {
 	public void add(final long layer_id, final ShapeRoi roi) throws NoninvertibleTransformException{
 		if (null == roi) return;
 		Area a = getArea(layer_id);
-		if (null == a) a = new Area();
-		a.add(Utils.getArea(roi).createTransformedArea(this.at.createInverse()));
+		Area asr = Utils.getArea(roi).createTransformedArea(this.at.createInverse());
+		if (null == a) {
+			ht_areas.put(layer_id, asr);
+		} else {
+			a.add(asr);
+		}
 		calculateBoundingBox();
 		updateInDatabase("points=" + layer_id);
 	}
@@ -1293,7 +1306,6 @@ public class AreaList extends ZDisplayable {
 		}
 
 		Roi roi = dc.getFakeImagePlus().getRoi();
-		Utils.log2("roi is " + roi);
 		if (null == roi) return;
 		// Check ROI
 		if (!Utils.isAreaROI(roi)) {
@@ -1432,7 +1444,7 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Export all given AreaLists as one per pixel value, what is called a "labels" file; a file dialog is offered to save the image as a tiff stack. */
-	static public void exportAsLabels(final java.util.List<? extends Displayable> list, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file) {
+	static public void exportAsLabels(final java.util.List<Displayable> list, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file, final boolean as_amira_labels) {
 		// survive everything:
 		if (null == list || 0 == list.size()) {
 			Utils.log("Null or empty list.");
@@ -1442,6 +1454,28 @@ public class AreaList extends ZDisplayable {
 			Utils.log("Improper scale value. Must be 0 < scale <= 1");
 			return;
 		}
+
+		// Current AmiraMeshEncoder supports ByteProcessor only: 256 labels max, including background at zero.
+		if (as_amira_labels && list.size() > 255) {
+			Utils.log("Saving ONLY first 255 AreaLists!\nDiscarded:");
+			StringBuffer sb = new StringBuffer();
+			for (final Displayable d : list.subList(256, list.size())) {
+				sb.append("    ").append(d.getProject().getShortMeaningfulTitle(d)).append('\n');
+			}
+			Utils.log(sb.toString());
+			ArrayList<Displayable> li = new ArrayList<Displayable>(list);
+			list.clear();
+			list.addAll(li.subList(0, 256));
+		}
+
+		String path = null;
+		if (to_file) {
+			String ext = as_amira_labels ? ".am" : ".tif";
+			File f = Utils.chooseFile("labels", ext);
+			if (null == f) return;
+			path = f.getAbsolutePath().replace('\\','/');
+		}
+
 		LayerSet layer_set = list.get(0).getLayerSet();
 		if (first_layer > last_layer) {
 			int tmp = first_layer;
@@ -1472,6 +1506,24 @@ public class AreaList extends ZDisplayable {
 		}
 		Calibration cal = layer_set.getCalibration();
 
+		String amira_params = null;
+		if (as_amira_labels) {
+			final StringBuffer sb = new StringBuffer("CoordType \"uniform\"\nMaterials {\nExterior {\n Id 0,\nColor 0 0 0\n}\n");
+			final float[] c = new float[3];
+			int value = 0;
+			for (final Displayable d : list) {
+				value++; // 0 is background
+				d.getColor().getRGBColorComponents(c);
+				String s = d.getProject().getShortMeaningfulTitle(d);
+				s = s.replace('-', '_').replaceAll(" #", " id");
+				sb.append(Utils.makeValidIdentifier(s)).append(" {\n")
+				  .append("Id ").append(value).append(",\n")
+				  .append("Color ").append(c[0]).append(' ').append(c[1]).append(' ').append(c[2]).append("\n}\n");
+			}
+			sb.append("}\n");
+			amira_params = sb.toString();
+		}
+
 		int count = 1;
 		final float len = last_layer - first_layer + 1;
 
@@ -1481,7 +1533,7 @@ public class AreaList extends ZDisplayable {
 			ImageProcessor ip = Utils.createProcessor(type, width, height);
 			// paint here all arealist that paint to the layer 'la'
 			int value = 0;
-			for (Displayable d : list) {
+			for (final Displayable d : list) {
 				value++; // zero is background
 				ip.setValue(value);
 				if (visible_only && !d.isVisible()) continue;
@@ -1500,12 +1552,26 @@ public class AreaList extends ZDisplayable {
 			}
 			stack.addSlice(la.getZ() * cal.pixelWidth + "", ip);
 		}
-		Utils.showProgress(0);
+		Utils.showProgress(1);
 		// Save via file dialog:
 		ImagePlus imp = new ImagePlus("Labels", stack); 
+		if (as_amira_labels) imp.setProperty("Info", amira_params);
 		imp.setCalibration(layer_set.getCalibrationCopy());
-		if (to_file) new FileSaver(imp).saveAsTiff();
-		else imp.show();
+		if (to_file) {
+			if (as_amira_labels) {
+				AmiraMeshEncoder ame = new AmiraMeshEncoder(path);
+				if (!ame.open()) {
+					Utils.log("Could not write to file " + path);
+					return;
+				}
+				if (!ame.write(imp)) {
+					Utils.log("Error in writing Amira file!");
+					return;
+				}
+			} else {
+				new FileSaver(imp).saveAsTiff(path);
+			}
+		} else imp.show();
 	}
 
 	public ResultsTable measure(ResultsTable rt) {
@@ -1581,5 +1647,42 @@ public class AreaList extends ZDisplayable {
 		bi.flush();
 		// correct scale
 		return volume /= (scale * scale); // above, calibration is fixed while computing. Scale only corrects for the 2D plane.
+	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPAreaList.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		// The width,height,links,transform and list of areas
+		return new DPAreaList(this);
+	}
+
+	static private final class DPAreaList extends Displayable.DataPackage {
+		final protected HashMap ht;
+		DPAreaList(final AreaList ali) {
+			super(ali);
+			this.ht = new HashMap();
+			for (final Object entry : ali.ht_areas.entrySet()) {
+				Map.Entry e = (Map.Entry)entry;
+				Object area = e.getValue();
+				if (area.getClass() == Area.class) area = new Area((Area)area);
+				this.ht.put(e.getKey(), area);
+			}
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final AreaList ali = (AreaList)d;
+			ali.ht_areas.clear();
+			for (final Object entry : ht.entrySet()) {
+				final Map.Entry e = (Map.Entry)entry;
+				Object area = e.getValue();
+				if (area.getClass() == Area.class) area = new Area((Area)area);
+				ali.ht_areas.put(e.getKey(), area);
+			}
+			return true;
+		}
 	}
 }

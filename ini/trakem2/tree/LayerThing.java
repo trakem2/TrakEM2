@@ -51,6 +51,20 @@ public final class LayerThing extends DBObject implements Thing {
 	// TODO : attributes, at all?
 	private String title = null;
 
+	/** A new copy with same template, same project, same id, same object and cloned table of same attributes, and same title, but no parent and no children. */
+	public Thing shallowCopy() {
+		return new LayerThing(this);
+	}
+
+	/** For shallow copying purposes. */
+	private LayerThing(final LayerThing lt) {
+		super(lt.project, lt.id);
+		this.title = lt.title;
+		this.object = lt.object;
+		if (null != lt.ht_attributes) {
+			this.ht_attributes = (HashMap) lt.ht_attributes.clone();
+		}
+	}
 
 	public LayerThing(TemplateThing template, Project project, Object ob) throws Exception {
 		// call super constructor
