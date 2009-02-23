@@ -1061,6 +1061,8 @@ public final class Patch extends Displayable {
 	public final Patch.PatchImage createCoordinateTransformedImage() {
 		if (null == ct) return null;
 		
+		project.getLoader().releaseToFit(o_width, o_height, type, 5);
+
 		final ImageProcessor source = getImageProcessor();
 
 		//Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());

@@ -3920,6 +3920,7 @@ abstract public class Loader {
 		final String path = getAbsolutePath(p);
 		if (null == path) return null;
 		int i = path.length() -1;
+		// Safer than lastIndexOf: never returns -1
 		while (i > -1) {
 			if ('/' == path.charAt(i)) {
 				break;
@@ -4966,4 +4967,9 @@ abstract public class Loader {
 
 	/** Does nothing unless overriden. */
 	public void queueForMipmapRemoval(final Patch p, boolean yes) {}
+
+	/** Get the Universal Near-Unique Id for the project hosted by this loader. */
+	public String getUNUId() {
+		return Long.toString(System.currentTimeMillis());
+	}
 }

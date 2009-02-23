@@ -1346,4 +1346,51 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		return -1;
 	}
+
+	/** Remove the file, or if it's a directory, recursively go down subdirs and remove all contents, but will stop on encountering a non-hidden file that is not an empty dir. */
+	static public final boolean removeFile(final File f) {
+		if (null == f) return false;
+		try {
+			if (!f.isDirectory()) {
+				return f.delete();
+			}
+			// Else delete all directories:
+			final ArrayList<File> dirs = new ArrayList<File>();
+			dirs.add(f);
+			// Non-recursive version ... I hate java
+			do {
+				int i = dirs.size() -1;
+				final File fdir = dirs.get(i);
+				Utils.log2("Examining folder for deletion: " + fdir.getName());
+				boolean remove = true;
+				for (final File file : fdir.listFiles()) {
+					String name = file.getName();
+					if (name.equals(".") || name.equals("..")) continue;
+					if (file.isDirectory()) {
+						remove = false;
+						dirs.add(file);
+					} else if (file.isHidden()) {
+						if (!file.delete()) {
+							Utils.log("Failed to delete file " + file.getAbsolutePath());
+							return false;
+						}
+					} else {
+						Utils.log("Not empty: cannot remove dir " + fdir.getAbsolutePath());
+						return false;
+					}
+				}
+				if (remove) {
+					dirs.remove(i);
+					if (!fdir.delete()) {
+						return false;
+					} else {
+						Utils.log2("Removed folder " + fdir.getAbsolutePath());
+					}
+				}
+			} while (dirs.size() > 0);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return true;
+	}
 }

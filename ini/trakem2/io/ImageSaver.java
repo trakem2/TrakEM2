@@ -51,6 +51,8 @@ public class ImageSaver {
 
 	private ImageSaver() {}
 
+	static private final Object OBDIRS = new Object();
+
 	/** Will create parent directories if they don't exist.<br />
 	 *  Returns false if the path is unusable.
 	 */
@@ -59,10 +61,12 @@ public class ImageSaver {
 			Utils.log("Null path, can't save.");
 			return false;
 		}
-		File fdir = new File(path).getParentFile();
+		final File fdir = new File(path).getParentFile();
 		if (!fdir.exists()) {
 			try {
-				return fdir.mkdirs();
+				synchronized (OBDIRS) {
+					return fdir.mkdirs();
+				}
 			} catch (Exception e) {
 				IJError.print(e, true);
 				Utils.log("Can't use path: " + path + "\nCheck your file read/write permissions.");
@@ -320,6 +324,7 @@ public class ImageSaver {
 
 	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
 	static public final boolean saveAsJpegAlpha(final BufferedImage awt, final String path, final float quality) {
+		if (!checkPath(path)) return false;
 		try {
 			// This is all the mid-level junk code I have to learn and manage just to SET THE F*CK*NG compression quality for a jpeg.
 			ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next(); // just the first one
