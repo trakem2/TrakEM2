@@ -1048,6 +1048,7 @@ public final class FSLoader extends Loader {
 			return path;
 		}
 		// the long and verbose way, to be cross-platform. Should work with URLs just the same.
+		/*
 		File xf = new File(project_file_path);
 		File fpath = new File(path);
 		if (fpath.getParentFile().equals(xf.getParentFile())) {
@@ -1056,6 +1057,19 @@ public final class FSLoader extends Loader {
 			if (0 == path.indexOf('/')) path = path.substring(1);
 		} else if (fpath.equals(xf.getParentFile())) {
 			return "";
+		}
+		*/
+		String xdir = new File(project_file_path).getParentFile().getAbsolutePath();
+		if (!xdir.endsWith("/")) xdir += "/";
+		File fpath = new File(path);
+		path = fpath.getAbsolutePath(); // removing double "//" and other potential problems
+		if (fpath.isDirectory() && !path.endsWith("/")) path += "/";
+		if (IJ.isWindows()) {
+			xdir = xdir.replace('\\', '/');
+			path = path.replace('\\', '/');
+		}
+		if (path.startsWith(xdir)) {
+			path = path.substring(xdir.length());
 		}
 		if (-1 != isl) path += slice;
 		//Utils.log("made relative path: " + path);
@@ -1973,13 +1987,18 @@ public final class FSLoader extends Loader {
 		return null;
 	}
 
+	/** Returns the near-unique folder for the project hosted by this FSLoader. */
+	public String getUNUIdFolder() {
+		return new StringBuffer(getStorageFolder()).append("trakem2.").append(unuid).append('/').toString();
+	}
+
 	/** If parent path is null, it's asked for.*/
 	public boolean createMipMapsDir(String parent_path) {
 		if (null == this.unuid) this.unuid = createUNUId(parent_path);
 		if (null == parent_path) {
 			// try to create it in the same directory where the XML file is
 			if (null != dir_storage) {
-				File f = new File(dir_storage + "trakem2." + unuid + "/trakem2.mipmaps");
+				File f = new File(getUNUIdFolder() + "/trakem2.mipmaps");
 				if (!f.exists()) {
 					try {
 						if (f.mkdir()) {
@@ -2351,17 +2370,17 @@ public final class FSLoader extends Loader {
 				Utils.log2("No unuid for project!");
 				return false;
 			}
-			// sb: the trakem2.<unuid> folder that will now contain trakem2.mipmaps, trakem2.masks, etc.
-			final StringBuffer sb = new StringBuffer(dir_storage).append("trakem2.").append(unuid).append('/');
-			File fdir = new File(sb.toString());
+			// the trakem2.<unuid> folder that will now contain trakem2.mipmaps, trakem2.masks, etc.
+			final String unuid_folder = getUNUIdFolder();
+			File fdir = new File(unuid_folder);
 			if (!fdir.exists()) {
 				if (!fdir.mkdir()) {
-					Utils.log2("Could not create folder " + sb.toString());
+					Utils.log2("Could not create folder " + unuid_folder);
 					return false;
 				}
 			}
 			// 2 - Create trakem2.mipmaps inside unuid folder
-			final String new_dir_mipmaps = sb.toString() + "trakem2.mipmaps/";
+			final String new_dir_mipmaps = unuid_folder + "trakem2.mipmaps/";
 			fdir = new File(new_dir_mipmaps);
 			if (!fdir.mkdir()) {
 				Utils.log2("Could not create folder " + new_dir_mipmaps);
@@ -2407,7 +2426,7 @@ public final class FSLoader extends Loader {
 			File fmasks = new File(masks_folder);
 			this.dir_masks = null;
 			if (fmasks.exists()) {
-				final String new_dir_masks = sb.toString() + "trakem2.masks/";
+				final String new_dir_masks = unuid_folder + "trakem2.masks/";
 				for (final File fmask : fmasks.listFiles()) {
 					final String name = fmask.getName();
 					if (!name.endsWith(".zip")) continue;
