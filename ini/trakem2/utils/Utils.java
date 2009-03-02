@@ -1349,8 +1349,19 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Remove the file, or if it's a directory, recursively go down subdirs and remove all contents, but will stop on encountering a non-hidden file that is not an empty dir. */
 	static public final boolean removeFile(final File f) {
-		if (null == f) return false;
+		return Utils.removeFile(f, true, null);
+	}
+
+	// Accumulates removed files (not directories) into removed_paths, if not null.
+	static private final boolean removeFile(final File f, final boolean stop_if_dir_not_empty, final ArrayList<String> removed_paths) {
+		if (null == f || !f.exists()) return false;
 		try {
+			if (!Utils.isTrakEM2Subfile(f)) {
+				Utils.log2("REFUSING to remove file " + f + "\n-->REASON: not in a '/trakem2.' file path");
+				return false;
+			}
+
+			// If it's not a directory, just delete it
 			if (!f.isDirectory()) {
 				return f.delete();
 			}
@@ -1371,12 +1382,19 @@ public class Utils implements ij.plugin.PlugIn {
 						dirs.add(file);
 					} else if (file.isHidden()) {
 						if (!file.delete()) {
-							Utils.log("Failed to delete file " + file.getAbsolutePath());
+							Utils.log("Failed to delete hidden file " + file.getAbsolutePath());
 							return false;
 						}
-					} else {
+						if (null != removed_paths) removed_paths.add(file.getAbsolutePath());
+					} else if (stop_if_dir_not_empty) {
 						Utils.log("Not empty: cannot remove dir " + fdir.getAbsolutePath());
 						return false;
+					} else {
+						if (!file.delete()) {
+							Utils.log("Failed to delete visible file " + file.getAbsolutePath());
+							return false;
+						}
+						if (null != removed_paths) removed_paths.add(file.getAbsolutePath());
 					}
 				}
 				if (remove) {
@@ -1388,9 +1406,68 @@ public class Utils implements ij.plugin.PlugIn {
 					}
 				}
 			} while (dirs.size() > 0);
+			
+			return true;
+
 		} catch (Exception e) {
 			IJError.print(e);
 		}
-		return true;
+		return false;
 	}
+
+	/** Returns true if the file cannonical path contains "/trakem2." (adjusted for Windows as well). */
+	static public boolean isTrakEM2Subfile(final File f) throws Exception {
+		return isTrakEM2Subpath(f.getCanonicalPath());
+	}
+
+	/** Returns true if the path contains "/trakem2." (adjusted for Windows as well). */
+	static public boolean isTrakEM2Subpath(String path) {
+		if (IJ.isWindows()) path = path.replace('\\', '/');
+		return -1 != path.indexOf("/trakem2.");
+	}
+
+	/** Returns true if all files and their subdirectories, recursively, under parent folder have been removed.
+	 *  For safety reasons, this function will return false immediately if the parent file path does not include a
+	 *  lowercase "trakem2." in it.
+	 *  If removed_paths is not null, all removed full paths are added to it.
+	 */
+	static public final boolean removePrefixedFiles(final File parent, final String prefix, final ArrayList<String> removed_paths) {
+		if (null == parent || !parent.isDirectory()) return false;
+
+		try {
+			if (!Utils.isTrakEM2Subfile(parent)) {
+				Utils.log2("REFUSING to remove files recursively under folder " + parent + "\n-->REASON: not in a '/trakem2.' file path");
+				return false;
+			}
+
+			boolean success = true;
+
+			final File[] list = parent.listFiles(new FilenameFilter() {
+				public boolean accept(File dir, String name) {
+					if (name.startsWith(prefix)) return true;
+					return false;
+				}
+			});
+
+			ArrayList<String> a = null;
+			if (null != removed_paths) a = new ArrayList<String>();
+
+			if (null != list && list.length > 0) {
+				for (final File f : list) {
+					if (!Utils.removeFile(f, false, a)) success = false;
+					if (null != removed_paths) {
+						removed_paths.addAll(a);
+						a.clear();
+					}
+				}
+			}
+
+			return true;
+
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return false;
+	}
+
 }
