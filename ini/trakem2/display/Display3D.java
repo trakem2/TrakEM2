@@ -22,6 +22,7 @@ import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
 import java.awt.CheckboxMenuItem;
+import java.awt.Component;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemListener;
 import java.awt.event.ActionEvent;
@@ -32,6 +33,9 @@ import java.awt.geom.AffineTransform;
 
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyListener;
 
 import javax.vecmath.Point3f;
 import javax.vecmath.Color3f;
@@ -79,6 +83,15 @@ public final class Display3D {
 
 	private String selected = null;
 
+	/*
+	static private KeyAdapter ka = new KeyAdapter() {
+		public void keyPressed(KeyEvent ke) {
+			// F1 .. F12 keys to set tools
+			ProjectToolbar.keyPressed(ke);
+		}
+	};
+	*/
+
 	/** Defaults to parallel projection. */
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
@@ -87,10 +100,26 @@ public final class Display3D {
 		computeScale(ls);
 		this.universe.show();
 		this.universe.getWindow().addWindowListener(new IW3DListener(ls));
+		// it ignores the listeners:
+		//preaddKeyListener(this.universe.getWindow(), ka);
+		//preaddKeyListener(this.universe.getWindow().getCanvas(), ka);
 
 		// register
 		Display3D.ht_layer_sets.put(ls, this);
 	}
+
+	/*
+	private void preaddKeyListener(Component c, KeyListener kl) {
+		KeyListener[] all = c.getKeyListeners();
+		if (null != all) {
+			for (KeyListener k : all) c.removeKeyListener(k);
+		}
+		c.addKeyListener(kl);
+		if (null != all) {
+			for (KeyListener k : all) c.addKeyListener(k);
+		}
+	}
+	*/
 
 	public Image3DUniverse getUniverse() {
 		return universe;
