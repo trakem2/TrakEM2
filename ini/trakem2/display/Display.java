@@ -1093,6 +1093,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		tabs.removeChangeListener(tabs_listener);
 		tabs.removeKeyListener(canvas);
 		ImagePlus.removeImageListener(this);
+		bytypelistener = null;
 		canvas.destroy();
 		navigator.destroy();
 		scroller.removeAdjustmentListener(scroller_listener);
@@ -2256,10 +2257,23 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (menu.getItemCount() > 0) popup.add(menu);
 			menu = new JMenu("Selection");
 			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Event.CTRL_MASK, true));
 			if (0 == layer.getDisplayables().size() && 0 == layer.getParent().getZDisplayables().size()) item.setEnabled(false);
 			item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
 			if (0 == selection.getNSelected()) item.setEnabled(false);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
+
+			JMenu bytype = new JMenu("Select all by type");
+			item = new JMenuItem("AreaList"); item.addActionListener(bytypelistener); bytype.add(item);
+			item = new JMenuItem("Ball"); item.addActionListener(bytypelistener); bytype.add(item);
+			item = new JMenuItem("Dissector"); item.addActionListener(bytypelistener); bytype.add(item);
+			item = new JMenuItem("Image"); item.addActionListener(bytypelistener); bytype.add(item);
+			item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
+			item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
+			item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
+			item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
+			menu.add(bytype);
+
 			item = new JMenuItem("Restore selection"); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Select under ROI"); item.addActionListener(this); menu.add(item);
 			if (canvas.getFakeImagePlus().getRoi() == null) item.setEnabled(false);
@@ -2269,6 +2283,65 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		//canvas.add(popup);
 		return popup;
+	}
+
+	private ByTypeListener bytypelistener = new ByTypeListener(this);
+
+	static private class ByTypeListener implements ActionListener {
+		final Display d;
+		ByTypeListener(final Display d) {
+			this.d = d;
+		}
+		public void actionPerformed(final ActionEvent ae) {
+			final String command = ae.getActionCommand();
+
+			final java.awt.geom.Area aroi = Utils.getArea(d.canvas.getFakeImagePlus().getRoi());
+
+			d.dispatcher.exec(new Runnable() { public void run() {
+
+			try {
+				String type = command;
+				if (type.equals("Image")) type = "Patch";
+				Class c = Class.forName("ini.trakem2.display." + type);
+
+				java.util.List<Displayable> a = new ArrayList<Displayable>();
+				if (null != aroi) {
+					a.addAll(d.layer.getDisplayables(c, aroi, true));
+					a.addAll(d.layer.getParent().getZDisplayables(c, d.layer, aroi, true));
+				} else {
+					a.addAll(d.layer.getDisplayables(c));
+					a.addAll(d.layer.getParent().getZDisplayables(c));
+					// Remove non-visible ones
+					for (final Iterator<Displayable> it = a.iterator(); it.hasNext(); ) {
+						if (!it.next().isVisible()) it.remove();
+					}
+				}
+
+				if (0 == a.size()) return;
+
+				boolean selected = false;
+
+				if (0 == ae.getModifiers()) {
+					Utils.log2("first");
+					d.selection.clear();
+					d.selection.selectAll(a);
+					selected = true;
+				} else if (0 == (ae.getModifiers() ^ Event.SHIFT_MASK)) {
+					Utils.log2("with shift");
+					d.selection.selectAll(a); // just add them to the current selection
+					selected = true;
+				}
+				if (selected) {
+					// Activate last:
+					d.selection.setActive(a.get(a.size() -1));
+				}
+
+			} catch (ClassNotFoundException e) {
+				Utils.log2(e.toString());
+			}
+
+			}});
+		}
 	}
 
 	/** Check if a panel for the given Displayable is completely visible in the JScrollPane */

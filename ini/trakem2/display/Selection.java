@@ -639,7 +639,7 @@ public class Selection {
 		if (al.size() > 0) selectAll(al);
 	}
 
-	private void selectAll(ArrayList al) {
+	protected void selectAll(java.util.List al) {
 		synchronized (queue_lock) {
 		try {
 			lock();
@@ -853,7 +853,11 @@ public class Selection {
 			this.queue.clear();
 			this.hs.clear();
 			this.active = null;
+			Rectangle bb = box;
 			this.box = null;
+			if (null != display) {
+				display.repaint(display.getLayer(), 5, bb, false);
+			}
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {

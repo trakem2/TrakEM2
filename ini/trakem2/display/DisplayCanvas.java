@@ -508,7 +508,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		// Popup:
 		popup = false; // not reset properly in macosx
-		if ((me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) && 1 == me.getClickCount() && !me.isShiftDown() && !me.isAltDown()) {
+		if ((me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) && 1 == me.getClickCount() && !me.isAltDown()) { // allow shift down
 			popup = true;
 			display.getPopupMenu().show(this, me.getX(), me.getY());
 			return;
@@ -1780,6 +1780,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					ke.consume();
 				}
 				// else, let ImageJ grab the ROI into the Manager, if any
+				break;
+			case KeyEvent.VK_A:
+				if (false) {
+				if (0 == (ke.getModifiers() ^ Event.CTRL_MASK)) {
+					display.getSelection().selectAll();
+					Display.repaint(display.getLayer(), display.getSelection().getBox(), 0);
+					ke.consume();
+				}
+				}
 				break;
 			case KeyEvent.VK_ESCAPE: // cancel transformation
 				if (display.getLayer().getParent().isAligning()) {
