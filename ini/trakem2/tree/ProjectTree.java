@@ -564,12 +564,12 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			boolean first = true;
 			Display display = null;
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				Object obd = ((ProjectThing)it.next()).getObject();
-				if (!(obd instanceof Displayable)) {
-					Utils.log2("Skipping non-Displayable object " + obd);
+				Object ptob = ((ProjectThing)it.next()).getObject();
+				if (!(ptob instanceof Displayable)) {
+					Utils.log2("Skipping non-Displayable object " + ptob);
 					continue;
 				}
-				Displayable d = (Displayable)obd;
+				Displayable d = (Displayable)ptob;
 				if (null == display) {
 					display = Display.getFront(d.getProject());
 					if (null == display) return;
