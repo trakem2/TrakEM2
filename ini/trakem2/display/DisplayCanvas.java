@@ -1638,13 +1638,16 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		Displayable active = display.getActive();
 
-		if (ProjectToolbar.getToolId() == ProjectToolbar.PENCIL && null != active && active.getClass() == Profile.class) {
-			if (null != freehandProfile) {
-				freehandProfile.abort();
-			}
+		if (null != freehandProfile
+			&& ProjectToolbar.getToolId() == ProjectToolbar.PENCIL
+			&& ke.getKeyCode() == KeyEvent.VK_ESCAPE
+			&& null != freehandProfile)
+		{
+			freehandProfile.abort();
 			ke.consume();
 			return;
 		}
+
 		/*
 		 * TODO screen editor ... TEMPORARY if (active instanceof DLabel) {
 		 * active.keyPressed(ke); ke.consume(); return; }
@@ -1925,6 +1928,18 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_DELETE:
 				if (0 == ke.getModifiers()) {
 					display.getSelection().deleteAll();
+				}
+				break;
+			case KeyEvent.VK_B:
+				if (0 == ke.getModifiers() && null != active && active.getClass() == Profile.class) {
+					display.duplicateLinkAndSendTo(active, 0, active.getLayer().getParent().previous(layer));
+					ke.consume();
+				}
+				break;
+			case KeyEvent.VK_N:
+				if (0 == ke.getModifiers() && null != active && active.getClass() == Profile.class) {
+					display.duplicateLinkAndSendTo(active, 1, active.getLayer().getParent().next(layer));
+					ke.consume();
 				}
 				break;
 			case KeyEvent.VK_F1:

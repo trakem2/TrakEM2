@@ -825,7 +825,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			scroller.setValue(Display.this.layer.getParent().getLayerIndex(Display.this.layer.getId()));
 			return;
 		}
-		Display.this.layer = layer;
+		this.layer = layer;
 		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 
 		// update the current Layer pointer in ZDisplayable objects
@@ -863,6 +863,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != d) selection.add(d);
 		}
 		// TODO last_temp doesn't remain the PatchStack // Utils.log2("last_temp is: " + last_temp.getClass().getName());
+
+		// Keep Profile chain selected, for best ease of use:
+		if (null != last_active && last_active.getClass() == Profile.class && last_active.isLinked(Profile.class)) {
+			Displayable other = null;
+			for (final Displayable prof : last_active.getLinked(Profile.class)) {
+				if (prof.getLayer() == layer) {
+					other = prof;
+					break;
+				}
+			}
+			if (null != other) selection.add(other);
+		}
 
 		// repaint everything
 		navigator.repaint(true);
@@ -1291,6 +1303,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 	}
 
+	// TODO this very old method could take some improvement:
+	//  - there is no need to create a new DisplayablePanel if its panel is not shown
+	//  - other issues; the method looks overly "if a dog barks and a duck quacks during a lunar eclipse then .."
 	/** Add it to the proper panel, at the top, and set it active. */
 	private final void add(final Displayable d, final boolean activate, final boolean repaint_snapshot) {
 		DisplayablePanel dp = ht_panels.get(d);
@@ -2638,25 +2653,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Display.repaint(layer.getParent(), active, 5);
 			//Display.updatePanelIndex(layer, active);
 		} else if (command.equals("Duplicate, link and send to next layer")) {
-			if (null == active || !(active instanceof Profile)) return;
-			Layer next_layer = layer.getParent().next(layer);
-			if (layer.equals(next_layer)) return; // no next layer! The menu item will be disabled anyway
-			Profile profile = project.getProjectTree().duplicateChild((Profile)active, 1, next_layer);
-			if (null == profile) return;
-			active.link(profile);
-			next_layer.add(profile);
-			slt.setAndWait(next_layer);//setLayer(next_layer);
-			selection.add(profile); //setActive(profile);
+			duplicateLinkAndSendTo(active, 1, layer.getParent().next(layer));
 		} else if (command.equals("Duplicate, link and send to previous layer")) {
-			if (null == active || !(active instanceof Profile)) return;
-			Layer previous_layer = layer.getParent().previous(layer);
-			if (layer.equals(previous_layer)) return; // no previous layer!
-			Profile profile = project.getProjectTree().duplicateChild((Profile)active, 0, previous_layer);
-			if (null == profile) return;
-			active.link(profile);
-			previous_layer.add(profile);
-			slt.setAndWait(previous_layer);//setLayer(previous_layer);
-			selection.add(profile); //setActive(profile);
+			duplicateLinkAndSendTo(active, 0, layer.getParent().previous(layer));
 		} else if (command.equals("Duplicate, link and send to...")) {
 			// fix non-scrolling popup menu
 			GenericDialog gd = new GenericDialog("Send to");
@@ -2674,23 +2673,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				Utils.showMessage("Can't duplicate, link and send to the same layer.");
 				return;
 			}
-			Profile profile = project.getProjectTree().duplicateChild((Profile)active, 0, la);
-			if (null == profile) return;
-			active.link(profile);
-			la.add(profile);
-			slt.setAndWait(la);//setLayer(la);
-			selection.add(profile);
+			duplicateLinkAndSendTo(active, 0, la);
 		} else if (-1 != command.indexOf("z = ")) {
 			// this is an item from the "Duplicate, link and send to" menu of layer z's
 			Layer target_layer = layer.getParent().getLayer(Double.parseDouble(command.substring(command.lastIndexOf(' ') +1)));
 			Utils.log2("layer: __" +command.substring(command.lastIndexOf(' ') +1) + "__");
 			if (null == target_layer) return;
-			Profile profile = project.getProjectTree().duplicateChild((Profile)active, 0, target_layer);
-			if (null == profile) return;
-			active.link(profile);
-			target_layer.add(profile);
-			slt.setAndWait(target_layer);//setLayer(target_layer);
-			selection.add(profile); // setActive(profile); // this is repainting only the active, not everything, because it cancels the repaint sent by the setLayer ! BUT NO, it should add up to the max box.
+			duplicateLinkAndSendTo(active, 0, target_layer);
 		} else if (-1 != command.indexOf("z=")) {
 			// WARNING the indexOf is very similar to the previous one
 			// Send the linked group to the selected layer
@@ -3740,4 +3729,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 	}
 	*/
+
+	protected void duplicateLinkAndSendTo(final Displayable active, final int position, final Layer other_layer) {
+		if (null == active || !(active instanceof Profile)) return;
+		if (active.getLayer() == other_layer) return; // can't do that!
+		Profile profile = project.getProjectTree().duplicateChild((Profile)active, position, other_layer);
+		if (null == profile) return;
+		active.link(profile);
+		slt.setAndWait(other_layer);
+		other_layer.add(profile);
+		selection.add(profile);
+	}
 }
