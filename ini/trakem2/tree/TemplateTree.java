@@ -306,11 +306,20 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		}
 	}
 
+	/** Add a new template thing to an existing ProjectThing, so that new instances of template new_child_type can be added to the ProjectThing pt. */
+	public TemplateThing addNewChildType(final ProjectThing pt, String new_child_type) {
+		if (null == pt.getParent() || null == pt.getTemplate()) return null;
+		TemplateThing tt_parent = pt.getTemplate().getChildTemplate(new_child_type);
+		if (null != tt_parent) return tt_parent;
+		// Else create it
+		return addNewChildType(pt.getTemplate(), new_child_type);
+	}
+
 	/** tt_parent is the parent TemplateThing
 	 *  tet_child is the child to add to tt parent, and to insert as child to all nodes that host the tt parent.
 	 *
 	 *  Returns the TemplateThing used, either new or a reused, unique, already-existing one. */
-	public TemplateThing addNewChildType(final TemplateThing tt_parent, String new_child_type) {
+	private TemplateThing addNewChildType(final TemplateThing tt_parent, String new_child_type) {
 		// check preconditions
 		if (null == tt_parent || null == new_child_type) return null;
 		// fix any potentially dangerous chars for the XML
