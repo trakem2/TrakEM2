@@ -1927,6 +1927,20 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					display.getSelection().deleteAll();
 				}
 				break;
+			case KeyEvent.VK_F1:
+			case KeyEvent.VK_F2:
+			case KeyEvent.VK_F3:
+			case KeyEvent.VK_F4:
+			case KeyEvent.VK_F5:
+			case KeyEvent.VK_F6:
+			case KeyEvent.VK_F7:
+			case KeyEvent.VK_F8:
+			case KeyEvent.VK_F9:
+			case KeyEvent.VK_F10:
+			case KeyEvent.VK_F11:
+			case KeyEvent.VK_F12:
+				ProjectToolbar.keyPressed(ke);
+				break;
 			case KeyEvent.VK_UP:
 			case KeyEvent.VK_DOWN:
 			case KeyEvent.VK_LEFT:
