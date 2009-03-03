@@ -603,7 +603,7 @@ public class Project extends DBObject {
 	public Object makeObject(final TemplateThing tt) {
 		final String type = tt.getType();
 		if (type.equals("profile")) {
-			ProjectToolbar.setTool(ProjectToolbar.PEN); // this should go elsewhere, in display issues.
+			ProjectToolbar.setTool(ProjectToolbar.PENCIL); // this should go elsewhere, in display issues.
 			return new Profile(this, "profile", 0, 0);
 		} else if (type.equals("pipe")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
@@ -612,7 +612,7 @@ public class Project extends DBObject {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Polyline(this, "polyline");
 		} else if (type.equals("area_list")) {
-			ProjectToolbar.setTool(ProjectToolbar.PEN); // may need adjustment ...
+			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new AreaList(this, "area_list", 0, 0);
 		} else if (type.equals("ball")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
