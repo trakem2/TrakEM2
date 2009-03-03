@@ -661,6 +661,7 @@ public final class Layer extends DBObject implements Bucketable {
 	/** Note: Not recursive into embedded LayerSet objects. Returns the hash set of objects whose visibility has changed. */
 	public HashSet<Displayable> setVisible(String type, boolean visible, boolean repaint) {
 		type = type.toLowerCase();
+		if (type.equals("image")) type = "patch";
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (Displayable d : al_displayables) {
 			if (visible != d.isVisible() && d.getClass().getName().toLowerCase().endsWith(type)) {
