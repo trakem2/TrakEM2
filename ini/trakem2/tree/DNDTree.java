@@ -547,12 +547,18 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		return (DefaultMutableTreeNode)this.getModel().getRoot();
 	}
 
-	/** Appends at the end of the parent_node child list. */
-	protected DefaultMutableTreeNode addChild(Thing child, DefaultMutableTreeNode parent_node) {
-		DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(child);
-		((DefaultTreeModel)getModel()).insertNodeInto(node_child, parent_node, parent_node.getChildCount());
-		updateUILater();
-		return node_child;
+	/** Appends at the end of the parent_node child list, and waits until the tree's UI is updated. */
+	protected DefaultMutableTreeNode addChild(final Thing child, final DefaultMutableTreeNode parent_node) {
+		try {
+			final DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(child);
+			javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+				((DefaultTreeModel)getModel()).insertNodeInto(node_child, parent_node, parent_node.getChildCount());
+				DNDTree.this.updateUI();
+			}});
+			return node_child;
+		} catch (java.lang.reflect.InvocationTargetException ite) {
+		} catch (InterruptedException ie) { ie.printStackTrace(); }
+		return null;
 	}
 
 	/** Will add only those for which a node doesn't exist already. */
@@ -560,6 +566,10 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		for (final Thing th : leaves) {
 			// find parent node
 			final DefaultMutableTreeNode parent = DNDTree.findNode(th.getParent(), this);
+			if (null == parent) {
+				Utils.log("Ignoring node " + th + " : null parent!");
+				continue;
+			}
 			// see if it exists already as a child of that node
 			boolean exists = false;
 			if (parent.getChildCount() > 0) {
