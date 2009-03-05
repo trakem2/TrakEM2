@@ -1337,7 +1337,7 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Performs a deep copy of this object. */
-	public Object clone() {
+	public Displayable clone() {
 		return clone(this.project);
 	}
 
@@ -1637,6 +1637,10 @@ public abstract class Displayable extends DBObject {
 			// same content of fields?
 			for (final Map.Entry<String,Object> e : this.content.entrySet()) {
 				final Object val = other.content.get(e.getKey());
+				if (null == val) {
+					Utils.log2("WARNING: null val for " + e.getKey());
+					return false;
+				}
 				if (val instanceof HashMap) {
 					if ( ! identical((HashMap)val, (HashMap)e.getValue())) {
 						return false;
