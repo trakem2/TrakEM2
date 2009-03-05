@@ -33,6 +33,7 @@ import ini.trakem2.tree.TemplateTree;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.StdOutWindow;
 import ini.trakem2.vector.Compare;
 import ini.trakem2.persistence.Loader;
 
@@ -82,6 +83,7 @@ public class ControlWindow {
 		synchronized (this) {
 			Utils.setup(this);
 			Loader.setupPreloader(this);
+			if (IJ.isWindows()) StdOutWindow.start();
 		}
 	}
 
@@ -115,6 +117,7 @@ public class ControlWindow {
 	static private void destroy() {
 		if (null == instance) return;
 		synchronized(instance) {
+			if (IJ.isWindows()) StdOutWindow.quit();
 			Compare.destroy();
 			if (null != ht_projects) {
 				// destroy open projects, release memory
