@@ -83,7 +83,7 @@ public class ControlWindow {
 		synchronized (this) {
 			Utils.setup(this);
 			Loader.setupPreloader(this);
-			if (IJ.isWindows()) StdOutWindow.start();
+			if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
 		}
 	}
 
