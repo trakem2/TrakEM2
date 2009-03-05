@@ -1149,7 +1149,8 @@ public class AreaList extends ZDisplayable {
 			}
 		}
 		// zero-pad stack
-		stack = zeroPad(stack);
+		// No need anymore: MCTriangulator does it on its own now
+		// stack = zeroPad(stack);
 
 		ImagePlus imp = new ImagePlus("", stack); // Calibration MUST BE 1, i.e. default, since marchingcubes.MCCube will try to correct for it.
 		imp.getCalibration().pixelWidth = cal.pixelWidth * scale;
@@ -1163,9 +1164,9 @@ public class AreaList extends ZDisplayable {
 		final Triangulator tri = new MCTriangulator();
 		final List list = tri.getTriangles(imp, 0, new boolean[]{true, true, true}, 1);
 		// now translate all coordinates by x,y,z (it would be nice to simply assign them to a mesh object)
-		float dx = (float)(r.x * scale * cal.pixelWidth);
-		float dy = (float)(r.y * scale * cal.pixelHeight);
-		float dz = (float)((z - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
+		final float dx = (float)(r.x * scale * cal.pixelWidth);
+		final float dy = (float)(r.y * scale * cal.pixelHeight);
+		final float dz = (float)((z - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
 		final float rs = resample / (float)scale;
 		for (Iterator it = list.iterator(); it.hasNext(); ) {
 			Point3f p = (Point3f)it.next();
@@ -1175,9 +1176,9 @@ public class AreaList extends ZDisplayable {
 			p.z *= cal.pixelWidth;
 			//Z was not resampled
 			// translate to the x,y,z coordinate of the object in space
-			p.x += dx;
-			p.y += dy;
-			p.z += dz;
+			p.x += dx - rs; // minus rs, as an offset for zero-padding
+			p.y += dy - rs;
+			p.z += dz - rs;
 		}
 		return list;
 		} catch (Exception e) {
