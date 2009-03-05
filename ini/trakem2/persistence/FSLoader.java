@@ -677,7 +677,9 @@ public final class FSLoader extends Loader {
 	}
 
 	public boolean updateInDatabase(final DBObject ob, final String key) {
+		// Should only be GUI-driven
 		setChanged(true);
+		//
 		if (ob.getClass() == Patch.class) {
 			Patch p = (Patch)ob;
 			if (key.equals("tiff_working")) return null != setImageFile(p, fetchImagePlus(p));

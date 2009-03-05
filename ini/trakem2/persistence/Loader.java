@@ -3535,7 +3535,7 @@ abstract public class Loader {
 				sb_header = null;
 				project.exportXML(writer, "", patches_dir);
 				writer.flush(); // make sure all buffered chars are written
-				this.changes = false;
+				setChanged(false);
 				path = fxml.getAbsolutePath().replace('\\', '/');
 			} catch (Exception e) {
 				Utils.log("FAILED to save the file at " + fxml);
@@ -3592,7 +3592,7 @@ abstract public class Loader {
 	/** Calls saveAs() unless overriden. Returns full path to the xml file. */
 	public String save(Project project) { // yes the project is the same project pointer, which for some reason I never committed myself to place it in the Loader class as a field.
 		String path = saveAs(project);
-		if (null != path) this.changes = false;
+		if (null != path) setChanged(false);
 		return path;
 	}
 
@@ -3611,7 +3611,7 @@ abstract public class Loader {
 		File fxml = null == xmlpath ? Utils.chooseFile(default_dir, null, ".xml") : new File(xmlpath);
 		if (null == fxml) return null;
 		String path = export(project, fxml, export_images);
-		if (null != path) this.changes = false;
+		if (null != path) setChanged(false);
 		return path;
 	}
 
