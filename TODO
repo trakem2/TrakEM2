@@ -8,4 +8,6 @@
   Patches use the min and max values in several wrong ways.  RGB patches create
   wrong output from the very beginning, grey images create the wrong output if
   a CoordinateTransform is available.
-  
+2009-03-04 Saalfeld
+  Changing the properties of a CoordinateTransform attached to a patch leads to
+  wrong bounding boxes.
