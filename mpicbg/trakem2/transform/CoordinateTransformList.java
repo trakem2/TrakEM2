@@ -41,4 +41,13 @@ public class CoordinateTransformList extends mpicbg.models.CoordinateTransformLi
 	{
 		return "";
 	}
+	
+	@Override
+	final public CoordinateTransformList clone()
+	{
+		final CoordinateTransformList ctl = new CoordinateTransformList();
+		for ( mpicbg.models.CoordinateTransform ct : l )
+			ctl.add( ( ( CoordinateTransform )ct ).clone() );
+		return ctl;
+	}
 }

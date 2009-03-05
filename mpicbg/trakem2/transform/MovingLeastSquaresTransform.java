@@ -85,5 +85,15 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 	{
 		return indent + "<ict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\"/>";
 	}
-
+	
+	@Override
+	/**
+	 * TODO Make this more efficient
+	 */
+	final public MovingLeastSquaresTransform clone()
+	{
+		final MovingLeastSquaresTransform t = new MovingLeastSquaresTransform();
+		t.init( toDataString() );
+		return t;
+	}
 }

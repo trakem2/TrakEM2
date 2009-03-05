@@ -47,4 +47,15 @@ public class RigidModel2D extends mpicbg.models.RigidModel2D implements Coordina
 	{
 		return Math.atan2( sin, cos ) + " " + tx + " " + ty;
 	}
+	
+	@Override
+	/**
+	 * TODO Make this more efficient
+	 */
+	final public RigidModel2D clone()
+	{
+		final RigidModel2D t = new RigidModel2D();
+		t.init( toDataString() );
+		return t;
+	}
 }

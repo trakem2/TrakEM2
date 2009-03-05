@@ -46,4 +46,15 @@ public class TranslationModel2D extends mpicbg.models.TranslationModel2D impleme
 	{
 		return tx + " " + ty;
 	}
+	
+	@Override
+	/**
+	 * TODO Make this more efficient
+	 */
+	final public TranslationModel2D clone()
+	{
+		final TranslationModel2D t = new TranslationModel2D();
+		t.init( toDataString() );
+		return t;
+	}
 }
