@@ -411,6 +411,7 @@ public class Project extends DBObject {
 						try { burro.join(); } catch (InterruptedException ie) {}
 						// restore to non-changes (crude, but works)
 						project.loader.setChanged(false);
+						Utils.log2("C set to false");
 					}
 				};
 				new Thread() {
@@ -424,6 +425,16 @@ public class Project extends DBObject {
 						}
 					}
 				}.start();
+				// SO: WAIT TILL THE END OF TIME!
+				new Thread() { public void run() {
+					try {
+					Thread.sleep(4000); // ah, the pain in my veins. I can't take this shitty setup anymore.
+					javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+						project.getLoader().setChanged(false);
+						Utils.log2("D set to false");
+					}});
+					} catch (Exception ie) {}
+				}}.start();
 			} else {
 				// help the helpless users
 				Display.createDisplay(project, project.layer_set.getLayer(0));
