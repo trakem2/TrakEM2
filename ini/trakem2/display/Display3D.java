@@ -42,11 +42,15 @@ import javax.vecmath.Color3f;
 import javax.vecmath.Vector3f;
 import javax.media.j3d.View;
 import javax.media.j3d.Transform3D;
+import javax.media.j3d.PolygonAttributes;
 
 import ij3d.ImageWindow3D;
 import ij3d.Image3DUniverse;
 import ij3d.Content;
 import ij3d.Image3DMenubar;
+import customnode.CustomMeshNode;
+import customnode.CustomMesh;
+import customnode.CustomTriangleMesh;
 
 import java.lang.reflect.Field;
 
@@ -693,6 +697,7 @@ public final class Display3D {
 
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
 		List triangles = null;
+		boolean no_culling = false; // don't show back faces when false
 		if (displ instanceof AreaList) {
 			int rs = resample;
 			if (-1 == resample) rs = Display3D.this.resample = adjustResampling(); // will adjust this.resample, and return it (even if it's a default value)
@@ -708,6 +713,7 @@ public final class Display3D {
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
+			no_culling = true;
 		}
 		// safety checks
 		if (null == triangles) {
@@ -750,12 +756,29 @@ public final class Display3D {
 				ht_pt_meshes.put(pt, triangles);
 				// ensure proper default transform
 				//universe.resetView();
-				//
-				//universe.ensureScale((float)(width*scale));
-				universe.addMesh(triangles, new Color3f(color), title, 1); // had a (float)(width*scale) param in there before the 1
-				Content ct = universe.getContent(title);
+
+				Color3f c3 = new Color3f(color);
+
+				Content ct;
+
+				if (no_culling) {
+					// create a mesh with the same color and zero transparency (that is, full opacity)
+					CustomTriangleMesh mesh = new CustomTriangleMesh(triangles, c3, 0);
+					// Set mesh properties for double-sided triangles
+					PolygonAttributes pa = mesh.getAppearance().getPolygonAttributes();
+					pa.setCullFace(PolygonAttributes.CULL_NONE);
+					pa.setBackFaceNormalFlip(true);
+					// After setting properties, add to the viewer
+					ct = universe.addCustomMesh(mesh, c3, title);
+				} else {
+					ct = universe.addTriangleMesh(triangles, new Color3f(color), title);
+				}
+
+				// Set general content properties
 				ct.setTransparency(1f - alpha);
+				// Default is unlocked (editable) transformation; set it to locked:
 				ct.toggleLock();
+
 			} catch (Exception e) {
 				IJError.print(e);
 			}
@@ -869,15 +892,29 @@ public final class Display3D {
 			Display3D d3d = (Display3D)it.next();
 			if (null != d3d.universe.getContent(title)) return true;
 		}
+		if (d.getClass() == Profile.class) {
+			Content content = getProfileContent(d);
+		}
 		return false;
 	}
 
+	/** Checks if the given Displayable is a Profile, and tries to find a possible Content object in the Image3DUniverse of its LayerSet according to the title as created from its profile_list ProjectThing. */
+	static public Content getProfileContent(final Displayable d) {
+		if (null == d) return null;
+		if (d.getClass() != Profile.class) return null;
+		Display3D d3d = get(d.getLayer().getParent());
+		if (null == d3d) return null;
+		ProjectThing pt = d.getProject().findProjectThing(d);
+		if (null == pt) return null;
+		pt = (ProjectThing) pt.getParent();
+		return d3d.universe.getContent(new StringBuffer(pt.toString()).append(" #").append(pt.getId()).toString());
+	}
+
 	static public void setColor(final Displayable d, final Color color) {
-		if (!isDisplayed(d)) return;
 		Display3D d3d = get(d.getLayer().getParent());
 		if (null == d3d) return; // no 3D displays open
 		Content content = d3d.universe.getContent(makeTitle(d));
-		//Utils.log2("content: " + content);
+		if (null == content) content = getProfileContent(d);
 		if (null != content) content.setColor(new Color3f(color));
 	}
 
@@ -890,6 +927,7 @@ public final class Display3D {
 		Display3D d3d = (Display3D)ob;
 		String title = makeTitle(d);
 		Content content = d3d.universe.getContent(title);
+		if (null == content) content = getProfileContent(d);
 		if (null != content) content.setTransparency(1 - alpha);
 		else if (null == content && d.getClass().equals(Patch.class)) {
 			Patch pa = (Patch)d;
