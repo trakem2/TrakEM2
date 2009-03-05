@@ -92,6 +92,7 @@ public final class ProjectThing extends DBObject implements Thing {
 	/** For shallow copying purposes. */
 	private ProjectThing(final ProjectThing pt) {
 		super(pt.project, pt.id);
+		this.template = pt.template;
 		this.object = pt.object;
 		if (null != pt.ht_attributes) {
 			this.ht_attributes = (HashMap) pt.ht_attributes.clone();
