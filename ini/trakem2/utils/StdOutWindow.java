@@ -76,6 +76,8 @@ public class StdOutWindow {
 
 	static public void start() {
 		synchronized (instance) {
+			if (null != instance.window) return;
+
 			default_out = System.out;
 			default_err = System.err;
 
@@ -97,6 +99,7 @@ public class StdOutWindow {
 			instance.default_out = null;
 			instance.default_err = null;
 			instance.window.dispose();
+			instance.window = null;
 		}
 	}
 }
