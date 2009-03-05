@@ -52,4 +52,6 @@ public interface CoordinateTransform extends mpicbg.models.CoordinateTransform
 	 * @return
 	 */
 	public String toDataString();
+	
+	public CoordinateTransform clone();
 }

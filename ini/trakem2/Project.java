@@ -108,6 +108,10 @@ public class Project extends DBObject {
 	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
 	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
 
+	/** Universal near-unique id for this project, consisting of:
+	 *  <creation-time>.<storage-folder-hashcode>.<username-hashcode> */
+	private String unuid = null;
+
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
 		super(loader);
@@ -310,6 +314,7 @@ public class Project extends DBObject {
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
 			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
+
 			// help the helpless users:
 			if (null != project && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Creating automatic Display.");
@@ -942,6 +947,7 @@ public class Project extends DBObject {
 		//TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
 		sb_header.append(indent).append("<!ELEMENT ").append("project (").append(root_tt.getType()).append(")>\n");
 		sb_header.append(indent).append("<!ATTLIST project id NMTOKEN #REQUIRED>\n");
+		sb_header.append(indent).append("<!ATTLIST project unuid NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project title NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project preprocessor NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project mipmaps_folder NMTOKEN #REQUIRED>\n");
@@ -1080,7 +1086,6 @@ public class Project extends DBObject {
 			Map.Entry prop = (Map.Entry)it.next();
 			Utils.log2("parsed: " + prop.getKey() + "=" + prop.getValue());
 		}
-
 	}
 	public HashMap<String,String> getPropertiesCopy() {
 		return (HashMap<String,String>)ht_props.clone();
@@ -1207,5 +1212,10 @@ public class Project extends DBObject {
 			layer_set.recreateBuckets(true);
 		}
 		adjustProp("no_shutdown_hook", no_shutdown_hook, gd.getNextBoolean());
+	}
+
+	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */
+	public String getUNUId() {
+		return loader.getUNUId();
 	}
 }

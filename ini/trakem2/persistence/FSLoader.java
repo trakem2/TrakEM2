@@ -105,6 +105,8 @@ public final class FSLoader extends Loader {
 		super.v_loaders.remove(this); //will be readded on successful open
 	}
 
+	private String unuid = null;
+
 	/** Used to create a new project, NOT from an XML file. */
 	public FSLoader(final String storage_folder) {
 		this();
@@ -114,9 +116,18 @@ public final class FSLoader extends Loader {
 		if (!Loader.canReadAndWriteTo(dir_storage)) {
 			Utils.log("WARNING can't read/write to the storage_folder at " + dir_storage);
 		} else {
+			this.unuid = FSLoader.createUNUId(this.dir_storage);
 			createMipMapsDir(this.dir_storage);
 			crashDetector();
 		}
+	}
+
+	static private String createUNUId(String dir_storage) {
+		if (null == dir_storage) dir_storage = "!@#$%!";
+		return new StringBuffer(64).append(System.currentTimeMillis()).append('.')
+			                   .append(Math.abs(dir_storage.hashCode())).append('.')
+				   	   .append(Math.abs(System.getProperty("user.name").hashCode()))
+					   .toString();
 	}
 
 	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders. Used for creating subprojects. */
@@ -158,6 +169,7 @@ public final class FSLoader extends Loader {
 		return project_file_path.toString(); // a copy of it
 	}
 
+	/** Return the folder selected by a user to store files into; it's also the parent folder of the UNUId folder, and the recommended folder to store the XML file into. */
 	public String getStorageFolder() {
 		if (null == dir_storage) return super.getStorageFolder(); // the user's home
 		return dir_storage.toString(); // a copy
@@ -166,7 +178,7 @@ public final class FSLoader extends Loader {
 	/** Returns a folder proven to be writable for images can be stored into. */
 	public String getImageStorageFolder() {
 		if (null == dir_image_storage) {
-			String s = getStorageFolder() + "trakem2.images/";
+			String s = getUNUIdFolder() + "trakem2.images/";
 			File f = new File(s);
 			if (f.exists() && f.isDirectory() && f.canWrite()) {
 				dir_image_storage = s;
@@ -307,10 +319,10 @@ public final class FSLoader extends Loader {
 		for (final Patch p : touched_mipmaps) {
 			File f = new File(getAbsolutePath(p));
 			Utils.log2("File f is " + f);
-			if (f.exists()) {
+			if (f.exists()) { // TODO this may not work for stacks!
 				Utils.log2("Removing mipmaps for " + p);
 				// Cannot run in the dispatcher: is a daemon, and would be interrupted.
-				removeMipMaps(f.getName() + "." + p.getId() + ".jpg", (int)p.getWidth(), (int)p.getHeight()); // needs the dispatcher!
+				removeMipMaps(createIdPath(Long.toString(p.getId()), f.getName(), ".jpg"), (int)p.getWidth(), (int)p.getHeight()); // needs the dispatcher!
 			}
 		}
 		//
@@ -585,7 +597,7 @@ public final class FSLoader extends Loader {
 			return null;
 		}
 		final String dir = getMasksFolder();
-		return new StringBuffer(dir).append(filename).append('.').append(p.getId()).append(".zip").toString();
+		return new StringBuffer(dir).append(createIdPath(Long.toString(p.getId()), filename, ".zip")).toString();
 	}
 
 	@Override
@@ -1039,6 +1051,7 @@ public final class FSLoader extends Loader {
 			return path;
 		}
 		// the long and verbose way, to be cross-platform. Should work with URLs just the same.
+		/*
 		File xf = new File(project_file_path);
 		File fpath = new File(path);
 		if (fpath.getParentFile().equals(xf.getParentFile())) {
@@ -1047,6 +1060,19 @@ public final class FSLoader extends Loader {
 			if (0 == path.indexOf('/')) path = path.substring(1);
 		} else if (fpath.equals(xf.getParentFile())) {
 			return "";
+		}
+		*/
+		String xdir = new File(project_file_path).getParentFile().getAbsolutePath();
+		if (!xdir.endsWith("/")) xdir += "/";
+		File fpath = new File(path);
+		path = fpath.getAbsolutePath(); // removing double "//" and other potential problems
+		if (fpath.isDirectory() && !path.endsWith("/")) path += "/";
+		if (IJ.isWindows()) {
+			xdir = xdir.replace('\\', '/');
+			path = path.replace('\\', '/');
+		}
+		if (path.startsWith(xdir)) {
+			path = path.substring(xdir.length());
 		}
 		if (-1 != isl) path += slice;
 		//Utils.log("made relative path: " + path);
@@ -1232,6 +1258,16 @@ public final class FSLoader extends Loader {
 		// fix
 		if (null != this.dir_mipmaps && !this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
 		Utils.log2("mipmaps folder is " + this.dir_mipmaps);
+
+		this.unuid = (String) ht_attributes.remove("unuid");
+		if (null == unuid) {
+			IJ.log("OLD VERSION DETECTED: your trakem2\nproject has been updated to the new format.\nPlease SAVE IT to avoid regenerating\ncached data when reopening it.");
+			Utils.log2("Creating unuid for project " + this);
+			this.unuid = createUNUId(dir_storage);
+			fixStorageFolders();
+			Utils.log2("Now mipmaps folder is " + this.dir_mipmaps);
+			if (null != dir_masks) Utils.log2("Now masks folder is " + this.dir_masks);
+		}
 	}
 
 	private void askAndExecMipmapRegeneration(final String msg) {
@@ -1256,6 +1292,7 @@ public final class FSLoader extends Loader {
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
 	public void insertXMLOptions(StringBuffer sb_body, String indent) {
+		sb_body.append(indent).append("unuid=\"").append(unuid).append("\"\n");
 		if (null != preprocessor) sb_body.append(indent).append("preprocessor=\"").append(preprocessor).append("\"\n");
 		if (null != dir_mipmaps) sb_body.append(indent).append("mipmaps_folder=\"").append(makeRelativePath(dir_mipmaps)).append("\"\n");
 		if (null != dir_storage) sb_body.append(indent).append("storage_folder=\"").append(makeRelativePath(dir_storage)).append("\"\n");
@@ -1518,7 +1555,11 @@ public final class FSLoader extends Loader {
 			coordinate_transformed = pai.coordinate_transformed;
 			pai = null;
 			
-			final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
+			// Old style:
+			//final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
+			// New style:
+			final String filename = createMipMapRelPath(patch);
+
 			int w = ip.getWidth();
 			int h = ip.getHeight();
 
@@ -1807,7 +1848,7 @@ public final class FSLoader extends Loader {
 	/** Remove the file, if it exists, with serialized features for patch.
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedFeatures(final Patch patch) {
-		final File f = new File(new StringBuffer(dir_storage).append("features.ser/features_").append(patch.getUniqueIdentifier()).append(".ser").toString());
+		final File f = new File(new StringBuffer(getUNUIdFolder()).append(FSLoader.createIdPath(Long.toString(patch.getId()), "features", ".ser")).toString());
 		if (f.exists()) {
 			try {
 				f.delete();
@@ -1822,24 +1863,94 @@ public final class FSLoader extends Loader {
 	/** Remove the file, if it exists, with serialized point matches for patch.
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedPointMatches(final Patch patch) {
+		final String ser = new StringBuffer(getUNUIdFolder()).append("pointmatches.ser/").toString();
+		final File fser = new File(ser);
+
+		if (!fser.exists() || !fser.isDirectory()) return true;
+
 		boolean success = true;
-		final File d = new File(new StringBuffer(dir_storage).append("pointmatches.ser").toString());
-		if (d.exists()&&d.isDirectory()) {
-			final String[] files = d.list();
-			if ( files != null )
-			{
-				for ( final String f : files ) {
-					if ( f.matches( ".*_" + patch.getUniqueIdentifier() + "(_|\\.).*" ) ) {
-						try {
-							new File( d.getAbsolutePath() + "/" + f ).delete();
-						} catch (Exception e) {
-							IJError.print(e);
-							success = false;
+		final String sid = Long.toString(patch.getId());
+
+		final ArrayList<String> removed_paths = new ArrayList<String>();
+
+		// 1 - Remove all files with <p1.id>_<p2.id>:
+		if (sid.length() < 2) {
+			// Delete all files starting with sid + '_' and present directly under fser
+			success = Utils.removePrefixedFiles(fser, sid + "_", removed_paths);
+		} else {
+			final String sid_ = sid + "_"; // minimal 2 length: a number and the underscore
+			final int len = sid_.length();
+			final StringBuffer dd = new StringBuffer();
+			for (int i=1; i<=len; i++) {
+				dd.append(sid_.charAt(i-1));
+				if (0 == i % 2 && len != i) dd.append('/');
+			}
+			final String med = dd.toString();
+			final int last_slash = med.lastIndexOf('/');
+			final File med_parent = new File(ser + med.substring(0, last_slash+1));
+			// case of 12/34/_*    ---> use prefix: "_"
+			// case of 12/34/5_/*  ---> use prefix: last number plus underscore, aka: med.substring(med.length()-2);
+			success = Utils.removePrefixedFiles(med_parent, 
+							    last_slash == med.length() -2 ? "_" : med.substring(med.length() -2),
+							    removed_paths);
+		}
+
+		// 2 - For each removed path, find the complementary: <*>_<p1.id>
+		for (String path : removed_paths) {
+			if (IJ.isWindows()) path = path.replace('\\', '/');
+			File f = new File(path);
+			// Check that its a pointmatches file
+			int idot = path.lastIndexOf(".pointmatches.ser");
+			if (idot < 0) {
+				Utils.log2("Not a pointmatches.ser file: can't process " + path);
+				continue;
+			}
+
+			// Find the root
+			int ifolder = path.indexOf("pointmatches.ser/");
+			if (ifolder < 0) {
+				Utils.log2("Not in pointmatches.ser/ folder:" + path);
+				continue;
+			}
+			String dir = path.substring(0, ifolder + 17);
+
+			// Cut the beginning and the end
+			String name = path.substring(dir.length(), idot);
+			Utils.log2("name: " + name);
+			// Remove all path separators
+			name = name.replaceAll("/", "");
+
+			int iunderscore = name.indexOf('_');
+			if (-1 == iunderscore) {
+				Utils.log2("No underscore: can't process " + path);
+				continue;
+			}
+			name = FSLoader.createIdPath(new StringBuffer().append(name.substring(iunderscore+1)).append('_').append(name.substring(0, iunderscore)).toString(), "pointmatches", ".ser");
+
+			f = new File(dir + name);
+			if (f.exists()) {
+				if (!f.delete()) {
+					Utils.log2("Could not delete " + f.getAbsolutePath());
+					success = false;
+				} else {
+					Utils.log2("Deleted pointmatches file " + name);
+					// Now remove its parent directories within pointmatches.ser/ directory, if they are empty
+					int islash = name.lastIndexOf('/');
+					String dirname = name;
+					while (islash > -1) {
+						dirname = dirname.substring(0, islash);
+						if (!Utils.removeFile(new File(dir + dirname))) {
+							// directory not empty
+							break;
 						}
+						islash = dirname.lastIndexOf('/');
 					}
 				}
+			} else {
+				Utils.log2("File does not exist: " + dir + name);
 			}
 		}
+
 		return success;
 	}
 
@@ -1950,12 +2061,18 @@ public final class FSLoader extends Loader {
 		return null;
 	}
 
+	/** Returns the near-unique folder for the project hosted by this FSLoader. */
+	public String getUNUIdFolder() {
+		return new StringBuffer(getStorageFolder()).append("trakem2.").append(unuid).append('/').toString();
+	}
+
 	/** If parent path is null, it's asked for.*/
 	public boolean createMipMapsDir(String parent_path) {
+		if (null == this.unuid) this.unuid = createUNUId(parent_path);
 		if (null == parent_path) {
 			// try to create it in the same directory where the XML file is
 			if (null != dir_storage) {
-				File f = new File(dir_storage + "trakem2.mipmaps");
+				File f = new File(getUNUIdFolder() + "/trakem2.mipmaps");
 				if (!f.exists()) {
 					try {
 						if (f.mkdir()) {
@@ -1970,24 +2087,12 @@ public final class FSLoader extends Loader {
 					return true;
 				}
 				// else can't use it
-			} else if (null != project_file_path) {
-				final File fxml = new File(project_file_path);
-				final File fparent = fxml.getParentFile();
-				if (null != fparent && fparent.isDirectory()) {
-					File f = new File(fparent.getAbsolutePath().replace('\\', '/') + "/" + fxml.getName() + ".mipmaps");
-					try {
-						if (f.mkdir()) {
-							this.dir_mipmaps = f.getAbsolutePath().replace('\\', '/');
-							if (!dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
-							return true;
-						}
-					} catch (Exception e) {}
-				}
 			}
 			// else,  ask for a new folder
 			final DirectoryChooser dc = new DirectoryChooser("Select MipMaps parent directory");
 			parent_path = dc.getDirectory();
 			if (null == parent_path) return false;
+			parent_path = parent_path.replace('\\', '/');
 			if (!parent_path.endsWith("/")) parent_path += "/";
 		}
 		// examine parent path
@@ -1995,11 +2100,14 @@ public final class FSLoader extends Loader {
 		if (file.exists()) {
 			if (file.isDirectory()) {
 				// all OK
-				this.dir_mipmaps = parent_path + "trakem2.mipmaps/";
+				this.dir_mipmaps = parent_path + "trakem2." + unuid + "/trakem2.mipmaps/";
 				try {
 					File f = new File(this.dir_mipmaps);
 					if (!f.exists()) {
-						f.mkdir();
+						if (!f.mkdir()) {
+							Utils.log("Could not create trakem2.mipmaps!");
+							return false;
+						}
 					}
 				} catch (Exception e) {
 					IJError.print(e);
@@ -2054,7 +2162,7 @@ public final class FSLoader extends Loader {
 			final String filename = new File(path).getName() + "." + p.getId() + ".jpg";
 			// cue the task in a dispatcher:
 			dispatcher.exec(new Runnable() { public void run() { // copy-paste as a replacement for (defmacro ... we luv java
-				removeMipMaps(filename, width, height);
+				removeMipMaps(createIdPath(Long.toString(p.getId()), filename, ".jpg"), width, height);
 			}});
 		} catch (Exception e) {
 			IJError.print(e);
@@ -2164,12 +2272,16 @@ public final class FSLoader extends Loader {
 
 			//Utils.log2("level is: " + max_level);
 
-			final String filepath = getInternalFileName(patch);
-			if (null == filepath) {
-				Utils.log2("null filepath!");
+			final String filename = getInternalFileName(patch);
+			if (null == filename) {
+				Utils.log2("null internal filename!");
 				return null;
 			}
-			final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filepath).append('.').append(patch.getId()).append(".jpg").toString();
+			// Old style:
+			//final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filename).append('.').append(patch.getId()).append(".jpg").toString();
+			// New style:
+			final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, ".jpg")).toString();
+
 			Image img = null;
 
 			if (patch.hasAlphaChannel()) {
@@ -2323,4 +2435,128 @@ public final class FSLoader extends Loader {
 		// Generate the starting level mipmaps, and then the others from it by gaussian or whatever is indicated in the project image_resizing_mode property.
 		return null;
 	}
+
+	/** Convert old-style storage folders to new style. */
+	public boolean fixStorageFolders() {
+		try {
+			// 1 - Create folder unuid_folder at storage_folder + unuid
+			if (null == this.unuid) {
+				Utils.log2("No unuid for project!");
+				return false;
+			}
+			// the trakem2.<unuid> folder that will now contain trakem2.mipmaps, trakem2.masks, etc.
+			final String unuid_folder = getUNUIdFolder();
+			File fdir = new File(unuid_folder);
+			if (!fdir.exists()) {
+				if (!fdir.mkdir()) {
+					Utils.log2("Could not create folder " + unuid_folder);
+					return false;
+				}
+			}
+			// 2 - Create trakem2.mipmaps inside unuid folder
+			final String new_dir_mipmaps = unuid_folder + "trakem2.mipmaps/";
+			fdir = new File(new_dir_mipmaps);
+			if (!fdir.mkdir()) {
+				Utils.log2("Could not create folder " + new_dir_mipmaps);
+				return false;
+			}
+			// 3 - Reorganize current mipmaps folder to folders with following convention: <level>/dd/dd/d.jpg where ddddd is Patch.id=12345 12/34/5.jpg etc.
+			final String dir_mipmaps = getMipMapsFolder();
+			for (final String name : new File(dir_mipmaps).list()) {
+				String level_dir = new StringBuffer(dir_mipmaps).append(name).append('/').toString();
+				final File f = new File(level_dir);
+				if (!f.isDirectory() || f.isHidden()) continue;
+				for (final String mm : f.list()) {
+					if (!mm.endsWith(".jpg")) continue;
+					// parse the mipmap file: filename + '.' + id + '.jpg'
+					int last_dot = mm.lastIndexOf('.');
+					if (-1 == last_dot) continue;
+					int prev_last_dot = mm.lastIndexOf('.', last_dot -1);
+					String id = mm.substring(prev_last_dot+1, last_dot);
+					String filename = mm.substring(0, prev_last_dot);
+					File oldf = new File(level_dir + mm);
+					File newf = new File(new StringBuffer(new_dir_mipmaps).append(name).append('/').append(createIdPath(id, filename, ".jpg")).toString());
+					File fd = newf.getParentFile();
+					if (!fd.exists()) {
+						if (!fd.mkdirs()) {
+							Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
+							continue;
+						}
+					}
+					if (!oldf.renameTo(newf)) {
+						Utils.log2("Could not move mipmap file " + oldf.getAbsolutePath() + " to " + newf.getAbsolutePath());
+						continue;
+					}
+				}
+			}
+			// Set it!
+			this.dir_mipmaps = new_dir_mipmaps;
+
+			// Remove old empty dirs:
+			Utils.removeFile(new File(dir_mipmaps));
+
+			// 4 - same for alpha folder and features folder.
+			final String masks_folder = getStorageFolder() + "trakem2.masks/";
+			File fmasks = new File(masks_folder);
+			this.dir_masks = null;
+			if (fmasks.exists()) {
+				final String new_dir_masks = unuid_folder + "trakem2.masks/";
+				for (final File fmask : fmasks.listFiles()) {
+					final String name = fmask.getName();
+					if (!name.endsWith(".zip")) continue;
+					int last_dot = name.lastIndexOf('.');
+					if (-1 == last_dot) continue;
+					int prev_last_dot = name.lastIndexOf('.', last_dot -1);
+					String id = name.substring(prev_last_dot+1, last_dot);
+					String filename = name.substring(0, prev_last_dot);
+					File newf = new File(new_dir_masks + createIdPath(id, filename, ".zip"));
+					File fd = newf.getParentFile();
+					if (!fd.exists()) {
+						if (!fd.mkdirs()) {
+							Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
+							continue;
+						}
+					}
+					if (!fmask.renameTo(newf)) {
+						Utils.log2("Could not move mask file " + fmask.getAbsolutePath() + " to " + newf.getAbsolutePath());
+						continue;
+					}
+				}
+				// Set it!
+				this.dir_masks = new_dir_masks;
+
+				// remove old empty:
+				Utils.removeFile(fmasks);
+			}
+
+			// TODO should save the .xml file, so the unuid and the new storage folders are set in there!
+
+			return true;
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return false;
+	}
+
+	/** For Patch id=12345 creates 12/34/5.${filename}.jpg */
+	static public final String createMipMapRelPath(final Patch p) {
+		return createIdPath(Long.toString(p.getId()), new File(p.getCurrentPath()).getName(), ".jpg");
+	}
+
+	/** For sid=12345 creates 12/34/5.${filename}.jpg
+	 *  Will be fine with other filename-valid chars in sid. */
+	static public final String createIdPath(final String sid, final String filename, final String ext) {
+		final StringBuffer sf = new StringBuffer(((sid.length() * 3) / 2) + 1);
+		final int len = sid.length();
+		for (int i=1; i<=len; i++) {
+			sf.append(sid.charAt(i-1));
+			if (0 == i % 2 && len != i) sf.append('/');
+		}
+		return sf.append('.').append(filename).append(ext).toString();
+	}
+
+	public String getUNUId() {
+		return unuid;
+	}
+
 }

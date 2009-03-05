@@ -1055,6 +1055,25 @@ public final class Patch extends Displayable {
 			setCoordinateTransform(ctl);
 		}
 	}
+	
+	/**
+	 * Get the bounding rectangle of the transformed image relative to the
+	 * original image.
+	 * 
+	 * TODO
+	 *   Currently, this is done in a very expensive way.  The
+	 *   {@linkplain TransformMesh} is built and its bounding rectangle is
+	 *   returned.  Think about just storing this rectangle in the
+	 *   {@linkplain Patch} instance.
+	 * 
+	 * @return
+	 */
+	public final Rectangle getCoordinateTransformBoundingBox() {
+		if (null==ct)
+			return new Rectangle(0,0,o_width,o_height);
+		final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+		return mesh.getBoundingBox();
+	}
 
 	public final CoordinateTransform getCoordinateTransform() { return ct; }
 	
@@ -1080,6 +1099,8 @@ public final class Patch extends Displayable {
 	public final Patch.PatchImage createCoordinateTransformedImage() {
 		if (null == ct) return null;
 		
+		project.getLoader().releaseToFit(o_width, o_height, type, 5);
+
 		final ImageProcessor source = getImageProcessor();
 
 		//Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());

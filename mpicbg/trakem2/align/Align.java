@@ -23,6 +23,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.FSLoader;
 
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
@@ -448,15 +449,9 @@ public class Align
 		list.addAll( f );
 		final Patch patch = t.getPatch();
 		final Loader loader = patch.getProject().getLoader();
-		final String storageFolder = loader.getStorageFolder() + "features.ser/";
-		File dir = new File( storageFolder );
-		if ( !dir.exists() )
-		{
-			try { dir.mkdir(); }
-			catch ( Exception e ) { return false; }
-		}
 		final Features fe = new Features( p.sift, list );
-		return loader.serialize( fe, new StringBuffer( storageFolder ).append( "features_" ).append( patch.getUniqueIdentifier() ).append( ".ser" ).toString() );
+		return loader.serialize( fe, new StringBuffer( loader.getUNUIdFolder() ).append( "features.ser/" )
+			.append( FSLoader.createIdPath( Long.toString( patch.getId() ), "features", ".ser" ) ).toString() );
 	}
 
 	/**
@@ -466,9 +461,9 @@ public class Align
 	{
 		final Patch patch = t.getPatch();
 		final Loader loader = patch.getProject().getLoader();
-		final String storageFolder = loader.getStorageFolder() + "features.ser/";
-		
-		final Object ob = loader.deserialize( new StringBuffer( storageFolder ).append( "features_" ).append( patch.getUniqueIdentifier() ).append( ".ser" ).toString() );
+
+		final Object ob = loader.deserialize( new StringBuffer( loader.getUNUIdFolder() ).append( "features.ser/" )
+			.append( FSLoader.createIdPath( Long.toString( patch.getId() ), "features", ".ser" ) ).toString() );
 		if ( null != ob )
 		{
 			try
@@ -519,15 +514,9 @@ public class Align
 		final Patch p1 = t1.getPatch();
 		final Patch p2 = t2.getPatch();
 		final Loader loader = p1.getProject().getLoader();
-		final String storageFolder = loader.getStorageFolder() + "pointmatches.ser/";
-		File dir = new File( storageFolder );
-		if ( !dir.exists() )
-		{
-			try { dir.mkdir(); }
-			catch ( Exception e ) { return false; }
-		}
 		final PointMatches pm = new PointMatches( p, list );
-		return loader.serialize( pm, new StringBuffer( storageFolder ).append( "pointmatches_" ).append( p1.getUniqueIdentifier() ).append( "_" ).append( p2.getUniqueIdentifier() ).append( ".ser" ).toString() );
+		return loader.serialize( pm, new StringBuffer( loader.getUNUIdFolder() ).append( "pointmatches.ser/" )
+				.append( FSLoader.createIdPath( Long.toString( p1.getId() ) + "_" + Long.toString( p2.getId() ), "pointmatches", ".ser" ) ).toString() );
 	}
 	
 	
@@ -539,9 +528,11 @@ public class Align
 		final Patch p1 = t1.getPatch();
 		final Patch p2 = t2.getPatch();
 		final Loader loader = p1.getProject().getLoader();
-		final String storageFolder = loader.getStorageFolder() + "pointmatches.ser/";
+		final String storageFolder = loader.getUNUIdFolder() + "pointmatches.ser/";
 		
-		final Object ob = loader.deserialize( new StringBuffer( storageFolder ).append( "pointmatches_" ).append( p1.getUniqueIdentifier() ).append( "_" ).append( p2.getUniqueIdentifier() ).append( ".ser" ).toString() );
+		final Object ob = loader.deserialize( new StringBuffer( loader.getUNUIdFolder() ).append( "pointmatches.ser/" )
+				.append( FSLoader.createIdPath( Long.toString( p1.getId() ) + "_" + Long.toString( p2.getId() ), "pointmatches", ".ser" ) ).toString() );
+		
 		if ( null != ob )
 		{
 			try
