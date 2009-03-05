@@ -503,6 +503,17 @@ public class Align
 	}
 	
 
+	/**
+	 * Save a {@link Collection} of {@link PointMatch PointMatches} two-sided.
+	 * Creates two serialization files which is desperately required to clean
+	 * up properly invalid serializations on change of a {@link Patch}.
+	 * 
+	 * @param p
+	 * @param t1
+	 * @param t2
+	 * @param m
+	 * @return
+	 */
 	final static protected boolean serializePointMatches(
 			final Param p,
 			final AbstractAffineTile2D< ? > t1,
@@ -511,12 +522,17 @@ public class Align
 	{
 		final ArrayList< PointMatch > list = new ArrayList< PointMatch >();
 		list.addAll( m );
+		final ArrayList< PointMatch > tsil = PointMatch.flip( m );
 		final Patch p1 = t1.getPatch();
 		final Patch p2 = t2.getPatch();
 		final Loader loader = p1.getProject().getLoader();
-		final PointMatches pm = new PointMatches( p, list );
-		return loader.serialize( pm, new StringBuffer( loader.getUNUIdFolder() ).append( "pointmatches.ser/" )
-				.append( FSLoader.createIdPath( Long.toString( p1.getId() ) + "_" + Long.toString( p2.getId() ), "pointmatches", ".ser" ) ).toString() );
+		return
+			loader.serialize(
+				new PointMatches( p, list ),
+				new StringBuffer( loader.getUNUIdFolder() ).append( "pointmatches.ser/" ).append( FSLoader.createIdPath( Long.toString( p1.getId() ) + "_" + Long.toString( p2.getId() ), "pointmatches", ".ser" ) ).toString() ) &&
+			loader.serialize(
+				new PointMatches( p, tsil ),
+				new StringBuffer( loader.getUNUIdFolder() ).append( "pointmatches.ser/" ).append( FSLoader.createIdPath( Long.toString( p2.getId() ) + "_" + Long.toString( p1.getId() ), "pointmatches", ".ser" ) ).toString() );
 	}
 	
 	
