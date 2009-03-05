@@ -1178,6 +1178,10 @@ public class AreaList extends ZDisplayable {
 			p.x += dx;
 			p.y += dy;
 			p.z += dz;
+
+			// TODO: should capture vertices whose Z coordinate falls within a layer thickness, and translate that to the real layer Z and thickness (because now it's using the first layer thickness only).
+			// TODO: even before this, should enable interpolation when desired, since we have images anyway.
+
 		}
 		return list;
 		} catch (Exception e) {

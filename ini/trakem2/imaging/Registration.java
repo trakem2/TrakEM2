@@ -1952,7 +1952,7 @@ public class Registration {
 	/** Retrieve the features only if saved with the exact same relevant SIFT parameters. */
 	static public Vector<Feature> deserialize(final Patch p, final Registration.SIFTParameters sp, final String storage_folder) {
 		if (null == storage_folder) return null;
-		final Object ob = p.getProject().getLoader().deserialize(new StringBuffer(storage_folder).append("features_").append(p.getId()).append(".ser").toString());
+		final Object ob = p.getProject().getLoader().deserialize(new StringBuffer(storage_folder).append(FSLoader.createIdPath(Long.toString(p.getId()), "features", ".ser")).toString());
 		if (null != ob) {
 			try {
 				final Features fe = (Features)ob;

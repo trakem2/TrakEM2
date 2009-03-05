@@ -1259,6 +1259,7 @@ public final class FSLoader extends Loader {
 
 		this.unuid = (String) ht_attributes.remove("unuid");
 		if (null == unuid) {
+			IJ.log("OLD VERSION DETECTED: your trakem2\nproject has been updated to the new format.\nPlease SAVE IT to avoid regenerating\ncached data when reopening it.");
 			Utils.log2("Creating unuid for project " + this);
 			this.unuid = createUNUId(dir_storage);
 			fixStorageFolders();
@@ -1845,7 +1846,7 @@ public final class FSLoader extends Loader {
 	/** Remove the file, if it exists, with serialized features for patch.
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedFeatures(final Patch patch) {
-		final File f = new File(new StringBuffer(getUNUIdFolder()).append("features.ser/features_").append(patch.getUniqueIdentifier()).append(".ser").toString());
+		final File f = new File(new StringBuffer(getUNUIdFolder()).append(FSLoader.createIdPath(Long.toString(patch.getId()), "features", ".ser")).toString());
 		if (f.exists()) {
 			try {
 				f.delete();
@@ -1860,24 +1861,94 @@ public final class FSLoader extends Loader {
 	/** Remove the file, if it exists, with serialized point matches for patch.
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedPointMatches(final Patch patch) {
+		final String ser = new StringBuffer(getUNUIdFolder()).append("pointmatches.ser/").toString();
+		final File fser = new File(ser);
+
+		if (!fser.exists() || !fser.isDirectory()) return true;
+
 		boolean success = true;
-		final File d = new File(new StringBuffer(getUNUIdFolder()).append("pointmatches.ser").toString());
-		if (d.exists()&&d.isDirectory()) {
-			final String[] files = d.list();
-			if ( files != null )
-			{
-				for ( final String f : files ) {
-					if ( f.matches( ".*_" + patch.getUniqueIdentifier() + "(_|\\.).*" ) ) {
-						try {
-							new File( d.getAbsolutePath() + "/" + f ).delete();
-						} catch (Exception e) {
-							IJError.print(e);
-							success = false;
+		final String sid = Long.toString(patch.getId());
+
+		final ArrayList<String> removed_paths = new ArrayList<String>();
+
+		// 1 - Remove all files with <p1.id>_<p2.id>:
+		if (sid.length() < 2) {
+			// Delete all files starting with sid + '_' and present directly under fser
+			success = Utils.removePrefixedFiles(fser, sid + "_", removed_paths);
+		} else {
+			final String sid_ = sid + "_"; // minimal 2 length: a number and the underscore
+			final int len = sid_.length();
+			final StringBuffer dd = new StringBuffer();
+			for (int i=1; i<=len; i++) {
+				dd.append(sid_.charAt(i-1));
+				if (0 == i % 2 && len != i) dd.append('/');
+			}
+			final String med = dd.toString();
+			final int last_slash = med.lastIndexOf('/');
+			final File med_parent = new File(ser + med.substring(0, last_slash+1));
+			// case of 12/34/_*    ---> use prefix: "_"
+			// case of 12/34/5_/*  ---> use prefix: last number plus underscore, aka: med.substring(med.length()-2);
+			success = Utils.removePrefixedFiles(med_parent, 
+							    last_slash == med.length() -2 ? "_" : med.substring(med.length() -2),
+							    removed_paths);
+		}
+
+		// 2 - For each removed path, find the complementary: <*>_<p1.id>
+		for (String path : removed_paths) {
+			if (IJ.isWindows()) path = path.replace('\\', '/');
+			File f = new File(path);
+			// Check that its a pointmatches file
+			int idot = path.lastIndexOf(".pointmatches.ser");
+			if (idot < 0) {
+				Utils.log2("Not a pointmatches.ser file: can't process " + path);
+				continue;
+			}
+
+			// Find the root
+			int ifolder = path.indexOf("pointmatches.ser/");
+			if (ifolder < 0) {
+				Utils.log2("Not in pointmatches.ser/ folder:" + path);
+				continue;
+			}
+			String dir = path.substring(0, ifolder + 17);
+
+			// Cut the beginning and the end
+			String name = path.substring(dir.length(), idot);
+			Utils.log2("name: " + name);
+			// Remove all path separators
+			name = name.replaceAll("/", "");
+
+			int iunderscore = name.indexOf('_');
+			if (-1 == iunderscore) {
+				Utils.log2("No underscore: can't process " + path);
+				continue;
+			}
+			name = FSLoader.createIdPath(new StringBuffer().append(name.substring(iunderscore+1)).append('_').append(name.substring(0, iunderscore)).toString(), "pointmatches", ".ser");
+
+			f = new File(dir + name);
+			if (f.exists()) {
+				if (!f.delete()) {
+					Utils.log2("Could not delete " + f.getAbsolutePath());
+					success = false;
+				} else {
+					Utils.log2("Deleted pointmatches file " + name);
+					// Now remove its parent directories within pointmatches.ser/ directory, if they are empty
+					int islash = name.lastIndexOf('/');
+					String dirname = name;
+					while (islash > -1) {
+						dirname = dirname.substring(0, islash);
+						if (!Utils.removeFile(new File(dir + dirname))) {
+							// directory not empty
+							break;
 						}
+						islash = dirname.lastIndexOf('/');
 					}
 				}
+			} else {
+				Utils.log2("File does not exist: " + dir + name);
 			}
 		}
+
 		return success;
 	}
 
@@ -2455,6 +2526,8 @@ public final class FSLoader extends Loader {
 				// remove old empty:
 				Utils.removeFile(fmasks);
 			}
+
+			// TODO should save the .xml file, so the unuid and the new storage folders are set in there!
 
 			return true;
 		} catch (Exception e) {
