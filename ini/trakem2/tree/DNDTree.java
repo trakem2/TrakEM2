@@ -468,7 +468,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
-			HashMap ht = (HashMap)f.get(this);
+			Hashtable ht = (Hashtable)f.get(this);
 			ht.put(new TreePath(node.getPath()), new Boolean(b)); // this queries directly the expandedState transient private HashMap of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
@@ -597,7 +597,6 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	/** Shallow copy of the tree: returns a clone of the root node and cloned children, recursively, with all Thing cloned as well, but the Thing object is the same. */
 	public Thing duplicate(final HashMap<Thing,Boolean> expanded_state) {
 		DefaultMutableTreeNode root_node = (DefaultMutableTreeNode) this.getModel().getRoot();
-		Thing root = (Thing) root_node.getUserObject();
 		// Descend both the root_copy tree and the root_node tree, and build shallow copies of Thing with same expanded state
 		return duplicate(root_node, expanded_state);
 	}
