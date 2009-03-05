@@ -1848,11 +1848,10 @@ public final class FSLoader extends Loader {
 	/** Remove the file, if it exists, with serialized features for patch.
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedFeatures(final Patch patch) {
-		final File f = new File(new StringBuffer(getUNUIdFolder()).append(FSLoader.createIdPath(Long.toString(patch.getId()), "features", ".ser")).toString());
+		final File f = new File(new StringBuffer(getUNUIdFolder()).append("features.ser/").append(FSLoader.createIdPath(Long.toString(patch.getId()), "features", ".ser")).toString());
 		if (f.exists()) {
 			try {
-				f.delete();
-				return true;
+				return f.delete();
 			} catch (Exception e) {
 				IJError.print(e);
 				return false;
