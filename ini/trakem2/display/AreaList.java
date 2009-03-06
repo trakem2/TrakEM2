@@ -1170,7 +1170,7 @@ public class AreaList extends ZDisplayable {
 		final float dy = (float)(r.y * scale * cal.pixelHeight);
 		final float dz = (float)((z - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
 		final float rs = resample / (float)scale;
-		final float z_correction = thickness * scale * cal.pixelWidth;
+		final float z_correction = (float)(thickness * scale * cal.pixelWidth);
 		for (Iterator it = list.iterator(); it.hasNext(); ) {
 			Point3f p = (Point3f)it.next();
 			// fix back the resampling (but not the universe scale, which has already been considered)
