@@ -877,7 +877,7 @@ public final class Patch extends Displayable {
 	public int[] getPixel(final int x, final int y, final double mag) {
 		if (1 == mag && project.getLoader().isUnloadable(this)) return new int[4];
 		final Image img = project.getLoader().fetchImage(this, mag);
-		if (Loader.NOT_FOUND == img) return new int[4];
+		if (Loader.isSignalImage(img)) return new int[4];
 		final int w = img.getWidth(null);
 		final double scale = w / width;
 		final Point2D.Double pd = inverseTransformPoint(x, y);

@@ -193,6 +193,19 @@ abstract public class Loader {
 		g.drawLine(7, 3, 3, 7);
 	}
 
+	static public final BufferedImage REGENERATING = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+	static {
+		Graphics2D g = REGENERATING.createGraphics();
+		g.setColor(Color.white);
+		g.setFont(new java.awt.Font("SansSerif", java.awt.Font.PLAIN, 8));
+		g.drawString("R", 1, 9);
+	}
+
+	/** Returns true if the awt is a signaling image like NOT_FOUND or REGENERATING. */
+	static public boolean isSignalImage(final Image awt) {
+		return REGENERATING == awt || NOT_FOUND == awt;
+	}
+
 	// the cache: shared, for there is only one JVM! (we could open a second one, and store images there, and transfer them through sockets)
 
 
@@ -1034,7 +1047,7 @@ abstract public class Loader {
 						lock();
 						max_memory += n_bytes;
 						if (null != mawt) {
-							mawts.put(id, mawt, level);
+							if (REGENERATING != mawt) mawts.put(id, mawt, level);
 							//Utils.log2("returning exact mawt from file for level " + level);
 							Display.repaintSnapshot(p);
 							return mawt;

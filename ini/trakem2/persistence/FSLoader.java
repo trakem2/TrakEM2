@@ -116,18 +116,28 @@ public final class FSLoader extends Loader {
 		if (!Loader.canReadAndWriteTo(dir_storage)) {
 			Utils.log("WARNING can't read/write to the storage_folder at " + dir_storage);
 		} else {
-			this.unuid = FSLoader.createUNUId(this.dir_storage);
+			this.unuid = createUNUId(this.dir_storage);
 			createMipMapsDir(this.dir_storage);
 			crashDetector();
 		}
 	}
 
-	static private String createUNUId(String dir_storage) {
-		if (null == dir_storage) dir_storage = "!@#$%!";
-		return new StringBuffer(64).append(System.currentTimeMillis()).append('.')
-			                   .append(Math.abs(dir_storage.hashCode())).append('.')
-				   	   .append(Math.abs(System.getProperty("user.name").hashCode()))
-					   .toString();
+	private String createUNUId(String dir_storage) {
+		synchronized (db_lock) {
+			lock();
+			try {
+				if (null == dir_storage) dir_storage = System.getProperty("user.dir") + "/";
+				return new StringBuffer(64).append(System.currentTimeMillis()).append('.')
+							   .append(Math.abs(dir_storage.hashCode())).append('.')
+							   .append(Math.abs(System.getProperty("user.name").hashCode()))
+							   .toString();
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				unlock();
+			}
+		}
+		return null;
 	}
 
 	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders. Used for creating subprojects. */
@@ -477,7 +487,7 @@ public final class FSLoader extends Loader {
 
 			imp = imps.get(p.getId());
 			if (null != imp) {
-				// was loaded by a different thread
+				// was loaded by a different thread -- TODO the slice of the stack could be wrong!
 				plock.unlock();
 				switch (format) {
 					case Layer.IMAGEPROCESSOR:
@@ -1248,6 +1258,10 @@ public final class FSLoader extends Loader {
 				}
 			}
 		}
+
+		// parse the unuid before attempting to create any folders
+		this.unuid = (String) ht_attributes.remove("unuid");
+
 		if (null == this.dir_mipmaps) {
 			// create a new one inside the dir_storage, which can't be null
 			createMipMapsDir(dir_storage);
@@ -1259,7 +1273,6 @@ public final class FSLoader extends Loader {
 		if (null != this.dir_mipmaps && !this.dir_mipmaps.endsWith("/")) this.dir_mipmaps += "/";
 		Utils.log2("mipmaps folder is " + this.dir_mipmaps);
 
-		this.unuid = (String) ht_attributes.remove("unuid");
 		if (null == unuid) {
 			IJ.log("OLD VERSION DETECTED: your trakem2\nproject has been updated to the new format.\nPlease SAVE IT to avoid regenerating\ncached data when reopening it.");
 			Utils.log2("Creating unuid for project " + this);
@@ -1502,9 +1515,7 @@ public final class FSLoader extends Loader {
 	 * Any equally named files will be overwritten.
 	 */
 	public boolean generateMipMaps(final Patch patch) {
-		//Utils.log2("mipmaps for " + patch);
-		if (null == dir_mipmaps) createMipMapsDir(null);
-		if (null == dir_mipmaps || isURL(dir_mipmaps)) return false;
+		Utils.log2("mipmaps for " + patch);
 		final String path = getAbsolutePath(patch);
 		if (null == path) {
 			Utils.log2("generateMipMaps: cannot find path for Patch " + patch);
@@ -1512,15 +1523,21 @@ public final class FSLoader extends Loader {
 			return false;
 		}
 		synchronized (gm_lock) {
-			gm_lock();
-			if (hs_regenerating_mipmaps.contains(patch)) {
-				// already being done
+			try {
+				gm_lock();
+				if (null == dir_mipmaps) createMipMapsDir(null);
+				if (null == dir_mipmaps || isURL(dir_mipmaps)) return false;
+				if (hs_regenerating_mipmaps.contains(patch)) {
+					// already being done
+					Utils.log2("Already being done: " + patch);
+					return false;
+				}
+				hs_regenerating_mipmaps.add(patch);
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
 				gm_unlock();
-				Utils.log2("Already being done: " + patch);
-				return false;
 			}
-			hs_regenerating_mipmaps.add(patch);
-			gm_unlock();
 		}
 
 		/** Record Patch as modified */
@@ -2091,7 +2108,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** If parent path is null, it's asked for.*/
-	public boolean createMipMapsDir(String parent_path) {
+	private boolean createMipMapsDir(String parent_path) {
 		if (null == this.unuid) this.unuid = createUNUId(parent_path);
 		if (null == parent_path) {
 			// try to create it in the same directory where the XML file is
@@ -2280,7 +2297,7 @@ public final class FSLoader extends Loader {
 		return false;
 	}
 
-	final HashSet<Patch> cannot_regenerate = new HashSet<Patch>();
+	final Set<Patch> cannot_regenerate = Collections.synchronizedSet(new HashSet<Patch>());
 
 	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. Does not frees memory on its own. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level) {
@@ -2349,35 +2366,37 @@ public final class FSLoader extends Loader {
 			if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsEnabled()) {
 				// regenerate
 				synchronized (gm_lock) {
-					gm_lock();
-
-					if (hs_regenerating_mipmaps.contains(patch)) {
-						// already being done
-						gm_unlock();
-						return null;
-					}
-					// else, start it
-					Worker worker = new Worker("Regenerating mipmaps") {
-						public void run() {
-							this.setAsBackground(true);
-							this.startedWorking();
-							try {
-								generateMipMaps(patch);
-							} catch (Exception e) {
-								IJError.print(e);
-							}
-
-							Display.repaint(patch.getLayer(), patch, 0);
-
-							this.finishedWorking();
+					try {
+						gm_lock();
+						if (hs_regenerating_mipmaps.contains(patch)) {
+							// already being done
+							return REGENERATING;
 						}
-					};
-					Bureaucrat burro = Bureaucrat.create(worker, patch.getProject());
-					burro.goHaveBreakfast();
+						// else, start it
+						Worker worker = new Worker("Regenerating mipmaps") {
+							public void run() {
+								this.setAsBackground(true);
+								this.startedWorking();
+								try {
+									generateMipMaps(patch);
+								} catch (Exception e) {
+									IJError.print(e);
+								}
 
-					gm_unlock();
+								Display.repaint(patch.getLayer(), patch, 0);
+
+								this.finishedWorking();
+							}
+						};
+						Bureaucrat burro = Bureaucrat.create(worker, patch.getProject());
+						burro.goHaveBreakfast();
+					} catch (Exception e) {
+						IJError.print(e);
+					} finally {
+						gm_unlock();
+					}
 				}
-				return null;
+				return REGENERATING;
 			}
 		} catch (Exception e) {
 			IJError.print(e);
