@@ -612,11 +612,11 @@ public final class FSLoader extends Loader {
 	}
 
 	synchronized private final void createMasksFolder() {
-		if (null == dir_masks) dir_masks = getStorageFolder() + "trakem2.masks/";
+		if (null == dir_masks) dir_masks = getUNUIdFolder() + "trakem2.masks/";
 		final File f = new File(dir_masks);
 		if (f.exists() && f.isDirectory()) return;
 		try {
-			f.mkdir();
+			f.mkdirs();
 		} catch (Exception e) {
 			IJError.print(e);
 		}
@@ -2103,7 +2103,7 @@ public final class FSLoader extends Loader {
 				try {
 					File f = new File(this.dir_mipmaps);
 					if (!f.exists()) {
-						if (!f.mkdir()) {
+						if (!f.mkdirs()) {
 							Utils.log("Could not create trakem2.mipmaps!");
 							return false;
 						}
