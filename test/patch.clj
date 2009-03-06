@@ -12,7 +12,8 @@
 (ns fiji.trakem2.tests.patch
   (:import (ij.gui OvalRoi Roi ShapeRoi)
            (ij.process ByteProcessor)
-           (ini.trakem2.display Display Patch Selection)))
+           (ini.trakem2.display Display Patch Selection)
+           (mpicbg.trakem2.transform MovingLeastSquaresTransform)))
 
 (defn punch-alpha-hole
   "Create an alpha hole right in the middle of an image."
@@ -27,18 +28,20 @@
       (.setRoi sroi)
       (.setValue 255)
       (.fill (.getMask mask)))
-    (doto patch
-      (.setAlphaMask mask)
-      (.updateMipmaps))
-    (Display/repaint)))
- 
+    (.setAlphaMask patch mask)))
+
+
 (defn punch-hole
-  "Punch an alpha hole into the selected and active Patch, if any."
+  "Punch an alpha hole into the selected and active Patch, if any,
+  and update its mipmaps and repaint."
   []
   (if-let [front (Display/getFront)]
     (if-let [p (.getActive front)]
       (if (isa? (class p) Patch)
-        (punch-alpha-hole p)
+        (do
+          (punch-alpha-hole p)
+          (.updateMipmaps p)
+          (Display/repaint))
         (println "Not a Patch:" p))
       (println "Nothing selected"))
     (println "No Display open")))
@@ -55,5 +58,42 @@
             (.updateMipmaps p))
           (Display/repaint))))
     (println "No Display open")))
+
+(defn get-active
+  "Returns the active Patch, if any."
+  []
+  (if-let [front (Display/getFront)]
+    (if-let [a (.getActive front)]
+      (if (isa? (class a) Patch)
+        a
+        (println "Active is not a Patch."))
+      (println "No active!"))
+    (println "No Display open")))
+
+(defn full
+  "Puts a new CoordinateTransform, a new Alpha mask and min,max values as desired."
+  [patch ip-min ip-max]
+  (punch-alpha-hole patch)
+  (.setMinAndMax patch (double ip-min) (double ip-max))
+  (let [w (int (.getOWidth patch))
+        h (int (.getOHeight patch))
+        mls (MovingLeastSquaresTransform.)]
+    ; Intrude top-left and bottom-right corners by 100,100 pixels
+    (.init mls (str "rigid 1 "
+                    "0 0 100 100 "
+                    w " " h " " (- w 100) " " (- h 100)))
+    (.setCoordinateTransform patch mls)))
+
+(defmacro exec
+  "Executes the function on the active patch, if any,
+  and then updates the mipmaps and repaints.
+  For example, call:
+  (exec full 0 255)"
+  [f & args]
+  `(if-let [patch# (get-active)]
+     (do
+       (~f patch# ~@args)
+       (.updateMipmaps patch#)
+       (Display/repaint))))
 
 
