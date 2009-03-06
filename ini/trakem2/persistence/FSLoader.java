@@ -1572,7 +1572,11 @@ public final class FSLoader extends Loader {
 				   //   but since we scale 50% relative the previous, it's always 0.75
 
 			// Set for the level 0 image, which is a duplicate of the one on the cache in any case
-			ip.setMinAndMax(patch.getMin(), patch.getMax());
+			final double min = patch.getMin(),
+			             max = patch.getMax();
+			if (ImagePlus.GRAY32 != type && min > -1 && max > -1) {
+				ip.setMinAndMax(min, max);
+			}
 
 
 			// Proper support for LUT images: treat them as RGB
