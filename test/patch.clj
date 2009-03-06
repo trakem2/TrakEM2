@@ -11,6 +11,7 @@
 
 (ns fiji.trakem2.tests.patch
   (:import (ij.gui OvalRoi Roi ShapeRoi)
+           (ij IJ ImagePlus)
            (ij.process ByteProcessor)
            (ini.trakem2.display Display Patch Selection)
            (mpicbg.trakem2.transform MovingLeastSquaresTransform)))
@@ -97,3 +98,21 @@
        (Display/repaint))))
 
 
+(defn restore
+  "Restores an image min,max, removes any alpha,
+  and removes any coordinate transform."
+  [patch]
+  ; 1 - Set min and max to defaults
+  (let [type (.getType patch)]
+      (if (or
+            (== type ImagePlus/GRAY8)
+            (== type ImagePlus/COLOR_256)
+            (== type ImagePlus/COLOR_RGB))
+        (.setMinAndMax patch 0 255)
+        (let [ip (.getImageProcessor patch)]
+          (.findMinAndMax ip)
+          (.setMinAndMax patch (.getMin ip) (.getMax ip)))))
+  ; Remove alpha mask
+  (.setAlphaMask patch nil)
+  ; Remove CoordinateTransform
+  (.setCoordinateTransform patch nil))
