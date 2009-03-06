@@ -34,6 +34,7 @@ import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.YesNoDialog;
@@ -74,6 +75,8 @@ import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
@@ -160,7 +163,7 @@ public final class FSLoader extends Loader {
 		try {
 			if (f.exists()) {
 				// crashed!
-				askAndExecMipmapRegeneration("TrakEM detected a crash!");
+				askAndExecMipmapRegeneration("TrakEM2 detected a crash!");
 			} else {
 				if (!f.createNewFile() && !dir_mipmaps.startsWith("http:")) {
 					Utils.showMessage("WARNING: could NOT create crash detection system:\nCannot write to mipmaps folder.");
@@ -336,6 +339,7 @@ public final class FSLoader extends Loader {
 			}
 		}
 		//
+		regenerator.shutdownNow();
 		dispatcher.quit();
 		// remove empty trakem2.mipmaps folder if any
 		if (null != dir_mipmaps && !dir_mipmaps.equals(dir_storage)) {
@@ -1296,7 +1300,10 @@ public final class FSLoader extends Loader {
 							Thread.sleep(1000);
 						}
 						Project pj = Project.findProject(lo);
-						lo.generateMipMaps(pj.getRootLayerSet().getDisplayables(Patch.class));
+						// Submit a task for each Patch:
+						for (final Displayable patch : pj.getRootLayerSet().getDisplayables(Patch.class)) {
+							((FSLoader)lo).regenerateMipMaps((Patch)patch);
+						}
 					} catch (Exception e) {}
 				}
 			}.start();
@@ -1515,6 +1522,10 @@ public final class FSLoader extends Loader {
 	 * Any equally named files will be overwritten.
 	 */
 	public boolean generateMipMaps(final Patch patch) {
+		return generateMipMaps(patch, true);
+	}
+	/** The boolean flag is because the submission to the ExecutorService is too fast, and I need to prevent it before it can ever add duplicates to the queue, so I need to ask that question before invoking this method. */
+	private boolean generateMipMaps(final Patch patch, final boolean check_if_already_being_done) {
 		Utils.log2("mipmaps for " + patch);
 		final String path = getAbsolutePath(patch);
 		if (null == path) {
@@ -1527,7 +1538,7 @@ public final class FSLoader extends Loader {
 				gm_lock();
 				if (null == dir_mipmaps) createMipMapsDir(null);
 				if (null == dir_mipmaps || isURL(dir_mipmaps)) return false;
-				if (hs_regenerating_mipmaps.contains(patch)) {
+				if (check_if_already_being_done && hs_regenerating_mipmaps.contains(patch)) {
 					// already being done
 					Utils.log2("Already being done: " + patch);
 					return false;
@@ -1657,7 +1668,9 @@ public final class FSLoader extends Loader {
 				// No alpha channel:
 				//  - use gaussian resizing
 				//  - use standard ImageJ java.awt.Image creation
-				
+
+				if (Thread.currentThread().isInterrupted()) return false;
+
 				// Generate level 0 first:
 				// TODO Add alpha information into the int[] pixel array or make the image visible some ohter way
 				if (!(null == alpha ? ini.trakem2.io.ImageSaver.saveAsJpeg(cp, target_dir0 + filename, 0.85f, false)
@@ -1665,6 +1678,7 @@ public final class FSLoader extends Loader {
 					cannot_regenerate.add(patch);
 				} else {
 					do {
+						if (Thread.currentThread().isInterrupted()) return false;
 						// 1 - Prepare values for the next scaled image
 						sw = w;
 						sh = h;
@@ -1727,6 +1741,8 @@ public final class FSLoader extends Loader {
 					cm = GRAY_LUT;
 				}
 
+				if (Thread.currentThread().isInterrupted()) return false;
+
 				if (Loader.GAUSSIAN == resizing_mode) {
 					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
 					int sw=w, sh=h;
@@ -1749,6 +1765,8 @@ public final class FSLoader extends Loader {
 					}
 
 					do {
+						if (Thread.currentThread().isInterrupted()) return false;
+
 						// 0 - blur the previous image to 0.75 sigma
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
 							fp = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), sw, sh), 0.75f).data, cm);
@@ -1840,6 +1858,8 @@ public final class FSLoader extends Loader {
 					ip = null;
 
 					do {
+						if (Thread.currentThread().isInterrupted()) return false;
+
 						// check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
 						if (null == target_dir) continue;
@@ -2365,43 +2385,59 @@ public final class FSLoader extends Loader {
 			double scale = 1 / Math.pow(2, level);
 			if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsEnabled()) {
 				// regenerate
-				synchronized (gm_lock) {
-					try {
-						gm_lock();
-						if (hs_regenerating_mipmaps.contains(patch)) {
-							// already being done
-							return REGENERATING;
-						}
-						// else, start it
-						Worker worker = new Worker("Regenerating mipmaps") {
-							public void run() {
-								this.setAsBackground(true);
-								this.startedWorking();
-								try {
-									generateMipMaps(patch);
-								} catch (Exception e) {
-									IJError.print(e);
-								}
-
-								Display.repaint(patch.getLayer(), patch, 0);
-
-								this.finishedWorking();
-							}
-						};
-						Bureaucrat burro = Bureaucrat.create(worker, patch.getProject());
-						burro.goHaveBreakfast();
-					} catch (Exception e) {
-						IJError.print(e);
-					} finally {
-						gm_unlock();
-					}
-				}
+				regenerateMipMaps(patch);
 				return REGENERATING;
 			}
 		} catch (Exception e) {
 			IJError.print(e);
 		}
 		return null;
+	}
+
+	static private AtomicInteger n_regenerating = new AtomicInteger(0);
+	static private ExecutorService regenerator = null;
+	static {
+		int np = Runtime.getRuntime().availableProcessors();
+		// 1 core = 1 thread
+		// 2 cores = 2 threads
+		// 3+ cores = cores-1 threads
+		if (np > 2) np -= 1;
+		regenerator = Executors.newFixedThreadPool(np);
+	}
+
+	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
+	 *  returns true if the task was submitted, false if not. */
+	private final boolean regenerateMipMaps(final Patch patch) {
+		synchronized (gm_lock) {
+			try {
+				gm_lock();
+				if (hs_regenerating_mipmaps.contains(patch)) {
+					return false;
+				}
+				// else, start it
+				hs_regenerating_mipmaps.add(patch);
+				n_regenerating.incrementAndGet();
+				Utils.log2("SUBMITTED to regen " + patch);
+				regenerator.execute(new Runnable() {
+					public void run() {
+						try {
+							Utils.showStatus("Regenerating mipmaps (" + n_regenerating.get() + " to go)");
+							generateMipMaps(patch, false);
+							Display.repaint(patch.getLayer());
+						} catch (Exception e) {
+							IJError.print(e);
+						}
+						n_regenerating.decrementAndGet();
+					}
+				});
+				return true;
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				gm_unlock();
+			}
+		}
+		return false;
 	}
 
 	/** Compute the number of bytes that the ImagePlus of a Patch will take. Assumes a large header of 1024 bytes. If the image is saved as a grayscale jpeg the returned bytes will be 5 times as expected, because jpeg images are opened as int[] and then copied to a byte[] if all channels have the same values for all pixels. */ // The header is unnecessary because it's read, but not stored except for some of its variables; it works here as a safety buffer space.
