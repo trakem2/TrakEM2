@@ -1150,15 +1150,17 @@ public class AreaList extends ZDisplayable {
 		}
 		// zero-pad stack
 		// No need anymore: MCTriangulator does it on its own now
-		// stack = zeroPad(stack);
+		stack = zeroPad(stack);
 
-		ImagePlus imp = new ImagePlus("", stack); // Calibration MUST BE 1, i.e. default, since marchingcubes.MCCube will try to correct for it.
+		// Still, the MCTriangulator does NOT zero pad properly
+
+		ImagePlus imp = new ImagePlus("", stack);
 		imp.getCalibration().pixelWidth = cal.pixelWidth * scale;
 		imp.getCalibration().pixelHeight = cal.pixelHeight * scale;
 		imp.getCalibration().pixelDepth = thickness * scale; // no need to factor in resampling
 		//debug:
 		//imp.show();
-		Utils.log2("Stack dimensions: " + imp.getWidth() + ", " + imp.getHeight() + ", " + imp.getStack().getSize());
+		//Utils.log2("Stack dimensions: " + imp.getWidth() + ", " + imp.getHeight() + ", " + imp.getStack().getSize());
 		// end of generating byte[] arrays
 		// Now marching cubes
 		final Triangulator tri = new MCTriangulator();
@@ -1168,6 +1170,7 @@ public class AreaList extends ZDisplayable {
 		final float dy = (float)(r.y * scale * cal.pixelHeight);
 		final float dz = (float)((z - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
 		final float rs = resample / (float)scale;
+		final float z_correction = thickness * scale * cal.pixelWidth;
 		for (Iterator it = list.iterator(); it.hasNext(); ) {
 			Point3f p = (Point3f)it.next();
 			// fix back the resampling (but not the universe scale, which has already been considered)
@@ -1178,7 +1181,7 @@ public class AreaList extends ZDisplayable {
 			// translate to the x,y,z coordinate of the object in space
 			p.x += dx - rs; // minus rs, as an offset for zero-padding
 			p.y += dy - rs;
-			p.z += dz - rs;
+			p.z += dz + z_correction; // translate one complete section up. I don't fully understand why I need this, but this is correct.
 
 			// TODO: should capture vertices whose Z coordinate falls within a layer thickness, and translate that to the real layer Z and thickness (because now it's using the first layer thickness only).
 			// TODO: even before this, should enable interpolation when desired, since we have images anyway.
