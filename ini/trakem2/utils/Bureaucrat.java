@@ -107,10 +107,10 @@ public class Bureaucrat extends Thread {
 		while (!worker.isWorking()) {
 			try { Thread.sleep(50); } catch (InterruptedException ie) {}
 			if (worker.hasQuitted() || worker_thread.isInterrupted()) {
-				Utils.log("Cleaning up...");
+				//Utils.log("Cleaning up...");
 				worker.cleanup2();
 				cleanup();
-				Utils.log("...done.");
+				//Utils.log("...done.");
 				return;
 			}
 		}
