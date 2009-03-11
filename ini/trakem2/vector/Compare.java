@@ -28,6 +28,8 @@ import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.tree.ProjectThing;
 import mpi.fruitfly.general.MultiThreading;
+import mpicbg.models.MovingLeastSquaresTransform;
+import mpicbg.models.PointMatch;
 
 import ij.IJ;
 import ij.gui.GenericDialog;
@@ -55,6 +57,7 @@ import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.awt.Rectangle;
 
+import javax.vecmath.Tuple3d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Matrix4d;
@@ -2620,5 +2623,31 @@ public class Compare {
 				tabs.remove(jsp);
 			}
 		}
+	}
+
+	/** Transform all points of all VectorString3D in vs using a Moving Least Squares Transform defined by the pairing of points in source to those in target.
+	 *  In short, bring source into target. */
+	static public List<VectorString3D> registerVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target) {
+		if (source.size() != target.size()) {
+			Utils.log2("Could not generate a MovingLeastSquaresTransform: different number of source and target points.");
+			return null;
+		}
+		if (source.size() < 1 || target.size() < 1) {
+			Utils.log2("Cannot transform with less than one point correspondence!");
+			return null;
+		}
+
+		ArrayList<PointMatch> pm = new ArrayList<PointMatch>();
+		for (final Iterator<Tuple3d> si = source.iterator(), ti = target.iterator(); si.hasNext(); ) {
+			Tuple3d sp = si.next();
+			Tuple3d tp = ti.next();
+			pm.add(new PointMatch(new mpicbg.models.Point(new float[]{(float)sp.x, (float)sp.y, (float)sp.z}), new mpicbg.models.Point(new float[]{(float)tp.x, (float)tp.y, (float)tp.z}), 1));
+		}
+
+		MovingLeastSquaresTransform mls = new MovingLeastSquaresTransform();
+		mls.setMatches(pm);
+
+		// TODO
+		return null;
 	}
 }
