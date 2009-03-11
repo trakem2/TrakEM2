@@ -37,10 +37,11 @@ import ij.io.*;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ini.trakem2.imaging.VirtualStack; //import ij.VirtualStack; // only after 1.38q
+import ij.VirtualStack; // only after 1.38q
 import ini.trakem2.display.*;
 import ini.trakem2.*;
 import ini.trakem2.persistence.*;
+import ini.trakem2.io.ImageFileFilter;
 
 
 public class DNDInsertImage implements DropTargetListener {
@@ -135,7 +136,7 @@ public class DNDInsertImage implements DropTargetListener {
 				switch (gd.getNextChoiceIndex()) {
 				case 0: // as stack
 					// if importing image sequence as a stack:
-					String[] names = f.list();
+					String[] names = f.list(new ImageFileFilter()); // don't filter by name  "^[^\\.].*[\\.][a-zA-Z1-9_]{3,4}$"
 					int max_len = 0;
 					// fake natural sorting: pre-pad short names with zeros
 					for (int i=0; i<names.length; i++) {
