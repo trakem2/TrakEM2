@@ -24,7 +24,7 @@ package ini.trakem2.persistence;
 
 import ij.IJ;
 import ij.ImagePlus;
-import ij.VirtualStack;
+import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
@@ -1150,6 +1150,7 @@ public final class FSLoader extends Loader {
 				if (!vs_dir.endsWith("/")) vs_dir += "/";
 				String iname = vs.getFileName(i);
 				patch_path = vs_dir + iname;
+				Utils.log2("virtual stack: patch path is " + patch_path);
 				releaseMemory();
 				Utils.log2(i + " : " + patch_path);
 				imp_patch_i = openImage(patch_path);
@@ -1180,7 +1181,7 @@ public final class FSLoader extends Loader {
 			}
 			Utils.log2("B: " + i + " : " + patch_path);
 			addedPatchFrom(patch_path, patch);
-			if (!as_copy) {
+			if (!as_copy && !virtual) {
 				if (virtual) cache(patch, imp_patch_i); // each slice separately
 				else cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
 			}
