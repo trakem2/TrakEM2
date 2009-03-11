@@ -2812,7 +2812,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			importNextImage();
 		} else if (command.equals("Import stack...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
-			Bureaucrat burro = project.getLoader().importStack(layer, null, true);
+			Rectangle sr = getCanvas().getSrcRect();
+			Bureaucrat burro = project.getLoader().importStack(layer, sr.x + sr.width/2, sr.y + sr.height/2, null, true, null);
 			burro.addPostTask(new Runnable() { public void run() {
 				Display.this.getLayerSet().addLayerContentStep(layer);
 			}});
