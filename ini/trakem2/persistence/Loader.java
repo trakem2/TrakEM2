@@ -3336,7 +3336,7 @@ abstract public class Loader {
 		// ask to open a stack if it's null
 		if (null == stks) {
 			imp_stack = openStack(); // choose one
-		} else if (stks.length > 1) {
+		} else if (stks.length > 0) {
 			// choose one from the list
 			GenericDialog gd = new GenericDialog("Choose one");
 			gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
