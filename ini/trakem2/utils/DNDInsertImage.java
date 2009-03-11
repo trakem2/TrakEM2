@@ -157,7 +157,7 @@ public class DNDInsertImage implements DropTargetListener {
 						stack.addSlice(names[k]);
 					}
 					if (stack.getSize() > 0) {
-						burro = display.getProject().getLoader().importStack(layer, new ImagePlus("stack", stack), true, path);
+						burro = display.getProject().getLoader().importStack(layer, point.x, point.y, new ImagePlus("stack", stack), true, path);
 					}
 					break;
 				case 1: // as grid
