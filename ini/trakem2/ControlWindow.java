@@ -119,6 +119,7 @@ public class ControlWindow {
 		synchronized(instance) {
 			if (IJ.isWindows()) StdOutWindow.quit();
 			Compare.destroy();
+			Display3D.destroy();
 			if (null != ht_projects) {
 				// destroy open projects, release memory
 				Enumeration e = ht_projects.keys();
