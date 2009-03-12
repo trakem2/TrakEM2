@@ -2627,7 +2627,7 @@ public class Compare {
 
 	/** Transform all points of all VectorString3D in vs using a Moving Least Squares Transform defined by the pairing of points in source to those in target.
 	 *  In short, bring source into target. */
-	static public List<VectorString3D> registerVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target) {
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target) {
 		if (source.size() != target.size()) {
 			Utils.log2("Could not generate a MovingLeastSquaresTransform: different number of source and target points.");
 			return null;
@@ -2636,6 +2636,8 @@ public class Compare {
 			Utils.log2("Cannot transform with less than one point correspondence!");
 			return null;
 		}
+
+		// 1 - Create the MovingLeastSquaresTransform from the point matches
 
 		ArrayList<PointMatch> pm = new ArrayList<PointMatch>();
 		for (final Iterator<Tuple3d> si = source.iterator(), ti = target.iterator(); si.hasNext(); ) {
@@ -2647,7 +2649,33 @@ public class Compare {
 		MovingLeastSquaresTransform mls = new MovingLeastSquaresTransform();
 		mls.setMatches(pm);
 
-		// TODO
-		return null;
+		// 2 - Transfer each VectorString3D in vs with mls
+		final float[] point = new float[3];
+		final List<VectorString3D> vt = new ArrayList<VectorString3D>();
+		for (final VectorString3D vi : vs) {
+			// The points of the VectorString3D:
+			final double[] x = vi.getPoints(0);
+			final double[] y = vi.getPoints(1);
+			final double[] z = vi.getPoints(2);
+			// Empty arrays to fill with the points to transfer:
+			final double[] tx = new double[x.length];
+			final double[] ty = new double[x.length];
+			final double[] tz = new double[x.length];
+			// Transfer point by point:
+			for (int i=0; i<x.length; i++) {
+				point[0] = (float)x[i];
+				point[1] = (float)y[i];
+				point[2] = (float)z[i];
+				mls.applyInPlace(point);
+				tx[i] = point[0];
+				ty[i] = point[1];
+				tz[i] = point[2];
+			}
+			try {
+				vt.add(new VectorString3D(tx, ty, tz, vi.isClosed()));
+			} catch (Exception e) {}
+		}
+
+		return vt;
 	}
 }
