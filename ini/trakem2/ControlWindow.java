@@ -27,6 +27,7 @@ import ij.ImageJ;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.display.YesNoDialog;
+import ini.trakem2.display.Display3D;
 import ini.trakem2.tree.LayerTree;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.TemplateTree;
@@ -84,6 +85,7 @@ public class ControlWindow {
 			Utils.setup(this);
 			Loader.setupPreloader(this);
 			if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
+			Display3D.init();
 		}
 	}
 

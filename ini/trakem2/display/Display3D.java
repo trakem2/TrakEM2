@@ -1013,4 +1013,10 @@ public final class Display3D {
 	static public void destroy() {
 		launchers.shutdownNow();
 	}
+
+	static public void init() {
+		if (launchers.isShutdown()) {
+			launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		}
+	}
 }
