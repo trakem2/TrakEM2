@@ -1533,7 +1533,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		Rectangle r = null;
 		for (final Layer la : al_layers) {
 			if (null == r) r = la.getMinimalBoundingBox(c);
-			else r.add(la.getMinimalBoundingBox(c));
+			else {
+				Rectangle box = la.getMinimalBoundingBox(c); // may be null if Layer is empty
+				if (null != box) r.add(box);
+			}
 		}
 		return r;
 	}
