@@ -1762,7 +1762,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				break;
 			case KeyEvent.VK_Z:
 				int mod = ke.getModifiers();
-				if (0 == (mod ^ Event.SHIFT_MASK)) {
+				if (0 == (mod ^ Event.SHIFT_MASK) || 0 == (mod ^ Event.CTRL_MASK)) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
 					if (isTransforming()) display.getSelection().undoOneStep();
 					else display.getLayerSet().undoOneStep();
