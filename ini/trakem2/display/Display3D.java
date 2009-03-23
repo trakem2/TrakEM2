@@ -765,6 +765,8 @@ public final class Display3D {
 
 		Content ct = null;
 
+		no_culling = true; // for ALL
+
 		// add to 3D view (synchronized)
 		synchronized (u_lock) {
 			u_lock.lock();
