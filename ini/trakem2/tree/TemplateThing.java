@@ -153,6 +153,19 @@ public final class TemplateThing extends DBObject implements Thing {
 	public boolean addChild(Thing child) {
 		if (null == child) return false;
 		if (null == al_children) al_children = new ArrayList();
+		else {
+			// check that no child is already of the same type as the new child
+			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+				TemplateThing tc = (TemplateThing) it.next();
+				if (tc.type.equals(((TemplateThing)child).type)) {
+					Utils.log2("TemplateThing.addChild: already have a child of type " + tc.type);
+					//Utils.printCaller(this, 10);
+					return false;
+				}
+			}
+			// TODO should change to use a Map<String,TemplateThing>.
+		}
+		Utils.log2("Added child of type " + ((TemplateThing)child).type);
 		al_children.add(child);
 		child.setParent(this);
 		return true;

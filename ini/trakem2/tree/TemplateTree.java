@@ -270,7 +270,6 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 				}
 				// else add as new
 				new_child_type = command; //tet = new TemplateThing(command, tt.getProject());
-				// the 'profile_list' type needs an automatic 'profile' type inside
 			}
 
 			// add the new type to the database and to the tree, to all instances that are similar to tt (but not nested)
@@ -318,8 +317,8 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 	/** tt_parent is the parent TemplateThing
 	 *  tet_child is the child to add to tt parent, and to insert as child to all nodes that host the tt parent.
 	 *
-	 *  Returns the TemplateThing used, either new or a reused, unique, already-existing one. */
-	private TemplateThing addNewChildType(final TemplateThing tt_parent, String new_child_type) {
+	 *  Returns the TemplateThing used, either new or a reused-unique-already-existing one. */
+	public TemplateThing addNewChildType(final TemplateThing tt_parent, String new_child_type) {
 		// check preconditions
 		if (null == tt_parent || null == new_child_type) return null;
 		// fix any potentially dangerous chars for the XML
@@ -331,22 +330,22 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		tet_child = new TemplateThing(null == tet_child ? new_child_type : tet_child.getType(), tt_parent.getProject()); // reusing same String
 		if (is_new) {
 			tt_parent.getProject().addUniqueType(tet_child);
-			tt_parent.addChild(tet_child);
 		}
+		tt_parent.addChild(tet_child);
 
 		// add the new type to the database and to the tree, to all instances that are similar to tt (but not nested)
 		HashSet hs = root.collectSimilarThings2(tt_parent, new HashSet());
-		TemplateThing tti, ttc;
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			TemplateThing tti, ttc;
 			tti = (TemplateThing)it.next();
 			if (tti.equals(tt_parent)) {
 				tti = tt_parent; // parent
 				ttc = tet_child; // child
 			} else {
 				ttc = new TemplateThing(tet_child.getType(), tt_parent.getProject());
+				tti.addChild(ttc);
+				ttc.addToDatabase();
 			}
-			tti.addChild(ttc);
-			ttc.addToDatabase();
 			// find the parent
 			DefaultMutableTreeNode node_parent = DNDTree.findNode(tti, this);
 			DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(ttc);
