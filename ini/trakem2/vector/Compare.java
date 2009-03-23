@@ -48,6 +48,7 @@ import java.awt.Dimension;
 import java.awt.event.*;
 import java.awt.Container;
 import java.awt.Choice;
+import java.awt.geom.Point2D;
 import javax.swing.*;
 import javax.swing.border.LineBorder;
 import javax.swing.event.*;
@@ -2677,5 +2678,55 @@ public class Compare {
 		}
 
 		return vt;
+	}
+
+	/** Transfer vs via a moving least squares transform by matching source named points into equally named target named points. 
+	 *  If no points in common, returns null. */
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final Map<String,Tuple3d> source, final Map<String,Tuple3d> target) {
+		if (null == source || null == target) return null;
+		final List<Tuple3d> so = new ArrayList<Tuple3d>();
+		final List<Tuple3d> ta = new ArrayList<Tuple3d>();
+		for (final Map.Entry<String,Tuple3d> e : target.entrySet()) {
+			final Tuple3d point = source.get(e.getKey());
+			if (null != point) {
+				so.add(point);
+				ta.add(e.getValue());
+			}
+		}
+		if (0 == so.size()) {
+			Utils.log2("No points in common!");
+			return null;
+		}
+		return transferVectorStrings(vs, so, ta);
+	}
+
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final ProjectThing source_fiduciary, final ProjectThing target_fiduciary) {
+		return transferVectorStrings(vs, extractPoints(source_fiduciary), extractPoints(target_fiduciary));
+	}
+
+	/** Extracts the list of fiduciary points from the fiducial parent and, if their name is different than "ball", adds their title as key and their first ball as a fiduciary point value of the returned map. The map is never null but could be empty.
+	 * The values are calibrated. */
+	static public Map<String,Tuple3d> extractPoints(final ProjectThing fiducial) {
+		final Map<String,Tuple3d> fide = new HashMap<String,Tuple3d>();
+		for (final Object ob : fiducial.findChildrenOfType("ball")) {
+			final ProjectThing child = (ProjectThing) ob;
+			final Ball ball = (Ball) child.getObject();
+			final String title = ball.getTitle();
+			if (child.getType().equals(title.toLowerCase())) {
+				Utils.log2("Ignoring unnamed fiduciary point " + ball);
+				continue;
+			}
+			final Calibration cal = ball.getLayerSet().getCalibration();
+			final int sign = cal.pixelDepth < 0 ? -1 : 1;
+			final double[][] b = ball.getBalls(); // local!
+			if (b.length > 0) {
+				// get the first one only
+				final Point2D.Double po = ball.transformPoint(b[0][0], b[0][1]); // bring to world coordinates
+				fide.put(title.toLowerCase(), new Point3d(po.x * cal.pixelWidth,
+							                  po.y * cal.pixelHeight,
+									  b[0][2] * cal.pixelWidth * sign)); // as in VectorString3D.calibrate(Calibration) method
+			}
+		}
+		return fide;
 	}
 }
