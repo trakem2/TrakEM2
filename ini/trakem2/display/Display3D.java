@@ -224,7 +224,7 @@ public final class Display3D {
 			this.ls = ls;
 		}
 		public void windowClosing(WindowEvent we) {
-			Utils.log2("Display3D.windowClosing");
+			//Utils.log2("Display3D.windowClosing");
 			d3d.executors.shutdownNow();
 			/*Object ob =*/ ht_layer_sets.remove(ls);
 			/*if (null != ob) {
@@ -232,7 +232,7 @@ public final class Display3D {
 			}*/
 		}
 		public void windowClosed(WindowEvent we) {
-			Utils.log2("Display3D.windowClosed");
+			//Utils.log2("Display3D.windowClosed");
 			ht_layer_sets.remove(ls);
 		}
 	}
@@ -819,7 +819,7 @@ public final class Display3D {
 				}
 
 		}});
-		executors.execute(fu);
+		executors.submit(fu);
 		return fu;
 	}
 
@@ -888,9 +888,9 @@ public final class Display3D {
 		}});
 
 
-		launchers.execute(new Runnable() { public void run() {
+		launchers.submit(new Runnable() { public void run() {
 			final Display3D d3d = Display3D.get(ref_ls);
-			d3d.executors.execute(fu);
+			d3d.executors.submit(fu);
 		}});
 
 		return fu;
@@ -937,10 +937,10 @@ public final class Display3D {
 	}
 
 	static public void setColor(final Displayable d, final Color color) {
-		launchers.execute(new Runnable() { public void run() {
+		launchers.submit(new Runnable() { public void run() {
 			final Display3D d3d = get(d.getLayer().getParent());
 			if (null == d3d) return; // no 3D displays open
-			d3d.executors.execute(new Runnable() { public void run() {
+			d3d.executors.submit(new Runnable() { public void run() {
 			Content content = d3d.universe.getContent(makeTitle(d));
 				if (null == content) content = getProfileContent(d);
 				if (null != content) content.setColor(new Color3f(color));
