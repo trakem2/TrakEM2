@@ -1387,7 +1387,7 @@ public class Utils implements ij.plugin.PlugIn {
 						}
 						if (null != removed_paths) removed_paths.add(file.getAbsolutePath());
 					} else if (stop_if_dir_not_empty) {
-						Utils.log("Not empty: cannot remove dir " + fdir.getAbsolutePath());
+						//Utils.log("Not empty: cannot remove dir " + fdir.getAbsolutePath());
 						return false;
 					} else {
 						if (!file.delete()) {
