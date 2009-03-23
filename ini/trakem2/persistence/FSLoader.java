@@ -2419,7 +2419,7 @@ public final class FSLoader extends Loader {
 				hs_regenerating_mipmaps.add(patch);
 				n_regenerating.incrementAndGet();
 				Utils.log2("SUBMITTED to regen " + patch);
-				regenerator.execute(new Runnable() {
+				regenerator.submit(new Runnable() {
 					public void run() {
 						try {
 							Utils.showStatus("Regenerating mipmaps (" + n_regenerating.get() + " to go)");
