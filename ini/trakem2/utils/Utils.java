@@ -1423,7 +1423,7 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Returns true if the path contains "/trakem2." (adjusted for Windows as well). */
 	static public boolean isTrakEM2Subpath(String path) {
 		if (IJ.isWindows()) path = path.replace('\\', '/');
-		return -1 != path.indexOf("/trakem2.");
+		return -1 != path.toLowerCase().indexOf("/trakem2.");
 	}
 
 	/** Returns true if all files and their subdirectories, recursively, under parent folder have been removed.
