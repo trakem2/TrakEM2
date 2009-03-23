@@ -120,4 +120,8 @@ public final class M {
 
 		return Math.abs( (px * (ly1 - ly2) + py * (lx2 - lx1) + (lx1 * ly2 - lx2 * ly1) ) / Math.sqrt( Math.pow(lx2 - lx1, 2) + Math.pow(ly2 - ly1, 2) ) );
 	}
+
+	static public final boolean equals(final double a, final double b) {
+		return Math.abs(a - b) < Utils.FL_ERROR;
+	}
 }
