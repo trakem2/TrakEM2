@@ -44,6 +44,7 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
 import ini.trakem2.render3d.Perimeter2D;
 import ini.trakem2.vector.VectorString3D;
 
@@ -1117,10 +1118,13 @@ public class AreaList extends ZDisplayable {
 		at2.preConcatenate(atK);
 		//
 		ImageStack stack = null;
-		float z = 0;
+		float z_first = 0;
 		double thickness = 1;
 		final int w = (int)Math.ceil(r.width * K);
 		final int h = (int)Math.ceil(r.height * K);
+
+		final TreeMap<Double,Layer> assigned = new TreeMap<Double,Layer>();
+
 		for (Iterator it = layer_set.getLayers().iterator(); it.hasNext(); ) {
 			if (0 == n) break; // no more areas to paint
 			final Layer la = (Layer)it.next();
@@ -1129,8 +1133,12 @@ public class AreaList extends ZDisplayable {
 				if (null == stack) {
 					//Utils.log2("0 - creating stack with  w,h : " + w + ", " + h);
 					stack = new ImageStack(w, h);
-					z = (float)la.getZ(); // z of the first layer
+					z_first = (float)la.getZ(); // z of the first layer
 					thickness = la.getThickness();
+					assigned.put((double)z_first, la);
+				} else {
+					assigned.put(z_first + thickness * stack.getSize(), la);
+					// the layer is added to the stack below
 				}
 				final ImageProcessor ip = new ByteProcessor(w, h);
 				//ip.setColor(Color.white);
@@ -1142,7 +1150,10 @@ public class AreaList extends ZDisplayable {
 				ip.setRoi(roi);
 				ip.fill(roi.getMask()); // argh, should be automatic!
 				stack.addSlice(la.getZ() + "", ip);
+
+
 				n--;
+
 			} else if (null != stack) {
 				// add a black slice
 				stack.addSlice(la.getZ() + "", new ByteProcessor(w, h));
@@ -1168,11 +1179,11 @@ public class AreaList extends ZDisplayable {
 		// now translate all coordinates by x,y,z (it would be nice to simply assign them to a mesh object)
 		final float dx = (float)(r.x * scale * cal.pixelWidth);
 		final float dy = (float)(r.y * scale * cal.pixelHeight);
-		final float dz = (float)((z - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
+		final float dz = (float)((z_first - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
 		final float rs = resample / (float)scale;
 		final float z_correction = (float)(thickness * scale * cal.pixelWidth);
-		for (Iterator it = list.iterator(); it.hasNext(); ) {
-			Point3f p = (Point3f)it.next();
+		for (final Iterator it = list.iterator(); it.hasNext(); ) {
+			final Point3f p = (Point3f)it.next();
 			// fix back the resampling (but not the universe scale, which has already been considered)
 			p.x *= rs; //resample / scale; // a resampling of '2' means 0.5  (I love inverted worlds..)
 			p.y *= rs; //resample / scale;
@@ -1182,11 +1193,67 @@ public class AreaList extends ZDisplayable {
 			p.x += dx - rs; // minus rs, as an offset for zero-padding
 			p.y += dy - rs;
 			p.z += dz + z_correction; // translate one complete section up. I don't fully understand why I need this, but this is correct.
-
-			// TODO: should capture vertices whose Z coordinate falls within a layer thickness, and translate that to the real layer Z and thickness (because now it's using the first layer thickness only).
-			// TODO: even before this, should enable interpolation when desired, since we have images anyway.
 		}
+
+		// TODO: should capture vertices whose Z coordinate falls within a layer thickness, and translate that to the real layer Z and thickness (because now it's using the first layer thickness only).
+		// TODO: even before this, should enable interpolation when desired, since we have images anyway.
+		// TODO: and even better, when there is only one island per section, give the option to enable VectorStrin2D mesh creation like profiles.
+
+
+		// Check if any layer has an improper Z assigned. The assigned gives a list of entries sorted by Z
+		double last_real_z = 0;
+		HashMap<Integer,ArrayList<Point3f>> map = null;
+
+		for (final Map.Entry<Double,Layer> e : assigned.entrySet()) {
+			final double fake_z = e.getKey();
+			final double real_z = e.getValue().getZ();
+			final double fake_thickness = thickness;
+			final double real_thickness = e.getValue().getThickness();
+
+			if ( ! M.equals(fake_z, real_z) ) {
+				if (null == map) {
+					map = new HashMap<Integer,ArrayList<Point3f>>();
+					for (final Iterator it = list.iterator(); it.hasNext(); ) {
+						final Point3f p = (Point3f) it.next();
+						int lz = (int)( 0.0005 + (p.z - z_first) / thickness );
+						ArrayList<Point3f> az = map.get(lz);
+						if (null == az) {
+							az = new ArrayList<Point3f>();
+							map.put(lz, az);
+						}
+						az.add(p);
+					}
+
+					for (final Integer lz : new java.util.TreeSet<Integer>(map.keySet())) {
+						Utils.log2("Key: " + lz);
+					}
+				}
+				// must fix: and also accumulate the difference in the offset, for subsequent calls.
+				// find all coords between fake_z and fake_z + fake_thickness, and stretch them proportionally to real_z and real_z + real_thickness
+				int lz = (int)( 0.0005 + (fake_z - z_first) / thickness );
+				ArrayList<Point3f> az = map.get(lz);
+				if (null == az) {
+					Utils.log2("Something is WRONG: null az for lz = " + lz);
+					continue;
+				}
+				for (final Point3f p : az) {
+					p.z = (float) (real_z + real_thickness * ( (p.z - fake_z - z_first) / thickness ));
+				}
+
+				/*
+				for (final Iterator it = list.iterator(); it.hasNext(); ) {
+					final Point3f p = (Point3f) it.next();
+					if (p.z >= fake_z && p.z <= fake_z + thickness) {
+						// bring to real z + the proportion of the real thickness
+						p.z = offset + real_z + real_thickness * ( (p.z - fake_z - z_first) / thickness );
+					}
+				}
+				*/
+			}
+		}
+
 		return list;
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -1279,7 +1346,9 @@ public class AreaList extends ZDisplayable {
 	}
 
 	public void keyPressed(KeyEvent ke) {
-		DisplayCanvas dc = (DisplayCanvas)ke.getSource();
+		Object source = ke.getSource();
+		if (! (source instanceof DisplayCanvas)) return;
+		DisplayCanvas dc = (DisplayCanvas)source;
 		Layer la = dc.getDisplay().getLayer();
 		int keyCode = ke.getKeyCode();
 
