@@ -9,7 +9,7 @@
 ; Then just execute any of the functions.
 
 
-(ns fiji.trakem2.tests.patch
+(ns test.patch
   (:import (ij.gui OvalRoi Roi ShapeRoi)
            (ij IJ ImagePlus)
            (ij.process ByteProcessor)
