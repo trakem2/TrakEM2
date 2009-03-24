@@ -904,6 +904,9 @@ public class VectorString3D implements VectorString {
 	 * Beware: if calibrated, then the Calibration has been applied to the points, but the callibration's pixelWidth and pixelHeight remain the same, not set to 1 and 1 respectively. So they can be used to uncalibrate, or to read out the units.
 	 */
 	public void calibrate(final Calibration cal) {
+		if (null != this.cal) {
+			Utils.log2("WARNING calibrating VectorString3D more than one time!");
+		}
 		if (null == cal) return;
 		this.cal = cal;
 		final int sign = cal.pixelDepth < 0 ? -1 : 1;
