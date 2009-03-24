@@ -37,6 +37,8 @@ import ini.trakem2.tree.ProjectTree;
 import javax.swing.JTree;
 import java.util.*;
 import java.awt.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import javax.swing.*;
 import javax.swing.tree.*;
 import javax.swing.event.TreeExpansionEvent;
@@ -47,7 +49,7 @@ import java.awt.dnd.*;
  *
 * Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0
  */
-public class DNDTree extends JTree implements TreeExpansionListener {
+public class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
  
 	Insets autoscrollInsets = new Insets(20, 20, 20, 20); // insets
 
@@ -58,6 +60,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	public DNDTree(final Project project, final DefaultMutableTreeNode root, final Color background) {
 		this(project, root);
 		this.setScrollsOnExpand(true);
+		this.addKeyListener(this);
 		if (null != background) {
 			final DefaultTreeCellRenderer renderer = new NodeRenderer(background); // new DefaultTreeCellRenderer();
 			renderer.setBackground(background);
@@ -641,4 +644,23 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 			if (null != b) setExpandedSilently(root, b.booleanValue());
 		}
 	}
+
+	public void keyPressed(final KeyEvent ke) {
+		dispatcher.exec(new Runnable() { public void run() {
+		if (!ke.getSource().equals(DNDTree.this) || !Project.getInstance(DNDTree.this).isInputEnabled()) {
+			ke.consume();
+			return;
+		}
+		int key_code = ke.getKeyCode();
+		switch (key_code) {
+			case KeyEvent.VK_S:
+				Project p = Project.getInstance(DNDTree.this);
+				p.getLoader().save(p);
+				ke.consume();
+				break;
+		}
+		}});
+	}
+	public void keyReleased(KeyEvent ke) {}
+	public void keyTyped(KeyEvent ke) {}
 }

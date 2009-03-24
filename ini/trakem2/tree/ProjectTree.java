@@ -38,7 +38,6 @@ import ini.trakem2.utils.Dispatcher;
 import java.awt.Color;
 import java.awt.Event;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 import javax.swing.KeyStroke;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
@@ -60,7 +59,7 @@ import java.util.Collections;
 import java.io.File;
 
 /** A class to hold a tree of Thing nodes */
-public final class ProjectTree extends DNDTree implements MouseListener, ActionListener, KeyListener {
+public final class ProjectTree extends DNDTree implements MouseListener, ActionListener {
 
 	/*
 	static {
@@ -75,7 +74,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		setEditable(false); // the titles
 		addMouseListener(this);
 		addTreeExpansionListener(this);
-		addKeyListener(this);
 	}
 
 	/** Get a custom, context-sensitive popup menu for the selected node. */
@@ -467,6 +465,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	}
 
 	public void keyPressed(final KeyEvent ke) {
+		super.keyPressed(ke);
+		if (ke.isConsumed()) return;
 		super.dispatcher.execSwing(new Runnable() { public void run() {
 		if (!ke.getSource().equals(ProjectTree.this) || !Project.getInstance(ProjectTree.this).isInputEnabled()) {
 			return;
@@ -480,7 +480,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		if (null == pt) return;
 		//
 		int key_code = ke.getKeyCode();
-		boolean reinsert = false;
 		switch (key_code) {
 			case KeyEvent.VK_PAGE_UP:
 				move(node, -1);
@@ -490,13 +489,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				move(node, 1);
 				ke.consume(); // in any case
 				break;
-			case KeyEvent.VK_S:
-				// outside swing:
-				ProjectTree.super.dispatcher.exec(new Runnable() { public void run() {
-					pt.getProject().getLoader().save(pt.getProject());
-				}});
-				ke.consume();
-				break;
 			case KeyEvent.VK_F2:
 				rename(pt);
 				ke.consume();
@@ -505,8 +497,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}});
 		ke.consume();
 	}
-	public void keyReleased(KeyEvent ke) {}
-	public void keyTyped(KeyEvent ke) {}
 
 	/** Move up (-1) or down (1). */
 	private void move(final DefaultMutableTreeNode node, final int direction) {
