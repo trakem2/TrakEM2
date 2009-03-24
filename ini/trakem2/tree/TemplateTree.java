@@ -73,7 +73,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		if (null == path) return;
 		setSelectionPath(path);
 		this.selected_node = (DefaultMutableTreeNode)path.getLastPathComponent();
-		TemplateThing tt = (TemplateThing)selected_node.getUserObject();
+		final TemplateThing tt = (TemplateThing)selected_node.getUserObject();
 		String type = tt.getType();
 		//
 		JPopupMenu popup = new JPopupMenu();
@@ -83,6 +83,45 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 			JMenu menu = new JMenu("Add new child");
 			popup.add(menu);
 			item = new JMenuItem("new..."); item.addActionListener(this); menu.add(item);
+
+			// Add also from other open projects
+			if (ControlWindow.getProjects().size() > 1) {
+				menu.addSeparator();
+				JMenu other = new JMenu("From project...");
+				menu.add(other);
+				for (Iterator itp = ControlWindow.getProjects().iterator(); itp.hasNext(); ) {
+					final Project pr = (Project) itp.next();
+					if (root.getProject() == pr) continue;
+					item = new JMenuItem(pr.toString());
+					other.add(item);
+					item.addActionListener(new ActionListener() {
+						public void actionPerformed(ActionEvent ae) {
+							GenericDialog gd = new GenericDialog(pr.toString());
+							gd.addMessage("Project: " + pr.toString());
+							final HashMap<String,TemplateThing> hm = pr.getTemplateTree().root.getUniqueTypes(new HashMap<String,TemplateThing>());
+							final String[] u_types = hm.keySet().toArray(new String[0]);
+							gd.addChoice("type:", u_types, u_types[0]);
+							gd.showDialog();
+							if (gd.wasCanceled()) return;
+							TemplateThing tt_chosen = hm.get(gd.getNextChoice());
+							// must solve conflicts!
+							// Recurse into children: if any type that is not a basic type exists in the target project, ban the operation.
+							ArrayList al = tt_chosen.collectAllChildren(new ArrayList());
+							for (Iterator ital = al.iterator(); ital.hasNext(); ) {
+								TemplateThing child = (TemplateThing) ital.next();
+								if (root.getProject().typeExists(child.getType()) && !pr.isBasicType(child.getType())) {
+									Utils.showMessage("Type conflict: cannot add type " + tt_chosen.getType());
+									return;
+								}
+							}
+							// Else add it, recursive into children
+							// Target is tt
+							addCopiesRecursively(tt, tt_chosen);
+							rebuild(selected_node, true);
+						}
+					});
+				}
+			}
 			menu.addSeparator();
 			String[] ut = tt.getProject().getUniqueTypes();
 			for (int i=0; i<ut.length; i++) {
@@ -100,6 +139,21 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		item = new JMenuItem("Export XML template..."); item.addActionListener(this); popup.add(item);
 
 		popup.show(this, x, y);
+	}
+
+	/** Source may belong to a different project; a copy of source with the project of target will be added to target as a child. */
+	private void addCopiesRecursively(final TemplateThing target, final TemplateThing source) {
+		TemplateThing child = new TemplateThing(source.getType(), target.getProject());
+		if (target.addChild(child)) {
+			child.addToDatabase();
+			target.getProject().addUniqueType(child);
+			ArrayList children = source.getChildren();
+			if (null != children) {
+				for (Iterator it = children.iterator(); it.hasNext(); ) {
+					addCopiesRecursively(child, (TemplateThing) it.next());
+				}
+			}
+		}
 	}
 
 	public void mouseDragged(MouseEvent me) { }
