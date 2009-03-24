@@ -2650,8 +2650,24 @@ public class Compare {
 		MovingLeastSquaresTransform mls = new MovingLeastSquaresTransform();
 		mls.setMatches(pm);
 
-		// 2 - Transfer each VectorString3D in vs with mls
 		final float[] point = new float[3];
+
+		// 1.1 - Test: transfer source points
+		for (final Iterator<Tuple3d> si = source.iterator(), ti = target.iterator(); si.hasNext(); ) {
+			Tuple3d sp = si.next();
+			point[0] = (float) sp.x;
+			point[1] = (float) sp.y;
+			point[2] = (float) sp.z;
+			mls.applyInPlace(point);
+
+			Tuple3d tp = ti.next();
+			Utils.log2("== target: " + (float)tp.x + ", " + (float)tp.y + ", " + (float)tp.z +
+				   "\n o source: " + (float)sp.x + ", " + (float)sp.y + ", " + (float)sp.z +
+
+				   "\n   source: " + point[0] + ", " + point[1] + ", " + point[2]);
+		}
+
+		// 2 - Transfer each VectorString3D in vs with mls
 		final List<VectorString3D> vt = new ArrayList<VectorString3D>();
 		for (final VectorString3D vi : vs) {
 			// The points of the VectorString3D:
@@ -2697,6 +2713,7 @@ public class Compare {
 			Utils.log2("No points in common!");
 			return null;
 		}
+		Utils.log2("Found points in common: " + so.size());
 		return transferVectorStrings(vs, so, ta);
 	}
 
@@ -2707,24 +2724,30 @@ public class Compare {
 	/** Extracts the list of fiduciary points from the fiducial parent and, if their name is different than "ball", adds their title as key and their first ball as a fiduciary point value of the returned map. The map is never null but could be empty.
 	 * The values are calibrated. */
 	static public Map<String,Tuple3d> extractPoints(final ProjectThing fiducial) {
+		if (!fiducial.getType().equals("fiducial_points")) {
+			Utils.log("Can only extract points from 'fiducial_points' type.");
+			return null;
+		}
+		ArrayList<ProjectThing> fiducials = fiducial.getChildren();
+		if (null == fiducials || 0 == fiducials.size()) {
+			Utils.log("No fiducial points can be extracted from " + fiducial);
+			return null;
+		}
 		final Map<String,Tuple3d> fide = new HashMap<String,Tuple3d>();
-		for (final Object ob : fiducial.findChildrenOfType("ball")) {
-			final ProjectThing child = (ProjectThing) ob;
-			final Ball ball = (Ball) child.getObject();
-			final String title = ball.getTitle();
-			if (child.getType().equals(title.toLowerCase())) {
-				Utils.log2("Ignoring unnamed fiduciary point " + ball);
+		for (final ProjectThing child : fiducials) {
+			ArrayList<ProjectThing> balls = child.findChildrenOfType("ball");
+			if (null == balls || 0 == balls.size()) {
+				Utils.log2("Ignoring empty fiducial " + child);
 				continue;
 			}
-			final Calibration cal = ball.getLayerSet().getCalibration();
-			final int sign = cal.pixelDepth < 0 ? -1 : 1;
-			final double[][] b = ball.getBalls(); // local!
+			// pick the first one only
+			final Ball ball = (Ball) balls.get(0).getObject();
+			final String title = child.getType();
+			final double[][] b = ball.getWorldBalls(); // calibrated
 			if (b.length > 0) {
 				// get the first one only
-				final Point2D.Double po = ball.transformPoint(b[0][0], b[0][1]); // bring to world coordinates
-				fide.put(title.toLowerCase(), new Point3d(po.x * cal.pixelWidth,
-							                  po.y * cal.pixelHeight,
-									  b[0][2] * cal.pixelWidth * sign)); // as in VectorString3D.calibrate(Calibration) method
+				fide.put(title.toLowerCase(), new Point3d(b[0][0], b[0][1], b[0][2]));
+				Utils.log2("Found fiducial point " + title.toLowerCase());
 			}
 		}
 		return fide;
