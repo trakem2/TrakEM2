@@ -77,6 +77,7 @@ import mpi.fruitfly.general.MultiThreading;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
@@ -2417,8 +2418,16 @@ public final class FSLoader extends Loader {
 				}
 				// else, start it
 				hs_regenerating_mipmaps.add(patch);
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			} finally {
+				gm_unlock();
+			}
+
+			try {
 				n_regenerating.incrementAndGet();
-				Utils.log2("SUBMITTED to regen " + patch);
+				Utils.log2("SUBMITTING to regen " + patch);
 				regenerator.submit(new Runnable() {
 					public void run() {
 						try {
@@ -2435,8 +2444,12 @@ public final class FSLoader extends Loader {
 				return true;
 			} catch (Exception e) {
 				IJError.print(e);
-			} finally {
-				gm_unlock();
+				ThreadPoolExecutor tpe = (ThreadPoolExecutor) regenerator;
+				Utils.log2("active thread count: " + tpe.getActiveCount() +
+					   "\ncore pool size: " + tpe.getCorePoolSize() +
+					   "\ncompleted: " + tpe.getCompletedTaskCount() +
+					   "\nqueued: " + tpe.getQueue().size() +
+					   "\ntask count: " + tpe.getTaskCount());
 			}
 		}
 		return false;
