@@ -607,15 +607,33 @@ public class Ball extends ZDisplayable {
 		return la;
 	}
 
-	/** Returns a [n_points][4] array, with x,y,z,radius on the second part.  Not transformed, but local!*/
+	/** Returns a [n_points][4] array, with x,y,z,radius on the second part; not transformed, but local!
+	 *  To obtain balls in world coordinates, calibrated, use getWorldBalls().
+	 */
 	public double[][] getBalls() {
 		if (-1 == n_points) setupForDisplay(); // reload
-		double[][] b = new double[n_points][4];
+		final double[][] b = new double[n_points][4];
 		for (int i=0; i<n_points; i++) {
 			b[i][0] = p[0][i];
 			b[i][1] = p[1][i];
 			b[i][2] = layer_set.getLayer(p_layer[i]).getZ();
 			b[i][3] = p_width[i];
+		}
+		return b;
+	}
+
+	/** Returns a [n_points][4] array, with x,y,z,radius on the second part, in world coordinates (that is, transformed with this AffineTransform and calibrated with the containing LayerSet's calibration). */
+	public double[][] getWorldBalls() {
+		if (-1 == n_points) setupForDisplay(); // reload
+		final double[][] b = new double[n_points][4];
+		final Calibration cal = getLayerSet().getCalibrationCopy();
+		final int sign = cal.pixelDepth < 0 ? -1 : 1;
+		for (int i=0; i<n_points; i++) {
+			final Point2D.Double po = transformPoint(p[0][i], p[1][i]); // bring to world coordinates
+			b[i][0] = po.x * cal.pixelWidth;
+			b[i][1] = po.y * cal.pixelHeight;
+			b[i][2] = layer_set.getLayer(p_layer[i]).getZ() * cal.pixelWidth * sign;
+			b[i][3] = p_width[i] * cal.pixelWidth;
 		}
 		return b;
 	}
