@@ -438,6 +438,8 @@ public class Project extends DBObject {
 						project.getLoader().setChanged(false);
 						Utils.log2("D set to false");
 					}});
+					project.getTemplateTree().updateUILater(); // repainting to fix gross errors in tree rendering
+					project.getProjectTree().updateUILater();  // idem
 					} catch (Exception ie) {}
 				}}.start();
 			} else {
