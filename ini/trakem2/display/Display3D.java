@@ -792,10 +792,11 @@ public final class Display3D {
 					PolygonAttributes pa = mesh.getAppearance().getPolygonAttributes();
 					pa.setCullFace(PolygonAttributes.CULL_NONE);
 					pa.setBackFaceNormalFlip(true);
+					mesh.setColor(c3);
 					// After setting properties, add to the viewer
-					ct = universe.addCustomMesh(mesh, c3, title);
+					ct = universe.addCustomMesh(mesh, title);
 				} else {
-					ct = universe.addTriangleMesh(triangles, new Color3f(color), title);
+					ct = universe.addTriangleMesh(triangles, c3, title);
 				}
 
 				if (null == ct) return null;
@@ -940,7 +941,7 @@ public final class Display3D {
 
 	static public void setColor(final Displayable d, final Color color) {
 		launchers.submit(new Runnable() { public void run() {
-			final Display3D d3d = get(d.getLayer().getParent());
+			final Display3D d3d = getDisplay(d.getLayer().getParent());
 			if (null == d3d) return; // no 3D displays open
 			d3d.executors.submit(new Runnable() { public void run() {
 			Content content = d3d.universe.getContent(makeTitle(d));
