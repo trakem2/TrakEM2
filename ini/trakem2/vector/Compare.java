@@ -30,6 +30,7 @@ import ini.trakem2.tree.ProjectThing;
 import mpi.fruitfly.general.MultiThreading;
 import mpicbg.models.MovingLeastSquaresTransform;
 import mpicbg.models.PointMatch;
+import mpicbg.models.AffineModel3D;
 
 import ij.IJ;
 import ij.gui.GenericDialog;
@@ -2648,6 +2649,7 @@ public class Compare {
 		}
 
 		MovingLeastSquaresTransform mls = new MovingLeastSquaresTransform();
+		mls.setModel(AffineModel3D.class);
 		mls.setMatches(pm);
 
 		final float[] point = new float[3];
