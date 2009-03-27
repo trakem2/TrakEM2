@@ -114,7 +114,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	static private Display front = null;
 
 	/** Displays to open when all objects have been reloaded from the database. */
-	static private Hashtable ht_later = null;
+	static private final Hashtable ht_later = new Hashtable();
 
 	/** A thread to handle user actions, for example an event sent from a popup menu. */
 	private final Dispatcher dispatcher = new Dispatcher();
@@ -419,8 +419,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	/** For reconstruction purposes. The Display will be stored in the ht_later.*/
 	public Display(Project project, long id, Layer layer, Object[] props) {
 		super(project, id);
-		if (null == ht_later) ht_later = new Hashtable();
-		Display.ht_later.put(this, props);
+		synchronized (ht_later) {
+			Display.ht_later.put(this, props);
+		}
 		this.layer = layer;
 	}
 
@@ -491,24 +492,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			// TODO the above is insecure, in that data is not fully checked to be within bounds.
 		}
 		Object[] props = new Object[]{p, new Double(magnification), srcRect, new Long(layer.getId()), new Integer(c_alphas), new Integer(c_alphas_state)};
-		if (null == ht_later) ht_later = new Hashtable();
-		Display.ht_later.put(this, props);
+		synchronized (ht_later) {
+			Display.ht_later.put(this, props);
+		}
 		this.layer = layer;
 	}
 
 	/** After reloading a project from the database, open the Displays that the project had. */
 	static public Bureaucrat openLater() {
-		if (null == ht_later || 0 == ht_later.size()) return null;
+		final Hashtable ht_later_local;
+		synchronized (ht_later) {
+			if (0 == ht_later.size()) return null;
+			ht_later_local = new Hashtable(ht_later);
+			ht_later.keySet().removeAll(ht_later_local.keySet());
+		}
 		final Worker worker = new Worker("Opening displays") {
 			public void run() {
 				startedWorking();
 				try {
 					Thread.sleep(300); // waiting for Swing
 
-		for (Enumeration e = ht_later.keys(); e.hasMoreElements(); ) {
+		for (Enumeration e = ht_later_local.keys(); e.hasMoreElements(); ) {
 			final Display d = (Display)e.nextElement();
 			front = d; // must be set before repainting any ZDisplayable!
-			Object[] props = (Object[])ht_later.get(d);
+			Object[] props = (Object[])ht_later_local.get(d);
 			if (ControlWindow.isGUIEnabled()) d.makeGUI(d.layer, props);
 			d.setLayerLater(d.layer, d.layer.get(((Long)props[3]).longValue())); //important to do it after makeGUI
 			if (!ControlWindow.isGUIEnabled()) continue;
@@ -526,8 +533,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			d.project.getLoader().setChanged(false);
 			Utils.log2("B set to false");
 		}
-		ht_later.clear();
-		ht_later = null;
 		if (null != front) front.getProject().select(front.layer);
 
 				} catch (Throwable t) {
@@ -537,7 +542,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			}
 		};
-		return Bureaucrat.createAndStart(worker, ((Display)ht_later.keySet().iterator().next()).getProject()); // gets the project from the first Display
+		return Bureaucrat.createAndStart(worker, ((Display)ht_later_local.keySet().iterator().next()).getProject()); // gets the project from the first Display
 	}
 
 	private void makeGUI(final Layer layer, final Object[] props) {
