@@ -555,7 +555,7 @@ public class Project extends DBObject {
 			loader.destroy(); // and disconnect
 			loader = null;
 		}
-		ControlWindow.remove(this);
+		ControlWindow.remove(this); // AFTER loader.destroy() call.
 		if (null != template_tree) template_tree.destroy();
 		if (null != project_tree) project_tree.destroy();
 		if (null != layer_tree) layer_tree.destroy();

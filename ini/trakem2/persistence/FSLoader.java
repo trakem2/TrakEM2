@@ -326,6 +326,12 @@ public final class FSLoader extends Loader {
 		return null != ht_paths;
 	}
 
+	/** Shutdown the various thread pools and disactivate services in general. */
+	static private void destroyStaticServices() {
+		if (null != regenerator) regenerator.shutdownNow();
+		if (null != dispatcher) dispatcher.quit();
+	}
+
 	public void destroy() {
 		super.destroy();
 		Utils.showStatus("", false);
@@ -340,8 +346,6 @@ public final class FSLoader extends Loader {
 			}
 		}
 		//
-		regenerator.shutdownNow();
-		dispatcher.quit();
 		// remove empty trakem2.mipmaps folder if any
 		if (null != dir_mipmaps && !dir_mipmaps.equals(dir_storage)) {
 			File f = new File(dir_mipmaps);
@@ -364,6 +368,9 @@ public final class FSLoader extends Loader {
 		} catch (Exception e) {
 			Utils.log2("WARNING: crash detector file trakem.mipmaps/.open.t2 may NOT have been deleted.");
 			IJError.print(e);
+		}
+		if (null == ControlWindow.getProjects() || 1 == ControlWindow.getProjects().size()) {
+			destroyStaticServices();
 		}
 	}
 
