@@ -155,57 +155,49 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 	private int snapshots_mode = 0;
 
+	private class RepaintProperties implements AbstractOffscreenThread.RepaintProperties {
+		final Rectangle clipRect;
+		final int snapshots_mode;
+		final Layer layer;
+
+		RepaintProperties(final Rectangle clipRect, final Layer layer, final int snapshots_mode) {
+			this.clipRect = clipRect;
+			this.layer = layer;
+			this.snapshots_mode = snapshots_mode;
+		}
+	}
+
 	private final class UpdateGraphicsThread extends AbstractOffscreenThread {
 
-		private final Rectangle clipRect;
-
-		UpdateGraphicsThread(final Rectangle clipRect) {
+		UpdateGraphicsThread() {
 			super("T2-Navigator-UpdateGraphics");
-			this.clipRect = clipRect;
-			synchronized (updating_ob) {
-				while (updating) {
-					try {
-						if (quit) return;
-						updating_ob.wait();
-					} catch (InterruptedException ie) {}
-				}
-				updating = true;
-				quit = false;
-				updating = false;
-				updating_ob.notifyAll();
+		}
+
+		/** paint all snapshots, scaled, to an offscreen awt.Image */
+		public void paint() {
+
+			final BufferedImage target = new BufferedImage(FIXED_WIDTH, height, BufferedImage.TYPE_INT_ARGB);
+
+			final Layer layer;
+			final int snapshots_mode;
+			final Rectangle clipRect;
+
+			synchronized (this) {
+				DisplayNavigator.RepaintProperties rp = (DisplayNavigator.RepaintProperties) this.rp;
+				layer = rp.layer;
+				snapshots_mode = rp.snapshots_mode;
+				clipRect = rp.clipRect;
 			}
-			Thread.yield();
-			setPriority(Thread.NORM_PRIORITY);
-			final int snapshots_mode = layer.getParent().getSnapshotsMode();
+
 			if (null != DisplayNavigator.this.image && 2 == snapshots_mode && DisplayNavigator.this.snapshots_mode == snapshots_mode) {
 				DisplayNavigator.this.redraw_displayables = false;
-				RT.paintFromOff(clipRect, this.start);
+				RT.paint(clipRect, false);
 				return;
 			} else {
 				DisplayNavigator.this.snapshots_mode = snapshots_mode;
 			}
-			// else recreate offscreen data:
-			start();
-		}
-
-		/** paint all snapshots, scaled, to an offscreen awt.Image */
-		public void run() {
-			try { Thread.sleep(10); } catch (InterruptedException ie) {}
-			if (quit) return;
-			final BufferedImage target = new BufferedImage(FIXED_WIDTH, height, BufferedImage.TYPE_INT_ARGB);
-
-			final int snapshots_mode = layer.getParent().getSnapshotsMode();
 
 			try {
-				if (quit) {
-					target.flush();
-					return;
-				}
-
-				//g2d.getRenderingHints().put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-				//g2d.getRenderingHints().put(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
-				//Rectangle clipRect = g.getClipBounds();
-
 				final Graphics2D g = target.createGraphics();
 				// paint background as black
 				g.setColor(Color.black);
@@ -223,11 +215,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 					final int size = al.size();
 					boolean zd_done = false;
 					for (int i=0; i<size; i++) {
-						if (quit) {
-							g.dispose();
-							target.flush();
-							return;
-						}
 						final Displayable d = (Displayable)al.get(i);
 						//if (d.isOutOfRepaintingClip(clip, scale)) continue; // needed at least for the visibility
 						if (!d.isVisible()) continue; // TODO proper clipRect for this navigator image may be necessary (lots of changes needed in the lines above reltive to filling the black background, etc)
@@ -237,11 +224,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 							// paint ZDisplayables before the labels (i.e. text labels on top)
 							final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
 							while (itz.hasNext()) {
-								if (quit) {
-									g.dispose();
-									target.flush();
-									return;
-								}
 								ZDisplayable zd = (ZDisplayable)itz.next();
 								if (!zd.isVisible()) continue;
 								zd.paintSnapshot(g, scale);
@@ -272,11 +254,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 						// paint ZDisplayables before the labels
 						final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
 						while (itz.hasNext()) {
-							if (quit) {
-								g.dispose();
-								target.flush();
-								return;
-							}
 							ZDisplayable zd = (ZDisplayable)itz.next();
 							if (!zd.isVisible()) continue;
 							zd.paintSnapshot(g, scale);
@@ -299,7 +276,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 					updating = false;
 					updating_ob.notifyAll();
 				}
-				RT.paintFromOff(clipRect, this.start);
+				RT.paint(clipRect, false);
 			} catch (Exception e) {
 				IJError.print(e);
 			}
@@ -372,18 +349,9 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	}
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
-	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Navigator-Repainter") {
+	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Navigator-Repainter", new UpdateGraphicsThread()) {
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
-			try {
-				// Signal previous offscreen threads to quit
-				cancelOffs();
-				// issue new offscreen thread
-				final UpdateGraphicsThread off = new UpdateGraphicsThread(clipRect);
-				// store to be canceled if necessary
-				add(off);
-			} catch (Exception e) {
-				IJError.print(e);
-			}
+			this.off.setProperties(new RepaintProperties(clipRect, layer, layer.getParent().getSnapshotsMode()));
 		}
 	};
 

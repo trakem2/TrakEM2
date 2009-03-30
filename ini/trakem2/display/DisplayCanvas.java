@@ -295,23 +295,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private long last_paint = 0;
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
-	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Canvas-Repainter") {
+	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Canvas-Repainter", new OffscreenThread()) {
 		protected void handleUpdateGraphics(final Component target, final Rectangle clipRect) {
-			try {
-				// Signal previous offscreen threads to quit
-				cancelOffs();
-				// issue new offscreen thread
-				final OffscreenThread off = new OffscreenThread(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getDisplayChannelAlphas());
-				// store to be canceled if necessary
-				add(off);
-			} catch (Exception e) {
-				IJError.print(e);
-			}
-		}
-		public void paintFromOff(final Rectangle clipRect, final long time) {
-			// WARNING this is just a patch
-			//Utils.log("paintFromOff");
-			super.paintFromOff(display.getSelection().contains(Patch.class) ? null : clipRect, time);
+			this.off.setProperties(new RepaintProperties(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getDisplayChannelAlphas()));
 		}
 	};
 
@@ -2057,41 +2043,51 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	/** Minimum time an offscreen thread will run before it can be quit, in miliseconds. */
 	static private final int min_time = 200;
 
-	private final class OffscreenThread extends AbstractOffscreenThread {
+	protected class RepaintProperties implements AbstractOffscreenThread.RepaintProperties {
 		final private Layer layer;
 		final private int g_width;
 		final private int g_height;
 		final private Displayable active;
 		final private int c_alphas;
 		final private Rectangle clipRect;
-		//public final int label = counter.getAndIncrement();
-		OffscreenThread(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
-			super("T2-Canvas-Offscreen");
+
+		RepaintProperties(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
 			this.clipRect = clipRect;
 			this.layer = layer;
 			this.g_width = g_width;
 			this.g_height = g_height;
 			this.active = active;
 			this.c_alphas = c_alphas;
-			setPriority(Thread.NORM_PRIORITY);
-			start();
+		}
+	}
+
+	private final class OffscreenThread extends AbstractOffscreenThread {
+
+		OffscreenThread() {
+			super("T2-Canvas-Offscreen");
 		}
 
-		public final boolean canQuit() {
-			final long now = System.currentTimeMillis();
-			if (now - this.start > min_time && now - last_paint < min_time) {
-				//Utils.log2(label + " off canQuit yes");
-				return true;
-			}
-			//Utils.log2(label + " off canQuit NO");
-			return false;
-		}
-
-		public void run() {
+		public void paint() {
 			try {
-				if (quit && canQuit()) return;
+				final Layer layer;
+				final int g_width;
+				final int g_height;
+				final Displayable active;
+				final int c_alphas;
+				final Rectangle clipRect;
+				final Loader loader;
 
-				final Loader loader = layer.getProject().getLoader();
+				synchronized (this) {
+					DisplayCanvas.RepaintProperties rp = (DisplayCanvas.RepaintProperties) this.rp;
+					layer = rp.layer;
+					g_width = rp.g_width;
+					g_height = rp.g_height;
+					active = rp.active;
+					c_alphas = rp.c_alphas;
+					clipRect = rp.clipRect;
+					loader = layer.getProject().getLoader();
+				}
+
 				// flag Loader to do massive flushing if needed
 				loader.setMassiveMode(true);
 
@@ -2137,9 +2133,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 				int i = 0;
 				while (ital.hasNext()) {
-					if (quit && 0 == i % 10 && canQuit()) {
-						return;
-					}
 					final Displayable d = ital.next();
 					final Class c = d.getClass();
 					if (DLabel.class == c || LayerSet.class == c) {
@@ -2162,10 +2155,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 				// paint the ZDisplayables here, before the labels and LayerSets, if any
 				while (itzd.hasNext()) {
-					if (quit && 0 == i % 10 && canQuit()) {
-						Loader.quitPreloading(al_patches, magnification);
-						return;
-					}
 					final Displayable zd = itzd.next();
 					if (zd == active) top = true;
 					else if (top) al_top.add(zd);
@@ -2179,20 +2168,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					else al_paint.add(tmp);
 				}
 				while (ital.hasNext()) {
-					if (quit && 0 == i % 10 && canQuit()) {
-						Loader.quitPreloading(al_patches, magnification);
-						return;
-					}
 					final Displayable d = ital.next();
 					if (d == active) top = true;
 					else if (top) al_top.add(d);
 					else al_paint.add(d);
 					i++;
-				}
-
-				if (quit && canQuit()) { // TODO: NO NEED to quitPreloading those patches that are actually going to be immediately need in the call that is quitting this thread.
-					Loader.quitPreloading(al_patches, magnification);
-					return;
 				}
 
 				// create new graphics
@@ -2233,12 +2213,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 				i = 0;
 				for (Displayable d : al_paint) {
-					if (quit && canQuit()) {
-						Loader.quitPreloading(al_patches, magnification);
-						g.dispose();
-						target.flush();
-						return;
-					}
 					d.prePaint(g, magnification, d == active, c_alphas, layer);
 					i++;
 				}
@@ -2250,15 +2224,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					g.fill(r1);
 					g.setClip(r2);
 					g.fill(r2);
-				}
-
-				// Not needed.
-				//Thread.yield();
-
-				if (quit && canQuit()) {
-					g.dispose();
-					target.flush();
-					return;
 				}
 
 				synchronized (offscreen_lock) {
@@ -2279,10 +2244,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					offscreen_lock.unlock();
 				}
 
-				//Utils.log2(label + " called RT.paintFromOff");
-				// Repaint!
-				RT.paintFromOff(clipRect, this.start);
-
+				// Send repaint event, without offscreen graphics
+				RT.paint(clipRect, false);
 
 			} catch (OutOfMemoryError oome) {
 				// so OutOfMemoryError won't generate locks
