@@ -25,7 +25,6 @@ package ini.trakem2.io;
 import ij.ImagePlus;
 import ij.ImageJ;
 import ij.process.*;
-import ij.gui.*;
 import ij.io.*;
 import ij.measure.Calibration;
 
@@ -40,7 +39,6 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageWriter;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.IIOImage;
-import javax.imageio.metadata.IIOMetadata;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -363,7 +361,11 @@ public class ImageSaver {
 	/** Open a jpeg file including the alpha channel if it has one. */
 	static public BufferedImage openJpegAlpha(final String path) {
 		try {
-			return ImageIO.read(new File(path));
+			final BufferedImage img = ImageIO.read(new File(path));
+			BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
+			imgPre.createGraphics().drawImage( img, 0, 0, null );
+			img.flush();
+			return imgPre;
 		} catch (FileNotFoundException fnfe) {
 			Utils.log2("openJpegAlpha: Path not found: " + path);
 		} catch (Exception e) {
