@@ -68,6 +68,7 @@ import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
+import java.awt.event.InputEvent;
 import java.awt.Event;
 import javax.swing.SwingUtilities;
 
@@ -963,6 +964,12 @@ public class Utils implements ij.plugin.PlugIn {
 
 	}
 
+	static public final void addRGBColorSliders(final GenericDialog gd, final Color color) {
+		gd.addSlider("Red: ", 0, 255, color.getRed());
+		gd.addSlider("Green: ", 0, 255, color.getGreen());
+		gd.addSlider("Blue: ", 0, 255, color.getBlue());
+	}
+
 	/** Converts the ImageProcessor to an ImageProcessor of the given type, or the same if of equal type. */
 	static final public ImageProcessor convertTo(final ImageProcessor ip, final int type, final boolean scaling) {
 		switch (type) {
@@ -1470,4 +1477,15 @@ public class Utils implements ij.plugin.PlugIn {
 		return false;
 	}
 
+	/** The CTRL key functionality is passed over to the COMMAND key (aka META key) in a MacOSX. */
+	static public final int getControlModifier() {
+		return IJ.isMacOSX() ? InputEvent.META_MASK
+			             : InputEvent.CTRL_MASK;
+	}
+
+	/** The CTRL key functionality is passed over to the COMMAND key (aka META key) in a MacOSX. */
+	static public final boolean isControlDown(final InputEvent e) {
+		return IJ.isMacOSX() ? e.isMetaDown()
+			             : e.isControlDown();
+	}
 }

@@ -2186,7 +2186,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 			item = new JMenuItem("Undo");item.addActionListener(this); popup.add(item);
 			if (!layer.getParent().canUndo() || canvas.isTransforming()) item.setEnabled(false);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.CTRL_MASK, true));
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Utils.getControlModifier(), true));
 			item = new JMenuItem("Redo");item.addActionListener(this); popup.add(item);
 			if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
@@ -2262,28 +2262,33 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item = new JMenuItem("Import labels as arealists..."); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
 
-			menu = new JMenu("Display");
+			menu = new JMenu("Export");
 			item = new JMenuItem("Make flat image..."); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
+			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+			item = new JMenuItem("Arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
+			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+			popup.add(menu);
+
+			menu = new JMenu("Display");
 			item = new JMenuItem("Resize canvas/LayerSet...");   item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
 			// OBSOLETE // item = new JMenuItem("Rotate Layer/LayerSet...");   item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
+
 			menu = new JMenu("Project");
 			this.project.getLoader().setupMenuItems(menu, this.getProject());
 			item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
-			item = new JMenuItem("Export arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
-			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
-			item = new JMenuItem("Export arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
-			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
-
 			item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
-			if (menu.getItemCount() > 0) popup.add(menu);
+			item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
+			popup.add(menu);
+
 			menu = new JMenu("Selection");
 			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Event.CTRL_MASK, true));
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Utils.getControlModifier(), true));
 			if (0 == layer.getDisplayables().size() && 0 == layer.getParent().getZDisplayables().size()) item.setEnabled(false);
 			item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
 			if (0 == selection.getNSelected()) item.setEnabled(false);
@@ -2859,10 +2864,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				srcRect = new Rectangle(0, 0, (int)Math.ceil(layer.getParent().getLayerWidth()), (int)Math.ceil(layer.getParent().getLayerHeight()));
 			}
 			double scale = 1.0;
-			final String[] types = new String[]{"8-bit grayscale", "RGB"};
+			final String[] types = new String[]{"8-bit grayscale", "RGB Color"};
 			int the_type = ImagePlus.GRAY8;
 			final GenericDialog gd = new GenericDialog("Choose", frame);
-			gd.addNumericField("Scale: ", 1.0, 2);
+			gd.addSlider("Scale: ", 1, 100, 100);
 			gd.addChoice("Type: ", types, types[0]);
 			if (layer.getParent().size() > 1) {
 				/*
@@ -2879,13 +2884,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				Utils.addLayerRangeChoices(Display.this.layer, gd); /// $#%! where are my lisp macros
 				gd.addCheckbox("Include non-empty layers only", true);
 			}
+			gd.addMessage("Background color:");
+			Utils.addRGBColorSliders(gd, Color.black);
 			gd.addCheckbox("Best quality", false);
 			gd.addMessage("");
 			gd.addCheckbox("Save to file", false);
 			gd.addCheckbox("Save for web", false);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
-			scale = gd.getNextNumber();
+			scale = gd.getNextNumber() / 100;
 			the_type = (0 == gd.getNextChoiceIndex() ? ImagePlus.GRAY8 : ImagePlus.COLOR_RGB);
 			if (Double.isNaN(scale) || scale <= 0.0) {
 				Utils.showMessage("Invalid scale.");
@@ -2914,12 +2921,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} else {
 				layer_array = new Layer[]{Display.this.layer};
 			}
+			final Color background = new Color((int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
 			final boolean quality = gd.getNextBoolean();
 			final boolean save_to_file = gd.getNextBoolean();
 			final boolean save_for_web = gd.getNextBoolean();
 			// in its own thread
 			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type);
-			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, quality);
+			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, quality, background);
 
 		} else if (command.equals("Lock")) {
 			selection.setLocked(true);
@@ -3274,6 +3282,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					}
 				}
 			}, project);
+		} else if (command.equals("Flush image cache")) {
+			Loader.releaseAllCaches();
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}

@@ -796,6 +796,12 @@ abstract public class Loader {
 		return released;
 	}
 
+	static public void releaseAllCaches() {
+		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+			lo.releaseAll();
+		}
+	}
+
 	/** Empties the caches. */
 	public void releaseAll() {
 		synchronized (db_lock) {
@@ -2626,8 +2632,11 @@ abstract public class Loader {
 		*/
 	}
 
-	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
 	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality) {
+		return makeFlatImage(layer, srcRect, scale, c_alphas, type, force_to_file, quality, Color.black);
+	}
+	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
+	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality, final Color background) {
 		if (null == layer || 0 == layer.length) {
 			Utils.log2("makeFlatImage: null or empty list of layers to process.");
 			return null;
@@ -2696,7 +2705,7 @@ abstract public class Loader {
 				// 2 - get all slices
 				ImageStack stack = null;
 				for (int i=0; i<layer.length; i++) {
-					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, quality);
+					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 					if (null == slice) {
 						Utils.log("Could not retrieve flat image for " + layer[i].toString());
 						continue;
@@ -2713,7 +2722,7 @@ abstract public class Loader {
 					imp.setCalibration(layer[0].getParent().getCalibrationCopy());
 				}
 			} else {
-				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, quality);
+				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 				if (null != target_dir) {
 					saveToPath(imp, target_dir, layer[0].getPrintableTitle(), ".tif");
 					imp = null; // to prevent showing it
@@ -2754,11 +2763,15 @@ abstract public class Loader {
 	}
 
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, final boolean quality) {
-		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, null, quality);
+		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, null, quality, Color.black);
 	}
 
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ) {
-		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, false);
+		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, false, Color.black);
+	}
+
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
+		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, Color.black);
 	}
 
 	/** Returns a screenshot of the given layer for the given magnification and srcRect. Returns null if the was not enough memory to create it.
@@ -2767,15 +2780,15 @@ abstract public class Loader {
 	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0, and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
 	 *
 	 */
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
-		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality);
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality, final Color background) {
+		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background);
 		final ImagePlus imp = new ImagePlus(layer.getPrintableTitle(), bi);
 		imp.setCalibration(layer.getParent().getCalibrationCopy());
 		bi.flush();
 		return imp;
 	}
 
-	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
+	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality, final Color background) {
 
 		try {
 			// if quality is specified, then a larger image is generated:
@@ -2838,12 +2851,8 @@ abstract public class Loader {
 			}
 			final Graphics2D g2d = bi.createGraphics();
 
-			// fill background with black, since RGB images default to white background
-			if (type == ImagePlus.COLOR_RGB) {
-				g2d.setColor(Color.black);
-				g2d.fillRect(0, 0, bi.getWidth(), bi.getHeight());
-			}
-
+			g2d.setColor(background);
+			g2d.fillRect(0, 0, bi.getWidth(), bi.getHeight());
 
 			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images

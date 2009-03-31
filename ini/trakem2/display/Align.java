@@ -64,13 +64,13 @@ public class Align {
 			l1 = new Landmark(layer);
 			l1.add(x_p, y_p);
 		} else if (l1.layer.equals(layer)) {
-			if (me.isShiftDown() && me.isControlDown()) l1.remove(x_p, y_p, magnification);
+			if (me.isShiftDown() && Utils.isControlDown(me)) l1.remove(x_p, y_p, magnification);
 			else l1.add(x_p, y_p);
 		} else if (null == l2) {
 			l2 = new Landmark(layer);
 			l2.add(x_p, y_p);
 		} else if (l2.layer.equals(layer)) {
-			if (me.isShiftDown() && me.isControlDown()) l2.remove(x_p, y_p, magnification);
+			if (me.isShiftDown() && Utils.isControlDown(me)) l2.remove(x_p, y_p, magnification);
 			else l2.add(x_p, y_p);
 		} else {
 			// ignore, different layer

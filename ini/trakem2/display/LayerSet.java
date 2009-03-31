@@ -1437,7 +1437,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		} else if (Layer.IMAGE == format) {
 			final Image[] image = new Image[last - first + 1];
 			for (int i=first, j=0; i<=last; i++, j++) {
-				image[j] = project.getLoader().getFlatAWTImage((Layer)al_layers.get(i), r, scale, c_alphas, type, c, null, true);
+				image[j] = project.getLoader().getFlatAWTImage((Layer)al_layers.get(i), r, scale, c_alphas, type, c, null, true, Color.black);
 			}
 			return image;
 		}

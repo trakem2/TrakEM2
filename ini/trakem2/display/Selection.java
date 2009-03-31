@@ -407,7 +407,7 @@ public class Selection {
 		// a = (3,0,0) and b = (0,2,0)
 		// a x b = (3,0,0) x (0,2,0) = ((0 x 0 - 2 x 0), -(3 x 0 - 0 x 0), (3 x 2 - 0 x 0)) = (0,0,6).
 
-		if (me.isControlDown()) {
+		if (Utils.isControlDown(me)) {
 			delta = Math.toDegrees(delta);
 			if (me.isShiftDown()) {
 				// 1 degree angle increments
@@ -1037,7 +1037,7 @@ public class Selection {
 			}
 		} else {
 			if (me.isShiftDown()) {
-				if (me.isControlDown() && null != affine_handles) {
+				if (Utils.isControlDown(me) && null != affine_handles) {
 					if (affine_handles.remove(new AffinePoint(x_p, y_p))) {
 						if (0 == affine_handles.size()) affine_handles = null;
 						else initializeModel();

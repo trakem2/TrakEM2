@@ -43,6 +43,7 @@ import java.util.Iterator;
 import java.util.TreeMap;
 import java.util.Collection;
 
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -796,7 +797,7 @@ public final class Layer extends DBObject implements Bucketable {
 			return null;
 		}
 		if (IMAGE == format) {
-			return project.getLoader().getFlatAWTImage(this, r, scale, c_alphas, type, c, null, true);
+			return project.getLoader().getFlatAWTImage(this, r, scale, c_alphas, type, c, null, true, Color.black);
 		} else {
 			final ImagePlus imp = project.getLoader().getFlatImage(this, r, scale, c_alphas, type, c, null, true);
 			switch (format) {

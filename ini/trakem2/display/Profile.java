@@ -622,14 +622,14 @@ public class Profile extends Displayable {
 		if (ProjectToolbar.PEN == tool) {
 
 			//collect vars
-			if (me.isControlDown() && me.isShiftDown()) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
 				index = findNearestPoint(p, n_points, x_p, y_p);
 			} else {
 				index = findPoint(p, x_p, y_p, mag);
 			}
 
 			if (-1 != index) {
-				if (me.isControlDown() && me.isShiftDown()) {
+				if (Utils.isControlDown(me) && me.isShiftDown()) {
 					//delete point
 					removePoint(index);
 					index = index_r = index_l = -1;
