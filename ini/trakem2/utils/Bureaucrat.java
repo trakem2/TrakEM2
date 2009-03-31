@@ -190,6 +190,22 @@ public class Bureaucrat extends Thread {
 		} catch (InterruptedException ie) {
 			IJError.print(ie);
 		}
+		// wait for all others in a separate thread
+		final ThreadGroup tg = getThreadGroup();
+		new Thread() { public void run() {
+			try {
+				// Reasonable effort to join all threads
+				Thread[] t = new Thread[tg.activeCount() * 2];
+				int len = tg.enumerate(t);
+				for (int i=0; i<len && i<t.length; i++) {
+					try { t[i].join(); } catch (InterruptedException ie) {}
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				Utils.showProgress(1);
+			}
+		}}.start();
 	}
 	public boolean isActive() {
 		return worker.isWorking();
