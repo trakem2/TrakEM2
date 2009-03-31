@@ -182,6 +182,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					if (d.size_adjusted) {
 						d.pack();
 						d.size_adjusted = false;
+						Utils.log2("mouse released on JFrame");
 					}
 					break;
 				}
@@ -199,25 +200,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		public void componentResized(ComponentEvent ce) {
 			final Display d = getDisplaySource(ce);
 			if (null != d) {
-				//if (!d.size_adjusted) {
-					// keep a minimum width and height
-					SwingUtilities.invokeLater(new Runnable() { public void run() {
-					Rectangle r = d.frame.getBounds();
-					int w = r.width;
-					int h = r.height;
-					if (h < 600) h = 600;
-					if (w < 500) w = 500;
-					if (w != r.width || h != r.height) {
-						d.frame.setSize(w, h);
-						//d.size_adjusted = true;
-					}
-					}});
-				//} else {
-					d.size_adjusted = false;
-				//}
 				d.size_adjusted = true; // works in combination with mouseReleased to call pack(), avoiding infinite loops.
 				d.adjustCanvas();
-
 				int frame_state = d.frame.getExtendedState();
 			       	if (frame_state != d.last_frame_state) { // this setup avoids infinite loops (for pack() calls componentResized as well
 					d.last_frame_state = frame_state;
@@ -1254,6 +1238,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 		Rectangle r = split.getRightComponent().getBounds();
 		canvas.setDrawingSize(r.width, r.height, true);
+		// fix not-on-top-left problem
+		canvas.setLocation(0, 0);
 		//frame.pack(); // don't! Would go into an infinite loop
 		canvas.repaint(true);
 		updateInDatabase("srcRect");

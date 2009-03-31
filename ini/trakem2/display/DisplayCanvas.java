@@ -1106,23 +1106,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		x -= dx;
 		y -= dy;
 
-		int newWidth = (int) (imageWidth * newMag);
-		int newHeight = (int) (imageHeight * newMag);
-		/*
-		 * if (canEnlarge(newWidth, newHeight)) { setDrawingSize(newWidth,
-		 * newHeight); //imp.getWindow().pack(); } else { int w =
-		 * (int)Math.round(dstWidth/newMag); if (w*newMag<dstWidth) w++; int h =
-		 * (int)Math.round(dstHeight/newMag); if (h*newMag<dstHeight) h++; x =
-		 * offScreenX(x); y = offScreenY(y); Rectangle r = new Rectangle(x-w/2,
-		 * y-h/2, w, h); if (r.x<0) r.x = 0; if (r.y<0) r.y = 0; if
-		 * (r.x+w>imageWidth) r.x = imageWidth-w; if (r.y+h>imageHeight) r.y =
-		 * imageHeight-h; srcRect = r; }
-		 */
-
-		// Instead, set the size that of the JPanel
-		final Rectangle rb = display.getCanvasPanel().getBounds(null);
-		super.setDrawingSize(rb.width, rb.height);
-		// .. and adjust the srcRect to the new dimensions
+		// Adjust the srcRect to the new dimensions
 		int w = (int) Math.round(dstWidth / newMag);
 		if (w * newMag < dstWidth)
 			w++;
@@ -1146,17 +1130,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			r.y = imageHeight - h;
 		srcRect = r;
 
-		display.pack();
+		//display.pack();
 
 		setMagnification(newMag);
 		display.updateInDatabase("srcRect");
 		display.repaintAll2(); // this repaint includes this canvas's repaint as well, but also the navigator, etc. // repaint();
 	}
 
-	/**
-	 * Zooms out by making srcRect bigger. If we can't make it bigger, than make
-	 * the window smaller.
-	 */
 	private void zoomOut2(int x, int y) {
 		//if (magnification <= 0.03125)
 		//	return;
@@ -1170,7 +1150,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		x -= dx;
 		y -= dy;
 
-		if (imageWidth * newMag > dstWidth) {
+		if (imageWidth * newMag > dstWidth || imageHeight * newMag > dstHeight) {
 			int w = (int) Math.round(dstWidth / newMag);
 			if (w * newMag < dstWidth)
 				w++;
@@ -1190,23 +1170,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				r.y = imageHeight - h;
 			srcRect = r;
 		} else {
+			// Shrink srcRect, but NOT the dstWidth,dstHeight of the canvas, which remain the same:
 			srcRect = new Rectangle(0, 0, imageWidth, imageHeight);
-			setDrawingSize((int) (imageWidth * newMag),
-					(int) (imageHeight * newMag));
-			/*
-			 * // Albert: imp.getWindow().pack();
-			 */
-		}
-
-		// pack display only if dimensions overflow
-		Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-		Rectangle rd = display.getBounds();
-		if (screen.width < rd.width || screen.height < rd.height) {
-			display.pack();
-			Point p = display.getLocation();
-			if (p.x < 0 || p.x > screen.width) p.x = 0;
-			if (p.y < 0 || p.y > screen.height) p.y = 0;
-			display.setLocation(p);
 		}
 
 		setMagnification(newMag);
