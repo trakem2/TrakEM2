@@ -68,6 +68,7 @@ import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
+import java.awt.event.InputEvent;
 import java.awt.Event;
 import javax.swing.SwingUtilities;
 
@@ -1470,4 +1471,15 @@ public class Utils implements ij.plugin.PlugIn {
 		return false;
 	}
 
+	/** The CTRL key functionality is passed over to the COMMAND key (aka META key) in a MacOSX. */
+	static public final int getControlModifier() {
+		return IJ.isMacOSX() ? InputEvent.META_MASK
+			             : InputEvent.CTRL_MASK;
+	}
+
+	/** The CTRL key functionality is passed over to the COMMAND key (aka META key) in a MacOSX. */
+	static public final boolean isControlDown(final InputEvent e) {
+		return IJ.isMacOSX() ? e.isMetaDown()
+			             : e.isControlDown();
+	}
 }

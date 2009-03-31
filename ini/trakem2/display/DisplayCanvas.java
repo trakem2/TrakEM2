@@ -1754,7 +1754,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					else display.getLayerSet().undoOneStep();
 					Display.repaint(display.getLayerSet());
 					ke.consume();
-				} else if (0 == (mod ^ Event.ALT_MASK)) {
+				} else if (0 == (mod ^ Event.ALT_MASK) || 0 == (mod ^ (Event.SHIFT_MASK | Event.CTRL_MASK)) ) {
 					last_action = Z_KEY;
 					if (isTransforming()) display.getSelection().redoOneStep();
 					else display.getLayerSet().redoOneStep();
@@ -2007,10 +2007,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 */
 	public void mouseWheelMoved(MouseWheelEvent mwe) {
 		if (dragging) return; // prevent unexpected mouse wheel movements
-		int modifiers = mwe.getModifiers();
-		int zoom = InputEvent.CTRL_MASK;
-		if (IJ.isMacOSX()) zoom = InputEvent.META_MASK; // the apple key, according to ImageJ.keyPressed
-		if (0 != (modifiers & zoom)) {
+		final int modifiers = mwe.getModifiers();
+		if (0 == (modifiers ^ Utils.getControlModifier())) {
 			// scroll zooom under pointer
 			int x = mwe.getX();
 			int y = mwe.getY();
@@ -2023,7 +2021,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			} else {
 				zoomIn(x, y);
 			}
-		} else if (0 != (modifiers & InputEvent.SHIFT_MASK) && ProjectToolbar.getToolId() == ProjectToolbar.PEN) {
+		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && ProjectToolbar.getToolId() == ProjectToolbar.PEN) {
 			int brushSize_old = ProjectToolbar.getBrushSize();
 			// resize brush for AreaList painting
 			int brushSize = ProjectToolbar.setBrushSize((int)(5 * mwe.getWheelRotation() / magnification)); // the getWheelRotation provides the sign
@@ -2033,7 +2031,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			extra += 4;
 			Rectangle r = new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - brushSize/2 - extra, (int)(mwe.getY() / magnification) + srcRect.y - brushSize/2 - extra, brushSize+extra, brushSize+extra);
 			this.repaint(r, 0);
-		} else {
+		} else if (0 == modifiers) {
 			// scroll layers
 			if (1 == mwe.getWheelRotation()) display.nextLayer(modifiers);
 			else display.previousLayer(modifiers);
