@@ -1748,14 +1748,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				break;
 			case KeyEvent.VK_Z:
 				// UNDO: shift+z or ctrl+z
-				if (0 == (mod ^ Event.SHIFT_MASK) || 0 == (mod ^ Event.CTRL_MASK)) {
+				if (0 == (mod ^ Event.SHIFT_MASK) || 0 == (mod ^ Utils.getControlModifier())) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
 					if (isTransforming()) display.getSelection().undoOneStep();
 					else display.getLayerSet().undoOneStep();
 					Display.repaint(display.getLayerSet());
 					ke.consume();
 				// REDO: alt+z or ctrl+shift+z
-				} else if (0 == (mod ^ Event.ALT_MASK) || 0 == (mod ^ (Event.SHIFT_MASK | Event.CTRL_MASK)) ) {
+				} else if (0 == (mod ^ Event.ALT_MASK) || 0 == (mod ^ (Event.SHIFT_MASK | Utils.getControlModifier())) ) {
 					if (isTransforming()) display.getSelection().redoOneStep();
 					else display.getLayerSet().redoOneStep();
 					Display.repaint(display.getLayerSet());
@@ -1771,7 +1771,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// else, let ImageJ grab the ROI into the Manager, if any
 				break;
 			case KeyEvent.VK_A:
-				if (0 == (ke.getModifiers() ^ Event.CTRL_MASK)) {
+				if (0 == (ke.getModifiers() ^ Utils.getControlModifier())) {
 					display.getSelection().selectAll();
 					Display.repaint(display.getLayer(), display.getSelection().getBox(), 0);
 					ke.consume();

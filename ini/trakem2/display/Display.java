@@ -2186,7 +2186,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 			item = new JMenuItem("Undo");item.addActionListener(this); popup.add(item);
 			if (!layer.getParent().canUndo() || canvas.isTransforming()) item.setEnabled(false);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.CTRL_MASK, true));
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Utils.getControlModifier(), true));
 			item = new JMenuItem("Redo");item.addActionListener(this); popup.add(item);
 			if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
@@ -2262,28 +2262,33 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item = new JMenuItem("Import labels as arealists..."); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
 
-			menu = new JMenu("Display");
+			menu = new JMenu("Export");
 			item = new JMenuItem("Make flat image..."); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
+			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+			item = new JMenuItem("Arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
+			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+			popup.add(menu);
+
+			menu = new JMenu("Display");
 			item = new JMenuItem("Resize canvas/LayerSet...");   item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
 			// OBSOLETE // item = new JMenuItem("Rotate Layer/LayerSet...");   item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
+
 			menu = new JMenu("Project");
 			this.project.getLoader().setupMenuItems(menu, this.getProject());
 			item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
-			item = new JMenuItem("Export arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
-			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
-			item = new JMenuItem("Export arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
-			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
-
 			item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
-			if (menu.getItemCount() > 0) popup.add(menu);
+			item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
+			popup.add(menu);
+
 			menu = new JMenu("Selection");
 			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Event.CTRL_MASK, true));
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Utils.getControlModifier(), true));
 			if (0 == layer.getDisplayables().size() && 0 == layer.getParent().getZDisplayables().size()) item.setEnabled(false);
 			item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
 			if (0 == selection.getNSelected()) item.setEnabled(false);
@@ -3277,6 +3282,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					}
 				}
 			}, project);
+		} else if (command.equals("Flush image cache")) {
+			Loader.releaseAllCaches();
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}

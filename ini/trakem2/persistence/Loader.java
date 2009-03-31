@@ -796,6 +796,12 @@ abstract public class Loader {
 		return released;
 	}
 
+	static public void releaseAllCaches() {
+		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+			lo.releaseAll();
+		}
+	}
+
 	/** Empties the caches. */
 	public void releaseAll() {
 		synchronized (db_lock) {
