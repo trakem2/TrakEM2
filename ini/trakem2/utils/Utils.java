@@ -964,6 +964,12 @@ public class Utils implements ij.plugin.PlugIn {
 
 	}
 
+	static public final void addRGBColorSliders(final GenericDialog gd, final Color color) {
+		gd.addSlider("Red: ", 0, 255, color.getRed());
+		gd.addSlider("Green: ", 0, 255, color.getGreen());
+		gd.addSlider("Blue: ", 0, 255, color.getBlue());
+	}
+
 	/** Converts the ImageProcessor to an ImageProcessor of the given type, or the same if of equal type. */
 	static final public ImageProcessor convertTo(final ImageProcessor ip, final int type, final boolean scaling) {
 		switch (type) {
