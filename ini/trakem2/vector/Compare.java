@@ -1885,6 +1885,7 @@ public class Compare {
 
 		// register all, or relative
 		if (3 == cp.transform_type) {
+			// '3' means relative
 			// compute global average delta
 			if (0 == cp.delta) {
 				for (Chain chain : chains) {
@@ -1899,6 +1900,7 @@ public class Compare {
 			}
 		} else {
 			if (cp.transform_type < 3) {
+				// '1', '2' and '3' involve a 3D affine
 				// no need //VectorString3D[][] vs_axes = new VectorString3D[p.length][];
 				Vector3d[][] o = new Vector3d[p.length][];
 				for (int i=0; i<p.length; i++) {
