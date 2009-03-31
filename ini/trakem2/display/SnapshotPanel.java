@@ -90,7 +90,7 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 	public void mousePressed(MouseEvent me) {
 		//must enable cancel!//if (display.isTransforming()) return;
 		display.setActive(d);
-		if (me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton()) {
+		if (me.isPopupTrigger() || (ij.IJ.isMacOSX() && me.isControlDown()) || MouseEvent.BUTTON2 == me.getButton()) {
 			Display.showPopup(this, me.getX(), me.getY());
 		}
 	}

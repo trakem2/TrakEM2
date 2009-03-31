@@ -455,13 +455,13 @@ public class Polyline extends ZDisplayable implements Line3D {
 		final long layer_id = display.getLayer().getId();
 
 
-		if (me.isControlDown() && me.isShiftDown()) {
+		if (Utils.isControlDown(me) && me.isShiftDown()) {
 			index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
 		} else {
 			index = findPoint(x_p, y_p, layer_id, mag);
 		}
 
-		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !me.isControlDown()) {
+		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !Utils.isControlDown(me)) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
 			final double scale = layer_set.getVirtualizationScale();
 			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
@@ -633,7 +633,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
 
 			if (-1 != index) {
-				if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
+				if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
 					//delete point
 					removePoint(index);
 					index = -1;

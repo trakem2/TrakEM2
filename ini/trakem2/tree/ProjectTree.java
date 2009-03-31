@@ -129,7 +129,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
 			}
 			return;
-		} else if (me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
+		} else if (me.isPopupTrigger() || (ij.IJ.isMacOSX() && me.isControlDown()) || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
 			JPopupMenu popup = getPopupMenu(selected_node);
 			if (null == popup) return;
 			popup.show(ProjectTree.this, x, y);

@@ -689,14 +689,14 @@ public class Pipe extends ZDisplayable implements Line3D {
 
 		if (ProjectToolbar.PEN == tool) {
 
-			if (me.isControlDown() && me.isShiftDown()) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
 				index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
 			} else {
 				index = findPoint(p, x_p, y_p, mag);
 			}
 
 			if (-1 != index) {
-				if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
+				if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
 					//delete point
 					removePoint(index);
 					index = index_r = index_l = -1;

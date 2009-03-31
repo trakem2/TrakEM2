@@ -79,7 +79,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private static final int MOUSE = 1;
 	private static final int KEY_MOVE = 2;
 	private static final int Z_KEY = 4; // the undo system
-	private int last_action = NONE;
 
 	/** Store a copy of whatever data as each Class may define it, one such data object per class.
 	 * Private to the package. */
@@ -800,7 +799,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	public void mouseReleased(MouseEvent me) {
-		last_action = MOUSE;
 		boolean dragging2 = dragging;
 		dragging = false;
 		if (popup) {
@@ -1737,6 +1735,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		Layer layer = display.getLayer();
 
+		final int mod = ke.getModifiers();
+
 		switch (keyCode) {
 			case KeyEvent.VK_COMMA:
 			case 0xbc: // select next Layer up
@@ -1747,15 +1747,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				display.previousLayer(ke.getModifiers());
 				break;
 			case KeyEvent.VK_Z:
-				int mod = ke.getModifiers();
+				// UNDO: shift+z or ctrl+z
 				if (0 == (mod ^ Event.SHIFT_MASK) || 0 == (mod ^ Event.CTRL_MASK)) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
 					if (isTransforming()) display.getSelection().undoOneStep();
 					else display.getLayerSet().undoOneStep();
 					Display.repaint(display.getLayerSet());
 					ke.consume();
+				// REDO: alt+z or ctrl+shift+z
 				} else if (0 == (mod ^ Event.ALT_MASK) || 0 == (mod ^ (Event.SHIFT_MASK | Event.CTRL_MASK)) ) {
-					last_action = Z_KEY;
 					if (isTransforming()) display.getSelection().redoOneStep();
 					else display.getLayerSet().redoOneStep();
 					Display.repaint(display.getLayerSet());
@@ -1771,14 +1771,17 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// else, let ImageJ grab the ROI into the Manager, if any
 				break;
 			case KeyEvent.VK_A:
-				if (false) {
 				if (0 == (ke.getModifiers() ^ Event.CTRL_MASK)) {
 					display.getSelection().selectAll();
 					Display.repaint(display.getLayer(), display.getSelection().getBox(), 0);
 					ke.consume();
+					break; // INSIDE the 'if' block, so that it can bleed to the default block which forwards to active!
+				} else if (null != active) {
+					active.keyPressed(ke);
+					if (ke.isConsumed()) break;
+					// TODO this is just a hack really. Should just fall back to default switch option.
+					// The whole keyPressed method needs revision: should not break from it when not using the key.
 				}
-				}
-				break;
 			case KeyEvent.VK_ESCAPE: // cancel transformation
 				if (display.getLayer().getParent().isAligning()) {
 					display.getLayer().getParent().cancelAlign();
@@ -1946,7 +1949,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_DOWN:
 			case KeyEvent.VK_LEFT:
 			case KeyEvent.VK_RIGHT:
-				last_action = KEY_MOVE;
 				// bleed to active:
 			default:
 				// forward event to active
@@ -1968,11 +1970,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		//Utils.log2("keyCode, keyChar: " + keyCode + ", " + keyChar + " ref: " + KeyEvent.VK_UNDEFINED + ", " + KeyEvent.CHAR_UNDEFINED);
 	}
 
-	public void keyTyped(KeyEvent ke) {
-	}
+	public void keyTyped(KeyEvent ke) {}
 
-	public void keyReleased(KeyEvent ke) {
-	}
+	public void keyReleased(KeyEvent ke) {}
 
 	public void zoomToFit() {
 		double magw = (double) getWidth() / imageWidth;

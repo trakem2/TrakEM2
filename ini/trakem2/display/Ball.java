@@ -259,14 +259,14 @@ public class Ball extends ZDisplayable {
 
 		if (ProjectToolbar.PEN == tool) {
 			long layer_id = Display.getFrontLayer().getId();
-			if (me.isControlDown() && me.isShiftDown()) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
 				index = findNearestPoint(p, n_points, x_p, y_p); // should go to an AbstractProfile or something
 			} else {
 				index = findPoint(p, x_p, y_p, mag);
 			}
 			if (-1 != index) {
 				if (layer_id == p_layer[index]) {
-					if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer().getId()) {
+					if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer().getId()) {
 						removePoint(index);
 						index = -1; // to prevent saving in the database twice
 						repaint(false);

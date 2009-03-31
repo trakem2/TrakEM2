@@ -491,7 +491,7 @@ public class Dissector extends ZDisplayable {
 		// TODO: if zoom invariant, should check for nearest point. Or nearest point anyway, when deleting
 		// (but also for adding a new one?)
 
-		if (me.isShiftDown() && me.isControlDown()) {
+		if (me.isShiftDown() && Utils.isControlDown(me)) {
 			if (-1 != index) {
 				// delete
 				item.remove(index);
