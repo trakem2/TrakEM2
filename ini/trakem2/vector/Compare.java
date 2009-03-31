@@ -34,7 +34,6 @@ import mpicbg.models.AffineModel3D;
 
 import ij.IJ;
 import ij.gui.GenericDialog;
-import ij.gui.YesNoCancelDialog;
 import ij.measure.Calibration;
 import ij.io.SaveDialog;
 import ij.io.OpenDialog;
@@ -49,7 +48,6 @@ import java.awt.Dimension;
 import java.awt.event.*;
 import java.awt.Container;
 import java.awt.Choice;
-import java.awt.geom.Point2D;
 import javax.swing.*;
 import javax.swing.border.LineBorder;
 import javax.swing.event.*;
@@ -2631,7 +2629,7 @@ public class Compare {
 
 	/** Transform all points of all VectorString3D in vs using a Moving Least Squares Transform defined by the pairing of points in source to those in target.
 	 *  In short, bring source into target. */
-	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target) {
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target) throws Exception {
 		if (source.size() != target.size()) {
 			Utils.log2("Could not generate a MovingLeastSquaresTransform: different number of source and target points.");
 			return null;
@@ -2702,7 +2700,7 @@ public class Compare {
 
 	/** Transfer vs via a moving least squares transform by matching source named points into equally named target named points. 
 	 *  If no points in common, returns null. */
-	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final Map<String,Tuple3d> source, final Map<String,Tuple3d> target) {
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final Map<String,Tuple3d> source, final Map<String,Tuple3d> target) throws Exception {
 		if (null == source || null == target) return null;
 		final List<Tuple3d> so = new ArrayList<Tuple3d>();
 		final List<Tuple3d> ta = new ArrayList<Tuple3d>();
@@ -2721,7 +2719,7 @@ public class Compare {
 		return transferVectorStrings(vs, so, ta);
 	}
 
-	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final ProjectThing source_fiduciary, final ProjectThing target_fiduciary) {
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final ProjectThing source_fiduciary, final ProjectThing target_fiduciary) throws Exception {
 		return transferVectorStrings(vs, extractPoints(source_fiduciary), extractPoints(target_fiduciary));
 	}
 
