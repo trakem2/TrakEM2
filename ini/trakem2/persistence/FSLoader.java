@@ -78,6 +78,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.regex.Pattern;
 
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
@@ -931,11 +932,10 @@ public final class FSLoader extends Loader {
 		return null != path && 0 == path.indexOf("http://");
 	}
 
+	static public final Pattern ABS_PATH = Pattern.compile("^[a-zA-Z]*:/.*$|^/.*$|[a-zA-Z]:.*$");
+
 	public static final boolean isRelativePath(final String path) {
-		if (((!IJ.isWindows() && 0 != path.indexOf('/')) || (IJ.isWindows() && 1 != path.indexOf(":/"))) && 0 != path.indexOf("http://") && 0 != path.indexOf("//")) { // "//" is for Samba networks (since the \\ has been converted to // before)
-			return true;
-		}
-		return false;
+		return ! ABS_PATH.matcher(path).matches();
 	}
 
 	/** All backslashes are converted to slashes to avoid havoc in MSWindows. */
@@ -960,10 +960,11 @@ public final class FSLoader extends Loader {
 		// cache path as absolute
 		patch.cacheCurrentPath(isRelativePath(path) ? getParentFolder() + path : path);
 		// if path is absolute, try to make it relative
+		Utils.log2("path was: " + path);
 		path = makeRelativePath(path);
 		// store
 		ht_paths.put(patch.getId(), path);
-		//Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
+		Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
 	}
 
 	/** Takes a String and returns a copy with the following conversions: / to -, space to _, and \ to -. */
@@ -1073,22 +1074,8 @@ public final class FSLoader extends Loader {
 			return path;
 		}
 		// the long and verbose way, to be cross-platform. Should work with URLs just the same.
-		/*
-		File xf = new File(project_file_path);
-		File fpath = new File(path);
-		if (fpath.getParentFile().equals(xf.getParentFile())) {
-			path = path.substring(xf.getParent().length());
-			// remove prepended file separator, if any, to label the path as relative
-			if (0 == path.indexOf('/')) path = path.substring(1);
-		} else if (fpath.equals(xf.getParentFile())) {
-			return "";
-		}
-		*/
 		String xdir = new File(project_file_path).getParentFile().getAbsolutePath();
 		if (!xdir.endsWith("/")) xdir += "/";
-		File fpath = new File(path);
-		path = fpath.getAbsolutePath(); // removing double "//" and other potential problems
-		if (fpath.isDirectory() && !path.endsWith("/")) path += "/";
 		if (IJ.isWindows()) {
 			xdir = xdir.replace('\\', '/');
 			path = path.replace('\\', '/');
