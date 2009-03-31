@@ -493,7 +493,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		// Popup:
 		popup = false; // not reset properly in macosx
-		if (Utils.isPopupTrigger(me) && 1 == me.getClickCount() && !me.isAltDown() && (IJ.isMacOSX() ? me.isControlDown() : true)) { // allow shift down
+		if (Utils.isPopupTrigger(me)) {
 			popup = true;
 			display.getPopupMenu().show(this, me.getX(), me.getY());
 			return;
