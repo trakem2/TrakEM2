@@ -108,6 +108,7 @@ public final class FSLoader extends Loader {
 	public FSLoader() {
 		super(); // register
 		super.v_loaders.remove(this); //will be readded on successful open
+		FSLoader.startStaticServices();
 	}
 
 	private String unuid = null;
@@ -325,6 +326,18 @@ public final class FSLoader extends Loader {
 
 	public boolean isReady() {
 		return null != ht_paths;
+	}
+
+	static private void startStaticServices() {
+		if (null == dispatcher || dispatcher.isQuit()) dispatcher = new Dispatcher();
+		if (null == regenerator || regenerator.isShutdown()) {
+			int np = Runtime.getRuntime().availableProcessors();
+			// 1 core = 1 thread
+			// 2 cores = 2 threads
+			// 3+ cores = cores-1 threads
+			if (np > 2) np -= 1;
+			regenerator = Executors.newFixedThreadPool(np);
+		}
 	}
 
 	/** Shutdown the various thread pools and disactivate services in general. */
@@ -2392,14 +2405,6 @@ public final class FSLoader extends Loader {
 
 	static private AtomicInteger n_regenerating = new AtomicInteger(0);
 	static private ExecutorService regenerator = null;
-	static {
-		int np = Runtime.getRuntime().availableProcessors();
-		// 1 core = 1 thread
-		// 2 cores = 2 threads
-		// 3+ cores = cores-1 threads
-		if (np > 2) np -= 1;
-		regenerator = Executors.newFixedThreadPool(np);
-	}
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
 	 *  returns true if the task was submitted, false if not. */

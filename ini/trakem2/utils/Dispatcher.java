@@ -37,6 +37,7 @@ public class Dispatcher extends Thread {
 	private final ArrayList<Task> tasks = new ArrayList<Task>();
 	private final Lock lock = new Lock();
 	private boolean go = true;
+
 	public Dispatcher() {
 		super("T2-Dispatcher");
 		setPriority(Thread.NORM_PRIORITY);
@@ -46,6 +47,9 @@ public class Dispatcher extends Thread {
 	public void quit() {
 		this.go = false;
 		synchronized (this) { notify(); }
+	}
+	public boolean isQuit() {
+		return go;
 	}
 
 	private boolean accept = true;
