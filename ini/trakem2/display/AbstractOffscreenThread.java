@@ -53,7 +53,7 @@ public abstract class AbstractOffscreenThread extends Thread {
 					paint();
 				} else {
 					synchronized (this) {
-						wait();
+						try { wait(); } catch (InterruptedException ie) {}
 					}
 				}
 			} catch (Exception e) {
