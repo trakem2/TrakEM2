@@ -2545,7 +2545,7 @@ abstract public class Loader {
 						Utils.log("Could not open image at " + path);
 						return;
 					}
-					List<AreaList> alis = AmiraImporter.extractAreaLists(imp, first_layer, base_x, base_y, alpha, add_background, this);
+					Collection<AreaList> alis = AmiraImporter.extractAreaLists(imp, first_layer, base_x, base_y, alpha, add_background, this);
 					if (!hasQuitted() && alis.size() > 0) {
 						first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), alis);
 					}

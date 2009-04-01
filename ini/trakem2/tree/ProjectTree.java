@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Set;
 import java.util.Hashtable;
@@ -396,7 +397,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	*/
 
 	/** Creates a new node of basic type for each AreaList, Ball, Pipe or Polyline present in the ArrayList. Other elements are ignored. */
-	public void insertSegmentations(final Project project, final List al) {
+	public void insertSegmentations(final Project project, final Collection al) {
 		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there
 		final String imported_labels = "imported_labels";

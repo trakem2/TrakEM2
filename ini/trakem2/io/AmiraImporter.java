@@ -51,9 +51,14 @@ import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Collections;
+import java.util.Collection;
 
+import java.util.concurrent.atomic.AtomicInteger;
+import mpi.fruitfly.general.MultiThreading;
 
 /** Parses an amira labelfield and imports the labels as AreaList instances into the project tree.*/
 public class AmiraImporter {
@@ -202,7 +207,104 @@ public class AmiraImporter {
 		}
 	}
 
+	static public Collection<AreaList> extractAreaLists(final ImagePlus imp, final Layer first_layer, final double base_x, final double base_y, final float alpha, final boolean add_background, final Worker worker) {
+
+		try {
+			final HashMap<Integer,HashMap<Float,Area>> map = new HashMap<Integer,HashMap<Float,Area>>();
+			final ImageStack stack = imp.getStack(); // works even for images that are not stacks: it creates one
+
+			final AtomicInteger ai = new AtomicInteger(1);
+			final AtomicInteger completed_slices = new AtomicInteger(0);
+			final int n_slices = imp.getNSlices();
+
+			final Thread[] threads = MultiThreading.newThreads();
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+
+						final Rectangle box = new Rectangle(0, 0, 1, 1);
+						for (int i = ai.getAndIncrement(); i <= n_slices; i = ai.getAndIncrement()) {
+							final ImageProcessor ip;
+							synchronized (map) {
+								ip = stack.getProcessor(i);
+							}
+							if (null != worker && worker.hasQuitted()) return;
+							final HashMap<Float,Area> layer_map = new HashMap<Float,Area>();
+							synchronized (map) {
+								map.put(i, layer_map);
+							}
+							for (int y=ip.getHeight()-1; y>-1; y--) {
+								for (int x=ip.getWidth()-1; x>-1; x--) {
+									// x,y
+									box.x = x;
+									box.y = y;
+									float pix = ip.getPixelValue(x, y);
+									if (!add_background && 0 == pix) continue;
+									Area area = layer_map.get(new Float(pix));
+									if (null == area) {
+										area = new Area();
+										layer_map.put(new Float(pix), area);
+									}
+									area.add(new Area(box));
+								}
+							}
+							Utils.showProgress(completed_slices.incrementAndGet() / (float)n_slices);
+						}
+					}
+				};
+			}
+
+			MultiThreading.startAndJoin(threads);
+			Utils.showProgress(1);
+
+			if (null != worker && worker.hasQuitted()) return null;
+
+			final HashMap<Float,AreaList> alis = new HashMap<Float,AreaList>();
+
+			double thickness = first_layer.getThickness();
+
+			// Recreate AreaLists
+			for (final Map.Entry<Integer,HashMap<Float,Area>> e : map.entrySet()) {
+				final int slice_index = e.getKey();
+				final HashMap<Float,Area> layer_map = e.getValue();
+
+				for (final Map.Entry<Float,Area> fa : layer_map.entrySet()) {
+					Float label = fa.getKey();
+					AreaList ali = alis.get(label);
+					if (null == ali) {
+						ali = new AreaList(first_layer.getProject(), "Label " + label.intValue(), base_x, base_y);
+						first_layer.getParent().add(ali);
+						alis.put(label, ali);
+					}
+					double z = first_layer.getZ() + (slice_index-1) * thickness;
+					Layer layer = first_layer.getParent().getLayer(z, thickness, true);
+					ali.setArea(layer.getId(), fa.getValue());
+				}
+			}
+
+			float hue = 0;
+
+			for (final Map.Entry<Float,AreaList> e : alis.entrySet()) {
+				final AreaList ali = e.getValue();
+				ali.setProperty("label", Integer.toString(e.getKey().intValue()));
+				ali.calculateBoundingBox();
+				ali.setColor(Color.getHSBColor(hue, 1, 1));
+				ali.setAlpha(alpha);
+				hue += 60 / 255.0f;
+				if (hue > 1) hue = 1 - hue;
+			}
+
+			return alis.values();
+
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+
+		return null;
+	}
+
 	/** Accepts an optional worker thread to manage task interruption; may be null. */
+	/*
 	static public List<AreaList> extractAreaLists(final ImagePlus imp, final Layer first_layer, final double base_x, final double base_y, final float alpha, final boolean add_background, final Worker worker) {
 		boolean error = false;
 		final ArrayList<AreaList> ar = new ArrayList<AreaList>();
@@ -263,4 +365,5 @@ public class AmiraImporter {
 		if (error) ar.clear();
 		return ar;
 	}
+	*/
 }
