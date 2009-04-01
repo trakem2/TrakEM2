@@ -3224,7 +3224,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			SwingUtilities.invokeLater(new Runnable() { public void run() {
 			d.canvas.showCentered(new Rectangle(0, 0, (int)subls.getLayerWidth(), (int)subls.getLayerHeight()));
 			}});
-		} else if (command.startsWith("Export arealists as labels")) {
+		} else if (command.startsWith("Arealists as labels")) {
 			GenericDialog gd = new GenericDialog("Export labels");
 			gd.addSlider("Scale: ", 1, 100, 100);
 			final String[] options = {"All area list", "Selected area lists"};
@@ -3245,9 +3245,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			int first = gd.getNextChoiceIndex();
 			int last  = gd.getNextChoiceIndex();
 			boolean visible_only = gd.getNextBoolean();
-			if (command.endsWith("(amira)")) {
+			if (-1 != command.indexOf("(amira)")) {
 				AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last, visible_only, true, true);
-			} else if (command.endsWith("(tif)")) {
+			} else if (-1 != command.indexOf("(tif)")) {
 				AreaList.exportAsLabels(al, canvas.getFakeImagePlus().getRoi(), scale, first, last, visible_only, false, false);
 			}
 		} else if (command.equals("Project properties...")) {
