@@ -3217,7 +3217,10 @@ abstract public class Loader {
 						return;
 					}
 					Patch p = importImage(layer.getProject(), x, y, path);
-					if (null != p) layer.add(p);
+					if (null != p) {
+						layer.add(p);
+						layer.getParent().enlargeToFit(p, LayerSet.NORTHWEST);
+					}
 					////
 				} catch (Exception e) {
 					IJError.print(e);
