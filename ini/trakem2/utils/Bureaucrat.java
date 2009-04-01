@@ -115,7 +115,7 @@ public class Bureaucrat extends Thread {
 			}
 		}
 		ControlWindow.startWaitingCursor();
-		int sandwitch = 1000; // one second, will get slower over time
+		int sandwitch = ControlWindow.isGUIEnabled() ? 1000 : 5000; // 1 second or 5
 		Utils.showStatus("Started processing: " + worker.getTaskName(), !worker.onBackground());
 		while (worker.isWorking() && !worker.hasQuitted()) {
 			try { Thread.sleep(sandwitch); } catch (InterruptedException ie) {}
@@ -123,13 +123,6 @@ public class Bureaucrat extends Thread {
 			Utils.showStatus("Processing... " + worker.getTaskName() + " - " + (elapsed_seconds < 60 ?
 								(int)elapsed_seconds + " seconds" :
 								(int)(elapsed_seconds / 60) + "' " + (int)(elapsed_seconds % 60) + "''"), false); // don't steal focus
-			// increase sandwitch length progressively
-			if (ControlWindow.isGUIEnabled()) {
-				if (elapsed_seconds > 180) sandwitch = 10000;
-				else if (elapsed_seconds > 60) sandwitch = 3000;
-			} else {
-				sandwitch = 60000; // every minute
-			}
 		}
 		ControlWindow.endWaitingCursor();
 		Utils.showStatus("Done " + worker.getTaskName(), !worker.onBackground());
