@@ -436,8 +436,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		RT.waitForOffs();
 		// wait for the paint method to finish painting
 		synchronized (lock_paint) {
-			lock_paint.lock(); // wait until painting is done
-			lock_paint.unlock();
+			// wait until painting is done
 		}
 	}
 

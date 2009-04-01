@@ -149,8 +149,8 @@ public abstract class AbstractRepaintThread extends Thread {
 	/** Child classes need to extend this method for handling the need of recreating offscreen images. */
 	abstract protected void handleUpdateGraphics(Component target, Rectangle clipRect);
 
-	/** Waits until all offscreen threads are finished. */
+	/** Waits until the offscreen thread is finished with the current cycle. */
 	public void waitForOffs() {
-		try { off.join(); } catch (InterruptedException e) {}
+		off.waitOnRepaintCycle();
 	}
 }

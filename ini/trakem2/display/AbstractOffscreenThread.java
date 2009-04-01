@@ -62,6 +62,12 @@ public abstract class AbstractOffscreenThread extends Thread {
 		}
 	}
 
+	public void waitOnRepaintCycle() {
+		while (mustRepaint.get()) {
+			try { Thread.sleep(500); } catch (InterruptedException ie) {}
+		}
+	}
+
 	public abstract void paint();
 
 	protected interface RepaintProperties {}
