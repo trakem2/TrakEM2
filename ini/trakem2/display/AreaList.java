@@ -1571,12 +1571,26 @@ public class AreaList extends ZDisplayable {
 			width = (int)(broi.width * scale);
 			height = (int)(broi.height * scale);
 		}
+
+		// Compute highest label value, which affects of course the stack image type
+		TreeSet<Integer> label_values = new TreeSet<Integer>();
+		for (final Displayable d : list) {
+			String label = d.getProperty("label");
+			if (null != label) label_values.add(Integer.parseInt(label));
+		}
+		int highest = 0;
+		if (label_values.size() > 0) {
+			highest = label_values.last();
+		}
+		int n_non_labeled = list.size() - label_values.size();
+		int max_label_value = highest + n_non_labeled;
+
 		final ImageStack stack = new ImageStack(width, height);
 		// processor type:
 		int type = ImagePlus.GRAY8;
-		if (list.size() > 255) { // 0 is background, and 255 different arealists
+		if (max_label_value > 255) { // 0 is background, and 255 different arealists
 			type = ImagePlus.GRAY16;
-			if (list.size() > 65535) { // 0 is background, and 65535 different arealists
+			if (max_label_value > 65535) { // 0 is background, and 65535 different arealists
 				type = ImagePlus.GRAY32;
 			}
 		}
@@ -1611,7 +1625,14 @@ public class AreaList extends ZDisplayable {
 			int value = 0;
 			for (final Displayable d : list) {
 				value++; // zero is background
-				ip.setValue(value);
+				int label = value;
+				String slabel = d.getProperty("label");
+				if (null != slabel) {
+					label = Integer.parseInt(slabel);
+				} else {
+					label = (++highest);
+				}
+				ip.setValue(label);
 				if (visible_only && !d.isVisible()) continue;
 				AreaList ali = (AreaList)d;
 				Area area = ali.getArea(la);

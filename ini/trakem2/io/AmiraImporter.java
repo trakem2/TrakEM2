@@ -232,6 +232,7 @@ public class AmiraImporter {
 				int label = (int)f.floatValue();
 				ArrayList areas = extractLabelAreas(label, stack);
 				AreaList ali = new AreaList(first_layer.getProject(), "Label " + label, base_x, base_y);
+				ali.setProperty("label", Integer.toString(label));
 				final double thickness = first_layer.getThickness();
 				for (int i=0; i<areas.size(); i++) {
 					Area area = (Area)areas.get(i);
