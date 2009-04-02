@@ -4132,7 +4132,8 @@ abstract public class Loader {
 			// 1 - Check that the parent chain of folders exists, and attempt to create it when not:
 			File fdir = new File(path).getParentFile();
 			if (null == fdir) return false;
-			if (!fdir.exists() && !fdir.mkdirs()) {
+			fdir.mkdirs();
+			if (!fdir.exists()) {
 				Utils.log2("Could not create folder " + fdir.getAbsolutePath());
 				return false;
 			}

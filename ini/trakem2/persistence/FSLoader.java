@@ -2173,11 +2173,10 @@ public final class FSLoader extends Loader {
 				this.dir_mipmaps = parent_path + "trakem2." + unuid + "/trakem2.mipmaps/";
 				try {
 					File f = new File(this.dir_mipmaps);
+					f.mkdirs();
 					if (!f.exists()) {
-						if (!f.mkdirs()) {
-							Utils.log("Could not create trakem2.mipmaps!");
-							return false;
-						}
+						Utils.log("Could not create trakem2.mipmaps!");
+						return false;
 					}
 				} catch (Exception e) {
 					IJError.print(e);
@@ -2570,11 +2569,10 @@ public final class FSLoader extends Loader {
 					File oldf = new File(level_dir + mm);
 					File newf = new File(new StringBuffer(new_dir_mipmaps).append(name).append('/').append(createIdPath(id, filename, ".jpg")).toString());
 					File fd = newf.getParentFile();
+					fd.mkdirs();
 					if (!fd.exists()) {
-						if (!fd.mkdirs()) {
-							Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
-							continue;
-						}
+						Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
+						continue;
 					}
 					if (!oldf.renameTo(newf)) {
 						Utils.log2("Could not move mipmap file " + oldf.getAbsolutePath() + " to " + newf.getAbsolutePath());
@@ -2604,11 +2602,10 @@ public final class FSLoader extends Loader {
 					String filename = name.substring(0, prev_last_dot);
 					File newf = new File(new_dir_masks + createIdPath(id, filename, ".zip"));
 					File fd = newf.getParentFile();
+					fd.mkdirs();
 					if (!fd.exists()) {
-						if (!fd.mkdirs()) {
-							Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
-							continue;
-						}
+						Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
+						continue;
 					}
 					if (!fmask.renameTo(newf)) {
 						Utils.log2("Could not move mask file " + fmask.getAbsolutePath() + " to " + newf.getAbsolutePath());
