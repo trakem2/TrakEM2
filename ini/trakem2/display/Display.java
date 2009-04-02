@@ -23,9 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import ij.*;
-import ij.io.*;
 import ij.gui.*;
-import ij.process.*;
 import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
@@ -33,7 +31,6 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.Registration;
 import ini.trakem2.imaging.StitchingTEM;
 import ini.trakem2.utils.ProjectToolbar;
@@ -49,15 +46,15 @@ import ini.trakem2.tree.*;
 import javax.swing.*;
 import javax.swing.event.*;
 
-import mpicbg.trakem2.align.Align;
 import mpicbg.trakem2.align.AlignTask;
 
 import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
 import java.lang.reflect.Method;
-import java.io.File;
 import java.io.Writer;
+
+import lenscorrection.DistortionCorrectionTask;
 
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public final class Display extends DBObject implements ActionListener, ImageListener {
@@ -2080,6 +2077,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 						item = new JMenuItem("Snap"); item.addActionListener(this); popup.add(item);
 					} else if (n_sel_patches > 1) {
 						item = new JMenuItem("Montage"); item.addActionListener(this); popup.add(item);
+						item = new JMenuItem("Lens correction"); item.addActionListener(this); popup.add(item);
 					}
 					item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
@@ -3150,6 +3148,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			burro.addPostTask(new Runnable() { public void run() {
 				ls.addTransformStep(affected);
 			}});
+		} else if (command.equals("Lens correction")) {
+			DistortionCorrectionTask.correctDistortionFromSelection( selection );		
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");
 			gd.addMessage("Linking images to images (within their own layer only):");

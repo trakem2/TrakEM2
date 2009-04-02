@@ -5,7 +5,6 @@ package mpicbg.trakem2.align;
 
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
-import java.io.File;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -544,7 +543,6 @@ public class Align
 		final Patch p1 = t1.getPatch();
 		final Patch p2 = t2.getPatch();
 		final Loader loader = p1.getProject().getLoader();
-		final String storageFolder = loader.getUNUIdFolder() + "pointmatches.ser/";
 		
 		final Object ob = loader.deserialize( new StringBuffer( loader.getUNUIdFolder() ).append( "pointmatches.ser/" )
 				.append( FSLoader.createIdPath( Long.toString( p1.getId() ) + "_" + Long.toString( p2.getId() ), "pointmatches", ".ser" ) ).toString() );
@@ -804,6 +802,17 @@ public class Align
 		}
 	}
 	
+	
+	/**
+	 * 
+	 * @param p 
+	 * @param patches
+	 * @param fixedPatches 
+	 * @param tiles will contain the generated
+	 *   {@link AbstractAffineTile2D Tiles}
+	 * @param fixedTiles will contain the {@link AbstractAffineTile2D Tiles}
+	 *   corresponding to the {@link Patch Patches} in fixedPatches
+	 */
 	final static public void tilesFromPatches(
 			final Param p,
 			final List< ? extends Patch > patches,
