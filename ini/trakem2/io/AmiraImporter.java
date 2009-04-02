@@ -64,7 +64,7 @@ import mpi.fruitfly.general.MultiThreading;
 public class AmiraImporter {
 
 	/** Returns the array of AreaList or null if the file dialog is canceled. The xo,yo is the pivot of reference. */
-	static public ArrayList importAmiraLabels(Layer first_layer, double xo, double yo, final String default_dir) {
+	static public Collection<AreaList> importAmiraLabels(Layer first_layer, double xo, double yo, final String default_dir) {
 		// open file
 		OpenDialog od = new OpenDialog("Choose Amira Labels File", default_dir, "");
 		String filename = od.getFileName();
@@ -91,123 +91,33 @@ public class AmiraImporter {
 	}
 
 	/** Returns an ArrayList containing all AreaList objects. The xo,yo is the pivot of reference. */
-	static public ArrayList extractAmiraLabels(ImagePlus labels, AmiraParameters ap, Layer first_layer, double xo, double yo) {
-		// adjust first layer thickness to be that of the pixelDepth
-		/* // done at Loader.importStack
-		boolean calibrate = true;
-		if (first_layer.getParent().isCalibrated()) {
-			YesNoDialog yn = new YesNoDialog("Calibration", "The layer set is already calibrated. Override with the Amira's stack calibration values?");
-			if (!yn.yesPressed()) {
-				calibrate = false;
-			}
-		}
-		if (calibrate) {
-			final Calibration cal = labels.getCalibration();
-			final double depth = cal.pixelDepth / cal.pixelHeight; // assuming pixelWidth and pixelHeight to be the same
-			first_layer.getParent().setCalibration(cal);
-			first_layer.setThickness(depth);
-			// TODO: need to think about a proper, integrated setup for Z and thickness regarding calibration.
-		}
-		*/
-		String[] materials = ap.getMaterialList();
+	static public Collection<AreaList> extractAmiraLabels(final ImagePlus labels, final AmiraParameters ap, final Layer first_layer, final double xo, final double yo) {
+		final String[] materials = ap.getMaterialList();
 		// extract labels as ArrayList of Area
-		ArrayList al_alis = new ArrayList();
+
+		final Map<Float,AreaList> alis = extractAreaLists(labels, first_layer, xo, yo, 0.4f, false);
+
 		for (int i=0; i<materials.length; i++) {
-			AmiraLabel label = new AmiraLabel();
-			label.id = ap.getMaterialID(materials[i]);
-			label.color = ap.getMaterialColor(label.id);
-			label.name = ap.getMaterialName(label.id);
-			Utils.log2("Processing label " + label.id + " " + label.name);
-			if (label.name.equals("Exterior")) {
+			final int id = ap.getMaterialID(materials[i]);
+			final double[] color = ap.getMaterialColor(id);
+			final String name = ap.getMaterialName(id);
+			if (name.equals("Exterior")) {
 				Utils.log("Ignoring Amira's \"Exterior\" label");
-				continue; // ignoring
+				continue;
 			}
-			label.al_areas = extractLabelAreas(label.id, labels.getStack());
-			if (null == label.al_areas || 0 == label.al_areas.size()) continue;
-			AreaList ali = createAreaList(label, first_layer);
-			ali.translate(xo, yo, false);
-			al_alis.add(ali);
-		}
-		return al_alis;
-	}
-
-	static private AreaList createAreaList(final AmiraLabel label, final Layer first_layer) {
-		final AreaList ali = new AreaList(first_layer.getProject(), label.name, 0, 0);
-		first_layer.getParent().add(ali);
-		ali.setColor(new Color((float)label.color[0], (float)label.color[1], (float)label.color[2]));
-		final double thickness = first_layer.getThickness();
-		int i=1;
-		for (Iterator it = label.al_areas.iterator(); it.hasNext(); ) {
-			double z = first_layer.getZ() + (i-1) * thickness;
-			Area area = (Area)it.next();
-			Layer layer = first_layer;
-			if (i > 1) layer = first_layer.getParent().getLayer(z, thickness, true); // will create new layer if not found
-			// after creating the layer, avoid adding the area if empty
-			if (!area.isEmpty()) {
-				ali.setArea(layer.getId(), area);
+			final AreaList ali = alis.get(new Float(id));
+			if (null == ali) {
+				Utils.log("ERROR: no AreaList for label id " + id);
+				continue;
 			}
-			// increase layer count
-			i++;
+			ali.setColor(new Color((float)color[0], (float)color[1], (float)color[2]));
+			ali.setTitle(name);
 		}
-		ali.setTitle(label.name);
-		// make all areas local to ali's x,y
-		ali.calculateBoundingBox();
-
-		return ali;
+		return alis.values();
 	}
 
-	static private class AmiraLabel {
-		ArrayList al_areas;
-		String name;
-		double[] color;
-		int id;
-	}
-
-	/** One Area per slice, even if empty.
-	 * @param label The label id or index, within 0-255 range.
-	 * */
-	static private ArrayList extractLabelAreas(final int label, final ImageStack stack) {
-		try {
-			final int size = stack.getSize();
-			final ImagePlus tmp = new ImagePlus("", stack);
-			//
-			final ArrayList al_areas = new ArrayList();
-			//
-			for (int slice=1; slice<=size; slice++) {
-				//
-				tmp.setSlice(slice);
-				final ImageProcessor ip = tmp.getProcessor();
-				ip.setThreshold(label, label, ImageProcessor.NO_LUT_UPDATE);
-				//
-				final ThresholdToSelection tts = new ThresholdToSelection();
-				tts.setup("", tmp);
-				tts.run(ip);
-				Roi roi = tmp.getRoi();
-				if (null == roi) {
-					al_areas.add(new Area()); // empty
-					continue;
-				}
-				Rectangle bounds = roi.getBounds();
-				if (0 == bounds.width || 0 == bounds.height) {
-					al_areas.add(new Area()); // empty
-					continue;
-				} else if (!(roi instanceof ShapeRoi)) {
-					roi = new ShapeRoi(roi);
-				}
-				Area area = new Area(Utils.getShape((ShapeRoi)roi));
-				AffineTransform at = new AffineTransform();
-				at.translate(bounds.x, bounds.y);
-				area = area.createTransformedArea(at);
-				al_areas.add(area);
-			}
-			return al_areas;
-		} catch (Exception e) {
-			IJError.print(e);
-			return null;
-		}
-	}
-
-	static public Collection<AreaList> extractAreaLists(final ImagePlus imp, final Layer first_layer, final double base_x, final double base_y, final float alpha, final boolean add_background, final Worker worker) {
+	/** Returns a map of label vs AreaList. */
+	static public Map<Float,AreaList> extractAreaLists(final ImagePlus imp, final Layer first_layer, final double base_x, final double base_y, final float alpha, final boolean add_background) {
 
 		try {
 			final HashMap<Integer,HashMap<Float,Area>> map = new HashMap<Integer,HashMap<Float,Area>>();
@@ -216,6 +126,8 @@ public class AmiraImporter {
 			final AtomicInteger ai = new AtomicInteger(1);
 			final AtomicInteger completed_slices = new AtomicInteger(0);
 			final int n_slices = imp.getNSlices();
+
+			final Thread parent = Thread.currentThread();
 
 			final Thread[] threads = MultiThreading.newThreads();
 			for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -228,7 +140,7 @@ public class AmiraImporter {
 							synchronized (map) {
 								ip = stack.getProcessor(i);
 							}
-							if (null != worker && worker.hasQuitted()) return;
+							if (parent.isInterrupted()) return;
 							final HashMap<Float,Area> layer_map = new HashMap<Float,Area>();
 							synchronized (map) {
 								map.put(i, layer_map);
@@ -257,7 +169,7 @@ public class AmiraImporter {
 			MultiThreading.startAndJoin(threads);
 			Utils.showProgress(1);
 
-			if (null != worker && worker.hasQuitted()) return null;
+			if (parent.isInterrupted()) return null;
 
 			final HashMap<Float,AreaList> alis = new HashMap<Float,AreaList>();
 
@@ -295,7 +207,7 @@ public class AmiraImporter {
 				if (hue > 1) hue = 1 - hue;
 			}
 
-			return alis.values();
+			return alis;
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -303,68 +215,4 @@ public class AmiraImporter {
 
 		return null;
 	}
-
-	/** Accepts an optional worker thread to manage task interruption; may be null. */
-	/*
-	static public List<AreaList> extractAreaLists(final ImagePlus imp, final Layer first_layer, final double base_x, final double base_y, final float alpha, final boolean add_background, final Worker worker) {
-		boolean error = false;
-		final ArrayList<AreaList> ar = new ArrayList<AreaList>();
-		try {
-			final HashSet<Float> labels = new HashSet<Float>();
-			final ImageStack stack = imp.getStack(); // works even for images that are not stacks: it creates one
-			// How many different labels? Which?
-			// Brute force:
-			for (int i=imp.getNSlices(); i>0; i--) { // from 1 to N, both inclusive
-				final ImageProcessor ip = stack.getProcessor(i);
-				if (null != worker && worker.hasQuitted()) return ar;
-				for (int y=ip.getHeight()-1; y>-1; y--) {
-					for (int x=ip.getWidth()-1; x>-1; x--) {
-						labels.add(ip.getPixelValue(x, y));
-					}
-				}
-			}
-			if (!add_background) labels.remove(new Float(0));
-			// One AreaList per label
-			ArrayList<Float> al = new ArrayList<Float>();
-			al.addAll(labels);
-			Collections.sort(al);
-			float hue = 0;
-			int k = 0;
-			for (Float f : al) {
-				if (null != worker && worker.hasQuitted()) return ar;
-				int label = (int)f.floatValue();
-				ArrayList areas = extractLabelAreas(label, stack);
-				AreaList ali = new AreaList(first_layer.getProject(), "Label " + label, base_x, base_y);
-				ali.setProperty("label", Integer.toString(label));
-				final double thickness = first_layer.getThickness();
-				for (int i=0; i<areas.size(); i++) {
-					Area area = (Area)areas.get(i);
-					if (area.isEmpty()) continue;
-					double z = first_layer.getZ() + i * thickness;
-					Layer layer = first_layer.getParent().getLayer(z, thickness, true);
-					ali.setArea(layer.getId(), area);
-				}
-				first_layer.getParent().add(ali);
-				ali.calculateBoundingBox();
-				ali.setColor(Color.getHSBColor(hue, 1, 1));
-				ali.setAlpha(alpha);
-				hue += 60 / 255.0f;
-				if (hue > 1) hue = 1 - hue;
-				ar.add(ali);
-				k++;
-				Utils.showProgress(k / (double)al.size());
-			}
-		} catch (Exception e) {
-			IJError.print(e);
-			error = true;
-		} finally {
-			if (error || (null != worker && worker.hasQuitted())) {
-				// remove from LayerSet and repaint
-				for (AreaList ali : ar) first_layer.getParent().remove(ali);
-			}
-		}
-		if (error) ar.clear();
-		return ar;
-	}
-	*/
 }

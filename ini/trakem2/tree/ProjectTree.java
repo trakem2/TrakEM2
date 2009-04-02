@@ -619,5 +619,4 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		((DefaultTreeModel)getModel()).insertNodeInto(node, (DefaultMutableTreeNode)enode.getParent(), index + 1);
 		return node;
 	}
-
 }

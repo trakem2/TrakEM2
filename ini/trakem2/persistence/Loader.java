@@ -2548,9 +2548,9 @@ abstract public class Loader {
 						Utils.log("Could not open image at " + path);
 						return;
 					}
-					Collection<AreaList> alis = AmiraImporter.extractAreaLists(imp, layer, base_x, base_y, alpha, add_background, this);
+					Map<Float,AreaList> alis = AmiraImporter.extractAreaLists(imp, layer, base_x, base_y, alpha, add_background);
 					if (!hasQuitted() && alis.size() > 0) {
-						layer.getProject().getProjectTree().insertSegmentations(layer.getProject(), alis);
+						layer.getProject().getProjectTree().insertSegmentations(layer.getProject(), alis.values());
 					}
 				} catch (Exception e) {
 					IJError.print(e);
@@ -3501,12 +3501,14 @@ abstract public class Loader {
 			YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Amira Importer", "Import labels as well?");
 			if (yn.yesPressed()) {
 				// select labels
-				ArrayList al = AmiraImporter.importAmiraLabels(first_layer, last_patch.getX(), last_patch.getY(), imp_stack.getOriginalFileInfo().directory);
-				if (null != al) {
+				Collection<AreaList> alis = AmiraImporter.importAmiraLabels(first_layer, last_patch.getX(), last_patch.getY(), imp_stack.getOriginalFileInfo().directory);
+				if (null != alis) {
 					// import all created AreaList as nodes in the ProjectTree under a new imported_segmentations node
-					first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), al);
+					first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), alis);
 					// link them to the images
-					// TODO
+					for (final AreaList ali : alis) {
+						ali.linkPatches();
+					}
 				}
 			}
 		}
