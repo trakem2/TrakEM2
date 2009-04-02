@@ -774,6 +774,22 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		Display.add(this, zdispl);
 	}
 
+	public void addAll(final Collection<? extends ZDisplayable> coll) {
+		if (null == coll || 0 == coll.size()) return;
+		for (final ZDisplayable zd : coll) {
+			al_zdispl.add(0, zd);
+			zd.setLayerSet(this);
+			zd.setLayer(al_layers.get(0));
+			zd.updateInDatabase("layer_set_id");
+			if (null != root) {
+				// add as last, then update
+				root.put(al_zdispl.size()-1, zd, zd.getBoundingBox(null));
+				root.update(this, zd, 0, al_zdispl.size()-1);
+			}
+		}
+		Display.addAll(this, coll);
+	}
+
 	/** Used for reconstruction purposes, avoids repainting or updating. */
 	public void addSilently(final ZDisplayable zdispl) {
 		if (null == zdispl || -1 != al_zdispl.indexOf(zdispl)) return;

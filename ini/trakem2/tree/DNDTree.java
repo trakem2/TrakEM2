@@ -196,16 +196,18 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		}
 	}
 
-	static public boolean expandNode(final JTree tree, final DefaultMutableTreeNode node) {
+	static public boolean expandNode(final DNDTree tree, final DefaultMutableTreeNode node) {
 		final TreeModel tree_model = tree.getModel();
 		if (tree_model.isLeaf(node)) return false;
 		tree.expandPath(new TreePath(node.getPath()));
+		tree.updateUILater();
 		return true;
 	}
 
 	/** Convenient method.*/
-	static public void expandAllNodes(JTree tree, DefaultMutableTreeNode root_node) {
+	static public void expandAllNodes(DNDTree tree, DefaultMutableTreeNode root_node) {
 		expandAllNodes(tree, new TreePath(root_node.getPath()));
+		tree.updateUILater();
 	}
 
 	static public DefaultMutableTreeNode makeNode(Thing thing) {
