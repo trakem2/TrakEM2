@@ -1663,7 +1663,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return;
 		}
 
-		if ((null == active || Patch.class == active.getClass()) && null != imp.getRoi()) {
+		if (null == active && null != imp.getRoi()) {
 			IJ.getInstance().keyPressed(ke);
 			return;
 		}

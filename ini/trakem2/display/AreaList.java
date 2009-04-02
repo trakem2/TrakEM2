@@ -945,6 +945,37 @@ public class AreaList extends ZDisplayable {
 		return null;
 	}
 
+	public void fillHoles(final Layer la) {
+		Object o = ht_areas.get(la.getId());
+		if (UNLOADED == o) o = loadLayer(la.getId());
+		if (null == o) return;
+		Area area = (Area) o;
+
+		Polygon pol = new Polygon();
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			float[] coords = new float[6];
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					pol.addPoint((int)coords[0], (int)coords[1]);
+					break;
+				case PathIterator.SEG_CLOSE:
+					area.add(new Area(pol));
+					// prepare next:
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+	}
+
 	public boolean paintsAt(final Layer layer) {
 		if (!super.paintsAt(layer)) return false;
 		return null != ht_areas.get(new Long(layer.getId()));
@@ -1370,6 +1401,10 @@ public class AreaList extends ZDisplayable {
 					}
 					ke.consume();
 					return;
+				case KeyEvent.VK_F: // fill all holes
+					fillHoles(la);
+					ke.consume();
+					return;
 			}
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1406,7 +1441,6 @@ public class AreaList extends ZDisplayable {
 						project.getProjectTree().addSibling(this, p);
 					}
 					ke.consume();
-					break;
 			}
 			Display.repaint(la, getBoundingBox(), 5);
 			linkPatches();

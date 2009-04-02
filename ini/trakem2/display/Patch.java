@@ -25,6 +25,9 @@ package ini.trakem2.display;
 
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.gui.Toolbar;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
@@ -32,6 +35,8 @@ import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Worker;
+import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
 
 import java.awt.*;
@@ -39,7 +44,9 @@ import java.awt.image.BufferedImage;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.DirectColorModel;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.geom.Point2D;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.image.PixelGrabber;
 import java.awt.event.KeyEvent;
 import java.util.Iterator;
@@ -1181,6 +1188,12 @@ public final class Patch extends Displayable {
 	}
 
 	public void keyPressed(KeyEvent ke) {
+		Object source = ke.getSource();
+		if (! (source instanceof DisplayCanvas)) return;
+		DisplayCanvas dc = (DisplayCanvas)source;
+		final Layer la = dc.getDisplay().getLayer();
+		final Roi roi = dc.getFakeImagePlus().getRoi();
+
 		switch (ke.getKeyCode()) {
 			case KeyEvent.VK_C:
 				// copy into ImageJ clipboard
@@ -1214,6 +1227,36 @@ public final class Patch extends Displayable {
 					ImagePlus imp = getImagePlus();
 					if (null != imp) imp.copy(false);
 				}
+				ke.consume();
+				break;
+			case KeyEvent.VK_F:
+				// fill mask with current ROI using 
+				Utils.log2("VK_F: roi is " + roi);
+				if (null != roi) {
+					Bureaucrat.createAndStart(new Worker("Filling image mask") { public void run() { try {
+					startedWorking();
+					ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
+					if (null == mask) mask = new ByteProcessor(o_width, o_height);
+					// a roi local to the image
+					ShapeRoi sroi = null;
+					try {
+						Area a = Utils.getArea(roi).createTransformedArea(Patch.this.at.createInverse());
+						a.intersect(new Area(new Rectangle(0, 0, o_width, o_height)));
+						sroi = new ShapeRoi(a);
+					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+					mask.setRoi(sroi);
+					mask.setColor(Toolbar.getForegroundColor());
+					mask.fill(sroi.getMask());
+					setAlphaMask(mask);
+					updateMipmaps();
+					Display.repaint();
+					} catch (Exception e) {
+						IJError.print(e);
+					} finally {
+						finishedWorking();
+					}}}, project);
+				}
+				// capturing:
 				ke.consume();
 				break;
 		}
