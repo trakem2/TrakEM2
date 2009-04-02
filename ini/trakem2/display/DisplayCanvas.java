@@ -1972,6 +1972,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	public void mouseWheelMoved(MouseWheelEvent mwe) {
 		if (dragging) return; // prevent unexpected mouse wheel movements
 		final int modifiers = mwe.getModifiers();
+		final int rotation = mwe.getWheelRotation();
 		if (0 == (modifiers ^ Utils.getControlModifier())) {
 			// scroll zooom under pointer
 			int x = mwe.getX();
@@ -1980,7 +1981,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				x = getWidth()/2;
 				y = getHeight()/2;
 			}
-			if (1 == mwe.getWheelRotation()) {
+			if (rotation > 0) {
 				zoomOut(x, y);
 			} else {
 				zoomIn(x, y);
@@ -1988,7 +1989,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && ProjectToolbar.getToolId() == ProjectToolbar.PEN) {
 			int brushSize_old = ProjectToolbar.getBrushSize();
 			// resize brush for AreaList painting
-			int brushSize = ProjectToolbar.setBrushSize((int)(5 * mwe.getWheelRotation() / magnification)); // the getWheelRotation provides the sign
+			final int sign = rotation > 0 ? 1 : -1;
+			int brushSize = ProjectToolbar.setBrushSize((int)(5 * sign / magnification)); // the getWheelRotation provides the sign
 			if (brushSize_old > brushSize) brushSize = brushSize_old; // for repainting purposes alnne
 			int extra = (int)(5 / magnification);
 			if (extra < 2) extra = 2;
@@ -1997,7 +1999,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			this.repaint(r, 0);
 		} else if (0 == modifiers) {
 			// scroll layers
-			if (1 == mwe.getWheelRotation()) display.nextLayer(modifiers);
+			if (rotation > 0) display.nextLayer(modifiers);
 			else display.previousLayer(modifiers);
 		}
 	}
