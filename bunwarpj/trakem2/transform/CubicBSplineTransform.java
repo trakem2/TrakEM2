@@ -3,6 +3,7 @@
  */
 package bunwarpj.trakem2.transform;
 
+import ij.IJ;
 import bunwarpj.bUnwarpJImageModel;
 import mpicbg.trakem2.transform.CoordinateTransform;
 
@@ -107,20 +108,23 @@ public class CubicBSplineTransform implements CoordinateTransform
 		this.height = Integer.parseInt(fields[j++]);
 		this.intervals = Integer.parseInt(fields[j++]);
 		
-		int size = (this.intervals + 3) * (this.intervals + 3);
+		int size = (this.intervals + 3);
+		int size2 = size * size;
+		
+		//IJ.log("width = " + this.width + " height = " + this.height + " intervals = " + this.intervals);
 			
 		
-		if (fields.length < (2*size + 3))
+		if (fields.length < (2*size2 + 3))
 			throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
 		
 		else
 		{
-			double[] cx = new double[size];
-			for(int i = 0; i < size; i++)
+			double[] cx = new double[size2];
+			for(int i = 0; i < size2; i++)
 				cx[i] = Double.parseDouble(fields[j++]);
 			
-			double[] cy = new double[size];
-			for(int i = 0; i < size; i++)
+			double[] cy = new double[size2];
+			for(int i = 0; i < size2; i++)
 				cy[i] = Double.parseDouble(fields[j++]);
 			
 			this.swx = new bUnwarpJImageModel(cx, size, size, 0);
