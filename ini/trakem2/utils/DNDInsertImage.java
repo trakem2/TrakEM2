@@ -92,6 +92,12 @@ public class DNDInsertImage implements DropTargetListener {
 					tmp = java.net.URLDecoder.decode(tmp, "UTF-8");
 					if (tmp.startsWith("file://")) {
 						tmp = tmp.substring(7);
+						if (IJ.isMacOSX()) {
+							if (tmp.startsWith("localhost")) {
+								tmp = tmp.substring(9);
+							}
+						}
+						
 					}
 					File f = new File(tmp);
 					if (importImageFile(f, tmp, point)) success++;
