@@ -273,7 +273,6 @@ public class AmiraImporter {
 					AreaList ali = alis.get(label);
 					if (null == ali) {
 						ali = new AreaList(first_layer.getProject(), "Label " + label.intValue(), base_x, base_y);
-						first_layer.getParent().add(ali);
 						alis.put(label, ali);
 					}
 					double z = first_layer.getZ() + (slice_index-1) * thickness;
@@ -281,6 +280,8 @@ public class AmiraImporter {
 					ali.setArea(layer.getId(), fa.getValue());
 				}
 			}
+
+			first_layer.getParent().addAll(alis.values());
 
 			float hue = 0;
 

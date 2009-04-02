@@ -1304,6 +1304,34 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 	}
 
+	static public void addAll(final Layer layer, final Collection<? extends Displayable> coll) {
+		for (final Display d : al_displays) {
+			if (d.layer == layer) {
+				d.addAll(coll);
+			}
+		}
+	}
+
+	static public void addAll(final LayerSet set, final Collection<? extends ZDisplayable> coll) {
+		for (final Display d : al_displays) {
+			if (set.contains(d.layer)) {
+				for (final ZDisplayable zd : coll) {
+					if (front == d) zd.setLayer(d.layer);
+				}
+				d.addAll(coll);
+			}
+		}
+	}
+
+	private final void addAll(final Collection<? extends Displayable> coll) {
+		for (final Displayable d : coll) {
+			add(d, false, false);
+		}
+		selection.clear();
+		Utils.updateComponent(tabs);
+		navigator.repaint(true);
+	}
+
 	// TODO this very old method could take some improvement:
 	//  - there is no need to create a new DisplayablePanel if its panel is not shown
 	//  - other issues; the method looks overly "if a dog barks and a duck quacks during a lunar eclipse then .."
