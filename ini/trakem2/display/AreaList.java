@@ -1578,6 +1578,7 @@ public class AreaList extends ZDisplayable {
 			String label = d.getProperty("label");
 			if (null != label) label_values.add(Integer.parseInt(label));
 		}
+		int lowest = label_values.first();
 		int highest = 0;
 		if (label_values.size() > 0) {
 			highest = label_values.last();
@@ -1621,6 +1622,9 @@ public class AreaList extends ZDisplayable {
 			Utils.showProgress(count/len);
 			count++;
 			ImageProcessor ip = Utils.createProcessor(type, width, height);
+			if (!(ip instanceof ByteProcessor)) {
+				ip.setMinAndMax(lowest, highest);
+			}
 			// paint here all arealist that paint to the layer 'la'
 			int value = 0;
 			for (final Displayable d : list) {

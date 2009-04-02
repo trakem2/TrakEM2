@@ -2520,8 +2520,10 @@ abstract public class Loader {
 					double base_y = base_y_;
 					float alpha = alpha_;
 					boolean add_background = add_background_;
+					Layer layer = first_layer;
 					if (Double.MAX_VALUE == base_x || Double.MAX_VALUE == base_y || alpha < 0 || alpha > 1) {
 						GenericDialog gd = new GenericDialog("Base x, y");
+						Utils.addLayerChoice("First layer:", first_layer, gd);
 						gd.addNumericField("Base_X:", 0, 0);
 						gd.addNumericField("Base_Y:", 0, 0);
 						gd.addSlider("Alpha:", 0, 100, 40);
@@ -2530,6 +2532,7 @@ abstract public class Loader {
 						if (gd.wasCanceled()) {
 							return;
 						}
+						layer = first_layer.getParent().getLayer(gd.getNextChoiceIndex());
 						base_x = gd.getNextNumber();
 						base_y = gd.getNextNumber();
 						if (Double.isNaN(base_x) || Double.isNaN(base_y)) {
@@ -2545,9 +2548,9 @@ abstract public class Loader {
 						Utils.log("Could not open image at " + path);
 						return;
 					}
-					Collection<AreaList> alis = AmiraImporter.extractAreaLists(imp, first_layer, base_x, base_y, alpha, add_background, this);
+					Collection<AreaList> alis = AmiraImporter.extractAreaLists(imp, layer, base_x, base_y, alpha, add_background, this);
 					if (!hasQuitted() && alis.size() > 0) {
-						first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), alis);
+						layer.getProject().getProjectTree().insertSegmentations(layer.getProject(), alis);
 					}
 				} catch (Exception e) {
 					IJError.print(e);
