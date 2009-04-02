@@ -522,7 +522,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	public boolean remove(boolean check, ProjectThing thing, DefaultMutableTreeNode node) {
 		Object obd = thing.getObject();
 		if (obd instanceof Project) return ((Project)obd).remove(check); // shortcut to remove everything regardless.
-		return thing.remove(true) && removeNode(null != node ? node : findNode(thing, this));
+		boolean b = thing.remove(true) && removeNode(null != node ? node : findNode(thing, this));
+		// This is a patch: removal from buckets is subtly broken
+		// thing.getProject().getRootLayerSet().recreateBuckets(true);
+		// The true problem is that the offscreen repaint thread sets the DisplayCanvas.al_top list before, not at the end of removing all.
+		// --> actually no: querying the LayerSet buckets for ZDisplayables still returns them, but al_zdispl doesn't have them.
+		thing.getProject().getRootLayerSet().recreateBuckets(true);
+		Display.repaint();
+		return b;
 	}
 
 	public void showInfo(ProjectThing thing) {

@@ -735,7 +735,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Remove from both the database and any Display that shows the Layer in which this Displayable is shown. */
 	public boolean remove(final boolean check) {
-		if (super.remove(check) && layer.remove(this)) {
+		if (super.remove(check) && layer.remove(this)) { // TODO there should be Displayable2D and Displayable3D, and each extend Displayable
 			unlink();
 			removeLinkedPropertiesFromOrigins();
 			Search.remove(this);
@@ -745,6 +745,7 @@ public abstract class Displayable extends DBObject {
 		}
 		Utils.log("Failed to remove " + this.getClass().getName() + " " + this);
 		return false;
+		// WARNING -- the ZDisplayable.remove should take ALSO any changes I add here later
 	}
 
 	/** Link the given Displayable with this Displayable, and then tell the given Displayable to link this. Since the link is stored as Displayable objects in a HashSet, there'll never be repeated entries. */
