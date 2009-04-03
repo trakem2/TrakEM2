@@ -2027,9 +2027,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (!aligning || selection.isEmpty() || !selection.contains(Profile.class)) item.setEnabled(false);
 			item = new JMenuItem("Align stack slices"); item.addActionListener(this); popup.add(item);
 			if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
-			item = new JMenuItem("Align layers (layer-wise)"); item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Align layers"); item.addActionListener(this); popup.add(item);
 			if (1 == layer.getParent().size()) item.setEnabled(false);
-			item = new JMenuItem("Align layers (tile-wise global minimization)"); item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Align multi-layer mosaic"); item.addActionListener(this); popup.add(item);
 			if (1 == layer.getParent().size()) item.setEnabled(false);
 			return popup;
 		}
@@ -3004,17 +3004,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}
 			}
-		} else if (command.equals("Align layers (layer-wise)")) {
-			final Layer la = layer;
+		} else if (command.equals("Align layers")) {
+			final Layer la = layer;; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep(la);
-			Bureaucrat burro = AlignTask.alignLayersLinearlyTask( layer );
+			Bureaucrat burro = AlignTask.alignLayersLinearlyTask( la );
 			burro.addPostTask(new Runnable() { public void run() {
 				la.getParent().addTransformStep(la);
 			}});
-		} else if (command.equals("Align layers (tile-wise global minimization)")) {
+		} else if (command.equals("Align multi-layer mosaic")) {
 			final Layer la = layer; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep();
-			Bureaucrat burro = Registration.registerLayers(la, Registration.GLOBAL_MINIMIZATION);
+			Bureaucrat burro = AlignTask.alignMultiLayerMosaicTask( la );
 			burro.addPostTask(new Runnable() { public void run() {
 				la.getParent().addTransformStep();
 			}});

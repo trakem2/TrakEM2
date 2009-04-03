@@ -199,6 +199,7 @@ final public class AlignTask
 		};
 		return Bureaucrat.createAndStart(worker, l.getProject());
 	}
+	
 
 	final static public void alignLayersLinearly( final Layer l )
 	{
@@ -349,6 +350,22 @@ final public class AlignTask
 	}
 	
 	
+	final static public Bureaucrat alignMultiLayerMosaicTask( final Layer l )
+	{
+		Worker worker = new Worker( "Aligning multi-layer mosaic", false, true )
+		{
+			public void run()
+			{
+				startedWorking();
+				try { alignMultiLayerMosaic( l ); }
+				catch ( Throwable e ) { IJError.print( e ); }
+				finally { finishedWorking(); }
+			}
+		};
+		return Bureaucrat.createAndStart(worker, l.getProject());
+	}
+	
+	
 	/**
 	 * Align a multi-layer mosaic.
 	 * 
@@ -469,12 +486,34 @@ final public class AlignTask
 				t.getPatch().setAffineTransform( t.getModel().createAffine() );
 		}
 		
+		List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( allTiles );
+		
+		final List< AbstractAffineTile2D< ? > > interestingTiles;
+		if ( largestGraphOnly )
+		{
+			/* find largest graph. */
+			
+			Set< Tile< ? > > largestGraph = null;
+			for ( Set< Tile< ? > > graph : graphs )
+				if ( largestGraph == null || largestGraph.size() < graph.size() )
+					largestGraph = graph;
+			
+			interestingTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+			for ( Tile< ? > t : largestGraph )
+				interestingTiles.add( ( AbstractAffineTile2D< ? > )t );
+			
+			if ( hideDisconnectedTiles )
+				for ( AbstractAffineTile2D< ? > t : allTiles )
+					if ( !interestingTiles.contains( t ) )
+						t.getPatch().setVisible( false );
+			if ( deleteDisconnectedTiles )
+				for ( AbstractAffineTile2D< ? > t : allTiles )
+					if ( !interestingTiles.contains( t ) )
+						t.getPatch().remove( false );
+		}
+		
 		l.getParent().setMinimumDimensions();
 		
-		
 		return;
-		
 	}
-	
-	
 }

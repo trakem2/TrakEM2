@@ -1325,7 +1325,8 @@ public final class Patch extends Displayable {
 
 	static private final class DPPatch extends Displayable.DataPackage {
 		final double min, max;
-		// TODO final CoordinateTransform ct;
+		
+		final CoordinateTransform ct;
 
 		DPPatch(final Patch patch) {
 			super(patch);
@@ -1349,10 +1350,10 @@ public final class Patch extends Displayable {
 			p.ct = (CoordinateTransform) ct.clone();
 
 			if (mipmaps) {
-				Utils.log2("Now WOULD update mipmaps in a background task");
+				Utils.log2("Update mipmaps in a background task");
 				ArrayList al = new ArrayList();
 				al.add(p);			
-				p.getLoader().generateMipMaps(al, true);
+				p.project.getLoader().generateMipMaps(al, true);
 			}
 			return true;
 		}
