@@ -48,4 +48,22 @@ public class TransformMeshMapping extends mpicbg.ij.TransformMeshMapping
 		mapInterpolated( source, target );
 		return target;
 	}
+	
+	final public ImageProcessor createInverseMappedImage( final ImageProcessor source )
+	{
+		final ImageProcessor target = source.createProcessor(
+				( int )( ( TransformMesh )transform ).getWidth(),
+				( int )( ( TransformMesh )transform ).getHeight() );
+		mapInverse( source, target );
+		return target;
+	}
+	
+	final public ImageProcessor createInverseMappedImageInterpolated( final ImageProcessor source )
+	{
+		final ImageProcessor target = source.createProcessor(
+				( int )( ( TransformMesh )transform ).getWidth(),
+				( int )( ( TransformMesh )transform ).getHeight() );
+		mapInverseInterpolated( source, target );
+		return target;
+	}
 }
