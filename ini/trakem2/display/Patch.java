@@ -820,6 +820,8 @@ public final class Patch extends Displayable {
 		copy.channels = this.channels;
 		copy.min = this.min;
 		copy.max = this.max;
+		copy.ct = this.ct.clone();
+		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 		return copy;
@@ -1177,9 +1179,11 @@ public final class Patch extends Displayable {
 
 	/** Must call updateMipmaps() afterwards. Set it to null to remove it. */
 	public void setAlphaMask(ByteProcessor bp) throws IllegalArgumentException {
-		if (null == bp && hasMask()) {
-			if (project.getLoader().removeAlphaMask(this)) {
-				alpha_path_checked = false;
+		if (null == bp) {
+			if (hasMask()) {
+				if (project.getLoader().removeAlphaMask(this)) {
+					alpha_path_checked = false;
+				}
 			}
 			return;
 		}
@@ -1243,25 +1247,24 @@ public final class Patch extends Displayable {
 					boolean is_new = false;
 					if (null == mask) {
 						mask = new ByteProcessor(o_width, o_height);
+						mask.setValue(255);
+						mask.fill();
 						is_new = true;
 					}
 					// a roi local to the image
 					try {
 						Area a = Utils.getArea(roi).createTransformedArea(Patch.this.at.createInverse());
 						a.intersect(new Area(new Rectangle(0, 0, (int)width, (int)height)));
+
 						if (Utils.isEmpty(a)) return;
+
 						if (null != ct) {
 							// inverse the coordinate transform
 							final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
 							final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
-							/*
-							final Rectangle boundingBox = mesh.getBoundingBox();
-							AffineTransform translation = new AffineTransform();
-							translation.translate(boundingBox.x, boundingBox.y);
-							a = a.createTransformedArea(translation);
-							*/
 
 							ByteProcessor rmask = new ByteProcessor((int)width, (int)height);
+
 							if (is_new) {
 								rmask.setColor(Toolbar.getForegroundColor());
 							} else {
@@ -1271,7 +1274,8 @@ public final class Patch extends Displayable {
 							rmask.setRoi(sroi);
 							rmask.fill(sroi.getMask());
 
-							ByteProcessor inv_mask = mapping.createInverseMappedImageInterpolated(rmask);
+							ByteProcessor inv_mask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
+
 							if (is_new) {
 								mask = inv_mask;
 								// done!
@@ -1280,8 +1284,10 @@ public final class Patch extends Displayable {
 								inv_mask.setMinAndMax(255, 255);
 								final byte[] b1 = (byte[]) mask.getPixels();
 								final byte[] b2 = (byte[]) inv_mask.getPixels();
-								final int color = rmask.getBestIndex(Toolbar.getForegroundColor());
+								final int color = mask.getBestIndex(Toolbar.getForegroundColor());
 								for (int i=0; i<b1.length; i++) {
+									//int v = (int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff);
+									//b1[i] = (byte) (v > 127 ? v - 256 : v);
 									b1[i] = (byte) ((int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff));
 								}
 							}
