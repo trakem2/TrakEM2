@@ -1331,7 +1331,7 @@ public final class Patch extends Displayable {
 			super(patch);
 			this.min = patch.min;
 			this.max = patch.max;
-			// TODO this.ct = (CoordinateTransform) patch.ct.clone();
+			this.ct = patch.ct.clone();
 			// channels is visualization
 			// path is absolute
 			// type is dependent on path, so absolute
@@ -1341,16 +1341,18 @@ public final class Patch extends Displayable {
 			super.to1(d);
 			final Patch p = (Patch) d;
 			boolean mipmaps = false;
-			if (p.min != min || p.max != max/* || !ct.equals(p.ct)*/) {
+			if (p.min != min || p.max != max || p.ct != ct || (p.ct == ct && ct instanceof CoordinateTransformList)) {
 				mipmaps = true;
 			}
 			p.min = min;
 			p.max = max;
-			// TODO p.ct = (CoordinateTransform) ct.clone();
+			p.ct = (CoordinateTransform) ct.clone();
 
 			if (mipmaps) {
 				Utils.log2("Now WOULD update mipmaps in a background task");
-				// TODO p.updateMipmaps();
+				ArrayList al = new ArrayList();
+				al.add(p);			
+				p.getLoader().generateMipMaps(al, true);
 			}
 			return true;
 		}
