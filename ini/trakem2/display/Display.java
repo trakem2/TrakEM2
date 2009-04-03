@@ -3149,7 +3149,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				ls.addTransformStep(affected);
 			}});
 		} else if (command.equals("Lens correction")) {
-			DistortionCorrectionTask.correctDistortionFromSelection( selection );		
+			final Layer la = layer;
+			la.getParent().addDataEditStep(new HashSet<Displayable>(la.getParent().getDisplayables()));
+			Bureaucrat burro = DistortionCorrectionTask.correctDistortionFromSelection( selection );
+			burro.addPostTask(new Runnable() { public void run() {
+				// no means to know which where modified and from which layers!
+				la.getParent().addDataEditStep(new HashSet<Displayable>(la.getParent().getDisplayables()));
+			}});
 		} else if (command.equals("Link images...")) {
 			GenericDialog gd = new GenericDialog("Options");
 			gd.addMessage("Linking images to images (within their own layer only):");
@@ -3159,23 +3165,33 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			gd.addChoice("Apply to: ", options2, options2[0]);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
+			Layer lay = layer;
+			final HashSet<Displayable> ds = new HashSet<Displayable>(lay.getParent().getDisplayables());
+			lay.getParent().addDataEditStep(ds);
 			boolean overlapping_only = 1 == gd.getNextChoiceIndex();
 			switch (gd.getNextChoiceIndex()) {
 				case 0:
 					Patch.crosslink(selection.getSelected(Patch.class), overlapping_only);
 					break;
 				case 1:
-					Patch.crosslink(layer.getDisplayables(Patch.class), overlapping_only);
+					Patch.crosslink(lay.getDisplayables(Patch.class), overlapping_only);
 					break;
 				case 2:
-					for (final Layer la : layer.getParent().getLayers()) {
+					for (final Layer la : lay.getParent().getLayers()) {
 						Patch.crosslink(la.getDisplayables(Patch.class), overlapping_only);
 					}
 					break;
 			}
+			lay.getParent().addDataEditStep(ds);
 		} else if (command.equals("Enhance contrast (selected images)...")) {
+			final Layer la = layer;
+			final HashSet<Displayable> ds = new HashSet<Displayable>(la.getParent().getDisplayables());
+			la.getParent().addDataEditStep(ds);
 			ArrayList al = selection.getSelected(Patch.class);
-			getProject().getLoader().homogenizeContrast(al);
+			Bureaucrat burro = getProject().getLoader().homogenizeContrast(al);
+			burro.addPostTask(new Runnable() { public void run() {
+				la.getParent().addDataEditStep(ds);
+			}});
 		} else if (command.equals("Enhance contrast layer-wise...")) {
 			// ask for range of layers
 			final GenericDialog gd = new GenericDialog("Choose range");
@@ -3185,7 +3201,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			java.util.List list = layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1); // exclusive end
 			Layer[] la = new Layer[list.size()];
 			list.toArray(la);
-			project.getLoader().homogenizeContrast(la);
+			final HashSet<Displayable> ds = new HashSet<Displayable>();
+			for (final Layer l : la) ds.addAll(l.getDisplayables(Patch.class));
+			getLayerSet().addDataEditStep(ds);
+			Bureaucrat burro = project.getLoader().homogenizeContrast(la);
+			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().addDataEditStep(ds);
+			}});
 		} else if (command.equals("Set Min and Max layer-wise...")) {
 			Displayable active = getActive();
 			double min = 0;
@@ -3208,7 +3230,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			for (final Layer la : layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1)) { // exclusive end
 				al.addAll(la.getDisplayables(Patch.class));
 			}
-			project.getLoader().setMinAndMax(al, min, max);
+			final HashSet<Displayable> ds = new HashSet<Displayable>(al);
+			getLayerSet().addDataEditStep(ds);
+			Bureaucrat burro = project.getLoader().setMinAndMax(al, min, max);
+			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().addDataEditStep(ds);
+			}});
 		} else if (command.equals("Set Min and Max (selected images)...")) {
 			Displayable active = getActive();
 			double min = 0;
@@ -3226,11 +3253,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			//
 			min = gd.getNextNumber();
 			max = gd.getNextNumber();
-			project.getLoader().setMinAndMax(selection.getSelected(Patch.class), min, max);
-		} else if (command.equals("Enhance contrast (selected images)...")) {
-			Utils.log("Not implemented yet");
-		} else if (command.equals("Enhance contrast layer-wise...")) {
-			Utils.log("Not implemented yet");
+			final HashSet<Displayable> ds = new HashSet<Displayable>(selection.getSelected(Patch.class));
+			getLayerSet().addDataEditStep(ds);
+			Bureaucrat burro = project.getLoader().setMinAndMax(selection.getSelected(Patch.class), min, max);
+			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().addDataEditStep(ds);
+			}});
 		} else if (command.equals("Create subproject")) {
 			Roi roi = canvas.getFakeImagePlus().getRoi();
 			if (null == roi) return; // the menu item is not active unless there is a ROI

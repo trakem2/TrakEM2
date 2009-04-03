@@ -1849,17 +1849,21 @@ public abstract class Displayable extends DBObject {
 				for (final Displayable ln : d.hs_linked) {
 					this.links.put(ln, new HashSet<Displayable>(ln.hs_linked));
 				}
+				// the self
+				this.links.put(d, new HashSet<Displayable>(d.hs_linked));
 			}
 		}
 
 		/** Set the Displayable's fields. */
 		final boolean to1(final Displayable d) {
+			Utils.log2("## to1");
 			d.width = width;
 			d.height = height;
 			d.setAffineTransform(at); // updates bucket
 			if (null != links) {
 				for (final Map.Entry<Displayable,HashSet<Displayable>> e : links.entrySet()) {
-					e.getKey().hs_linked = e.getValue();
+					e.getKey().hs_linked = new HashSet<Displayable>(e.getValue());
+					Utils.log2("setting links to " + d);
 				}
 			}
 			return true;

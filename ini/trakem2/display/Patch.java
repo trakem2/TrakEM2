@@ -1325,13 +1325,13 @@ public final class Patch extends Displayable {
 
 	static private final class DPPatch extends Displayable.DataPackage {
 		final double min, max;
-		// TODO final CoordinateTransform ct;
+		CoordinateTransform ct = null;
 
 		DPPatch(final Patch patch) {
 			super(patch);
 			this.min = patch.min;
 			this.max = patch.max;
-			this.ct = patch.ct.clone();
+			this.ct = null == ct ? null : patch.ct.clone();
 			// channels is visualization
 			// path is absolute
 			// type is dependent on path, so absolute
@@ -1342,17 +1342,18 @@ public final class Patch extends Displayable {
 			final Patch p = (Patch) d;
 			boolean mipmaps = false;
 			if (p.min != min || p.max != max || p.ct != ct || (p.ct == ct && ct instanceof CoordinateTransformList)) {
+				Utils.log2("mipmaps is true! " + (p.min != min)  + " " + (p.max != max) + " " + (p.ct != ct) + " " + (p.ct == ct && ct instanceof CoordinateTransformList));
 				mipmaps = true;
 			}
 			p.min = min;
 			p.max = max;
-			p.ct = (CoordinateTransform) ct.clone();
+			p.ct = null == ct ? null : (CoordinateTransform) ct.clone();
 
 			if (mipmaps) {
-				Utils.log2("Now WOULD update mipmaps in a background task");
+				Utils.log2("Update mipmaps in a background task");
 				ArrayList al = new ArrayList();
-				al.add(p);			
-				p.getLoader().generateMipMaps(al, true);
+				al.add(p);
+				p.project.getLoader().generateMipMaps(al, true);
 			}
 			return true;
 		}
