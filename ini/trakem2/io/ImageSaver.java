@@ -146,8 +146,12 @@ public class ImageSaver {
 	}
 	*/
 
-	// Convoluted method to make sure all possibilities of opening and closing the stream are considered.
 	static private final BufferedImage openJpeg(final String path, final int color_id) {
+		return openJpeg(path, color_id, 0);
+	}
+
+	// Convoluted method to make sure all possibilities of opening and closing the stream are considered.
+	static private final BufferedImage openJpeg(final String path, final int color_id, final int n_calls) {
 		InputStream stream = null;
 		BufferedImage bi = null;
 		try {
@@ -161,19 +165,13 @@ public class ImageSaver {
 
 		} catch (FileNotFoundException fnfe) {
 			bi = null;
-		} catch (Exception e) {
-			// the file might have been generated while trying to read it. So try once more
-			try {
-				Utils.log2("JPEG Decoder failed for " + path);
-				Thread.sleep(50);
-				// reopen stream
-				if (null != stream) { try { stream.close(); } catch (Exception ee) {} }
-				stream = openStream(path);
-				// decode
-				if (null != stream) bi = openJpeg2(stream, color_id);
-			} catch (Exception e2) {
-				IJError.print(e2);
+		} catch (TruncatedFileException tfe) {
+			if (n_calls < 3) {
+				try { Thread.sleep(100); } catch (InterruptedException ie) {}
+				return openJpeg(path, color_id, n_calls + 1);
 			}
+		} catch (Exception e) {
+			IJError.print(e, true);
 		} finally {
 			if (null != stream) { try { stream.close(); } catch (Exception e) {} }
 		}
