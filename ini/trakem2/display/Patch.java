@@ -38,6 +38,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.vector.VectorString3D;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -46,6 +47,8 @@ import java.awt.image.DirectColorModel;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
+import java.awt.Polygon;
+import java.awt.geom.PathIterator;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.image.PixelGrabber;
 import java.awt.event.KeyEvent;
@@ -54,6 +57,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Collection;
 import java.io.File;
 
 import mpicbg.models.AffineModel2D;
@@ -1232,21 +1236,62 @@ public final class Patch extends Displayable {
 			case KeyEvent.VK_F:
 				// fill mask with current ROI using 
 				Utils.log2("VK_F: roi is " + roi);
-				if (null != roi) {
+				if (null != roi && Utils.isAreaROI(roi)) {
 					Bureaucrat.createAndStart(new Worker("Filling image mask") { public void run() { try {
 					startedWorking();
 					ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
-					if (null == mask) mask = new ByteProcessor(o_width, o_height);
+					boolean is_new = false;
+					if (null == mask) {
+						mask = new ByteProcessor(o_width, o_height);
+						is_new = true;
+					}
 					// a roi local to the image
-					ShapeRoi sroi = null;
 					try {
 						Area a = Utils.getArea(roi).createTransformedArea(Patch.this.at.createInverse());
-						a.intersect(new Area(new Rectangle(0, 0, o_width, o_height)));
-						sroi = new ShapeRoi(a);
+						a.intersect(new Area(new Rectangle(0, 0, (int)width, (int)height)));
+						if (Utils.isEmpty(a)) return;
+						if (null != ct) {
+							// inverse the coordinate transform
+							final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+							final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
+							/*
+							final Rectangle boundingBox = mesh.getBoundingBox();
+							AffineTransform translation = new AffineTransform();
+							translation.translate(boundingBox.x, boundingBox.y);
+							a = a.createTransformedArea(translation);
+							*/
+
+							ByteProcessor rmask = new ByteProcessor((int)width, (int)height);
+							if (is_new) {
+								rmask.setColor(Toolbar.getForegroundColor());
+							} else {
+								rmask.setValue(255);
+							}
+							ShapeRoi sroi = new ShapeRoi(a);
+							rmask.setRoi(sroi);
+							rmask.fill(sroi.getMask());
+
+							ByteProcessor inv_mask = mapping.createInverseMappedImageInterpolated(rmask);
+							if (is_new) {
+								mask = inv_mask;
+								// done!
+							} else {
+								rmask = null;
+								inv_mask.setMinAndMax(255, 255);
+								final byte[] b1 = (byte[]) mask.getPixels();
+								final byte[] b2 = (byte[]) inv_mask.getPixels();
+								final int color = rmask.getBestIndex(Toolbar.getForegroundColor());
+								for (int i=0; i<b1.length; i++) {
+									b1[i] = (byte) ((int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff));
+								}
+							}
+						} else {
+							ShapeRoi sroi = new ShapeRoi(a);
+							mask.setRoi(sroi);
+							mask.setColor(Toolbar.getForegroundColor());
+							mask.fill(sroi.getMask());
+						}
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
-					mask.setRoi(sroi);
-					mask.setColor(Toolbar.getForegroundColor());
-					mask.fill(sroi.getMask());
 					setAlphaMask(mask);
 					updateMipmaps();
 					Display.repaint();

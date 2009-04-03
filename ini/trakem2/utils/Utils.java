@@ -61,6 +61,8 @@ import java.awt.geom.Point2D;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
 import java.awt.Rectangle;
+import java.awt.Polygon;
+import java.awt.geom.PathIterator;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
@@ -80,6 +82,7 @@ import java.util.Vector;
 import java.util.Calendar;
 import java.lang.Iterable;
 import java.util.Iterator;
+import java.util.Collection;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
@@ -1014,6 +1017,18 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
+	static public final double[] toDouble(final int[] a, final int len) {
+		final double[] b = new double[len];
+		for (int i=0; i<len; i++) b[i] = a[i];
+		return b;
+	}
+
+	static public final int[] toInt(final double[] a, final int len) {
+		final int[] b = new int[len];
+		for (int i=0; i<len; i++) b[i] = (int) a[i];
+		return b;
+	}
+
 	/** OS-agnostic diagnosis of whether the click was for the contextual popup menu. */
 	static public final boolean isPopupTrigger(final MouseEvent me) {
 		return me.isPopupTrigger() || (IJ.isMacOSX() && MouseEvent.BUTTON2 == me.getButton()) || 0 != (me.getModifiers() & Event.META_MASK);
@@ -1226,6 +1241,34 @@ public class Utils implements ij.plugin.PlugIn {
 				return false;
 		}
 		return true;
+	}
+
+	static public final Collection<Polygon> getPolygons(Area area) {
+		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
+		Polygon pol = new Polygon();
+
+		final float[] coords = new float[6];
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					pol.addPoint((int)coords[0], (int)coords[1]);
+					break;
+				case PathIterator.SEG_CLOSE:
+					pols.add(pol);
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return pols;
 	}
 
 	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
