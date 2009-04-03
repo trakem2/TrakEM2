@@ -58,7 +58,7 @@ public class Align
 		/**
 		 * Inlier/candidates ratio
 		 */
-		public float minInlierRatio = 0.05f;
+		public float minInlierRatio = 0.2f;
 		
 		/**
 		 * Implemeted transformation models for choice

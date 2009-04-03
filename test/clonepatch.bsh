@@ -1,0 +1,6 @@
+import ini.trakem2.display.*;
+
+Patch patch = Display.getFront().getActive();
+Patch p = patch.clone( patch.getProject() );
+
+patch.getLayer().add( p );

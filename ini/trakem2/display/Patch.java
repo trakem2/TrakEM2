@@ -1326,7 +1326,7 @@ public final class Patch extends Displayable {
 	static private final class DPPatch extends Displayable.DataPackage {
 		final double min, max;
 		CoordinateTransform ct = null;
-
+		
 		DPPatch(final Patch patch) {
 			super(patch);
 			this.min = patch.min;
