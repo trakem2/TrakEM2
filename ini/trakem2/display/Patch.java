@@ -151,9 +151,10 @@ public final class Patch extends Displayable {
 				try { 
 					Utils.log2("Restoring original width/height from file");
 					// Do it from the 50% file -- only one pixel error if file had not even width and height (which is very unlikely in microscopy images)
-					Image awt = project.getLoader().fetchImage(this, 0.4999);
-					o_width = awt.getWidth(null);
-					o_height = awt.getHeight(null);
+					ImagePlus imp = getImagePlus();
+					// TODO: use BioFormats to read it out of the original file's header
+					o_width = imp.getWidth();
+					o_height = imp.getHeight();
 					// awt will be flushed by the loader cache subsystem.
 				} catch (Exception e) {
 					Utils.log("Could not read source data width/height for patch " + this);
