@@ -619,10 +619,16 @@ public final class FSLoader extends Loader {
 		// Open the mask image, which should be a compressed float tif.
 		final ImagePlus imp = opener.openImage(path);
 		if (null == imp) {
-			Utils.log2("No mask found or could not open mask image for patch " + p + " from " + path);
+			//Utils.log2("No mask found or could not open mask image for patch " + p + " from " + path);
 			return null;
 		}
-		return (ByteProcessor)imp.getProcessor().convertToByte(false);
+		final ByteProcessor mask = (ByteProcessor)imp.getProcessor().convertToByte(false);
+		//Utils.log2("Mask dimensions: " + mask.getWidth() + " x " + mask.getHeight() + " for patch " + p);
+		if (mask.getWidth() != p.getOWidth() || mask.getHeight() != p.getOHeight()) {
+			Utils.log2("Mask has improper dimensions: " + mask.getWidth() + " x " + mask.getHeight() + " for patch " + p + " which is of " + p.getOWidth() + " x " + p.getOHeight());
+			return null;
+		}
+		return mask;
 	}
 
 	@Override
@@ -639,6 +645,10 @@ public final class FSLoader extends Loader {
 	@Override
 	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {
 		// would fail if user deletes the trakem2.masks/ folder from the storage folder after having set dir_masks. But that is his problem.
+		final String path = getAlphaPath(p);
+		File parent = new File(path).getParentFile();
+		parent.mkdirs();
+		IJ.redirectErrorMessages();
 		new FileSaver(new ImagePlus("mask", fp)).saveAsZip(getAlphaPath(p));
 	}
 
@@ -1774,6 +1784,9 @@ public final class FSLoader extends Loader {
 					}
 
 					do {
+
+//Utils.logAll("### k=" + k + " alpha.length=" + (null != alpha ? ((float[])alpha.getPixels()).length : 0) + " image.length=" + ((float[])fp.getPixels()).length);
+
 						if (Thread.currentThread().isInterrupted()) return false;
 
 						// 0 - blur the previous image to 0.75 sigma
