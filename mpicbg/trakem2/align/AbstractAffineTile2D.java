@@ -55,6 +55,9 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 	 * 
 	 * Virtual point correspondences have to be removed
 	 * for real connections.
+	 * 
+	 * TODO Not yet tested---Do we need these virtual connections?
+	 * 
 	 */
 	final protected Set< PointMatch > virtualMatches = new HashSet< PointMatch >();
 	final public Set< PointMatch > getVirtualMatches(){ return virtualMatches; }
@@ -75,6 +78,8 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 	
 	/**
 	 * Remove all virtual {@link PointMatch matches}.
+	 * 
+	 * TODO Not yet tested---Do we need these virtual connections?
 	 */
 	final public void clearVirtualMatches()
 	{
@@ -180,6 +185,8 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 	 * {@linkplain PointMatch connection} is placed in the center of the
 	 * intersection area of both tiles.
 	 * 
+	 * TODO Not yet tested---Do we need these virtual connections?
+	 * 
 	 * @param t
 	 */
 	final public void makeVirtualConnection( final AbstractAffineTile2D< ? > t )
@@ -269,6 +276,56 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 			{
 				final AbstractAffineTile2D< ? > ta = tiles.get( a );
 				final AbstractAffineTile2D< ? > tb = tiles.get( b );
+				if ( ta.intersects( tb ) )
+					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
+			}
+		}		
+	}
+	
+	/**
+	 * Pair all {@link AbstractAffineTile2D Tiles} from two {@link Lists}.
+	 * Adds the pairs into tilePairs.
+	 * 
+	 * @param tilesA
+	 * @param tilesB
+	 * @param tilePairs
+	 */
+	final static public void pairTiles(
+			final List< AbstractAffineTile2D< ? > > tilesA,
+			final List< AbstractAffineTile2D< ? > > tilesB,
+			final List< AbstractAffineTile2D< ? >[] > tilePairs )
+	{
+		for ( int a = 0; a < tilesA.size(); ++a )
+		{
+			for ( int b = 0; b < tilesB.size(); ++b )
+			{
+				final AbstractAffineTile2D< ? > ta = tilesA.get( a );
+				final AbstractAffineTile2D< ? > tb = tilesB.get( b );
+				tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
+			}
+		}		
+	}
+	
+	
+	/**
+	 * Search two {@link Lists} of {@link AbstractAffineTile2D Tiles} for
+	 * overlapping pairs.  Adds the pairs into tilePairs.
+	 * 
+	 * @param tilesA
+	 * @param tilesB
+	 * @param tilePairs
+	 */
+	final static public void pairOverlappingTiles(
+			final List< AbstractAffineTile2D< ? > > tilesA,
+			final List< AbstractAffineTile2D< ? > > tilesB,
+			final List< AbstractAffineTile2D< ? >[] > tilePairs )
+	{
+		for ( int a = 0; a < tilesA.size(); ++a )
+		{
+			for ( int b = a + 1; b < tilesB.size(); ++b )
+			{
+				final AbstractAffineTile2D< ? > ta = tilesA.get( a );
+				final AbstractAffineTile2D< ? > tb = tilesB.get( b );
 				if ( ta.intersects( tb ) )
 					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
 			}
