@@ -820,10 +820,10 @@ public final class Patch extends Displayable {
 		copy.channels = this.channels;
 		copy.min = this.min;
 		copy.max = this.max;
-		copy.ct = this.ct.clone();
-		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
+		copy.ct = null == ct ? null : this.ct.clone();
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
+		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
 		return copy;
 	}
 
