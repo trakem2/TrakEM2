@@ -987,11 +987,11 @@ public final class FSLoader extends Loader {
 		// cache path as absolute
 		patch.cacheCurrentPath(isRelativePath(path) ? getParentFolder() + path : path);
 		// if path is absolute, try to make it relative
-		Utils.log2("path was: " + path);
+		//Utils.log2("path was: " + path);
 		path = makeRelativePath(path);
 		// store
 		ht_paths.put(patch.getId(), path);
-		Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
+		//Utils.log2("Updated patch path " + ht_paths.get(patch.getId()) + " for patch " + patch);
 	}
 
 	/** Takes a String and returns a copy with the following conversions: / to -, space to _, and \ to -. */
