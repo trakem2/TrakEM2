@@ -409,7 +409,7 @@ public final class TemplateThing extends DBObject implements Thing {
 		return hs;
 	}
 
-	/** Find things of the same type, eve if their parents are different, recusively into children. */
+	/** Find things of the same type, even if their parents are different, recusively into children. */
 	public HashSet collectThingsOfEqualType(TemplateThing tt, HashSet hs) {
 		if (type.equals(tt.type)) hs.add(this);
 		if (null == al_children || al_children.isEmpty()) return hs;
