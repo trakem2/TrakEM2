@@ -793,6 +793,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				tabs.setMinimumSize(new Dimension(0, 100));
+				Display.scrollbar_width = Display.this.scroll_patches.getVerticalScrollBar().getPreferredSize().width; // using scroll_patches since it's the one selected by default and thus visible and painted
 			}
 		});
 	}
@@ -802,8 +803,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// adjust scrolling to use one DisplayablePanel as the minimal unit
 		jsp.getVerticalScrollBar().setBlockIncrement(DisplayablePanel.HEIGHT); // clicking within the track
 		jsp.getVerticalScrollBar().setUnitIncrement(DisplayablePanel.HEIGHT); // clicking on an arrow
+		jsp.setHorizontalScrollBarPolicy(javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 		return jsp;
 	}
+
+	static protected int scrollbar_width = 0;
 
 	public JPanel getCanvasPanel() {
 		return canvas_panel;

@@ -38,8 +38,8 @@ public final class DisplayableTitleLabel extends JLabel {
 	}
 
 	private final void makeShortText(final String text) {
-		if (text.length() > 25) {
-			short_text = text.substring(0, 13) + "..." + text.substring(text.length()-9);
+		if (text.length() > 23) {
+			short_text = text.substring(0, 7) + "..." + text.substring(text.length()-13);
 			super.setToolTipText(text);
 		} else {
 			short_text = text;
