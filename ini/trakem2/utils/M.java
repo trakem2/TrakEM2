@@ -88,6 +88,12 @@ public final class M {
 			       + Math.pow(z1 - z2, 2));
 	}
 
+	static public final double distance(final double x1, final double y1,
+			                    final double x2, final double y2) {
+		return Math.sqrt(Math.pow(x1 - x2, 2)
+			       + Math.pow(y1 - y2, 2));
+	}
+
 	static public final double distanceSq(final double x1, final double y1, final double z1,
 			              final double x2, final double y2, final double z2) {
 		return  Math.pow(x1 - x2, 2)
