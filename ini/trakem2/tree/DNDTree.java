@@ -97,10 +97,10 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 				final Class clazz = obb.getClass();
 				if (ProjectThing.class == clazz) { // must be, but checking ...
 					final Object ob = ((ProjectThing)obb).getObject();
-					if (ob.getClass().getSuperclass().equals(Displayable.class)) {
+					if (ob.getClass().getSuperclass() == Displayable.class) {
 						final Displayable displ = (Displayable)ob;
 						final Layer layer = Display.getFrontLayer();
-						if (null != layer && (layer.contains(displ) || displ.equals(Display.getFront().getActive()))) {
+						if (null != layer && (displ == Display.getFront().getActive() || layer.contains(displ))) {
 							label.setOpaque(true); //this label
 							label.setBackground(active_displ_color); // this label
 							//Utils.log(" -- setting background");
@@ -114,13 +114,13 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 						label.setBackground(bg);
 						//Utils.log("ob is " + ob);
 					}
-				} else if (clazz.equals(LayerThing.class)) {
+				} else if (clazz == LayerThing.class) {
 					final Object ob = ((LayerThing)obb).getObject();
 					final Layer layer = Display.getFrontLayer();
-					if (ob.equals(layer)) {
+					if (ob == layer) {
 						label.setOpaque(true); //this label
 						label.setBackground(front_layer_color); // this label
-					} else if (ob.getClass().equals(LayerSet.class) && null != layer && layer.contains((Displayable)ob)) {
+					} else if (ob.getClass() == LayerSet.class && null != layer && layer.contains((Displayable)ob)) {
 						label.setOpaque(true); //this label
 						label.setBackground(active_displ_color); // this label
 					} else {
