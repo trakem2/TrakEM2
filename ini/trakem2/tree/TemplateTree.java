@@ -210,7 +210,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 			YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Remove type?", "Really remove type '" + tt.getType() + "'" + ((null != tt.getChildren() && 0 != tt.getChildren().size()) ? " and its children" : "") + (0 == hs.size() ? "" : " from parent " + tt.getParent().getType() + ",\nand its " + hs.size() + " existing instance" + (1 == hs.size() ? "" : "s") + " in the project tree?"));
 			if (!yn.yesPressed()) return;
 			// else, proceed to delete:
-			Utils.log("Going to delete TemplateThing: " + tt.getType() + "  id: " + tt.getId());
+			//Utils.log("Going to delete TemplateThing: " + tt.getType() + "  id: " + tt.getId());
 			// first, remove the project things
 			DNDTree project_tree = tt.getProject().getProjectTree();
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
@@ -302,8 +302,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 				// replace spaces before testing for non-alphanumeric chars
 				new_type = new_type.replace(' ', '_'); // spaces don't play well in an XML file.
 
-				String pattern = "^.*[^a-zA-Z0-9_-].*$";
-				final Pattern pat = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
+				final Pattern pat = Pattern.compile("^.*[^a-zA-Z0-9_-].*$", Pattern.CASE_INSENSITIVE);
 				if (pat.matcher(new_type).matches()) {
 					Utils.showMessage("Only alphanumeric characters, underscore, hyphen and space are accepted.");
 					return;
@@ -387,11 +386,12 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		}
 		tt_parent.addChild(tet_child);
 
-		// add the new type to the database and to the tree, to all instances that are similar to tt (but not nested)
-		HashSet hs = root.collectSimilarThings2(tt_parent, new HashSet());
+		// add the new type to the database and  to the tree, to all instances that are similar to tt (but not nested)
+		HashSet hs = root.collectThingsOfEqualType(tt_parent, new HashSet());
 		for (Iterator it = hs.iterator(); it.hasNext(); ) {
 			TemplateThing tti, ttc;
 			tti = (TemplateThing)it.next();
+			if (tti.isNested()) continue;
 			if (tti.equals(tt_parent)) {
 				tti = tt_parent; // parent
 				ttc = tet_child; // child
