@@ -5017,4 +5017,7 @@ abstract public class Loader {
 	public String getUNUIdFolder() {
 		return "trakem2." + getUNUId() + "/";
 	}
+
+	/** Does nothing unless overriden. */
+	public boolean regenerateMipMaps(final Patch patch) { return false; }
 }

@@ -2425,7 +2425,7 @@ public final class FSLoader extends Loader {
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
 	 *  returns true if the task was submitted, false if not. */
-	private final boolean regenerateMipMaps(final Patch patch) {
+	public final boolean regenerateMipMaps(final Patch patch) {
 		synchronized (gm_lock) {
 			try {
 				gm_lock();

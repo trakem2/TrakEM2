@@ -33,6 +33,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Registration;
 import ini.trakem2.imaging.StitchingTEM;
+import ini.trakem2.imaging.Blending;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.DNDInsertImage;
@@ -2082,6 +2083,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					} else if (n_sel_patches > 1) {
 						item = new JMenuItem("Montage"); item.addActionListener(this); popup.add(item);
 						item = new JMenuItem("Lens correction"); item.addActionListener(this); popup.add(item);
+						item = new JMenuItem("Blend"); item.addActionListener(this); popup.add(item);
 					}
 					item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
@@ -3134,6 +3136,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Snap")) {
 			if (!(active instanceof Patch)) return;
 			StitchingTEM.snap(getActive(), Display.this);
+		} else if (command.equals("Blend")) {
+			HashSet<Patch> patches = new HashSet<Patch>();
+			for (final Displayable d : selection.getSelected()) {
+				if (d.getClass() == Patch.class) patches.add((Patch)d);
+			}
+			if (patches.size() > 1) Blending.blend(patches);
 		} else if (command.equals("Montage")) {
 			if (!(active instanceof Patch)) {
 				Utils.showMessage("Please select only images.");
