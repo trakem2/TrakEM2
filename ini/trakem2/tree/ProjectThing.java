@@ -420,7 +420,7 @@ public final class ProjectThing extends DBObject implements Thing {
 		ArrayList al_items = new ArrayList();
 
 		JMenu menu = new JMenu("Add...");
-		ArrayList tc = template.getChildren(); // may need to call on the project unique types
+		final ArrayList tc = project.getTemplateThing(template.getType()).getChildren(); // call the project unique type
 		if (null != tc) {
 			Iterator it = tc.iterator();
 			while (it.hasNext()) {
