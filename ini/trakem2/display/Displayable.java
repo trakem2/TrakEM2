@@ -1453,7 +1453,8 @@ public abstract class Displayable extends DBObject {
 		if (this.at.isIdentity()) return pSrc;
 		final Point2D.Double pDst = new Point2D.Double();
 		try {
-			this.at.createInverse().transform(pSrc, pDst);
+			//this.at.createInverse().transform(pSrc, pDst);
+			this.at.inverseTransform(pSrc, pDst);
 		} catch (NoninvertibleTransformException nite) {
 			IJError.print(nite);
 		}
