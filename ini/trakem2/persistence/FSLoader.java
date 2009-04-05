@@ -330,13 +330,16 @@ public final class FSLoader extends Loader {
 
 	static private void startStaticServices() {
 		if (null == dispatcher || dispatcher.isQuit()) dispatcher = new Dispatcher();
+		int np = Runtime.getRuntime().availableProcessors();
+		// 1 core = 1 thread
+		// 2 cores = 2 threads
+		// 3+ cores = cores-1 threads
+		if (np > 2) np -= 1;
 		if (null == regenerator || regenerator.isShutdown()) {
-			int np = Runtime.getRuntime().availableProcessors();
-			// 1 core = 1 thread
-			// 2 cores = 2 threads
-			// 3+ cores = cores-1 threads
-			if (np > 2) np -= 1;
 			regenerator = Executors.newFixedThreadPool(np);
+		}
+		if (null == repainter || repainter.isShutdown()) {
+			repainter = Executors.newFixedThreadPool(np); // for SnapshotPanel
 		}
 	}
 
@@ -344,6 +347,7 @@ public final class FSLoader extends Loader {
 	static private void destroyStaticServices() {
 		if (null != regenerator) regenerator.shutdownNow();
 		if (null != dispatcher) dispatcher.quit();
+		if (null != repainter) repainter.shutdownNow();
 	}
 
 	public void destroy() {
@@ -2417,6 +2421,7 @@ public final class FSLoader extends Loader {
 
 	static private AtomicInteger n_regenerating = new AtomicInteger(0);
 	static private ExecutorService regenerator = null;
+	static public ExecutorService repainter = null;
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
 	 *  returns true if the task was submitted, false if not. */
