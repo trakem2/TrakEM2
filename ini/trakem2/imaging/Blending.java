@@ -57,7 +57,7 @@ public final class Blending {
 					final ArrayList<FutureTask> futures = new ArrayList<FutureTask>();
 
 					for (final Patch p : patches) {
-						if (Thread.currentThread().isInterrupted()) return;
+						if (Thread.currentThread().isInterrupted()) break;
 						FutureTask future = new FutureTask(new Runnable() { public void run() {
 							final int pLayerIndex = p.getLayer().indexOf( p );
 							final Set< Patch > overlapping = new HashSet< Patch >();
@@ -74,6 +74,7 @@ public final class Blending {
 
 					// join all:
 					for (final FutureTask future : futures) {
+						if (Thread.currentThread().isInterrupted()) break;
 						try {
 							future.get();
 						} catch (InterruptedException ie) {} // thrown when canceled
@@ -81,12 +82,11 @@ public final class Blending {
 
 					exe.shutdownNow();
 
-					Display.repaint();
-
 				} catch (Exception e) {
 					IJError.print(e);
 				} finally {
 					finishedWorking();
+					Display.repaint();
 				}
 			}
 		}, patches.iterator().next().getProject());
