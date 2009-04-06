@@ -33,6 +33,7 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Point;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.HashSet;
 import java.util.HashMap;
@@ -558,7 +559,7 @@ public class Selection {
 		return active;
 	}
 
-	public void add(Displayable d) {
+	public void add(final Displayable d) {
 		if (null == d) {
 			Utils.log2("Selection.add warning: skipping null ob");
 			return;
@@ -1467,6 +1468,20 @@ public class Selection {
 			 }
 		}
 		return al;
+	}
+
+	/** Returns the subset of selected objects of Class c, in the proper order according to the Layer.indexOf or the LayerSet.indexOf.
+	 *  Class c cannot be Displayable (returns null); must be any Displayable subclass. */
+	public Collection<Displayable> getSelectedSorted(final Class c) {
+		if (Displayable.class == c) return null;
+		final ArrayList<Displayable> al = getSelected(c);
+		final TreeMap<Integer,Displayable> tm = new TreeMap<Integer,Displayable>();
+		if (ZDisplayable.class.isAssignableFrom(c)) {
+			for (final Displayable d : al) tm.put(d.getLayerSet().indexOf((ZDisplayable)d), d);
+		} else {
+			for (final Displayable d : al) tm.put(d.getLayer().indexOf(d), d);
+		}
+		return tm.values();
 	}
 
 	/** Returns the set of all Displayable objects affected by this selection, that is, the selected ones and their linked ones.*/
