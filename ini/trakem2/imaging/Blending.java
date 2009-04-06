@@ -79,7 +79,7 @@ public final class Blending {
 						} catch (InterruptedException ie) {} // thrown when canceled
 					}
 
-					exe.shutdown();
+					exe.shutdownNow();
 
 					Display.repaint();
 
