@@ -40,7 +40,15 @@ import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.vector.VectorString3D;
 
-import java.awt.*;
+import java.awt.Dimension;
+import java.awt.Rectangle;
+import java.awt.Event;
+import java.awt.Image;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.AlphaComposite;
+import java.awt.Toolkit;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.DirectColorModel;
@@ -144,24 +152,18 @@ public final class Patch extends Displayable {
 
 		if (0 == o_width || 0 == o_height) {
 			// The original image width and height are unknown.
-			if (at.getType() == AffineTransform.TYPE_TRANSLATION) {
+			try {
+				Utils.log2("Restoring original width/height from file for id=" + id);
+				// Use BioFormats to read the dimensions out of the original file's header
+				final Dimension dim = project.getLoader().getDimensions(this);
+				o_width = dim.width;
+				o_height = dim.height;
+			} catch (Exception e) {
+				Utils.log("Could not read source data width/height for patch " + this +"\n --> To fix it, close the project and add o_width=\"XXX\" o_height=\"YYY\"\n     to patch entry with oid=\"" + id + "\",\n     where o_width,o_height are the image dimensions as defined in the image file.");
+				// So set them to whatever is somewhat survivable for the moment
 				o_width = (int)width;
 				o_height = (int)height;
-			} else {
-				try { 
-					Utils.log2("Restoring original width/height from file");
-					// Do it from the 50% file -- only one pixel error if file had not even width and height (which is very unlikely in microscopy images)
-					ImagePlus imp = getImagePlus();
-					// TODO: use BioFormats to read it out of the original file's header
-					o_width = imp.getWidth();
-					o_height = imp.getHeight();
-					// awt will be flushed by the loader cache subsystem.
-				} catch (Exception e) {
-					Utils.log("Could not read source data width/height for patch " + this);
-					o_width = (int)width;
-					o_height = (int)height;
-					IJError.print(e);
-				}
+				IJError.print(e);
 			}
 		}
 
