@@ -1283,22 +1283,26 @@ public final class Patch extends Displayable {
 								mask = inv_mask;
 								// done!
 							} else {
+								// Blend
 								rmask = null;
 								inv_mask.setMinAndMax(255, 255);
 								final byte[] b1 = (byte[]) mask.getPixels();
 								final byte[] b2 = (byte[]) inv_mask.getPixels();
 								final int color = mask.getBestIndex(Toolbar.getForegroundColor());
 								for (int i=0; i<b1.length; i++) {
-									//int v = (int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff);
-									//b1[i] = (byte) (v > 127 ? v - 256 : v);
 									b1[i] = (byte) ((int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff));
 								}
 							}
+							//new ImagePlus("mask with ct", mask).show();
 						} else {
 							ShapeRoi sroi = new ShapeRoi(a);
 							mask.setRoi(sroi);
 							mask.setColor(Toolbar.getForegroundColor());
 							mask.fill(sroi.getMask());
+
+							//ImagePlus imp  = new ImagePlus("mask from null ct", mask);
+							//imp.show();
+							//imp.setRoi(sroi);
 						}
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 					setAlphaMask(mask);
