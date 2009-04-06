@@ -163,7 +163,7 @@ public class Bureaucrat extends Thread {
 
 			Thread[] active = new Thread[getThreadGroup().activeCount()];
 			int count = getThreadGroup().enumerate(active);
-			Utils.log2("Active threads: " + active);
+			Utils.log2("Active threads: " + count);
 			for (int i=0; i < count; i++) {
 				Utils.log2("Active thread: " + active[i]);
 			}
