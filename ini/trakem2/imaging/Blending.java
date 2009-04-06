@@ -59,7 +59,12 @@ public final class Blending {
 					for (final Patch p : patches) {
 						if (Thread.currentThread().isInterrupted()) return;
 						FutureTask future = new FutureTask(new Runnable() { public void run() {
-							if (setBlendingMask(p, patches, meshes)) {
+							final int pLayerIndex = p.getLayer().indexOf( p );
+							final Set< Patch > overlapping = new HashSet< Patch >();
+							for ( Patch op : patches )
+								if ( p.getLayer().indexOf( op ) < pLayerIndex )
+									overlapping.add( op );
+							if (setBlendingMask(p, overlapping, meshes)) {
 								p.updateMipmaps();
 							}
 						}}, null);
