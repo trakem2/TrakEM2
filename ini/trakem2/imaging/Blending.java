@@ -147,7 +147,7 @@ public final class Blending {
 					weights[next++] = computeWeight(x, y, p_o_width, p_o_height); // the weight of Patch p, added last
 					float sum = 0;
 					for (int f=0; f<next; f++) sum += weights[f];
-					pix[y * p_o_height + x] = (byte)((int)(255 * (weights[next-1] / sum)));
+					pix[y * p_o_height + x] = (byte)((int)(255 * (weights[next-1] / sum))); // using an alpha range of [0.5,1] by 0.5f + 0.5f * w does not help removing the dark bands.
 					masked++;
 				} else {
 					// no weights, no overlap: full mask
@@ -170,8 +170,10 @@ public final class Blending {
 	}
 
 	static private final float computeWeight(final float x, final float y, final int width, final int height) {
-		return Math.min(Math.min(x, width - x),
-				Math.min(y, height - y));
+		//return Math.min(Math.min(x, width - x),
+		//		Math.min(y, height - y));
+		// Normalized, as suggested by Stephan Preibisch:
+		return (Math.min(x, width - x) / (width/2)) * (Math.min(y, height - y) / (height/2));
 	}
 
 	/** Returns true if fo[0,1] x,y world coords intersect the affine and potentially coordinate transformed pixels of the other Patch. */
