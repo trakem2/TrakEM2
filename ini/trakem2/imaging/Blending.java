@@ -73,7 +73,11 @@ public final class Blending {
 					}
 
 					// join all:
-					for (final FutureTask future : futures) future.get();
+					for (final FutureTask future : futures) {
+						try {
+							future.get();
+						} catch (InterruptedException ie) {} // thrown when canceled
+					}
 
 					exe.shutdown();
 
