@@ -1243,7 +1243,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
-	public int indexOf(ZDisplayable zd) {
+	public int indexOf(final ZDisplayable zd) {
 		int k = al_zdispl.indexOf(zd);
 		if (-1 == k) return -1;
 		return al_zdispl.size() - k -1;
