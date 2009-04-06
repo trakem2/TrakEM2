@@ -96,12 +96,16 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 			final double scale = FIXED_HEIGHT / d.getLayer().getLayerHeight();
 			g2.scale(scale, scale);
 
-			// Avoid painting images that have an alpha mask: takes forever.
-			//if (d.getClass() == Patch.class && ((Patch)d).hasAlphaChannel()) {
-			//	d.paintAsBox(g2);
-			//} else {
-				d.paintSnapshot(g2, scale);
-			//}
+			try {
+				// Avoid painting images that have an alpha mask: takes forever.
+				//if (d.getClass() == Patch.class && ((Patch)d).hasAlphaChannel()) {
+				//	d.paintAsBox(g2);
+				//} else {
+					d.paintSnapshot(g2, scale);
+				//}
+			} catch (Exception e) {
+				d.paintAsBox(g2);
+			}
 			synchronized (this) {
 				SnapshotPanel.this.img = img;
 			}
