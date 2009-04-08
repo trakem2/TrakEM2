@@ -219,7 +219,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					return;
 				}
 				final ArrayList nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
-				addLeaves((ArrayList<Thing>)nc);
+				addLeafs((ArrayList<Thing>)nc);
 			} else if (command.equals("Unhide")) {
 				thing.setVisible(true);
 			} else if (command.equals("Select in display")) {
@@ -407,8 +407,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			project.addUniqueType(tet);
 			DefaultMutableTreeNode root = project.getTemplateTree().getRoot();
 			tt_root.addChild(tet);
-			addChild(tet, root);
-			DNDTree.expandNode(project.getTemplateTree(), DNDTree.findNode(tet, project.getTemplateTree()));
+			DefaultMutableTreeNode child_node = addChild(tet, root);
+			DNDTree.expandNode(project.getTemplateTree(), child_node);
 			// JTree is serious pain
 		}
 		TemplateThing tt_is = project.getTemplateThing(imported_labels); // it's the same as 'tet' above, unless it existed

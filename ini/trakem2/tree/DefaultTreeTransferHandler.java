@@ -131,8 +131,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 		return false;
 	}
  
-	public boolean executeDrop(DNDTree target, DefaultMutableTreeNode dragged_node, DefaultMutableTreeNode new_parent_node, int action) {
-
+	public synchronized boolean executeDrop(final DNDTree target, DefaultMutableTreeNode dragged_node, DefaultMutableTreeNode new_parent_node, int action) {
 
 		/* //debug:
 		Utils.log2(DnDConstants.ACTION_COPY + " " + DnDConstants.ACTION_COPY_OR_MOVE + " " + DnDConstants.ACTION_LINK + " " + DnDConstants.ACTION_MOVE + " " + DnDConstants.ACTION_NONE + " " + DnDConstants.ACTION_REFERENCE);
@@ -256,7 +255,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 						}
 						// create nodes recursively
 						final ArrayList nc = new_parent_thing.createChildren(tt.getType(), 1, true);
-						target.addLeaves((ArrayList<Thing>)nc);
+						target.addLeafs((ArrayList<Thing>)nc);
 						return true;
 					}
 
