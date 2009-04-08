@@ -38,7 +38,6 @@ import ini.trakem2.utils.Dispatcher;
 import java.awt.Color;
 import java.awt.Event;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 import javax.swing.KeyStroke;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
@@ -53,6 +52,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Set;
 import java.util.Hashtable;
@@ -60,7 +60,7 @@ import java.util.Collections;
 import java.io.File;
 
 /** A class to hold a tree of Thing nodes */
-public final class ProjectTree extends DNDTree implements MouseListener, ActionListener, KeyListener {
+public final class ProjectTree extends DNDTree implements MouseListener, ActionListener {
 
 	/*
 	static {
@@ -75,7 +75,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		setEditable(false); // the titles
 		addMouseListener(this);
 		addTreeExpansionListener(this);
-		addKeyListener(this);
 	}
 
 	/** Get a custom, context-sensitive popup menu for the selected node. */
@@ -131,7 +130,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
 			}
 			return;
-		} else if (me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
+		} else if (me.isPopupTrigger() || (ij.IJ.isMacOSX() && me.isControlDown()) || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) { // the last block is from ij.gui.ImageCanvas, aparently to make the right-click work on windows?
 			JPopupMenu popup = getPopupMenu(selected_node);
 			if (null == popup) return;
 			popup.show(ProjectTree.this, x, y);
@@ -220,7 +219,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					return;
 				}
 				final ArrayList nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
-				addLeaves((ArrayList<Thing>)nc);
+				addLeafs((ArrayList<Thing>)nc);
 			} else if (command.equals("Unhide")) {
 				thing.setVisible(true);
 			} else if (command.equals("Select in display")) {
@@ -256,7 +255,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				//}
 			} else if (command.equals("Measure")) {
 				// block displays while measuring
-				new Bureaucrat(new Worker("Measuring") { public void run() {
+				Bureaucrat.createAndStart(new Worker("Measuring") { public void run() {
 					startedWorking();
 					try {
 						thing.measure();
@@ -265,7 +264,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					} finally {
 						finishedWorking();
 					}
-				}}, thing.getProject()).goHaveBreakfast();
+				}}, thing.getProject());
 			}/* else if (command.equals("Export 3D...")) {
 				GenericDialog gd = ControlWindow.makeGenericDialog("Export 3D");
 				String[] choice = new String[]{".svg [preserves links and hierarchical grouping]", ".shapes [limited to one profile per layer per profile_list]"};
@@ -397,8 +396,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	}
 	*/
 
-	/** Creates a new node of basic type for each AreaList, Ball, or Pipe present in the ArrayList. Other elements are ignored. */
-	public void insertSegmentations(Project project, List al) {
+	/** Creates a new node of basic type for each AreaList, Ball, Pipe or Polyline present in the ArrayList. Other elements are ignored. */
+	public void insertSegmentations(final Project project, final Collection al) {
 		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there
 		final String imported_labels = "imported_labels";
@@ -408,8 +407,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			project.addUniqueType(tet);
 			DefaultMutableTreeNode root = project.getTemplateTree().getRoot();
 			tt_root.addChild(tet);
-			addChild(tet, root);
-			DNDTree.expandNode(project.getTemplateTree(), DNDTree.findNode(tet, project.getTemplateTree()));
+			DefaultMutableTreeNode child_node = addChild(tet, root);
+			DNDTree.expandNode(project.getTemplateTree(), child_node);
 			// JTree is serious pain
 		}
 		TemplateThing tt_is = project.getTemplateThing(imported_labels); // it's the same as 'tet' above, unless it existed
@@ -467,6 +466,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	}
 
 	public void keyPressed(final KeyEvent ke) {
+		super.keyPressed(ke);
+		if (ke.isConsumed()) return;
 		super.dispatcher.execSwing(new Runnable() { public void run() {
 		if (!ke.getSource().equals(ProjectTree.this) || !Project.getInstance(ProjectTree.this).isInputEnabled()) {
 			return;
@@ -480,7 +481,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		if (null == pt) return;
 		//
 		int key_code = ke.getKeyCode();
-		boolean reinsert = false;
 		switch (key_code) {
 			case KeyEvent.VK_PAGE_UP:
 				move(node, -1);
@@ -490,19 +490,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				move(node, 1);
 				ke.consume(); // in any case
 				break;
-			case KeyEvent.VK_S:
-				// outside swing:
-				ProjectTree.super.dispatcher.exec(new Runnable() { public void run() {
-					pt.getProject().getLoader().save(pt.getProject());
-				}});
+			case KeyEvent.VK_F2:
+				rename(pt);
 				ke.consume();
 				break;
 		}
 		}});
 		ke.consume();
 	}
-	public void keyReleased(KeyEvent ke) {}
-	public void keyTyped(KeyEvent ke) {}
 
 	/** Move up (-1) or down (1). */
 	private void move(final DefaultMutableTreeNode node, final int direction) {
@@ -527,7 +522,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	public boolean remove(boolean check, ProjectThing thing, DefaultMutableTreeNode node) {
 		Object obd = thing.getObject();
 		if (obd instanceof Project) return ((Project)obd).remove(check); // shortcut to remove everything regardless.
-		return thing.remove(true) && removeNode(null != node ? node : findNode(thing, this));
+		boolean b = thing.remove(true) && removeNode(null != node ? node : findNode(thing, this));
+		// This is a patch: removal from buckets is subtly broken
+		// thing.getProject().getRootLayerSet().recreateBuckets(true);
+		// The true problem is that the offscreen repaint thread sets the DisplayCanvas.al_top list before, not at the end of removing all.
+		// --> actually no: querying the LayerSet buckets for ZDisplayables still returns them, but al_zdispl doesn't have them.
+		thing.getProject().getRootLayerSet().recreateBuckets(true);
+		Display.repaint();
+		return b;
 	}
 
 	public void showInfo(ProjectThing thing) {
@@ -560,7 +562,12 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			boolean first = true;
 			Display display = null;
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)((ProjectThing)it.next()).getObject();
+				Object ptob = ((ProjectThing)it.next()).getObject();
+				if (!(ptob instanceof Displayable)) {
+					Utils.log2("Skipping non-Displayable object " + ptob);
+					continue;
+				}
+				Displayable d = (Displayable)ptob;
 				if (null == display) {
 					display = Display.getFront(d.getProject());
 					if (null == display) return;
@@ -574,5 +581,42 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 			}
 		}
+	}
+
+	/** Finds the node for the elder and adds the sibling next to it, under the same parent. */
+	public DefaultMutableTreeNode addSibling(final Displayable elder, final Displayable sibling) {
+		if (null == elder || null == sibling) return null;
+		if (elder.getProject() != sibling.getProject()) {
+			Utils.log2("Can't mix projects!");
+			return null;
+		}
+		DefaultMutableTreeNode enode = DNDTree.findNode2(elder, this);
+		if (null == enode) {
+			Utils.log2("Could not find a tree node for elder " + elder);
+			return null;
+		}
+		ProjectThing parent = (ProjectThing)((ProjectThing)enode.getUserObject()).getParent();
+		if (null == parent) {
+			Utils.log2("No parent for elder " + elder);
+			return null;
+		}
+		TemplateThing tt = elder.getProject().getTemplateThing(Project.getType(sibling.getClass()));
+		if (null == tt) {
+			Utils.log2("Could not find a template for class " + sibling.getClass());
+			return null;
+		}
+		ProjectThing pt;
+		try {
+			pt = new ProjectThing(tt, sibling.getProject(), sibling);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+		parent.addChild(pt);
+
+		DefaultMutableTreeNode node = new DefaultMutableTreeNode(pt);
+		int index = enode.getParent().getIndex(enode);
+		((DefaultTreeModel)getModel()).insertNodeInto(node, (DefaultMutableTreeNode)enode.getParent(), index + 1);
+		return node;
 	}
 }

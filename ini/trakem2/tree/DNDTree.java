@@ -37,6 +37,8 @@ import ini.trakem2.tree.ProjectTree;
 import javax.swing.JTree;
 import java.util.*;
 import java.awt.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import javax.swing.*;
 import javax.swing.tree.*;
 import javax.swing.event.TreeExpansionEvent;
@@ -47,7 +49,7 @@ import java.awt.dnd.*;
  *
 * Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0
  */
-public class DNDTree extends JTree implements TreeExpansionListener {
+public class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
  
 	Insets autoscrollInsets = new Insets(20, 20, 20, 20); // insets
 
@@ -58,6 +60,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	public DNDTree(final Project project, final DefaultMutableTreeNode root, final Color background) {
 		this(project, root);
 		this.setScrollsOnExpand(true);
+		this.addKeyListener(this);
 		if (null != background) {
 			final DefaultTreeCellRenderer renderer = new NodeRenderer(background); // new DefaultTreeCellRenderer();
 			renderer.setBackground(background);
@@ -94,10 +97,10 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 				final Class clazz = obb.getClass();
 				if (ProjectThing.class == clazz) { // must be, but checking ...
 					final Object ob = ((ProjectThing)obb).getObject();
-					if (ob.getClass().getSuperclass().equals(Displayable.class)) {
+					if (ob.getClass().getSuperclass() == Displayable.class) {
 						final Displayable displ = (Displayable)ob;
 						final Layer layer = Display.getFrontLayer();
-						if (null != layer && (layer.contains(displ) || displ.equals(Display.getFront().getActive()))) {
+						if (null != layer && (displ == Display.getFront().getActive() || layer.contains(displ))) {
 							label.setOpaque(true); //this label
 							label.setBackground(active_displ_color); // this label
 							//Utils.log(" -- setting background");
@@ -111,13 +114,13 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 						label.setBackground(bg);
 						//Utils.log("ob is " + ob);
 					}
-				} else if (clazz.equals(LayerThing.class)) {
+				} else if (clazz == LayerThing.class) {
 					final Object ob = ((LayerThing)obb).getObject();
 					final Layer layer = Display.getFrontLayer();
-					if (ob.equals(layer)) {
+					if (ob == layer) {
 						label.setOpaque(true); //this label
 						label.setBackground(front_layer_color); // this label
-					} else if (ob.getClass().equals(LayerSet.class) && null != layer && layer.contains((Displayable)ob)) {
+					} else if (ob.getClass() == LayerSet.class && null != layer && layer.contains((Displayable)ob)) {
 						label.setOpaque(true); //this label
 						label.setBackground(active_displ_color); // this label
 					} else {
@@ -193,16 +196,18 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		}
 	}
 
-	static public boolean expandNode(final JTree tree, final DefaultMutableTreeNode node) {
+	static public boolean expandNode(final DNDTree tree, final DefaultMutableTreeNode node) {
 		final TreeModel tree_model = tree.getModel();
 		if (tree_model.isLeaf(node)) return false;
 		tree.expandPath(new TreePath(node.getPath()));
+		tree.updateUILater();
 		return true;
 	}
 
 	/** Convenient method.*/
-	static public void expandAllNodes(JTree tree, DefaultMutableTreeNode root_node) {
+	static public void expandAllNodes(DNDTree tree, DefaultMutableTreeNode root_node) {
 		expandAllNodes(tree, new TreePath(root_node.getPath()));
+		tree.updateUILater();
 	}
 
 	static public DefaultMutableTreeNode makeNode(Thing thing) {
@@ -462,10 +467,13 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	public void setExpandedSilently(final Thing thing, final boolean b) {
 		DefaultMutableTreeNode node = findNode(thing, this);
 		if (null == node) return;
+		setExpandedSilently(node, b);
+	}
+	public void setExpandedSilently(final DefaultMutableTreeNode node, final boolean b) {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
-			HashMap ht = (HashMap)f.get(this);
+			Hashtable ht = (Hashtable)f.get(this);
 			ht.put(new TreePath(node.getPath()), new Boolean(b)); // this queries directly the expandedState transient private HashMap of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
@@ -476,6 +484,10 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 	public boolean isExpanded(final Thing thing) {
 		DefaultMutableTreeNode node = findNode(thing, this);
 		if (null == node) return false;
+		return isExpanded(node);
+	}
+
+	public boolean isExpanded(final DefaultMutableTreeNode node) {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
@@ -540,19 +552,27 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		return (DefaultMutableTreeNode)this.getModel().getRoot();
 	}
 
-	/** Appends at the end of the parent_node child list. */
-	protected DefaultMutableTreeNode addChild(Thing child, DefaultMutableTreeNode parent_node) {
-		DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(child);
-		((DefaultTreeModel)getModel()).insertNodeInto(node_child, parent_node, parent_node.getChildCount());
-		updateUILater();
-		return node_child;
+	/** Appends at the end of the parent_node child list, and waits until the tree's UI is updated. */
+	protected DefaultMutableTreeNode addChild(final Thing child, final DefaultMutableTreeNode parent_node) {
+		try {
+			final DefaultMutableTreeNode node_child = new DefaultMutableTreeNode(child);
+			((DefaultTreeModel)getModel()).insertNodeInto(node_child, parent_node, parent_node.getChildCount());
+			try { DNDTree.this.updateUI(); } catch (Exception e) { IJError.print(e, true); }
+			return node_child;
+		} catch (Exception e) { IJError.print(e, true); }
+		return null;
 	}
 
 	/** Will add only those for which a node doesn't exist already. */
-	public void addLeaves(final ArrayList<Thing> leaves) {
-		for (Thing th : leaves) {
+	public void addLeafs(final java.util.List<Thing> leafs) {
+		javax.swing.SwingUtilities.invokeLater(new Runnable() { public void run() {
+		for (final Thing th : leafs) {
 			// find parent node
-			final DefaultMutableTreeNode parent = DNDTree.findNode(th.getParent(), this);
+			final DefaultMutableTreeNode parent = DNDTree.findNode(th.getParent(), DNDTree.this);
+			if (null == parent) {
+				Utils.log("Ignoring node " + th + " : null parent!");
+				continue;
+			}
 			// see if it exists already as a child of that node
 			boolean exists = false;
 			if (parent.getChildCount() > 0) {
@@ -568,6 +588,7 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 			// otherwise add!
 			if (!exists) addChild(th, parent);
 		}
+		}});
 	}
 
 	protected boolean removeNode(DefaultMutableTreeNode node) {
@@ -576,4 +597,71 @@ public class DNDTree extends JTree implements TreeExpansionListener {
 		this.updateUILater();
 		return true;
 	}
+
+	/** Shallow copy of the tree: returns a clone of the root node and cloned children, recursively, with all Thing cloned as well, but the Thing object is the same. */
+	public Thing duplicate(final HashMap<Thing,Boolean> expanded_state) {
+		DefaultMutableTreeNode root_node = (DefaultMutableTreeNode) this.getModel().getRoot();
+		// Descend both the root_copy tree and the root_node tree, and build shallow copies of Thing with same expanded state
+		return duplicate(root_node, expanded_state);
+	}
+
+	/** Returns the copy of the node's Thing. */
+	private Thing duplicate(final DefaultMutableTreeNode node, final HashMap<Thing,Boolean> expanded_state) {
+		Thing thing = (Thing) node.getUserObject();
+		Thing copy = thing.shallowCopy();
+		if (null != expanded_state) {
+			expanded_state.put(copy, isExpanded(node)); 
+		}
+		final Enumeration e = node.children();
+		while (e.hasMoreElements()) {
+			DefaultMutableTreeNode child = (DefaultMutableTreeNode) e.nextElement();
+			copy.addChild(duplicate(child, expanded_state));
+		}
+		return copy;
+	}
+
+	/** For restoring purposes from an undo step. */
+	public void set(final Thing root, final HashMap<Thing,Boolean> expanded_state) {
+		// rebuild all nodes, restore their expansion state.
+		DefaultMutableTreeNode root_node = (DefaultMutableTreeNode) this.getModel().getRoot();
+		root_node.removeAllChildren();
+		set(root_node, root, expanded_state);
+		updateUILater();
+	}
+
+	/** Recursive */
+	private void set(final DefaultMutableTreeNode root, final Thing root_thing, final HashMap<Thing,Boolean> expanded_state) {
+		root.setUserObject(root_thing);
+		final ArrayList<Thing> al_children = root_thing.getChildren();
+		if (null != al_children) {
+			for (final Thing thing : al_children) {
+				DefaultMutableTreeNode child = new DefaultMutableTreeNode(thing);
+				root.add(child);
+				set(child, thing, expanded_state);
+			}
+		}
+		if (null != expanded_state) {
+			final Boolean b = expanded_state.get(root_thing);
+			if (null != b) setExpandedSilently(root, b.booleanValue());
+		}
+	}
+
+	public void keyPressed(final KeyEvent ke) {
+		dispatcher.exec(new Runnable() { public void run() {
+		if (!ke.getSource().equals(DNDTree.this) || !Project.getInstance(DNDTree.this).isInputEnabled()) {
+			ke.consume();
+			return;
+		}
+		int key_code = ke.getKeyCode();
+		switch (key_code) {
+			case KeyEvent.VK_S:
+				Project p = Project.getInstance(DNDTree.this);
+				p.getLoader().save(p);
+				ke.consume();
+				break;
+		}
+		}});
+	}
+	public void keyReleased(KeyEvent ke) {}
+	public void keyTyped(KeyEvent ke) {}
 }

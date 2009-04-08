@@ -58,10 +58,10 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		add(sp);
 		add(title);
 
-		Dimension dim = new Dimension(250, HEIGHT);
+		Dimension dim = new Dimension(250 - Display.scrollbar_width, HEIGHT);
 		setMinimumSize(dim);
 		setMaximumSize(dim);
-		setPreferredSize(dim);
+		//setPreferredSize(dim);
 
 		addMouseListener(this);
 		setBackground(Color.white);
@@ -75,6 +75,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 	/** For instance-recycling purposes. */
 	public void set(final Displayable d) {
 		this.d = d;
+		c.setSelected(d.isVisible());
 		title.setText(makeUpdatedTitle());
 		sp.set(d);
 	}
@@ -89,7 +90,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 
 	public void paint(final Graphics g) {
 		if (display.isSelected(d)) {
-			if (null != display.getActive() && display.getActive().equals(d)) { // can be null when initializing ... because swing is designed with built-in async
+			if (null != display.getActive() && display.getActive() == d) { // can be null when initializing ... because swing is designed with built-in async
 				setBackground(Color.cyan);
 			} else {
 				setBackground(Color.pink);
@@ -140,7 +141,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 	public void mousePressed(final MouseEvent me) {
 		if (display.isTransforming()) return;
 		display.select(d, me.isShiftDown());
-		if (me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) {
+		if (me.isPopupTrigger() || (ij.IJ.isMacOSX() && me.isControlDown()) || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) {
 			display.getPopupMenu().show(this, me.getX(), me.getY());
 		}
 	}

@@ -78,7 +78,7 @@ public class Search {
 	private void makeGUI() {
 		// create GUI if not there
 		if (null == search_frame) {
-			search_frame = new JFrame("Search");
+			search_frame = ControlWindow.createJFrame("Search");
 			search_frame.addWindowListener(new WindowAdapter() {
 				public void windowClosing(WindowEvent we) {
 					instance.destroy();

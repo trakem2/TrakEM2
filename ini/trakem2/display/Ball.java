@@ -259,14 +259,14 @@ public class Ball extends ZDisplayable {
 
 		if (ProjectToolbar.PEN == tool) {
 			long layer_id = Display.getFrontLayer().getId();
-			if (me.isControlDown() && me.isShiftDown()) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
 				index = findNearestPoint(p, n_points, x_p, y_p); // should go to an AbstractProfile or something
 			} else {
 				index = findPoint(p, x_p, y_p, mag);
 			}
 			if (-1 != index) {
 				if (layer_id == p_layer[index]) {
-					if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer().getId()) {
+					if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer().getId()) {
 						removePoint(index);
 						index = -1; // to prevent saving in the database twice
 						repaint(false);
@@ -607,15 +607,33 @@ public class Ball extends ZDisplayable {
 		return la;
 	}
 
-	/** Returns a [n_points][4] array, with x,y,z,radius on the second part.  Not transformed, but local!*/
+	/** Returns a [n_points][4] array, with x,y,z,radius on the second part; not transformed, but local!
+	 *  To obtain balls in world coordinates, calibrated, use getWorldBalls().
+	 */
 	public double[][] getBalls() {
 		if (-1 == n_points) setupForDisplay(); // reload
-		double[][] b = new double[n_points][4];
+		final double[][] b = new double[n_points][4];
 		for (int i=0; i<n_points; i++) {
 			b[i][0] = p[0][i];
 			b[i][1] = p[1][i];
 			b[i][2] = layer_set.getLayer(p_layer[i]).getZ();
 			b[i][3] = p_width[i];
+		}
+		return b;
+	}
+
+	/** Returns a [n_points][4] array, with x,y,z,radius on the second part, in world coordinates (that is, transformed with this AffineTransform and calibrated with the containing LayerSet's calibration). */
+	public double[][] getWorldBalls() {
+		if (-1 == n_points) setupForDisplay(); // reload
+		final double[][] b = new double[n_points][4];
+		final Calibration cal = getLayerSet().getCalibrationCopy();
+		final int sign = cal.pixelDepth < 0 ? -1 : 1;
+		for (int i=0; i<n_points; i++) {
+			final Point2D.Double po = transformPoint(p[0][i], p[1][i]); // bring to world coordinates
+			b[i][0] = po.x * cal.pixelWidth;
+			b[i][1] = po.y * cal.pixelHeight;
+			b[i][2] = layer_set.getLayer(p_layer[i]).getZ() * cal.pixelWidth * sign;
+			b[i][3] = p_width[i] * cal.pixelWidth;
 		}
 		return b;
 	}
@@ -670,6 +688,7 @@ public class Ball extends ZDisplayable {
 		for (int i=0; i<n_points; i++) {
 			sb_body.append(in).append("<t2_ball_ob x=\"").append(p[0][i]).append("\" y=\"").append(p[1][i]).append("\" layer_id=\"").append(p_layer[i]).append("\" r=\"").append(p_width[i]).append("\" />\n");
 		}
+		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append("</t2_ball>\n");
 	}
 
@@ -677,7 +696,7 @@ public class Ball extends ZDisplayable {
 		String type = "t2_ball";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_ball (t2_ball_ob)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_ball (").append(Displayable.commonDTDChildren()).append(",t2_ball_ob)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append("<!ELEMENT t2_ball_ob EMPTY>\n")
 			 .append(indent).append("<!ATTLIST t2_ball_ob x NMTOKEN #REQUIRED>\n")
@@ -922,5 +941,39 @@ public class Ball extends ZDisplayable {
 			rt.addValue(6, getNameId());
 		}
 		return rt;
+	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPBall.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		return new DPBall(this);
+	}
+
+	static private final class DPBall extends Displayable.DataPackage {
+		final double[][] p;
+		final double[] p_width;
+		final long[] p_layer;
+
+		DPBall(final Ball ball) {
+			super(ball);
+			// store copies of all arrays
+			this.p = new double[][]{Utils.copy(ball.p[0], ball.n_points), Utils.copy(ball.p[1], ball.n_points)};
+			this.p_width = Utils.copy(ball.p_width, ball.n_points);
+			this.p_layer = new long[ball.n_points]; System.arraycopy(ball.p_layer, 0, this.p_layer, 0, ball.n_points);
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Ball ball = (Ball)d;
+			final int len = p[0].length; // == n_points, since it was cropped on copy
+			ball.p = new double[][]{Utils.copy(p[0], len), Utils.copy(p[1], len)};
+			ball.n_points = p[0].length;
+			ball.p_layer = new long[len]; System.arraycopy(p_layer, 0, ball.p_layer, 0, len);
+			ball.p_width = Utils.copy(p_width, len);
+			return true;
+		}
 	}
 }

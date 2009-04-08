@@ -86,6 +86,9 @@ public class FloatProcessorT2 extends FloatProcessor {
 		final float[] pixels = (float[])this.getPixels(); // I luv pointlessly private fields
 		for (int i=0; i<pixels.length; i++) pixels[i] = ((c[i] & bitmask)>>shift);
 	}
+	public FloatProcessorT2(final FloatProcessor fp) {
+		this(fp.getWidth(), fp.getHeight(), (float[])fp.getPixels(), fp.getColorModel(), fp.getMin(), fp.getMax());
+	}
 
 	/** Returns a new, blank FloatProcessor with the specified width and height. */
 	public ImageProcessor createProcessor(final int width, final int height) {

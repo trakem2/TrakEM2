@@ -64,13 +64,13 @@ public class Align {
 			l1 = new Landmark(layer);
 			l1.add(x_p, y_p);
 		} else if (l1.layer.equals(layer)) {
-			if (me.isShiftDown() && me.isControlDown()) l1.remove(x_p, y_p, magnification);
+			if (me.isShiftDown() && Utils.isControlDown(me)) l1.remove(x_p, y_p, magnification);
 			else l1.add(x_p, y_p);
 		} else if (null == l2) {
 			l2 = new Landmark(layer);
 			l2.add(x_p, y_p);
 		} else if (l2.layer.equals(layer)) {
-			if (me.isShiftDown() && me.isControlDown()) l2.remove(x_p, y_p, magnification);
+			if (me.isShiftDown() && Utils.isControlDown(me)) l2.remove(x_p, y_p, magnification);
 			else l2.add(x_p, y_p);
 		} else {
 			// ignore, different layer
@@ -256,18 +256,11 @@ public class Align {
 		final List<Layer> las = ls.getLayers().subList(start, end+1); // exclusive end
 
 		// setup an undo for the second and later layers
-		final HashMap ht = new HashMap();
-		for (Iterator it = hs2.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			ht.put(d, d.getAffineTransformCopy());
-		}
+		HashSet<Displayable> ht = new HashSet<Displayable>(hs2);
 		for (Layer la : las) {
-			for (Iterator it = la.getDisplayables().iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
-				ht.put(d, d.getAffineTransformCopy());
-			}
+			ht.addAll(la.getDisplayables());
 		}
-		l1.layer.getParent().addUndoStep(ht);
+		l1.layer.getParent().addTransformStep(ht);
 
 		ArrayList base_points = new ArrayList();
 		ArrayList target_points = new ArrayList();
@@ -421,7 +414,7 @@ public class Align {
 		Layer la_base = la_start;
 		Layer la_target = ls.next(la_start);
 		// setup general undo
-		ls.createUndoStep();
+		ls.addTransformStep();
 		ls.getProject().getLoader().startLargeUpdate();
 		try {
 			// now process consecutive pairs of layers

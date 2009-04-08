@@ -88,6 +88,12 @@ public final class M {
 			       + Math.pow(z1 - z2, 2));
 	}
 
+	static public final double distance(final double x1, final double y1,
+			                    final double x2, final double y2) {
+		return Math.sqrt(Math.pow(x1 - x2, 2)
+			       + Math.pow(y1 - y2, 2));
+	}
+
 	static public final double distanceSq(final double x1, final double y1, final double z1,
 			              final double x2, final double y2, final double z2) {
 		return  Math.pow(x1 - x2, 2)
@@ -119,5 +125,9 @@ public final class M {
 		if (xu * xv + yu * yv < 0) return Math.sqrt( Math.pow(px - lx2, 2) + Math.pow(py - ly2, 2) );
 
 		return Math.abs( (px * (ly1 - ly2) + py * (lx2 - lx1) + (lx1 * ly2 - lx2 * ly1) ) / Math.sqrt( Math.pow(lx2 - lx1, 2) + Math.pow(ly2 - ly1, 2) ) );
+	}
+
+	static public final boolean equals(final double a, final double b) {
+		return Math.abs(a - b) < Utils.FL_ERROR;
 	}
 }

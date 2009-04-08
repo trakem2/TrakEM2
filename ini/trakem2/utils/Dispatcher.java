@@ -37,6 +37,7 @@ public class Dispatcher extends Thread {
 	private final ArrayList<Task> tasks = new ArrayList<Task>();
 	private final Lock lock = new Lock();
 	private boolean go = true;
+
 	public Dispatcher() {
 		super("T2-Dispatcher");
 		setPriority(Thread.NORM_PRIORITY);
@@ -47,10 +48,25 @@ public class Dispatcher extends Thread {
 		this.go = false;
 		synchronized (this) { notify(); }
 	}
+	public boolean isQuit() {
+		return go;
+	}
+
+	private boolean accept = true;
+
+	public void quitWhenDone() {
+		accept = false;
+		quit();
+	}
+
 	/** Submits the task for execution and returns immediately. */
 	public void exec(final Runnable run) { exec(run, false); }
 	public void execSwing(final Runnable run) { exec(run, true); }
 	public void exec(final Runnable run, final boolean swing) {
+		if (!accept) {
+			Utils.log2("Dispatcher: NOT accepting more tasks!");
+			return;
+		}
 		synchronized (lock) {
 			lock.lock();
 			tasks.add(new Task(run, swing));
@@ -60,7 +76,7 @@ public class Dispatcher extends Thread {
 	}
 	/** Executes one task at a time, in the same order in which they've been received. */
 	public void run() {
-		while (go) {
+		while (go || (!accept && tasks.size() > 0)) {
 			try {
 				synchronized (this) { wait(); }
 				if (!go) return;

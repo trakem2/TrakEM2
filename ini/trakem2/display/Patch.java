@@ -25,36 +25,54 @@ package ini.trakem2.display;
 
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
-import ij.io.FileSaver;
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.gui.Toolbar;
+import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
-import ini.trakem2.persistence.DBObject;
+import ini.trakem2.utils.Worker;
+import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.vector.VectorString3D;
 
-import java.awt.*;
+import java.awt.Dimension;
+import java.awt.Rectangle;
+import java.awt.Event;
+import java.awt.Image;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.AlphaComposite;
+import java.awt.Toolkit;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.DirectColorModel;
-import java.awt.image.IndexColorModel;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.geom.Point2D;
+import java.awt.Polygon;
+import java.awt.geom.PathIterator;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.image.PixelGrabber;
-import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Collection;
 import java.io.File;
 
-//import mpicbg.models.InvertibleCoordinateTransform;
+import mpicbg.models.AffineModel2D;
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.TransformMesh;
+import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.TransformMeshMapping;
 
 public final class Patch extends Displayable {
 
@@ -66,19 +84,15 @@ public final class Patch extends Displayable {
 	private double min = 0;
 	private double max = 255;
 
+	private int o_width = 0, o_height = 0;
+
 	/** To be set after the first successful query on whether this file exists, from the Loader, via the setCurrentPath method. This works as a good path cache to avoid excessive calls to File.exists(), which shows up as a huge performance drag. */
 	private String current_path = null;
 	/** To be read from XML, or set when the file ImagePlus has been updated and the current_path points to something else. */
 	private String original_path = null;
 
-	//private InvertibleCoordinateTransform ict = null;
-	private boolean has_alpha_channel = false;
-	// TODO include in the cloning
-
-	/** A Patch may have an alpha channel so that it's appeareance on the screen does not need to be a rectangle. For example, as a result of a paste from a non-rectangular ROI, or by non-linearly deforming the Patch. */
-	public boolean hasAlphaChannel() {
-		return has_alpha_channel;
-	}
+	/** The CoordinateTransform that transfers image data to mipmap image data. The AffineTransform is then applied to the mipmap image data. */
+	private CoordinateTransform ct = null;
 
 	/** Construct a Patch from an image. */
 	public Patch(Project project, String title, double x, double y, ImagePlus imp) {
@@ -87,8 +101,10 @@ public final class Patch extends Displayable {
 		this.min = imp.getProcessor().getMin();
 		this.max = imp.getProcessor().getMax();
 		checkMinMax();
-		this.width = imp.getWidth();
-		this.height = imp.getHeight();
+		this.o_width = imp.getWidth();
+		this.o_height = imp.getHeight();
+		this.width = (int)o_width;
+		this.height = (int)o_height;
 		project.getLoader().cache(this, imp);
 		addToDatabase();
 	}
@@ -99,6 +115,8 @@ public final class Patch extends Displayable {
 		this.type = type;
 		this.min = min;
 		this.max = max;
+		if (0 == o_width) o_width = (int)width;
+		if (0 == o_height) o_height = (int)height;
 		checkMinMax();
 	}
 
@@ -125,8 +143,30 @@ public final class Patch extends Displayable {
 				hasmax = true;
 			} else if (key.equals("original_path")) {
 				this.original_path = data;
+			} else if (key.equals("o_width")) {
+				this.o_width = Integer.parseInt(data);
+			} else if (key.equals("o_height")) {
+				this.o_height = Integer.parseInt(data);
 			}
 		}
+
+		if (0 == o_width || 0 == o_height) {
+			// The original image width and height are unknown.
+			try {
+				Utils.log2("Restoring original width/height from file for id=" + id);
+				// Use BioFormats to read the dimensions out of the original file's header
+				final Dimension dim = project.getLoader().getDimensions(this);
+				o_width = dim.width;
+				o_height = dim.height;
+			} catch (Exception e) {
+				Utils.log("Could not read source data width/height for patch " + this +"\n --> To fix it, close the project and add o_width=\"XXX\" o_height=\"YYY\"\n     to patch entry with oid=\"" + id + "\",\n     where o_width,o_height are the image dimensions as defined in the image file.");
+				// So set them to whatever is somewhat survivable for the moment
+				o_width = (int)width;
+				o_height = (int)height;
+				IJError.print(e);
+			}
+		}
+
 		if (hasmin && hasmax) {
 			checkMinMax();
 		} else {
@@ -136,14 +176,21 @@ public final class Patch extends Displayable {
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
+	/** The original width of the pixels in the source image file. */
+	public int getOWidth() { return o_width; }
+	/** The original height of the pixels in the source image file. */
+	public int getOHeight() { return o_height; }
+
 	/** Fetches the ImagePlus from the cache; <b>be warned</b>: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache; use @getImageProcessor to get the pixels guaranteed not to be ever null. */
 	public ImagePlus getImagePlus() {
-		return this.project.getLoader().fetchImagePlus(this);
+		final ImagePlus imp = this.project.getLoader().fetchImagePlus(this);
+		return imp;
 	}
 
-	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I adivse you to call this method everytime you need the processor. */
+	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I advise you to call this method everytime you need the processor. */
 	public ImageProcessor getImageProcessor() {
-		return this.project.getLoader().fetchImageProcessor(this);
+		final ImageProcessor ip = this.project.getLoader().fetchImageProcessor(this);
+		return ip;
 	}
 
 	/** Recreate mipmaps and flush away any cached ones.
@@ -512,8 +559,9 @@ public final class Patch extends Displayable {
 			if (gd.wasCanceled()) return false;
 			boolean delete_empty_layers = gd.getNextBoolean();
 			// gather all
-			HashMap ht = new HashMap();
-			getStackPatches(ht);
+			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+			getStackPatchesNR(ht);
+			Utils.log("Stack patches: " + ht.size());
 			ArrayList al = new ArrayList();
 			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
 				Patch p = (Patch)it.next();
@@ -529,6 +577,7 @@ public final class Patch extends Displayable {
 					return false;
 				}
 				p.unlink();
+				p.removeLinkedPropertiesFromOrigins();
 				//no need//it.remove();
 				al.add(p.layer);
 				if (p.layer.isEmpty()) Display.close(p.layer);
@@ -548,6 +597,7 @@ public final class Patch extends Displayable {
 		} else {
 			if (isOnlyLinkedTo(Patch.class, this.layer) && layer.remove(this) && removeFromDatabase()) { // don't alow to remove linked patches (unless only linked to other patches in the same layer)
 				unlink();
+				removeLinkedPropertiesFromOrigins();
 				Search.remove(this);
 				return true;
 			} else {
@@ -712,13 +762,24 @@ public final class Patch extends Displayable {
 		sb_body.append(in).append("type=\"").append(type /*null == any ? ImagePlus.GRAY8 : type*/).append("\"\n")
 		       .append(in).append("file_path=\"").append(rel_path).append("\"\n")
 		       .append(in).append("style=\"fill-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";\"\n")
+		       .append(in).append("o_width=\"").append(o_width).append("\"\n")
+		       .append(in).append("o_height=\"").append(o_height).append("\"\n")
 		;
 		if (null != original_path) {
 			sb_body.append(in).append("original_path=\"").append(original_path).append("\"\n");
 		}
 		if (0 != min) sb_body.append(in).append("min=\"").append(min).append("\"\n");
 		if (max != Patch.getMaxMax(type)) sb_body.append(in).append("max=\"").append(max).append("\"\n");
-		sb_body.append(indent).append("/>\n");
+
+		sb_body.append(indent).append(">\n");
+
+		if (null != ct) {
+			sb_body.append(ct.toXML(in)).append('\n');
+		}
+
+		super.restXML(sb_body, in, any);
+
+		sb_body.append(indent).append("</t2_patch>\n");
 	}
 
 	static private final double getMaxMax(final int type) {
@@ -734,13 +795,22 @@ public final class Patch extends Displayable {
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		String type = "t2_patch";
 		if (hs.contains(type)) return;
-		sb_header.append(indent).append("<!ELEMENT t2_patch EMPTY>\n");
+		// The Patch itself:
+		sb_header.append(indent).append("<!ELEMENT t2_patch (").append(Displayable.commonDTDChildren()).append(",ict_transform,ict_transform_list)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" file_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" original_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" type").append(TAG_ATTR2)
-			 .append(indent).append(TAG_ATTR1).append(type).append(" ict").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" ct").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" o_width").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
 		;
+		// The InvertibleCoordinateTransform and a list of:
+		sb_header.append(indent).append("<!ELEMENT ict_transform EMPTY>\n");
+		sb_header.append(indent).append(TAG_ATTR1).append("ict_transform class").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append("ict_transform data").append(TAG_ATTR2);
+		sb_header.append(indent).append("<!ELEMENT ict_transform_list (ict_transform)>\n");
+
 	}
 
 	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */
@@ -753,8 +823,10 @@ public final class Patch extends Displayable {
 		copy.channels = this.channels;
 		copy.min = this.min;
 		copy.max = this.max;
+		copy.ct = null == ct ? null : this.ct.clone();
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
+		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
 		return copy;
 	}
 
@@ -821,7 +893,7 @@ public final class Patch extends Displayable {
 	public int[] getPixel(final int x, final int y, final double mag) {
 		if (1 == mag && project.getLoader().isUnloadable(this)) return new int[4];
 		final Image img = project.getLoader().fetchImage(this, mag);
-		if (Loader.NOT_FOUND == img) return new int[4];
+		if (Loader.isSignalImage(img)) return new int[4];
 		final int w = img.getWidth(null);
 		final double scale = w / width;
 		final Point2D.Double pd = inverseTransformPoint(x, y);
@@ -931,5 +1003,364 @@ public final class Patch extends Displayable {
 		Display.repaint(layer, this, 0);
 		Utils.showStatus("Reverted patch " + getTitle(), false);
 		return true;
+	}
+
+	/** For reconstruction purposes, overwrites the present CoordinateTransform, if any, with the given one. */
+	public void setCoordinateTransformSilently(final CoordinateTransform ct) {
+		this.ct = ct;
+	}
+
+	/** Set a CoordinateTransform to this Patch.
+	 *  The resulting image of applying the coordinate transform does not need to be rectangular: an alpha mask will take care of the borders. You should call updateMipmaps() afterwards to update the mipmap images used for painting this Patch to the screen. */
+	public final void setCoordinateTransform(final CoordinateTransform ct) {
+		if (isLinked()) {
+			Utils.log("Cannot set coordinate transform: patch is linked!");
+			return;
+		}
+
+		if (null != this.ct) {
+			// restore image without the transform
+			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+			final Rectangle box = mesh.getBoundingBox();
+			this.at.translate(-box.x, -box.y);
+			updateInDatabase("transform+dimensions");
+		}
+
+		this.ct = ct;
+		updateInDatabase("ict_transform");
+
+		if (null == this.ct) {
+			width = o_width;
+			height = o_height;
+			updateBucket();
+			return;
+		}
+
+		// Adjust the AffineTransform to correct for bounding box displacement
+
+		final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+		final Rectangle box = mesh.getBoundingBox();
+		this.at.translate(box.x, box.y);
+		this.width = box.width;
+		this.height = box.height;
+		updateInDatabase("transform+dimensions"); // the AffineTransform
+		updateBucket();
+
+		// Updating the mipmaps will call createTransformedImage below if ct is not null
+		/* DISABLED */ //updateMipmaps();
+	}
+	
+	/**
+	 * Append a {@link CoordinateTransform} to the current
+	 * {@link CoordinateTransformList}.  If there is no transform yet, it just
+	 * sets it.  If there is only one transform, it replaces it by a list
+	 * containing both.
+	 */
+	public final void appendCoordinateTransform(final CoordinateTransform ct) {
+		if (null == this.ct)
+			setCoordinateTransform(ct);
+		else {
+			final CoordinateTransformList ctl;
+			if (this.ct instanceof CoordinateTransformList)
+				ctl = (CoordinateTransformList)this.ct;
+			else {
+				ctl = new CoordinateTransformList();
+				ctl.add(this.ct);
+			}
+			ctl.add(ct);
+			setCoordinateTransform(ctl);
+		}
+	}
+	
+	/**
+	 * Get the bounding rectangle of the transformed image relative to the
+	 * original image.
+	 * 
+	 * TODO
+	 *   Currently, this is done in a very expensive way.  The
+	 *   {@linkplain TransformMesh} is built and its bounding rectangle is
+	 *   returned.  Think about just storing this rectangle in the
+	 *   {@linkplain Patch} instance.
+	 * 
+	 * @return
+	 */
+	public final Rectangle getCoordinateTransformBoundingBox() {
+		if (null==ct)
+			return new Rectangle(0,0,o_width,o_height);
+		final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+		return mesh.getBoundingBox();
+	}
+
+	public final CoordinateTransform getCoordinateTransform() { return ct; }
+	
+	public final Patch.PatchImage createCoordinateTransformedImage() {
+		if (null == ct) return null;
+		
+		project.getLoader().releaseToFit(o_width, o_height, type, 5);
+
+		final ImageProcessor source = getImageProcessor();
+
+		//Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());
+
+		final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
+		
+		ImageProcessor target = mapping.createMappedImageInterpolated( source );
+		
+		ByteProcessor outside = new ByteProcessor( source.getWidth(), source.getHeight() );
+		outside.setValue(255);
+		outside.fill();
+		
+		outside = (ByteProcessor) mapping.createMappedImageInterpolated( outside );
+		
+		ByteProcessor mask = project.getLoader().fetchImageMask(this);
+		if (null != mask)
+			mask = (ByteProcessor) mapping.createMappedImageInterpolated( mask );
+		
+		// Set all non-white pixels to zero
+		final byte[] pix = (byte[])outside.getPixels();
+		for (int i=0; i<pix.length; i++)
+			if ((pix[i]&0xff) != 255) pix[i] = 0;
+
+		final Rectangle box = mesh.getBoundingBox();
+
+		//Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
+		//Utils.log2("box: " + box);
+
+		return new PatchImage( target, mask, outside, box, true );
+	}
+
+	public final class PatchImage {
+		/** The image, coordinate-transformed if null != ct. */
+		final public ImageProcessor target;
+		/** The alpha mask, coordinate-transformed if null != ct. */
+		final public ByteProcessor mask;
+		/** The outside mask, coordinate-transformed if null != ct. */
+		final public ByteProcessor outside;
+		/** The bounding box of the image relative to the original, with x,y as the displacement relative to the pixels of the original image. */
+		final public Rectangle box;
+		/** Whether the image was generated with a CoordinateTransform or not. */
+		final public boolean coordinate_transformed;
+
+		private PatchImage( ImageProcessor target, ByteProcessor mask, ByteProcessor outside, Rectangle box, boolean coordinate_transformed ) {
+			this.target = target;
+			this.mask = mask;
+			this.outside = outside;
+			this.box = box;
+			this.coordinate_transformed = coordinate_transformed;
+		}
+	}
+
+	/** Returns a PatchImage object containing the bottom-of-transformation-stack image and alpha mask, if any (except the AffineTransform, which is used for direct hw-accel screen rendering). */
+	public Patch.PatchImage createTransformedImage() {
+		final Patch.PatchImage pi = createCoordinateTransformedImage();
+		if (null != pi) return pi;
+		// else, a new one with the untransformed, original image (a duplicate):
+		project.getLoader().releaseToFit(o_width, o_height, type, 3);
+		return new PatchImage(getImageProcessor().duplicate(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
+	}
+
+	private boolean has_alpha = false;
+	private boolean alpha_path_checked = false;
+
+	/** Caching system to avoid repeated checks. No automatic memoization ... snif */
+	private final boolean hasMask() {
+		if (alpha_path_checked) return has_alpha;
+		// else, see if the path exists:
+		try {
+			has_alpha = new File(project.getLoader().getAlphaPath(this)).exists();
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		alpha_path_checked = true;
+		return has_alpha;
+	}
+
+	public boolean hasAlphaChannel() {
+		return null != ct || hasMask();
+	}
+
+	/** Must call updateMipmaps() afterwards. Set it to null to remove it. */
+	public void setAlphaMask(ByteProcessor bp) throws IllegalArgumentException {
+		if (null == bp) {
+			if (hasMask()) {
+				if (project.getLoader().removeAlphaMask(this)) {
+					alpha_path_checked = false;
+				}
+			}
+			return;
+		}
+
+		if (o_width != bp.getWidth() || o_height != bp.getHeight()) {
+			throw new IllegalArgumentException("Need a mask of identical dimensions as the original image.");
+		}
+		project.getLoader().storeAlphaMask(this, bp);
+		alpha_path_checked = false;
+	}
+
+	public void keyPressed(KeyEvent ke) {
+		Object source = ke.getSource();
+		if (! (source instanceof DisplayCanvas)) return;
+		DisplayCanvas dc = (DisplayCanvas)source;
+		final Layer la = dc.getDisplay().getLayer();
+		final Roi roi = dc.getFakeImagePlus().getRoi();
+
+		switch (ke.getKeyCode()) {
+			case KeyEvent.VK_C:
+				// copy into ImageJ clipboard
+				int mod = ke.getModifiers();
+
+				// Ignoring masks: outside is already black, and ImageJ cannot handle alpha masks.
+				if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
+					CoordinateTransformList list = null;
+					if (null != ct) {
+						list = new CoordinateTransformList();
+						list.add(this.ct);
+					}
+					if (0 == mod) { //SHIFT is down
+						AffineModel2D am = new AffineModel2D();
+						am.set(this.at);
+						if (null == list) list = new CoordinateTransformList();
+						list.add(am);
+					}
+					ImageProcessor ip;
+					if (null != list) {
+						TransformMesh mesh = new TransformMesh(list, 32, o_width, o_height);
+						TransformMeshMapping mapping = new TransformMeshMapping(mesh);
+						ip = mapping.createMappedImageInterpolated(getImageProcessor());
+					} else {
+						ip = getImageProcessor();
+					}
+					new ImagePlus(this.title, ip).copy(false);
+				} else if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
+					// On shift down (and no other flags!):
+					// Place the source image, untransformed, into clipboard:
+					ImagePlus imp = getImagePlus();
+					if (null != imp) imp.copy(false);
+				}
+				ke.consume();
+				break;
+			case KeyEvent.VK_F:
+				// fill mask with current ROI using 
+				Utils.log2("VK_F: roi is " + roi);
+				if (null != roi && Utils.isAreaROI(roi)) {
+					Bureaucrat.createAndStart(new Worker("Filling image mask") { public void run() { try {
+					startedWorking();
+					ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
+					boolean is_new = false;
+					if (null == mask) {
+						mask = new ByteProcessor(o_width, o_height);
+						mask.setValue(255);
+						mask.fill();
+						is_new = true;
+					}
+					try {
+						// a roi local to the image bounding box
+						final Area a = new Area(new Rectangle(0, 0, (int)width, (int)height));
+						a.intersect(Utils.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+
+						if (Utils.isEmpty(a)) {
+							Utils.log("ROI does not intersect the active image!");
+							return;
+						}
+
+						if (null != ct) {
+							// inverse the coordinate transform
+							final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+							final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
+
+							ByteProcessor rmask = new ByteProcessor((int)width, (int)height);
+
+							if (is_new) {
+								rmask.setColor(Toolbar.getForegroundColor());
+							} else {
+								rmask.setValue(255);
+							}
+							ShapeRoi sroi = new ShapeRoi(a);
+							rmask.setRoi(sroi);
+							rmask.fill(sroi.getMask());
+
+							ByteProcessor inv_mask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
+
+							if (is_new) {
+								mask = inv_mask;
+								// done!
+							} else {
+								// Blend
+								rmask = null;
+								inv_mask.setMinAndMax(255, 255);
+								final byte[] b1 = (byte[]) mask.getPixels();
+								final byte[] b2 = (byte[]) inv_mask.getPixels();
+								final int color = mask.getBestIndex(Toolbar.getForegroundColor());
+								for (int i=0; i<b1.length; i++) {
+									b1[i] = (byte) ((int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff));
+								}
+							}
+						} else {
+							ShapeRoi sroi = new ShapeRoi(a);
+							mask.setRoi(sroi);
+							mask.setColor(Toolbar.getForegroundColor());
+							mask.fill(sroi.getMask());
+						}
+					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+					setAlphaMask(mask);
+					updateMipmaps();
+					Display.repaint();
+					} catch (Exception e) {
+						IJError.print(e);
+					} finally {
+						finishedWorking();
+					}}}, project);
+				}
+				// capturing:
+				ke.consume();
+				break;
+		}
+	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPPatch.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		return new DPPatch(this);
+	}
+
+	static private final class DPPatch extends Displayable.DataPackage {
+		final double min, max;
+		CoordinateTransform ct = null;
+		
+		DPPatch(final Patch patch) {
+			super(patch);
+			this.min = patch.min;
+			this.max = patch.max;
+			this.ct = null == ct ? null : patch.ct.clone();
+			// channels is visualization
+			// path is absolute
+			// type is dependent on path, so absolute
+			// o_width, o_height idem
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Patch p = (Patch) d;
+			boolean mipmaps = false;
+			if (p.min != min || p.max != max || p.ct != ct || (p.ct == ct && ct instanceof CoordinateTransformList)) {
+				Utils.log2("mipmaps is true! " + (p.min != min)  + " " + (p.max != max) + " " + (p.ct != ct) + " " + (p.ct == ct && ct instanceof CoordinateTransformList));
+				mipmaps = true;
+			}
+			p.min = min;
+			p.max = max;
+			p.ct = null == ct ? null : (CoordinateTransform) ct.clone();
+
+			if (mipmaps) {
+				Utils.log2("Update mipmaps in a background task");
+				ArrayList al = new ArrayList();
+				al.add(p);
+				p.project.getLoader().generateMipMaps(al, true);
+			}
+			return true;
+		}
 	}
 }

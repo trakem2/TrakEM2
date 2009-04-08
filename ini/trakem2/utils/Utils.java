@@ -61,6 +61,8 @@ import java.awt.geom.Point2D;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
 import java.awt.Rectangle;
+import java.awt.Polygon;
+import java.awt.geom.PathIterator;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
@@ -68,6 +70,7 @@ import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
+import java.awt.event.InputEvent;
 import java.awt.Event;
 import javax.swing.SwingUtilities;
 
@@ -79,7 +82,10 @@ import java.util.Vector;
 import java.util.Calendar;
 import java.lang.Iterable;
 import java.util.Iterator;
+import java.util.Collection;
 import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 import javax.vecmath.Point3f;
 import javax.vecmath.Vector3f;
@@ -90,7 +96,7 @@ import javax.vecmath.Vector3f;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.6b 2008-12-18";
+	static public String version = "0.6a 2008-11-13";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -101,11 +107,6 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** The error to use in floating-point or double floating point literal comparisons. */
 	static public final double FL_ERROR = 0.0000001;
-
-	/** Compares two floating point numbers, returns true if the absolute value of subtracting one to the other is smaller than Utils.FL_ERROR. */
-	static public final boolean equal(final double a, final double b) {
-		return FL_ERROR > Math.abs(a - b);
-	}
 
 	static public void debug(String msg) {
 		if (debug) IJ.log(msg);
@@ -966,6 +967,12 @@ public class Utils implements ij.plugin.PlugIn {
 
 	}
 
+	static public final void addRGBColorSliders(final GenericDialog gd, final Color color) {
+		gd.addSlider("Red: ", 0, 255, color.getRed());
+		gd.addSlider("Green: ", 0, 255, color.getGreen());
+		gd.addSlider("Blue: ", 0, 255, color.getBlue());
+	}
+
 	/** Converts the ImageProcessor to an ImageProcessor of the given type, or the same if of equal type. */
 	static final public ImageProcessor convertTo(final ImageProcessor ip, final int type, final boolean scaling) {
 		switch (type) {
@@ -1010,9 +1017,21 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
+	static public final double[] toDouble(final int[] a, final int len) {
+		final double[] b = new double[len];
+		for (int i=0; i<len; i++) b[i] = a[i];
+		return b;
+	}
+
+	static public final int[] toInt(final double[] a, final int len) {
+		final int[] b = new int[len];
+		for (int i=0; i<len; i++) b[i] = (int) a[i];
+		return b;
+	}
+
 	/** OS-agnostic diagnosis of whether the click was for the contextual popup menu. */
 	static public final boolean isPopupTrigger(final MouseEvent me) {
-		return me.isPopupTrigger() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK);
+		return me.isPopupTrigger() || 0 != (me.getModifiers() & Event.META_MASK);
 	}
 
 	/** Repaint the given Component on the swing repaint thread (aka "SwingUtilities.invokeLater"). */
@@ -1158,6 +1177,11 @@ public class Utils implements ij.plugin.PlugIn {
 		return area.createTransformedArea(at);
 	}
 
+	static public final boolean isEmpty(final Area area) {
+		final Rectangle b = area.getBounds();
+		return 0 == b.width || 0 == b.height;
+	}
+
 	/** Returns the approximated area of the given Area object. */
 	static public final double measureArea(Area area, final Loader loader) {
 		double sum = 0;
@@ -1205,6 +1229,46 @@ public class Utils implements ij.plugin.PlugIn {
 		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
 			new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
 		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
+	}
+
+	/** Returns true if the roi is of closed shape type like an OvalRoi, ShapeRoi, a Roi rectangle, etc. */
+	static public final boolean isAreaROI(final Roi roi) {
+		switch (roi.getType()) {
+			case Roi.POLYLINE:
+			case Roi.FREELINE:
+			case Roi.LINE:
+			case Roi.POINT:
+				return false;
+		}
+		return true;
+	}
+
+	static public final Collection<Polygon> getPolygons(Area area) {
+		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
+		Polygon pol = new Polygon();
+
+		final float[] coords = new float[6];
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					pol.addPoint((int)coords[0], (int)coords[1]);
+					break;
+				case PathIterator.SEG_CLOSE:
+					pols.add(pol);
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return pols;
 	}
 
 	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
@@ -1285,5 +1349,186 @@ public class Utils implements ij.plugin.PlugIn {
 			ip.setValue(value);
 			ip.fill(ip.getMask());
 		}
+	}
+
+	static final public boolean matches(final String pattern, final String s) {
+		return Pattern.compile(pattern).matcher(s).matches();
+	}
+
+	static final public boolean isValidIdentifier(final String s) {
+		if (null == s) return false;
+		if (!Utils.matches("^[a-zA-Z]+[a-zA-Z1-9_]*$", s)) {
+			Utils.log("Invalid identifier " + s);
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	user=> (def pat #"\b[a-zA-Z]+[\w]*\b")
+	#'user/pat
+	user=>(re-seq pat "abc def 1a334")
+	("abc" "def")
+	user=> (re-seq pat "abc def a334")
+	("abc" "def" "a334")
+
+	Then concatenate all good words with underscores.
+	Returns null when nothing valid is found in 's'.
+	*/
+	static final public String makeValidIdentifier(final String s) {
+		if (null == s) return null;
+		// Concatenate all good groups with underscores:
+		final Pattern pat = Pattern.compile("\\b[a-zA-Z]+[\\w]*\\b");
+		final Matcher m = pat.matcher(s);
+		final StringBuffer sb = new StringBuffer();
+		while (m.find()) {
+			sb.append(m.group()).append('_');
+		}
+		if (0 == sb.length()) return null;
+		// Remove last underscore
+		sb.setLength(sb.length()-1);
+		return sb.toString();
+	}
+
+	static final public int indexOf(final Object needle, final Object[] haystack) {
+		for (int i=0; i<haystack.length; i++) {
+			if (haystack[i].equals(needle)) return i;
+		}
+		return -1;
+	}
+
+	/** Remove the file, or if it's a directory, recursively go down subdirs and remove all contents, but will stop on encountering a non-hidden file that is not an empty dir. */
+	static public final boolean removeFile(final File f) {
+		return Utils.removeFile(f, true, null);
+	}
+
+	// Accumulates removed files (not directories) into removed_paths, if not null.
+	static private final boolean removeFile(final File f, final boolean stop_if_dir_not_empty, final ArrayList<String> removed_paths) {
+		if (null == f || !f.exists()) return false;
+		try {
+			if (!Utils.isTrakEM2Subfile(f)) {
+				Utils.log2("REFUSING to remove file " + f + "\n-->REASON: not in a '/trakem2.' file path");
+				return false;
+			}
+
+			// If it's not a directory, just delete it
+			if (!f.isDirectory()) {
+				return f.delete();
+			}
+			// Else delete all directories:
+			final ArrayList<File> dirs = new ArrayList<File>();
+			dirs.add(f);
+			// Non-recursive version ... I hate java
+			do {
+				int i = dirs.size() -1;
+				final File fdir = dirs.get(i);
+				Utils.log2("Examining folder for deletion: " + fdir.getName());
+				boolean remove = true;
+				for (final File file : fdir.listFiles()) {
+					String name = file.getName();
+					if (name.equals(".") || name.equals("..")) continue;
+					if (file.isDirectory()) {
+						remove = false;
+						dirs.add(file);
+					} else if (file.isHidden()) {
+						if (!file.delete()) {
+							Utils.log("Failed to delete hidden file " + file.getAbsolutePath());
+							return false;
+						}
+						if (null != removed_paths) removed_paths.add(file.getAbsolutePath());
+					} else if (stop_if_dir_not_empty) {
+						//Utils.log("Not empty: cannot remove dir " + fdir.getAbsolutePath());
+						return false;
+					} else {
+						if (!file.delete()) {
+							Utils.log("Failed to delete visible file " + file.getAbsolutePath());
+							return false;
+						}
+						if (null != removed_paths) removed_paths.add(file.getAbsolutePath());
+					}
+				}
+				if (remove) {
+					dirs.remove(i);
+					if (!fdir.delete()) {
+						return false;
+					} else {
+						Utils.log2("Removed folder " + fdir.getAbsolutePath());
+					}
+				}
+			} while (dirs.size() > 0);
+			
+			return true;
+
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return false;
+	}
+
+	/** Returns true if the file cannonical path contains "/trakem2." (adjusted for Windows as well). */
+	static public boolean isTrakEM2Subfile(final File f) throws Exception {
+		return isTrakEM2Subpath(f.getCanonicalPath());
+	}
+
+	/** Returns true if the path contains "/trakem2." (adjusted for Windows as well). */
+	static public boolean isTrakEM2Subpath(String path) {
+		if (IJ.isWindows()) path = path.replace('\\', '/');
+		return -1 != path.toLowerCase().indexOf("/trakem2.");
+	}
+
+	/** Returns true if all files and their subdirectories, recursively, under parent folder have been removed.
+	 *  For safety reasons, this function will return false immediately if the parent file path does not include a
+	 *  lowercase "trakem2." in it.
+	 *  If removed_paths is not null, all removed full paths are added to it.
+	 */
+	static public final boolean removePrefixedFiles(final File parent, final String prefix, final ArrayList<String> removed_paths) {
+		if (null == parent || !parent.isDirectory()) return false;
+
+		try {
+			if (!Utils.isTrakEM2Subfile(parent)) {
+				Utils.log2("REFUSING to remove files recursively under folder " + parent + "\n-->REASON: not in a '/trakem2.' file path");
+				return false;
+			}
+
+			boolean success = true;
+
+			final File[] list = parent.listFiles(new FilenameFilter() {
+				public boolean accept(File dir, String name) {
+					if (name.startsWith(prefix)) return true;
+					return false;
+				}
+			});
+
+			ArrayList<String> a = null;
+			if (null != removed_paths) a = new ArrayList<String>();
+
+			if (null != list && list.length > 0) {
+				for (final File f : list) {
+					if (!Utils.removeFile(f, false, a)) success = false;
+					if (null != removed_paths) {
+						removed_paths.addAll(a);
+						a.clear();
+					}
+				}
+			}
+
+			return true;
+
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return false;
+	}
+
+	/** The CTRL key functionality is passed over to the COMMAND key (aka META key) in a MacOSX. */
+	static public final int getControlModifier() {
+		return IJ.isMacOSX() ? InputEvent.META_MASK
+			             : InputEvent.CTRL_MASK;
+	}
+
+	/** The CTRL key functionality is passed over to the COMMAND key (aka META key) in a MacOSX. */
+	static public final boolean isControlDown(final InputEvent e) {
+		return IJ.isMacOSX() ? e.isMetaDown()
+			             : e.isControlDown();
 	}
 }

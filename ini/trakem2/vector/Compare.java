@@ -28,10 +28,12 @@ import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.tree.ProjectThing;
 import mpi.fruitfly.general.MultiThreading;
+import mpicbg.models.MovingLeastSquaresTransform;
+import mpicbg.models.PointMatch;
+import mpicbg.models.AffineModel3D;
 
 import ij.IJ;
 import ij.gui.GenericDialog;
-import ij.gui.YesNoCancelDialog;
 import ij.measure.Calibration;
 import ij.io.SaveDialog;
 import ij.io.OpenDialog;
@@ -55,6 +57,7 @@ import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.awt.Rectangle;
 
+import javax.vecmath.Tuple3d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Matrix4d;
@@ -530,9 +533,7 @@ public class Compare {
 		Project[] p;
 		if (other.equals(pipe.getProject())) p = new Project[]{other};
 		else p = new Project[]{other, pipe.getProject()};
-		Bureaucrat burro = new Bureaucrat(worker, p);
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, p);
 	}
 
 	/** For a given pipe, create a VectorString3D for each possible path, as determined by the Project Tree structure and the parent/child relationships.
@@ -1459,9 +1460,7 @@ public class Compare {
 		hsp.add(pipe.getProject());
 		for (int i=0; i<ref.length; i++) hsp.add(ref[i]);
 		Project[] p = (Project[])hsp.toArray(new Project[0]);
-		Bureaucrat burro = new Bureaucrat(worker, p);
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, p);
 	}
 
 	static private class Match {
@@ -1539,7 +1538,7 @@ public class Compare {
 
 	static private final void makeGUI() {
 		if (null == frame) {
-			frame = new JFrame("Comparator");
+			frame = ControlWindow.createJFrame("Comparator");
 			frame.addWindowListener(new WindowAdapter() {
 				public void windowClosing(WindowEvent we) {
 					destroy();
@@ -1884,6 +1883,7 @@ public class Compare {
 
 		// register all, or relative
 		if (3 == cp.transform_type) {
+			// '3' means relative
 			// compute global average delta
 			if (0 == cp.delta) {
 				for (Chain chain : chains) {
@@ -1898,6 +1898,7 @@ public class Compare {
 			}
 		} else {
 			if (cp.transform_type < 3) {
+				// '1', '2' and '3' involve a 3D affine
 				// no need //VectorString3D[][] vs_axes = new VectorString3D[p.length][];
 				Vector3d[][] o = new Vector3d[p.length][];
 				for (int i=0; i<p.length; i++) {
@@ -2195,9 +2196,7 @@ public class Compare {
 				}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, p);
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, p);
 	}
 
 	/** Returns the half matrix of scores, with values copied from one half matrix to the other, and a diagonal of zeros.
@@ -2389,7 +2388,7 @@ public class Compare {
 		for (Map.Entry<String,VectorString3D> e : condensed.entrySet()) {
 			final String name = e.getKey();
 			final VectorString3D c = e.getValue();
-			final Plot plot = makePlot(cp, name, c, bundles.get(name).size());
+			final Plot plot = makePlot(cp, name, c);
 			//FAILS//plot.addLabel(10, cp.plot_height-5, name); // must be added after setting size
 			if (show_plots) plot.show();
 			else if (null != plot_dir) new FileSaver(plot.getImagePlus()).saveAsPng(plot_dir + name.replace('/', '-') + ".png");
@@ -2419,23 +2418,14 @@ public class Compare {
 				}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, p[0]);
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, p[0]);
 	}
 
-	/**
-	 * @param cp: The CATAParameters that specify. among others, the plot dimensions and boundaries.
-	 * @param name: the name given to the objects from which the VectorString3D were generated and then condensed into @param c.
-	 * @param c: the condensed VectorString3D.
-	 * @param n_vs: number of VectorString3D that were condensed into @param c.
-	 */
-	static public Plot makePlot(final CATAParameters cp, final String name, final VectorString3D c, final int n_vs) {
+	static public Plot makePlot(final CATAParameters cp, final String name, final VectorString3D c) {
 		final double[] stdDev = c.getStdDevAtEachPoint();
 		final double[] index = new double[stdDev.length];
 		for (int i=0; i<index.length; i++) index[i] = i;
-		final Calibration cal = c.getCalibrationCopy();
-		final Plot plot = new Plot(name, name + " -- " + cal.getUnits() + " (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + cal.getUnits() + "; n="+ n_vs +")", "Std Dev", index, stdDev);
+		final Plot plot = new Plot(name, name + " -- Point index (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + c.getCalibrationCopy().getUnits() + ")", "Std Dev", index, stdDev);
 		plot.setLimits(0, cp.plot_max_x, 0, cp.plot_max_y);
 		plot.setSize(cp.plot_width, cp.plot_height);
 		plot.setLineWidth(2);
@@ -2635,5 +2625,133 @@ public class Compare {
 				tabs.remove(jsp);
 			}
 		}
+	}
+
+	/** Transform all points of all VectorString3D in vs using a Moving Least Squares Transform defined by the pairing of points in source to those in target.
+	 *  In short, bring source into target. */
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target) throws Exception {
+		if (source.size() != target.size()) {
+			Utils.log2("Could not generate a MovingLeastSquaresTransform: different number of source and target points.");
+			return null;
+		}
+		if (source.size() < 1 || target.size() < 1) {
+			Utils.log2("Cannot transform with less than one point correspondence!");
+			return null;
+		}
+
+		// 1 - Create the MovingLeastSquaresTransform from the point matches
+
+		ArrayList<PointMatch> pm = new ArrayList<PointMatch>();
+		for (final Iterator<Tuple3d> si = source.iterator(), ti = target.iterator(); si.hasNext(); ) {
+			Tuple3d sp = si.next();
+			Tuple3d tp = ti.next();
+			pm.add(new PointMatch(new mpicbg.models.Point(new float[]{(float)sp.x, (float)sp.y, (float)sp.z}), new mpicbg.models.Point(new float[]{(float)tp.x, (float)tp.y, (float)tp.z}), 1));
+		}
+
+		MovingLeastSquaresTransform mls = new MovingLeastSquaresTransform();
+		mls.setModel(AffineModel3D.class);
+		mls.setMatches(pm);
+
+		final float[] point = new float[3];
+
+		// 1.1 - Test: transfer source points
+		for (final Iterator<Tuple3d> si = source.iterator(), ti = target.iterator(); si.hasNext(); ) {
+			Tuple3d sp = si.next();
+			point[0] = (float) sp.x;
+			point[1] = (float) sp.y;
+			point[2] = (float) sp.z;
+			mls.applyInPlace(point);
+
+			Tuple3d tp = ti.next();
+			Utils.log2("== target: " + (float)tp.x + ", " + (float)tp.y + ", " + (float)tp.z +
+				   "\n o source: " + (float)sp.x + ", " + (float)sp.y + ", " + (float)sp.z +
+
+				   "\n   source: " + point[0] + ", " + point[1] + ", " + point[2]);
+		}
+
+		// 2 - Transfer each VectorString3D in vs with mls
+		final List<VectorString3D> vt = new ArrayList<VectorString3D>();
+		for (final VectorString3D vi : vs) {
+			// The points of the VectorString3D:
+			final double[] x = vi.getPoints(0);
+			final double[] y = vi.getPoints(1);
+			final double[] z = vi.getPoints(2);
+			// Empty arrays to fill with the points to transfer:
+			final double[] tx = new double[x.length];
+			final double[] ty = new double[x.length];
+			final double[] tz = new double[x.length];
+			// Transfer point by point:
+			for (int i=0; i<x.length; i++) {
+				point[0] = (float)x[i];
+				point[1] = (float)y[i];
+				point[2] = (float)z[i];
+				mls.applyInPlace(point);
+				tx[i] = point[0];
+				ty[i] = point[1];
+				tz[i] = point[2];
+			}
+			try {
+				vt.add(new VectorString3D(tx, ty, tz, vi.isClosed()));
+			} catch (Exception e) {}
+		}
+
+		return vt;
+	}
+
+	/** Transfer vs via a moving least squares transform by matching source named points into equally named target named points. 
+	 *  If no points in common, returns null. */
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final Map<String,Tuple3d> source, final Map<String,Tuple3d> target) throws Exception {
+		if (null == source || null == target) return null;
+		final List<Tuple3d> so = new ArrayList<Tuple3d>();
+		final List<Tuple3d> ta = new ArrayList<Tuple3d>();
+		for (final Map.Entry<String,Tuple3d> e : target.entrySet()) {
+			final Tuple3d point = source.get(e.getKey());
+			if (null != point) {
+				so.add(point);
+				ta.add(e.getValue());
+			}
+		}
+		if (0 == so.size()) {
+			Utils.log2("No points in common!");
+			return null;
+		}
+		Utils.log2("Found points in common: " + so.size());
+		return transferVectorStrings(vs, so, ta);
+	}
+
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final ProjectThing source_fiduciary, final ProjectThing target_fiduciary) throws Exception {
+		return transferVectorStrings(vs, extractPoints(source_fiduciary), extractPoints(target_fiduciary));
+	}
+
+	/** Extracts the list of fiduciary points from the fiducial parent and, if their name is different than "ball", adds their title as key and their first ball as a fiduciary point value of the returned map. The map is never null but could be empty.
+	 * The values are calibrated. */
+	static public Map<String,Tuple3d> extractPoints(final ProjectThing fiducial) {
+		if (!fiducial.getType().equals("fiducial_points")) {
+			Utils.log("Can only extract points from 'fiducial_points' type.");
+			return null;
+		}
+		ArrayList<ProjectThing> fiducials = fiducial.getChildren();
+		if (null == fiducials || 0 == fiducials.size()) {
+			Utils.log("No fiducial points can be extracted from " + fiducial);
+			return null;
+		}
+		final Map<String,Tuple3d> fide = new HashMap<String,Tuple3d>();
+		for (final ProjectThing child : fiducials) {
+			ArrayList<ProjectThing> balls = child.findChildrenOfType("ball");
+			if (null == balls || 0 == balls.size()) {
+				Utils.log2("Ignoring empty fiducial " + child);
+				continue;
+			}
+			// pick the first one only
+			final Ball ball = (Ball) balls.get(0).getObject();
+			final String title = child.getType();
+			final double[][] b = ball.getWorldBalls(); // calibrated
+			if (b.length > 0) {
+				// get the first one only
+				fide.put(title.toLowerCase(), new Point3d(b[0][0], b[0][1], b[0][2]));
+				Utils.log2("Found fiducial point " + title.toLowerCase());
+			}
+		}
+		return fide;
 	}
 }

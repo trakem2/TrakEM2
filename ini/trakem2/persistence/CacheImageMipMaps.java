@@ -135,7 +135,11 @@ public class CacheImageMipMaps {
 					e.image.flush();
 					e.image = image;
 					// replace in map
-					if (use_map) map.get(id)[level] = image;
+					if (use_map) {
+						Image[] images = map.get(id);
+						if (null == images) images = new Image[maxLevel(image, level)];
+						images[level] = image;
+					}
 				}
 				return;
 			}

@@ -41,6 +41,9 @@ import org.xml.sax.SAXParseException;
 import org.xml.sax.InputSource;
 import org.xml.sax.Attributes;
 
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.CoordinateTransformList;
+
 /** Creates the project objects from an XML file (TrakEM2 Markup Language Handler). */
 public class TMLHandler extends DefaultHandler {
 
@@ -72,6 +75,9 @@ public class TMLHandler extends DefaultHandler {
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
 	private Dissector last_dissector = null;
+	private Patch last_patch = null;
+	private Displayable last_displayable = null;
+	private CoordinateTransformList last_ct_list = null;
 	private boolean open_displays = true;
 
 
@@ -142,6 +148,19 @@ public class TMLHandler extends DefaultHandler {
 				Displayable partner = (Displayable)ht_displayables.get(lid);
 				if (null != partner) d.link(partner, false);
 				else Utils.log("TMLHandler: can't find partner with id=" + links[i] + " for Displayable with id=" + d.getId());
+			}
+		}
+
+		// 1.2 - Reconstruct linked properties
+		for (final Map.Entry<Displayable,Map<Long,Map<String,String>>> lpe : all_linked_props.entrySet()) {
+			final Displayable origin = lpe.getKey();
+			for (final Map.Entry<Long,Map<String,String>> e : lpe.getValue().entrySet()) {
+				final Displayable target = (Displayable)ht_displayables.get(e.getKey());
+				if (null == target) {
+					Utils.log("Setting linked properties for origin " + origin.getId() + ":\n\t* Could not find target displayable #" + e.getKey());
+					continue;
+				}
+				origin.setLinkedProperties(target, e.getValue());
 			}
 		}
 
@@ -252,6 +271,8 @@ public class TMLHandler extends DefaultHandler {
 				// Add a project pointer to all template things
 				this.root_tt.addToDatabase(this.project);
 				thing = root_pt;
+			} else if (qualified_name.startsWith("ict_transform")) {
+				makeCoordinateTransform(qualified_name, ht_attributes);
 			} else if (!qualified_name.equals("trakem2")) {
 				// Any abstract object
 				thing = makeProjectThing(qualified_name, ht_attributes);
@@ -294,15 +315,34 @@ public class TMLHandler extends DefaultHandler {
 			}
 		}
 		// terminate non-single clause objects
-		if (orig_qualified_name.equals("ball")) {
-			last_ball = null;
-		} else if (orig_qualified_name.equals("t2_area_list")) {
+		if (orig_qualified_name.equals("t2_area_list")) {
 			last_area_list.__endReconstructing();
 			last_area_list = null;
+			last_displayable = null;
+		} else if (orig_qualified_name.equals("ict_transform_list")) {
+			last_ct_list = null;
+		} else if (orig_qualified_name.equals("t2_patch")) {
+			last_patch = null;
+			last_displayable = null;
+		} else if (orig_qualified_name.equals("t2_ball")) {
+			last_ball = null;
 		} else if (orig_qualified_name.equals("t2_dissector")) {
 			last_dissector = null;
+			last_displayable = null;
+		} else if (in(orig_qualified_name, all_displayables)) {
+			last_displayable = null;
 		}
 	}
+
+	static private final String[] all_displayables = new String[]{"t2_area_list", "t2_patch", "t2_pipe", "t2_polyline", "t2_ball", "t2_label", "t2_dissector", "t2_profile"};
+
+	private final boolean in(final String s, final String[] all) {
+		for (int i=all.length-1; i>-1; i--) {
+			if (s.equals(all[i])) return true;
+		}
+		return false;
+	}
+
 	public void characters(char[] c, int start, int length) {}
 
 	public void fatalError(SAXParseException e) {
@@ -382,6 +422,46 @@ public class TMLHandler extends DefaultHandler {
 		}
 	}
 
+	final private Map<Displayable,Map<Long,Map<String,String>>> all_linked_props = new HashMap<Displayable,Map<Long,Map<String,String>>>();
+
+	private void putLinkedProperty(final Displayable origin, final HashMap ht_attributes) {
+		final String stid = (String)ht_attributes.get("target_id");
+		if (null == stid) {
+			Utils.log2("Can't setLinkedProperty to null target id for origin Displayable " + origin.getId());
+			return;
+		}
+		Long target_id;
+		try {
+			target_id = Long.parseLong(stid);
+		} catch (NumberFormatException e) {
+			Utils.log2("Unparseable target_id: " + stid + ", for origin " + origin.getId());
+			return;
+		}
+		String key = (String)ht_attributes.get("key");
+		String value = (String)ht_attributes.get("value");
+		if (null == key || null == value) {
+			Utils.log("Skipping linked property for Displayable " + origin.getId() + ": null key or value");
+			return;
+		}
+		key = key.trim();
+		value = value.trim();
+		if (0 == key.length() || 0 == value.length()) {
+			Utils.log("Skipping linked property for Displayable " + origin.getId() + ": empty key or value");
+			return;
+		}
+		Map<Long,Map<String,String>> linked_props = all_linked_props.get(origin);
+		if (null == linked_props) {
+			linked_props = new HashMap<Long,Map<String,String>>();
+			all_linked_props.put(origin, linked_props);
+		}
+		Map<String,String> p = linked_props.get(target_id);
+		if (null == p) {
+			p = new HashMap<String,String>();
+			linked_props.put(target_id, p);
+		}
+		p.put(key, value);
+	}
+
 	private LayerThing makeLayerThing(String type, HashMap ht_attributes) {
 		try {
 			type = type.toLowerCase();
@@ -400,17 +480,20 @@ public class TMLHandler extends DefaultHandler {
 				profile.addToDatabase();
 				ht_displayables.put(new Long(oid), profile);
 				addToLastOpenLayer(profile);
+				last_displayable = profile;
 				return null;
 			} else if (type.equals("pipe")) {
 				Pipe pipe = new Pipe(this.project, oid, ht_attributes, ht_links);
 				pipe.addToDatabase();
 				ht_displayables.put(new Long(oid), pipe);
 				ht_zdispl.put(new Long(oid), pipe);
+				last_displayable = pipe;
 				addToLastOpenLayerSet(pipe);
 				return null;
 			} else if (type.equals("polyline")) {
 				Polyline pline = new Polyline(this.project, oid, ht_attributes, ht_links);
 				pline.addToDatabase();
+				last_displayable = pline;
 				ht_displayables.put(new Long(oid), pline);
 				ht_zdispl.put(new Long(oid), pline);
 				addToLastOpenLayerSet(pline);
@@ -426,6 +509,7 @@ public class TMLHandler extends DefaultHandler {
 				AreaList area = new AreaList(this.project, oid, ht_attributes, ht_links);
 				area.addToDatabase(); // why? This looks like an onion
 				last_area_list = area;
+				last_displayable = area;
 				ht_displayables.put(new Long(oid), area);
 				ht_zdispl.put(new Long(oid), area);
 				addToLastOpenLayerSet(area);
@@ -443,6 +527,7 @@ public class TMLHandler extends DefaultHandler {
 				Ball ball = new Ball(this.project, oid, ht_attributes, ht_links);
 				ball.addToDatabase();
 				last_ball = ball;
+				last_displayable = ball;
 				ht_displayables.put(new Long(oid), ball);
 				ht_zdispl.put(new Long(oid), ball);
 				addToLastOpenLayerSet(ball);
@@ -453,25 +538,29 @@ public class TMLHandler extends DefaultHandler {
 							       Integer.parseInt((String)ht_attributes.get("radius")),
 							       (String)ht_attributes.get("points"));
 				}
-			} else if (type.equals("dissector")) {
-				Dissector dissector = new Dissector(this.project, oid, ht_attributes, ht_links);
-				dissector.addToDatabase();
-				last_dissector = dissector;
-				ht_displayables.put(new Long(oid), dissector);
-				ht_zdispl.put(new Long(oid), dissector);
-				addToLastOpenLayerSet(dissector);
 			} else if (type.equals("label")) {
 				DLabel label = new DLabel(project, oid, ht_attributes, ht_links);
 				label.addToDatabase();
 				ht_displayables.put(new Long(oid), label);
 				addToLastOpenLayer(label);
+				last_displayable = label;
 				return null;
 			} else if (type.equals("patch")) {
 				Patch patch = new Patch(project, oid, ht_attributes, ht_links);
 				patch.addToDatabase();
 				ht_displayables.put(new Long(oid), patch);
 				addToLastOpenLayer(patch);
+				last_patch = patch;
+				last_displayable = patch;
 				return null;
+			} else if (type.equals("dissector")) {
+				Dissector dissector = new Dissector(this.project, oid, ht_attributes, ht_links);
+				dissector.addToDatabase();
+				last_dissector = dissector;
+				last_displayable = dissector;
+				ht_displayables.put(new Long(oid), dissector);
+				ht_zdispl.put(new Long(oid), dissector);
+				addToLastOpenLayerSet(dissector);
 			} else if (type.equals("layer")) {
 				// find last open LayerSet, if any
 				for (int i = al_layer_sets.size() -1; i>-1; i--) {
@@ -485,6 +574,7 @@ public class TMLHandler extends DefaultHandler {
 				}
 			} else if (type.equals("layer_set")) {
 				LayerSet set = new LayerSet(project, oid, ht_attributes, ht_links);
+				last_displayable = set;
 				set.addToDatabase();
 				ht_displayables.put(new Long(oid), set);
 				al_layer_sets.add(set);
@@ -498,6 +588,16 @@ public class TMLHandler extends DefaultHandler {
 					set.restoreCalibration(ht_attributes);
 					return null;
 				}
+			} else if (type.equals("prop")) {
+				// Add property to last created Displayable
+				if (null != last_displayable) {
+					last_displayable.setProperty((String)ht_attributes.get("key"), (String)ht_attributes.get("value"));
+				}
+			} else if (type.equals("linked_prop")) {
+				// Add linked property to last created Displayable. Has to wait until the Displayable ids have been resolved to instances.
+				if (null != last_displayable) {
+					putLinkedProperty(last_displayable, ht_attributes);
+				}
 			} else {
 				Utils.log2("TMLHandler Unknown type: " + type);
 			}
@@ -506,5 +606,33 @@ public class TMLHandler extends DefaultHandler {
 		}
 		// default:
 		return null;
+	}
+
+	private void makeCoordinateTransform(String type, HashMap ht_attributes) {
+		try {
+			type = type.toLowerCase();
+			CoordinateTransform ct = null;
+
+			boolean is_list = false;
+
+			if (type.equals("ict_transform")) {
+				ct = (CoordinateTransform) Class.forName((String)ht_attributes.get("class")).newInstance();
+				ct.init((String)ht_attributes.get("data"));
+			} else if (type.equals("ict_transform_list")) {
+				is_list = true;
+				ct = new CoordinateTransformList();
+			}
+
+			if (null != ct) {
+				// Add it to the last CoordinateTransformList or, if absent, to the last Patch:
+				if (null != last_ct_list) last_ct_list.add(ct);
+				else if (null != last_patch) last_patch.setCoordinateTransformSilently(ct);
+			}
+
+			if (is_list) last_ct_list = (CoordinateTransformList)ct;
+
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 	}
 }

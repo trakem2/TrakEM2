@@ -22,18 +22,54 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import ini.trakem2.utils.IJError;
 
 /** To be used in combination with the AbstractRepaintThread, as a thread to create graphics offscreen.*/
 public abstract class AbstractOffscreenThread extends Thread {
 
-	protected boolean quit = false;
-	protected final long start = System.currentTimeMillis();
+	protected RepaintProperties rp = null;
+	private AtomicBoolean mustRepaint = new AtomicBoolean(false);
 
 	AbstractOffscreenThread(String name) {
 		super(name);
+		setPriority(Thread.NORM_PRIORITY);
+		try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
+		start();
 	}
 
-	public void cancel() {
-		this.quit = true;
+	public void setProperties(final RepaintProperties rp) {
+		synchronized (this) {
+			this.rp = rp;
+			this.mustRepaint.set(true);
+			notify();
+		}
 	}
+
+	public void run() {
+		while (!isInterrupted()) {
+			try {
+				if (mustRepaint.getAndSet(false)) {
+					paint();
+				} else {
+					synchronized (this) {
+						try { wait(); } catch (InterruptedException ie) {}
+					}
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+		}
+	}
+
+	public void waitOnRepaintCycle() {
+		while (mustRepaint.get()) {
+			try { Thread.sleep(500); } catch (InterruptedException ie) {}
+		}
+	}
+
+	public abstract void paint();
+
+	protected interface RepaintProperties {}
+
 }

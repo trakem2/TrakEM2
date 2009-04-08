@@ -622,14 +622,14 @@ public class Profile extends Displayable {
 		if (ProjectToolbar.PEN == tool) {
 
 			//collect vars
-			if (me.isControlDown() && me.isShiftDown()) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
 				index = findNearestPoint(p, n_points, x_p, y_p);
 			} else {
 				index = findPoint(p, x_p, y_p, mag);
 			}
 
 			if (-1 != index) {
-				if (me.isControlDown() && me.isShiftDown()) {
+				if (Utils.isControlDown(me) && me.isShiftDown()) {
 					//delete point
 					removePoint(index);
 					index = index_r = index_l = -1;
@@ -1322,14 +1322,16 @@ public class Profile extends Displayable {
 			}
 			sb_body.append("\"\n");
 		}
-		sb_body.append(indent).append("/>\n");
+		sb_body.append(indent).append(">\n");
+		super.restXML(sb_body, in, any);
+		sb_body.append(indent).append("</t2_profile>\n");
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		String type = "t2_profile";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_profile EMPTY>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_profile (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" d").append(TAG_ATTR2)
 		;
@@ -1690,5 +1692,43 @@ public class Profile extends Displayable {
 		} catch (NumberFormatException nfe) {}
 		rt.addValue(4, nameid);
 		return rt;
+	}
+
+	@Override
+	final Class getInternalDataPackageClass() {
+		return DPProfile.class;
+	}
+
+	@Override
+	synchronized Object getDataPackage() {
+		return new DPProfile(this);
+	}
+
+	static private final class DPProfile extends Displayable.DataPackage {
+		final double[][] p, p_l, p_r, p_i;
+		final boolean closed;
+
+		DPProfile(final Profile profile) {
+			super(profile);
+			// store copies of all arrays
+			this.p = new double[][]{Utils.copy(profile.p[0], profile.n_points), Utils.copy(profile.p[1], profile.n_points)};
+			this.p_r = new double[][]{Utils.copy(profile.p_r[0], profile.n_points), Utils.copy(profile.p_r[1], profile.n_points)};
+			this.p_l = new double[][]{Utils.copy(profile.p_l[0], profile.n_points), Utils.copy(profile.p_l[1], profile.n_points)};
+			this.p_i = new double[][]{Utils.copy(profile.p_i[0], profile.p_i[0].length), Utils.copy(profile.p_i[1], profile.p_i[0].length)};
+			this.closed = profile.closed;
+		}
+		@Override
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Profile profile = (Profile)d;
+			final int len = p[0].length; // == n_points, since it was cropped on copy
+			profile.p = new double[][]{Utils.copy(p[0], len), Utils.copy(p[1], len)};
+			profile.n_points = p[0].length;
+			profile.p_r = new double[][]{Utils.copy(p_r[0], len), Utils.copy(p_r[1], len)};
+			profile.p_l = new double[][]{Utils.copy(p_l[0], len), Utils.copy(p_l[1], len)};
+			profile.p_i = new double[][]{Utils.copy(p_i[0], p_i[0].length), Utils.copy(p_i[1], p_i[1].length)};
+			profile.closed = closed;
+			return true;
+		}
 	}
 }

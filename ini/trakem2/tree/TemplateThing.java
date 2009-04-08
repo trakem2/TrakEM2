@@ -42,6 +42,19 @@ public final class TemplateThing extends DBObject implements Thing {
 	/** The string or numeric value, if any, contained in the XML file between the opening and closing tags. */
 	private String value = null;
 
+	/** A new copy with same type, same project, same id, but no parent and no children. */
+	public Thing shallowCopy() {
+		return new TemplateThing(this);
+	}
+
+	private TemplateThing(final TemplateThing tt) {
+		super(tt.project, tt.id);
+		this.type = tt.type;
+		if (null != tt.ht_attributes) {
+			this.ht_attributes = (HashMap) tt.ht_attributes.clone();
+		}
+	}
+
 	/** Create a new non-database-stored TemplateThing. */
 	public TemplateThing(String type) {
 		super(null, -1);
@@ -140,6 +153,19 @@ public final class TemplateThing extends DBObject implements Thing {
 	public boolean addChild(Thing child) {
 		if (null == child) return false;
 		if (null == al_children) al_children = new ArrayList();
+		else {
+			// check that no child is already of the same type as the new child
+			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+				TemplateThing tc = (TemplateThing) it.next();
+				if (tc.type.equals(((TemplateThing)child).type)) {
+					Utils.log2("TemplateThing.addChild: already have a child of type " + tc.type);
+					//Utils.printCaller(this, 10);
+					return false;
+				}
+			}
+			// TODO should change to use a Map<String,TemplateThing>.
+		}
+		Utils.log2("Added child of type " + ((TemplateThing)child).type);
 		al_children.add(child);
 		child.setParent(this);
 		return true;
@@ -276,7 +302,7 @@ public final class TemplateThing extends DBObject implements Thing {
 	*/
 
 	/** Recursive into children. The parent of each stored TemplateThing are not meaningful for a tree; only the children are meaningful. */
-	public HashMap<String,TemplateThing> getUniqueTypes(HashMap<String,TemplateThing> ht) {
+	public HashMap<String,TemplateThing> getUniqueTypes(final HashMap<String,TemplateThing> ht) {
 		if (ht.containsKey(this.type)) return ht;
 		ht.put(this.type, this);
 		if (null == al_children || al_children.isEmpty()) return ht;
@@ -383,7 +409,7 @@ public final class TemplateThing extends DBObject implements Thing {
 		return hs;
 	}
 
-	/** Find things of the same type, eve if their parents are different, recusively into children. */
+	/** Find things of the same type, even if their parents are different, recusively into children. */
 	public HashSet collectThingsOfEqualType(TemplateThing tt, HashSet hs) {
 		if (type.equals(tt.type)) hs.add(this);
 		if (null == al_children || al_children.isEmpty()) return hs;
@@ -516,7 +542,7 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	public boolean isExpanded() {
-		return project.getLayerTree().isExpanded(this);
+		return project.getLayerTree().isExpanded(this); // TODO this is wrong! Or, at least, missleading
 	}
 
 	/** Return information on this node and its object. */

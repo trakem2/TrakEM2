@@ -138,7 +138,7 @@ public class StitchingTEM {
 		}
 
 		Utils.log2("patch layer: " + patch[0].getLayer());
-		patch[0].getLayerSet().createUndoStep(patch[0].getLayer());
+		patch[0].getLayerSet().addTransformStep(patch[0].getLayer());
 
 		switch (stitching_rule) {
 			case StitchingTEM.TOP_LEFT_RULE:
@@ -327,9 +327,7 @@ public class StitchingTEM {
 		}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, patch[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, patch[0].getProject());
 	}
 
 	/** dx, dy is the position of t2 relative to the 0,0 of t1. */
@@ -685,9 +683,7 @@ public class StitchingTEM {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, d.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, d.getProject());
 	}
 
 	/** Transforms the given point @param po by the AffineTransform of the given @param patch .*/

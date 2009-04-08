@@ -25,7 +25,6 @@ package ini.trakem2.io;
 import ij.ImagePlus;
 import ij.ImageJ;
 import ij.process.*;
-import ij.gui.*;
 import ij.io.*;
 import ij.measure.Calibration;
 
@@ -40,7 +39,6 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageWriter;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.IIOImage;
-import javax.imageio.metadata.IIOMetadata;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -51,6 +49,8 @@ public class ImageSaver {
 
 	private ImageSaver() {}
 
+	static private final Object OBDIRS = new Object();
+
 	/** Will create parent directories if they don't exist.<br />
 	 *  Returns false if the path is unusable.
 	 */
@@ -59,10 +59,12 @@ public class ImageSaver {
 			Utils.log("Null path, can't save.");
 			return false;
 		}
-		File fdir = new File(path).getParentFile();
+		final File fdir = new File(path).getParentFile();
 		if (!fdir.exists()) {
 			try {
-				return fdir.mkdirs();
+				synchronized (OBDIRS) {
+					return fdir.mkdirs();
+				}
 			} catch (Exception e) {
 				IJError.print(e, true);
 				Utils.log("Can't use path: " + path + "\nCheck your file read/write permissions.");
@@ -172,7 +174,7 @@ public class ImageSaver {
 				// decode
 				if (null != stream) bi = openJpeg2(stream, color_id);
 			} catch (Exception e2) {
-				IJError.print(e2);
+				IJError.print(e2, true);
 			}
 		} finally {
 			if (null != stream) { try { stream.close(); } catch (Exception e) {} }
@@ -197,10 +199,10 @@ public class ImageSaver {
 					return new URL(path).openStream();
 				}
 			} catch (Throwable e) {
-				IJError.print(e);
+				IJError.print(e, true);
 			}
 		} catch (Throwable t) {
-			IJError.print(t);
+			IJError.print(t, true);
 		}
 		return null;
 	}
@@ -320,12 +322,14 @@ public class ImageSaver {
 
 	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
 	static public final boolean saveAsJpegAlpha(final BufferedImage awt, final String path, final float quality) {
+		if (!checkPath(path)) return false;
 		try {
 			// This is all the mid-level junk code I have to learn and manage just to SET THE F*CK*NG compression quality for a jpeg.
 			ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next(); // just the first one
 			if (null != writer) {
 				ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
-				iwp.setCompressionQuality(0.85f); // <---------------------------------------------------------- THIS IS ALL I WANTED
+				iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+				iwp.setCompressionQuality(quality); // <---------------------------------------------------------- THIS IS ALL I WANTED
 				writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
 				writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
 				return true; // only one: com.sun.imageio.plugins.jpeg.JPEGImageWriter
@@ -337,7 +341,7 @@ public class ImageSaver {
 		} catch (FileNotFoundException fnfe) {
 			Utils.log2("saveAsJpegAlpha: Path not found: " + path);
 		} catch (Exception e) {
-			IJError.print(e);
+			IJError.print(e, true);
 		}
 		return false;
 	}
@@ -357,11 +361,16 @@ public class ImageSaver {
 	/** Open a jpeg file including the alpha channel if it has one. */
 	static public BufferedImage openJpegAlpha(final String path) {
 		try {
-			return ImageIO.read(new File(path));
+			final BufferedImage img = ImageIO.read(new File(path));
+			BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
+			imgPre.createGraphics().drawImage( img, 0, 0, null );
+			img.flush();
+			return imgPre;
 		} catch (FileNotFoundException fnfe) {
 			Utils.log2("openJpegAlpha: Path not found: " + path);
 		} catch (Exception e) {
-			IJError.print(e);
+			Utils.log2("openJpegAlpha: cannot open " + path);
+			//IJError.print(e, true);
 		}
 		return null;
 	}
@@ -402,7 +411,7 @@ public class ImageSaver {
 		frame.setVisible(true);
 
 		// 1) check if 8-bit images can also be jpegs with an alpha channel: they can't
-		// 2) TODO: check if ImagePlus preserves the alpha channel as well
+		// 2) check if ImagePlus preserves the alpha channel as well: it doesn't
 	}
 
 }

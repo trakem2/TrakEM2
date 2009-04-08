@@ -245,13 +245,14 @@ public class DTDParser {
 		if (0 == type.indexOf("t2_")
 		 || type.equals("trakem2")
 		 || type.equals("project")
+		 || 0 == type.indexOf("ict_transform")
 		) return false;
 		
 		return true;
 	}
 
 	/** Parses a chunk of text into a hierarchy of TemplateThing instances, the roots of which are in the returned array. */
-	static public TemplateThing[] parseDTD(StringBuffer data) {
+	static public TemplateThing[] parseDTD(final StringBuffer data) {
 		// debug:
 		// Utils.log(data.toString());
 
@@ -259,7 +260,7 @@ public class DTDParser {
 		Hashtable ht_types = new Hashtable();
 		Hashtable ht_attributes = new Hashtable();
 		int i = -1;
-		String text = data.toString();
+		final String text = data.toString();
 		int len = text.length();
 		int i_first = text.indexOf('<');
 		int i_last = text.indexOf('>');

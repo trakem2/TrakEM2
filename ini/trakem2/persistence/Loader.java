@@ -76,7 +76,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Checkbox;
 import java.awt.Cursor;
-//import java.awt.FileDialog;
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -135,6 +135,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
+import loci.formats.ChannelSeparator;
+import loci.formats.FormatException;
+import loci.formats.IFormatReader;
 
 /** Handle all data-related issues with a virtualization engine, including load/unload and saving, saving as and overwriting. */
 abstract public class Loader {
@@ -167,15 +170,43 @@ abstract public class Loader {
 	}
 	*/
 
+	static public final IndexColorModel GRAY_LUT = makeGrayLut();
+
+	static public final IndexColorModel makeGrayLut() {
+		final byte[] r = new byte[256];
+		final byte[] g = new byte[256];
+		final byte[] b = new byte[256];
+		for (int i=0; i<256; i++) {
+			r[i]=(byte)i;
+			g[i]=(byte)i;
+			b[i]=(byte)i;
+		}
+		return new IndexColorModel(8, 256, r, g, b);
+	}
+
+
 	protected final HashSet<Patch> hs_unloadable = new HashSet<Patch>();
 
-	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_BINARY);
+	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
 	static {
 		Graphics2D g = NOT_FOUND.createGraphics();
 		g.setColor(Color.white);
 		g.drawRect(1, 1, 8, 8);
 		g.drawLine(3, 3, 7, 7);
 		g.drawLine(7, 3, 3, 7);
+	}
+
+	static public final BufferedImage REGENERATING = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+	static {
+		Graphics2D g = REGENERATING.createGraphics();
+		g.setColor(Color.white);
+		g.setFont(new java.awt.Font("SansSerif", java.awt.Font.PLAIN, 8));
+		g.drawString("R", 1, 9);
+	}
+
+	/** Returns true if the awt is a signaling image like NOT_FOUND or REGENERATING. */
+	static public boolean isSignalImage(final Image awt) {
+		return REGENERATING == awt || NOT_FOUND == awt;
 	}
 
 	// the cache: shared, for there is only one JVM! (we could open a second one, and store images there, and transfer them through sockets)
@@ -768,6 +799,12 @@ abstract public class Loader {
 		return released;
 	}
 
+	static public void releaseAllCaches() {
+		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+			lo.releaseAll();
+		}
+	}
+
 	/** Empties the caches. */
 	public void releaseAll() {
 		synchronized (db_lock) {
@@ -842,7 +879,7 @@ abstract public class Loader {
 		}
 
 		final int level = (int)(0.0001 + Math.log(1/mag) / Math.log(2)); // compensating numerical instability: 1/0.25 should be 2 eaxctly
-		final int max_level = (int)(0.5 + (Math.log(size) - Math.log(32)) / Math.log(2)); // no +1, this is not the length of the images[] array but the actual highest level
+		final int max_level = getHighestMipMapLevel(size);
 		/*
 		if (max_level > 6) {
 			Utils.log2("ERROR max_level > 6: " + max_level + ", size: " + size);
@@ -948,7 +985,10 @@ abstract public class Loader {
 		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
 
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
-		final int level = Loader.getMipMapLevel(mag, maxDim(p));
+		int level = Loader.getMipMapLevel(mag, maxDim(p));
+		int max_level = Loader.getHighestMipMapLevel(p);
+		//Utils.log2("level=" + level + "  max_level=" + max_level);
+		if (level > max_level) level = max_level;
 
 		// testing:
 		// if (level > 0) level--; // passing an image double the size, so it's like interpolating when doing nearest neighbor since the images are blurred with sigma 0.5
@@ -1016,7 +1056,7 @@ abstract public class Loader {
 						lock();
 						max_memory += n_bytes;
 						if (null != mawt) {
-							mawts.put(id, mawt, level);
+							if (REGENERATING != mawt) mawts.put(id, mawt, level);
 							//Utils.log2("returning exact mawt from file for level " + level);
 							Display.repaintSnapshot(p);
 							return mawt;
@@ -1058,6 +1098,7 @@ abstract public class Loader {
 		}
 
 		// level is zero or nonsensically lower than zero, or was not found
+		//Utils.log2("not found!");
 
 		synchronized (db_lock) {
 			try {
@@ -1076,40 +1117,98 @@ abstract public class Loader {
 			}
 		}
 
-		// 5 - else, fetch the ImageProcessor and make an image from it of the proper size and quality
+		// 5 - else, fetch the (perhaps) transformed ImageProcessor and make an image from it of the proper size and quality
 
 		if (hs_unloadable.contains(p)) return NOT_FOUND;
-
-		final ImageProcessor ip = fetchImageProcessor(p);
 
 		synchronized (db_lock) {
 			try {
 				lock();
-				if (null != ip && null != ip.getPixels()) {
-					// if NOT mag == 1.0 // but 0.75 also needs the 1.0 ... problem is, I can't cache level 1.5 or so
-					ImagePlus imp;
-					if (level < 0) {
-						imp = new ImagePlus("", Loader.scaleImage(new ImagePlus("", ip), level, p.getLayer().getParent().snapshotsQuality()));
-						//Utils.log2("mag: " + mag + " w,h: " + imp.getWidth() + ", " + imp.getHeight());
-						p.putMinAndMax(imp);
-					} else {
-						imp = new ImagePlus("", ip);
-					}
-					mawt = p.createImage(imp); // could lock by calling fetchImagePlus if the imp was null, so CAREFUL
-					mawts.put(id, mawt, level);
-					Display.repaintSnapshot(p);
-					//Utils.log2("Returning from imp with level " + level);
-					return mawt;
-				}
-
+				releaseMemory();
+				plock = getOrMakePatchLoadingLock(p, level);
 			} catch (Exception e) {
-				IJError.print(e);
+				return NOT_FOUND;
 			} finally {
 				unlock();
 			}
-			return NOT_FOUND;
 		}
+
+		synchronized (plock) {
+			try {
+				plock.lock();
+
+				// Check if a previous call made it while waiting:
+				mawt = mawts.getClosestAbove(id, level);
+				if (null != mawt) {
+					synchronized (db_lock) {
+						lock();
+						removePatchLoadingLock(plock);
+						unlock();
+					}
+					return mawt;
+				}
+
+				// Else, create the mawt:
+				plock.unlock();
+				Patch.PatchImage pai = p.createTransformedImage();
+				plock.lock();
+				final ImageProcessor ip = pai.target;
+				ByteProcessor alpha_mask = pai.mask; // can be null;
+				final ByteProcessor outside_mask = pai.outside; // can be null
+				if (null == alpha_mask) {
+					alpha_mask = outside_mask;
+				}
+				pai = null;
+				if (null != alpha_mask) {
+					mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
+							       embedAlpha((int[])ip.convertToRGB().getPixels(),
+									  (byte[])alpha_mask.getPixels(),
+									  null == outside_mask ? null : (byte[])outside_mask.getPixels()));
+				} else {
+					mawt = ip.createImage();
+				}
+			} catch (Exception e) {
+				Utils.log2("Could not create an image for Patch " + p);
+				mawt = null;
+			} finally {
+				plock.unlock();
+			}
+		}
+
+		synchronized (db_lock) {
+			try {
+				lock();
+				if (null != mawt) {
+					mawts.put(id, mawt, level);
+					Display.repaintSnapshot(p);
+					//Utils.log2("Created mawt from scratch.");
+					return mawt;
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				removePatchLoadingLock(plock);
+				unlock();
+			}
+		}
+
+		return NOT_FOUND;
 	}
+
+	/** Returns null.*/
+	public ByteProcessor fetchImageMask(final Patch p) {
+		return null;
+	}
+
+	public String getAlphaPath(final Patch p) {
+		return null;
+	}
+
+	/** Does nothing unless overriden. */
+	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {}
+
+	/** Does nothing unless overriden. */
+	public boolean removeAlphaMask(final Patch p) { return false; }
 
 	/** Must be called within synchronized db_lock. */
 	private final Image fetchMipMapAWT2(final Patch p, final int level) {
@@ -1870,7 +1969,7 @@ abstract public class Loader {
 		Display.clearSelection(layer);
 
 		if (homogenize_contrast) {
-			setTaskName("homogenizing contrast");
+			setTaskName("Enhancing contrast");
 			// 0 - check that all images are of the same type
 			int tmp_type = pa[0].getType();
 			for (int e=1; e<pa.length; e++) {
@@ -1991,7 +2090,7 @@ abstract public class Loader {
 					Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
 					double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
 					p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-					p.putMinAndMax(fetchImagePlus(p));
+					// OBSOLETE and wrong //p.putMinAndMax(fetchImagePlus(p));
 				}
 
 				if (isMipMapsEnabled()) {
@@ -2021,7 +2120,7 @@ abstract public class Loader {
 		if (stitch_tiles) {
 			setTaskName("stitching tiles");
 			// create undo
-			layer.getParent().createUndoStep(layer);
+			layer.getParent().addTransformStep(new HashSet<Displayable>(layer.getDisplayables(Patch.class)));
 			// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 			if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
 			Bureaucrat task = StitchingTEM.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true, stitching_rule);
@@ -2078,9 +2177,7 @@ abstract public class Loader {
 		};
 
 		// watcher thread
-		Bureaucrat burro = new Bureaucrat(worker, layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, layer.getProject());
 	}
 
 	public Bureaucrat importImages(final Layer ref_layer) {
@@ -2326,7 +2423,6 @@ abstract public class Loader {
 								}
 							}
 							decacheImagePlus(patch.getId()); // no point in keeping it around
-							flushMipMaps(patch.getId()); // some may have been generated from the ImagePlus, and may look ugly/improper
 						}
 
 						wo.setTaskName("Imported " + (n_imported.getAndIncrement() + 1) + "/" + lines.length);
@@ -2395,9 +2491,7 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, base_layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, base_layer.getProject());
 	}
 
 	public Bureaucrat importLabelsAsAreaLists(final Layer layer) {
@@ -2429,8 +2523,10 @@ abstract public class Loader {
 					double base_y = base_y_;
 					float alpha = alpha_;
 					boolean add_background = add_background_;
+					Layer layer = first_layer;
 					if (Double.MAX_VALUE == base_x || Double.MAX_VALUE == base_y || alpha < 0 || alpha > 1) {
 						GenericDialog gd = new GenericDialog("Base x, y");
+						Utils.addLayerChoice("First layer:", first_layer, gd);
 						gd.addNumericField("Base_X:", 0, 0);
 						gd.addNumericField("Base_Y:", 0, 0);
 						gd.addSlider("Alpha:", 0, 100, 40);
@@ -2439,6 +2535,7 @@ abstract public class Loader {
 						if (gd.wasCanceled()) {
 							return;
 						}
+						layer = first_layer.getParent().getLayer(gd.getNextChoiceIndex());
 						base_x = gd.getNextNumber();
 						base_y = gd.getNextNumber();
 						if (Double.isNaN(base_x) || Double.isNaN(base_y)) {
@@ -2454,9 +2551,9 @@ abstract public class Loader {
 						Utils.log("Could not open image at " + path);
 						return;
 					}
-					List<AreaList> alis = AmiraImporter.extractAreaLists(imp, first_layer, base_x, base_y, alpha, add_background, this);
+					Map<Float,AreaList> alis = AmiraImporter.extractAreaLists(imp, layer, base_x, base_y, alpha, add_background);
 					if (!hasQuitted() && alis.size() > 0) {
-						first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), alis);
+						layer.getProject().getProjectTree().insertSegmentations(layer.getProject(), alis.values());
 					}
 				} catch (Exception e) {
 					IJError.print(e);
@@ -2465,9 +2562,7 @@ abstract public class Loader {
 				}
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, first_layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, first_layer.getProject());
 	}
 
 	public void recreateBuckets(final Collection<Layer> col) {
@@ -2543,8 +2638,11 @@ abstract public class Loader {
 		*/
 	}
 
-	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
 	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality) {
+		return makeFlatImage(layer, srcRect, scale, c_alphas, type, force_to_file, quality, Color.black);
+	}
+	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
+	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality, final Color background) {
 		if (null == layer || 0 == layer.length) {
 			Utils.log2("makeFlatImage: null or empty list of layers to process.");
 			return null;
@@ -2613,7 +2711,7 @@ abstract public class Loader {
 				// 2 - get all slices
 				ImageStack stack = null;
 				for (int i=0; i<layer.length; i++) {
-					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, quality);
+					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 					if (null == slice) {
 						Utils.log("Could not retrieve flat image for " + layer[i].toString());
 						continue;
@@ -2630,7 +2728,7 @@ abstract public class Loader {
 					imp.setCalibration(layer[0].getParent().getCalibrationCopy());
 				}
 			} else {
-				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, quality);
+				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 				if (null != target_dir) {
 					saveToPath(imp, target_dir, layer[0].getPrintableTitle(), ".tif");
 					imp = null; // to prevent showing it
@@ -2642,9 +2740,7 @@ abstract public class Loader {
 			}
 			finishedWorking();
 		}}; // I miss my lisp macros, you have no idea
-		Bureaucrat burro = new Bureaucrat(worker, layer[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, layer[0].getProject());
 	}
 
 	/** Will never overwrite, rather, add an underscore and ordinal to the file name. */
@@ -2673,11 +2769,15 @@ abstract public class Loader {
 	}
 
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, final boolean quality) {
-		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, null, quality);
+		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, null, quality, Color.black);
 	}
 
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ) {
-		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, false);
+		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, false, Color.black);
+	}
+
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
+		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, Color.black);
 	}
 
 	/** Returns a screenshot of the given layer for the given magnification and srcRect. Returns null if the was not enough memory to create it.
@@ -2686,15 +2786,15 @@ abstract public class Loader {
 	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0, and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
 	 *
 	 */
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
-		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality);
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality, final Color background) {
+		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background);
 		final ImagePlus imp = new ImagePlus(layer.getPrintableTitle(), bi);
 		imp.setCalibration(layer.getParent().getCalibrationCopy());
 		bi.flush();
 		return imp;
 	}
 
-	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
+	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality, final Color background) {
 
 		try {
 			// if quality is specified, then a larger image is generated:
@@ -2757,12 +2857,8 @@ abstract public class Loader {
 			}
 			final Graphics2D g2d = bi.createGraphics();
 
-			// fill background with black, since RGB images default to white background
-			if (type == ImagePlus.COLOR_RGB) {
-				g2d.setColor(Color.black);
-				g2d.fillRect(0, 0, bi.getWidth(), bi.getHeight());
-			}
-
+			g2d.setColor(background);
+			g2d.fillRect(0, 0, bi.getWidth(), bi.getHeight());
 
 			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
@@ -2940,7 +3036,7 @@ abstract public class Loader {
 		Utils.log("Using jpeg quality: " + jpeg_quality);
 
 		Worker worker = new Worker("Creating prescaled tiles") {
-			private void cleanup() {
+			private void cleanUp() {
 				finishedWorking();
 			}
 			public void run() {
@@ -2974,7 +3070,7 @@ abstract public class Loader {
 
 		for (int iz=0; iz<layer.length; iz++) {
 			if (this.quit) {
-				cleanup();
+				cleanUp();
 				return;
 			}
 
@@ -3017,8 +3113,16 @@ abstract public class Loader {
 					int tile_side = (int)(256/scale); // 0 < scale <= 1, so no precision lost
 					for (int row=0; row<n_et; row++) {
 						for (int col=0; col<n_et; col++) {
+							final int i_tile = row * n_et + col;
+							Utils.showProgress(i_tile /  (double)(n_et * n_et));
+
+							if (0 == i_tile % 100) {
+								setMassiveMode(true);
+								releaseMemory();
+							}
+
 							if (this.quit) {
-								cleanup();
+								cleanUp();
 								return;
 							}
 							Rectangle tile_src = new Rectangle(srcRect.x + tile_side*row,
@@ -3041,17 +3145,17 @@ abstract public class Loader {
 		}
 		} catch (Exception e) {
 			IJError.print(e);
+		} finally {
+			Utils.showProgress(1);
 		}
-		cleanup();
+		cleanUp();
 		finishedWorking();
 
 			}// end of run method
 		};
 
 		// watcher thread
-		Bureaucrat burro = new Bureaucrat(worker, layer[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, layer[0].getProject());
 	}
 
 	/** Will overwrite if the file path exists. */
@@ -3119,7 +3223,10 @@ abstract public class Loader {
 						return;
 					}
 					Patch p = importImage(layer.getProject(), x, y, path);
-					if (null != p) layer.add(p);
+					if (null != p) {
+						layer.add(p);
+						layer.getParent().enlargeToFit(p, LayerSet.NORTHWEST);
+					}
 					////
 				} catch (Exception e) {
 					IJError.print(e);
@@ -3127,9 +3234,7 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, layer.getProject());
 	}
 
 	public Patch importImage(Project project, double x, double y) {
@@ -3223,8 +3328,11 @@ abstract public class Loader {
 	public Bureaucrat importStack(Layer first_layer, ImagePlus imp_stack_, boolean ask_for_data) {
 		return importStack(first_layer, imp_stack_, ask_for_data, null);
 	}
-	/** Imports an image stack from a multitiff file and places each slice in the proper layer, creating new layers as it goes. If the given stack is null, popup a file dialog to choose one*/
 	public Bureaucrat importStack(final Layer first_layer, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
+		return importStack(first_layer, -1, -1, imp_stack_, ask_for_data, filepath_);
+	}
+	/** Imports an image stack from a multitiff file and places each slice in the proper layer, creating new layers as it goes. If the given stack is null, popup a file dialog to choose one*/
+	public Bureaucrat importStack(final Layer first_layer, final int x, final int y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
 		Utils.log2("Loader.importStack filepath: " + filepath_);
 		if (null == first_layer) return null;
 
@@ -3236,23 +3344,23 @@ abstract public class Loader {
 
 		String filepath = filepath_;
 		/* On drag and drop the stack is not null! */ //Utils.log2("imp_stack_ is " + imp_stack_);
-		ImagePlus[] imp_stacks = null;
+		ImagePlus[] stks = null;
 		if (null == imp_stack_) {
-			imp_stacks = Utils.findOpenStacks();
+			stks = Utils.findOpenStacks();
 		} else {
-			imp_stacks = new ImagePlus[]{imp_stack_};
+			stks = new ImagePlus[]{imp_stack_};
 		}
 		ImagePlus imp_stack = null;
 		// ask to open a stack if it's null
-		if (null == imp_stacks) {
-			imp_stack = openStack();
-		} else {
+		if (null == stks) {
+			imp_stack = openStack(); // choose one
+		} else if (stks.length > 0) {
 			// choose one from the list
 			GenericDialog gd = new GenericDialog("Choose one");
 			gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
-			String[] list = new String[imp_stacks.length +1];
+			String[] list = new String[stks.length +1];
 			for (int i=0; i<list.length -1; i++) {
-				list[i] = imp_stacks[i].getTitle();
+				list[i] = stks[i].getTitle();
 			}
 			list[list.length-1] = "[  Open stack...  ]";
 			gd.addChoice("choose stack: ", list, list[0]);
@@ -3265,8 +3373,10 @@ abstract public class Loader {
 			if (list.length-1 == i_choice) { // the open... command
 				imp_stack = first_layer.getProject().getLoader().openStack();
 			} else {
-				imp_stack = imp_stacks[i_choice];
+				imp_stack = stks[i_choice];
 			}
+		} else {
+			imp_stack = imp_stack_;
 		}
 		// check:
 		if (null == imp_stack) {
@@ -3305,7 +3415,7 @@ abstract public class Loader {
 			gd.addCheckbox("Lock stack", false);
 			gd.showDialog();
 			if (gd.wasCanceled()) {
-				if (null == imp_stacks) { // flush only if it was not open before
+				if (null == stks) { // flush only if it was not open before
 					flush(imp_stack);
 				}
 				finishedWorking();
@@ -3319,15 +3429,18 @@ abstract public class Loader {
 			thickness = gd.getNextNumber();
 			// check provided thickness with that of the first layer:
 			if (thickness != current_thickness) {
+				boolean adjust_thickness = false;
 				if (!(1 == first_layer.getParent().size() && first_layer.isEmpty())) {
 					YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The current layer's thickness is " + current_thickness + "\nwhich is " + (thickness < current_thickness ? "larger":"smaller") + " than\nthe desired " + thickness + " for each stack slice.\nAdjust current layer's thickness to " + thickness + " ?");
-					if (!yn.yesPressed()) {
+					if (yn.cancelPressed()) {
 						if (null != imp_stack_) flush(imp_stack); // was opened new
 						finishedWorking();
 						return;
+					} else if (yn.yesPressed()) {
+						adjust_thickness = true;
 					}
-				} // else adjust silently
-				first_layer.setThickness(thickness);
+				}
+				if (adjust_thickness) first_layer.setThickness(thickness);
 			}
 		}
 
@@ -3377,7 +3490,7 @@ abstract public class Loader {
 		}
 
 		// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
-		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
+		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, x, y, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
 		if (null != last_patch) last_patch.setLocked(lock_stack);
 
 		if (expand_layer_set) {
@@ -3391,12 +3504,14 @@ abstract public class Loader {
 			YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Amira Importer", "Import labels as well?");
 			if (yn.yesPressed()) {
 				// select labels
-				ArrayList al = AmiraImporter.importAmiraLabels(first_layer, last_patch.getX(), last_patch.getY(), imp_stack.getOriginalFileInfo().directory);
-				if (null != al) {
+				Collection<AreaList> alis = AmiraImporter.importAmiraLabels(first_layer, last_patch.getX(), last_patch.getY(), imp_stack.getOriginalFileInfo().directory);
+				if (null != alis) {
 					// import all created AreaList as nodes in the ProjectTree under a new imported_segmentations node
-					first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), al);
+					first_layer.getProject().getProjectTree().insertSegmentations(first_layer.getProject(), alis);
 					// link them to the images
-					// TODO
+					for (final AreaList ali : alis) {
+						ali.linkPatches();
+					}
 				}
 			}
 		}
@@ -3408,14 +3523,15 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, first_layer.getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, first_layer.getProject());
 	}
 
 	public String handlePathlessImage(ImagePlus imp) { return null; }
 
-	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath);
+	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath) {
+		return importStackAsPatches(project, first_layer, Integer.MAX_VALUE, Integer.MAX_VALUE, stack, as_copy, filepath);
+	}
+	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final int x, final int y, final ImagePlus stack, final boolean as_copy, String filepath);
 
 	protected String export(Project project, File fxml) {
 		return export(project, fxml, true);
@@ -3452,7 +3568,7 @@ abstract public class Loader {
 				sb_header = null;
 				project.exportXML(writer, "", patches_dir);
 				writer.flush(); // make sure all buffered chars are written
-				this.changes = false;
+				setChanged(false);
 				path = fxml.getAbsolutePath().replace('\\', '/');
 			} catch (Exception e) {
 				Utils.log("FAILED to save the file at " + fxml);
@@ -3509,7 +3625,7 @@ abstract public class Loader {
 	/** Calls saveAs() unless overriden. Returns full path to the xml file. */
 	public String save(Project project) { // yes the project is the same project pointer, which for some reason I never committed myself to place it in the Loader class as a field.
 		String path = saveAs(project);
-		if (null != path) this.changes = false;
+		if (null != path) setChanged(false);
 		return path;
 	}
 
@@ -3528,7 +3644,7 @@ abstract public class Loader {
 		File fxml = null == xmlpath ? Utils.chooseFile(default_dir, null, ".xml") : new File(xmlpath);
 		if (null == fxml) return null;
 		String path = export(project, fxml, export_images);
-		if (null != path) this.changes = false;
+		if (null != path) setChanged(false);
 		return path;
 	}
 
@@ -3837,6 +3953,7 @@ abstract public class Loader {
 		final String path = getAbsolutePath(p);
 		if (null == path) return null;
 		int i = path.length() -1;
+		// Safer than lastIndexOf: never returns -1
 		while (i > -1) {
 			if ('/' == path.charAt(i)) {
 				break;
@@ -4017,6 +4134,15 @@ abstract public class Loader {
 	/** Serializes the given object into the path. Returns false on failure. */
 	public boolean serialize(final Object ob, final String path) {
 		try {
+			// 1 - Check that the parent chain of folders exists, and attempt to create it when not:
+			File fdir = new File(path).getParentFile();
+			if (null == fdir) return false;
+			fdir.mkdirs();
+			if (!fdir.exists()) {
+				Utils.log2("Could not create folder " + fdir.getAbsolutePath());
+				return false;
+			}
+			// 2 - Serialize the given object:
 			final ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(path));
 			out.writeObject(ob);
 			out.close();
@@ -4043,6 +4169,7 @@ abstract public class Loader {
 
 	public void insertXMLOptions(StringBuffer sb_body, String indent) {}
 
+	// OBSOLETE
 	public Bureaucrat optimizeContrast(final ArrayList al_patches) {
 		final Patch[] pa = new Patch[al_patches.size()];
 		al_patches.toArray(pa);
@@ -4146,24 +4273,18 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, pa[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, pa[0].getProject());
 
 	}
 
 	public Bureaucrat homogenizeContrast(final Layer[] la) {
-		return homogenizeContrast(la, -1, -1, true, null);
-	}
-
-	public Bureaucrat homogenizeContrast(final Layer[] la, final double min, final double max, final boolean drift_hist_peak) {
-		return homogenizeContrast(la, min, max, drift_hist_peak, null);
+		return homogenizeContrast(la, null);
 	}
 
 	/** Homogenize contrast layer-wise, for all given layers, in a multithreaded manner. */
-	public Bureaucrat homogenizeContrast(final Layer[] la, final double min, final double max, final boolean drift_hist_peak, final Worker parent) {
+	public Bureaucrat homogenizeContrast(final Layer[] la, final Worker parent) {
 		if (null == la || 0 == la.length) return null;
-		Worker worker = new Worker("Homogenizing contrast") {
+		Worker worker = new Worker("Enhancing contrast") {
 			public void run() {
 				startedWorking();
 				final Worker wo = this;
@@ -4179,11 +4300,11 @@ abstract public class Loader {
 						if (wo.hasQuitted()) {
 							break;
 						}
-						setTaskName("Homogenize contrast, layer z=" + Utils.cutNumber(la[i].getZ(), 2) + " " + (i+1) + "/" + la.length);
+						setTaskName("Enhance contrast, layer z=" + Utils.cutNumber(la[i].getZ(), 2) + " " + (i+1) + "/" + la.length);
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
-						if (!homogenizeContrast(la[i], pa, min, max, drift_hist_peak, null == parent ? wo : parent)) {
+						if (!homogenizeContrast(la[i], pa, null == parent ? wo : parent)) {
 							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
 						}
 					}
@@ -4199,64 +4320,52 @@ abstract public class Loader {
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, la[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, la[0].getProject());
 	}
 
 	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al) {
-		return homogenizeContrast(al, -1, -1, true, null);
+		return homogenizeContrast(al, null);
 	}
 
-	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final double min, final double max, final boolean drift_hist_peak) {
-		return homogenizeContrast(al, min, max, drift_hist_peak, null);
-	}
-
-	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final double min, final double max, final boolean drift_hist_peak, final Worker parent) {
-		if (null == al || al.size() < 2) return null;
+	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final Worker parent) {
+		if (null == al || al.size() < 1) return null;
 		final Patch[] pa = new Patch[al.size()];
 		al.toArray(pa);
-		Worker worker = new Worker("Homogenizing contrast") {
+		Worker worker = new Worker("Enhance contrast") {
 			public void run() {
 				startedWorking();
 				try {
-					homogenizeContrast(pa[0].getLayer(), pa, min, max, drift_hist_peak, null == parent ? this : parent);
+					homogenizeContrast(pa[0].getLayer(), pa, null == parent ? this : parent);
 				} catch (Exception e) {
 					IJError.print(e);
 				}
 				finishedWorking();
 			}
 		};
-		Bureaucrat burro = new Bureaucrat(worker, pa[0].getProject());
-		burro.goHaveBreakfast();
-		return burro;
+		return Bureaucrat.createAndStart(worker, pa[0].getProject());
 	}
 
 	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. Needs a layer to repaint when done. */
-	public boolean homogenizeContrast(final Layer layer, final Patch[] pa, final double min_, final double max_, final boolean drift_hist_peak, final Worker worker) {
+	public boolean homogenizeContrast(final Layer layer, final Patch[] pa, final Worker worker) {
 		try {
 			if (null == pa) return false; // error
 			if (0 == pa.length) return true; // done
 			// 0 - check that all images are of the same size and type
 			final int ptype = pa[0].getType();
-			double pw = pa[0].getWidth();
-			double ph = pa[0].getHeight();
+			double pw = pa[0].getOWidth();
+			double ph = pa[0].getOHeight();
 			for (int e=1; e<pa.length; e++) {
 				if (pa[e].getType() != ptype) {
 					// can't continue
 					Utils.log("Can't homogenize histograms: images are not all of the same type.\nFirst offending image is: " + pa[e]);
 					return false;
 				}
-				if (pa[e].getWidth() != pw || pa[e].getHeight() != ph) {
+				if (pa[e].getOWidth() != pw || pa[e].getOHeight() != ph) {
 					Utils.log("Can't homogenize histograms: images are not all of the same size.\nFirst offending image is: " + pa[e]);
 					return false;
 				}
 			}
 
-
-			// Set min and max for all images
-			double min = 0;
-			double max = 0;
 			// 1 - fetch statistics for each image
 			final ArrayList al_st = new ArrayList();
 			final ArrayList al_p = new ArrayList(); // list of Patch ordered by stdDev ASC
@@ -4302,11 +4411,19 @@ abstract public class Loader {
 				}
 			}
 
-			// USE internal ContrastEnhancer plugin with a virtual stack made of the middle 50% of images
-			final Patch[] p50 = new Patch[al_p.size()];
-			al_p.toArray(p50);
-			PatchStack ps = new PatchStack(p50, 1); // is an ImagePlus
-			final StackStatistics stats = new StackStatistics(ps);
+			final ImageStatistics stats;
+			PatchStack ps = null;
+
+			if (al_p.size() > 1) {
+				// USE internal ContrastEnhancer plugin with a virtual stack made of the middle 50% of images
+				final Patch[] p50 = new Patch[al_p.size()];
+				al_p.toArray(p50);
+				ps = new PatchStack(p50, 1); // is an ImagePlus
+				stats = new StackStatistics(ps);
+			} else {
+				stats = fetchImagePlus((Patch)al_p.get(0)).getStatistics();
+			}
+
 			final ContrastEnhancer ce = new ContrastEnhancer();
 			Field fnormalize = ContrastEnhancer.class.getDeclaredField("normalize");
 			fnormalize.setAccessible(true);
@@ -4319,7 +4436,7 @@ abstract public class Loader {
 				// Show the dialog
 				Method m = ContrastEnhancer.class.getDeclaredMethod("showDialog", new Class[]{ImagePlus.class});
 				m.setAccessible(true);
-				if (Boolean.FALSE == m.invoke(ce, new Object[]{ps})) {
+				if (Boolean.FALSE == m.invoke(ce, new Object[]{ null != ps ? ps : fetchImagePlus((Patch)al_p.get(0)) } )) {
 					Utils.log2("Canceled ContrastEnhancer dialog.");
 					return false;
 				}
@@ -4330,7 +4447,6 @@ abstract public class Loader {
 				}
 			}
 			// The above ContrastEnhancer will be applied to all, but the stats are computed for the middle 50%. This is a patched solution to avoid noise-rich tiles.
-
 
 			// Apply ContrastEnhancer to all
 			for (Patch p : pa) {
@@ -4365,6 +4481,46 @@ abstract public class Loader {
 			return false;
 		}
 		return true;
+	}
+
+	public Bureaucrat setMinAndMax(final List<Displayable> patches, final double min, final double max) {
+		Worker worker = new Worker("Set min and max") {
+			public void run() {
+				try {
+					startedWorking();
+					if (Double.isNaN(min) || Double.isNaN(max)) {
+						Utils.log("WARNING:\nUnacceptable min and max values: " + min + ", " + max);
+						finishedWorking();
+						return;
+					}
+					final List<Displayable> pa = new ArrayList<Displayable>(patches);
+					final AtomicInteger ai = new AtomicInteger(0);
+					final AtomicInteger completed = new AtomicInteger(0);
+					final Thread[] threads = MultiThreading.newThreads();
+					for (int ithread = 0; ithread < threads.length; ithread++) {
+						threads[ithread] = new Thread() {
+							public void run() {
+								for (int i=ai.getAndIncrement(); i<patches.size(); i = ai.getAndIncrement()) {
+									Displayable d = pa.get(i);
+									if (d.getClass() != Patch.class) continue;
+									Patch p = (Patch)d;
+									p.setMinAndMax(min, max);
+									p.updateMipmaps();
+									Display.repaint(p);
+									Utils.showProgress(completed.incrementAndGet() / (double)pa.size());
+								}
+							}
+						};
+					}
+					MultiThreading.startAndJoin(threads);
+				} catch (Exception e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
+			}
+		};
+		return Bureaucrat.createAndStart(worker, Project.findProject(this));
 	}
 
 	public long estimateImageFileSize(final Patch p, final int level) {
@@ -4456,6 +4612,7 @@ abstract public class Loader {
 	static private ImageLoaderThread[] imageloader = null; 
 	static private Preloader preloader = null;
 
+	// TODO update all this to use an ExecutorService
 	static public final void setupPreloader(final ControlWindow master) {
 		if (null == imageloader) {
 			int n = Runtime.getRuntime().availableProcessors()-1;
@@ -4770,7 +4927,15 @@ abstract public class Loader {
 		return level;
 		*/
 		// Analytically:
-		return (int)(0.5 + (Math.log(Math.max(p.getWidth(), p.getHeight())) - Math.log(32)) / Math.log(2));
+		// For images of width or height of at least 32 pixels, need to test for log(64) like in the loop above
+		// because this is NOT a do/while but a while, so we need to stop one step earlier.
+		return (int)(0.5 + (Math.log(Math.min(p.getWidth(), p.getHeight())) - Math.log(64)) / Math.log(2));
+		// Same as:
+		// return getHighestMipMapLevel(Math.min(p.getWidth(), p.getHeight()));
+	}
+
+	public static final int getHighestMipMapLevel(final double size) {
+		return (int)(0.5 + (Math.log(size) - Math.log(64)) / Math.log(2));
 	}
 
 	static public final int NEAREST_NEIGHBOR = 0;
@@ -4778,7 +4943,7 @@ abstract public class Loader {
 	static public final int BICUBIC = 2;
 	static public final int GAUSSIAN = 3;
 	static public final int AREA_AVERAGING = 4;
-	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic", "Gaussian", "Area averaging"};
+	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic", "Gaussian"}; //, "Area averaging"};
 
 	static public final int getMode(final String mode) {
 		for (int i=0; i<modes.length; i++) {
@@ -4812,22 +4977,77 @@ abstract public class Loader {
 	}
 
 
-	static public final IndexColorModel GRAY_LUT = makeGrayLut();
-
-	static public final IndexColorModel makeGrayLut() {
-		final byte[] r = new byte[256];
-		final byte[] g = new byte[256];
-		final byte[] b = new byte[256];
-		for (int i=0; i<256; i++) {
-			r[i]=(byte)i;
-			g[i]=(byte)i;
-			b[i]=(byte)i;
-		}
-		return new IndexColorModel(8, 256, r, g, b);
-	}
-
 	/** Does nothing and returns null unless overridden. */
 	public String setImageFile(Patch p, ImagePlus imp) { return null; }
 
 	public boolean isUnloadable(final Patch p) { return hs_unloadable.contains(p); }
+
+	protected static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
+		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		// In one step, set pixels that contain the alpha byte already:
+		bi.setRGB( 0, 0, width, height, pix, 0, width );
+		return bi;
+	}
+
+	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
+	protected static final int[] embedAlpha( final int[] pix, final byte[] alpha){
+		return embedAlpha(pix, alpha, null);
+	}
+
+	protected static final int[] embedAlpha( final int[] pix, final byte[] alpha, final byte[] outside) {
+		if (null == outside) {
+			if (null == alpha)
+				return pix;
+			for (int i=0; i<pix.length; ++i)
+				pix[i] = (pix[i]&0x00ffffff) | ((alpha[i]&0xff)<<24);
+		} else {
+			for (int i=0; i<pix.length; ++i) {
+				pix[i] = (pix[i]&0x00ffffff) | ( (outside[i]&0xff) != 255  ? 0 : ((alpha[i]&0xff)<<24) );
+			}
+		}
+		return pix;
+	}
+
+	/** Does nothing unless overriden. */
+	public void queueForMipmapRemoval(final Patch p, boolean yes) {}
+
+	/** Get the Universal Near-Unique Id for the project hosted by this loader. */
+	public String getUNUId() {
+		// FSLoader overrides this method
+		return Long.toString(System.currentTimeMillis());
+	}
+
+	// FSLoader overrides this method
+	public String getUNUIdFolder() {
+		return "trakem2." + getUNUId() + "/";
+	}
+
+	/** Does nothing unless overriden. */
+	public boolean regenerateMipMaps(final Patch patch) { return false; }
+
+	/** Read out the width,height of an image using LOCI BioFormats. */
+	static public Dimension getDimensions(final String path) {
+		IFormatReader fr = null;
+		try {
+			fr = new ChannelSeparator();
+			fr.setId(path);
+			return new Dimension(fr.getSizeX(), fr.getSizeY());
+		} catch (FormatException fe) {
+			Utils.log("Error in reading image file at " + path + "\n" + fe);
+		} catch (Exception e) {
+			IJError.print(e);
+		} finally {
+			if (null != fr) try {
+				fr.close();
+			} catch (IOException ioe) { Utils.log2("Could not close IFormatReader: " + ioe); }
+		}
+		return null;
+	}
+
+	public Dimension getDimensions(final Patch p) {
+		String path = getAbsolutePath(p);
+		int i = path.lastIndexOf("-----#slice=");
+		if (-1 != i) path = path.substring(0, i);
+		return Loader.getDimensions(path);
+	}
 }

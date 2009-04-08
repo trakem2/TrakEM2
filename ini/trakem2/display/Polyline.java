@@ -455,13 +455,13 @@ public class Polyline extends ZDisplayable implements Line3D {
 		final long layer_id = display.getLayer().getId();
 
 
-		if (me.isControlDown() && me.isShiftDown()) {
+		if (Utils.isControlDown(me) && me.isShiftDown()) {
 			index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
 		} else {
 			index = findPoint(x_p, y_p, layer_id, mag);
 		}
 
-		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !me.isControlDown()) {
+		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !Utils.isControlDown(me)) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
 			final double scale = layer_set.getVirtualizationScale();
 			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
@@ -500,7 +500,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 					}
 					finishedWorking();
 				}};
-				new Bureaucrat(worker[0], project).goHaveBreakfast();
+				Bureaucrat.createAndStart(worker[0], project);
 			}
 
 			Point2D.Double po = transformPoint(p[0][n_points-1], p[1][n_points-1]);
@@ -623,7 +623,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 				} catch (Exception e) { IJError.print(e); }
 				finishedWorking();
 			}};
-			new Bureaucrat(worker[1], project).goHaveBreakfast();
+			Bureaucrat.createAndStart(worker[1], project);
 
 			index = -1;
 			return;
@@ -633,7 +633,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
 
 			if (-1 != index) {
-				if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
+				if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
 					//delete point
 					removePoint(index);
 					index = -1;
@@ -846,7 +846,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 				if (i > 0 && M.distancePointToLine(x, y, p[0][i-1], p[1][i-1], p[0][i], p[1][i]) < radius) {
 					return true;
 				}
-				if (i < n_points && M.distancePointToLine(x, y, p[0][i], p[1][i], p[0][i+1], p[1][i+1]) < radius) {
+				if (i < (n_points -1) && M.distancePointToLine(x, y, p[0][i], p[1][i], p[0][i+1], p[1][i+1]) < radius) {
 					return true;
 				}
 			} else if (i > 0) {
@@ -929,7 +929,9 @@ public class Polyline extends ZDisplayable implements Line3D {
 			}
 			sb_body.append("\"\n");
 		}
-		sb_body.append(indent).append("/>\n");
+		sb_body.append(indent).append(">\n");
+		super.restXML(sb_body, in, any);
+		sb_body.append(indent).append("</t2_polyline>\n");
 	}
 
 	/** Exports to type t2_polyline. */
@@ -937,7 +939,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		String type = "t2_polyline";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_polyline EMPTY>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_polyline (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" d").append(TAG_ATTR2)
 		;
@@ -1212,5 +1214,37 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	public void setPosition(FallLine fl) {
 		// Where are we now?
+	}
+
+	@Override
+	final Class getInternalDataPackageClass() {
+		return DPPolyline.class;
+	}
+
+	@Override
+	synchronized Object getDataPackage() {
+		return new DPPolyline(this);
+	}
+
+	static private final class DPPolyline extends Displayable.DataPackage {
+		final double[][] p;
+		final long[] p_layer;
+
+		DPPolyline(final Polyline polyline) {
+			super(polyline);
+			// store copies of all arrays
+			this.p = new double[][]{Utils.copy(polyline.p[0], polyline.n_points), Utils.copy(polyline.p[1], polyline.n_points)};
+			this.p_layer = new long[polyline.n_points]; System.arraycopy(polyline.p_layer, 0, this.p_layer, 0, polyline.n_points);
+		}
+		@Override
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Polyline polyline = (Polyline)d;
+			final int len = p[0].length; // == n_points, since it was cropped on copy
+			polyline.p = new double[][]{Utils.copy(p[0], len), Utils.copy(p[1], len)};
+			polyline.n_points = p[0].length;
+			polyline.p_layer = new long[len]; System.arraycopy(p_layer, 0, polyline.p_layer, 0, len);
+			return true;
+		}
 	}
 }

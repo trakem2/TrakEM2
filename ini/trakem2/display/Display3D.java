@@ -22,6 +22,7 @@ import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
 import java.awt.CheckboxMenuItem;
+import java.awt.Component;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemListener;
 import java.awt.event.ActionEvent;
@@ -32,19 +33,32 @@ import java.awt.geom.AffineTransform;
 
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyListener;
 
 import javax.vecmath.Point3f;
 import javax.vecmath.Color3f;
 import javax.vecmath.Vector3f;
 import javax.media.j3d.View;
 import javax.media.j3d.Transform3D;
+import javax.media.j3d.PolygonAttributes;
 
 import ij3d.ImageWindow3D;
 import ij3d.Image3DUniverse;
 import ij3d.Content;
 import ij3d.Image3DMenubar;
+import customnode.CustomMeshNode;
+import customnode.CustomMesh;
+import customnode.CustomTriangleMesh;
 
 import java.lang.reflect.Field;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.Callable;
 
 
 /** One Display3D instance for each LayerSet (maximum). */
@@ -79,18 +93,49 @@ public final class Display3D {
 
 	private String selected = null;
 
+	// To fork away from the EventDispatchThread
+	static private ExecutorService launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+
+	// To build meshes
+	private ExecutorService executors = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+
+	/*
+	static private KeyAdapter ka = new KeyAdapter() {
+		public void keyPressed(KeyEvent ke) {
+			// F1 .. F12 keys to set tools
+			ProjectToolbar.keyPressed(ke);
+		}
+	};
+	*/
+
 	/** Defaults to parallel projection. */
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
 		this.universe = new Image3DUniverse(512, 512); // size of the initial canvas, not the universe itself
-		//this.universe.getViewer().getView().setProjectionPolicy(View.PARALLEL_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
+		this.universe.getViewer().getView().setProjectionPolicy(View.PERSPECTIVE_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
 		computeScale(ls);
 		this.universe.show();
-		this.universe.getWindow().addWindowListener(new IW3DListener(ls));
+		this.universe.getWindow().addWindowListener(new IW3DListener(this, ls));
+		// it ignores the listeners:
+		//preaddKeyListener(this.universe.getWindow(), ka);
+		//preaddKeyListener(this.universe.getWindow().getCanvas(), ka);
 
 		// register
 		Display3D.ht_layer_sets.put(ls, this);
 	}
+
+	/*
+	private void preaddKeyListener(Component c, KeyListener kl) {
+		KeyListener[] all = c.getKeyListeners();
+		if (null != all) {
+			for (KeyListener k : all) c.removeKeyListener(k);
+		}
+		c.addKeyListener(kl);
+		if (null != all) {
+			for (KeyListener k : all) c.addKeyListener(k);
+		}
+	}
+	*/
 
 	public Image3DUniverse getUniverse() {
 		return universe;
@@ -172,19 +217,22 @@ public final class Display3D {
 	}*/
 
 	private class IW3DListener extends WindowAdapter {
+		private Display3D d3d;
 		private LayerSet ls;
-		IW3DListener(LayerSet ls) {
+		IW3DListener(Display3D d3d, LayerSet ls) {
+			this.d3d = d3d;
 			this.ls = ls;
 		}
 		public void windowClosing(WindowEvent we) {
-			Utils.log2("Display3D.windowClosing");
+			//Utils.log2("Display3D.windowClosing");
+			d3d.executors.shutdownNow();
 			/*Object ob =*/ ht_layer_sets.remove(ls);
 			/*if (null != ob) {
 				Utils.log2("Removed Display3D from table for LayerSet " + ls);
 			}*/
 		}
 		public void windowClosed(WindowEvent we) {
-			Utils.log2("Display3D.windowClosed");
+			//Utils.log2("Display3D.windowClosed");
 			ht_layer_sets.remove(ls);
 		}
 	}
@@ -301,16 +349,20 @@ public final class Display3D {
 	}
 
 	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one. If true == wait && -1 != resample, then the method returns only when the mesh/es have been added. */
-	static public void show(ProjectThing pt, boolean wait, int resample) {
-		if (null == pt) return;
+	static public Future<List<Content>> show(final ProjectThing pt, final boolean wait, final int resample) {
+		if (null == pt) return null;
+		Callable<List<Content>> c = new Callable<List<Content>>() {
+			public List<Content> call() {
 		try {
 			// scan the given ProjectThing for 3D-viewable items not present in the ht_meshes
 			// So: find arealist, pipe, ball, and profile_list types
 			HashSet hs = pt.findBasicTypeChildren();
 			if (null == hs || 0 == hs.size()) {
 				Utils.log("Node " + pt + " contains no 3D-displayable children");
-				return;
+				return null;
 			}
+
+			final List<Content> list = new ArrayList<Content>();
 
 			for (Iterator it = hs.iterator(); it.hasNext(); ) {
 				// obtain the Displayable object under the node
@@ -342,7 +394,7 @@ public final class Display3D {
 				}
 				if (null == d3d) {
 					Utils.log("Could not get a proper 3D display for node " + displ);
-					return; // java3D not installed most likely
+					return null; // java3D not installed most likely
 				}
 				if (d3d.ht_pt_meshes.contains(child)) {
 					Utils.log2("Already here: " + child);
@@ -350,18 +402,27 @@ public final class Display3D {
 				}
 				setWaitingCursor(); // the above may be creating a display
 				//sw.elapsed("after creating and/or retrieving Display3D");
-				Thread t = d3d.addMesh(child, displ, resample);
+				Future<Content> fu = d3d.addMesh(child, displ, resample);
 				if (wait && -1 != d3d.resample) {
 					Utils.log("joining...");
-					try { t.join(); } catch (Exception e) { e.printStackTrace(); }
+					list.add(fu.get());
 				}
+
+
 				//sw.elapsed("after creating mesh");
 			}
+
+			return list;
+
 		} catch (Exception e) {
 			IJError.print(e);
+			return null;
 		} finally {
 			doneWaiting();
 		}
+		}};
+
+		return launchers.submit(c);
 	}
 
 	static public void showOrthoslices(Patch p) {
@@ -647,23 +708,17 @@ public final class Display3D {
 		}
 	}
 
-	static private final int MAX_THREADS = Runtime.getRuntime().availableProcessors();
-	static private final Vector v_threads = new Vector(MAX_THREADS); // synchronized
-
 	/** Creates a mesh for the given Displayable in a separate Thread. */
-	private Thread addMesh(final ProjectThing pt, final Displayable displ, final int resample) {
+	private Future<Content> addMesh(final ProjectThing pt, final Displayable displ, final int resample) {
 		final double scale = this.scale;
-		Thread thread = new Thread() {
-			public void run() {
-				setPriority(Thread.NORM_PRIORITY);
-				while (v_threads.size() >= MAX_THREADS) { // this is crude. Could do much better now ... much better! Properly queued tasks.
-					try { Thread.sleep(400); } catch (InterruptedException ie) {}
-				}
-				v_threads.add(this);
+		FutureTask<Content> fu = new FutureTask<Content>(new Callable<Content>() {
+			public Content call() {
+				Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
 				try {
 
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
 		List triangles = null;
+		boolean no_culling = false; // don't show back faces when false
 		if (displ instanceof AreaList) {
 			int rs = resample;
 			if (-1 == resample) rs = Display3D.this.resample = adjustResampling(); // will adjust this.resample, and return it (even if it's a default value)
@@ -679,19 +734,20 @@ public final class Display3D {
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
+			no_culling = true;
 		}
 		// safety checks
 		if (null == triangles) {
 			Utils.log("Some error ocurred: can't create triangles for " + displ);
-			return;
+			return null;
 		}
 		if (0 == triangles.size()) {
 			Utils.log2("Skipping empty mesh for " + displ.getTitle());
-			return;
+			return null;
 		}
 		if (0 != triangles.size() % 3) {
 			Utils.log2("Skipping non-multiple-of-3 vertices list generated for " + displ.getTitle());
-			return;
+			return null;
 		}
 		Color color = null;
 		float alpha = 1.0f;
@@ -701,18 +757,23 @@ public final class Display3D {
 		} else {
 			// for profile_list: get from the first (what a kludge)
 			Object obp = ((ProjectThing)pt.getChildren().get(0)).getObject();
-			if (null == obp) return;
+			if (null == obp) return null;
 			Displayable di = (Displayable)obp;
 			color = di.getColor();
 			alpha = di.getAlpha();
 		}
+
+		Content ct = null;
+
+		no_culling = true; // for ALL
+
 		// add to 3D view (synchronized)
 		synchronized (u_lock) {
 			u_lock.lock();
 			try {
 				// craft a unique title (id is always unique)
 				String title = null == displ ? pt.toString() + " #" + pt.getId() : makeTitle(displ);
-				if (ht_pt_meshes.contains(pt)) {
+				if (ht_pt_meshes.contains(pt) || universe.contains(title)) {
 					// remove content from universe
 					universe.removeContent(title);
 					// no need to remove entry from table, it's overwritten below
@@ -721,12 +782,30 @@ public final class Display3D {
 				ht_pt_meshes.put(pt, triangles);
 				// ensure proper default transform
 				//universe.resetView();
-				//
-				//universe.ensureScale((float)(width*scale));
-				universe.addMesh(triangles, new Color3f(color), title, (float)(width*scale), 1);
-				Content ct = universe.getContent(title);
+
+				Color3f c3 = new Color3f(color);
+
+				if (no_culling) {
+					// create a mesh with the same color and zero transparency (that is, full opacity)
+					CustomTriangleMesh mesh = new CustomTriangleMesh(triangles, c3, 0);
+					// Set mesh properties for double-sided triangles
+					PolygonAttributes pa = mesh.getAppearance().getPolygonAttributes();
+					pa.setCullFace(PolygonAttributes.CULL_NONE);
+					pa.setBackFaceNormalFlip(true);
+					mesh.setColor(c3);
+					// After setting properties, add to the viewer
+					ct = universe.addCustomMesh(mesh, title);
+				} else {
+					ct = universe.addTriangleMesh(triangles, c3, title);
+				}
+
+				if (null == ct) return null;
+
+				// Set general content properties
 				ct.setTransparency(1f - alpha);
+				// Default is unlocked (editable) transformation; set it to locked:
 				ct.toggleLock();
+
 			} catch (Exception e) {
 				IJError.print(e);
 			}
@@ -735,36 +814,31 @@ public final class Display3D {
 
 		Utils.log2(pt.toString() + " n points: " + triangles.size());
 
+		return ct;
+
 				} catch (Exception e) {
 					IJError.print(e);
-				} finally {
-					v_threads.remove(this);
+					return null;
 				}
 
-			} // end of run
-		};
-		thread.start();
-		return thread;
+		}});
+		executors.submit(fu);
+		return fu;
 	}
 
 	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
-	static public Thread addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color) {
+	static public Future<Content> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color) {
 		return addMesh(ref_ls, vs, title, color, null, 1.0f);
 	}
 
 	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
-	static public Thread addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color, final double[] widths, final float alpha) {
-		Thread thread = new Thread() {
-			public void run() {
-				setPriority(Thread.NORM_PRIORITY);
-				while (v_threads.size() >= MAX_THREADS) { // this is crude. Could do much better now ... much better! Properly queued tasks.
-					try { Thread.sleep(50); } catch (InterruptedException ie) {}
-				}
-				v_threads.add(this);
+	static public Future<Content> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color, final double[] widths, final float alpha) {
+		final FutureTask<Content> fu = new FutureTask<Content>(new Callable<Content>() {
+			public Content call() {
+				Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
 				try {
 		/////
-		Display3D d3d = null;
-		d3d = Display3D.get(ref_ls);
+		final Display3D d3d = Display3D.get(ref_ls);
 		final double scale = d3d.scale;
 		final double width = d3d.width;
 		float transp = 1 - alpha;
@@ -781,10 +855,12 @@ public final class Display3D {
 			Arrays.fill(wi, 2.0);
 		} else if (widths.length != vs.length()) {
 			Utils.log("ERROR: widths.length != VectorString3D.length()");
-			return;
+			return null;
 		}
 
 		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), scale);
+
+		Content ct = null;
 
 		// add to 3D view (synchronized)
 		synchronized (d3d.u_lock) {
@@ -795,8 +871,7 @@ public final class Display3D {
 				//
 				//Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
 				//d3d.universe.ensureScale((float)(width*scale));
-				d3d.universe.addMesh(triangles, new Color3f(color), title, (float)(width*scale), 1);
-				Content ct = d3d.universe.getContent(title);
+				ct = d3d.universe.addMesh(triangles, new Color3f(color), title, /*(float)(width*scale),*/ 1);
 				ct.setTransparency(transp);
 				ct.toggleLock();
 			} catch (Exception e) {
@@ -805,17 +880,23 @@ public final class Display3D {
 			d3d.u_lock.unlock();
 		}
 
+		return ct;
+
 		/////
 				} catch (Exception e) {
 					IJError.print(e);
-				} finally {
-					v_threads.remove(this);
+					return null;
 				}
 
-			} // end of run
-		};
-		thread.start();
-		return thread;
+		}});
+
+
+		launchers.submit(new Runnable() { public void run() {
+			final Display3D d3d = Display3D.get(ref_ls);
+			d3d.executors.submit(fu);
+		}});
+
+		return fu;
 	}
 
 	// This method has the exclusivity in adjusting the resampling value.
@@ -840,16 +921,34 @@ public final class Display3D {
 			Display3D d3d = (Display3D)it.next();
 			if (null != d3d.universe.getContent(title)) return true;
 		}
+		if (d.getClass() == Profile.class) {
+			Content content = getProfileContent(d);
+		}
 		return false;
 	}
 
-	static public void setColor(final Displayable d, final Color color) {
-		if (!isDisplayed(d)) return;
+	/** Checks if the given Displayable is a Profile, and tries to find a possible Content object in the Image3DUniverse of its LayerSet according to the title as created from its profile_list ProjectThing. */
+	static public Content getProfileContent(final Displayable d) {
+		if (null == d) return null;
+		if (d.getClass() != Profile.class) return null;
 		Display3D d3d = get(d.getLayer().getParent());
-		if (null == d3d) return; // no 3D displays open
-		Content content = d3d.universe.getContent(makeTitle(d));
-		//Utils.log2("content: " + content);
-		if (null != content) content.setColor(new Color3f(color));
+		if (null == d3d) return null;
+		ProjectThing pt = d.getProject().findProjectThing(d);
+		if (null == pt) return null;
+		pt = (ProjectThing) pt.getParent();
+		return d3d.universe.getContent(new StringBuffer(pt.toString()).append(" #").append(pt.getId()).toString());
+	}
+
+	static public void setColor(final Displayable d, final Color color) {
+		launchers.submit(new Runnable() { public void run() {
+			final Display3D d3d = getDisplay(d.getLayer().getParent());
+			if (null == d3d) return; // no 3D displays open
+			d3d.executors.submit(new Runnable() { public void run() {
+			Content content = d3d.universe.getContent(makeTitle(d));
+				if (null == content) content = getProfileContent(d);
+				if (null != content) content.setColor(new Color3f(color));
+			}});
+		}});
 	}
 
 	static public void setTransparency(final Displayable d, final float alpha) {
@@ -861,6 +960,7 @@ public final class Display3D {
 		Display3D d3d = (Display3D)ob;
 		String title = makeTitle(d);
 		Content content = d3d.universe.getContent(title);
+		if (null == content) content = getProfileContent(d);
 		if (null != content) content.setTransparency(1 - alpha);
 		else if (null == content && d.getClass().equals(Patch.class)) {
 			Patch pa = (Patch)d;
@@ -890,7 +990,7 @@ public final class Display3D {
 
 	/** Remake the mesh for the Displayable in a separate Thread, if it's included in a Display3D
 	 *  (otherwise returns null). */
-	static public Thread update(final Displayable d) {
+	static public Future<Content> update(final Displayable d) {
 		Layer layer = d.getLayer();
 		if (null == layer) return null; // some objects have no layer, such as the parent LayerSet.
 		Object ob = ht_layer_sets.get(layer.getParent());
@@ -911,5 +1011,15 @@ public final class Display3D {
 		final Display3D d3d = getDisplay(ls);
 		if (null == d3d) return false;
 		return null != d3d.universe.getContent(title);
+	}
+
+	static public void destroy() {
+		launchers.shutdownNow();
+	}
+
+	static public void init() {
+		if (launchers.isShutdown()) {
+			launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		}
 	}
 }

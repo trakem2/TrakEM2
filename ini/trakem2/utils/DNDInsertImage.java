@@ -41,6 +41,7 @@ import ij.VirtualStack; // only after 1.38q
 import ini.trakem2.display.*;
 import ini.trakem2.*;
 import ini.trakem2.persistence.*;
+import ini.trakem2.io.ImageFileFilter;
 
 
 public class DNDInsertImage implements DropTargetListener {
@@ -91,6 +92,12 @@ public class DNDInsertImage implements DropTargetListener {
 					tmp = java.net.URLDecoder.decode(tmp, "UTF-8");
 					if (tmp.startsWith("file://")) {
 						tmp = tmp.substring(7);
+						if (IJ.isMacOSX()) {
+							if (tmp.startsWith("localhost")) {
+								tmp = tmp.substring(9);
+							}
+						}
+						
 					}
 					File f = new File(tmp);
 					if (importImageFile(f, tmp, point)) success++;
@@ -116,6 +123,10 @@ public class DNDInsertImage implements DropTargetListener {
 
 	private boolean importImageFile(File f, String path, Point point) throws Exception {
 		if (f.exists()) {
+
+			final Layer layer = display.getLayer();
+			Bureaucrat burro = null;
+
 			if (f.isDirectory()) {
 				// ask:
 				GenericDialog gd = new GenericDialog("Import directory");
@@ -125,10 +136,13 @@ public class DNDInsertImage implements DropTargetListener {
 				if (gd.wasCanceled()) {
 					return true; // the user cancel it, so all is ok.
 				}
+
+				display.getLayerSet().addLayerContentStep(layer);
+
 				switch (gd.getNextChoiceIndex()) {
 				case 0: // as stack
 					// if importing image sequence as a stack:
-					String[] names = f.list();
+					String[] names = f.list(new ImageFileFilter()); // don't filter by name  "^[^\\.].*[\\.][a-zA-Z1-9_]{3,4}$"
 					int max_len = 0;
 					// fake natural sorting: pre-pad short names with zeros
 					for (int i=0; i<names.length; i++) {
@@ -149,20 +163,28 @@ public class DNDInsertImage implements DropTargetListener {
 						stack.addSlice(names[k]);
 					}
 					if (stack.getSize() > 0) {
-						display.getProject().getLoader().importStack(display.getLayer(), new ImagePlus("stack", stack), true, path);
+						burro = display.getProject().getLoader().importStack(layer, point.x, point.y, new ImagePlus("stack", stack), true, path);
 					}
 					break;
 				case 1: // as grid
-					display.getProject().getLoader().importGrid(display.getLayer(), path);
+					burro = display.getProject().getLoader().importGrid(layer, path);
 					break;
 				case 2: // sequence as grid
-					display.getProject().getLoader().importSequenceAsGrid(display.getLayer(), path);
+					burro = display.getProject().getLoader().importSequenceAsGrid(layer, path);
 					break;
 				}
 			} else {
+				layer.getParent().addLayerContentStep(layer);
+
 				// single image file (single image or a stack)
-				display.getProject().getLoader().importImage(display.getLayer(), point.x, point.y, path);
+				burro = display.getProject().getLoader().importImage(layer, point.x, point.y, path);
 			}
+
+			burro.addPostTask(new Runnable() { public void run() {
+				// The current state
+				layer.getParent().addLayerContentStep(layer);
+			}});
+
 			return true;
 		} else {
 			Utils.log("File not found: " + path);

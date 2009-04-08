@@ -689,14 +689,14 @@ public class Pipe extends ZDisplayable implements Line3D {
 
 		if (ProjectToolbar.PEN == tool) {
 
-			if (me.isControlDown() && me.isShiftDown()) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
 				index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
 			} else {
 				index = findPoint(p, x_p, y_p, mag);
 			}
 
 			if (-1 != index) {
-				if (me.isControlDown() && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
+				if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
 					//delete point
 					removePoint(index);
 					index = index_r = index_l = -1;
@@ -1570,14 +1570,16 @@ public class Pipe extends ZDisplayable implements Line3D {
 			}
 			sb_body.append("\"\n");
 		}
-		sb_body.append(indent).append("/>\n");
+		sb_body.append(indent).append(">\n");
+		super.restXML(sb_body, in, any);
+		sb_body.append(indent).append("</t2_pipe>\n");
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		String type = "t2_pipe";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_pipe EMPTY>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_pipe (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" d").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" p_width").append(TAG_ATTR2)
@@ -2074,5 +2076,48 @@ public class Pipe extends ZDisplayable implements Line3D {
 		rt.addValue(1, len);
 		rt.addValue(2, getNameId());
 		return rt;
+	}
+
+	@Override
+	final Class getInternalDataPackageClass() {
+		return DPPipe.class;
+	}
+
+	@Override
+	synchronized Object getDataPackage() {
+		return new DPPipe(this);
+	}
+
+	static private final class DPPipe extends Displayable.DataPackage {
+		final double[][] p, p_l, p_r, p_i;
+		final double[] p_width, p_width_i;
+		final long[] p_layer;
+
+		DPPipe(final Pipe pipe) {
+			super(pipe);
+			// store copies of all arrays
+			this.p = new double[][]{Utils.copy(pipe.p[0], pipe.n_points), Utils.copy(pipe.p[1], pipe.n_points)};
+			this.p_r = new double[][]{Utils.copy(pipe.p_r[0], pipe.n_points), Utils.copy(pipe.p_r[1], pipe.n_points)};
+			this.p_l = new double[][]{Utils.copy(pipe.p_l[0], pipe.n_points), Utils.copy(pipe.p_l[1], pipe.n_points)};
+			this.p_width = Utils.copy(pipe.p_width, pipe.n_points);
+			this.p_i = new double[][]{Utils.copy(pipe.p_i[0], pipe.p_i[0].length), Utils.copy(pipe.p_i[1], pipe.p_i[0].length)};
+			this.p_width_i = Utils.copy(pipe.p_width_i, pipe.p_width_i.length);
+			this.p_layer = new long[pipe.n_points]; System.arraycopy(pipe.p_layer, 0, this.p_layer, 0, pipe.n_points);
+		}
+		@Override
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Pipe pipe = (Pipe)d;
+			final int len = p[0].length; // == n_points, since it was cropped on copy
+			pipe.p = new double[][]{Utils.copy(p[0], len), Utils.copy(p[1], len)};
+			pipe.n_points = p[0].length;
+			pipe.p_r = new double[][]{Utils.copy(p_r[0], len), Utils.copy(p_r[1], len)};
+			pipe.p_l = new double[][]{Utils.copy(p_l[0], len), Utils.copy(p_l[1], len)};
+			pipe.p_layer = new long[len]; System.arraycopy(p_layer, 0, pipe.p_layer, 0, len);
+			pipe.p_width = Utils.copy(p_width, len);
+			pipe.p_i = new double[][]{Utils.copy(p_i[0], p_i[0].length), Utils.copy(p_i[1], p_i[1].length)};
+			pipe.p_width_i = Utils.copy(p_width_i, p_width_i.length);
+			return true;
+		}
 	}
 }

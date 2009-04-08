@@ -106,7 +106,10 @@ public abstract class ZDisplayable extends Displayable {
 		if (check && !Utils.check("Really remove " + this.toString() + " ?")) return false;
 		if (layer_set.remove(this) && removeFromDatabase()) {
 			unlink();
-			Search.remove(this);
+			removeLinkedPropertiesFromOrigins();
+			Search.remove(this); // duplication of code from Displayable.remove, because there isn't a proper hierarchy of classes
+			ini.trakem2.vector.Compare.remove(this);
+			Display.flush(this);
 			return true;
 		}
 		return false;

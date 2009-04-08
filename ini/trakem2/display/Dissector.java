@@ -491,7 +491,7 @@ public class Dissector extends ZDisplayable {
 		// TODO: if zoom invariant, should check for nearest point. Or nearest point anyway, when deleting
 		// (but also for adding a new one?)
 
-		if (me.isShiftDown() && me.isControlDown()) {
+		if (me.isShiftDown() && Utils.isControlDown(me)) {
 			if (-1 != index) {
 				// delete
 				item.remove(index);
@@ -605,7 +605,7 @@ public class Dissector extends ZDisplayable {
 		String type = "t2_dissector";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_dissector (t2_dd_item)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_dissector (").append(Displayable.commonDTDChildren()).append(",t2_dd_item)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent); // all ATTLIST of a Displayable
 		sb_header.append(indent).append("<!ELEMENT t2_dd_item EMPTY>\n")
 			 .append(indent).append("<!ATTLIST t2_dd_item radius NMTOKEN #REQUIRED>\n")
@@ -624,6 +624,7 @@ public class Dissector extends ZDisplayable {
 		for (Item item : al_items) {
 			item.exportXML(sb_body, in);
 		}
+		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append("</t2_dissector>\n");
 	}
 
@@ -669,5 +670,37 @@ public class Dissector extends ZDisplayable {
 		if (null == rt) rt = Utils.createResultsTable("Dissector results", new String[]{"id", "tag", "x", "y", "z", "radius", "nameid"});
 		for (Item item : al_items) item.addResults(rt, layer_set.getCalibration(), getNameId());
 		return rt;
+	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPDissector.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		return new DPDissector(this);
+	}
+
+	static private final class DPDissector extends Displayable.DataPackage {
+		final ArrayList<Item> items;
+
+		DPDissector(final Dissector dissector) {
+			super(dissector);
+			items = new ArrayList<Item>();
+			for (final Item item : dissector.al_items) {
+				items.add((Item)item.clone());
+			}
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Dissector dissector = (Dissector) d;
+			final ArrayList<Item> m = new ArrayList<Item>();
+			for (final Item item : items) { // no memfn ...
+				m.add((Item)item.clone());
+			}
+			dissector.al_items = m;
+			return true;
+		}
 	}
 }

@@ -108,6 +108,10 @@ public class Project extends DBObject {
 	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
 	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
 
+	/** Universal near-unique id for this project, consisting of:
+	 *  <creation-time>.<storage-folder-hashcode>.<username-hashcode> */
+	private String unuid = null;
+
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
 		super(loader);
@@ -124,8 +128,7 @@ public class Project extends DBObject {
 	}
 
 	static public Project getProject(final String title) {
-		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
-			Project pr = (Project)it.next();
+		for (final Project pr : al_open_projects) {
 			if (pr.title.equals(title)) return pr;
 		}
 		return null;
@@ -311,6 +314,7 @@ public class Project extends DBObject {
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
 			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
+
 			// help the helpless users:
 			if (null != project && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Creating automatic Display.");
@@ -412,6 +416,7 @@ public class Project extends DBObject {
 						try { burro.join(); } catch (InterruptedException ie) {}
 						// restore to non-changes (crude, but works)
 						project.loader.setChanged(false);
+						Utils.log2("C set to false");
 					}
 				};
 				new Thread() {
@@ -425,6 +430,18 @@ public class Project extends DBObject {
 						}
 					}
 				}.start();
+				// SO: WAIT TILL THE END OF TIME!
+				new Thread() { public void run() {
+					try {
+					Thread.sleep(4000); // ah, the pain in my veins. I can't take this shitty setup anymore.
+					javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+						project.getLoader().setChanged(false);
+						Utils.log2("D set to false");
+					}});
+					project.getTemplateTree().updateUILater(); // repainting to fix gross errors in tree rendering
+					project.getProjectTree().updateUILater();  // idem
+					} catch (Exception ie) {}
+				}}.start();
 			} else {
 				// help the helpless users
 				Display.createDisplay(project, project.layer_set.getLayer(0));
@@ -522,7 +539,7 @@ public class Project extends DBObject {
 	}
 
 	public boolean destroy() {
-		if (loader.hasChanges()) { // DBLoader always returns false
+		if (loader.hasChanges() && !getBooleanProperty("no_shutdown_hook")) { // DBLoader always returns false
 			if (ControlWindow.isGUIEnabled()) {
 				final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "There are unsaved changes in project " + title + ". Save them?");
 				if (yn.yesPressed()) {
@@ -538,7 +555,7 @@ public class Project extends DBObject {
 			loader.destroy(); // and disconnect
 			loader = null;
 		}
-		ControlWindow.remove(this);
+		ControlWindow.remove(this); // AFTER loader.destroy() call.
 		if (null != template_tree) template_tree.destroy();
 		if (null != project_tree) project_tree.destroy();
 		if (null != layer_tree) layer_tree.destroy();
@@ -604,7 +621,7 @@ public class Project extends DBObject {
 	public Object makeObject(final TemplateThing tt) {
 		final String type = tt.getType();
 		if (type.equals("profile")) {
-			ProjectToolbar.setTool(ProjectToolbar.PEN); // this should go elsewhere, in display issues.
+			ProjectToolbar.setTool(ProjectToolbar.PENCIL); // this should go elsewhere, in display issues.
 			return new Profile(this, "profile", 0, 0);
 		} else if (type.equals("pipe")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
@@ -613,7 +630,7 @@ public class Project extends DBObject {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Polyline(this, "polyline");
 		} else if (type.equals("area_list")) {
-			ProjectToolbar.setTool(ProjectToolbar.PEN); // may need adjustment ...
+			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new AreaList(this, "area_list", 0, 0);
 		} else if (type.equals("ball")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
@@ -759,19 +776,30 @@ public class Project extends DBObject {
 	public String getMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
+		String title = new StringBuffer(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
+
+		if (!thing.getType().equals(d.getTitle())) {
+			return title;
+		}
+
 		ProjectThing parent = (ProjectThing)thing.getParent();
-		String title = new StringBuffer(thing.getType() != d.getTitle() ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
+		StringBuffer sb = new StringBuffer(title);
 		while (null != parent) {
 			Object ob = parent.getObject();
+			if (ob.getClass() == Project.class) break;
 			String type = parent.getType();
 			if (!ob.equals(type)) { // meaning, something else was typed in as a title
-				title =  ob.toString() + " [" + type + "]/" + title;
+				sb.insert(0, new StringBuffer(ob.toString()).append(' ').append('[').append(type).append(']').append('/').toString());
+				//title =  ob.toString() + " [" + type + "]/" + title;
 				break;
 			}
-			title = type + "/" + title;
+			sb.insert(0, '/');
+			sb.insert(0, type);
+			//title = type + "/" + title;
 			parent = (ProjectThing)parent.getParent();
 		}
-		return title;
+		//return title;
+		return sb.toString();
 	}
 
 	/** Returns the first upstream user-defined name and type, and the id of the displayable tagged at the end.
@@ -800,6 +828,12 @@ public class Project extends DBObject {
 		// if nothing found, prepend the type
 		if ('#' == title.charAt(0)) title = Project.getName(d.getClass()) + " " + title;
 		return title;
+	}
+
+	static public String getType(final Class c) {
+		if (AreaList.class == c) return "area_list";
+		if (DLabel.class == c) return "label";
+		return c.getName().toLowerCase();
 	}
 
 	/** Returns the proper TemplateThing for the given type, complete with children and attributes if any. */
@@ -915,6 +949,7 @@ public class Project extends DBObject {
 		//TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
 		sb_header.append(indent).append("<!ELEMENT ").append("project (").append(root_tt.getType()).append(")>\n");
 		sb_header.append(indent).append("<!ATTLIST project id NMTOKEN #REQUIRED>\n");
+		sb_header.append(indent).append("<!ATTLIST project unuid NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project title NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project preprocessor NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project mipmaps_folder NMTOKEN #REQUIRED>\n");
@@ -935,6 +970,7 @@ public class Project extends DBObject {
 		Profile.exportDTD(sb_header, hs, indent);
 		AreaList.exportDTD(sb_header, hs, indent);
 		Dissector.exportDTD(sb_header, hs, indent);
+		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		// 4 - export Display
 		Display.exportDTD(sb_header, hs, indent);
 		// all the above could be done with reflection, automatically detecting the presence of an exportDTD method.
@@ -1052,7 +1088,6 @@ public class Project extends DBObject {
 			Map.Entry prop = (Map.Entry)it.next();
 			Utils.log2("parsed: " + prop.getKey() + "=" + prop.getValue());
 		}
-
 	}
 	public HashMap<String,String> getPropertiesCopy() {
 		return (HashMap<String,String>)ht_props.clone();
@@ -1120,6 +1155,8 @@ public class Project extends DBObject {
 		gd.addCheckbox("Paint_color_cues", !no_color_cues);
 		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
 		String current_mode = ht_props.get("image_resizing_mode");
+		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
+		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
 		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
 		int current_R = (int)(100 * ini.trakem2.imaging.StitchingTEM.DEFAULT_MIN_R); // make the float a percent
 		try {
@@ -1136,6 +1173,8 @@ public class Project extends DBObject {
 		gd.addCheckbox("Keep_mipmaps_when_deleting_images", keep_mipmaps); // coping with the fact that thee is no Action context ... there should be one in the Worker thread.
 		int bucket_side = (int)getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
 		gd.addNumericField("Bucket side length: ", bucket_side, 0);
+		boolean no_shutdown_hook = "true".equals(ht_props.get("no_shutdown_hook"));
+		gd.addCheckbox("No_shutdown_hook to save the project", no_shutdown_hook);
 		//
 		gd.showDialog();
 		//
@@ -1174,5 +1213,11 @@ public class Project extends DBObject {
 			setProperty("bucket_side", Integer.toString(bucket_side));
 			layer_set.recreateBuckets(true);
 		}
+		adjustProp("no_shutdown_hook", no_shutdown_hook, gd.getNextBoolean());
+	}
+
+	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */
+	public String getUNUId() {
+		return loader.getUNUId();
 	}
 }

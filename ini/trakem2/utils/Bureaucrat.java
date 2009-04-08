@@ -22,41 +22,74 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
-import ij.IJ;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Utils;
+import java.util.ArrayList;
 
 /** Sets a Worker thread to work, and waits until it finishes, blocking all user interface input until then, except for zoom and pan, for all given projects. */
 public class Bureaucrat extends Thread {
 	private Worker worker;
+	private Thread worker_thread;
 	private long onset;
 	private Project[] project;
 	private boolean started = false;
+	/** A list of tasks to run when the Worker finishes of quits. */
+	private ArrayList<Runnable> post_tasks = new ArrayList<Runnable>();
 
 	/** Registers itself in the project loader job queue. */
-	public Bureaucrat(Worker worker, Project project) {
-		this(worker, new Project[]{project});
+	private Bureaucrat(ThreadGroup tg, Worker worker, Project project) {
+		this(tg, worker, new Project[]{project});
 	}
-	public Bureaucrat(Worker worker, Project[] project) {
+	private Bureaucrat(ThreadGroup tg, Worker worker, Project[] project) {
+		super(tg, "T2-Bureaucrat");
+		setPriority(Thread.NORM_PRIORITY);
 		this.worker = worker;
+		this.worker_thread = new Thread(tg, worker, worker.getThreadName());
+		this.worker_thread.setPriority(NORM_PRIORITY);
+		worker.setThread(worker_thread);
 		this.project = project;
 		onset = System.currentTimeMillis();
 		for (int i=0; i<project.length; i++) {
 			project[i].setReceivesInput(false);
 			project[i].getLoader().addJob(this);
 		}
-		setPriority(Thread.NORM_PRIORITY);
 	}
 
-	/** Sets the worker to work and monitors it until it finishes.*/
+	/** Creates but does not start the Bureaucrat thread. */
+	static public Bureaucrat create(Worker worker, Project project) {
+		return create (worker, new Project[]{project});
+	}
+
+	/** Creates but does not start the Bureaucrat thread. */
+	static public Bureaucrat create(Worker worker, Project[] project) {
+		ThreadGroup tg = new ThreadGroup("T2-Bureaucrat for " + worker.getTaskName());
+		return new Bureaucrat(tg, worker, project);
+	}
+
+	/** Creates and start the Bureaucrat thread. */
+	static public Bureaucrat createAndStart(Worker worker, Project project) {
+		return createAndStart(worker, new Project[]{project});
+	}
+
+	/** Creates and start the Bureaucrat thread. */
+	static public Bureaucrat createAndStart(Worker worker, Project[] project) {
+		ThreadGroup tg = new ThreadGroup("T2-Bureaucrat for " + worker.getTaskName());
+		Bureaucrat burro = new Bureaucrat(tg, worker, project);
+		burro.goHaveBreakfast();
+		return burro;
+	}
+
+	/** Starts the Bureaucrat thread: sets the worker to work and monitors it until it finishes.*/
 	public void goHaveBreakfast() {
-		worker.start();
+		worker_thread.start();
+		// Make sure we start AFTER the worker has started.
 		while (!worker.hasStarted()) {
 			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
 		}
 		start();
+		// Make sure we return AFTER having started.
 		while (!started) {
 			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
 		}
@@ -73,13 +106,16 @@ public class Bureaucrat extends Thread {
 		// wait until worker starts
 		while (!worker.isWorking()) {
 			try { Thread.sleep(50); } catch (InterruptedException ie) {}
-			if (worker.hasQuitted()) {
+			if (worker.hasQuitted() || worker_thread.isInterrupted()) {
+				//Utils.log("Cleaning up...");
+				worker.cleanup2();
 				cleanup();
+				//Utils.log("...done.");
 				return;
 			}
 		}
 		ControlWindow.startWaitingCursor();
-		int sandwitch = 1000; // one second, will get slower over time
+		int sandwitch = ControlWindow.isGUIEnabled() ? 1000 : 5000; // 1 second or 5
 		Utils.showStatus("Started processing: " + worker.getTaskName(), !worker.onBackground());
 		while (worker.isWorking() && !worker.hasQuitted()) {
 			try { Thread.sleep(sandwitch); } catch (InterruptedException ie) {}
@@ -87,35 +123,95 @@ public class Bureaucrat extends Thread {
 			Utils.showStatus("Processing... " + worker.getTaskName() + " - " + (elapsed_seconds < 60 ?
 								(int)elapsed_seconds + " seconds" :
 								(int)(elapsed_seconds / 60) + "' " + (int)(elapsed_seconds % 60) + "''"), false); // don't steal focus
-			// increase sandwitch length progressively
-			if (ControlWindow.isGUIEnabled()) {
-				if (elapsed_seconds > 180) sandwitch = 10000;
-				else if (elapsed_seconds > 60) sandwitch = 3000;
-			} else {
-				sandwitch = 60000; // every minute
-			}
 		}
 		ControlWindow.endWaitingCursor();
 		Utils.showStatus("Done " + worker.getTaskName(), !worker.onBackground());
+		try {
+			if (null != post_tasks) {
+				for (final Runnable r : post_tasks) {
+					try {
+						r.run();
+					} catch (Throwable t) {
+						IJError.print(t);
+					}
+				}
+			}
+		} catch(Throwable t) {
+			IJError.print(t);
+		}
 		cleanup();
 	}
 	/** Returns the task the worker is currently executing, which may change over time. */
 	public String getTaskName() {
 		return worker.getTaskName();
 	}
-	/** Waits until worker finishes before returning. */
+	/** Waits until worker finishes before returning.
+	 *  Calls quit() on the Worker and interrupt() on each threads in this ThreadGroup and subgroups. */
 	public void quit() {
-		worker.quit();
+		try {
+
+			// Cancel post tasks:
+			synchronized (post_tasks) {
+				post_tasks.clear();
+				post_tasks = null;
+			}
+
+			Utils.log2("ThreadGroup is " + getThreadGroup());
+
+			Utils.log2("ThreadGroup active thread count: " + getThreadGroup().activeCount());
+			Utils.log2("ThreadGroup active group count: " + getThreadGroup().activeGroupCount());
+
+			Thread[] active = new Thread[getThreadGroup().activeCount()];
+			int count = getThreadGroup().enumerate(active);
+			Utils.log2("Active threads: " + count);
+			for (int i=0; i < count; i++) {
+				Utils.log2("Active thread: " + active[i]);
+			}
+
+			// Set flag to each thread and thread in subgroup to quit:
+			worker.quit();
+			getThreadGroup().interrupt();
+
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		// wait until worker finishes
 		try {
 			Utils.log("Waiting for worker to quit...");
-			worker.join();
+			worker_thread.join();
 			Utils.log("Worker quitted.");
-		} catch (InterruptedException ie) {} // wait until worker finishes
+		} catch (InterruptedException ie) {
+			IJError.print(ie);
+		}
+		// wait for all others in a separate thread
+		final ThreadGroup tg = getThreadGroup();
+		new Thread() { public void run() {
+			try {
+				// Reasonable effort to join all threads
+				Thread[] t = new Thread[tg.activeCount() * 2];
+				int len = tg.enumerate(t);
+				for (int i=0; i<len && i<t.length; i++) {
+					try { t[i].join(); } catch (InterruptedException ie) {}
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			} finally {
+				Utils.showProgress(1);
+			}
+		}}.start();
 	}
 	public boolean isActive() {
 		return worker.isWorking();
 	}
 	public Worker getWorker() {
 		return worker;
+	}
+	/** Add a task to run after the Worker has finished or quit. Does not accept more tasks once the Worker no longer runs. */
+	public boolean addPostTask(final Runnable task) {
+		if (worker.hasQuitted() || null == post_tasks) return false;
+		synchronized (post_tasks) {
+			this.post_tasks.add(task);
+		}
+		return true;
 	}
 }

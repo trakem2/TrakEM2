@@ -404,12 +404,14 @@ public class DLabel extends Displayable {
 		       .append(";fill:#").append(RGB[0]).append(RGB[1]).append(RGB[2])
 		       .append(";fill-opacity:").append(alpha).append(";\"\n")
 		;
-		sb_body.append(indent).append("/>\n");
+		sb_body.append(indent).append(">\n");
+		super.restXML(sb_body, in, any);
+		sb_body.append(indent).append("</t2_label>\n");
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		if (hs.contains("t2_label")) return;
-		sb_header.append(indent).append("<!ELEMENT t2_label EMPTY>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_label (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD("t2_label", sb_header, hs, indent);
 	}
 
@@ -477,5 +479,30 @@ public class DLabel extends Displayable {
 		// add
 		copy.addToDatabase();
 		return copy;
+	}
+
+	@Override
+	Class getInternalDataPackageClass() {
+		return DPDLabel.class;
+	}
+
+	@Override
+	Object getDataPackage() {
+		return new DPDLabel(this);
+	}
+
+	static private final class DPDLabel extends Displayable.DataPackage {
+		final Font font;
+
+		DPDLabel(final DLabel label) {
+			super(label);
+			// no clone method for font.
+			this.font = new Font(label.font.getFamily(), label.font.getStyle(), label.font.getSize());
+		}
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			((DLabel)d).font = new Font(font.getFamily(), font.getStyle(), font.getSize());
+			return true;
+		}
 	}
 }

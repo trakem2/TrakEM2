@@ -23,21 +23,27 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2;
 
 import ij.IJ;
+import ij.ImageJ;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.display.YesNoDialog;
+import ini.trakem2.display.Display3D;
 import ini.trakem2.tree.LayerTree;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.TemplateTree;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.StdOutWindow;
 import ini.trakem2.vector.Compare;
 import ini.trakem2.persistence.Loader;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.ImageProducer;
+import java.lang.reflect.Field;
+import java.net.URL;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -78,6 +84,8 @@ public class ControlWindow {
 		synchronized (this) {
 			Utils.setup(this);
 			Loader.setupPreloader(this);
+			if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
+			Display3D.init();
 		}
 	}
 
@@ -111,7 +119,9 @@ public class ControlWindow {
 	static private void destroy() {
 		if (null == instance) return;
 		synchronized(instance) {
+			if (IJ.isWindows()) StdOutWindow.quit();
 			Compare.destroy();
+			Display3D.destroy();
 			if (null != ht_projects) {
 				// destroy open projects, release memory
 				Enumeration e = ht_projects.keys();
@@ -175,7 +185,7 @@ public class ControlWindow {
 					});
 					hooked = true;
 				}
-				frame = new JFrame("TrakEM2");
+				frame = createJFrame("TrakEM2");
 				frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 				frame.addWindowListener(new WindowAdapter() {
 					public void windowClosing(WindowEvent we) {
@@ -503,5 +513,28 @@ public class ControlWindow {
 		Component tab = (Component)ht_projects.get(project);
 		if (null == tab) return -1;
 		return tabs.indexOfComponent(tab);
+	}
+
+	static private Image icon = null;
+
+	/** Returns a new JFrame with the proper icon from ImageJ.iconPath set, if any. */
+	static public JFrame createJFrame(final String title) {
+		if (null == instance) return new JFrame(title);
+		return instance.newJFrame(title);
+	}
+	synchronized private JFrame newJFrame(final String title) {
+		final JFrame frame = new JFrame(title);
+
+		if (null == icon) {
+			try {
+				Field mic = ImageJ.class.getDeclaredField("iconPath");
+				mic.setAccessible(true);
+				String path = (String) mic.get(IJ.getInstance());
+				icon = IJ.getInstance().createImage((ImageProducer) new URL("file:" + path).getContent());
+			} catch (Exception e) {}
+		}
+
+		if (null != icon) frame.setIconImage(icon);
+		return frame;
 	}
 }

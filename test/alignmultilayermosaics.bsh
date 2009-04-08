@@ -1,0 +1,5 @@
+import ini.trakem2.display.*;
+import mpicbg.trakem2.align.*;
+
+AlignTask.alignMultiLayerMosaic( Display.getFront().getLayer() );
+Display.repaint();

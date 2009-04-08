@@ -25,12 +25,14 @@ package ini.trakem2.display;
 
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.awt.Color;
 import java.awt.Dimension;
 import javax.swing.JPanel;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 
+import ini.trakem2.persistence.FSLoader;
 
 public class SnapshotPanel extends JPanel implements MouseListener {
 
@@ -67,24 +69,54 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 		paint(g);
 	}
 
+	private BufferedImage img = null;
+
 	/** Paint the snapshot image over a black background that represents a scaled Layer. */
 	public void paint(final Graphics g) {
 		if (null == g) return; // happens if not visible
-		if (!display.isPartiallyWithinViewport(d)) return;
+		synchronized (this) {
+			if (null != img) {
+				// Paint and flush
+				g.drawImage(img, 0, 0, null);
+				this.img.flush();
+				this.img = null;
+				return;
+			}
+		}
+		// Else, repaint background to avoid flickering
 		g.setColor(Color.black);
-		g.fillRect(0, 0, this.getWidth(), this.getHeight());
-		final double scale = FIXED_HEIGHT / d.getLayer().getLayerHeight();
-		final Graphics2D g2d = (Graphics2D)g;
-		g2d.scale(scale, scale);
+		g.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
+		// ... and create the image in a separate thread and repaint again
+		FSLoader.repainter.submit(new Runnable() { public void run() {
+			if (!display.isPartiallyWithinViewport(d)) return;
+			final BufferedImage img = new BufferedImage(SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight(), BufferedImage.TYPE_INT_ARGB);
+			final Graphics2D g2 = img.createGraphics();
+			g2.setColor(Color.black);
+			g2.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
+			final double scale = FIXED_HEIGHT / d.getLayer().getLayerHeight();
+			g2.scale(scale, scale);
 
-		d.paintSnapshot(g2d, scale);
-
+			try {
+				// Avoid painting images that have an alpha mask: takes forever.
+				//if (d.getClass() == Patch.class && ((Patch)d).hasAlphaChannel()) {
+				//	d.paintAsBox(g2);
+				//} else {
+					d.paintSnapshot(g2, scale);
+				//}
+			} catch (Exception e) {
+				d.paintAsBox(g2);
+			}
+			synchronized (this) {
+				SnapshotPanel.this.img = img;
+			}
+			repaint();
+		}});
 	}
 
 	public void mousePressed(MouseEvent me) {
 		//must enable cancel!//if (display.isTransforming()) return;
 		display.setActive(d);
-		if (me.isPopupTrigger() || me.isControlDown() || MouseEvent.BUTTON2 == me.getButton()) {
+		if (me.isPopupTrigger() || (ij.IJ.isMacOSX() && me.isControlDown()) || MouseEvent.BUTTON2 == me.getButton()) {
 			Display.showPopup(this, me.getX(), me.getY());
 		}
 	}
