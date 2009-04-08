@@ -76,7 +76,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Checkbox;
 import java.awt.Cursor;
-//import java.awt.FileDialog;
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -135,6 +135,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
+import loci.formats.ChannelSeparator;
+import loci.formats.FormatException;
+import loci.formats.IFormatReader;
 
 /** Handle all data-related issues with a virtualization engine, including load/unload and saving, saving as and overwriting. */
 abstract public class Loader {
@@ -5017,5 +5020,34 @@ abstract public class Loader {
 	// FSLoader overrides this method
 	public String getUNUIdFolder() {
 		return "trakem2." + getUNUId() + "/";
+	}
+
+	/** Does nothing unless overriden. */
+	public boolean regenerateMipMaps(final Patch patch) { return false; }
+
+	/** Read out the width,height of an image using LOCI BioFormats. */
+	static public Dimension getDimensions(final String path) {
+		IFormatReader fr = null;
+		try {
+			fr = new ChannelSeparator();
+			fr.setId(path);
+			return new Dimension(fr.getSizeX(), fr.getSizeY());
+		} catch (FormatException fe) {
+			Utils.log("Error in reading image file at " + path + "\n" + fe);
+		} catch (Exception e) {
+			IJError.print(e);
+		} finally {
+			if (null != fr) try {
+				fr.close();
+			} catch (IOException ioe) { Utils.log2("Could not close IFormatReader: " + ioe); }
+		}
+		return null;
+	}
+
+	public Dimension getDimensions(final Patch p) {
+		String path = getAbsolutePath(p);
+		int i = path.lastIndexOf("-----#slice=");
+		if (-1 != i) path = path.substring(0, i);
+		return Loader.getDimensions(path);
 	}
 }
