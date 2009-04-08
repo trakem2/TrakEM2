@@ -4609,6 +4609,7 @@ abstract public class Loader {
 	static private ImageLoaderThread[] imageloader = null; 
 	static private Preloader preloader = null;
 
+	// TODO update all this to use an ExecutorService
 	static public final void setupPreloader(final ControlWindow master) {
 		if (null == imageloader) {
 			int n = Runtime.getRuntime().availableProcessors()-1;
