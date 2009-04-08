@@ -1254,12 +1254,15 @@ public final class Patch extends Displayable {
 						mask.fill();
 						is_new = true;
 					}
-					// a roi local to the image
 					try {
-						Area a = Utils.getArea(roi).createTransformedArea(Patch.this.at.createInverse());
-						a.intersect(new Area(new Rectangle(0, 0, (int)width, (int)height)));
+						// a roi local to the image bounding box
+						final Area a = new Area(new Rectangle(0, 0, (int)width, (int)height));
+						a.intersect(Utils.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
 
-						if (Utils.isEmpty(a)) return;
+						if (Utils.isEmpty(a)) {
+							Utils.log("ROI does not intersect the active image!");
+							return;
+						}
 
 						if (null != ct) {
 							// inverse the coordinate transform
@@ -1293,16 +1296,11 @@ public final class Patch extends Displayable {
 									b1[i] = (byte) ((int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff));
 								}
 							}
-							//new ImagePlus("mask with ct", mask).show();
 						} else {
 							ShapeRoi sroi = new ShapeRoi(a);
 							mask.setRoi(sroi);
 							mask.setColor(Toolbar.getForegroundColor());
 							mask.fill(sroi.getMask());
-
-							//ImagePlus imp  = new ImagePlus("mask from null ct", mask);
-							//imp.show();
-							//imp.setRoi(sroi);
 						}
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 					setAlphaMask(mask);
