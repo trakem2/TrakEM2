@@ -136,8 +136,9 @@ public class CacheImageMipMaps {
 					e.image = image;
 					// replace in map
 					if (use_map) {
-						final Image[] im = map.get(id);
-						if (null != im) im[level] = image;
+						Image[] images = map.get(id);
+						if (null == images) images = new Image[maxLevel(image, level)];
+						images[level] = image;
 					}
 				}
 				return;
