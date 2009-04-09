@@ -1653,6 +1653,20 @@ public class AreaList extends ZDisplayable {
 		int count = 1;
 		final float len = last_layer - first_layer + 1;
 
+		// Assign labels
+		final HashMap<Displayable,Integer> labels = new HashMap<Displayable,Integer>();
+		for (final Displayable d : list) {
+			if (visible_only && !d.isVisible()) continue;
+			String slabel = d.getProperty("label");
+			int label;
+			if (null != slabel) {
+				label = Integer.parseInt(slabel);
+			} else {
+				label = (++highest); // 0 is background
+			}
+			labels.put(d, label);
+		}
+
 		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
 			Utils.showProgress(count/len);
 			count++;
@@ -1661,21 +1675,15 @@ public class AreaList extends ZDisplayable {
 				ip.setMinAndMax(lowest, highest);
 			}
 			// paint here all arealist that paint to the layer 'la'
-			int value = 0;
 			for (final Displayable d : list) {
-				value++; // zero is background
-				int label = value;
-				String slabel = d.getProperty("label");
-				if (null != slabel) {
-					label = Integer.parseInt(slabel);
-				} else {
-					label = (++highest);
-				}
-				ip.setValue(label);
 				if (visible_only && !d.isVisible()) continue;
+				ip.setValue(labels.get(d));
 				AreaList ali = (AreaList)d;
 				Area area = ali.getArea(la);
-				if (null == area) continue;
+				if (null == area) {
+					Utils.log2("Layer " + la + " id: " + d.getId() + " area is " + area);
+					continue;
+				}
 				// Transform: the scale and the roi
 				AffineTransform aff = new AffineTransform();
 				// reverse order of transformations:
