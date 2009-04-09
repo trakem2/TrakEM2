@@ -1612,9 +1612,10 @@ public class AreaList extends ZDisplayable {
 			String label = d.getProperty("label");
 			if (null != label) label_values.add(Integer.parseInt(label));
 		}
-		int lowest = label_values.first();
+		int lowest = 0;
 		int highest = 0;
 		if (label_values.size() > 0) {
+			lowest = label_values.first();
 			highest = label_values.last();
 		}
 		int n_non_labeled = list.size() - label_values.size();
