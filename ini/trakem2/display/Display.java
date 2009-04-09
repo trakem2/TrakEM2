@@ -3141,7 +3141,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			for (final Displayable d : selection.getSelected()) {
 				if (d.getClass() == Patch.class) patches.add((Patch)d);
 			}
-			if (patches.size() > 1) Blending.blend(patches);
+			if (patches.size() > 1) {
+				GenericDialog gd = new GenericDialog("Blending");
+				gd.addCheckbox("Respect current alpha mask", true);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				Blending.blend(patches, gd.getNextBoolean());
+			} else {
+				IJ.log("Please select more than one overlapping image.");
+			}
 		} else if (command.equals("Montage")) {
 			if (!(active instanceof Patch)) {
 				Utils.showMessage("Please select only images.");
