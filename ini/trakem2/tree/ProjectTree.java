@@ -242,7 +242,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
 				}
 			} else if (command.equals("Show in 3D")) {
-				ini.trakem2.display.Display3D.show(thing);
+				ini.trakem2.display.Display3D.showAndResetView(thing);
 			} else if (command.equals("Hide")) {
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);

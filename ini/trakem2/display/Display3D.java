@@ -64,8 +64,6 @@ import java.util.concurrent.Callable;
 /** One Display3D instance for each LayerSet (maximum). */
 public final class Display3D {
 
-	/** The threading is so poorly done ... it BARELY works, it's fragile. */
-
 	/** Table of LayerSet and Display3D - since there is a one to one relationship.  */
 	static private Hashtable ht_layer_sets = new Hashtable();
 	/**Control calls to new Display3D. */
@@ -344,8 +342,17 @@ public final class Display3D {
 		}
 	}
 
-	static public void show(ProjectThing pt) {
-		show(pt, false, -1);
+	static public Future<List<Content>> show(ProjectThing pt) {
+		return show(pt, false, -1);
+	}
+
+	static public void showAndResetView(final ProjectThing pt) {
+		new Thread() { public void run() {
+			setPriority(Thread.NORM_PRIORITY);
+			// wait until done
+			show(pt, true, -1);
+			Display3D.resetView(pt.getProject().getRootLayerSet());
+		}}.start();
 	}
 
 	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one. If true == wait && -1 != resample, then the method returns only when the mesh/es have been added. */
@@ -423,6 +430,11 @@ public final class Display3D {
 		}};
 
 		return launchers.submit(c);
+	}
+
+	static public void resetView(final LayerSet ls) {
+		Display3D d3d = (Display3D) ht_layer_sets.get(ls);
+		if (null != d3d) d3d.universe.resetView();
 	}
 
 	static public void showOrthoslices(Patch p) {
