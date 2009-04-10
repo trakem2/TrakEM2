@@ -115,17 +115,26 @@ public class Bureaucrat extends Thread {
 			}
 		}
 		ControlWindow.startWaitingCursor();
-		int sandwitch = ControlWindow.isGUIEnabled() ? 1000 : 5000; // 1 second or 5
-		Utils.showStatus("Started processing: " + worker.getTaskName(), !worker.onBackground());
+		int sandwitch = ControlWindow.isGUIEnabled() ? 100 : 5000; // 1 second or 5
+		Utils.showStatus("Started processing: " + worker.getTaskName(), false); // don't steal focus, ever
+		final StringBuffer sb = new StringBuffer("Processing... ").append(worker.getTaskName()).append(" - ");
+		final int base_len = sb.length();
 		while (worker.isWorking() && !worker.hasQuitted()) {
 			try { Thread.sleep(sandwitch); } catch (InterruptedException ie) {}
 			float elapsed_seconds = (System.currentTimeMillis() - onset) / 1000.0f;
-			Utils.showStatus("Processing... " + worker.getTaskName() + " - " + (elapsed_seconds < 60 ?
-								(int)elapsed_seconds + " seconds" :
-								(int)(elapsed_seconds / 60) + "' " + (int)(elapsed_seconds % 60) + "''"), false); // don't steal focus
+			if (elapsed_seconds < 60) {
+				sb.append(elapsed_seconds).append(" seconds");
+			} else {
+				sb.append(elapsed_seconds / 60).append("' ").append(elapsed_seconds % 60).append("''");
+			}
+			Utils.showStatus(sb.toString(), false); // don't steal focus
+			// Increment up to 1 second
+			if (sandwitch < 1000) sandwitch += 100;
+			// reset:
+			sb.setLength(base_len);
 		}
 		ControlWindow.endWaitingCursor();
-		Utils.showStatus("Done " + worker.getTaskName(), !worker.onBackground());
+		Utils.showStatus("Done " + worker.getTaskName(), false); // don't steal focus
 		try {
 			if (null != post_tasks) {
 				for (final Runnable r : post_tasks) {
