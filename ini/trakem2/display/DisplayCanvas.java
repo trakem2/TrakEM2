@@ -1714,15 +1714,19 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// UNDO: shift+z or ctrl+z
 				if (0 == (mod ^ Event.SHIFT_MASK) || 0 == (mod ^ Utils.getControlModifier())) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
-					if (isTransforming()) display.getSelection().undoOneStep();
-					else display.getLayerSet().undoOneStep();
-					Display.repaint(display.getLayerSet());
+					Bureaucrat.createAndStart(new Worker.Task("Undo") { public void exec() {
+						if (isTransforming()) display.getSelection().undoOneStep();
+						else display.getLayerSet().undoOneStep();
+						Display.repaint(display.getLayerSet());
+					}}, display.getProject());
 					ke.consume();
 				// REDO: alt+z or ctrl+shift+z
 				} else if (0 == (mod ^ Event.ALT_MASK) || 0 == (mod ^ (Event.SHIFT_MASK | Utils.getControlModifier())) ) {
-					if (isTransforming()) display.getSelection().redoOneStep();
-					else display.getLayerSet().redoOneStep();
-					Display.repaint(display.getLayerSet());
+					Bureaucrat.createAndStart(new Worker.Task("Redo") { public void exec() {
+						if (isTransforming()) display.getSelection().redoOneStep();
+						else display.getLayerSet().redoOneStep();
+						Display.repaint(display.getLayerSet());
+					}}, display.getProject());
 					ke.consume();
 				}
 				// else, the 'z' command restores the image using ImageJ internal undo

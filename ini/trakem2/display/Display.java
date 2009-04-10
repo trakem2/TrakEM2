@@ -2795,11 +2795,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				else Utils.log("Could not revert Patch " + p.getTitle() + " #" + p.getId());
 			}
 		} else if (command.equals("Undo")) {
-			layer.getParent().undoOneStep();
-			Display.repaint(layer.getParent());
+			Bureaucrat.createAndStart(new Worker.Task("Undo") { public void exec() {
+				layer.getParent().undoOneStep();
+				Display.repaint(layer.getParent());
+			}}, project);
 		} else if (command.equals("Redo")) {
-			layer.getParent().redoOneStep();
-			Display.repaint(layer.getParent());
+			Bureaucrat.createAndStart(new Worker.Task("Redo") { public void exec() {
+				layer.getParent().redoOneStep();
+				Display.repaint(layer.getParent());
+			}}, project);
 		} else if (command.equals("Transform")) {
 			if (null == active) return;
 			canvas.setTransforming(true);
