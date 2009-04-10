@@ -1048,7 +1048,7 @@ abstract public class Loader {
 					max_memory -= n_bytes;
 					unlock();
 				}
-				releaseToFit(n_bytes * 3); // triple, for the jpeg decoder alloc/dealloc at least 2 copies
+				releaseToFit(n_bytes * 6); // six times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
 				mawt = fetchMipMapAWT(p, level);
 
 				synchronized (db_lock) {
