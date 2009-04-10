@@ -464,7 +464,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final void showStatus(final String msg) {
-		showStatus(msg, true);
+		showStatus(msg, false);
 	}
 
 	static private double last_progress = 0;
