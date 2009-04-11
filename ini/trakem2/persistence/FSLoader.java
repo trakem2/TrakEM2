@@ -2185,14 +2185,15 @@ public final class FSLoader extends Loader {
 		if (!yn.yesPressed()) return null;
 		DirectoryChooser dc = new DirectoryChooser("Select UNUId folder");
 		String unuid_dir = dc.getDirectory();
-		Utils.log2("Selected UNUId folder: " + unuid_dir);
+		String unuid_dir_name = new File(unuid_dir).getName();
+		Utils.log2("Selected UNUId folder: " + unuid_dir + "\n with name: " + unuid_dir_name);
 		if (null != unuid_dir) {
 			unuid_dir = unuid_dir.replace('\\', '/');
-			if (!unuid_dir.startsWith("trakem2.")) {
+			if ( ! unuid_dir_name.startsWith("trakem2.")) {
 				Utils.logAll("Invalid UNUId folder: must start with \"trakem2.\". Try again or cancel.");
 				return obtainUNUIdFolder();
 			} else {
-				String[] nums = unuid_dir.split("\\.");
+				String[] nums = unuid_dir_name.split("\\.");
 				if (nums.length != 4) {
 					Utils.logAll("Invalid UNUId folder: needs trakem + 3 number blocks. Try again or cancel.");
 					return obtainUNUIdFolder();
@@ -2206,13 +2207,16 @@ public final class FSLoader extends Loader {
 					}
 				}
 				// ok, aceptamos pulpo
-				String unuid = unuid_dir.substring(8);
+				String unuid = unuid_dir_name.substring(8); // remove prefix "trakem2."
 				if (unuid_dir.lastIndexOf('/') == unuid_dir.length() -1) {
 					unuid = unuid.substring(0, unuid.length() -1);
 				} else {
 					unuid_dir += "/";
 				}
 				this.unuid = unuid;
+				String dir_storage = new File(unuid_dir).getParent().replace('\\', '/');
+				if (!dir_storage.endsWith("/")) dir_storage += "/";
+				this.dir_storage = dir_storage;
 				this.dir_mipmaps = unuid_dir + "trakem2.mipmaps/";
 				return unuid_dir;
 			}
