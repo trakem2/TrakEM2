@@ -891,7 +891,7 @@ public final class Patch extends Displayable {
 
 	/** Expects x,y in world coordinates.  This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method. */
 	public int[] getPixel(final int x, final int y, final double mag) {
-		if (1 == mag && project.getLoader().isUnloadable(this)) return new int[4];
+		if (project.getLoader().isUnloadable(this)) return new int[4];
 		final Image img = project.getLoader().fetchImage(this, mag);
 		if (Loader.isSignalImage(img)) return new int[4];
 		final int w = img.getWidth(null);
@@ -943,6 +943,11 @@ public final class Patch extends Displayable {
 	public final String getFilePath() {
 		if (null != current_path) return current_path;
 		return project.getLoader().getAbsolutePath(this);
+	}
+
+	/** Returns the absolute path to the image file, as read by the OS. */
+	public final String getImageFilePath() {
+		return project.getLoader().getAbsoluteFilePath(this);
 	}
 
 	/** Returns the value of the field current_path, which may be null. If not null, the value may contain the slice info in it if it's part of a stack. */
@@ -1157,7 +1162,9 @@ public final class Patch extends Displayable {
 		if (null != pi) return pi;
 		// else, a new one with the untransformed, original image (a duplicate):
 		project.getLoader().releaseToFit(o_width, o_height, type, 3);
-		return new PatchImage(getImageProcessor().duplicate(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
+		final ImageProcessor ip = getImageProcessor();
+		if (null == ip) return null;
+		return new PatchImage(ip.duplicate(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
 	}
 
 	private boolean has_alpha = false;

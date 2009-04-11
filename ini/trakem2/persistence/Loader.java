@@ -185,7 +185,7 @@ abstract public class Loader {
 	}
 
 
-	protected final HashSet<Patch> hs_unloadable = new HashSet<Patch>();
+	protected final Set<Patch> hs_unloadable = Collections.synchronizedSet(new HashSet<Patch>());
 
 	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
 	static {
@@ -3730,6 +3730,9 @@ abstract public class Loader {
 	/** Returns null unless overriden. This is intended for FSLoader projects. */
 	public String getAbsolutePath(final Patch patch) { return null; }
 
+	/** Returns null unless overriden. This is intended for FSLoader projects. */
+	public String getAbsoluteFilePath(final Patch p) { return null; }
+
 	/** Does nothing unless overriden. */
 	public void setupMenuItems(final JMenu menu, final Project project) {}
 
@@ -4981,6 +4984,8 @@ abstract public class Loader {
 	public String setImageFile(Patch p, ImagePlus imp) { return null; }
 
 	public boolean isUnloadable(final Patch p) { return hs_unloadable.contains(p); }
+
+	public void removeFromUnloadable(final Patch p) { hs_unloadable.remove(p); }
 
 	protected static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
 		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);

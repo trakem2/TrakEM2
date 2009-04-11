@@ -556,6 +556,9 @@ public final class FSLoader extends Loader {
 							Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 							hs_unloadable.add(p);
 						}
+						if (ControlWindow.isGUIEnabled()) {
+							FilePathRepair.add(p);
+						}
 						removePatchLoadingLock(plock);
 						unlock();
 						plock.unlock();
@@ -953,6 +956,14 @@ public final class FSLoader extends Loader {
 		// set it
 		patch.cacheCurrentPath(path);
 		return path;
+	}
+
+	public final String getAbsoluteFilePath(final Patch p) {
+		final String path = getAbsolutePath(p);
+		if (null == path) return null;
+		final int i = path.lastIndexOf("----#slice");
+		return -1 == i ? path
+			       : path.substring(0, i);
 	}
 
 	public static final boolean isURL(final String path) {
@@ -1556,6 +1567,10 @@ public final class FSLoader extends Loader {
 			cannot_regenerate.add(patch);
 			return false;
 		}
+		if (hs_unloadable.contains(patch)) {
+			FilePathRepair.add(patch);
+			return false;
+		}
 		synchronized (gm_lock) {
 			try {
 				gm_lock();
@@ -1600,6 +1615,11 @@ public final class FSLoader extends Loader {
 
 			// Obtain an image which may be coordinate-transformed, and an alpha mask.
 			Patch.PatchImage pai = patch.createTransformedImage();
+			if (null == pai) {
+				Utils.log("Can't regenerate mipmaps for patch " + patch);
+				cannot_regenerate.add(patch);
+				return false;
+			}
 			ip = pai.target;
 			alpha_mask = pai.mask; // can be null
 			outside_mask = pai.outside; // can be null
