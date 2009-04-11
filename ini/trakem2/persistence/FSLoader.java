@@ -2208,16 +2208,17 @@ public final class FSLoader extends Loader {
 				}
 				// ok, aceptamos pulpo
 				String unuid = unuid_dir_name.substring(8); // remove prefix "trakem2."
-				if (unuid_dir.lastIndexOf('/') == unuid_dir.length() -1) {
-					unuid = unuid.substring(0, unuid.length() -1);
-				} else {
-					unuid_dir += "/";
-				}
+				if (unuid.endsWith("/")) unuid = unuid.substring(0, unuid.length() -1);
 				this.unuid = unuid;
+
+				if (!unuid_dir.endsWith("/")) unuid_dir += "/";
+
 				String dir_storage = new File(unuid_dir).getParent().replace('\\', '/');
 				if (!dir_storage.endsWith("/")) dir_storage += "/";
 				this.dir_storage = dir_storage;
+
 				this.dir_mipmaps = unuid_dir + "trakem2.mipmaps/";
+
 				return unuid_dir;
 			}
 		}
