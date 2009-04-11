@@ -38,6 +38,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.YesNoDialog;
+import ij.gui.YesNoCancelDialog;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
 import ini.trakem2.imaging.FloatProcessorT2;
@@ -1313,6 +1314,10 @@ public final class FSLoader extends Loader {
 
 		if (null == unuid) {
 			IJ.log("OLD VERSION DETECTED: your trakem2\nproject has been updated to the new format.\nPlease SAVE IT to avoid regenerating\ncached data when reopening it.");
+			if (ControlWindow.isGUIEnabled()) {
+				obtainUNUIdFolder();
+				if (null != this.unuid) return; // one was selected, which was hopefully valid
+			}
 			Utils.log2("Creating unuid for project " + this);
 			this.unuid = createUNUId(dir_storage);
 			fixStorageFolders();
@@ -2171,6 +2176,43 @@ public final class FSLoader extends Loader {
 	/** Returns the near-unique folder for the project hosted by this FSLoader. */
 	public String getUNUIdFolder() {
 		return new StringBuffer(getStorageFolder()).append("trakem2.").append(unuid).append('/').toString();
+	}
+
+	private String obtainUNUIdFolder() {
+		YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Old .xml version!", "The loaded XML file does not contain an UNUId. Select a UNUId folder?\n:Should look like: trakem2.12345678.12345678.12345678");
+		if (!yn.yesPressed()) return null;
+		DirectoryChooser dc = new DirectoryChooser("Select UNUId folder");
+		String unuid_dir = dc.getDirectory();
+		if (null != unuid_dir) {
+			unuid_dir = unuid_dir.replace('\\', '/');
+			if (!unuid_dir.startsWith("trakem2.")) {
+				Utils.logAll("Invalid UNUId folder. Try again or cancel.");
+				return obtainUNUIdFolder();
+			} else {
+				String[] nums = unuid_dir.split("\\.");
+				if (nums.length != 4) {
+					Utils.logAll("Invalid UNUId folder. Try again or cancel.");
+					return obtainUNUIdFolder();
+				}
+				for (int i=1; i<nums.length; i++) {
+					try {
+						long num = Long.parseLong(nums[i]);
+					} catch (NumberFormatException nfe) {
+						Utils.logAll("Invalid UNUId folder. Try again or cancel.");
+						return obtainUNUIdFolder();
+					}
+				}
+				// ok, aceptamos pulpo
+				this.unuid = unuid_dir.substring(8);
+				if (unuid_dir.lastIndexOf('/') != unuid_dir.length() -1) {
+					this.unuid = this.unuid.substring(0, this.unuid.length() -1);
+				} else {
+					unuid_dir += "/";
+				}
+				this.dir_mipmaps = unuid_dir + "trakem2.mipmaps/";
+			}
+		}
+		return null;
 	}
 
 	/** If parent path is null, it's asked for.*/
