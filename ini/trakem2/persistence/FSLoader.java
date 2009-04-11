@@ -2179,27 +2179,29 @@ public final class FSLoader extends Loader {
 		return new StringBuffer(getStorageFolder()).append("trakem2.").append(unuid).append('/').toString();
 	}
 
+	/** Return the unuid_dir or null if none valid selected. */
 	private String obtainUNUIdFolder() {
-		YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Old .xml version!", "The loaded XML file does not contain an UNUId. Select a shared UNUId folder?\n:Should look similar to: trakem2.12345678.12345678.12345678");
+		YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Old .xml version!", "The loaded XML file does not contain an UNUId. Select a shared UNUId folder?\nShould look similar to: trakem2.12345678.12345678.12345678");
 		if (!yn.yesPressed()) return null;
 		DirectoryChooser dc = new DirectoryChooser("Select UNUId folder");
 		String unuid_dir = dc.getDirectory();
+		Utils.log2("Selected UNUId folder: " + unuid_dir);
 		if (null != unuid_dir) {
 			unuid_dir = unuid_dir.replace('\\', '/');
 			if (!unuid_dir.startsWith("trakem2.")) {
-				Utils.logAll("Invalid UNUId folder. Try again or cancel.");
+				Utils.logAll("Invalid UNUId folder: must start with \"trakem2.\". Try again or cancel.");
 				return obtainUNUIdFolder();
 			} else {
 				String[] nums = unuid_dir.split("\\.");
 				if (nums.length != 4) {
-					Utils.logAll("Invalid UNUId folder. Try again or cancel.");
+					Utils.logAll("Invalid UNUId folder: needs trakem + 3 number blocks. Try again or cancel.");
 					return obtainUNUIdFolder();
 				}
 				for (int i=1; i<nums.length; i++) {
 					try {
 						long num = Long.parseLong(nums[i]);
 					} catch (NumberFormatException nfe) {
-						Utils.logAll("Invalid UNUId folder. Try again or cancel.");
+						Utils.logAll("Invalid UNUId folder: at least one block is not a number. Try again or cancel.");
 						return obtainUNUIdFolder();
 					}
 				}
@@ -2212,6 +2214,7 @@ public final class FSLoader extends Loader {
 				}
 				this.unuid = unuid;
 				this.dir_mipmaps = unuid_dir + "trakem2.mipmaps/";
+				return unuid_dir;
 			}
 		}
 		return null;
