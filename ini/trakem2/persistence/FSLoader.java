@@ -1301,6 +1301,11 @@ public final class FSLoader extends Loader {
 		// parse the unuid before attempting to create any folders
 		this.unuid = (String) ht_attributes.remove("unuid");
 
+		// Attempt to get an existing UNUId folder, for .xml files that share the same mipmaps folder
+		if (ControlWindow.isGUIEnabled()) {
+			obtainUNUIdFolder();
+		}
+
 		if (null == this.dir_mipmaps) {
 			// create a new one inside the dir_storage, which can't be null
 			createMipMapsDir(dir_storage);
@@ -1314,10 +1319,6 @@ public final class FSLoader extends Loader {
 
 		if (null == unuid) {
 			IJ.log("OLD VERSION DETECTED: your trakem2\nproject has been updated to the new format.\nPlease SAVE IT to avoid regenerating\ncached data when reopening it.");
-			if (ControlWindow.isGUIEnabled()) {
-				obtainUNUIdFolder();
-				if (null != this.unuid) return; // one was selected, which was hopefully valid
-			}
 			Utils.log2("Creating unuid for project " + this);
 			this.unuid = createUNUId(dir_storage);
 			fixStorageFolders();
@@ -2179,7 +2180,7 @@ public final class FSLoader extends Loader {
 	}
 
 	private String obtainUNUIdFolder() {
-		YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Old .xml version!", "The loaded XML file does not contain an UNUId. Select a UNUId folder?\n:Should look like: trakem2.12345678.12345678.12345678");
+		YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Old .xml version!", "The loaded XML file does not contain an UNUId. Select a shared UNUId folder?\n:Should look similar to: trakem2.12345678.12345678.12345678");
 		if (!yn.yesPressed()) return null;
 		DirectoryChooser dc = new DirectoryChooser("Select UNUId folder");
 		String unuid_dir = dc.getDirectory();
@@ -2203,12 +2204,13 @@ public final class FSLoader extends Loader {
 					}
 				}
 				// ok, aceptamos pulpo
-				this.unuid = unuid_dir.substring(8);
-				if (unuid_dir.lastIndexOf('/') != unuid_dir.length() -1) {
-					this.unuid = this.unuid.substring(0, this.unuid.length() -1);
+				String unuid = unuid_dir.substring(8);
+				if (unuid_dir.lastIndexOf('/') == unuid_dir.length() -1) {
+					unuid = unuid.substring(0, unuid.length() -1);
 				} else {
 					unuid_dir += "/";
 				}
+				this.unuid = unuid;
 				this.dir_mipmaps = unuid_dir + "trakem2.mipmaps/";
 			}
 		}
