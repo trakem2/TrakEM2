@@ -562,42 +562,26 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.tabs.addChangeListener(tabs_listener);
 
 		// Tab 1: Patches
-		this.panel_patches = new JPanel();
-		BoxLayout patches_layout = new BoxLayout(panel_patches, BoxLayout.Y_AXIS);
-		this.panel_patches.setLayout(patches_layout);
+		this.panel_patches = makeTabPanel();
 		this.panel_patches.add(new JLabel("No patches."));
 		this.scroll_patches = makeScrollPane(panel_patches);
-		this.scroll_patches.setPreferredSize(new Dimension(250, 300));
-		this.scroll_patches.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Patches", scroll_patches);
 
 		// Tab 2: Profiles
-		this.panel_profiles = new JPanel();
-		BoxLayout profiles_layout = new BoxLayout(panel_profiles, BoxLayout.Y_AXIS);
-		this.panel_profiles.setLayout(profiles_layout);
+		this.panel_profiles = makeTabPanel();
 		this.panel_profiles.add(new JLabel("No profiles."));
 		this.scroll_profiles = makeScrollPane(panel_profiles);
-		this.scroll_profiles.setPreferredSize(new Dimension(250, 300));
-		this.scroll_profiles.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Profiles", scroll_profiles);
 
 		// Tab 3: pipes
-		this.panel_zdispl = new JPanel();
-		BoxLayout pipes_layout = new BoxLayout(panel_zdispl, BoxLayout.Y_AXIS);
-		this.panel_zdispl.setLayout(pipes_layout);
+		this.panel_zdispl = makeTabPanel();
 		this.panel_zdispl.add(new JLabel("No objects."));
 		this.scroll_zdispl = makeScrollPane(panel_zdispl);
-		this.scroll_zdispl.setPreferredSize(new Dimension(250, 300));
-		this.scroll_zdispl.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Z space", scroll_zdispl);
 
 		// Tab 4: channels
-		this.panel_channels = new JPanel();
-		BoxLayout channels_layout = new BoxLayout(panel_channels, BoxLayout.Y_AXIS);
-		this.panel_channels.setLayout(channels_layout);
+		this.panel_channels = makeTabPanel();
 		this.scroll_channels = makeScrollPane(panel_channels);
-		this.scroll_channels.setPreferredSize(new Dimension(250, 300));
-		this.scroll_channels.setMinimumSize(new Dimension(250, 300));
 		this.channels = new Channel[4];
 		this.channels[0] = new Channel(this, Channel.MONO);
 		this.channels[1] = new Channel(this, Channel.RED);
@@ -610,14 +594,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.tabs.add("Opacity", scroll_channels);
 
 		// Tab 5: labels
-		this.panel_labels = new JPanel();
-		BoxLayout labels_layout = new BoxLayout(panel_labels, BoxLayout.Y_AXIS);
-		this.panel_labels.setLayout(labels_layout);
+		this.panel_labels = makeTabPanel();
 		this.panel_labels.add(new JLabel("No labels."));
 		this.scroll_labels = makeScrollPane(panel_labels);
-		this.scroll_labels.setPreferredSize(new Dimension(250, 300));
-		this.scroll_labels.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Labels", scroll_labels);
+
 
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
@@ -799,12 +780,21 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		});
 	}
 
+	private JPanel makeTabPanel() {
+		JPanel panel = new JPanel();
+		BoxLayout layout = new BoxLayout(panel, BoxLayout.Y_AXIS);
+		panel.setLayout(layout);
+		return panel;
+	}
+
 	private JScrollPane makeScrollPane(Component c) {
 		JScrollPane jsp = new JScrollPane(c);
 		// adjust scrolling to use one DisplayablePanel as the minimal unit
 		jsp.getVerticalScrollBar().setBlockIncrement(DisplayablePanel.HEIGHT); // clicking within the track
 		jsp.getVerticalScrollBar().setUnitIncrement(DisplayablePanel.HEIGHT); // clicking on an arrow
 		jsp.setHorizontalScrollBarPolicy(javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		jsp.setPreferredSize(new Dimension(250, 300));
+		jsp.setMinimumSize(new Dimension(250, 300));
 		return jsp;
 	}
 
