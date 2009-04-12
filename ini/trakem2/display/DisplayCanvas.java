@@ -2208,6 +2208,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						}
 						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
 						g.drawImage(bi, 0, 0, null);
+						bi.flush();
 					}
 					// restore
 					g.setComposite(original);
@@ -2244,7 +2245,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					}
 					// undo transform, is intended for Displayable objects
 					g.setTransform(new AffineTransform());
-					g.drawImage(new ColorProcessor(g_width, g_height, pix).createImage(), 0, 0, null);
+					final Image img = new ColorProcessor(g_width, g_height, pix).createImage();
+					g.drawImage(img, 0, 0, null);
+					img.flush();
 					// reset
 					g.setTransform(atc);
 				}
