@@ -83,6 +83,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private JScrollPane scroll_labels;
 	private JPanel panel_labels;
 
+	private JPanel panel_layers;
+	private JScrollPane scroll_layers;
+	private Hashtable<Layer,LayerPanel> layer_panels = new Hashtable<Layer,LayerPanel>();
+
 	private JSlider transp_slider;
 	private DisplayNavigator navigator;
 	private JScrollBar scroller;
@@ -266,6 +270,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 								label = "Profiles";
 								al = d.layer.getDisplayables(Profile.class);
 								p = d.panel_profiles;
+							} else if (tab == d.scroll_layers) {
+								// nothing to do
+								return;
 							}
 
 							d.updateTab(p, label, al);
@@ -291,10 +298,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	private class ScrollLayerListener implements AdjustmentListener {
 
-		public void adjustmentValueChanged(AdjustmentEvent ae) {
-			int index = scroller.getValue();
+		public void adjustmentValueChanged(final AdjustmentEvent ae) {
+			final int index = scroller.getValue();
 			slt.set(layer.getParent().getLayer(index));
-			return;
 		}
 	}
 
@@ -599,6 +605,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.scroll_labels = makeScrollPane(panel_labels);
 		this.tabs.add("Labels", scroll_labels);
 
+		// Tab 6: layers
+		this.panel_layers = makeTabPanel();
+		this.scroll_layers = makeScrollPane(panel_layers);
+		for (final Layer la : layer.getParent().getLayers()) {
+			LayerPanel lp = new LayerPanel(this, la);
+			layer_panels.put(la, lp);
+			this.panel_layers.add(lp);
+		}
+		this.tabs.add("Layers", scroll_layers);
 
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
@@ -611,6 +626,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
 		// channels not included
+		// layers not included
 
 		// Navigator
 		this.navigator = new DisplayNavigator(this, layer.getLayerWidth(), layer.getLayerHeight());
@@ -2533,6 +2549,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		updateInDatabase("layer_id");
 	}
 
+	/** Calls setLayer(la) on the SetLayerThread. */
+	public void toLayer(final Layer la) {
+		if (la.getParent() != layer.getParent()) return; // not of the same LayerSet
+		if (la == layer) return; // nothing to do
+		slt.set(la);
+		updateInDatabase("layer_id");
+	}
+
 	/** If shift is down, scroll to the previous non-empty layer; otherwise, if scroll_step is larger than 1, then scroll 'scroll_step' layers backward; else just the previous Layer. */
 	public void previousLayer(final int modifiers) {
 		//setLayer(layer.getParent().previous(layer));
@@ -3821,5 +3845,37 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		slt.setAndWait(other_layer);
 		other_layer.add(profile);
 		selection.add(profile);
+	}
+
+	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
+
+	/** Set a layer to be painted as a specific color channel in the canvas.
+	 *  Only Color.red and Color.blue are accepted.
+	 *  Color.green is reserved for the current layer. */
+	protected void setColorChannel(final Layer layer, final Color color) {
+		if (Color.white == color) {
+			// Remove
+			for (final Iterator<Layer> it = layer_channels.values().iterator(); it.hasNext(); ) {
+				if (it.next() == layer) {
+					it.remove();
+					break;
+				}
+			}
+			canvas.repaint();
+		} else if (Color.red == color || Color.blue == color) {
+			// Replace or set new
+			layer_channels.put(color, layer);
+			// Reset all others of the same color to white
+			for (final LayerPanel lp : layer_panels.values()) {
+				Utils.log2("examining lp " + lp + " -- color: " + lp.getColor());
+				if (lp.layer == layer || lp.getColor() != color) continue;
+				Utils.log2("Setting white color to " + lp);
+				lp.setColor(Color.white);
+			}
+			tabs.repaint();
+			canvas.repaint();
+		} else {
+			Utils.log2("Trying to set unacceptable color for layer " + layer + " : " + color);
+		}
 	}
 }
