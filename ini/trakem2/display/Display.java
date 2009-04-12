@@ -609,11 +609,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// Tab 6: layers
 		this.panel_layers = makeTabPanel();
 		this.scroll_layers = makeScrollPane(panel_layers);
-		for (final Layer la : layer.getParent().getLayers()) {
-			LayerPanel lp = new LayerPanel(this, la);
-			layer_panels.put(la, lp);
-			this.panel_layers.add(lp);
-		}
+		recreateLayerPanels();
+		this.scroll_layers.addMouseWheelListener(canvas);
 		this.tabs.add("Layers", scroll_layers);
 
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
@@ -825,8 +822,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return canvas;
 	}
 
-	public void setLayer(final Layer layer) {
+	public synchronized void setLayer(final Layer layer) {
 		if (null == layer || layer == this.layer) return;
+		translateLayerColors(this.layer, layer);
+		if (tabs.getSelectedComponent() == scroll_layers) scrollToShow(scroll_layers, layer_panels.get(layer));
 		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
 		if (selection.isTransforming()) {
 			Utils.log("Can't browse layers while transforming.\nCANCEL the transform first with the ESCAPE key or right-click -> cancel.");
@@ -2468,7 +2467,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}});
 	}
 
-	private void scrollToShow(final JScrollPane scroll, final DisplayablePanel dp) {
+	private void scrollToShow(final JScrollPane scroll, final JPanel dp) {
 		if (null == dp) return;
 		JViewport view = scroll.getViewport();
 		Point current = view.getViewPosition();
@@ -2536,18 +2535,46 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	/** If shift is down, scroll to the next non-empty layer; otherwise, if scroll_step is larger than 1, then scroll 'scroll_step' layers ahead; else just the next Layer. */
 	public void nextLayer(final int modifiers) {
-		//setLayer(layer.getParent().next(layer));
-		//scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
+		final Layer l;
 		if (0 == (modifiers ^ Event.SHIFT_MASK)) {
-			slt.set(layer.getParent().nextNonEmpty(layer));
+			l = layer.getParent().nextNonEmpty(layer);
 		} else if (scroll_step > 1) {
 			int i = layer.getParent().indexOf(this.layer);
 			Layer la = layer.getParent().getLayer(i + scroll_step);
-			if (null != la) slt.set(la);
+			if (null != la) l = la;
+			else l = null;
 		} else {
-			slt.set(layer.getParent().next(layer));
+			l = layer.getParent().next(layer);
 		}
-		updateInDatabase("layer_id");
+		if (l != layer) {
+			slt.set(l);
+			updateInDatabase("layer_id");
+		}
+	}
+
+	private final void translateLayerColors(final Layer current, final Layer other) {
+		if (current == other) return;
+		if (layer_channels.size() > 0) {
+			final LayerSet ls = getLayerSet();
+			// translate colors by distance from current layer to new Layer l
+			final int dist = ls.indexOf(other) - ls.indexOf(current);
+			translateLayerColor(Color.red, dist);
+			translateLayerColor(Color.blue, dist);
+		}
+	}
+
+	private final void translateLayerColor(final Color color, final int dist) {
+		final LayerSet ls = getLayerSet();
+		final Layer l = layer_channels.get(color);
+		if (null == l) return;
+		updateColor(Color.white, layer_panels.get(l));
+		final Layer l2 = ls.getLayer(ls.indexOf(l) + dist);
+		if (null != l2) updateColor(color, layer_panels.get(l2));
+	}
+
+	private final void updateColor(final Color color, final LayerPanel lp) {
+		lp.setColor(color);
+		setColorChannel(lp.layer, color);
 	}
 
 	/** Calls setLayer(la) on the SetLayerThread. */
@@ -2560,18 +2587,21 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	/** If shift is down, scroll to the previous non-empty layer; otherwise, if scroll_step is larger than 1, then scroll 'scroll_step' layers backward; else just the previous Layer. */
 	public void previousLayer(final int modifiers) {
-		//setLayer(layer.getParent().previous(layer));
-		//scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
+		final Layer l;
 		if (0 == (modifiers ^ Event.SHIFT_MASK)) {
-			slt.set(layer.getParent().previousNonEmpty(layer));
+			l = layer.getParent().previousNonEmpty(layer);
 		} else if (scroll_step > 1) {
 			int i = layer.getParent().indexOf(this.layer);
 			Layer la = layer.getParent().getLayer(i - scroll_step);
-			if (null != la) slt.set(la);
+			if (null != la) l = la;
+			else l = null;
 		} else {
-			slt.set(layer.getParent().previous(layer));
+			l = layer.getParent().previous(layer);
 		}
-		updateInDatabase("layer_id");
+		if (l != layer) {
+			slt.set(l);
+			updateInDatabase("layer_id");
+		}
 	}
 
 	static public void updateLayerScroller(LayerSet set) {
@@ -2590,6 +2620,41 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else {
 			scroller.setEnabled(true);
 			scroller.setValues(layer.getParent().getLayerIndex(layer.getId()), 1, 0, size);
+		}
+		recreateLayerPanels();
+	}
+
+	private synchronized void recreateLayerPanels() {
+		synchronized (layer_channels) {
+			panel_layers.removeAll();
+
+			if (0 == layer_panels.size()) {
+				for (final Layer la : layer.getParent().getLayers()) {
+					final LayerPanel lp = new LayerPanel(this, la);
+					layer_panels.put(la, lp);
+					this.panel_layers.add(lp);
+				}
+			} else {
+				// Set theory at work: keep old to reuse
+				layer_panels.keySet().retainAll(getLayerSet().getLayers());
+				for (final Layer la : layer.getParent().getLayers()) {
+					LayerPanel lp = layer_panels.get(la);
+					if (null == lp) {
+						lp = new LayerPanel(this, la);
+						layer_panels.put(la, lp);
+					}
+					this.panel_layers.add(lp);
+				}
+				for (final Iterator<Map.Entry<Integer,LayerPanel>> it = layer_alpha.entrySet().iterator(); it.hasNext(); ) {
+					final Map.Entry<Integer,LayerPanel> e = it.next();
+					if (-1 == getLayerSet().indexOf(e.getValue().layer)) it.remove();
+				}
+				for (final Iterator<Map.Entry<Color,Layer>> it = layer_channels.entrySet().iterator(); it.hasNext(); ) {
+					final Map.Entry<Color,Layer> e = it.next();
+					if (-1 == getLayerSet().indexOf(e.getValue())) it.remove();
+				}
+				scroll_layers.repaint();
+			}
 		}
 	}
 
@@ -3901,9 +3966,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				layer_channels.put(color, layer);
 				// Reset all others of the same color to white
 				for (final LayerPanel lp : layer_panels.values()) {
-					Utils.log2("examining lp " + lp + " -- color: " + lp.getColor());
 					if (lp.layer == layer || lp.getColor() != color) continue;
-					Utils.log2("Setting white color to " + lp);
 					lp.setColor(Color.white);
 				}
 				tabs.repaint();

@@ -2225,6 +2225,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						final Graphics2D gb = bi.createGraphics();
 						gb.setTransform(atc);
 						final Layer la = e.getValue();
+						if (la == layer && Color.green != e.getKey()) continue; // don't paint current layer in two channels
 						for (final Displayable d : la.find(srcRect, true)) {
 							if (d.getClass() != Patch.class) continue; // skip non-images
 							d.paint(gb, magnification, false, c_alphas, la);
@@ -2246,8 +2247,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					g.drawImage(new ColorProcessor(g_width, g_height, pix).createImage(), 0, 0, null);
 					// reset
 					g.setTransform(atc);
-
-					Utils.log2("RGB paint not implemented yet");
 				}
 
 				// finally, paint non-srcRect areas

@@ -121,10 +121,13 @@ public final class LayerPanel extends JPanel implements MouseListener {
 		final int mod = me.getModifiers();
 		Utils.log2("mouse pressed : " + mod);
 		if (0 == (mod & Event.ALT_MASK) && 0 == (mod & Event.SHIFT_MASK)) {
+			// Would mess up translation of red/blue colors when scrolling
+			/*
 			display.toLayer(this.layer);
 			setColor(Color.white);
 			display.setColorChannel(this.layer, this.color);
 			repaint();
+			*/
 		} else if (display.getLayer() == this.layer) {
 			// do nothing
 		} else if (0 != (mod & Event.ALT_MASK)) {
@@ -144,7 +147,6 @@ public final class LayerPanel extends JPanel implements MouseListener {
 				setColor(Color.red);
 			}
 		}
-		repaint();
 		display.setColorChannel(this.layer, this.color);
 	}
 
