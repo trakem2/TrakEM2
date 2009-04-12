@@ -26,6 +26,7 @@ import ij.io.OpenDialog;
 
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
+import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Dispatcher;
@@ -101,9 +102,7 @@ public class FilePathRepair {
 		synchronized public final void add(final Patch patch) {
 			if (set.contains(patch)) return; // already here
 			vp.add(patch);
-			final String path = patch.getFilePath();
-			final int i = path.lastIndexOf("-----#slice=");
-			vpath.add(-1 == i ? path : path.substring(0, i));
+			vpath.add(patch.getImageFilePath());
 			set.add(patch);
 		}
 
@@ -171,11 +170,12 @@ public class FilePathRepair {
 					try {
 						table.setEnabled(false);
 						GenericDialog gd = new GenericDialog("Fix paths");
-						gd.addCheckbox("Fix others with identical parent directory", true);
+						gd.addCheckbox("Fix other listed image files with identical parent directory", true);
+						gd.addCheckbox("Fix all image files in the project with identical parent directory", true);
 						gd.addCheckbox("Update mipmaps for each fixed path", false);
 						gd.showDialog();
 						if (!gd.wasCanceled()) {
-							fixPath(table, data, row, gd.getNextBoolean(), gd.getNextBoolean());
+							fixPath(table, data, row, gd.getNextBoolean(), gd.getNextBoolean(), gd.getNextBoolean());
 						}
 					} catch (Exception e) {
 						IJError.print(e);
@@ -187,7 +187,7 @@ public class FilePathRepair {
 		}
 	};
 
-	static private void fixPath(final JTable table, final PathTableModel data, final int row, final boolean fix_similar, final boolean update_mipmaps) throws Exception {
+	static private void fixPath(final JTable table, final PathTableModel data, final int row, final boolean fix_similar, final boolean fix_all, final boolean update_mipmaps) throws Exception {
 		synchronized (projects) {
 			final Patch patch = data.vp.get(row);
 			if (null == patch) return;
@@ -212,6 +212,9 @@ public class FilePathRepair {
 			if (!wrong_parent_path.endsWith(File.separator)) wrong_parent_path = new StringBuffer(wrong_parent_path).append(File.separatorChar).toString(); // backslash-safe
 			String good_parent_path = dir;
 			if (!dir.endsWith(File.separator)) good_parent_path = new StringBuffer(good_parent_path).append(File.separatorChar).toString(); // backslash-safe
+
+			int n_fixed = 1;
+
 			// Check for similar parent paths and see if they can be fixed
 			if (fix_similar) {
 				for (int i=data.vp.size() -1; i>-1; i--) {
@@ -223,7 +226,22 @@ public class FilePathRepair {
 						if (file.exists()) {
 							if (fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
 								data.remove(p); // not by 'i' but by Patch, since if some fail the order is not the same
+								n_fixed++;
 							}
+						}
+					}
+				}
+			}
+			if (fix_all) {
+				// traverse all Patch from the entire project
+				for (final Displayable d : patch.getLayerSet().getDisplayables(Patch.class)) {
+					final Patch p = (Patch) d;
+					final String wrong_path = p.getImageFilePath();
+					if (wrong_path.startsWith(wrong_parent_path)) {
+						File file = new File(new StringBuffer(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
+						if (file.exists()) {
+							fixPatchPath(p, file.getAbsolutePath(), update_mipmaps);
+							n_fixed++;
 						}
 					}
 				}
@@ -234,6 +252,8 @@ public class FilePathRepair {
 				FilePathRepair fpr = projects.remove(patch.getProject());
 				fpr.frame.dispose();
 			}
+
+			Utils.logAll("Fixed " + n_fixed + " image file path" + (n_fixed > 1 ? "s" : ""));
 		}
 	}
 
