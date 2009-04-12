@@ -2250,6 +2250,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					img.flush();
 					// reset
 					g.setTransform(atc);
+
+					// then paint the non-Patch objects of the current layer
+					for (final Displayable d : al_paint.subList(al_patches.size(), al_paint.size())) {
+						d.paint(g, magnification, d == active, c_alphas, layer);
+					}
 				}
 
 				// finally, paint non-srcRect areas
