@@ -1302,7 +1302,7 @@ public final class FSLoader extends Loader {
 		this.unuid = (String) ht_attributes.remove("unuid");
 
 		// Attempt to get an existing UNUId folder, for .xml files that share the same mipmaps folder
-		if (ControlWindow.isGUIEnabled()) {
+		if (ControlWindow.isGUIEnabled() && null == this.unuid) {
 			obtainUNUIdFolder();
 		}
 
