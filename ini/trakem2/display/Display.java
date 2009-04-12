@@ -3916,11 +3916,38 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
 	private final TreeMap<Integer,LayerPanel> layer_alpha = new TreeMap<Integer,LayerPanel>();
 
-	protected void setLayerAlpha(final LayerPanel lp, final float a) {
-		if (M.equals(0, a)) {
-			layer_alpha.remove(lp.layer.getParent().indexOf(lp.layer));
-		} else {
-			layer_alpha.put(lp.layer.getParent().indexOf(lp.layer), lp);
+	/** Remove all red/blue coloring of layers, and repaint canvas. */
+	protected void resetLayerColors() {
+		synchronized (layer_channels) {
+			for (final Layer l : new ArrayList<Layer>(layer_channels.values())) { // avoid concurrent modification exception
+				final LayerPanel lp = layer_panels.get(l);
+				lp.setColor(Color.white);
+				setColorChannel(lp.layer, Color.white);
+			}
+			layer_channels.clear();
+		}
+		canvas.repaint();
+	}
+
+	/** Set all layer alphas to zero, and repaint canvas. */
+	protected void resetLayerAlphas() {
+		synchronized (layer_channels) {
+			for (final LayerPanel lp : new ArrayList<LayerPanel>(layer_alpha.values())) {
+				lp.setAlpha(0);
+			}
+			layer_alpha.clear(); // should have already been cleared
+		}
+		canvas.repaint();
+	}
+
+	/** Add to layer_alpha table, or remove if alpha is zero. */
+	protected void storeLayerAlpha(final LayerPanel lp, final float a) {
+		synchronized (layer_channels) {
+			if (M.equals(0, a)) {
+				layer_alpha.remove(lp.layer.getParent().indexOf(lp.layer));
+			} else {
+				layer_alpha.put(lp.layer.getParent().indexOf(lp.layer), lp);
+			}
 		}
 	}
 

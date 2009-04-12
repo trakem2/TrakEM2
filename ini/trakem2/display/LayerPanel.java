@@ -30,9 +30,13 @@ import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JSlider;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JMenuItem;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import java.awt.Event;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseEvent;
 import java.awt.Color;
@@ -58,7 +62,8 @@ public final class LayerPanel extends JPanel implements MouseListener {
 			public void stateChanged(final ChangeEvent ce) {
 				final float a = slider.getValue() / 100.0f;
 				setAlpha(a);
-				display.setLayerAlpha(LayerPanel.this, a);
+				display.storeLayerAlpha(LayerPanel.this, a);
+				display.repaint();
 			}
 		});
 
@@ -100,7 +105,7 @@ public final class LayerPanel extends JPanel implements MouseListener {
 	public final void setAlpha(final float alpha) {
 		if (alpha < 0 || alpha > 1) return;
 		this.alpha = alpha;
-		display.repaint();
+		slider.setValue((int)(alpha * 100));
 	}
 
 	public final float getAlpha() { return alpha; }
@@ -118,6 +123,26 @@ public final class LayerPanel extends JPanel implements MouseListener {
 	}
 
 	public void mousePressed(final MouseEvent me) {
+		if (Utils.isPopupTrigger(me)) {
+			JPopupMenu popup = new JPopupMenu();
+			JMenuItem item = new JMenuItem("Reset layer coloring");
+			item.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					display.resetLayerColors();
+				}
+			});
+			popup.add(item);
+			item = new JMenuItem("Reset all layer alphas");
+			item.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					display.resetLayerAlphas();
+				}
+			});
+			popup.add(item);
+			popup.show(this, me.getX(), me.getY());
+			return;
+		}
+
 		final int mod = me.getModifiers();
 		Utils.log2("mouse pressed : " + mod);
 		if (0 == (mod & Event.ALT_MASK) && 0 == (mod & Event.SHIFT_MASK)) {
