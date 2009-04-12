@@ -42,6 +42,7 @@ import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.Lock;
+import ini.trakem2.utils.M;
 import ini.trakem2.tree.*;
 
 import javax.swing.*;
@@ -3848,34 +3849,69 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
+	private final TreeMap<Integer,LayerPanel> layer_alpha = new TreeMap<Integer,LayerPanel>();
+
+	protected void setLayerAlpha(final LayerPanel lp, final float a) {
+		if (M.equals(0, a)) {
+			layer_alpha.remove(lp.layer.getParent().indexOf(lp.layer));
+		} else {
+			layer_alpha.put(lp.layer.getParent().indexOf(lp.layer), lp);
+		}
+	}
+
+	static protected final int REPAINT_SINGLE_LAYER = 0;
+	static protected final int REPAINT_MULTI_LAYER = 1;
+	static protected final int REPAINT_RGB_LAYER = 2;
+
+	/** Sets the values atomically, returns the painting mode. */
+	protected int getPaintMode(final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> list) {
+		synchronized (layer_channels) {
+			if (layer_channels.size() > 0) {
+				hm.putAll(layer_channels);
+				hm.put(Color.green, this.layer);
+				return REPAINT_RGB_LAYER;
+			}
+			list.addAll(layer_alpha.values());
+			final int len = list.size();
+			if (len > 1) return REPAINT_MULTI_LAYER;
+			if (1 == len) {
+				if (list.get(0).layer == this.layer) return REPAINT_SINGLE_LAYER; // normal mode
+				return REPAINT_MULTI_LAYER;
+			}
+			return REPAINT_SINGLE_LAYER;
+		}
+	}
 
 	/** Set a layer to be painted as a specific color channel in the canvas.
 	 *  Only Color.red and Color.blue are accepted.
 	 *  Color.green is reserved for the current layer. */
 	protected void setColorChannel(final Layer layer, final Color color) {
-		if (Color.white == color) {
-			// Remove
-			for (final Iterator<Layer> it = layer_channels.values().iterator(); it.hasNext(); ) {
-				if (it.next() == layer) {
-					it.remove();
-					break;
+		synchronized (layer_channels) {
+			if (Color.white == color) {
+				// Remove
+				for (final Iterator<Layer> it = layer_channels.values().iterator(); it.hasNext(); ) {
+					if (it.next() == layer) {
+						it.remove();
+						break;
+					}
 				}
+				canvas.repaint();
+			} else if (Color.red == color || Color.blue == color) {
+				// Replace or set new
+				layer_channels.put(color, layer);
+				// Reset all others of the same color to white
+				for (final LayerPanel lp : layer_panels.values()) {
+					Utils.log2("examining lp " + lp + " -- color: " + lp.getColor());
+					if (lp.layer == layer || lp.getColor() != color) continue;
+					Utils.log2("Setting white color to " + lp);
+					lp.setColor(Color.white);
+				}
+				tabs.repaint();
+				canvas.repaint();
+			} else {
+				Utils.log2("Trying to set unacceptable color for layer " + layer + " : " + color);
 			}
-			canvas.repaint();
-		} else if (Color.red == color || Color.blue == color) {
-			// Replace or set new
-			layer_channels.put(color, layer);
-			// Reset all others of the same color to white
-			for (final LayerPanel lp : layer_panels.values()) {
-				Utils.log2("examining lp " + lp + " -- color: " + lp.getColor());
-				if (lp.layer == layer || lp.getColor() != color) continue;
-				Utils.log2("Setting white color to " + lp);
-				lp.setColor(Color.white);
-			}
-			tabs.repaint();
-			canvas.repaint();
-		} else {
-			Utils.log2("Trying to set unacceptable color for layer " + layer + " : " + color);
 		}
+		this.canvas.repaint(true);
 	}
 }

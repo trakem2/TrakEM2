@@ -56,9 +56,9 @@ public final class LayerPanel extends JPanel implements MouseListener {
 
 		this.slider.addChangeListener(new ChangeListener() {
 			public void stateChanged(final ChangeEvent ce) {
-				//final float new_value = (float)((JSlider)ce.getSource()).getValue();
-				//setAlpha(new_value / 100.0f);
-				setAlpha(slider.getValue() / 100.0f);
+				final float a = slider.getValue() / 100.0f;
+				setAlpha(a);
+				display.setLayerAlpha(LayerPanel.this, a);
 			}
 		});
 
@@ -83,7 +83,7 @@ public final class LayerPanel extends JPanel implements MouseListener {
 		return new StringBuffer().append(layer.getParent().indexOf(layer) + 1).append(':').append(' ').append(layer.getTitle()).toString();
 	}
 
-	public void setColor(final Color color) {
+	public final void setColor(final Color color) {
 		this.color = color;
 		setBackground(color);
 		slider.setBackground(color);
@@ -97,14 +97,23 @@ public final class LayerPanel extends JPanel implements MouseListener {
 
 	public final Color getColor() { return color; }
 
-	public void setAlpha(final float alpha) {
+	public final void setAlpha(final float alpha) {
 		if (alpha < 0 || alpha > 1) return;
 		this.alpha = alpha;
 		display.repaint();
 	}
 
-	public void paint(final Graphics g) {
+	public final float getAlpha() { return alpha; }
+
+	public final void paint(final Graphics g) {
 		title.setText(makeTitle());
+		if (display.getLayer() == layer) {
+			setBackground(Color.green);
+			slider.setBackground(Color.green);
+		} else {
+			setBackground(color);
+			slider.setBackground(color);
+		}
 		super.paint(g);
 	}
 
@@ -144,7 +153,7 @@ public final class LayerPanel extends JPanel implements MouseListener {
 	public void mouseExited (MouseEvent me) {}
 	public void mouseClicked(MouseEvent me) {}
 
-	public String toString() {
+	public final String toString() {
 		return "Layer panel for " + layer.getTitle();
 	}
 }

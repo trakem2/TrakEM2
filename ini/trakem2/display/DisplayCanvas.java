@@ -24,6 +24,8 @@ package ini.trakem2.display;
 
 import ij.*;
 import ij.gui.*;
+import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.ProjectToolbar;
@@ -2008,9 +2010,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 
-	/** Minimum time an offscreen thread will run before it can be quit, in miliseconds. */
-	static private final int min_time = 200;
-
 	protected class RepaintProperties implements AbstractOffscreenThread.RepaintProperties {
 		final private Layer layer;
 		final private int g_width;
@@ -2018,6 +2017,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final private Displayable active;
 		final private int c_alphas;
 		final private Rectangle clipRect;
+		final private int mode;
+		final private HashMap<Color,Layer> hm;
+		final private ArrayList<LayerPanel> blending_list;
 
 		RepaintProperties(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
 			this.clipRect = clipRect;
@@ -2026,6 +2028,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			this.g_height = g_height;
 			this.active = active;
 			this.c_alphas = c_alphas;
+
+			// query the display for repainting mode
+			this.hm = new HashMap<Color,Layer>();
+			this.blending_list = new ArrayList<LayerPanel>();
+			this.mode = display.getPaintMode(hm, blending_list);
 		}
 	}
 
@@ -2044,9 +2051,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				final int c_alphas;
 				final Rectangle clipRect;
 				final Loader loader;
+				final HashMap<Color,Layer> hm;
+				final ArrayList<LayerPanel> blending_list;
+				final int mode;
 
 				synchronized (this) {
-					DisplayCanvas.RepaintProperties rp = (DisplayCanvas.RepaintProperties) this.rp;
+					final DisplayCanvas.RepaintProperties rp = (DisplayCanvas.RepaintProperties) this.rp;
 					layer = rp.layer;
 					g_width = rp.g_width;
 					g_height = rp.g_height;
@@ -2054,6 +2064,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					c_alphas = rp.c_alphas;
 					clipRect = rp.clipRect;
 					loader = layer.getProject().getLoader();
+					mode = rp.mode;
+					hm = rp.hm;
+					blending_list = rp.blending_list;
 				}
 
 				// flag Loader to do massive flushing if needed
@@ -2165,9 +2178,76 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				//Utils.log2("offscreen painting: " + al_paint.size());
 
 
-				// Actual painting
-				for (final Displayable d : al_paint) {
-					d.prePaint(g, magnification, d == active, c_alphas, layer);
+				// Determine painting mode
+				if (Display.REPAINT_SINGLE_LAYER == mode) {
+					// Direct painting mode, with prePaint abilities
+					for (final Displayable d : al_paint) {
+						d.prePaint(g, magnification, d == active, c_alphas, layer);
+					}
+				} else if (Display.REPAINT_MULTI_LAYER == mode) {
+					// paint first the current layer Patches only (to set the background)
+					int count = 0;
+					for (final Displayable d : al_patches) {
+						d.paint(g, magnification, d == active, c_alphas, layer);
+					}
+
+					// then blend on top the Patches of the others, in reverse Z order and using the alpha of the LayerPanel
+					final Composite original = g.getComposite();
+					// reset
+					g.setTransform(new AffineTransform());
+					for (final ListIterator<LayerPanel> it = blending_list.listIterator(blending_list.size()); it.hasPrevious(); ) {
+						final LayerPanel lp = it.previous();
+						if (lp.layer == layer) continue;
+						layer.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
+						final BufferedImage bi = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT);
+						final Graphics2D gb = bi.createGraphics();
+						gb.setTransform(atc);
+						for (final Displayable d : lp.layer.find(srcRect, true)) {
+							if (d.getClass() != Patch.class) continue; // skip non-images
+							d.paint(gb, magnification, false, c_alphas, lp.layer);
+						}
+						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
+						g.drawImage(bi, 0, 0, null);
+					}
+					// restore
+					g.setComposite(original);
+					g.setTransform(atc);
+
+					// then paint the non-Patch objects of the current layer
+					for (final Displayable d : al_paint.subList(al_patches.size(), al_paint.size())) {
+						d.paint(g, magnification, d == active, c_alphas, layer);
+					}
+				} else { // Display.REPAINT_RGB_LAYER == mode
+					final HashMap<Color,byte[]> channels = new HashMap<Color,byte[]>();
+					hm.put(Color.green, layer);
+					for (final Map.Entry<Color,Layer> e : hm.entrySet()) {
+						final BufferedImage bi = new BufferedImage(g_width, g_height, BufferedImage.TYPE_BYTE_GRAY); //INDEXED, Loader.GRAY_LUT);
+						final Graphics2D gb = bi.createGraphics();
+						gb.setTransform(atc);
+						final Layer la = e.getValue();
+						for (final Displayable d : la.find(srcRect, true)) {
+							if (d.getClass() != Patch.class) continue; // skip non-images
+							d.paint(gb, magnification, false, c_alphas, la);
+						}
+						channels.put(e.getKey(), (byte[])new ByteProcessor(bi).getPixels());
+					}
+					final byte[] red, green, blue;
+					green = channels.get(Color.green);
+					if (null == channels.get(Color.red)) red = new byte[green.length];
+					else red = channels.get(Color.red);
+					if (null == channels.get(Color.blue)) blue = new byte[green.length];
+					else blue = channels.get(Color.blue);
+					final int[] pix = new int[green.length];
+					for (int i=0; i<green.length; i++) {
+						pix[i] = ((red[i] & 0xff) << 16) + ((green[i] & 0xff) << 8) + (blue[i] & 0xff);
+					}
+					// undo transform, is intended for Displayable objects
+					g.setTransform(new AffineTransform());
+					g.drawImage(new ColorProcessor(g_width, g_height, pix).createImage(), 0, 0, null);
+					// reset
+					g.setTransform(atc);
+
+					Utils.log2("RGB paint not implemented yet");
 				}
 
 				// finally, paint non-srcRect areas
