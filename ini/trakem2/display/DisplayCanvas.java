@@ -2099,7 +2099,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 				Displayable tmp = null;
 
-				int i = 0;
 				while (ital.hasNext()) {
 					final Displayable d = ital.next();
 					final Class c = d.getClass();
@@ -2115,7 +2114,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						if (top) al_top.add(d);
 						else al_paint.add(d);
 					}
-					i++;
 				}
 
 				// preload concurrently as many as possible
@@ -2127,7 +2125,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					if (zd == active) top = true;
 					else if (top) al_top.add(zd);
 					else al_paint.add(zd);
-					i++;
 				}
 				// paint LayerSet and DLabel objects!
 				if (null != tmp) {
@@ -2140,7 +2137,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					if (d == active) top = true;
 					else if (top) al_top.add(d);
 					else al_paint.add(d);
-					i++;
 				}
 
 				// create new graphics
@@ -2166,23 +2162,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				//  2 - images and anything else not on al_top
 				//  3 - non-srcRect areas
 
-				/*
-				if (!background.isEmpty()) {
-					// subtract non-srcRect areas
-					background.subtract(new Area(r1));
-					background.subtract(new Area(r2));
-					// paint background
-					g.setColor(Color.black);
-					g.fill(background);
-				}
-				*/
-
 				//Utils.log2("offscreen painting: " + al_paint.size());
 
-				i = 0;
-				for (Displayable d : al_paint) {
+
+				// Actual painting
+				for (final Displayable d : al_paint) {
 					d.prePaint(g, magnification, d == active, c_alphas, layer);
-					i++;
 				}
 
 				// finally, paint non-srcRect areas
