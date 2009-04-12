@@ -3989,13 +3989,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 				canvas.repaint();
 			} else if (Color.red == color || Color.blue == color) {
+				// Reset current of that color, if any, to white
+				final Layer l = layer_channels.remove(color);
+				if (null != l) layer_panels.get(l).setColor(Color.white);
 				// Replace or set new
 				layer_channels.put(color, layer);
-				// Reset all others of the same color to white
-				for (final LayerPanel lp : layer_panels.values()) {
-					if (lp.layer == layer || lp.getColor() != color) continue;
-					lp.setColor(Color.white);
-				}
 				tabs.repaint();
 				canvas.repaint();
 			} else {

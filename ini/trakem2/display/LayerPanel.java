@@ -122,23 +122,40 @@ public final class LayerPanel extends JPanel implements MouseListener {
 		super.paint(g);
 	}
 
+	private class ColorActionListener implements ActionListener {
+		final Color c;
+		ColorActionListener(final Color c) { this.c = c; }
+		public void actionPerformed(final ActionEvent ae) {
+			setColor(c);
+			display.setColorChannel(layer, c);
+		}
+	}
+
 	public void mousePressed(final MouseEvent me) {
 		if (Utils.isPopupTrigger(me)) {
 			JPopupMenu popup = new JPopupMenu();
-			JMenuItem item = new JMenuItem("Reset layer coloring");
+			JMenuItem item = new JMenuItem("Set as red channel"); popup.add(item);
+			if (Color.red == this.color) item.setEnabled(false);
+			else item.addActionListener(new ColorActionListener(Color.red));
+			item = new JMenuItem("Set as blue channel"); popup.add(item);
+			if (Color.blue == this.color) item.setEnabled(false);
+			else item.addActionListener(new ColorActionListener(Color.blue));
+			item = new JMenuItem("Reset"); popup.add(item);
+			if (Color.white == this.color) item.setEnabled(false);
+			else item.addActionListener(new ColorActionListener(Color.white));
+			popup.addSeparator();
+			item = new JMenuItem("Reset all layer coloring"); popup.add(item);
 			item.addActionListener(new ActionListener() {
 				public void actionPerformed(ActionEvent ae) {
 					display.resetLayerColors();
 				}
 			});
-			popup.add(item);
-			item = new JMenuItem("Reset all layer alphas");
+			item = new JMenuItem("Reset all layer alphas"); popup.add(item);
 			item.addActionListener(new ActionListener() {
 				public void actionPerformed(ActionEvent ae) {
 					display.resetLayerAlphas();
 				}
 			});
-			popup.add(item);
 			popup.show(this, me.getX(), me.getY());
 			return;
 		}
@@ -147,6 +164,7 @@ public final class LayerPanel extends JPanel implements MouseListener {
 		Utils.log2("mouse pressed : " + mod);
 		if (0 == (mod & Event.ALT_MASK) && 0 == (mod & Event.SHIFT_MASK)) {
 			// Would mess up translation of red/blue colors when scrolling
+			// So just do nothing.
 			/*
 			display.toLayer(this.layer);
 			setColor(Color.white);
