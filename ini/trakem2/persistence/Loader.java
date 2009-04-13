@@ -2181,7 +2181,7 @@ abstract public class Loader {
 	}
 
 	public Bureaucrat importImages(final Layer ref_layer) {
-		return importImages(ref_layer, null, null, 0, 0);
+		return importImages(ref_layer, null, null, 0, 0, false);
 	}
 
 	/** Import images from the given text file, which is expected to contain 4 columns:<br />
@@ -2195,7 +2195,7 @@ abstract public class Loader {
 	 * Images will be imported in parallel, using as many cores as your machine has.<br />
 	 * The @param calibration transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
 	 */
-	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_) {
+	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_) {
 		// check parameters: ask for good ones if necessary
 		if (null == abs_text_file_path_) {
 			String[] file = Utils.selectFile("Select text file");
@@ -2210,6 +2210,7 @@ abstract public class Loader {
 			gdd.addChoice("Column separator: ", separators, separators[0]);
 			gdd.addNumericField("Layer thickness: ", 60, 2); // default: 60 nm
 			gdd.addNumericField("Calibration (data to pixels): ", 1, 2);
+			gdd.addCheckbox("Homogenize contrast layer-wise", homogenize_contrast_);
 			gdd.showDialog();
 			if (gdd.wasCanceled()) return null;
 			layer_thickness_ = gdd.getNextNumber();
@@ -2234,6 +2235,7 @@ abstract public class Loader {
 				default:
 					break;
 			}
+			homogenize_contrast_ = gdd.getNextBoolean();
 		}
 
 		// make vars accessible from inner threads:
@@ -2242,27 +2244,9 @@ abstract public class Loader {
 		final String column_separator = column_separator_;
 		final double layer_thickness = layer_thickness_;
 		final double calibration = calibration_;
+		final boolean homogenize_contrast = homogenize_contrast_;
 
-
-		GenericDialog gd = new GenericDialog("Options");
-		gd.addMessage("For all touched layers:");
-		gd.addCheckbox("Homogenize histograms", false);
-		gd.addCheckbox("Register tiles and layers", true);
-		gd.addCheckbox("With overlapping tiles only", true); // TODO could also use near tiles, defining near as "within a radius of one image width from the center of the tile"
-		final Component[] c_enable = {
-			(Component)gd.getCheckboxes().get(2)
-		};
-		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(1), c_enable, null);
-		//gd.addCheckbox("Apply non-linear deformation", false);
-		gd.showDialog();
-		if (gd.wasCanceled()) return null;
-		final boolean homogenize_contrast = gd.getNextBoolean();
-		final boolean register_tiles = gd.getNextBoolean();
-		final boolean overlapping_only = gd.getNextBoolean();
-		final int layer_subset = gd.getNextChoiceIndex();
-		//final boolean apply_non_linear_def = gd.getNextBoolean();
 		final Set touched_layers = Collections.synchronizedSet(new HashSet());
-		gd = null;
 
 
 		/* If requested, ask for a text file containing the non-linear deformation coefficients
@@ -2451,35 +2435,6 @@ abstract public class Loader {
 						setTaskName("");
 						// layer-wise (layer order is irrelevant):
 						Thread t = homogenizeContrast(la); // multithreaded
-						if (null != t) t.join();
-					}
-					if (register_tiles) {
-						wo.setTaskName("Registering tiles.");
-						// sequential, from first to last layer
-						Layer first = la[0];
-						Layer last = la[0];
-						// order touched layers by Z coord
-						for (int i=1; i<la.length; i++) {
-							if (la[i].getZ() < first.getZ()) first = la[i];
-							if (la[i].getZ() > last.getZ()) last = la[i];
-						}
-						LayerSet ls = base_layer.getParent();
-						List<Layer> las = ls.getLayers().subList(ls.indexOf(first), ls.indexOf(last)+1);
-						// decide if processing all or just the touched ones or what range
-						if (ls.size() != las.size()) {
-							GenericDialog gd = new GenericDialog("Layer Range");
-							gd.addMessage("Apply registration to layers:");
-							Utils.addLayerRangeChoices(first, last, gd);
-							gd.showDialog();
-							if (gd.wasCanceled()) {
-								finishedWorking();
-								return;
-							}
-							las = ls.getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1);
-						}
-						Layer[] zla = new Layer[las.size()];
-						zla = las.toArray(zla);
-						Thread t = Registration.registerTilesSIFT(zla, overlapping_only);
 						if (null != t) t.join();
 					}
 
