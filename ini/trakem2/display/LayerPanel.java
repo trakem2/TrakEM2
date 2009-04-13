@@ -37,6 +37,7 @@ import javax.swing.event.ChangeListener;
 import java.awt.Event;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseEvent;
 import java.awt.Color;
@@ -66,6 +67,19 @@ public final class LayerPanel extends JPanel implements MouseListener {
 				display.repaint();
 			}
 		});
+
+		// Insert this mouse listener before the slider's
+		/* // BIZARRE autoscrolling of the slider when popup is up. And cannot be fixed with if (popup), neither within the ChangeEvent (which doesn't register)
+		final MouseListener[] mls = slider.getMouseListeners();
+		for (final MouseListener ml : mls) slider.removeMouseListener(ml); // works because getMouseListeners returns an immutable array.
+		slider.addMouseListener(new MouseAdapter() {
+			public void mousePressed(MouseEvent me) {
+				doMousePressed(me);
+				me.consume();
+			}
+		});
+		for (final MouseListener ml : mls) slider.addMouseListener(ml);
+		*/
 
 		this.title = new JLabel(makeTitle());
 		this.title.addMouseListener(this);
@@ -132,6 +146,10 @@ public final class LayerPanel extends JPanel implements MouseListener {
 	}
 
 	public void mousePressed(final MouseEvent me) {
+		doMousePressed(me);
+	}
+
+	private void doMousePressed(final MouseEvent me) {
 		if (Utils.isPopupTrigger(me)) {
 			JPopupMenu popup = new JPopupMenu();
 			JMenuItem item = new JMenuItem("Set as red channel"); popup.add(item);
@@ -157,6 +175,7 @@ public final class LayerPanel extends JPanel implements MouseListener {
 				}
 			});
 			popup.show(this, me.getX(), me.getY());
+			me.consume();
 			return;
 		}
 
@@ -181,6 +200,8 @@ public final class LayerPanel extends JPanel implements MouseListener {
 				// set as blue channel
 				setColor(Color.blue);
 			}
+			display.setColorChannel(this.layer, this.color);
+			me.consume();
 		} else if (0 != (mod & Event.SHIFT_MASK)) {
 			if (this.color == Color.red) {
 				// unset
@@ -189,8 +210,9 @@ public final class LayerPanel extends JPanel implements MouseListener {
 				// set as red channel
 				setColor(Color.red);
 			}
+			display.setColorChannel(this.layer, this.color);
+			me.consume();
 		}
-		display.setColorChannel(this.layer, this.color);
 	}
 
 	public void mouseReleased(MouseEvent me) {}
