@@ -277,8 +277,8 @@ public class AreaList extends ZDisplayable {
 
 	private boolean is_new = false;
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
-		long lid = Display.getFrontLayer(this.project).getId(); // isn't this.layer pointing to the current layer always?
+	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
+		final long lid = Display.getFrontLayer(this.project).getId(); // isn't this.layer pointing to the current layer always? It *should*
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
 		if (null == ob) {
@@ -296,8 +296,10 @@ public class AreaList extends ZDisplayable {
 		}
 
 		// transform the x_p, y_p to the local coordinates
+		int x_p = x_p_w;
+		int y_p = y_p_w;
 		if (!this.at.isIdentity()) {
-			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
+			final Point2D.Double p = inverseTransformPoint(x_p_w, y_p_w);
 			x_p = (int)p.x;
 			y_p = (int)p.y;
 		}
@@ -322,6 +324,46 @@ public class AreaList extends ZDisplayable {
 				final Rectangle r_pol = transformRectangle(pol.getBounds());
 				Display.repaint(Display.getFrontLayer(), r_pol, 1);
 				updateInDatabase("points=" + lid);
+			} else {
+				// An area in world coords:
+				Area b = null;
+				// Try to find a hole in another visible AreaList, but fill it here
+				for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
+					if ( ! zd.isVisible()) continue;
+					final AreaList ali = (AreaList) zd;
+					final Area a = ali.getArea(lid);
+					if (null == a) continue;
+					// bring point to zd space
+					final Point2D.Double p = ali.inverseTransformPoint(x_p_w, y_p_w);
+					final Polygon polygon = ali.findPath(a, (int)p.x, (int)p.y);
+					if (null != polygon) {
+						// Bring polygon to world coords
+						b = new Area(polygon).createTransformedArea(ali.at);
+						break;
+					}
+				}
+				// If nothing found, try to merge all visible areas in current layer and find a hole there
+				if (null == b) {
+					final Area all = new Area(); // in world coords
+					for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
+						if ( ! zd.isVisible()) continue;
+						final AreaList ali = (AreaList) zd;
+						final Area a = ali.getArea(lid);
+						if (null == a) continue;
+						all.add(a.createTransformedArea(ali.at));
+					}
+					final Polygon polygon = findPath(all, x_p_w, y_p_w); // in world coords
+					if (null != polygon) {
+						b = new Area(polygon);
+					}
+				}
+				if (null != b) {
+					try {
+						// Add b as local to this AreaList
+						area.add(b.createTransformedArea(this.at.createInverse()));
+						Display.repaint(Display.getFrontLayer(this.project), b.getBounds(), 1); // use b, in world coords
+					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+				}
 			}
 		} else {
 			if (null != last) last.quit();
