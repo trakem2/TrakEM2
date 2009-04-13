@@ -609,7 +609,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// Tab 6: layers
 		this.panel_layers = makeTabPanel();
 		this.scroll_layers = makeScrollPane(panel_layers);
-		recreateLayerPanels();
+		recreateLayerPanels(layer);
 		this.scroll_layers.addMouseWheelListener(canvas);
 		this.tabs.add("Layers", scroll_layers);
 
@@ -2621,10 +2621,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			scroller.setEnabled(true);
 			scroller.setValues(layer.getParent().getLayerIndex(layer.getId()), 1, 0, size);
 		}
-		recreateLayerPanels();
+		recreateLayerPanels(layer);
 	}
 
-	private synchronized void recreateLayerPanels() {
+	// Can't use this.layer, may still be null. User argument instead.
+	private synchronized void recreateLayerPanels(final Layer layer) {
 		synchronized (layer_channels) {
 			panel_layers.removeAll();
 
@@ -2636,7 +2637,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			} else {
 				// Set theory at work: keep old to reuse
-				layer_panels.keySet().retainAll(getLayerSet().getLayers());
+				layer_panels.keySet().retainAll(layer.getParent().getLayers());
 				for (final Layer la : layer.getParent().getLayers()) {
 					LayerPanel lp = layer_panels.get(la);
 					if (null == lp) {
