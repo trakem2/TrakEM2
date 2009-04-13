@@ -68,8 +68,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	/** All selected Displayable objects, including the active one. */
 	final private Selection selection = new Selection(this);
 
-	private ImagePlus last_temp = null;
-
 	private JFrame frame;
 	private JTabbedPane tabs;
 	private Hashtable<Class,JScrollPane> ht_tabs;
@@ -850,11 +848,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// update active Displayable:
 
 		// deselect all except ZDisplayables
-		final ArrayList sel = selection.getSelected();
+		final ArrayList<Displayable> sel = selection.getSelected();
 		final Displayable last_active = Display.this.active;
 		int sel_next = -1;
-		for (Iterator it = sel.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Iterator<Displayable> it = sel.iterator(); it.hasNext(); ) {
+			final Displayable d = it.next();
 			if (!(d instanceof ZDisplayable)) {
 				it.remove();
 				selection.remove(d);
@@ -864,15 +862,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			}
 		}
-		if (-1 != sel_next && sel.size() > 0) select((Displayable)sel.get(sel_next), true);
-		else if (null != last_active && last_active.getClass() == Patch.class && null != last_temp && last_temp instanceof PatchStack) {
-			Displayable d = ((PatchStack)last_temp).getPatch(layer, (Patch)last_active);
-			if (null != d) selection.add(d);
-		}
-		// TODO last_temp doesn't remain the PatchStack // Utils.log2("last_temp is: " + last_temp.getClass().getName());
+		if (-1 != sel_next && sel.size() > 0) select(sel.get(sel_next), true);
 
 		// Keep Profile chain selected, for best ease of use:
 		if (null != last_active && last_active.getClass() == Profile.class && last_active.isLinked(Profile.class)) {
+			Utils.log2("last active was a profile: " + last_active);
 			Displayable other = null;
 			for (final Displayable prof : last_active.getLinked(Profile.class)) {
 				if (prof.getLayer() == layer) {
@@ -934,6 +928,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				ht_panels.clear();
 				updateTab(panel_labels, "Labels", layer.getDisplayables(DLabel.class));
 				break;
+			// case 5: layer panels
 		}
 
 	}
@@ -1163,6 +1158,23 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (d.isShowing(layer)) {
 				d.remove(false);
 				it.remove();
+			}
+		}
+	}
+
+	/** Find all Display instances that are showing the layer and either move to the next or previous layer, or close it if none. */
+	static public void remove(final Layer layer) {
+		for (Iterator<Display> it = al_displays.iterator(); it.hasNext(); ) {
+			final Display d = it.next();
+			if (d.isShowing(layer)) {
+				Layer la = layer.getParent().next(layer);
+				if (layer == la || null == la) la = layer.getParent().previous(layer);
+				if (null == la || layer == la) {
+					d.remove(false);
+					it.remove();
+				} else {
+					d.slt.set(la);
+				}
 			}
 		}
 	}
