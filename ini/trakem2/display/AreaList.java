@@ -68,6 +68,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
+import java.awt.RenderingHints;
 import java.io.File;
 
 import marchingcubes.MCTriangulator;
@@ -1156,10 +1157,16 @@ public class AreaList extends ZDisplayable {
 
 		final TreeMap<Double,Layer> assigned = new TreeMap<Double,Layer>();
 
-		for (Iterator it = layer_set.getLayers().iterator(); it.hasNext(); ) {
+		// For the thresholding after painting an scaled-down area into an image:
+		final int threshold;
+		if (K > 0.8) threshold = 200;
+		else if (K > 0.5) threshold = 128;
+		else if (K > 0.3) threshold = 75; // 75 gives upper 70% of 255 range. It's better to blow up a bit, since resampling down makes marching cubes undercut the mesh.
+		else threshold = 40;
+
+		for (final Layer la : layer_set.getLayers()) {
 			if (0 == n) break; // no more areas to paint
-			final Layer la = (Layer)it.next();
-			Area area = getArea(la);
+			final Area area = getArea(la);
 			if (null != area) {
 				if (null == stack) {
 					//Utils.log2("0 - creating stack with  w,h : " + w + ", " + h);
@@ -1171,17 +1178,18 @@ public class AreaList extends ZDisplayable {
 					assigned.put(z_first + thickness * stack.getSize(), la);
 					// the layer is added to the stack below
 				}
-				final ImageProcessor ip = new ByteProcessor(w, h);
-				//ip.setColor(Color.white);
-				ip.setValue(255); // same thing as ip.setColor
-				//final AffineTransform atK = new AffineTransform();
-				//atK.scale(K, K);
-				area = area.createTransformedArea(at2); //atK);
-				ShapeRoi roi = new ShapeRoi(area);
-				ip.setRoi(roi);
-				ip.fill(roi.getMask()); // argh, should be automatic!
-				stack.addSlice(la.getZ() + "", ip);
-
+				project.getLoader().releaseToFit(w, h, ImagePlus.GRAY8, 3);
+				// must be a new image, for pixel array is shared with BufferedImage and ByteProcessor in java 1.6
+				final BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
+				final Graphics2D g = bi.createGraphics();
+				g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON);
+				g.setColor(Color.white);
+				g.fill(area.createTransformedArea(at2));
+				final ByteProcessor bp = new ByteProcessor(bi);
+				bp.threshold(threshold);
+				stack.addSlice(Double.toString(la.getZ()), bp);
+				bi.flush();
 
 				n--;
 
@@ -1190,6 +1198,7 @@ public class AreaList extends ZDisplayable {
 				stack.addSlice(la.getZ() + "", new ByteProcessor(w, h));
 			}
 		}
+
 		// zero-pad stack
 		// No need anymore: MCTriangulator does it on its own now
 		stack = zeroPad(stack);
