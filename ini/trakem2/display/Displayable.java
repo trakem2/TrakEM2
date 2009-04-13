@@ -1876,4 +1876,20 @@ public abstract class Displayable extends DBObject {
 		/** Set the subclass specific data fields. */
 		abstract boolean to2(final Displayable d);
 	}
+
+	/** Returns true if any Displayable objects of different layers in sublist are linked to each other.
+	 *  If ignore_stacks is true, then image links across layers are ignored. */
+	static public final boolean areThereLayerCrossLinks(final Set<Layer> sublist, final boolean ignore_stacks) {
+		if (null == sublist || 0 == sublist.size()) return false;
+		for (final Layer l : sublist) {
+			for (final Displayable d : l.getDisplayables(Patch.class)) {
+				if (d.isLinked()) {
+					for (final Displayable other : d.getLinked()) {
+						final Class c = other.getClass();
+						if ( (!ignore_stacks && Patch.class == c && other.layer != d.layer)
+						   || (Profile.class == c && other.getLinked(Profile.class).size() > 0)
+						   || ZDisplayable.class.isAssignableFrom(c)) {
+							return true; }}}}}
+		return false;
+	}
 }

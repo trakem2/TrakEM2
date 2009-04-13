@@ -2119,6 +2119,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (canvas.isTransforming()) {
 				item = new JMenuItem("Apply transform"); item.addActionListener(this); popup.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true)); // dummy, for I don't add a MenuKeyListener, but "works" through the normal key listener. It's here to provide a visual cue
+				item = new JMenuItem("Apply transform propagating to last layer"); item.addActionListener(this); popup.add(item);
+				if (layer.getParent().indexOf(layer) == layer.getParent().size() -1) item.setEnabled(false);
+				item = new JMenuItem("Apply transform propagating to first layer"); item.addActionListener(this); popup.add(item);
+				if (0 == layer.getParent().indexOf(layer)) item.setEnabled(false);
 			} else {
 				item = new JMenuItem("Transform"); item.addActionListener(this); popup.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, 0, true));
@@ -2891,6 +2895,16 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Apply transform")) {
 			if (null == active) return;
 			canvas.setTransforming(false);
+		} else if (command.equals("Apply transform propagating to last layer")) {
+			if (selection.isTransforming()) {
+				final java.util.List<Layer> layers = layer.getParent().getLayers();
+				selection.applyAndPropagate(new HashSet<Layer>(layers.subList(layers.indexOf(Display.this.layer)+1, layers.size()))); // +1 to exclude current layer
+			}
+		} else if (command.equals("Apply transform propagating to first layer")) {
+			if (selection.isTransforming()) {
+				final java.util.List<Layer> layers = layer.getParent().getLayers();
+				selection.applyAndPropagate(new HashSet<Layer>(layers.subList(0, layers.indexOf(Display.this.layer))));
+			}
 		} else if (command.equals("Cancel transform")) {
 			if (null == active) return;
 			canvas.cancelTransform();
