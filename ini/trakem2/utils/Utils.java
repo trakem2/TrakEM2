@@ -241,8 +241,10 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Initialize house keeping threads. */
 	static public final void setup(final ControlWindow master) { // the ControlWindow acts as a switch: nobody can controls this because the CW constructor is private
-		if (null == status) status = new StatusDispatcher();
-		if (null == logger) logger = new LogDispatcher();
+		if (null != status) status.quit();
+		status = new StatusDispatcher();
+		if (null != logger) logger.quit();
+		logger = new LogDispatcher();
 	}
 
 	/** Destroy house keeping threads. */
