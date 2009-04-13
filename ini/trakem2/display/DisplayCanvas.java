@@ -1536,8 +1536,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		}
 		display.getSelection().setTransforming(b);
-		//repaint other Displays as well!//repaint(display.getSelection().getBox(), Selection.PADDING);
-		Display.repaint(display.getLayer(), display.getSelection().getBox(), Selection.PADDING); // repaints the navigator as well
+		//repaint other Displays as well!
+		Display.repaint(display.getLayerSet());
 	}
 
 	public void cancelTransform() {
@@ -1546,7 +1546,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		selection.cancelTransform();
 		box.add(selection.getLinkedBox()); // the restored box now.
 		if (!(selection.getNSelected() == 1 && !display.getActive().isLinked())) update_graphics = true;
-		repaint(box, Selection.PADDING);
+		repaint(true);
 	}
 
 	/*
