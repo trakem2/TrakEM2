@@ -84,15 +84,20 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 			}
 		}
 		// Else, repaint background to avoid flickering
-		g.setColor(Color.black);
-		g.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
+		final Class c = d.getClass();
+		if (Patch.class != c) {
+			g.setColor(Color.black);
+			g.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
+		}
 		// ... and create the image in a separate thread and repaint again
 		FSLoader.repainter.submit(new Runnable() { public void run() {
 			if (!display.isPartiallyWithinViewport(d)) return;
 			final BufferedImage img = new BufferedImage(SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight(), BufferedImage.TYPE_INT_ARGB);
 			final Graphics2D g2 = img.createGraphics();
-			g2.setColor(Color.black);
-			g2.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
+			if (Patch.class != c) {
+				g2.setColor(Color.black);
+				g2.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
+			}
 			final double scale = FIXED_HEIGHT / d.getLayer().getLayerHeight();
 			g2.scale(scale, scale);
 
