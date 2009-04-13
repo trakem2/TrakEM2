@@ -24,6 +24,7 @@ package ini.trakem2.vector;
 
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.display.LayerSet;
 

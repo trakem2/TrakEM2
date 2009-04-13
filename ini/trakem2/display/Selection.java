@@ -406,7 +406,7 @@ public class Selection {
 		// center of rotation is the floater
 		double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
 		//double sin = Math.sqrt(1 - cos*cos);
-		//double delta = Utils.getAngle(cos, sin);
+		//double delta = M.getAngle(cos, sin);
 		double delta = Math.acos(cos); // same thing as the two lines above
 		// need to compute the sign of rotation as well: the cross-product!
 		// cross-product:

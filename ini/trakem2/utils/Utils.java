@@ -344,29 +344,6 @@ public class Utils implements ij.plugin.PlugIn {
 		Utils.debug_sql = debug_sql;
 	}
 
-	/** Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I had the same problem for Pipe.java in the A_3D_editing plugin)
-	    Using schemata in JavaAngles.ai as reference */
-	static public final double fixAtan2Angle(double angle) {
-
-		double a = angle;
-		//fix too large angles
-		if (angle > 2*Math.PI) {
-			a = angle - 2*Math.PI;
-		}
-		//fix signs and shity oriented angle values given by atan2
-		if (a > 0.0 && a <= Math.PI/2) {
-			a = Math.PI/2 - a;
-		} else if (a <= 0.0 && a >= -Math.PI) {
-			a = Math.PI/2 - a; // minus because angle is negative
-		} else if (a > Math.PI/2 && a <= Math.PI ) {
-			a = Math.PI + Math.PI + (Math.PI/2 - a);
-		}
-
-		return a;
-	}
-
-	static public int count = 0;
-
 	/** Find out which method from which class called the method where the printCaller is used; for debugging purposes.*/
 	static public final void printCaller(Object called_object) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
@@ -391,6 +368,7 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
+	/** Returns a String representation of the class of the object one step before in the stack trace. */
 	static public final String caller(Object called) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
@@ -627,27 +605,6 @@ public class Utils implements ij.plugin.PlugIn {
 		return IJ.d2s(d, n_decimals);
 	}
 
-	// from utilities.c in my CurveMorphing C module ... from C! Java is a low level language with the disadvantages of the high level languages ...
-	/** Returns the angle in radians of the given polar coordinates, correcting the Math.atan2 output. */
-	static public final double getAngle(double x, double y) {
-		// calculate angle
-		double a = Math.atan2(x, y);
-		// fix too large angles (beats me why are they ever generated)
-		if (a > 2 * Math.PI) {
-			a = a - 2 * Math.PI;
-		}
-		// fix atan2 output scheme to match my mental scheme
-		if (a >= 0.0 && a <= Math.PI/2) {
-			a = Math.PI/2 - a;
-		} else if (a < 0 && a >= -Math.PI) {
-			a = Math.PI/2 -a;
-		} else if (a > Math.PI/2 && a <= Math.PI) {
-			a = Math.PI + Math.PI + Math.PI/2 - a;
-		}
-		// return
-		return a;
-	}
-
 	static public final String[] getHexRGBColor(Color color) {
 		int c = color.getRGB();
 		String r = Integer.toHexString(((c&0x00FF0000)>>16));
@@ -855,38 +812,6 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 		});
 	}
-
-	static private int n_CPUs = 0;
-
-	/** This method is obsolete: there's Runtime.getRuntime().availableProcessors() */
-	/*
-	static public final int getCPUCount() {
-		if (0 != n_CPUs) return n_CPUs;
-		if (IJ.isWindows()) return 1; // no clue
-		// POSIX systems, attempt to count CPUs from /proc/stat
-		try {
-			Runtime runtime = Runtime.getRuntime();
-			Process process = runtime.exec("cat /proc/stat");
-			InputStream is = process.getInputStream();
-			InputStreamReader isr = new InputStreamReader(is);
-			BufferedReader br = new BufferedReader(isr);
-			String line;
-			n_CPUs = 0;
-			// valid cores will print as cpu0, cpu1. cpu2 ...
-			while ((line = br.readLine()) != null) {
-				if (0 == line.indexOf("cpu") && line.length() > 3 && Character.isDigit(line.charAt(3))) {
-					n_CPUs++;
-				}
-			}
-			// fix possible errors
-			if (0 == n_CPUs) n_CPUs = 1;
-			return n_CPUs;
-		} catch (Exception e) {
-			Utils.log(e.toString()); // just one line
-			return 1;
-		}
-	}
-	*/
 
 	static public final boolean wrongImageJVersion() {
 		boolean b = IJ.versionLessThan("1.37g");

@@ -174,6 +174,28 @@ public final class M {
 		return pDst;
 	}
 
+	// from utilities.c in my CurveMorphing C module ... from C! Java is a low level language with the disadvantages of the high level languages ...
+	/** Returns the angle in radians of the given polar coordinates, correcting the Math.atan2 output.
+	 * Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I had the same problem for Pipe.java in the A_3D_editing plugin) */
+	static public final double getAngle(final double x, final double y) {
+		// calculate angle
+		double a = Math.atan2(x, y);
+		// fix too large angles (beats me why are they ever generated)
+		if (a > 2 * Math.PI) {
+			a = a - 2 * Math.PI;
+		}
+		// fix atan2 output scheme to match my mental scheme
+		if (a >= 0.0 && a <= Math.PI/2) {
+			a = Math.PI/2 - a;
+		} else if (a < 0 && a >= -Math.PI) {
+			a = Math.PI/2 -a;
+		} else if (a > Math.PI/2 && a <= Math.PI) {
+			a = Math.PI + Math.PI + Math.PI/2 - a;
+		}
+		return a;
+	}
+
+
 	/*==============  Geometry =============*/
 	
 	static public final boolean isEmpty(final Area area) {

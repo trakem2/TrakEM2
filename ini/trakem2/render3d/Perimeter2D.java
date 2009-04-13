@@ -22,7 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.render3d;
 
-import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
 
 /** Represents a contour, outline, perimeter or profile, hatever you want to call it, with both x,y coordinates and the vectors from one point to the next, mirroring the homonimous struct in CurveMorphing_just_C.c . Fine-tuned for speed, direct access to fields within the package. */
 public class Perimeter2D {
@@ -174,7 +174,7 @@ public class Perimeter2D {
 			if (0 == n_ahead) { // no points ahead found within MAX_DISTANCE
 				// simpler version: use just the next point
 				dist1 = Math.sqrt((x[i] - ps_x[j-1])*(x[i] - ps_x[j-1]) + (y[i] - ps_y[j-1])*(y[i] - ps_y[j-1]));
-				angle1 = Utils.getAngle(x[i] - ps_x[j-1], y[i] - ps_y[j-1]);
+				angle1 = M.getAngle(x[i] - ps_x[j-1], y[i] - ps_y[j-1]);
 				dx = Math.cos(angle1) * delta;
 				dy = Math.sin(angle1) * delta;
 				ps_x[j] = ps_x[j-1] + dx;
@@ -220,7 +220,7 @@ public class Perimeter2D {
 				for (u=0; u<n_ahead; u++) {
 					iu = i+u;
 					if (iu >= p_length) iu -= p_length; 
-					angle = Utils.getAngle(x[iu] - ps_x[j-1], y[iu] - ps_y[j-1]);
+					angle = M.getAngle(x[iu] - ps_x[j-1], y[iu] - ps_y[j-1]);
 					dx += w[u] * Math.cos(angle);
 					dy += w[u] * Math.sin(angle);
 				}
@@ -258,7 +258,7 @@ public class Perimeter2D {
 		// see whether the subsampling terminated too early, and fill with a line of points.
 		// //TODO this is sort of a patch. Why didn't j overcome the last point is not resolved.
 		dist1 = Math.sqrt((x[0] - ps_x[j-1])*(x[0] - ps_x[j-1]) + (y[0] - ps_y[j-1])*(y[0] - ps_y[j-1]));
-		angle1 = Utils.getAngle(x[0] - ps_x[j-1], y[0] - ps_y[j-1]);
+		angle1 = M.getAngle(x[0] - ps_x[j-1], y[0] - ps_y[j-1]);
 		dx = Math.cos(angle1) * delta;
 		dy = Math.sin(angle1) * delta;
 		while (dist1 > delta*1.2) { //added 1.2 to prevent last point from being generated too close to the first point
@@ -282,7 +282,7 @@ public class Perimeter2D {
 		}
 
 		// set vector 0 to be the vector from the last point to the first
-		angle = Utils.getAngle(x[0] - ps_x[j-1], y[0] - ps_y[j-1]);
+		angle = M.getAngle(x[0] - ps_x[j-1], y[0] - ps_y[j-1]);
 		//v_x[0] = Math.cos(angle) * delta;
 		//v_y[0] = Math.sin(angle) * delta; // can't use delta, it may be too long and thus overtake the first point!
 		v_x[0] = Math.cos(angle) * dist1;
