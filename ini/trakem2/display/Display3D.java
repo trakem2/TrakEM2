@@ -358,12 +358,12 @@ public final class Display3D {
 	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one. If true == wait && -1 != resample, then the method returns only when the mesh/es have been added. */
 	static public Future<List<Content>> show(final ProjectThing pt, final boolean wait, final int resample) {
 		if (null == pt) return null;
-		Callable<List<Content>> c = new Callable<List<Content>>() {
+		final Callable<List<Content>> c = new Callable<List<Content>>() {
 			public List<Content> call() {
 		try {
 			// scan the given ProjectThing for 3D-viewable items not present in the ht_meshes
 			// So: find arealist, pipe, ball, and profile_list types
-			HashSet hs = pt.findBasicTypeChildren();
+			final HashSet hs = pt.findBasicTypeChildren();
 			if (null == hs || 0 == hs.size()) {
 				Utils.log("Node " + pt + " contains no 3D-displayable children");
 				return null;
@@ -371,9 +371,9 @@ public final class Display3D {
 
 			final List<Content> list = new ArrayList<Content>();
 
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			for (final Iterator it = hs.iterator(); it.hasNext(); ) {
 				// obtain the Displayable object under the node
-				ProjectThing child = (ProjectThing)it.next();
+				final ProjectThing child = (ProjectThing)it.next();
 				Object obc = child.getObject();
 				Displayable displ = obc.getClass().equals(String.class) ? null : (Displayable)obc;
 				if (null != displ) {
@@ -411,10 +411,8 @@ public final class Display3D {
 				//sw.elapsed("after creating and/or retrieving Display3D");
 				Future<Content> fu = d3d.addMesh(child, displ, resample);
 				if (wait && -1 != d3d.resample) {
-					Utils.log("joining...");
 					list.add(fu.get());
 				}
-
 
 				//sw.elapsed("after creating mesh");
 			}
