@@ -942,7 +942,9 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** OS-agnostic diagnosis of whether the click was for the contextual popup menu. */
 	static public final boolean isPopupTrigger(final MouseEvent me) {
-		return me.isPopupTrigger() || 0 != (me.getModifiers() & Event.META_MASK);
+		//return me.isPopupTrigger() || 0 != (me.getModifiers() & Event.META_MASK);
+		// ImageJ way, in ij.gui.ImageCanvas class:
+		return (me.isPopupTrigger() && me.getButton() != 0) || 0 != (me.getModifiers() & Event.META_MASK);
 	}
 
 	/** Repaint the given Component on the swing repaint thread (aka "SwingUtilities.invokeLater"). */
