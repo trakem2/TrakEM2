@@ -2358,7 +2358,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		public void actionPerformed(final ActionEvent ae) {
 			final String command = ae.getActionCommand();
 
-			final java.awt.geom.Area aroi = Utils.getArea(d.canvas.getFakeImagePlus().getRoi());
+			final java.awt.geom.Area aroi = M.getArea(d.canvas.getFakeImagePlus().getRoi());
 
 			d.dispatcher.exec(new Runnable() { public void run() {
 

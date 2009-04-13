@@ -32,6 +32,7 @@ import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
@@ -1250,7 +1251,7 @@ public final class Patch extends Displayable {
 			case KeyEvent.VK_F:
 				// fill mask with current ROI using 
 				Utils.log2("VK_F: roi is " + roi);
-				if (null != roi && Utils.isAreaROI(roi)) {
+				if (null != roi && M.isAreaROI(roi)) {
 					Bureaucrat.createAndStart(new Worker("Filling image mask") { public void run() { try {
 					startedWorking();
 					ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
@@ -1264,9 +1265,9 @@ public final class Patch extends Displayable {
 					try {
 						// a roi local to the image bounding box
 						final Area a = new Area(new Rectangle(0, 0, (int)width, (int)height));
-						a.intersect(Utils.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+						a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
 
-						if (Utils.isEmpty(a)) {
+						if (M.isEmpty(a)) {
 							Utils.log("ROI does not intersect the active image!");
 							return;
 						}

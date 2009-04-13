@@ -52,6 +52,7 @@ import java.awt.geom.Area;
 import java.awt.image.ColorModel;
 import java.awt.event.MouseEvent;
 
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.History;
@@ -628,7 +629,7 @@ public class Selection {
 		//Utils.log2("roi bounds: " + roi.getBounds());
 		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
 
-		Area aroi = new Area(Utils.getShape(shroi));
+		Area aroi = new Area(M.getShape(shroi));
 		AffineTransform affine = new AffineTransform();
 		Rectangle bounds = shroi.getBounds();
 		affine.translate(bounds.x, bounds.y);

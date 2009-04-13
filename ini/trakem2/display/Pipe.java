@@ -29,6 +29,7 @@ import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Vector3;
 import ini.trakem2.persistence.DBObject;
@@ -2015,7 +2016,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 	public boolean intersects(final Layer layer, final Area area) {
 		final Polygon[] pol = getSubPerimeters(layer); // transformed
 		if (null == pol) return false;
-		for (Polygon p : pol) if (Utils.intersects(new Area(p), area)) return true;
+		for (Polygon p : pol) if (M.intersects(new Area(p), area)) return true;
 		return false;
 	}
 

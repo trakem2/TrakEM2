@@ -38,8 +38,6 @@ import ij.Menus;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
-import ij.gui.Roi;
-import ij.gui.ShapeRoi;
 import ij.gui.OvalRoi;
 import ij.text.TextWindow;
 import ij.measure.ResultsTable;
@@ -55,17 +53,6 @@ import java.awt.Component;
 import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
-import java.awt.Shape;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Point2D;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Area;
-import java.awt.Rectangle;
-import java.awt.Polygon;
-import java.awt.geom.PathIterator;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
 import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
@@ -86,9 +73,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
-
-import javax.vecmath.Point3f;
-import javax.vecmath.Vector3f;
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
@@ -1058,25 +1042,6 @@ public class Utils implements ij.plugin.PlugIn {
 		});
 	}
 
-	static public final Point2D.Double transform(final AffineTransform affine, final double x, final double y) {
-		final Point2D.Double pSrc = new Point2D.Double(x, y);
-		if (affine.isIdentity()) return pSrc;
-		final Point2D.Double pDst = new Point2D.Double();
-		affine.transform(pSrc, pDst);
-		return pDst;
-	}
-	static public final Point2D.Double inverseTransform(final AffineTransform affine, final double x, final double y) {
-		final Point2D.Double pSrc = new Point2D.Double(x, y);
-		if (affine.isIdentity()) return pSrc;
-		final Point2D.Double pDst = new Point2D.Double();
-		try {
-			affine.createInverse().transform(pSrc, pDst);
-		} catch (NoninvertibleTransformException nite) {
-			IJError.print(nite);
-		}
-		return pDst;
-	}
-
 	/** Returns the time as HH:MM:SS */
 	static public final String now() {
 		/* Java time management is retarded. */
@@ -1124,14 +1089,6 @@ public class Utils implements ij.plugin.PlugIn {
 		return Color.getHSBColor(a[0], a[1], a[2]);
 	}
 
-	/** Test whether the areas intersect each other. */
-	static public final boolean intersects(final Area a1, final Area a2) {
-		final Area b = new Area(a1);
-		b.intersect(a2);
-		final java.awt.Rectangle r = b.getBounds();
-		return 0 != r.width && 0 != r.height;
-	}
-
 	/** 1 A, 2 B, 3 C  ---  26 - z, 27 AA, 28 AB, 29 AC  --- 26*27 AAA */
 	static public final String getCharacter(int i) {
 		i--;
@@ -1139,21 +1096,6 @@ public class Utils implements ij.plugin.PlugIn {
 		char c = (char)((i % 26) + 65); // 65 is 'A'
 		if (0 == k) return Character.toString(c);
 		return new StringBuffer().append(getCharacter(k)).append(c).toString();
-	}
-
-	static private Field shape_field = null;
-
-	static public final Shape getShape(final ShapeRoi roi) {
-		try {
-			if (null == shape_field) {
-				shape_field = ShapeRoi.class.getDeclaredField("shape");
-				shape_field.setAccessible(true);
-			}
-			return (Shape)shape_field.get(roi);
-		} catch (Exception e) {
-			IJError.print(e);
-		}
-		return null;
 	}
 
 	/** Get by reflection a private or protected field in the given object. */
@@ -1167,110 +1109,6 @@ public class Utils implements ij.plugin.PlugIn {
 			IJError.print(e);
 		}
 		return null;
-	}
-
-	static public final Area getArea(final Roi roi) {
-		if (null == roi) return null;
-		ShapeRoi sroi = new ShapeRoi(roi);
-		AffineTransform at = new AffineTransform();
-		Rectangle bounds = sroi.getBounds();
-		at.translate(bounds.x, bounds.y);
-		Area area = new Area(getShape(sroi));
-		return area.createTransformedArea(at);
-	}
-
-	static public final boolean isEmpty(final Area area) {
-		final Rectangle b = area.getBounds();
-		return 0 == b.width || 0 == b.height;
-	}
-
-	/** Returns the approximated area of the given Area object. */
-	static public final double measureArea(Area area, final Loader loader) {
-		double sum = 0;
-		try {
-			Rectangle bounds = area.getBounds();
-			double scale = 1;
-			if (bounds.width > 2048 || bounds.height > 2048) {
-				scale = 2048.0 / bounds.width;
-			}
-			if (0 == scale) {
-				Utils.log("Can't measure: area too large, out of scale range for approximation.");
-				return sum;
-			}
-			AffineTransform at = new AffineTransform();
-			at.translate(-bounds.x, -bounds.y);
-			at.scale(scale, scale);
-			area = area.createTransformedArea(at);
-			bounds = area.getBounds();
-			if (0 == bounds.width || 0 == bounds.height) {
-				Utils.log("Can't measure: area too large, approximates zero.");
-				return sum;
-			}
-			if (null != loader) loader.releaseToFit(bounds.width * bounds.height * 3);
-			BufferedImage bi = new BufferedImage(bounds.width, bounds.height, BufferedImage.TYPE_BYTE_INDEXED);
-			Graphics2D g = bi.createGraphics();
-			g.setColor(Color.white);
-			g.fill(area);
-			final byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
-			for (int i=pixels.length-1; i>-1; i--) {
-				//if (255 == (pixels[i]&0xff)) sum++;
-				if (0 != pixels[i]) sum++;
-			}
-			bi.flush();
-			g.dispose();
-			if (1 != scale) sum = sum / (scale * scale);
-		} catch (Throwable e) {
-			IJError.print(e);
-		}
-		return sum;
-	}
-
-	/** Compute the area of the triangle defined by 3 points in 3D space, returning half of the length of the vector resulting from the cross product of vectors p1p2 and p1p3. */
-	static public final double measureArea(final Point3f p1, final Point3f p2, final Point3f p3) {
-		final Vector3f v = new Vector3f();
-		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
-			new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
-		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
-	}
-
-	/** Returns true if the roi is of closed shape type like an OvalRoi, ShapeRoi, a Roi rectangle, etc. */
-	static public final boolean isAreaROI(final Roi roi) {
-		switch (roi.getType()) {
-			case Roi.POLYLINE:
-			case Roi.FREELINE:
-			case Roi.LINE:
-			case Roi.POINT:
-				return false;
-		}
-		return true;
-	}
-
-	static public final Collection<Polygon> getPolygons(Area area) {
-		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
-		Polygon pol = new Polygon();
-
-		final float[] coords = new float[6];
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			int seg_type = pit.currentSegment(coords);
-			switch (seg_type) {
-				case PathIterator.SEG_MOVETO:
-				case PathIterator.SEG_LINETO:
-					pol.addPoint((int)coords[0], (int)coords[1]);
-					break;
-				case PathIterator.SEG_CLOSE:
-					pols.add(pol);
-					pol = new Polygon();
-					break;
-				default:
-					Utils.log2("WARNING: unhandled seg type.");
-					break;
-			}
-			pit.next();
-			if (pit.isDone()) {
-				break;
-			}
-		}
-		return pols;
 	}
 
 	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */

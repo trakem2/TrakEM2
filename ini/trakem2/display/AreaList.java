@@ -1381,7 +1381,7 @@ public class AreaList extends ZDisplayable {
 	public void add(final long layer_id, final ShapeRoi roi) throws NoninvertibleTransformException{
 		if (null == roi) return;
 		Area a = getArea(layer_id);
-		Area asr = Utils.getArea(roi).createTransformedArea(this.at.createInverse());
+		Area asr = M.getArea(roi).createTransformedArea(this.at.createInverse());
 		if (null == a) {
 			ht_areas.put(layer_id, asr);
 		} else {
@@ -1395,7 +1395,7 @@ public class AreaList extends ZDisplayable {
 		if (null == roi) return;
 		Area a = getArea(layer_id);
 		if (null == a) return;
-		a.subtract(Utils.getArea(roi).createTransformedArea(this.at.createInverse()));
+		a.subtract(M.getArea(roi).createTransformedArea(this.at.createInverse()));
 		calculateBoundingBox();
 		updateInDatabase("points=" + layer_id);
 	}
@@ -1403,14 +1403,14 @@ public class AreaList extends ZDisplayable {
 	/** Subtracts the given ROI, and then creates a new AreaList with identical properties and the content of the subtracted part. Returns null if there is no intersection between sroi and the Area for layer_id. */
 	public AreaList part(final long layer_id, final ShapeRoi sroi) throws NoninvertibleTransformException {
 		// The Area to subtract, in world coordinates:
-		Area sub = Utils.getArea(sroi);
+		Area sub = M.getArea(sroi);
 		// The area to subtract from:
 		Area a = getArea(layer_id);
-		if (null == a || Utils.isEmpty(a)) return null;
+		if (null == a || M.isEmpty(a)) return null;
 		// The intersection:
 		Area inter = a.createTransformedArea(this.at);
 		inter.intersect(sub);
-		if (Utils.isEmpty(inter)) return null;
+		if (M.isEmpty(inter)) return null;
 
 		// Subtract from this:
 		this.subtract(layer_id, sroi);
@@ -1470,7 +1470,7 @@ public class AreaList extends ZDisplayable {
 		Roi roi = dc.getFakeImagePlus().getRoi();
 		if (null == roi) return;
 		// Check ROI
-		if (!Utils.isAreaROI(roi)) {
+		if (!M.isAreaROI(roi)) {
 			Utils.log("AreaList only accepts region ROIs, not lines.");
 			return;
 		}
