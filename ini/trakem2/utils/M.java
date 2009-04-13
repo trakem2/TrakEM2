@@ -303,5 +303,31 @@ public final class M {
 		return null;
 	}
 
-
+	/** Detect if a point is not in the area, but lays inside one of its path, which is returned as a Polygon. Otherwise returns null. The given x,y must be already in the Area's coordinate system. */
+	static public final Polygon findPath(final Area area, final int x, final int y) {
+		Polygon pol = new Polygon();
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			float[] coords = new float[6];
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					pol.addPoint((int)coords[0], (int)coords[1]);
+					break;
+				case PathIterator.SEG_CLOSE:
+					if (pol.contains(x, y)) return pol;
+					// else check next
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return null;
+	}
 }

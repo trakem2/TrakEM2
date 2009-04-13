@@ -310,12 +310,12 @@ public class AreaList extends ZDisplayable {
 			if (area.contains(x_p, y_p)) {
 				if (me.isAltDown()) {
 					// fill-remove
-					pol = findPath(area, x_p, y_p); // no null check, exists for sure
+					pol = M.findPath(area, x_p, y_p); // no null check, exists for sure
 					area.subtract(new Area(pol));
 				}
 			} else if (!me.isAltDown()) {
 				// fill-add
-				pol = findPath(area, x_p, y_p);
+				pol = M.findPath(area, x_p, y_p);
 				if (null != pol) {
 					area.add(new Area(pol)); // may not exist
 				}
@@ -335,7 +335,7 @@ public class AreaList extends ZDisplayable {
 					if (null == a) continue;
 					// bring point to zd space
 					final Point2D.Double p = ali.inverseTransformPoint(x_p_w, y_p_w);
-					final Polygon polygon = ali.findPath(a, (int)p.x, (int)p.y);
+					final Polygon polygon = M.findPath(a, (int)p.x, (int)p.y);
 					if (null != polygon) {
 						// Bring polygon to world coords
 						b = new Area(polygon).createTransformedArea(ali.at);
@@ -352,7 +352,7 @@ public class AreaList extends ZDisplayable {
 						if (null == a) continue;
 						all.add(a.createTransformedArea(ali.at));
 					}
-					final Polygon polygon = findPath(all, x_p_w, y_p_w); // in world coords
+					final Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
 					if (null != polygon) {
 						b = new Area(polygon);
 					}
@@ -958,34 +958,6 @@ public class AreaList extends ZDisplayable {
 			ht_areas.put(ob, new Area(gp));
 			ht_areas.remove("CURRENT");
 		}
-	}
-
-	/** Detect if a point in offscreen coords is not in the area, but lays inside one of its path, which is returned as a Polygon. Otherwise returns null. The given x,y must be already in the Area's coordinate system. */
-	private Polygon findPath(Area area, int x, int y) {
-		Polygon pol = new Polygon();
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			float[] coords = new float[6];
-			int seg_type = pit.currentSegment(coords);
-			switch (seg_type) {
-				case PathIterator.SEG_MOVETO:
-				case PathIterator.SEG_LINETO:
-					pol.addPoint((int)coords[0], (int)coords[1]);
-					break;
-				case PathIterator.SEG_CLOSE:
-					if (pol.contains(x, y)) return pol;
-					// else check next
-					pol = new Polygon();
-					break;
-				default:
-					Utils.log2("WARNING: unhandled seg type.");
-					break;
-			}
-			pit.next();
-			if (pit.isDone()) {
-				break;
-			}
-		}
-		return null;
 	}
 
 	public void fillHoles(final Layer la) {
