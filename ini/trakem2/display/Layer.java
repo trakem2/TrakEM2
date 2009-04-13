@@ -764,6 +764,7 @@ public final class Layer extends DBObject implements Bucketable {
 				d.preTransform(at, false);
 			}
 		}
+		recreateBuckets();
 	}
 
 	/** Make a copy of this layer into the given LayerSet, enclosing only Displayable objects within the roi, and translating them for that roi x,y. */
