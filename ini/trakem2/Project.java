@@ -70,7 +70,7 @@ public class Project extends DBObject {
 			//UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 			if (IJ.isLinux()) {
 				//UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
-				UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
+				if ("albert".equals(System.getProperty("user.name"))) UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
 			}
 		} catch (Exception e) {
 			Utils.log("Failed to set System Look and Feel");
