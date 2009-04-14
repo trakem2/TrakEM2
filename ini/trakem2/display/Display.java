@@ -637,6 +637,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		// Left panel, contains the transp slider, the tabbed pane, the navigation panel and the layer scroller
 		JPanel left = new JPanel();
+		left.setBackground(Color.white);
 		BoxLayout left_layout = new BoxLayout(left, BoxLayout.Y_AXIS);
 		left.setLayout(left_layout);
 		left.add(transp_slider);
@@ -667,12 +668,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// Split pane to contain everything
 		this.split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, canvas_panel);
 		this.split.setOneTouchExpandable(true); // NOT present in all L&F (?)
+		this.split.setBackground(Color.white);
 
 		// fix
 		gb.setConstraints(split.getRightComponent(), c);
 
 		// JFrame to show the split pane
 		this.frame = ControlWindow.createJFrame(layer.toString());
+		this.frame.setBackground(Color.white);
+		this.frame.getContentPane().setBackground(Color.white);
 		if (IJ.isMacintosh() && IJ.getInstance()!=null) {
 			IJ.wait(10); // may be needed for Java 1.4 on OS X
 			this.frame.setMenuBar(ij.Menus.getMenuBar());
@@ -802,6 +806,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	private JScrollPane makeScrollPane(Component c) {
 		JScrollPane jsp = new JScrollPane(c);
+		jsp.setBackground(Color.white); // no effect
+		jsp.getViewport().setBackground(Color.white); // no effect
 		// adjust scrolling to use one DisplayablePanel as the minimal unit
 		jsp.getVerticalScrollBar().setBlockIncrement(DisplayablePanel.HEIGHT); // clicking within the track
 		jsp.getVerticalScrollBar().setUnitIncrement(DisplayablePanel.HEIGHT); // clicking on an arrow

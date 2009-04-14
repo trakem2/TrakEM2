@@ -176,6 +176,8 @@ public class ControlWindow {
 					hooked = true;
 				}
 				frame = createJFrame("TrakEM2");
+				frame.setBackground(Color.white);
+				frame.getContentPane().setBackground(Color.white);
 				frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 				frame.addWindowListener(new WindowAdapter() {
 					public void windowClosing(WindowEvent we) {
@@ -192,6 +194,7 @@ public class ControlWindow {
 					}
 				});
 				tabs = new JTabbedPane(JTabbedPane.TOP);
+				tabs.setBackground(Color.white);
 				tabs.setMinimumSize(new Dimension(500, 400));
 				tabs.addMouseListener(new TabListener());
 				frame.getContentPane().add(tabs);
@@ -205,6 +208,7 @@ public class ControlWindow {
 
 			// create the tab
 			final JSplitPane tab = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+			tab.setBackground(Color.white);
 			// store the tab linked to the project (before setting the trees, so that they won't get repainted and get in trouble not being able to get a project title if the project has no name)
 			if (null == ht_projects) ht_projects = new Hashtable();
 			ht_projects.put(project, tab);
