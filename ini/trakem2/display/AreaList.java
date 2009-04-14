@@ -1428,6 +1428,12 @@ public class AreaList extends ZDisplayable {
 					fillHoles(la);
 					ke.consume();
 					return;
+				case KeyEvent.VK_X: // remove area from current layer, if any
+					if (null != ht_areas.remove(la.getId())) {
+						calculateBoundingBox();
+					}
+					ke.consume();
+					return;
 			}
 		} catch (Exception e) {
 			IJError.print(e);
