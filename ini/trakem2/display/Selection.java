@@ -55,7 +55,9 @@ import java.awt.event.MouseEvent;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.utils.History;
+import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 
 /** Keeps track of selected objects and mediates their transformation.*/ 
@@ -914,8 +916,13 @@ public class Selection {
 		}
 		// Check if there are links across affected layers
 		if (Displayable.areThereLayerCrossLinks(sublist, false)) {
-			Utils.log("Can't apply: some images may be linked across layers.\n  Unlink them by removing segmentation objects like arealists, pipes, profiles, etc. that cross these layers.");
-			return;
+			if (ControlWindow.isGUIEnabled()) {
+				YesNoDialog yn = ControlWindow.makeYesNoDialog("Warning!", "Some objects are linked!\nThe transformation would alter interrelationships.\nProceed anyway?");
+				if ( ! yn.yesPressed()) return;
+			} else {
+				Utils.log("Can't apply: some images may be linked across layers.\n  Unlink them by removing segmentation objects like arealists, pipes, profiles, etc. that cross these layers.");
+				return;
+			}
 		}
 		// Add undo step
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
@@ -925,6 +932,7 @@ public class Selection {
 		display.getLayer().getParent().addTransformStep(al);
 
 
+		// Must capture last step of free affine when using affine points:
 		if (null != free_affine && null != model) {
 			accum_affine.preConcatenate(free_affine);
 			accum_affine.preConcatenate(model.createAffine());
@@ -935,6 +943,9 @@ public class Selection {
 			if (display.getLayer() == l) continue; // already applied
 			l.apply(Displayable.class, accum_affine);
 		}
+
+		// Record current state as last step in undo queue
+		display.getLayer().getParent().addTransformStep(al);
 
 		setTransforming(false);
 	}
