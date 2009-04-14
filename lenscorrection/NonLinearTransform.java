@@ -415,7 +415,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 				double[] result = {0.0,0.0};
 		
 				if (beta.length != featureVector.length){
-						IJ.showMessage("Dimension of TransformMatrix and featureVector do not match!");
+						IJ.log("Dimension of TransformMatrix and featureVector do not match!");
 						return new double[2];
 				}
 		
