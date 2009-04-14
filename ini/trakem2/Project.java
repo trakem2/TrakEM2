@@ -60,9 +60,22 @@ import java.util.Map;
 import javax.swing.tree.*;
 import javax.swing.JTree;
 import java.awt.Rectangle;
+import javax.swing.UIManager;
 
 /** The top-level class in control. */
 public class Project extends DBObject {
+
+	static {
+		try {
+			//UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+			if (IJ.isLinux()) {
+				//UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
+				UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
+			}
+		} catch (Exception e) {
+			Utils.log("Failed to set System Look and Feel");
+		}
+	}
 
 	/* // using virtual frame buffer instead, since the trees are needed
 	public static final boolean headless = isHeadless();

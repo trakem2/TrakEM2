@@ -50,7 +50,6 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.Map;
 import java.awt.event.*;
-import javax.swing.UIManager;
 
 
 /** Static class that shows one project per tab in a JFrame.
@@ -59,15 +58,6 @@ import javax.swing.UIManager;
  * 
  * */
 public class ControlWindow {
-
-	static {
-		try {
-			//UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-			if (IJ.isLinux()) UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
-		} catch (Exception e) {
-			Utils.log("Failed to set System Look and Feel");
-		}
-	}
 
 	static private JFrame frame = null;
 	static private JTabbedPane tabs = null;
