@@ -123,9 +123,9 @@ public class Bureaucrat extends Thread {
 			try { Thread.sleep(sandwitch); } catch (InterruptedException ie) {}
 			float elapsed_seconds = (System.currentTimeMillis() - onset) / 1000.0f;
 			if (elapsed_seconds < 60) {
-				sb.append(elapsed_seconds).append(" seconds");
+				sb.append((int)elapsed_seconds).append(" seconds");
 			} else {
-				sb.append(elapsed_seconds / 60).append("' ").append(elapsed_seconds % 60).append("''");
+				sb.append((int)(elapsed_seconds / 60)).append("' ").append((int)(elapsed_seconds % 60)).append("''");
 			}
 			Utils.showStatus(sb.toString(), false); // don't steal focus
 			// Increment up to 1 second
