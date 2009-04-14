@@ -76,6 +76,7 @@ import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -2496,19 +2497,19 @@ public final class FSLoader extends Loader {
 	static public ExecutorService repainter = null;
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
-	 *  returns true if the task was submitted, false if not. */
-	public final boolean regenerateMipMaps(final Patch patch) {
+	 *  returns a Future if the task was submitted, null if not. */
+	public final Future regenerateMipMaps(final Patch patch) {
 		synchronized (gm_lock) {
 			try {
 				gm_lock();
 				if (hs_regenerating_mipmaps.contains(patch)) {
-					return false;
+					return null;
 				}
 				// else, start it
 				hs_regenerating_mipmaps.add(patch);
 			} catch (Exception e) {
 				IJError.print(e);
-				return false;
+				return null;
 			} finally {
 				gm_unlock();
 			}
@@ -2516,7 +2517,7 @@ public final class FSLoader extends Loader {
 			try {
 				n_regenerating.incrementAndGet();
 				Utils.log2("SUBMITTING to regen " + patch);
-				regenerator.submit(new Runnable() {
+				return regenerator.submit(new Runnable() {
 					public void run() {
 						try {
 							Utils.showStatus("Regenerating mipmaps (" + n_regenerating.get() + " to go)");
@@ -2529,7 +2530,6 @@ public final class FSLoader extends Loader {
 						n_regenerating.decrementAndGet();
 					}
 				});
-				return true;
 			} catch (Exception e) {
 				IJError.print(e);
 				ThreadPoolExecutor tpe = (ThreadPoolExecutor) regenerator;
@@ -2540,7 +2540,7 @@ public final class FSLoader extends Loader {
 					   "\ntask count: " + tpe.getTaskCount());
 			}
 		}
-		return false;
+		return null;
 	}
 
 	/** Compute the number of bytes that the ImagePlus of a Patch will take. Assumes a large header of 1024 bytes. If the image is saved as a grayscale jpeg the returned bytes will be 5 times as expected, because jpeg images are opened as int[] and then copied to a byte[] if all channels have the same values for all pixels. */ // The header is unnecessary because it's read, but not stored except for some of its variables; it works here as a safety buffer space.

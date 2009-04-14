@@ -1172,7 +1172,7 @@ public final class Patch extends Displayable {
 	private boolean alpha_path_checked = false;
 
 	/** Caching system to avoid repeated checks. No automatic memoization ... snif */
-	private final boolean hasMask() {
+	public final boolean hasAlphaMask() {
 		if (alpha_path_checked) return has_alpha;
 		// else, see if the path exists:
 		try {
@@ -1185,13 +1185,13 @@ public final class Patch extends Displayable {
 	}
 
 	public boolean hasAlphaChannel() {
-		return null != ct || hasMask();
+		return null != ct || hasAlphaMask();
 	}
 
 	/** Must call updateMipmaps() afterwards. Set it to null to remove it. */
 	public void setAlphaMask(ByteProcessor bp) throws IllegalArgumentException {
 		if (null == bp) {
-			if (hasMask()) {
+			if (hasAlphaMask()) {
 				if (project.getLoader().removeAlphaMask(this)) {
 					alpha_path_checked = false;
 				}

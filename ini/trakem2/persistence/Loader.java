@@ -131,6 +131,7 @@ import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.general.MultiThreading;
 
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -4982,8 +4983,8 @@ abstract public class Loader {
 		return "trakem2." + getUNUId() + "/";
 	}
 
-	/** Does nothing unless overriden. */
-	public boolean regenerateMipMaps(final Patch patch) { return false; }
+	/** Does nothing and returns null unless overriden. */
+	public Future regenerateMipMaps(final Patch patch) { return null; }
 
 	/** Read out the width,height of an image using LOCI BioFormats. */
 	static public Dimension getDimensions(final String path) {

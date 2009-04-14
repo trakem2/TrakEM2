@@ -55,6 +55,7 @@ import java.awt.event.*;
 import java.util.*;
 import java.lang.reflect.Method;
 import java.io.Writer;
+import java.util.concurrent.Future;
 
 import lenscorrection.DistortionCorrectionTask;
 
@@ -2058,8 +2059,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 
 
-		JMenu adjust_menu = new JMenu("Adjust");
-
 		if (null != active) {
 			if (!canvas.isTransforming()) {
 				if (active instanceof Profile) {
@@ -2072,7 +2071,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 					menu = new JMenu("Duplicate, link and send to");
 					ArrayList al = layer.getParent().getLayers();
-					Iterator it = al.iterator();
+					final Iterator it = al.iterator();
 					int i = 1;
 					while (it.hasNext()) {
 						Layer la = (Layer)it.next();
@@ -2103,6 +2102,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 						item = new JMenuItem("Lens correction"); item.addActionListener(this); popup.add(item);
 						item = new JMenuItem("Blend"); item.addActionListener(this); popup.add(item);
 					}
+					item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); popup.add(item);
+					if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
 					item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
 					HashSet hs = active.getLinked(Patch.class);
@@ -2147,6 +2148,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 
 			if (!canvas.isTransforming()) {
+				item = new JMenuItem("Duplicate"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Color..."); item.addActionListener(this); popup.add(item);
 				if (active instanceof LayerSet) item.setEnabled(false);
 				if (active.isLocked()) {
@@ -2233,15 +2235,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Utils.getControlModifier(), true));
 			item = new JMenuItem("Redo");item.addActionListener(this); popup.add(item);
 			if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
-
-			item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
-			item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
-			if (selection.isEmpty()) item.setEnabled(false);
-			item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
-			item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
-			if (selection.isEmpty()) item.setEnabled(false);
-			popup.add(adjust_menu);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.SHIFT_MASK | Event.CTRL_MASK, true));
 			popup.addSeparator();
 
 			// Would get so much simpler with a clojure macro ...
@@ -2295,6 +2289,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 				popup.add(menu);
 			} catch (Exception e) { IJError.print(e); }
+
+			JMenu adjust_menu = new JMenu("Adjust");
+			item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+			if (selection.isEmpty()) item.setEnabled(false);
+			item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+			if (selection.isEmpty()) item.setEnabled(false);
+			popup.add(adjust_menu);
 
 			menu = new JMenu("Import");
 			item = new JMenuItem("Import image"); item.addActionListener(this); menu.add(item);
@@ -2891,6 +2894,23 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				if (null == p.getOriginalPath()) Utils.log("No editions to save for patch " + p.getTitle() + " #" + p.getId());
 				else Utils.log("Could not revert Patch " + p.getTitle() + " #" + p.getId());
 			}
+		} else if (command.equals("Remove alpha mask")) {
+			final ArrayList<Displayable> patches = selection.getSelected(Patch.class); 
+			if (patches.size() > 0) {
+				Bureaucrat.createAndStart(new Worker.Task("Removing alpha mask" + (patches.size() > 1 ? "s" : "")) { public void exec() {
+					final ArrayList<Future> jobs = new ArrayList<Future>();
+					for (final Displayable d : patches) {
+						final Patch p = (Patch) d;
+						p.setAlphaMask(null);
+						Future job = p.getProject().getLoader().regenerateMipMaps(p); // submit to queue
+						if (null != job) jobs.add(job);
+					}
+					// join all
+					for (final Future job : jobs) try {
+						job.get();
+					} catch (Exception ie) {}
+				}}, patches.get(0).getProject());
+			}
 		} else if (command.equals("Undo")) {
 			Bureaucrat.createAndStart(new Worker.Task("Undo") { public void exec() {
 				layer.getParent().undoOneStep();
@@ -3390,6 +3410,27 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().addDataEditStep(ds);
 			}});
+		} else if (command.equals("Duplicate")) {
+			// only Patch and DLabel, i.e. Layer-only resident objects that don't exist in the Project Tree
+			final HashSet<Class> accepted = new HashSet<Class>();
+			accepted.add(Patch.class);
+			accepted.add(DLabel.class);
+			final ArrayList<Displayable> originals = new ArrayList<Displayable>();
+			final ArrayList<Displayable> selected = selection.getSelected();
+			for (final Displayable d : selected) {
+				if (accepted.contains(d.getClass())) {
+					originals.add(d);
+				}
+			}
+			if (originals.size() > 0) {
+				getLayerSet().addChangeTreesStep();
+				for (final Displayable d : originals) {
+					d.getLayer().add(d.clone());
+				}
+				getLayerSet().addChangeTreesStep();
+			} else if (selected.size() > 0) {
+				Utils.log("Can only duplicate images and text labels.\nDuplicate *other* objects in the Project Tree.\n");
+			}
 		} else if (command.equals("Create subproject")) {
 			Roi roi = canvas.getFakeImagePlus().getRoi();
 			if (null == roi) return; // the menu item is not active unless there is a ROI
