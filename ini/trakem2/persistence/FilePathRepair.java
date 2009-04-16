@@ -3,12 +3,16 @@ package ini.trakem2.persistence;
 import java.io.File;
 import java.util.Hashtable;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.Vector;
+import java.util.Collection;
 
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 import javax.swing.BoxLayout;
 import javax.swing.table.AbstractTableModel;
@@ -28,6 +32,7 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Patch;
+import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.IJError;
@@ -66,7 +71,17 @@ public class FilePathRepair {
 			all.add(plabel);
 			all.add(jsp);
 			frame.getContentPane().add(all);
-			frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+			frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+			frame.addWindowListener(new WindowAdapter() {
+				public void windowClosing(WindowEvent we) {
+					synchronized (projects) {
+						if (data.vpath.size() > 0 ) {
+							Utils.logAll("WARNING: Some images remain associated to inexistent file paths.");
+						}
+						projects.remove(project);
+					}
+				}
+			});
 			frame.pack();
 			ij.gui.GUI.center(frame);
 			frame.setVisible(true);
@@ -102,7 +117,8 @@ public class FilePathRepair {
 		synchronized public final void add(final Patch patch) {
 			if (set.contains(patch)) return; // already here
 			vp.add(patch);
-			vpath.add(patch.getImageFilePath());
+			vpath.add(patch.getImageFilePath()); // no slice information if it's a stack
+Utils.log2(vpath.get(vpath.size()-1));
 			set.add(patch);
 		}
 
@@ -194,7 +210,7 @@ public class FilePathRepair {
 			final String old_path = patch.getImageFilePath();
 			final File f = new File(old_path);
 			if (f.exists()) {
-				Utils.log("File exists for " + patch + " at " + f.getAbsolutePath() + "\n  --> not updating.");
+				Utils.log("File exists for " + patch + " at " + f.getAbsolutePath() + "\n  --> not updating path.");
 				data.remove(row);
 				return;
 			}
@@ -203,30 +219,65 @@ public class FilePathRepair {
 			final String dir = od.getDirectory();
 			final String filename = od.getFileName();
 			if (null == dir) return; // dialog was canceled
-			final String path = new StringBuffer(dir).append(filename).toString(); // save concat, no backslash altered
-			if (!fixPatchPath(patch, path, update_mipmaps)) {
-				return;
+			// Compare filenames
+			if ( ! filename.equals(f.getName())) {
+				YesNoDialog yn = new YesNoDialog(projects.get(patch.getProject()).frame, "WARNING", "Different file names!\n  old: " + f.getName() + "\n  new: " + filename + "\nSet to new file name?");
+				if ( ! yn.yesPressed()) return;
+
+				// Remove mipmaps: would not be found with the new name and the old ones would remain behind unused
+				if ( ! f.getName().equals(new File(old_path).getName())) {
+					// remove mipmaps: the name wouldn't match otherwise
+					patch.getProject().getLoader().removeMipMaps(patch);
+				}
 			}
-			// Remove from table
-			String wrong_parent_path = new File(data.remove(row)).getParent();
+			//
+			String wrong_parent_path = new File(data.vpath.get(row)).getParent();
 			if (!wrong_parent_path.endsWith(File.separator)) wrong_parent_path = new StringBuffer(wrong_parent_path).append(File.separatorChar).toString(); // backslash-safe
+
+			final String path = new StringBuffer(dir).append(filename).toString(); // save concat, no backslash altered
+
+			// keep track of fixed slices to avoid calling n_slices * n_slices times!
+			final HashSet<Patch> fixed = new HashSet<Patch>();
+
+			int n_fixed = 0;
+
+			if (-1 == patch.getFilePath().lastIndexOf("-----#slice=")) {
+				if (!fixPatchPath(patch, path, update_mipmaps)) {
+					data.remove(patch);
+					return;
+				}
+				n_fixed += 1;
+			} else {
+				int n = fixStack(data, fixed, patch.getStackPatches(), old_path, path, update_mipmaps);
+				if (0 == n) {
+					return; // some error ocurred, no paths fixed
+				}
+				n_fixed += n;
+				// data already cleared of removed patches by fixStack
+			}
+
 			String good_parent_path = dir;
 			if (!dir.endsWith(File.separator)) good_parent_path = new StringBuffer(good_parent_path).append(File.separatorChar).toString(); // backslash-safe
-
-			int n_fixed = 1;
 
 			// Check for similar parent paths and see if they can be fixed
 			if (fix_similar) {
 				for (int i=data.vp.size() -1; i>-1; i--) {
 					final String wrong_path = data.vpath.get(i);
+Utils.log2("wrong path: " + wrong_path);
 					final Patch p = data.vp.get(i);
 					if (wrong_path.startsWith(wrong_parent_path)) {
 						// try to fix as well
-						File file = new File(new StringBuffer(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
+						final File file = new File(new StringBuffer(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
 						if (file.exists()) {
-							if (fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
-								data.remove(p); // not by 'i' but by Patch, since if some fail the order is not the same
-								n_fixed++;
+							if (-1 == p.getFilePath().lastIndexOf("-----#slice=")) {
+								if (fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
+									data.remove(p); // not by 'i' but by Patch, since if some fail the order is not the same
+									n_fixed++;
+								}
+								fixed.add(p);
+							} else {
+								if (fixed.contains(p)) continue;
+								n_fixed += fixStack(data, fixed, p.getStackPatches(), wrong_path, file.getAbsolutePath(), update_mipmaps);
 							}
 						}
 					}
@@ -237,12 +288,25 @@ public class FilePathRepair {
 				for (final Displayable d : patch.getLayerSet().getDisplayables(Patch.class)) {
 					final Patch p = (Patch) d;
 					final String wrong_path = p.getImageFilePath();
+Utils.log2("wrong path: " + wrong_path + "\nwrong pare: " + wrong_parent_path);
 					if (wrong_path.startsWith(wrong_parent_path)) {
 						File file = new File(new StringBuffer(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
 						if (file.exists()) {
-							fixPatchPath(p, file.getAbsolutePath(), update_mipmaps);
-							n_fixed++;
+							if (-1 == p.getFilePath().lastIndexOf("-----#slice=")) {
+								if (fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
+									data.remove(p); // not by 'i' but by Patch, since if some fail the order is not the same
+									n_fixed++;
+								}
+							} else {
+								if (fixed.contains(p)) continue;
+								n_fixed += fixStack(data, fixed, p.getStackPatches(), wrong_path, file.getAbsolutePath(), update_mipmaps);
+							}
+
+						} else {
+Utils.log2("nonexistent file: " + file.getAbsolutePath());
 						}
+					} else {
+						Utils.log2("not equal!");
 					}
 				}
 			}
@@ -255,6 +319,52 @@ public class FilePathRepair {
 
 			Utils.logAll("Fixed " + n_fixed + " image file path" + (n_fixed > 1 ? "s" : ""));
 		}
+	}
+
+	static private int fixStack(final PathTableModel data, final Set<Patch> fixed, final Collection<Patch> slices, final String wrong_path, final String new_path, final boolean update_mipmaps) {
+		Utils.log2("========= fixStack =========");
+		int n_fixed = 0;
+		Dimension dim = null;
+		Loader loader = null;
+		for (final Patch ps : slices) {
+			final String slicepath = ps.getFilePath();
+			final int isl = slicepath.lastIndexOf("-----#slice=");
+			if (-1 == isl) {
+				Utils.log2("Not a stack path: " + slicepath);
+				continue; // someone linked an image...
+			}
+			final String ps_path = slicepath.substring(0, isl); // same: // ps.getImageFilePath();
+			if (! ps_path.substring(0, isl).equals(wrong_path)) {
+				Utils.log2("Not the same stack path:\n  i=" + ps_path + "\n  ref=" + wrong_path);
+				continue; // not the same stack!
+			}
+			if (null == dim) {
+				loader = ps.getProject().getLoader();
+				loader.releaseToFit(Math.max(Loader.MIN_FREE_BYTES, ps.getOWidth() * ps.getOHeight() * 10));
+				dim = loader.getDimensions(new_path);
+				if (null == dim) {
+					Utils.log(new StringBuffer("ERROR: could not open image at ").append(new_path).toString()); // preserving backslashes
+					return n_fixed;
+				}
+				// Check dimensions
+				if (dim.width != ps.getOWidth() || dim.height != ps.getOHeight()) {
+					Utils.log("ERROR different o_width,o_height for patch " + ps + "\n  at new path " + new_path);
+					return n_fixed;
+				}
+			}
+			Utils.log2("fixing slice " + ps);
+			// flag as good
+			fixed.add(ps);
+			loader.removeFromUnloadable(ps);
+			// Assign new image path with slice info appended
+			loader.addedPatchFrom(new_path + slicepath.substring(isl), ps);
+			// submit job to regenerate mipmaps in the background
+			if (update_mipmaps) loader.regenerateMipMaps(ps);
+			//
+			data.remove(ps);
+			n_fixed++;
+		}
+		return n_fixed;
 	}
 
 	static private boolean fixPatchPath(final Patch patch, final String new_path, final boolean update_mipmaps) {

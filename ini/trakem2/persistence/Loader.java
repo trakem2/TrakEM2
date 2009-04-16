@@ -3687,7 +3687,7 @@ abstract public class Loader {
 	public String getAbsolutePath(final Patch patch) { return null; }
 
 	/** Returns null unless overriden. This is intended for FSLoader projects. */
-	public String getAbsoluteFilePath(final Patch p) { return null; }
+	public String getImageFilePath(final Patch p) { return null; }
 
 	/** Does nothing unless overriden. */
 	public void setupMenuItems(final JMenu menu, final Project project) {}

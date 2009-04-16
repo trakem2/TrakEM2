@@ -960,10 +960,10 @@ public final class FSLoader extends Loader {
 		return path;
 	}
 
-	public final String getAbsoluteFilePath(final Patch p) {
+	public final String getImageFilePath(final Patch p) {
 		final String path = getAbsolutePath(p);
 		if (null == path) return null;
-		final int i = path.lastIndexOf("----#slice");
+		final int i = path.lastIndexOf("-----#slice");
 		return -1 == i ? path
 			       : path.substring(0, i);
 	}
