@@ -1097,7 +1097,7 @@ public class Project extends DBObject {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
-		for (Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
+		for (final Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry prop = (Map.Entry)it.next();
 			Utils.log2("parsed: " + prop.getKey() + "=" + prop.getValue());
 		}
@@ -1122,6 +1122,18 @@ public class Project extends DBObject {
 		}
 		return default_value;
 	}
+
+	public int getProperty(final String key, final int default_value) {
+		try {
+			final String s = ht_props.get(key);
+			if (null == s) return default_value;
+			return Integer.parseInt(s);
+		} catch (NumberFormatException nfe) {
+			IJError.print(nfe);
+		}
+		return default_value;
+	}
+
 	public boolean getBooleanProperty(final String key) {
 		return "true".equals(ht_props.get(key));
 	}
@@ -1188,6 +1200,8 @@ public class Project extends DBObject {
 		gd.addNumericField("Bucket side length: ", bucket_side, 0);
 		boolean no_shutdown_hook = "true".equals(ht_props.get("no_shutdown_hook"));
 		gd.addCheckbox("No_shutdown_hook to save the project", no_shutdown_hook);
+		int n_undo_steps = getProperty("n_undo_steps", 32);
+		gd.addSlider("Undo steps", 32, 200, n_undo_steps);
 		//
 		gd.showDialog();
 		//
@@ -1227,6 +1241,9 @@ public class Project extends DBObject {
 			layer_set.recreateBuckets(true);
 		}
 		adjustProp("no_shutdown_hook", no_shutdown_hook, gd.getNextBoolean());
+		n_undo_steps = (int)gd.getNextNumber();
+		if (n_undo_steps < 0) n_undo_steps = 0;
+		setProperty("n_undo_steps", Integer.toString(n_undo_steps));
 	}
 
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */

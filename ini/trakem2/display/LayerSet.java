@@ -1681,6 +1681,17 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					}
 					edits.put(current_edit_time, current_edit_step);
 				}
+
+				// prune if too large
+				while (edit_history.size() > project.getProperty("n_undo_steps", 32)) {
+					long t = edit_history.firstKey();
+					DoStep st = edit_history.remove(t);
+					if (null != st.getD()) {
+						TreeMap<Long,DoStep> m = dedits.get(st.getD());
+						m.remove(t);
+						if (0 == m.size()) dedits.remove(st.getD());
+					}
+				}
 			}
 
 			// Set step as current
