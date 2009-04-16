@@ -2337,6 +2337,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
 			item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
 
 			menu = new JMenu("Selection");
@@ -3508,6 +3509,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}, project);
 		} else if (command.equals("Flush image cache")) {
 			Loader.releaseAllCaches();
+		} else if (command.equals("Regenerate all mipmaps")) {
+			for (final Displayable d : getLayerSet().getDisplayables(Patch.class)) {
+				d.getProject().getLoader().regenerateMipMaps((Patch) d);
+			}
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
