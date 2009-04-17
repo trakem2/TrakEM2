@@ -77,6 +77,7 @@ public class ControlWindow {
 			Loader.setupPreloader(this);
 			if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
 			Display3D.init();
+			/* // Nimbus looks great but it's unstable: after a while, swing components stop repainting, throwing all sort of exceptions.
 			if ("albert".equals(System.getProperty("user.name"))) {
 				try {
 					UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
@@ -88,6 +89,7 @@ public class ControlWindow {
 					IJError.print(e);
 				}
 			}
+			*/
 		}
 	}
 
