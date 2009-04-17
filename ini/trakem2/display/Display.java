@@ -4002,6 +4002,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				final LayerPanel lp = layer_panels.get(l);
 				lp.setColor(Color.white);
 				setColorChannel(lp.layer, Color.white);
+				lp.slider.setEnabled(true);
 			}
 			layer_channels.clear();
 		}
@@ -4078,6 +4079,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} else {
 				Utils.log2("Trying to set unacceptable color for layer " + layer + " : " + color);
 			}
+			// enable/disable sliders
+			final boolean b = 0 == layer_channels.size();
+			for (final LayerPanel lp : layer_panels.values()) lp.slider.setEnabled(b);
 		}
 		this.canvas.repaint(true);
 	}
