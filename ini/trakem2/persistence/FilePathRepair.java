@@ -118,7 +118,6 @@ public class FilePathRepair {
 			if (set.contains(patch)) return; // already here
 			vp.add(patch);
 			vpath.add(patch.getImageFilePath()); // no slice information if it's a stack
-Utils.log2(vpath.get(vpath.size()-1));
 			set.add(patch);
 		}
 
@@ -243,9 +242,10 @@ Utils.log2(vpath.get(vpath.size()-1));
 
 			if (-1 == patch.getFilePath().lastIndexOf("-----#slice=")) {
 				if (!fixPatchPath(patch, path, update_mipmaps)) {
-					data.remove(patch);
 					return;
 				}
+				data.remove(patch);
+				fixed.add(patch);
 				n_fixed += 1;
 			} else {
 				int n = fixStack(data, fixed, patch.getStackPatches(), old_path, path, update_mipmaps);
@@ -263,18 +263,17 @@ Utils.log2(vpath.get(vpath.size()-1));
 			if (fix_similar) {
 				for (int i=data.vp.size() -1; i>-1; i--) {
 					final String wrong_path = data.vpath.get(i);
-Utils.log2("wrong path: " + wrong_path);
 					final Patch p = data.vp.get(i);
 					if (wrong_path.startsWith(wrong_parent_path)) {
 						// try to fix as well
 						final File file = new File(new StringBuffer(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
 						if (file.exists()) {
 							if (-1 == p.getFilePath().lastIndexOf("-----#slice=")) {
-								if (fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
+								if (!fixed.contains(p) && fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
 									data.remove(p); // not by 'i' but by Patch, since if some fail the order is not the same
 									n_fixed++;
+									fixed.add(p);
 								}
-								fixed.add(p);
 							} else {
 								if (fixed.contains(p)) continue;
 								n_fixed += fixStack(data, fixed, p.getStackPatches(), wrong_path, file.getAbsolutePath(), update_mipmaps);
@@ -284,29 +283,24 @@ Utils.log2("wrong path: " + wrong_path);
 				}
 			}
 			if (fix_all) {
-				// traverse all Patch from the entire project
+				// traverse all Patch from the entire project, minus those already fixed
 				for (final Displayable d : patch.getLayerSet().getDisplayables(Patch.class)) {
 					final Patch p = (Patch) d;
 					final String wrong_path = p.getImageFilePath();
-Utils.log2("wrong path: " + wrong_path + "\nwrong pare: " + wrong_parent_path);
 					if (wrong_path.startsWith(wrong_parent_path)) {
 						File file = new File(new StringBuffer(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
 						if (file.exists()) {
 							if (-1 == p.getFilePath().lastIndexOf("-----#slice=")) {
-								if (fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
+								if (!fixed.contains(p) && fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
 									data.remove(p); // not by 'i' but by Patch, since if some fail the order is not the same
 									n_fixed++;
+									fixed.add(p);
 								}
 							} else {
 								if (fixed.contains(p)) continue;
 								n_fixed += fixStack(data, fixed, p.getStackPatches(), wrong_path, file.getAbsolutePath(), update_mipmaps);
 							}
-
-						} else {
-Utils.log2("nonexistent file: " + file.getAbsolutePath());
 						}
-					} else {
-						Utils.log2("not equal!");
 					}
 				}
 			}
@@ -322,11 +316,11 @@ Utils.log2("nonexistent file: " + file.getAbsolutePath());
 	}
 
 	static private int fixStack(final PathTableModel data, final Set<Patch> fixed, final Collection<Patch> slices, final String wrong_path, final String new_path, final boolean update_mipmaps) {
-		Utils.log2("========= fixStack =========");
 		int n_fixed = 0;
 		Dimension dim = null;
 		Loader loader = null;
 		for (final Patch ps : slices) {
+			if (fixed.contains(ps)) continue;
 			final String slicepath = ps.getFilePath();
 			final int isl = slicepath.lastIndexOf("-----#slice=");
 			if (-1 == isl) {
@@ -352,7 +346,6 @@ Utils.log2("nonexistent file: " + file.getAbsolutePath());
 					return n_fixed;
 				}
 			}
-			Utils.log2("fixing slice " + ps);
 			// flag as good
 			fixed.add(ps);
 			loader.removeFromUnloadable(ps);
