@@ -830,7 +830,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	public synchronized void setLayer(final Layer layer) {
 		if (null == layer || layer == this.layer) return;
 		translateLayerColors(this.layer, layer);
-		if (tabs.getSelectedComponent() == scroll_layers) scrollToShow(scroll_layers, layer_panels.get(layer));
+		if (tabs.getSelectedComponent() == scroll_layers) {
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				scrollToShow(scroll_layers, layer_panels.get(layer));
+			}});
+		}
 		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
 		if (selection.isTransforming()) {
 			Utils.log("Can't browse layers while transforming.\nCANCEL the transform first with the ESCAPE key or right-click -> cancel.");
