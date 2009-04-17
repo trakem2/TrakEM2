@@ -65,6 +65,7 @@ import javax.swing.UIManager;
 /** The top-level class in control. */
 public class Project extends DBObject {
 
+	/*
 	static {
 		try {
 			//UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
@@ -76,6 +77,7 @@ public class Project extends DBObject {
 			Utils.log("Failed to set System Look and Feel");
 		}
 	}
+	*/
 
 	/* // using virtual frame buffer instead, since the trees are needed
 	public static final boolean headless = isHeadless();

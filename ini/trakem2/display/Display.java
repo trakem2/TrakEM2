@@ -4085,4 +4085,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		this.canvas.repaint(true);
 	}
+
+	static public final void updateComponentTreeUI() {
+		try {
+			for (final Display d : al_displays) SwingUtilities.updateComponentTreeUI(d.frame);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+	}
 }

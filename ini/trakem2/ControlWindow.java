@@ -28,6 +28,7 @@ import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Display3D;
+import ini.trakem2.display.Display;
 import ini.trakem2.tree.LayerTree;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.TemplateTree;
@@ -76,6 +77,17 @@ public class ControlWindow {
 			Loader.setupPreloader(this);
 			if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
 			Display3D.init();
+			if ("albert".equals(System.getProperty("user.name"))) {
+				try {
+					UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
+					if (null != frame) SwingUtilities.updateComponentTreeUI(frame);
+					Display.updateComponentTreeUI();
+				} catch (ClassNotFoundException cnfe) {
+					Utils.log2("Could not find Nimbus L&F");
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+			}
 		}
 	}
 
