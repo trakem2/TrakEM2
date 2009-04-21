@@ -1439,7 +1439,7 @@ abstract public class Loader {
 		double by = 0;
 		double bt_overlap = 0;
 		double lr_overlap = 0;
-		boolean link_images = true;
+		boolean link_images = false;
 		boolean stitch_tiles = true;
 		boolean homogenize_contrast = true;
 
@@ -4971,6 +4971,9 @@ abstract public class Loader {
 
 	/** Does nothing unless overriden. */
 	public void queueForMipmapRemoval(final Patch p, boolean yes) {}
+
+	/** Does nothing unless overriden. */
+	public void tagForMipmapRemoval(final Patch p, boolean yes) {}
 
 	/** Get the Universal Near-Unique Id for the project hosted by this loader. */
 	public String getUNUId() {

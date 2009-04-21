@@ -1894,11 +1894,31 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			ls.al_layers.clear();
 			ls.al_layers.addAll(this.all_layers);
 
+			final ArrayList<Displayable> patches = new ArrayList<Displayable>();
+
 			// Replace all Displayable in each Layer
 			for (final Map.Entry<Layer,ArrayList<Displayable>> e : all_displ.entrySet()) {
+				// Acquire pointer to the actual instance list in each Layer
 				final ArrayList<Displayable> al = e.getKey().getDisplayableList(); // the real one!
+				// Create a list to contain those Displayable present in old list but not in list to use now
+				final HashSet<Displayable> diff = new HashSet<Displayable>(al); // create with all Displayable of old list
+				diff.removeAll(e.getValue()); // remove all Displayable present in list to use now, to leave the diff or remainder only
+				// Clear current list
 				al.clear();
+				// Insert all to the current list
 				al.addAll(e.getValue());
+				// Add to remove-on-shutdown queue all those Patch no longer in the list to use now:
+				for (final Displayable d : diff) {
+					if (d.getClass() == Patch.class) {
+						d.getProject().getLoader().tagForMipmapRemoval((Patch)d, true);
+					}
+				}
+				// Remove from queue all those Patch in the list to use now:
+				for (final Displayable d : al) {
+					if (d.getClass() == Patch.class) {
+						d.getProject().getLoader().tagForMipmapRemoval((Patch)d, false);
+					}
+				}
 			}
 
 			// Replace all ZDisplayable

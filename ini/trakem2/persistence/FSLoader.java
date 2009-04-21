@@ -106,6 +106,8 @@ public final class FSLoader extends Loader {
 
 	private Set<Patch> touched_mipmaps = Collections.synchronizedSet(new HashSet<Patch>());
 
+	private Set<Patch> mipmaps_to_remove = Collections.synchronizedSet(new HashSet<Patch>());
+
 	/** Used to open a project from an existing XML file. */
 	public FSLoader() {
 		super(); // register
@@ -356,14 +358,13 @@ public final class FSLoader extends Loader {
 		super.destroy();
 		Utils.showStatus("", false);
 		// delete mipmap files that where touched and not cleared as saved (i.e. the project was not saved)
+		touched_mipmaps.addAll(mipmaps_to_remove);
 		for (final Patch p : touched_mipmaps) {
-			File f = new File(getAbsolutePath(p));
-			Utils.log2("File f is " + f);
-			if (f.exists()) { // TODO this may not work for stacks!
-				Utils.log2("Removing mipmaps for " + p);
-				// Cannot run in the dispatcher: is a daemon, and would be interrupted.
-				removeMipMaps(createIdPath(Long.toString(p.getId()), f.getName(), ".jpg"), (int)p.getWidth(), (int)p.getHeight()); // needs the dispatcher!
-			}
+			File f = new File(getAbsolutePath(p)); // with slice info appended
+			//Utils.log2("File f is " + f);
+			Utils.log2("Removing mipmaps for " + p);
+			// Cannot run in the dispatcher: is a daemon, and would be interrupted.
+			removeMipMaps(createIdPath(Long.toString(p.getId()), f.getName(), ".jpg"), (int)p.getWidth(), (int)p.getHeight());
 		}
 		//
 		// remove empty trakem2.mipmaps folder if any
@@ -380,9 +381,9 @@ public final class FSLoader extends Loader {
 			}
 		}
 		// remove crash detector
-		File f = new File(dir_mipmaps + ".open.t2");
 		try {
-			if (!f.delete()) {
+			File fm = new File(dir_mipmaps + ".open.t2");
+			if (!fm.delete()) {
 				Utils.log2("WARNING: could not delete crash detector file .open.t2 from trakem2.mipmaps folder at " + dir_mipmaps);
 			}
 		} catch (Exception e) {
@@ -391,6 +392,25 @@ public final class FSLoader extends Loader {
 		}
 		if (null == ControlWindow.getProjects() || 1 == ControlWindow.getProjects().size()) {
 			destroyStaticServices();
+		}
+		// remove unuid dir if xml_path is empty (i.e. never saved and not opened from an .xml file)
+		if (null == project_file_path) {
+			Utils.log2("Removing unuid dir, since project was never saved.");
+			final File f = new File(getUNUIdFolder());
+			if (null != dir_mipmaps) Utils.removePrefixedFiles(f, "trakem2.mipmaps", null);
+			if (null != dir_masks) Utils.removePrefixedFiles(f, "trakem2.masks", null);
+			Utils.removePrefixedFiles(f, "features.ser", null);
+			Utils.removePrefixedFiles(f, "pointmatches.ser", null);
+			// Only if empty:
+			if (f.isDirectory()) {
+				try {
+					if (!f.delete()) {
+						Utils.log2("Could not delete unuid directory: likely not empty!");
+					}
+				} catch (Exception e) {
+					Utils.log2("Could not delete unuid directory: " + e);
+				}
+			}
 		}
 	}
 
@@ -1554,6 +1574,12 @@ public final class FSLoader extends Loader {
 	public void queueForMipmapRemoval(final Patch p, boolean yes) {
 		if (yes) touched_mipmaps.add(p);
 		else touched_mipmaps.remove(p);
+	}
+
+	/** Queue/unqueue for mipmap removal on shutdown without saving. */
+	public void tagForMipmapRemoval(final Patch p, final boolean yes) {
+		if (yes) mipmaps_to_remove.add(p);
+		else mipmaps_to_remove.remove(p);
 	}
 
 	/** Given an image and its source file name (without directory prepended), generate
