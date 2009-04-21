@@ -791,20 +791,20 @@ public class Project extends DBObject {
 	public String getMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
-		String title = new StringBuffer(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
+		String title = new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
 
 		if (!thing.getType().equals(d.getTitle())) {
 			return title;
 		}
 
 		ProjectThing parent = (ProjectThing)thing.getParent();
-		StringBuffer sb = new StringBuffer(title);
+		StringBuilder sb = new StringBuilder(title);
 		while (null != parent) {
 			Object ob = parent.getObject();
 			if (ob.getClass() == Project.class) break;
 			String type = parent.getType();
 			if (!ob.equals(type)) { // meaning, something else was typed in as a title
-				sb.insert(0, new StringBuffer(ob.toString()).append(' ').append('[').append(type).append(']').append('/').toString());
+				sb.insert(0, new StringBuilder(ob.toString()).append(' ').append('[').append(type).append(']').append('/').toString());
 				//title =  ob.toString() + " [" + type + "]/" + title;
 				break;
 			}
@@ -1020,7 +1020,7 @@ public class Project extends DBObject {
 	}
 
 	public String getInfo() {
-		StringBuffer sb = new StringBuffer("Project id: ");
+		StringBuilder sb = new StringBuilder("Project id: ");
 		sb.append(this.id).append("\nProject name: ").append(this.title)
 		  .append("\nTrees:\n")
 		  .append(project_tree.getInfo()).append("\n")
