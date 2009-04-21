@@ -4263,7 +4263,7 @@ abstract public class Loader {
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
-						if (!homogenizeContrast(la[i], pa, null == parent ? wo : parent)) {
+						if (!homogenizeContrast(pa, null == parent ? wo : parent)) {
 							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
 						}
 					}
@@ -4294,7 +4294,7 @@ abstract public class Loader {
 			public void run() {
 				startedWorking();
 				try {
-					homogenizeContrast(pa[0].getLayer(), pa, null == parent ? this : parent);
+					homogenizeContrast(pa, null == parent ? this : parent);
 				} catch (Exception e) {
 					IJError.print(e);
 				}
@@ -4304,8 +4304,8 @@ abstract public class Loader {
 		return Bureaucrat.createAndStart(worker, pa[0].getProject());
 	}
 
-	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. Needs a layer to repaint when done. */
-	public boolean homogenizeContrast(final Layer layer, final Patch[] pa, final Worker worker) {
+	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. */
+	public boolean homogenizeContrast(final Patch[] pa, final Worker worker) {
 		try {
 			if (null == pa) return false; // error
 			if (0 == pa.length) return true; // done
@@ -4433,8 +4433,7 @@ abstract public class Loader {
 				}
 				unlock();
 			}
-			// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more than once for a few tiles
-			if (null != layer) Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
+			Display.repaint();
 		} catch (Exception e) {
 			IJError.print(e);
 			return false;
