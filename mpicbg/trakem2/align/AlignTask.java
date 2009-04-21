@@ -164,14 +164,21 @@ final public class AlignTask
 		
 		final Align.ParamOptimize p = Align.paramOptimize.clone();
 
+		alignTiles(  patches, fixedPatches, p );
+	}
+
+	final static public void alignTiles(
+			final List< Patch > patches,
+			final List< Patch > fixedPatches,
+			final Align.ParamOptimize p ) // p at end to avoid "same erasure" problem ... generics!
+	{
 		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 		Align.tilesFromPatches( p, patches, fixedPatches, tiles, fixedTiles );
 		
 		alignTiles( p, tiles, fixedTiles );
 	}
-	
-	
+
 	final static public void alignTiles(
 			final Align.ParamOptimize p,
 			final List< AbstractAffineTile2D< ? > > tiles,
@@ -489,13 +496,18 @@ final public class AlignTask
 		Align.Param cp = Align.param.clone();
 		Align.ParamOptimize pcp = p.clone();
 		pcp.desiredModelIndex = cp.desiredModelIndex;
-		
-		
-		/* register */
-		
+
 		final List< Layer > layerRange = new ArrayList< Layer >();
 		for ( int i = first; i != last + d; i += d )
 			layerRange.add( layers.get( i ) );
+
+		alignMultiLayerMosaicTask( layerRange, cp, p, pcp, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+	}
+
+
+	public static final void alignMultiLayerMosaicTask( final List< Layer > layerRange, final Align.Param cp, final Align.ParamOptimize p, final Align.ParamOptimize pcp, final boolean tilesAreInPlace, final boolean largestGraphOnly, final boolean hideDisconnectedTiles, final boolean deleteDisconnectedTiles ) {
+
+		/* register */
 		
 		final List< AbstractAffineTile2D< ? > > allTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > allFixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
@@ -569,7 +581,7 @@ final public class AlignTask
 						t.getPatch().remove( false );
 		}
 		
-		l.getParent().setMinimumDimensions();
+		layerRange.get(0).getParent().setMinimumDimensions();
 		
 		return;
 	}
