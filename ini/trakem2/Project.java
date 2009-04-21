@@ -65,19 +65,18 @@ import javax.swing.UIManager;
 /** The top-level class in control. */
 public class Project extends DBObject {
 
-	/*
 	static {
 		try {
 			//UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 			if (IJ.isLinux()) {
-				//UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
-				if ("albert".equals(System.getProperty("user.name"))) UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
+				UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
+				if (null != IJ.getInstance()) javax.swing.SwingUtilities.updateComponentTreeUI(IJ.getInstance());
+				//if ("albert".equals(System.getProperty("user.name"))) UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
 			}
 		} catch (Exception e) {
 			Utils.log("Failed to set System Look and Feel");
 		}
 	}
-	*/
 
 	/* // using virtual frame buffer instead, since the trees are needed
 	public static final boolean headless = isHeadless();

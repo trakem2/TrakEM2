@@ -77,19 +77,28 @@ public class ControlWindow {
 			Loader.setupPreloader(this);
 			if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
 			Display3D.init();
-			/* // Nimbus looks great but it's unstable: after a while, swing components stop repainting, throwing all sort of exceptions.
-			if ("albert".equals(System.getProperty("user.name"))) {
-				try {
-					UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
-					if (null != frame) SwingUtilities.updateComponentTreeUI(frame);
-					Display.updateComponentTreeUI();
-				} catch (ClassNotFoundException cnfe) {
-					Utils.log2("Could not find Nimbus L&F");
-				} catch (Exception e) {
-					IJError.print(e);
+			setLookAndFeel();
+		}
+	}
+
+	static public void setLookAndFeel() {
+		try {
+			if (ij.IJ.isLinux()) {
+				// Nimbus looks great but it's unstable: after a while, swing components stop repainting, throwing all sort of exceptions.
+				//UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
+				UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
+				for (final Frame frame : Frame.getFrames()) {
+					if (frame.isEnabled()) SwingUtilities.updateComponentTreeUI(frame);
 				}
+				// all done above
+				//if (null != frame) SwingUtilities.updateComponentTreeUI(frame);
+				//if (null != IJ.getInstance()) javax.swing.SwingUtilities.updateComponentTreeUI(IJ.getInstance());
+				//Display.updateComponentTreeUI();
 			}
-			*/
+		} catch (ClassNotFoundException cnfe) {
+			Utils.log2("Could not find Nimbus L&F");
+		} catch (Exception e) {
+			IJError.print(e);
 		}
 	}
 

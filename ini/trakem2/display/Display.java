@@ -793,6 +793,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			public void run() {
 				tabs.setMinimumSize(new Dimension(0, 100));
 				Display.scrollbar_width = Display.this.scroll_patches.getVerticalScrollBar().getPreferredSize().width; // using scroll_patches since it's the one selected by default and thus visible and painted
+				ControlWindow.setLookAndFeel();
 			}
 		});
 	}
