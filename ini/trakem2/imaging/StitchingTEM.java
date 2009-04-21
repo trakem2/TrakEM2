@@ -65,6 +65,7 @@ import java.util.Iterator;
 import java.util.Vector;
 import java.awt.geom.AffineTransform;
 
+import mpicbg.trakem2.align.AlignTask;
 
 /** Given:
  *  - list of images
@@ -144,9 +145,11 @@ public class StitchingTEM {
 			case StitchingTEM.TOP_LEFT_RULE:
 				return StitchingTEM.stitchTopLeft(patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap, optimize);
 			case StitchingTEM.FREE_RULE:
-				HashSet<Patch> hs = new HashSet<Patch>();
+				final HashSet<Patch> hs = new HashSet<Patch>();
 				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
-				return Registration.registerTilesSIFT(hs, patch[0], null, true);
+				final ArrayList<Patch> fixed = new ArrayList<Patch>();
+				fixed.add(patch[0]);
+				return AlignTask.alignPatchesTask( new ArrayList<Patch>(hs), fixed );
 		}
 		return null;
 	}
