@@ -80,7 +80,7 @@ import java.util.regex.Matcher;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7a 2009-04-17";
+	static public String version = "0.7b 2009-04-21";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
