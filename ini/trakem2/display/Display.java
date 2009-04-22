@@ -793,6 +793,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			public void run() {
 				tabs.setMinimumSize(new Dimension(0, 100));
 				Display.scrollbar_width = Display.this.scroll_patches.getVerticalScrollBar().getPreferredSize().width; // using scroll_patches since it's the one selected by default and thus visible and painted
+				ControlWindow.setLookAndFeel();
 			}
 		});
 	}
@@ -830,7 +831,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	public synchronized void setLayer(final Layer layer) {
 		if (null == layer || layer == this.layer) return;
 		translateLayerColors(this.layer, layer);
-		if (tabs.getSelectedComponent() == scroll_layers) scrollToShow(scroll_layers, layer_panels.get(layer));
+		if (tabs.getSelectedComponent() == scroll_layers) {
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				scrollToShow(scroll_layers, layer_panels.get(layer));
+			}});
+		}
 		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
 		if (selection.isTransforming()) {
 			Utils.log("Can't browse layers while transforming.\nCANCEL the transform first with the ESCAPE key or right-click -> cancel.");
@@ -2337,6 +2342,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
 			item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
 
 			menu = new JMenu("Selection");
@@ -2549,10 +2555,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		final double magnification = canvas.getMagnification();
 		if (magnification!=1.0) {
 			final double percent = magnification*100.0;
-			scale = new StringBuffer(" (").append(Utils.d2s(percent, percent==(int)percent ? 0 : 1)).append("%)").toString();
+			scale = new StringBuilder(" (").append(Utils.d2s(percent, percent==(int)percent ? 0 : 1)).append("%)").toString();
 		}
 		final Calibration cal = layer.getParent().getCalibration();
-		String title = new StringBuffer().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(Utils.cutNumber(layer.getParent().getLayerWidth() * cal.pixelWidth, 2, true)).append('x').append(Utils.cutNumber(layer.getParent().getLayerHeight() * cal.pixelHeight, 2, true)).append(' ').append(cal.getUnit()).toString();
+		String title = new StringBuilder().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(Utils.cutNumber(layer.getParent().getLayerWidth() * cal.pixelWidth, 2, true)).append('x').append(Utils.cutNumber(layer.getParent().getLayerHeight() * cal.pixelHeight, 2, true)).append(' ').append(cal.getUnit()).toString();
 		frame.setTitle(title);
 		// fix the title for the FakeImageWindow and thus the WindowManager listing in the menus
 		canvas.getFakeImagePlus().setTitle(title);
@@ -3508,6 +3514,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}, project);
 		} else if (command.equals("Flush image cache")) {
 			Loader.releaseAllCaches();
+		} else if (command.equals("Regenerate all mipmaps")) {
+			for (final Displayable d : getLayerSet().getDisplayables(Patch.class)) {
+				d.getProject().getLoader().regenerateMipMaps((Patch) d);
+			}
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
@@ -3997,6 +4007,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				final LayerPanel lp = layer_panels.get(l);
 				lp.setColor(Color.white);
 				setColorChannel(lp.layer, Color.white);
+				lp.slider.setEnabled(true);
 			}
 			layer_channels.clear();
 		}
@@ -4073,7 +4084,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} else {
 				Utils.log2("Trying to set unacceptable color for layer " + layer + " : " + color);
 			}
+			// enable/disable sliders
+			final boolean b = 0 == layer_channels.size();
+			for (final LayerPanel lp : layer_panels.values()) lp.slider.setEnabled(b);
 		}
 		this.canvas.repaint(true);
+	}
+
+	static public final void updateComponentTreeUI() {
+		try {
+			for (final Display d : al_displays) SwingUtilities.updateComponentTreeUI(d.frame);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 	}
 }

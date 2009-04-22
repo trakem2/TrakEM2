@@ -1311,7 +1311,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					Utils.showStatus("", false);
 					return;
 				}
-				final StringBuffer sb = new StringBuffer();
+				final StringBuilder sb = new StringBuilder();
 				final Project pr = layer.getProject();
 				for (Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
 				sb.setLength(sb.length()-2);

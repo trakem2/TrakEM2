@@ -80,7 +80,7 @@ import java.util.regex.Matcher;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7a 2009-04-15";
+	static public String version = "0.7b 2009-04-21";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -631,7 +631,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	public void run(String arg) {
-		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH\nUniversity of California Los Angeles");
+		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH");
 	}
 
 	static public final File chooseFile(String name, String extension) {
@@ -942,9 +942,8 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** OS-agnostic diagnosis of whether the click was for the contextual popup menu. */
 	static public final boolean isPopupTrigger(final MouseEvent me) {
-		//return me.isPopupTrigger() || 0 != (me.getModifiers() & Event.META_MASK);
-		// ImageJ way, in ij.gui.ImageCanvas class:
-		return (me.isPopupTrigger() && me.getButton() != 0) || 0 != (me.getModifiers() & Event.META_MASK);
+		// ImageJ way, in ij.gui.ImageCanvas class, plus an is-windows switch to prevent meta key from poping up for MacOSX
+		return (me.isPopupTrigger() && me.getButton() != 0)  || (IJ.isWindows() && 0 != (me.getModifiers() & Event.META_MASK) );
 	}
 
 	/** Repaint the given Component on the swing repaint thread (aka "SwingUtilities.invokeLater"). */

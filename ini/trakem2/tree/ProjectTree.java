@@ -538,7 +538,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		ArrayList<String> types = new ArrayList<String>();
 		types.addAll(ht.keySet());
 		Collections.sort(types);
-		StringBuffer sb = new StringBuffer(thing.getNodeInfo());
+		StringBuilder sb = new StringBuilder(thing.getNodeInfo());
 		sb.append("\nCounts:\n");
 		for (String type : types) {
 			sb.append(type).append(": ").append(ht.get(type).size()).append('\n');
