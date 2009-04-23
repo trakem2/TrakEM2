@@ -1552,7 +1552,9 @@ public class Profile extends Displayable {
 		try {
 			final VectorString2D[] sv = new VectorString2D[p.length];
 			boolean closed = true; // dummy initialization
-			final Calibration cal = p[0].getLayerSet().getCalibration();
+			final Calibration cal = p[0].getLayerSet().getCalibrationCopy();
+			cal.pixelWidth *= scale;
+			cal.pixelHeight *= scale;
 			for (int i=0; i<p.length; i++) {
 				if (-1 == p[i].n_points) p[i].setupForDisplay();
 				if (0 == p[i].n_points) continue;

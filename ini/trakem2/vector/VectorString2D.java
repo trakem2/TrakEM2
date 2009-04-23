@@ -491,11 +491,12 @@ public class VectorString2D implements VectorString {
 	public void calibrate(final Calibration cal) {
 		if (null == cal) return;
 		this.cal = cal;
+		final int sign = cal.pixelDepth < 0 ? - 1 :1;
 		for (int i=0; i<x.length; i++) {
 			x[i] *= cal.pixelWidth;
 			y[i] *= cal.pixelHeight; // should be the same as pixelWidth
 		}
-		z *= cal.pixelWidth; // since layer Z is in pixels.
+		z *= cal.pixelWidth * sign; // since layer Z is in pixels.
 		// reset vectors
 		if (null != v_x) v_x = v_y = null;
 		delta = 0;
