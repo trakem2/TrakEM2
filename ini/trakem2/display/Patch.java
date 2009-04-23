@@ -64,6 +64,7 @@ import java.awt.event.KeyEvent;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Collection;
@@ -609,12 +610,10 @@ public final class Patch extends Displayable {
 	}
 
 	/** Returns true if this Patch holds direct links to at least one other image in a different layer. Doesn't check for total overlap. */
-	public boolean isStack() {
+	public final boolean isStack() {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		final Iterator it = hs_linked.iterator();
-		while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
-			if (d instanceof Patch && d.layer.getId() != this.layer.getId()) return true;
+		for (final Displayable d : hs_linked) {
+			if (d.getClass() != Patch.class && d.layer.getId() != this.layer.getId()) return true;
 		}
 		return false;
 	}
@@ -622,20 +621,16 @@ public final class Patch extends Displayable {
 	/** Retuns a virtual ImagePlus with a virtual stack if necessary. */
 	public PatchStack makePatchStack() {
 		// are we a stack?
-		HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+		final TreeMap<Double,Patch> ht = new TreeMap<Double,Patch>();
 		getStackPatchesNR(ht);
-		Patch[] patch = null;
+		final Patch[] patch;
 		int currentSlice = 1; // from 1 to n, as in ImageStack
 		if (ht.size() > 1) {
-			// a stack. Order by layer Z
-			ArrayList<Double> z = new ArrayList<Double>();
-			z.addAll(ht.keySet());
-			java.util.Collections.sort(z);
-			patch = new Patch[z.size()];
+			patch = new Patch[ht.size()];
 			int i = 0;
-			for (Double d : z) {
-				patch[i] = ht.get(d);
-				if (patch[i].id == this.id) currentSlice = i+1;
+			for (final Patch p : ht.values()) { // sorted by z
+				patch[i] = p;
+				if (p.id == this.id) currentSlice = i+1;
 				i++;
 			}
 		} else {
@@ -645,17 +640,9 @@ public final class Patch extends Displayable {
 	}
 
 	public ArrayList<Patch> getStackPatches() {
-		HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+		final TreeMap<Double,Patch> ht = new TreeMap<Double,Patch>();
 		getStackPatchesNR(ht);
-		Utils.log2("Found patches: " + ht.size());
-		ArrayList<Double> z = new ArrayList<Double>();
-		z.addAll(ht.keySet());
-		java.util.Collections.sort(z);
-		ArrayList<Patch> p = new ArrayList<Patch>();
-		for (Double d : z) {
-			p.add(ht.get(d));
-		}
-		return p;
+		return new ArrayList(ht.values()); // sorted by z
 	}
 
 	/** Collect linked Patch instances that do not lay in this layer. Recursive over linked Patch instances that lay in different layers. */ // This method returns a usable stack because Patch objects are only linked to other Patch objects when inserted together as stack. So the slices are all consecutive in space and have the same thickness. Yes this is rather convoluted, stacks should be full-grade citizens
@@ -683,7 +670,7 @@ public final class Patch extends Displayable {
 	}
 
 	/** Non-recursive version to avoid stack overflows with "excessive" recursion (I hate java). */
-	private void getStackPatchesNR(final HashMap<Double,Patch> ht) {
+	private void getStackPatchesNR(final Map<Double,Patch> ht) {
 		final ArrayList<Patch> list1 = new ArrayList<Patch>();
 		list1.add(this);
 		final ArrayList<Patch> list2 = new ArrayList<Patch>();
@@ -948,7 +935,7 @@ public final class Patch extends Displayable {
 
 	/** Returns the absolute path to the image file, as read by the OS. */
 	public final String getImageFilePath() {
-		return project.getLoader().getAbsoluteFilePath(this);
+		return project.getLoader().getImageFilePath(this);
 	}
 
 	/** Returns the value of the field current_path, which may be null. If not null, the value may contain the slice info in it if it's part of a stack. */

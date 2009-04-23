@@ -28,6 +28,7 @@ import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Display3D;
+import ini.trakem2.display.Display;
 import ini.trakem2.tree.LayerTree;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.TemplateTree;
@@ -76,6 +77,28 @@ public class ControlWindow {
 			Loader.setupPreloader(this);
 			if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
 			Display3D.init();
+			setLookAndFeel();
+		}
+	}
+
+	static public void setLookAndFeel() {
+		try {
+			if (ij.IJ.isLinux()) {
+				// Nimbus looks great but it's unstable: after a while, swing components stop repainting, throwing all sort of exceptions.
+				//UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
+				UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
+				for (final Frame frame : Frame.getFrames()) {
+					if (frame.isEnabled()) SwingUtilities.updateComponentTreeUI(frame);
+				}
+				// all done above
+				//if (null != frame) SwingUtilities.updateComponentTreeUI(frame);
+				//if (null != IJ.getInstance()) javax.swing.SwingUtilities.updateComponentTreeUI(IJ.getInstance());
+				//Display.updateComponentTreeUI();
+			}
+		} catch (ClassNotFoundException cnfe) {
+			Utils.log2("Could not find Nimbus L&F");
+		} catch (Exception e) {
+			IJError.print(e);
 		}
 	}
 
@@ -402,15 +425,15 @@ public class ControlWindow {
 		private int y = 0;
 
 		CloseIcon() {
-			img = new BufferedImage(16, 16, BufferedImage.TYPE_BYTE_BINARY);
+			img = frame.getGraphicsConfiguration().createCompatibleImage(20, 16, Transparency.TRANSLUCENT);
 			Graphics2D g = img.createGraphics();
-			g.setColor(Color.blue);
-			g.fillRect(0, 0, 16, 16);
-			g.setColor(Color.white);
-			g.drawRect(2, 2, 12, 12);
-			g.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-			g.drawLine(4, 4, 11, 11);
-			g.drawLine(4, 11, 11, 4);
+			g.setColor(Color.black);
+			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+			g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON);
+			g.drawOval(4 + 2, 2, 12, 12);
+			g.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+			g.drawLine(4 + 4, 4, 4 + 11, 12);
+			g.drawLine(4 + 4, 12, 4 + 11, 4);
 			icon = new ImageIcon(img);
 		}
 

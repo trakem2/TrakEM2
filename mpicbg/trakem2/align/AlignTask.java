@@ -68,22 +68,83 @@ final public class AlignTask
 		};
 		return Bureaucrat.createAndStart( worker, selection.getProject() );
 	}
-	
-		
+
+
 	final static public void alignSelection( final Selection selection )
 	{
 		List< Patch > patches = new ArrayList< Patch >();
-		for ( Displayable d : Display.getFront().getSelection().getSelected() )
+		for ( Displayable d : selection.getSelected() )
 			if ( d instanceof Patch ) patches.add( ( Patch )d );
 
+		List< Patch > fixedPatches = new ArrayList< Patch >();
+
+		// Add active Patch, if any, as the nail
+		Displayable active = selection.getActive();
+		if ( null != active && active instanceof Patch )
+			fixedPatches.add( (Patch)active );
+
+		// Add all locked Patch instances to fixedPatches
+		for (final Patch patch : patches)
+			if ( patch.isLocked() )
+				fixedPatches.add( patch );
+
+		alignPatches( patches, fixedPatches );
+	}
+
+	final static public Bureaucrat alignPatchesTask ( final List< Patch > patches , final List< Patch > fixedPatches )
+	{
+		if ( 0 == patches.size())
+		{
+			Utils.log("Can't align zero patches.");
+			return null;
+		}
+		Worker worker = new Worker("Aligning images", false, true) {
+			public void run() {
+				startedWorking();
+				try {
+					alignPatches( patches, fixedPatches );
+					Display.repaint();
+				} catch (Throwable e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
+			}
+			public void cleanup() {
+				patches.get(0).getLayer().getParent().undoOneStep();
+			}
+		};
+		return Bureaucrat.createAndStart( worker, patches.get(0).getProject() );
+	}
+
+	/**
+	 * @param patches: the list of Patch instances to align, all belonging to the same Layer.
+	 * @param fixed: the list of Patch instances to keep locked in place, if any.
+	 */
+	final static public void alignPatches( final List< Patch > patches , final List< Patch > fixedPatches )
+	{
 		if ( patches.size() < 2 )
 		{
-			Utils.log("No images to align in the selection.");
+			Utils.log("No images to align.");
 			return;
 		}
-		
+
+		for ( final Patch patch : fixedPatches )
+		{
+			if ( !patches.contains( patch ) )
+			{
+				Utils.log("The list of fixed patches contains at least one Patch not included in the list of patches to align!");
+				return;
+			}
+			if ( patch.isLinked() && !patch.isOnlyLinkedTo( Patch.class ) )
+			{
+				Utils.log("At least one Patch is linked to non-image data, can't align!");
+				return;
+			}
+		}
+
 		//final Align.ParamOptimize p = Align.paramOptimize;
-		final GenericDialog gd = new GenericDialog( "Align Selected Tiles" );
+		final GenericDialog gd = new GenericDialog( "Align Tiles" );
 		Align.paramOptimize.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
@@ -102,19 +163,22 @@ final public class AlignTask
 		deleteDisconnectedTiles = gd.getNextBoolean();
 		
 		final Align.ParamOptimize p = Align.paramOptimize.clone();
-		List< Patch > fixedPatches = new ArrayList< Patch >();
-		final Displayable active = selection.getActive();
-		if ( active != null && active instanceof Patch )
-			fixedPatches.add( ( Patch )active );
 
+		alignTiles(  patches, fixedPatches, p );
+	}
+
+	final static public void alignTiles(
+			final List< Patch > patches,
+			final List< Patch > fixedPatches,
+			final Align.ParamOptimize p ) // p at end to avoid "same erasure" problem ... generics!
+	{
 		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 		Align.tilesFromPatches( p, patches, fixedPatches, tiles, fixedTiles );
 		
 		alignTiles( p, tiles, fixedTiles );
 	}
-	
-	
+
 	final static public void alignTiles(
 			final Align.ParamOptimize p,
 			final List< AbstractAffineTile2D< ? > > tiles,
@@ -432,13 +496,18 @@ final public class AlignTask
 		Align.Param cp = Align.param.clone();
 		Align.ParamOptimize pcp = p.clone();
 		pcp.desiredModelIndex = cp.desiredModelIndex;
-		
-		
-		/* register */
-		
+
 		final List< Layer > layerRange = new ArrayList< Layer >();
 		for ( int i = first; i != last + d; i += d )
 			layerRange.add( layers.get( i ) );
+
+		alignMultiLayerMosaicTask( layerRange, cp, p, pcp, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+	}
+
+
+	public static final void alignMultiLayerMosaicTask( final List< Layer > layerRange, final Align.Param cp, final Align.ParamOptimize p, final Align.ParamOptimize pcp, final boolean tilesAreInPlace, final boolean largestGraphOnly, final boolean hideDisconnectedTiles, final boolean deleteDisconnectedTiles ) {
+
+		/* register */
 		
 		final List< AbstractAffineTile2D< ? > > allTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > allFixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
@@ -512,7 +581,7 @@ final public class AlignTask
 						t.getPatch().remove( false );
 		}
 		
-		l.getParent().setMinimumDimensions();
+		layerRange.get(0).getParent().setMinimumDimensions();
 		
 		return;
 	}

@@ -48,7 +48,7 @@ import java.awt.Dimension;
 public final class LayerPanel extends JPanel implements MouseListener {
 
 	private final JLabel title;
-	private final JSlider slider = new JSlider(javax.swing.SwingConstants.HORIZONTAL, 0, 100, 0);
+	protected final JSlider slider = new JSlider(javax.swing.SwingConstants.HORIZONTAL, 0, 100, 0);
 	private Color color = Color.white;
 	private float alpha = 0.0f; // for overlays
 
