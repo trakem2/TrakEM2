@@ -1350,7 +1350,7 @@ public final class FSLoader extends Loader {
 
 	private void askAndExecMipmapRegeneration(final String msg) {
 		Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
-		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", (null != msg ? msg  + "\n" : "") + "Generate mipmaps in the background for all images?");
+		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", (null != msg ? msg  + "\n" : "") + "Generate mipmaps in the background for all images?\nWhen in doubt say 'no', and do it later if necessary from popup 'Project' submenu.");
 		if (yn.yesPressed()) {
 			final Loader lo = this;
 			new Thread() {
