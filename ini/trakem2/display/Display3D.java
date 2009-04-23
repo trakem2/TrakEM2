@@ -350,7 +350,10 @@ public final class Display3D {
 		new Thread() { public void run() {
 			setPriority(Thread.NORM_PRIORITY);
 			// wait until done
-			show(pt, true, -1);
+			Future<List<Content>> fu = show(pt, true, -1);
+			try {
+				fu.get(); // wait until done
+			} catch (Exception e) { IJError.print(e); }
 			Display3D.resetView(pt.getProject().getRootLayerSet());
 		}}.start();
 	}
