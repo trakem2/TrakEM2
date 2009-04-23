@@ -87,10 +87,10 @@ final public class AlignTask
 		Align.paramOptimize.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
-		gd.addCheckbox( "tiles are rougly in place", false );
-		gd.addCheckbox( "consider largest graph only", false );
-		gd.addCheckbox( "hide tiles from non-largest graph", false );
-		gd.addCheckbox( "delete tiles from non-largest graph", false );
+		gd.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
+		gd.addCheckbox( "consider largest graph only", largestGraphOnly );
+		gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
+		gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
 		
 		gd.showDialog();
 		if ( gd.wasCanceled() ) return;
