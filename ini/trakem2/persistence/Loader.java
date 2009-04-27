@@ -131,6 +131,7 @@ import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.general.MultiThreading;
 
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -185,7 +186,7 @@ abstract public class Loader {
 	}
 
 
-	protected final HashSet<Patch> hs_unloadable = new HashSet<Patch>();
+	protected final Set<Patch> hs_unloadable = Collections.synchronizedSet(new HashSet<Patch>());
 
 	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
 	static {
@@ -1048,7 +1049,7 @@ abstract public class Loader {
 					max_memory -= n_bytes;
 					unlock();
 				}
-				releaseToFit(n_bytes * 3); // triple, for the jpeg decoder alloc/dealloc at least 2 copies
+				releaseToFit(n_bytes * 6); // six times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
 				mawt = fetchMipMapAWT(p, level);
 
 				synchronized (db_lock) {
@@ -1438,7 +1439,7 @@ abstract public class Loader {
 		double by = 0;
 		double bt_overlap = 0;
 		double lr_overlap = 0;
-		boolean link_images = true;
+		boolean link_images = false;
 		boolean stitch_tiles = true;
 		boolean homogenize_contrast = true;
 
@@ -2181,7 +2182,7 @@ abstract public class Loader {
 	}
 
 	public Bureaucrat importImages(final Layer ref_layer) {
-		return importImages(ref_layer, null, null, 0, 0);
+		return importImages(ref_layer, null, null, 0, 0, false);
 	}
 
 	/** Import images from the given text file, which is expected to contain 4 columns:<br />
@@ -2195,7 +2196,7 @@ abstract public class Loader {
 	 * Images will be imported in parallel, using as many cores as your machine has.<br />
 	 * The @param calibration transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
 	 */
-	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_) {
+	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_) {
 		// check parameters: ask for good ones if necessary
 		if (null == abs_text_file_path_) {
 			String[] file = Utils.selectFile("Select text file");
@@ -2210,6 +2211,7 @@ abstract public class Loader {
 			gdd.addChoice("Column separator: ", separators, separators[0]);
 			gdd.addNumericField("Layer thickness: ", 60, 2); // default: 60 nm
 			gdd.addNumericField("Calibration (data to pixels): ", 1, 2);
+			gdd.addCheckbox("Homogenize contrast layer-wise", homogenize_contrast_);
 			gdd.showDialog();
 			if (gdd.wasCanceled()) return null;
 			layer_thickness_ = gdd.getNextNumber();
@@ -2234,6 +2236,7 @@ abstract public class Loader {
 				default:
 					break;
 			}
+			homogenize_contrast_ = gdd.getNextBoolean();
 		}
 
 		// make vars accessible from inner threads:
@@ -2242,27 +2245,9 @@ abstract public class Loader {
 		final String column_separator = column_separator_;
 		final double layer_thickness = layer_thickness_;
 		final double calibration = calibration_;
+		final boolean homogenize_contrast = homogenize_contrast_;
 
-
-		GenericDialog gd = new GenericDialog("Options");
-		gd.addMessage("For all touched layers:");
-		gd.addCheckbox("Homogenize histograms", false);
-		gd.addCheckbox("Register tiles and layers", true);
-		gd.addCheckbox("With overlapping tiles only", true); // TODO could also use near tiles, defining near as "within a radius of one image width from the center of the tile"
-		final Component[] c_enable = {
-			(Component)gd.getCheckboxes().get(2)
-		};
-		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(1), c_enable, null);
-		//gd.addCheckbox("Apply non-linear deformation", false);
-		gd.showDialog();
-		if (gd.wasCanceled()) return null;
-		final boolean homogenize_contrast = gd.getNextBoolean();
-		final boolean register_tiles = gd.getNextBoolean();
-		final boolean overlapping_only = gd.getNextBoolean();
-		final int layer_subset = gd.getNextChoiceIndex();
-		//final boolean apply_non_linear_def = gd.getNextBoolean();
 		final Set touched_layers = Collections.synchronizedSet(new HashSet());
-		gd = null;
 
 
 		/* If requested, ask for a text file containing the non-linear deformation coefficients
@@ -2451,35 +2436,6 @@ abstract public class Loader {
 						setTaskName("");
 						// layer-wise (layer order is irrelevant):
 						Thread t = homogenizeContrast(la); // multithreaded
-						if (null != t) t.join();
-					}
-					if (register_tiles) {
-						wo.setTaskName("Registering tiles.");
-						// sequential, from first to last layer
-						Layer first = la[0];
-						Layer last = la[0];
-						// order touched layers by Z coord
-						for (int i=1; i<la.length; i++) {
-							if (la[i].getZ() < first.getZ()) first = la[i];
-							if (la[i].getZ() > last.getZ()) last = la[i];
-						}
-						LayerSet ls = base_layer.getParent();
-						List<Layer> las = ls.getLayers().subList(ls.indexOf(first), ls.indexOf(last)+1);
-						// decide if processing all or just the touched ones or what range
-						if (ls.size() != las.size()) {
-							GenericDialog gd = new GenericDialog("Layer Range");
-							gd.addMessage("Apply registration to layers:");
-							Utils.addLayerRangeChoices(first, last, gd);
-							gd.showDialog();
-							if (gd.wasCanceled()) {
-								finishedWorking();
-								return;
-							}
-							las = ls.getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1);
-						}
-						Layer[] zla = new Layer[las.size()];
-						zla = las.toArray(zla);
-						Thread t = Registration.registerTilesSIFT(zla, overlapping_only);
 						if (null != t) t.join();
 					}
 
@@ -3730,6 +3686,9 @@ abstract public class Loader {
 	/** Returns null unless overriden. This is intended for FSLoader projects. */
 	public String getAbsolutePath(final Patch patch) { return null; }
 
+	/** Returns null unless overriden. This is intended for FSLoader projects. */
+	public String getImageFilePath(final Patch p) { return null; }
+
 	/** Does nothing unless overriden. */
 	public void setupMenuItems(final JMenu menu, final Project project) {}
 
@@ -4304,7 +4263,7 @@ abstract public class Loader {
 						ArrayList al = la[i].getDisplayables(Patch.class);
 						Patch[] pa = new Patch[al.size()];
 						al.toArray(pa);
-						if (!homogenizeContrast(la[i], pa, null == parent ? wo : parent)) {
+						if (!homogenizeContrast(pa, null == parent ? wo : parent)) {
 							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
 						}
 					}
@@ -4335,7 +4294,7 @@ abstract public class Loader {
 			public void run() {
 				startedWorking();
 				try {
-					homogenizeContrast(pa[0].getLayer(), pa, null == parent ? this : parent);
+					homogenizeContrast(pa, null == parent ? this : parent);
 				} catch (Exception e) {
 					IJError.print(e);
 				}
@@ -4345,8 +4304,8 @@ abstract public class Loader {
 		return Bureaucrat.createAndStart(worker, pa[0].getProject());
 	}
 
-	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. Needs a layer to repaint when done. */
-	public boolean homogenizeContrast(final Layer layer, final Patch[] pa, final Worker worker) {
+	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. */
+	public boolean homogenizeContrast(final Patch[] pa, final Worker worker) {
 		try {
 			if (null == pa) return false; // error
 			if (0 == pa.length) return true; // done
@@ -4474,8 +4433,7 @@ abstract public class Loader {
 				}
 				unlock();
 			}
-			// problem: if the user starts navigating the display, it will maybe end up recreating mipmaps more than once for a few tiles
-			if (null != layer) Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
+			Display.repaint();
 		} catch (Exception e) {
 			IJError.print(e);
 			return false;
@@ -4982,6 +4940,8 @@ abstract public class Loader {
 
 	public boolean isUnloadable(final Patch p) { return hs_unloadable.contains(p); }
 
+	public void removeFromUnloadable(final Patch p) { hs_unloadable.remove(p); }
+
 	protected static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
 		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 		// In one step, set pixels that contain the alpha byte already:
@@ -5011,6 +4971,9 @@ abstract public class Loader {
 	/** Does nothing unless overriden. */
 	public void queueForMipmapRemoval(final Patch p, boolean yes) {}
 
+	/** Does nothing unless overriden. */
+	public void tagForMipmapRemoval(final Patch p, boolean yes) {}
+
 	/** Get the Universal Near-Unique Id for the project hosted by this loader. */
 	public String getUNUId() {
 		// FSLoader overrides this method
@@ -5022,8 +4985,8 @@ abstract public class Loader {
 		return "trakem2." + getUNUId() + "/";
 	}
 
-	/** Does nothing unless overriden. */
-	public boolean regenerateMipMaps(final Patch patch) { return false; }
+	/** Does nothing and returns null unless overriden. */
+	public Future regenerateMipMaps(final Patch patch) { return null; }
 
 	/** Read out the width,height of an image using LOCI BioFormats. */
 	static public Dimension getDimensions(final String path) {

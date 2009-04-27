@@ -42,6 +42,7 @@ import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.Lock;
+import ini.trakem2.utils.M;
 import ini.trakem2.tree.*;
 
 import javax.swing.*;
@@ -54,6 +55,7 @@ import java.awt.event.*;
 import java.util.*;
 import java.lang.reflect.Method;
 import java.io.Writer;
+import java.util.concurrent.Future;
 
 import lenscorrection.DistortionCorrectionTask;
 
@@ -66,8 +68,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private Displayable active = null;
 	/** All selected Displayable objects, including the active one. */
 	final private Selection selection = new Selection(this);
-
-	private ImagePlus last_temp = null;
 
 	private JFrame frame;
 	private JTabbedPane tabs;
@@ -82,6 +82,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private JPanel panel_channels;
 	private JScrollPane scroll_labels;
 	private JPanel panel_labels;
+
+	private JPanel panel_layers;
+	private JScrollPane scroll_layers;
+	private Hashtable<Layer,LayerPanel> layer_panels = new Hashtable<Layer,LayerPanel>();
 
 	private JSlider transp_slider;
 	private DisplayNavigator navigator;
@@ -266,6 +270,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 								label = "Profiles";
 								al = d.layer.getDisplayables(Profile.class);
 								p = d.panel_profiles;
+							} else if (tab == d.scroll_layers) {
+								// nothing to do
+								return;
 							}
 
 							d.updateTab(p, label, al);
@@ -291,10 +298,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	private class ScrollLayerListener implements AdjustmentListener {
 
-		public void adjustmentValueChanged(AdjustmentEvent ae) {
-			int index = scroller.getValue();
+		public void adjustmentValueChanged(final AdjustmentEvent ae) {
+			final int index = scroller.getValue();
 			slt.set(layer.getParent().getLayer(index));
-			return;
 		}
 	}
 
@@ -562,42 +568,26 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.tabs.addChangeListener(tabs_listener);
 
 		// Tab 1: Patches
-		this.panel_patches = new JPanel();
-		BoxLayout patches_layout = new BoxLayout(panel_patches, BoxLayout.Y_AXIS);
-		this.panel_patches.setLayout(patches_layout);
+		this.panel_patches = makeTabPanel();
 		this.panel_patches.add(new JLabel("No patches."));
 		this.scroll_patches = makeScrollPane(panel_patches);
-		this.scroll_patches.setPreferredSize(new Dimension(250, 300));
-		this.scroll_patches.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Patches", scroll_patches);
 
 		// Tab 2: Profiles
-		this.panel_profiles = new JPanel();
-		BoxLayout profiles_layout = new BoxLayout(panel_profiles, BoxLayout.Y_AXIS);
-		this.panel_profiles.setLayout(profiles_layout);
+		this.panel_profiles = makeTabPanel();
 		this.panel_profiles.add(new JLabel("No profiles."));
 		this.scroll_profiles = makeScrollPane(panel_profiles);
-		this.scroll_profiles.setPreferredSize(new Dimension(250, 300));
-		this.scroll_profiles.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Profiles", scroll_profiles);
 
 		// Tab 3: pipes
-		this.panel_zdispl = new JPanel();
-		BoxLayout pipes_layout = new BoxLayout(panel_zdispl, BoxLayout.Y_AXIS);
-		this.panel_zdispl.setLayout(pipes_layout);
+		this.panel_zdispl = makeTabPanel();
 		this.panel_zdispl.add(new JLabel("No objects."));
 		this.scroll_zdispl = makeScrollPane(panel_zdispl);
-		this.scroll_zdispl.setPreferredSize(new Dimension(250, 300));
-		this.scroll_zdispl.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Z space", scroll_zdispl);
 
 		// Tab 4: channels
-		this.panel_channels = new JPanel();
-		BoxLayout channels_layout = new BoxLayout(panel_channels, BoxLayout.Y_AXIS);
-		this.panel_channels.setLayout(channels_layout);
+		this.panel_channels = makeTabPanel();
 		this.scroll_channels = makeScrollPane(panel_channels);
-		this.scroll_channels.setPreferredSize(new Dimension(250, 300));
-		this.scroll_channels.setMinimumSize(new Dimension(250, 300));
 		this.channels = new Channel[4];
 		this.channels[0] = new Channel(this, Channel.MONO);
 		this.channels[1] = new Channel(this, Channel.RED);
@@ -610,14 +600,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.tabs.add("Opacity", scroll_channels);
 
 		// Tab 5: labels
-		this.panel_labels = new JPanel();
-		BoxLayout labels_layout = new BoxLayout(panel_labels, BoxLayout.Y_AXIS);
-		this.panel_labels.setLayout(labels_layout);
+		this.panel_labels = makeTabPanel();
 		this.panel_labels.add(new JLabel("No labels."));
 		this.scroll_labels = makeScrollPane(panel_labels);
-		this.scroll_labels.setPreferredSize(new Dimension(250, 300));
-		this.scroll_labels.setMinimumSize(new Dimension(250, 300));
 		this.tabs.add("Labels", scroll_labels);
+
+		// Tab 6: layers
+		this.panel_layers = makeTabPanel();
+		this.scroll_layers = makeScrollPane(panel_layers);
+		recreateLayerPanels(layer);
+		this.scroll_layers.addMouseWheelListener(canvas);
+		this.tabs.add("Layers", scroll_layers);
 
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
@@ -630,6 +623,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
 		// channels not included
+		// layers not included
 
 		// Navigator
 		this.navigator = new DisplayNavigator(this, layer.getLayerWidth(), layer.getLayerHeight());
@@ -643,6 +637,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		// Left panel, contains the transp slider, the tabbed pane, the navigation panel and the layer scroller
 		JPanel left = new JPanel();
+		left.setBackground(Color.white);
 		BoxLayout left_layout = new BoxLayout(left, BoxLayout.Y_AXIS);
 		left.setLayout(left_layout);
 		left.add(transp_slider);
@@ -673,12 +668,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// Split pane to contain everything
 		this.split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, canvas_panel);
 		this.split.setOneTouchExpandable(true); // NOT present in all L&F (?)
+		this.split.setBackground(Color.white);
 
 		// fix
 		gb.setConstraints(split.getRightComponent(), c);
 
 		// JFrame to show the split pane
 		this.frame = ControlWindow.createJFrame(layer.toString());
+		this.frame.setBackground(Color.white);
+		this.frame.getContentPane().setBackground(Color.white);
 		if (IJ.isMacintosh() && IJ.getInstance()!=null) {
 			IJ.wait(10); // may be needed for Java 1.4 on OS X
 			this.frame.setMenuBar(ij.Menus.getMenuBar());
@@ -795,16 +793,28 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			public void run() {
 				tabs.setMinimumSize(new Dimension(0, 100));
 				Display.scrollbar_width = Display.this.scroll_patches.getVerticalScrollBar().getPreferredSize().width; // using scroll_patches since it's the one selected by default and thus visible and painted
+				ControlWindow.setLookAndFeel();
 			}
 		});
 	}
 
+	private JPanel makeTabPanel() {
+		JPanel panel = new JPanel();
+		BoxLayout layout = new BoxLayout(panel, BoxLayout.Y_AXIS);
+		panel.setLayout(layout);
+		return panel;
+	}
+
 	private JScrollPane makeScrollPane(Component c) {
 		JScrollPane jsp = new JScrollPane(c);
+		jsp.setBackground(Color.white); // no effect
+		jsp.getViewport().setBackground(Color.white); // no effect
 		// adjust scrolling to use one DisplayablePanel as the minimal unit
 		jsp.getVerticalScrollBar().setBlockIncrement(DisplayablePanel.HEIGHT); // clicking within the track
 		jsp.getVerticalScrollBar().setUnitIncrement(DisplayablePanel.HEIGHT); // clicking on an arrow
 		jsp.setHorizontalScrollBarPolicy(javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		jsp.setPreferredSize(new Dimension(250, 300));
+		jsp.setMinimumSize(new Dimension(250, 300));
 		return jsp;
 	}
 
@@ -818,8 +828,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return canvas;
 	}
 
-	public void setLayer(final Layer layer) {
+	public synchronized void setLayer(final Layer layer) {
 		if (null == layer || layer == this.layer) return;
+		translateLayerColors(this.layer, layer);
+		if (tabs.getSelectedComponent() == scroll_layers) {
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				scrollToShow(scroll_layers, layer_panels.get(layer));
+			}});
+		}
 		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
 		if (selection.isTransforming()) {
 			Utils.log("Can't browse layers while transforming.\nCANCEL the transform first with the ESCAPE key or right-click -> cancel.");
@@ -844,11 +860,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// update active Displayable:
 
 		// deselect all except ZDisplayables
-		final ArrayList sel = selection.getSelected();
+		final ArrayList<Displayable> sel = selection.getSelected();
 		final Displayable last_active = Display.this.active;
 		int sel_next = -1;
-		for (Iterator it = sel.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Iterator<Displayable> it = sel.iterator(); it.hasNext(); ) {
+			final Displayable d = it.next();
 			if (!(d instanceof ZDisplayable)) {
 				it.remove();
 				selection.remove(d);
@@ -858,15 +874,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			}
 		}
-		if (-1 != sel_next && sel.size() > 0) select((Displayable)sel.get(sel_next), true);
-		else if (null != last_active && last_active.getClass() == Patch.class && null != last_temp && last_temp instanceof PatchStack) {
-			Displayable d = ((PatchStack)last_temp).getPatch(layer, (Patch)last_active);
-			if (null != d) selection.add(d);
-		}
-		// TODO last_temp doesn't remain the PatchStack // Utils.log2("last_temp is: " + last_temp.getClass().getName());
+		if (-1 != sel_next && sel.size() > 0) select(sel.get(sel_next), true);
 
 		// Keep Profile chain selected, for best ease of use:
 		if (null != last_active && last_active.getClass() == Profile.class && last_active.isLinked(Profile.class)) {
+			Utils.log2("last active was a profile: " + last_active);
 			Displayable other = null;
 			for (final Displayable prof : last_active.getLinked(Profile.class)) {
 				if (prof.getLayer() == layer) {
@@ -928,6 +940,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				ht_panels.clear();
 				updateTab(panel_labels, "Labels", layer.getDisplayables(DLabel.class));
 				break;
+			// case 5: layer panels
 		}
 
 	}
@@ -1157,6 +1170,23 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (d.isShowing(layer)) {
 				d.remove(false);
 				it.remove();
+			}
+		}
+	}
+
+	/** Find all Display instances that are showing the layer and either move to the next or previous layer, or close it if none. */
+	static public void remove(final Layer layer) {
+		for (Iterator<Display> it = al_displays.iterator(); it.hasNext(); ) {
+			final Display d = it.next();
+			if (d.isShowing(layer)) {
+				Layer la = layer.getParent().next(layer);
+				if (layer == la || null == la) la = layer.getParent().previous(layer);
+				if (null == la || layer == la) {
+					d.remove(false);
+					it.remove();
+				} else {
+					d.slt.set(la);
+				}
 			}
 		}
 	}
@@ -2040,8 +2070,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 
 
-		JMenu adjust_menu = new JMenu("Adjust");
-
 		if (null != active) {
 			if (!canvas.isTransforming()) {
 				if (active instanceof Profile) {
@@ -2054,7 +2082,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 					menu = new JMenu("Duplicate, link and send to");
 					ArrayList al = layer.getParent().getLayers();
-					Iterator it = al.iterator();
+					final Iterator it = al.iterator();
 					int i = 1;
 					while (it.hasNext()) {
 						Layer la = (Layer)it.next();
@@ -2085,6 +2113,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 						item = new JMenuItem("Lens correction"); item.addActionListener(this); popup.add(item);
 						item = new JMenuItem("Blend"); item.addActionListener(this); popup.add(item);
 					}
+					item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); popup.add(item);
+					if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
 					item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
 					HashSet hs = active.getLinked(Patch.class);
@@ -2113,6 +2143,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (canvas.isTransforming()) {
 				item = new JMenuItem("Apply transform"); item.addActionListener(this); popup.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true)); // dummy, for I don't add a MenuKeyListener, but "works" through the normal key listener. It's here to provide a visual cue
+				item = new JMenuItem("Apply transform propagating to last layer"); item.addActionListener(this); popup.add(item);
+				if (layer.getParent().indexOf(layer) == layer.getParent().size() -1) item.setEnabled(false);
+				item = new JMenuItem("Apply transform propagating to first layer"); item.addActionListener(this); popup.add(item);
+				if (0 == layer.getParent().indexOf(layer)) item.setEnabled(false);
 			} else {
 				item = new JMenuItem("Transform"); item.addActionListener(this); popup.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, 0, true));
@@ -2125,6 +2159,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 
 			if (!canvas.isTransforming()) {
+				item = new JMenuItem("Duplicate"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Color..."); item.addActionListener(this); popup.add(item);
 				if (active instanceof LayerSet) item.setEnabled(false);
 				if (active.isLocked()) {
@@ -2211,15 +2246,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Utils.getControlModifier(), true));
 			item = new JMenuItem("Redo");item.addActionListener(this); popup.add(item);
 			if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.ALT_MASK, true));
-
-			item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
-			item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
-			if (selection.isEmpty()) item.setEnabled(false);
-			item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
-			item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
-			if (selection.isEmpty()) item.setEnabled(false);
-			popup.add(adjust_menu);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.SHIFT_MASK | Event.CTRL_MASK, true));
 			popup.addSeparator();
 
 			// Would get so much simpler with a clojure macro ...
@@ -2274,6 +2301,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				popup.add(menu);
 			} catch (Exception e) { IJError.print(e); }
 
+			JMenu adjust_menu = new JMenu("Adjust");
+			item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+			if (selection.isEmpty()) item.setEnabled(false);
+			item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+			item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+			if (selection.isEmpty()) item.setEnabled(false);
+			popup.add(adjust_menu);
+
 			menu = new JMenu("Import");
 			item = new JMenuItem("Import image"); item.addActionListener(this); menu.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, Event.ALT_MASK & Event.SHIFT_MASK, true));
@@ -2306,6 +2342,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
 			item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
 
 			menu = new JMenu("Selection");
@@ -2348,7 +2385,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		public void actionPerformed(final ActionEvent ae) {
 			final String command = ae.getActionCommand();
 
-			final java.awt.geom.Area aroi = Utils.getArea(d.canvas.getFakeImagePlus().getRoi());
+			final java.awt.geom.Area aroi = M.getArea(d.canvas.getFakeImagePlus().getRoi());
 
 			d.dispatcher.exec(new Runnable() { public void run() {
 
@@ -2461,7 +2498,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}});
 	}
 
-	private void scrollToShow(final JScrollPane scroll, final DisplayablePanel dp) {
+	private void scrollToShow(final JScrollPane scroll, final JPanel dp) {
 		if (null == dp) return;
 		JViewport view = scroll.getViewport();
 		Point current = view.getViewPosition();
@@ -2518,10 +2555,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		final double magnification = canvas.getMagnification();
 		if (magnification!=1.0) {
 			final double percent = magnification*100.0;
-			scale = new StringBuffer(" (").append(Utils.d2s(percent, percent==(int)percent ? 0 : 1)).append("%)").toString();
+			scale = new StringBuilder(" (").append(Utils.d2s(percent, percent==(int)percent ? 0 : 1)).append("%)").toString();
 		}
 		final Calibration cal = layer.getParent().getCalibration();
-		String title = new StringBuffer().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(Utils.cutNumber(layer.getParent().getLayerWidth() * cal.pixelWidth, 2, true)).append('x').append(Utils.cutNumber(layer.getParent().getLayerHeight() * cal.pixelHeight, 2, true)).append(' ').append(cal.getUnit()).toString();
+		String title = new StringBuilder().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(Utils.cutNumber(layer.getParent().getLayerWidth() * cal.pixelWidth, 2, true)).append('x').append(Utils.cutNumber(layer.getParent().getLayerHeight() * cal.pixelHeight, 2, true)).append(' ').append(cal.getUnit()).toString();
 		frame.setTitle(title);
 		// fix the title for the FakeImageWindow and thus the WindowManager listing in the menus
 		canvas.getFakeImagePlus().setTitle(title);
@@ -2529,34 +2566,73 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	/** If shift is down, scroll to the next non-empty layer; otherwise, if scroll_step is larger than 1, then scroll 'scroll_step' layers ahead; else just the next Layer. */
 	public void nextLayer(final int modifiers) {
-		//setLayer(layer.getParent().next(layer));
-		//scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
+		final Layer l;
 		if (0 == (modifiers ^ Event.SHIFT_MASK)) {
-			slt.set(layer.getParent().nextNonEmpty(layer));
+			l = layer.getParent().nextNonEmpty(layer);
 		} else if (scroll_step > 1) {
 			int i = layer.getParent().indexOf(this.layer);
 			Layer la = layer.getParent().getLayer(i + scroll_step);
-			if (null != la) slt.set(la);
+			if (null != la) l = la;
+			else l = null;
 		} else {
-			slt.set(layer.getParent().next(layer));
+			l = layer.getParent().next(layer);
 		}
+		if (l != layer) {
+			slt.set(l);
+			updateInDatabase("layer_id");
+		}
+	}
+
+	private final void translateLayerColors(final Layer current, final Layer other) {
+		if (current == other) return;
+		if (layer_channels.size() > 0) {
+			final LayerSet ls = getLayerSet();
+			// translate colors by distance from current layer to new Layer l
+			final int dist = ls.indexOf(other) - ls.indexOf(current);
+			translateLayerColor(Color.red, dist);
+			translateLayerColor(Color.blue, dist);
+		}
+	}
+
+	private final void translateLayerColor(final Color color, final int dist) {
+		final LayerSet ls = getLayerSet();
+		final Layer l = layer_channels.get(color);
+		if (null == l) return;
+		updateColor(Color.white, layer_panels.get(l));
+		final Layer l2 = ls.getLayer(ls.indexOf(l) + dist);
+		if (null != l2) updateColor(color, layer_panels.get(l2));
+	}
+
+	private final void updateColor(final Color color, final LayerPanel lp) {
+		lp.setColor(color);
+		setColorChannel(lp.layer, color);
+	}
+
+	/** Calls setLayer(la) on the SetLayerThread. */
+	public void toLayer(final Layer la) {
+		if (la.getParent() != layer.getParent()) return; // not of the same LayerSet
+		if (la == layer) return; // nothing to do
+		slt.set(la);
 		updateInDatabase("layer_id");
 	}
 
 	/** If shift is down, scroll to the previous non-empty layer; otherwise, if scroll_step is larger than 1, then scroll 'scroll_step' layers backward; else just the previous Layer. */
 	public void previousLayer(final int modifiers) {
-		//setLayer(layer.getParent().previous(layer));
-		//scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
+		final Layer l;
 		if (0 == (modifiers ^ Event.SHIFT_MASK)) {
-			slt.set(layer.getParent().previousNonEmpty(layer));
+			l = layer.getParent().previousNonEmpty(layer);
 		} else if (scroll_step > 1) {
 			int i = layer.getParent().indexOf(this.layer);
 			Layer la = layer.getParent().getLayer(i - scroll_step);
-			if (null != la) slt.set(la);
+			if (null != la) l = la;
+			else l = null;
 		} else {
-			slt.set(layer.getParent().previous(layer));
+			l = layer.getParent().previous(layer);
 		}
-		updateInDatabase("layer_id");
+		if (l != layer) {
+			slt.set(l);
+			updateInDatabase("layer_id");
+		}
 	}
 
 	static public void updateLayerScroller(LayerSet set) {
@@ -2575,6 +2651,42 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else {
 			scroller.setEnabled(true);
 			scroller.setValues(layer.getParent().getLayerIndex(layer.getId()), 1, 0, size);
+		}
+		recreateLayerPanels(layer);
+	}
+
+	// Can't use this.layer, may still be null. User argument instead.
+	private synchronized void recreateLayerPanels(final Layer layer) {
+		synchronized (layer_channels) {
+			panel_layers.removeAll();
+
+			if (0 == layer_panels.size()) {
+				for (final Layer la : layer.getParent().getLayers()) {
+					final LayerPanel lp = new LayerPanel(this, la);
+					layer_panels.put(la, lp);
+					this.panel_layers.add(lp);
+				}
+			} else {
+				// Set theory at work: keep old to reuse
+				layer_panels.keySet().retainAll(layer.getParent().getLayers());
+				for (final Layer la : layer.getParent().getLayers()) {
+					LayerPanel lp = layer_panels.get(la);
+					if (null == lp) {
+						lp = new LayerPanel(this, la);
+						layer_panels.put(la, lp);
+					}
+					this.panel_layers.add(lp);
+				}
+				for (final Iterator<Map.Entry<Integer,LayerPanel>> it = layer_alpha.entrySet().iterator(); it.hasNext(); ) {
+					final Map.Entry<Integer,LayerPanel> e = it.next();
+					if (-1 == getLayerSet().indexOf(e.getValue().layer)) it.remove();
+				}
+				for (final Iterator<Map.Entry<Color,Layer>> it = layer_channels.entrySet().iterator(); it.hasNext(); ) {
+					final Map.Entry<Color,Layer> e = it.next();
+					if (-1 == getLayerSet().indexOf(e.getValue())) it.remove();
+				}
+				scroll_layers.repaint();
+			}
 		}
 	}
 
@@ -2794,18 +2906,49 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				if (null == p.getOriginalPath()) Utils.log("No editions to save for patch " + p.getTitle() + " #" + p.getId());
 				else Utils.log("Could not revert Patch " + p.getTitle() + " #" + p.getId());
 			}
+		} else if (command.equals("Remove alpha mask")) {
+			final ArrayList<Displayable> patches = selection.getSelected(Patch.class); 
+			if (patches.size() > 0) {
+				Bureaucrat.createAndStart(new Worker.Task("Removing alpha mask" + (patches.size() > 1 ? "s" : "")) { public void exec() {
+					final ArrayList<Future> jobs = new ArrayList<Future>();
+					for (final Displayable d : patches) {
+						final Patch p = (Patch) d;
+						p.setAlphaMask(null);
+						Future job = p.getProject().getLoader().regenerateMipMaps(p); // submit to queue
+						if (null != job) jobs.add(job);
+					}
+					// join all
+					for (final Future job : jobs) try {
+						job.get();
+					} catch (Exception ie) {}
+				}}, patches.get(0).getProject());
+			}
 		} else if (command.equals("Undo")) {
-			layer.getParent().undoOneStep();
-			Display.repaint(layer.getParent());
+			Bureaucrat.createAndStart(new Worker.Task("Undo") { public void exec() {
+				layer.getParent().undoOneStep();
+				Display.repaint(layer.getParent());
+			}}, project);
 		} else if (command.equals("Redo")) {
-			layer.getParent().redoOneStep();
-			Display.repaint(layer.getParent());
+			Bureaucrat.createAndStart(new Worker.Task("Redo") { public void exec() {
+				layer.getParent().redoOneStep();
+				Display.repaint(layer.getParent());
+			}}, project);
 		} else if (command.equals("Transform")) {
 			if (null == active) return;
 			canvas.setTransforming(true);
 		} else if (command.equals("Apply transform")) {
 			if (null == active) return;
 			canvas.setTransforming(false);
+		} else if (command.equals("Apply transform propagating to last layer")) {
+			if (selection.isTransforming()) {
+				final java.util.List<Layer> layers = layer.getParent().getLayers();
+				selection.applyAndPropagate(new HashSet<Layer>(layers.subList(layers.indexOf(Display.this.layer)+1, layers.size()))); // +1 to exclude current layer
+			}
+		} else if (command.equals("Apply transform propagating to first layer")) {
+			if (selection.isTransforming()) {
+				final java.util.List<Layer> layers = layer.getParent().getLayers();
+				selection.applyAndPropagate(new HashSet<Layer>(layers.subList(0, layers.indexOf(Display.this.layer))));
+			}
 		} else if (command.equals("Cancel transform")) {
 			if (null == active) return;
 			canvas.cancelTransform();
@@ -3141,7 +3284,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			for (final Displayable d : selection.getSelected()) {
 				if (d.getClass() == Patch.class) patches.add((Patch)d);
 			}
-			if (patches.size() > 1) Blending.blend(patches);
+			if (patches.size() > 1) {
+				GenericDialog gd = new GenericDialog("Blending");
+				gd.addCheckbox("Respect current alpha mask", true);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				Blending.blend(patches, gd.getNextBoolean());
+			} else {
+				IJ.log("Please select more than one overlapping image.");
+			}
 		} else if (command.equals("Montage")) {
 			if (!(active instanceof Patch)) {
 				Utils.showMessage("Please select only images.");
@@ -3271,6 +3422,27 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().addDataEditStep(ds);
 			}});
+		} else if (command.equals("Duplicate")) {
+			// only Patch and DLabel, i.e. Layer-only resident objects that don't exist in the Project Tree
+			final HashSet<Class> accepted = new HashSet<Class>();
+			accepted.add(Patch.class);
+			accepted.add(DLabel.class);
+			final ArrayList<Displayable> originals = new ArrayList<Displayable>();
+			final ArrayList<Displayable> selected = selection.getSelected();
+			for (final Displayable d : selected) {
+				if (accepted.contains(d.getClass())) {
+					originals.add(d);
+				}
+			}
+			if (originals.size() > 0) {
+				getLayerSet().addChangeTreesStep();
+				for (final Displayable d : originals) {
+					d.getLayer().add(d.clone());
+				}
+				getLayerSet().addChangeTreesStep();
+			} else if (selected.size() > 0) {
+				Utils.log("Can only duplicate images and text labels.\nDuplicate *other* objects in the Project Tree.\n");
+			}
 		} else if (command.equals("Create subproject")) {
 			Roi roi = canvas.getFakeImagePlus().getRoi();
 			if (null == roi) return; // the menu item is not active unless there is a ROI
@@ -3342,6 +3514,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}, project);
 		} else if (command.equals("Flush image cache")) {
 			Loader.releaseAllCaches();
+		} else if (command.equals("Regenerate all mipmaps")) {
+			for (final Displayable d : getLayerSet().getDisplayables(Patch.class)) {
+				d.getProject().getLoader().regenerateMipMaps((Patch) d);
+			}
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
@@ -3819,5 +3995,107 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		slt.setAndWait(other_layer);
 		other_layer.add(profile);
 		selection.add(profile);
+	}
+
+	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
+	private final TreeMap<Integer,LayerPanel> layer_alpha = new TreeMap<Integer,LayerPanel>();
+
+	/** Remove all red/blue coloring of layers, and repaint canvas. */
+	protected void resetLayerColors() {
+		synchronized (layer_channels) {
+			for (final Layer l : new ArrayList<Layer>(layer_channels.values())) { // avoid concurrent modification exception
+				final LayerPanel lp = layer_panels.get(l);
+				lp.setColor(Color.white);
+				setColorChannel(lp.layer, Color.white);
+				lp.slider.setEnabled(true);
+			}
+			layer_channels.clear();
+		}
+		canvas.repaint();
+	}
+
+	/** Set all layer alphas to zero, and repaint canvas. */
+	protected void resetLayerAlphas() {
+		synchronized (layer_channels) {
+			for (final LayerPanel lp : new ArrayList<LayerPanel>(layer_alpha.values())) {
+				lp.setAlpha(0);
+			}
+			layer_alpha.clear(); // should have already been cleared
+		}
+		canvas.repaint();
+	}
+
+	/** Add to layer_alpha table, or remove if alpha is zero. */
+	protected void storeLayerAlpha(final LayerPanel lp, final float a) {
+		synchronized (layer_channels) {
+			if (M.equals(0, a)) {
+				layer_alpha.remove(lp.layer.getParent().indexOf(lp.layer));
+			} else {
+				layer_alpha.put(lp.layer.getParent().indexOf(lp.layer), lp);
+			}
+		}
+	}
+
+	static protected final int REPAINT_SINGLE_LAYER = 0;
+	static protected final int REPAINT_MULTI_LAYER = 1;
+	static protected final int REPAINT_RGB_LAYER = 2;
+
+	/** Sets the values atomically, returns the painting mode. */
+	protected int getPaintMode(final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> list) {
+		synchronized (layer_channels) {
+			if (layer_channels.size() > 0) {
+				hm.putAll(layer_channels);
+				hm.put(Color.green, this.layer);
+				return REPAINT_RGB_LAYER;
+			}
+			list.addAll(layer_alpha.values());
+			final int len = list.size();
+			if (len > 1) return REPAINT_MULTI_LAYER;
+			if (1 == len) {
+				if (list.get(0).layer == this.layer) return REPAINT_SINGLE_LAYER; // normal mode
+				return REPAINT_MULTI_LAYER;
+			}
+			return REPAINT_SINGLE_LAYER;
+		}
+	}
+
+	/** Set a layer to be painted as a specific color channel in the canvas.
+	 *  Only Color.red and Color.blue are accepted.
+	 *  Color.green is reserved for the current layer. */
+	protected void setColorChannel(final Layer layer, final Color color) {
+		synchronized (layer_channels) {
+			if (Color.white == color) {
+				// Remove
+				for (final Iterator<Layer> it = layer_channels.values().iterator(); it.hasNext(); ) {
+					if (it.next() == layer) {
+						it.remove();
+						break;
+					}
+				}
+				canvas.repaint();
+			} else if (Color.red == color || Color.blue == color) {
+				// Reset current of that color, if any, to white
+				final Layer l = layer_channels.remove(color);
+				if (null != l) layer_panels.get(l).setColor(Color.white);
+				// Replace or set new
+				layer_channels.put(color, layer);
+				tabs.repaint();
+				canvas.repaint();
+			} else {
+				Utils.log2("Trying to set unacceptable color for layer " + layer + " : " + color);
+			}
+			// enable/disable sliders
+			final boolean b = 0 == layer_channels.size();
+			for (final LayerPanel lp : layer_panels.values()) lp.slider.setEnabled(b);
+		}
+		this.canvas.repaint(true);
+	}
+
+	static public final void updateComponentTreeUI() {
+		try {
+			for (final Display d : al_displays) SwingUtilities.updateComponentTreeUI(d.frame);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 	}
 }

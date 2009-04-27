@@ -31,6 +31,7 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.render3d.Perimeter2D;
 import ini.trakem2.display.Display3D;
@@ -1551,7 +1552,9 @@ public class Profile extends Displayable {
 		try {
 			final VectorString2D[] sv = new VectorString2D[p.length];
 			boolean closed = true; // dummy initialization
-			final Calibration cal = p[0].getLayerSet().getCalibration();
+			final Calibration cal = p[0].getLayerSet().getCalibrationCopy();
+			cal.pixelWidth *= scale;
+			cal.pixelHeight *= scale;
 			for (int i=0; i<p.length; i++) {
 				if (-1 == p[i].n_points) p[i].setupForDisplay();
 				if (0 == p[i].n_points) continue;
@@ -1608,7 +1611,7 @@ public class Profile extends Displayable {
 		if (!closed) return 0;
 		if (0 == p_i[0].length) generateInterpolatedPoints(0.05);
 		Calibration cal = getLayerSet().getCalibration();
-		return Utils.measureArea(new Area(getPerimeter()), getProject().getLoader()) * cal.pixelWidth * cal.pixelHeight;
+		return M.measureArea(new Area(getPerimeter()), getProject().getLoader()) * cal.pixelWidth * cal.pixelHeight;
 	}
 
 	/** Measures the calibrated length, the lateral surface as the length times the layer thickness, and the volume (if closed) as the area times the layer thickness. */
@@ -1652,7 +1655,7 @@ public class Profile extends Displayable {
 		// Surface: calibrated sum of the area of all triangles in the mesh.
 		double surface = 0;
 		for (int i=2; i<n_tri; i+=3) {
-			surface += Utils.measureArea(tri.get(i-2), tri.get(i-1), tri.get(i));
+			surface += M.measureArea(tri.get(i-2), tri.get(i-1), tri.get(i));
 		}
 		// add capping ends
 		double area_first = profiles[0].computeArea();

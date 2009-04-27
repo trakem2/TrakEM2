@@ -24,6 +24,7 @@ package ini.trakem2.vector;
 
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
 import ij.measure.Calibration;
 
 /** String of vectors. */
@@ -230,7 +231,7 @@ public class VectorString2D implements VectorString {
 				// ...
 				// simpler version: use just the next point
 				dist1 = Math.sqrt((x[i] - ps_x[j-1])*(x[i] - ps_x[j-1]) + (y[i] - ps_y[j-1])*(y[i] - ps_y[j-1]));
-				angleXY = Utils.getAngle(x[i] - ps_x[j-1], y[i] - ps_y[j-1]);
+				angleXY = M.getAngle(x[i] - ps_x[j-1], y[i] - ps_y[j-1]);
 
 				dx = Math.cos(angleXY) * delta;
 				dy = Math.sin(angleXY) * delta;
@@ -278,7 +279,7 @@ public class VectorString2D implements VectorString {
 				for (u=0; u<n_ahead; u++) {
 					iu = i+u;
 					if (iu >= p_length) iu -= p_length; 
-					angleXY = Utils.getAngle(x[iu] - ps_x[j-1], y[iu] - ps_y[j-1]);
+					angleXY = M.getAngle(x[iu] - ps_x[j-1], y[iu] - ps_y[j-1]);
 					dx += w[u] * Math.cos(angleXY);
 					dy += w[u] * Math.sin(angleXY);
 				}
@@ -324,7 +325,7 @@ public class VectorString2D implements VectorString {
 		if (dist1 > delta*1.2) {
 			// TODO needs revision
 			// System.out.println("resampling terminated too early. Why?");
-			angleXY = Utils.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
+			angleXY = M.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
 			dx = Math.cos(angleXY) * delta;
 			dy = Math.sin(angleXY) * delta;
 			while (dist1 > delta*1.2) {//added 1.2 to prevent last point from being generated too close to the first point
@@ -347,7 +348,7 @@ public class VectorString2D implements VectorString {
 			}
 		}
 		// set vector 0 to be the vector from the last point to the first // TODO also for non-closed?
-		angleXY = Utils.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
+		angleXY = M.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
 		//v_x[0] = Math.cos(angle) * delta;
 		//v_y[0] = Math.sin(angle) * delta; // can't use delta, it may be too long and thus overtake the first point!
 		v_x[0] = Math.cos(angleXY) * dist1;
@@ -490,11 +491,12 @@ public class VectorString2D implements VectorString {
 	public void calibrate(final Calibration cal) {
 		if (null == cal) return;
 		this.cal = cal;
+		final int sign = cal.pixelDepth < 0 ? - 1 :1;
 		for (int i=0; i<x.length; i++) {
 			x[i] *= cal.pixelWidth;
 			y[i] *= cal.pixelHeight; // should be the same as pixelWidth
 		}
-		z *= cal.pixelWidth; // since layer Z is in pixels.
+		z *= cal.pixelWidth * sign; // since layer Z is in pixels.
 		// reset vectors
 		if (null != v_x) v_x = v_y = null;
 		delta = 0;

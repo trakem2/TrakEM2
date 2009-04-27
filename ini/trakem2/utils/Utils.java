@@ -38,8 +38,6 @@ import ij.Menus;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
-import ij.gui.Roi;
-import ij.gui.ShapeRoi;
 import ij.gui.OvalRoi;
 import ij.text.TextWindow;
 import ij.measure.ResultsTable;
@@ -55,17 +53,6 @@ import java.awt.Component;
 import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
-import java.awt.Shape;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Point2D;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Area;
-import java.awt.Rectangle;
-import java.awt.Polygon;
-import java.awt.geom.PathIterator;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
 import java.io.*;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
@@ -87,16 +74,13 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
-import javax.vecmath.Point3f;
-import javax.vecmath.Vector3f;
-
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
  *
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.6a 2008-11-13";
+	static public String version = "0.7c 2009-04-23";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -241,8 +225,10 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Initialize house keeping threads. */
 	static public final void setup(final ControlWindow master) { // the ControlWindow acts as a switch: nobody can controls this because the CW constructor is private
-		if (null == status) status = new StatusDispatcher();
-		if (null == logger) logger = new LogDispatcher();
+		if (null != status) status.quit();
+		status = new StatusDispatcher();
+		if (null != logger) logger.quit();
+		logger = new LogDispatcher();
 	}
 
 	/** Destroy house keeping threads. */
@@ -358,29 +344,6 @@ public class Utils implements ij.plugin.PlugIn {
 		Utils.debug_sql = debug_sql;
 	}
 
-	/** Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I had the same problem for Pipe.java in the A_3D_editing plugin)
-	    Using schemata in JavaAngles.ai as reference */
-	static public final double fixAtan2Angle(double angle) {
-
-		double a = angle;
-		//fix too large angles
-		if (angle > 2*Math.PI) {
-			a = angle - 2*Math.PI;
-		}
-		//fix signs and shity oriented angle values given by atan2
-		if (a > 0.0 && a <= Math.PI/2) {
-			a = Math.PI/2 - a;
-		} else if (a <= 0.0 && a >= -Math.PI) {
-			a = Math.PI/2 - a; // minus because angle is negative
-		} else if (a > Math.PI/2 && a <= Math.PI ) {
-			a = Math.PI + Math.PI + (Math.PI/2 - a);
-		}
-
-		return a;
-	}
-
-	static public int count = 0;
-
 	/** Find out which method from which class called the method where the printCaller is used; for debugging purposes.*/
 	static public final void printCaller(Object called_object) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
@@ -405,6 +368,7 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
+	/** Returns a String representation of the class of the object one step before in the stack trace. */
 	static public final String caller(Object called) {
 		StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
@@ -464,7 +428,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final void showStatus(final String msg) {
-		showStatus(msg, true);
+		showStatus(msg, false);
 	}
 
 	static private double last_progress = 0;
@@ -641,27 +605,6 @@ public class Utils implements ij.plugin.PlugIn {
 		return IJ.d2s(d, n_decimals);
 	}
 
-	// from utilities.c in my CurveMorphing C module ... from C! Java is a low level language with the disadvantages of the high level languages ...
-	/** Returns the angle in radians of the given polar coordinates, correcting the Math.atan2 output. */
-	static public final double getAngle(double x, double y) {
-		// calculate angle
-		double a = Math.atan2(x, y);
-		// fix too large angles (beats me why are they ever generated)
-		if (a > 2 * Math.PI) {
-			a = a - 2 * Math.PI;
-		}
-		// fix atan2 output scheme to match my mental scheme
-		if (a >= 0.0 && a <= Math.PI/2) {
-			a = Math.PI/2 - a;
-		} else if (a < 0 && a >= -Math.PI) {
-			a = Math.PI/2 -a;
-		} else if (a > Math.PI/2 && a <= Math.PI) {
-			a = Math.PI + Math.PI + Math.PI/2 - a;
-		}
-		// return
-		return a;
-	}
-
 	static public final String[] getHexRGBColor(Color color) {
 		int c = color.getRGB();
 		String r = Integer.toHexString(((c&0x00FF0000)>>16));
@@ -688,7 +631,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	public void run(String arg) {
-		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH\nUniversity of California Los Angeles");
+		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH");
 	}
 
 	static public final File chooseFile(String name, String extension) {
@@ -870,38 +813,6 @@ public class Utils implements ij.plugin.PlugIn {
 		});
 	}
 
-	static private int n_CPUs = 0;
-
-	/** This method is obsolete: there's Runtime.getRuntime().availableProcessors() */
-	/*
-	static public final int getCPUCount() {
-		if (0 != n_CPUs) return n_CPUs;
-		if (IJ.isWindows()) return 1; // no clue
-		// POSIX systems, attempt to count CPUs from /proc/stat
-		try {
-			Runtime runtime = Runtime.getRuntime();
-			Process process = runtime.exec("cat /proc/stat");
-			InputStream is = process.getInputStream();
-			InputStreamReader isr = new InputStreamReader(is);
-			BufferedReader br = new BufferedReader(isr);
-			String line;
-			n_CPUs = 0;
-			// valid cores will print as cpu0, cpu1. cpu2 ...
-			while ((line = br.readLine()) != null) {
-				if (0 == line.indexOf("cpu") && line.length() > 3 && Character.isDigit(line.charAt(3))) {
-					n_CPUs++;
-				}
-			}
-			// fix possible errors
-			if (0 == n_CPUs) n_CPUs = 1;
-			return n_CPUs;
-		} catch (Exception e) {
-			Utils.log(e.toString()); // just one line
-			return 1;
-		}
-	}
-	*/
-
 	static public final boolean wrongImageJVersion() {
 		boolean b = IJ.versionLessThan("1.37g");
 		if (b) Utils.showMessage("TrakEM2 requires ImageJ 1.37g or above.");
@@ -1031,7 +942,8 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** OS-agnostic diagnosis of whether the click was for the contextual popup menu. */
 	static public final boolean isPopupTrigger(final MouseEvent me) {
-		return me.isPopupTrigger() || 0 != (me.getModifiers() & Event.META_MASK);
+		// ImageJ way, in ij.gui.ImageCanvas class, plus an is-windows switch to prevent meta key from poping up for MacOSX
+		return (me.isPopupTrigger() && me.getButton() != 0)  || (IJ.isWindows() && 0 != (me.getModifiers() & Event.META_MASK) );
 	}
 
 	/** Repaint the given Component on the swing repaint thread (aka "SwingUtilities.invokeLater"). */
@@ -1054,25 +966,6 @@ public class Utils implements ij.plugin.PlugIn {
 				c.repaint();
 			}
 		});
-	}
-
-	static public final Point2D.Double transform(final AffineTransform affine, final double x, final double y) {
-		final Point2D.Double pSrc = new Point2D.Double(x, y);
-		if (affine.isIdentity()) return pSrc;
-		final Point2D.Double pDst = new Point2D.Double();
-		affine.transform(pSrc, pDst);
-		return pDst;
-	}
-	static public final Point2D.Double inverseTransform(final AffineTransform affine, final double x, final double y) {
-		final Point2D.Double pSrc = new Point2D.Double(x, y);
-		if (affine.isIdentity()) return pSrc;
-		final Point2D.Double pDst = new Point2D.Double();
-		try {
-			affine.createInverse().transform(pSrc, pDst);
-		} catch (NoninvertibleTransformException nite) {
-			IJError.print(nite);
-		}
-		return pDst;
 	}
 
 	/** Returns the time as HH:MM:SS */
@@ -1122,14 +1015,6 @@ public class Utils implements ij.plugin.PlugIn {
 		return Color.getHSBColor(a[0], a[1], a[2]);
 	}
 
-	/** Test whether the areas intersect each other. */
-	static public final boolean intersects(final Area a1, final Area a2) {
-		final Area b = new Area(a1);
-		b.intersect(a2);
-		final java.awt.Rectangle r = b.getBounds();
-		return 0 != r.width && 0 != r.height;
-	}
-
 	/** 1 A, 2 B, 3 C  ---  26 - z, 27 AA, 28 AB, 29 AC  --- 26*27 AAA */
 	static public final String getCharacter(int i) {
 		i--;
@@ -1137,21 +1022,6 @@ public class Utils implements ij.plugin.PlugIn {
 		char c = (char)((i % 26) + 65); // 65 is 'A'
 		if (0 == k) return Character.toString(c);
 		return new StringBuffer().append(getCharacter(k)).append(c).toString();
-	}
-
-	static private Field shape_field = null;
-
-	static public final Shape getShape(final ShapeRoi roi) {
-		try {
-			if (null == shape_field) {
-				shape_field = ShapeRoi.class.getDeclaredField("shape");
-				shape_field.setAccessible(true);
-			}
-			return (Shape)shape_field.get(roi);
-		} catch (Exception e) {
-			IJError.print(e);
-		}
-		return null;
 	}
 
 	/** Get by reflection a private or protected field in the given object. */
@@ -1165,110 +1035,6 @@ public class Utils implements ij.plugin.PlugIn {
 			IJError.print(e);
 		}
 		return null;
-	}
-
-	static public final Area getArea(final Roi roi) {
-		if (null == roi) return null;
-		ShapeRoi sroi = new ShapeRoi(roi);
-		AffineTransform at = new AffineTransform();
-		Rectangle bounds = sroi.getBounds();
-		at.translate(bounds.x, bounds.y);
-		Area area = new Area(getShape(sroi));
-		return area.createTransformedArea(at);
-	}
-
-	static public final boolean isEmpty(final Area area) {
-		final Rectangle b = area.getBounds();
-		return 0 == b.width || 0 == b.height;
-	}
-
-	/** Returns the approximated area of the given Area object. */
-	static public final double measureArea(Area area, final Loader loader) {
-		double sum = 0;
-		try {
-			Rectangle bounds = area.getBounds();
-			double scale = 1;
-			if (bounds.width > 2048 || bounds.height > 2048) {
-				scale = 2048.0 / bounds.width;
-			}
-			if (0 == scale) {
-				Utils.log("Can't measure: area too large, out of scale range for approximation.");
-				return sum;
-			}
-			AffineTransform at = new AffineTransform();
-			at.translate(-bounds.x, -bounds.y);
-			at.scale(scale, scale);
-			area = area.createTransformedArea(at);
-			bounds = area.getBounds();
-			if (0 == bounds.width || 0 == bounds.height) {
-				Utils.log("Can't measure: area too large, approximates zero.");
-				return sum;
-			}
-			if (null != loader) loader.releaseToFit(bounds.width * bounds.height * 3);
-			BufferedImage bi = new BufferedImage(bounds.width, bounds.height, BufferedImage.TYPE_BYTE_INDEXED);
-			Graphics2D g = bi.createGraphics();
-			g.setColor(Color.white);
-			g.fill(area);
-			final byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
-			for (int i=pixels.length-1; i>-1; i--) {
-				//if (255 == (pixels[i]&0xff)) sum++;
-				if (0 != pixels[i]) sum++;
-			}
-			bi.flush();
-			g.dispose();
-			if (1 != scale) sum = sum / (scale * scale);
-		} catch (Throwable e) {
-			IJError.print(e);
-		}
-		return sum;
-	}
-
-	/** Compute the area of the triangle defined by 3 points in 3D space, returning half of the length of the vector resulting from the cross product of vectors p1p2 and p1p3. */
-	static public final double measureArea(final Point3f p1, final Point3f p2, final Point3f p3) {
-		final Vector3f v = new Vector3f();
-		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
-			new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
-		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
-	}
-
-	/** Returns true if the roi is of closed shape type like an OvalRoi, ShapeRoi, a Roi rectangle, etc. */
-	static public final boolean isAreaROI(final Roi roi) {
-		switch (roi.getType()) {
-			case Roi.POLYLINE:
-			case Roi.FREELINE:
-			case Roi.LINE:
-			case Roi.POINT:
-				return false;
-		}
-		return true;
-	}
-
-	static public final Collection<Polygon> getPolygons(Area area) {
-		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
-		Polygon pol = new Polygon();
-
-		final float[] coords = new float[6];
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			int seg_type = pit.currentSegment(coords);
-			switch (seg_type) {
-				case PathIterator.SEG_MOVETO:
-				case PathIterator.SEG_LINETO:
-					pol.addPoint((int)coords[0], (int)coords[1]);
-					break;
-				case PathIterator.SEG_CLOSE:
-					pols.add(pol);
-					pol = new Polygon();
-					break;
-				default:
-					Utils.log2("WARNING: unhandled seg type.");
-					break;
-			}
-			pit.next();
-			if (pit.isDone()) {
-				break;
-			}
-		}
-		return pols;
 	}
 
 	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */

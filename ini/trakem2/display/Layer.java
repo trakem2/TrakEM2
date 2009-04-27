@@ -326,7 +326,7 @@ public final class Layer extends DBObject implements Bucketable {
 		try {
 			if (check && !Utils.check("Really delete " + this.toString() + " and all its children?")) return false;
 			// destroy the Display objects that show this layer
-			Display.close(this);
+			Display.remove(this);
 			// proceed to remove all the children
 			Displayable[] displ = new Displayable[al_displayables.size()]; // to avoid concurrent modifications
 			al_displayables.toArray(displ);
@@ -340,6 +340,7 @@ public final class Layer extends DBObject implements Bucketable {
 			// remove from the parent
 			/*can't ever be null//if (null != parent) */
 			parent.remove(this);
+			Display.updateLayerScroller(parent);
 			removeFromDatabase();
 		} catch (Exception e) { IJError.print(e); return false; }
 		return true;
@@ -764,6 +765,7 @@ public final class Layer extends DBObject implements Bucketable {
 				d.preTransform(at, false);
 			}
 		}
+		recreateBuckets();
 	}
 
 	/** Make a copy of this layer into the given LayerSet, enclosing only Displayable objects within the roi, and translating them for that roi x,y. */

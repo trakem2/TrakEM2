@@ -109,4 +109,32 @@ public abstract class Worker implements Runnable {
 		if (null == key || null == properties) return null;
 		return properties.get(key);
 	}
+
+	/** A class that calls run() wrapped properly for task monitoring;
+	 *  Create it like this:
+	 *
+	 *  Bureaucrat b = Bureaucrat.createAndStart(new Worker.Task("Title") { public void exec() {
+	 *      doSomething();
+	 *      doSomethingElse();
+	 *  }}, project);
+	 *
+	 */
+	static public abstract class Task extends Worker {
+		public Task(String title) {
+			super(title);
+		}
+
+		abstract public void exec();
+
+		public void run() {
+			try {
+				startedWorking();
+				exec();
+			} catch (Throwable t) {
+				IJError.print(t);
+			} finally {
+				finishedWorking();
+			}
+		}
+	}
 }

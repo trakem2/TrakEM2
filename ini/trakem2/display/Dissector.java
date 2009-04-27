@@ -29,6 +29,7 @@ import ij.measure.ResultsTable;
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
@@ -240,8 +241,8 @@ public class Dissector extends ZDisplayable {
 				// Convert point from local to world coordinates
 				//Point2D.Double po = transformPoint(p[0][i], p[1][i]);
 				// Convert point from world to screen coordinates
-				//po = Utils.transform(gt, po.x, po.y);
-				final Point2D.Double po = Utils.transform(aff, p[0][i], p[1][i]);
+				//po = M.transform(gt, po.x, po.y);
+				final Point2D.Double po = M.transform(aff, p[0][i], p[1][i]);
 				final int px = (int)po.x;
 				final int py = (int)po.y;
 				g.drawOval(px - M_radius, py - M_radius, M_radius+M_radius, M_radius+M_radius);
@@ -253,8 +254,8 @@ public class Dissector extends ZDisplayable {
 				// Convert point to world coordinates
 				//Point2D.Double po = transformPoint(p[0][paint_i], p[1][paint_i]);
 				// Convert point to screen coordinates
-				//po = Utils.transform(gt, po.x, po.y);
-				final Point2D.Double po = Utils.transform(aff, p[0][paint_i], p[1][paint_i]);
+				//po = M.transform(gt, po.x, po.y);
+				final Point2D.Double po = M.transform(aff, p[0][paint_i], p[1][paint_i]);
 				final int px = (int)po.x;
 				final int py = (int)po.y;
 				g.drawRect(px - M_radius, py - M_radius, M_radius+M_radius, M_radius+M_radius);
@@ -269,7 +270,7 @@ public class Dissector extends ZDisplayable {
 					Utils.log("Dissector.addResults: could not find layer with id " + p_layer[i]);
 					continue;
 				}
-				final Point2D.Double po = Utils.transform(Dissector.this.at, p[0][i], p[1][i]);
+				final Point2D.Double po = M.transform(Dissector.this.at, p[0][i], p[1][i]);
 				rt.incrementCounter();
 				rt.addLabel("units", cal.getUnit());
 				rt.addValue(0, Dissector.this.id);

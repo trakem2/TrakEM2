@@ -35,6 +35,7 @@ import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
 import ini.trakem2.vector.Compare;
 
@@ -928,7 +929,7 @@ public abstract class Displayable extends DBObject {
 
 	/** Minimal info that identifies this object as unique, for display on a JTree node.*/
 	public String toString() {
-		return new StringBuffer(this.title.length() + 20).append(this.title).append(!(this instanceof ZDisplayable) && null != layer ? " z=" + layer.getZ() : "").append(' ').append('#').append(this.id).toString(); // the layer is null when recreating the object from the database and printing it for testing in the Loader
+		return new StringBuilder(this.title.length() + 20).append(this.title).append(!(this instanceof ZDisplayable) && null != layer ? " z=" + layer.getZ() : "").append(' ').append('#').append(this.id).toString(); // the layer is null when recreating the object from the database and printing it for testing in the Loader
 	}
 
 	abstract public boolean isDeletable();
@@ -1277,7 +1278,7 @@ public abstract class Displayable extends DBObject {
 			double x = p[0][i];
 			double y = p[1][i];
 			// angle relative to the pivot point
-			double b1 = Utils.getAngle(x - xo, y - yo);
+			double b1 = M.getAngle(x - xo, y - yo);
 			// new angle relative to pivot point
 			double b2 = b1 + rot;
 			// new location
@@ -1315,7 +1316,7 @@ public abstract class Displayable extends DBObject {
 		p[1][i] += dy;
 		if (0 != rot) {
 			double hypot = Math.sqrt(Math.pow(p[0][i] - xo, 2) + Math.pow(p[1][i] - yo, 2));
-			double angle = Utils.getAngle(p[0][i] - xo, p[1][i] - yo);
+			double angle = M.getAngle(p[0][i] - xo, p[1][i] - yo);
 			p[0][i] = xo + Math.cos(angle + rot) * hypot;
 			p[1][i] = yo + Math.sin(angle + rot) * hypot;
 		}
@@ -1875,5 +1876,21 @@ public abstract class Displayable extends DBObject {
 		// subclass' one! I call it "defensive programming"
 		/** Set the subclass specific data fields. */
 		abstract boolean to2(final Displayable d);
+	}
+
+	/** Returns true if any Displayable objects of different layers in sublist are linked to each other.
+	 *  If ignore_stacks is true, then image links across layers are ignored. */
+	static public final boolean areThereLayerCrossLinks(final Set<Layer> sublist, final boolean ignore_stacks) {
+		if (null == sublist || 0 == sublist.size()) return false;
+		for (final Layer l : sublist) {
+			for (final Displayable d : l.getDisplayables(Patch.class)) {
+				if (d.isLinked()) {
+					for (final Displayable other : d.getLinked()) {
+						final Class c = other.getClass();
+						if ( (!ignore_stacks && Patch.class == c && other.layer != d.layer)
+						   || (Profile.class == c && other.getLinked(Profile.class).size() > 0)
+						   || ZDisplayable.class.isAssignableFrom(c)) {
+							return true; }}}}}
+		return false;
 	}
 }

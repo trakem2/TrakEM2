@@ -2,6 +2,29 @@ package ini.trakem2.utils;
 
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Point3f;
+import javax.vecmath.Vector3f;
+
+import java.awt.geom.Area;
+import java.awt.Graphics2D;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.PathIterator;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.Shape;
+import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.lang.reflect.Field;
+
+import ini.trakem2.persistence.Loader;
+
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
 
 /** TrakEM2's mathematician. */
 public final class M {
@@ -129,5 +152,204 @@ public final class M {
 
 	static public final boolean equals(final double a, final double b) {
 		return Math.abs(a - b) < Utils.FL_ERROR;
+	}
+
+	static public final Point2D.Double transform(final AffineTransform affine, final double x, final double y) {
+		final Point2D.Double pSrc = new Point2D.Double(x, y);
+		if (affine.isIdentity()) return pSrc;
+		final Point2D.Double pDst = new Point2D.Double();
+		affine.transform(pSrc, pDst);
+		return pDst;
+	}
+
+	static public final Point2D.Double inverseTransform(final AffineTransform affine, final double x, final double y) {
+		final Point2D.Double pSrc = new Point2D.Double(x, y);
+		if (affine.isIdentity()) return pSrc;
+		final Point2D.Double pDst = new Point2D.Double();
+		try {
+			affine.createInverse().transform(pSrc, pDst);
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+		}
+		return pDst;
+	}
+
+	// from utilities.c in my CurveMorphing C module ... from C! Java is a low level language with the disadvantages of the high level languages ...
+	/** Returns the angle in radians of the given polar coordinates, correcting the Math.atan2 output.
+	 * Adjusting so that 0 is 3 o'clock, PI+PI/2 is 12 o'clock, PI is 9 o'clock, and PI/2 is 6 o'clock (why atan2 doesn't output angles this way? I remember I had the same problem for Pipe.java in the A_3D_editing plugin) */
+	static public final double getAngle(final double x, final double y) {
+		// calculate angle
+		double a = Math.atan2(x, y);
+		// fix too large angles (beats me why are they ever generated)
+		if (a > 2 * Math.PI) {
+			a = a - 2 * Math.PI;
+		}
+		// fix atan2 output scheme to match my mental scheme
+		if (a >= 0.0 && a <= Math.PI/2) {
+			a = Math.PI/2 - a;
+		} else if (a < 0 && a >= -Math.PI) {
+			a = Math.PI/2 -a;
+		} else if (a > Math.PI/2 && a <= Math.PI) {
+			a = Math.PI + Math.PI + Math.PI/2 - a;
+		}
+		return a;
+	}
+
+
+	/*==============  Geometry =============*/
+	
+	static public final boolean isEmpty(final Area area) {
+		final Rectangle b = area.getBounds();
+		return 0 == b.width || 0 == b.height;
+	}
+
+	/** Test whether the areas intersect each other. */
+	static public final boolean intersects(final Area a1, final Area a2) {
+		final Area b = new Area(a1);
+		b.intersect(a2);
+		final java.awt.Rectangle r = b.getBounds();
+		return 0 != r.width && 0 != r.height;
+	}
+
+	static public final Area getArea(final Roi roi) {
+		if (null == roi) return null;
+		ShapeRoi sroi = new ShapeRoi(roi);
+		AffineTransform at = new AffineTransform();
+		Rectangle bounds = sroi.getBounds();
+		at.translate(bounds.x, bounds.y);
+		Area area = new Area(getShape(sroi));
+		return area.createTransformedArea(at);
+	}
+
+	/** Returns the approximated area of the given Area object; Loader can be null; if not, it's used to secure memory space. */
+	static public final double measureArea(Area area, final Loader loader) {
+		double sum = 0;
+		try {
+			Rectangle bounds = area.getBounds();
+			double scale = 1;
+			if (bounds.width > 2048 || bounds.height > 2048) { // TODO value 2048 should be reconsidered as a project property
+				scale = 2048.0 / bounds.width;
+			}
+			if (0 == scale) {
+				Utils.log("Can't measure: area too large, out of scale range for approximation.");
+				return sum;
+			}
+			AffineTransform at = new AffineTransform();
+			at.translate(-bounds.x, -bounds.y);
+			at.scale(scale, scale);
+			area = area.createTransformedArea(at);
+			bounds = area.getBounds();
+			if (0 == bounds.width || 0 == bounds.height) {
+				Utils.log("Can't measure: area too large, approximates zero.");
+				return sum;
+			}
+			if (null != loader) loader.releaseToFit(bounds.width * bounds.height * 3);
+			BufferedImage bi = new BufferedImage(bounds.width, bounds.height, BufferedImage.TYPE_BYTE_INDEXED);
+			Graphics2D g = bi.createGraphics();
+			g.setColor(Color.white);
+			g.fill(area);
+			final byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
+			for (int i=pixels.length-1; i>-1; i--) {
+				//if (255 == (pixels[i]&0xff)) sum++;
+				if (0 != pixels[i]) sum++;
+			}
+			bi.flush();
+			g.dispose();
+			if (1 != scale) sum = sum / (scale * scale);
+		} catch (Throwable e) {
+			IJError.print(e);
+		}
+		return sum;
+	}
+
+	/** Compute the area of the triangle defined by 3 points in 3D space, returning half of the length of the vector resulting from the cross product of vectors p1p2 and p1p3. */
+	static public final double measureArea(final Point3f p1, final Point3f p2, final Point3f p3) {
+		final Vector3f v = new Vector3f();
+		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
+			new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
+		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
+	}
+
+	/** Returns true if the roi is of closed shape type like an OvalRoi, ShapeRoi, a Roi rectangle, etc. */
+	static public final boolean isAreaROI(final Roi roi) {
+		switch (roi.getType()) {
+			case Roi.POLYLINE:
+			case Roi.FREELINE:
+			case Roi.LINE:
+			case Roi.POINT:
+				return false;
+		}
+		return true;
+	}
+
+	static public final Collection<Polygon> getPolygons(Area area) {
+		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
+		Polygon pol = new Polygon();
+
+		final float[] coords = new float[6];
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					pol.addPoint((int)coords[0], (int)coords[1]);
+					break;
+				case PathIterator.SEG_CLOSE:
+					pols.add(pol);
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return pols;
+	}
+
+	static private Field shape_field = null;
+
+	static public final Shape getShape(final ShapeRoi roi) {
+		try {
+			if (null == shape_field) {
+				shape_field = ShapeRoi.class.getDeclaredField("shape");
+				shape_field.setAccessible(true);
+			}
+			return (Shape)shape_field.get(roi);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
+	}
+
+	/** Detect if a point is not in the area, but lays inside one of its path, which is returned as a Polygon. Otherwise returns null. The given x,y must be already in the Area's coordinate system. */
+	static public final Polygon findPath(final Area area, final int x, final int y) {
+		Polygon pol = new Polygon();
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			float[] coords = new float[6];
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					pol.addPoint((int)coords[0], (int)coords[1]);
+					break;
+				case PathIterator.SEG_CLOSE:
+					if (pol.contains(x, y)) return pol;
+					// else check next
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return null;
 	}
 }

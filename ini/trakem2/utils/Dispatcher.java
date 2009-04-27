@@ -38,11 +38,14 @@ public class Dispatcher extends Thread {
 	private final Lock lock = new Lock();
 	private boolean go = true;
 
-	public Dispatcher() {
-		super("T2-Dispatcher");
+	public Dispatcher(String tag) {
+		super("T2-Dispatcher" + (null != tag ? " " + tag : ""));
 		setPriority(Thread.NORM_PRIORITY);
 		setDaemon(true);
 		start();
+	}
+	public Dispatcher() {
+		this(null);
 	}
 	public void quit() {
 		this.go = false;

@@ -197,7 +197,7 @@ public class Search {
 		final Pattern pat = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
 		//Utils.log2("pattern after: " + pattern);
 		final ArrayList al = new ArrayList();
-		Utils.log("types[pulldown] = " + types[pulldown.getSelectedIndex()]);
+		//Utils.log("types[pulldown] = " + types[pulldown.getSelectedIndex()]);
 		find(ControlWindow.getActive().getRootLayerSet(), al, types[pulldown.getSelectedIndex()]);
 		//Utils.log2("found labels: " + al.size());
 		if (0 == al.size()) return;

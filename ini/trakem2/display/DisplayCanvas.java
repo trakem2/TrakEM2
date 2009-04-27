@@ -24,6 +24,8 @@ package ini.trakem2.display;
 
 import ij.*;
 import ij.gui.*;
+import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.ProjectToolbar;
@@ -1309,7 +1311,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					Utils.showStatus("", false);
 					return;
 				}
-				final StringBuffer sb = new StringBuffer();
+				final StringBuilder sb = new StringBuilder();
 				final Project pr = layer.getProject();
 				for (Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
 				sb.setLength(sb.length()-2);
@@ -1534,8 +1536,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		}
 		display.getSelection().setTransforming(b);
-		//repaint other Displays as well!//repaint(display.getSelection().getBox(), Selection.PADDING);
-		Display.repaint(display.getLayer(), display.getSelection().getBox(), Selection.PADDING); // repaints the navigator as well
+		//repaint other Displays as well!
+		Display.repaint(display.getLayerSet());
 	}
 
 	public void cancelTransform() {
@@ -1544,7 +1546,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		selection.cancelTransform();
 		box.add(selection.getLinkedBox()); // the restored box now.
 		if (!(selection.getNSelected() == 1 && !display.getActive().isLinked())) update_graphics = true;
-		repaint(box, Selection.PADDING);
+		repaint(true);
 	}
 
 	/*
@@ -1714,15 +1716,19 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// UNDO: shift+z or ctrl+z
 				if (0 == (mod ^ Event.SHIFT_MASK) || 0 == (mod ^ Utils.getControlModifier())) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
-					if (isTransforming()) display.getSelection().undoOneStep();
-					else display.getLayerSet().undoOneStep();
-					Display.repaint(display.getLayerSet());
+					Bureaucrat.createAndStart(new Worker.Task("Undo") { public void exec() {
+						if (isTransforming()) display.getSelection().undoOneStep();
+						else display.getLayerSet().undoOneStep();
+						Display.repaint(display.getLayerSet());
+					}}, display.getProject());
 					ke.consume();
 				// REDO: alt+z or ctrl+shift+z
 				} else if (0 == (mod ^ Event.ALT_MASK) || 0 == (mod ^ (Event.SHIFT_MASK | Utils.getControlModifier())) ) {
-					if (isTransforming()) display.getSelection().redoOneStep();
-					else display.getLayerSet().redoOneStep();
-					Display.repaint(display.getLayerSet());
+					Bureaucrat.createAndStart(new Worker.Task("Redo") { public void exec() {
+						if (isTransforming()) display.getSelection().redoOneStep();
+						else display.getLayerSet().redoOneStep();
+						Display.repaint(display.getLayerSet());
+					}}, display.getProject());
 					ke.consume();
 				}
 				// else, the 'z' command restores the image using ImageJ internal undo
@@ -2004,9 +2010,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 
-	/** Minimum time an offscreen thread will run before it can be quit, in miliseconds. */
-	static private final int min_time = 200;
-
 	protected class RepaintProperties implements AbstractOffscreenThread.RepaintProperties {
 		final private Layer layer;
 		final private int g_width;
@@ -2014,6 +2017,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final private Displayable active;
 		final private int c_alphas;
 		final private Rectangle clipRect;
+		final private int mode;
+		final private HashMap<Color,Layer> hm;
+		final private ArrayList<LayerPanel> blending_list;
 
 		RepaintProperties(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
 			this.clipRect = clipRect;
@@ -2022,6 +2028,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			this.g_height = g_height;
 			this.active = active;
 			this.c_alphas = c_alphas;
+
+			// query the display for repainting mode
+			this.hm = new HashMap<Color,Layer>();
+			this.blending_list = new ArrayList<LayerPanel>();
+			this.mode = display.getPaintMode(hm, blending_list);
 		}
 	}
 
@@ -2040,9 +2051,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				final int c_alphas;
 				final Rectangle clipRect;
 				final Loader loader;
+				final HashMap<Color,Layer> hm;
+				final ArrayList<LayerPanel> blending_list;
+				final int mode;
 
 				synchronized (this) {
-					DisplayCanvas.RepaintProperties rp = (DisplayCanvas.RepaintProperties) this.rp;
+					final DisplayCanvas.RepaintProperties rp = (DisplayCanvas.RepaintProperties) this.rp;
 					layer = rp.layer;
 					g_width = rp.g_width;
 					g_height = rp.g_height;
@@ -2050,6 +2064,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					c_alphas = rp.c_alphas;
 					clipRect = rp.clipRect;
 					loader = layer.getProject().getLoader();
+					mode = rp.mode;
+					hm = rp.hm;
+					blending_list = rp.blending_list;
 				}
 
 				// flag Loader to do massive flushing if needed
@@ -2095,7 +2112,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 				Displayable tmp = null;
 
-				int i = 0;
 				while (ital.hasNext()) {
 					final Displayable d = ital.next();
 					final Class c = d.getClass();
@@ -2111,7 +2127,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						if (top) al_top.add(d);
 						else al_paint.add(d);
 					}
-					i++;
 				}
 
 				// preload concurrently as many as possible
@@ -2123,7 +2138,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					if (zd == active) top = true;
 					else if (top) al_top.add(zd);
 					else al_paint.add(zd);
-					i++;
 				}
 				// paint LayerSet and DLabel objects!
 				if (null != tmp) {
@@ -2136,7 +2150,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					if (d == active) top = true;
 					else if (top) al_top.add(d);
 					else al_paint.add(d);
-					i++;
 				}
 
 				// create new graphics
@@ -2162,23 +2175,86 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				//  2 - images and anything else not on al_top
 				//  3 - non-srcRect areas
 
-				/*
-				if (!background.isEmpty()) {
-					// subtract non-srcRect areas
-					background.subtract(new Area(r1));
-					background.subtract(new Area(r2));
-					// paint background
-					g.setColor(Color.black);
-					g.fill(background);
-				}
-				*/
-
 				//Utils.log2("offscreen painting: " + al_paint.size());
 
-				i = 0;
-				for (Displayable d : al_paint) {
-					d.prePaint(g, magnification, d == active, c_alphas, layer);
-					i++;
+
+				// Determine painting mode
+				if (Display.REPAINT_SINGLE_LAYER == mode) {
+					// Direct painting mode, with prePaint abilities
+					for (final Displayable d : al_paint) {
+						d.prePaint(g, magnification, d == active, c_alphas, layer);
+					}
+				} else if (Display.REPAINT_MULTI_LAYER == mode) {
+					// paint first the current layer Patches only (to set the background)
+					int count = 0;
+					for (final Displayable d : al_patches) {
+						d.paint(g, magnification, d == active, c_alphas, layer);
+					}
+
+					// then blend on top the Patches of the others, in reverse Z order and using the alpha of the LayerPanel
+					final Composite original = g.getComposite();
+					// reset
+					g.setTransform(new AffineTransform());
+					for (final ListIterator<LayerPanel> it = blending_list.listIterator(blending_list.size()); it.hasPrevious(); ) {
+						final LayerPanel lp = it.previous();
+						if (lp.layer == layer) continue;
+						layer.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
+						final BufferedImage bi = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT);
+						final Graphics2D gb = bi.createGraphics();
+						gb.setTransform(atc);
+						for (final Displayable d : lp.layer.find(srcRect, true)) {
+							if (d.getClass() != Patch.class) continue; // skip non-images
+							d.paint(gb, magnification, false, c_alphas, lp.layer);
+						}
+						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
+						g.drawImage(bi, 0, 0, null);
+						bi.flush();
+					}
+					// restore
+					g.setComposite(original);
+					g.setTransform(atc);
+
+					// then paint the non-Patch objects of the current layer
+					for (final Displayable d : al_paint.subList(al_patches.size(), al_paint.size())) {
+						d.paint(g, magnification, d == active, c_alphas, layer);
+					}
+				} else { // Display.REPAINT_RGB_LAYER == mode
+					final HashMap<Color,byte[]> channels = new HashMap<Color,byte[]>();
+					hm.put(Color.green, layer);
+					for (final Map.Entry<Color,Layer> e : hm.entrySet()) {
+						final BufferedImage bi = new BufferedImage(g_width, g_height, BufferedImage.TYPE_BYTE_GRAY); //INDEXED, Loader.GRAY_LUT);
+						final Graphics2D gb = bi.createGraphics();
+						gb.setTransform(atc);
+						final Layer la = e.getValue();
+						if (la == layer && Color.green != e.getKey()) continue; // don't paint current layer in two channels
+						for (final Displayable d : la.find(srcRect, true)) {
+							if (d.getClass() != Patch.class) continue; // skip non-images
+							d.paint(gb, magnification, false, c_alphas, la);
+						}
+						channels.put(e.getKey(), (byte[])new ByteProcessor(bi).getPixels());
+					}
+					final byte[] red, green, blue;
+					green = channels.get(Color.green);
+					if (null == channels.get(Color.red)) red = new byte[green.length];
+					else red = channels.get(Color.red);
+					if (null == channels.get(Color.blue)) blue = new byte[green.length];
+					else blue = channels.get(Color.blue);
+					final int[] pix = new int[green.length];
+					for (int i=0; i<green.length; i++) {
+						pix[i] = ((red[i] & 0xff) << 16) + ((green[i] & 0xff) << 8) + (blue[i] & 0xff);
+					}
+					// undo transform, is intended for Displayable objects
+					g.setTransform(new AffineTransform());
+					final Image img = new ColorProcessor(g_width, g_height, pix).createImage();
+					g.drawImage(img, 0, 0, null);
+					img.flush();
+					// reset
+					g.setTransform(atc);
+
+					// then paint the non-Patch objects of the current layer
+					for (final Displayable d : al_paint.subList(al_patches.size(), al_paint.size())) {
+						d.paint(g, magnification, d == active, c_alphas, layer);
+					}
 				}
 
 				// finally, paint non-srcRect areas

@@ -32,6 +32,7 @@ import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
@@ -63,6 +64,7 @@ import java.awt.event.KeyEvent;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Collection;
@@ -608,12 +610,10 @@ public final class Patch extends Displayable {
 	}
 
 	/** Returns true if this Patch holds direct links to at least one other image in a different layer. Doesn't check for total overlap. */
-	public boolean isStack() {
+	public final boolean isStack() {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		final Iterator it = hs_linked.iterator();
-		while (it.hasNext()) {
-			Displayable d = (Displayable)it.next();
-			if (d instanceof Patch && d.layer.getId() != this.layer.getId()) return true;
+		for (final Displayable d : hs_linked) {
+			if (d.getClass() != Patch.class && d.layer.getId() != this.layer.getId()) return true;
 		}
 		return false;
 	}
@@ -621,20 +621,16 @@ public final class Patch extends Displayable {
 	/** Retuns a virtual ImagePlus with a virtual stack if necessary. */
 	public PatchStack makePatchStack() {
 		// are we a stack?
-		HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+		final TreeMap<Double,Patch> ht = new TreeMap<Double,Patch>();
 		getStackPatchesNR(ht);
-		Patch[] patch = null;
+		final Patch[] patch;
 		int currentSlice = 1; // from 1 to n, as in ImageStack
 		if (ht.size() > 1) {
-			// a stack. Order by layer Z
-			ArrayList<Double> z = new ArrayList<Double>();
-			z.addAll(ht.keySet());
-			java.util.Collections.sort(z);
-			patch = new Patch[z.size()];
+			patch = new Patch[ht.size()];
 			int i = 0;
-			for (Double d : z) {
-				patch[i] = ht.get(d);
-				if (patch[i].id == this.id) currentSlice = i+1;
+			for (final Patch p : ht.values()) { // sorted by z
+				patch[i] = p;
+				if (p.id == this.id) currentSlice = i+1;
 				i++;
 			}
 		} else {
@@ -644,17 +640,9 @@ public final class Patch extends Displayable {
 	}
 
 	public ArrayList<Patch> getStackPatches() {
-		HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+		final TreeMap<Double,Patch> ht = new TreeMap<Double,Patch>();
 		getStackPatchesNR(ht);
-		Utils.log2("Found patches: " + ht.size());
-		ArrayList<Double> z = new ArrayList<Double>();
-		z.addAll(ht.keySet());
-		java.util.Collections.sort(z);
-		ArrayList<Patch> p = new ArrayList<Patch>();
-		for (Double d : z) {
-			p.add(ht.get(d));
-		}
-		return p;
+		return new ArrayList(ht.values()); // sorted by z
 	}
 
 	/** Collect linked Patch instances that do not lay in this layer. Recursive over linked Patch instances that lay in different layers. */ // This method returns a usable stack because Patch objects are only linked to other Patch objects when inserted together as stack. So the slices are all consecutive in space and have the same thickness. Yes this is rather convoluted, stacks should be full-grade citizens
@@ -682,7 +670,7 @@ public final class Patch extends Displayable {
 	}
 
 	/** Non-recursive version to avoid stack overflows with "excessive" recursion (I hate java). */
-	private void getStackPatchesNR(final HashMap<Double,Patch> ht) {
+	private void getStackPatchesNR(final Map<Double,Patch> ht) {
 		final ArrayList<Patch> list1 = new ArrayList<Patch>();
 		list1.add(this);
 		final ArrayList<Patch> list2 = new ArrayList<Patch>();
@@ -891,7 +879,7 @@ public final class Patch extends Displayable {
 
 	/** Expects x,y in world coordinates.  This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method. */
 	public int[] getPixel(final int x, final int y, final double mag) {
-		if (1 == mag && project.getLoader().isUnloadable(this)) return new int[4];
+		if (project.getLoader().isUnloadable(this)) return new int[4];
 		final Image img = project.getLoader().fetchImage(this, mag);
 		if (Loader.isSignalImage(img)) return new int[4];
 		final int w = img.getWidth(null);
@@ -943,6 +931,11 @@ public final class Patch extends Displayable {
 	public final String getFilePath() {
 		if (null != current_path) return current_path;
 		return project.getLoader().getAbsolutePath(this);
+	}
+
+	/** Returns the absolute path to the image file, as read by the OS. */
+	public final String getImageFilePath() {
+		return project.getLoader().getImageFilePath(this);
 	}
 
 	/** Returns the value of the field current_path, which may be null. If not null, the value may contain the slice info in it if it's part of a stack. */
@@ -1157,14 +1150,16 @@ public final class Patch extends Displayable {
 		if (null != pi) return pi;
 		// else, a new one with the untransformed, original image (a duplicate):
 		project.getLoader().releaseToFit(o_width, o_height, type, 3);
-		return new PatchImage(getImageProcessor().duplicate(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
+		final ImageProcessor ip = getImageProcessor();
+		if (null == ip) return null;
+		return new PatchImage(ip.duplicate(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
 	}
 
 	private boolean has_alpha = false;
 	private boolean alpha_path_checked = false;
 
 	/** Caching system to avoid repeated checks. No automatic memoization ... snif */
-	private final boolean hasMask() {
+	public final boolean hasAlphaMask() {
 		if (alpha_path_checked) return has_alpha;
 		// else, see if the path exists:
 		try {
@@ -1177,13 +1172,13 @@ public final class Patch extends Displayable {
 	}
 
 	public boolean hasAlphaChannel() {
-		return null != ct || hasMask();
+		return null != ct || hasAlphaMask();
 	}
 
 	/** Must call updateMipmaps() afterwards. Set it to null to remove it. */
 	public void setAlphaMask(ByteProcessor bp) throws IllegalArgumentException {
 		if (null == bp) {
-			if (hasMask()) {
+			if (hasAlphaMask()) {
 				if (project.getLoader().removeAlphaMask(this)) {
 					alpha_path_checked = false;
 				}
@@ -1243,7 +1238,7 @@ public final class Patch extends Displayable {
 			case KeyEvent.VK_F:
 				// fill mask with current ROI using 
 				Utils.log2("VK_F: roi is " + roi);
-				if (null != roi && Utils.isAreaROI(roi)) {
+				if (null != roi && M.isAreaROI(roi)) {
 					Bureaucrat.createAndStart(new Worker("Filling image mask") { public void run() { try {
 					startedWorking();
 					ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
@@ -1257,9 +1252,9 @@ public final class Patch extends Displayable {
 					try {
 						// a roi local to the image bounding box
 						final Area a = new Area(new Rectangle(0, 0, (int)width, (int)height));
-						a.intersect(Utils.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+						a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
 
-						if (Utils.isEmpty(a)) {
+						if (M.isEmpty(a)) {
 							Utils.log("ROI does not intersect the active image!");
 							return;
 						}

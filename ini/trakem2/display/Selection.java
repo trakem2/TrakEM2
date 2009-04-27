@@ -52,9 +52,12 @@ import java.awt.geom.Area;
 import java.awt.image.ColorModel;
 import java.awt.event.MouseEvent;
 
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.utils.History;
+import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 
 /** Keeps track of selected objects and mediates their transformation.*/ 
@@ -345,6 +348,8 @@ public class Selection {
 
 			addUndoStep();
 
+			if (null != accum_affine) accum_affine.preConcatenate(at);
+
 			for (final Displayable d : hs) {
 				//d.scale(px, py, anchor_x, anchor_y, false); // false because the linked ones are already included in the HashSet
 				d.preTransform(at, false);
@@ -379,6 +384,8 @@ public class Selection {
 			// store the current state if at end:
 			Utils.log2("index at end: " + history.indexAtEnd());
 			if (history.indexAtEnd()) history.append(new TransformationStep(getTransformationsCopy()));
+			// disable application to other layers (too big a headache)
+			accum_affine = null;
 			// undo one step
 			TransformationStep step = (TransformationStep)history.undoOneStep();
 			if (null == step) return; // no more steps
@@ -401,7 +408,7 @@ public class Selection {
 		// center of rotation is the floater
 		double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
 		//double sin = Math.sqrt(1 - cos*cos);
-		//double delta = Utils.getAngle(cos, sin);
+		//double delta = M.getAngle(cos, sin);
 		double delta = Math.acos(cos); // same thing as the two lines above
 		// need to compute the sign of rotation as well: the cross-product!
 		// cross-product:
@@ -624,7 +631,7 @@ public class Selection {
 		//Utils.log2("roi bounds: " + roi.getBounds());
 		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
 
-		Area aroi = new Area(Utils.getShape(shroi));
+		Area aroi = new Area(M.getShape(shroi));
 		AffineTransform affine = new AffineTransform();
 		Rectangle bounds = shroi.getBounds();
 		affine.translate(bounds.x, bounds.y);
@@ -868,6 +875,8 @@ public class Selection {
 
 	private History history = null;
 
+	private AffineTransform accum_affine = null;
+
 	synchronized public void setTransforming(final boolean b) {
 		if (b == transforming) {
 			Utils.log2("Selection.setTransforming warning: trying to set the same mode");
@@ -879,6 +888,7 @@ public class Selection {
 			history.add(new TransformationStep(getTransformationsCopy()));
 			transforming = true;
 			floater.center();
+			accum_affine = new AffineTransform();
 		} else {
 			if (null != history) {
 				history.clear();
@@ -886,10 +896,58 @@ public class Selection {
 			}
 			// the transform is already applied, just forget it:
 			transforming = false;
+			accum_affine = null;
 			forgetAffine();
 			// store current state for undo/redo:
-			if (null != display) display.getLayerSet().addTransformStep(active.getLinkedGroup(null));
+			if (null != display) display.getLayerSet().addTransformStep(hs);
 		}
+	}
+
+	/** Skips current layer, since its done already. */
+	synchronized protected void applyAndPropagate(final Set<Layer> sublist) {
+		if (!transforming) return;
+		if (null == accum_affine) {
+			Utils.log2("Cannot apply to other layers: undo/redo was used.");
+			return;
+		}
+		if (0 == sublist.size()) {
+			Utils.logAll("No layers to apply to!");
+			return;
+		}
+		// Check if there are links across affected layers
+		if (Displayable.areThereLayerCrossLinks(sublist, false)) {
+			if (ControlWindow.isGUIEnabled()) {
+				YesNoDialog yn = ControlWindow.makeYesNoDialog("Warning!", "Some objects are linked!\nThe transformation would alter interrelationships.\nProceed anyway?");
+				if ( ! yn.yesPressed()) return;
+			} else {
+				Utils.log("Can't apply: some images may be linked across layers.\n  Unlink them by removing segmentation objects like arealists, pipes, profiles, etc. that cross these layers.");
+				return;
+			}
+		}
+		// Add undo step
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (final Layer l : sublist) {
+			al.addAll(l.getDisplayables());
+		}
+		display.getLayer().getParent().addTransformStep(al);
+
+
+		// Must capture last step of free affine when using affine points:
+		if (null != free_affine && null != model) {
+			accum_affine.preConcatenate(free_affine);
+			accum_affine.preConcatenate(model.createAffine());
+		}
+
+		// Apply!
+		for (final Layer l : sublist) {
+			if (display.getLayer() == l) continue; // already applied
+			l.apply(Displayable.class, accum_affine);
+		}
+
+		// Record current state as last step in undo queue
+		display.getLayer().getParent().addTransformStep(al);
+
+		setTransforming(false);
 	}
 
 	synchronized public void cancelTransform() {
@@ -957,6 +1015,13 @@ public class Selection {
 	}
 
 	private void initializeModel() {
+
+		// Store current "initial" state in the accumulated affine
+		if (null != free_affine && null != model && null != accum_affine) {
+			accum_affine.preConcatenate(free_affine);
+			accum_affine.preConcatenate(model.createAffine());
+		}
+
 		free_affine = new AffineTransform();
 		initial_affines = getTransformationsCopy();
 
@@ -1000,11 +1065,11 @@ public class Selection {
 			model.fit(matches);
 		} catch (Exception e) {}
 		
-		AffineTransform model_affine = model.createAffine();
-		for (Iterator it = initial_affines.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry e = (Map.Entry)it.next();
-			Displayable d = (Displayable)e.getKey();
-			AffineTransform at = new AffineTransform((AffineTransform)e.getValue());
+		final AffineTransform model_affine = model.createAffine();
+		for (final Iterator it = initial_affines.entrySet().iterator(); it.hasNext(); ) {
+			final Map.Entry e = (Map.Entry)it.next();
+			final Displayable d = (Displayable)e.getKey();
+			final AffineTransform at = new AffineTransform((AffineTransform)e.getValue());
 			at.preConcatenate(free_affine);
 			at.preConcatenate(model_affine);
 			d.setAffineTransform(at);
@@ -1033,8 +1098,8 @@ public class Selection {
 		grabbed = null; // reset
 		Utils.log2("transforming: " + transforming);
 		if (!transforming) {
-			if (display.getLayerSet().prepareStep(new ArrayList<Displayable>(queue))) {
-				display.getLayerSet().addTransformStep(new ArrayList<Displayable>(queue));
+			if (display.getLayerSet().prepareStep(new ArrayList<Displayable>(hs))) {
+				display.getLayerSet().addTransformStep(new ArrayList<Displayable>(hs));
 			}
 		} else {
 			if (me.isShiftDown()) {
@@ -1403,6 +1468,8 @@ public class Selection {
 
 		addUndoStep();
 
+		if (null != accum_affine) accum_affine.preConcatenate(at);
+
 		for (final Displayable d : hs) {
 			d.preTransform(at, false); // all linked ones included in the hashset
 		}
@@ -1415,6 +1482,8 @@ public class Selection {
 		at.translate(dx, dy);
 
 		addUndoStep();
+
+		if (null != accum_affine) accum_affine.preConcatenate(at);
 
 		for (final Displayable d : hs) {
 			d.preTransform(at, false); // all linked ones already included in the hashset
@@ -1435,6 +1504,8 @@ public class Selection {
 		at.translate(-floater.x, -floater.y);
 
 		addUndoStep();
+
+		if (null != accum_affine) accum_affine.preConcatenate(at);
 
 		for (final Displayable d : hs) {
 			d.preTransform(at, false); // all linked ones already included in the hashset

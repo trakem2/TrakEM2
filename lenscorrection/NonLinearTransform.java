@@ -136,13 +136,13 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 										beta[i][1] = Double.parseDouble(fields[c]); c++;
 								}
 								
-								System.out.println("c: " + c); 
+								//System.out.println("c: " + c); 
 
 								for (int i=0; i < length; i++){
 										normMean[i] = Double.parseDouble(fields[c]); c++;
 								}
 								
-								System.out.println("c: " + c); 
+								//System.out.println("c: " + c); 
 
 								for (int i=0; i < length; i++){
 										normVar[i] = Double.parseDouble(fields[c]); c++;
@@ -150,7 +150,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 
 								width = Integer.parseInt(fields[c]); c++;				
 								height = Integer.parseInt(fields[c]); c++;
-								System.out.println("c: " + c); 
+								//System.out.println("c: " + c); 
 								
 						}
 				else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
@@ -415,7 +415,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 				double[] result = {0.0,0.0};
 		
 				if (beta.length != featureVector.length){
-						IJ.showMessage("Dimension of TransformMatrix and featureVector do not match!");
+						IJ.log("Dimension of TransformMatrix and featureVector do not match!");
 						return new double[2];
 				}
 		

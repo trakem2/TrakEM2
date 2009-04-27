@@ -64,8 +64,6 @@ import java.util.concurrent.Callable;
 /** One Display3D instance for each LayerSet (maximum). */
 public final class Display3D {
 
-	/** The threading is so poorly done ... it BARELY works, it's fragile. */
-
 	/** Table of LayerSet and Display3D - since there is a one to one relationship.  */
 	static private Hashtable ht_layer_sets = new Hashtable();
 	/**Control calls to new Display3D. */
@@ -344,19 +342,31 @@ public final class Display3D {
 		}
 	}
 
-	static public void show(ProjectThing pt) {
-		show(pt, false, -1);
+	static public Future<List<Content>> show(ProjectThing pt) {
+		return show(pt, false, -1);
+	}
+
+	static public void showAndResetView(final ProjectThing pt) {
+		new Thread() { public void run() {
+			setPriority(Thread.NORM_PRIORITY);
+			// wait until done
+			Future<List<Content>> fu = show(pt, true, -1);
+			try {
+				fu.get(); // wait until done
+			} catch (Exception e) { IJError.print(e); }
+			Display3D.resetView(pt.getProject().getRootLayerSet());
+		}}.start();
 	}
 
 	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one. If true == wait && -1 != resample, then the method returns only when the mesh/es have been added. */
 	static public Future<List<Content>> show(final ProjectThing pt, final boolean wait, final int resample) {
 		if (null == pt) return null;
-		Callable<List<Content>> c = new Callable<List<Content>>() {
+		final Callable<List<Content>> c = new Callable<List<Content>>() {
 			public List<Content> call() {
 		try {
 			// scan the given ProjectThing for 3D-viewable items not present in the ht_meshes
 			// So: find arealist, pipe, ball, and profile_list types
-			HashSet hs = pt.findBasicTypeChildren();
+			final HashSet hs = pt.findBasicTypeChildren();
 			if (null == hs || 0 == hs.size()) {
 				Utils.log("Node " + pt + " contains no 3D-displayable children");
 				return null;
@@ -364,9 +374,9 @@ public final class Display3D {
 
 			final List<Content> list = new ArrayList<Content>();
 
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			for (final Iterator it = hs.iterator(); it.hasNext(); ) {
 				// obtain the Displayable object under the node
-				ProjectThing child = (ProjectThing)it.next();
+				final ProjectThing child = (ProjectThing)it.next();
 				Object obc = child.getObject();
 				Displayable displ = obc.getClass().equals(String.class) ? null : (Displayable)obc;
 				if (null != displ) {
@@ -404,10 +414,8 @@ public final class Display3D {
 				//sw.elapsed("after creating and/or retrieving Display3D");
 				Future<Content> fu = d3d.addMesh(child, displ, resample);
 				if (wait && -1 != d3d.resample) {
-					Utils.log("joining...");
 					list.add(fu.get());
 				}
-
 
 				//sw.elapsed("after creating mesh");
 			}
@@ -423,6 +431,11 @@ public final class Display3D {
 		}};
 
 		return launchers.submit(c);
+	}
+
+	static public void resetView(final LayerSet ls) {
+		Display3D d3d = (Display3D) ht_layer_sets.get(ls);
+		if (null != d3d) d3d.universe.resetView();
 	}
 
 	static public void showOrthoslices(Patch p) {

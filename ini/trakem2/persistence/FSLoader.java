@@ -38,6 +38,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.YesNoDialog;
+import ij.gui.YesNoCancelDialog;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
 import ini.trakem2.imaging.FloatProcessorT2;
@@ -75,6 +76,7 @@ import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -103,6 +105,8 @@ public final class FSLoader extends Loader {
 	static private Dispatcher dispatcher = new Dispatcher();
 
 	private Set<Patch> touched_mipmaps = Collections.synchronizedSet(new HashSet<Patch>());
+
+	private Set<Patch> mipmaps_to_remove = Collections.synchronizedSet(new HashSet<Patch>());
 
 	/** Used to open a project from an existing XML file. */
 	public FSLoader() {
@@ -354,14 +358,13 @@ public final class FSLoader extends Loader {
 		super.destroy();
 		Utils.showStatus("", false);
 		// delete mipmap files that where touched and not cleared as saved (i.e. the project was not saved)
+		touched_mipmaps.addAll(mipmaps_to_remove);
 		for (final Patch p : touched_mipmaps) {
-			File f = new File(getAbsolutePath(p));
-			Utils.log2("File f is " + f);
-			if (f.exists()) { // TODO this may not work for stacks!
-				Utils.log2("Removing mipmaps for " + p);
-				// Cannot run in the dispatcher: is a daemon, and would be interrupted.
-				removeMipMaps(createIdPath(Long.toString(p.getId()), f.getName(), ".jpg"), (int)p.getWidth(), (int)p.getHeight()); // needs the dispatcher!
-			}
+			File f = new File(getAbsolutePath(p)); // with slice info appended
+			//Utils.log2("File f is " + f);
+			Utils.log2("Removing mipmaps for " + p);
+			// Cannot run in the dispatcher: is a daemon, and would be interrupted.
+			removeMipMaps(createIdPath(Long.toString(p.getId()), f.getName(), ".jpg"), (int)p.getWidth(), (int)p.getHeight());
 		}
 		//
 		// remove empty trakem2.mipmaps folder if any
@@ -378,9 +381,9 @@ public final class FSLoader extends Loader {
 			}
 		}
 		// remove crash detector
-		File f = new File(dir_mipmaps + ".open.t2");
 		try {
-			if (!f.delete()) {
+			File fm = new File(dir_mipmaps + ".open.t2");
+			if (!fm.delete()) {
 				Utils.log2("WARNING: could not delete crash detector file .open.t2 from trakem2.mipmaps folder at " + dir_mipmaps);
 			}
 		} catch (Exception e) {
@@ -389,6 +392,25 @@ public final class FSLoader extends Loader {
 		}
 		if (null == ControlWindow.getProjects() || 1 == ControlWindow.getProjects().size()) {
 			destroyStaticServices();
+		}
+		// remove unuid dir if xml_path is empty (i.e. never saved and not opened from an .xml file)
+		if (null == project_file_path) {
+			Utils.log2("Removing unuid dir, since project was never saved.");
+			final File f = new File(getUNUIdFolder());
+			if (null != dir_mipmaps) Utils.removePrefixedFiles(f, "trakem2.mipmaps", null);
+			if (null != dir_masks) Utils.removePrefixedFiles(f, "trakem2.masks", null);
+			Utils.removePrefixedFiles(f, "features.ser", null);
+			Utils.removePrefixedFiles(f, "pointmatches.ser", null);
+			// Only if empty:
+			if (f.isDirectory()) {
+				try {
+					if (!f.delete()) {
+						Utils.log2("Could not delete unuid directory: likely not empty!");
+					}
+				} catch (Exception e) {
+					Utils.log2("Could not delete unuid directory: " + e);
+				}
+			}
 		}
 	}
 
@@ -555,6 +577,9 @@ public final class FSLoader extends Loader {
 						if (!hs_unloadable.contains(p)) {
 							Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 							hs_unloadable.add(p);
+						}
+						if (ControlWindow.isGUIEnabled()) {
+							FilePathRepair.add(p);
 						}
 						removePatchLoadingLock(plock);
 						unlock();
@@ -955,6 +980,14 @@ public final class FSLoader extends Loader {
 		return path;
 	}
 
+	public final String getImageFilePath(final Patch p) {
+		final String path = getAbsolutePath(p);
+		if (null == path) return null;
+		final int i = path.lastIndexOf("-----#slice");
+		return -1 == i ? path
+			       : path.substring(0, i);
+	}
+
 	public static final boolean isURL(final String path) {
 		return null != path && 0 == path.indexOf("http://");
 	}
@@ -1289,6 +1322,11 @@ public final class FSLoader extends Loader {
 		// parse the unuid before attempting to create any folders
 		this.unuid = (String) ht_attributes.remove("unuid");
 
+		// Attempt to get an existing UNUId folder, for .xml files that share the same mipmaps folder
+		if (ControlWindow.isGUIEnabled() && null == this.unuid) {
+			obtainUNUIdFolder();
+		}
+
 		if (null == this.dir_mipmaps) {
 			// create a new one inside the dir_storage, which can't be null
 			createMipMapsDir(dir_storage);
@@ -1312,7 +1350,7 @@ public final class FSLoader extends Loader {
 
 	private void askAndExecMipmapRegeneration(final String msg) {
 		Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
-		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", (null != msg ? msg  + "\n" : "") + "Generate mipmaps in the background for all images?");
+		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", (null != msg ? msg  + "\n" : "") + "Generate mipmaps in the background for all images?\nWhen in doubt say 'no', and do it later if necessary from popup 'Project' submenu.");
 		if (yn.yesPressed()) {
 			final Loader lo = this;
 			new Thread() {
@@ -1538,6 +1576,12 @@ public final class FSLoader extends Loader {
 		else touched_mipmaps.remove(p);
 	}
 
+	/** Queue/unqueue for mipmap removal on shutdown without saving. */
+	public void tagForMipmapRemoval(final Patch p, final boolean yes) {
+		if (yes) mipmaps_to_remove.add(p);
+		else mipmaps_to_remove.remove(p);
+	}
+
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
@@ -1554,6 +1598,10 @@ public final class FSLoader extends Loader {
 		if (null == path) {
 			Utils.log2("generateMipMaps: cannot find path for Patch " + patch);
 			cannot_regenerate.add(patch);
+			return false;
+		}
+		if (hs_unloadable.contains(patch)) {
+			FilePathRepair.add(patch);
 			return false;
 		}
 		synchronized (gm_lock) {
@@ -1600,6 +1648,11 @@ public final class FSLoader extends Loader {
 
 			// Obtain an image which may be coordinate-transformed, and an alpha mask.
 			Patch.PatchImage pai = patch.createTransformedImage();
+			if (null == pai) {
+				Utils.log("Can't regenerate mipmaps for patch " + patch);
+				cannot_regenerate.add(patch);
+				return false;
+			}
 			ip = pai.target;
 			alpha_mask = pai.mask; // can be null
 			outside_mask = pai.outside; // can be null
@@ -2153,6 +2206,52 @@ public final class FSLoader extends Loader {
 		return new StringBuffer(getStorageFolder()).append("trakem2.").append(unuid).append('/').toString();
 	}
 
+	/** Return the unuid_dir or null if none valid selected. */
+	private String obtainUNUIdFolder() {
+		YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Old .xml version!", "The loaded XML file does not contain an UNUId. Select a shared UNUId folder?\nShould look similar to: trakem2.12345678.12345678.12345678");
+		if (!yn.yesPressed()) return null;
+		DirectoryChooser dc = new DirectoryChooser("Select UNUId folder");
+		String unuid_dir = dc.getDirectory();
+		String unuid_dir_name = new File(unuid_dir).getName();
+		Utils.log2("Selected UNUId folder: " + unuid_dir + "\n with name: " + unuid_dir_name);
+		if (null != unuid_dir) {
+			unuid_dir = unuid_dir.replace('\\', '/');
+			if ( ! unuid_dir_name.startsWith("trakem2.")) {
+				Utils.logAll("Invalid UNUId folder: must start with \"trakem2.\". Try again or cancel.");
+				return obtainUNUIdFolder();
+			} else {
+				String[] nums = unuid_dir_name.split("\\.");
+				if (nums.length != 4) {
+					Utils.logAll("Invalid UNUId folder: needs trakem + 3 number blocks. Try again or cancel.");
+					return obtainUNUIdFolder();
+				}
+				for (int i=1; i<nums.length; i++) {
+					try {
+						long num = Long.parseLong(nums[i]);
+					} catch (NumberFormatException nfe) {
+						Utils.logAll("Invalid UNUId folder: at least one block is not a number. Try again or cancel.");
+						return obtainUNUIdFolder();
+					}
+				}
+				// ok, aceptamos pulpo
+				String unuid = unuid_dir_name.substring(8); // remove prefix "trakem2."
+				if (unuid.endsWith("/")) unuid = unuid.substring(0, unuid.length() -1);
+				this.unuid = unuid;
+
+				if (!unuid_dir.endsWith("/")) unuid_dir += "/";
+
+				String dir_storage = new File(unuid_dir).getParent().replace('\\', '/');
+				if (!dir_storage.endsWith("/")) dir_storage += "/";
+				this.dir_storage = dir_storage;
+
+				this.dir_mipmaps = unuid_dir + "trakem2.mipmaps/";
+
+				return unuid_dir;
+			}
+		}
+		return null;
+	}
+
 	/** If parent path is null, it's asked for.*/
 	private boolean createMipMapsDir(String parent_path) {
 		if (null == this.unuid) this.unuid = createUNUId(parent_path);
@@ -2424,19 +2523,19 @@ public final class FSLoader extends Loader {
 	static public ExecutorService repainter = null;
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
-	 *  returns true if the task was submitted, false if not. */
-	public final boolean regenerateMipMaps(final Patch patch) {
+	 *  returns a Future if the task was submitted, null if not. */
+	public final Future regenerateMipMaps(final Patch patch) {
 		synchronized (gm_lock) {
 			try {
 				gm_lock();
 				if (hs_regenerating_mipmaps.contains(patch)) {
-					return false;
+					return null;
 				}
 				// else, start it
 				hs_regenerating_mipmaps.add(patch);
 			} catch (Exception e) {
 				IJError.print(e);
-				return false;
+				return null;
 			} finally {
 				gm_unlock();
 			}
@@ -2444,7 +2543,7 @@ public final class FSLoader extends Loader {
 			try {
 				n_regenerating.incrementAndGet();
 				Utils.log2("SUBMITTING to regen " + patch);
-				regenerator.submit(new Runnable() {
+				return regenerator.submit(new Runnable() {
 					public void run() {
 						try {
 							Utils.showStatus("Regenerating mipmaps (" + n_regenerating.get() + " to go)");
@@ -2457,7 +2556,6 @@ public final class FSLoader extends Loader {
 						n_regenerating.decrementAndGet();
 					}
 				});
-				return true;
 			} catch (Exception e) {
 				IJError.print(e);
 				ThreadPoolExecutor tpe = (ThreadPoolExecutor) regenerator;
@@ -2468,7 +2566,7 @@ public final class FSLoader extends Loader {
 					   "\ntask count: " + tpe.getTaskCount());
 			}
 		}
-		return false;
+		return null;
 	}
 
 	/** Compute the number of bytes that the ImagePlus of a Patch will take. Assumes a large header of 1024 bytes. If the image is saved as a grayscale jpeg the returned bytes will be 5 times as expected, because jpeg images are opened as int[] and then copied to a byte[] if all channels have the same values for all pixels. */ // The header is unnecessary because it's read, but not stored except for some of its variables; it works here as a safety buffer space.

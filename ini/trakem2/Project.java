@@ -60,9 +60,23 @@ import java.util.Map;
 import javax.swing.tree.*;
 import javax.swing.JTree;
 import java.awt.Rectangle;
+import javax.swing.UIManager;
 
 /** The top-level class in control. */
 public class Project extends DBObject {
+
+	static {
+		try {
+			//UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+			if (IJ.isLinux()) {
+				UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
+				if (null != IJ.getInstance()) javax.swing.SwingUtilities.updateComponentTreeUI(IJ.getInstance());
+				//if ("albert".equals(System.getProperty("user.name"))) UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
+			}
+		} catch (Exception e) {
+			Utils.log("Failed to set System Look and Feel");
+		}
+	}
 
 	/* // using virtual frame buffer instead, since the trees are needed
 	public static final boolean headless = isHeadless();
@@ -776,20 +790,20 @@ public class Project extends DBObject {
 	public String getMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
-		String title = new StringBuffer(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
+		String title = new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
 
 		if (!thing.getType().equals(d.getTitle())) {
 			return title;
 		}
 
 		ProjectThing parent = (ProjectThing)thing.getParent();
-		StringBuffer sb = new StringBuffer(title);
+		StringBuilder sb = new StringBuilder(title);
 		while (null != parent) {
 			Object ob = parent.getObject();
 			if (ob.getClass() == Project.class) break;
 			String type = parent.getType();
 			if (!ob.equals(type)) { // meaning, something else was typed in as a title
-				sb.insert(0, new StringBuffer(ob.toString()).append(' ').append('[').append(type).append(']').append('/').toString());
+				sb.insert(0, new StringBuilder(ob.toString()).append(' ').append('[').append(type).append(']').append('/').toString());
 				//title =  ob.toString() + " [" + type + "]/" + title;
 				break;
 			}
@@ -1005,7 +1019,7 @@ public class Project extends DBObject {
 	}
 
 	public String getInfo() {
-		StringBuffer sb = new StringBuffer("Project id: ");
+		StringBuilder sb = new StringBuilder("Project id: ");
 		sb.append(this.id).append("\nProject name: ").append(this.title)
 		  .append("\nTrees:\n")
 		  .append(project_tree.getInfo()).append("\n")
@@ -1084,7 +1098,7 @@ public class Project extends DBObject {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
-		for (Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
+		for (final Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry prop = (Map.Entry)it.next();
 			Utils.log2("parsed: " + prop.getKey() + "=" + prop.getValue());
 		}
@@ -1109,6 +1123,18 @@ public class Project extends DBObject {
 		}
 		return default_value;
 	}
+
+	public int getProperty(final String key, final int default_value) {
+		try {
+			final String s = ht_props.get(key);
+			if (null == s) return default_value;
+			return Integer.parseInt(s);
+		} catch (NumberFormatException nfe) {
+			IJError.print(nfe);
+		}
+		return default_value;
+	}
+
 	public boolean getBooleanProperty(final String key) {
 		return "true".equals(ht_props.get(key));
 	}
@@ -1175,6 +1201,8 @@ public class Project extends DBObject {
 		gd.addNumericField("Bucket side length: ", bucket_side, 0);
 		boolean no_shutdown_hook = "true".equals(ht_props.get("no_shutdown_hook"));
 		gd.addCheckbox("No_shutdown_hook to save the project", no_shutdown_hook);
+		int n_undo_steps = getProperty("n_undo_steps", 32);
+		gd.addSlider("Undo steps", 32, 200, n_undo_steps);
 		//
 		gd.showDialog();
 		//
@@ -1214,6 +1242,9 @@ public class Project extends DBObject {
 			layer_set.recreateBuckets(true);
 		}
 		adjustProp("no_shutdown_hook", no_shutdown_hook, gd.getNextBoolean());
+		n_undo_steps = (int)gd.getNextNumber();
+		if (n_undo_steps < 0) n_undo_steps = 0;
+		setProperty("n_undo_steps", Integer.toString(n_undo_steps));
 	}
 
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */

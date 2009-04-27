@@ -39,13 +39,20 @@ public final class Blending {
 	 *  the other images) or not (full alpha).
 	 *  An image that doesn't overlap at all gets no alpha set at all.
 	 */
-	static public final Bureaucrat blend(final Set<Patch> patches) {
+	static public final Bureaucrat blend(final Set<Patch> patches, final boolean respect_current_mask) {
 		if (null == patches || patches.size() < 2) return null;
 
 		return Bureaucrat.createAndStart(new Worker("Blending images") {
 			public void run() {
 				try {
 					startedWorking();
+
+					for (final Patch p : patches) {
+						if (null != p.getCoordinateTransform()) {
+							Utils.log("CANNOT blend: at least one image has a coordinate transform.\nBlending of coordinate-transformed images will be enabled in the near future.");
+							return;
+						}
+					}
 
 					final HashMap<Patch,TransformMesh> meshes = new HashMap<Patch,TransformMesh>();
 					for (final Patch p : patches) {
@@ -64,7 +71,7 @@ public final class Blending {
 							for ( Patch op : patches )
 								if ( p.getLayer().indexOf( op ) < pLayerIndex )
 									overlapping.add( op );
-							if (setBlendingMask(p, overlapping, meshes)) {
+							if (setBlendingMask(p, overlapping, meshes, respect_current_mask)) {
 								p.updateMipmaps();
 							}
 						}}, null);
@@ -93,7 +100,7 @@ public final class Blending {
 	}
 
 	/** Returns true if a new mask has been set to Patch p. */
-	static private boolean setBlendingMask(final Patch p, Set<Patch> overlapping, final Map<Patch,TransformMesh> meshes) {
+	static private boolean setBlendingMask(final Patch p, Set<Patch> overlapping, final Map<Patch,TransformMesh> meshes, final boolean respect_current_mask) {
 
 		Utils.log2("Blending " + p);
 	
@@ -105,7 +112,16 @@ public final class Blending {
 		final AffineTransform at = p.getAffineTransform();
 		final TransformMesh mesh = meshes.get(p);
 
-		final ByteProcessor mask = new ByteProcessor(p.getOWidth(), p.getOHeight());
+		ByteProcessor mask = null;
+		if (respect_current_mask) {
+			mask = p.getProject().getLoader().fetchImageMask(p);
+		}
+		if (null == mask) {
+			mask = new ByteProcessor(p.getOWidth(), p.getOHeight());
+			mask.setValue(255);
+			mask.fill();
+		}
+
 		final byte[] pix = (byte[]) mask.getPixels();
 
 		final Point2D.Double po = new Point2D.Double();
@@ -152,15 +168,26 @@ public final class Blending {
 					float weight = intersects(fo, other, meshes.get(other));
 					if (weight > 0) weights[next++] = weight;
 				}
-				if (next > 0) {
+
+				final int i = y * p_o_height + x;
+
+				if (respect_current_mask) {
+					// Don't compute if no overlap or if current mask value is zero
+					if (next > 0 && pix[i] != 0) {
+						weights[next++] = computeWeight(x, y, p_o_width, p_o_height); // the weight of Patch p, added last
+						float sum = 0;
+						for (int f=0; f<next; f++) sum += weights[f];
+						pix[i] = (byte)((int)(255 * (weights[next-1] / sum) * ((pix[i]&0xff) / 255.0f) ));
+						masked++;
+					}
+					// else leave current value untouched
+				} else if (next > 0) {
+					// Overwritting current mask
 					weights[next++] = computeWeight(x, y, p_o_width, p_o_height); // the weight of Patch p, added last
 					float sum = 0;
 					for (int f=0; f<next; f++) sum += weights[f];
-					pix[y * p_o_height + x] = (byte)((int)(255 * (weights[next-1] / sum))); // using an alpha range of [0.5,1] by 0.5f + 0.5f * w does not help removing the dark bands.
+					pix[i] = (byte)((int)(255 * (weights[next-1] / sum)));
 					masked++;
-				} else {
-					// no weights, no overlap: full mask
-					pix[y * p_o_height + x] = (byte) 255;
 				}
 			}
 		}
@@ -170,7 +197,7 @@ public final class Blending {
 		if (masked > 0) {
 			p.setAlphaMask(mask);
 
-			new ij.ImagePlus("mask for " + p.getId(), mask).show();
+			//new ij.ImagePlus("mask for " + p.getId(), mask).show();
 
 			return true;
 		}

@@ -68,6 +68,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
+import java.awt.RenderingHints;
 import java.io.File;
 
 import marchingcubes.MCTriangulator;
@@ -276,8 +277,8 @@ public class AreaList extends ZDisplayable {
 
 	private boolean is_new = false;
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
-		long lid = Display.getFrontLayer(this.project).getId(); // isn't this.layer pointing to the current layer always?
+	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
+		final long lid = Display.getFrontLayer(this.project).getId(); // isn't this.layer pointing to the current layer always? It *should*
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
 		if (null == ob) {
@@ -295,8 +296,10 @@ public class AreaList extends ZDisplayable {
 		}
 
 		// transform the x_p, y_p to the local coordinates
+		int x_p = x_p_w;
+		int y_p = y_p_w;
 		if (!this.at.isIdentity()) {
-			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
+			final Point2D.Double p = inverseTransformPoint(x_p_w, y_p_w);
 			x_p = (int)p.x;
 			y_p = (int)p.y;
 		}
@@ -307,12 +310,12 @@ public class AreaList extends ZDisplayable {
 			if (area.contains(x_p, y_p)) {
 				if (me.isAltDown()) {
 					// fill-remove
-					pol = findPath(area, x_p, y_p); // no null check, exists for sure
+					pol = M.findPath(area, x_p, y_p); // no null check, exists for sure
 					area.subtract(new Area(pol));
 				}
 			} else if (!me.isAltDown()) {
 				// fill-add
-				pol = findPath(area, x_p, y_p);
+				pol = M.findPath(area, x_p, y_p);
 				if (null != pol) {
 					area.add(new Area(pol)); // may not exist
 				}
@@ -321,6 +324,46 @@ public class AreaList extends ZDisplayable {
 				final Rectangle r_pol = transformRectangle(pol.getBounds());
 				Display.repaint(Display.getFrontLayer(), r_pol, 1);
 				updateInDatabase("points=" + lid);
+			} else {
+				// An area in world coords:
+				Area b = null;
+				// Try to find a hole in another visible AreaList, but fill it here
+				for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
+					if ( ! zd.isVisible()) continue;
+					final AreaList ali = (AreaList) zd;
+					final Area a = ali.getArea(lid);
+					if (null == a) continue;
+					// bring point to zd space
+					final Point2D.Double p = ali.inverseTransformPoint(x_p_w, y_p_w);
+					final Polygon polygon = M.findPath(a, (int)p.x, (int)p.y);
+					if (null != polygon) {
+						// Bring polygon to world coords
+						b = new Area(polygon).createTransformedArea(ali.at);
+						break;
+					}
+				}
+				// If nothing found, try to merge all visible areas in current layer and find a hole there
+				if (null == b) {
+					final Area all = new Area(); // in world coords
+					for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
+						if ( ! zd.isVisible()) continue;
+						final AreaList ali = (AreaList) zd;
+						final Area a = ali.getArea(lid);
+						if (null == a) continue;
+						all.add(a.createTransformedArea(ali.at));
+					}
+					final Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
+					if (null != polygon) {
+						b = new Area(polygon);
+					}
+				}
+				if (null != b) {
+					try {
+						// Add b as local to this AreaList
+						area.add(b.createTransformedArea(this.at.createInverse()));
+						Display.repaint(Display.getFrontLayer(this.project), b.getBounds(), 1); // use b, in world coords
+					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+				}
 			}
 		} else {
 			if (null != last) last.quit();
@@ -917,34 +960,6 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
-	/** Detect if a point in offscreen coords is not in the area, but lays inside one of its path, which is returned as a Polygon. Otherwise returns null. The given x,y must be already in the Area's coordinate system. */
-	private Polygon findPath(Area area, int x, int y) {
-		Polygon pol = new Polygon();
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			float[] coords = new float[6];
-			int seg_type = pit.currentSegment(coords);
-			switch (seg_type) {
-				case PathIterator.SEG_MOVETO:
-				case PathIterator.SEG_LINETO:
-					pol.addPoint((int)coords[0], (int)coords[1]);
-					break;
-				case PathIterator.SEG_CLOSE:
-					if (pol.contains(x, y)) return pol;
-					// else check next
-					pol = new Polygon();
-					break;
-				default:
-					Utils.log2("WARNING: unhandled seg type.");
-					break;
-			}
-			pit.next();
-			if (pit.isDone()) {
-				break;
-			}
-		}
-		return null;
-	}
-
 	public void fillHoles(final Layer la) {
 		Object o = ht_areas.get(la.getId());
 		if (UNLOADED == o) o = loadLayer(la.getId());
@@ -1125,13 +1140,15 @@ public class AreaList extends ZDisplayable {
 	 *  @param resample The optimization parameter for marching cubes (i.e. a value of 2 will scale down to half, then apply marching cubes, then scale up by 2 the vertices coordinates).
 	 *  @return The List of triangles involved, specified as three consecutive vertices. A list of Point3f vertices.
 	 */
-	public List generateTriangles(double scale, int resample) {
+	public List generateTriangles(final double scale, final int resample_) {
 		// in the LayerSet, layers are ordered by Z already.
 		try {
-		if (resample <=0 ) {
+		final int resample;
+		if (resample_ <=0 ) {
 			resample = 1;
 			Utils.log2("Fixing zero or negative resampling value to 1.");
-		}
+		} else resample = resample_;
+
 		int n = getNAreas();
 		if (0 == n) return null;
 		final Rectangle r = getBoundingBox();
@@ -1156,10 +1173,16 @@ public class AreaList extends ZDisplayable {
 
 		final TreeMap<Double,Layer> assigned = new TreeMap<Double,Layer>();
 
-		for (Iterator it = layer_set.getLayers().iterator(); it.hasNext(); ) {
+		// For the thresholding after painting an scaled-down area into an image:
+		final int threshold;
+		if (K > 0.8) threshold = 200;
+		else if (K > 0.5) threshold = 128;
+		else if (K > 0.3) threshold = 75; // 75 gives upper 70% of 255 range. It's better to blow up a bit, since resampling down makes marching cubes undercut the mesh.
+		else threshold = 40;
+
+		for (final Layer la : layer_set.getLayers()) {
 			if (0 == n) break; // no more areas to paint
-			final Layer la = (Layer)it.next();
-			Area area = getArea(la);
+			final Area area = getArea(la);
 			if (null != area) {
 				if (null == stack) {
 					//Utils.log2("0 - creating stack with  w,h : " + w + ", " + h);
@@ -1171,17 +1194,18 @@ public class AreaList extends ZDisplayable {
 					assigned.put(z_first + thickness * stack.getSize(), la);
 					// the layer is added to the stack below
 				}
-				final ImageProcessor ip = new ByteProcessor(w, h);
-				//ip.setColor(Color.white);
-				ip.setValue(255); // same thing as ip.setColor
-				//final AffineTransform atK = new AffineTransform();
-				//atK.scale(K, K);
-				area = area.createTransformedArea(at2); //atK);
-				ShapeRoi roi = new ShapeRoi(area);
-				ip.setRoi(roi);
-				ip.fill(roi.getMask()); // argh, should be automatic!
-				stack.addSlice(la.getZ() + "", ip);
-
+				project.getLoader().releaseToFit(w, h, ImagePlus.GRAY8, 3);
+				// must be a new image, for pixel array is shared with BufferedImage and ByteProcessor in java 1.6
+				final BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
+				final Graphics2D g = bi.createGraphics();
+				g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON);
+				g.setColor(Color.white);
+				g.fill(area.createTransformedArea(at2));
+				final ByteProcessor bp = new ByteProcessor(bi);
+				bp.threshold(threshold);
+				stack.addSlice(Double.toString(la.getZ()), bp);
+				bi.flush();
 
 				n--;
 
@@ -1190,6 +1214,7 @@ public class AreaList extends ZDisplayable {
 				stack.addSlice(la.getZ() + "", new ByteProcessor(w, h));
 			}
 		}
+
 		// zero-pad stack
 		// No need anymore: MCTriangulator does it on its own now
 		stack = zeroPad(stack);
@@ -1213,16 +1238,20 @@ public class AreaList extends ZDisplayable {
 		final float dz = (float)((z_first - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
 		final float rs = resample / (float)scale;
 		final float z_correction = (float)(thickness * scale * cal.pixelWidth);
+		//Utils.log2("resample: " + resample + "  scale: " + scale + "  K: " + K);
 		for (final Iterator it = list.iterator(); it.hasNext(); ) {
 			final Point3f p = (Point3f)it.next();
+			// correct zero-padding
+			p.x -= (float)(1 * cal.pixelWidth);
+			p.y -= (float)(1 * cal.pixelHeight);
 			// fix back the resampling (but not the universe scale, which has already been considered)
 			p.x *= rs; //resample / scale; // a resampling of '2' means 0.5  (I love inverted worlds..)
 			p.y *= rs; //resample / scale;
 			p.z *= cal.pixelWidth;
 			//Z was not resampled
 			// translate to the x,y,z coordinate of the object in space
-			p.x += dx - rs; // minus rs, as an offset for zero-padding
-			p.y += dy - rs;
+			p.x += dx;
+			p.y += dy;
 			p.z += dz + z_correction; // translate one complete section up. I don't fully understand why I need this, but this is correct.
 		}
 
@@ -1330,7 +1359,7 @@ public class AreaList extends ZDisplayable {
 	public void add(final long layer_id, final ShapeRoi roi) throws NoninvertibleTransformException{
 		if (null == roi) return;
 		Area a = getArea(layer_id);
-		Area asr = Utils.getArea(roi).createTransformedArea(this.at.createInverse());
+		Area asr = M.getArea(roi).createTransformedArea(this.at.createInverse());
 		if (null == a) {
 			ht_areas.put(layer_id, asr);
 		} else {
@@ -1344,7 +1373,7 @@ public class AreaList extends ZDisplayable {
 		if (null == roi) return;
 		Area a = getArea(layer_id);
 		if (null == a) return;
-		a.subtract(Utils.getArea(roi).createTransformedArea(this.at.createInverse()));
+		a.subtract(M.getArea(roi).createTransformedArea(this.at.createInverse()));
 		calculateBoundingBox();
 		updateInDatabase("points=" + layer_id);
 	}
@@ -1352,14 +1381,14 @@ public class AreaList extends ZDisplayable {
 	/** Subtracts the given ROI, and then creates a new AreaList with identical properties and the content of the subtracted part. Returns null if there is no intersection between sroi and the Area for layer_id. */
 	public AreaList part(final long layer_id, final ShapeRoi sroi) throws NoninvertibleTransformException {
 		// The Area to subtract, in world coordinates:
-		Area sub = Utils.getArea(sroi);
+		Area sub = M.getArea(sroi);
 		// The area to subtract from:
 		Area a = getArea(layer_id);
-		if (null == a || Utils.isEmpty(a)) return null;
+		if (null == a || M.isEmpty(a)) return null;
 		// The intersection:
 		Area inter = a.createTransformedArea(this.at);
 		inter.intersect(sub);
-		if (Utils.isEmpty(inter)) return null;
+		if (M.isEmpty(inter)) return null;
 
 		// Subtract from this:
 		this.subtract(layer_id, sroi);
@@ -1405,6 +1434,12 @@ public class AreaList extends ZDisplayable {
 					fillHoles(la);
 					ke.consume();
 					return;
+				case KeyEvent.VK_X: // remove area from current layer, if any
+					if (null != ht_areas.remove(la.getId())) {
+						calculateBoundingBox();
+					}
+					ke.consume();
+					return;
 			}
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1419,7 +1454,7 @@ public class AreaList extends ZDisplayable {
 		Roi roi = dc.getFakeImagePlus().getRoi();
 		if (null == roi) return;
 		// Check ROI
-		if (!Utils.isAreaROI(roi)) {
+		if (!M.isAreaROI(roi)) {
 			Utils.log("AreaList only accepts region ROIs, not lines.");
 			return;
 		}
@@ -1612,9 +1647,10 @@ public class AreaList extends ZDisplayable {
 			String label = d.getProperty("label");
 			if (null != label) label_values.add(Integer.parseInt(label));
 		}
-		int lowest = label_values.first();
+		int lowest = 0;
 		int highest = 0;
 		if (label_values.size() > 0) {
+			lowest = label_values.first();
 			highest = label_values.last();
 		}
 		int n_non_labeled = list.size() - label_values.size();
@@ -1652,6 +1688,20 @@ public class AreaList extends ZDisplayable {
 		int count = 1;
 		final float len = last_layer - first_layer + 1;
 
+		// Assign labels
+		final HashMap<Displayable,Integer> labels = new HashMap<Displayable,Integer>();
+		for (final Displayable d : list) {
+			if (visible_only && !d.isVisible()) continue;
+			String slabel = d.getProperty("label");
+			int label;
+			if (null != slabel) {
+				label = Integer.parseInt(slabel);
+			} else {
+				label = (++highest); // 0 is background
+			}
+			labels.put(d, label);
+		}
+
 		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
 			Utils.showProgress(count/len);
 			count++;
@@ -1660,21 +1710,15 @@ public class AreaList extends ZDisplayable {
 				ip.setMinAndMax(lowest, highest);
 			}
 			// paint here all arealist that paint to the layer 'la'
-			int value = 0;
 			for (final Displayable d : list) {
-				value++; // zero is background
-				int label = value;
-				String slabel = d.getProperty("label");
-				if (null != slabel) {
-					label = Integer.parseInt(slabel);
-				} else {
-					label = (++highest);
-				}
-				ip.setValue(label);
 				if (visible_only && !d.isVisible()) continue;
+				ip.setValue(labels.get(d));
 				AreaList ali = (AreaList)d;
 				Area area = ali.getArea(la);
-				if (null == area) continue;
+				if (null == area) {
+					Utils.log2("Layer " + la + " id: " + d.getId() + " area is " + area);
+					continue;
+				}
 				// Transform: the scale and the roi
 				AffineTransform aff = new AffineTransform();
 				// reverse order of transformations:
