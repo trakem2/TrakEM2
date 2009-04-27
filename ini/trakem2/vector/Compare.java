@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2006, 2007 Albert Cardona.
+Copyright (C) 2005-2009 Albert Cardona.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
