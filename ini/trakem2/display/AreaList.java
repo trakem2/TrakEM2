@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006, 2007 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -1140,13 +1140,15 @@ public class AreaList extends ZDisplayable {
 	 *  @param resample The optimization parameter for marching cubes (i.e. a value of 2 will scale down to half, then apply marching cubes, then scale up by 2 the vertices coordinates).
 	 *  @return The List of triangles involved, specified as three consecutive vertices. A list of Point3f vertices.
 	 */
-	public List generateTriangles(double scale, int resample) {
+	public List generateTriangles(final double scale, final int resample_) {
 		// in the LayerSet, layers are ordered by Z already.
 		try {
-		if (resample <=0 ) {
+		final int resample;
+		if (resample_ <=0 ) {
 			resample = 1;
 			Utils.log2("Fixing zero or negative resampling value to 1.");
-		}
+		} else resample = resample_;
+
 		int n = getNAreas();
 		if (0 == n) return null;
 		final Rectangle r = getBoundingBox();
@@ -1236,16 +1238,20 @@ public class AreaList extends ZDisplayable {
 		final float dz = (float)((z_first - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
 		final float rs = resample / (float)scale;
 		final float z_correction = (float)(thickness * scale * cal.pixelWidth);
+		//Utils.log2("resample: " + resample + "  scale: " + scale + "  K: " + K);
 		for (final Iterator it = list.iterator(); it.hasNext(); ) {
 			final Point3f p = (Point3f)it.next();
+			// correct zero-padding
+			p.x -= (float)(1 * cal.pixelWidth);
+			p.y -= (float)(1 * cal.pixelHeight);
 			// fix back the resampling (but not the universe scale, which has already been considered)
 			p.x *= rs; //resample / scale; // a resampling of '2' means 0.5  (I love inverted worlds..)
 			p.y *= rs; //resample / scale;
 			p.z *= cal.pixelWidth;
 			//Z was not resampled
 			// translate to the x,y,z coordinate of the object in space
-			p.x += dx - rs; // minus rs, as an offset for zero-padding
-			p.y += dy - rs;
+			p.x += dx;
+			p.y += dy;
 			p.z += dz + z_correction; // translate one complete section up. I don't fully understand why I need this, but this is correct.
 		}
 

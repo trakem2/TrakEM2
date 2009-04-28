@@ -13,9 +13,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- * 
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
- *
  */
 package mpicbg.trakem2.transform;
 
@@ -27,6 +24,7 @@ import mpicbg.models.PointMatch;
 
 /**
  *
+ * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  * @version 0.1b
  */
 public class TransformMesh extends mpicbg.models.TransformMesh
@@ -48,8 +46,8 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 		float xMax = Float.MIN_VALUE;
 		float yMax = Float.MIN_VALUE;
 		
-		Set< PointMatch > vertices = va.keySet();
-		for ( PointMatch vertex : vertices )
+		final Set< PointMatch > vertices = va.keySet();
+		for ( final PointMatch vertex : vertices )
 		{
 			final float[] w = vertex.getP2().getW();
 			
@@ -61,7 +59,7 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 			if ( w[ 1 ] > yMax ) yMax = w[ 1 ];
 		}
 		
-		for ( PointMatch vertex : vertices )
+		for ( final PointMatch vertex : vertices )
 		{
 			final int tx = ( int )xMin;
 			final int ty = ( int )yMin;

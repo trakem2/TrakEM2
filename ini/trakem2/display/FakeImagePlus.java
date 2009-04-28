@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -52,6 +52,11 @@ public class FakeImagePlus extends ImagePlus {
 		setProcessor("", new FakeProcessor(width, height));
 		type = ImagePlus.GRAY8;
 	}
+	public void setProcessor(String title, ImageProcessor ip) {
+		if (! (ip instanceof FakeProcessor)) return;
+		super.setProcessor(title, ip);
+	}
+	public void flush() {} // disabled
 	protected Display getDisplay() {
 		return display;
 	}
@@ -140,6 +145,8 @@ public class FakeImagePlus extends ImagePlus {
 		public void setColorModel(ColorModel cm) {
 			display.getSelection().setLut(cm);
 		}
+		@Override
+		public void setPixels(Object ob) {} // disabled
 	}
 
 	// TODO: use layerset virtualization

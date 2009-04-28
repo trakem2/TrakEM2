@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -1552,7 +1552,9 @@ public class Profile extends Displayable {
 		try {
 			final VectorString2D[] sv = new VectorString2D[p.length];
 			boolean closed = true; // dummy initialization
-			final Calibration cal = p[0].getLayerSet().getCalibration();
+			final Calibration cal = p[0].getLayerSet().getCalibrationCopy();
+			cal.pixelWidth *= scale;
+			cal.pixelHeight *= scale;
 			for (int i=0; i<p.length; i++) {
 				if (-1 == p[i].n_points) p[i].setupForDisplay();
 				if (0 == p[i].n_points) continue;
@@ -1565,12 +1567,6 @@ public class Profile extends Displayable {
 				final double[] x = (double[])pi[0].clone();
 				final double[] y = (double[])pi[1].clone();
 				pi = null;
-				if (1 != scale) {
-					for (int k=0; k<x.length; k++) {
-						x[k] *= scale;
-						y[k] *= scale;
-					}
-				}
 				sv[i] = new VectorString2D(x, y, p[i].layer.getZ(), p[i].closed);
 				sv[i].calibrate(cal);
 			}
