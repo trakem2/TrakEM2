@@ -1567,12 +1567,6 @@ public class Profile extends Displayable {
 				final double[] x = (double[])pi[0].clone();
 				final double[] y = (double[])pi[1].clone();
 				pi = null;
-				if (1 != scale) {
-					for (int k=0; k<x.length; k++) {
-						x[k] *= scale;
-						y[k] *= scale;
-					}
-				}
 				sv[i] = new VectorString2D(x, y, p[i].layer.getZ(), p[i].closed);
 				sv[i].calibrate(cal);
 			}
