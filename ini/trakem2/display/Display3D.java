@@ -354,7 +354,11 @@ public final class Display3D {
 			try {
 				fu.get(); // wait until done
 			} catch (Exception e) { IJError.print(e); }
-			Display3D.resetView(pt.getProject().getRootLayerSet());
+			Display3D d3d = (Display3D) ht_layer_sets.get(pt.getProject().getRootLayerSet()); // TODO should change for nested layer sets
+			if (null != d3d) {
+				d3d.universe.resetView(); // reset the absolute center
+				d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
+			}
 		}}.start();
 	}
 
@@ -413,7 +417,7 @@ public final class Display3D {
 				setWaitingCursor(); // the above may be creating a display
 				//sw.elapsed("after creating and/or retrieving Display3D");
 				Future<Content> fu = d3d.addMesh(child, displ, resample);
-				if (wait && -1 != d3d.resample) {
+				if (wait) {
 					list.add(fu.get());
 				}
 
@@ -450,7 +454,7 @@ public final class Display3D {
 		d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.toggleLock(); // locks the added content
+		ct.setLocked(false); // locks the added content
 	}
 
 	static public void showVolume(Patch p) {
@@ -465,7 +469,7 @@ public final class Display3D {
 		d3d.universe.addVoltex(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.toggleLock(); // locks the added content
+		ct.setLocked(false); // locks the added content
 	}
 
 	static private void setTransform(Content ct, Patch p) {
@@ -817,7 +821,7 @@ public final class Display3D {
 				// Set general content properties
 				ct.setTransparency(1f - alpha);
 				// Default is unlocked (editable) transformation; set it to locked:
-				ct.toggleLock();
+				ct.setLocked(false);
 
 			} catch (Exception e) {
 				IJError.print(e);
@@ -886,7 +890,7 @@ public final class Display3D {
 				//d3d.universe.ensureScale((float)(width*scale));
 				ct = d3d.universe.addMesh(triangles, new Color3f(color), title, /*(float)(width*scale),*/ 1);
 				ct.setTransparency(transp);
-				ct.toggleLock();
+				ct.setLocked(false);
 			} catch (Exception e) {
 				IJError.print(e);
 			}
