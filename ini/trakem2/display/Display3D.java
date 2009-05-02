@@ -768,16 +768,23 @@ public final class Display3D {
 		}
 		Color color = null;
 		float alpha = 1.0f;
+		final String title;
 		if (null != displ) {
 			color = displ.getColor();
 			alpha = displ.getAlpha();
-		} else {
-			// for profile_list: get from the first (what a kludge)
+			title = makeTitle(displ);
+		} else if (pt.getType().equals("profile_list")) {
+			// for profile_list: get from the first (what a kludge; there should be a ZDisplayable ProfileList object)
 			Object obp = ((ProjectThing)pt.getChildren().get(0)).getObject();
 			if (null == obp) return null;
 			Displayable di = (Displayable)obp;
 			color = di.getColor();
 			alpha = di.getAlpha();
+			Object ob = pt.getParent().getTitle();
+			if (null == ob || ob.equals(pt.getParent().getType())) title = pt.toString() + " #" + pt.getId(); // Project.getMeaningfulTitle can't handle profile_list properly
+			else title = ob.toString() + " /[" + pt.getParent().getType() + "]/[profile_list] #" + pt.getId();
+		} else {
+			title = pt.toString() + " #" + pt.getId();
 		}
 
 		Content ct = null;
@@ -789,7 +796,6 @@ public final class Display3D {
 			u_lock.lock();
 			try {
 				// craft a unique title (id is always unique)
-				String title = null == displ ? pt.toString() + " #" + pt.getId() : makeTitle(displ);
 				if (ht_pt_meshes.contains(pt) || universe.contains(title)) {
 					// remove content from universe
 					universe.removeContent(title);
