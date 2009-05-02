@@ -1252,26 +1252,33 @@ public class AreaList extends ZDisplayable {
 		int slice_index = 0;
 
 
-		/* // debug:
+		// debug:
+		/*
 		// which p.z types exist?
 		final TreeSet<Float> ts = new TreeSet<Float>();
 		for (final Iterator it = list.iterator(); it.hasNext(); ) {
 			ts.add(((Point3f)it.next()).z);
 		}
 		for (final Float pz : ts) Utils.log2("A z: " + pz);
-
-		Utils.log2("Number of slices: " + imp.getNSlices());
 		*/
 
-		// Fix all points:
+		//Utils.log2("Number of slices: " + imp.getNSlices());
 
-		//if (i_first_layer > 0)
-		//	fix3DPoints(list, layer_set.previous(layer_set.getLayer(i_first_layer -1)), -1, dx, dy, rsw, rsh, sz);
-		fix3DPoints(list, layer_set.previous(layer_set.getLayer(i_first_layer)), 0, dx, dy, rsw, rsh, sz);
+		// Fix all points:
+		// Read from list, modify and put into verts
+		// and don't modify it if the verts already has it (it's just coincident)
+
+		final Point3f[] verts = new Point3f[list.size()];
+
+		fix3DPoints(list, verts, layer_set.previous(layer_set.getLayer(i_first_layer)), 0, dx, dy, rsw, rsh, sz);
+
+		//ts.remove(new Float(0));
 
 		for (final Layer la : layer_set.getLayers().subList(i_first_layer, i_first_layer + imp.getNSlices() -2)) { // -2: it's padded
 
 			//Utils.log2("handling slice_index: " + slice_index);
+			//debug:
+			//ts.remove(new Float(slice_index + 1));
 
 			// If layer is empty, continue
 			if (empty_layers.contains(la)) {
@@ -1279,26 +1286,27 @@ public class AreaList extends ZDisplayable {
 				continue;
 			}
 
-			fix3DPoints(list, la, slice_index + 1, dx, dy, rsw, rsh, sz);  // +1 because of padding
-
-			//Utils.log2("processed slice index " + slice_index + " for layer " + la);
+			fix3DPoints(list, verts, la, slice_index + 1, dx, dy, rsw, rsh, sz);  // +1 because of padding
 
 			slice_index++;
 		}
 
 		// The last set of vertices to process:
 		// Find all pixels that belong to the layer, and transform them back:
-		//final Layer last = layer_set.getLayer(layer_index -1);
-		//fixLast3DPoints(list, last.getZ() + last.getThickness(), last.getThickness(), layer_index +1, dx, dy, rsw, rsh, sz);
 		try {
 			// Do the last layer again, capturing from slice_index+1 to +2, since the last layer has two Z planes in which it has pixels:
-			Layer la = layer_set.getLayer(i_first_layer + slice_index -1);
-			fix3DPoints(list, la, slice_index +1, dx, dy, rsw, rsh, sz);
+			Layer la = layer_set.getLayer(i_first_layer + slice_index -1); // slice_index has been ++ so no need for +1 now; rather, to get the layer, -1
+			fix3DPoints(list, verts, la, slice_index +1, dx, dy, rsw, rsh, sz); // not +2, just +1, since it's been ++ at last step of the loop
+			//ts.remove(new Float(slice_index +1));
 		} catch (Exception ee) {
 			IJError.print(ee);
 		}
 
-		return list;
+		// debug:
+		//Utils.log2("Remaining p.z to process: ");
+		//for (final Float pz : ts) Utils.log2("remains:   z: " + pz);
+
+		return java.util.Arrays.asList(verts);
 
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -1306,12 +1314,13 @@ public class AreaList extends ZDisplayable {
 		return null;
 	}
 
-	private final void fix3DPoints(final List list, final Layer la, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz) {
+	private final void fix3DPoints(final List list, final Point3f[] verts, final Layer la, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz) {
 		final double la_z = la.getZ();
 		final double la_thickness = la.getThickness();
 		// Find all pixels that belong to the layer, and transform them back:
-		for (final Iterator it = list.iterator(); it.hasNext(); ) {
-			final Point3f p = (Point3f)it.next();
+		for (int i=0; i<verts.length; i++) {
+			if (null != verts[i]) continue; // already processed! The unprocessed Z is merely coincident with a processed Z.
+			final Point3f p = (Point3f) list.get(i);
 			if (p.z >= layer_index && p.z < layer_index + 1) {
 				// correct pixel position:
 				// -- The '-1' corrects for zero padding
@@ -1323,30 +1332,12 @@ public class AreaList extends ZDisplayable {
 				// The Z is more complicated: the Z of the layer, scaled relative to the layer thickness
 				// -- 'offset' is the Z of the first layer, corresponding to the layer that contributed to the first stack slice.
 				p.z = (float)((la_z + la_thickness * (p.z - layer_index)) * sz); // using pixelWidth, not pixelDepth!
+
+				verts[i] = p;
 			}
 		}
+		//Utils.log2("processed slice index " + layer_index + " for layer " + la);
 	}
-
-	/*
-	private final void fixLast3DPoints(final List list, final double la_z, final double la_thickness, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz) {
-		// Find all pixels that belong to the layer, and transform them back:
-		for (final Iterator it = list.iterator(); it.hasNext(); ) {
-			final Point3f p = (Point3f)it.next();
-			if (p.z >= layer_index) {
-				// correct pixel position:
-				// -- The '-1' corrects for zero padding
-				// -- The 'rsw','rsh' scales back to LayerSet coords
-				// -- The 'dx','dy' translates back to this AreaList bounding box
-				p.x = (p.x -1) * rsw + dx;
-				p.y = (p.y -1) * rsh + dy;
-
-				// The Z is more complicated: the Z of the layer, scaled relative to the layer thickness
-				// -- 'offset' is the Z of the first layer, corresponding to the layer that contributed to the first stack slice.
-				p.z = (float)((la_z + la_thickness * (p.z - layer_index)) * sz); // unsing pixelWidth, not pixelDepth!
-			}
-		}
-	}
-	*/
 
 	static private ImageStack zeroPad(final ImageStack stack) {
 		int w = stack.getWidth();
