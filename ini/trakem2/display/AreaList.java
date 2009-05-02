@@ -1161,17 +1161,15 @@ public class AreaList extends ZDisplayable {
 		final AffineTransform atK = new AffineTransform();
 		//Utils.log("resample: " + resample + "  scale: " + scale);
 		final double K = (1.0 / resample) * scale; // 'scale' is there to limit gigantic universes
-		final Calibration cal = layer_set.getCalibrationCopy();
 		atK.scale(K, K);
 		at2.preConcatenate(atK);
 		//
+		final Calibration cal = layer_set.getCalibrationCopy();
+
+		//
 		ImageStack stack = null;
-		float z_first = 0;
-		double thickness = 1;
 		final int w = (int)Math.ceil(r.width * K);
 		final int h = (int)Math.ceil(r.height * K);
-
-		final TreeMap<Double,Layer> assigned = new TreeMap<Double,Layer>();
 
 		// For the thresholding after painting an scaled-down area into an image:
 		final int threshold;
@@ -1180,19 +1178,17 @@ public class AreaList extends ZDisplayable {
 		else if (K > 0.3) threshold = 75; // 75 gives upper 70% of 255 range. It's better to blow up a bit, since resampling down makes marching cubes undercut the mesh.
 		else threshold = 40;
 
-		for (final Layer la : layer_set.getLayers()) {
+		Layer first_layer = null;
+
+		final HashSet<Layer> empty_layers = new HashSet<Layer>();
+
+		for (final Layer la : layer_set.getLayers()) { // layers sorted by Z ASC
 			if (0 == n) break; // no more areas to paint
 			final Area area = getArea(la);
 			if (null != area) {
 				if (null == stack) {
-					//Utils.log2("0 - creating stack with  w,h : " + w + ", " + h);
 					stack = new ImageStack(w, h);
-					z_first = (float)la.getZ(); // z of the first layer
-					thickness = la.getThickness();
-					assigned.put((double)z_first, la);
-				} else {
-					assigned.put(z_first + thickness * stack.getSize(), la);
-					// the layer is added to the stack below
+					first_layer = la;
 				}
 				project.getLoader().releaseToFit(w, h, ImagePlus.GRAY8, 3);
 				// must be a new image, for pixel array is shared with BufferedImage and ByteProcessor in java 1.6
@@ -1212,6 +1208,7 @@ public class AreaList extends ZDisplayable {
 			} else if (null != stack) {
 				// add a black slice
 				stack.addSlice(la.getZ() + "", new ByteProcessor(w, h));
+				empty_layers.add(la);
 			}
 		}
 
@@ -1221,95 +1218,81 @@ public class AreaList extends ZDisplayable {
 
 		// Still, the MCTriangulator does NOT zero pad properly
 
-		ImagePlus imp = new ImagePlus("", stack);
-		imp.getCalibration().pixelWidth = cal.pixelWidth * scale;
-		imp.getCalibration().pixelHeight = cal.pixelHeight * scale;
-		imp.getCalibration().pixelDepth = thickness * scale; // no need to factor in resampling
-		//debug:
-		//imp.show();
-		//Utils.log2("Stack dimensions: " + imp.getWidth() + ", " + imp.getHeight() + ", " + imp.getStack().getSize());
-		// end of generating byte[] arrays
+		final ImagePlus imp = new ImagePlus("", stack);
+		imp.getCalibration().pixelWidth = 1; // ensure all set to 1.
+		imp.getCalibration().pixelHeight = 1;
+		imp.getCalibration().pixelDepth = 1;
+
 		// Now marching cubes
 		final Triangulator tri = new MCTriangulator();
 		final List list = tri.getTriangles(imp, 0, new boolean[]{true, true, true}, 1);
-		// now translate all coordinates by x,y,z (it would be nice to simply assign them to a mesh object)
+
+
+		// The list of triangles has coordinates:
+		// - in x,y: in pixels, scaled by K = (1 / resample) * scale, 
+		//			translated by r.x, r.y (the top-left coordinate of this AreaList bounding box)
+		// - in z: in stack slice indices
+
+		// So all x,y,z must be corrected in x,y and z of the proper layer
+
+
+		final double offset = first_layer.getZ();
+		final int i_first_layer = layer_set.indexOf(first_layer);
+
+		// The x,y translation to correct each point by:
 		final float dx = (float)(r.x * scale * cal.pixelWidth);
 		final float dy = (float)(r.y * scale * cal.pixelHeight);
-		final float dz = (float)((z_first - thickness) * scale * cal.pixelWidth); // the z of the first layer found, corrected for both scale and the zero padding
-		final float rs = resample / (float)scale;
-		final float z_correction = (float)(thickness * scale * cal.pixelWidth);
-		//Utils.log2("resample: " + resample + "  scale: " + scale + "  K: " + K);
+
+		// Correct x,y by resampling and calibration, but not scale (TODO this hints that calibration in 3D is wrong: should be divided by the scale! May affect all Displayable types)
+		final float rsw = (float)(resample * cal.pixelWidth);  // scale is already in the pixel coordinates
+		final float rsh = (float)(resample * cal.pixelHeight);
+		final double sz = scale * cal.pixelWidth; // no resampling in Z. and Uses pixelWidth, not pixelDepth.
+
+
+		int slice_index = 0;
+
+
+		// which p.z types exist?
+		final TreeSet<Float> ts = new TreeSet<Float>();
 		for (final Iterator it = list.iterator(); it.hasNext(); ) {
-			final Point3f p = (Point3f)it.next();
-			// correct zero-padding
-			p.x -= (float)(1 * cal.pixelWidth);
-			p.y -= (float)(1 * cal.pixelHeight);
-			// fix back the resampling (but not the universe scale, which has already been considered)
-			p.x *= rs; //resample / scale; // a resampling of '2' means 0.5  (I love inverted worlds..)
-			p.y *= rs; //resample / scale;
-			p.z *= cal.pixelWidth;
-			//Z was not resampled
-			// translate to the x,y,z coordinate of the object in space
-			p.x += dx;
-			p.y += dy;
-			p.z += dz + z_correction; // translate one complete section up. I don't fully understand why I need this, but this is correct.
+			ts.add(((Point3f)it.next()).z);
+		}
+		for (final Float pz : ts) Utils.log2("A z: " + pz);
+
+		Utils.log2("Number of slices: " + imp.getNSlices());
+
+		// Fix all points:
+
+		//if (i_first_layer > 0)
+		//	fix3DPoints(list, layer_set.previous(layer_set.getLayer(i_first_layer -1)), -1, dx, dy, rsw, rsh, sz);
+		fix3DPoints(list, layer_set.previous(layer_set.getLayer(i_first_layer)), 0, dx, dy, rsw, rsh, sz);
+
+		for (final Layer la : layer_set.getLayers().subList(i_first_layer, i_first_layer + imp.getNSlices() -2)) { // -2: it's padded
+
+			Utils.log2("handling slice_index: " + slice_index);
+
+			// If layer is empty, continue
+			if (empty_layers.contains(la)) {
+				slice_index++;
+				continue;
+			}
+
+			fix3DPoints(list, la, slice_index + 1, dx, dy, rsw, rsh, sz);  // +1 because of padding
+
+			Utils.log2("processed slice index " + slice_index + " for layer " + la);
+
+			slice_index++;
 		}
 
-		// TODO: should capture vertices whose Z coordinate falls within a layer thickness, and translate that to the real layer Z and thickness (because now it's using the first layer thickness only).
-		// TODO: even before this, should enable interpolation when desired, since we have images anyway.
-		// TODO: and even better, when there is only one island per section, give the option to enable VectorStrin2D mesh creation like profiles.
-
-
-		// Check if any layer has an improper Z assigned. The assigned gives a list of entries sorted by Z
-		double last_real_z = 0;
-		HashMap<Integer,ArrayList<Point3f>> map = null;
-
-		for (final Map.Entry<Double,Layer> e : assigned.entrySet()) {
-			final double fake_z = e.getKey();
-			final double real_z = e.getValue().getZ();
-			final double fake_thickness = thickness;
-			final double real_thickness = e.getValue().getThickness();
-
-			if ( ! M.equals(fake_z, real_z) ) {
-				if (null == map) {
-					map = new HashMap<Integer,ArrayList<Point3f>>();
-					for (final Iterator it = list.iterator(); it.hasNext(); ) {
-						final Point3f p = (Point3f) it.next();
-						int lz = (int)( 0.0005 + (p.z - z_first) / thickness );
-						ArrayList<Point3f> az = map.get(lz);
-						if (null == az) {
-							az = new ArrayList<Point3f>();
-							map.put(lz, az);
-						}
-						az.add(p);
-					}
-
-					for (final Integer lz : new java.util.TreeSet<Integer>(map.keySet())) {
-						Utils.log2("Key: " + lz);
-					}
-				}
-				// must fix: and also accumulate the difference in the offset, for subsequent calls.
-				// find all coords between fake_z and fake_z + fake_thickness, and stretch them proportionally to real_z and real_z + real_thickness
-				int lz = (int)( 0.0005 + (fake_z - z_first) / thickness );
-				ArrayList<Point3f> az = map.get(lz);
-				if (null == az) {
-					Utils.log2("Something is WRONG: null az for lz = " + lz);
-					continue;
-				}
-				for (final Point3f p : az) {
-					p.z = (float) (real_z + real_thickness * ( (p.z - fake_z - z_first) / thickness ));
-				}
-
-				/*
-				for (final Iterator it = list.iterator(); it.hasNext(); ) {
-					final Point3f p = (Point3f) it.next();
-					if (p.z >= fake_z && p.z <= fake_z + thickness) {
-						// bring to real z + the proportion of the real thickness
-						p.z = offset + real_z + real_thickness * ( (p.z - fake_z - z_first) / thickness );
-					}
-				}
-				*/
-			}
+		// The last set of vertices to process:
+		// Find all pixels that belong to the layer, and transform them back:
+		//final Layer last = layer_set.getLayer(layer_index -1);
+		//fixLast3DPoints(list, last.getZ() + last.getThickness(), last.getThickness(), layer_index +1, dx, dy, rsw, rsh, sz);
+		try {
+			Layer la = layer_set.getLayer(i_first_layer + slice_index -1);
+			fix3DPoints(list, la, slice_index +1, dx, dy, rsw, rsh, sz);
+		} catch (Exception ee) {
+			IJError.print(ee);
 		}
 
 		return list;
@@ -1318,6 +1301,46 @@ public class AreaList extends ZDisplayable {
 			e.printStackTrace();
 		}
 		return null;
+	}
+
+	private final void fix3DPoints(final List list, final Layer la, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz) {
+		final double la_z = la.getZ();
+		final double la_thickness = la.getThickness();
+		// Find all pixels that belong to the layer, and transform them back:
+		for (final Iterator it = list.iterator(); it.hasNext(); ) {
+			final Point3f p = (Point3f)it.next();
+			if (p.z >= layer_index && p.z < layer_index + 1) {
+				// correct pixel position:
+				// -- The '-1' corrects for zero padding
+				// -- The 'rsw','rsh' scales back to LayerSet coords
+				// -- The 'dx','dy' translates back to this AreaList bounding box
+				p.x = (p.x -1) * rsw + dx;
+				p.y = (p.y -1) * rsh + dy;
+
+				// The Z is more complicated: the Z of the layer, scaled relative to the layer thickness
+				// -- 'offset' is the Z of the first layer, corresponding to the layer that contributed to the first stack slice.
+				p.z = (float)((la_z + la_thickness * (p.z - layer_index)) * sz); // using pixelWidth, not pixelDepth!
+			}
+		}
+	}
+
+	private final void fixLast3DPoints(final List list, final double la_z, final double la_thickness, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz) {
+		// Find all pixels that belong to the layer, and transform them back:
+		for (final Iterator it = list.iterator(); it.hasNext(); ) {
+			final Point3f p = (Point3f)it.next();
+			if (p.z >= layer_index) {
+				// correct pixel position:
+				// -- The '-1' corrects for zero padding
+				// -- The 'rsw','rsh' scales back to LayerSet coords
+				// -- The 'dx','dy' translates back to this AreaList bounding box
+				p.x = (p.x -1) * rsw + dx;
+				p.y = (p.y -1) * rsh + dy;
+
+				// The Z is more complicated: the Z of the layer, scaled relative to the layer thickness
+				// -- 'offset' is the Z of the first layer, corresponding to the layer that contributed to the first stack slice.
+				p.z = (float)((la_z + la_thickness * (p.z - layer_index)) * sz); // unsing pixelWidth, not pixelDepth!
+			}
+		}
 	}
 
 	static private ImageStack zeroPad(final ImageStack stack) {
