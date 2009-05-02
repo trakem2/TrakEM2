@@ -87,7 +87,7 @@ public final class Display3D {
 	static private final int DEFAULT_RESAMPLE = 4;
 	/** If the LayerSet dimensions are too large, then limit to max 2048 for width or height and setup a scale.*/
 	private double scale = 1.0;
-	static private final int MAX_DIMENSION = 1024;
+	static private final int MAX_DIMENSION = 1024; // TODO change to LayerSet virtualization size
 
 	private String selected = null;
 
@@ -454,7 +454,7 @@ public final class Display3D {
 		d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.setLocked(false); // locks the added content
+		ct.setLocked(true); // locks the added content
 	}
 
 	static public void showVolume(Patch p) {
@@ -469,7 +469,7 @@ public final class Display3D {
 		d3d.universe.addVoltex(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.setLocked(false); // locks the added content
+		ct.setLocked(true); // locks the added content
 	}
 
 	static private void setTransform(Content ct, Patch p) {
@@ -821,7 +821,7 @@ public final class Display3D {
 				// Set general content properties
 				ct.setTransparency(1f - alpha);
 				// Default is unlocked (editable) transformation; set it to locked:
-				ct.setLocked(false);
+				ct.setLocked(true);
 
 			} catch (Exception e) {
 				IJError.print(e);
@@ -890,7 +890,7 @@ public final class Display3D {
 				//d3d.universe.ensureScale((float)(width*scale));
 				ct = d3d.universe.addMesh(triangles, new Color3f(color), title, /*(float)(width*scale),*/ 1);
 				ct.setTransparency(transp);
-				ct.setLocked(false);
+				ct.setLocked(true);
 			} catch (Exception e) {
 				IJError.print(e);
 			}
