@@ -1252,6 +1252,7 @@ public class AreaList extends ZDisplayable {
 		int slice_index = 0;
 
 
+		/* // debug:
 		// which p.z types exist?
 		final TreeSet<Float> ts = new TreeSet<Float>();
 		for (final Iterator it = list.iterator(); it.hasNext(); ) {
@@ -1260,6 +1261,7 @@ public class AreaList extends ZDisplayable {
 		for (final Float pz : ts) Utils.log2("A z: " + pz);
 
 		Utils.log2("Number of slices: " + imp.getNSlices());
+		*/
 
 		// Fix all points:
 
@@ -1269,7 +1271,7 @@ public class AreaList extends ZDisplayable {
 
 		for (final Layer la : layer_set.getLayers().subList(i_first_layer, i_first_layer + imp.getNSlices() -2)) { // -2: it's padded
 
-			Utils.log2("handling slice_index: " + slice_index);
+			//Utils.log2("handling slice_index: " + slice_index);
 
 			// If layer is empty, continue
 			if (empty_layers.contains(la)) {
@@ -1279,7 +1281,7 @@ public class AreaList extends ZDisplayable {
 
 			fix3DPoints(list, la, slice_index + 1, dx, dy, rsw, rsh, sz);  // +1 because of padding
 
-			Utils.log2("processed slice index " + slice_index + " for layer " + la);
+			//Utils.log2("processed slice index " + slice_index + " for layer " + la);
 
 			slice_index++;
 		}
@@ -1289,6 +1291,7 @@ public class AreaList extends ZDisplayable {
 		//final Layer last = layer_set.getLayer(layer_index -1);
 		//fixLast3DPoints(list, last.getZ() + last.getThickness(), last.getThickness(), layer_index +1, dx, dy, rsw, rsh, sz);
 		try {
+			// Do the last layer again, capturing from slice_index+1 to +2, since the last layer has two Z planes in which it has pixels:
 			Layer la = layer_set.getLayer(i_first_layer + slice_index -1);
 			fix3DPoints(list, la, slice_index +1, dx, dy, rsw, rsh, sz);
 		} catch (Exception ee) {
@@ -1324,6 +1327,7 @@ public class AreaList extends ZDisplayable {
 		}
 	}
 
+	/*
 	private final void fixLast3DPoints(final List list, final double la_z, final double la_thickness, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz) {
 		// Find all pixels that belong to the layer, and transform them back:
 		for (final Iterator it = list.iterator(); it.hasNext(); ) {
@@ -1342,6 +1346,7 @@ public class AreaList extends ZDisplayable {
 			}
 		}
 	}
+	*/
 
 	static private ImageStack zeroPad(final ImageStack stack) {
 		int w = stack.getWidth();
