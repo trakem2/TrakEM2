@@ -40,6 +40,8 @@ import ij.io.OpenDialog;
 import ij.io.FileSaver;
 import ij.gui.Plot;
 import ij.io.DirectoryChooser;
+import ij.ImagePlus;
+import ij.process.ByteProcessor;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -56,13 +58,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.awt.Rectangle;
+import java.awt.image.IndexColorModel;
 
+import javax.vecmath.Color3f;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Matrix4d;
 import javax.media.j3d.Transform3D;
 
+import ij3d.Content;
 
 import java.io.*;
 
@@ -1776,7 +1781,7 @@ public class Compare {
 		public boolean setup(final boolean to_file, final String regex, final boolean plot, final boolean condense) {
 			final GenericDialog gd = new GenericDialog("All to all");
 			gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
-			gd.addNumericField("point_interdistance: ", 0, 2);
+			gd.addNumericField("point_interdistance: ", 1, 2);
 			gd.addCheckbox("skip insertion/deletion strings at ends when scoring", false);
 			gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
 			gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
@@ -1785,9 +1790,10 @@ public class Compare {
 			final String[] transforms = {"translate and rotate",
 						     "translate, rotate and scale",
 						     "translate, rotate, scale and shear",
+						     "moving least squares",
 						     "relative",
 						     "direct"};
-			gd.addChoice("Transform_type: ", transforms, transforms[2]);
+			gd.addChoice("Transform_type: ", transforms, transforms[3]);
 			gd.addCheckbox("Chain_branches", true);
 
 			gd.addChoice("Presets: ", preset_names, preset_names[0]);
@@ -1807,7 +1813,7 @@ public class Compare {
 				gd.addNumericField("plot_max_y: ", 30, 2);
 			}
 			if (condense) {
-				gd.addCheckbox("cut_uneven_ends", false);
+				gd.addCheckbox("cut_uneven_ends", true);
 				final String[] env = {"1 std dev", "2 std dev", "3 std dev", "average", "maximum"};
 				gd.addChoice("envelope", env, env[0]);
 			}
@@ -1857,7 +1863,7 @@ public class Compare {
 		}
 	}
 
-	/** Gather chains for all projects considering the cp.regex. */
+	/** Gather chains for all projects considering the cp.regex, and transforms all relative to the reference project[0] . */
 	static public final Object[] gatherChains(final Project[] p, final CATAParameters cp) throws Exception {
 		// gather all chains
 		final ArrayList[] p_chains = new ArrayList[p.length]; // to keep track of each project's chains
@@ -1882,8 +1888,8 @@ public class Compare {
 		final int n_chains = chains.size();
 
 		// register all, or relative
-		if (3 == cp.transform_type) {
-			// '3' means relative
+		if (4 == cp.transform_type) {
+			// '4' means relative
 			// compute global average delta
 			if (0 == cp.delta) {
 				for (Chain chain : chains) {
@@ -1897,8 +1903,32 @@ public class Compare {
 				chain.vs.relative();
 			}
 		} else {
-			if (cp.transform_type < 3) {
-				// '1', '2' and '3' involve a 3D affine
+			if (3 == cp.transform_type) {
+				// '3' means moving least squares computed from 3D landmarks
+				Utils.log2("Moving Least Squares Registration based on common fiducial points");
+				// Find fiducial points
+				HashMap<Project,Map<String,Tuple3d>> fiducials = new HashMap<Project,Map<String,Tuple3d>>();
+				for (Project pr : p) {
+					Set<ProjectThing> fids = pr.getRootProjectThing().findChildrenOfTypeR("fiducial_points");
+					if (null == fids || 0 == fids.size()) {
+						Utils.log2("No fiducial points found in project: " + pr);
+						return null;
+					}
+					fiducials.put(pr, Compare.extractPoints(fids.iterator().next())); // the first fiducial group
+				}
+				// Register all VectorString3D relative to the first project:
+				final List<VectorString3D> lvs = new ArrayList<VectorString3D>();
+				for (Chain chain : chains) {
+					Project pr = chain.pipes.get(0).getProject();
+					if (pr == p[0]) continue; // first project is reference, no need to transform.
+					lvs.clear();
+					lvs.add(chain.vs);
+					chain.vs = transferVectorStrings(lvs, fiducials.get(pr), fiducials.get(p[0])).get(0);
+					// Set (but do not apply!) the calibration of the reference project
+					chain.vs.setCalibration(p[0].getRootLayerSet().getCalibrationCopy());
+				}
+			} else if (cp.transform_type < 3) {
+				// '0', '1' and '2' involve a 3D affine computed from the 3 axes
 				// no need //VectorString3D[][] vs_axes = new VectorString3D[p.length][];
 				Vector3d[][] o = new Vector3d[p.length][];
 				for (int i=0; i<p.length; i++) {
@@ -1969,7 +1999,7 @@ public class Compare {
 	 *     Object result = bu.getWorker().getResult();
 	 *     float[][] scores = (float[][])result[0];
 	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
-	 * @param normalize Whether to normalize the score values so that the maximum value is 1 and the minimum is 0, or not.
+	 *
 	 */
 	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex) {
 
@@ -2269,15 +2299,28 @@ public class Compare {
 			   0,       0,       0,       1));
 	}
 
-	static public Bureaucrat variabilityAnalysis() {
-		return variabilityAnalysis(null, null, false, false, null);
-	}
-
-	/** If @param reference_project is null, then the first one found in the Project.getProjects() lists is used.
-	 * If regex is not null, then only ProjectThing nodes with the matching regex are analyzed (shallow: none of their children are questioned, but pipes will be built from them all).
-	 * if show_plots, plots are shown -- otherwise, a directory is asked for and they are saved as png files.
+	/**
+	 * @param reference_project If null, then the first one found in the Project.getProjects() lists is used.
+	 * @param regex A String (can be null) to filter objects by, to limit what gets processed.
+	 *              If regex is not null, then only ProjectThing nodes with the matching regex are analyzed (shallow: none of their children are questioned, but pipes will be built from them all).
+	 * @param generate_plots Whether to generate the variability plots at all.
+	 * @param show_plots If generate_plots, whether to show the plots in a stack image window or to save them.
+	 * @param show_3D Whether to show any 3D data.
+	 * @param show_condensed_3D If show_3D, whether to show the condensed vector strings, i.e. the "average" pipes.
+	 * @param show_sources_3D If show_3D, whether to show the source pipes from which the condensed vector string was generated.
+	 * @param show_envelope_3D If show_3D, whether to generate the variability envelope.
+	 * @param envelope_alpha If show_envelope_3D, the envelope takes an alpha value between 0 (total transparency) and 1 (total opacity)
+	 * @param show_axes_3D If show_3D, whether to display the reference axes as well.
+	 * @param heat_map If show_3D, whether to color the variability with a Fire LUT.
+	 *                 If not show_condensed_3D, then the variability is shown in color-coded 3D spheres placed at the entry point to the neuropile.
+	 * @param map_condensed If not null, all VectorString3D are put into this map.
 	 * */
-	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex, final boolean show_plots, final boolean show_3D, final Map<String,VectorString3D> map_condensed) {
+	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex,
+			                             final boolean generate_plots, final boolean show_plots,
+						     final boolean show_3D, final boolean show_condensed_3D, final boolean show_sources_3D,
+						     final boolean show_envelope_3D, final float envelope_alpha,
+						     final boolean show_axes_3D, final boolean heat_map,
+						     final Map<String,VectorString3D> map_condensed) {
 		// gather all open projects
 		final Project[] p = Project.getProjects().toArray(new Project[0]);
 		// make the reference_project be the first in the array
@@ -2306,7 +2349,7 @@ public class Compare {
 		cp.with_source = true; // so source points are stored in VectorString3D for each resampled and interpolated point
 
 		String plot_dir = null;
-		if (!show_plots) {
+		if (generate_plots && !show_plots) {
 			// Save plots
 			DirectoryChooser dc = new DirectoryChooser("Choose plots directory");
 			plot_dir = dc.getDirectory();
@@ -2331,6 +2374,8 @@ public class Compare {
 
 		Utils.log2("Collecting bundles...");
 
+		HashMap<Project,HashMap<String,VectorString3D>> axes = new HashMap<Project,HashMap<String,VectorString3D>>();
+
 		// Sort out into groups by unique names of lineage bundles
 		final HashMap<String,ArrayList<Chain>> bundles = new HashMap<String,ArrayList<Chain>>();
 		for (Chain chain : chains) {
@@ -2338,9 +2383,18 @@ public class Compare {
 			final String t = title.toLowerCase();
 			// ignore:
 			if (-1 != t.indexOf("unknown")) continue;
-			if (-1 != t.indexOf("peduncle")) continue;
-			if (-1 != t.indexOf("medial lobe")) continue;
-			if (-1 != t.indexOf("dorsal lobe")) continue;
+			if (-1 != t.indexOf("peduncle")
+			 || -1 != t.indexOf("medial lobe")
+			 || -1 != t.indexOf("dorsal lobe")) {
+				Project pr = chain.pipes.get(0).getProject();
+				HashMap<String,VectorString3D> m = axes.get(pr);
+				if (null == m) {
+					m = new HashMap<String,VectorString3D>();
+					axes.put(pr, m);
+				}
+				m.put(t, chain.vs);
+				continue;
+			}
 			if (0 == t.indexOf("lineage") || 0 == t.indexOf("branch")) continue; // unnamed
 			if (0 == t.indexOf('[') || 0 == t.indexOf('#')) continue; // unnamed
 
@@ -2376,37 +2430,127 @@ public class Compare {
 			}
 			VectorString3D[] vs = new VectorString3D[bc.size()];
 			for (int i=0; i<vs.length; i++) vs[i] = bc.get(i).vs;
-			condensed.put(entry.getKey(), condense(cp, vs, this));
+			VectorString3D c = condense(cp, vs, this);
+			c.setCalibration(p[0].getRootLayerSet().getCalibrationCopy());
+			condensed.put(entry.getKey(), c);
 			if (this.hasQuitted()) return;
 		}
 
-		Utils.log2("Plotting stdDev for each condensed bundle...");
-
-		// Gather source for each, compute stdDev at each point and make a plot with it
-		//  X axis: from first to last point
-		//  Y axis: the stdDev at each point, computed from the group of points that contribute to each
-		for (Map.Entry<String,VectorString3D> e : condensed.entrySet()) {
-			final String name = e.getKey();
-			final VectorString3D c = e.getValue();
-			final Plot plot = makePlot(cp, name, c);
-			//FAILS//plot.addLabel(10, cp.plot_height-5, name); // must be added after setting size
-			if (show_plots) plot.show();
-			else if (null != plot_dir) new FileSaver(plot.getImagePlus()).saveAsPng(plot_dir + name.replace('/', '-') + ".png");
+		// Store:
+		if (null != map_condensed) {
+			map_condensed.putAll(condensed);
 		}
 
-		// Show all condensed in 3D
+		if (generate_plots) {
+			Utils.log2("Plotting stdDev for each condensed bundle...");
+
+			// Gather source for each, compute stdDev at each point and make a plot with it
+			//  X axis: from first to last point
+			//  Y axis: the stdDev at each point, computed from the group of points that contribute to each
+			for (Map.Entry<String,VectorString3D> e : condensed.entrySet()) {
+				final String name = e.getKey();
+				final VectorString3D c = e.getValue();
+				final Plot plot = makePlot(cp, name, c);
+				//FAILS//plot.addLabel(10, cp.plot_height-5, name); // must be added after setting size
+				if (show_plots) plot.show();
+				else if (null != plot_dir) new FileSaver(plot.getImagePlus()).saveAsPng(plot_dir + name.replace('/', '-') + ".png");
+			}
+		}
+
 		if (show_3D) {
-			final LayerSet common_ls = new LayerSet(p[0], -1, "Common", 10, 10, 0, 0, 0, 512, 512, false, 2, new AffineTransform());
+			HashMap<String,Color> heat_table = new HashMap<String,Color>();
+
+			if (heat_map || show_envelope_3D) {
+				// Create a Fire LUT
+				ImagePlus lutimp = new ImagePlus("lut", new ByteProcessor(4,4));
+				IJ.run(lutimp, "Fire", "");
+				IndexColorModel icm = (IndexColorModel) lutimp.getProcessor().getColorModel();
+				byte[] reds = new byte[256];
+				byte[] greens = new byte[256];
+				byte[] blues = new byte[256];
+				icm.getReds(reds);
+				icm.getGreens(greens);
+				icm.getBlues(blues);
+
+				List<String> names = new ArrayList<String>(bundles.keySet());
+				Collections.sort(names);
+				for (String name : names) {
+					VectorString3D vs_merged = condensed.get(name);
+					if (null == vs_merged) {
+						Utils.logAll("WARNING could not find a condensed pipe for " + name);
+						continue;
+					}
+					final double[] stdDev = vs_merged.getStdDevAtEachPoint();
+					//double avg = 0;
+					//for (int i=0; i<stdDev.length; i++) avg += stdDev[i];
+					//avg = avg/stdDev.length;
+					Arrays.sort(stdDev);
+					// The median stdDev should be more representative
+					double median = stdDev[stdDev.length/2];
+
+					// scale between 0 and 30 to get a Fire LUT color:
+					int index = (int)((median / 30) * 255);
+					if (index > 255) index = 255;
+					Color color = new Color(0xff & reds[index], 0xff & greens[index], 0xff & blues[index]);
+
+					Utils.log2(new StringBuilder(name).append('\t').append(median)
+									  .append('\t').append(reds[index])
+									  .append('\t').append(greens[index])
+									  .append('\t').append(blues[index]).toString());
+
+					heat_table.put(name, color);
+				}
+			}
+
+			LayerSet common_ls = new LayerSet(p[0], -1, "Common", 10, 10, 0, 0, 0, 512, 512, false, 2, new AffineTransform());
 			final Display3D d3d = Display3D.getDisplay(common_ls);
+
+			float env_alpha = envelope_alpha;
+			if (env_alpha < 0) {
+				Utils.log2("WARNING envelope_alpha is invalid: " + envelope_alpha + "\n    Using 0.4f instead");
+				env_alpha = 0.4f;
+			} else if (env_alpha > 1) env_alpha = 1.0f;
+
 			for (String name : bundles.keySet()) {
 				ArrayList<Chain> bc = bundles.get(name);
 				VectorString3D vs_merged = condensed.get(name);
-				for (Chain chain : bc) d3d.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
-				d3d.addMesh(common_ls, vs_merged, name, Color.red);
+				if (null == vs_merged) {
+					Utils.logAll("WARNING: could not find a condensed vs for " + name);
+					continue;
+				}
+				if (show_sources_3D) {
+					for (Chain chain : bc) d3d.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
+				}
+				if (show_condensed_3D) {
+					d3d.addMesh(common_ls, vs_merged, name + "-condensed", heat_map ? heat_table.get(name) : Color.red);
+				}
+				if (show_envelope_3D) {
+					d3d.addMesh(common_ls, vs_merged, name + "-envelope", heat_map ? heat_table.get(name) : Color.red, makeEnvelope(cp, vs_merged), env_alpha);
+				} else if (heat_map) {
+					// Show spheres in place of envelopes, at the starting tip (neuropile entry point)
+					double x = vs_merged.getPoints(0)[0];
+					double y = vs_merged.getPoints(1)[0];
+					double z = vs_merged.getPoints(2)[0];
+					double r = 10;
+
+					Color color = heat_table.get(name);
+					if (null == color) {
+						Utils.logAll("WARNING: heat table does not have a color for " + name);
+						continue;
+					}
+
+					Content sphere = d3d.getUniverse().addMesh(ij3d.Mesh_Maker.createSphere(x, y, z, r), new Color3f(heat_table.get(name)), name + "-sphere", 1);
+				}
 			}
-		}
-		if (null != map_condensed) {
-			map_condensed.putAll(condensed);
+
+			if (show_axes_3D) {
+				for (int i=0; i<p.length; i++) {
+					for (Map.Entry<String,VectorString3D> e : axes.get(p[i]).entrySet()) {
+						d3d.addMesh(common_ls, e.getValue(), e.getKey() + "-" + i, Color.gray);
+					}
+				}
+			}
+
 		}
 
 		Utils.log2("Done.");
@@ -2425,7 +2569,15 @@ public class Compare {
 		final double[] stdDev = c.getStdDevAtEachPoint();
 		final double[] index = new double[stdDev.length];
 		for (int i=0; i<index.length; i++) index[i] = i;
-		final Plot plot = new Plot(name, name + " -- Point index (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + c.getCalibrationCopy().getUnits() + ")", "Std Dev", index, stdDev);
+		Utils.log2("name is " + name);
+		Utils.log2("c is " + c);
+		Utils.log2("cp is " + cp);
+		Utils.log2("stdDev is " + stdDev);
+		Utils.log2("c.getCalibrationCopy() is " + c.getCalibrationCopy());
+		Utils.log2("c.getDelta() is " + c.getDelta());
+		Calibration cal = c.getCalibrationCopy();
+		if (null == cal) Utils.log2("WARNING null calibration!");
+		final Plot plot = new Plot(name, name + " -- Point index (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + (null == cal ? "pixels" : cal.getUnits()) + ")", "Std Dev", index, stdDev);
 		plot.setLimits(0, cp.plot_max_x, 0, cp.plot_max_y);
 		plot.setSize(cp.plot_width, cp.plot_height);
 		plot.setLineWidth(2);
@@ -2655,6 +2807,7 @@ public class Compare {
 		final float[] point = new float[3];
 
 		// 1.1 - Test: transfer source points
+		/*
 		for (final Iterator<Tuple3d> si = source.iterator(), ti = target.iterator(); si.hasNext(); ) {
 			Tuple3d sp = si.next();
 			point[0] = (float) sp.x;
@@ -2668,6 +2821,7 @@ public class Compare {
 
 				   "\n   source: " + point[0] + ", " + point[1] + ", " + point[2]);
 		}
+		*/
 
 		// 2 - Transfer each VectorString3D in vs with mls
 		final List<VectorString3D> vt = new ArrayList<VectorString3D>();

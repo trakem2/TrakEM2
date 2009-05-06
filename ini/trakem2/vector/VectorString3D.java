@@ -923,6 +923,11 @@ public class VectorString3D implements VectorString {
 		delta = 0;
 	}
 
+	/** Sets but does NOT apply the given calibration. */
+	public void setCalibration(Calibration cal) {
+		this.cal = cal;
+	}
+
 	public boolean isCalibrated() {
 		return null != this.cal;
 	}
