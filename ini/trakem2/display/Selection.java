@@ -1096,7 +1096,7 @@ public class Selection {
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
 		grabbed = null; // reset
-		Utils.log2("transforming: " + transforming);
+		//Utils.log2("transforming: " + transforming);
 		if (!transforming) {
 			if (display.getLayerSet().prepareStep(new ArrayList<Displayable>(hs))) {
 				display.getLayerSet().addTransformStep(new ArrayList<Displayable>(hs));
