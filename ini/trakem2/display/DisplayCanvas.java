@@ -190,13 +190,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (null != active_layer) {
 				g.setTransform(at);
 				g.setStroke(this.stroke); // AFTER setting the transform
-				if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) active.paint(g, magnification, true, c_alphas, active_layer);
+				// DON'T paint active, it's included in al_top
+				//if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) active.paint(g, magnification, true, c_alphas, active_layer);
 				if (null != top) {
 					final Rectangle tmp = null != clipRect ? new Rectangle() : null;
 					final Rectangle clip = null != clipRect ? new Rectangle((int)(clipRect.x * magnification) - srcRect.x, (int)(clipRect.y * magnification) - srcRect.y, (int)(clipRect.width * magnification), (int)(clipRect.height * magnification)) : null;
 					for (int i=0; i<top.length; i++) {
 						if (null != clipRect && !top[i].getBoundingBox(tmp).intersects(clip)) continue;
-						top[i].paint(g, magnification, false, c_alphas, active_layer);
+						top[i].paint(g, magnification, top[i] == active, c_alphas, active_layer);
 					}
 				}
 				//Utils.log2("painted new volatile with active " + active);
@@ -362,6 +363,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 					di = new Displayable[al_top.size()];
 					al_top.toArray(di);
+
+					//Utils.log2("al_top.size(): " + di.length);
 
 					if (null != offscreen) {
 						//g.drawImage(offscreen, 0, 0, null);
@@ -2136,19 +2139,19 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				while (itzd.hasNext()) {
 					final Displayable zd = itzd.next();
 					if (zd == active) top = true;
-					else if (top) al_top.add(zd);
+					if (top) al_top.add(zd);
 					else al_paint.add(zd);
 				}
 				// paint LayerSet and DLabel objects!
 				if (null != tmp) {
 					if (tmp == active) top = true;
-					else if (top) al_top.add(tmp);
+					if (top) al_top.add(tmp);
 					else al_paint.add(tmp);
 				}
 				while (ital.hasNext()) {
 					final Displayable d = ital.next();
 					if (d == active) top = true;
-					else if (top) al_top.add(d);
+					if (top) al_top.add(d);
 					else al_paint.add(d);
 				}
 
