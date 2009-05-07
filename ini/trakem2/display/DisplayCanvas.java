@@ -829,7 +829,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// display.updateInDatabase("srcRect"); // TODO if the display.frame
 			// is shrinked, the pack() in the zoom methods will also call the
 			// updateInDatabase("srcRect") (so it's going to be done twice)
-			display.updateTitle();
+			display.updateFrameTitle();
 			return;
 		case Toolbar.HAND:
 			display.updateInDatabase("srcRect");
@@ -1400,7 +1400,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		update_graphics = true;
 		RT.paint(null, update_graphics);
 		display.updateInDatabase("srcRect");
-		display.updateTitle();
+		display.updateFrameTitle();
 		display.getNavigator().repaint(false);
 	}
 

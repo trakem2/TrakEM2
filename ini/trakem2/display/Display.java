@@ -390,7 +390,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			display.getCanvas().setSrcRect(srcRect.x, srcRect.y, srcRect.width, srcRect.height);
 			display.getCanvas().setDrawingSize((int)Math.ceil(srcRect.width * mag), (int)Math.ceil(srcRect.height * mag));
 			//
-			display.updateTitle();
+			display.updateFrameTitle(layer);
 			ij.gui.GUI.center(display.frame);
 			display.frame.pack();
 		}});
@@ -513,7 +513,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (!ControlWindow.isGUIEnabled()) continue;
 			ImagePlus.addImageListener(d);
 			al_displays.add(d);
-			d.updateTitle();
+			d.updateFrameTitle(d.layer);
 			// force a repaint if a prePaint was done TODO this should be properly managed with repaints using always the invokeLater, but then it's DOG SLOW
 			if (d.canvas.getMagnification() > 0.499) {
 				SwingUtilities.invokeLater(new Runnable() { public void run() {
@@ -777,6 +777,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// Set the calibration of the FakeImagePlus to that of the LayerSet
 		((FakeImagePlus)canvas.getFakeImagePlus()).setCalibrationSuper(layer.getParent().getCalibrationCopy());
 
+		updateFrameTitle(layer);
 		// Set the FakeImagePlus as the current image
 		setTempCurrentImage();
 
@@ -854,7 +855,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		// see if a lot has to be reloaded, put the relevant ones at the end
 		project.getLoader().prepare(layer);
-		updateTitle(); // to show the new 'z'
+		updateFrameTitle(layer); // to show the new 'z'
 		// select the Layer in the LayerTree
 		project.select(Display.this.layer); // does so in a separate thread
 		// update active Displayable:
@@ -957,13 +958,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// distribute Displayable to the tabs. Ignore LayerSet instances.
 		if (null == ht_panels) ht_panels = new Hashtable<Displayable,DisplayablePanel>();
 		else ht_panels.clear();
-		Iterator it = layer.getDisplayables().iterator();
-		while (it.hasNext()) {
-			add((Displayable)it.next(), false, false);
+		for (final Displayable d : layer.getDisplayables()) {
+			add(d, false, false);
 		}
-		it = layer.getParent().getZDisplayables().iterator(); // the pipes, that live in the LayerSet
-		while (it.hasNext()) {
-			add((Displayable)it.next(), false, false);
+		for (final Displayable d : layer.getParent().getZDisplayables()) {
+			d.setLayer(layer);
+			add(d, false, false);
 		}
 		navigator.repaint(true); // was not done when adding
 		Utils.updateComponent(tabs.getSelectedComponent());
@@ -1223,7 +1223,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		navigator.repaint(true);
 		canvas.repaint(true);
 		Utils.updateComponent(tabs);
-		updateTitle();
+		updateFrameTitle();
 	}
 
 	/** Repaint the canvas updating graphics, the navigator without updating graphics, and the title. */
@@ -1231,7 +1231,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (repaint_disabled) return;
 		navigator.repaint(false);
 		canvas.repaint(true);
-		updateTitle();
+		updateFrameTitle();
 	}
 
 	static public void repaintSnapshots(final LayerSet set) {
@@ -2302,6 +2302,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} catch (Exception e) { IJError.print(e); }
 
 			JMenu adjust_menu = new JMenu("Adjust");
+			item = new JMenuItem("Calibration..."); item.addActionListener(this); adjust_menu.add(item);
 			item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 			item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 			if (selection.isEmpty()) item.setEnabled(false);
@@ -2535,7 +2536,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	static public void updateTitle(final Layer layer) {
 		for (final Display d : al_displays) {
 			if (d.layer == layer) {
-				d.updateTitle();
+				d.updateFrameTitle();
 			}
 		}
 	}
@@ -2543,13 +2544,16 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	static public void updateTitle(final LayerSet ls) {
 		for (final Display d : al_displays) {
 			if (d.layer.getParent() == ls) {
-				d.updateTitle();
+				d.updateFrameTitle();
 			}
 		}
 	}
 
 	/** Set a new title in the JFrame, showing info on the layer 'z' and the magnification. */
-	public void updateTitle() {
+	public void updateFrameTitle() {
+		updateFrameTitle(layer);
+	}
+	private void updateFrameTitle(Layer layer) {
 		// From ij.ImagePlus class, the solution:
 		String scale = "";
 		final double magnification = canvas.getMagnification();
@@ -3346,6 +3350,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					break;
 			}
 			lay.getParent().addDataEditStep(ds);
+		} else if (command.equals("Calibration...")) {
+			try {
+				IJ.run(canvas.getFakeImagePlus(), "Properties...", "");
+			} catch (RuntimeException re) {
+				Utils.log2("Calibration dialog canceled.");
+			}
 		} else if (command.equals("Enhance contrast (selected images)...")) {
 			final Layer la = layer;
 			final HashSet<Displayable> ds = new HashSet<Displayable>(la.getParent().getDisplayables());
@@ -3913,6 +3923,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	private void setTempCurrentImage() {
+		WindowManager.setCurrentWindow(canvas.getFakeImagePlus().getWindow(), true);
 		WindowManager.setTempCurrentImage(canvas.getFakeImagePlus());
 	}
 
