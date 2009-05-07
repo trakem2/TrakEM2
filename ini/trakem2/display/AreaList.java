@@ -305,65 +305,86 @@ public class AreaList extends ZDisplayable {
 		}
 
 		if (me.isShiftDown()) {
-			// fill in a hole if the clicked point lays within one
-			Polygon pol = null;
-			if (area.contains(x_p, y_p)) {
-				if (me.isAltDown()) {
-					// fill-remove
-					pol = M.findPath(area, x_p, y_p); // no null check, exists for sure
-					area.subtract(new Area(pol));
-				}
-			} else if (!me.isAltDown()) {
-				// fill-add
-				pol = M.findPath(area, x_p, y_p);
-				if (null != pol) {
-					area.add(new Area(pol)); // may not exist
+			// fill/erase a hole/area if the clicked point lays within one
+			// An area in world coords:
+			Area bmin = null;
+			Area bmax = null;
+			ArrayList<Area> intersecting = new ArrayList<Area>();
+			// Try to find a hole in this or another visible AreaList, but fill it this
+			int min_area = Integer.MAX_VALUE;
+			int max_area = 0;
+			for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
+				if ( ! zd.isVisible()) continue;
+				final AreaList ali = (AreaList) zd;
+				final Area a = ali.getArea(lid);
+				if (null == a) continue;
+				// bring point to zd space
+				final Point2D.Double p = ali.inverseTransformPoint(x_p_w, y_p_w);
+				final Polygon polygon = M.findPath(a, (int)p.x, (int)p.y);
+				if (null != polygon) {
+					Area bw = new Area(polygon).createTransformedArea(ali.at);
+					Rectangle bounds = bw.getBounds();
+					int pol_area = bounds.width * bounds.height;
+					if (pol_area < min_area) {
+						bmin = bw;
+						min_area = pol_area;
+					}
+					if (pol_area > max_area) {
+						bmax = bw;
+						max_area = pol_area;
+					}
+					intersecting.add(bw);
 				}
 			}
-			if (null != pol) {
-				final Rectangle r_pol = transformRectangle(pol.getBounds());
-				Display.repaint(Display.getFrontLayer(), r_pol, 1);
-				updateInDatabase("points=" + lid);
-			} else {
-				// An area in world coords:
-				Area b = null;
-				// Try to find a hole in another visible AreaList, but fill it here
-				for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
-					if ( ! zd.isVisible()) continue;
-					final AreaList ali = (AreaList) zd;
-					final Area a = ali.getArea(lid);
-					if (null == a) continue;
-					// bring point to zd space
-					final Point2D.Double p = ali.inverseTransformPoint(x_p_w, y_p_w);
-					final Polygon polygon = M.findPath(a, (int)p.x, (int)p.y);
+			// Take the largest area and subtract from it all other areas
+			if (intersecting.size() > 1) {
+				Area compound = new Area(bmax);
+				for (Area a : intersecting) {
+					if (bmax == a) continue;
+					compound.intersect(a);
+				}
+				if (!compound.isSingular()) {
+					Polygon polygon = M.findPath(compound, x_p_w, y_p_w);
 					if (null != polygon) {
-						// Bring polygon to world coords
-						b = new Area(polygon).createTransformedArea(ali.at);
-						break;
+						compound = new Area(polygon);
 					}
 				}
-				// If nothing found, try to merge all visible areas in current layer and find a hole there
-				if (null == b) {
-					final Area all = new Area(); // in world coords
-					for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
-						if ( ! zd.isVisible()) continue;
-						final AreaList ali = (AreaList) zd;
-						final Area a = ali.getArea(lid);
-						if (null == a) continue;
-						all.add(a.createTransformedArea(ali.at));
-					}
-					final Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
-					if (null != polygon) {
-						b = new Area(polygon);
-					}
+				Rectangle cbounds = compound.getBounds();
+				int carea = cbounds.width * cbounds.height;
+				if (carea < min_area) {
+					min_area = carea;
+					bmin = compound;
 				}
-				if (null != b) {
-					try {
-						// Add b as local to this AreaList
-						area.add(b.createTransformedArea(this.at.createInverse()));
-						Display.repaint(Display.getFrontLayer(this.project), b.getBounds(), 1); // use b, in world coords
-					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+			}
+			// Also try to merge all visible areas in current layer and find a hole there
+			final Area all = new Area(); // in world coords
+			for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
+				if ( ! zd.isVisible()) continue;
+				final AreaList ali = (AreaList) zd;
+				final Area a = ali.getArea(lid);
+				if (null == a) continue;
+				all.add(a.createTransformedArea(ali.at));
+			}
+			final Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
+			if (null != polygon) {
+				Rectangle bounds = polygon.getBounds();
+				int pol_area = bounds.width * bounds.height;
+				if (pol_area < min_area) {
+					min_area = pol_area;
+					bmin = new Area(polygon);
 				}
+			}
+			if (null != bmin) {
+				try {
+					// Add b as local to this AreaList
+					Area blocal = bmin.createTransformedArea(this.at.createInverse());
+					if (me.isAltDown()) {
+						area.subtract(blocal);
+					} else {
+						area.add(blocal);
+					}
+					Display.repaint(Display.getFrontLayer(this.project), bmin.getBounds(), 1); // use b, in world coords
+				} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 			}
 		} else {
 			if (null != last) last.quit();
