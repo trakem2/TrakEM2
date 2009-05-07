@@ -311,7 +311,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		private boolean go = true;
 		private Layer layer;
 		private final Lock lock = new Lock();
-		private final Lock lock2 = new Lock();
 
 		SetLayerThread() {
 			setPriority(Thread.NORM_PRIORITY);
@@ -328,9 +327,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		}
 
-		public final void setAndWait(final Layer layer) {
-			lock2.lock();
-			set(layer);
+		// Does not use the thread, rather just sets it within the context of the calling thread (would be the same as making the caller thread wait.)
+		final void setAndWait(final Layer layer) {
+			if (null != layer) {
+				Display.this.setLayer(layer);
+				Display.this.updateInDatabase("layer_id");
+			}
 		}
 
 		public void run() {
@@ -348,24 +350,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				//
 				if (!go) return; // after nullifying layer
 				//
-				if (null != layer) {
-					Display.this.setLayer(layer);
-					Display.this.updateInDatabase("layer_id");
-				}
-				// unlock any calls waiting on setAndWait
-				synchronized (lock2) {
-					lock2.unlock();
-				}
-			}
-			// cleanup:
-			synchronized (lock2) {
-				lock2.unlock();
-			}
-		}
-
-		public void waitForLayer() {
-			while (null != layer && go) {
-				try { Thread.sleep(10); } catch (Exception e) {}
+				setAndWait(layer);
 			}
 		}
 
@@ -876,19 +861,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		}
 		if (-1 != sel_next && sel.size() > 0) select(sel.get(sel_next), true);
-
-		// Keep Profile chain selected, for best ease of use:
-		if (null != last_active && last_active.getClass() == Profile.class && last_active.isLinked(Profile.class)) {
-			Utils.log2("last active was a profile: " + last_active);
-			Displayable other = null;
-			for (final Displayable prof : last_active.getLinked(Profile.class)) {
-				if (prof.getLayer() == layer) {
-					other = prof;
-					break;
-				}
-			}
-			if (null != other) selection.add(other);
-		}
 
 		// repaint everything
 		navigator.repaint(true);
@@ -4003,8 +3975,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		Profile profile = project.getProjectTree().duplicateChild((Profile)active, position, other_layer);
 		if (null == profile) return;
 		active.link(profile);
-		slt.setAndWait(other_layer);
 		other_layer.add(profile);
+		slt.setAndWait(other_layer);
 		selection.add(profile);
 	}
 
