@@ -190,7 +190,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (null != active_layer) {
 				g.setTransform(at);
 				g.setStroke(this.stroke); // AFTER setting the transform
-				// DON'T paint active, it's included in al_top
+				// Active has to be painted wherever it is, within al_top
 				//if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) active.paint(g, magnification, true, c_alphas, active_layer);
 				if (null != top) {
 					final Rectangle tmp = null != clipRect ? new Rectangle() : null;
@@ -200,7 +200,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						top[i].paint(g, magnification, top[i] == active, c_alphas, active_layer);
 					}
 				}
-				//Utils.log2("painted new volatile with active " + active);
 			}
 
 			g.dispose();

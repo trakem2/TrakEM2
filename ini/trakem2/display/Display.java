@@ -756,6 +756,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		}
 
+		updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
 		Utils.updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
 
 
@@ -1328,47 +1329,38 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	private final void addAll(final Collection<? extends Displayable> coll) {
-		for (final Displayable d : coll) {
-			add(d, false, false);
+		// if any of the elements in the collection matches the type of the current tab, update that tab
+		// ... it's easier to just update the front tab
+		JScrollPane selected_tab = (JScrollPane) tabs.getSelectedComponent();
+		ArrayList al = null;
+		for (Map.Entry<Class,JScrollPane> e : ht_tabs.entrySet()) {
+			if (e.getValue() == selected_tab) {
+				final Class c = e.getKey();
+				for (final Displayable d : coll) {
+					if (d.getClass() == c) {
+						// must update:
+						if (ZDisplayable.class.isAssignableFrom(c)) al = layer.getParent().getZDisplayables();
+						else al = layer.getDisplayables(c);
+						if (al.size() > 0) { // could be empty if the class is LayerSet.class or an unknown class
+							updateTab( (JPanel) selected_tab.getViewport().getView(), "", al);
+						}
+						break;
+					}
+				}
+				break;
+			}
 		}
-		selection.clear();
-		Utils.updateComponent(tabs);
-		navigator.repaint(true);
+		if (null != al) {
+			selection.clear();
+			navigator.repaint(true);
+		}
 	}
 
-	// TODO this very old method could take some improvement:
-	//  - there is no need to create a new DisplayablePanel if its panel is not shown
-	//  - other issues; the method looks overly "if a dog barks and a duck quacks during a lunar eclipse then .."
 	/** Add it to the proper panel, at the top, and set it active. */
 	private final void add(final Displayable d, final boolean activate, final boolean repaint_snapshot) {
-		DisplayablePanel dp = ht_panels.get(d);
-		if (null != dp && activate) { // for ZDisplayable objects (TODO I think this is not used anymore)
-			dp.setActive(true);
-			//setActive(d);
-			selection.clear();
-			selection.add(d);
-			return;
-		}
-		// add to the proper list
-		JPanel p = null;
-		if (d instanceof Profile) {
-			p = panel_profiles;
-		} else if (d instanceof Patch) {
-			p = panel_patches;
-		} else if (d instanceof DLabel) {
-			p = panel_labels;
-		} else if (d instanceof ZDisplayable) { //both pipes and balls and AreaList
-			p = panel_zdispl;
-		} else {
-			// LayerSet objects
-			return;
-		}
-		dp = new DisplayablePanel(this, d); // TODO: instead of destroying/recreating, we could just recycle them by reassigning a different Displayable. See how it goes! It'd need a pool of objects
-		addToPanel(p, 0, dp, activate);
-		ht_panels.put(d, dp);
 		if (activate) {
-			dp.setActive(true);
-			//setActive(d);
+			DisplayablePanel dp = ht_panels.get(d);
+			if (null != dp) dp.setActive(true);
 			selection.clear();
 			selection.add(d);
 		}
@@ -1865,9 +1857,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private void selectTab(Dissector d) { selectTab((ZDisplayable)d); }
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
-	private void updateTab(final Container tab, final String label, final ArrayList al) {
-		final boolean[] recreated = new boolean[]{false, true, true};
-		dispatcher.execSwing(new Runnable() { public void run() {
+	private void updateTab(final JPanel tab, final String label, final ArrayList al) {
+		dispatcher.exec(new Runnable() { public void run() {
 			try {
 			if (0 == al.size()) {
 				tab.removeAll();
@@ -1879,8 +1870,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					next = 1;
 					tab.remove(0);
 				}
-				for (Iterator it = al.iterator(); it.hasNext(); ) {
-					Displayable d = (Displayable)it.next();
+				// In reverse order:
+				for (ListIterator it = al.listIterator(al.size()); it.hasPrevious(); ) {
+					Displayable d = (Displayable)it.previous();
 					DisplayablePanel dp = null;
 					if (next < comp.length) {
 						dp = (DisplayablePanel)comp[next++]; // recycling panels
@@ -1897,15 +1889,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 						tab.remove(i);
 					}
 				}
-				recreated[0] = true;
-			}
-			if (recreated[0]) {
-				tab.invalidate();
-				tab.validate();
-				tab.repaint();
 			}
 			if (null != Display.this.active) scrollToShow(Display.this.active);
 			} catch (Throwable e) { IJError.print(e); }
+		}});
+		dispatcher.execSwing(new Runnable() { public void run() {
+			Component c = tabs.getSelectedComponent();
+			c.invalidate();
+			c.validate();
+			c.repaint();
 		}});
 	}
 
@@ -2709,32 +2701,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	private void updatePanelIndex(final Displayable d) {
-		// find first of the kind, then remove and insert its panel
-		int i = 0;
-		JPanel c = null;
-		if (d instanceof ZDisplayable) {
-			i = layer.getParent().indexOf((ZDisplayable)d);
-			c = panel_zdispl;
-		} else {
-			i = layer.relativeIndexOf(d);
-			if (d instanceof Profile) {
-				c = panel_profiles;
-			} else if (d instanceof Patch) {
-				c = panel_patches;
-			} else if (d instanceof DLabel) {
-				c = panel_labels;
-			}
-		}
-		if (null == c) return;
-		DisplayablePanel dp = ht_panels.get(d);
-		if (null == dp) return; // may be half-baked, wait
-		c.remove(dp);
-		c.add(dp, i); // java and its fabulous consistency
-		// not enough! Utils.updateComponent(c);
-		// So, cocktail:
-		c.invalidate();
-		c.validate();
-		Utils.updateComponent(c);
+		updateTab( (JPanel) ht_tabs.get(d.getClass()).getViewport().getView(), "",
+			  ZDisplayable.class.isAssignableFrom(d.getClass()) ?
+			     layer.getParent().getZDisplayables()
+			   : layer.getDisplayables(d.getClass()));
 	}
 
 	/** Repair possibly missing panels and other components by simply resetting the same Layer */

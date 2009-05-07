@@ -757,7 +757,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			Utils.log2("LayerSet: not adding zdispl");
 			return;
 		}
-		al_zdispl.add(0, zdispl); // at the top
+		al_zdispl.add(zdispl); // at the top
 
 		zdispl.setLayerSet(this);
 		// The line below can fail (and in the addSilently as well) if one can add zdispl objects while no Layer has been created. But the ProjectThing.createChild prevents this situation.
@@ -777,7 +777,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void addAll(final Collection<? extends ZDisplayable> coll) {
 		if (null == coll || 0 == coll.size()) return;
 		for (final ZDisplayable zd : coll) {
-			al_zdispl.add(0, zd);
+			al_zdispl.add(zd);
 			zd.setLayerSet(this);
 			zd.setLayer(al_layers.get(0));
 			zd.updateInDatabase("layer_set_id");
@@ -1206,7 +1206,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Change z position in the layered stack, which defines the painting order. */ // the BOTTOM of the stack is the first element in the al_zdispl array
-	protected void move(final int place, final Displayable d) {
+	synchronized protected void move(final int place, final Displayable d) {
 		if (d instanceof ZDisplayable) {
 			int i = al_zdispl.indexOf(d);
 			if (-1 == i) {
@@ -1217,18 +1217,26 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			if (1 == size) return;
 			switch(place) {
 				case LayerSet.TOP:
+					// To the end of the list:
 					al_zdispl.add(al_zdispl.remove(i));
+					if (null != root) root.update(this, d, i, al_zdispl.size()-1);
 					break;
 				case LayerSet.UP:
+					// +1 in the list
 					if (size -1 == i) return;
 					al_zdispl.add(i+1, al_zdispl.remove(i));
+					if (null != root) root.update(this, d, i, i+1);
 					break;
 				case LayerSet.DOWN:
+					// -1 in the list
 					if (0 == i) return;
-					al_zdispl.add(i, al_zdispl.remove(i-1)); //swap
+					al_zdispl.add(i-1, al_zdispl.remove(i)); //swap
+					if (null != root) root.update(this, d, i-1, i);
 					break;
 				case LayerSet.BOTTOM:
+					// to first position in the list
 					al_zdispl.add(0, al_zdispl.remove(i));
+					if (null != root) root.update(this, d, 0, i);
 					break;
 			}
 			updateInDatabase("stack_index");
