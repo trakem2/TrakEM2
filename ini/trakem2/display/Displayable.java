@@ -1754,7 +1754,7 @@ public abstract class Displayable extends DBObject {
 					if (!step.apply(action)) ok = false;
 				}
 			}
-			Display.update(d.getLayerSet());
+			Display.update(d.getLayerSet(), false);
 			return ok;
 		}
 		public boolean isEmpty() {
