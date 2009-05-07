@@ -1617,12 +1617,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	/** Add an undo step for the transformations of all Displayable in hs. */
 	public void addTransformStep(final Collection<Displayable> col) {
-		Utils.log2("Added transform step for col");
+		//Utils.log2("Added transform step for col");
 		addEditStep(new Displayable.DoTransforms().addAll(col));
 	}
 	/** Add an undo step for the transformations of all Displayable in all layers. */
 	public void addTransformStep() {
-		Utils.log2("Added transform step for all");
+		//Utils.log2("Added transform step for all");
 		Displayable.DoTransforms dt = new Displayable.DoTransforms();
 		for (final Layer la : al_layers) {
 			dt.addAll(la.getDisplayables());

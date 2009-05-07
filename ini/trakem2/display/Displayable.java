@@ -1858,7 +1858,6 @@ public abstract class Displayable extends DBObject {
 
 		/** Set the Displayable's fields. */
 		final boolean to1(final Displayable d) {
-			Utils.log2("## to1");
 			d.width = width;
 			d.height = height;
 			d.setAffineTransform(at); // updates bucket
