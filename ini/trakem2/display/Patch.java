@@ -1212,7 +1212,7 @@ public final class Patch extends Displayable {
 						list = new CoordinateTransformList();
 						list.add(this.ct);
 					}
-					if (0 == mod) { //SHIFT is down
+					if (0 == mod) { //SHIFT is not down
 						AffineModel2D am = new AffineModel2D();
 						am.set(this.at);
 						if (null == list) list = new CoordinateTransformList();
@@ -1251,7 +1251,7 @@ public final class Patch extends Displayable {
 					}
 					try {
 						// a roi local to the image bounding box
-						final Area a = new Area(new Rectangle(0, 0, (int)width, (int)height));
+						final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
 						a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
 
 						if (M.isEmpty(a)) {
@@ -1259,12 +1259,23 @@ public final class Patch extends Displayable {
 							return;
 						}
 
+						// Correct numerical instability:
+						// (needed when ROI intersects left margin of the image, at least)
+						Rectangle ab = a.getBounds();
+						if (-1 == ab.x || -1 == ab.y) {
+							AffineTransform aff = new AffineTransform();
+							aff.translate(-1 == ab.x ? 1 : 0, -1 == ab.y ? 1 : 0);
+							Area aa = a.createTransformedArea(aff);
+							a.reset();
+							a.add(aa);
+						}
+
 						if (null != ct) {
 							// inverse the coordinate transform
 							final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
 							final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 
-							ByteProcessor rmask = new ByteProcessor((int)width, (int)height);
+							ByteProcessor rmask = new ByteProcessor((int)o_width, (int)o_height);
 
 							if (is_new) {
 								rmask.setColor(Toolbar.getForegroundColor());
