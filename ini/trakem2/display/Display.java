@@ -2102,6 +2102,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				} else if (active instanceof Pipe) {
 					item = new JMenuItem("Identify..."); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("Identify with axes..."); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
 				}
 			}
 			if (canvas.isTransforming()) {
@@ -3192,15 +3193,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		} else if (command.equals("Identify...")) {
 			// for pipes only for now
-			if (!(active instanceof Pipe)) return;
-			ini.trakem2.vector.Compare.findSimilar((Pipe)active);
+			if (!(active instanceof Line3D)) return;
+			ini.trakem2.vector.Compare.findSimilar((Line3D)active);
 		} else if (command.equals("Identify with axes...")) {
 			if (!(active instanceof Pipe)) return;
 			if (Project.getProjects().size() < 2) {
 				Utils.showMessage("You need at least two projects open:\n-A reference project\n-The current project with the pipe to identify");
 				return;
 			}
-			ini.trakem2.vector.Compare.findSimilarWithAxes((Pipe)active);
+			ini.trakem2.vector.Compare.findSimilarWithAxes((Line3D)active);
+		} else if (command.equals("Identify with fiducials...")) {
+			if (!(active instanceof Line3D)) return;
+			ini.trakem2.vector.Compare.findSimilarWithFiducials((Line3D)active);
 		} else if (command.equals("View orthoslices")) {
 			if (!(active instanceof Patch)) return;
 			Display3D.showOrthoslices(((Patch)active));

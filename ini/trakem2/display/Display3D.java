@@ -830,6 +830,7 @@ public final class Display3D {
 				ct.setLocked(true);
 
 			} catch (Exception e) {
+				Utils.logAll("Mesh generation failed for " + title + "\"  from " + pt);
 				IJError.print(e);
 			}
 			u_lock.unlock();

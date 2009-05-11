@@ -236,6 +236,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					return;
 				}
 				ini.trakem2.vector.Compare.findSimilarWithAxes((Line3D)obd);
+			} else if (command.equals("Identify with fiducials...")) {
+				if (!(obd instanceof Line3D)) return;
+				ini.trakem2.vector.Compare.findSimilarWithFiducials((Line3D)obd);
 			} else if (command.equals("Show centered in Display")) {
 				if (obd instanceof Displayable) {
 					Displayable displ = (Displayable)obd;

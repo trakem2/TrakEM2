@@ -27,10 +27,12 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.display.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.tree.Thing;
 import mpi.fruitfly.general.MultiThreading;
 import mpicbg.models.MovingLeastSquaresTransform;
 import mpicbg.models.PointMatch;
 import mpicbg.models.AffineModel3D;
+import mpicbg.models.TranslationModel3D;
 
 import ij.IJ;
 import ij.gui.GenericDialog;
@@ -55,6 +57,10 @@ import javax.swing.border.LineBorder;
 import javax.swing.event.*;
 import javax.swing.table.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.awt.Rectangle;
@@ -391,7 +397,7 @@ public class Compare {
 	}
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
-	static public final Bureaucrat findSimilarWithAxes(final Line3D pipe, final Line3D[] axes, final Line3D[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut, final boolean substring_matching, final boolean direct, final double delta, final int sort_by_distance_type) {
+	static public final Bureaucrat findSimilarWithAxes(final Line3D pipe, final Line3D[] axes, final Line3D[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut, final boolean substring_matching, final boolean direct, final double delta, final int distance_type) {
 		Worker worker = new Worker("Comparing pipes...") {
 			public void run() {
 				startedWorking();
@@ -522,7 +528,7 @@ public class Compare {
 		if (show_gui) {
 			// add to the GUI (will sort them by phys_dist)
 			qh.addMatches(qm);
-			qh.sortMatches(new ChainMatchComparator(sort_by_distance_type));
+			qh.sortMatches(new ChainMatchComparator(distance_type));
 			qh.createGUI(vs_axes, vs_axes_ref);
 		}
 
@@ -732,6 +738,10 @@ public class Compare {
 
 		boolean relative = false;
 
+		// For Moving Least Squares:
+		ArrayList<Tuple3d> so, ta;
+		Class model_class;
+
 		// these chains are kept only calibrated, NOT transformed. Because each query will resample it to its own delta, and then transform it.
 		final ArrayList<Chain> chains_ref = new ArrayList<Chain>();
 
@@ -741,14 +751,30 @@ public class Compare {
 			this.T = T;
 		}
 
+		QueryHolder(Calibration cal1, Calibration cal2, Map<String,Tuple3d> source, Map<String,Tuple3d> target, Class model_class) throws Exception {
+			this.cal1 = cal1;
+			this.cal2 = cal2;
+			this.T = null; // not used
+			this.so = new ArrayList<Tuple3d>();
+			this.ta = new ArrayList<Tuple3d>();
+			if (!extractMatches(source, target, so, ta)) throw new Exception("No matches found between fiducial sets!");
+			this.model_class = model_class;
+		}
+
 		/** Will calibrate and transform the chain's VectorString3D. */
-		final void addQuery(final Chain chain, final double delta) {
-			final VectorString3D vs = chain.vs;
+		final void addQuery(final Chain chain, final double delta) throws Exception {
+			VectorString3D vs = chain.vs;
 			// Order is important:
 			// 1 - calibrate: bring to user-space microns, whatever
 			if (null != cal1) vs.calibrate(cal1);
 			// 2 - transform into reference
 			if (null != T) vs.transform(T);
+			else if (null != so && null != ta) {
+				ArrayList<VectorString3D> lvs = new ArrayList<VectorString3D>();
+				lvs.add(vs);
+				chain.vs = transferVectorStrings(lvs, so, ta, model_class).get(0);
+				vs = chain.vs; // changed pointer
+			}
 			// 3 - resample, within reference space
 			vs.resample(delta);
 
@@ -790,23 +816,28 @@ public class Compare {
 		}
 
 		/** Bring Chain q (query) to reference space. */
-		final VectorString3D makeVS1(final Chain q, final double delta) {
+		final VectorString3D makeVS1(final Chain q, final double delta) throws Exception {
 			return asVS1((VectorString3D)q.vs.clone(), delta);
 		}
 		/** Bring Chain q (query) to reference space. Will resample after transforming it, to its own average delta. */
-		final VectorString3D makeVS1(final Chain q) {
+		final VectorString3D makeVS1(final Chain q)  throws Exception {
 			return asVS1((VectorString3D)q.vs.clone(), 0);
 		}
 
 		/** Returns a resampled and transformed copy of the pipe's VectorString3D. */
-		final VectorString3D makeVS1(final Line3D q, final double delta) {
+		final VectorString3D makeVS1(final Line3D q, final double delta) throws Exception {
 			return asVS1(q.asVectorString3D(), delta);
 		}
 
-		final private VectorString3D asVS1(final VectorString3D vs, final double delta) {
+		final private VectorString3D asVS1(VectorString3D vs, final double delta) throws Exception {
 			if (null != cal1 && !vs.isCalibrated()) vs.calibrate(cal1);
 			//Utils.log2("VS1: Length before transforming: " + vs.computeLength());
 			if (null != T) vs.transform(T);
+			else if (null != so && null != ta) {
+				ArrayList<VectorString3D> lvs = new ArrayList<VectorString3D>();
+				lvs.add(vs);
+				vs = transferVectorStrings(lvs, so, ta, model_class).get(0);
+			}
 			//Utils.log2("VS1: Length after transforming: " + vs.computeLength());
 			// Resample after transforming, of course!
 			vs.resample(0 == delta ? vs.getAverageDelta() : delta);
@@ -827,7 +858,7 @@ public class Compare {
 			}
 			return hs;
 		}
-		Hashtable<Line3D,VectorString3D> getAllQueried() {
+		Hashtable<Line3D,VectorString3D> getAllQueried() throws Exception {
 			Hashtable<Line3D,VectorString3D> ht = new Hashtable<Line3D,VectorString3D>();
 			for (Chain c : queries) {
 				double delta = c.vs.getDelta();
@@ -835,6 +866,11 @@ public class Compare {
 					VectorString3D vs = p.asVectorString3D();
 					if (null != cal1) vs.calibrate(cal1);
 					if (null != T) vs.transform(T); // to reference space
+					else if (null != so && null != ta) {
+						ArrayList<VectorString3D> lvs = new ArrayList<VectorString3D>();
+						lvs.add(vs);
+						vs = transferVectorStrings(lvs, so, ta, model_class).get(0);
+					}
 					vs.resample(delta);
 					ht.put(p, vs);
 				}
@@ -1056,7 +1092,7 @@ public class Compare {
 			this.common.setCalibration(cal);
 		}
 		/** Shows the matched chain in 3D. */
-		public void show3D(Chain query, Chain ref) {
+		public void show3D(Chain query, Chain ref) throws Exception {
 			reset();
 			if (!query_shows) showAxesAndQueried();
 			VectorString3D vs = qh.makeVS2(ref, query.vs.getDelta()); // was: makeVS
@@ -1065,7 +1101,7 @@ public class Compare {
 			if (Display3D.contains(common, title)) return;
 			Display3D.addMesh(common, vs, title, ref.getColor());
 		}
-		public void showFull3D(Chain query, Chain ref) {
+		public void showFull3D(Chain query, Chain ref) throws Exception {
 			reset();
 			if (!query_shows) {
 				showAxes(query.getRoot().getColor());
@@ -1073,7 +1109,7 @@ public class Compare {
 			}
 			showNode3D(ref, false);
 		}
-		public void showNearby(Chain query) {
+		public void showNearby(Chain query) throws Exception {
 			reset();
 			if (!query_shows) showAxesAndQueried();
 			ArrayList<ChainMatch> matches = qh.matches.get(query);
@@ -1086,7 +1122,7 @@ public class Compare {
 				}
 			}
 		}
-		void showNode3D(Chain chain, boolean as_query) {
+		void showNode3D(Chain chain, boolean as_query) throws Exception {
 			Line3D root = chain.getRoot();
 			ProjectThing pt = (ProjectThing)root.getProject().findProjectThing((ZDisplayable)root).getParent();
 			HashSet hs = pt.findChildrenOfTypeR(Line3D.class);
@@ -1103,7 +1139,7 @@ public class Compare {
 				Display3D.addMesh(common, vs, title, p.getColor());
 			}
 		}
-		public void showAxesAndQueried() {
+		public void showAxesAndQueried() throws Exception {
 			reset();
 			Color qcolor = null;
 			final Hashtable<Line3D,VectorString3D> queried = qh.getAllQueried();
@@ -1134,7 +1170,7 @@ public class Compare {
 			}
 			query_shows = true;
 		}
-		public void showInterpolated(Editions ed, Chain query, Chain ref) {
+		public void showInterpolated(Editions ed, Chain query, Chain ref) throws Exception {
 			reset();
 			if (!query_shows) showAxesAndQueried();
 			String title = "Av. " + query.getTitle() + " - " + ref.getTitle();
@@ -1689,10 +1725,14 @@ public class Compare {
 			final Chain ref = model.cm.get(row).ref;
 
 			if (2 == me.getClickCount()) {
-				if (me.isShiftDown()) {
-					model.vis.show3D(model.query, ref);
-				} else {
-					ref.showCentered2D(false);
+				try {
+					if (me.isShiftDown()) {
+						model.vis.show3D(model.query, ref);
+					} else {
+						ref.showCentered2D(false);
+					}
+				} catch (Exception e) {
+					IJError.print(e);
 				}
 				return;
 			}
@@ -1715,26 +1755,28 @@ public class Compare {
 
 				ActionListener listener = new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
-						final String command = ae.getActionCommand();
-						if (command.equals(interp3D)) {
-							// for now, use the first selected only
-							try {
-								model.vis.showInterpolated(model.cm.get(sel[0]).ed, model.query, ref);
-							} catch (Exception e) {
-								IJError.print(e);
+						try {
+							final String command = ae.getActionCommand();
+							if (command.equals(interp3D)) {
+								// for now, use the first selected only
+								try {
+									model.vis.showInterpolated(model.cm.get(sel[0]).ed, model.query, ref);
+								} catch (Exception e) {
+									IJError.print(e);
+								}
+								return;
+							} else if (command.equals(show3D)) {
+								model.vis.show3D(model.query, ref);
+							} else if (command.equals(showCentered)) {
+								ref.showCentered2D(0 != (ae.getModifiers()  & ActionEvent.SHIFT_MASK));
+							} else if (command.equals(showAxes)) {
+								model.vis.showAxesAndQueried();
+							} else if (command.equals(showfull3D)) {
+								model.vis.showFull3D(model.query, ref);
+							} else if (command.equals(showNearby)) {
+								model.vis.showNearby(model.query);
 							}
-							return;
-						} else if (command.equals(show3D)) {
-							model.vis.show3D(model.query, ref);
-						} else if (command.equals(showCentered)) {
-							ref.showCentered2D(0 != (ae.getModifiers()  & ActionEvent.SHIFT_MASK));
-						} else if (command.equals(showAxes)) {
-							model.vis.showAxesAndQueried();
-						} else if (command.equals(showfull3D)) {
-							model.vis.showFull3D(model.query, ref);
-						} else if (command.equals(showNearby)) {
-							model.vis.showNearby(model.query);
-						}
+						} catch (Exception e) { IJError.print(e); }
 					}
 				};
 				JMenuItem item;
@@ -2781,7 +2823,7 @@ public class Compare {
 
 	/** Transform all points of all VectorString3D in vs using a Moving Least Squares Transform defined by the pairing of points in source to those in target.
 	 *  In short, bring source into target. */
-	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target) throws Exception {
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target, final Class model_class) throws Exception {
 		if (source.size() != target.size()) {
 			Utils.log2("Could not generate a MovingLeastSquaresTransform: different number of source and target points.");
 			return null;
@@ -2801,7 +2843,7 @@ public class Compare {
 		}
 
 		MovingLeastSquaresTransform mls = new MovingLeastSquaresTransform();
-		mls.setModel(AffineModel3D.class);
+		mls.setModel(model_class);
 		mls.setMatches(pm);
 
 		final float[] point = new float[3];
@@ -2852,6 +2894,26 @@ public class Compare {
 		return vt;
 	}
 
+	/** Filer both maps, looking for matches, and put them into empty lists so and ta. */
+	static private boolean extractMatches(final Map<String,Tuple3d> source, final Map<String,Tuple3d> target,
+			                     final List<Tuple3d> so, final List<Tuple3d> ta) {
+		if (null == source || null == target || null == so || null == ta) return false;
+		so.clear();
+		ta.clear();
+		for (final Map.Entry<String,Tuple3d> e : target.entrySet()) {
+			final Tuple3d point = source.get(e.getKey());
+			if (null != point) {
+				so.add(point);
+				ta.add(e.getValue());
+			}
+		}
+		if (0 == so.size()) {
+			Utils.log2("No points in common!");
+			return false;
+		}
+		return true;
+	}
+
 	/** Transfer vs via a moving least squares transform by matching source named points into equally named target named points. 
 	 *  If no points in common, returns null. */
 	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final Map<String,Tuple3d> source, final Map<String,Tuple3d> target) throws Exception {
@@ -2870,7 +2932,7 @@ public class Compare {
 			return null;
 		}
 		Utils.log2("Found points in common: " + so.size());
-		return transferVectorStrings(vs, so, ta);
+		return transferVectorStrings(vs, so, ta, AffineModel3D.class);
 	}
 
 	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final ProjectThing source_fiduciary, final ProjectThing target_fiduciary) throws Exception {
@@ -2907,5 +2969,238 @@ public class Compare {
 			}
 		}
 		return fide;
+	}
+
+	static public final Bureaucrat findSimilarWithFiducials(final Line3D pipe) {
+		return Bureaucrat.createAndStart(new Worker("Comparing...") {
+			public void run() {
+				startedWorking();
+				try {
+
+		// Check that a sister or a sister of a parent of the pipe is of type fiducial_points
+		ProjectThing ptpipe = pipe.getProject().findProjectThing(pipe);
+		if (null == ptpipe) {
+			Utils.log("Pipe is not within the ProjectTree hierarchy of objects: can't compare!");
+			return;
+		}
+		ProjectThing node = ptpipe;
+		search: while (true) {
+			// 1 - check if any sisters of the node are of type fiducial_points
+			ProjectThing parent = (ProjectThing) node.getParent();
+			if (null == parent || null == parent.getChildren()) {
+				Utils.log("Could not find fiducials for pipe " + pipe);
+				return;
+			}
+			for (ProjectThing sister : parent.getChildren()) {
+				if (sister.getType().equals("fiducial_points")) {
+					// found!
+					node = sister;
+					break search;
+				}
+			}
+			node = parent;
+			// continue upstream search until found or parent is null
+		}
+		//
+		final ArrayList<Project> projects = Project.getProjects();
+		// Find all ProjectThing of type "fiducial points" in all projects, and get the chains of pipes for each.
+		ArrayList<ProjectThing> fiducials = new ArrayList<ProjectThing>();
+		for (final Project pr : projects) {
+			Set<ProjectThing> fids = pr.getRootProjectThing().findChildrenOfTypeR("fiducial_points");
+			if (null == fids || 0 == fids.size()) {
+				Utils.log2("No fiducial points found in project: " + pr);
+				return;
+			}
+			Set<Thing> parents = new HashSet<Thing>();
+			for (ProjectThing pt : fids) {
+				if (parents.contains(pt.getParent())) {
+					Utils.log("Ignoring fiducials " + pt + " : there's already one for the same parent ProjectThing.");
+					continue;
+				}
+				parents.add(pt.getParent());
+				fiducials.add(pt);
+			}
+		}
+		if (1 == fiducials.size()) {
+			Utils.log("Can't identify " + pipe + ": found only one set of fiducials: it's own!");
+			return;
+		}
+		// Remove the pipe's fiducial_points
+		fiducials.remove(node);
+		//
+		final String[] sf = new String[fiducials.size()];
+		int next = 0;
+		for (ProjectThing pt : fiducials) {
+			sf[next++] = pt.getProject() + " -- " + pt + " #" + pt.getId();
+		}
+		GenericDialog gd = new GenericDialog("Identify with fiducials");
+		gd.addMessage("Identify: " + pipe.toString());
+		gd.addMessage("Using object fiducials: " + node + " #" + node.getId());
+		gd.addChoice("Reference fiducials: ", sf, sf[0]);
+		gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
+		gd.addNumericField("point_interdistance: ", 1, 2);
+		gd.addCheckbox("skip insertion/deletion strings at ends when scoring", false);
+		gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
+		gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
+		final String[] transforms = {"translation",
+					     "rigid",
+					     "similarity",
+					     "affine"};
+		gd.addChoice("Transform_type: ", transforms, transforms[3]);
+		gd.addCheckbox("Chain_branches", true);
+		gd.addChoice("Scoring type: ", distance_types, distance_types[3]);
+		gd.addCheckbox("normalize", false);
+		gd.addCheckbox("direct", true);
+		gd.addCheckbox("score_mutations_only", false);
+		gd.addCheckbox("substring_matching", false);
+
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+
+		final int i_ref_fiducials = gd.getNextChoiceIndex();
+
+		ProjectThing ref_fiducials = fiducials.get(i_ref_fiducials);
+
+		final double delta = gd.getNextNumber();
+		boolean skip_ends_ = gd.getNextBoolean();
+		int max_mut_ = (int)gd.getNextNumber();
+		float min_chunk_ = (float)gd.getNextNumber();
+		if (skip_ends_) {
+			if (max_mut_ < 0) max_mut_ = 0;
+			if (min_chunk_ <= 0) skip_ends_ = false;
+			if (min_chunk_ > 1) min_chunk_ = 1;
+		}
+		final boolean skip_ends = skip_ends_;
+		final int max_mut = max_mut_;
+		final float min_chunk = min_chunk_;
+		final int transform_type = gd.getNextChoiceIndex();
+		final boolean chain_branches = gd.getNextBoolean();
+		final int distance_type = gd.getNextChoiceIndex();
+		final boolean normalize = gd.getNextBoolean();
+		final boolean direct = gd.getNextBoolean();
+		final boolean score_mut = gd.getNextBoolean();
+		final boolean substring_matching = gd.getNextBoolean();
+
+		// Ready to start
+
+		Map<String,Tuple3d> fid_query = extractPoints(node);
+		Map<String,Tuple3d> fid_ref   = extractPoints(ref_fiducials);
+
+		final Calibration cal1 = (null != pipe.getLayerSet() ? pipe.getLayerSet().getCalibration() : null);
+		final Calibration cal2 = ref_fiducials.getProject().getRootLayerSet().getCalibration();
+
+		Class model_class = AffineModel3D.class;
+		switch (transform_type) {
+			case 0:
+				model_class = TranslationModel3D.class;
+				break;
+			/* // Don't exist yet:
+			case 1:
+				model_class = RigidModel3D.class;
+				break;
+			case 2:
+				model_class = SimilarityModel3D.class;
+				break;
+			*/
+			case 3:
+			default:
+				Utils.log2("Using AffineModel3D for the Moving Least Squares transform.");
+				model_class = AffineModel3D.class;
+				break;
+		}
+
+		final QueryHolder qh = new QueryHolder(cal1, cal2, fid_query, fid_ref, model_class);
+
+		// Find chains for each reference fiducial ProjectThing
+
+		ArrayList<ProjectThing> children = ref_fiducials.getParent().getChildren();
+		if (null == children) {
+			Utils.log("No chains for fiducial set " + ref_fiducials + " #" + ref_fiducials.getId());
+			return;
+		}
+
+		ArrayList<Chain> ref_chains = new ArrayList<Chain>();
+
+		if (chain_branches) {
+			// create all chained ref branches
+			for (ProjectThing sister : children) {
+				if (ref_fiducials == sister) continue;
+				ref_chains.addAll(createPipeChains(sister, sister.getProject().getRootLayerSet()));
+			}
+			// add all possible query chains, starting at the parent of the chosen pipe
+			for (Chain chain : createPipeChains((ProjectThing) ptpipe.getParent(), pipe.getLayerSet())) {
+				qh.addQuery(chain, 0 == delta ? chain.vs.getAverageDelta() : delta);
+			}
+		} else {
+			// just add a single-pipe chain for each ref pipe
+			for (ProjectThing child : children) {
+				for (ProjectThing pt : child.findChildrenOfTypeR(new HashSet<ProjectThing>(), "pipe")) {
+					ZDisplayable zd = (ZDisplayable) pt.getObject();
+					if (null != zd) ref_chains.add(new Chain((Line3D)zd));
+				}
+			}
+			// no branching: single query of one single-pipe chain
+			Chain ch = new Chain(pipe);
+			qh.addQuery(ch, 0 == delta ? ch.vs.getAverageDelta() : delta);
+		}
+
+		// set and calibrate all ref chains
+		qh.setReferenceChains(ref_chains);
+
+		final int n_ref_chains = qh.chains_ref.size();
+		final QueryMatchList[] qm = new QueryMatchList[qh.queries.size()];
+		int ne = 0;
+		for (Chain query : qh.queries) qm[ne++] = new QueryMatchList(query, n_ref_chains);
+
+		final int n_proc = Runtime.getRuntime().availableProcessors();
+
+		ThreadPoolExecutor exec = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_proc);
+
+		ArrayList<Future<Boolean>> jobs = new ArrayList<Future<Boolean>>();
+
+		int kk = 0;
+		for (final Chain ref : qh.chains_ref) {
+			final int k = kk;
+			kk++;
+			jobs.add(exec.submit(new Callable<Boolean>() {
+				public Boolean call() {
+					// match it againts all queries
+					int next = 0;
+					for (Chain query : qh.queries) {
+						VectorString3D vs1 = query.vs;
+						final double delta1 = 0 == delta ? vs1.getDelta() : delta; // WARNING unchecked delta value
+						final VectorString3D vs2 = qh.makeVS2(ref, delta1);
+						final Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk, 1, direct, substring_matching);
+						final Editions ed = (Editions)ob[0];
+						//qh.addMatch(query, ref, ed, seq_sim, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
+
+						final float prop_len = substring_matching ?
+									  1.0f
+									: ((float)vs1.length()) / vs2.length();
+
+						final double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
+						qm[next++].cm[k] = new ChainMatch(query, ref, ed, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W));
+					}
+					return true;
+				}
+			}));
+		}
+		for (Future fu : jobs) {
+			fu.get(); // locks until done
+		}
+
+		qh.addMatches(qm);
+		qh.sortMatches(new ChainMatchComparator(distance_type));
+		qh.createGUI(null, null);
+
+		exec.shutdown();
+
+				} catch (Exception e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
+			}
+		}, pipe.getProject());
 	}
 }
