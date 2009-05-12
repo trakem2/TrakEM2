@@ -1361,8 +1361,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (activate) {
 			DisplayablePanel dp = ht_panels.get(d);
 			if (null != dp) dp.setActive(true);
+			else updateVisibleTab(d instanceof ZDisplayable);
 			selection.clear();
 			selection.add(d);
+			Display.repaint(d.getLayerSet()); // update the al_top list to contain the active one, or background image for a new Patch.
+			Utils.log2("Added " + d);
 		}
 		if (repaint_snapshot) navigator.repaint(true);
 	}
@@ -1753,7 +1756,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.active = displ;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 
-		// renew current image if necessary
 		if (null != displ && displ == prev_active) {
 			// make sure the proper tab is selected.
 			selectTab(displ);

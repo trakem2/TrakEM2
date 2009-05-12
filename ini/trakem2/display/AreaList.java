@@ -257,7 +257,7 @@ public class AreaList extends ZDisplayable {
 		if (null == layer) return super.getBounds(r, null);
 		final Area area = (Area)ht_areas.get(layer.getId());
 		if (null == area) {
-			if (null == r) return new Rectangle();
+			if (null == r) return layer_set.get2DBounds(); // no areas yet
 			r.x = 0;
 			r.y = 0;
 			r.width = 0;

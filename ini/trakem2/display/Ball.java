@@ -919,7 +919,6 @@ public class Ball extends ZDisplayable {
 
 	/** Returns a listing of all balls contained here, one per row with index, x, y, z, and radius, all calibrated.
 	 * 'name-id' is a column that displays the title of this Ball object only when such title is purely a number.
-	 *
 	 * */
 	public ResultsTable measure(ResultsTable rt) {
 		if (-1 == n_points) setupForDisplay(); //reload

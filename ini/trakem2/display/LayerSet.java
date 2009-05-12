@@ -762,13 +762,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		zdispl.setLayerSet(this);
 		// The line below can fail (and in the addSilently as well) if one can add zdispl objects while no Layer has been created. But the ProjectThing.createChild prevents this situation.
 		zdispl.setLayer(al_layers.get(0));
-		zdispl.updateInDatabase("layer_set_id"); // TODO: update stack index?
+		zdispl.updateInDatabase("layer_set_id"); // TODO: update stack index? It should!
 
 		// insert into bucket
 		if (null != root) {
 			// add as last, then update
 			root.put(al_zdispl.size()-1, zdispl, zdispl.getBoundingBox(null));
-			root.update(this, zdispl, 0, al_zdispl.size()-1);
+			//root.update(this, zdispl, 0, al_zdispl.size()-1);
 		}
 
 		Display.add(this, zdispl);

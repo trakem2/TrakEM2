@@ -1483,7 +1483,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	/** Repaint everything, updating offscreen graphics if so specified. */
 	public void repaint(final boolean update_graphics) {
 		this.update_graphics = update_graphics | this.update_graphics;
-		RT.paint(null, update_graphics);
+		RT.paint(null, this.update_graphics);
 	}
 
 	/** Overridden to multithread. This method is here basically to enable calls to the FakeImagePlus.draw from the HAND and other tools to repaint properly.*/
