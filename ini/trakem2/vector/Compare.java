@@ -2092,7 +2092,7 @@ public class Compare {
 
 		Object[] ob = gatherChains(p, cp);
 		final ArrayList<Chain> chains = (ArrayList<Chain>)ob[0];
-		final ArrayList[] p_chains = (ArrayList[])ob[2]; // to keep track of each project's chains
+		final ArrayList[] p_chains = (ArrayList[])ob[1]; // to keep track of each project's chains
 		ob = null;
 		if (null == chains) {
 			finishedWorking();
