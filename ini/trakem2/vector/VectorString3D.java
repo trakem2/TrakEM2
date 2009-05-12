@@ -1626,7 +1626,9 @@ public class VectorString3D implements VectorString {
 				}
 			}
 
-			Utils.log2("createInterpolatedPoints: lengths " + ed.editions.length + ", " + the_source.size() + " first,last: " + first + ", " + last);
+			if (with_source) {
+				Utils.log2("createInterpolatedPoints: lengths " + ed.editions.length + ", " + the_source.size() + " first,last: " + first + ", " + last);
+			}
 
 			VectorString3D vs = new VectorString3D(x, y, z, ed.vs1.isClosed());
 			vs.source = the_source;
@@ -1718,19 +1720,17 @@ public class VectorString3D implements VectorString {
 		return len / vs.length;
 	}
 
-	/** Determine if any point of the given VectorString3D falls within a radius of half the length of this VectorString3D, as measured from the center point of this VectorString3D. */
+	/** Determine if any point of the given VectorString3D falls within a radius of any of the points in this VectorString3D. */
 	public boolean isNear(final VectorString3D vs, final double radius) {
-		final double xc = x[length/2];
-		final double yc = y[length/2];
-		final double zc = z[length/2];
-		final double sq_radius = radius * radius; // * radius;
-		Utils.log2("center: " + length/2);
-		for (int i=0; i<vs.length; i++) {
-			double sqd = sqDistance(xc, yc, zc, vs.x[i], vs.y[i], vs.z[i]);
-			Utils.log("radius: " + sq_radius + " sqd: " + sqd);
-			if (sqd <= sq_radius) {
-				Utils.log2("Found nearby " + vs);
-				return true;
+		final double sq_radius = radius * radius;
+		for (int k=0; k<this.length; k++) {
+			for (int i=0; i<vs.length; i++) {
+				double sqd = sqDistance(x[k], y[k], z[k], vs.x[i], vs.y[i], vs.z[i]);
+				//Utils.log("radius: " + sq_radius + " sqd: " + sqd);
+				if (sqd <= sq_radius) {
+					Utils.log2("Found nearby " + vs + " at " + Utils.cutNumber(Math.sqrt(sqd), 2));
+					return true;
+				}
 			}
 		}
 		return false;

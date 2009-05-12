@@ -745,12 +745,14 @@ public class Compare {
 		// these chains are kept only calibrated, NOT transformed. Because each query will resample it to its own delta, and then transform it.
 		final ArrayList<Chain> chains_ref = new ArrayList<Chain>();
 
+		/** Constructor for Transform3D computed from the mushroom body axes. */
 		QueryHolder(Calibration cal1, Calibration cal2, Transform3D T) {
 			this.cal1 = cal1;
 			this.cal2 = cal2;
 			this.T = T;
 		}
 
+		/** Moving Least Squares constructor. */
 		QueryHolder(Calibration cal1, Calibration cal2, Map<String,Tuple3d> source, Map<String,Tuple3d> target, Class model_class) throws Exception {
 			this.cal1 = cal1;
 			this.cal2 = cal2;
@@ -774,6 +776,8 @@ public class Compare {
 				lvs.add(vs);
 				chain.vs = transferVectorStrings(lvs, so, ta, model_class).get(0);
 				vs = chain.vs; // changed pointer
+				if (null != cal2) chain.vs.setCalibration(cal2); // set, not apply. The MLS transform brought the query into the reference space.
+				                  // this step is not strictly necessary, it's just for completeness.
 			}
 			// 3 - resample, within reference space
 			vs.resample(delta);
@@ -837,6 +841,7 @@ public class Compare {
 				ArrayList<VectorString3D> lvs = new ArrayList<VectorString3D>();
 				lvs.add(vs);
 				vs = transferVectorStrings(lvs, so, ta, model_class).get(0);
+				vs.setCalibration(cal2); // the MLS transform brought vs into reference space, hence cal2.
 			}
 			//Utils.log2("VS1: Length after transforming: " + vs.computeLength());
 			// Resample after transforming, of course!
@@ -870,6 +875,7 @@ public class Compare {
 						ArrayList<VectorString3D> lvs = new ArrayList<VectorString3D>();
 						lvs.add(vs);
 						vs = transferVectorStrings(lvs, so, ta, model_class).get(0);
+						if (null != cal2) vs.setCalibration(cal2); // the MLS transform brought vs into reference space, hence cal2.
 					}
 					vs.resample(delta);
 					ht.put(p, vs);
@@ -1110,15 +1116,24 @@ public class Compare {
 			showNode3D(ref, false);
 		}
 		public void showNearby(Chain query) throws Exception {
+			GenericDialog gd = new GenericDialog("Distance");
+			Calibration cal = query.vs.getCalibrationCopy();
+			gd.addNumericField("radius (" + (null != cal ? cal.getUnits() : "pixels") + "):", 5, 1);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final double radius = gd.getNextNumber();
+			if (Double.isNaN(radius) || radius <= 0) {
+				Utils.log("Cannot use radius: " + radius);
+				return;
+			}
 			reset();
 			if (!query_shows) showAxesAndQueried();
 			ArrayList<ChainMatch> matches = qh.matches.get(query);
 			final VectorString3D vs_query = qh.makeVS1(query);
-			final double radius = vs_query.computeLength() * 2;
 			for (ChainMatch match : matches) {
 				VectorString3D vs_ref = qh.makeVS2(match.ref, query.vs.getDelta());
 				if (vs_query.isNear(vs_ref, radius)) {
-					Display3D.addMesh(common, vs_ref, match.ref.getTitle(), match.ref.getColor());
+					Display3D.addMesh(common, vs_ref, match.ref.getCellTitle(), match.ref.getColor());
 				}
 			}
 		}
@@ -1960,6 +1975,7 @@ public class Compare {
 				}
 				// Register all VectorString3D relative to the first project:
 				final List<VectorString3D> lvs = new ArrayList<VectorString3D>();
+				final Calibration cal2 = p[0].getRootLayerSet().getCalibrationCopy();
 				for (Chain chain : chains) {
 					Project pr = chain.pipes.get(0).getProject();
 					if (pr == p[0]) continue; // first project is reference, no need to transform.
@@ -1967,7 +1983,7 @@ public class Compare {
 					lvs.add(chain.vs);
 					chain.vs = transferVectorStrings(lvs, fiducials.get(pr), fiducials.get(p[0])).get(0);
 					// Set (but do not apply!) the calibration of the reference project
-					chain.vs.setCalibration(p[0].getRootLayerSet().getCalibrationCopy());
+					chain.vs.setCalibration(cal2);
 				}
 			} else if (cp.transform_type < 3) {
 				// '0', '1' and '2' involve a 3D affine computed from the 3 axes
