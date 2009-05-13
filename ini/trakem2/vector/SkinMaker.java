@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2006, 2007 Albert Cardona.
+Copyright (C) 2005-2009 Albert Cardona.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -163,10 +163,19 @@ public class SkinMaker {
 			// fetch morphed ones and fill all_perimeters array:
 			for (int i=1; i<vs.length; i++) {
 				Editions ed = new Editions(vs[i-1], vs[i], delta, closed);
-				double[][][] d = SkinMaker.getMorphedPerimeters(vs[i-1], vs[i], n_morphed_perimeters, ed);
+				// correct for reverse order: choose the best scoring
+				VectorString2D rev = ((VectorString2D)vs[i].clone());
+				rev.reverse();
+				Editions ed_rev = new Editions(vs[i-1], rev, delta, closed);
+				if (ed_rev.getDistance() < ed.getDistance()) {
+					vs[i] = rev;
+					ed = ed_rev;
+				}
+
+				final double[][][] d = SkinMaker.getMorphedPerimeters(vs[i-1], vs[i], n_morphed_perimeters, ed);
 				// else, add them all
-				double z_start = vs[i-1].getPoint(2, 0); // z
-				double z_inc = (vs[i].getPoint(2, 0) - z_start) / (double)( 0 == d.length ? 1 : (d.length + 1)); // if zero, none are added anyway; '1' is a dummy number
+				final double z_start = vs[i-1].getPoint(2, 0); // z
+				final double z_inc = (vs[i].getPoint(2, 0) - z_start) / (double)( 0 == d.length ? 1 : (d.length + 1)); // if zero, none are added anyway; '1' is a dummy number
 				//Utils.log2("vs[i].z: " + vs[i].getPoint(2, 0) + "  z_start: " + z_start + "  z_inc is: " + z_inc);
 				VectorString2D[] p = new VectorString2D[d.length];
 				for (int k=0; k<d.length; k++) {

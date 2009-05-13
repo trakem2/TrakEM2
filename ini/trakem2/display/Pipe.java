@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -2025,7 +2025,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 		// obtain the already transformed subperimeters
 		final Polygon[] pol = getSubPerimeters(layer);
 		if (null == pol) {
-			if (null == r) return new Rectangle();
+			if (null == r) return layer_set.get2DBounds(); // no points yet
 			r.x = 0;
 			r.y = 0;
 			r.width = 0;

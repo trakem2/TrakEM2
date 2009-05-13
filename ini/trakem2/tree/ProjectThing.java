@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -181,7 +181,7 @@ public final class ProjectThing extends DBObject implements Thing {
 
 	public String toString() {
 		// 'object' can be the title, if not directly holding a Displayable object
-		final StringBuffer sb = new StringBuffer();
+		final StringBuilder sb = new StringBuilder();
 		if (null == object) sb.append(template.getType());
 		else sb.append(object.toString()).append(' ').append('[').append(template.getType()).append(']');
 		return sb.toString();
@@ -458,6 +458,7 @@ public final class ProjectThing extends DBObject implements Thing {
 		if (null != object && object instanceof Line3D) {
 			addPopupItem("Identify...", listener, al_items);
 			addPopupItem("Identify with axes...", listener, al_items);
+			addPopupItem("Identify with fiducials...", listener, al_items);
 		}
 
 		addPopupItem("Measure", listener, al_items);

@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -92,7 +92,7 @@ public class ImageSaver {
 		}
 		*/
 		BufferedImage bi = null;
-		if (as_grey) { // even better would be to make a raster directly from the byte[] array, and pass that to the encoder
+		if (as_grey) { // even better would be to make a raster directly from the byte[] array, and pass that to the encoder. Unfortunately, would have to handle specially all non-8-bit images.
 			bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_BYTE_GRAY); //, (IndexColorModel)ip.getColorModel());
 		} else {
 			bi = new BufferedImage(ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_RGB);
