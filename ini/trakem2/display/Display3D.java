@@ -485,7 +485,7 @@ public final class Display3D {
 	}
 
 	/** Returns a stack suitable for the ImageJ 3D Viewer, either 8-bit gray or 8-bit color.
-	 *  If the PatchStach is already of the right type, it is returned,
+	 *  If the PatchStack is already of the right type, it is returned,
 	 *  otherwise a copy is made in the proper type.
 	 */
 	static private ImagePlus get8BitStack(final PatchStack ps) {
@@ -497,8 +497,12 @@ public final class Display3D {
 			case ImagePlus.GRAY32:
 				// convert stack to 8-bit
 				return ps.createGray8Copy();
-			default:
+			case ImagePlus.GRAY8:
+			case ImagePlus.COLOR_256:
 				return ps;
+			default:
+				Utils.logAll("Cannot handle stacks of type: " + ps.getType());
+				return null;
 		}
 	}
 
