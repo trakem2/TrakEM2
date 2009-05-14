@@ -1667,7 +1667,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return;
 		}
 
-		if (null == active && null != imp.getRoi()) {
+		if (null == active && null != imp.getRoi() && KeyEvent.VK_A != keyCode) { // control+a and a roi should select under roi
 			IJ.getInstance().keyPressed(ke);
 			return;
 		}
@@ -1744,7 +1744,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				break;
 			case KeyEvent.VK_A:
 				if (0 == (ke.getModifiers() ^ Utils.getControlModifier())) {
-					display.getSelection().selectAll();
+					Roi roi = getFakeImagePlus().getRoi();
+					if (null != roi) display.getSelection().selectAll(roi, true);
+					else display.getSelection().selectAllVisible();
 					Display.repaint(display.getLayer(), display.getSelection().getBox(), 0);
 					ke.consume();
 					break; // INSIDE the 'if' block, so that it can bleed to the default block which forwards to active!

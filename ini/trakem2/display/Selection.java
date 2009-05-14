@@ -621,6 +621,18 @@ public class Selection {
 		selectAll(al);
 	}
 
+	/** Select all isVisible() objects in the Display's current layer, preserving the active one (if any) as active; includes all the ZDisplayables, whether visible in this layer or not, as long as their return true from isVisible(). */
+	public void selectAllVisible() {
+		if (null == display) return;
+		ArrayList al = display.getLayer().getDisplayables();
+		al.addAll(display.getLayer().getParent().getZDisplayables());
+		for (Iterator it = al.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable) it.next();
+			if (!d.isVisible()) it.remove();
+		}
+		if (al.size() > 0) selectAll(al);
+	}
+
 	/** Select all objects in the given layer, preserving the active one (if any) as active. */
 	public void selectAll(Layer layer) {
 		selectAll(layer.getDisplayables());
@@ -628,6 +640,15 @@ public class Selection {
 
 	/** Select all objects under the given roi, in the current display's layer. */
 	public void selectAll(Roi roi, boolean visible_only) {
+		if (null == display) return;
+		if (null == roi) {
+			if (visible_only) {
+				selectAllVisible();
+				return;
+			}
+			// entire 2D bounds:
+			roi = new ShapeRoi(display.getLayerSet().get2DBounds());
+		}
 		//Utils.log2("roi bounds: " + roi.getBounds());
 		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
 
@@ -638,12 +659,14 @@ public class Selection {
 		aroi = aroi.createTransformedArea(affine);
 		ArrayList al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
 		al.addAll(display.getLayer().getParent().getZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only));
+		/* // redundant
 		if (visible_only) {
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
 				if (!d.isVisible()) it.remove();
 			}
 		}
+		*/
 		if (al.size() > 0) selectAll(al);
 	}
 
