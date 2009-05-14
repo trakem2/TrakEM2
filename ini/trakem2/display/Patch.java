@@ -1369,4 +1369,27 @@ public final class Patch extends Displayable {
 			return true;
 		}
 	}
+
+	/** Considers the alpha mask. */
+	public boolean contains(final int x_p, final int y_p) {
+		if (!hasAlphaChannel()) return super.contains(x_p, y_p);
+		// else, get pixel from image
+		if (project.getLoader().isUnloadable(this)) return super.contains(x_p, y_p);
+		final Image img = project.getLoader().fetchImage(this, 0.12499); // TODO ideally, would ask for image within 256x256 dimensions, but that would need knowing the screen image dimensions beforehand, or computing it from the CoordinateTransform, which may be very costly.
+		if (Loader.isSignalImage(img)) return super.contains(x_p, y_p);
+		final int w = img.getWidth(null);
+		final double scale = w / width;
+		final Point2D.Double pd = inverseTransformPoint(x_p, y_p);
+		final int x2 = (int)(pd.x * scale);
+		final int y2 = (int)(pd.y * scale);
+		final int[] pvalue = new int[1];
+		final PixelGrabber pg = new PixelGrabber(img, x2, y2, 1, 1, pvalue, 0, w);
+		try {
+			pg.grabPixels();
+		} catch (InterruptedException ie) {
+			return super.contains(x_p, y_p);
+		}
+		// Not true if alpha value is zero
+		return 0 != (pvalue[0] & 0xff000000);
+	}
 }
