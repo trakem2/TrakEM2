@@ -87,7 +87,7 @@ public final class Display3D {
 	static private final int DEFAULT_RESAMPLE = 4;
 	/** If the LayerSet dimensions are too large, then limit to max 2048 for width or height and setup a scale.*/
 	private double scale = 1.0;
-	static private final int MAX_DIMENSION = 1024;
+	static private final int MAX_DIMENSION = 1024; // TODO change to LayerSet virtualization size
 
 	private String selected = null;
 
@@ -354,7 +354,11 @@ public final class Display3D {
 			try {
 				fu.get(); // wait until done
 			} catch (Exception e) { IJError.print(e); }
-			Display3D.resetView(pt.getProject().getRootLayerSet());
+			Display3D d3d = (Display3D) ht_layer_sets.get(pt.getProject().getRootLayerSet()); // TODO should change for nested layer sets
+			if (null != d3d) {
+				d3d.universe.resetView(); // reset the absolute center
+				d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
+			}
 		}}.start();
 	}
 
@@ -413,7 +417,7 @@ public final class Display3D {
 				setWaitingCursor(); // the above may be creating a display
 				//sw.elapsed("after creating and/or retrieving Display3D");
 				Future<Content> fu = d3d.addMesh(child, displ, resample);
-				if (wait && -1 != d3d.resample) {
+				if (wait) {
 					list.add(fu.get());
 				}
 
@@ -450,7 +454,7 @@ public final class Display3D {
 		d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.toggleLock(); // locks the added content
+		ct.setLocked(true); // locks the added content
 	}
 
 	static public void showVolume(Patch p) {
@@ -465,7 +469,7 @@ public final class Display3D {
 		d3d.universe.addVoltex(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.toggleLock(); // locks the added content
+		ct.setLocked(true); // locks the added content
 	}
 
 	static private void setTransform(Content ct, Patch p) {
@@ -481,7 +485,7 @@ public final class Display3D {
 	}
 
 	/** Returns a stack suitable for the ImageJ 3D Viewer, either 8-bit gray or 8-bit color.
-	 *  If the PatchStach is already of the right type, it is returned,
+	 *  If the PatchStack is already of the right type, it is returned,
 	 *  otherwise a copy is made in the proper type.
 	 */
 	static private ImagePlus get8BitStack(final PatchStack ps) {
@@ -493,8 +497,12 @@ public final class Display3D {
 			case ImagePlus.GRAY32:
 				// convert stack to 8-bit
 				return ps.createGray8Copy();
-			default:
+			case ImagePlus.GRAY8:
+			case ImagePlus.COLOR_256:
 				return ps;
+			default:
+				Utils.logAll("Cannot handle stacks of type: " + ps.getType());
+				return null;
 		}
 	}
 
@@ -764,16 +772,23 @@ public final class Display3D {
 		}
 		Color color = null;
 		float alpha = 1.0f;
+		final String title;
 		if (null != displ) {
 			color = displ.getColor();
 			alpha = displ.getAlpha();
-		} else {
-			// for profile_list: get from the first (what a kludge)
+			title = makeTitle(displ);
+		} else if (pt.getType().equals("profile_list")) {
+			// for profile_list: get from the first (what a kludge; there should be a ZDisplayable ProfileList object)
 			Object obp = ((ProjectThing)pt.getChildren().get(0)).getObject();
 			if (null == obp) return null;
 			Displayable di = (Displayable)obp;
 			color = di.getColor();
 			alpha = di.getAlpha();
+			Object ob = pt.getParent().getTitle();
+			if (null == ob || ob.equals(pt.getParent().getType())) title = pt.toString() + " #" + pt.getId(); // Project.getMeaningfulTitle can't handle profile_list properly
+			else title = ob.toString() + " /[" + pt.getParent().getType() + "]/[profile_list] #" + pt.getId();
+		} else {
+			title = pt.toString() + " #" + pt.getId();
 		}
 
 		Content ct = null;
@@ -785,7 +800,6 @@ public final class Display3D {
 			u_lock.lock();
 			try {
 				// craft a unique title (id is always unique)
-				String title = null == displ ? pt.toString() + " #" + pt.getId() : makeTitle(displ);
 				if (ht_pt_meshes.contains(pt) || universe.contains(title)) {
 					// remove content from universe
 					universe.removeContent(title);
@@ -817,9 +831,10 @@ public final class Display3D {
 				// Set general content properties
 				ct.setTransparency(1f - alpha);
 				// Default is unlocked (editable) transformation; set it to locked:
-				ct.toggleLock();
+				ct.setLocked(true);
 
 			} catch (Exception e) {
+				Utils.logAll("Mesh generation failed for " + title + "\"  from " + pt);
 				IJError.print(e);
 			}
 			u_lock.unlock();
@@ -886,7 +901,7 @@ public final class Display3D {
 				//d3d.universe.ensureScale((float)(width*scale));
 				ct = d3d.universe.addMesh(triangles, new Color3f(color), title, /*(float)(width*scale),*/ 1);
 				ct.setTransparency(transp);
-				ct.toggleLock();
+				ct.setLocked(true);
 			} catch (Exception e) {
 				IJError.print(e);
 			}

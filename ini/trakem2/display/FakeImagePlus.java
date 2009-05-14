@@ -127,6 +127,7 @@ public class FakeImagePlus extends ImagePlus {
 			for (int i=d.length -1; i>-1; i--) {
 				if (d[i].getClass() == Patch.class && d[i].contains(x, y)) {
 					Patch p = (Patch)d[i];
+					if (!p.isVisible()) continue;
 					FakeImagePlus.this.type = p.getType(); // for proper value string display
 					if (!p.isStack() && Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
 						// Gather the ImagePlus: will be faster than using a PixelGrabber on an awt image
