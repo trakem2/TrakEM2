@@ -169,7 +169,7 @@ public final class Blending {
 					if (weight > 0) weights[next++] = weight;
 				}
 
-				final int i = y * p_o_height + x;
+				final int i = y * p_o_width + x;
 
 				if (respect_current_mask) {
 					// Don't compute if no overlap or if current mask value is zero
