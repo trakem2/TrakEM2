@@ -1291,7 +1291,9 @@ public class AreaList extends ZDisplayable {
 
 		final Point3f[] verts = new Point3f[list.size()];
 
-		fix3DPoints(list, verts, layer_set.previous(layer_set.getLayer(i_first_layer)), 0, dx, dy, rsw, rsh, sz);
+		final TreeMap<Integer,Point3f> output = new TreeMap<Integer,Point3f>();
+
+		fix3DPoints(list, output, verts, layer_set.previous(layer_set.getLayer(i_first_layer)), 0, dx, dy, rsw, rsh, sz);
 
 		//ts.remove(new Float(0));
 
@@ -1302,12 +1304,14 @@ public class AreaList extends ZDisplayable {
 			//ts.remove(new Float(slice_index + 1));
 
 			// If layer is empty, continue
+			/* // YEAH don't! At least the immediate next layer would have points, like the extra Z level after last layer, to account for the thickness of the layer!
 			if (empty_layers.contains(la)) {
 				slice_index++;
 				continue;
 			}
+			*/
 
-			fix3DPoints(list, verts, la, slice_index + 1, dx, dy, rsw, rsh, sz);  // +1 because of padding
+			fix3DPoints(list, output, verts, la, slice_index + 1, dx, dy, rsw, rsh, sz);  // +1 because of padding
 
 			slice_index++;
 		}
@@ -1317,7 +1321,7 @@ public class AreaList extends ZDisplayable {
 		try {
 			// Do the last layer again, capturing from slice_index+1 to +2, since the last layer has two Z planes in which it has pixels:
 			Layer la = layer_set.getLayer(i_first_layer + slice_index -1); // slice_index has been ++ so no need for +1 now; rather, to get the layer, -1
-			fix3DPoints(list, verts, la, slice_index +1, dx, dy, rsw, rsh, sz); // not +2, just +1, since it's been ++ at last step of the loop
+			fix3DPoints(list, output, verts, la, slice_index +1, dx, dy, rsw, rsh, sz); // not +2, just +1, since it's been ++ at last step of the loop
 			//ts.remove(new Float(slice_index +1));
 		} catch (Exception ee) {
 			IJError.print(ee);
@@ -1327,7 +1331,19 @@ public class AreaList extends ZDisplayable {
 		//Utils.log2("Remaining p.z to process: ");
 		//for (final Float pz : ts) Utils.log2("remains:   z: " + pz);
 
-		return java.util.Arrays.asList(verts);
+		// Handle potential errors:
+		if (0 != list.size() - output.size()) {
+			Utils.log2("Unprocessed/unused points: " + (list.size() - output.size()));
+			for (int i=0; i<verts.length; i++) {
+				if (null == verts[i]) {
+					Point3f p = (Point3f) list.get(i);
+					Utils.log2("verts[" + i + "] = " + p.x + ", " + p.y + ", " + p.z);
+				}
+			}
+			return new ArrayList(output.values());
+		} else {
+			return java.util.Arrays.asList(verts);
+		}
 
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -1335,14 +1351,23 @@ public class AreaList extends ZDisplayable {
 		return null;
 	}
 
-	private final void fix3DPoints(final List list, final Point3f[] verts, final Layer la, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz) {
+	/**
+	 * @param list The original points
+	 * @param output The accumulated list of modified points to construct a mesh from
+	 * @param verts The array of vertices, each index is filled if the point has been processed already.
+	 * @param la The Layer to process points for.
+	 * @param layer_index The stack slice index corresponding to the Layer @param la.
+	 */
+	private final void fix3DPoints(final List list, final TreeMap<Integer,Point3f> output, final Point3f[] verts, final Layer la, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz) {
 		final double la_z = la.getZ();
 		final double la_thickness = la.getThickness();
+		int next = 0;
 		// Find all pixels that belong to the layer, and transform them back:
 		for (int i=0; i<verts.length; i++) {
 			if (null != verts[i]) continue; // already processed! The unprocessed Z is merely coincident with a processed Z.
 			final Point3f p = (Point3f) list.get(i);
-			if (p.z >= layer_index && p.z < layer_index + 1) {
+			final int pz = (int)(p.z + 0.05f);
+			if ( pz >= layer_index && pz < layer_index + 1) {
 				// correct pixel position:
 				// -- The '-1' corrects for zero padding
 				// -- The 'rsw','rsh' scales back to LayerSet coords
@@ -1355,6 +1380,7 @@ public class AreaList extends ZDisplayable {
 				p.z = (float)((la_z + la_thickness * (p.z - layer_index)) * sz); // using pixelWidth, not pixelDepth!
 
 				verts[i] = p;
+				output.put(i, p);
 			}
 		}
 		//Utils.log2("processed slice index " + layer_index + " for layer " + la);
