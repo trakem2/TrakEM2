@@ -2315,6 +2315,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 			menu = new JMenu("Selection");
 			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Select all visible"); item.addActionListener(this); menu.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Utils.getControlModifier(), true));
 			if (0 == layer.getDisplayables().size() && 0 == layer.getParent().getZDisplayables().size()) item.setEnabled(false);
 			item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
@@ -3165,6 +3166,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			new Search();
 		} else if (command.equals("Select all")) {
 			selection.selectAll();
+			repaint(Display.this.layer, selection.getBox(), 0);
+		} else if (command.equals("Select all visible")) {
+			selection.selectAllVisible();
 			repaint(Display.this.layer, selection.getBox(), 0);
 		} else if (command.equals("Select none")) {
 			Rectangle box = selection.getBox();
