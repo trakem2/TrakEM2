@@ -215,7 +215,7 @@ public class Profile extends Displayable {
 					}
 					// example: C 34.5,45.6 45.7,23.0 34.8, 78.0 C ..
 				}
-				this.closed = (-1 != data.lastIndexOf('z')); // 'z' must be lowercase to comply with SVG style
+				// NO, usability problems // this.closed = (-1 != data.lastIndexOf('z')); // 'z' must be lowercase to comply with SVG style
 				if (this.closed) {
 					// prepend last left control point and delete from the end
 					al_p_l.add(0, al_p_l.remove(al_p_l.size() -1));
@@ -636,19 +636,11 @@ public class Profile extends Displayable {
 				} else if (me.isAltDown()) {
 					resetControlPoints(index);
 					return;
-				} else if (me.isShiftDown()) {
-					//preconditions: at least 2 points!
-					if (n_points < 2) {
-						return;
-					}
-					toggleClosed();
-					generateInterpolatedPoints(0.05);
-					repaint(false);
-					return;
 				} else if (0 == index && n_points > 1 && !closed) {
-					//close curve, reset left control point of the first point and set it up for dragging
+					/* NO, usability problems //close curve, reset left control point of the first point and set it up for dragging
 					closed = true;
 					updateInDatabase("closed");
+					*/
 					p_l[0][0] = p[0][0];
 					p_l[1][0] = p[1][0];
 					index = -1;
@@ -1361,6 +1353,16 @@ public class Profile extends Displayable {
 				ke.consume();
 				if (closed) toggleClosed();
 				updateInDatabase("points");
+			}
+			break;
+		case KeyEvent.VK_C: // toggle close with shift+c
+			if (0 == (ke.getModifiers() ^ java.awt.Event.SHIFT_MASK)) {
+				//preconditions: at least 2 points!
+				if (n_points > 1) {
+					toggleClosed();
+					generateInterpolatedPoints(0.05);
+					ke.consume();
+				}
 			}
 			break;
 		}
