@@ -636,18 +636,19 @@ public class Profile extends Displayable {
 				} else if (me.isAltDown()) {
 					resetControlPoints(index);
 					return;
-				} else if (0 == index && n_points > 1 && !closed) {
-					/* NO, usability problems //close curve, reset left control point of the first point and set it up for dragging
-					closed = true;
-					updateInDatabase("closed");
-					*/
-					p_l[0][0] = p[0][0];
-					p_l[1][0] = p[1][0];
-					index = -1;
-					index_r = -1;
-					index_l = 0; //the first one
-					repaint(false);
-					return;
+				} else if (me.isShiftDown()) {
+					if (0 == index && n_points > 1 && !closed) {
+						//close curve, reset left control point of the first point and set it up for dragging
+						closed = true;
+						updateInDatabase("closed");
+						p_l[0][0] = p[0][0];
+						p_l[1][0] = p[1][0];
+						index = -1;
+						index_r = -1;
+						index_l = 0; //the first one
+						repaint(false);
+						return;
+					}
 				}
 			}
 
