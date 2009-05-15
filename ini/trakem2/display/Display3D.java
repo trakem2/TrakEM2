@@ -836,8 +836,9 @@ public final class Display3D {
 			} catch (Exception e) {
 				Utils.logAll("Mesh generation failed for " + title + "\"  from " + pt);
 				IJError.print(e);
+			} finally {
+				u_lock.unlock();
 			}
-			u_lock.unlock();
 		}
 
 		Utils.log2(pt.toString() + " n points: " + triangles.size());
@@ -904,8 +905,9 @@ public final class Display3D {
 				ct.setLocked(true);
 			} catch (Exception e) {
 				IJError.print(e);
+			} finally {
+				d3d.u_lock.unlock();
 			}
-			d3d.u_lock.unlock();
 		}
 
 		return ct;
