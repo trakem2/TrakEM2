@@ -75,13 +75,13 @@ public class Profile extends Displayable {
 	/**The number of points.*/
 	protected int n_points;
 	/**The array of clicked points.*/
-	protected double[][] p;
+	protected double[][] p = new double[2][5];
 	/**The array of left control points, one for each clicked point.*/
-	protected double[][] p_l;
+	protected double[][] p_l = new double[2][5];
 	/**The array of right control points, one for each clicked point.*/
-	protected double[][] p_r;
+	protected double[][] p_r = new double[2][5];
 	/**The array of interpolated points generated from p, p_l and p_r.*/
-	protected double[][] p_i;
+	protected double[][] p_i = new double[2][0];
 	/**Paint/behave as open or closed curve.*/
 	protected boolean closed = false;
 
@@ -89,10 +89,6 @@ public class Profile extends Displayable {
 	public Profile(Project project, String title, double x, double y) {
 		super(project, title, x, y);
 		n_points = 0;
-		p = new double[2][5];
-		p_l = new double[2][5];
-		p_r = new double[2][5];
-		p_i = new double[2][0];
 		addToDatabase();
 	}
 
