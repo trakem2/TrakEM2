@@ -770,6 +770,25 @@ public final class Display3D {
 			Utils.log2("Skipping non-multiple-of-3 vertices list generated for " + displ.getTitle());
 			return null;
 		}
+
+
+		/* // debug: extra check: find NaN
+		for (Point3f p3 : (List<Point3f>)triangles) {
+			if (null == p3) {
+				Utils.log2("Found a null Point3f! Aborting.");
+				return null;
+			}
+			if (Float.isNaN(p3.x)
+			 || Float.isNaN(p3.y)
+			 || Float.isNaN(p3.z))
+			{
+				Utils.log("A Point3f has a NaN coordinate! Aborting.");
+				return null;
+			}
+		}
+		*/
+
+
 		Color color = null;
 		float alpha = 1.0f;
 		final String title;
@@ -833,9 +852,10 @@ public final class Display3D {
 				// Default is unlocked (editable) transformation; set it to locked:
 				ct.setLocked(true);
 
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				Utils.logAll("Mesh generation failed for " + title + "\"  from " + pt);
 				IJError.print(e);
+				e.printStackTrace();
 			} finally {
 				u_lock.unlock();
 			}
