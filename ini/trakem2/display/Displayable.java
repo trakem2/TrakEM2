@@ -467,23 +467,14 @@ public abstract class Displayable extends DBObject {
 		return getBounds(null != r ? r : new Rectangle());
 	}
 
-	/** Bounding box of the transformed data; when no data, returns the bounds of the entire layer.
+	/** Bounding box of the transformed data (or 0,0,0,0 when no data).
 	 *  Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
 	private final Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;
 		r.width = (int)this.width;
 		r.height = (int)this.height;
-		// If no data yet:
-		if (0 == width && 0 == height) {
-			if (null == r) return layer.getParent().get2DBounds();
-			else {
-				r.width = (int)layer.getLayerWidth();
-				r.height = (int)layer.getLayerHeight();
-				return r;
-			}
-		}
-		// Else, data-delimiting bounds:
+		// Data-delimiting bounds:
 		if (this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
 			r.x += (int)this.at.getTranslateX();
 			r.y += (int)this.at.getTranslateY();

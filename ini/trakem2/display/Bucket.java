@@ -88,9 +88,26 @@ public class Bucket {
 		// cache all bounding boxes
 		final HashMap<Displayable,Rectangle> bboxes = new HashMap<Displayable,Rectangle>();
 		for (Displayable d : list.values()) {
-			bboxes.put(d, d.getBoundingBox(new Rectangle()));
+			bboxes.put(d, Bucket.getBounds(d));
 		}
 		populate(container, db_map, w+w, h+h, w, h, list, bboxes);
+	}
+
+	static private final Rectangle getBounds(final Displayable d) {
+		return getBounds(d, new Rectangle());
+	}
+
+	/** Get bounds of a Displayable ensuring that if it has zero dimensions, then the whole layer dimensions are assigned to it. */
+	static private final Rectangle getBounds(final Displayable d, final Rectangle tmp) {
+		final Rectangle box = d.getBoundingBox(tmp);
+		if (0 == box.width || 0 == box.height) {
+			// no data: then it must exist in all buckets, so when data is added anywhere, it can be found and updated.
+			box.x = 0;
+			box.y = 0;
+			box.width = (int) d.getLayer().getLayerWidth();
+			box.height = (int) d.getLayer().getLayerHeight();
+		}
+		return box;
 	}
 
 	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. Returns true if not empty. */
@@ -207,7 +224,7 @@ public class Bucket {
 			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
-				if (d.getBoundingBox(tmp).intersects(srcRect)) {
+				if (Bucket.getBounds(d, tmp).intersects(srcRect)) {
 					accum.put(entry.getKey(), d);
 				}
 			}
@@ -310,7 +327,7 @@ public class Bucket {
 	synchronized final void updatePosition(final Displayable d, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
 
 		final ArrayList<Bucket> list = db_map.get(d);
-		final Rectangle box = d.getBoundingBox(null);
+		final Rectangle box = Bucket.getBounds(d);
 		final int stack_index = d.getBucketable().getDisplayableList().indexOf(d);
 		if (null != list) {
 			for (Iterator<Bucket> it = list.iterator(); it.hasNext(); ) {
@@ -327,11 +344,19 @@ public class Bucket {
 
 	/** Add the given Displayable to all buckets that intercept its bounding box. */
 	synchronized final void put(final int stack_index, final Displayable d, final Rectangle box) {
+		if (0 == box.width || 0 == box.height) {
+			// d doesn't contain any data: use whole 2D world
+			box.width = (int) d.getLayer().getLayerWidth();
+			box.height = (int) d.getLayer().getLayerHeight();
+		}
+		putIn(stack_index, d, box);
+	}
+	private final void putIn(final int stack_index, final Displayable d, final Rectangle box) {
 		if (!intersects(box)) return;
 		// there will be at least one now
 		this.empty = false;
 		if (null != children) {
-			for (Bucket bu : children) bu.put(stack_index, d, box);
+			for (Bucket bu : children) bu.putIn(stack_index, d, box);
 		} else if (null != map) {
 			map.put(stack_index, d);
 			putToBucketMap(d, d.getBucketable().getBucketMap()); // the db_map
@@ -452,7 +477,7 @@ public class Bucket {
 			final Rectangle r = new Rectangle();
 			int i = 0;
 			for (Displayable d : col) {
-				d.getBoundingBox(r);
+				Bucket.getBounds(d, r);
 				sizes[i++] = Math.max(r.width, r.height);
 			}
 			Arrays.sort(sizes);
