@@ -1280,8 +1280,7 @@ public class Selection {
 	public boolean isLocked() {
 		if (null == active || null == hs || hs.isEmpty()) return false;
 		// loop directly to avoid looping through the same linked groups if two or more selected objects belong to the same linked group. The ht contains all linked items anyway.
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (Displayable d : hs) {
 			if (d.isLocked2()) return true;
 		}
 		return false;
