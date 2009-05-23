@@ -94,7 +94,7 @@ public final class Display3D {
 	// To fork away from the EventDispatchThread
 	static private ExecutorService launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
-	// To build meshes
+	// To build meshes, or edit them
 	private ExecutorService executors = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
 	/*
@@ -114,6 +114,7 @@ public final class Display3D {
 		computeScale(ls);
 		this.universe.show();
 		this.universe.getWindow().addWindowListener(new IW3DListener(this, ls));
+		this.universe.getWindow().setTitle(ls.getProject().toString() + " -- 3D Viewer");
 		// it ignores the listeners:
 		//preaddKeyListener(this.universe.getWindow(), ka);
 		//preaddKeyListener(this.universe.getWindow().getCanvas(), ka);
@@ -989,45 +990,50 @@ public final class Display3D {
 		return d3d.universe.getContent(new StringBuffer(pt.toString()).append(" #").append(pt.getId()).toString());
 	}
 
-	static public void setColor(final Displayable d, final Color color) {
-		launchers.submit(new Runnable() { public void run() {
-			final Display3D d3d = getDisplay(d.getLayer().getParent());
-			if (null == d3d) return; // no 3D displays open
-			d3d.executors.submit(new Runnable() { public void run() {
+	static public Future<Boolean> setColor(final Displayable d, final Color color) {
+		final Display3D d3d = getDisplay(d.getLayer().getParent());
+		if (null == d3d) return null; // no 3D displays open
+		return d3d.executors.submit(new Callable() { public Boolean call() {
 			Content content = d3d.universe.getContent(makeTitle(d));
-				if (null == content) content = getProfileContent(d);
-				if (null != content) content.setColor(new Color3f(color));
-			}});
+			if (null == content) content = getProfileContent(d);
+			if (null != content) {
+				content.setColor(new Color3f(color));
+				return true;
+			}
+			return false;
 		}});
 	}
 
-	static public void setTransparency(final Displayable d, final float alpha) {
-		if (null == d) return;
+	static public Future<Boolean> setTransparency(final Displayable d, final float alpha) {
+		if (null == d) return null;
 		Layer layer = d.getLayer();
-		if (null == layer) return; // some objects have no layer, such as the parent LayerSet.
-		Object ob = ht_layer_sets.get(layer.getParent());
-		if (null == ob) return;
-		Display3D d3d = (Display3D)ob;
-		String title = makeTitle(d);
-		Content content = d3d.universe.getContent(title);
-		if (null == content) content = getProfileContent(d);
-		if (null != content) content.setTransparency(1 - alpha);
-		else if (null == content && d.getClass().equals(Patch.class)) {
-			Patch pa = (Patch)d;
-			if (pa.isStack()) {
-				title = pa.getProject().getLoader().getFileName(pa);
-				for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
-					d3d = (Display3D)it.next();
-					for (Iterator cit = d3d.universe.getContents().iterator(); cit.hasNext(); ) {
-						Content c = (Content)cit.next();
-						if (c.getName().startsWith(title)) {
-							c.setTransparency(1 - alpha);
-							// no break, since there could be a volume and an orthoslice
+		if (null == layer) return null; // some objects have no layer, such as the parent LayerSet.
+		final Object ob = ht_layer_sets.get(layer.getParent());
+		if (null == ob) return null;
+		final Display3D d3d = (Display3D)ob;
+		return d3d.executors.submit(new Callable<Boolean>() { public Boolean call() {
+			String title = makeTitle(d);
+			Content content = d3d.universe.getContent(title);
+			if (null == content) content = getProfileContent(d);
+			if (null != content) content.setTransparency(1 - alpha);
+			else if (null == content && d.getClass().equals(Patch.class)) {
+				Patch pa = (Patch)d;
+				if (pa.isStack()) {
+					title = pa.getProject().getLoader().getFileName(pa);
+					for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
+						Display3D dd = (Display3D)it.next();
+						for (Iterator cit = dd.universe.getContents().iterator(); cit.hasNext(); ) {
+							Content c = (Content)cit.next();
+							if (c.getName().startsWith(title)) {
+								c.setTransparency(1 - alpha);
+								// no break, since there could be a volume and an orthoslice
+							}
 						}
 					}
 				}
 			}
-		}
+			return true;
+		}});
 	}
 
 	static public String makeTitle(final Displayable d) {
