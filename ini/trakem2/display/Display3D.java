@@ -65,17 +65,17 @@ import java.util.concurrent.Callable;
 public final class Display3D {
 
 	/** Table of LayerSet and Display3D - since there is a one to one relationship.  */
-	static private Hashtable ht_layer_sets = new Hashtable();
+	static private Hashtable<LayerSet,Display3D> ht_layer_sets = new Hashtable<LayerSet,Display3D>();
 	/**Control calls to new Display3D. */
 	static private Lock htlock = new Lock();
 
 	/** The sky will fall on your head if you modify any of the objects contained in this table -- which is a copy of the original, but the objects are the originals. */
-	static public Hashtable getMasterTable() {
-		return (Hashtable)ht_layer_sets.clone();
+	static public Hashtable<LayerSet,Display3D> getMasterTable() {
+		return new Hashtable<LayerSet,Display3D>(ht_layer_sets);
 	}
 
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
-	private Hashtable ht_pt_meshes = new Hashtable();
+	private Hashtable<ProjectThing,Content> ht_pt_meshes = new Hashtable<ProjectThing,Content>();
 
 	private Image3DUniverse universe;
 
@@ -239,12 +239,9 @@ public final class Display3D {
 	/** Reads the #ID in the name, which is immutable. */
 	private ProjectThing find(String name) {
 		long id = Long.parseLong(name.substring(name.lastIndexOf('#')+1));
-		for (Iterator it = ht_pt_meshes.keySet().iterator(); it.hasNext(); ) {
-			ProjectThing pt = (ProjectThing)it.next();
-			Displayable d = (Displayable)pt.getObject();
-			if (d.getId() == id) {
-				return pt;
-			}
+		for (final ProjectThing pt : ht_pt_meshes.keySet()) {
+			Displayable d = (Displayable) pt.getObject();
+			if (d.getId() == id) return pt;
 		}
 		return null;
 	}
@@ -300,22 +297,20 @@ public final class Display3D {
 				// test:
 				if (!hasLibs()) return null;
 				//
-				Object ob = ht_layer_sets.get(ls);
-				if (null == ob) {
-					final boolean[] done = new boolean[]{false};
-					javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
-						Display3D ob = new Display3D(ls);
-						ht_layer_sets.put(ls, ob);
-						done[0] = true;
-					}});
-					// wait to avoid crashes in amd64
-					// try { Thread.sleep(500); } catch (Exception e) {}
-					while (!done[0]) {
-						try { Thread.sleep(50); } catch (Exception e) {}
-					}
-					ob = ht_layer_sets.get(ls);
+				Display3D d3d = ht_layer_sets.get(ls);
+				if (null != d3d) return d3d;
+				// Else, new:
+				final boolean[] done = new boolean[]{false};
+				javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+					ht_layer_sets.put(ls, new Display3D(ls));
+					done[0] = true;
+				}});
+				// wait to avoid crashes in amd64
+				// try { Thread.sleep(500); } catch (Exception e) {}
+				while (!done[0]) {
+					try { Thread.sleep(10); } catch (Exception e) {}
 				}
-				return (Display3D)ob;
+				return ht_layer_sets.get(ls);
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
@@ -328,18 +323,18 @@ public final class Display3D {
 
 	/** Get the Display3D instance that exists for the given LayerSet, if any. */
 	static public Display3D getDisplay(final LayerSet ls) {
-		return (Display3D)ht_layer_sets.get(ls);
+		return ht_layer_sets.get(ls);
 	}
 
 	static public void setWaitingCursor() {
-		for (Iterator it = ht_layer_sets.values().iterator(); it.hasNext(); ) {
-			((Display3D)it.next()).universe.getWindow().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+		for (Display3D d3d : ht_layer_sets.values()) {
+			d3d.universe.getWindow().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 		}
 	}
 
 	static public void doneWaiting() {
-		for (Iterator it = ht_layer_sets.values().iterator(); it.hasNext(); ) {
-			((Display3D)it.next()).universe.getWindow().setCursor(Cursor.getDefaultCursor());
+		for (Display3D d3d : ht_layer_sets.values()) {
+			d3d.universe.getWindow().setCursor(Cursor.getDefaultCursor());
 		}
 	}
 
@@ -355,7 +350,7 @@ public final class Display3D {
 			try {
 				fu.get(); // wait until done
 			} catch (Exception e) { IJError.print(e); }
-			Display3D d3d = (Display3D) ht_layer_sets.get(pt.getProject().getRootLayerSet()); // TODO should change for nested layer sets
+			Display3D d3d = ht_layer_sets.get(pt.getProject().getRootLayerSet()); // TODO should change for nested layer sets
 			if (null != d3d) {
 				d3d.universe.resetView(); // reset the absolute center
 				d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
@@ -439,7 +434,7 @@ public final class Display3D {
 	}
 
 	static public void resetView(final LayerSet ls) {
-		Display3D d3d = (Display3D) ht_layer_sets.get(ls);
+		Display3D d3d = ht_layer_sets.get(ls);
 		if (null != d3d) d3d.universe.resetView();
 	}
 
@@ -566,37 +561,6 @@ public final class Display3D {
 		return sb_data.toString();
 	}
 
-	/** @param format works as extension as well. */
-	private void export(final ProjectThing pt, final String format) {
-		if (0 == ht_pt_meshes.size()) return;
-		// select file
-		File file = Utils.chooseFile("untitled", format);
-		if (null == file) return;
-		final String name = file.getName();
-		String name2 = name;
-		if (!name2.endsWith("." + format)) {
-			name2 += "." + format;
-		}
-		File f2 = new File(file.getParent() + "/" + name2);
-		int i = 1;
-		while (f2.exists()) {
-			name2 = name + "_" + i + "." + format;
-			f2 = new File(name2);
-		}
-		Hashtable ht_content = ht_pt_meshes;
-		if (null != pt) {
-			ht_content = new Hashtable();
-			ht_content.put(pt, ht_pt_meshes.get(pt));
-		}
-		if (format.equals("obj")) {
-			String[] data = createObjAndMtl(name2, ht_content);
-			Utils.saveToFile(f2, data[0]);
-			Utils.saveToFile(new File(f2.getParent() + "/" + name2 + ".mtl"), data[1]);
-		} else if (format.equals("dxf")) {
-			Utils.saveToFile(f2, createDXF(ht_content));
-		}
-	}
-
 	/** Wavefront format. Returns the contents of two files: one for materials, another for meshes*/
 	private String[] createObjAndMtl(final String file_name, final Hashtable ht_content) {
 		StringBuffer sb_obj = new StringBuffer("# TrakEM2 OBJ File\n");
@@ -680,15 +644,13 @@ public final class Display3D {
 		Object ob = pt.getObject();
 		if (!(ob instanceof Displayable)) return;
 		Displayable displ = (Displayable)ob;
-		Object d3ob = ht_layer_sets.get(displ.getLayerSet()); // TODO profile_list is going to fail here
-		if (null == d3ob) {
+		Display3D d3d = ht_layer_sets.get(displ.getLayerSet()); // TODO profile_list is going to fail here
+		if (null == d3d) {
 			// there is no Display3D showing the pt to remove
 			Utils.log2("No Display3D contains ProjectThing: " + pt);
 			return;
 		}
-		Display3D d3d = (Display3D)d3ob;
-		Object ob_mesh = d3d.ht_pt_meshes.remove(pt);
-		if (null == ob_mesh) {
+		if (null == d3d.ht_pt_meshes.remove(pt)) {
 			Utils.log2("No mesh contained within " + d3d + " for ProjectThing " + pt);
 			return; // not contained here
 		}
@@ -825,10 +787,6 @@ public final class Display3D {
 					universe.removeContent(title);
 					// no need to remove entry from table, it's overwritten below
 				}
-				// register mesh
-				ht_pt_meshes.put(pt, triangles);
-				// ensure proper default transform
-				//universe.resetView();
 
 				Color3f c3 = new Color3f(color);
 
@@ -852,6 +810,9 @@ public final class Display3D {
 				ct.setTransparency(1f - alpha);
 				// Default is unlocked (editable) transformation; set it to locked:
 				ct.setLocked(true);
+
+				// register mesh
+				ht_pt_meshes.put(pt, ct);
 
 			} catch (Throwable e) {
 				Utils.logAll("Mesh generation failed for " + title + "\"  from " + pt);
@@ -968,8 +929,7 @@ public final class Display3D {
 	static public boolean isDisplayed(final Displayable d) {
 		if (null == d) return false;
 		final String title = makeTitle(d);
-		for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
-			Display3D d3d = (Display3D)it.next();
+		for (Display3D d3d : ht_layer_sets.values()) {
 			if (null != d3d.universe.getContent(title)) return true;
 		}
 		if (d.getClass() == Profile.class) {
@@ -1008,9 +968,8 @@ public final class Display3D {
 		if (null == d) return null;
 		Layer layer = d.getLayer();
 		if (null == layer) return null; // some objects have no layer, such as the parent LayerSet.
-		final Object ob = ht_layer_sets.get(layer.getParent());
-		if (null == ob) return null;
-		final Display3D d3d = (Display3D)ob;
+		final Display3D d3d = ht_layer_sets.get(layer.getParent());
+		if (null == d3d) return null;
 		return d3d.executors.submit(new Callable<Boolean>() { public Boolean call() {
 			String title = makeTitle(d);
 			Content content = d3d.universe.getContent(title);
@@ -1020,8 +979,7 @@ public final class Display3D {
 				Patch pa = (Patch)d;
 				if (pa.isStack()) {
 					title = pa.getProject().getLoader().getFileName(pa);
-					for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
-						Display3D dd = (Display3D)it.next();
+					for (Display3D dd : ht_layer_sets.values()) {
 						for (Iterator cit = dd.universe.getContents().iterator(); cit.hasNext(); ) {
 							Content c = (Content)cit.next();
 							if (c.getName().startsWith(title)) {
@@ -1049,9 +1007,8 @@ public final class Display3D {
 	static public Future<Content> update(final Displayable d) {
 		Layer layer = d.getLayer();
 		if (null == layer) return null; // some objects have no layer, such as the parent LayerSet.
-		Object ob = ht_layer_sets.get(layer.getParent());
-		if (null == ob) return null;
-		Display3D d3d = (Display3D)ob;
+		Display3D d3d = ht_layer_sets.get(layer.getParent());
+		if (null == d3d) return null;
 		return d3d.addMesh(d.getProject().findProjectThing(d), d, d3d.resample);
 	}
 
