@@ -372,7 +372,7 @@ public final class Display3D {
 				return null;
 			}
 
-			final List<Content> list = new ArrayList<Content>();
+			final List<Content> list = new ArrayList<Content>(hs.size());
 
 			for (final Iterator it = hs.iterator(); it.hasNext(); ) {
 				// obtain the Displayable object under the node
@@ -418,6 +418,11 @@ public final class Display3D {
 				}
 
 				//sw.elapsed("after creating mesh");
+			}
+
+			// Since it's sometimes not obvious when done, say so:
+			if (wait && hs.size() > 1) {
+				Utils.logAll("Done showing " + hs.size());
 			}
 
 			return list;
