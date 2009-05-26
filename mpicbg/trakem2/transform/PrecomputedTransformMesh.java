@@ -18,7 +18,6 @@ package mpicbg.trakem2.transform;
 
 import ij.process.FloatProcessor;
 import mpicbg.models.CoordinateTransform;
-import mpicbg.models.NoninvertibleModelException;
 
 /**
  * Speeds up direct

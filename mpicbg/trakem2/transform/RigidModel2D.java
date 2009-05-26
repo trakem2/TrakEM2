@@ -13,12 +13,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- * 
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
- *
  */
 package mpicbg.trakem2.transform;
 
+/**
+ * 
+ * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @version 0.1b
+ */
 public class RigidModel2D extends mpicbg.models.RigidModel2D implements CoordinateTransform
 {
 
@@ -49,13 +51,16 @@ public class RigidModel2D extends mpicbg.models.RigidModel2D implements Coordina
 	}
 	
 	@Override
-	/**
-	 * TODO Make this more efficient
-	 */
 	final public RigidModel2D clone()
 	{
-		final RigidModel2D t = new RigidModel2D();
-		t.init( toDataString() );
-		return t;
+		final RigidModel2D m = new RigidModel2D();
+		m.cos = cos;
+		m.sin = sin;
+		m.tx = tx;
+		m.ty = ty;
+		m.itx = itx;
+		m.ity = ity;
+		m.cost = cost;
+		return m;
 	}
 }

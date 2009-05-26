@@ -19,6 +19,11 @@
  */
 package mpicbg.trakem2.transform;
 
+/**
+ * 
+ * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @version 0.2b
+ */
 public class TranslationModel2D extends mpicbg.models.TranslationModel2D implements CoordinateTransform
 {
 
@@ -48,13 +53,12 @@ public class TranslationModel2D extends mpicbg.models.TranslationModel2D impleme
 	}
 	
 	@Override
-	/**
-	 * TODO Make this more efficient
-	 */
 	final public TranslationModel2D clone()
 	{
-		final TranslationModel2D t = new TranslationModel2D();
-		t.init( toDataString() );
-		return t;
+		final TranslationModel2D m = new TranslationModel2D();
+		m.tx = tx;
+		m.ty = ty;
+		m.cost = cost;
+		return m;
 	}
 }

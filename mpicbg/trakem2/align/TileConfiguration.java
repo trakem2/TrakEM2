@@ -1,6 +1,3 @@
-/**
- * 
- */
 package mpicbg.trakem2.align;
 
 import ij.IJ;
