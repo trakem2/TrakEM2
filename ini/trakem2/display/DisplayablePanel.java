@@ -57,18 +57,21 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		this.c.addItemListener(this);
 		this.c.setIcon(INVISIBLE);
 		this.c.setSelectedIcon(VISIBLE);
+		this.c.setBackground(Color.white);
 
 		this.c_locked = new JCheckBox();
 		this.c_locked.setIcon(UNLOCKED);
 		this.c_locked.setSelectedIcon(LOCKED);
 		this.c_locked.setSelected(d.isLocked2());
 		this.c_locked.addItemListener(this);
+		this.c_locked.setBackground(Color.white);
 
 		this.sp = new SnapshotPanel(display, d);
 		title = new DisplayableTitleLabel(makeUpdatedTitle());
 		title.addMouseListener(this);
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 		JPanel checkboxes = new JPanel();
+		checkboxes.setBackground(Color.white);
 		BoxLayout b = new BoxLayout(checkboxes, BoxLayout.Y_AXIS);
 		checkboxes.setLayout(b);
 		checkboxes.add(c);
