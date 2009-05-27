@@ -931,13 +931,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// distribute Displayable to the tabs. Ignore LayerSet instances.
 		if (null == ht_panels) ht_panels = new Hashtable<Displayable,DisplayablePanel>();
 		else ht_panels.clear();
-		for (final Displayable d : layer.getDisplayables()) {
-			add(d, false, false);
-		}
 		for (final Displayable d : layer.getParent().getZDisplayables()) {
 			d.setLayer(layer);
-			add(d, false, false);
 		}
+		updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
 		navigator.repaint(true); // was not done when adding
 		Utils.updateComponent(tabs.getSelectedComponent());
 		//
@@ -2665,7 +2662,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private void updateSnapshots() {
 		Enumeration<DisplayablePanel> e = ht_panels.elements();
 		while (e.hasMoreElements()) {
-			e.nextElement().remake();
+			e.nextElement().repaint();
 		}
 		Utils.updateComponent(tabs.getSelectedComponent());
 	}
@@ -2692,7 +2689,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		if (null == c) return;
 		DisplayablePanel dp = ht_panels.get(d);
-		dp.remake();
+		dp.repaint();
 		Utils.updateComponent(c);
 	}
 

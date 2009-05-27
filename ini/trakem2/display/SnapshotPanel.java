@@ -38,31 +38,21 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 
 	private Display display;
 	private Displayable d;
-	static public final int FIXED_HEIGHT = 50;
+	static public final int SIDE = 50;
 
 	public SnapshotPanel(Display display, Displayable d) {
 		this.display = display;
 		this.d = d;
-		remake();
-	}
-
-	public void set(final Displayable d) {
-		if (this.d.getLayer().getParent().equals(d.getLayer().getParent())) {
-			this.d = d;
-			repaint();
-		} else {
-			this.d = d;
-			remake();
-		}
-	}
-
-	/** Redefine dimensions, which are defined by the LayerSet dimensions. */
-	public void remake() {
-		final int width = (int)(FIXED_HEIGHT / d.getLayer().getLayerHeight() * d.getLayer().getLayerWidth());
-		Dimension dim = new Dimension(width, FIXED_HEIGHT);
+		// Always a square
+		Dimension dim = new Dimension(SIDE, SIDE);
 		setMinimumSize(dim);
 		setMaximumSize(dim);
 		setPreferredSize(dim);
+	}
+
+	public void set(final Displayable d) {
+		this.d = d;
+		repaint();
 	}
 
 	public void update(Graphics g) {
@@ -85,16 +75,23 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 		}
 		// Else, repaint background to avoid flickering
 		g.setColor(Color.black);
-		g.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
+		g.fillRect(0, 0, SIDE, SIDE);
 		// ... and create the image in a separate thread and repaint again
 		FSLoader.repainter.submit(new Runnable() { public void run() {
 			if (!display.isPartiallyWithinViewport(d)) return;
-			final BufferedImage img = new BufferedImage(SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight(), BufferedImage.TYPE_INT_ARGB);
-			final Graphics2D g2 = img.createGraphics();
+			BufferedImage img = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_ARGB);
+			Graphics2D g2 = img.createGraphics();
+			double scale = Math.min(SIDE / d.getLayer().getLayerWidth(),
+				                SIDE / d.getLayer().getLayerHeight());
+			int lw = (int) d.getLayer().getLayerWidth();
+			int lh = (int) d.getLayer().getLayerHeight();
+			if (lw != lh) {
+				g2.setColor(Color.gray);
+				g2.fillRect(0, 0, SIDE, SIDE);
+			}
 			g2.setColor(Color.black);
-			g2.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
-			final double scale = FIXED_HEIGHT / d.getLayer().getLayerHeight();
 			g2.scale(scale, scale);
+			g2.fillRect(0, 0, lw, lh);
 
 			try {
 				// Avoid painting images that have an alpha mask: takes forever.

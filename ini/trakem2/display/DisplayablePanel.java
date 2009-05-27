@@ -87,10 +87,6 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		setBorder(BorderFactory.createLineBorder(Color.black));
 	}
 
-	public void remake() {
-		sp.remake();
-	}
-
 	/** For instance-recycling purposes. */
 	public void set(final Displayable d) {
 		this.d = d;
