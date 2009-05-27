@@ -39,6 +39,7 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 	private Display display;
 	private Displayable d;
 	static public final int SIDE = 50;
+	static public final Color GREY = new Color(215, 215, 215);
 
 	public SnapshotPanel(Display display, Displayable d) {
 		this.display = display;
@@ -86,7 +87,7 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 			int lw = (int) d.getLayer().getLayerWidth();
 			int lh = (int) d.getLayer().getLayerHeight();
 			if (lw != lh) {
-				g2.setColor(Color.gray);
+				g2.setColor(GREY);
 				g2.fillRect(0, 0, SIDE, SIDE);
 			}
 			g2.setColor(Color.black);
