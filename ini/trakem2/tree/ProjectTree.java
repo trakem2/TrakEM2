@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005,2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -236,6 +236,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					return;
 				}
 				ini.trakem2.vector.Compare.findSimilarWithAxes((Line3D)obd);
+			} else if (command.equals("Identify with fiducials...")) {
+				if (!(obd instanceof Line3D)) return;
+				ini.trakem2.vector.Compare.findSimilarWithFiducials((Line3D)obd);
 			} else if (command.equals("Show centered in Display")) {
 				if (obd instanceof Displayable) {
 					Displayable displ = (Displayable)obd;

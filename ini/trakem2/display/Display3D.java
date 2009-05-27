@@ -65,17 +65,17 @@ import java.util.concurrent.Callable;
 public final class Display3D {
 
 	/** Table of LayerSet and Display3D - since there is a one to one relationship.  */
-	static private Hashtable ht_layer_sets = new Hashtable();
+	static private Hashtable<LayerSet,Display3D> ht_layer_sets = new Hashtable<LayerSet,Display3D>();
 	/**Control calls to new Display3D. */
 	static private Lock htlock = new Lock();
 
 	/** The sky will fall on your head if you modify any of the objects contained in this table -- which is a copy of the original, but the objects are the originals. */
-	static public Hashtable getMasterTable() {
-		return (Hashtable)ht_layer_sets.clone();
+	static public Hashtable<LayerSet,Display3D> getMasterTable() {
+		return new Hashtable<LayerSet,Display3D>(ht_layer_sets);
 	}
 
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
-	private Hashtable ht_pt_meshes = new Hashtable();
+	private Hashtable<ProjectThing,Content> ht_pt_meshes = new Hashtable<ProjectThing,Content>();
 
 	private Image3DUniverse universe;
 
@@ -87,14 +87,14 @@ public final class Display3D {
 	static private final int DEFAULT_RESAMPLE = 4;
 	/** If the LayerSet dimensions are too large, then limit to max 2048 for width or height and setup a scale.*/
 	private double scale = 1.0;
-	static private final int MAX_DIMENSION = 1024;
+	static private final int MAX_DIMENSION = 1024; // TODO change to LayerSet virtualization size
 
 	private String selected = null;
 
 	// To fork away from the EventDispatchThread
 	static private ExecutorService launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
-	// To build meshes
+	// To build meshes, or edit them
 	private ExecutorService executors = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
 	/*
@@ -114,6 +114,7 @@ public final class Display3D {
 		computeScale(ls);
 		this.universe.show();
 		this.universe.getWindow().addWindowListener(new IW3DListener(this, ls));
+		this.universe.getWindow().setTitle(ls.getProject().toString() + " -- 3D Viewer");
 		// it ignores the listeners:
 		//preaddKeyListener(this.universe.getWindow(), ka);
 		//preaddKeyListener(this.universe.getWindow().getCanvas(), ka);
@@ -238,12 +239,9 @@ public final class Display3D {
 	/** Reads the #ID in the name, which is immutable. */
 	private ProjectThing find(String name) {
 		long id = Long.parseLong(name.substring(name.lastIndexOf('#')+1));
-		for (Iterator it = ht_pt_meshes.keySet().iterator(); it.hasNext(); ) {
-			ProjectThing pt = (ProjectThing)it.next();
-			Displayable d = (Displayable)pt.getObject();
-			if (d.getId() == id) {
-				return pt;
-			}
+		for (final ProjectThing pt : ht_pt_meshes.keySet()) {
+			Displayable d = (Displayable) pt.getObject();
+			if (d.getId() == id) return pt;
 		}
 		return null;
 	}
@@ -299,22 +297,20 @@ public final class Display3D {
 				// test:
 				if (!hasLibs()) return null;
 				//
-				Object ob = ht_layer_sets.get(ls);
-				if (null == ob) {
-					final boolean[] done = new boolean[]{false};
-					javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
-						Display3D ob = new Display3D(ls);
-						ht_layer_sets.put(ls, ob);
-						done[0] = true;
-					}});
-					// wait to avoid crashes in amd64
-					// try { Thread.sleep(500); } catch (Exception e) {}
-					while (!done[0]) {
-						try { Thread.sleep(50); } catch (Exception e) {}
-					}
-					ob = ht_layer_sets.get(ls);
+				Display3D d3d = ht_layer_sets.get(ls);
+				if (null != d3d) return d3d;
+				// Else, new:
+				final boolean[] done = new boolean[]{false};
+				javax.swing.SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+					ht_layer_sets.put(ls, new Display3D(ls));
+					done[0] = true;
+				}});
+				// wait to avoid crashes in amd64
+				// try { Thread.sleep(500); } catch (Exception e) {}
+				while (!done[0]) {
+					try { Thread.sleep(10); } catch (Exception e) {}
 				}
-				return (Display3D)ob;
+				return ht_layer_sets.get(ls);
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
@@ -327,18 +323,18 @@ public final class Display3D {
 
 	/** Get the Display3D instance that exists for the given LayerSet, if any. */
 	static public Display3D getDisplay(final LayerSet ls) {
-		return (Display3D)ht_layer_sets.get(ls);
+		return ht_layer_sets.get(ls);
 	}
 
 	static public void setWaitingCursor() {
-		for (Iterator it = ht_layer_sets.values().iterator(); it.hasNext(); ) {
-			((Display3D)it.next()).universe.getWindow().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+		for (Display3D d3d : ht_layer_sets.values()) {
+			d3d.universe.getWindow().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 		}
 	}
 
 	static public void doneWaiting() {
-		for (Iterator it = ht_layer_sets.values().iterator(); it.hasNext(); ) {
-			((Display3D)it.next()).universe.getWindow().setCursor(Cursor.getDefaultCursor());
+		for (Display3D d3d : ht_layer_sets.values()) {
+			d3d.universe.getWindow().setCursor(Cursor.getDefaultCursor());
 		}
 	}
 
@@ -354,7 +350,11 @@ public final class Display3D {
 			try {
 				fu.get(); // wait until done
 			} catch (Exception e) { IJError.print(e); }
-			Display3D.resetView(pt.getProject().getRootLayerSet());
+			Display3D d3d = ht_layer_sets.get(pt.getProject().getRootLayerSet()); // TODO should change for nested layer sets
+			if (null != d3d) {
+				d3d.universe.resetView(); // reset the absolute center
+				d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
+			}
 		}}.start();
 	}
 
@@ -368,11 +368,11 @@ public final class Display3D {
 			// So: find arealist, pipe, ball, and profile_list types
 			final HashSet hs = pt.findBasicTypeChildren();
 			if (null == hs || 0 == hs.size()) {
-				Utils.log("Node " + pt + " contains no 3D-displayable children");
+				Utils.logAll("Node " + pt + " does not contain any 3D-displayable children");
 				return null;
 			}
 
-			final List<Content> list = new ArrayList<Content>();
+			final List<Content> list = new ArrayList<Content>(hs.size());
 
 			for (final Iterator it = hs.iterator(); it.hasNext(); ) {
 				// obtain the Displayable object under the node
@@ -413,11 +413,16 @@ public final class Display3D {
 				setWaitingCursor(); // the above may be creating a display
 				//sw.elapsed("after creating and/or retrieving Display3D");
 				Future<Content> fu = d3d.addMesh(child, displ, resample);
-				if (wait && -1 != d3d.resample) {
+				if (wait) {
 					list.add(fu.get());
 				}
 
 				//sw.elapsed("after creating mesh");
+			}
+
+			// Since it's sometimes not obvious when done, say so:
+			if (wait && hs.size() > 1) {
+				Utils.logAll("Done showing " + hs.size());
 			}
 
 			return list;
@@ -434,7 +439,7 @@ public final class Display3D {
 	}
 
 	static public void resetView(final LayerSet ls) {
-		Display3D d3d = (Display3D) ht_layer_sets.get(ls);
+		Display3D d3d = ht_layer_sets.get(ls);
 		if (null != d3d) d3d.universe.resetView();
 	}
 
@@ -450,7 +455,7 @@ public final class Display3D {
 		d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.toggleLock(); // locks the added content
+		ct.setLocked(true); // locks the added content
 	}
 
 	static public void showVolume(Patch p) {
@@ -465,7 +470,7 @@ public final class Display3D {
 		d3d.universe.addVoltex(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		Content ct = d3d.universe.getContent(title);
 		setTransform(ct, ps.getPatch(0));
-		ct.toggleLock(); // locks the added content
+		ct.setLocked(true); // locks the added content
 	}
 
 	static private void setTransform(Content ct, Patch p) {
@@ -481,7 +486,7 @@ public final class Display3D {
 	}
 
 	/** Returns a stack suitable for the ImageJ 3D Viewer, either 8-bit gray or 8-bit color.
-	 *  If the PatchStach is already of the right type, it is returned,
+	 *  If the PatchStack is already of the right type, it is returned,
 	 *  otherwise a copy is made in the proper type.
 	 */
 	static private ImagePlus get8BitStack(final PatchStack ps) {
@@ -493,175 +498,13 @@ public final class Display3D {
 			case ImagePlus.GRAY32:
 				// convert stack to 8-bit
 				return ps.createGray8Copy();
-			default:
+			case ImagePlus.GRAY8:
+			case ImagePlus.COLOR_256:
 				return ps;
+			default:
+				Utils.logAll("Cannot handle stacks of type: " + ps.getType());
+				return null;
 		}
-	}
-
-	/** A Material, but avoiding name colisions. */
-	static private int mat_index = 1;
-	static private class Mtl {
-		float alpha = 1;
-		float R = 1;
-		float G = 1;
-		float B = 1;
-		String name;
-		Mtl(float alpha, float R, float G, float B) {
-			this.alpha = alpha;
-			this.R = R;
-			this.G = G;
-			this.B = B;
-			name = "mat_" + mat_index;
-			mat_index++;
-		}
-		public boolean equals(Object ob) {
-			if (ob instanceof Display3D.Mtl) {
-				Mtl mat = (Mtl)ob;
-				if (mat.alpha == alpha
-				 && mat.R == R
-				 && mat.G == G
-				 && mat.B == B) {
-					return true;
-				 }
-			}
-			return false;
-		}
-		void fill(StringBuffer sb) {
-			sb.append("\nnewmtl ").append(name).append('\n')
-			  .append("Ns 96.078431\n")
-			  .append("Ka 0.0 0.0 0.0\n")
-			  .append("Kd ").append(R).append(' ').append(G).append(' ').append(B).append('\n') // this is INCORRECT but I'll figure out the conversion later
-			  .append("Ks 0.5 0.5 0.5\n")
-			  .append("Ni 1.0\n")
-			  .append("d ").append(alpha).append('\n')
-			  .append("illum 2\n\n");
-		}
-		int getAsSingle() {
-			return (int)((R + G + B) / 3 * 255); // something silly
-		}
-	}
-
-	/** Generates DXF file from a table of ProjectThing and their associated triangles. */
-	private String createDXF(Hashtable ht_content) {
-		StringBuffer sb_data = new StringBuffer("0\nSECTION\n2\nENTITIES\n");   //header of file
-		for (Iterator it = ht_content.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			ProjectThing pt = (ProjectThing)entry.getKey();
-			Displayable displ = (Displayable)pt.getObject();
-			List triangles = (List)entry.getValue();
-			float[] color = displ.getColor().getColorComponents(null);
-			Mtl mtl = new Mtl(displ.getAlpha(), color[0], color[1], color[2]);
-			writeTrianglesDXF(sb_data, triangles, mtl.name, Integer.toString(mtl.getAsSingle()));
-		}
-		sb_data.append("0\nENDSEC\n0\nEOF\n");         //TRAILER of the file
-		return sb_data.toString();
-	}
-
-	/** @param format works as extension as well. */
-	private void export(final ProjectThing pt, final String format) {
-		if (0 == ht_pt_meshes.size()) return;
-		// select file
-		File file = Utils.chooseFile("untitled", format);
-		if (null == file) return;
-		final String name = file.getName();
-		String name2 = name;
-		if (!name2.endsWith("." + format)) {
-			name2 += "." + format;
-		}
-		File f2 = new File(file.getParent() + "/" + name2);
-		int i = 1;
-		while (f2.exists()) {
-			name2 = name + "_" + i + "." + format;
-			f2 = new File(name2);
-		}
-		Hashtable ht_content = ht_pt_meshes;
-		if (null != pt) {
-			ht_content = new Hashtable();
-			ht_content.put(pt, ht_pt_meshes.get(pt));
-		}
-		if (format.equals("obj")) {
-			String[] data = createObjAndMtl(name2, ht_content);
-			Utils.saveToFile(f2, data[0]);
-			Utils.saveToFile(new File(f2.getParent() + "/" + name2 + ".mtl"), data[1]);
-		} else if (format.equals("dxf")) {
-			Utils.saveToFile(f2, createDXF(ht_content));
-		}
-	}
-
-	/** Wavefront format. Returns the contents of two files: one for materials, another for meshes*/
-	private String[] createObjAndMtl(final String file_name, final Hashtable ht_content) {
-		StringBuffer sb_obj = new StringBuffer("# TrakEM2 OBJ File\n");
-		sb_obj.append("mtllib ").append(file_name).append(".mtl").append('\n');
-
-		Hashtable ht_mat = new Hashtable();
-
-		int j = 1; // Vert indices in .obj files are global, not reset for every object.
-				// starting at '1' because vert indices start at one.
-
-		for (Iterator it = ht_content.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next(); // I hate java's gratuituous verbosity
-			ProjectThing pt = (ProjectThing)entry.getKey();
-			Displayable displ = (Displayable)pt.getObject();
-			List triangles = (List)entry.getValue();
-			// make material, and see whether it exists already
-			float[] color = displ.getColor().getColorComponents(null);
-			Mtl mat = new Mtl(displ.getAlpha(), color[0], color[1], color[2]);
-			Object mat2 = ht_mat.get(mat);
-			if (null != mat2) mat = (Mtl)mat2; // recycling
-			else ht_mat.put(mat, mat); // !@#$% Can't get the object in a HashSet easily
-			// make list of vertices
-			String title = displ.getProject().getMeaningfulTitle(displ).replaceAll(" ", "_").replaceAll("#", "--");
-			Hashtable ht_points = new Hashtable(); // because we like inefficiency
-			sb_obj.append("o ").append(title).append('\n');
-			final int len = triangles.size();
-			int[] index = new int[len];
-			int k = 0; // iterate over index array, to make faces later
-			// j is tag for each new vert, which start at 1 (for some ridiculous reason)
-			for (Iterator tt = triangles.iterator(); tt.hasNext(); ) {
-				Point3f p = (Point3f)tt.next();
-				//no need if coords are not displaced//p = (Point3f)p.clone();
-				// check if point already exists
-				Object ob = ht_points.get(p);
-				if (null != ob) {
-					index[k] = ((Integer)ob).intValue();
-				} else {
-					// new point
-					index[k] = j;
-					// record
-					ht_points.put(p, new Integer(j));
-					// append vertex
-					sb_obj.append('v').append(' ').append(p.x)
-						      .append(' ').append(p.y)
-						      .append(' ').append(p.z).append('\n');
-					j++;
-				}
-				k++;
-			}
-			sb_obj.append("usemtl ").append(mat.name).append('\n');
-			sb_obj.append("s 1\n");
-			if (0 != len % 3) Utils.log2("WARNING: list of triangles not multiple of 3");
-			// print faces
-			int len_p = ht_points.size();
-			for (int i=0; i<len; i+=3) {
-				sb_obj.append('f').append(' ').append(index[i])
-					      .append(' ').append(index[i+1])
-					      .append(' ').append(index[i+2]).append('\n');
-				//if (index[i] > len_p) Utils.log2("WARNING: face vert index beyond range"); // range is from 1 to len_p inclusive
-				//if (index[i+1] > len_p) Utils.log2("WARNING: face vert index beyond range");
-				//if (index[i+2] > len_p) Utils.log2("WARNING: face vert index beyond range");
-				//Utils.log2("j: " + index[i]);
-				// checks passed
-			}
-			sb_obj.append('\n');
-		}
-		// make mtl file
-		StringBuffer sb_mtl = new StringBuffer("# TrakEM2 MTL File\n");
-		for (Iterator it = ht_mat.keySet().iterator(); it.hasNext(); ) {
-			Mtl mat = (Mtl)it.next();
-			mat.fill(sb_mtl);
-		}
-
-		return new String[]{sb_obj.toString(), sb_mtl.toString()};
 	}
 
 	/** Considers there is only one Display3D for each LayerSet. */
@@ -671,54 +514,24 @@ public final class Display3D {
 		Object ob = pt.getObject();
 		if (!(ob instanceof Displayable)) return;
 		Displayable displ = (Displayable)ob;
-		Object d3ob = ht_layer_sets.get(displ.getLayerSet()); // TODO profile_list is going to fail here
-		if (null == d3ob) {
+		Display3D d3d = ht_layer_sets.get(displ.getLayerSet()); // TODO profile_list is going to fail here
+		if (null == d3d) {
 			// there is no Display3D showing the pt to remove
 			Utils.log2("No Display3D contains ProjectThing: " + pt);
 			return;
 		}
-		Display3D d3d = (Display3D)d3ob;
-		Object ob_mesh = d3d.ht_pt_meshes.remove(pt);
-		if (null == ob_mesh) {
+		if (null == d3d.ht_pt_meshes.remove(pt)) {
 			Utils.log2("No mesh contained within " + d3d + " for ProjectThing " + pt);
 			return; // not contained here
 		}
+		/*
 		String title = makeTitle(displ);
 		//Utils.log(d3d.universe.contains(title) + ": Universe contains " + displ);
 		d3d.universe.removeContent(title); // WARNING if the title changes, problems: will need a table of pt vs title as it was when added to the universe. At the moment titles are not editable for basic types, but this may change in the future. TODO the future is here: titles are editable for basic types.
-	}
-
-	static private void writeTrianglesDXF(final StringBuffer sb, final List triangles, final String the_group, final String the_color) {
-
-		final char L = '\n';
-		final String s10 = "10\n"; final String s11 = "11\n"; final String s12 = "12\n"; final String s13 = "13\n";
-		final String s20 = "20\n"; final String s21 = "21\n"; final String s22 = "22\n"; final String s23 = "23\n";
-		final String s30 = "30\n"; final String s31 = "31\n"; final String s32 = "32\n"; final String s33 = "33\n";
-		final String triangle_header = "0\n3DFACE\n8\n" + the_group + "\n6\nCONTINUOUS\n62\n" + the_color + L;
-
-		final int len = triangles.size();
-		final Point3f[] vert = new Point3f[len];
-		triangles.toArray(vert);
-		for (int i=0; i<len; i+=3) {
-
-			sb.append(triangle_header)
-
-			.append(s10).append(vert[i].x).append(L)
-			.append(s20).append(vert[i].y).append(L)
-			.append(s30).append(vert[i].z).append(L)
-
-			.append(s11).append(vert[i+1].x).append(L)
-			.append(s21).append(vert[i+1].y).append(L)
-			.append(s31).append(vert[i+1].z).append(L)
-
-			.append(s12).append(vert[i+2].x).append(L)
-			.append(s22).append(vert[i+2].y).append(L)
-			.append(s32).append(vert[i+2].z).append(L)
-
-			.append(s13).append(vert[i+2].x).append(L) // repeated point
-			.append(s23).append(vert[i+2].y).append(L)
-			.append(s33).append(vert[i+2].z).append(L);
-		}
+		*/
+		Utils.log2(Utils.toString(d3d.ht_pt_meshes));
+		Content ct = d3d.ht_pt_meshes.get(pt);
+		if (null != ct) d3d.universe.removeContent(ct.getName());
 	}
 
 	/** Creates a mesh for the given Displayable in a separate Thread. */
@@ -762,18 +575,44 @@ public final class Display3D {
 			Utils.log2("Skipping non-multiple-of-3 vertices list generated for " + displ.getTitle());
 			return null;
 		}
+
+
+		/* // debug: extra check: find NaN
+		for (Point3f p3 : (List<Point3f>)triangles) {
+			if (null == p3) {
+				Utils.log2("Found a null Point3f! Aborting.");
+				return null;
+			}
+			if (Float.isNaN(p3.x)
+			 || Float.isNaN(p3.y)
+			 || Float.isNaN(p3.z))
+			{
+				Utils.log("A Point3f has a NaN coordinate! Aborting.");
+				return null;
+			}
+		}
+		*/
+
+
 		Color color = null;
 		float alpha = 1.0f;
+		final String title;
 		if (null != displ) {
 			color = displ.getColor();
 			alpha = displ.getAlpha();
-		} else {
-			// for profile_list: get from the first (what a kludge)
+			title = makeTitle(displ);
+		} else if (pt.getType().equals("profile_list")) {
+			// for profile_list: get from the first (what a kludge; there should be a ZDisplayable ProfileList object)
 			Object obp = ((ProjectThing)pt.getChildren().get(0)).getObject();
 			if (null == obp) return null;
 			Displayable di = (Displayable)obp;
 			color = di.getColor();
 			alpha = di.getAlpha();
+			Object ob = pt.getParent().getTitle();
+			if (null == ob || ob.equals(pt.getParent().getType())) title = pt.toString() + " #" + pt.getId(); // Project.getMeaningfulTitle can't handle profile_list properly
+			else title = ob.toString() + " /[" + pt.getParent().getType() + "]/[profile_list] #" + pt.getId();
+		} else {
+			title = pt.toString() + " #" + pt.getId();
 		}
 
 		Content ct = null;
@@ -785,16 +624,11 @@ public final class Display3D {
 			u_lock.lock();
 			try {
 				// craft a unique title (id is always unique)
-				String title = null == displ ? pt.toString() + " #" + pt.getId() : makeTitle(displ);
 				if (ht_pt_meshes.contains(pt) || universe.contains(title)) {
 					// remove content from universe
 					universe.removeContent(title);
 					// no need to remove entry from table, it's overwritten below
 				}
-				// register mesh
-				ht_pt_meshes.put(pt, triangles);
-				// ensure proper default transform
-				//universe.resetView();
 
 				Color3f c3 = new Color3f(color);
 
@@ -817,12 +651,19 @@ public final class Display3D {
 				// Set general content properties
 				ct.setTransparency(1f - alpha);
 				// Default is unlocked (editable) transformation; set it to locked:
-				ct.toggleLock();
+				ct.setLocked(true);
 
-			} catch (Exception e) {
+				// register mesh
+				ht_pt_meshes.put(pt, ct);
+				Utils.log2("Put: ht_pt_meshes.put(" + pt + ", " + ct + ")");
+
+			} catch (Throwable e) {
+				Utils.logAll("Mesh generation failed for " + title + "\"  from " + pt);
 				IJError.print(e);
+				e.printStackTrace();
+			} finally {
+				u_lock.unlock();
 			}
-			u_lock.unlock();
 		}
 
 		Utils.log2(pt.toString() + " n points: " + triangles.size());
@@ -886,11 +727,12 @@ public final class Display3D {
 				//d3d.universe.ensureScale((float)(width*scale));
 				ct = d3d.universe.addMesh(triangles, new Color3f(color), title, /*(float)(width*scale),*/ 1);
 				ct.setTransparency(transp);
-				ct.toggleLock();
+				ct.setLocked(true);
 			} catch (Exception e) {
 				IJError.print(e);
+			} finally {
+				d3d.u_lock.unlock();
 			}
-			d3d.u_lock.unlock();
 		}
 
 		return ct;
@@ -930,8 +772,7 @@ public final class Display3D {
 	static public boolean isDisplayed(final Displayable d) {
 		if (null == d) return false;
 		final String title = makeTitle(d);
-		for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
-			Display3D d3d = (Display3D)it.next();
+		for (Display3D d3d : ht_layer_sets.values()) {
 			if (null != d3d.universe.getContent(title)) return true;
 		}
 		if (d.getClass() == Profile.class) {
@@ -952,45 +793,48 @@ public final class Display3D {
 		return d3d.universe.getContent(new StringBuffer(pt.toString()).append(" #").append(pt.getId()).toString());
 	}
 
-	static public void setColor(final Displayable d, final Color color) {
-		launchers.submit(new Runnable() { public void run() {
-			final Display3D d3d = getDisplay(d.getLayer().getParent());
-			if (null == d3d) return; // no 3D displays open
-			d3d.executors.submit(new Runnable() { public void run() {
+	static public Future<Boolean> setColor(final Displayable d, final Color color) {
+		final Display3D d3d = getDisplay(d.getLayer().getParent());
+		if (null == d3d) return null; // no 3D displays open
+		return d3d.executors.submit(new Callable() { public Boolean call() {
 			Content content = d3d.universe.getContent(makeTitle(d));
-				if (null == content) content = getProfileContent(d);
-				if (null != content) content.setColor(new Color3f(color));
-			}});
+			if (null == content) content = getProfileContent(d);
+			if (null != content) {
+				content.setColor(new Color3f(color));
+				return true;
+			}
+			return false;
 		}});
 	}
 
-	static public void setTransparency(final Displayable d, final float alpha) {
-		if (null == d) return;
+	static public Future<Boolean> setTransparency(final Displayable d, final float alpha) {
+		if (null == d) return null;
 		Layer layer = d.getLayer();
-		if (null == layer) return; // some objects have no layer, such as the parent LayerSet.
-		Object ob = ht_layer_sets.get(layer.getParent());
-		if (null == ob) return;
-		Display3D d3d = (Display3D)ob;
-		String title = makeTitle(d);
-		Content content = d3d.universe.getContent(title);
-		if (null == content) content = getProfileContent(d);
-		if (null != content) content.setTransparency(1 - alpha);
-		else if (null == content && d.getClass().equals(Patch.class)) {
-			Patch pa = (Patch)d;
-			if (pa.isStack()) {
-				title = pa.getProject().getLoader().getFileName(pa);
-				for (Iterator it = Display3D.ht_layer_sets.values().iterator(); it.hasNext(); ) {
-					d3d = (Display3D)it.next();
-					for (Iterator cit = d3d.universe.getContents().iterator(); cit.hasNext(); ) {
-						Content c = (Content)cit.next();
-						if (c.getName().startsWith(title)) {
-							c.setTransparency(1 - alpha);
-							// no break, since there could be a volume and an orthoslice
+		if (null == layer) return null; // some objects have no layer, such as the parent LayerSet.
+		final Display3D d3d = ht_layer_sets.get(layer.getParent());
+		if (null == d3d) return null;
+		return d3d.executors.submit(new Callable<Boolean>() { public Boolean call() {
+			String title = makeTitle(d);
+			Content content = d3d.universe.getContent(title);
+			if (null == content) content = getProfileContent(d);
+			if (null != content) content.setTransparency(1 - alpha);
+			else if (null == content && d.getClass().equals(Patch.class)) {
+				Patch pa = (Patch)d;
+				if (pa.isStack()) {
+					title = pa.getProject().getLoader().getFileName(pa);
+					for (Display3D dd : ht_layer_sets.values()) {
+						for (Iterator cit = dd.universe.getContents().iterator(); cit.hasNext(); ) {
+							Content c = (Content)cit.next();
+							if (c.getName().startsWith(title)) {
+								c.setTransparency(1 - alpha);
+								// no break, since there could be a volume and an orthoslice
+							}
 						}
 					}
 				}
 			}
-		}
+			return true;
+		}});
 	}
 
 	static public String makeTitle(final Displayable d) {
@@ -1006,9 +850,8 @@ public final class Display3D {
 	static public Future<Content> update(final Displayable d) {
 		Layer layer = d.getLayer();
 		if (null == layer) return null; // some objects have no layer, such as the parent LayerSet.
-		Object ob = ht_layer_sets.get(layer.getParent());
-		if (null == ob) return null;
-		Display3D d3d = (Display3D)ob;
+		Display3D d3d = ht_layer_sets.get(layer.getParent());
+		if (null == d3d) return null;
 		return d3d.addMesh(d.getProject().findProjectThing(d), d, d3d.resample);
 	}
 

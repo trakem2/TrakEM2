@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -668,7 +668,7 @@ public final class Layer extends DBObject implements Bucketable {
 		for (Displayable d : al_displayables) {
 			if (visible != d.isVisible() && d.getClass().getName().toLowerCase().endsWith(type)) {
 				d.setVisible(visible, false); // don't repaint
-				Display.updateVisibilityCheckbox(this, d, null);
+				Display.updateCheckboxes(this, d, null);
 				hs.add(d);
 			}
 		}

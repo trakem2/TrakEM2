@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006, 2007 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -621,13 +621,44 @@ public class Selection {
 		selectAll(al);
 	}
 
+	/** Select all isVisible() objects in the Display's current layer, preserving the active one (if any) as active; includes all the ZDisplayables, whether visible in this layer or not, as long as their return true from isVisible(). */
+	public void selectAllVisible() {
+		if (null == display) return;
+		ArrayList al = display.getLayer().getDisplayables();
+		al.addAll(display.getLayer().getParent().getZDisplayables());
+		final Rectangle tmp = new Rectangle();
+		for (Iterator it = al.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable) it.next();
+			if (!d.isVisible() || 0 == d.getAlpha()) {
+				it.remove();
+				continue;
+			}
+			Rectangle box = d.getBounds(tmp, display.getLayer());
+			if (0 == box.width || 0 == box.height) {
+				it.remove(); // not visible either, no data
+				continue; // defensive programming
+			}
+		}
+		if (al.size() > 0) selectAll(al);
+	}
+
 	/** Select all objects in the given layer, preserving the active one (if any) as active. */
 	public void selectAll(Layer layer) {
 		selectAll(layer.getDisplayables());
 	}
 
-	/** Select all objects under the given roi, in the current display's layer. */
+	/** Select all objects under the given roi, in the current display's layer.
+	 *  If visible_only, then a Displayable is not selected when its visible boolean flag is false, or its alpha value is zero, or either of its width,height dimensions are 0. */
 	public void selectAll(Roi roi, boolean visible_only) {
+		if (null == display) return;
+		if (null == roi) {
+			if (visible_only) {
+				selectAllVisible();
+				return;
+			}
+			// entire 2D bounds:
+			roi = new ShapeRoi(display.getLayerSet().get2DBounds());
+		}
 		//Utils.log2("roi bounds: " + roi.getBounds());
 		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
 
@@ -638,10 +669,19 @@ public class Selection {
 		aroi = aroi.createTransformedArea(affine);
 		ArrayList al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
 		al.addAll(display.getLayer().getParent().getZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only));
+		final Rectangle tmp = new Rectangle();
 		if (visible_only) {
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				if (!d.isVisible()) it.remove();
+				if (!d.isVisible() || 0 == d.getAlpha()) {
+					it.remove();
+					continue;
+				}
+				Rectangle box = d.getBounds(tmp, display.getLayer());
+				if (0 == box.width || 0 == box.height) {
+					it.remove();
+					continue; // defensive programming
+				}
 			}
 		}
 		if (al.size() > 0) selectAll(al);
@@ -1096,7 +1136,7 @@ public class Selection {
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
 		grabbed = null; // reset
-		Utils.log2("transforming: " + transforming);
+		//Utils.log2("transforming: " + transforming);
 		if (!transforming) {
 			if (display.getLayerSet().prepareStep(new ArrayList<Displayable>(hs))) {
 				display.getLayerSet().addTransformStep(new ArrayList<Displayable>(hs));
@@ -1257,8 +1297,7 @@ public class Selection {
 	public boolean isLocked() {
 		if (null == active || null == hs || hs.isEmpty()) return false;
 		// loop directly to avoid looping through the same linked groups if two or more selected objects belong to the same linked group. The ht contains all linked items anyway.
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (Displayable d : hs) {
 			if (d.isLocked2()) return true;
 		}
 		return false;

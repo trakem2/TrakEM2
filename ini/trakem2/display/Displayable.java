@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -223,10 +223,13 @@ public abstract class Displayable extends DBObject {
 
 	////////////////////////////////////////////////////
 	public void setLocked(boolean lock) {
-		if (lock) this.locked = lock;
-		else {
+		if (lock) {
+			this.locked = lock;
+			Display.updateCheckboxes(layer, this, null);
+		} else {
 			// to unlock, unlock those in the linked group that are locked
 			this.locked = false;
+			Display.updateCheckboxes(layer, this, null);
 			unlockAllLinked(new HashSet());
 		}
 		updateInDatabase("locked");
@@ -236,7 +239,10 @@ public abstract class Displayable extends DBObject {
 		hs.add(this);
 		if (null == hs_linked) return;
 		for (final Displayable d : hs_linked) {
-			if (d.locked) d.locked = false;
+			if (d.locked) {
+				d.locked = false;
+				Display.updateCheckboxes(layer, d, null);
+			}
 			d.unlockAllLinked(hs);
 		}
 	}
@@ -467,12 +473,14 @@ public abstract class Displayable extends DBObject {
 		return getBounds(null != r ? r : new Rectangle());
 	}
 
-	/** Bounding box of the transformed data. Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
+	/** Bounding box of the transformed data (or 0,0,0,0 when no data).
+	 *  Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
 	private final Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;
 		r.width = (int)this.width;
 		r.height = (int)this.height;
+		// Data-delimiting bounds:
 		if (this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
 			r.x += (int)this.at.getTranslateX();
 			r.y += (int)this.at.getTranslateY();
@@ -646,7 +654,7 @@ public abstract class Displayable extends DBObject {
 	public void setVisible(final boolean visible, final boolean repaint) {
 		if (visible == this.visible) {
 			// patching synch error
-			Display.updateVisibilityCheckbox(layer, this, null);
+			Display.updateCheckboxes(layer, this, null);
 			return;
 		}
 		this.visible = visible;
@@ -655,7 +663,7 @@ public abstract class Displayable extends DBObject {
 			Display.repaint(layer, this, 5);
 		}
 		updateInDatabase("visible");
-		Display.updateVisibilityCheckbox(layer, this, null);
+		Display.updateCheckboxes(layer, this, null);
 	}
 
 	/** Repaint this Displayable in all Display instances that are showing it. */
@@ -1754,7 +1762,7 @@ public abstract class Displayable extends DBObject {
 					if (!step.apply(action)) ok = false;
 				}
 			}
-			Display.update(d.getLayerSet());
+			Display.update(d.getLayerSet(), false);
 			return ok;
 		}
 		public boolean isEmpty() {
@@ -1858,7 +1866,6 @@ public abstract class Displayable extends DBObject {
 
 		/** Set the Displayable's fields. */
 		final boolean to1(final Displayable d) {
-			Utils.log2("## to1");
 			d.width = width;
 			d.height = height;
 			d.setAffineTransform(at); // updates bucket

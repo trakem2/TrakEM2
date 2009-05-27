@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -49,8 +49,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	private Display display;
 	private Layer layer;
 	private HashSet hs_painted = new HashSet();
-	static private final int FIXED_WIDTH = 250;
-	private int height;
+	static private final int SIDE = 250;
 	private BufferedImage image = null;
 	private boolean redraw_displayables = true;
 	private double scale;
@@ -67,10 +66,8 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	DisplayNavigator(Display display, double layer_width, double layer_height) { // contorsions to avoid java bugs ( a.k.a. the 'this' is not functional until the object in question has finished initialization.
 		this.display = display;
 		this.layer = display.getLayer();
-		this.scale = FIXED_WIDTH / layer_width;
-		this.height = (int)(layer_height * scale);
-		//Utils.log("fixed_w, h: " + FIXED_WIDTH +","+ height + "   layer_width,height: " + layer_width + "," + layer_height);
-		Dimension d = new Dimension(FIXED_WIDTH, height);
+		this.scale = Math.min(SIDE / layer_width, SIDE / layer_height);
+		Dimension d = new Dimension(SIDE, SIDE);
 		setPreferredSize(d);
 		setMinimumSize(d);
 		setMaximumSize(d);
@@ -79,7 +76,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		addKeyListener(display.getCanvas());
 	}
 
-	/** Fixes size if changed. Multithreaded. */
+	/** Multithreaded. */
 	public void repaint() {
 		if (null == display || null == display.getCanvas() || null == display.getLayer() || display.getCanvas().isDragging()) return;
 		// fixing null at start up (because the JPanel becomes initialized and repainted before returning to my subclass constructor! Stupid java!)
@@ -91,21 +88,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			this.hs_painted.clear();
 		}
 
-		scale = FIXED_WIDTH / display.getLayer().getLayerWidth();
-		int height = (int)(display.getLayer().getLayerHeight() * scale);
-		if (height != this.height) {
-			Dimension d = new Dimension(FIXED_WIDTH, height);
-			setPreferredSize(d);
-			setMinimumSize(d);
-			setMaximumSize(d); //this triple set *should* update the values in the super class JPanel
-			redraw_displayables = true;
-			invalid_volatile = true;
-			this.height = height;
-		}
-		//Utils.log2("w,h: " + FIXED_WIDTH + "," + height + ",   scale: " + scale);
-		// magic cocktel:
-		//this.invalidate();
-		//this.validate();  // possible cause of infinite loops with infinite threads
+		scale = Math.min(SIDE / display.getLayer().getLayerWidth(), SIDE / display.getLayer().getLayerHeight());
 		RT.paint(null, redraw_displayables);
 	}
 
@@ -176,8 +159,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		/** paint all snapshots, scaled, to an offscreen awt.Image */
 		public void paint() {
 
-			final BufferedImage target = new BufferedImage(FIXED_WIDTH, height, BufferedImage.TYPE_INT_ARGB);
-
 			final Layer layer;
 			final int snapshots_mode;
 			final Rectangle clipRect;
@@ -197,11 +178,24 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 				DisplayNavigator.this.snapshots_mode = snapshots_mode;
 			}
 
+			final BufferedImage target = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_ARGB);
+
 			try {
 				final Graphics2D g = target.createGraphics();
-				// paint background as black
-				g.setColor(Color.black);
-				g.fillRect(0, 0, DisplayNavigator.super.getWidth(), DisplayNavigator.super.getHeight());
+				int lw = (int) layer.getLayerWidth();
+				int lh = (int) layer.getLayerHeight();
+				if (lw != lh) {
+					g.setColor(Color.gray);
+					int bx = (int)(scale * lw);
+					g.fillRect(bx, 0, SIDE - bx, SIDE);
+					int by = (int)(scale * lh);
+					g.fillRect(0, by, bx, SIDE - by);
+					g.setColor(Color.black);
+					g.fillRect(0, 0, bx, by);
+				} else {
+					g.setColor(Color.black);
+					g.fillRect(0, 0, SIDE, SIDE);
+				}
 
 				// check if disabled
 				if (2 != snapshots_mode) {
@@ -269,7 +263,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 					}
 					updating = true;
 
-					height = DisplayNavigator.super.getHeight();
 					DisplayNavigator.this.image = target;
 					redraw_displayables = false;
 
@@ -285,15 +278,14 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 	private void renderVolatileImage(final BufferedImage bufferedImage) {
 		do {
-			final int w = FIXED_WIDTH, h = this.height;
 			final GraphicsConfiguration gc = getGraphicsConfiguration();
-			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != w 
-					|| volatileImage.getHeight() != h
+			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != SIDE
+					|| volatileImage.getHeight() != SIDE
 					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
 				if (volatileImage != null) {
 					volatileImage.flush();
 				}
-				volatileImage = gc.createCompatibleVolatileImage(w, h);
+				volatileImage = gc.createCompatibleVolatileImage(SIDE, SIDE);
 				volatileImage.setAccelerationPriority(1.0f);
 				invalid_volatile = false;
 			}
@@ -301,7 +293,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			// Now paint the BufferedImage into the accelerated image
 			//
 			final Graphics2D g = volatileImage.createGraphics();
-			g.drawImage(bufferedImage, 0, 0, FIXED_WIDTH, this.height, null);
+			g.drawImage(bufferedImage, 0, 0, SIDE, SIDE, null);
 
 			// paint red rectangle indicating srcRect
 			final Rectangle srcRect = display.getCanvas().getSrcRect();
@@ -336,11 +328,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		synchronized (updating_ob) {
 			while (updating) { try { updating_ob.wait(); } catch (InterruptedException ie) {} }
 			updating = true;
-			/*
-			if (null != image) {
-				g.drawImage(image, 0, 0, FIXED_WIDTH, this.height, null);
-			}
-			*/
 			render(g);
 
 			updating = false;
@@ -383,8 +370,10 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		int new_y = srcRect.y + (int)((y_d - y_p) / scale);
 		if (new_x < 0) new_x = 0;
 		if (new_y < 0) new_y = 0;
-		if (new_x + srcRect.width > (int)(this.getWidth() / scale)) new_x = (int)(this.getWidth() / scale - srcRect.width);
-		if (new_y + srcRect.height > (int)(this.getHeight() / scale)) new_y = (int)(this.getHeight() / scale - srcRect.height);
+		int slw = (int)(this.scale * display.getLayer().getLayerWidth());
+		int slh = (int)(this.scale * display.getLayer().getLayerHeight());
+		if (new_x + srcRect.width > (int)(slw / scale)) new_x = (int)(slw / scale - srcRect.width);
+		if (new_y + srcRect.height > (int)(slh / scale)) new_y = (int)(slh / scale - srcRect.height);
 		if (new_x_old == new_x && new_y_old == new_y) {
 			// avoid repaints
 			return;

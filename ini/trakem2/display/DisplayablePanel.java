@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -36,7 +36,12 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 
 	static public final int HEIGHT = 52;
 
-	private JCheckBox c;
+	static private ImageIcon LOCKED = new ImageIcon(DisplayablePanel.class.getResource("/img/locked.png"));
+	static private ImageIcon UNLOCKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlocked.png"));
+	static private ImageIcon VISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/visible.png"));
+	static private ImageIcon INVISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/invisible.png"));
+
+	private JCheckBox c, c_locked;
 	private JLabel title;
 	private SnapshotPanel sp;
 
@@ -50,11 +55,25 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		this.c = new JCheckBox();
 		this.c.setSelected(d.isVisible());
 		this.c.addItemListener(this);
+		this.c.setIcon(INVISIBLE);
+		this.c.setSelectedIcon(VISIBLE);
+
+		this.c_locked = new JCheckBox();
+		this.c_locked.setIcon(UNLOCKED);
+		this.c_locked.setSelectedIcon(LOCKED);
+		this.c_locked.setSelected(d.isLocked2());
+		this.c_locked.addItemListener(this);
+
 		this.sp = new SnapshotPanel(display, d);
 		title = new DisplayableTitleLabel(makeUpdatedTitle());
 		title.addMouseListener(this);
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
-		add(c);
+		JPanel checkboxes = new JPanel();
+		BoxLayout b = new BoxLayout(checkboxes, BoxLayout.Y_AXIS);
+		checkboxes.setLayout(b);
+		checkboxes.add(c);
+		checkboxes.add(c_locked);
+		add(checkboxes);
 		add(sp);
 		add(title);
 
@@ -66,10 +85,6 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		addMouseListener(this);
 		setBackground(Color.white);
 		setBorder(BorderFactory.createLineBorder(Color.black));
-	}
-
-	public void remake() {
-		sp.remake();
 	}
 
 	/** For instance-recycling purposes. */
@@ -133,8 +148,18 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 				}
 				d.setVisible(false);
 			}
-			//display.getNavigator().repaint(d);
-			//Display.updateVisibilityCheckbox(d.layer, d, display);
+		} else if (source.equals(c_locked)) {
+			if (ie.getStateChange() == ItemEvent.SELECTED) {
+				// Prevent locking while transforming
+				if (Display.isTransforming(d)) {
+					Utils.logAll("Transforming! Can't lock.");
+					c_locked.setSelected(false);
+					return;
+				}
+				d.setLocked(true);
+			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
+				d.setLocked(false);
+			}
 		}
 	}
 
@@ -155,7 +180,8 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		return "Displayable panel for " + d.toString();
 	}
 
-	protected void updateVisibilityCheckbox() {
+	protected void updateCheckboxes() {
 		c.setSelected(d.isVisible());
+		c_locked.setSelected(d.isLocked2());
 	}
 }

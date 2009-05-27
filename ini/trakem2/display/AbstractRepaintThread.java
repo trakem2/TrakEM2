@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2007 Albert Cardona and Rodney Douglas.
+Copyright (C) 2007-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -65,7 +65,8 @@ public abstract class AbstractRepaintThread extends Thread {
 
 	/** Queue a new request for painting. */
 	public void paint(final Rectangle clipRect, final boolean update_graphics) {
-		//if (update_graphics) Utils.printCaller(this, 12);
+		//Utils.log2("update_graphics: " + update_graphics);
+		//Utils.printCaller(this, 5);
 		// queue the event
 		synchronized (lock_event) {
 			lock_event.lock();
