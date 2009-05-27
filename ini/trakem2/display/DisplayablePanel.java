@@ -38,6 +38,8 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 
 	static private ImageIcon LOCKED = new ImageIcon(DisplayablePanel.class.getResource("/img/locked.png"));
 	static private ImageIcon UNLOCKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlocked.png"));
+	static private ImageIcon VISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/visible.png"));
+	static private ImageIcon INVISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/invisible.png"));
 
 	private JCheckBox c, c_locked;
 	private JLabel title;
@@ -53,6 +55,8 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		this.c = new JCheckBox();
 		this.c.setSelected(d.isVisible());
 		this.c.addItemListener(this);
+		this.c.setIcon(INVISIBLE);
+		this.c.setSelectedIcon(VISIBLE);
 
 		this.c_locked = new JCheckBox();
 		this.c_locked.setIcon(UNLOCKED);
