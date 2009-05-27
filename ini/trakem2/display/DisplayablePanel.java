@@ -94,6 +94,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 	public void set(final Displayable d) {
 		this.d = d;
 		c.setSelected(d.isVisible());
+		c_locked.setSelected(d.isLocked2());
 		title.setText(makeUpdatedTitle());
 		sp.set(d);
 	}
