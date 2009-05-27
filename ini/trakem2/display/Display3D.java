@@ -368,7 +368,7 @@ public final class Display3D {
 			// So: find arealist, pipe, ball, and profile_list types
 			final HashSet hs = pt.findBasicTypeChildren();
 			if (null == hs || 0 == hs.size()) {
-				Utils.log("Node " + pt + " contains no 3D-displayable children");
+				Utils.logAll("Node " + pt + " does not contain any 3D-displayable children");
 				return null;
 			}
 
@@ -524,42 +524,14 @@ public final class Display3D {
 			Utils.log2("No mesh contained within " + d3d + " for ProjectThing " + pt);
 			return; // not contained here
 		}
+		/*
 		String title = makeTitle(displ);
 		//Utils.log(d3d.universe.contains(title) + ": Universe contains " + displ);
 		d3d.universe.removeContent(title); // WARNING if the title changes, problems: will need a table of pt vs title as it was when added to the universe. At the moment titles are not editable for basic types, but this may change in the future. TODO the future is here: titles are editable for basic types.
-	}
-
-	static private void writeTrianglesDXF(final StringBuffer sb, final List triangles, final String the_group, final String the_color) {
-
-		final char L = '\n';
-		final String s10 = "10\n"; final String s11 = "11\n"; final String s12 = "12\n"; final String s13 = "13\n";
-		final String s20 = "20\n"; final String s21 = "21\n"; final String s22 = "22\n"; final String s23 = "23\n";
-		final String s30 = "30\n"; final String s31 = "31\n"; final String s32 = "32\n"; final String s33 = "33\n";
-		final String triangle_header = "0\n3DFACE\n8\n" + the_group + "\n6\nCONTINUOUS\n62\n" + the_color + L;
-
-		final int len = triangles.size();
-		final Point3f[] vert = new Point3f[len];
-		triangles.toArray(vert);
-		for (int i=0; i<len; i+=3) {
-
-			sb.append(triangle_header)
-
-			.append(s10).append(vert[i].x).append(L)
-			.append(s20).append(vert[i].y).append(L)
-			.append(s30).append(vert[i].z).append(L)
-
-			.append(s11).append(vert[i+1].x).append(L)
-			.append(s21).append(vert[i+1].y).append(L)
-			.append(s31).append(vert[i+1].z).append(L)
-
-			.append(s12).append(vert[i+2].x).append(L)
-			.append(s22).append(vert[i+2].y).append(L)
-			.append(s32).append(vert[i+2].z).append(L)
-
-			.append(s13).append(vert[i+2].x).append(L) // repeated point
-			.append(s23).append(vert[i+2].y).append(L)
-			.append(s33).append(vert[i+2].z).append(L);
-		}
+		*/
+		Utils.log2(Utils.toString(d3d.ht_pt_meshes));
+		Content ct = d3d.ht_pt_meshes.get(pt);
+		if (null != ct) d3d.universe.removeContent(ct.getName());
 	}
 
 	/** Creates a mesh for the given Displayable in a separate Thread. */
@@ -683,6 +655,7 @@ public final class Display3D {
 
 				// register mesh
 				ht_pt_meshes.put(pt, ct);
+				Utils.log2("Put: ht_pt_meshes.put(" + pt + ", " + ct + ")");
 
 			} catch (Throwable e) {
 				Utils.logAll("Mesh generation failed for " + title + "\"  from " + pt);
