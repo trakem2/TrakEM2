@@ -40,11 +40,34 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 	static private ImageIcon UNLOCKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlocked.png"));
 	static private ImageIcon VISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/visible.png"));
 	static private ImageIcon INVISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/invisible.png"));
+	//static private ImageIcon LINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/linked.png"));
+	//static private ImageIcon UNLINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlinked.png"));
 
 	private JCheckBox c, c_locked;
 	private JLabel title, title2;
 	private JPanel titles;
 	private SnapshotPanel sp;
+
+	/*
+	private LinkedPanel lp;
+
+	private class LinkedPanel extends JPanel {
+		public LinkedPanel() {
+			super();
+			Dimension dim = new Dimension(LINKED.getIconWidth(), LINKED.getIconHeight());
+			setMinimumSize(dim);
+			setMaximumSize(dim);
+		}
+		public void update(Graphics g) {
+			paint(g);
+		}
+		public void paint(Graphics g) {
+			//if (d.isLinked()) LINKED.paintIcon(this, g, 0, 0);
+			//else UNLINKED
+			(d.isLinked() ? LINKED : UNLINKED).paintIcon(this, g, 0, 0);
+		}
+	}
+	*/
 
 	private Display display;
 	private Displayable d;
@@ -79,6 +102,8 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		titles.setBackground(Color.white);
 		titles.add(title);
 		titles.add(title2);
+		//lp = new LinkedPanel();
+		//titles.add(lp);
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 		JPanel checkboxes = new JPanel();
 		checkboxes.setBackground(Color.white);
