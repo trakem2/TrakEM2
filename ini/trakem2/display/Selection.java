@@ -626,9 +626,18 @@ public class Selection {
 		if (null == display) return;
 		ArrayList al = display.getLayer().getDisplayables();
 		al.addAll(display.getLayer().getParent().getZDisplayables());
+		final Rectangle tmp = new Rectangle();
 		for (Iterator it = al.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable) it.next();
-			if (!d.isVisible()) it.remove();
+			if (!d.isVisible() || 0 == d.getAlpha()) {
+				it.remove();
+				continue;
+			}
+			Rectangle box = d.getBounds(tmp, display.getLayer());
+			if (0 == box.width || 0 == box.height) {
+				it.remove(); // not visible either, no data
+				continue; // defensive programming
+			}
 		}
 		if (al.size() > 0) selectAll(al);
 	}
@@ -638,7 +647,8 @@ public class Selection {
 		selectAll(layer.getDisplayables());
 	}
 
-	/** Select all objects under the given roi, in the current display's layer. */
+	/** Select all objects under the given roi, in the current display's layer.
+	 *  If visible_only, then a Displayable is not selected when its visible boolean flag is false, or its alpha value is zero, or either of its width,height dimensions are 0. */
 	public void selectAll(Roi roi, boolean visible_only) {
 		if (null == display) return;
 		if (null == roi) {
@@ -659,14 +669,21 @@ public class Selection {
 		aroi = aroi.createTransformedArea(affine);
 		ArrayList al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
 		al.addAll(display.getLayer().getParent().getZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only));
-		/* // redundant
+		final Rectangle tmp = new Rectangle();
 		if (visible_only) {
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				if (!d.isVisible()) it.remove();
+				if (!d.isVisible() || 0 == d.getAlpha()) {
+					it.remove();
+					continue;
+				}
+				Rectangle box = d.getBounds(tmp, display.getLayer());
+				if (0 == box.width || 0 == box.height) {
+					it.remove();
+					continue; // defensive programming
+				}
 			}
 		}
-		*/
 		if (al.size() > 0) selectAll(al);
 	}
 
@@ -1280,8 +1297,7 @@ public class Selection {
 	public boolean isLocked() {
 		if (null == active || null == hs || hs.isEmpty()) return false;
 		// loop directly to avoid looping through the same linked groups if two or more selected objects belong to the same linked group. The ht contains all linked items anyway.
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (Displayable d : hs) {
 			if (d.isLocked2()) return true;
 		}
 		return false;

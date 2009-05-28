@@ -58,7 +58,7 @@ public class Channel extends JPanel implements ItemListener, MouseListener {
 			case BLUE: t = "blue"; break;
 			default: t = "mono"; break;
 		}
-		JLabel title = new DisplayableTitleLabel("   " + t);
+		JLabel title = new JLabel("   " + t);
 		title.addMouseListener(this);
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 		add(c);

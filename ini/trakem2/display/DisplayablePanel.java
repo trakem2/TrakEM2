@@ -36,9 +36,38 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 
 	static public final int HEIGHT = 52;
 
-	private JCheckBox c;
-	private JLabel title;
+	static private ImageIcon LOCKED = new ImageIcon(DisplayablePanel.class.getResource("/img/locked.png"));
+	static private ImageIcon UNLOCKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlocked.png"));
+	static private ImageIcon VISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/visible.png"));
+	static private ImageIcon INVISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/invisible.png"));
+	//static private ImageIcon LINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/linked.png"));
+	//static private ImageIcon UNLINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlinked.png"));
+
+	private JCheckBox c, c_locked;
+	private JLabel title, title2;
+	private JPanel titles;
 	private SnapshotPanel sp;
+
+	/*
+	private LinkedPanel lp;
+
+	private class LinkedPanel extends JPanel {
+		public LinkedPanel() {
+			super();
+			Dimension dim = new Dimension(LINKED.getIconWidth(), LINKED.getIconHeight());
+			setMinimumSize(dim);
+			setMaximumSize(dim);
+		}
+		public void update(Graphics g) {
+			paint(g);
+		}
+		public void paint(Graphics g) {
+			//if (d.isLinked()) LINKED.paintIcon(this, g, 0, 0);
+			//else UNLINKED
+			(d.isLinked() ? LINKED : UNLINKED).paintIcon(this, g, 0, 0);
+		}
+	}
+	*/
 
 	private Display display;
 	private Displayable d;
@@ -50,13 +79,41 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		this.c = new JCheckBox();
 		this.c.setSelected(d.isVisible());
 		this.c.addItemListener(this);
+		this.c.setIcon(INVISIBLE);
+		this.c.setSelectedIcon(VISIBLE);
+		this.c.setBackground(Color.white);
+
+		this.c_locked = new JCheckBox();
+		this.c_locked.setIcon(UNLOCKED);
+		this.c_locked.setSelectedIcon(LOCKED);
+		this.c_locked.setSelected(d.isLocked2());
+		this.c_locked.addItemListener(this);
+		this.c_locked.setBackground(Color.white);
+
 		this.sp = new SnapshotPanel(display, d);
-		title = new DisplayableTitleLabel(makeUpdatedTitle());
+		title = new JLabel();
 		title.addMouseListener(this);
+		title2 = new JLabel();
+		title2.addMouseListener(this);
+		titles = new JPanel();
+		updateTitle();
+		BoxLayout bt = new BoxLayout(titles, BoxLayout.Y_AXIS);
+		titles.setLayout(bt);
+		titles.setBackground(Color.white);
+		titles.add(title);
+		titles.add(title2);
+		//lp = new LinkedPanel();
+		//titles.add(lp);
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
-		add(c);
+		JPanel checkboxes = new JPanel();
+		checkboxes.setBackground(Color.white);
+		BoxLayout b = new BoxLayout(checkboxes, BoxLayout.Y_AXIS);
+		checkboxes.setLayout(b);
+		checkboxes.add(c);
+		checkboxes.add(c_locked);
+		add(checkboxes);
 		add(sp);
-		add(title);
+		add(titles);
 
 		Dimension dim = new Dimension(250 - Display.scrollbar_width, HEIGHT);
 		setMinimumSize(dim);
@@ -68,15 +125,12 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		setBorder(BorderFactory.createLineBorder(Color.black));
 	}
 
-	public void remake() {
-		sp.remake();
-	}
-
 	/** For instance-recycling purposes. */
 	public void set(final Displayable d) {
 		this.d = d;
 		c.setSelected(d.isVisible());
-		title.setText(makeUpdatedTitle());
+		c_locked.setSelected(d.isLocked2());
+		updateTitle();
 		sp.set(d);
 	}
 
@@ -101,6 +155,15 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		super.paint(g);
 	}
 
+	public void setBackground(Color c) {
+		super.setBackground(c);
+		if (null != titles) {
+			titles.setBackground(c);
+			title.setBackground(c);
+			title2.setBackground(c);
+		}
+	}
+
 	private String makeUpdatedTitle() {
 		if (null == d) { Utils.log2("null d "); return ""; }
 		else if (null == d.getTitle()) { Utils.log2("null title for " + d); return ""; }
@@ -115,8 +178,41 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		}
 	}
 
+	static private int MAX_CHARS = 23;
+
 	public void updateTitle() {
-		title.setText(makeUpdatedTitle());
+		String t = makeUpdatedTitle();
+		if (t.length() <= MAX_CHARS) {
+			title.setText(t);
+			title2.setText("");
+			return;
+		}
+		// else split at MAX_CHARS
+		// First try to see if it can be cut nicely
+		int i = -1;
+		int back = t.length() < ((MAX_CHARS * 3) / 2) ? 12 : 5;
+		for (int k=MAX_CHARS-1; k>MAX_CHARS-6; k--) {
+			char c = t.charAt(k);
+			switch (c) {
+				case ' ':
+				case '/':
+				case '_':
+				case '.':
+					i = k; break;
+				default:
+					break;
+			}
+		}
+		if (-1 == i) i = MAX_CHARS; // cut at MAX_CHARS anyway
+		title.setText(t.substring(0, i));
+		String t2 = t.substring(i);
+		if (t2.length() > MAX_CHARS) {
+			t2 = new StringBuilder(t2.substring(0, 7)).append("...").append(t2.substring(t2.length()-13)).toString();
+		}
+		title2.setText(t2);
+
+		title.setToolTipText(t);
+		title2.setToolTipText(t);
 	}
 
 	public void itemStateChanged(final ItemEvent ie) {
@@ -133,8 +229,18 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 				}
 				d.setVisible(false);
 			}
-			//display.getNavigator().repaint(d);
-			//Display.updateVisibilityCheckbox(d.layer, d, display);
+		} else if (source.equals(c_locked)) {
+			if (ie.getStateChange() == ItemEvent.SELECTED) {
+				// Prevent locking while transforming
+				if (Display.isTransforming(d)) {
+					Utils.logAll("Transforming! Can't lock.");
+					c_locked.setSelected(false);
+					return;
+				}
+				d.setLocked(true);
+			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
+				d.setLocked(false);
+			}
 		}
 	}
 
@@ -155,7 +261,8 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		return "Displayable panel for " + d.toString();
 	}
 
-	protected void updateVisibilityCheckbox() {
+	protected void updateCheckboxes() {
 		c.setSelected(d.isVisible());
+		c_locked.setSelected(d.isLocked2());
 	}
 }

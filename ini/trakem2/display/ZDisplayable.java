@@ -144,7 +144,7 @@ public abstract class ZDisplayable extends Displayable {
 			Display.repaint(layer_set, null, getBoundingBox(), 5, true); // something is fishy: when active, it can't be properly repainted out -only the handles of a pipe do, for example, but not the skeleton, indicating that perhaps it was drawn into the background image.
 		}
 		updateInDatabase("visible");
-		Display.updateVisibilityCheckbox(layer, this, null);
+		Display.updateCheckboxes(layer, this, null);
 	}
 
 	public Bucketable getBucketable() {

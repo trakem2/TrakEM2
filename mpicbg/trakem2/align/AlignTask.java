@@ -270,7 +270,7 @@ final public class AlignTask
 		final List< Layer > layers = l.getParent().getLayers();
 		final String[] layerTitles = new String[ layers.size() ];
 		for ( int i = 0; i < layers.size(); ++i )
-			layerTitles[ i ] = layers.get( i ).getTitle();
+			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
 		
 		//Param p = Align.param;
 		Align.param.sift.maxOctaveSize = 1600;
@@ -278,8 +278,9 @@ final public class AlignTask
 		final GenericDialog gd = new GenericDialog( "Align Layers Linearly" );
 		
 		gd.addMessage( "Layer Range:" );
-		gd.addChoice( "first :", layerTitles, l.getTitle() );
-		gd.addChoice( "last :", layerTitles, l.getTitle() );
+		final int sel = layers.indexOf(l);
+		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
+		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		Align.param.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
@@ -442,13 +443,14 @@ final public class AlignTask
 		final List< Layer > layers = l.getParent().getLayers();
 		final String[] layerTitles = new String[ layers.size() ];
 		for ( int i = 0; i < layers.size(); ++i )
-			layerTitles[ i ] = layers.get( i ).getTitle();
+			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
 		
 		final GenericDialog gd1 = new GenericDialog( "Align Multi-Layer Mosaic : Layer Range" );
 		
 		gd1.addMessage( "Layer Range:" );
-		gd1.addChoice( "first :", layerTitles, l.getTitle() );
-		gd1.addChoice( "last :", layerTitles, l.getTitle() );
+		final int sel = layers.indexOf(l);
+		gd1.addChoice( "first :", layerTitles, layerTitles[ sel ] );
+		gd1.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		
 		gd1.addMessage( "Miscellaneous:" );
 		gd1.addCheckbox( "tiles are rougly in place", false );

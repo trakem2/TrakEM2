@@ -931,13 +931,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		// distribute Displayable to the tabs. Ignore LayerSet instances.
 		if (null == ht_panels) ht_panels = new Hashtable<Displayable,DisplayablePanel>();
 		else ht_panels.clear();
-		for (final Displayable d : layer.getDisplayables()) {
-			add(d, false, false);
-		}
 		for (final Displayable d : layer.getParent().getZDisplayables()) {
 			d.setLayer(layer);
-			add(d, false, false);
 		}
+		updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
 		navigator.repaint(true); // was not done when adding
 		Utils.updateComponent(tabs.getSelectedComponent());
 		//
@@ -2665,7 +2662,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private void updateSnapshots() {
 		Enumeration<DisplayablePanel> e = ht_panels.elements();
 		while (e.hasMoreElements()) {
-			e.nextElement().remake();
+			e.nextElement().repaint();
 		}
 		Utils.updateComponent(tabs.getSelectedComponent());
 	}
@@ -2692,7 +2689,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		if (null == c) return;
 		DisplayablePanel dp = ht_panels.get(d);
-		dp.remake();
+		dp.repaint();
 		Utils.updateComponent(c);
 	}
 
@@ -3046,8 +3043,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		} else if (command.equals("Lock")) {
 			selection.setLocked(true);
+			Utils.revalidateComponent(tabs.getSelectedComponent());
 		} else if (command.equals("Unlock")) {
 			selection.setLocked(false);
+			Utils.revalidateComponent(tabs.getSelectedComponent());
 		} else if (command.equals("Properties...")) {
 			active.adjustProperties();
 			updateSelection();
@@ -3742,14 +3741,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		frame.setCursor(c);
 	}
 
-	/** Used by the Displayable to update the visibility checkbox in other Displays. */
-	static protected void updateVisibilityCheckbox(final Layer layer, final Displayable displ, final Display calling_display) {
+	/** Used by the Displayable to update the visibility and locking state checkboxes in other Displays. */
+	static protected void updateCheckboxes(final Layer layer, final Displayable displ, final Display calling_display) {
 		//LOCKS ALL //SwingUtilities.invokeLater(new Runnable() { public void run() {
 		for (final Display d : al_displays) {
 			if (d == calling_display) continue;
 			if (d.layer.contains(displ) || (displ instanceof ZDisplayable && d.layer.getParent().contains((ZDisplayable)displ))) {
 				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) dp.updateVisibilityCheckbox();
+				if (null != dp) dp.updateCheckboxes();
 			}
 		}
 		//}});
