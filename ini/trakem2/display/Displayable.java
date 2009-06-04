@@ -772,6 +772,8 @@ public abstract class Displayable extends DBObject {
 		d.hs_linked.add(this);
 		// update the database
 		if (update_database) project.getLoader().addCrossLink(project.getId(), this.id, d.id);
+
+		Display.updateCheckboxes(getLinkedGroup(null), DisplayablePanel.LINK_STATE, true);
 	}
 
 	/** Remove all links held by this Displayable.*/
@@ -785,6 +787,8 @@ public abstract class Displayable extends DBObject {
 			unlink(displ[i]);
 		}
 		this.hs_linked = null;
+
+		Display.updateCheckboxes(Arrays.asList(displ), DisplayablePanel.LINK_STATE);
 	}
 
 	/** Remove the link with the given Displayable, and tell the given Displayable to remove the link with this. */
@@ -801,6 +805,8 @@ public abstract class Displayable extends DBObject {
 		}
 		// update the database in any case
 		project.getLoader().removeCrossLink(this.id, d.id);
+
+		Display.updateCheckboxes(Arrays.asList(new Displayable[]{this, d}), DisplayablePanel.LINK_STATE);
 	}
 
 	/** Check if this object is directly linked to any other Displayable objects.*/
@@ -870,6 +876,8 @@ public abstract class Displayable extends DBObject {
 				this.link(displ);
 			}
 		}
+
+		if (isLinked()) Display.updateCheckboxes(getLinkedGroup(null), DisplayablePanel.LINK_STATE, true);
 	}
 	/** Unlink all Displayable objects of the given type linked by this. */
 	public void unlinkAll(final Class c) {
@@ -884,6 +892,8 @@ public abstract class Displayable extends DBObject {
 				unlink(displ[i]);
 			}
 		}
+
+		Display.updateCheckboxes(Arrays.asList(displ), DisplayablePanel.LINK_STATE);
 	}
 
 	/** Check if this perimeter's intersects that of the given Displayable. */

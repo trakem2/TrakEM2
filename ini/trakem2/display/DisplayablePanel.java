@@ -30,6 +30,10 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Event;
 import java.awt.Dimension;
+import java.awt.GridLayout;
+import java.awt.Rectangle;
+import java.util.Collection;
+import java.util.ArrayList;
 
 
 public final class DisplayablePanel extends JPanel implements MouseListener, ItemListener {
@@ -40,34 +44,13 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 	static private ImageIcon UNLOCKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlocked.png"));
 	static private ImageIcon VISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/visible.png"));
 	static private ImageIcon INVISIBLE = new ImageIcon(DisplayablePanel.class.getResource("/img/invisible.png"));
-	//static private ImageIcon LINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/linked.png"));
-	//static private ImageIcon UNLINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlinked.png"));
+	static private ImageIcon LINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/linked.png"));
+	static private ImageIcon UNLINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlinked.png"));
 
-	private JCheckBox c, c_locked;
+	private JCheckBox c, c_locked, c_linked;
 	private JLabel title, title2;
 	private JPanel titles;
 	private SnapshotPanel sp;
-
-	/*
-	private LinkedPanel lp;
-
-	private class LinkedPanel extends JPanel {
-		public LinkedPanel() {
-			super();
-			Dimension dim = new Dimension(LINKED.getIconWidth(), LINKED.getIconHeight());
-			setMinimumSize(dim);
-			setMaximumSize(dim);
-		}
-		public void update(Graphics g) {
-			paint(g);
-		}
-		public void paint(Graphics g) {
-			//if (d.isLinked()) LINKED.paintIcon(this, g, 0, 0);
-			//else UNLINKED
-			(d.isLinked() ? LINKED : UNLINKED).paintIcon(this, g, 0, 0);
-		}
-	}
-	*/
 
 	private Display display;
 	private Displayable d;
@@ -82,6 +65,9 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		this.c.setIcon(INVISIBLE);
 		this.c.setSelectedIcon(VISIBLE);
 		this.c.setBackground(Color.white);
+		Dimension maxdim = new Dimension(26, 14);
+		this.c.setPreferredSize(maxdim);
+		this.c.setMaximumSize(maxdim);
 
 		this.c_locked = new JCheckBox();
 		this.c_locked.setIcon(UNLOCKED);
@@ -89,6 +75,18 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		this.c_locked.setSelected(d.isLocked2());
 		this.c_locked.addItemListener(this);
 		this.c_locked.setBackground(Color.white);
+		Dimension maxdim10 = new Dimension(26, 10);
+		this.c_locked.setPreferredSize(maxdim10);
+		this.c_locked.setMaximumSize(maxdim10);
+
+		this.c_linked = new JCheckBox();
+		this.c_linked.setIcon(UNLINKED);
+		this.c_linked.setSelectedIcon(LINKED);
+		this.c_linked.setSelected(d.isLinked());
+		this.c_linked.addItemListener(this);
+		this.c_linked.setBackground(Color.white);
+		this.c_linked.setPreferredSize(maxdim10);
+		this.c_linked.setMaximumSize(maxdim10);
 
 		this.sp = new SnapshotPanel(display, d);
 		title = new JLabel();
@@ -102,15 +100,14 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		titles.setBackground(Color.white);
 		titles.add(title);
 		titles.add(title2);
-		//lp = new LinkedPanel();
-		//titles.add(lp);
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 		JPanel checkboxes = new JPanel();
 		checkboxes.setBackground(Color.white);
-		BoxLayout b = new BoxLayout(checkboxes, BoxLayout.Y_AXIS);
-		checkboxes.setLayout(b);
+		checkboxes.setLayout(new GridLayout(3,1));
+		checkboxes.setMaximumSize(new Dimension(26, 50));
 		checkboxes.add(c);
 		checkboxes.add(c_locked);
+		checkboxes.add(c_linked);
 		add(checkboxes);
 		add(sp);
 		add(titles);
@@ -241,6 +238,33 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
 				d.setLocked(false);
 			}
+		} else if (source.equals(c_linked)) {
+			// Prevent linking/unlinking while transforming
+			if (Display.isTransforming(d)) {
+				Utils.logAll("Transforming! Can't lock.");
+					c_locked.setSelected(false);
+					return;
+			}
+			if (ie.getStateChange() == ItemEvent.SELECTED) {
+				final Rectangle box = d.getBoundingBox();
+				final Collection<Displayable> coll = new ArrayList<Displayable>(d.getLayer().find(box, true)); // only those visible and overlapping
+				coll.addAll(d.getLayerSet().findZDisplayables(d.getLayer(), box, true));
+				if (coll.size() > 1) {
+					for (final Displayable other : coll) {   // TODO should not link images to images
+						if (other == d) continue;
+						d.link(other);
+					}
+				} else {
+					// Nothing to link, restore icon
+					c_linked.setSelected(false);
+				}
+			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
+				d.unlink();
+										// TODO should not unlink stack patches
+										// TODO none of the checkbox changes are undoable yet.
+			}
+
+			// TODO: does setting the checkbox activate the above blocks?
 		}
 	}
 
@@ -274,7 +298,24 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 				c.setSelected(state);
 				break;
 			case LINK_STATE:
-				// TODO
+				c_linked.setSelected(state);
+				break;
+			default:
+				Utils.log2("Ooops: don't know what to do with checkbox code " + cb);
+				break;
+		}
+	}
+
+	protected void updateCheckbox(final int cb) {
+		switch(cb) {
+			case LOCK_STATE:
+				c_locked.setSelected(d.isLocked());
+				break;
+			case VISIBILITY_STATE:
+				c.setSelected(d.isVisible());
+				break;
+			case LINK_STATE:
+				c_linked.setSelected(d.isLinked());
 				break;
 			default:
 				Utils.log2("Ooops: don't know what to do with checkbox code " + cb);

@@ -3762,6 +3762,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		}
 	}
+	/** Assumes all Displayable objects belong to one specific project. */
+	static protected void updateCheckboxes(final Collection<Displayable> displs, final int cb) {
+		if (null == displs || 0 == displs.size()) return;
+		final Project p = displs.iterator().next().getProject();
+		for (final Display d : al_displays) {
+			if (d.getProject() != p) continue;
+			for (final Displayable displ : displs) {
+				DisplayablePanel dp = d.ht_panels.get(displ);
+				if (null != dp) dp.updateCheckbox(cb);
+			}
+		}
+	}
 
 	protected boolean isActiveWindow() {
 		return frame.isActive();
