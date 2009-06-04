@@ -93,9 +93,9 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Returns a copy of this object's properties, or null if none. */
-	synchronized public Map getProperties() {
+	synchronized public Map<String,String> getProperties() {
 		if (null == props) return null;
-		return new HashMap(props);
+		return new HashMap<String,String>(props);
 	}
 
 	/** Add a property that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
