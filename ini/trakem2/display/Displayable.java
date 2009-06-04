@@ -1878,7 +1878,7 @@ public abstract class Displayable extends DBObject {
 					all_links.addAll(e.getValue());
 
 					e.getKey().hs_linked = new HashSet<Displayable>(e.getValue());
-					Utils.log2("setting links to " + d);
+					//Utils.log2("setting links to " + d);
 				}
 				Display.updateCheckboxes(all_links, DisplayablePanel.LINK_STATE);
 			}
