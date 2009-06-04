@@ -212,19 +212,16 @@ public class Search {
 				: dbo.getTitle();
 			matched = pat.matcher(txt).matches();
 			long id = dbo.getId();
-			if (87 == id) Utils.log2("Searching title: " + txt + (matched ? "********** TRUE" : ""));
 			if (!matched) {
 				// Search also in its toString()
 				txt = dbo.toString();
 				matched = pat.matcher(txt).matches();
-				if (87 == id) Utils.log2("Searching toString: " + txt + (matched ? "********** TRUE" : ""));
 			}
 			if (!matched) {
 				// Search also in its id
 				txt = Long.toString(dbo.getId());
 				matched = pat.matcher(txt).matches();
 				if (matched) txt = "id: #" + txt;
-				if (87 == id) Utils.log2("Searching ID: " + txt + (matched ? "********** TRUE" : ""));
 			}
 			if (!matched) continue;
 
