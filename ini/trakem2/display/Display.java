@@ -1619,6 +1619,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (null != active && active != d && active.getClass() != Patch.class) {
 			// active is being deselected, so link underlying patches
 			active.linkPatches();
+			// If now locked via links:
+			if (active.isLocked()) Display.updateCheckboxes(active, DisplayablePanel.LOCK_STATE, true);
 		}
 		if (null == d) {
 			//Utils.log2("Display.select: clearing selection");
@@ -3742,16 +3744,23 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	/** Used by the Displayable to update the visibility and locking state checkboxes in other Displays. */
-	static protected void updateCheckboxes(final Layer layer, final Displayable displ, final Display calling_display) {
-		//LOCKS ALL //SwingUtilities.invokeLater(new Runnable() { public void run() {
+	static protected void updateCheckboxes(final Displayable displ, final int cb, final boolean state) {
 		for (final Display d : al_displays) {
-			if (d == calling_display) continue;
-			if (d.layer.contains(displ) || (displ instanceof ZDisplayable && d.layer.getParent().contains((ZDisplayable)displ))) {
+			DisplayablePanel dp = d.ht_panels.get(displ);
+			if (null != dp) dp.updateCheckbox(cb, state);
+		}
+	}
+	/** Assumes all Displayable objects belong to one specific project. */
+	static protected void updateCheckboxes(final Collection<Displayable> displs, final int cb, final boolean state) {
+		if (null == displs || 0 == displs.size()) return;
+		final Project p = displs.iterator().next().getProject();
+		for (final Display d : al_displays) {
+			if (d.getProject() != p) continue;
+			for (final Displayable displ : displs) {
 				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) dp.updateCheckboxes();
+				if (null != dp) dp.updateCheckbox(cb, state);
 			}
 		}
-		//}});
 	}
 
 	protected boolean isActiveWindow() {

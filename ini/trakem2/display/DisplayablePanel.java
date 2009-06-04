@@ -261,8 +261,24 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		return "Displayable panel for " + d.toString();
 	}
 
-	protected void updateCheckboxes() {
-		c.setSelected(d.isVisible());
-		c_locked.setSelected(d.isLocked2());
+	static public final int LOCK_STATE = 1;
+	static public final int VISIBILITY_STATE = 2;
+	static public final int LINK_STATE = 4;
+
+	protected void updateCheckbox(final int cb, final boolean state) {
+		switch(cb) {
+			case LOCK_STATE:
+				c_locked.setSelected(state);
+				break;
+			case VISIBILITY_STATE:
+				c.setSelected(state);
+				break;
+			case LINK_STATE:
+				// TODO
+				break;
+			default:
+				Utils.log2("Ooops: don't know what to do with checkbox code " + cb);
+				break;
+		}
 	}
 }

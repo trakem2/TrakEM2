@@ -668,13 +668,13 @@ public final class Layer extends DBObject implements Bucketable {
 		for (Displayable d : al_displayables) {
 			if (visible != d.isVisible() && d.getClass().getName().toLowerCase().endsWith(type)) {
 				d.setVisible(visible, false); // don't repaint
-				Display.updateCheckboxes(this, d, null);
 				hs.add(d);
 			}
 		}
 		if (repaint) {
 			Display.repaint(this);
 		}
+		Display.updateCheckboxes(hs, DisplayablePanel.VISIBILITY_STATE, visible);
 		return hs;
 	}
 	public void setAllVisible(boolean repaint) {
