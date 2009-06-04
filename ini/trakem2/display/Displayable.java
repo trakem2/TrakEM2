@@ -1870,10 +1870,17 @@ public abstract class Displayable extends DBObject {
 			d.height = height;
 			d.setAffineTransform(at); // updates bucket
 			if (null != links) {
+				HashSet<Displayable> all_links = new HashSet<Displayable>();
 				for (final Map.Entry<Displayable,HashSet<Displayable>> e : links.entrySet()) {
+					Displayable o = e.getKey();
+
+					if (null != o.hs_linked) all_links.addAll(o.hs_linked);
+					all_links.addAll(e.getValue());
+
 					e.getKey().hs_linked = new HashSet<Displayable>(e.getValue());
 					Utils.log2("setting links to " + d);
 				}
+				Display.updateCheckboxes(all_links, DisplayablePanel.LINK_STATE);
 			}
 			return true;
 		}
