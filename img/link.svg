@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="744.09448819"
+   height="1052.3622047"
+   id="svg2"
+   sodipodi:version="0.32"
+   inkscape:version="0.46"
+   sodipodi:docname="link.svg"
+   inkscape:output_extension="org.inkscape.output.svg.inkscape">
+  <defs
+     id="defs4">
+    <inkscape:perspective
+       sodipodi:type="inkscape:persp3d"
+       inkscape:vp_x="0 : 526.18109 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_z="744.09448 : 526.18109 : 1"
+       inkscape:persp3d-origin="372.04724 : 350.78739 : 1"
+       id="perspective10" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     gridtolerance="10000"
+     guidetolerance="10"
+     objecttolerance="10"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.7"
+     inkscape:cx="298.2441"
+     inkscape:cy="471.45712"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="837"
+     inkscape:window-height="850"
+     inkscape:window-x="259"
+     inkscape:window-y="118" />
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g3253"
+       inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/linked.png"
+       inkscape:export-xdpi="5.8099999"
+       inkscape:export-ydpi="5.8099999">
+      <g
+         id="g3241">
+        <rect
+           style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:20;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           id="rect2383"
+           width="172.85713"
+           height="92.85714"
+           x="215.71428"
+           y="339.50504"
+           ry="42.857143"
+           rx="50" />
+        <path
+           style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:20;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           d="M 159.99107,424.51396 L 202.14732,424.51396 C 229.84732,424.51396 252.14732,405.38181 252.14732,381.63896 L 252.14732,374.51396 C 252.14732,350.7711 229.84732,331.63896 202.14732,331.63896 L 159.99107,331.63896"
+           id="rect3155"
+           sodipodi:nodetypes="cccccc" />
+        <path
+           style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:20;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           d="M 443.22098,331.63896 L 401.06473,331.63896 C 373.36473,331.63896 351.06473,350.77111 351.06473,374.51396 L 351.06473,381.63896 C 351.06473,405.38182 373.36473,424.51396 401.06473,424.51396 L 443.22098,424.51396"
+           id="path3160"
+           sodipodi:nodetypes="cccccc" />
+      </g>
+      <rect
+         ry="0"
+         rx="0"
+         y="318.00058"
+         x="146.60602"
+         height="128"
+         width="310"
+         id="rect3239"
+         style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+    </g>
+    <g
+       id="g3260"
+       inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/unlinked.png"
+       inkscape:export-xdpi="5.8064518"
+       inkscape:export-ydpi="5.8064518">
+      <g
+         id="g3246">
+        <path
+           style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#d6d6d6;stroke-width:20;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           d="M 287.15625,600.71875 L 265.71875,600.71875 C 238.01873,600.71877 215.71875,581.61786 215.71875,557.875 L 215.71875,550.71875 M 315.71875,507.875 L 338.5625,507.875 C 366.2625,507.875 388.5625,526.97589 388.5625,550.71875 L 388.5625,557.875"
+           id="rect3162"
+           sodipodi:nodetypes="cccccccc" />
+        <path
+           style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#d6d6d6;stroke-width:20;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           d="M 159.99107,592.87557 L 202.14732,592.87557 C 229.84732,592.87557 252.14732,573.74342 252.14732,550.00057 L 252.14732,542.87557 C 252.14732,519.13271 229.84732,500.00057 202.14732,500.00057 L 159.99107,500.00057"
+           id="path3164"
+           sodipodi:nodetypes="cccccc" />
+        <path
+           style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#d6d6d6;stroke-width:20;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           d="M 443.22098,500.00057 L 401.06473,500.00057 C 373.36473,500.00057 351.06473,519.13272 351.06473,542.87557 L 351.06473,550.00057 C 351.06473,573.74343 373.36473,592.87557 401.06473,592.87557 L 443.22098,592.87557"
+           id="path3166"
+           sodipodi:nodetypes="cccccc" />
+      </g>
+      <rect
+         ry="0"
+         rx="0"
+         y="486.35965"
+         x="146.60602"
+         height="128"
+         width="310"
+         id="rect3251"
+         style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+    </g>
+  </g>
+</svg>

@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005,2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -38,31 +38,22 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 
 	private Display display;
 	private Displayable d;
-	static public final int FIXED_HEIGHT = 50;
+	static public final int SIDE = 50;
+	static public final Color GREY = new Color(215, 215, 215);
 
 	public SnapshotPanel(Display display, Displayable d) {
 		this.display = display;
 		this.d = d;
-		remake();
-	}
-
-	public void set(final Displayable d) {
-		if (this.d.getLayer().getParent().equals(d.getLayer().getParent())) {
-			this.d = d;
-			repaint();
-		} else {
-			this.d = d;
-			remake();
-		}
-	}
-
-	/** Redefine dimensions, which are defined by the LayerSet dimensions. */
-	public void remake() {
-		final int width = (int)(FIXED_HEIGHT / d.getLayer().getLayerHeight() * d.getLayer().getLayerWidth());
-		Dimension dim = new Dimension(width, FIXED_HEIGHT);
+		// Always a square
+		Dimension dim = new Dimension(SIDE, SIDE);
 		setMinimumSize(dim);
 		setMaximumSize(dim);
 		setPreferredSize(dim);
+	}
+
+	public void set(final Displayable d) {
+		this.d = d;
+		repaint();
 	}
 
 	public void update(Graphics g) {
@@ -70,6 +61,19 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 	}
 
 	private BufferedImage img = null;
+
+	private void fillBackground(Graphics g, double lw, double lh, int slw, int slh) {
+		if (lw != lh) {
+			g.setColor(Color.black);
+			g.fillRect(0, 0, slw, slh);
+			g.setColor(GREY);
+			g.fillRect(slw, 0, SIDE - slw, SIDE);
+			g.fillRect(0, slh, slw, SIDE - slh);
+		} else {
+			g.setColor(Color.black);
+			g.fillRect(0, 0, SIDE, SIDE);
+		}
+	}
 
 	/** Paint the snapshot image over a black background that represents a scaled Layer. */
 	public void paint(final Graphics g) {
@@ -84,16 +88,24 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 			}
 		}
 		// Else, repaint background to avoid flickering
-		g.setColor(Color.black);
-		g.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
+
+		final double lw = d.getLayer().getLayerWidth();
+		final double lh = d.getLayer().getLayerHeight();
+		final double scale = Math.min(SIDE / lw,
+			                      SIDE / lh);
+		final int slw = (int)(lw * scale);
+		final int slh = (int)(lh * scale);
+
+		fillBackground(g, lw, lh, slw, slh);
+
 		// ... and create the image in a separate thread and repaint again
 		FSLoader.repainter.submit(new Runnable() { public void run() {
 			if (!display.isPartiallyWithinViewport(d)) return;
-			final BufferedImage img = new BufferedImage(SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight(), BufferedImage.TYPE_INT_ARGB);
-			final Graphics2D g2 = img.createGraphics();
-			g2.setColor(Color.black);
-			g2.fillRect(0, 0, SnapshotPanel.this.getWidth(), SnapshotPanel.this.getHeight());
-			final double scale = FIXED_HEIGHT / d.getLayer().getLayerHeight();
+			BufferedImage img = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_ARGB);
+			Graphics2D g2 = img.createGraphics();
+
+			fillBackground(g2, lw, lh, slw, slh);
+
 			g2.scale(scale, scale);
 
 			try {

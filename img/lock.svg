@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="744.09448819"
+   height="1052.3622047"
+   id="svg2"
+   sodipodi:version="0.32"
+   inkscape:version="0.46"
+   sodipodi:docname="lock.svg"
+   inkscape:output_extension="org.inkscape.output.svg.inkscape">
+  <defs
+     id="defs4">
+    <inkscape:perspective
+       sodipodi:type="inkscape:persp3d"
+       inkscape:vp_x="0 : 526.18109 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_z="744.09448 : 526.18109 : 1"
+       inkscape:persp3d-origin="372.04724 : 350.78739 : 1"
+       id="perspective10" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     gridtolerance="10000"
+     guidetolerance="10"
+     objecttolerance="10"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="2.56"
+     inkscape:cx="361.24517"
+     inkscape:cy="325.47017"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="1400"
+     inkscape:window-height="1000"
+     inkscape:window-x="0"
+     inkscape:window-y="28" />
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <rect
+       style="opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+       id="rect2383"
+       width="81.152306"
+       height="75.916672"
+       x="226.93196"
+       y="369.11212"
+       rx="31.733576"
+       ry="7.9350324" />
+    <path
+       style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+       d="M 267.84375,381.59375 C 258.54134,381.59375 250.96875,389.13508 250.96875,398.4375 C 250.96875,403.55217 253.2739,408.1273 256.875,411.21875 L 256.875,433.625 L 278.15625,433.625 L 278.15625,411.75 C 282.12955,408.66624 284.68751,403.85274 284.6875,398.4375 C 284.6875,389.13509 277.14615,381.59375 267.84375,381.59375 z"
+       id="rect3155" />
+    <g
+       id="g3200"
+       inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/locked.png"
+       inkscape:export-xdpi="19.431818"
+       inkscape:export-ydpi="19.431818">
+      <rect
+         ry="0"
+         rx="0"
+         y="484.9505"
+         x="220.58766"
+         height="88"
+         width="94"
+         id="rect3196"
+         style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <rect
+         inkscape:export-ydpi="30"
+         inkscape:export-xdpi="30"
+         inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/locked.png"
+         ry="7.9350324"
+         rx="31.733576"
+         y="491.47495"
+         x="227.01151"
+         height="75.916672"
+         width="81.152306"
+         id="rect3168"
+         style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <path
+         inkscape:export-ydpi="30"
+         inkscape:export-xdpi="30"
+         inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/locked.png"
+         id="path3170"
+         d="M 267.60329,503.95659 C 258.30088,503.95659 250.72829,511.49792 250.72829,520.80034 C 250.72829,525.91501 253.03344,530.49014 256.63454,533.58159 L 256.63454,555.98784 L 277.91579,555.98784 L 277.91579,534.11284 C 281.88909,531.02908 284.44705,526.21558 284.44704,520.80034 C 284.44704,511.49793 276.90569,503.95659 267.60329,503.95659 z"
+         style="opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+    </g>
+    <g
+       id="g3205"
+       inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/unlocked.png"
+       inkscape:export-xdpi="19.431818"
+       inkscape:export-ydpi="19.431818">
+      <rect
+         ry="0"
+         rx="0"
+         y="484.9505"
+         x="340.76407"
+         height="88"
+         width="94"
+         id="rect3198"
+         style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <rect
+         inkscape:export-ydpi="30"
+         inkscape:export-xdpi="30"
+         inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/unlocked.png"
+         ry="7.9350324"
+         rx="31.733576"
+         y="491.47495"
+         x="347.18793"
+         height="75.916672"
+         width="81.152306"
+         id="rect3172"
+         style="opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <path
+         inkscape:export-ydpi="30"
+         inkscape:export-xdpi="30"
+         inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/unlocked.png"
+         id="path3174"
+         d="M 387.77969,503.95659 C 378.47728,503.95659 370.90469,511.49792 370.90469,520.80034 C 370.90469,525.91501 373.20984,530.49014 376.81094,533.58159 L 376.81094,555.98784 L 398.09219,555.98784 L 398.09219,534.11284 C 402.06549,531.02908 404.62345,526.21558 404.62344,520.80034 C 404.62344,511.49793 397.08209,503.95659 387.77969,503.95659 z"
+         style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+    </g>
+    <rect
+       style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+       id="rect3210"
+       width="69.878105"
+       height="53.681194"
+       x="233.6983"
+       y="648.8277" />
+    <g
+       id="g3475"
+       inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/locked.png"
+       inkscape:export-xdpi="30"
+       inkscape:export-ydpi="30">
+      <g
+         id="g3241">
+        <rect
+           style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           id="rect3213"
+           width="44.425819"
+           height="30.079199"
+           x="278.1806"
+           y="658.54578"
+           ry="8.7926092" />
+        <rect
+           style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           id="rect3215"
+           width="29.154442"
+           height="38.409821"
+           x="285.81631"
+           y="637.35938"
+           ry="8.7926092" />
+      </g>
+      <rect
+         ry="0"
+         rx="0"
+         y="631.22211"
+         x="270.39352"
+         height="60"
+         width="60"
+         id="rect3228"
+         style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+    </g>
+    <g
+       id="g3481"
+       inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/unlocked.png"
+       inkscape:export-xdpi="30"
+       inkscape:export-ydpi="30">
+      <g
+         transform="translate(0,-0.5057967)"
+         id="g3237">
+        <path
+           style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           d="M 368.69161,641.75475 C 370.26687,639.40559 372.94681,637.86517 375.99976,637.86517 L 387.56899,637.86517 C 392.44009,637.86517 396.3616,641.78668 396.3616,646.65778 L 396.3616,667.48238 C 396.3616,672.35349 392.44009,676.27499 387.56899,676.27499 L 375.99976,676.27499"
+           id="rect3219"
+           sodipodi:nodetypes="ccccccc" />
+        <rect
+           style="fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+           id="rect3217"
+           width="44.425819"
+           height="30.079199"
+           x="360.31369"
+           y="659.05157"
+           ry="8.7926092" />
+      </g>
+      <rect
+         ry="0"
+         rx="0"
+         y="631.22211"
+         x="352.52661"
+         height="60"
+         width="60"
+         id="rect3235"
+         style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+    </g>
+    <g
+       id="g2440"
+       transform="translate(0,1.5944824)"
+       inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/locked.png"
+       inkscape:export-xdpi="30"
+       inkscape:export-ydpi="30">
+      <rect
+         ry="6.8394842"
+         y="759.37866"
+         x="286.09711"
+         height="21.916931"
+         width="35.831997"
+         id="rect2416"
+         style="fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <rect
+         ry="8.7926092"
+         y="745.26434"
+         x="291.1937"
+         height="23.956696"
+         width="25.638819"
+         id="rect2418"
+         style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <rect
+         ry="0"
+         rx="0"
+         y="741.0802"
+         x="274.01312"
+         height="41.25"
+         width="60"
+         id="rect2420"
+         style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <path
+         style="opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"
+         d="M 304.01689,765.06531 C 301.76811,765.06531 299.9375,766.88836 299.9375,769.13714 C 299.9375,770.37357 300.49475,771.47957 301.36529,772.2269 L 301.36529,777.64343 L 306.50985,777.64343 L 306.50985,772.35533 C 307.47037,771.60986 308.08873,770.44623 308.08873,769.13714 C 308.08873,766.88836 306.26567,765.06531 304.01689,765.06531 z"
+         id="path2438"
+         inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/locked.png"
+         inkscape:export-xdpi="30"
+         inkscape:export-ydpi="30" />
+    </g>
+    <g
+       id="g3233"
+       inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/unlocked.png"
+       inkscape:export-xdpi="30"
+       inkscape:export-ydpi="30">
+      <path
+         sodipodi:nodetypes="ccccc"
+         id="rect2450"
+         d="M 371.53426,749.28828 C 373.11108,747.78175 375.2507,746.85883 377.61381,746.85883 L 385.66741,746.85883 C 390.53851,746.85883 394.46002,750.78033 394.46002,755.65143 L 394.46002,762.02291"
+         style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#dedede;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <rect
+         ry="6.8394842"
+         y="760.97314"
+         x="363.72461"
+         height="21.916931"
+         width="35.831997"
+         id="rect2448"
+         style="fill:#e9e9e9;fill-opacity:1;fill-rule:nonzero;stroke:#dedede;stroke-width:1;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <rect
+         ry="0"
+         rx="0"
+         y="742.67468"
+         x="351.64062"
+         height="41.25"
+         width="60"
+         id="rect2452"
+         style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+      <path
+         inkscape:export-ydpi="30"
+         inkscape:export-xdpi="30"
+         inkscape:export-filename="/home/albert/Programming/fiji/TrakEM2/img/locked.png"
+         id="path3231"
+         d="M 382.03502,766.65979 C 379.78624,766.65979 377.95563,768.48284 377.95563,770.73162 C 377.95563,771.96805 378.51288,773.07405 379.38342,773.82138 L 379.38342,779.23791 L 384.52798,779.23791 L 384.52798,773.94981 C 385.4885,773.20434 386.10686,772.04071 386.10686,770.73162 C 386.10686,768.48284 384.2838,766.65979 382.03502,766.65979 z"
+         style="opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:miter;marker:none;marker-start:none;marker-mid:none;marker-end:none;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;visibility:visible;display:inline;overflow:visible;enable-background:accumulate" />
+    </g>
+  </g>
+</svg>

@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -514,7 +514,7 @@ public final class Layer extends DBObject implements Bucketable {
 		return al;
 	}
 
-	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself not included if present in this very Layer). */
+	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself included if present in this very Layer). */
 	public Collection<Displayable> getIntersecting(final Displayable d, final Class target) {
 		if (null != root) {
 			final Area area = new Area(d.getPerimeter());
@@ -668,13 +668,13 @@ public final class Layer extends DBObject implements Bucketable {
 		for (Displayable d : al_displayables) {
 			if (visible != d.isVisible() && d.getClass().getName().toLowerCase().endsWith(type)) {
 				d.setVisible(visible, false); // don't repaint
-				Display.updateVisibilityCheckbox(this, d, null);
 				hs.add(d);
 			}
 		}
 		if (repaint) {
 			Display.repaint(this);
 		}
+		Display.updateCheckboxes(hs, DisplayablePanel.VISIBILITY_STATE, visible);
 		return hs;
 	}
 	public void setAllVisible(boolean repaint) {

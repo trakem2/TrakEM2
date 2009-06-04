@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -222,24 +222,26 @@ public abstract class Displayable extends DBObject {
 	}
 
 	////////////////////////////////////////////////////
-	public void setLocked(boolean lock) {
-		if (lock) this.locked = lock;
-		else {
-			// to unlock, unlock those in the linked group that are locked
-			this.locked = false;
-			unlockAllLinked(new HashSet());
+	/** Set the locking state of this Displayable, which affects that of its linked Displayable objects.
+	 *  If lock is true, this Displayable is set as locked; any linked Displayable's locked state is not
+	 *  changed, but will behave as locked.
+	 *  If lock is false, this Displayable and all its linked Displayable objects are set as unlocked. */
+	public void setLocked(final boolean lock) {
+		// Regardless of whether this Displayable locked state is equal to 'lock' argument,
+		// apply the state as if it was new, for setLocked(boolean) is meant to apply to all linked.
+		if (lock) {
+			// Set the locked state of only this Displayable, not of any linked ones.
+			this.locked = lock;
+			updateInDatabase("locked");
+		} else {
+			// to unlock, unlock all in the linked group that are locked
+			for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
+				d.locked = false;
+				d.updateInDatabase("locked");
+			}
 		}
-		updateInDatabase("locked");
 	}
-	private void unlockAllLinked(HashSet hs) {
-		if (hs.contains(this)) return;
-		hs.add(this);
-		if (null == hs_linked) return;
-		for (final Displayable d : hs_linked) {
-			if (d.locked) d.locked = false;
-			d.unlockAllLinked(hs);
-		}
-	}
+
 	/** Return the value of the field 'locked'. */
 	public boolean isLocked2() {
 		return locked;
@@ -467,12 +469,14 @@ public abstract class Displayable extends DBObject {
 		return getBounds(null != r ? r : new Rectangle());
 	}
 
-	/** Bounding box of the transformed data. Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
+	/** Bounding box of the transformed data (or 0,0,0,0 when no data).
+	 *  Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
 	private final Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;
 		r.width = (int)this.width;
 		r.height = (int)this.height;
+		// Data-delimiting bounds:
 		if (this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
 			r.x += (int)this.at.getTranslateX();
 			r.y += (int)this.at.getTranslateY();
@@ -576,7 +580,8 @@ public abstract class Displayable extends DBObject {
 		return hs;
 	}
 
-	/** Return the HashSet of all directly and indirectly linked objects. */
+	/** Return the HashSet of all directly and indirectly linked objects.
+	 *  When no links, then the HashSet contains only this Displayable. */
 	public HashSet<Displayable> getLinkedGroup(HashSet<Displayable> hs) {
 		if (null == hs) hs = new HashSet<Displayable>();
 		else if (hs.contains(this)) return hs;
@@ -646,7 +651,6 @@ public abstract class Displayable extends DBObject {
 	public void setVisible(final boolean visible, final boolean repaint) {
 		if (visible == this.visible) {
 			// patching synch error
-			Display.updateVisibilityCheckbox(layer, this, null);
 			return;
 		}
 		this.visible = visible;
@@ -655,7 +659,6 @@ public abstract class Displayable extends DBObject {
 			Display.repaint(layer, this, 5);
 		}
 		updateInDatabase("visible");
-		Display.updateVisibilityCheckbox(layer, this, null);
 	}
 
 	/** Repaint this Displayable in all Display instances that are showing it. */
@@ -1127,6 +1130,7 @@ public abstract class Displayable extends DBObject {
 		if (visible1 != visible) {
 			prev.add("visible", visible1);
 			setVisible(visible1);
+			Display.updateCheckboxes(this, DisplayablePanel.VISIBILITY_STATE, visible1);
 		}
 		if (locked1 != locked) {
 			prev.add("locked", locked1);
@@ -1138,6 +1142,10 @@ public abstract class Displayable extends DBObject {
 		// it's lengthy to predict the precise box for each open Display, so just repaint all in all Displays.
 		Display.updateSelection();
 		Display.repaint(getLayer()); // not this.layer, so ZDisplayables are repainted properly
+
+		Collection<Displayable> lg = getLinkedGroup(null); // includes the self
+		Display.updateCheckboxes(lg, DisplayablePanel.LINK_STATE);
+		Display.updateCheckboxes(lg, DisplayablePanel.LOCK_STATE);
 
 		return prev;
 	}
@@ -1754,7 +1762,7 @@ public abstract class Displayable extends DBObject {
 					if (!step.apply(action)) ok = false;
 				}
 			}
-			Display.update(d.getLayerSet());
+			Display.update(d.getLayerSet(), false);
 			return ok;
 		}
 		public boolean isEmpty() {
@@ -1858,7 +1866,6 @@ public abstract class Displayable extends DBObject {
 
 		/** Set the Displayable's fields. */
 		final boolean to1(final Displayable d) {
-			Utils.log2("## to1");
 			d.width = width;
 			d.height = height;
 			d.setAffineTransform(at); // updates bucket

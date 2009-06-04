@@ -1,7 +1,7 @@
 /**
 
 TrakEM2 plugin for ImageJ(C).
-Copyright (C) 2005, 2006 Albert Cardona and Rodney Douglas.
+Copyright (C) 2005-2009 Albert Cardona and Rodney Douglas.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -613,7 +613,7 @@ public final class Patch extends Displayable {
 	public final boolean isStack() {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
 		for (final Displayable d : hs_linked) {
-			if (d.getClass() != Patch.class && d.layer.getId() != this.layer.getId()) return true;
+			if (d.getClass() == Patch.class && d.layer.getId() != this.layer.getId()) return true;
 		}
 		return false;
 	}
@@ -839,7 +839,7 @@ public final class Patch extends Displayable {
 		}
 	}
 
-	static protected void crosslink(final ArrayList patches, final boolean overlapping_only) {
+	static protected void crosslink(final Collection<Displayable> patches, final boolean overlapping_only) {
 		if (null == patches) return;
 		final ArrayList<Patch> al = new ArrayList<Patch>();
 		for (Object ob : patches) if (ob instanceof Patch) al.add((Patch)ob); // ... 
@@ -1212,7 +1212,7 @@ public final class Patch extends Displayable {
 						list = new CoordinateTransformList();
 						list.add(this.ct);
 					}
-					if (0 == mod) { //SHIFT is down
+					if (0 == mod) { //SHIFT is not down
 						AffineModel2D am = new AffineModel2D();
 						am.set(this.at);
 						if (null == list) list = new CoordinateTransformList();
@@ -1251,7 +1251,7 @@ public final class Patch extends Displayable {
 					}
 					try {
 						// a roi local to the image bounding box
-						final Area a = new Area(new Rectangle(0, 0, (int)width, (int)height));
+						final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
 						a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
 
 						if (M.isEmpty(a)) {
@@ -1259,12 +1259,23 @@ public final class Patch extends Displayable {
 							return;
 						}
 
+						// Correct numerical instability:
+						// (needed when ROI intersects left margin of the image, at least)
+						Rectangle ab = a.getBounds();
+						if (-1 == ab.x || -1 == ab.y) {
+							AffineTransform aff = new AffineTransform();
+							aff.translate(-1 == ab.x ? 1 : 0, -1 == ab.y ? 1 : 0);
+							Area aa = a.createTransformedArea(aff);
+							a.reset();
+							a.add(aa);
+						}
+
 						if (null != ct) {
 							// inverse the coordinate transform
 							final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
 							final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 
-							ByteProcessor rmask = new ByteProcessor((int)width, (int)height);
+							ByteProcessor rmask = new ByteProcessor((int)o_width, (int)o_height);
 
 							if (is_new) {
 								rmask.setColor(Toolbar.getForegroundColor());
@@ -1357,5 +1368,28 @@ public final class Patch extends Displayable {
 			}
 			return true;
 		}
+	}
+
+	/** Considers the alpha mask. */
+	public boolean contains(final int x_p, final int y_p) {
+		if (!hasAlphaChannel()) return super.contains(x_p, y_p);
+		// else, get pixel from image
+		if (project.getLoader().isUnloadable(this)) return super.contains(x_p, y_p);
+		final Image img = project.getLoader().fetchImage(this, 0.12499); // TODO ideally, would ask for image within 256x256 dimensions, but that would need knowing the screen image dimensions beforehand, or computing it from the CoordinateTransform, which may be very costly.
+		if (Loader.isSignalImage(img)) return super.contains(x_p, y_p);
+		final int w = img.getWidth(null);
+		final double scale = w / width;
+		final Point2D.Double pd = inverseTransformPoint(x_p, y_p);
+		final int x2 = (int)(pd.x * scale);
+		final int y2 = (int)(pd.y * scale);
+		final int[] pvalue = new int[1];
+		final PixelGrabber pg = new PixelGrabber(img, x2, y2, 1, 1, pvalue, 0, w);
+		try {
+			pg.grabPixels();
+		} catch (InterruptedException ie) {
+			return super.contains(x_p, y_p);
+		}
+		// Not true if alpha value is zero
+		return 0 != (pvalue[0] & 0xff000000);
 	}
 }
