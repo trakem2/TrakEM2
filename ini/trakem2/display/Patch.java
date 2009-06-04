@@ -613,7 +613,7 @@ public final class Patch extends Displayable {
 	public final boolean isStack() {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
 		for (final Displayable d : hs_linked) {
-			if (d.getClass() != Patch.class && d.layer.getId() != this.layer.getId()) return true;
+			if (d.getClass() == Patch.class && d.layer.getId() != this.layer.getId()) return true;
 		}
 		return false;
 	}
