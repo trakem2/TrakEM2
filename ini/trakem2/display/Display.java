@@ -554,19 +554,16 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		// Tab 1: Patches
 		this.panel_patches = makeTabPanel();
-		this.panel_patches.add(new JLabel("No patches."));
 		this.scroll_patches = makeScrollPane(panel_patches);
 		this.tabs.add("Patches", scroll_patches);
 
 		// Tab 2: Profiles
 		this.panel_profiles = makeTabPanel();
-		this.panel_profiles.add(new JLabel("No profiles."));
 		this.scroll_profiles = makeScrollPane(panel_profiles);
 		this.tabs.add("Profiles", scroll_profiles);
 
 		// Tab 3: pipes
 		this.panel_zdispl = makeTabPanel();
-		this.panel_zdispl.add(new JLabel("No objects."));
 		this.scroll_zdispl = makeScrollPane(panel_zdispl);
 		this.tabs.add("Z space", scroll_zdispl);
 
@@ -586,7 +583,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		// Tab 5: labels
 		this.panel_labels = makeTabPanel();
-		this.panel_labels.add(new JLabel("No labels."));
 		this.scroll_labels = makeScrollPane(panel_labels);
 		this.tabs.add("Labels", scroll_labels);
 
@@ -925,9 +921,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (!ControlWindow.isGUIEnabled()) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 		// empty the tabs, except channels and pipes
-		clearTab(panel_profiles, "Profiles");
-		clearTab(panel_patches, "Patches");
-		clearTab(panel_labels, "Labels");
+		clearTab(panel_profiles);
+		clearTab(panel_patches);
+		clearTab(panel_labels);
 		// distribute Displayable to the tabs. Ignore LayerSet instances.
 		if (null == ht_panels) ht_panels = new Hashtable<Displayable,DisplayablePanel>();
 		else ht_panels.clear();
@@ -952,10 +948,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		*/
 	}
 
-	/** Remove all components from the tab and add a "No [label]" label to each. */
-	private void clearTab(final Container c, final String label) {
+	/** Remove all components from the tab. */
+	private void clearTab(final Container c) {
 		c.removeAll();
-		c.add(new JLabel("No " + label + "."));
 		// magic cocktail:
 		if (tabs.getSelectedComponent() == c) {
 			Utils.updateComponent(c);
@@ -1865,7 +1860,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			try {
 			if (0 == al.size()) {
 				tab.removeAll();
-				tab.add(new JLabel("No " + label + "."));
 			} else {
 				Component[] comp = tab.getComponents();
 				int next = 0;
