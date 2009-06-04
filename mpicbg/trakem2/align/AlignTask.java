@@ -684,7 +684,7 @@ final public class AlignTask
 	}
 
 	static public final Bureaucrat registerStackSlices(final Patch slice) {
-		return Bureaucrat.createAndStart(new Worker.Task("Snapping") {
+		return Bureaucrat.createAndStart(new Worker.Task("Registering slices") {
 			public void exec() {
 
 		// build the list
