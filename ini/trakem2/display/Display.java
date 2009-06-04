@@ -31,7 +31,6 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.imaging.Registration;
 import ini.trakem2.imaging.Blending;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
@@ -3090,7 +3089,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					final LayerSet ls = slice.getLayerSet();
 					final HashSet<Displayable> linked = slice.getLinkedGroup(null);
 					ls.addTransformStep(linked);
-					Bureaucrat burro = Registration.registerStackSlices((Patch)getActive()); // will repaint
+					Bureaucrat burro = AlignTask.registerStackSlices((Patch)getActive()); // will repaint
 					burro.addPostTask(new Runnable() { public void run() {
 						// The current state when done
 						ls.addTransformStep(linked);

@@ -682,4 +682,37 @@ final public class AlignTask
 
 		}}, patch.getProject());
 	}
+
+	static public final Bureaucrat registerStackSlices(final Patch slice) {
+		return Bureaucrat.createAndStart(new Worker.Task("Snapping") {
+			public void exec() {
+
+		// build the list
+		ArrayList<Patch> slices = slice.getStackPatches();
+		if (slices.size() < 2) {
+			Utils.log2("Not a stack!");
+			return;
+		}
+
+		// check that none are linked to anything other than images
+		for (final Patch patch : slices) {
+			if (!patch.isOnlyLinkedTo(Patch.class)) {
+				Utils.log("Can't register: one or more slices are linked to objects other than images.");
+				return;
+			}
+		}
+
+		// ok proceed
+		final Align.ParamOptimize p = Align.paramOptimize.clone();
+		p.setup("Register stack slices");
+
+		List<Patch> fixedSlices = new ArrayList<Patch>();
+		fixedSlices.add(slice);
+
+		alignTiles(slices, fixedSlices, p);
+
+		Display.repaint();
+
+		}}, slice.getProject());
+	}
 }
