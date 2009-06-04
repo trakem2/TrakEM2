@@ -1313,6 +1313,7 @@ public class Selection {
 				for (final Displayable d : queue) {
 					d.setLocked(b);
 				}
+				Display.updateCheckboxes(hs, DisplayablePanel.LINK_STATE, b);
 				addDataEditStep(new String[]{"locked"});
 			} catch (Exception e) {
 				IJError.print(e);
@@ -1424,6 +1425,7 @@ public class Selection {
 		return ht_copy;
 	}
 
+	/** Recompute list of linked Displayable. */
 	void update() {
 		synchronized (queue_lock) {
 		try {
@@ -1684,6 +1686,7 @@ public class Selection {
 			unlock();
 		}
 		Display.repaint(display.getLayer(), box, 10);
+		Display.updateCheckboxes(hs, DisplayablePanel.VISIBILITY_STATE, b);
 	}
 
 	/** Removes the given Displayable from the selection and previous selection list. */

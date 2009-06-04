@@ -240,8 +240,6 @@ public abstract class Displayable extends DBObject {
 				d.updateInDatabase("locked");
 			}
 		}
-		// Update checkboxes for all linked
-		Display.updateCheckboxes(getLinkedGroup(new HashSet<Displayable>()), DisplayablePanel.LOCK_STATE, lock);
 	}
 
 	/** Return the value of the field 'locked'. */
@@ -653,7 +651,6 @@ public abstract class Displayable extends DBObject {
 	public void setVisible(final boolean visible, final boolean repaint) {
 		if (visible == this.visible) {
 			// patching synch error
-			Display.updateCheckboxes(this, DisplayablePanel.VISIBILITY_STATE, visible);
 			return;
 		}
 		this.visible = visible;
@@ -662,7 +659,6 @@ public abstract class Displayable extends DBObject {
 			Display.repaint(layer, this, 5);
 		}
 		updateInDatabase("visible");
-		Display.updateCheckboxes(this, DisplayablePanel.VISIBILITY_STATE, visible);
 	}
 
 	/** Repaint this Displayable in all Display instances that are showing it. */
@@ -772,8 +768,6 @@ public abstract class Displayable extends DBObject {
 		d.hs_linked.add(this);
 		// update the database
 		if (update_database) project.getLoader().addCrossLink(project.getId(), this.id, d.id);
-
-		Display.updateCheckboxes(getLinkedGroup(null), DisplayablePanel.LINK_STATE, true);
 	}
 
 	/** Remove all links held by this Displayable.*/
@@ -787,8 +781,6 @@ public abstract class Displayable extends DBObject {
 			unlink(displ[i]);
 		}
 		this.hs_linked = null;
-
-		Display.updateCheckboxes(Arrays.asList(displ), DisplayablePanel.LINK_STATE);
 	}
 
 	/** Remove the link with the given Displayable, and tell the given Displayable to remove the link with this. */
@@ -805,8 +797,6 @@ public abstract class Displayable extends DBObject {
 		}
 		// update the database in any case
 		project.getLoader().removeCrossLink(this.id, d.id);
-
-		Display.updateCheckboxes(Arrays.asList(new Displayable[]{this, d}), DisplayablePanel.LINK_STATE);
 	}
 
 	/** Check if this object is directly linked to any other Displayable objects.*/
@@ -876,8 +866,6 @@ public abstract class Displayable extends DBObject {
 				this.link(displ);
 			}
 		}
-
-		if (isLinked()) Display.updateCheckboxes(getLinkedGroup(null), DisplayablePanel.LINK_STATE, true);
 	}
 	/** Unlink all Displayable objects of the given type linked by this. */
 	public void unlinkAll(final Class c) {
@@ -892,8 +880,6 @@ public abstract class Displayable extends DBObject {
 				unlink(displ[i]);
 			}
 		}
-
-		Display.updateCheckboxes(Arrays.asList(displ), DisplayablePanel.LINK_STATE);
 	}
 
 	/** Check if this perimeter's intersects that of the given Displayable. */
@@ -1144,6 +1130,7 @@ public abstract class Displayable extends DBObject {
 		if (visible1 != visible) {
 			prev.add("visible", visible1);
 			setVisible(visible1);
+			Display.updateCheckboxes(this, DisplayablePanel.VISIBILITY_STATE, visible1);
 		}
 		if (locked1 != locked) {
 			prev.add("locked", locked1);
@@ -1155,6 +1142,10 @@ public abstract class Displayable extends DBObject {
 		// it's lengthy to predict the precise box for each open Display, so just repaint all in all Displays.
 		Display.updateSelection();
 		Display.repaint(getLayer()); // not this.layer, so ZDisplayables are repainted properly
+
+		Collection<Displayable> lg = getLinkedGroup(null); // includes the self
+		Display.updateCheckboxes(lg, DisplayablePanel.LINK_STATE);
+		Display.updateCheckboxes(lg, DisplayablePanel.LOCK_STATE);
 
 		return prev;
 	}

@@ -238,6 +238,12 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
 				d.setLocked(false);
 			}
+			// Update lock checkboxes of linked Displayables, except of this one
+			Collection<Displayable> lg = d.getLinkedGroup(null);
+			if (null != lg) {
+				lg.remove(d); // not this one!
+				Display.updateCheckboxes(lg, LOCK_STATE, d.isLocked2());
+			}
 		} else if (source.equals(c_linked)) {
 			// Prevent linking/unlinking while transforming
 			if (Display.isTransforming(d)) {
@@ -246,6 +252,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 					return;
 			}
 			if (ie.getStateChange() == ItemEvent.SELECTED) {
+				Utils.log2("Called SELECTED");
 				final Rectangle box = d.getBoundingBox();
 				final Collection<Displayable> coll = new ArrayList<Displayable>(d.getLayer().find(box, true)); // only those visible and overlapping
 				coll.addAll(d.getLayerSet().findZDisplayables(d.getLayer(), box, true));
@@ -259,10 +266,14 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 					c_linked.setSelected(false);
 				}
 			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
+				Utils.log2("Called DESELECTED");
 				d.unlink();
 										// TODO should not unlink stack patches
 										// TODO none of the checkbox changes are undoable yet.
 			}
+
+			// Recompute list of links in Selection
+			Display.updateSelection(Display.getFront());
 
 			// TODO: does setting the checkbox activate the above blocks?
 		}

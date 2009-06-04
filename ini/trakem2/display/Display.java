@@ -1621,6 +1621,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			active.linkPatches();
 			// If now locked via links:
 			if (active.isLocked()) Display.updateCheckboxes(active, DisplayablePanel.LOCK_STATE, true);
+			// Update link icons:
+			Display.updateCheckboxes(active.getLinkedGroup(null), DisplayablePanel.LINK_STATE);
 		}
 		if (null == d) {
 			//Utils.log2("Display.select: clearing selection");
@@ -3289,19 +3291,26 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			final HashSet<Displayable> ds = new HashSet<Displayable>(lay.getParent().getDisplayables());
 			lay.getParent().addDataEditStep(ds);
 			boolean overlapping_only = 1 == gd.getNextChoiceIndex();
+			Collection<Displayable> coll = null;
 			switch (gd.getNextChoiceIndex()) {
 				case 0:
-					Patch.crosslink(selection.getSelected(Patch.class), overlapping_only);
+					coll = selection.getSelected(Patch.class);
+					Patch.crosslink(coll, overlapping_only);
 					break;
 				case 1:
-					Patch.crosslink(lay.getDisplayables(Patch.class), overlapping_only);
+					coll = lay.getDisplayables(Patch.class);
+					Patch.crosslink(coll, overlapping_only);
 					break;
 				case 2:
+					coll = new ArrayList<Displayable>();
 					for (final Layer la : lay.getParent().getLayers()) {
-						Patch.crosslink(la.getDisplayables(Patch.class), overlapping_only);
+						Collection<Displayable> acoll = la.getDisplayables(Patch.class);
+						Patch.crosslink(acoll, overlapping_only);
+						coll.addAll(acoll);
 					}
 					break;
 			}
+			if (null != coll) Display.updateCheckboxes(coll, DisplayablePanel.LINK_STATE, true);
 			lay.getParent().addDataEditStep(ds);
 		} else if (command.equals("Calibration...")) {
 			try {
@@ -3750,7 +3759,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != dp) dp.updateCheckbox(cb, state);
 		}
 	}
-	/** Assumes all Displayable objects belong to one specific project. */
+	/** Set the checkbox @param cb state to @param state value, for each Displayable. Assumes all Displayable objects belong to one specific project. */
 	static protected void updateCheckboxes(final Collection<Displayable> displs, final int cb, final boolean state) {
 		if (null == displs || 0 == displs.size()) return;
 		final Project p = displs.iterator().next().getProject();
@@ -3762,7 +3771,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		}
 	}
-	/** Assumes all Displayable objects belong to one specific project. */
+	/** Update the checkbox @param cb state to an appropriate value for each Displayable. Assumes all Displayable objects belong to one specific project. */
 	static protected void updateCheckboxes(final Collection<Displayable> displs, final int cb) {
 		if (null == displs || 0 == displs.size()) return;
 		final Project p = displs.iterator().next().getProject();
