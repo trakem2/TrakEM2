@@ -35,6 +35,7 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Vector;
 import java.util.regex.*;
+import java.util.Map;
 
 public class Search {
 	private JFrame search_frame = null;
@@ -222,6 +223,34 @@ public class Search {
 				txt = Long.toString(dbo.getId());
 				matched = pat.matcher(txt).matches();
 				if (matched) txt = "id: #" + txt;
+			}
+			if (!matched && dbo instanceof Displayable) {
+				// Search also in its properties
+				Map<String,String> props = ((Displayable)dbo).getProperties();
+				if (null != props) {
+					for (final Map.Entry<String,String> e : props.entrySet()) {
+						if (pat.matcher(e.getKey()).matches()
+						 || pat.matcher(e.getValue()).matches()) {
+							matched = true;
+							txt = e.getKey() + " => " + e.getValue() + " [property]";
+						}
+					}
+				}
+				if (!matched) {
+					Map<Displayable,Map<String,String>> linked_props = ((Displayable)dbo).getLinkedProperties();
+					if (null != linked_props) {
+						for (final Map.Entry<Displayable,Map<String,String>> e : linked_props.entrySet()) {
+							Displayable d = e.getKey();
+							for (final Map.Entry<String,String> ee : e.getValue().entrySet()) {
+								if (pat.matcher(ee.getKey()).matches()
+								 || pat.matcher(ee.getValue()).matches()) {
+									matched = true;
+									txt = ee.getKey() + " => " + e.getValue() + " [linked property]";
+								}
+							}
+						}
+					}
+				}
 			}
 			if (!matched) continue;
 
