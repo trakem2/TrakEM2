@@ -514,7 +514,7 @@ public final class Layer extends DBObject implements Bucketable {
 		return al;
 	}
 
-	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself not included if present in this very Layer). */
+	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself included if present in this very Layer). */
 	public Collection<Displayable> getIntersecting(final Displayable d, final Class target) {
 		if (null != root) {
 			final Area area = new Area(d.getPerimeter());

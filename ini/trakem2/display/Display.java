@@ -32,7 +32,6 @@ import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Registration;
-import ini.trakem2.imaging.StitchingTEM;
 import ini.trakem2.imaging.Blending;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
@@ -2294,8 +2293,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			menu = new JMenu("Display");
 			item = new JMenuItem("Resize canvas/LayerSet...");   item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
-			// OBSOLETE // item = new JMenuItem("Rotate Layer/LayerSet...");   item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
 
 			menu = new JMenu("Project");
@@ -3159,6 +3158,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			//
 			layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
 			layer.getParent().setPixelsMaxDimension((int)gd.getNextNumber());
+		} else if (command.equals("Adjust snapping parameters...")) {
+			AlignTask.p_snap.setup("Snap");
 		} else if (command.equals("Search...")) {
 			new Search();
 		} else if (command.equals("Select all")) {
@@ -3230,8 +3231,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			}
 		} else if (command.equals("Snap")) {
+			// Take the active if it's a Patch
 			if (!(active instanceof Patch)) return;
-			StitchingTEM.snap(getActive(), Display.this);
+
+			final Set<Displayable> linked = active.getLinkedGroup(null);
+			active.getLayerSet().addTransformStep(linked);
+			AlignTask.snap((Patch)active, null, false).addPostTask(new Runnable() { public void run() {
+				active.getLayerSet().addTransformStep(linked);
+			}});
 		} else if (command.equals("Blend")) {
 			HashSet<Patch> patches = new HashSet<Patch>();
 			for (final Displayable d : selection.getSelected()) {

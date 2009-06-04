@@ -587,4 +587,99 @@ final public class AlignTask
 		
 		return;
 	}
+
+
+	/** The ParamOptimize object containg all feature extraction and registration model parameters for the "snap" function. */
+	static public final Align.ParamOptimize p_snap = Align.paramOptimize.clone();
+
+	/** Find the most overlapping image to @param patch in the same layer where @param patch sits, and snap @param patch and all its linked Displayable objects.
+	 *  If a null @param p_snap is given, it will use the AlignTask.p_snap.
+	 *  If @param setup is true, it will show a dialog to adjust parameters. */
+	static public final Bureaucrat snap(final Patch patch, final Align.ParamOptimize p_snap, final boolean setup) {
+		return Bureaucrat.createAndStart(new Worker.Task("Snapping") {
+			public void exec() {
+
+		final Align.ParamOptimize p = null == p_snap ? AlignTask.p_snap : p_snap;
+		if (setup) p.setup("Snap");
+
+		// Collect Patch linked to active
+		final List<Displayable> linked_images = new ArrayList<Displayable>();
+		for (final Displayable d : patch.getLinkedGroup(null)) {
+			if (d.getClass() == Patch.class && d != patch) linked_images.add(d);
+		}
+		// Find overlapping images
+		final List<Patch> overlapping = new ArrayList<Patch>( (Collection<Patch>) (Collection) patch.getLayer().getIntersecting(patch, Patch.class));
+		overlapping.remove(patch);
+		if (0 == overlapping.size()) return; // nothing overlaps
+
+		// Discard from overlapping any linked images
+		overlapping.removeAll(linked_images);
+
+		if (0 == overlapping.size()) {
+			Utils.log("Cannot snap: overlapping images are linked to the one to snap.");
+			return;
+		}
+
+		// flush
+		linked_images.clear();
+
+		// Find the image that overlaps the most
+		Rectangle box = patch.getBoundingBox(null);
+		Patch most = null;
+		Rectangle most_inter = null;
+		for (final Patch other : overlapping) {
+			if (null == most) {
+				most = other;
+				most_inter = other.getBoundingBox();
+				continue;
+			}
+			Rectangle inter = other.getBoundingBox().intersection(box);
+			if (inter.width * inter.height > most_inter.width * most_inter.height) {
+				most = other;
+				most_inter = inter;
+			}
+		}
+		// flush
+		overlapping.clear();
+
+		// Define two lists:
+		//  - a list with all involved tiles: the active and the most overlapping one
+		final List<Patch> patches = new ArrayList<Patch>();
+		patches.add(most);
+		patches.add(patch);
+		//  - a list with all tiles except the active, to be set as fixed, immobile
+		final List<Patch> fixedPatches = new ArrayList<Patch>();
+		fixedPatches.add(most);
+
+		// Patch as Tile
+		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+		Align.tilesFromPatches( p, patches, fixedPatches, tiles, fixedTiles );
+
+		// Pair and connect overlapping tiles
+		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
+		AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
+		Align.connectTilePairs( p, tiles, tilePairs, Runtime.getRuntime().availableProcessors() );
+
+		if ( Thread.currentThread().isInterrupted() ) return;
+
+		Align.optimizeTileConfiguration( p, tiles, fixedTiles );
+
+		for ( AbstractAffineTile2D< ? > t : tiles ) {
+			if (t.getPatch() == patch) {
+				AffineTransform at = t.getModel().createAffine();
+				try {
+					at.concatenate(patch.getAffineTransform().createInverse());
+					patch.transform(at);
+				} catch (java.awt.geom.NoninvertibleTransformException nite) {
+					IJError.print(nite);
+				}
+				break;
+			}
+		}
+
+		Display.repaint();
+
+		}}, patch.getProject());
+	}
 }
