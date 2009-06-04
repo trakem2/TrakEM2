@@ -55,6 +55,7 @@ import ini.trakem2.display.Ball;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
+import ini.trakem2.display.DisplayablePanel;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
@@ -3447,7 +3448,10 @@ abstract public class Loader {
 
 		// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
 		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, x, y, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
-		if (null != last_patch) last_patch.setLocked(lock_stack);
+		if (null != last_patch) {
+			last_patch.setLocked(lock_stack);
+			Display.updateCheckboxes(last_patch.getLinkedGroup(null), DisplayablePanel.LOCK_STATE, true);
+		}
 
 		if (expand_layer_set) {
 			last_patch.getLayer().getParent().setMinimumDimensions();

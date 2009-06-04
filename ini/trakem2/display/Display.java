@@ -3753,14 +3753,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	/** Used by the Displayable to update the visibility and locking state checkboxes in other Displays. */
-	static protected void updateCheckboxes(final Displayable displ, final int cb, final boolean state) {
+	static public void updateCheckboxes(final Displayable displ, final int cb, final boolean state) {
 		for (final Display d : al_displays) {
 			DisplayablePanel dp = d.ht_panels.get(displ);
 			if (null != dp) dp.updateCheckbox(cb, state);
 		}
 	}
 	/** Set the checkbox @param cb state to @param state value, for each Displayable. Assumes all Displayable objects belong to one specific project. */
-	static protected void updateCheckboxes(final Collection<Displayable> displs, final int cb, final boolean state) {
+	static public void updateCheckboxes(final Collection<Displayable> displs, final int cb, final boolean state) {
 		if (null == displs || 0 == displs.size()) return;
 		final Project p = displs.iterator().next().getProject();
 		for (final Display d : al_displays) {
@@ -3772,7 +3772,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 	}
 	/** Update the checkbox @param cb state to an appropriate value for each Displayable. Assumes all Displayable objects belong to one specific project. */
-	static protected void updateCheckboxes(final Collection<Displayable> displs, final int cb) {
+	static public void updateCheckboxes(final Collection<Displayable> displs, final int cb) {
 		if (null == displs || 0 == displs.size()) return;
 		final Project p = displs.iterator().next().getProject();
 		for (final Display d : al_displays) {
