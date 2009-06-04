@@ -248,8 +248,8 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		} else if (source.equals(c_linked)) {
 			// Prevent linking/unlinking while transforming
 			if (Display.isTransforming(d)) {
-				Utils.logAll("Transforming! Can't lock.");
-					c_locked.setSelected(false);
+				Utils.logAll("Transforming! Can't modify linking state.");
+					c_linked.setSelected( !(ie.getStateChange() == ItemEvent.SELECTED));
 					return;
 			}
 			if (ie.getStateChange() == ItemEvent.SELECTED) {
