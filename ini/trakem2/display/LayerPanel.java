@@ -32,6 +32,7 @@ import javax.swing.JSlider;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import java.awt.Event;
@@ -161,6 +162,15 @@ public final class LayerPanel extends JPanel implements MouseListener {
 			item = new JMenuItem("Reset"); popup.add(item);
 			if (Color.white == this.color) item.setEnabled(false);
 			else item.addActionListener(new ColorActionListener(Color.white));
+			popup.addSeparator();
+			JCheckBoxMenuItem citem = new JCheckBoxMenuItem("Invert"); popup.add(citem);
+			citem.setState(display.invert_colors);
+			citem.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					display.invert_colors = !display.invert_colors;
+					display.getCanvas().repaint(true);
+				}
+			});
 			popup.addSeparator();
 			item = new JMenuItem("Reset all layer coloring"); popup.add(item);
 			item.addActionListener(new ActionListener() {

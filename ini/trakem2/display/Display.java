@@ -4026,6 +4026,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
 	private final TreeMap<Integer,LayerPanel> layer_alpha = new TreeMap<Integer,LayerPanel>();
+	boolean invert_colors = false;
 
 	/** Remove all red/blue coloring of layers, and repaint canvas. */
 	protected void resetLayerColors() {

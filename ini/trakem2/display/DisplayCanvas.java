@@ -2249,7 +2249,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					}
 					// undo transform, is intended for Displayable objects
 					g.setTransform(new AffineTransform());
-					final Image img = new ColorProcessor(g_width, g_height, pix).createImage();
+					final ColorProcessor cp = new ColorProcessor(g_width, g_height, pix);
+					if (display.invert_colors) cp.invert();
+					final Image img = cp.createImage();
 					g.drawImage(img, 0, 0, null);
 					img.flush();
 					// reset
