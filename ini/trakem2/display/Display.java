@@ -3267,12 +3267,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Snap")) {
 			// Take the active if it's a Patch
 			if (!(active instanceof Patch)) return;
-
-			final Set<Displayable> linked = active.getLinkedGroup(null);
-			active.getLayerSet().addTransformStep(linked);
-			AlignTask.snap((Patch)active, null, false).addPostTask(new Runnable() { public void run() {
-				active.getLayerSet().addTransformStep(linked);
-			}});
+			Display.snap((Patch)active);
 		} else if (command.equals("Blend")) {
 			HashSet<Patch> patches = new HashSet<Patch>();
 			for (final Displayable d : selection.getSelected()) {
@@ -4125,5 +4120,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} catch (Exception e) {
 			IJError.print(e);
 		}
+	}
+
+	/** Snap a Patch to the most overlapping Patch, if any.
+	 *  This method is a shallow wrap around AlignTask.snap, setting proper undo steps. */
+	static public final Bureaucrat snap(final Patch patch) {
+		final Set<Displayable> linked = patch.getLinkedGroup(null);
+		patch.getLayerSet().addTransformStep(linked);
+		Bureaucrat burro = AlignTask.snap(patch, null, false);
+		burro.addPostTask(new Runnable() { public void run() {
+			patch.getLayerSet().addTransformStep(linked);
+		}});
+		return burro;
 	}
 }

@@ -927,7 +927,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			selection.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 			box.add(selection.getLinkedBox());
 			Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
-			StitchingTEM.snap(active, display); // will repaint whatever is appropriate (the visible linked group snapped along)
+			Display.snap((Patch)active);
 			// reset:
 			snapping = false;
 			return;
