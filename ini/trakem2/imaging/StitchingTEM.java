@@ -339,6 +339,9 @@ public class StitchingTEM {
 				Align.ParamOptimize p = new Align.ParamOptimize(); // with default parameters
 				Align.optimizeTileConfiguration(p, al_tiles, al_fixed_tiles);
 
+				for ( AbstractAffineTile2D< ? > t : al_tiles )
+					t.getPatch().setAffineTransform( t.getModel().createAffine() );
+
 			}
 			Display.repaint(patch[0].getLayer(), null, 0, true); // all
 
