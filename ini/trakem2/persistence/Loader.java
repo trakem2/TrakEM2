@@ -1462,7 +1462,7 @@ abstract public class Loader {
 		gd.addNumericField("left-right overlap: ", lr_overlap, 2);
 		gd.addCheckbox("link images", link_images);
 		gd.addStringField("preprocess with: ", preprocessor); // the name of a plugin to use for preprocessing the images before importing, which implements PlugInFilter
-		gd.addCheckbox("use_cross-correlation", stitch_tiles);
+		gd.addCheckbox("registration", stitch_tiles);
 		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
