@@ -46,14 +46,6 @@ import mpi.fruitfly.registration.CrossCorrelation2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 
-
-//import mpi.fruitfly.registration.Tile;
-//import mpi.fruitfly.registration.Optimize;
-//import mpi.fruitfly.registration.PointMatch;
-//import mpi.fruitfly.registration.Point;
-//import mpi.fruitfly.registration.TModel2D;
-
-
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
