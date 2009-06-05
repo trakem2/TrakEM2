@@ -2973,21 +2973,24 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Import grid...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
 			Bureaucrat burro = project.getLoader().importGrid(layer);
-			burro.addPostTask(new Runnable() { public void run() {
-				Display.this.getLayerSet().addLayerContentStep(layer);
-			}});
+			if (null != burro)
+				burro.addPostTask(new Runnable() { public void run() {
+					Display.this.getLayerSet().addLayerContentStep(layer);
+				}});
 		} else if (command.equals("Import sequence as grid...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
 			Bureaucrat burro = project.getLoader().importSequenceAsGrid(layer);
-			burro.addPostTask(new Runnable() { public void run() {
-				Display.this.getLayerSet().addLayerContentStep(layer);
-			}});
+			if (null != burro)
+				burro.addPostTask(new Runnable() { public void run() {
+					Display.this.getLayerSet().addLayerContentStep(layer);
+				}});
 		} else if (command.equals("Import from text file...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
 			Bureaucrat burro = project.getLoader().importImages(layer);
-			burro.addPostTask(new Runnable() { public void run() {
-				Display.this.getLayerSet().addLayerContentStep(layer);
-			}});
+			if (null != burro)
+				burro.addPostTask(new Runnable() { public void run() {
+					Display.this.getLayerSet().addLayerContentStep(layer);
+				}});
 		} else if (command.equals("Import labels as arealists...")) {
 			Display.this.getLayerSet().addChangeTreesStep();
 			Bureaucrat burro = project.getLoader().importLabelsAsAreaLists(layer, null, Double.MAX_VALUE, 0, 0.4f, false);
