@@ -24,8 +24,16 @@ package ini.trakem2.display;
 
 import ini.trakem2.utils.Utils;
 
-import javax.swing.*;
-import java.awt.event.*;
+import javax.swing.JPanel;
+import javax.swing.JCheckBox;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.BorderFactory;
+import javax.swing.JLabel;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Event;
@@ -34,6 +42,8 @@ import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.util.Collection;
 import java.util.ArrayList;
+import java.util.Set;
+import java.util.HashSet;
 
 
 public final class DisplayablePanel extends JPanel implements MouseListener, ItemListener {
@@ -235,9 +245,13 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 					c_locked.setSelected(false);
 					return;
 				}
+				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
 				d.setLocked(true);
+				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
 			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
+				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
 				d.setLocked(false);
+				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
 			}
 			// Update lock checkboxes of linked Displayables, except of this one
 			Collection<Displayable> lg = d.getLinkedGroup(null);
@@ -248,35 +262,35 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		} else if (source.equals(c_linked)) {
 			// Prevent linking/unlinking while transforming
 			if (Display.isTransforming(d)) {
-				Utils.logAll("Transforming! Can't lock.");
-					c_locked.setSelected(false);
+				Utils.logAll("Transforming! Can't modify linking state.");
+					c_linked.setSelected( !(ie.getStateChange() == ItemEvent.SELECTED));
 					return;
 			}
 			if (ie.getStateChange() == ItemEvent.SELECTED) {
-				Utils.log2("Called SELECTED");
 				final Rectangle box = d.getBoundingBox();
-				final Collection<Displayable> coll = new ArrayList<Displayable>(d.getLayer().find(box, true)); // only those visible and overlapping
+				final Set<Displayable> coll = new HashSet<Displayable>(d.getLayer().find(box, true)); // only those visible and overlapping
 				coll.addAll(d.getLayerSet().findZDisplayables(d.getLayer(), box, true));
 				if (coll.size() > 1) {
-					for (final Displayable other : coll) {   // TODO should not link images to images
+					d.getLayerSet().addDataEditStep(coll, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
+					for (final Displayable other : coll) {
 						if (other == d) continue;
 						d.link(other);
 					}
+
+					d.getLayerSet().addDataEditStep(coll, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
 				} else {
 					// Nothing to link, restore icon
 					c_linked.setSelected(false);
 				}
 			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
-				Utils.log2("Called DESELECTED");
+				Set<Displayable> hs = d.getLinkedGroup(null);
+				d.getLayerSet().addDataEditStep(hs, new String[]{"data"});
 				d.unlink();
-										// TODO should not unlink stack patches
-										// TODO none of the checkbox changes are undoable yet.
+				d.getLayerSet().addDataEditStep(hs, new String[]{"data"});
 			}
 
 			// Recompute list of links in Selection
 			Display.updateSelection(Display.getFront());
-
-			// TODO: does setting the checkbox activate the above blocks?
 		}
 	}
 
