@@ -2330,11 +2330,46 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item = new JMenuItem("Select under ROI"); item.addActionListener(this); menu.add(item);
 			if (canvas.getFakeImagePlus().getRoi() == null) item.setEnabled(false);
 			popup.add(menu);
+
+			menu = new JMenu("Tool");
+			item = new JMenuItem("Rectangular ROI"); item.addActionListener(new SetToolListener(Toolbar.RECTANGLE)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0, true));
+			item = new JMenuItem("Polygon ROI"); item.addActionListener(new SetToolListener(Toolbar.POLYGON)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0, true));
+			item = new JMenuItem("Freehand ROI"); item.addActionListener(new SetToolListener(Toolbar.FREEROI)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F3, 0, true));
+			item = new JMenuItem("Text"); item.addActionListener(new SetToolListener(Toolbar.TEXT)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0, true));
+			item = new JMenuItem("Magnifier glass"); item.addActionListener(new SetToolListener(Toolbar.MAGNIFIER)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0, true));
+			item = new JMenuItem("Hand"); item.addActionListener(new SetToolListener(Toolbar.HAND)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F6, 0, true));
+			item = new JMenuItem("Select"); item.addActionListener(new SetToolListener(ProjectToolbar.SELECT)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0, true));
+			item = new JMenuItem("Pencil"); item.addActionListener(new SetToolListener(ProjectToolbar.PENCIL)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F10, 0, true));
+			item = new JMenuItem("Pen"); item.addActionListener(new SetToolListener(ProjectToolbar.PEN)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0, true));
+			item = new JMenuItem("Align"); item.addActionListener(new SetToolListener(ProjectToolbar.ALIGN)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0, true));
+
+			popup.add(menu);
+
 			item = new JMenuItem("Search..."); item.addActionListener(this); popup.add(item);
 		}
 
 		//canvas.add(popup);
 		return popup;
+	}
+
+	private class SetToolListener implements ActionListener {
+		final int tool;
+		SetToolListener(int tool) {
+			this.tool = tool;
+		}
+		public void actionPerformed(ActionEvent ae) {
+			ProjectToolbar.setTool(tool);
+		}
 	}
 
 	private ByTypeListener bytypelistener = new ByTypeListener(this);
@@ -2938,21 +2973,24 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Import grid...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
 			Bureaucrat burro = project.getLoader().importGrid(layer);
-			burro.addPostTask(new Runnable() { public void run() {
-				Display.this.getLayerSet().addLayerContentStep(layer);
-			}});
+			if (null != burro)
+				burro.addPostTask(new Runnable() { public void run() {
+					Display.this.getLayerSet().addLayerContentStep(layer);
+				}});
 		} else if (command.equals("Import sequence as grid...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
 			Bureaucrat burro = project.getLoader().importSequenceAsGrid(layer);
-			burro.addPostTask(new Runnable() { public void run() {
-				Display.this.getLayerSet().addLayerContentStep(layer);
-			}});
+			if (null != burro)
+				burro.addPostTask(new Runnable() { public void run() {
+					Display.this.getLayerSet().addLayerContentStep(layer);
+				}});
 		} else if (command.equals("Import from text file...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
 			Bureaucrat burro = project.getLoader().importImages(layer);
-			burro.addPostTask(new Runnable() { public void run() {
-				Display.this.getLayerSet().addLayerContentStep(layer);
-			}});
+			if (null != burro)
+				burro.addPostTask(new Runnable() { public void run() {
+					Display.this.getLayerSet().addLayerContentStep(layer);
+				}});
 		} else if (command.equals("Import labels as arealists...")) {
 			Display.this.getLayerSet().addChangeTreesStep();
 			Bureaucrat burro = project.getLoader().importLabelsAsAreaLists(layer, null, Double.MAX_VALUE, 0, 0.4f, false);
@@ -3232,12 +3270,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Snap")) {
 			// Take the active if it's a Patch
 			if (!(active instanceof Patch)) return;
-
-			final Set<Displayable> linked = active.getLinkedGroup(null);
-			active.getLayerSet().addTransformStep(linked);
-			AlignTask.snap((Patch)active, null, false).addPostTask(new Runnable() { public void run() {
-				active.getLayerSet().addTransformStep(linked);
-			}});
+			Display.snap((Patch)active);
 		} else if (command.equals("Blend")) {
 			HashSet<Patch> patches = new HashSet<Patch>();
 			for (final Displayable d : selection.getSelected()) {
@@ -3753,14 +3786,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	/** Used by the Displayable to update the visibility and locking state checkboxes in other Displays. */
-	static protected void updateCheckboxes(final Displayable displ, final int cb, final boolean state) {
+	static public void updateCheckboxes(final Displayable displ, final int cb, final boolean state) {
 		for (final Display d : al_displays) {
 			DisplayablePanel dp = d.ht_panels.get(displ);
 			if (null != dp) dp.updateCheckbox(cb, state);
 		}
 	}
 	/** Set the checkbox @param cb state to @param state value, for each Displayable. Assumes all Displayable objects belong to one specific project. */
-	static protected void updateCheckboxes(final Collection<Displayable> displs, final int cb, final boolean state) {
+	static public void updateCheckboxes(final Collection<Displayable> displs, final int cb, final boolean state) {
 		if (null == displs || 0 == displs.size()) return;
 		final Project p = displs.iterator().next().getProject();
 		for (final Display d : al_displays) {
@@ -3772,7 +3805,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 	}
 	/** Update the checkbox @param cb state to an appropriate value for each Displayable. Assumes all Displayable objects belong to one specific project. */
-	static protected void updateCheckboxes(final Collection<Displayable> displs, final int cb) {
+	static public void updateCheckboxes(final Collection<Displayable> displs, final int cb) {
 		if (null == displs || 0 == displs.size()) return;
 		final Project p = displs.iterator().next().getProject();
 		for (final Display d : al_displays) {
@@ -3991,6 +4024,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
 	private final TreeMap<Integer,LayerPanel> layer_alpha = new TreeMap<Integer,LayerPanel>();
+	boolean invert_colors = false;
 
 	/** Remove all red/blue coloring of layers, and repaint canvas. */
 	protected void resetLayerColors() {
@@ -4089,5 +4123,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} catch (Exception e) {
 			IJError.print(e);
 		}
+	}
+
+	/** Snap a Patch to the most overlapping Patch, if any.
+	 *  This method is a shallow wrap around AlignTask.snap, setting proper undo steps. */
+	static public final Bureaucrat snap(final Patch patch) {
+		final Set<Displayable> linked = patch.getLinkedGroup(null);
+		patch.getLayerSet().addTransformStep(linked);
+		Bureaucrat burro = AlignTask.snap(patch, null, false);
+		burro.addPostTask(new Runnable() { public void run() {
+			patch.getLayerSet().addTransformStep(linked);
+		}});
+		return burro;
 	}
 }

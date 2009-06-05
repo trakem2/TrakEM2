@@ -93,9 +93,9 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Returns a copy of this object's properties, or null if none. */
-	synchronized public Map getProperties() {
+	synchronized public Map<String,String> getProperties() {
 		if (null == props) return null;
-		return new HashMap(props);
+		return new HashMap<String,String>(props);
 	}
 
 	/** Add a property that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
@@ -1870,10 +1870,17 @@ public abstract class Displayable extends DBObject {
 			d.height = height;
 			d.setAffineTransform(at); // updates bucket
 			if (null != links) {
+				HashSet<Displayable> all_links = new HashSet<Displayable>();
 				for (final Map.Entry<Displayable,HashSet<Displayable>> e : links.entrySet()) {
+					Displayable o = e.getKey();
+
+					if (null != o.hs_linked) all_links.addAll(o.hs_linked);
+					all_links.addAll(e.getValue());
+
 					e.getKey().hs_linked = new HashSet<Displayable>(e.getValue());
-					Utils.log2("setting links to " + d);
+					//Utils.log2("setting links to " + d);
 				}
+				Display.updateCheckboxes(all_links, DisplayablePanel.LINK_STATE);
 			}
 			return true;
 		}

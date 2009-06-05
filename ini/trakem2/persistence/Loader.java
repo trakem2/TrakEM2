@@ -55,6 +55,7 @@ import ini.trakem2.display.Ball;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
+import ini.trakem2.display.DisplayablePanel;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
@@ -127,8 +128,6 @@ import javax.swing.JMenu;
 
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
-import mpi.fruitfly.registration.PhaseCorrelation2D;
-import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.Future;
@@ -1461,7 +1460,7 @@ abstract public class Loader {
 		gd.addNumericField("left-right overlap: ", lr_overlap, 2);
 		gd.addCheckbox("link images", link_images);
 		gd.addStringField("preprocess with: ", preprocessor); // the name of a plugin to use for preprocessing the images before importing, which implements PlugInFilter
-		gd.addCheckbox("use_cross-correlation", stitch_tiles);
+		gd.addCheckbox("registration", stitch_tiles);
 		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
@@ -1650,7 +1649,7 @@ abstract public class Loader {
 		gd.addNumericField("left-right overlap: ", 0, 3);
 		gd.addCheckbox("link_images", false);
 		gd.addStringField("Preprocess with: ", ""); // the name of a plugin to use for preprocessing the images before importing, which implements Preprocess
-		gd.addCheckbox("use_cross-correlation", false);
+		gd.addCheckbox("registration", false);
 		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, 25);
@@ -3447,7 +3446,10 @@ abstract public class Loader {
 
 		// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
 		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, x, y, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
-		if (null != last_patch) last_patch.setLocked(lock_stack);
+		if (null != last_patch) {
+			last_patch.setLocked(lock_stack);
+			Display.updateCheckboxes(last_patch.getLinkedGroup(null), DisplayablePanel.LOCK_STATE, true);
+		}
 
 		if (expand_layer_set) {
 			last_patch.getLayer().getParent().setMinimumDimensions();
