@@ -580,18 +580,6 @@ public class StitchingTEM {
 		/// ABOVE: boundary checks don't work if default_dx,dy are zero! And may actually be harmful in anycase
 	}
 
-	/** Transforms the given point @param po by the AffineTransform of the given @param patch .*/
-	static private mpi.fruitfly.registration.Point transform(final Patch patch, final mpi.fruitfly.registration.Point po) {
-		float[] local = po.getL();
-		Point2D.Double pd = patch.transformPoint(local[0], local[1]);
-		return new mpi.fruitfly.registration.Point(new float[]{(float)pd.x, (float)pd.y});
-	}
-	static private mpi.fruitfly.registration.Point inverseTransform(final Patch patch, final mpi.fruitfly.registration.Point po) {
-		float[] l = po.getL();
-		Point2D.Double pd = patch.inverseTransformPoint(l[0], l[1]);
-		return new mpi.fruitfly.registration.Point(new float[]{(float)pd.x, (float)pd.y});
-	}
-
 	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */
 	/*
 	private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
