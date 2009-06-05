@@ -25,7 +25,6 @@ package ini.trakem2.display;
 import ij.IJ;
 import ij.gui.YesNoCancelDialog;
 
-import ini.trakem2.imaging.Registration;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.tree.Thing;

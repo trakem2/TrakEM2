@@ -93,9 +93,9 @@ public abstract class Displayable extends DBObject {
 	}
 
 	/** Returns a copy of this object's properties, or null if none. */
-	synchronized public Map getProperties() {
+	synchronized public Map<String,String> getProperties() {
 		if (null == props) return null;
-		return new HashMap(props);
+		return new HashMap<String,String>(props);
 	}
 
 	/** Add a property that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
@@ -222,30 +222,26 @@ public abstract class Displayable extends DBObject {
 	}
 
 	////////////////////////////////////////////////////
-	public void setLocked(boolean lock) {
+	/** Set the locking state of this Displayable, which affects that of its linked Displayable objects.
+	 *  If lock is true, this Displayable is set as locked; any linked Displayable's locked state is not
+	 *  changed, but will behave as locked.
+	 *  If lock is false, this Displayable and all its linked Displayable objects are set as unlocked. */
+	public void setLocked(final boolean lock) {
+		// Regardless of whether this Displayable locked state is equal to 'lock' argument,
+		// apply the state as if it was new, for setLocked(boolean) is meant to apply to all linked.
 		if (lock) {
+			// Set the locked state of only this Displayable, not of any linked ones.
 			this.locked = lock;
-			Display.updateCheckboxes(layer, this, null);
+			updateInDatabase("locked");
 		} else {
-			// to unlock, unlock those in the linked group that are locked
-			this.locked = false;
-			Display.updateCheckboxes(layer, this, null);
-			unlockAllLinked(new HashSet());
-		}
-		updateInDatabase("locked");
-	}
-	private void unlockAllLinked(HashSet hs) {
-		if (hs.contains(this)) return;
-		hs.add(this);
-		if (null == hs_linked) return;
-		for (final Displayable d : hs_linked) {
-			if (d.locked) {
+			// to unlock, unlock all in the linked group that are locked
+			for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
 				d.locked = false;
-				Display.updateCheckboxes(layer, d, null);
+				d.updateInDatabase("locked");
 			}
-			d.unlockAllLinked(hs);
 		}
 	}
+
 	/** Return the value of the field 'locked'. */
 	public boolean isLocked2() {
 		return locked;
@@ -584,7 +580,8 @@ public abstract class Displayable extends DBObject {
 		return hs;
 	}
 
-	/** Return the HashSet of all directly and indirectly linked objects. */
+	/** Return the HashSet of all directly and indirectly linked objects.
+	 *  When no links, then the HashSet contains only this Displayable. */
 	public HashSet<Displayable> getLinkedGroup(HashSet<Displayable> hs) {
 		if (null == hs) hs = new HashSet<Displayable>();
 		else if (hs.contains(this)) return hs;
@@ -654,7 +651,6 @@ public abstract class Displayable extends DBObject {
 	public void setVisible(final boolean visible, final boolean repaint) {
 		if (visible == this.visible) {
 			// patching synch error
-			Display.updateCheckboxes(layer, this, null);
 			return;
 		}
 		this.visible = visible;
@@ -663,7 +659,6 @@ public abstract class Displayable extends DBObject {
 			Display.repaint(layer, this, 5);
 		}
 		updateInDatabase("visible");
-		Display.updateCheckboxes(layer, this, null);
 	}
 
 	/** Repaint this Displayable in all Display instances that are showing it. */
@@ -1135,6 +1130,7 @@ public abstract class Displayable extends DBObject {
 		if (visible1 != visible) {
 			prev.add("visible", visible1);
 			setVisible(visible1);
+			Display.updateCheckboxes(this, DisplayablePanel.VISIBILITY_STATE, visible1);
 		}
 		if (locked1 != locked) {
 			prev.add("locked", locked1);
@@ -1146,6 +1142,10 @@ public abstract class Displayable extends DBObject {
 		// it's lengthy to predict the precise box for each open Display, so just repaint all in all Displays.
 		Display.updateSelection();
 		Display.repaint(getLayer()); // not this.layer, so ZDisplayables are repainted properly
+
+		Collection<Displayable> lg = getLinkedGroup(null); // includes the self
+		Display.updateCheckboxes(lg, DisplayablePanel.LINK_STATE);
+		Display.updateCheckboxes(lg, DisplayablePanel.LOCK_STATE);
 
 		return prev;
 	}
@@ -1870,10 +1870,17 @@ public abstract class Displayable extends DBObject {
 			d.height = height;
 			d.setAffineTransform(at); // updates bucket
 			if (null != links) {
+				HashSet<Displayable> all_links = new HashSet<Displayable>();
 				for (final Map.Entry<Displayable,HashSet<Displayable>> e : links.entrySet()) {
+					Displayable o = e.getKey();
+
+					if (null != o.hs_linked) all_links.addAll(o.hs_linked);
+					all_links.addAll(e.getValue());
+
 					e.getKey().hs_linked = new HashSet<Displayable>(e.getValue());
-					Utils.log2("setting links to " + d);
+					//Utils.log2("setting links to " + d);
 				}
+				Display.updateCheckboxes(all_links, DisplayablePanel.LINK_STATE);
 			}
 			return true;
 		}

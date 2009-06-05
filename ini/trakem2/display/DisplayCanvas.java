@@ -927,7 +927,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			selection.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 			box.add(selection.getLinkedBox());
 			Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
-			StitchingTEM.snap(active, display); // will repaint whatever is appropriate (the visible linked group snapped along)
+			Display.snap((Patch)active);
 			// reset:
 			snapping = false;
 			return;
@@ -2249,7 +2249,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					}
 					// undo transform, is intended for Displayable objects
 					g.setTransform(new AffineTransform());
-					final Image img = new ColorProcessor(g_width, g_height, pix).createImage();
+					final ColorProcessor cp = new ColorProcessor(g_width, g_height, pix);
+					if (display.invert_colors) cp.invert();
+					final Image img = cp.createImage();
 					g.drawImage(img, 0, 0, null);
 					img.flush();
 					// reset
@@ -2333,83 +2335,5 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		display.getSelection().setVisible(false);
 		Display.update(display.getLayer());
 		ke.consume();
-	}
-
-	private class ScreenImage {
-		long layer_id = -1;
-		Rectangle srcRect = null;
-		double mag = 0;
-		Image awt = null;
-		final boolean equals(final long layer_id, final Rectangle srcRect, final double mag) {
-			return layer_id == this.layer_id && mag == this.mag && srcRect.equals(this.srcRect);
-		}
-		/** Flushes the old awt if any. */
-		final void set(final Image awt, final long layer_id, final Rectangle srcRect, final double mag) {
-			this.layer_id = layer_id;
-			this.srcRect = (Rectangle)srcRect.clone();
-			if (null != awt && awt != this.awt) this.awt.flush();
-			this.awt = awt;
-			this.mag = mag;
-		}
-		final void flush() {
-			this.layer_id = -1;
-			this.srcRect = null;
-			if (null != this.awt) this.awt.flush();
-			this.awt = null;
-			this.mag = 0;
-		}
-		final boolean isFlushed() { return -1 == layer_id; }
-	}
-
-	/*** Stores and manages a listing of max 10 recently made offscreen images. The images are actually stored in the loader's cache; this class simply assigns the layer_id to each.  */
-	private class ShallowCache {
-		final ScreenImage[] sim = new ScreenImage[75];
-		int oldest = 0;
-		void add(final Image awt, final Layer layer, final Rectangle srcRect, final double mag) {
-			final long layer_id = layer.getId();
-			// Only one awt per layer_id
-			int i = 0;
-			for (;i<sim.length; i++) {
-				if (null == sim[i]) { sim[i] = new ScreenImage(); break; }
-				if (sim[i].isFlushed()) break;
-				if (sim[i].layer_id == layer_id) {
-					sim[i].set(awt, layer_id, srcRect, mag);
-					return;
-				}
-			}
-			// ok so set the given image at 'i'
-			int k = i;
-			if (sim.length == i) {
-				// no space, pop oldest
-				// So now oldest is next to oldest;
-				oldest++;
-				if (oldest == sim.length) k = oldest = 0;
-			}
-			// set
-			sim[k].set(awt, layer_id, srcRect, mag);
-			layer.getProject().getLoader().cacheOffscreen(layer, awt);
-		}
-		Image get(final Layer layer, final Rectangle srcRect, final double mag) {
-			final long layer_id = layer.getId();
-			for (int i=0; i<sim.length; i++) {
-				if (null == sim[i]) return null;
-				if (sim[i].equals(layer_id, srcRect, mag)) {
-					Image awt = layer.getProject().getLoader().getCached(layer_id, 0);
-					if (null == awt) sim[i].flush(); // got lost
-					return awt;
-				}
-			}
-			return null;
-		}
-		void flush(Layer layer) {
-			final long layer_id = layer.getId();
-			for (int i=0; i<sim.length; i++) {
-				if (sim[i].layer_id == layer_id) {
-					layer.getProject().getLoader().decacheAWT(layer_id);
-					sim[i].flush();
-					break; // only one per layer_id
-				}
-			}
-		}
 	}
 }

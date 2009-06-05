@@ -39,6 +39,7 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 	private Display display;
 	private Displayable d;
 	static public final int SIDE = 50;
+	static public final Color GREY = new Color(215, 215, 215);
 
 	public SnapshotPanel(Display display, Displayable d) {
 		this.display = display;
@@ -61,6 +62,19 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 
 	private BufferedImage img = null;
 
+	private void fillBackground(Graphics g, double lw, double lh, int slw, int slh) {
+		if (lw != lh) {
+			g.setColor(Color.black);
+			g.fillRect(0, 0, slw, slh);
+			g.setColor(GREY);
+			g.fillRect(slw, 0, SIDE - slw, SIDE);
+			g.fillRect(0, slh, slw, SIDE - slh);
+		} else {
+			g.setColor(Color.black);
+			g.fillRect(0, 0, SIDE, SIDE);
+		}
+	}
+
 	/** Paint the snapshot image over a black background that represents a scaled Layer. */
 	public void paint(final Graphics g) {
 		if (null == g) return; // happens if not visible
@@ -74,24 +88,25 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 			}
 		}
 		// Else, repaint background to avoid flickering
-		g.setColor(Color.black);
-		g.fillRect(0, 0, SIDE, SIDE);
+
+		final double lw = d.getLayer().getLayerWidth();
+		final double lh = d.getLayer().getLayerHeight();
+		final double scale = Math.min(SIDE / lw,
+			                      SIDE / lh);
+		final int slw = (int)(lw * scale);
+		final int slh = (int)(lh * scale);
+
+		fillBackground(g, lw, lh, slw, slh);
+
 		// ... and create the image in a separate thread and repaint again
 		FSLoader.repainter.submit(new Runnable() { public void run() {
 			if (!display.isPartiallyWithinViewport(d)) return;
 			BufferedImage img = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_ARGB);
 			Graphics2D g2 = img.createGraphics();
-			double scale = Math.min(SIDE / d.getLayer().getLayerWidth(),
-				                SIDE / d.getLayer().getLayerHeight());
-			int lw = (int) d.getLayer().getLayerWidth();
-			int lh = (int) d.getLayer().getLayerHeight();
-			if (lw != lh) {
-				g2.setColor(Color.gray);
-				g2.fillRect(0, 0, SIDE, SIDE);
-			}
-			g2.setColor(Color.black);
+
+			fillBackground(g2, lw, lh, slw, slh);
+
 			g2.scale(scale, scale);
-			g2.fillRect(0, 0, lw, lh);
 
 			try {
 				// Avoid painting images that have an alpha mask: takes forever.

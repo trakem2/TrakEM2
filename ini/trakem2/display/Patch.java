@@ -613,7 +613,7 @@ public final class Patch extends Displayable {
 	public final boolean isStack() {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
 		for (final Displayable d : hs_linked) {
-			if (d.getClass() != Patch.class && d.layer.getId() != this.layer.getId()) return true;
+			if (d.getClass() == Patch.class && d.layer.getId() != this.layer.getId()) return true;
 		}
 		return false;
 	}
@@ -839,7 +839,7 @@ public final class Patch extends Displayable {
 		}
 	}
 
-	static protected void crosslink(final ArrayList patches, final boolean overlapping_only) {
+	static protected void crosslink(final Collection<Displayable> patches, final boolean overlapping_only) {
 		if (null == patches) return;
 		final ArrayList<Patch> al = new ArrayList<Patch>();
 		for (Object ob : patches) if (ob instanceof Patch) al.add((Patch)ob); // ... 
