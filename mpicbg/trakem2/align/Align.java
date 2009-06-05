@@ -521,7 +521,8 @@ public class Align
 	{
 		final ArrayList< PointMatch > list = new ArrayList< PointMatch >();
 		list.addAll( m );
-		final ArrayList< PointMatch > tsil = PointMatch.flip( m );
+		final ArrayList< PointMatch > tsil = new ArrayList< PointMatch >();
+		PointMatch.flip( m, tsil );
 		final Patch p1 = t1.getPatch();
 		final Patch p2 = t2.getPatch();
 		final Loader loader = p1.getProject().getLoader();
