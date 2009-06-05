@@ -45,13 +45,21 @@ import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.CrossCorrelation2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
-import mpi.fruitfly.math.General;
-import mpi.fruitfly.registration.Tile;
-import mpi.fruitfly.registration.Optimize;
-import mpi.fruitfly.registration.PointMatch;
-import mpi.fruitfly.registration.Point;
-import mpi.fruitfly.registration.TModel2D;
-import mpi.fruitfly.registration.TRModel2D;
+
+
+//import mpi.fruitfly.registration.Tile;
+//import mpi.fruitfly.registration.Optimize;
+//import mpi.fruitfly.registration.PointMatch;
+//import mpi.fruitfly.registration.Point;
+//import mpi.fruitfly.registration.TModel2D;
+
+
+import mpicbg.models.TranslationModel2D;
+import mpicbg.models.Point;
+import mpicbg.models.PointMatch;
+import mpicbg.trakem2.align.Align;
+import mpicbg.trakem2.align.AbstractAffineTile2D;
+import mpicbg.trakem2.align.TranslationTile2D;
 
 import java.awt.Rectangle;
 import java.awt.Image;
@@ -172,11 +180,13 @@ public class StitchingTEM {
 			final float min_R = patch[0].getProject().getProperty("min_R", DEFAULT_MIN_R);
 
 			// for minimization:
-			ArrayList<Tile> al_tiles = new ArrayList<Tile>();
+			ArrayList<AbstractAffineTile2D<?>> al_tiles = new ArrayList<AbstractAffineTile2D<?>>();
 			// first patch-tile:
-			TModel2D first_tile_model = new TModel2D();
-			first_tile_model.getAffine().setTransform( patch[ 0 ].getAffineTransform() );
-			al_tiles.add(new Tile((float)patch[0].getWidth(), (float)patch[0].getHeight(), first_tile_model ));
+			TranslationModel2D first_tile_model = new TranslationModel2D();
+			//first_tile_model.getAffine().setTransform( patch[ 0 ].getAffineTransform() );
+			first_tile_model.set( (float) patch[0].getAffineTransform().getTranslateX(),
+					      (float) patch[0].getAffineTransform().getTranslateY());
+			al_tiles.add(new TranslationTile2D(first_tile_model, patch[0]));
 
 			for (int i=1; i<patch.length; i++) {
 				if (hasQuitted()) {
@@ -188,11 +198,13 @@ public class StitchingTEM {
 				final double default_dy = default_bottom_top_overlap;
 
 				// for minimization:
-				Tile tile_left = null;
-				Tile tile_top = null;
-				TModel2D tile_model = new TModel2D();
-				tile_model.getAffine().setTransform( patch[ i ].getAffineTransform() );
-				Tile tile = new Tile((float)patch[i].getWidth(), (float)patch[i].getHeight(), tile_model );
+				AbstractAffineTile2D<?> tile_left = null;
+				AbstractAffineTile2D<?> tile_top = null;
+				TranslationModel2D tile_model = new TranslationModel2D();
+				//tile_model.getAffine().setTransform( patch[ i ].getAffineTransform() );
+				tile_model.set( (float) patch[i].getAffineTransform().getTranslateX(),
+						(float) patch[i].getAffineTransform().getTranslateY());
+				AbstractAffineTile2D<?> tile = new TranslationTile2D(tile_model, patch[i]);
 				al_tiles.add(tile);
 
 				// stitch with the one above if starting row
@@ -311,6 +323,7 @@ public class StitchingTEM {
 			}
 
 			if (optimize) {
+				/*
 				// run optimization
 				ArrayList<Patch> al_patches = new ArrayList<Patch>();
 				for (int i=0; i<patch.length; i++) al_patches.add(patch[i]);
@@ -319,6 +332,13 @@ public class StitchingTEM {
 
 				// ready for montage-wise minimization
 				Optimize.minimizeAll(al_tiles, al_patches, al_fixed_tiles, 50);
+				*/
+
+				ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+				al_fixed_tiles.add(al_tiles.get(0));
+				Align.ParamOptimize p = new Align.ParamOptimize(); // with default parameters
+				Align.optimizeTileConfiguration(p, al_tiles, al_fixed_tiles);
+
 			}
 			Display.repaint(patch[0].getLayer(), null, 0, true); // all
 
@@ -334,7 +354,7 @@ public class StitchingTEM {
 	}
 
 	/** dx, dy is the position of t2 relative to the 0,0 of t1. */
-	static private final void addMatches(Tile t1, Tile t2, double dx, double dy) {
+	static private final void addMatches(AbstractAffineTile2D<?> t1, AbstractAffineTile2D<?> t2, double dx, double dy) {
 		Point p1 = new Point(new float[]{0f, 0f});
 		Point p2 = new Point(new float[]{(float)dx, (float)dy});
 		t1.addMatch(new PointMatch(p2, p1, 1.0f));
