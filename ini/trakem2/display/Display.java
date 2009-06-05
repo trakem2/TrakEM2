@@ -2330,11 +2330,46 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item = new JMenuItem("Select under ROI"); item.addActionListener(this); menu.add(item);
 			if (canvas.getFakeImagePlus().getRoi() == null) item.setEnabled(false);
 			popup.add(menu);
+
+			menu = new JMenu("Tool");
+			item = new JMenuItem("Rectangular ROI"); item.addActionListener(new SetToolListener(Toolbar.RECTANGLE)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0, true));
+			item = new JMenuItem("Polygon ROI"); item.addActionListener(new SetToolListener(Toolbar.POLYGON)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0, true));
+			item = new JMenuItem("Freehand ROI"); item.addActionListener(new SetToolListener(Toolbar.FREEROI)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F3, 0, true));
+			item = new JMenuItem("Text"); item.addActionListener(new SetToolListener(Toolbar.TEXT)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0, true));
+			item = new JMenuItem("Magnifier glass"); item.addActionListener(new SetToolListener(Toolbar.MAGNIFIER)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0, true));
+			item = new JMenuItem("Hand"); item.addActionListener(new SetToolListener(Toolbar.HAND)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F6, 0, true));
+			item = new JMenuItem("Select"); item.addActionListener(new SetToolListener(ProjectToolbar.SELECT)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0, true));
+			item = new JMenuItem("Pencil"); item.addActionListener(new SetToolListener(ProjectToolbar.PENCIL)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F10, 0, true));
+			item = new JMenuItem("Pen"); item.addActionListener(new SetToolListener(ProjectToolbar.PEN)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0, true));
+			item = new JMenuItem("Align"); item.addActionListener(new SetToolListener(ProjectToolbar.ALIGN)); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0, true));
+
+			popup.add(menu);
+
 			item = new JMenuItem("Search..."); item.addActionListener(this); popup.add(item);
 		}
 
 		//canvas.add(popup);
 		return popup;
+	}
+
+	private class SetToolListener implements ActionListener {
+		final int tool;
+		SetToolListener(int tool) {
+			this.tool = tool;
+		}
+		public void actionPerformed(ActionEvent ae) {
+			ProjectToolbar.setTool(tool);
+		}
 	}
 
 	private ByTypeListener bytypelistener = new ByTypeListener(this);
