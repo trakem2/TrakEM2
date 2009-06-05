@@ -128,8 +128,6 @@ import javax.swing.JMenu;
 
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
-import mpi.fruitfly.registration.PhaseCorrelation2D;
-import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.Future;
