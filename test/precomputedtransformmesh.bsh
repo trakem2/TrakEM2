@@ -1,0 +1,88 @@
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.TransformMesh;
+import mpicbg.trakem2.transform.PrecomputedTransformMesh;
+import mpicbg.ij.InvertibleTransformMapping;
+import java.awt.Color;
+import ij.IJ;
+import ij.ImagePlus;
+
+try {
+
+	IJ.log( ">>> Test mpicbg.trakem2.transform.PrecomputedTransformMesh >>>" );
+	
+	m = new MovingLeastSquaresTransform();
+	m.init( "rigid 1 40 40 80 80 280 160 220 140 280 40 200 80" );
+	IJ.run( "Clown (14K)" );
+	imp = IJ.getImage();
+	for ( int i = 4; i <= 4; ++i )
+	{
+		n = ( int )Math.pow( 2, i );
+		IJ.log( "" + n );
+		mesh = new TransformMesh( m, n, imp.getWidth(), imp.getHeight() );
+		precomputedMesh = new PrecomputedTransformMesh( m, n, imp.getWidth(), imp.getHeight() );
+		mapping = new InvertibleTransformMapping( mesh );
+		precomputedMapping = new InvertibleTransformMapping( precomputedMesh );
+		box = mesh.getBoundingBox();
+		
+		ipMapping = imp.getProcessor().createProcessor( box.width, box.height );
+		mapping.map( imp.getProcessor(), ipMapping );
+		ipMappingInterpolated = imp.getProcessor().createProcessor( box.width, box.height );
+		mapping.mapInterpolated( imp.getProcessor(), ipMappingInterpolated );
+		ipPrecomputedMapping = imp.getProcessor().createProcessor( box.width, box.height );
+		precomputedMapping.map( imp.getProcessor(), ipPrecomputedMapping );
+		ipPrecomputedMappingInterpolated = imp.getProcessor().createProcessor( box.width, box.height );
+		precomputedMapping.mapInterpolated( imp.getProcessor(), ipPrecomputedMappingInterpolated );
+		
+		impMapping = new ImagePlus( n + " mapping", ipMapping );
+		impMappingInterpolated = new ImagePlus( n + " interpolated mapping", ipMappingInterpolated );
+		impPrecomputedMapping = new ImagePlus( n + " precomputed mapping", ipPrecomputedMapping );
+		impPrecomputedMappingInterpolated = new ImagePlus( n + " interpolated precomputed mapping", ipPrecomputedMappingInterpolated );
+		
+		impMapping.show();
+		impMappingInterpolated.show();
+		impMapping.getCanvas().setDisplayList( mesh.illustrateMesh(), Color.white, null );
+		impMappingInterpolated.getCanvas().setDisplayList( mesh.illustrateMesh(), Color.white, null );
+		
+		impPrecomputedMapping.show();
+		impPrecomputedMappingInterpolated.show();
+		impPrecomputedMapping.getCanvas().setDisplayList( precomputedMesh.illustrateMesh(), Color.white, null );
+		impPrecomputedMappingInterpolated.getCanvas().setDisplayList( precomputedMesh.illustrateMesh(), Color.white, null );
+		
+		
+		
+		ipInverseMapping = imp.getProcessor().createProcessor( imp.getWidth(), imp.getHeight() );
+		mapping.mapInverse( ipMapping, ipInverseMapping );
+		new ImagePlus( " inverse mapping", ipInverseMapping ).show();
+		
+		ipInverseMappingInterpolated = imp.getProcessor().createProcessor( imp.getWidth(), imp.getHeight() );
+		mapping.mapInverseInterpolated( ipMappingInterpolated, ipInverseMappingInterpolated );
+		new ImagePlus( " inverse mapping interpolated", ipInverseMappingInterpolated ).show();
+		
+		
+		ipPrecomputedInverseMapping = imp.getProcessor().createProcessor( imp.getWidth(), imp.getHeight() );
+		precomputedMapping.mapInverse( ipPrecomputedMapping, ipPrecomputedInverseMapping );
+		new ImagePlus( " precomputed inverse mapping", ipPrecomputedInverseMapping ).show();
+		
+		ipPrecomputedInverseMappingInterpolated = imp.getProcessor().createProcessor( imp.getWidth(), imp.getHeight() );
+		precomputedMapping.mapInverseInterpolated( ipPrecomputedMappingInterpolated, ipPrecomputedInverseMappingInterpolated );
+		new ImagePlus( " precomputed inverse mapping interpolated", ipPrecomputedInverseMappingInterpolated ).show();
+		
+		
+	/*	
+		var ipMappingInverse = mapping.createInverseMappedImage( ipMapping );
+		var ipMappingInverseInterpolated = mapping.createInverseMappedImageInterpolated( ipMappingInterpolated );
+		
+		var impMappingInverse = new ImagePlus( n + " inverse mapping", ipMappingInverse );
+		var impMappingInverseInterpolated = new ImagePlus( n + " interpolated inverse mapping", ipMappingInverseInterpolated );
+		impMappingInverse.show();
+		impMappingInverseInterpolated.show();
+	*/	
+	}
+	
+	IJ.log( " + mapping passed" );
+	IJ.log( "<<< Test mpicbg.trakem2.transform.PreomutedTransformMeshMapping <<<" );
+}
+catch ( e )
+{
+	e.printStackTrace();
+}

@@ -17,6 +17,7 @@
 package mpicbg.trakem2.transform;
 
 import java.awt.Rectangle;
+import java.util.Iterator;
 import java.util.Set;
 
 import mpicbg.models.CoordinateTransform;
@@ -40,25 +41,26 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 	{
 		super( numX, numY( numX, width, height ), width, height );
 		
-		float xMin = Float.MAX_VALUE;
-		float yMin = Float.MAX_VALUE;
-		
-		float xMax = Float.MIN_VALUE;
-		float yMax = Float.MIN_VALUE;
-		
 		final Set< PointMatch > vertices = va.keySet();
-		for ( final PointMatch vertex : vertices )
+		
+		/* estimate the bounding box */
+		final Iterator< PointMatch > i = vertices.iterator();
+		final float[] firstW = i.next().getP2().getW();
+		t.applyInPlace( firstW );
+		float xMin = firstW[ 0 ], xMax = firstW[ 0 ];
+		float yMin = firstW[ 1 ], yMax = firstW[ 1 ];
+		while ( i.hasNext() )
 		{
-			final float[] w = vertex.getP2().getW();
-			
+			final float[] w = i.next().getP2().getW();
 			t.applyInPlace( w );
 			
 			if ( w[ 0 ] < xMin ) xMin = w[ 0 ];
-			if ( w[ 0 ] > xMax ) xMax = w[ 0 ];
+			else if ( w[ 0 ] > xMax ) xMax = w[ 0 ];
 			if ( w[ 1 ] < yMin ) yMin = w[ 1 ];
-			if ( w[ 1 ] > yMax ) yMax = w[ 1 ];
+			else if ( w[ 1 ] > yMax ) yMax = w[ 1 ];
 		}
 		
+		/* shift all points relative to the bounding box */
 		for ( final PointMatch vertex : vertices )
 		{
 			final int tx = ( int )xMin;
