@@ -299,7 +299,10 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 			// Update link checkboxes of linked Displayables, except of this one
 			if (null != hs) {
 				hs.remove(d); // not this one!
-				if (hs.size() > 0) Display.updateCheckboxes(hs, LINK_STATE);
+				if (hs.size() > 0) {
+					Display.updateCheckboxes(hs, LINK_STATE);
+					Display.updateCheckboxes(hs, LOCK_STATE);
+				}
 			}
 
 			// Recompute list of links in Selection
