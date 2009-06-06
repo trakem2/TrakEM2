@@ -32,6 +32,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.awt.event.MouseAdapter;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.Color;
@@ -46,7 +47,7 @@ import java.util.Set;
 import java.util.HashSet;
 
 
-public final class DisplayablePanel extends JPanel implements MouseListener, ItemListener {
+public final class DisplayablePanel extends JPanel implements MouseListener {
 
 	static public final int HEIGHT = 52;
 
@@ -65,13 +66,15 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 	private Display display;
 	private Displayable d;
 
+	final private ML listener = new ML();
+
 	public DisplayablePanel(Display display, Displayable d) {
 		this.display = display;
 		this.d = d;
 
 		this.c = new JCheckBox();
 		this.c.setSelected(d.isVisible());
-		this.c.addItemListener(this);
+		this.c.addMouseListener(listener);
 		this.c.setIcon(INVISIBLE);
 		this.c.setSelectedIcon(VISIBLE);
 		this.c.setBackground(Color.white);
@@ -83,7 +86,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		this.c_locked.setIcon(UNLOCKED);
 		this.c_locked.setSelectedIcon(LOCKED);
 		this.c_locked.setSelected(d.isLocked2());
-		this.c_locked.addItemListener(this);
+		this.c_locked.addMouseListener(listener);
 		this.c_locked.setBackground(Color.white);
 		Dimension maxdim10 = new Dimension(26, 10);
 		this.c_locked.setPreferredSize(maxdim10);
@@ -93,7 +96,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		this.c_linked.setIcon(UNLINKED);
 		this.c_linked.setSelectedIcon(LINKED);
 		this.c_linked.setSelected(d.isLinked());
-		this.c_linked.addItemListener(this);
+		this.c_linked.addMouseListener(listener);
 		this.c_linked.setBackground(Color.white);
 		this.c_linked.setPreferredSize(maxdim10);
 		this.c_linked.setMaximumSize(maxdim10);
@@ -223,12 +226,13 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 		title2.setToolTipText(t);
 	}
 
-	public void itemStateChanged(final ItemEvent ie) {
-		Object source = ie.getSource();
+	private class ML extends MouseAdapter {
+	public void mousePressed(MouseEvent me) {
+		JCheckBox source = (JCheckBox) me.getSource();
 		if (source.equals(c)) {
-			if (ie.getStateChange() == ItemEvent.SELECTED) {
+			if (!source.isSelected()) {
 				d.setVisible(true);
-			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
+			} else {
 				// Prevent hiding when transforming
 				if (Display.isTransforming(d)) {
 					Utils.showStatus("Transforming! Can't change visibility.", false);
@@ -238,7 +242,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 				d.setVisible(false);
 			}
 		} else if (source.equals(c_locked)) {
-			if (ie.getStateChange() == ItemEvent.SELECTED) {
+			if (!source.isSelected()) {
 				// Prevent locking while transforming
 				if (Display.isTransforming(d)) {
 					Utils.logAll("Transforming! Can't lock.");
@@ -248,7 +252,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
 				d.setLocked(true);
 				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
-			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
+			} else {
 				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
 				d.setLocked(false);
 				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
@@ -263,35 +267,45 @@ public final class DisplayablePanel extends JPanel implements MouseListener, Ite
 			// Prevent linking/unlinking while transforming
 			if (Display.isTransforming(d)) {
 				Utils.logAll("Transforming! Can't modify linking state.");
-					c_linked.setSelected( !(ie.getStateChange() == ItemEvent.SELECTED));
+					c_linked.setSelected(d.isLinked());
 					return;
 			}
-			if (ie.getStateChange() == ItemEvent.SELECTED) {
+
+			final Set<Displayable> hs;
+
+			if (!source.isSelected()) {
 				final Rectangle box = d.getBoundingBox();
-				final Set<Displayable> coll = new HashSet<Displayable>(d.getLayer().find(box, true)); // only those visible and overlapping
-				coll.addAll(d.getLayerSet().findZDisplayables(d.getLayer(), box, true));
-				if (coll.size() > 1) {
-					d.getLayerSet().addDataEditStep(coll, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
-					for (final Displayable other : coll) {
+				hs = new HashSet<Displayable>(d.getLayer().find(box, true)); // only those visible and overlapping
+				hs.addAll(d.getLayerSet().findZDisplayables(d.getLayer(), box, true));
+				if (hs.size() > 1) {
+					d.getLayerSet().addDataEditStep(hs, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
+					for (final Displayable other : hs) {
 						if (other == d) continue;
 						d.link(other);
 					}
 
-					d.getLayerSet().addDataEditStep(coll, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
+					d.getLayerSet().addDataEditStep(hs, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
 				} else {
 					// Nothing to link, restore icon
 					c_linked.setSelected(false);
 				}
-			} else if (ie.getStateChange() == ItemEvent.DESELECTED) {
-				Set<Displayable> hs = d.getLinkedGroup(null);
+			} else {
+				hs = d.getLinkedGroup(null);
 				d.getLayerSet().addDataEditStep(hs, new String[]{"data"});
 				d.unlink();
 				d.getLayerSet().addDataEditStep(hs, new String[]{"data"});
 			}
 
+			// Update link checkboxes of linked Displayables, except of this one
+			if (null != hs) {
+				hs.remove(d); // not this one!
+				if (hs.size() > 0) Display.updateCheckboxes(hs, LINK_STATE);
+			}
+
 			// Recompute list of links in Selection
 			Display.updateSelection(Display.getFront());
 		}
+	}
 	}
 
 	public void mousePressed(final MouseEvent me) {
