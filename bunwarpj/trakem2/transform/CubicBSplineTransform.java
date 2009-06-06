@@ -4,7 +4,7 @@
 package bunwarpj.trakem2.transform;
 
 import ij.IJ;
-import bunwarpj.bUnwarpJImageModel;
+import bunwarpj.BSplineModel;
 import mpicbg.trakem2.transform.CoordinateTransform;
 
 /**
@@ -13,8 +13,8 @@ import mpicbg.trakem2.transform.CoordinateTransform;
  */
 public class CubicBSplineTransform implements CoordinateTransform 
 {
-	private bUnwarpJImageModel swx;
-	private bUnwarpJImageModel swy;
+	private BSplineModel swx;
+	private BSplineModel swy;
 	private int intervals;
 	private int width;
 	private int height;
@@ -40,8 +40,8 @@ public class CubicBSplineTransform implements CoordinateTransform
 								  int height)	
 	{
 		this.intervals = intervals;
-		this.swx = new bUnwarpJImageModel(cx);
-		this.swy = new bUnwarpJImageModel(cy);
+		this.swx = new BSplineModel(cx);
+		this.swy = new BSplineModel(cy);
 		this.width = width;
 		this.height = height;
 	}
@@ -56,8 +56,8 @@ public class CubicBSplineTransform implements CoordinateTransform
 	 * @param height height of the target image
 	 */
 	public CubicBSplineTransform(int intervals, 
-								  bUnwarpJImageModel swx, 
-								  bUnwarpJImageModel swy,
+								  BSplineModel swx, 
+								  BSplineModel swy,
 								  int width,
 								  int height)	
 	{
@@ -127,8 +127,8 @@ public class CubicBSplineTransform implements CoordinateTransform
 			for(int i = 0; i < size2; i++)
 				cy[i] = Double.parseDouble(fields[j++]);
 			
-			this.swx = new bUnwarpJImageModel(cx, size, size, 0);
-			this.swy = new bUnwarpJImageModel(cy, size, size, 0);			
+			this.swx = new BSplineModel(cx, size, size, 0);
+			this.swy = new BSplineModel(cy, size, size, 0);			
 		}
 			
 	}
