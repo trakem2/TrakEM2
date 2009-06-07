@@ -3637,6 +3637,8 @@ abstract public class Loader {
 			String path = preprocessors.get(p);
 			if (null == path) return;
 			ini.trakem2.scripting.PatchScript.run(p, imp, path);
+			// update properties:
+			p.readProps(imp);
 		} catch (Exception e) {
 			IJError.print(e);
 		}

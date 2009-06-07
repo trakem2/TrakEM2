@@ -215,14 +215,17 @@ public final class Patch extends Displayable {
 		return project.getLoader().update(this);
 	}
 
-	private void readProps(final ImagePlus new_imp) {
-		this.type = new_imp.getType();
-		if (new_imp.getWidth() != (int)this.width || new_imp.getHeight() != this.height) {
-			this.width = new_imp.getWidth();
-			this.height = new_imp.getHeight();
+	/** Update type, original dimensions and min,max from the given ImagePlus. */
+	public void readProps(final ImagePlus imp) {
+		this.type = imp.getType();
+		if (imp.getWidth() != (int)this.o_width || imp.getHeight() != this.o_height) {
+			this.o_width = imp.getWidth();
+			this.o_height = imp.getHeight();
+			this.width = o_width;
+			this.height = o_height;
 			updateBucket();
 		}
-		ImageProcessor ip = new_imp.getProcessor();
+		ImageProcessor ip = imp.getProcessor();
 		this.min = ip.getMin();
 		this.max = ip.getMax();
 	}
