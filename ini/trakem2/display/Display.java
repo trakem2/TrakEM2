@@ -2396,9 +2396,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				setScriptPath(selection.getSelected(Patch.class), null);
 			}
 		}
+		/** Accepts null script, to remove it if there. */
 		private void setScriptPath(final Collection<Displayable> list, final String script) {
 			for (final Displayable d : list) {
-				((Patch)d).setPreprocessorScriptPath(script);
+				Patch p = (Patch) d;
+				p.setPreprocessorScriptPath(script);
+				p.getProject().getLoader().regenerateMipMaps(p); // queued
 			}
 		}
 		private Collection<Layer> getLayerList(String title) {
