@@ -2,6 +2,7 @@ package ini.trakem2.scripting;
 
 import ini.trakem2.display.Patch;
 import ini.trakem2.utils.IJError;
+import ij.IJ;
 import ij.ImagePlus;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,7 +22,7 @@ public class PatchScript {
 				Class c = Class.forName("common.ScriptRunner");
 				m = c.getDeclaredMethod("run", String.class, Map.class);
 			}
-			m.invoke(null, path, vars);
+			m.invoke(null, (IJ.isWindows() ? path.replace('/', '\\') : path), vars);
 		} catch (Exception e) {
 			IJError.print(e);
 		}

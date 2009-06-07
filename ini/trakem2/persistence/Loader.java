@@ -4869,4 +4869,10 @@ abstract public class Loader {
 	public String getPreprocessorScriptPath(final Patch p) {
 		return preprocessors.get(p);
 	}
+
+	/** Returns @param path unless overriden. */
+	public String makeRelativePath(String path) { return path; }
+
+	/** Does nothing unless overriden. */
+	public String getParentFolder() { return null; }
 }

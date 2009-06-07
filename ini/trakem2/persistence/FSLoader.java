@@ -1109,7 +1109,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
-	private String makeRelativePath(String path) {
+	public String makeRelativePath(String path) {
 		if (null == project_file_path) {
 			//unsaved project
 			return path;
@@ -1373,7 +1373,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Return the path to the folder containing the project XML file. */
-	private final String getParentFolder() {
+	public final String getParentFolder() {
 		return this.project_file_path.substring(0, this.project_file_path.lastIndexOf('/')+1);
 	}
 

@@ -39,6 +39,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Dimension;
@@ -150,7 +151,11 @@ public final class Patch extends Displayable {
 			} else if (key.equals("o_height")) {
 				this.o_height = Integer.parseInt(data);
 			} else if (key.equals("pps")) {
-				project.getLoader().setPreprocessorScriptPath(this, data);
+				String path = data;
+				if (FSLoader.isRelativePath(path)) {
+					path = project.getLoader().getParentFolder() + path;
+				}
+				project.getLoader().setPreprocessorScriptPath(this, path);
 			}
 		}
 
@@ -762,7 +767,7 @@ public final class Patch extends Displayable {
 		if (max != Patch.getMaxMax(type)) sb_body.append(in).append("max=\"").append(max).append("\"\n");
 
 		String pps = getPreprocessorScriptPath();
-		if (null != pps) sb_body.append(in).append("pps=\"").append(pps).append("\"\n");
+		if (null != pps) sb_body.append(in).append("pps=\"").append(project.getLoader().makeRelativePath(pps)).append("\"\n");
 
 		sb_body.append(indent).append(">\n");
 
