@@ -156,7 +156,6 @@ public final class FSLoader extends Loader {
 		this.dir_storage = source.getStorageFolder(); // can never be null
 		this.dir_mipmaps = source.getMipMapsFolder();
 		if (null == this.dir_mipmaps) createMipMapsDir(this.dir_storage);
-		setPreprocessor(source.getPreprocessor());
 	}
 
 	/** Store a hidden file in trakem2.mipmaps directory that means: "the project is open", which is deleted when the project is closed. If the file is present on opening a project, it means the project has not been closed properly, and some mipmaps may be wrong. */
@@ -566,7 +565,7 @@ public final class FSLoader extends Loader {
 			releaseToFit(n_bytes);
 			imp = openImage(path);
 
-			preProcess(imp);
+			preProcess(p, imp);
 
 			synchronized (db_lock) {
 				try {
@@ -1214,7 +1213,6 @@ public final class FSLoader extends Loader {
 				if (as_copy) ip = ip.duplicate();
 				imp_patch_i = new ImagePlus(title + "__slice=" + i, ip);
 			}
-			preProcess(imp_patch_i);
 
 			String label = imp_stack.getStack().getSliceLabel(i);
 			if (null == label) label = "";
@@ -1257,14 +1255,10 @@ public final class FSLoader extends Loader {
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
 	public void parseXMLOptions(final HashMap ht_attributes) {
-		Object ob = ht_attributes.remove("preprocessor");
-		if (null != ob) {
-			setPreprocessor((String)ob);
-		}
 		// Adding some logic to support old projects which lack a storage folder and a mipmaps folder
 		// and also to prevent errors such as those created when manualy tinkering with the XML file
 		// or renaming directories, etc.
-		ob = ht_attributes.remove("storage_folder");
+		Object ob = ht_attributes.remove("storage_folder");
 		if (null != ob) {
 			String sf = ((String)ob).replace('\\', '/');
 			if (isRelativePath(sf)) {
@@ -1374,7 +1368,6 @@ public final class FSLoader extends Loader {
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
 	public void insertXMLOptions(StringBuffer sb_body, String indent) {
 		sb_body.append(indent).append("unuid=\"").append(unuid).append("\"\n");
-		if (null != preprocessor) sb_body.append(indent).append("preprocessor=\"").append(preprocessor).append("\"\n");
 		if (null != dir_mipmaps) sb_body.append(indent).append("mipmaps_folder=\"").append(makeRelativePath(dir_mipmaps)).append("\"\n");
 		if (null != dir_storage) sb_body.append(indent).append("storage_folder=\"").append(makeRelativePath(dir_storage)).append("\"\n");
 	}

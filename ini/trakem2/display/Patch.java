@@ -149,6 +149,8 @@ public final class Patch extends Displayable {
 				this.o_width = Integer.parseInt(data);
 			} else if (key.equals("o_height")) {
 				this.o_height = Integer.parseInt(data);
+			} else if (key.equals("pps")) {
+				project.getLoader().setPreprocessorScriptPath(this, data);
 			}
 		}
 
@@ -759,6 +761,9 @@ public final class Patch extends Displayable {
 		if (0 != min) sb_body.append(in).append("min=\"").append(min).append("\"\n");
 		if (max != Patch.getMaxMax(type)) sb_body.append(in).append("max=\"").append(max).append("\"\n");
 
+		String pps = getPreprocessorScriptPath();
+		if (null != pps) sb_body.append(in).append("pps=\"").append(pps).append("\"\n");
+
 		sb_body.append(indent).append(">\n");
 
 		if (null != ct) {
@@ -792,6 +797,7 @@ public final class Patch extends Displayable {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" ct").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_width").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" pps").append(TAG_ATTR2) // preprocessor script
 		;
 		// The InvertibleCoordinateTransform and a list of:
 		sb_header.append(indent).append("<!ELEMENT ict_transform EMPTY>\n");
@@ -1391,5 +1397,13 @@ public final class Patch extends Displayable {
 		}
 		// Not true if alpha value is zero
 		return 0 != (pvalue[0] & 0xff000000);
+	}
+
+	public void setPreprocessorScriptPath(final String path) {
+		project.getLoader().setPreprocessorScriptPath(this, path);
+	}
+
+	public String getPreprocessorScriptPath() {
+		return project.getLoader().getPreprocessorScriptPath(this);
 	}
 }

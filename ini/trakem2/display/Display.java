@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 import ij.*;
 import ij.gui.*;
+import ij.io.OpenDialog;
 import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
@@ -2271,6 +2272,16 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (selection.isEmpty()) item.setEnabled(false);
 			popup.add(adjust_menu);
 
+			JMenu script = new JMenu("Script");
+			MenuScriptListener msl = new MenuScriptListener();
+			item = new JMenuItem("Set preprocessor script layer-wise..."); item.addActionListener(msl); script.add(item);
+			item = new JMenuItem("Set preprocessor script (selected images)..."); item.addActionListener(msl); script.add(item);
+			if (selection.isEmpty()) item.setEnabled(false);
+			item = new JMenuItem("Remove preprocessor script layer-wise..."); item.addActionListener(msl); script.add(item);
+			item = new JMenuItem("Remove preprocessor script (selected images)..."); item.addActionListener(msl); script.add(item);
+			if (selection.isEmpty()) item.setEnabled(false);
+			popup.add(script);
+
 			menu = new JMenu("Import");
 			item = new JMenuItem("Import image"); item.addActionListener(this); menu.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, Event.ALT_MASK & Event.SHIFT_MASK, true));
@@ -2360,6 +2371,51 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		//canvas.add(popup);
 		return popup;
+	}
+
+	private class MenuScriptListener implements ActionListener {
+		public void actionPerformed(ActionEvent ae) {
+			String command = ae.getActionCommand();
+			if (command.equals("Set preprocessor script layer-wise...")) {
+				Collection<Layer> ls = getLayerList("Set preprocessor script");
+				if (null == ls) return;
+				String path = getScriptPath();
+				if (null == path) return;
+				for (final Layer la : ls) setScriptPath(la.getDisplayables(Patch.class), path);
+			} else if (command.equals("Set preprocessor script (selected images)...")) {
+				if (selection.isEmpty()) return;
+				String path = getScriptPath();
+				if (null == path) return;
+				setScriptPath(selection.getSelected(Patch.class), path);
+			} else if (command.equals("Remove preprocessor script layer-wise...")) {
+				Collection<Layer> ls = getLayerList("Remove preprocessor script");
+				if (null == ls) return;
+				for (final Layer la : ls) setScriptPath(la.getDisplayables(Patch.class), null);
+			} else if (command.equals("Remove preprocessor script (selected images)...")) {
+				if (selection.isEmpty()) return;
+				setScriptPath(selection.getSelected(Patch.class), null);
+			}
+		}
+		private void setScriptPath(final Collection<Displayable> list, final String script) {
+			for (final Displayable d : list) {
+				((Patch)d).setPreprocessorScriptPath(script);
+			}
+		}
+		private Collection<Layer> getLayerList(String title) {
+			final GenericDialog gd = new GenericDialog(title);
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return null;
+			return layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1); // exclusive end
+		}
+		private String getScriptPath() {
+			OpenDialog od = new OpenDialog("Select script", OpenDialog.getLastDirectory(), null);
+			String dir = od.getDirectory();
+			if (null == dir) return null;
+			if (IJ.isWindows()) dir = dir.replace('\\','/');
+			if (!dir.endsWith("/")) dir += "/";
+			return dir + od.getFileName();
+		}
 	}
 
 	private class SetToolListener implements ActionListener {
@@ -3159,8 +3215,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Loader lo = getProject().getLoader();
 			boolean using_mipmaps = lo.isMipMapsEnabled();
 			gd.addCheckbox("enable_mipmaps", using_mipmaps);
-			String preprocessor = project.getLoader().getPreprocessor();
-			gd.addStringField("image_preprocessor: ", null == preprocessor ? "" : preprocessor);
 			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
 			double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();
 			gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsMaxDimension());
@@ -3186,11 +3240,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					// not using mipmaps before, and true == generate_mipmaps
 					lo.generateMipMaps(layer.getParent().getDisplayables(Patch.class));
 				}
-			}
-			//
-			final String prepro = gd.getNextString();
-			if (!project.getLoader().setPreprocessor(prepro.trim())) {
-				Utils.showMessage("Could NOT set the preprocessor to " + prepro);
 			}
 			//
 			layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
