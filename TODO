@@ -1,3 +1,8 @@
 2009-03-04 Saalfeld
   Changing the properties of a CoordinateTransform attached to a patch leads to
   wrong bounding boxes.
+  
+2009-06-07 Saalfeld
+  MovingLeastSquaresTransform.setMatches() can throw two exceptions.  TrakEM2
+  catches all Exceptions silently at many places.  Inspect all these places for
+  sideeffects.
