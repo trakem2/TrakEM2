@@ -773,6 +773,16 @@ public final class FSLoader extends Loader {
 		return true;
 	}
 
+	public boolean updateInDatabase(final DBObject ob, final Set<String> keys) {
+		// Should only be GUI-driven
+		setChanged(true);
+		if (ob.getClass() == Patch.class) {
+			Patch p = (Patch)ob;
+			if (keys.contains("tiff_working")) return null != setImageFile(p, fetchImagePlus(p));
+		}
+		return true;
+	}
+
 	public boolean removeFromDatabase(final DBObject ob) {
 		synchronized (db_lock) {
 			lock();

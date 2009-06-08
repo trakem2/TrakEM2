@@ -337,6 +337,8 @@ abstract public class Loader {
 
 	abstract public boolean updateInDatabase(DBObject ob, String key);
 
+	abstract public boolean updateInDatabase(DBObject ob, Set<String> keys);
+
 	abstract public boolean removeFromDatabase(DBObject ob);
 
 	/* Reflection would be the best way to do all above; when it's about and 'id', one only would have to check whether the field in question is a BIGINT and the object given a DBObject, and call getId(). Such an approach demands, though, perfect matching of column names with class field names. */
@@ -3636,9 +3638,13 @@ abstract public class Loader {
 		try {
 			String path = preprocessors.get(p);
 			if (null == path) return;
+			// Prepare image for pre-processing
+			imp.getProcessor().setMinAndMax(p.getMin(), p.getMax()); // for 8-bit and RGB images, your problem: setting min and max will expand the range.
+			// Run the script
 			ini.trakem2.scripting.PatchScript.run(p, imp, path);
-			// update properties:
-			p.readProps(imp);
+			// Update Patch image properties:
+			cache(p, imp);
+			p.updatePixelProperties();
 		} catch (Exception e) {
 			IJError.print(e);
 		}

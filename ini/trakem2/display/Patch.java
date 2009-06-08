@@ -192,14 +192,12 @@ public final class Patch extends Displayable {
 
 	/** Fetches the ImagePlus from the cache; <b>be warned</b>: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache; use @getImageProcessor to get the pixels guaranteed not to be ever null. */
 	public ImagePlus getImagePlus() {
-		final ImagePlus imp = this.project.getLoader().fetchImagePlus(this);
-		return imp;
+		return this.project.getLoader().fetchImagePlus(this);
 	}
 
 	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I advise you to call this method everytime you need the processor. */
 	public ImageProcessor getImageProcessor() {
-		final ImageProcessor ip = this.project.getLoader().fetchImageProcessor(this);
-		return ip;
+		return this.project.getLoader().fetchImageProcessor(this);
 	}
 
 	/** Recreate mipmaps and flush away any cached ones.
@@ -215,8 +213,14 @@ public final class Patch extends Displayable {
 		return project.getLoader().update(this);
 	}
 
+	/** Update type, original dimensions and min,max from the ImagePlus.
+	 *  This is automatically done after a preprocessor script has modified the image. */
+	public void updatePixelProperties() {
+		readProps(getImagePlus());
+	}
+
 	/** Update type, original dimensions and min,max from the given ImagePlus. */
-	public void readProps(final ImagePlus imp) {
+	private void readProps(final ImagePlus imp) {
 		this.type = imp.getType();
 		if (imp.getWidth() != (int)this.o_width || imp.getHeight() != this.o_height) {
 			this.o_width = imp.getWidth();
@@ -228,6 +232,12 @@ public final class Patch extends Displayable {
 		ImageProcessor ip = imp.getProcessor();
 		this.min = ip.getMin();
 		this.max = ip.getMax();
+		final HashSet<String> keys = new HashSet<String>();
+		keys.add("type");
+		keys.add("dimensions");
+		keys.add("min_and_max");
+		updateInDatabase(keys);
+		//updateInDatabase(new HashSet<String>(Arrays.asList(new String[]{"type", "dimensions", "min_and_max"})));
 	}
 
 	/** Set a new ImagePlus for this Patch.

@@ -1527,6 +1527,11 @@ public class DBLoader extends Loader {
 		}
 	}
 
+	public boolean updateInDatabase(final DBObject ob, final Set<String> keys) {
+		Utils.log2("updateInDatabase(DBObject, Set<String>) NOT IMPLEMENTED");
+		return false;
+	}
+
 	public boolean removeFromDatabase(DBObject ob) {
 		synchronized (db_lock) {
 			lock();
