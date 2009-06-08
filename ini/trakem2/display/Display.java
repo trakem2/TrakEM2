@@ -44,6 +44,7 @@ import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.M;
 import ini.trakem2.tree.*;
+import ini.trakem2.display.graphics.*;
 
 import javax.swing.*;
 import javax.swing.event.*;
@@ -4195,5 +4196,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			patch.getLayerSet().addTransformStep(linked);
 		}});
 		return burro;
+	}
+
+	private GraphicsSource graphics_source = new DefaultGraphicsSource();
+
+	public GraphicsSource getGraphicsSource() {
+		return graphics_source;
 	}
 }

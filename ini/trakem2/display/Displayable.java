@@ -40,7 +40,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.vector.Compare;
 
 /** The class that any element to be drawn on a Display must extend. */
-public abstract class Displayable extends DBObject {
+public abstract class Displayable extends DBObject implements Paintable {
 
 	final protected AffineTransform at = new AffineTransform();
 

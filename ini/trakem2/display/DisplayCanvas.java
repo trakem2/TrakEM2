@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import ini.trakem2.utils.Lock;
 
+import ini.trakem2.display.graphics.*;
 
 public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
@@ -298,7 +299,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Canvas-Repainter", new OffscreenThread()) {
 		protected void handleUpdateGraphics(final Component target, final Rectangle clipRect) {
-			this.off.setProperties(new RepaintProperties(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getDisplayChannelAlphas()));
+			this.off.setProperties(new RepaintProperties(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getDisplayChannelAlphas(), display.getGraphicsSource()));
 		}
 	};
 
@@ -2024,8 +2025,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final private int mode;
 		final private HashMap<Color,Layer> hm;
 		final private ArrayList<LayerPanel> blending_list;
+		final private GraphicsSource graphics_source;
 
-		RepaintProperties(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas) {
+		RepaintProperties(final Rectangle clipRect, final Layer layer, final int g_width, final int g_height, final Displayable active, final int c_alphas, final GraphicsSource graphics_source) {
 			this.clipRect = clipRect;
 			this.layer = layer;
 			this.g_width = g_width;
@@ -2037,6 +2039,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			this.hm = new HashMap<Color,Layer>();
 			this.blending_list = new ArrayList<LayerPanel>();
 			this.mode = display.getPaintMode(hm, blending_list);
+			this.graphics_source = graphics_source;
 		}
 	}
 
@@ -2058,6 +2061,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				final HashMap<Color,Layer> hm;
 				final ArrayList<LayerPanel> blending_list;
 				final int mode;
+				final GraphicsSource graphics_source;
 
 				synchronized (this) {
 					final DisplayCanvas.RepaintProperties rp = (DisplayCanvas.RepaintProperties) this.rp;
@@ -2071,6 +2075,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					mode = rp.mode;
 					hm = rp.hm;
 					blending_list = rp.blending_list;
+					graphics_source = rp.graphics_source;
 				}
 
 				// flag Loader to do massive flushing if needed
@@ -2082,11 +2087,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				final AffineTransform atc = new AffineTransform();
 				atc.scale(magnification, magnification);
 				atc.translate(-srcRect.x, -srcRect.y);
-
-				// Area to which each Patch will subtract from
-				//final Area background =  new Area(new Rectangle(0, 0, g_width, g_height));
-				// bring the area to Layer space
-				//background.transform(atc.createInverse());
 
 				// the non-srcRect areas, in offscreen coords
 				final Rectangle r1 = new Rectangle(srcRect.x + srcRect.width, srcRect.y, (int)(g_width / magnification) - srcRect.width, (int)(g_height / magnification));
@@ -2181,17 +2181,20 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 				//Utils.log2("offscreen painting: " + al_paint.size());
 
+				// filter paintables
+				final Collection<? extends Paintable> paintables = graphics_source.asPaintable(al_paint);
+				final Collection<? extends Paintable> paintable_patches = graphics_source.asPaintable(al_paint);
 
 				// Determine painting mode
 				if (Display.REPAINT_SINGLE_LAYER == mode) {
 					// Direct painting mode, with prePaint abilities
-					for (final Displayable d : al_paint) {
+					for (final Paintable d : paintables) {
 						d.prePaint(g, magnification, d == active, c_alphas, layer);
 					}
 				} else if (Display.REPAINT_MULTI_LAYER == mode) {
 					// paint first the current layer Patches only (to set the background)
 					int count = 0;
-					for (final Displayable d : al_patches) {
+					for (final Paintable d : paintable_patches) {
 						d.paint(g, magnification, d == active, c_alphas, layer);
 					}
 
@@ -2219,7 +2222,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					g.setTransform(atc);
 
 					// then paint the non-Patch objects of the current layer
-					for (final Displayable d : al_paint.subList(al_patches.size(), al_paint.size())) {
+					for (final Displayable d : al_paint.subList(paintable_patches.size(), al_paint.size())) {
 						d.paint(g, magnification, d == active, c_alphas, layer);
 					}
 				} else { // Display.REPAINT_RGB_LAYER == mode
