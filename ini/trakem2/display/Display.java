@@ -33,6 +33,7 @@ import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Blending;
+import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.DNDInsertImage;
@@ -2305,6 +2306,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
 			item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 			popup.add(menu);
 
 			menu = new JMenu("Project");
@@ -3253,6 +3255,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			layer.getParent().setPixelsMaxDimension((int)gd.getNextNumber());
 		} else if (command.equals("Adjust snapping parameters...")) {
 			AlignTask.p_snap.setup("Snap");
+		} else if (command.equals("Adjust fast-marching parameters...")) {
+			Segmentation.fmp.setup();
 		} else if (command.equals("Search...")) {
 			new Search();
 		} else if (command.equals("Select all")) {
