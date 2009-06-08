@@ -147,11 +147,11 @@ public class AmiraImporter {
 							}
 							for (int y=ip.getHeight()-1; y>-1; y--) {
 								for (int x=ip.getWidth()-1; x>-1; x--) {
+									float pix = ip.getPixelValue(x, y);
+									if (!add_background && 0 == pix) continue;
 									// x,y
 									box.x = x;
 									box.y = y;
-									float pix = ip.getPixelValue(x, y);
-									if (!add_background && 0 == pix) continue;
 									Area area = layer_map.get(new Float(pix));
 									if (null == area) {
 										area = new Area();
