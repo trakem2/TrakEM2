@@ -14,7 +14,7 @@ public class TestGraphicsSource implements GraphicsSource {
 
 	/** Replaces all Patch instances by a smiley face. */
 	public Collection<? extends Paintable> asPaintable(final Collection<? extends Paintable> ds) {
-		final ArrayList<? extends Paintable> a = new ArrayList<Paintable>();
+		final ArrayList<Paintable> a = new ArrayList<Paintable>();
 		for (final Paintable p : ds) {
 			if (p instanceof Patch) {
 				final Paintable pa = new Paintable() {
