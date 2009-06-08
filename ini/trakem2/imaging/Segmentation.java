@@ -113,6 +113,9 @@ public class Segmentation {
 			int max_iterations = fmp.max_iterations;
 			int iter_inc = fmp.iter_inc;
 			for (int i=0; i<max_iterations; i++) {
+				if (Thread.currentThread().isInterrupted()) {
+					return;
+				}
 				if (!fm.step(iter_inc)) break;
 			}
 			// Extract ROI
@@ -120,10 +123,14 @@ public class Segmentation {
 			final Area area = new Area();
 			Rectangle r = new Rectangle(0, 0, 1, 1);
 			// Takes FOREVER
+			int count = 0;
 			for (final Coordinate c : fm.getStateContainer().getXYZ(false)) {
 				r.x = c.x;
 				r.y = c.y;
 				area.add(new Area(r));
+				if (0 == count % 1000 && Thread.currentThread().isInterrupted()) {
+					return;
+				}
 			}
 			/*
 			// Trying from the image mask: JUST AS SLOW
