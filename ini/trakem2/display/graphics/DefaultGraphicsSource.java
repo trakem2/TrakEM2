@@ -6,6 +6,7 @@ import java.util.Collection;
 
 public class DefaultGraphicsSource implements GraphicsSource {
 
+	/** Returns the list given as argument without any modification. */
 	public Collection<? extends Paintable> asPaintable(final Collection<? extends Paintable> ds) {
 		return ds;
 	}
