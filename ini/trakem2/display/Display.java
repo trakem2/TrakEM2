@@ -2031,349 +2031,363 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			return popup;
 		}
 
+		if (canvas.isTransforming()) {
+			item = new JMenuItem("Apply transform"); item.addActionListener(this); popup.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true)); // dummy, for I don't add a MenuKeyListener, but "works" through the normal key listener. It's here to provide a visual cue
+			item = new JMenuItem("Apply transform propagating to last layer"); item.addActionListener(this); popup.add(item);
+			if (layer.getParent().indexOf(layer) == layer.getParent().size() -1) item.setEnabled(false);
+			item = new JMenuItem("Apply transform propagating to first layer"); item.addActionListener(this); popup.add(item);
+			if (0 == layer.getParent().indexOf(layer)) item.setEnabled(false);
+			item = new JMenuItem("Cancel transform"); item.addActionListener(this); popup.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
+			item = new JMenuItem("Specify transform..."); item.addActionListener(this); popup.add(item);
+			return popup;
+		}
 
 		if (null != active) {
-			if (!canvas.isTransforming()) {
-				if (active instanceof Profile) {
-					item = new JMenuItem("Duplicate, link and send to next layer"); item.addActionListener(this); popup.add(item);
-					Layer nl = layer.getParent().next(layer);
-					if (nl == layer) item.setEnabled(false);
-					item = new JMenuItem("Duplicate, link and send to previous layer"); item.addActionListener(this); popup.add(item);
-					nl = layer.getParent().previous(layer);
-					if (nl == layer) item.setEnabled(false);
+			if (active instanceof Profile) {
+				item = new JMenuItem("Duplicate, link and send to next layer"); item.addActionListener(this); popup.add(item);
+				Layer nl = layer.getParent().next(layer);
+				if (nl == layer) item.setEnabled(false);
+				item = new JMenuItem("Duplicate, link and send to previous layer"); item.addActionListener(this); popup.add(item);
+				nl = layer.getParent().previous(layer);
+				if (nl == layer) item.setEnabled(false);
 
-					menu = new JMenu("Duplicate, link and send to");
-					ArrayList al = layer.getParent().getLayers();
-					final Iterator it = al.iterator();
+				menu = new JMenu("Duplicate, link and send to");
+				ArrayList al = layer.getParent().getLayers();
+				final Iterator it = al.iterator();
+				int i = 1;
+				while (it.hasNext()) {
+					Layer la = (Layer)it.next();
+					item = new JMenuItem(i + ": z = " + la.getZ()); item.addActionListener(this); menu.add(item); // TODO should label which layers contain Profile instances linked to the one being duplicated
+					if (la == this.layer) item.setEnabled(false);
+					i++;
+				}
+				popup.add(menu);
+				item = new JMenuItem("Duplicate, link and send to..."); item.addActionListener(this); popup.add(item);
+
+				popup.addSeparator();
+
+				item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
+				if (!active.isLinked()) item.setEnabled(false); // isLinked() checks if it's linked to a Patch in its own layer
+				item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
+				popup.addSeparator();
+			} else if (active instanceof Patch) {
+				item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
+				if (!active.isLinked(Patch.class)) item.setEnabled(false);
+				if (((Patch)active).isStack()) {
+					item = new JMenuItem("Unlink slices"); item.addActionListener(this); popup.add(item);
+				}
+				int n_sel_patches = selection.getSelected(Patch.class).size(); 
+				if (1 == n_sel_patches) {
+					item = new JMenuItem("Snap"); item.addActionListener(this); popup.add(item);
+				} else if (n_sel_patches > 1) {
+					item = new JMenuItem("Montage"); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Lens correction"); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Blend"); item.addActionListener(this); popup.add(item);
+				}
+				item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); popup.add(item);
+				if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
+				item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
+				HashSet hs = active.getLinked(Patch.class);
+				if (null == hs || 0 == hs.size()) item.setEnabled(false);
+				item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
+				if (null == hs || 0 == hs.size()) item.setEnabled(false); // if no Patch instances among the directly linked, then it's not a stack
+				popup.addSeparator();
+			} else {
+				item = new JMenuItem("Unlink"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
+				popup.addSeparator();
+			}
+			if (active instanceof AreaList) {
+				item = new JMenuItem("Merge"); item.addActionListener(this); popup.add(item);
+				ArrayList al = selection.getSelected();
+				int n = 0;
+				for (Iterator it = al.iterator(); it.hasNext(); ) {
+					if (it.next().getClass() == AreaList.class) n++;
+				}
+				if (n < 2) item.setEnabled(false);
+				popup.addSeparator();
+			} else if (active instanceof Pipe) {
+				item = new JMenuItem("Identify..."); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Identify with axes..."); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
+				popup.addSeparator();
+			}
+
+			JMenuItem st = new JMenu("Transform");
+			StartTransformMenuListener tml = new StartTransformMenuListener();
+			item = new JMenuItem("Transform (affine)"); item.addActionListener(tml); st.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, 0, true));
+			item = new JMenuItem("Transform (non-linear)"); item.addActionListener(tml); st.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, Event.SHIFT_MASK, true));
+			item = new JMenuItem("Cancel transform"); st.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
+			item.setEnabled(false); // just added as a self-documenting cue; no listener
+			popup.add(st);
+
+
+			item = new JMenuItem("Duplicate"); item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Color..."); item.addActionListener(this); popup.add(item);
+			if (active instanceof LayerSet) item.setEnabled(false);
+			if (active.isLocked()) {
+				item = new JMenuItem("Unlock");  item.addActionListener(this); popup.add(item);
+			} else {
+				item = new JMenuItem("Lock");  item.addActionListener(this); popup.add(item);
+			}
+			menu = new JMenu("Move");
+			popup.addSeparator();
+			LayerSet ls = layer.getParent();
+			item = new JMenuItem("Move to top"); item.addActionListener(this); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_HOME, 0, true)); // this is just to draw the key name by the menu; it does not incur on any event being generated (that I know if), and certainly not any event being listened to by TrakEM2.
+			if (ls.isTop(active)) item.setEnabled(false);
+			item = new JMenuItem("Move up"); item.addActionListener(this); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true));
+			if (ls.isTop(active)) item.setEnabled(false);
+			item = new JMenuItem("Move down"); item.addActionListener(this); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true));
+			if (ls.isBottom(active)) item.setEnabled(false);
+			item = new JMenuItem("Move to bottom"); item.addActionListener(this); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_END, 0, true));
+			if (ls.isBottom(active)) item.setEnabled(false);
+
+			popup.add(menu);
+			popup.addSeparator();
+			item = new JMenuItem("Delete..."); item.addActionListener(this); popup.add(item);
+			try {
+				if (active instanceof Patch) {
+					if (!active.isOnlyLinkedTo(Patch.class)) {
+						item.setEnabled(false);
+					}
+				} else if (!(active instanceof DLabel)) { // can't delete elements from the trees (Profile, Pipe, LayerSet)
+					item.setEnabled(false);
+				}
+			} catch (Exception e) { IJError.print(e); item.setEnabled(false); }
+
+			if (active instanceof Patch) {
+				item = new JMenuItem("Revert"); item.addActionListener(this); popup.add(item);
+				popup.addSeparator();
+			}
+			item = new JMenuItem("Properties...");    item.addActionListener(this); popup.add(item);
+			item = new JMenuItem("Show centered"); item.addActionListener(this); popup.add(item);
+
+			popup.addSeparator();
+
+			if (! (active instanceof ZDisplayable)) {
+				ArrayList al_layers = layer.getParent().getLayers();
+				int i_layer = al_layers.indexOf(layer);
+				int n_layers = al_layers.size();
+				item = new JMenuItem("Send to previous layer"); item.addActionListener(this); popup.add(item);
+				if (1 == n_layers || 0 == i_layer || active.isLinked()) item.setEnabled(false);
+				// check if the active is a profile and contains a link to another profile in the layer it is going to be sent to, or it is linked
+				else if (active instanceof Profile && !active.canSendTo(layer.getParent().previous(layer))) item.setEnabled(false);
+				item = new JMenuItem("Send to next layer"); item.addActionListener(this); popup.add(item);
+				if (1 == n_layers || n_layers -1 == i_layer || active.isLinked()) item.setEnabled(false);
+				else if (active instanceof Profile && !active.canSendTo(layer.getParent().next(layer))) item.setEnabled(false);
+
+
+				menu = new JMenu("Send linked group to...");
+				if (active.hasLinkedGroupWithinLayer(this.layer)) {
 					int i = 1;
-					while (it.hasNext()) {
-						Layer la = (Layer)it.next();
-						item = new JMenuItem(i + ": z = " + la.getZ()); item.addActionListener(this); menu.add(item); // TODO should label which layers contain Profile instances linked to the one being duplicated
+					for (final Layer la : ls.getLayers()) {
+						String layer_title = i + ": " + la.getTitle();
+						if (-1 == layer_title.indexOf(' ')) layer_title += " ";
+						item = new JMenuItem(layer_title); item.addActionListener(this); menu.add(item);
 						if (la == this.layer) item.setEnabled(false);
 						i++;
 					}
 					popup.add(menu);
-					item = new JMenuItem("Duplicate, link and send to..."); item.addActionListener(this); popup.add(item);
-
-					popup.addSeparator();
-
-					item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
-					if (!active.isLinked()) item.setEnabled(false); // isLinked() checks if it's linked to a Patch in its own layer
-					item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
-					popup.addSeparator();
-				} else if (active instanceof Patch) {
-					item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
-					if (!active.isLinked(Patch.class)) item.setEnabled(false);
-					if (((Patch)active).isStack()) {
-						item = new JMenuItem("Unlink slices"); item.addActionListener(this); popup.add(item);
-					}
-					int n_sel_patches = selection.getSelected(Patch.class).size(); 
-					if (1 == n_sel_patches) {
-						item = new JMenuItem("Snap"); item.addActionListener(this); popup.add(item);
-					} else if (n_sel_patches > 1) {
-						item = new JMenuItem("Montage"); item.addActionListener(this); popup.add(item);
-						item = new JMenuItem("Lens correction"); item.addActionListener(this); popup.add(item);
-						item = new JMenuItem("Blend"); item.addActionListener(this); popup.add(item);
-					}
-					item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); popup.add(item);
-					if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
-					item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
-					item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
-					HashSet hs = active.getLinked(Patch.class);
-					if (null == hs || 0 == hs.size()) item.setEnabled(false);
-					item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
-					if (null == hs || 0 == hs.size()) item.setEnabled(false); // if no Patch instances among the directly linked, then it's not a stack
-					popup.addSeparator();
 				} else {
-					item = new JMenuItem("Unlink"); item.addActionListener(this); popup.add(item);
-					item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
-					popup.addSeparator();
+					menu.setEnabled(false);
+					//Utils.log("Active's linked group not within layer.");
 				}
-				if (active instanceof AreaList) {
-					item = new JMenuItem("Merge"); item.addActionListener(this); popup.add(item);
-					ArrayList al = selection.getSelected();
-					int n = 0;
-					for (Iterator it = al.iterator(); it.hasNext(); ) {
-						if (it.next().getClass() == AreaList.class) n++;
-					}
-					if (n < 2) item.setEnabled(false);
-				} else if (active instanceof Pipe) {
-					item = new JMenuItem("Identify..."); item.addActionListener(this); popup.add(item);
-					item = new JMenuItem("Identify with axes..."); item.addActionListener(this); popup.add(item);
-					item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
-				}
-			}
-			if (canvas.isTransforming()) {
-				item = new JMenuItem("Apply transform"); item.addActionListener(this); popup.add(item);
-				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true)); // dummy, for I don't add a MenuKeyListener, but "works" through the normal key listener. It's here to provide a visual cue
-				item = new JMenuItem("Apply transform propagating to last layer"); item.addActionListener(this); popup.add(item);
-				if (layer.getParent().indexOf(layer) == layer.getParent().size() -1) item.setEnabled(false);
-				item = new JMenuItem("Apply transform propagating to first layer"); item.addActionListener(this); popup.add(item);
-				if (0 == layer.getParent().indexOf(layer)) item.setEnabled(false);
-			} else {
-				item = new JMenuItem("Transform"); item.addActionListener(this); popup.add(item);
-				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, 0, true));
-			}
-			item = new JMenuItem("Cancel transform"); item.addActionListener(this); popup.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
-			if (!canvas.isTransforming()) item.setEnabled(false);
-			if (canvas.isTransforming()) {
-				item = new JMenuItem("Specify transform..."); item.addActionListener(this); popup.add(item);
-			}
-
-			if (!canvas.isTransforming()) {
-				item = new JMenuItem("Duplicate"); item.addActionListener(this); popup.add(item);
-				item = new JMenuItem("Color..."); item.addActionListener(this); popup.add(item);
-				if (active instanceof LayerSet) item.setEnabled(false);
-				if (active.isLocked()) {
-					item = new JMenuItem("Unlock");  item.addActionListener(this); popup.add(item);
-				} else {
-					item = new JMenuItem("Lock");  item.addActionListener(this); popup.add(item);
-				}
-				menu = new JMenu("Move");
-				popup.addSeparator();
-				LayerSet ls = layer.getParent();
-				item = new JMenuItem("Move to top"); item.addActionListener(this); menu.add(item);
-				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_HOME, 0, true)); // this is just to draw the key name by the menu; it does not incur on any event being generated (that I know if), and certainly not any event being listened to by TrakEM2.
-				if (ls.isTop(active)) item.setEnabled(false);
-				item = new JMenuItem("Move up"); item.addActionListener(this); menu.add(item);
-				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true));
-				if (ls.isTop(active)) item.setEnabled(false);
-				item = new JMenuItem("Move down"); item.addActionListener(this); menu.add(item);
-				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true));
-				if (ls.isBottom(active)) item.setEnabled(false);
-				item = new JMenuItem("Move to bottom"); item.addActionListener(this); menu.add(item);
-				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_END, 0, true));
-				if (ls.isBottom(active)) item.setEnabled(false);
-
 				popup.add(menu);
 				popup.addSeparator();
-				item = new JMenuItem("Delete..."); item.addActionListener(this); popup.add(item);
-				try {
-					if (active instanceof Patch) {
-						if (!active.isOnlyLinkedTo(Patch.class)) {
-							item.setEnabled(false);
-						}
-					} else if (!(active instanceof DLabel)) { // can't delete elements from the trees (Profile, Pipe, LayerSet)
-						item.setEnabled(false);
-					}
-				} catch (Exception e) { IJError.print(e); item.setEnabled(false); }
-
-				if (active instanceof Patch) {
-					item = new JMenuItem("Revert"); item.addActionListener(this); popup.add(item);
-					popup.addSeparator();
-				}
-				item = new JMenuItem("Properties...");    item.addActionListener(this); popup.add(item);
-				item = new JMenuItem("Show centered"); item.addActionListener(this); popup.add(item);
-
-				popup.addSeparator();
-
-				if (! (active instanceof ZDisplayable)) {
-					ArrayList al_layers = layer.getParent().getLayers();
-					int i_layer = al_layers.indexOf(layer);
-					int n_layers = al_layers.size();
-					item = new JMenuItem("Send to previous layer"); item.addActionListener(this); popup.add(item);
-					if (1 == n_layers || 0 == i_layer || active.isLinked()) item.setEnabled(false);
-					// check if the active is a profile and contains a link to another profile in the layer it is going to be sent to, or it is linked
-					else if (active instanceof Profile && !active.canSendTo(layer.getParent().previous(layer))) item.setEnabled(false);
-					item = new JMenuItem("Send to next layer"); item.addActionListener(this); popup.add(item);
-					if (1 == n_layers || n_layers -1 == i_layer || active.isLinked()) item.setEnabled(false);
-					else if (active instanceof Profile && !active.canSendTo(layer.getParent().next(layer))) item.setEnabled(false);
-
-
-					menu = new JMenu("Send linked group to...");
-					if (active.hasLinkedGroupWithinLayer(this.layer)) {
-						int i = 1;
-						for (final Layer la : ls.getLayers()) {
-							String layer_title = i + ": " + la.getTitle();
-							if (-1 == layer_title.indexOf(' ')) layer_title += " ";
-							item = new JMenuItem(layer_title); item.addActionListener(this); menu.add(item);
-							if (la == this.layer) item.setEnabled(false);
-							i++;
-						}
-						popup.add(menu);
-					} else {
-						menu.setEnabled(false);
-						//Utils.log("Active's linked group not within layer.");
-					}
-					popup.add(menu);
-					popup.addSeparator();
-				}
 			}
 		}
 
-		if (!canvas.isTransforming()) {
+		item = new JMenuItem("Undo");item.addActionListener(this); popup.add(item);
+		if (!layer.getParent().canUndo() || canvas.isTransforming()) item.setEnabled(false);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Utils.getControlModifier(), true));
+		item = new JMenuItem("Redo");item.addActionListener(this); popup.add(item);
+		if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.SHIFT_MASK | Event.CTRL_MASK, true));
+		popup.addSeparator();
 
-			item = new JMenuItem("Undo");item.addActionListener(this); popup.add(item);
-			if (!layer.getParent().canUndo() || canvas.isTransforming()) item.setEnabled(false);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Utils.getControlModifier(), true));
-			item = new JMenuItem("Redo");item.addActionListener(this); popup.add(item);
-			if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.SHIFT_MASK | Event.CTRL_MASK, true));
-			popup.addSeparator();
+		// Would get so much simpler with a clojure macro ...
 
-			// Would get so much simpler with a clojure macro ...
-
-			try {
-				menu = new JMenu("Hide/Unhide");
-				item = new JMenuItem("Hide deselected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK, true));
-				boolean none = 0 == selection.getNSelected();
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Hide deselected except images"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK | Event.ALT_MASK, true));
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Hide selected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true));
-				if (none) item.setEnabled(false);
-				none = ! layer.getParent().containsDisplayable(DLabel.class);
-				item = new JMenuItem("Hide all labels"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Unhide all labels"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				none = ! layer.getParent().contains(AreaList.class);
-				item = new JMenuItem("Hide all arealists"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Unhide all arealists"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				none = ! layer.contains(Profile.class);
-				item = new JMenuItem("Hide all profiles"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Unhide all profiles"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				none = ! layer.getParent().contains(Pipe.class);
-				item = new JMenuItem("Hide all pipes"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Unhide all pipes"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				none = ! layer.getParent().contains(Polyline.class);
-				item = new JMenuItem("Hide all polylines"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Unhide all polylines"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				none = ! layer.getParent().contains(Ball.class);
-				item = new JMenuItem("Hide all balls"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Unhide all balls"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				none = ! layer.getParent().containsDisplayable(Patch.class);
-				item = new JMenuItem("Hide all images"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Unhide all images"); item.addActionListener(this); menu.add(item);
-				if (none) item.setEnabled(false);
-				item = new JMenuItem("Hide all but images"); item.addActionListener(this); menu.add(item);
-				item = new JMenuItem("Unhide all"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.ALT_MASK, true));
-
-				popup.add(menu);
-			} catch (Exception e) { IJError.print(e); }
-
-			JMenu adjust_menu = new JMenu("Adjust");
-			item = new JMenuItem("Calibration..."); item.addActionListener(this); adjust_menu.add(item);
-			item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
-			item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
-			if (selection.isEmpty()) item.setEnabled(false);
-			item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
-			item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
-			if (selection.isEmpty()) item.setEnabled(false);
-			popup.add(adjust_menu);
-
-			JMenu script = new JMenu("Script");
-			MenuScriptListener msl = new MenuScriptListener();
-			item = new JMenuItem("Set preprocessor script layer-wise..."); item.addActionListener(msl); script.add(item);
-			item = new JMenuItem("Set preprocessor script (selected images)..."); item.addActionListener(msl); script.add(item);
-			if (selection.isEmpty()) item.setEnabled(false);
-			item = new JMenuItem("Remove preprocessor script layer-wise..."); item.addActionListener(msl); script.add(item);
-			item = new JMenuItem("Remove preprocessor script (selected images)..."); item.addActionListener(msl); script.add(item);
-			if (selection.isEmpty()) item.setEnabled(false);
-			popup.add(script);
-
-			menu = new JMenu("Import");
-			item = new JMenuItem("Import image"); item.addActionListener(this); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, Event.ALT_MASK & Event.SHIFT_MASK, true));
-			item = new JMenuItem("Import stack..."); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Import grid..."); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Import sequence as grid..."); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Import from text file..."); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Import labels as arealists..."); item.addActionListener(this); menu.add(item);
-			popup.add(menu);
-
-			menu = new JMenu("Export");
-			item = new JMenuItem("Make flat image..."); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
-			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
-			item = new JMenuItem("Arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
-			if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
-			popup.add(menu);
-
-			menu = new JMenu("Display");
-			item = new JMenuItem("Resize canvas/LayerSet...");   item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
-			popup.add(menu);
-
-			menu = new JMenu("Project");
-			this.project.getLoader().setupMenuItems(menu, this.getProject());
-			item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
-			if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
-			item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
-			popup.add(menu);
-
-			menu = new JMenu("Selection");
-			item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Select all visible"); item.addActionListener(this); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Utils.getControlModifier(), true));
-			if (0 == layer.getDisplayables().size() && 0 == layer.getParent().getZDisplayables().size()) item.setEnabled(false);
-			item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
-			if (0 == selection.getNSelected()) item.setEnabled(false);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
-
-			JMenu bytype = new JMenu("Select all by type");
-			item = new JMenuItem("AreaList"); item.addActionListener(bytypelistener); bytype.add(item);
-			item = new JMenuItem("Ball"); item.addActionListener(bytypelistener); bytype.add(item);
-			item = new JMenuItem("Dissector"); item.addActionListener(bytypelistener); bytype.add(item);
-			item = new JMenuItem("Image"); item.addActionListener(bytypelistener); bytype.add(item);
-			item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
-			item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
-			item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
-			item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
-			menu.add(bytype);
-
-			item = new JMenuItem("Restore selection"); item.addActionListener(this); menu.add(item);
-			item = new JMenuItem("Select under ROI"); item.addActionListener(this); menu.add(item);
-			if (canvas.getFakeImagePlus().getRoi() == null) item.setEnabled(false);
-			popup.add(menu);
-
-			menu = new JMenu("Tool");
-			item = new JMenuItem("Rectangular ROI"); item.addActionListener(new SetToolListener(Toolbar.RECTANGLE)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0, true));
-			item = new JMenuItem("Polygon ROI"); item.addActionListener(new SetToolListener(Toolbar.POLYGON)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0, true));
-			item = new JMenuItem("Freehand ROI"); item.addActionListener(new SetToolListener(Toolbar.FREEROI)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F3, 0, true));
-			item = new JMenuItem("Text"); item.addActionListener(new SetToolListener(Toolbar.TEXT)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0, true));
-			item = new JMenuItem("Magnifier glass"); item.addActionListener(new SetToolListener(Toolbar.MAGNIFIER)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0, true));
-			item = new JMenuItem("Hand"); item.addActionListener(new SetToolListener(Toolbar.HAND)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F6, 0, true));
-			item = new JMenuItem("Select"); item.addActionListener(new SetToolListener(ProjectToolbar.SELECT)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0, true));
-			item = new JMenuItem("Pencil"); item.addActionListener(new SetToolListener(ProjectToolbar.PENCIL)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F10, 0, true));
-			item = new JMenuItem("Pen"); item.addActionListener(new SetToolListener(ProjectToolbar.PEN)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0, true));
-			item = new JMenuItem("Align"); item.addActionListener(new SetToolListener(ProjectToolbar.ALIGN)); menu.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0, true));
+		try {
+			menu = new JMenu("Hide/Unhide");
+			item = new JMenuItem("Hide deselected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK, true));
+			boolean none = 0 == selection.getNSelected();
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Hide deselected except images"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.SHIFT_MASK | Event.ALT_MASK, true));
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Hide selected"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true));
+			if (none) item.setEnabled(false);
+			none = ! layer.getParent().containsDisplayable(DLabel.class);
+			item = new JMenuItem("Hide all labels"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all labels"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(AreaList.class);
+			item = new JMenuItem("Hide all arealists"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all arealists"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			none = ! layer.contains(Profile.class);
+			item = new JMenuItem("Hide all profiles"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all profiles"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(Pipe.class);
+			item = new JMenuItem("Hide all pipes"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all pipes"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(Polyline.class);
+			item = new JMenuItem("Hide all polylines"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all polylines"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(Ball.class);
+			item = new JMenuItem("Hide all balls"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all balls"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			none = ! layer.getParent().containsDisplayable(Patch.class);
+			item = new JMenuItem("Hide all images"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all images"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Hide all but images"); item.addActionListener(this); menu.add(item);
+			item = new JMenuItem("Unhide all"); item.addActionListener(this); menu.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.ALT_MASK, true));
 
 			popup.add(menu);
+		} catch (Exception e) { IJError.print(e); }
 
-			item = new JMenuItem("Search..."); item.addActionListener(this); popup.add(item);
-		}
+		JMenu adjust_menu = new JMenu("Adjust");
+		item = new JMenuItem("Calibration..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+		if (selection.isEmpty()) item.setEnabled(false);
+		item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+		if (selection.isEmpty()) item.setEnabled(false);
+		popup.add(adjust_menu);
+
+		JMenu script = new JMenu("Script");
+		MenuScriptListener msl = new MenuScriptListener();
+		item = new JMenuItem("Set preprocessor script layer-wise..."); item.addActionListener(msl); script.add(item);
+		item = new JMenuItem("Set preprocessor script (selected images)..."); item.addActionListener(msl); script.add(item);
+		if (selection.isEmpty()) item.setEnabled(false);
+		item = new JMenuItem("Remove preprocessor script layer-wise..."); item.addActionListener(msl); script.add(item);
+		item = new JMenuItem("Remove preprocessor script (selected images)..."); item.addActionListener(msl); script.add(item);
+		if (selection.isEmpty()) item.setEnabled(false);
+		popup.add(script);
+
+		menu = new JMenu("Import");
+		item = new JMenuItem("Import image"); item.addActionListener(this); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, Event.ALT_MASK & Event.SHIFT_MASK, true));
+		item = new JMenuItem("Import stack..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Import grid..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Import sequence as grid..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Import from text file..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Import labels as arealists..."); item.addActionListener(this); menu.add(item);
+		popup.add(menu);
+
+		menu = new JMenu("Export");
+		item = new JMenuItem("Make flat image..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
+		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+		item = new JMenuItem("Arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
+		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+		popup.add(menu);
+
+		menu = new JMenu("Display");
+		item = new JMenuItem("Resize canvas/LayerSet...");   item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
+		popup.add(menu);
+
+		menu = new JMenu("Project");
+		this.project.getLoader().setupMenuItems(menu, this.getProject());
+		item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
+		if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
+		item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
+		popup.add(menu);
+
+		menu = new JMenu("Selection");
+		item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Select all visible"); item.addActionListener(this); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Utils.getControlModifier(), true));
+		if (0 == layer.getDisplayables().size() && 0 == layer.getParent().getZDisplayables().size()) item.setEnabled(false);
+		item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
+		if (0 == selection.getNSelected()) item.setEnabled(false);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
+
+		JMenu bytype = new JMenu("Select all by type");
+		item = new JMenuItem("AreaList"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Ball"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Dissector"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Image"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
+		menu.add(bytype);
+
+		item = new JMenuItem("Restore selection"); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Select under ROI"); item.addActionListener(this); menu.add(item);
+		if (canvas.getFakeImagePlus().getRoi() == null) item.setEnabled(false);
+		popup.add(menu);
+
+		menu = new JMenu("Tool");
+		item = new JMenuItem("Rectangular ROI"); item.addActionListener(new SetToolListener(Toolbar.RECTANGLE)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0, true));
+		item = new JMenuItem("Polygon ROI"); item.addActionListener(new SetToolListener(Toolbar.POLYGON)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0, true));
+		item = new JMenuItem("Freehand ROI"); item.addActionListener(new SetToolListener(Toolbar.FREEROI)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F3, 0, true));
+		item = new JMenuItem("Text"); item.addActionListener(new SetToolListener(Toolbar.TEXT)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0, true));
+		item = new JMenuItem("Magnifier glass"); item.addActionListener(new SetToolListener(Toolbar.MAGNIFIER)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0, true));
+		item = new JMenuItem("Hand"); item.addActionListener(new SetToolListener(Toolbar.HAND)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F6, 0, true));
+		item = new JMenuItem("Select"); item.addActionListener(new SetToolListener(ProjectToolbar.SELECT)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0, true));
+		item = new JMenuItem("Pencil"); item.addActionListener(new SetToolListener(ProjectToolbar.PENCIL)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F10, 0, true));
+		item = new JMenuItem("Pen"); item.addActionListener(new SetToolListener(ProjectToolbar.PEN)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0, true));
+		item = new JMenuItem("Align"); item.addActionListener(new SetToolListener(ProjectToolbar.ALIGN)); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0, true));
+
+		popup.add(menu);
+
+		item = new JMenuItem("Search..."); item.addActionListener(this); popup.add(item);
 
 		//canvas.add(popup);
 		return popup;
+	}
+
+	private class StartTransformMenuListener implements ActionListener {
+		public void actionPerformed(ActionEvent ae) {
+			if (null == active) return;
+			String command = ae.getActionCommand();
+			if (command.equals("Transform (affine)")) {
+				canvas.setTransforming(true);
+			} else if (command.equals("Transform (non-linear)")) {
+				// TODO
+			}
+		}
 	}
 
 	private class MenuScriptListener implements ActionListener {
@@ -2977,9 +2991,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				layer.getParent().redoOneStep();
 				Display.repaint(layer.getParent());
 			}}, project);
-		} else if (command.equals("Transform")) {
-			if (null == active) return;
-			canvas.setTransforming(true);
 		} else if (command.equals("Apply transform")) {
 			if (null == active) return;
 			canvas.setTransforming(false);
@@ -4198,8 +4209,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return burro;
 	}
 
-	private GraphicsSource graphics_source = new DefaultGraphicsSource();
+	private GraphicsSource graphics_source = new DefaultGraphicsSource(); // new TestGraphicsSource();
 
+	/** Get an object that will filter and maybe replace the list of Displayable of the current layer to be painted in the canvas. */
 	public GraphicsSource getGraphicsSource() {
 		return graphics_source;
 	}
