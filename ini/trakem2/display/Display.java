@@ -45,6 +45,7 @@ import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.M;
 import ini.trakem2.tree.*;
 import ini.trakem2.display.graphics.*;
+import ini.trakem2.display.mode.*;
 
 import javax.swing.*;
 import javax.swing.event.*;
@@ -2327,7 +2328,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Resize canvas/LayerSet...");   item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
-		item = new JMenuItem("Calibration..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Calibration..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
@@ -2402,9 +2403,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null == active) return;
 			String command = ae.getActionCommand();
 			if (command.equals("Transform (affine)")) {
+				setMode(Display.AFFINE_TRANSFORM_MODE);
 				canvas.setTransforming(true);
 			} else if (command.equals("Transform (non-linear)")) {
-				// TODO
+				Collection<Displayable> col = selection.getSelected(Patch.class);
+				for (final Displayable d : col) {
+					if (d.isLinked()) {
+						Utils.showMessage("Can't enter manual non-linear transformation mode:\nat least one image is linked.");
+						return;
+					}
+				}
+				setMode(new NonLinearTransformMode(Display.this, col));
 			}
 		}
 	}
@@ -4254,10 +4263,16 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return burro;
 	}
 
-	private GraphicsSource graphics_source = new DefaultGraphicsSource(); // new TestGraphicsSource();
+	static final Mode DEFAULT_MODE = new DefaultMode(); // stateless
+	static final Mode AFFINE_TRANSFORM_MODE = new AffineTransformMode(); // stateless
+	private Mode mode = DEFAULT_MODE;
 
-	/** Get an object that will filter and maybe replace the list of Displayable of the current layer to be painted in the canvas. */
-	public GraphicsSource getGraphicsSource() {
-		return graphics_source;
+	public void setMode(final Mode mode) {
+		this.mode = mode;
+		canvas.repaint(true);
+	}
+
+	public Mode getMode() {
+		return mode;
 	}
 }

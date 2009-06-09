@@ -203,6 +203,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				}
 			}
 
+			display.getMode().getGraphicsSource().paintOnTop(g, display, srcRect, magnification);
+
 			g.dispose();
 		} while (volatileImage.contentsLost());
 	}
@@ -299,7 +301,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Canvas-Repainter", new OffscreenThread()) {
 		protected void handleUpdateGraphics(final Component target, final Rectangle clipRect) {
-			this.off.setProperties(new RepaintProperties(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getDisplayChannelAlphas(), display.getGraphicsSource()));
+			this.off.setProperties(new RepaintProperties(clipRect, display.getLayer(), target.getWidth(), target.getHeight(), display.getActive(), display.getDisplayChannelAlphas(), display.getMode().getGraphicsSource()));
 		}
 	};
 
@@ -381,12 +383,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 
 			g2d.setStroke(this.stroke);
-
-			// paint a pink frame around selected objects, and a white frame around the active object
-			final Selection selection = display.getSelection();
-			if (null != selection && ProjectToolbar.getToolId() < ProjectToolbar.PENCIL) { // i.e. PENCIL, PEN and ALIGN
-				selection.paint(g2d, srcRect, magnification);
-			}
 
 			// debug buckets
 			//if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification, Color.red);
@@ -1538,6 +1534,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (ProjectToolbar.getToolId() != ProjectToolbar.SELECT && b) {
 			ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		}
+		display.setMode(b ? Display.AFFINE_TRANSFORM_MODE : Display.DEFAULT_MODE);
 		display.getSelection().setTransforming(b);
 		//repaint other Displays as well!
 		Display.repaint(display.getLayerSet());
@@ -1549,6 +1546,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		selection.cancelTransform();
 		box.add(selection.getLinkedBox()); // the restored box now.
 		if (!(selection.getNSelected() == 1 && !display.getActive().isLinked())) update_graphics = true;
+		display.setMode(Display.DEFAULT_MODE);
 		repaint(true);
 	}
 
@@ -1762,6 +1760,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					display.getLayer().getParent().cancelAlign();
 					ke.consume();
 				} else if (null != active) {
+					if (display.getMode() != Display.DEFAULT_MODE) display.setMode(Display.DEFAULT_MODE);
 					if (display.getSelection().isTransforming()) cancelTransform();
 					else {
 						display.select(null); // deselect

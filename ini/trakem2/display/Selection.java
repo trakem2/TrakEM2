@@ -134,44 +134,7 @@ public class Selection {
 	public void paint(Graphics2D g, Rectangle srcRect, double magnification) {
 		// paint rectangle around selected Displayable elements
 		final Composite co = g.getComposite();
-		synchronized (queue_lock) {
-			try {
-				lock();
-				if (queue.isEmpty()) return;
-			} catch (Exception e) {
-				IJError.print(e);
-			} finally {
-				unlock();
-			}
-		}
-		if (!transforming) {
-			g.setColor(Color.pink);
-			Displayable[] da = null;
-			synchronized (queue_lock) {
-				lock();
-				try {
-					da = new Displayable[queue.size()];
-					queue.toArray(da);
-				} catch (Exception e) {
-					IJError.print(e);
-				} finally {
-					unlock();
-				}
-			}
-			final Rectangle bbox = new Rectangle();
-			for (int i=0; i<da.length; i++) {
-				da[i].getBoundingBox(bbox);
-				if (da[i].equals(active)) {
-					g.setColor(Color.white);
-					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
-					//g.drawPolygon(da[i].getPerimeter());
-					g.setColor(Color.pink);
-				} else {
-					//g.drawPolygon(da[i].getPerimeter());
-					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
-				}
-			}
-		}
+		if (isEmpty()) return;
 		//Utils.log2("transforming, dragging, rotating: " + transforming + "," + dragging + "," + rotating);
 		if (transforming) {
 			final Graphics2D g2d = (Graphics2D)g;

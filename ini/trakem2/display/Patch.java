@@ -476,7 +476,6 @@ public final class Patch extends Displayable {
 		}
 	}
 
-	
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
 	public void prePaint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 

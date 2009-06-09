@@ -1,8 +1,9 @@
 package ini.trakem2.display.graphics;
 
+import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Paintable;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.Paintable;
 import ini.trakem2.display.Patch;
 import java.util.Collection;
 import java.util.ArrayList;
@@ -39,4 +40,7 @@ public class TestGraphicsSource implements GraphicsSource {
 		}
 		return a;
 	}
+
+	/** Does nothing. */
+	public void paintOnTop(final Graphics2D g, final Display display, final Rectangle srcRect, final double magnification) {}
 }
