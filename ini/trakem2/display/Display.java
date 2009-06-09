@@ -2088,7 +2088,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 				item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); popup.add(item);
 				if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
-				item = new JMenuItem("Link images..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
 				HashSet hs = active.getLinked(Patch.class);
 				if (null == hs || 0 == hs.size()) item.setEnabled(false);
@@ -2267,8 +2266,27 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			popup.add(menu);
 		} catch (Exception e) { IJError.print(e); }
 
+		JMenu align_menu = new JMenu("Align");
+		item = new JMenuItem("Snap"); item.addActionListener(this); align_menu.add(item);
+		item.setEnabled(null != active);
+		item = new JMenuItem("Montage"); item.addActionListener(this); align_menu.add(item);
+		item.setEnabled(selection.getSelected().size() > 1);
+		item = new JMenuItem("Align stack slices"); item.addActionListener(this); align_menu.add(item);
+		if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
+		item = new JMenuItem("Align layers"); item.addActionListener(this); align_menu.add(item);
+		if (1 == layer.getParent().size()) item.setEnabled(false);
+		item = new JMenuItem("Align multi-layer mosaic"); item.addActionListener(this); align_menu.add(item);
+		if (1 == layer.getParent().size()) item.setEnabled(false);
+		popup.add(align_menu);
+
+		JMenu link_menu = new JMenu("Link");
+		item = new JMenuItem("Link images..."); item.addActionListener(this); link_menu.add(item);
+		item = new JMenuItem("Unlink all selected images"); item.addActionListener(this); link_menu.add(item);
+		item.setEnabled(selection.getSelected(Patch.class).size() > 0);
+		item = new JMenuItem("Unlink all"); item.addActionListener(this); link_menu.add(item);
+		popup.add(link_menu);
+
 		JMenu adjust_menu = new JMenu("Adjust");
-		item = new JMenuItem("Calibration..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
@@ -2309,6 +2327,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Resize canvas/LayerSet...");   item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Calibration..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
@@ -3388,13 +3407,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			gd.addMessage("Linking images to images (within their own layer only):");
 			String[] options = {"all images to all images", "each image with any other overlapping image"};
 			gd.addChoice("Link: ", options, options[1]);
-			String[] options2 = {"selected images only", "all images in this layer", "all images in all layers"};
+			String[] options2 = {"selected images only", "all images in this layer", "all images in all layers, within the layer only", "all images in all layers, within and across consecutive layers"};
 			gd.addChoice("Apply to: ", options2, options2[0]);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			Layer lay = layer;
 			final HashSet<Displayable> ds = new HashSet<Displayable>(lay.getParent().getDisplayables());
-			lay.getParent().addDataEditStep(ds);
+			lay.getParent().addDataEditStep(ds, new String[]{"data"});
 			boolean overlapping_only = 1 == gd.getNextChoiceIndex();
 			Collection<Displayable> coll = null;
 			switch (gd.getNextChoiceIndex()) {
@@ -3414,9 +3433,35 @@ public final class Display extends DBObject implements ActionListener, ImageList
 						coll.addAll(acoll);
 					}
 					break;
+				case 3:
+					ArrayList<Layer> layers = lay.getParent().getLayers();
+					Collection<Displayable> lc1 = layers.get(0).getDisplayables(Patch.class);
+					if (lay == layers.get(0)) coll = lc1;
+					for (int i=1; i<layers.size(); i++) {
+						Collection<Displayable> lc2 = layers.get(i).getDisplayables(Patch.class);
+						if (null == coll && Display.this.layer == layers.get(i)) coll = lc2;
+						Collection<Displayable> both = new ArrayList<Displayable>();
+						both.addAll(lc1);
+						both.addAll(lc2);
+						Patch.crosslink(both, overlapping_only);
+						lc1 = lc2;
+					}
+					break;
 			}
 			if (null != coll) Display.updateCheckboxes(coll, DisplayablePanel.LINK_STATE, true);
 			lay.getParent().addDataEditStep(ds);
+		} else if (command.equals("Unlink all selected images")) {
+			if (Utils.check("Really unlink selected images?")) {
+				for (final Displayable d : selection.getSelected(Patch.class)) {
+					d.unlink();
+				}
+			}
+		} else if (command.equals("Unlink all")) {
+			if (Utils.check("Really unlink all objects from all layers?")) {
+				for (final Displayable d : layer.getParent().getDisplayables()) {
+					d.unlink();
+				}
+			}
 		} else if (command.equals("Calibration...")) {
 			try {
 				IJ.run(canvas.getFakeImagePlus(), "Properties...", "");
