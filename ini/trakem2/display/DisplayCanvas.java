@@ -2222,6 +2222,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					g.setTransform(atc);
 
 					// then paint the non-Patch objects of the current layer
+					// TODO this loop should be reading from the paintable_patches and paintables, since they length/order *could* have changed
+					//      And yes this means iterating and checking the Class of each.
 					for (final Displayable d : al_paint.subList(paintable_patches.size(), al_paint.size())) {
 						d.paint(g, magnification, d == active, c_alphas, layer);
 					}
@@ -2233,9 +2235,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						final Graphics2D gb = bi.createGraphics();
 						gb.setTransform(atc);
 						final Layer la = e.getValue();
-						if (la == layer && Color.green != e.getKey()) continue; // don't paint current layer in two channels
-						for (final Displayable d : la.find(srcRect, true)) {
-							if (d.getClass() != Patch.class) continue; // skip non-images
+						Collection<? extends Paintable> list;
+						if (la == layer) {
+							if (Color.green != e.getKey()) continue; // don't paint current layer in two channels
+							list = paintable_patches;
+						} else {
+							list = la.find(Patch.class, srcRect, true);
+						}
+						for (final Paintable d : list) {
 							d.paint(gb, magnification, false, c_alphas, la);
 						}
 						channels.put(e.getKey(), (byte[])new ByteProcessor(bi).getPixels());
