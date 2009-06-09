@@ -505,8 +505,23 @@ public final class Layer extends DBObject implements Bucketable {
 	public Collection<Displayable> find(final Rectangle r, final boolean visible_only) {
 		if (null != root && root.isBetter(r, this)) return root.find(r, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (visible_only && !d.isVisible()) continue;
+			if (d.getBoundingBox().intersects(r)) {
+				al.add(d);
+			}
+		}
+		return al;
+	}
+
+	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
+	public Collection<Displayable> find(final Class c, final Rectangle r, final boolean visible_only) {
+		if (Displayable.class == c) return find(r, visible_only);
+		if (null != root && root.isBetter(r, this)) return root.find(c, r, this, visible_only);
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (final Displayable d : al_displayables) {
+			if (visible_only && !d.isVisible()) continue;
+			if (d.getClass() != c) continue;
 			if (d.getBoundingBox().intersects(r)) {
 				al.add(d);
 			}
