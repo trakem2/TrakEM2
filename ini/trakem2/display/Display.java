@@ -3285,22 +3285,31 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null == roi) return;
 			selection.selectAll(roi, true);
 		} else if (command.equals("Merge")) {
-			ArrayList al_sel = selection.getSelected();
-			// put active at the beginning, to work as the base on which other's will get merged
-			al_sel.remove(Display.this.active);
-			al_sel.add(0, Display.this.active);
-			AreaList ali = AreaList.merge(al_sel);
-			if (null != ali) {
-				// remove all but the first from the selection
-				for (int i=1; i<al_sel.size(); i++) {
-					Object ob = al_sel.get(i);
-					if (ob.getClass() == AreaList.class) {
-						selection.remove((Displayable)ob);
+			Bureaucrat burro = Bureaucrat.create(new Worker.Task("Merging AreaLists") {
+				public void exec() {
+					ArrayList al_sel = selection.getSelected(AreaList.class);
+					// put active at the beginning, to work as the base on which other's will get merged
+					al_sel.remove(Display.this.active);
+					al_sel.add(0, Display.this.active);
+					getLayerSet().addDataEditStep(new HashSet<Displayable>(al_sel));
+					AreaList ali = AreaList.merge(al_sel);
+					if (null != ali) {
+						// remove all but the first from the selection
+						for (int i=1; i<al_sel.size(); i++) {
+							Object ob = al_sel.get(i);
+							if (ob.getClass() == AreaList.class) {
+								selection.remove((Displayable)ob);
+							}
+						}
+						selection.updateTransform(ali);
+						repaint(ali.getLayerSet(), ali, 0);
 					}
 				}
-				selection.updateTransform(ali);
-				repaint(ali.getLayerSet(), ali, 0);
-			}
+			}, Display.this.project);
+			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().addDataEditStep(new HashSet<Displayable>(selection.getSelected(AreaList.class)));
+			}});
+			burro.goHaveBreakfast();
 		} else if (command.equals("Identify...")) {
 			// for pipes only for now
 			if (!(active instanceof Line3D)) return;
