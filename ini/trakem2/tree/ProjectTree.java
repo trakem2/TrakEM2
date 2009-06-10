@@ -416,46 +416,52 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 		TemplateThing tt_is = project.getTemplateThing(imported_labels); // it's the same as 'tet' above, unless it existed
 		// create a project node from "imported_segmentations" template under a new top node
-		DefaultMutableTreeNode project_node = project.getProjectTree().getRoot();
+		final DefaultMutableTreeNode project_node = project.getProjectTree().getRoot();
 		ProjectThing project_pt = (ProjectThing)project_node.getUserObject();
-		ProjectThing ct = project_pt.createChild(tt_root.getType());
-		DefaultMutableTreeNode ctn = addChild(ct, project_node);
+		final ProjectThing ct = project_pt.createChild(tt_root.getType());
 		ProjectThing pt_is = ct.createChild(imported_labels);
-		DefaultMutableTreeNode node_pt_is = addChild(pt_is, ctn);
-		try {
-			// fails when importing labels from Amira TODO
-			this.scrollPathToVisible(new TreePath(node_pt_is.getPath()));
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+
+		final DefaultMutableTreeNode node_pt_is = new DefaultMutableTreeNode(pt_is); //addChild(pt_is, ctn);
+
+		final HashMap<Class,String> types = new HashMap<Class,String>();
+		types.put(AreaList.class, "area_list");
+		types.put(Pipe.class, "pipe");
+		types.put(Polyline.class, "polyline");
+		types.put(Ball.class, "ball");
 
 		// now, insert a new ProjectThing if of type AreaList, Ball and/or Pipe under node_child
 		for (Iterator it = al.iterator(); it.hasNext(); ) {
 			Object ob = it.next();
 			TemplateThing tt = null;
-			if (ob instanceof AreaList) {
-				tt = getOrCreateChildTemplateThing(tt_is, "area_list");
-			} else if (ob instanceof Pipe) {
-				tt = getOrCreateChildTemplateThing(tt_is, "pipe");
-			} else if (ob instanceof Polyline) {
-				tt = getOrCreateChildTemplateThing(tt_is, "polyline");
-			} else if (ob instanceof Ball) {
-				tt = getOrCreateChildTemplateThing(tt_is, "ball");
-			} else {
+			String type = types.get(ob.getClass());
+			if (null == type) {
 				Utils.log("insertSegmentations: ignoring " + ob);
 				continue;
+			} else {
+				tt = getOrCreateChildTemplateThing(tt_is, type);
 			}
-			//Utils.log2("tt is " + tt);
 			try {
 				ProjectThing one = new ProjectThing(tt, project, ob);
 				pt_is.addChild(one);
-				addChild(one, node_pt_is);
+				//addChild(one, node_pt_is);
+				node_pt_is.add(new DefaultMutableTreeNode(one)); // at the end
 				//Utils.log2("one parent : " + one.getParent());
 			} catch (Exception e) {
 				IJError.print(e);
 			}
 		}
-		DNDTree.expandNode(this, DNDTree.findNode(pt_is, this));
+
+		javax.swing.SwingUtilities.invokeLater(new Runnable() { public void run() {
+			DefaultMutableTreeNode ctn = addChild(ct, project_node);
+			ctn.add(node_pt_is);
+			try {
+				ProjectTree.this.scrollPathToVisible(new TreePath(node_pt_is.getPath()));
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}});
+
+		DNDTree.expandNode(this, node_pt_is);
 	}
 
 	private final TemplateThing getOrCreateChildTemplateThing(TemplateThing parent, String type) {

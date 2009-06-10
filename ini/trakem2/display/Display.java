@@ -1324,29 +1324,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private final void addAll(final Collection<? extends Displayable> coll) {
 		// if any of the elements in the collection matches the type of the current tab, update that tab
 		// ... it's easier to just update the front tab
-		JScrollPane selected_tab = (JScrollPane) tabs.getSelectedComponent();
-		ArrayList al = null;
-		for (Map.Entry<Class,JScrollPane> e : ht_tabs.entrySet()) {
-			if (e.getValue() == selected_tab) {
-				final Class c = e.getKey();
-				for (final Displayable d : coll) {
-					if (d.getClass() == c) {
-						// must update:
-						if (ZDisplayable.class.isAssignableFrom(c)) al = layer.getParent().getZDisplayables();
-						else al = layer.getDisplayables(c);
-						if (al.size() > 0) { // could be empty if the class is LayerSet.class or an unknown class
-							updateTab( (JPanel) selected_tab.getViewport().getView(), "", al);
-						}
-						break;
-					}
-				}
-				break;
-			}
-		}
-		if (null != al) {
-			selection.clear();
-			navigator.repaint(true);
-		}
+		updateVisibleTab(true);
+		selection.clear();
+		navigator.repaint(true);
 	}
 
 	/** Add it to the proper panel, at the top, and set it active. */
