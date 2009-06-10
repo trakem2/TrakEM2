@@ -3633,13 +3633,17 @@ abstract public class Loader {
 		}
 	}
 
-	protected final void preProcess(final Patch p, final ImagePlus imp) {
-		if (null == p || null == imp) return;
+	protected final void preProcess(final Patch p, ImagePlus imp) {
+		if (null == p) return;
 		try {
 			String path = preprocessors.get(p);
 			if (null == path) return;
-			// Prepare image for pre-processing
-			imp.getProcessor().setMinAndMax(p.getMin(), p.getMax()); // for 8-bit and RGB images, your problem: setting min and max will expand the range.
+			if (null != imp) {
+				// Prepare image for pre-processing
+				imp.getProcessor().setMinAndMax(p.getMin(), p.getMax()); // for 8-bit and RGB images, your problem: setting min and max will expand the range.
+			} else {
+				imp = new ImagePlus(); // uninitialized: the script may generate its data
+			}
 			// Run the script
 			ini.trakem2.scripting.PatchScript.run(p, imp, path);
 			// Update Patch image properties:
