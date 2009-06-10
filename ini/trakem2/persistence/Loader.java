@@ -4872,6 +4872,11 @@ abstract public class Loader {
 	public void setPreprocessorScriptPath(final Patch p, final String path) {
 		if (null == path) preprocessors.remove(p);
 		else preprocessors.put(p, path);
+		// If the ImagePlus is cached, it will not be preProcessed.
+		// Merely running the preProcess on the cached image is no guarantee; threading competition may result in an unprocessed, newly loaded image.
+		// Hence, decache right after setting the script, then update mipmaps
+		decacheImagePlus(p.getId());
+		regenerateMipMaps(p); // queued
 	}
 
 	public String getPreprocessorScriptPath(final Patch p) {
