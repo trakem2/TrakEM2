@@ -781,11 +781,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			zd.setLayerSet(this);
 			zd.setLayer(al_layers.get(0));
 			zd.updateInDatabase("layer_set_id");
-			if (null != root) {
-				// add as last, then update
-				root.put(al_zdispl.size()-1, zd, zd.getBoundingBox(null));
-				root.update(this, zd, 0, al_zdispl.size()-1);
-			}
+		}
+		if (null != root) {
+			recreateBuckets(false); // only ZDisplayable
 		}
 		Display.addAll(this, coll);
 	}
