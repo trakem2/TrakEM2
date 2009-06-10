@@ -56,6 +56,7 @@ public class AffineTransformMode implements Mode {
 		this.display = display;
 		ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		// Init:
+		resetBox();
 		floater.center();
 		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, RO, floater};
 		accum_affine = new AffineTransform();
@@ -98,6 +99,8 @@ public class AffineTransformMode implements Mode {
 		if (null == step) return; // no more steps
 		LayerSet.applyTransforms(step.ht);
 		resetBox();
+
+		// TODO call fixAffinePoints with the diff affine transform, as computed from first selected object
 	}
 
 	synchronized public void redoOneStep() {
@@ -106,6 +109,8 @@ public class AffineTransformMode implements Mode {
 		if (null == step) return; // no more steps
 		LayerSet.applyTransforms(step.ht);
 		resetBox();
+
+		// TODO call fixAffinePoints with the diff affine transform, as computed from first selected object
 	}
 
 	public boolean isDragging() {
@@ -210,7 +215,7 @@ public class AffineTransformMode implements Mode {
 			this.y = y;
 			this.id = id;
 		}
-		abstract public void paint(Graphics g, Rectangle srcRect, double mag);
+		abstract public void paint(Graphics2D g, Rectangle srcRect, double mag);
 		/** Radius is the dectection "radius" around the handle x,y. */
 		public boolean contains(int x_p, int y_p, double radius) {
 			if (x - radius <= x_p && x + radius >= x_p
@@ -228,7 +233,7 @@ public class AffineTransformMode implements Mode {
 		BoxHandle(int x, int y, int id) {
 			super(x,y,id);
 		}
-		public void paint(final Graphics g, final Rectangle srcRect, final double mag) {
+		public void paint(final Graphics2D g, final Rectangle srcRect, final double mag) {
 			final int x = (int)((this.x - srcRect.x)*mag);
 			final int y = (int)((this.y - srcRect.y)*mag);
 			DisplayCanvas.drawHandle(g, x, y, 1.0); // ignoring magnification for the sizes, since Selection is painted differently
@@ -375,21 +380,21 @@ public class AffineTransformMode implements Mode {
 		RotationHandle(int x, int y, int id) {
 			super(x, y, id);
 		}
-		public void paint(final Graphics g, final Rectangle srcRect, final double mag) {
+		public void paint(final Graphics2D g, final Rectangle srcRect, final double mag) {
 			final int x = (int)((this.x - srcRect.x)*mag) + shift;
 			final int y = (int)((this.y - srcRect.y)*mag);
 			final int fx = (int)((floater.x - srcRect.x)*mag);
 			final int fy = (int)((floater.y - srcRect.y)*mag);
 			draw(g, fx, fy, x, y);
 		}
-		private void draw(final Graphics g, int fx, int fy, int x, int y) {
+		private void draw(final Graphics2D g, int fx, int fy, int x, int y) {
 			g.setColor(Color.white);
 			g.drawLine(fx, fy, x, y);
 			g.fillOval(x -4, y -4, 9, 9);
 			g.setColor(Color.black);
 			g.drawOval(x -2, y -2, 5, 5);
 		}
-		public void paintMoving(final Graphics g, final Rectangle srcRect, final double mag, final Point mouse) {
+		public void paintMoving(final Graphics2D g, final Rectangle srcRect, final double mag, final Point mouse) {
 			// mouse as xMouse,yMouse from ImageCanvas: world coordinates, not screen!
 			final int fx = (int)((floater.x - srcRect.x)*mag);
 			final int fy = (int)((floater.y - srcRect.y)*mag);
@@ -422,13 +427,15 @@ public class AffineTransformMode implements Mode {
 		Floater(int x, int y, int id) {
 			super(x,y, id);
 		}
-		public void paint(Graphics g, Rectangle srcRect, double mag) {
+		public void paint(Graphics2D g, Rectangle srcRect, double mag) {
 			int x = (int)((this.x - srcRect.x)*mag);
 			int y = (int)((this.y - srcRect.y)*mag);
+			Composite co = g.getComposite();
 			g.setXORMode(Color.white);
 			g.drawOval(x -10, y -10, 21, 21);
 			g.drawRect(x -1, y -15, 3, 31);
 			g.drawRect(x -15, y -1, 31, 3);
+			g.setComposite(co); // undo XOR paint
 		}
 		public Rectangle getBoundingBox(Rectangle b) {
 			b.x = this.x - 15;
@@ -524,18 +531,19 @@ public class AffineTransformMode implements Mode {
 
 		// Record current state as last step in undo queue
 		display.getLayer().getParent().addTransformStep(al);
-
-		setTransforming(false);
 	}
 
-	public void apply() {
+	public boolean apply() {
+		// already applied
+		return true;
 	}
 
-	public void cancel() {
+	public boolean cancel() {
 		if (null != history) {
 			// apply first
 			display.getLayer().getParent().applyTransforms(((TransformationStep)history.get(0)).ht);
 		}
+		return true;
 	}
 
 	private class AffinePoint {
@@ -557,7 +565,7 @@ public class AffineTransformMode implements Mode {
 			x += dx;
 			y += dy;
 		}
-		private void paint(Graphics g) {
+		private void paint(Graphics2D g) {
 			int x = display.getCanvas().screenX(this.x);
 			int y = display.getCanvas().screenY(this.y);
 			g.setColor(Color.white);
@@ -708,8 +716,21 @@ public class AffineTransformMode implements Mode {
 				return;
 			}
 		}
+
+		// if none grabbed, then drag the whole thing
+		dragging = false; //reset
+		if (box.x <= x_p && box.y <= y_p && box.x + box.width >= x_p && box.y + box.height >= y_p) {
+			dragging = true;
+		}
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+		// Store old for rotation handle:
+		this.x_d = x_d;
+		this.y_d = y_d;
+		this.x_d_old = x_d_old;
+		this.y_d_old = y_d_old;
+
+		// compute translation
 		int dx = x_d - x_d_old;
 		int dy = y_d - y_d_old;
 
@@ -837,4 +858,9 @@ public class AffineTransformMode implements Mode {
 		resetBox();
 	}
 
+	public Rectangle getRepaintBounds() {
+		Rectangle b = display.getSelection().getLinkedBox();
+		b.add(floater.getBoundingBox(new Rectangle()));
+		return b;
+	}
 }

@@ -2021,11 +2021,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true)); // dummy, for I don't add a MenuKeyListener, but "works" through the normal key listener. It's here to provide a visual cue
 			item = new JMenuItem("Apply transform propagating to last layer"); item.addActionListener(this); popup.add(item);
 			if (layer.getParent().indexOf(layer) == layer.getParent().size() -1) item.setEnabled(false);
+			if (getMode().getClass() != AffineTransformMode.class) item.setEnabled(false);
 			item = new JMenuItem("Apply transform propagating to first layer"); item.addActionListener(this); popup.add(item);
 			if (0 == layer.getParent().indexOf(layer)) item.setEnabled(false);
+			if (getMode().getClass() != AffineTransformMode.class) item.setEnabled(false);
 			item = new JMenuItem("Cancel transform"); item.addActionListener(this); popup.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
 			item = new JMenuItem("Specify transform..."); item.addActionListener(this); popup.add(item);
+			if (getMode().getClass() != AffineTransformMode.class) item.setEnabled(false);
 			return popup;
 		}
 
@@ -3010,12 +3013,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (mode.getClass() == AffineTransformMode.class) {
 				final java.util.List<Layer> layers = layer.getParent().getLayers();
 				((AffineTransformMode)mode).applyAndPropagate(new HashSet<Layer>(layers.subList(layers.indexOf(Display.this.layer)+1, layers.size()))); // +1 to exclude current layer
+				setMode(new DefaultMode(Display.this));
 			}
 		} else if (command.equals("Apply transform propagating to first layer")) {
 			if (mode.getClass() == AffineTransformMode.class) {
 				final java.util.List<Layer> layers = layer.getParent().getLayers();
 				((AffineTransformMode)mode).applyAndPropagate(new HashSet<Layer>(layers.subList(0, layers.indexOf(Display.this.layer))));
-				// TODO should cleanup these 'if' block and the one above
+				setMode(new DefaultMode(Display.this));
 			}
 		} else if (command.equals("Cancel transform")) {
 			if (null == active) return;

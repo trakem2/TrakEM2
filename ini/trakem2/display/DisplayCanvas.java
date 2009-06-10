@@ -602,7 +602,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		Selection selection = display.getSelection();
 		if (isTransforming()) {
-			box = selection.getLinkedBox();
+			box = display.getMode().getRepaintBounds();
 			display.getMode().mousePressed(me, x_p, y_p, magnification);
 			return;
 		}
@@ -637,7 +637,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				return;
 			}
 			// gather initial box (for repainting purposes)
-			box = selection.getLinkedBox();
+			box = display.getMode().getRepaintBounds();
 			display.getMode().mousePressed(me, x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
@@ -776,10 +776,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				switch (tool) {
 				case ProjectToolbar.SELECT:
 					display.getMode().mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
-					box2 = selection.getLinkedBox();
+					box2 = display.getMode().getRepaintBounds();
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
-			//TODO//Utils.log2("md: " + box.toString());
 					Display.repaint(display.getLayer(), Selection.PADDING, box, false, active.isLinked() || active.getClass() == Patch.class);
 					// box for next mouse dragged iteration
 					box = box2;
@@ -922,7 +921,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (snapping) {
 			// finish dragging
 			display.getMode().mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
-			box.add(selection.getLinkedBox());
+			box.add(display.getMode().getRepaintBounds());
 			Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
 			Display.snap((Patch)active);
 			// reset:
@@ -934,7 +933,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			switch(tool) {
 			case ProjectToolbar.SELECT:
 				display.getMode().mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
-				box.add(selection.getLinkedBox());
+				box.add(display.getMode().getRepaintBounds());
 				Display.repaint(display.getLayer(), Selection.PADDING, box, !isTransforming(), active.isLinked() || active.getClass() == Patch.class); // does not repaint the navigator
 				break;
 			case ProjectToolbar.PENCIL:
@@ -1314,7 +1313,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 	
 	public boolean isDragging() {
-		display.getMode().isDragging();
+		return display.getMode().isDragging();
 	}
 
 	public void mouseMoved(final MouseEvent me) {
@@ -1521,56 +1520,28 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		WindowManager.removeWindow(fake_win); // the FakeImageWindow
 	}
 
+	public boolean applyTransform() {
+		boolean b = display.getMode().apply();
+		display.setMode(new DefaultMode(display));
+		repaint(true);
+		return b;
+	}
+
 	public boolean isTransforming() {
 		return display.getMode().getClass() != DefaultMode.class;
 	}
 
 	public void cancelTransform() {
 		Selection selection = display.getSelection();
-		Rectangle box = selection.getLinkedBox();
-		selection.cancelTransform();
+		Rectangle box = display.getMode().getRepaintBounds();
+		display.getMode().cancel();
 		box.add(selection.getLinkedBox()); // the restored box now.
 		if (!(selection.getNSelected() == 1 && !display.getActive().isLinked())) update_graphics = true;
 		display.setMode(new DefaultMode(display));
 		repaint(true);
 	}
 
-	/*
-	public void keyReleased(KeyEvent ke) {
-		int key_code = ke.getKeyCode();
-		switch (key_code) {
-		case KeyEvent.VK_UP:
-		case KeyEvent.VK_DOWN:
-		case KeyEvent.VK_LEFT:
-		case KeyEvent.VK_RIGHT:
-			Selection selection = display.getSelection();
-			Rectangle b = selection.getLinkedBox();
-			selection.resetBox();
-			b.add(selection.getLinkedBox());
-			repaint(b, 0);
-			ke.consume();
-			break;
-		}
-	}
-	*/
-
 	public void keyPressed(KeyEvent ke) {
-
-		/*
-		// debug shortcut:
-		if (ke.getKeyCode() == KeyEvent.VK_D && ke.isShiftDown() && ke.isAltDown() && ke.isControlDown()) {
-			try {
-			java.lang.reflect.Field f = Display.class.getDeclaredField("hs_panels");
-			f.setAccessible(true);
-			Utils.log("Display n_panels:" + ((java.util.HashMap)f.get(display)).size());
-			Utils.log("Display displ.:  " + display.getLayer().getDisplayables().size());
-			ke.consume();
-			} catch (Exception e) {
-				IJError.print(e);
-			}
-			return;
-		}
-		*/
 
 		Displayable active = display.getActive();
 
@@ -1755,7 +1726,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					display.getLayer().getParent().cancelAlign();
 					ke.consume();
 				} else if (null != active) {
-					if (display.getMode().getClass() != DefaultMode.class) display.setMode(new DefaultMode(display));
 					if (isTransforming()) cancelTransform();
 					else {
 						display.select(null); // deselect
@@ -1924,8 +1894,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (null != active) {
 					active.keyPressed(ke);
 					if (ke.isConsumed()) {
-						Selection selection = display.getSelection();
-						repaint(selection.getLinkedBox(), Selection.PADDING + 2); // optimization
+						repaint(display.getMode().getRepaintBounds(), Selection.PADDING + 2); // optimization
 					}
 				}
 		}

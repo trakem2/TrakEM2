@@ -107,4 +107,11 @@ public class DefaultMode implements Mode {
 		display.getLayerSet().redoOneStep();
 		Display.repaint(display.getLayerSet());
 	}
+
+	public boolean apply() { return true; } // already done
+	public boolean cancel() { return true; } // nothing to cancel
+
+	public Rectangle getRepaintBounds() {
+		return display.getSelection().getLinkedBox();
+	}
 }

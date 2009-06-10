@@ -2,6 +2,7 @@ package ini.trakem2.display;
 
 import ini.trakem2.display.graphics.GraphicsSource;
 import java.awt.event.MouseEvent;
+import java.awt.Rectangle;
 
 public interface Mode {
 
@@ -17,4 +18,8 @@ public interface Mode {
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old);
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r);
 
+	public boolean apply();
+	public boolean cancel();
+
+	public Rectangle getRepaintBounds();
 }

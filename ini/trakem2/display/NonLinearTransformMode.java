@@ -16,9 +16,13 @@ public class NonLinearTransformMode implements Mode {
 	private Display display;
 	private ManualNonLinearTransformSource gs;
 
-	public NonLinearTransformMode(final Display display) {
+	public NonLinearTransformMode(final Display display, final Collection<Displayable> selected) {
 		this.display = display;
-		this.gs = new ManualNonLinearTransformSource(display.getSelection().getSelected());
+		this.gs = new ManualNonLinearTransformSource(selected);
+	}
+
+	public NonLinearTransformMode(final Display display) {
+		this(display, display.getSelection().getSelected());
 	}
 
 	public GraphicsSource getGraphicsSource() {
@@ -43,5 +47,10 @@ public class NonLinearTransformMode implements Mode {
 	public boolean isDragging() {
 		return true; // TODO
 	}
+
+	public boolean apply() { return true; }
+	public boolean cancel() { return true; }
+
+	public Rectangle getRepaintBounds() { return display.getSelection().getLinkedBox(); } // TODO
 }
 
