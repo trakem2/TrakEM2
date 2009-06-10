@@ -181,29 +181,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 				Utils.showMessage("Unacceptable new name: '" + new_name + "'");
 				return;
 			}
-			// to lower case!
-			new_name = new_name.toLowerCase();
-			if (new_name.equals(old_name)) {
-				return;
-			} else if (tt.getProject().typeExists(new_name)) {
-				Utils.showMessage("Type '" + new_name + "' exists already.\nChoose a different name.");
-				return;
-			}
-			// process name change in all TemplateThing instances that have it
-			ArrayList al = root.collectAllChildren(new ArrayList());
-			al.add(root);
-			for (Iterator it = al.iterator(); it.hasNext(); ) {
-				TemplateThing tet = (TemplateThing)it.next();
-				//Utils.log("\tchecking " + tet.getType() + " " + tet.getId());
-				if (tet.getType().equals(old_name)) tet.rename(new_name);
-			}
-			// and update the ProjectThing objects in the tree and its dependant Displayable objects in the open Displays
-			tt.getProject().getRootProjectThing().updateType(new_name, old_name);
-			// tell the project about it
-			tt.getProject().updateTypeName(old_name, new_name);
-			// repaint both trees (will update the type names)
-			updateUILater();
-			tt.getProject().getProjectTree().updateUILater();
+			renameType(old_name, new_name);
 		} else if (command.equals("Delete...")) {
 			// find dependent objects, if any, that have the same type of parent chain
 			HashSet hs = tt.getProject().getRootProjectThing().collectSimilarThings(tt, new HashSet());
@@ -433,5 +411,35 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		}
 		this.updateUILater();
 		return tet_child;
+	}
+
+	/** Rename a TemplateThing type from @param old_name to @param new_name.
+	 *  If such a new_name already exists, the renaming will not occur and returns false. */
+	public boolean renameType(final String old_name, String new_name) {
+		// to lower case!
+		new_name = new_name.toLowerCase();
+		Project project = root.getProject();
+		if (new_name.equals(old_name)) {
+			return true;
+		} else if (project.typeExists(new_name)) {
+			Utils.logAll("Type '" + new_name + "' exists already!");
+			return false;
+		}
+		// process name change in all TemplateThing instances that have it
+		ArrayList al = root.collectAllChildren(new ArrayList());
+		al.add(root);
+		for (Iterator it = al.iterator(); it.hasNext(); ) {
+			TemplateThing tet = (TemplateThing)it.next();
+			//Utils.log("\tchecking " + tet.getType() + " " + tet.getId());
+			if (tet.getType().equals(old_name)) tet.rename(new_name);
+		}
+		// and update the ProjectThing objects in the tree and its dependant Displayable objects in the open Displays
+		project.getRootProjectThing().updateType(new_name, old_name);
+		// tell the project about it
+		project.updateTypeName(old_name, new_name);
+		// repaint both trees (will update the type names)
+		updateUILater();
+		project.getProjectTree().updateUILater();
+		return true;
 	}
 }
