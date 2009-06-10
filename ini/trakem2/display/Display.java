@@ -2235,10 +2235,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} catch (Exception e) { IJError.print(e); }
 
 		JMenu align_menu = new JMenu("Align");
-		item = new JMenuItem("Snap"); item.addActionListener(this); align_menu.add(item);
-		item.setEnabled(null != active);
-		item = new JMenuItem("Montage"); item.addActionListener(this); align_menu.add(item);
-		item.setEnabled(selection.getSelected().size() > 1);
 		item = new JMenuItem("Align stack slices"); item.addActionListener(this); align_menu.add(item);
 		if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
 		item = new JMenuItem("Align layers"); item.addActionListener(this); align_menu.add(item);
