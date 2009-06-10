@@ -2432,11 +2432,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			for (final Displayable d : list) {
 				Patch p = (Patch) d;
 				p.setPreprocessorScriptPath(script);
-				// If the ImagePlus is cached, it will not be preProcessed.
-				// Merely running the preProcess on the cached image is no guarantee; threading competition may result in an unprocessed, newly loaded image.
-				// Hence, decache right after setting the script, then update mipmaps
-				p.getProject().getLoader().decacheImagePlus(p.getId());
-				p.getProject().getLoader().regenerateMipMaps(p); // queued
 			}
 		}
 		private Collection<Layer> getLayerList(String title) {
