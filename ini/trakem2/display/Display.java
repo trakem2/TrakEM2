@@ -45,7 +45,6 @@ import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.M;
 import ini.trakem2.tree.*;
 import ini.trakem2.display.graphics.*;
-import ini.trakem2.display.mode.*;
 
 import javax.swing.*;
 import javax.swing.event.*;
@@ -822,7 +821,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}});
 		}
 		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
-		if (selection.isTransforming()) {
+		if (canvas.isTransforming()) {
 			Utils.log("Can't browse layers while transforming.\nCANCEL the transform first with the ESCAPE key or right-click -> cancel.");
 			scroller.setValue(Display.this.layer.getParent().getLayerIndex(Display.this.layer.getId()));
 			return;
@@ -1743,7 +1742,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				pop.setVisible(false);
 
 				// fix selection bug: never receives mouseReleased event when the popup shows
-				selection.mouseReleased(null, x_p, y_p, x_p, y_p, x_p, y_p);
+				getMode().mouseReleased(null, x_p, y_p, x_p, y_p, x_p, y_p);
 			}
 		}.start();
 	}
@@ -1931,21 +1930,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		}
 		return false;
-	}
-
-	/** Set the front Display to transform the Displayable only if no other canvas is transforming it. */
-	static public void setTransforming(final Displayable displ) {
-		if (null == front) return;
-		if (front.active != displ) return;
-		for (final Display d : al_displays) {
-			if (d.active == displ) {
-				if (d.canvas.isTransforming()) {
-					Utils.showMessage("Already transforming " + displ.getTitle());
-					return;
-				}
-			}
-		}
-		front.canvas.setTransforming(true);
 	}
 
 	/** Check whether the source of the event is located in this instance.*/
@@ -2403,8 +2387,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null == active) return;
 			String command = ae.getActionCommand();
 			if (command.equals("Transform (affine)")) {
-				setMode(Display.AFFINE_TRANSFORM_MODE);
-				canvas.setTransforming(true);
+				setMode(new AffineTransformMode(Display.this));
 			} else if (command.equals("Transform (non-linear)")) {
 				Collection<Displayable> col = selection.getSelected(Patch.class);
 				for (final Displayable d : col) {
@@ -3021,16 +3004,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}}, project);
 		} else if (command.equals("Apply transform")) {
 			if (null == active) return;
-			canvas.setTransforming(false);
+			getMode().apply();
+			setMode(new DefaultMode(Display.this));
 		} else if (command.equals("Apply transform propagating to last layer")) {
-			if (selection.isTransforming()) {
+			if (mode.getClass() == AffineTransformMode.class) {
 				final java.util.List<Layer> layers = layer.getParent().getLayers();
-				selection.applyAndPropagate(new HashSet<Layer>(layers.subList(layers.indexOf(Display.this.layer)+1, layers.size()))); // +1 to exclude current layer
+				((AffineTransformMode)mode).applyAndPropagate(new HashSet<Layer>(layers.subList(layers.indexOf(Display.this.layer)+1, layers.size()))); // +1 to exclude current layer
 			}
 		} else if (command.equals("Apply transform propagating to first layer")) {
-			if (selection.isTransforming()) {
+			if (mode.getClass() == AffineTransformMode.class) {
 				final java.util.List<Layer> layers = layer.getParent().getLayers();
-				selection.applyAndPropagate(new HashSet<Layer>(layers.subList(0, layers.indexOf(Display.this.layer))));
+				((AffineTransformMode)mode).applyAndPropagate(new HashSet<Layer>(layers.subList(0, layers.indexOf(Display.this.layer))));
+				// TODO should cleanup these 'if' block and the one above
 			}
 		} else if (command.equals("Cancel transform")) {
 			if (null == active) return;
@@ -4263,9 +4248,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return burro;
 	}
 
-	static final Mode DEFAULT_MODE = new DefaultMode(); // stateless
-	static final Mode AFFINE_TRANSFORM_MODE = new AffineTransformMode(); // stateless
-	private Mode mode = DEFAULT_MODE;
+	private Mode mode = new DefaultMode(this);
 
 	public void setMode(final Mode mode) {
 		this.mode = mode;

@@ -601,9 +601,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		else return;
 
 		Selection selection = display.getSelection();
-		if (selection.isTransforming()) {
+		if (isTransforming()) {
 			box = selection.getLinkedBox();
-			selection.mousePressed(me, x_p, y_p, magnification);
+			display.getMode().mousePressed(me, x_p, y_p, magnification);
 			return;
 		}
 		// select or deselect another active Displayable, or add it to the selection group:
@@ -638,7 +638,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 			// gather initial box (for repainting purposes)
 			box = selection.getLinkedBox();
-			selection.mousePressed(me, x_p, y_p, magnification);
+			display.getMode().mousePressed(me, x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
 			display.getLayerSet().addPreDataEditStep(active);
@@ -775,7 +775,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				Rectangle box2;
 				switch (tool) {
 				case ProjectToolbar.SELECT:
-					selection.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+					display.getMode().mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 					box2 = selection.getLinkedBox();
 					box.add(box2);
 					// repaint all Displays (where it was and where it is now, hence the sum of both boxes):
@@ -921,7 +921,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		if (snapping) {
 			// finish dragging
-			selection.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+			display.getMode().mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 			box.add(selection.getLinkedBox());
 			Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
 			Display.snap((Patch)active);
@@ -933,9 +933,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (null != active && active.isVisible()) {
 			switch(tool) {
 			case ProjectToolbar.SELECT:
-				selection.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+				display.getMode().mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 				box.add(selection.getLinkedBox());
-				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass() == Patch.class); // does not repaint the navigator
+				Display.repaint(display.getLayer(), Selection.PADDING, box, !isTransforming(), active.isLinked() || active.getClass() == Patch.class); // does not repaint the navigator
 				break;
 			case ProjectToolbar.PENCIL:
 			case ProjectToolbar.PEN:
@@ -943,7 +943,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// update active's bounding box
 				selection.updateTransform(active);
 				box.add(selection.getBox());
-				Display.repaint(display.getLayer(), Selection.PADDING, box, !selection.isTransforming(), active.isLinked() || active.getClass() == Patch.class); // does not repaint the navigator
+				Display.repaint(display.getLayer(), Selection.PADDING, box, !isTransforming(), active.isLinked() || active.getClass() == Patch.class); // does not repaint the navigator
 				//if (!active.getClass().equals(AreaList.class)) Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
 				// TODO: this last repaint call is unnecessary, if the box was properly repainted on mouse drag for Profile etc.
 				//else 
@@ -956,15 +956,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				break;
 			}
 		}
-	}
-
-	// private to the package
-	boolean isDragging() {
-		if (null == display.getSelection()) {
-			Utils.log2("WARNING DisplayCanvas.isDragging thinks the display.getSelection() gives a null object ?!?");
-			return false;
-		}
-		return display.getSelection().isDragging();
 	}
 
 	private boolean mouse_in = false;
@@ -1274,7 +1265,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 		private void mouseMoved(MouseEvent me) {
 			if (null == me) return;
-			if (input_disabled || display.getSelection().isDragging()) return;
+			if (input_disabled || display.getMode().isDragging()) return;
 
 			final Displayable active = display.getActive();
 
@@ -1320,6 +1311,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				DisplayCanvas.super.mouseMoved(me);
 			}
 		}
+	}
+	
+	public boolean isDragging() {
+		display.getMode().isDragging();
 	}
 
 	public void mouseMoved(final MouseEvent me) {
@@ -1526,18 +1521,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		WindowManager.removeWindow(fake_win); // the FakeImageWindow
 	}
 
-	public boolean isTransforming() { // TODO: this can fail if the Display is closed quickly after creation
-		return display.getSelection().isTransforming();
-	}
-
-	public void setTransforming(boolean b) {
-		if (ProjectToolbar.getToolId() != ProjectToolbar.SELECT && b) {
-			ProjectToolbar.setTool(ProjectToolbar.SELECT);
-		}
-		display.setMode(b ? Display.AFFINE_TRANSFORM_MODE : Display.DEFAULT_MODE);
-		display.getSelection().setTransforming(b);
-		//repaint other Displays as well!
-		Display.repaint(display.getLayerSet());
+	public boolean isTransforming() {
+		return display.getMode().getClass() != DefaultMode.class;
 	}
 
 	public void cancelTransform() {
@@ -1546,7 +1531,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		selection.cancelTransform();
 		box.add(selection.getLinkedBox()); // the restored box now.
 		if (!(selection.getNSelected() == 1 && !display.getActive().isLinked())) update_graphics = true;
-		display.setMode(Display.DEFAULT_MODE);
+		display.setMode(new DefaultMode(display));
 		repaint(true);
 	}
 
@@ -1679,8 +1664,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 
 		if (KeyEvent.VK_ENTER == keyCode) {
-			if (display.getSelection().isTransforming()) {
-				setTransforming(false); // will apply transforms and repaint
+			if (isTransforming()) {
+				applyTransform();
 				ke.consume();
 				return;
 			} else if (display.getLayer().getParent().isAligning()) {
@@ -1718,7 +1703,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (0 == (mod ^ Event.SHIFT_MASK) || 0 == (mod ^ Utils.getControlModifier())) {
 					// If it's the last step and the last action was not Z_KEY undo action, then store current:
 					Bureaucrat.createAndStart(new Worker.Task("Undo") { public void exec() {
-						if (isTransforming()) display.getSelection().undoOneStep();
+						if (isTransforming()) display.getMode().undoOneStep();
 						else display.getLayerSet().undoOneStep();
 						Display.repaint(display.getLayerSet());
 					}}, display.getProject());
@@ -1726,7 +1711,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// REDO: alt+z or ctrl+shift+z
 				} else if (0 == (mod ^ Event.ALT_MASK) || 0 == (mod ^ (Event.SHIFT_MASK | Utils.getControlModifier())) ) {
 					Bureaucrat.createAndStart(new Worker.Task("Redo") { public void exec() {
-						if (isTransforming()) display.getSelection().redoOneStep();
+						if (isTransforming()) display.getMode().redoOneStep();
 						else display.getLayerSet().redoOneStep();
 						Display.repaint(display.getLayerSet());
 					}}, display.getProject());
@@ -1735,8 +1720,18 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// else, the 'z' command restores the image using ImageJ internal undo
 				break;
 			case KeyEvent.VK_T:
-				if (null != active && 0 == ke.getModifiers() && !isTransforming()) {
-					setTransforming(true);
+				if (null != active && !isTransforming()) {
+					if (0 == ke.getModifiers()) {
+						display.setMode(new AffineTransformMode(display));
+					} else if (Event.SHIFT_MASK == ke.getModifiers()) {
+						for (final Displayable d : display.getSelection().getSelected()) {
+							if (d.isLinked()) {
+								Utils.showMessage("Can't enter manual non-linear transformation mode:\nat least one image is linked.");
+								return;
+							}
+						}
+						display.setMode(new NonLinearTransformMode(display));
+					}
 					ke.consume();
 				}
 				// else, let ImageJ grab the ROI into the Manager, if any
@@ -1760,8 +1755,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					display.getLayer().getParent().cancelAlign();
 					ke.consume();
 				} else if (null != active) {
-					if (display.getMode() != Display.DEFAULT_MODE) display.setMode(Display.DEFAULT_MODE);
-					if (display.getSelection().isTransforming()) cancelTransform();
+					if (display.getMode().getClass() != DefaultMode.class) display.setMode(new DefaultMode(display));
+					if (isTransforming()) cancelTransform();
 					else {
 						display.select(null); // deselect
 						// repaint out the brush if present

@@ -1,4 +1,4 @@
-package ini.trakem2.display.mode;
+package ini.trakem2.display;
 
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
@@ -16,9 +16,9 @@ public class NonLinearTransformMode implements Mode {
 	private Display display;
 	private ManualNonLinearTransformSource gs;
 
-	public NonLinearTransformMode(final Display display, final Collection<Displayable> col) {
+	public NonLinearTransformMode(final Display display) {
 		this.display = display;
-		this.gs = new ManualNonLinearTransformSource(col);
+		this.gs = new ManualNonLinearTransformSource(display.getSelection().getSelected());
 	}
 
 	public GraphicsSource getGraphicsSource() {
@@ -34,6 +34,14 @@ public class NonLinearTransformMode implements Mode {
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 	}
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	}
+
+	public void redoOneStep() {}
+
+	public void undoOneStep() {}
+
+	public boolean isDragging() {
+		return true; // TODO
 	}
 }
 
