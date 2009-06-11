@@ -52,8 +52,11 @@ import javax.swing.event.*;
 import mpicbg.trakem2.align.AlignTask;
 
 import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.event.*;
 import java.util.*;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.io.Writer;
 import java.util.concurrent.Future;
@@ -97,6 +100,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private JSplitPane split;
 
 	private JPopupMenu popup = null;
+	
+	private ToolbarPanel toolbar_panel = null;
 
 	/** Contains the packed alphas of every channel. */
 	private int c_alphas = 0xffffffff; // all 100 % visible
@@ -616,12 +621,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		updateLayerScroller(layer);
 		this.scroller.addAdjustmentListener(scroller_listener);
 
-
+		// Toolbar
 		// Left panel, contains the transp slider, the tabbed pane, the navigation panel and the layer scroller
 		JPanel left = new JPanel();
 		left.setBackground(Color.white);
 		BoxLayout left_layout = new BoxLayout(left, BoxLayout.Y_AXIS);
 		left.setLayout(left_layout);
+		toolbar_panel = new ToolbarPanel();
+		left.add(toolbar_panel);
 		left.add(transp_slider);
 		left.add(tabs);
 		left.add(navigator);
@@ -782,6 +789,85 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		});
 	}
 
+	static public void repaintToolbar() {
+		for (final Display d : al_displays) {
+			d.toolbar_panel.repaint();
+		}
+	}
+
+	private class ToolbarPanel extends JPanel implements MouseListener {
+		Method drawButton;
+		Field lineType;
+		Field SIZE;
+		Field OFFSET;
+		Toolbar toolbar = Toolbar.getInstance();
+		int size;
+		int offset;
+		ToolbarPanel() {
+			setBackground(Color.white);
+			addMouseListener(this);
+			try {
+				drawButton = Toolbar.class.getDeclaredMethod("drawButton", Graphics.class, Integer.TYPE);
+				drawButton.setAccessible(true);
+				lineType = Toolbar.class.getDeclaredField("lineType");
+				lineType.setAccessible(true);
+				SIZE = Toolbar.class.getDeclaredField("SIZE");
+				SIZE.setAccessible(true);
+				OFFSET = Toolbar.class.getDeclaredField("OFFSET");
+				OFFSET.setAccessible(true);
+				size = ((Integer)SIZE.get(null)).intValue();
+				offset = ((Integer)OFFSET.get(null)).intValue();
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+			// Magic cocktail:
+			Dimension dim = new Dimension(250, size+size);
+			setPreferredSize(dim);
+			setMinimumSize(dim);
+			setMaximumSize(dim);
+		}
+		public void update(Graphics g) { paint(g); }
+		public void paint(Graphics g) {
+			try {
+				int i = 0;
+				for (; i<Toolbar.LINE; i++) {
+					drawButton.invoke(toolbar, g, i);
+				}
+				drawButton.invoke(toolbar, g, lineType.get(toolbar));
+				for (; i<=Toolbar.TEXT; i++) {
+					drawButton.invoke(toolbar, g, i);
+				}
+				drawButton.invoke(toolbar, g, Toolbar.ANGLE);
+				// newline
+				AffineTransform aff = new AffineTransform();
+				aff.translate(-size*Toolbar.TEXT, size-1);
+				((Graphics2D)g).setTransform(aff);
+				for (; i<18; i++) {
+					drawButton.invoke(toolbar, g, i);
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+		}
+		public void mousePressed(MouseEvent me) {
+			int x = me.getX();
+			int y = me.getY();
+			if (y > size) {
+				if (x > size * 7) return; // off limits
+				x += size * 9;
+				y -= size;
+			} else {
+				if (x > size * 9) return; // off limits
+			}
+			Toolbar.getInstance().mousePressed(new MouseEvent(toolbar, me.getID(), System.currentTimeMillis(), me.getModifiers(), x, y, me.getClickCount(), me.isPopupTrigger()));
+			repaint();
+		}
+		public void mouseReleased(MouseEvent me) {}
+		public void mouseClicked(MouseEvent me) {}
+		public void mouseEntered(MouseEvent me) {}
+		public void mouseExited(MouseEvent me) {}
+	}
+
 	private JPanel makeTabPanel() {
 		JPanel panel = new JPanel();
 		BoxLayout layout = new BoxLayout(panel, BoxLayout.Y_AXIS);
@@ -813,6 +899,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	public synchronized void setLayer(final Layer layer) {
+		if (!mode.canChangeLayer()) return;
 		if (null == layer || layer == this.layer) return;
 		translateLayerColors(this.layer, layer);
 		if (tabs.getSelectedComponent() == scroll_layers) {
@@ -1026,6 +1113,23 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	/** Whether to update the offscreen images or not. */
 	public void setUpdateGraphics(boolean b) {
 		canvas.setUpdateGraphics(b);
+	}
+
+	/** Update the entire GUI:
+	 *   1 - The layer scroller
+	 *   2 - The visible tab panels
+	 *   3 - The toolbar
+	 *   4 - The navigator
+	 *   5 - The canvas
+	 */
+	static public void update() {
+		for (final Display d : al_displays) {
+			d.updateLayerScroller(d.layer);
+			d.updateVisibleTab(true);
+			d.toolbar_panel.repaint();
+			d.navigator.repaint(true);
+			d.canvas.repaint(true);
+		}
 	}
 
 	/** Find all Display instances that contain the layer and repaint them, in the Swing GUI thread. */
@@ -2235,10 +2339,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} catch (Exception e) { IJError.print(e); }
 
 		JMenu align_menu = new JMenu("Align");
-		item = new JMenuItem("Snap"); item.addActionListener(this); align_menu.add(item);
-		item.setEnabled(null != active);
-		item = new JMenuItem("Montage"); item.addActionListener(this); align_menu.add(item);
-		item.setEnabled(selection.getSelected().size() > 1);
 		item = new JMenuItem("Align stack slices"); item.addActionListener(this); align_menu.add(item);
 		if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
 		item = new JMenuItem("Align layers"); item.addActionListener(this); align_menu.add(item);
@@ -2438,6 +2538,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		public void actionPerformed(ActionEvent ae) {
 			ProjectToolbar.setTool(tool);
+			toolbar_panel.repaint();
 		}
 	}
 
@@ -2451,7 +2552,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		public void actionPerformed(final ActionEvent ae) {
 			final String command = ae.getActionCommand();
 
-			final java.awt.geom.Area aroi = M.getArea(d.canvas.getFakeImagePlus().getRoi());
+			final Area aroi = M.getArea(d.canvas.getFakeImagePlus().getRoi());
 
 			d.dispatcher.exec(new Runnable() { public void run() {
 
@@ -3005,25 +3106,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Hide all but images")) {
 			ArrayList<Class> type = new ArrayList<Class>();
 			type.add(Patch.class);
-			selection.removeAll(layer.getParent().hideExcept(type, false));
+			Collection<Displayable> col = layer.getParent().hideExcept(type, false);
+			selection.removeAll(col);
+			Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE);
 			Display.update(layer.getParent(), false);
 		} else if (command.equals("Unhide all")) {
-			layer.getParent().setAllVisible(false);
+			Display.updateCheckboxes(layer.getParent().setAllVisible(false), DisplayablePanel.VISIBILITY_STATE);
 			Display.update(layer.getParent(), false);
 		} else if (command.startsWith("Hide all ")) {
 			String type = command.substring(9, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
-			selection.removeAll(layer.getParent().setVisible(type, false, true));
+			Collection<Displayable> col = layer.getParent().setVisible(type, false, true);
+			selection.removeAll(col);
+			Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE);
 		} else if (command.startsWith("Unhide all ")) {
 			String type = command.substring(11, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
-			layer.getParent().setVisible(type, true, true);
+			updateCheckboxes(layer.getParent().setVisible(type, true, true), DisplayablePanel.VISIBILITY_STATE);
 		} else if (command.equals("Hide deselected")) {
 			hideDeselected(0 != (ActionEvent.ALT_MASK & ae.getModifiers()));
 		} else if (command.equals("Hide deselected except images")) {
 			hideDeselected(true);
 		} else if (command.equals("Hide selected")) {
 			selection.setVisible(false); // TODO should deselect them too? I don't think so.
+			Display.updateCheckboxes(selection.getSelected(), DisplayablePanel.VISIBILITY_STATE);
 		} else if (command.equals("Resize canvas/LayerSet...")) {
 			resizeCanvas();
 		} else if (command.equals("Autoresize canvas/LayerSet")) {
@@ -3280,22 +3386,31 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null == roi) return;
 			selection.selectAll(roi, true);
 		} else if (command.equals("Merge")) {
-			ArrayList al_sel = selection.getSelected();
-			// put active at the beginning, to work as the base on which other's will get merged
-			al_sel.remove(Display.this.active);
-			al_sel.add(0, Display.this.active);
-			AreaList ali = AreaList.merge(al_sel);
-			if (null != ali) {
-				// remove all but the first from the selection
-				for (int i=1; i<al_sel.size(); i++) {
-					Object ob = al_sel.get(i);
-					if (ob.getClass() == AreaList.class) {
-						selection.remove((Displayable)ob);
+			Bureaucrat burro = Bureaucrat.create(new Worker.Task("Merging AreaLists") {
+				public void exec() {
+					ArrayList al_sel = selection.getSelected(AreaList.class);
+					// put active at the beginning, to work as the base on which other's will get merged
+					al_sel.remove(Display.this.active);
+					al_sel.add(0, Display.this.active);
+					getLayerSet().addDataEditStep(new HashSet<Displayable>(al_sel));
+					AreaList ali = AreaList.merge(al_sel);
+					if (null != ali) {
+						// remove all but the first from the selection
+						for (int i=1; i<al_sel.size(); i++) {
+							Object ob = al_sel.get(i);
+							if (ob.getClass() == AreaList.class) {
+								selection.remove((Displayable)ob);
+							}
+						}
+						selection.updateTransform(ali);
+						repaint(ali.getLayerSet(), ali, 0);
 					}
 				}
-				selection.updateTransform(ali);
-				repaint(ali.getLayerSet(), ali, 0);
-			}
+			}, Display.this.project);
+			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().addDataEditStep(new HashSet<Displayable>(selection.getSelected(AreaList.class)));
+			}});
+			burro.goHaveBreakfast();
 		} else if (command.equals("Identify...")) {
 			// for pipes only for now
 			if (!(active instanceof Line3D)) return;
@@ -3971,6 +4086,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				d.layer.getParent().cancelAlign();
 			}
 		}
+		for (final Display d : al_displays) {
+			Utils.updateComponent(d.toolbar_panel);
+			Utils.log2("updating toolbar_panel");
+		}
 	}
 
 	static public void toolChanged(final int tool) {
@@ -3983,6 +4102,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		if (null != front) {
 			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
+		}
+		for (final Display d : al_displays) {
+			Utils.updateComponent(d.toolbar_panel);
+			Utils.log2("updating toolbar_panel");
 		}
 	}
 
@@ -4055,7 +4178,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		all.removeAll(selection.getSelected());
 		if (not_images) all.removeAll(layer.getDisplayables(Patch.class));
 		for (final Displayable d : (ArrayList<Displayable>)all) {
-			if (d.isVisible()) d.setVisible(false);
+			if (d.isVisible()) {
+				d.setVisible(false);
+				Display.updateCheckboxes(d, DisplayablePanel.VISIBILITY_STATE, false);
+			}
 		}
 		Display.update(layer);
 	}
@@ -4232,6 +4358,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	public void setMode(final Mode mode) {
 		this.mode = mode;
 		canvas.repaint(true);
+		scroller.setEnabled(mode.getClass() == DefaultMode.class);
 	}
 
 	public Mode getMode() {

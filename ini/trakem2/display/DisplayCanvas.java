@@ -205,6 +205,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			display.getMode().getGraphicsSource().paintOnTop(g, display, srcRect, magnification);
 
+			if (null != active_layer.getOverlay2())
+				active_layer.getOverlay2().paint(g, srcRect, magnification);
+			if (null != active_layer.getParent().getOverlay2())
+				active_layer.getParent().getOverlay2().paint(g, srcRect, magnification);
+
 			g.dispose();
 		} while (volatileImage.contentsLost());
 	}
@@ -707,6 +712,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				update_graphics = true; // update the offscreen images.
 				display.getNavigator().repaint(false);
 				repaint(true);
+				display.getMode().srcRectUpdated(srcRect, magnification);
 			}
 			return;
 		}
@@ -1037,6 +1043,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	protected void setSrcRect(int x, int y, int width, int height) {
 		this.srcRect.setRect(x, y, width, height);
 		display.updateInDatabase("srcRect");
+		display.getMode().srcRectUpdated(srcRect, magnification);
 	}
 
 	public void setDrawingSize(int new_width, int new_height,
@@ -1125,6 +1132,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		setMagnification(newMag);
 		display.updateInDatabase("srcRect");
 		display.repaintAll2(); // this repaint includes this canvas's repaint as well, but also the navigator, etc. // repaint();
+
+		display.getMode().magnificationUpdated(srcRect, magnification);
 	}
 
 	private void zoomOut2(int x, int y) {
@@ -1169,6 +1178,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// as well, but also the navigator, etc.
 		// repaint();
 		display.updateInDatabase("srcRect");
+
+		display.getMode().magnificationUpdated(srcRect, magnification);
 	}
 
 	/** The minimum amout of pixels allowed for width or height when zooming out. */
@@ -2292,7 +2303,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private void handleHide(final KeyEvent ke) {
 		if (ke.isAltDown() && !ke.isShiftDown()) {
 			// show hidden
-			display.getLayer().getParent().setAllVisible(false);
+			Display.updateCheckboxes(display.getLayer().getParent().setAllVisible(false), DisplayablePanel.VISIBILITY_STATE);
 			//Display.repaint(display.getLayer());
 			Display.update(display.getLayer());
 			ke.consume();

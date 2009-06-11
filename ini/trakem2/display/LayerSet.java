@@ -965,11 +965,17 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		for (Layer la : al_layers) hs.addAll(la.hideExcept(type, repaint));
 		return hs;
 	}
-	public void setAllVisible(boolean repaint) {
-		for (ZDisplayable zd : al_zdispl) {
-			if (!zd.isVisible()) zd.setVisible(true, repaint);
+	/** Returns the collection of Displayable whose visibility state has changed. */
+	public Collection<Displayable> setAllVisible(final boolean repaint) {
+		final Collection<Displayable> col = new ArrayList<Displayable>();
+		for (final ZDisplayable zd : al_zdispl) {
+			if (!zd.isVisible()) {
+				zd.setVisible(true, repaint);
+				col.add(zd);
+			}
 		}
-		for (Layer la : al_layers) la.setAllVisible(repaint);
+		for (Layer la : al_layers) col.addAll(la.setAllVisible(repaint));
+		return col;
 	}
 
 	/** Returns true if any of the ZDisplayable objects are of the given class. */
@@ -1960,5 +1966,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 			return true;
 		}
+	}
+
+	private Overlay overlay = null;
+
+	synchronized public Overlay getOverlay() {
+		if (null == overlay) overlay = new Overlay();
+		return overlay;
+	}
+	Overlay getOverlay2() {
+		return overlay;
 	}
 }

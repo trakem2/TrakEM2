@@ -91,7 +91,15 @@ public class AffineTransformMode implements Mode {
 		if (null == history) return;
 		// store the current state if at end:
 		Utils.log2("index at end: " + history.indexAtEnd());
-		if (history.indexAtEnd()) history.append(new TransformationStep(getTransformationsCopy()));
+
+		Map.Entry<Displayable,AffineTransform> Be = ((TransformationStep)history.getCurrent()).ht.entrySet().iterator().next();
+
+		if (history.indexAtEnd()) {
+			HashMap<Displayable,AffineTransform> m = getTransformationsCopy();
+			history.append(new TransformationStep(m));
+			Be = m.entrySet().iterator().next(); // must set again, for the other one was the last step, not the current state.
+		}
+
 		// disable application to other layers (too big a headache)
 		accum_affine = null;
 		// undo one step
@@ -100,17 +108,43 @@ public class AffineTransformMode implements Mode {
 		LayerSet.applyTransforms(step.ht);
 		resetBox();
 
-		// TODO call fixAffinePoints with the diff affine transform, as computed from first selected object
+		// call fixAffinePoints with the diff affine transform, as computed from first selected object
+
+		try {
+			// t0     t1
+			// CA  =  B
+			// C = BA^(-1)
+			AffineTransform A = step.ht.get(Be.getKey()); // the t0
+			AffineTransform C = new AffineTransform(Be.getValue());
+			C.concatenate(A.createInverse());
+			fixAffinePoints(C);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 	}
 
 	synchronized public void redoOneStep() {
 		if (null == history) return;
+
+		Map.Entry<Displayable,AffineTransform> Ae = ((TransformationStep)history.getCurrent()).ht.entrySet().iterator().next();
+
 		TransformationStep step = (TransformationStep)history.redoOneStep();
 		if (null == step) return; // no more steps
 		LayerSet.applyTransforms(step.ht);
 		resetBox();
 
-		// TODO call fixAffinePoints with the diff affine transform, as computed from first selected object
+		// call fixAffinePoints with the diff affine transform, as computed from first selected object
+		//  t0   t1
+		//  A  = CB
+		//  AB^(-1) = C
+		AffineTransform B = step.ht.get(Ae.getKey());
+		AffineTransform C = new AffineTransform(Ae.getValue());
+		try {
+			C.concatenate(B.createInverse());
+			fixAffinePoints(C);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 	}
 
 	public boolean isDragging() {
@@ -863,4 +897,7 @@ public class AffineTransformMode implements Mode {
 		b.add(floater.getBoundingBox(new Rectangle()));
 		return b;
 	}
+
+	public void srcRectUpdated(Rectangle srcRect, double magnification) {}
+	public void magnificationUpdated(Rectangle srcRect, double magnification) {}
 }

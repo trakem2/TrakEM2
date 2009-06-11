@@ -354,13 +354,8 @@ public class Selection {
 	}
 
 	/** Remove all given displayables from this selection. */
-	public void removeAll(HashSet<Displayable> hs) {
-		for (Displayable d : hs) remove(d);
-	}
-
-	/** Remove all given displayables from this selection. */
-	public void removeAll(ArrayList<Displayable> al) {
-		for (Displayable d : al) remove(d);
+	public void removeAll(Collection<Displayable> col) {
+		for (Displayable d : col) remove(d);
 	}
 
 	/** Remove the given displayable from this selection. */
@@ -809,18 +804,24 @@ public class Selection {
 		clear();
 	}
 
-	/** Set all selected objects visible/hidden. */
-	public void setVisible(boolean b) {
+	/** Set all selected objects visible/hidden; returns a collection of those that changed state.
+	 *  Also updates checkboxes state in the Display. */
+	public Collection<Displayable> setVisible(boolean b) {
+		Collection<Displayable> col = new ArrayList<Displayable>();
 		synchronized (queue_lock) {
 			lock();
 			for (Iterator it = queue.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				if (b != d.isVisible()) d.setVisible(b);
+				if (b != d.isVisible()) {
+					d.setVisible(b);
+					col.add(d);
+				}
 			}
 			unlock();
 		}
 		Display.repaint(display.getLayer(), box, 10);
-		Display.updateCheckboxes(hs, DisplayablePanel.VISIBILITY_STATE, b);
+		Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE, b);
+		return col;
 	}
 
 	/** Removes the given Displayable from the selection and previous selection list. */

@@ -40,6 +40,13 @@ public class NonLinearTransformMode implements Mode {
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 	}
 
+	public void srcRectUpdated(Rectangle srcRect, double magnification) {
+		// TODO update all
+	}
+	public void magnificationUpdated(Rectangle srcRect, double magnification) {
+		// TODO update all
+	}
+
 	public void redoOneStep() {}
 
 	public void undoOneStep() {}

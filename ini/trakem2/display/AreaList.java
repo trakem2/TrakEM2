@@ -1090,7 +1090,6 @@ public class AreaList extends ZDisplayable {
 			if (base.layer_set != ali.layer_set) it.remove();
 		}
 		if (list.size() < 1) return null; // nothing to fuse
-		if (!Utils.check("Merging AreaList has no undo. Continue?")) return null;
 		for (Iterator it = list.iterator(); it.hasNext(); ) {
 			// add to base
 			AreaList ali = (AreaList)it.next();
