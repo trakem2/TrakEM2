@@ -1012,4 +1012,15 @@ public final class Layer extends DBObject implements Bucketable {
 			return true;
 		}
 	}
+
+	private Overlay overlay = null;
+
+	synchronized public Overlay getOverlay() {
+		if (null == overlay) overlay = new Overlay();
+		return overlay;
+	}
+
+	Overlay getOverlay2() {
+		return overlay;
+	}
 }
