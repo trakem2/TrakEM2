@@ -712,6 +712,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				update_graphics = true; // update the offscreen images.
 				display.getNavigator().repaint(false);
 				repaint(true);
+				display.getMode().srcRectUpdated(srcRect, magnification);
 			}
 			return;
 		}
@@ -1042,6 +1043,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	protected void setSrcRect(int x, int y, int width, int height) {
 		this.srcRect.setRect(x, y, width, height);
 		display.updateInDatabase("srcRect");
+		display.getMode().srcRectUpdated(srcRect, magnification);
 	}
 
 	public void setDrawingSize(int new_width, int new_height,
@@ -1130,6 +1132,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		setMagnification(newMag);
 		display.updateInDatabase("srcRect");
 		display.repaintAll2(); // this repaint includes this canvas's repaint as well, but also the navigator, etc. // repaint();
+
+		display.getMode().magnificationUpdated(srcRect, magnification);
 	}
 
 	private void zoomOut2(int x, int y) {
@@ -1174,6 +1178,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// as well, but also the navigator, etc.
 		// repaint();
 		display.updateInDatabase("srcRect");
+
+		display.getMode().magnificationUpdated(srcRect, magnification);
 	}
 
 	/** The minimum amout of pixels allowed for width or height when zooming out. */

@@ -114,4 +114,7 @@ public class DefaultMode implements Mode {
 	public Rectangle getRepaintBounds() {
 		return display.getSelection().getLinkedBox();
 	}
+
+	public void srcRectUpdated(Rectangle srcRect, double magnification) {}
+	public void magnificationUpdated(Rectangle srcRect, double magnification) {}
 }

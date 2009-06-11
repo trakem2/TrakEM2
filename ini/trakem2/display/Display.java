@@ -896,6 +896,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	public synchronized void setLayer(final Layer layer) {
+		if (!mode.canChangeLayer()) return;
 		if (null == layer || layer == this.layer) return;
 		translateLayerColors(this.layer, layer);
 		if (tabs.getSelectedComponent() == scroll_layers) {
@@ -4359,6 +4360,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	public void setMode(final Mode mode) {
 		this.mode = mode;
 		canvas.repaint(true);
+		scroller.setEnabled(mode.getClass() == DefaultMode.class);
 	}
 
 	public Mode getMode() {
