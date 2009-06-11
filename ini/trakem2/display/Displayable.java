@@ -655,7 +655,6 @@ public abstract class Displayable extends DBObject implements Paintable {
 		}
 		this.visible = visible;
 		if (repaint) {
-			//Display.setUpdateGraphics(layer, this);
 			Display.repaint(layer, this, 5);
 		}
 		updateInDatabase("visible");
