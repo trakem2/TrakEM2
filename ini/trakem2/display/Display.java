@@ -52,8 +52,11 @@ import javax.swing.event.*;
 import mpicbg.trakem2.align.AlignTask;
 
 import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.event.*;
 import java.util.*;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.io.Writer;
 import java.util.concurrent.Future;
@@ -97,6 +100,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private JSplitPane split;
 
 	private JPopupMenu popup = null;
+	
+	private ToolbarPanel toolbar_panel = null;
 
 	/** Contains the packed alphas of every channel. */
 	private int c_alphas = 0xffffffff; // all 100 % visible
@@ -616,12 +621,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		updateLayerScroller(layer);
 		this.scroller.addAdjustmentListener(scroller_listener);
 
-
+		// Toolbar
 		// Left panel, contains the transp slider, the tabbed pane, the navigation panel and the layer scroller
 		JPanel left = new JPanel();
 		left.setBackground(Color.white);
 		BoxLayout left_layout = new BoxLayout(left, BoxLayout.Y_AXIS);
 		left.setLayout(left_layout);
+		toolbar_panel = new ToolbarPanel();
+		left.add(toolbar_panel);
 		left.add(transp_slider);
 		left.add(tabs);
 		left.add(navigator);
@@ -780,6 +787,76 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				ControlWindow.setLookAndFeel();
 			}
 		});
+	}
+
+	private class ToolbarPanel extends JPanel implements MouseListener {
+		Method drawButton;
+		Field lineType;
+		Field SIZE;
+		Field OFFSET;
+		Toolbar toolbar = Toolbar.getInstance();
+		int size;
+		int offset;
+		ToolbarPanel() {
+			setBackground(Color.white);
+			addMouseListener(this);
+			try {
+				drawButton = Toolbar.class.getDeclaredMethod("drawButton", Graphics.class, Integer.TYPE);
+				drawButton.setAccessible(true);
+				lineType = Toolbar.class.getDeclaredField("lineType");
+				lineType.setAccessible(true);
+				SIZE = Toolbar.class.getDeclaredField("SIZE");
+				SIZE.setAccessible(true);
+				OFFSET = Toolbar.class.getDeclaredField("OFFSET");
+				OFFSET.setAccessible(true);
+				size = ((Integer)SIZE.get(null)).intValue();
+				offset = ((Integer)OFFSET.get(null)).intValue();
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+			// Magic cocktail:
+			Dimension dim = new Dimension(250, size+size);
+			setPreferredSize(dim);
+			setMinimumSize(dim);
+			setMaximumSize(dim);
+		}
+		public void update(Graphics g) { paint(g); }
+		public void paint(Graphics g) {
+			try {
+				int i = 0;
+				for (; i<Toolbar.LINE; i++) {
+					drawButton.invoke(toolbar, g, i);
+				}
+				drawButton.invoke(toolbar, g, lineType.get(toolbar));
+				for (; i<=Toolbar.TEXT; i++) {
+					drawButton.invoke(toolbar, g, i);
+				}
+				drawButton.invoke(toolbar, g, Toolbar.ANGLE);
+				// newline
+				AffineTransform aff = new AffineTransform();
+				aff.translate(-size*Toolbar.TEXT, size-1);
+				((Graphics2D)g).setTransform(aff);
+				for (; i<18; i++) {
+					drawButton.invoke(toolbar, g, i);
+				}
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+		}
+		public void mousePressed(MouseEvent me) {
+			int x = me.getX();
+			int y = me.getY();
+			if (y > size) {
+				x += size * 9;
+				y -= size;
+			}
+			Toolbar.getInstance().mousePressed(new MouseEvent(toolbar, me.getID(), System.currentTimeMillis(), me.getModifiers(), x, y, me.getClickCount(), me.isPopupTrigger()));
+			repaint();
+		}
+		public void mouseReleased(MouseEvent me) {}
+		public void mouseClicked(MouseEvent me) {}
+		public void mouseEntered(MouseEvent me) {}
+		public void mouseExited(MouseEvent me) {}
 	}
 
 	private JPanel makeTabPanel() {
@@ -2439,6 +2516,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		public void actionPerformed(ActionEvent ae) {
 			ProjectToolbar.setTool(tool);
+			toolbar_panel.repaint();
 		}
 	}
 
@@ -2452,7 +2530,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		public void actionPerformed(final ActionEvent ae) {
 			final String command = ae.getActionCommand();
 
-			final java.awt.geom.Area aroi = M.getArea(d.canvas.getFakeImagePlus().getRoi());
+			final Area aroi = M.getArea(d.canvas.getFakeImagePlus().getRoi());
 
 			d.dispatcher.exec(new Runnable() { public void run() {
 
@@ -3981,6 +4059,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				d.layer.getParent().cancelAlign();
 			}
 		}
+		for (final Display d : al_displays) {
+			Utils.updateComponent(d.toolbar_panel);
+			Utils.log2("updating toolbar_panel");
+		}
 	}
 
 	static public void toolChanged(final int tool) {
@@ -3993,6 +4075,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		if (null != front) {
 			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
+		}
+		for (final Display d : al_displays) {
+			Utils.updateComponent(d.toolbar_panel);
+			Utils.log2("updating toolbar_panel");
 		}
 	}
 
