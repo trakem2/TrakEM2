@@ -1105,6 +1105,23 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		canvas.setUpdateGraphics(b);
 	}
 
+	/** Update the entire GUI:
+	 *   1 - The layer scroller
+	 *   2 - The visible tab panels
+	 *   3 - The toolbar
+	 *   4 - The navigator
+	 *   5 - The canvas
+	 */
+	static public void update() {
+		for (final Display d : al_displays) {
+			d.updateLayerScroller(d.layer);
+			d.updateVisibleTab(true);
+			d.toolbar_panel.repaint();
+			d.navigator.repaint(true);
+			d.canvas.repaint(true);
+		}
+	}
+
 	/** Find all Display instances that contain the layer and repaint them, in the Swing GUI thread. */
 	static public void update(final Layer layer) {
 		if (null == layer) return;
