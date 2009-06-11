@@ -267,8 +267,8 @@ public class AmiraImporter {
 				ali.calculateBoundingBox();
 				ali.setColor(Color.getHSBColor(hue, 1, 1));
 				ali.setAlpha(alpha);
-				hue += 60 / 255.0f;
-				if (hue > 1) hue = 1 - hue;
+				hue += 0.38197f; // golden angle
+				if (hue > 1) hue = hue - 1;
 			}
 
 			Utils.log2("Done setting properties");
