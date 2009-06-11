@@ -853,8 +853,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			int x = me.getX();
 			int y = me.getY();
 			if (y > size) {
+				if (x > size * 7) return; // off limits
 				x += size * 9;
 				y -= size;
+			} else {
+				if (x > size * 9) return; // off limits
 			}
 			Toolbar.getInstance().mousePressed(new MouseEvent(toolbar, me.getID(), System.currentTimeMillis(), me.getModifiers(), x, y, me.getClickCount(), me.isPopupTrigger()));
 			repaint();
