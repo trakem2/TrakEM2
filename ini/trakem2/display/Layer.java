@@ -692,10 +692,16 @@ public final class Layer extends DBObject implements Bucketable {
 		Display.updateCheckboxes(hs, DisplayablePanel.VISIBILITY_STATE, visible);
 		return hs;
 	}
-	public void setAllVisible(boolean repaint) {
+	/** Returns the collection of Displayable whose visibility state has changed. */
+	public Collection<Displayable> setAllVisible(boolean repaint) {
+		final Collection<Displayable> col = new ArrayList<Displayable>();
 		for (Displayable d : al_displayables) {
-			if (!d.isVisible()) d.setVisible(true, repaint);
+			if (!d.isVisible()) {
+				d.setVisible(true, repaint);
+				col.add(d);
+			}
 		}
+		return col;
 	}
 
 	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */

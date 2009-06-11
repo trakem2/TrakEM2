@@ -3107,25 +3107,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Hide all but images")) {
 			ArrayList<Class> type = new ArrayList<Class>();
 			type.add(Patch.class);
-			selection.removeAll(layer.getParent().hideExcept(type, false));
+			Collection<Displayable> col = layer.getParent().hideExcept(type, false);
+			selection.removeAll(col);
+			Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE);
 			Display.update(layer.getParent(), false);
 		} else if (command.equals("Unhide all")) {
-			layer.getParent().setAllVisible(false);
+			Display.updateCheckboxes(layer.getParent().setAllVisible(false), DisplayablePanel.VISIBILITY_STATE);
 			Display.update(layer.getParent(), false);
 		} else if (command.startsWith("Hide all ")) {
 			String type = command.substring(9, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
-			selection.removeAll(layer.getParent().setVisible(type, false, true));
+			Collection<Displayable> col = layer.getParent().setVisible(type, false, true);
+			selection.removeAll(col);
+			Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE);
 		} else if (command.startsWith("Unhide all ")) {
 			String type = command.substring(11, command.length() -1); // skip the ending plural 's'
 			type = type.substring(0, 1).toUpperCase() + type.substring(1);
-			layer.getParent().setVisible(type, true, true);
+			updateCheckboxes(layer.getParent().setVisible(type, true, true), DisplayablePanel.VISIBILITY_STATE);
 		} else if (command.equals("Hide deselected")) {
 			hideDeselected(0 != (ActionEvent.ALT_MASK & ae.getModifiers()));
 		} else if (command.equals("Hide deselected except images")) {
 			hideDeselected(true);
 		} else if (command.equals("Hide selected")) {
 			selection.setVisible(false); // TODO should deselect them too? I don't think so.
+			Display.updateCheckboxes(selection.getSelected(), DisplayablePanel.VISIBILITY_STATE);
 		} else if (command.equals("Resize canvas/LayerSet...")) {
 			resizeCanvas();
 		} else if (command.equals("Autoresize canvas/LayerSet")) {
@@ -4174,7 +4179,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		all.removeAll(selection.getSelected());
 		if (not_images) all.removeAll(layer.getDisplayables(Patch.class));
 		for (final Displayable d : (ArrayList<Displayable>)all) {
-			if (d.isVisible()) d.setVisible(false);
+			if (d.isVisible()) {
+				d.setVisible(false);
+				Display.updateCheckboxes(d, DisplayablePanel.VISIBILITY_STATE, false);
+			}
 		}
 		Display.update(layer);
 	}

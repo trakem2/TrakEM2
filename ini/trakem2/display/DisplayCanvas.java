@@ -2292,7 +2292,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private void handleHide(final KeyEvent ke) {
 		if (ke.isAltDown() && !ke.isShiftDown()) {
 			// show hidden
-			display.getLayer().getParent().setAllVisible(false);
+			Display.updateCheckboxes(display.getLayer().getParent().setAllVisible(false), DisplayablePanel.VISIBILITY_STATE);
 			//Display.repaint(display.getLayer());
 			Display.update(display.getLayer());
 			ke.consume();
