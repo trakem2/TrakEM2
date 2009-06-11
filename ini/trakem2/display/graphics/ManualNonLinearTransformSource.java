@@ -3,6 +3,7 @@ package ini.trakem2.display.graphics;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Paintable;
+import ini.trakem2.display.NonLinearTransformMode;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.util.Collection;
@@ -14,8 +15,10 @@ public class ManualNonLinearTransformSource implements GraphicsSource {
 
 	private final Collection<Displayable> originals;
 	private Rectangle box = null;
+	private NonLinearTransformMode owner;
 
-	public ManualNonLinearTransformSource(final Collection<Displayable> col) {
+	public ManualNonLinearTransformSource(final NonLinearTransformMode owner, final Collection<Displayable> col) {
+		this.owner = owner;
 		this.originals = col;
 		Rectangle tmp = new Rectangle();
 		for (final Displayable d : col) {
@@ -35,5 +38,7 @@ public class ManualNonLinearTransformSource implements GraphicsSource {
 		g.setColor(Color.magenta);
 		g.fillRect(box.x, box.y, box.width, box.height);
 		g.setComposite(original_composite);
+
+		owner.paint(g, srcRect, magnification);
 	}
 }

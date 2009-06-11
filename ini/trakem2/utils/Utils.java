@@ -1297,4 +1297,14 @@ public class Utils implements ij.plugin.PlugIn {
 		return IJ.isMacOSX() ? e.isMetaDown()
 			             : e.isControlDown();
 	}
+
+	static public final void drawPoint(final java.awt.Graphics g, final int x, final int y) {
+		g.setColor(Color.white);
+		g.drawLine(x-4, y+2, x+8, y+2);
+		g.drawLine(x+2, y-4, x+2, y+8);
+		g.setColor(Color.yellow);
+		g.fillRect(x+1,y+1,3,3);
+		g.setColor(Color.black);
+		g.drawRect(x, y, 4, 4);
+	}
 }
