@@ -789,6 +789,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		});
 	}
 
+	static public void repaintToolbar() {
+		for (final Display d : al_displays) {
+			d.toolbar_panel.repaint();
+		}
+	}
+
 	private class ToolbarPanel extends JPanel implements MouseListener {
 		Method drawButton;
 		Field lineType;
