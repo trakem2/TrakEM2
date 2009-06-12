@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.HashSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.TreeMap;
 import java.util.Iterator;
 import java.util.ArrayList;
@@ -152,7 +153,7 @@ public class AffineTransformMode implements Mode {
 	}
 
 	private class ATGS implements GraphicsSource {
-		public Collection<? extends Paintable> asPaintable(final Collection<? extends Paintable> ds) {
+		public List<? extends Paintable> asPaintable(final List<? extends Paintable> ds) {
 			return ds;
 		}
 		/** Paints the transformation handles and a bounding box around all selected. */

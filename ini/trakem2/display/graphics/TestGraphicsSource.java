@@ -1,12 +1,11 @@
 package ini.trakem2.display.graphics;
 
 import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Paintable;
 import ini.trakem2.display.Patch;
-import java.util.Collection;
 import java.util.ArrayList;
+import java.util.List;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -14,7 +13,7 @@ import java.awt.Rectangle;
 public class TestGraphicsSource implements GraphicsSource {
 
 	/** Replaces all Patch instances by a smiley face. */
-	public Collection<? extends Paintable> asPaintable(final Collection<? extends Paintable> ds) {
+	public List<? extends Paintable> asPaintable(final List<? extends Paintable> ds) {
 		final ArrayList<Paintable> a = new ArrayList<Paintable>();
 		for (final Paintable p : ds) {
 			if (p instanceof Patch) {

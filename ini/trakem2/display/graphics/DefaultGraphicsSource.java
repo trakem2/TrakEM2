@@ -3,19 +3,16 @@ package ini.trakem2.display.graphics;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Paintable;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.Selection;
-import ini.trakem2.utils.ProjectToolbar;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Color;
-import java.util.Collection;
+import java.util.List;
 
 /** Handles default mode, i.e. just plain images without any transformation handles of any kind. */
 public class DefaultGraphicsSource implements GraphicsSource {
 
 	/** Returns the list given as argument without any modification. */
-	public Collection<? extends Paintable> asPaintable(final Collection<? extends Paintable> ds) {
+	public List<? extends Paintable> asPaintable(final List<? extends Paintable> ds) {
 		return ds;
 	}
 

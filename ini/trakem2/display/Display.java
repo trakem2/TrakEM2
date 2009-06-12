@@ -56,6 +56,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.event.*;
 import java.util.*;
+import java.util.List;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.io.Writer;
@@ -2472,7 +2473,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (command.equals("Transform (affine)")) {
 				setMode(new AffineTransformMode(Display.this));
 			} else if (command.equals("Transform (non-linear)")) {
-				Collection<Displayable> col = selection.getSelected(Patch.class);
+				List<Displayable> col = selection.getSelected(Patch.class);
 				for (final Displayable d : col) {
 					if (d.isLinked()) {
 						Utils.showMessage("Can't enter manual non-linear transformation mode:\nat least one image is linked.");
