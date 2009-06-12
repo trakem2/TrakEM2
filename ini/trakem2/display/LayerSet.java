@@ -1647,12 +1647,21 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Add a step to undo the addition or deletion of one or more objects in this project and LayerSet. */
-	public void addChangeTreesStep() {
-		DoStep step = new LayerSet.DoChangeTrees(this);
+	public DoChangeTrees addChangeTreesStep() {
+		DoChangeTrees step = new LayerSet.DoChangeTrees(this);
 		if (prepareStep(step)) {
 			Utils.log2("Added change trees step.");
 			addEditStep(step);
 		}
+		return step;
+	}
+	/** Add a step to undo the addition or deletion of one or more objects in this project and LayerSet,
+	 *  along with an arbitrary set of steps that may alter, for example the data. */
+	public DoChangeTrees addChangeTreesStep(final Set<DoStep> dependents) {
+		DoChangeTrees step = addChangeTreesStep();
+		step.addDependents(dependents);
+		addEditStep(step);
+		return step;
 	}
 	/** For the Displayable contained in a Layer: their number, and their stack order. */
 	public void addLayerContentStep(final Layer la) {
@@ -1870,6 +1879,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final ArrayList<ZDisplayable> all_zdispl;
 		final HashMap<Displayable,Set<Displayable>> links;
 
+		HashSet<DoStep> dependents = null;
+
 		// TODO: does not consider recursive LayerSets!
 		public DoChangeTrees(final LayerSet ls) {
 			this.ls = ls;
@@ -1882,8 +1893,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			this.ltree_exp = new HashMap<Thing,Boolean>();
 			this.lroot = p.getProjectTree().duplicate(ltree_exp);
 
-			this.all_layers = ls.getLayers(); // a copy
-			this.all_zdispl = ls.getZDisplayables(); // a copy
+			this.all_layers = ls.getLayers(); // a copy of the list, but each object is the running instance
+			this.all_zdispl = ls.getZDisplayables(); // idem
 
 			this.links = new HashMap<Displayable,Set<Displayable>>();
 			for (final ZDisplayable zd : this.all_zdispl) {
@@ -1960,11 +1971,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				}
 			}
 
+			// Invoke dependents
+			if (null != dependents) for (DoStep step : dependents) step.apply(action);
+
 			ls.recreateBuckets(true);
 
-			Display.update(ls);
+			Display.update(ls, false);
 
 			return true;
+		}
+
+		synchronized public void addDependents(Set<DoStep> dep) {
+			if (null == this.dependents) this.dependents = new HashSet<DoStep>();
+			this.dependents.addAll(dep);
 		}
 	}
 
