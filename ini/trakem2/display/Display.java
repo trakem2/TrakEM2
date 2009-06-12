@@ -3482,7 +3482,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					// put active at the beginning, to work as the base on which other's will get merged
 					al_sel.remove(Display.this.active);
 					al_sel.add(0, Display.this.active);
-					getLayerSet().addDataEditStep(new HashSet<Displayable>(al_sel));
+					Set<DoStep> dataedits = new HashSet<DoStep>();
+					dataedits.add(new Displayable.DoEdit(Display.this.active).init(Display.this.active, new String[]{"data"}));
+					getLayerSet().addChangeTreesStep(dataedits);
 					AreaList ali = AreaList.merge(al_sel);
 					if (null != ali) {
 						// remove all but the first from the selection
@@ -3498,7 +3500,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 			}, Display.this.project);
 			burro.addPostTask(new Runnable() { public void run() {
-				getLayerSet().addDataEditStep(new HashSet<Displayable>(selection.getSelected(AreaList.class)));
+				Set<DoStep> dataedits = new HashSet<DoStep>();
+				dataedits.add(new Displayable.DoEdit(Display.this.active).init(Display.this.active, new String[]{"data"}));
+				getLayerSet().addChangeTreesStep(dataedits);
 			}});
 			burro.goHaveBreakfast();
 		} else if (command.equals("Identify...")) {
@@ -4290,8 +4294,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	public void resizeCanvas() {
 		GenericDialog gd = new GenericDialog("Resize LayerSet");
-		gd.addNumericField("new width: ", layer.getLayerWidth(), 3);
-		gd.addNumericField("new height: ",layer.getLayerHeight(),3);
+		gd.addNumericField("new width: ", layer.getLayerWidth(), 1, 8, "pixels");
+		gd.addNumericField("new height: ", layer.getLayerHeight(), 1, 8, "pixels");
 		gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[7]);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;

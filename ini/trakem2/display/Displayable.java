@@ -1578,7 +1578,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 
 	// UNDO machinery
 	
-	class DoEdits implements DoStep {
+	protected static class DoEdits implements DoStep {
 		final HashSet<DoEdit> edits = new HashSet<DoEdit>();
 		DoEdits(final Set<Displayable> col) {
 			for (final Displayable d : col) {
@@ -1617,7 +1617,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 
 	/** For any Displayable data, including: title, visible, locked, color, alpha,
 	 *  and a 'data' type which includes the actual data (points, areas, etc.) and the links,width,height, and transformation (since all the latter are correlated).*/
-	class DoEdit implements DoStep {
+	static protected class DoEdit implements DoStep {
 		private final HashMap<String,Object> content = new HashMap<String,Object>();
 		private ArrayList<DoStep> dependents = null;
 		private final Displayable d;

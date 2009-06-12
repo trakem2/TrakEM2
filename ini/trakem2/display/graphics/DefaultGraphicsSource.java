@@ -3,6 +3,7 @@ package ini.trakem2.display.graphics;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Paintable;
+import ini.trakem2.utils.ProjectToolbar;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Color;
@@ -18,6 +19,9 @@ public class DefaultGraphicsSource implements GraphicsSource {
 
 	/** Paints bounding boxes of selected objects as pink and active object as white. */
 	public void paintOnTop(final Graphics2D g, final Display display, final Rectangle srcRect, final double magnification) {
+		if (ProjectToolbar.getToolId() != ProjectToolbar.SELECT) {
+			return;
+		}
 		g.setColor(Color.pink);
 		Displayable active = display.getActive();
 		final Rectangle bbox = new Rectangle();

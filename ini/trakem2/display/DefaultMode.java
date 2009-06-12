@@ -69,8 +69,9 @@ public class DefaultMode implements Mode {
 				break;
 			}
 		}
-		if (display.getLayerSet().prepareStep(sel)) {
-			display.getLayerSet().addTransformStep(sel);
+		final Collection<Displayable> affected = display.getSelection().getAffected();
+		if (display.getLayerSet().prepareStep(affected)) {
+			display.getLayerSet().addTransformStep(affected);
 		}
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
