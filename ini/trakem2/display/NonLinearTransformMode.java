@@ -31,8 +31,6 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.image.BufferedImage;
 
-import javax.media.jai.JAI;
-
 import mpicbg.ij.Mapping;
 import mpicbg.ij.TransformMapping;
 import mpicbg.ij.TransformMeshMapping;
@@ -145,7 +143,7 @@ public class NonLinearTransformMode implements Mode {
 	
 	private class ScreenPatch implements Paintable
 	{
-		static final int pad = 200;
+		static final int pad = 100;
 		
 		ImageProcessor ip;
 		FloatProcessor mask;
@@ -236,7 +234,7 @@ public class NonLinearTransformMode implements Mode {
 			g.setTransform(new AffineTransform());
 			g.setStroke( new BasicStroke( 1.0f ) );
 			for ( P p : points.keySet()) {
-				IJ.log( p.x + ", " + p.y );
+				//IJ.log( p.x + ", " + p.y );
 				Utils.drawPoint( g, p.x, p.y );
 			}
 			g.setTransform(original);
@@ -266,14 +264,13 @@ public class NonLinearTransformMode implements Mode {
 			if ( o instanceof Patch ) originalPatches.add( ( Patch )o );
 		this.screenPatches = new HashMap<Paintable, ScreenPatch>( originalPatches.size() );
 		this.gs = new NonLinearTransformSource();
+
 		this.updater = new Updater();
 		updater.start();
-		updater.update();
-		
 		this.painter = new Painter();
 		painter.start();
-		painter.update();
-		
+
+		updater.update(); // will call painter.update()
 	}
 
 	public NonLinearTransformMode(final Display display) {
@@ -315,8 +312,8 @@ public class NonLinearTransformMode implements Mode {
 				points.put(p_clicked, new P( p_clicked.x, p_clicked.y ));
 			} else if (Utils.isControlDown(me)) {
 				// remove it
-				IJ.log("removing " + p_clicked);
-				IJ.log("removed: " + points.remove(p_clicked));
+				//IJ.log("removing " + p_clicked);
+				//IJ.log("removed: " + points.remove(p_clicked));
 				p_clicked = null;
 			}
 		}
@@ -343,7 +340,10 @@ public class NonLinearTransformMode implements Mode {
 	private void updated(Rectangle srcRect, double magnification) {
 		synchronized ( updater )
 		{
-			if ( srcRect.equals( this.srcRect ) && this.magnification == magnification ) return;
+			if ( this.srcRect.x == srcRect.x && this.srcRect.y == srcRect.y
+			  && this.srcRect.width == srcRect.width && this.srcRect.height == srcRect.height
+			  && this.magnification == magnification ) return;
+
 			for ( Map.Entry<P, P> e : points.entrySet() )
 			{
 				final P p = e.getKey();
@@ -358,23 +358,23 @@ public class NonLinearTransformMode implements Mode {
 				y += this.srcRect.y - srcRect.y;
 				y *= magnification;
 				p.y = ( int )Math.round( y );
-				x = p.x;
+				x = q.x;
 				x /= this.magnification;
 				x += this.srcRect.x - srcRect.x;
 				x *= magnification;
 				q.x = ( int )Math.round( x );
-				y = p.y;
+				y = q.y;
 				y /= this.magnification;
 				y += this.srcRect.y - srcRect.y;
 				y *= magnification;
 				q.y = ( int )Math.round( y );
 			}
-			this.srcRect = srcRect;
+			this.srcRect = (Rectangle) srcRect.clone();
 			this.magnification = magnification;
 		}
 		updater.update();
 	}
-	
+
 	private class P {
 		int x, y;
 		P(int x, int y)

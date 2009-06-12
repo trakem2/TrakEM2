@@ -331,6 +331,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// So, manually:
 		this.magnification = mag;
 		imp.setTitle(imp.getTitle());
+		display.getMode().magnificationUpdated(srcRect, mag);
 	}
 
 	/** Paint lines always with a thickness of 1 pixel. This stroke is modified when the magnification is changed, to compensate. */
@@ -529,7 +530,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return;
 		case Toolbar.HAND:
 			super.setupScroll(x_p, y_p); // offscreen coords.
-			//display.repaintAll();
 			return;
 		}
 
@@ -710,11 +710,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			int srx = srcRect.x,
 			    sry = srcRect.y;
 			scroll(me.getX(), me.getY());
+			Utils.log2("dragged HAND");
 			if (0 != srx - srcRect.x || 0 != sry - srcRect.y) {
 				update_graphics = true; // update the offscreen images.
 				display.getNavigator().repaint(false);
 				repaint(true);
-				display.getMode().srcRectUpdated(srcRect, magnification);
+				Utils.log2("dragged HAND --> update");
 			}
 			return;
 		}
@@ -841,6 +842,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				tmp_tool = -1;
 			}
 			if (!dragging2) repaint(true); // TEMPORARY just to allow fixing bad screen when simply cliking with the hand
+			Utils.log2("released HAND");
+			display.getMode().srcRectUpdated(srcRect, magnification);
 			return;
 		}
 
@@ -1134,8 +1137,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		setMagnification(newMag);
 		display.updateInDatabase("srcRect");
 		display.repaintAll2(); // this repaint includes this canvas's repaint as well, but also the navigator, etc. // repaint();
-
-		display.getMode().magnificationUpdated(srcRect, magnification);
 	}
 
 	private void zoomOut2(int x, int y) {
@@ -1180,8 +1181,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// as well, but also the navigator, etc.
 		// repaint();
 		display.updateInDatabase("srcRect");
-
-		display.getMode().magnificationUpdated(srcRect, magnification);
 	}
 
 	/** The minimum amout of pixels allowed for width or height when zooming out. */
@@ -2300,6 +2299,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if ((newy+srcRect.height)>imageHeight) newy = imageHeight-srcRect.height;
 		srcRect.x = newx;
 		srcRect.y = newy;
+		display.getMode().srcRectUpdated(srcRect, magnification);
 	}
 
 	private void handleHide(final KeyEvent ke) {
