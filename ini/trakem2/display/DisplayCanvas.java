@@ -290,7 +290,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		this.imageWidth = (int)Math.ceil(width);
 		this.imageHeight = (int)Math.ceil(height);
 		((FakeImagePlus)imp).setDimensions(imageWidth, imageHeight);
-		zoomToFit();
 	}
 
 	/** Overriding to disable it. */
