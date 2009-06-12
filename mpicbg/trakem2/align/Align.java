@@ -883,19 +883,21 @@ public class Align
 	 * 
 	 * @param layer
 	 */
-	final static public void alignLayer( final Layer layer, final int numThreads )
+	final static public void alignLayer( final ParamOptimize p, final Layer layer, final int numThreads )
 	{
-		if ( !paramOptimize.setup( "Align patches in layer" ) ) return;
-		
 		List< Displayable > displayables = layer.getDisplayables( Patch.class );
 		List< Patch > patches = new ArrayList< Patch >();
 		for ( Displayable d : displayables )
 			patches.add( ( Patch )d );
 		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-		tilesFromPatches( paramOptimize, patches, null, tiles, fixedTiles );
+		List< Patch > fixedPatches = new ArrayList< Patch >();
+		final Displayable active = Display.getFront().getActive();
+		if ( active != null && active instanceof Patch && active.getLayer() == layer )
+			fixedPatches.add( ( Patch )active );
+		tilesFromPatches( p, patches, null, tiles, fixedTiles );
 		
-		alignTiles( paramOptimize, tiles, fixedTiles, numThreads );
+		alignTiles( p, tiles, fixedTiles, numThreads );
 		
 		for ( AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );

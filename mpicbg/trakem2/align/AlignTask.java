@@ -264,7 +264,7 @@ final public class AlignTask
 		return Bureaucrat.createAndStart(worker, l.getProject());
 	}
 	
-
+	
 	final static public void alignLayersLinearly( final Layer l )
 	{
 		final List< Layer > layers = l.getParent().getLayers();
@@ -297,13 +297,29 @@ final public class AlignTask
 		final boolean propagateTransform = gd.getNextBoolean();
 		
 		final Align.Param p = Align.param.clone();
-		final Rectangle box = layers.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
-		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
-		p.maxEpsilon *= scale;
 		
 		final List< Layer > layerRange = new ArrayList< Layer >();
 		for ( int i = first; i != last + d; i += d )
 			layerRange.add( layers.get( i ) );
+		
+		alignLayersLinearlyJob(
+				layerRange,
+				d,
+				last,
+				p,
+				propagateTransform );
+	}
+
+	final static public void alignLayersLinearlyJob(
+			final List< Layer > layerRange,
+			final int d,
+			final int last,
+			final Align.Param p,
+			final boolean propagateTransform )
+	{
+		final Rectangle box = layerRange.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
+		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
+		p.maxEpsilon *= scale;
 		
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
 		final SIFT ijSIFT = new SIFT( sift );
@@ -407,11 +423,110 @@ final public class AlignTask
 			}
 			IJ.showProgress( ++s, layerRange.size() );	
 		}
+		final List< Layer > layers = layerRange.get( 0 ).getParent().getLayers();
 		if ( propagateTransform )
 		{
 			for ( int i = last + d; i >= 0 && i < layers.size(); i += d )
 				layers.get( i ).apply( Displayable.class, a );
 		}
+	}
+	
+	final public static void alignMultiLayerMosaicsLayerwise( final Layer l )
+	{
+		final List< Layer > layers = l.getParent().getLayers();
+		final String[] layerTitles = new String[ layers.size() ];
+		for ( int i = 0; i < layers.size(); ++i )
+			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
+		
+		final GenericDialog gd1 = new GenericDialog( "Align Multiple Layers Layerwise : Layer Range" );
+		
+		gd1.addMessage( "Layer Range:" );
+		final int sel = layers.indexOf(l);
+		gd1.addChoice( "first :", layerTitles, layerTitles[ sel ] );
+		gd1.addChoice( "last :", layerTitles, layerTitles[ sel ] );
+		
+		gd1.addMessage( "Miscellaneous:" );
+		gd1.addCheckbox( "tiles are rougly in place", false );
+		gd1.addCheckbox( "consider largest graph only", false );
+		gd1.addCheckbox( "hide tiles from non-largest graph", false );
+		gd1.addCheckbox( "delete tiles from non-largest graph", false );
+		
+		gd1.showDialog();
+		if ( gd1.wasCanceled() ) return;
+		
+		final int first = gd1.getNextChoiceIndex();
+		final int last = gd1.getNextChoiceIndex();
+		final int d = first < last ? 1 : -1;
+		
+		tilesAreInPlace = gd1.getNextBoolean();
+		largestGraphOnly = gd1.getNextBoolean();
+		hideDisconnectedTiles = gd1.getNextBoolean();
+		deleteDisconnectedTiles = gd1.getNextBoolean();
+		
+		
+		/* intra-layer parameters */
+		
+		final GenericDialog gd2 = new GenericDialog( "Align Multiple Layers Layerwise : Intra-Layer" );
+
+		Align.paramOptimize.addFields( gd2 );
+		
+		gd2.showDialog();
+		if ( gd2.wasCanceled() ) return;
+		
+		Align.paramOptimize.readFields( gd2 );
+		
+		
+		/* cross-layer parameters */
+		
+//		Param p = Align.param;
+		Align.param.sift.maxOctaveSize = 1600;
+		
+		final GenericDialog gd3 = new GenericDialog( "Align Multiple Layers Layerwise : Cross-Layer" );
+		
+		Align.param.addFields( gd3 );
+		
+		gd3.showDialog();
+		if ( gd3.wasCanceled() ) return;
+		
+		Align.param.readFields( gd3 );
+		
+		final Align.Param p = Align.param.clone();
+		final Rectangle box = layers.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
+		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
+		p.maxEpsilon *= scale;
+		
+		final List< Layer > layerRange = new ArrayList< Layer >();
+		for ( int i = first; i != last + d; i += d )
+			layerRange.add( layers.get( i ) );
+
+		alignMultiLayerMosaicsLayerwiseTask(
+				layerRange,
+				Align.paramOptimize.clone(),
+				Align.param.clone(),
+				tilesAreInPlace,
+				largestGraphOnly,
+				hideDisconnectedTiles,
+				deleteDisconnectedTiles );
+	}
+	
+	
+	final static public void alignMultiLayerMosaicsLayerwiseTask(
+			final List< Layer > layerRange,
+			final Align.ParamOptimize p,
+			final Align.Param cp,
+			final boolean tilesAreInPlace,
+			final boolean largestGraphOnly,
+			final boolean hideDisconnectedTiles,
+			final boolean deleteDisconnectedTiles )
+	{
+		/* align layers independently */
+		for ( final Layer layer : layerRange )
+		{
+			/* align all tiles in the layer */
+			Align.alignLayer( p, layer, Runtime.getRuntime().availableProcessors() );
+		}
+		/* align layers linearly */
+		
 	}
 	
 	
@@ -429,7 +544,7 @@ final public class AlignTask
 		};
 		return Bureaucrat.createAndStart(worker, l.getProject());
 	}
-	
+		
 	
 	/**
 	 * Align a multi-layer mosaic.
