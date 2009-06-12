@@ -36,6 +36,8 @@ import mpicbg.ij.TransformMapping;
 import mpicbg.ij.TransformMeshMapping;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
+import mpicbg.models.SimilarityModel2D;
+import mpicbg.models.TranslationModel2D;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.models.MovingLeastSquaresTransform;
 import mpicbg.models.Point;
@@ -78,7 +80,18 @@ public class NonLinearTransformMode implements Mode {
 				{
 					final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
 					mlst.setAlpha( 1.0f );
-					mlst.setModel( AffineModel2D.class );
+					Class c = AffineModel2D.class;
+					switch (points.size()) {
+						case 1:
+							c = TranslationModel2D.class;
+							break;
+						case 2:
+							c = SimilarityModel2D.class;
+							break;
+						default:
+							break;
+					}
+					mlst.setModel( c );
 					mlst.setMatches( pm );
 					final CoordinateTransformMesh ctm = new CoordinateTransformMesh( mlst, 32, r.width * ( float )m + 2 * ScreenPatch.pad, r.height * ( float )m + 2 * ScreenPatch.pad );
 					mapping = new TransformMeshMapping( ctm );
@@ -308,8 +321,48 @@ public class NonLinearTransformMode implements Mode {
 		if (me.isShiftDown()) {
 			if (null == p_clicked) {
 				// add one
-				p_clicked = new P(x_p, y_p);
-				points.put(p_clicked, new P( p_clicked.x, p_clicked.y ));
+				try {
+					if (0 == points.size()) {
+						p_clicked = new P(x_p, y_p);
+						points.put(p_clicked, new P(x_p, y_p));
+					} else {
+						Class c = AffineModel2D.class;
+						switch (points.size()) {
+							case 1:
+								c = TranslationModel2D.class;
+								break;
+							case 2:
+								c = SimilarityModel2D.class;
+								break;
+							default:
+								break;
+						}
+						final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
+						mlst.setAlpha(1.0f);
+						mlst.setModel( c );
+						final Collection< PointMatch > pm = new ArrayList<PointMatch>();
+						for ( Map.Entry<P,P> e : points.entrySet() )
+						{
+							final P p = e.getValue();
+							final P q = e.getKey();
+							pm.add( new PointMatch(
+									new Point( new float[]{ p.x, p.y } ),
+									new Point( new float[]{ q.x, q.y } ) ) );
+						}
+						mlst.setMatches(pm);
+						final CoordinateTransformMesh ctm = new CoordinateTransformMesh( mlst, 32,
+								srcRect.width * ( float )magnification,
+								srcRect.height * ( float )magnification);
+						final float[] fc = new float[]{x_p, y_p};
+						ctm.applyInverseInPlace( fc );
+						
+						p_clicked = new P( x_p, y_p);
+						points.put(p_clicked, new P( (int) fc[0], (int) fc[1]));
+					}
+				} catch (Exception e) {
+					Utils.log("Could not add point");
+					e.printStackTrace();
+				}
 			} else if (Utils.isControlDown(me)) {
 				// remove it
 				//IJ.log("removing " + p_clicked);
