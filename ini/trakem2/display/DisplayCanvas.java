@@ -210,6 +210,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (null != active_layer.getParent().getOverlay2())
 				active_layer.getParent().getOverlay2().paint(g, srcRect, magnification);
 
+			if (null != display.gridoverlay) display.gridoverlay.paint(g);
+
 			g.dispose();
 		} while (volatileImage.contentsLost());
 	}

@@ -54,6 +54,7 @@ import mpicbg.trakem2.align.AlignTask;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.Line2D;
 import java.awt.event.*;
 import java.util.*;
 import java.lang.reflect.Field;
@@ -2396,6 +2397,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Calibration..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Grid overlay..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
@@ -2464,6 +2466,93 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		//canvas.add(popup);
 		return popup;
 	}
+
+	protected class GridOverlay {
+		ArrayList<Line2D> lines = new ArrayList<Line2D>();
+		int ox=0, oy=0,
+		    width=(int)layer.getLayerWidth(),
+		    height=(int)layer.getLayerHeight(),
+		    xoffset=0, yoffset=0,
+		    tilewidth=100, tileheight=100,
+		    linewidth=1;
+		boolean visible = true;
+		Color color = new Color(255,255,0,255); // yellow with full alpha
+
+		/** Expects values in pixels. */
+		void init() {
+			lines.clear();
+			// Vertical lines:
+			if (0 != xoffset) {
+				lines.add(new Line2D.Float(ox, oy, ox, oy+height));
+			}
+			lines.add(new Line2D.Float(ox+width, oy, ox+width, oy+height));
+			for (int x = ox + xoffset; x <= ox + width; x += tilewidth) {
+				lines.add(new Line2D.Float(x, oy, x, oy + height));
+			}
+			// Horizontal lines:
+			if (0 != yoffset) {
+				lines.add(new Line2D.Float(ox, oy, ox+width, oy));
+			}
+			lines.add(new Line2D.Float(ox, oy+height, ox+width, oy+height));
+			for (int y = oy + yoffset; y <= oy + height; y += tileheight) {
+				lines.add(new Line2D.Float(ox, y, ox + width, y));
+			}
+		}
+		protected void paint(final Graphics2D g) {
+			g.setStroke(new BasicStroke((float)(linewidth/canvas.getMagnification())));
+			g.setColor(color);
+			for (final Line2D line : lines) {
+				g.draw(line);
+			}
+		}
+		void setup(Roi roi) {
+			GenericDialog gd = new GenericDialog("Grid overlay");
+			Calibration cal = getLayerSet().getCalibration();
+			gd.addNumericField("Top-left corner X:", ox*cal.pixelWidth, 1, 10, cal.getUnits()); 
+			gd.addNumericField("Top-left corner Y:", oy*cal.pixelHeight, 1, 10, cal.getUnits()); 
+			gd.addNumericField("Grid total width:", width*cal.pixelWidth, 1, 10, cal.getUnits());
+			gd.addNumericField("Grid total height:", height*cal.pixelHeight, 1, 10, cal.getUnits());
+			gd.addCheckbox("Read bounds from ROI", null != roi);
+			((Component)gd.getCheckboxes().get(0)).setEnabled(null != roi);
+			gd.addMessage("");
+			gd.addNumericField("Tile width:", tilewidth*cal.pixelWidth, 1, 10, cal.getUnits());
+			gd.addNumericField("Tile height:", tileheight*cal.pixelHeight, 1, 10, cal.getUnits());
+			gd.addNumericField("Tile offset X:", xoffset*cal.pixelWidth, 1, 10, cal.getUnits());
+			gd.addNumericField("Tile offset Y:", yoffset*cal.pixelHeight, 1, 10, cal.getUnits());
+			gd.addMessage("");
+			gd.addNumericField("Line width:", linewidth, 1, 10, "pixels");
+			gd.addSlider("Red: ", 0, 255, color.getRed());
+			gd.addSlider("Green: ", 0, 255, color.getGreen());
+			gd.addSlider("Blue: ", 0, 255, color.getBlue());
+			gd.addSlider("Alpha: ", 0, 255, color.getAlpha());
+			gd.addMessage("");
+			gd.addCheckbox("Visible", true);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			this.ox = (int)(gd.getNextNumber() / cal.pixelWidth);
+			this.oy = (int)(gd.getNextNumber() / cal.pixelHeight);
+			this.width = (int)(gd.getNextNumber() / cal.pixelWidth);
+			this.height = (int)(gd.getNextNumber() / cal.pixelHeight);
+			if (gd.getNextBoolean() && null != roi) {
+				Rectangle r = roi.getBounds();
+				this.ox = r.x;
+				this.oy = r.y;
+				this.width = r.width;
+				this.height = r.height;
+			}
+			this.tilewidth = (int)(gd.getNextNumber() / cal.pixelWidth);
+			this.tileheight = (int)(gd.getNextNumber() / cal.pixelHeight);
+			this.xoffset = (int)(gd.getNextNumber() / cal.pixelWidth) % tilewidth;
+			this.yoffset = (int)(gd.getNextNumber() / cal.pixelHeight) % tileheight;
+			this.linewidth = (int)gd.getNextNumber();
+			this.color = new Color((int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
+			this.visible = gd.getNextBoolean();
+			init();
+		}
+	}
+
+	protected GridOverlay gridoverlay = null;
+
 
 	private class StartTransformMenuListener implements ActionListener {
 		public void actionPerformed(ActionEvent ae) {
@@ -3561,6 +3650,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} catch (RuntimeException re) {
 				Utils.log2("Calibration dialog canceled.");
 			}
+		} else if (command.equals("Grid overlay...")) {
+			if (null == gridoverlay) gridoverlay = new GridOverlay();
+			gridoverlay.setup(canvas.getFakeImagePlus().getRoi());
+			canvas.invalidateVolatile();
+			canvas.repaint(false);
 		} else if (command.equals("Enhance contrast (selected images)...")) {
 			final Layer la = layer;
 			final HashSet<Displayable> ds = new HashSet<Displayable>(la.getParent().getDisplayables());
