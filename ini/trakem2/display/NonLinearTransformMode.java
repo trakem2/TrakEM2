@@ -335,6 +335,7 @@ public class NonLinearTransformMode implements Mode {
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		// bring to screen coordinates
 		mouseDragged(me, x_p, y_p, x_r, y_r, x_d, y_d);
+		p_clicked = null; // so isDragging can return the right state
 	}
 	
 	private void updated(Rectangle srcRect, double magnification) {
@@ -396,7 +397,7 @@ public class NonLinearTransformMode implements Mode {
 	public void undoOneStep() {}
 
 	public boolean isDragging() {
-		return true; // TODO
+		return null != p_clicked;
 	}
 
 	public boolean apply() { return true; }

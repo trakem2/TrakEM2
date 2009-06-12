@@ -710,12 +710,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			int srx = srcRect.x,
 			    sry = srcRect.y;
 			scroll(me.getX(), me.getY());
-			Utils.log2("dragged HAND");
 			if (0 != srx - srcRect.x || 0 != sry - srcRect.y) {
 				update_graphics = true; // update the offscreen images.
 				display.getNavigator().repaint(false);
 				repaint(true);
-				Utils.log2("dragged HAND --> update");
 			}
 			return;
 		}
@@ -842,7 +840,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				tmp_tool = -1;
 			}
 			if (!dragging2) repaint(true); // TEMPORARY just to allow fixing bad screen when simply cliking with the hand
-			Utils.log2("released HAND");
 			display.getMode().srcRectUpdated(srcRect, magnification);
 			return;
 		}
