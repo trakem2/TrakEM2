@@ -467,7 +467,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Enlarges the display in the given direction; the anchor is the point to keep still, and can be any of LayerSet.NORTHWEST (top-left), etc. */
-	public boolean enlargeToFit(final Displayable d, final int anchor) {
+	synchronized public boolean enlargeToFit(final Displayable d, final int anchor) {
 		final Rectangle r = new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
 		final Rectangle b = d.getBoundingBox(null);
 		// check if necessary
