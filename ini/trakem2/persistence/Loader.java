@@ -3078,6 +3078,7 @@ abstract public class Loader {
 		return new int[]{min_larger, starter[min_i]};
 	}
 
+	/** WARNING may be altered concurrently. */
 	private String last_opened_path = null;
 
 	/** Subclasses can override this method to register the URL of the imported image. */
@@ -3146,9 +3147,9 @@ abstract public class Loader {
 			flush(imp);
 			return null;
 		}
-		last_opened_path = path;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
-		addedPatchFrom(last_opened_path, p);
+		addedPatchFrom(path, p);
+		last_opened_path = path; // WARNING may be altered concurrently
 		if (isMipMapsEnabled()) {
 			if (synch_mipmap_generation) generateMipMaps(p);
 			else regenerateMipMaps(p); // queue for regeneration
@@ -3192,10 +3193,11 @@ abstract public class Loader {
 			flush(imp);
 			return null;
 		}
-		last_opened_path = dir + "/" + next_file;
+		String path = dir + "/" + next_file;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
-		addedPatchFrom(last_opened_path, p);
-		if (isMipMapsEnabled()) generateMipMaps(p);
+		addedPatchFrom(path, p);
+		last_opened_path = path; // WARNING may be altered concurrently
+		if (isMipMapsEnabled()) regenerateMipMaps(p);
 		return p;
 	}
 
