@@ -1384,10 +1384,7 @@ public final class Patch extends Displayable {
 			p.ct = null == ct ? null : (CoordinateTransform) ct.clone();
 
 			if (mipmaps) {
-				Utils.log2("Update mipmaps in a background task");
-				ArrayList al = new ArrayList();
-				al.add(p);
-				p.project.getLoader().generateMipMaps(al, true);
+				p.project.getLoader().regenerateMipMaps(p);
 			}
 			return true;
 		}
