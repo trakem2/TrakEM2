@@ -1536,6 +1536,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	public boolean isTransforming() {
+		// TODO this may have to change if modes start getting used for a task other than transformation.
+		// Perhaps "isTransforming" will have to broaden its meaning to "isNotDefaultMode"
 		return display.getMode().getClass() != DefaultMode.class;
 	}
 
@@ -1544,7 +1546,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		Rectangle box = display.getMode().getRepaintBounds();
 		display.getMode().cancel();
 		box.add(selection.getLinkedBox()); // the restored box now.
-		if (!(selection.getNSelected() == 1 && !display.getActive().isLinked())) update_graphics = true;
 		display.setMode(new DefaultMode(display));
 		repaint(true);
 	}

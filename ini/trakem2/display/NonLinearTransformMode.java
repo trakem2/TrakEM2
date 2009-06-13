@@ -12,6 +12,7 @@ import ini.trakem2.utils.Utils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.awt.BasicStroke;
@@ -142,6 +143,16 @@ public class NonLinearTransformMode implements Mode {
 			synchronized ( this )
 			{
 				updateAgain = true;
+				notify();
+			}
+		}
+
+		void quit()
+		{
+			interrupt();
+			synchronized ( this )
+			{
+				updateAgain = false;
 				notify();
 			}
 		}
@@ -446,7 +457,15 @@ public class NonLinearTransformMode implements Mode {
 		return null != p_clicked;
 	}
 
+	private final void setUndoState() {
+		display.getLayerSet().addEditStep(new Displayable.DoEdits(new HashSet<Displayable>(originalPatches)).init(new String[]{"data", "at", "width", "height"}));
+	}
+
 	public boolean apply() {
+
+		// Set undo step to reflect initial state before any transformations
+		setUndoState();
+
 		/* bring all points into world space */
 		final Collection< PointMatch > worldPointMatches = new ArrayList< PointMatch >( points.size() );
 		synchronized ( updater )
@@ -530,12 +549,21 @@ public class NonLinearTransformMode implements Mode {
 			}
 			
 		}
-		
+
+		// Set undo step to reflect final state after applying transformations
+		setUndoState();
+
+		painter.quit();
+		updater.quit();
+
 		return true;
 	}
-	public boolean cancel() { return true; }
+	public boolean cancel() {
+		painter.quit();
+		updater.quit();
+		return true;
+	}
 
-	public Rectangle getRepaintBounds() { return display.getSelection().getLinkedBox(); } // TODO
+	public Rectangle getRepaintBounds() { return (Rectangle) srcRect.clone(); }
 
 }
-

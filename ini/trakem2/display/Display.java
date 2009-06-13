@@ -2980,8 +2980,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		if (null == c) return;
 		DisplayablePanel dp = ht_panels.get(d);
-		dp.repaint();
-		Utils.updateComponent(c);
+		if (null != dp) {
+			dp.repaint();
+			Utils.updateComponent(c);
+		}
 	}
 
 	static public void updatePanelIndex(final Layer layer, final Displayable displ) {
@@ -3173,8 +3175,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}}, project);
 		} else if (command.equals("Apply transform")) {
 			if (null == active) return;
-			getMode().apply();
-			setMode(new DefaultMode(Display.this));
+			canvas.applyTransform();
 		} else if (command.equals("Apply transform propagating to last layer")) {
 			if (mode.getClass() == AffineTransformMode.class) {
 				final java.util.List<Layer> layers = layer.getParent().getLayers();
@@ -3189,7 +3190,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		} else if (command.equals("Cancel transform")) {
 			if (null == active) return;
-			canvas.cancelTransform();
+			canvas.cancelTransform(); // calls getMode().cancel()
 		} else if (command.equals("Specify transform...")) {
 			if (null == active) return;
 			selection.specify();

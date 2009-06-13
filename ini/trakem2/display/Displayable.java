@@ -1578,7 +1578,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 
 	// UNDO machinery
 	
-	protected static class DoEdits implements DoStep {
+	static protected class DoEdits implements DoStep {
 		final HashSet<DoEdit> edits = new HashSet<DoEdit>();
 		DoEdits(final Set<Displayable> col) {
 			for (final Displayable d : col) {
@@ -1598,10 +1598,11 @@ public abstract class Displayable extends DBObject implements Paintable {
 			}
 			return true;
 		}
-		public void init(final String[] fields) {
+		public DoEdits init(final String[] fields) {
 			for (final DoEdit edit : edits) {
 				edit.init(edit.d, fields);
 			}
+			return this;
 		}
 		public boolean isEmpty() { return edits.isEmpty(); }
 		public boolean apply(int action) {
