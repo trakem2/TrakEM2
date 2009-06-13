@@ -177,7 +177,7 @@ public class DNDInsertImage implements DropTargetListener {
 				layer.getParent().addLayerContentStep(layer);
 
 				// single image file (single image or a stack)
-				burro = display.getProject().getLoader().importImage(layer, point.x, point.y, path);
+				burro = display.getProject().getLoader().importImage(layer, point.x, point.y, path, false);
 			}
 
 			if (null != burro) {

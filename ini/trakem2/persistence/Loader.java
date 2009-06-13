@@ -3084,7 +3084,7 @@ abstract public class Loader {
 	public void addedPatchFrom(String path, Patch patch) {}
 
 	/** Import an image into the given layer, in a separate task thread. */
-	public Bureaucrat importImage(final Layer layer, final double x, final double y, final String path) {
+	public Bureaucrat importImage(final Layer layer, final double x, final double y, final String path, final boolean synch_mipmap_generation) {
 		Worker worker = new Worker("Importing image") {
 			public void run() {
 				startedWorking();
@@ -3095,7 +3095,7 @@ abstract public class Loader {
 						finishedWorking();
 						return;
 					}
-					Patch p = importImage(layer.getProject(), x, y, path);
+					Patch p = importImage(layer.getProject(), x, y, path, synch_mipmap_generation);
 					if (null != p) {
 						layer.add(p);
 						layer.getParent().enlargeToFit(p, LayerSet.NORTHWEST);
@@ -3111,10 +3111,10 @@ abstract public class Loader {
 	}
 
 	public Patch importImage(Project project, double x, double y) {
-		return importImage(project, x, y, null);
+		return importImage(project, x, y, null, false);
 	}
 	/** Import a new image at the given coordinates; does not puts it into any layer, unless it's a stack -in which case importStack is called with the current front layer of the given project as target. If a path is not provided it will be asked for.*/
-	public Patch importImage(Project project, double x, double y, String path) {
+	public Patch importImage(Project project, double x, double y, String path, boolean synch_mipmap_generation) {
 		if (null == path) {
 			OpenDialog od = new OpenDialog("Import image", "");
 			String name = od.getFileName();
@@ -3149,7 +3149,10 @@ abstract public class Loader {
 		last_opened_path = path;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(last_opened_path, p);
-		if (isMipMapsEnabled()) generateMipMaps(p);
+		if (isMipMapsEnabled()) {
+			if (synch_mipmap_generation) generateMipMaps(p);
+			else regenerateMipMaps(p); // queue for regeneration
+		}
 		return p;
 	}
 	public Patch importNextImage(Project project, double x, double y) {
