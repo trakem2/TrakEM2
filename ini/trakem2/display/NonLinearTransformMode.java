@@ -1,6 +1,5 @@
 package ini.trakem2.display;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
@@ -13,26 +12,17 @@ import ini.trakem2.utils.Utils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.Graphics2D;
 import java.awt.Transparency;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
 import java.awt.image.BufferedImage;
 
 import mpicbg.ij.Mapping;
-import mpicbg.ij.TransformMapping;
 import mpicbg.ij.TransformMeshMapping;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
@@ -83,7 +73,7 @@ public class NonLinearTransformMode implements Mode {
 					 */
 					final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
 					mlst.setAlpha( 1.0f );
-					Class c = AffineModel2D.class;
+					Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
 					switch (points.size()) {
 						case 1:
 							c = TranslationModel2D.class;

@@ -1,13 +1,16 @@
-2009-01-21 Saalfeld:
-  Caching features and point matches in the file system uses the project
-  specific id of a patch as a unique identifier for a patch.  This will fail
-  if several independent projects share the same directory in the file system.
-  I have seen this happening in Janelia Farm for several dozens of projects.
-  What about using a hash-code (md5?) of the absolute path to an image instead?
-2009-02-03 Saalfeld
-  Patches use the min and max values in several wrong ways.  RGB patches create
-  wrong output from the very beginning, grey images create the wrong output if
-  a CoordinateTransform is available.
 2009-03-04 Saalfeld
   Changing the properties of a CoordinateTransform attached to a patch leads to
-  wrong bounding boxes.
+  wrong bounding boxes.  Prevent the CoordinateTransform from being changed by
+  working on copies instead of the original transforms?
+2009-06-13 Saalfeld
+  NonLinearTransformMode ignores that alpha is neither scale nor affine
+  invariant.
+2009-06-13 Saalfeld
+  Lou Scheffer ran into a situation where several patches in a project were
+  saved or opened with the wrong file path.  Check carefully if this is a true
+  bug in TrakEM2 (and fix it) or just a side-effect of unknown processing of
+  the XML-file.
+2009-06-13 Saalfeld
+  TrakEM2 should be able to be launched and used in non-GUI mode without ugly
+  tricks such as virtual frame buffers.
+  
