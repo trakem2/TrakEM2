@@ -88,7 +88,7 @@ public final class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;
-	private final HashMap<Long,String> ht_paths = new HashMap<Long,String>();
+	private final Hashtable<Long,String> ht_paths = new Hashtable<Long,String>();
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
@@ -1037,7 +1037,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Takes a String and returns a copy with the following conversions: / to -, space to _, and \ to -. */
-	public String asSafePath(final String name) {
+	static public String asSafePath(final String name) {
 		return name.trim().replace('/', '-').replace(' ', '_').replace('\\','-');
 	}
 
