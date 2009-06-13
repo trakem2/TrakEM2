@@ -1,6 +1,5 @@
 package ini.trakem2.display;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
@@ -13,33 +12,24 @@ import ini.trakem2.utils.Utils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.Graphics2D;
 import java.awt.Transparency;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
 import java.awt.image.BufferedImage;
 
 import mpicbg.ij.Mapping;
-import mpicbg.ij.TransformMapping;
 import mpicbg.ij.TransformMeshMapping;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.CoordinateTransformMesh;
-import mpicbg.models.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 
@@ -78,9 +68,12 @@ public class NonLinearTransformMode implements Mode {
 				final TransformMeshMapping mapping;
 				synchronized ( updater )
 				{
+					/*
+					 * TODO replace this with the desired parameters of the transformation
+					 */
 					final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
 					mlst.setAlpha( 1.0f );
-					Class c = AffineModel2D.class;
+					Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
 					switch (points.size()) {
 						case 1:
 							c = TranslationModel2D.class;
@@ -453,7 +446,93 @@ public class NonLinearTransformMode implements Mode {
 		return null != p_clicked;
 	}
 
-	public boolean apply() { return true; }
+	public boolean apply() {
+		/* bring all points into world space */
+		final Collection< PointMatch > worldPointMatches = new ArrayList< PointMatch >( points.size() );
+		synchronized ( updater )
+		{
+			final Rectangle r = new Rectangle( srcRect );
+			final double m = magnification;
+			for ( Map.Entry< P, P > e : points.entrySet() )
+			{
+				final P p = e.getKey();
+				final P q = e.getValue();
+				
+				final float[] l = new float[]{ q.x, q.y };
+				final float[] w = new float[]{ p.x, p.y };
+				
+				l[ 0 ] = ( float )( l[ 0 ] / m ) + r.x;
+				l[ 1 ] = ( float )( l[ 1 ] / m ) + r.y;
+				
+				w[ 0 ] = ( float )( w[ 0 ] / m ) + r.x;
+				w[ 1 ] = ( float )( w[ 1 ] / m ) + r.y;
+				
+				worldPointMatches.add(
+						new PointMatch(
+								new Point( l ), new Point( w ) ) );
+			}
+			for ( final Paintable p : screenPatches.keySet() )
+			{
+				if ( p instanceof Patch )
+				{
+					try
+					{
+						final Patch patch = ( Patch )p;
+						final AffineTransform atp = patch.getAffineTransform().createInverse();
+						final Rectangle bbox = patch.getCoordinateTransformBoundingBox();
+						
+						/*
+						 * TODO replace this with the desired parameters of the transformation
+						 */
+						final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
+						mlst.setAlpha( 1.0f );
+						Class c = AffineModel2D.class;
+						switch (points.size()) {
+							case 1:
+								c = TranslationModel2D.class;
+								break;
+							case 2:
+								c = SimilarityModel2D.class;
+								break;
+							default:
+								break;
+						}
+						mlst.setModel( c );
+						
+						/* prepare pointmatches that are local to the patch */
+						final Collection< PointMatch > localMatches = new ArrayList< PointMatch >( worldPointMatches.size() );
+						for ( final PointMatch pm : worldPointMatches )
+						{
+							final float[] l = pm.getP1().getW().clone();
+							final float[] w = pm.getP2().getW().clone();
+							
+							atp.transform( l, 0, l, 0, 1 );
+							atp.transform( w, 0, w, 0, 1 );
+							
+							l[ 0 ] -= bbox.x;
+							l[ 1 ] -= bbox.y;
+							w[ 0 ] -= bbox.x;
+							w[ 1 ] -= bbox.y;
+							
+							localMatches.add(
+									new PointMatch(
+											new Point( l ), new Point( w ) ) );
+						}
+						mlst.setMatches( localMatches );
+						patch.appendCoordinateTransform( mlst );
+						patch.getProject().getLoader().regenerateMipMaps( patch );
+					}
+					catch ( Exception e )
+					{
+						e.printStackTrace();
+					}
+				}
+			}
+			
+		}
+		
+		return true;
+	}
 	public boolean cancel() { return true; }
 
 	public Rectangle getRepaintBounds() { return display.getSelection().getLinkedBox(); } // TODO
