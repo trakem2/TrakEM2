@@ -2552,6 +2552,7 @@ public final class FSLoader extends Loader {
 							Utils.showStatus("Regenerating mipmaps (" + n_regenerating.get() + " to go)");
 							generateMipMaps(patch, false);
 							Display.repaint(patch.getLayer());
+							Display.updatePanel(patch.getLayer(), patch);
 							Utils.showStatus("");
 						} catch (Exception e) {
 							IJError.print(e);
