@@ -2060,6 +2060,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return null;
 	}
 
+	static public List<Displayable> getSelected() {
+		if (null == front) return new ArrayList<Displayable>();
+		return front.selection.getSelected();
+	}
+	static public List<Displayable> getSelected(final Class c) {
+		if (null == front) return new ArrayList<Displayable>();
+		return front.selection.getSelected(c);
+	}
+
 	public boolean isReadOnly() {
 		// TEMPORARY: in the future one will be able show displays as read-only to other people, remotely
 		return false;
