@@ -2512,6 +2512,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		}
 		protected void paint(final Graphics2D g) {
+			if (!visible) return;
 			g.setStroke(new BasicStroke((float)(linewidth/canvas.getMagnification())));
 			g.setColor(color);
 			for (final Line2D line : lines) {
@@ -2539,7 +2540,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			gd.addSlider("Blue: ", 0, 255, color.getBlue());
 			gd.addSlider("Alpha: ", 0, 255, color.getAlpha());
 			gd.addMessage("");
-			gd.addCheckbox("Visible", true);
+			gd.addCheckbox("Visible", visible);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			this.ox = (int)(gd.getNextNumber() / cal.pixelWidth);
