@@ -9,13 +9,17 @@ import ini.trakem2.display.Paintable;
 import ini.trakem2.display.graphics.GraphicsSource;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.Worker;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 import java.awt.BasicStroke;
+import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.Graphics2D;
 import java.awt.Transparency;
@@ -40,13 +44,43 @@ public class NonLinearTransformMode implements Mode {
 	{
 		void doit( final Rectangle r, final double m )
 		{
-			for ( int i = 0; i < originalPatches.size(); ++i )
-			{
-				final Displayable o = originalPatches.get( i );
-				
-				final ScreenPatch sp = new ScreenPatch( ( Patch )o, r, m );
-				screenPatches.put( o, sp );
+			// 1 - Create the list of patch ranges
+
+			// A list of Displayable to paint within the current srcRect
+			List<Displayable> to_paint = new ArrayList<Displayable>(display.getLayer().find(srcRect, true));
+
+			PatchRange current_range = new PatchRange();
+			ranges.clear();
+			ranges.add(current_range);
+
+			int last_i = -Integer.MAX_VALUE;
+
+			for (final Patch p : originalPatches) {
+				final int i = to_paint.indexOf(p);
+				if (0 == i) {
+					current_range.setAsBottom();
+					current_range.addConsecutive(p);
+				} else if (1 == i - last_i) {
+					current_range.addConsecutive(p);
+				} else {
+					current_range = new PatchRange();
+					ranges.add(current_range);
+					current_range.addConsecutive(p);
+				}
+				last_i = i;
 			}
+
+			// 2 - Create the list of ScreenPatchRange, which are Paintable
+
+			screenPatchRanges.clear();
+
+			for (final PatchRange range : ranges) {
+				final ScreenPatchRange spr = new ScreenPatchRange(range, r, m);
+				for (Patch p : range.list) {
+					screenPatchRanges.put(p, spr);
+				}
+			}
+
 			painter.update();
 		}
 	}
@@ -55,6 +89,7 @@ public class NonLinearTransformMode implements Mode {
 	{
 		void doit( final Rectangle r, final double m )
 		{
+			Utils.showMessage("Updating...");
 			try
 			{
 				final Collection< PointMatch > pm = new ArrayList<PointMatch>();
@@ -63,8 +98,8 @@ public class NonLinearTransformMode implements Mode {
 					final P p = e.getValue();
 					final P q = e.getKey();
 					pm.add( new PointMatch(
-							new Point( new float[]{ p.x + ScreenPatch.pad, p.y + ScreenPatch.pad } ),
-							new Point( new float[]{ q.x + ScreenPatch.pad, q.y + ScreenPatch.pad } ) ) );
+							new Point( new float[]{ p.x + ScreenPatchRange.pad, p.y + ScreenPatchRange.pad } ),
+							new Point( new float[]{ q.x + ScreenPatchRange.pad, q.y + ScreenPatchRange.pad } ) ) );
 				}
 				final TransformMeshMapping mapping;
 				synchronized ( updater )
@@ -87,24 +122,30 @@ public class NonLinearTransformMode implements Mode {
 					}
 					mlst.setModel( c );
 					mlst.setMatches( pm );
-					final CoordinateTransformMesh ctm = new CoordinateTransformMesh( mlst, 32, r.width * ( float )m + 2 * ScreenPatch.pad, r.height * ( float )m + 2 * ScreenPatch.pad );
+					final CoordinateTransformMesh ctm = new CoordinateTransformMesh( mlst, 32, r.width * ( float )m + 2 * ScreenPatchRange.pad, r.height * ( float )m + 2 * ScreenPatchRange.pad );
 					mapping = new TransformMeshMapping( ctm );
 				}
 				
-				for ( final ScreenPatch sp : screenPatches.values() )
+				for ( final ScreenPatchRange spr : screenPatchRanges.values())
 				{
-					sp.update( mapping );
+					spr.update( mapping );
 				}
 			}
 			catch ( Exception e ) {}
 			
 			display.getCanvas().repaint( true );
+			Utils.showMessage("");
 		}
 	}
 	
 	private abstract class SimpleThread extends Thread
 	{
 		private boolean updateAgain = false;
+
+		SimpleThread() {
+			setPriority(Thread.NORM_PRIORITY);
+			try { setDaemon(true); } catch (Exception e) {}
+		}
 		
 		public void run()
 		{
@@ -158,88 +199,24 @@ public class NonLinearTransformMode implements Mode {
 		}
 	}
 	
-	private class ScreenPatch implements Paintable
-	{
-		static final int pad = 100;
-		
-		ImageProcessor ip;
-		FloatProcessor mask;
-		
-		BufferedImage transformedImage;
-		
-		ScreenPatch( final Patch patch, final Rectangle srcRect, final double magnification )
-		{
-			final BufferedImage image = display.getCanvas().getGraphicsConfiguration().createCompatibleImage( ( int )( srcRect.width * magnification + 0.5 ) + 2 * pad, ( int )( srcRect.height * magnification + 0.5 ) + 2 * pad, Transparency.TRANSLUCENT );
-			Graphics2D g = image.createGraphics();
-			final AffineTransform atc = new AffineTransform();
-			atc.translate(pad, pad);
-			atc.scale( magnification, magnification);
-			atc.translate(-srcRect.x, -srcRect.y);
-			g.setTransform( atc );
-			patch.paint( g, magnification, false, 0xffffffff, patch.getLayer() );
-			
-			ip = new ImagePlus( patch.getTitle(), image ).getProcessor();
-			
-			final float[] pixels = new float[ ip.getWidth() * ip.getHeight() ];
-			mask = new FloatProcessor( ip.getWidth(), ip.getHeight(), image.getAlphaRaster().getPixels( 0, 0, ip.getWidth(), ip.getHeight(), pixels ), null );
-			
-			mask.setMinAndMax( 0, 255 );
-			
-			transformedImage = makeImage( ip, mask );
-		}
-
-		public void paint( Graphics2D g, double magnification, boolean active, int channels, Layer active_layer )
-		{
-			final AffineTransform at = g.getTransform();
-			final AffineTransform atp = new AffineTransform();
-			
-			atp.translate( -pad, -pad );
-			g.setTransform( atp );
-			g.drawImage( transformedImage, 0, 0, null );
-			g.setTransform( at );
-		}
-
-		public void prePaint( Graphics2D g, double magnification, boolean active, int channels, Layer active_layer )
-		{
-			paint( g, magnification, active, channels, active_layer );			
-		}
-		
-		public void update( final Mapping< ? > mapping )
-		{
-			final ImageProcessor ipTransformed = ip.createProcessor( ip.getWidth(), ip.getHeight() );
-			mapping.mapInterpolated( ip, ipTransformed );
-			
-			final FloatProcessor maskTransformed = ( FloatProcessor )mask.createProcessor( mask.getWidth(), mask.getHeight() );
-			mapping.mapInterpolated( mask, maskTransformed );
-			
-			transformedImage = makeImage( ipTransformed, maskTransformed );
-		}
-		
-		private BufferedImage makeImage( final ImageProcessor ip, final FloatProcessor mask )
-		{
-			final BufferedImage transformedImage = new BufferedImage( ip.getWidth(), ip.getHeight(), BufferedImage.TYPE_INT_ARGB );
-			transformedImage.createGraphics().drawImage( ip.createImage(), 0, 0, null );
-			transformedImage.getAlphaRaster().setPixels( 0, 0, ip.getWidth(), ip.getHeight(), ( float[] )mask.getPixels() );
-			return transformedImage;
-		}
-		
-	}
-	
 	private class NonLinearTransformSource implements GraphicsSource {
 
 		/** Returns the list given as argument without any modification. */
 		public List<? extends Paintable> asPaintable(final List<? extends Paintable> ds) {
 			final List<Paintable> newList = new ArrayList< Paintable >();
-			
+
+			final HashSet<ScreenPatchRange> used = new HashSet<ScreenPatchRange>();
+
 			/* fill it */
 			for ( final Paintable p : ds )
 			{
-				final ScreenPatch sp = screenPatches.get( p );
-				if ( sp == null )
+				final ScreenPatchRange spr = screenPatchRanges.get( p );
+				if ( spr == null )
 					newList.add(p);
-				else
+				else if (!used.contains(spr))
 				{
-					newList.add( sp );
+					used.add(spr);
+					newList.add( spr );
 				}
 			}
 			return newList;
@@ -258,6 +235,101 @@ public class NonLinearTransformMode implements Mode {
 		}
 	}
 
+	static private class PatchRange {
+		final ArrayList<Patch> list = new ArrayList<Patch>();
+		boolean starts_at_bottom = false;
+
+		void addConsecutive(Patch p) {
+			list.add(p);
+		}
+		void setAsBottom() {
+			this.starts_at_bottom = true;
+		}
+	}
+
+	static private class ScreenPatchRange implements Paintable {
+
+		ImageProcessor ip;
+		FloatProcessor mask;
+		BufferedImage transformedImage;
+		static final int pad = 100;
+
+		ScreenPatchRange(final PatchRange range, final Rectangle srcRect, final double magnification) {
+			final BufferedImage image = new BufferedImage((int)(srcRect.width * magnification + 0.5) + 2 * pad,
+					                              (int)(srcRect.height * magnification + 0.5 ) + 2 * pad,
+								      range.starts_at_bottom ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB);
+			Graphics2D g = image.createGraphics();
+			final AffineTransform atc = new AffineTransform();
+			atc.translate(pad, pad);
+			atc.scale( magnification, magnification);
+			atc.translate(-srcRect.x, -srcRect.y);
+			g.setTransform( atc );
+			for (final Patch patch : range.list) {
+				patch.paint( g, magnification, false, 0xffffffff, patch.getLayer() );
+			}
+
+			ip = new ImagePlus( "", image ).getProcessor();
+
+			if (!range.starts_at_bottom) {
+				final float[] pixels = new float[ ip.getWidth() * ip.getHeight() ];
+				mask = new FloatProcessor( ip.getWidth(), ip.getHeight(), image.getAlphaRaster().getPixels( 0, 0, ip.getWidth(), ip.getHeight(), pixels ), null );
+				
+				mask.setMinAndMax( 0, 255 );
+			}
+
+			image.flush();
+			transformedImage = makeImage(ip, mask);
+		}
+
+		public void update( final Mapping< ? > mapping )
+		{
+			final ImageProcessor ipTransformed = ip.createProcessor( ip.getWidth(), ip.getHeight() );
+			mapping.mapInterpolated( ip, ipTransformed );
+			
+			FloatProcessor maskTransformed = null;
+			if (null != mask) {
+				maskTransformed = ( FloatProcessor )mask.createProcessor( mask.getWidth(), mask.getHeight() );
+				mapping.mapInterpolated( mask, maskTransformed );
+			}
+			
+			if (null != transformedImage) transformedImage.flush();
+			transformedImage = makeImage( ipTransformed, maskTransformed );
+		}
+
+		private BufferedImage makeImage( final ImageProcessor ip, final FloatProcessor mask )
+		{
+			final BufferedImage transformedImage = new BufferedImage( ip.getWidth(), ip.getHeight(), null == mask ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB );
+			final Image img = ip.createImage();
+			transformedImage.createGraphics().drawImage( img, 0, 0, null );
+			img.flush();
+			if (null != mask) {
+				transformedImage.getAlphaRaster().setPixels( 0, 0, ip.getWidth(), ip.getHeight(), ( float[] )mask.getPixels() );
+			}
+			return transformedImage;
+		}
+
+		void flush() {
+			if (null != transformedImage) transformedImage.flush();
+		}
+
+		public void paint( Graphics2D g, double magnification, boolean active, int channels, Layer active_layer )
+		{
+			final AffineTransform at = g.getTransform();
+			final AffineTransform atp = new AffineTransform();
+			
+			atp.translate( -pad, -pad );
+			g.setTransform( atp );
+			g.drawImage( transformedImage, 0, 0, null );
+			g.setTransform( at );
+		}
+
+		public void prePaint( Graphics2D g, double magnification, boolean active, int channels, Layer active_layer )
+		{
+			paint( g, magnification, active, channels, active_layer );			
+		}
+	}
+
+
 	private Display display;
 	
 	private Rectangle srcRect;
@@ -269,7 +341,8 @@ public class NonLinearTransformMode implements Mode {
 	final private Painter painter;
 	
 	private final List<Patch> originalPatches;
-	private final HashMap<Paintable, ScreenPatch> screenPatches;
+	private final List<PatchRange> ranges;
+	private final HashMap<Paintable, ScreenPatchRange> screenPatchRanges;
 	
 	public NonLinearTransformMode(final Display display, final List<Displayable> selected) {
 		ProjectToolbar.setTool(ProjectToolbar.SELECT);
@@ -277,9 +350,13 @@ public class NonLinearTransformMode implements Mode {
 		this.srcRect = ( Rectangle )display.getCanvas().getSrcRect().clone();
 		this.magnification = display.getCanvas().getMagnification();
 		this.originalPatches = new ArrayList<Patch>();
-		for ( final Displayable o : selected )
-			if ( o instanceof Patch ) originalPatches.add( ( Patch )o );
-		this.screenPatches = new HashMap<Paintable, ScreenPatch>( originalPatches.size() );
+		this.ranges = new ArrayList<PatchRange>();
+
+		for (final Displayable d : selected) {
+			if (d instanceof Patch) originalPatches.add( (Patch) d );
+		}
+
+		this.screenPatchRanges = new HashMap<Paintable, ScreenPatchRange>( originalPatches.size() );
 		this.gs = new NonLinearTransformSource();
 
 		this.updater = new Updater();
@@ -386,13 +463,14 @@ public class NonLinearTransformMode implements Mode {
 		if (null != p_clicked) {
 			p_clicked.x += x_d - x_d_old;
 			p_clicked.y += y_d - y_d_old;
-			painter.update();
+			//painter.update();
 		}
 	}
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		// bring to screen coordinates
 		mouseDragged(me, x_p, y_p, x_r, y_r, x_d, y_d);
 		p_clicked = null; // so isDragging can return the right state
+		painter.update();
 	}
 	
 	private void updated(Rectangle srcRect, double magnification) {
@@ -466,8 +544,13 @@ public class NonLinearTransformMode implements Mode {
 		// Set undo step to reflect initial state before any transformations
 		setUndoState();
 
+		Bureaucrat.createAndStart(new Worker.Task("Applying transformations") { public void exec() {
+
+		final ArrayList<Future> futures = new ArrayList<Future>();
+
 		/* bring all points into world space */
 		final Collection< PointMatch > worldPointMatches = new ArrayList< PointMatch >( points.size() );
+
 		synchronized ( updater )
 		{
 			final Rectangle r = new Rectangle( srcRect );
@@ -490,7 +573,8 @@ public class NonLinearTransformMode implements Mode {
 						new PointMatch(
 								new Point( l ), new Point( w ) ) );
 			}
-			for ( final Paintable p : screenPatches.keySet() )
+
+			for ( final Paintable p : screenPatchRanges.keySet() )
 			{
 				if ( p instanceof Patch )
 				{
@@ -539,7 +623,7 @@ public class NonLinearTransformMode implements Mode {
 						}
 						mlst.setMatches( localMatches );
 						patch.appendCoordinateTransform( mlst );
-						patch.getProject().getLoader().regenerateMipMaps( patch );
+						futures.add( patch.getProject().getLoader().regenerateMipMaps( patch ) );
 					}
 					catch ( Exception e )
 					{
@@ -547,11 +631,22 @@ public class NonLinearTransformMode implements Mode {
 					}
 				}
 			}
-			
 		}
+
+		// flush images
+		for (ScreenPatchRange spr : new HashSet<ScreenPatchRange>(screenPatchRanges.values())) {
+			spr.flush();
+		}
+
+		// Wait until all mipmaps are regenerated
+		for (Future fu : futures) try {
+			fu.get();
+		} catch (Exception ie) {}
 
 		// Set undo step to reflect final state after applying transformations
 		setUndoState();
+
+		}}, display.getProject());
 
 		painter.quit();
 		updater.quit();
