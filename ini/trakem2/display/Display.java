@@ -2048,6 +2048,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return null; // none found
 	}
 
+	/** Get a pointer to a Display for @param project, or null if none. */
 	static public Display getFront(final Project project) {
 		if (null == front) return null;
 		if (front.project == project) return front;
@@ -2060,10 +2061,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return null;
 	}
 
+	/** Return the list of selected Displayable objects of the front Display, or an emtpy list if no Display or none selected. */
 	static public List<Displayable> getSelected() {
 		if (null == front) return new ArrayList<Displayable>();
 		return front.selection.getSelected();
 	}
+	/** Return the list of selected Displayable objects of class @param c of the front Display, or an emtpy list if no Display or none selected. */
 	static public List<Displayable> getSelected(final Class c) {
 		if (null == front) return new ArrayList<Displayable>();
 		return front.selection.getSelected(c);
