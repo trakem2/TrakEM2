@@ -3098,7 +3098,9 @@ abstract public class Loader {
 					}
 					Patch p = importImage(layer.getProject(), x, y, path, synch_mipmap_generation);
 					if (null != p) {
-						layer.add(p);
+						synchronized (layer) {
+							layer.add(p);
+						}
 						layer.getParent().enlargeToFit(p, LayerSet.NORTHWEST);
 					}
 					////
