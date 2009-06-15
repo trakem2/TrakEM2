@@ -26,7 +26,7 @@ import mpicbg.models.RigidModel2D;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
 
-public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquaresTransform implements CoordinateTransform
+public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquaresTransform implements CoordinateTransform< mpicbg.models.MovingLeastSquaresTransform >
 {
 
 	final public void init( final String data ) throws NumberFormatException

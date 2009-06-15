@@ -19,7 +19,7 @@
  */
 package mpicbg.trakem2.transform;
 
-public class CoordinateTransformList extends mpicbg.models.CoordinateTransformList implements CoordinateTransform
+public class CoordinateTransformList extends mpicbg.models.CoordinateTransformList implements CoordinateTransform< mpicbg.models.CoordinateTransformList >
 {
 	//@Override
 	final public void init( final String data )
@@ -31,8 +31,8 @@ public class CoordinateTransformList extends mpicbg.models.CoordinateTransformLi
 	final public String toXML( final String indent )
 	{
 		String s = indent + "<ict_transform_list>";
-		for ( mpicbg.models.CoordinateTransform t : l )
-			s += "\n" + ( ( CoordinateTransform )t ).toXML( indent + "\t" );
+		for ( mpicbg.models.CoordinateTransform< ? > t : l )
+			s += "\n" + ( ( CoordinateTransform< ? > )t ).toXML( indent + "\t" );
 		return s + "\n" + indent + "</ict_transform_list>";
 	}
 	
@@ -47,7 +47,7 @@ public class CoordinateTransformList extends mpicbg.models.CoordinateTransformLi
 	{
 		final CoordinateTransformList ctl = new CoordinateTransformList();
 		for ( mpicbg.models.CoordinateTransform ct : l )
-			ctl.add( ( ( CoordinateTransform )ct ).clone() );
+			ctl.add( ( ( CoordinateTransform< ? > )ct ).clone() );
 		return ctl;
 	}
 }

@@ -25,7 +25,7 @@ package mpicbg.trakem2.transform;
  * <a href="http://www.ini.uzh.ch/~acardona/trakem2.html">TrakEM2</a>.
  * 
  */
-public interface CoordinateTransform extends mpicbg.models.CoordinateTransform
+public interface CoordinateTransform< T extends mpicbg.models.CoordinateTransform< T > > extends mpicbg.models.CoordinateTransform< T >
 {
 	/**
 	 * Initialize the properties of the {@link mpicbg.models.CoordinateTransform}
@@ -52,6 +52,4 @@ public interface CoordinateTransform extends mpicbg.models.CoordinateTransform
 	 * @return
 	 */
 	public String toDataString();
-	
-	public CoordinateTransform clone();
 }
