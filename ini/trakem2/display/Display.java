@@ -212,8 +212,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != d) {
 				d.size_adjusted = true; // works in combination with mouseReleased to call pack(), avoiding infinite loops.
 				d.adjustCanvas();
+				d.navigator.repaint(false); // upate srcRect red frame position/size
 				int frame_state = d.frame.getExtendedState();
-			       	if (frame_state != d.last_frame_state) { // this setup avoids infinite loops (for pack() calls componentResized as well
+				if (frame_state != d.last_frame_state) { // this setup avoids infinite loops (for pack() calls componentResized as well
 					d.last_frame_state = frame_state;
 					if (d.frame.ICONIFIED != frame_state) d.pack();
 				}
@@ -1331,6 +1332,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Thread.currentThread().sleep(100);
 			SwingUtilities.invokeAndWait(new Runnable() { public void run() {
 				frame.pack();
+				navigator.repaint(false); // upate srcRect red frame position/size
 			}});
 		} catch (Exception e) { IJError.print(e); }
 		}});
