@@ -19,7 +19,7 @@ public class DefaultGraphicsSource implements GraphicsSource {
 
 	/** Paints bounding boxes of selected objects as pink and active object as white. */
 	public void paintOnTop(final Graphics2D g, final Display display, final Rectangle srcRect, final double magnification) {
-		if (ProjectToolbar.getToolId() != ProjectToolbar.SELECT) {
+		if (ProjectToolbar.getToolId() >= ProjectToolbar.PENCIL) { // PENCIL == SPARE2
 			return;
 		}
 		g.setColor(Color.pink);
