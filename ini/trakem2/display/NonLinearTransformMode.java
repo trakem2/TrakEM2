@@ -221,9 +221,18 @@ public class NonLinearTransformMode implements Mode {
 	static private class PatchRange {
 		final ArrayList<Patch> list = new ArrayList<Patch>();
 		boolean starts_at_bottom = false;
+		boolean is_gray = true;
 
 		void addConsecutive(Patch p) {
 			list.add(p);
+			if (is_gray) {
+				switch (p.getType()) {
+					case ImagePlus.COLOR_RGB:
+					case ImagePlus.COLOR_256:
+						is_gray = false;
+						break;
+				}
+			}
 		}
 		void setAsBottom() {
 			this.starts_at_bottom = true;
@@ -242,7 +251,10 @@ public class NonLinearTransformMode implements Mode {
 		ScreenPatchRange(final PatchRange range, final Rectangle srcRect, final double magnification) {
 			final BufferedImage image = new BufferedImage((int)(srcRect.width * magnification + 0.5) + 2 * pad,
 					                              (int)(srcRect.height * magnification + 0.5 ) + 2 * pad,
-								      range.starts_at_bottom ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB);
+								      range.starts_at_bottom ?
+								        range.is_gray ? BufferedImage.TYPE_BYTE_GRAY : BufferedImage.TYPE_INT_RGB
+									: BufferedImage.TYPE_INT_ARGB);
+
 			Graphics2D g = image.createGraphics();
 			final AffineTransform atc = new AffineTransform();
 			atc.translate(pad, pad);
