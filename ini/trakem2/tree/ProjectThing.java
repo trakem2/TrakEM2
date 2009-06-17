@@ -27,6 +27,7 @@ import ij.measure.ResultsTable;
 import ini.trakem2.Project;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
+import ini.trakem2.display.DisplayablePanel;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.display.Profile;
@@ -494,7 +495,9 @@ public final class ProjectThing extends DBObject implements Thing {
 	/** Switch the visibility of the Displayable objects contained here or in the children. */
 	public void setVisible(boolean b) {
 		if (object instanceof Displayable) {
-			((Displayable)object).setVisible(b);
+			Displayable d = (Displayable) object;
+			d.setVisible(b);
+			Display.updateCheckboxes(d, DisplayablePanel.VISIBILITY_STATE, b);
 		}
 		if (null != al_children) {
 			for (ProjectThing pt : al_children) pt.setVisible(b);
