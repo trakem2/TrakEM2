@@ -16,13 +16,12 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Future;
 import java.awt.BasicStroke;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.Graphics2D;
-import java.awt.Transparency;
+import java.awt.Stroke;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
@@ -31,6 +30,7 @@ import mpicbg.ij.Mapping;
 import mpicbg.ij.TransformMeshMapping;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
+import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.CoordinateTransformMesh;
@@ -89,42 +89,21 @@ public class NonLinearTransformMode implements Mode {
 	{
 		void doit( final Rectangle r, final double m )
 		{
-			Utils.showMessage("Updating...");
+//			Utils.showMessage("Updating...");
 			try
 			{
-				final Collection< PointMatch > pm = new ArrayList<PointMatch>();
-				for ( Map.Entry<P,P> e : points.entrySet() )
-				{
-					final P p = e.getValue();
-					final P q = e.getKey();
-					pm.add( new PointMatch(
-							new Point( new float[]{ p.x + ScreenPatchRange.pad, p.y + ScreenPatchRange.pad } ),
-							new Point( new float[]{ q.x + ScreenPatchRange.pad, q.y + ScreenPatchRange.pad } ) ) );
-				}
+				final MovingLeastSquaresTransform mlst = createMLST();
+				final SimilarityModel2D toWorld = new SimilarityModel2D();
+				toWorld.set( 1.0f / ( float )m, 0, r.x - ScreenPatchRange.pad / ( float )m, r.y - ScreenPatchRange.pad / ( float )m );
+				
+				final CoordinateTransformList ctl = new CoordinateTransformList();
+				ctl.add( toWorld );
+				ctl.add( mlst );
+				ctl.add( toWorld.createInverse() );
+				
+				final CoordinateTransformMesh ctm = new CoordinateTransformMesh( ctl, 32, r.width * ( float )m + 2 * ScreenPatchRange.pad, r.height * ( float )m + 2 * ScreenPatchRange.pad );
 				final TransformMeshMapping mapping;
-				synchronized ( updater )
-				{
-					/*
-					 * TODO replace this with the desired parameters of the transformation
-					 */
-					final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
-					mlst.setAlpha( 1.0f );
-					Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
-					switch (points.size()) {
-						case 1:
-							c = TranslationModel2D.class;
-							break;
-						case 2:
-							c = SimilarityModel2D.class;
-							break;
-						default:
-							break;
-					}
-					mlst.setModel( c );
-					mlst.setMatches( pm );
-					final CoordinateTransformMesh ctm = new CoordinateTransformMesh( mlst, 32, r.width * ( float )m + 2 * ScreenPatchRange.pad, r.height * ( float )m + 2 * ScreenPatchRange.pad );
-					mapping = new TransformMeshMapping( ctm );
-				}
+				mapping = new TransformMeshMapping( ctm );
 				
 				for ( final ScreenPatchRange spr : screenPatchRanges.values())
 				{
@@ -134,7 +113,7 @@ public class NonLinearTransformMode implements Mode {
 			catch ( Exception e ) {}
 			
 			display.getCanvas().repaint( true );
-			Utils.showMessage("");
+//			Utils.showMessage("");
 		}
 	}
 	
@@ -224,14 +203,18 @@ public class NonLinearTransformMode implements Mode {
 
 		public void paintOnTop(final Graphics2D g, final Display display, final Rectangle srcRect, final double magnification) {
 			
+			final Stroke original_stroke = g.getStroke();
 			final AffineTransform original = g.getTransform();
-			g.setTransform(new AffineTransform());
+			g.setTransform( new AffineTransform() );
 			g.setStroke( new BasicStroke( 1.0f ) );
-			for ( P p : points.keySet()) {
-				//IJ.log( p.x + ", " + p.y );
-				Utils.drawPoint( g, p.x, p.y );
+			for ( final Point p : points )
+			{
+				final float[] w = p.getW();
+				Utils.drawPoint( g, Math.round( ( float )magnification * ( w[ 0 ] - srcRect.x ) ), Math.round( ( float )magnification * ( w[ 1 ] - srcRect.y ) ) );
 			}
-			g.setTransform(original);
+			
+			g.setTransform( original );
+			g.setStroke( original_stroke );
 		}
 	}
 
@@ -249,8 +232,10 @@ public class NonLinearTransformMode implements Mode {
 
 	static private class ScreenPatchRange implements Paintable {
 
-		ImageProcessor ip;
-		FloatProcessor mask;
+		final ImageProcessor ip;
+		final ImageProcessor ipTransformed;
+		final FloatProcessor mask;
+		final FloatProcessor maskTransformed;
 		BufferedImage transformedImage;
 		static final int pad = 100;
 
@@ -269,12 +254,19 @@ public class NonLinearTransformMode implements Mode {
 			}
 
 			ip = new ImagePlus( "", image ).getProcessor();
-
+			ipTransformed = ip.createProcessor( ip.getWidth(), ip.getHeight() );
+			ipTransformed.snapshot();
+			
 			if (!range.starts_at_bottom) {
 				final float[] pixels = new float[ ip.getWidth() * ip.getHeight() ];
 				mask = new FloatProcessor( ip.getWidth(), ip.getHeight(), image.getAlphaRaster().getPixels( 0, 0, ip.getWidth(), ip.getHeight(), pixels ), null );
-				
-				mask.setMinAndMax( 0, 255 );
+				maskTransformed = new FloatProcessor( ip.getWidth(), ip.getHeight() );
+				maskTransformed.snapshot();
+			}
+			else
+			{
+				mask = null;
+				maskTransformed = null;
 			}
 
 			image.flush();
@@ -283,13 +275,12 @@ public class NonLinearTransformMode implements Mode {
 
 		public void update( final Mapping< ? > mapping )
 		{
-			final ImageProcessor ipTransformed = ip.createProcessor( ip.getWidth(), ip.getHeight() );
-			mapping.mapInterpolated( ip, ipTransformed );
+			ipTransformed.reset();
+			mapping.map( ip, ipTransformed );
 			
-			FloatProcessor maskTransformed = null;
 			if (null != mask) {
-				maskTransformed = ( FloatProcessor )mask.createProcessor( mask.getWidth(), mask.getHeight() );
-				mapping.mapInterpolated( mask, maskTransformed );
+				mask.reset();
+				mapping.map( mask, maskTransformed );
 			}
 			
 			if (null != transformedImage) transformedImage.flush();
@@ -379,159 +370,127 @@ public class NonLinearTransformMode implements Mode {
 	public boolean canZoom() { return true; }
 	public boolean canPan() { return true; }
 
-	/* transformed points are key, originals are value */
-	private HashMap<P,P> points = new HashMap<P,P>();
+	private Collection< Point > points = new ArrayList< Point >();
 	
-	private P p_clicked = null;
+	private Point p_clicked = null;
 	
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
-		// bring to screen coordinates
-		x_p = display.getCanvas().screenX(x_p);
-		y_p = display.getCanvas().screenY(y_p);
-
-		// find if clicked on a point
-		// TODO iterate all and find the closest point instead
+	public void mousePressed( MouseEvent me, int x_p, int y_p, double magnification )
+	{
+		/* find if clicked on a point */
 		p_clicked = null;
-		for (P p : points.keySet()) {
-			if (Math.sqrt(Math.pow(p.x - x_p, 2) + Math.pow(p.y - y_p, 2)) <= 8) {
+		float min = Float.MAX_VALUE;
+		final Point mouse = new Point( new float[]{ x_p, y_p } );
+		final float a = ( float )( 64 / magnification / magnification);
+		for ( final Point p : points )
+		{
+			final float sd = Point.squareDistance( p, mouse );
+			if ( sd < min && sd < a )
+			{
 				p_clicked = p;
-				break;
+				min = sd;
 			}
 		}
 
-		if (me.isShiftDown()) {
-			if (null == p_clicked) {
-				// add one
-				try {
-					if (0 == points.size()) {
-						p_clicked = new P(x_p, y_p);
-						points.put(p_clicked, new P(x_p, y_p));
-					} else {
-						Class c = AffineModel2D.class;
-						switch (points.size()) {
-							case 1:
-								c = TranslationModel2D.class;
-								break;
-							case 2:
-								c = SimilarityModel2D.class;
-								break;
-							default:
-								break;
-						}
-						final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
-						mlst.setAlpha(1.0f);
-						mlst.setModel( c );
-						final Collection< PointMatch > pm = new ArrayList<PointMatch>();
-						for ( Map.Entry<P,P> e : points.entrySet() )
-						{
-							final P p = e.getValue();
-							final P q = e.getKey();
-							pm.add( new PointMatch(
-									new Point( new float[]{ p.x, p.y } ),
-									new Point( new float[]{ q.x, q.y } ) ) );
-						}
-						mlst.setMatches(pm);
-						final CoordinateTransformMesh ctm = new CoordinateTransformMesh( mlst, 32,
-								srcRect.width * ( float )magnification,
-								srcRect.height * ( float )magnification);
-						final float[] fc = new float[]{x_p, y_p};
-						ctm.applyInverseInPlace( fc );
+		if ( me.isShiftDown() )
+		{
+			if ( null == p_clicked )
+			{
+				/* add one */
+				try
+				{
+					if ( points.size() > 0 )
+					{
+						/* 
+						 * Create a pseudo-invertible (TransformMesh) for the screen.
+						 */
+						final MovingLeastSquaresTransform mlst = createMLST();
+						final SimilarityModel2D toWorld = new SimilarityModel2D();
+						toWorld.set( 1.0f / ( float )magnification, 0, srcRect.x, srcRect.y );
+						final SimilarityModel2D toScreen = toWorld.createInverse();
 						
-						p_clicked = new P( x_p, y_p);
-						points.put(p_clicked, new P( (int) fc[0], (int) fc[1]));
+						final CoordinateTransformList ctl = new CoordinateTransformList();
+						ctl.add( toWorld );
+						ctl.add( mlst );
+						ctl.add( toScreen );
+				
+						final CoordinateTransformMesh ctm = new CoordinateTransformMesh(
+								ctl,
+								32,
+								( int )Math.ceil( srcRect.width * magnification ),
+								( int )Math.ceil( srcRect.height * magnification ) );
+						
+						final float[] l = mouse.getL();
+						toScreen.applyInPlace( l );
+						ctm.applyInverseInPlace( l );
+						toWorld.applyInPlace( l );
 					}
-				} catch (Exception e) {
-					Utils.log("Could not add point");
+					points.add( mouse );
+					p_clicked = mouse;
+				}
+				catch ( Exception e )
+				{
+					Utils.log( "Could not add point" );
 					e.printStackTrace();
 				}
-			} else if (Utils.isControlDown(me)) {
+			}
+			else if ( Utils.isControlDown( me ) )
+			{
 				// remove it
 				//IJ.log("removing " + p_clicked);
 				//IJ.log("removed: " + points.remove(p_clicked));
-				p_clicked = null;
+			 	p_clicked = null;
 			}
 		}
 	}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
-		// bring to screen coordinates
-		x_d = display.getCanvas().screenX(x_d);
-		y_d = display.getCanvas().screenY(y_d);
-		x_d_old = display.getCanvas().screenX(x_d_old);
-		y_d_old = display.getCanvas().screenY(y_d_old);
-
-		if (null != p_clicked) {
-			p_clicked.x += x_d - x_d_old;
-			p_clicked.y += y_d - y_d_old;
-			//painter.update();
+	public void mouseDragged( MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old )
+	{
+		if ( null != p_clicked )
+		{
+			final float[] w = p_clicked.getW();
+			w[ 0 ] += x_d - x_d_old;
+			w[ 1 ] += y_d - y_d_old;
+			painter.update();
 		}
 	}
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased( MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r )
+	{
 		// bring to screen coordinates
-		mouseDragged(me, x_p, y_p, x_r, y_r, x_d, y_d);
+		mouseDragged( me, x_p, y_p, x_r, y_r, x_d, y_d );
 		p_clicked = null; // so isDragging can return the right state
-		painter.update();
 	}
 	
-	private void updated(Rectangle srcRect, double magnification) {
-		synchronized ( updater )
-		{
-			if ( this.srcRect.x == srcRect.x && this.srcRect.y == srcRect.y
-			  && this.srcRect.width == srcRect.width && this.srcRect.height == srcRect.height
-			  && this.magnification == magnification ) return;
-
-			for ( Map.Entry<P, P> e : points.entrySet() )
-			{
-				final P p = e.getKey();
-				final P q = e.getValue();
-				double x = p.x;
-				x /= this.magnification;
-				x += this.srcRect.x - srcRect.x;
-				x *= magnification;
-				p.x = ( int )Math.round( x );
-				double y = p.y;
-				y /= this.magnification;
-				y += this.srcRect.y - srcRect.y;
-				y *= magnification;
-				p.y = ( int )Math.round( y );
-				x = q.x;
-				x /= this.magnification;
-				x += this.srcRect.x - srcRect.x;
-				x *= magnification;
-				q.x = ( int )Math.round( x );
-				y = q.y;
-				y /= this.magnification;
-				y += this.srcRect.y - srcRect.y;
-				y *= magnification;
-				q.y = ( int )Math.round( y );
-			}
-			this.srcRect = (Rectangle) srcRect.clone();
-			this.magnification = magnification;
-		}
+	private void updated( final Rectangle srcRect, double magnification )
+	{
+		if (
+				this.srcRect.x == srcRect.x &&
+				this.srcRect.y == srcRect.y &&
+				this.srcRect.width == srcRect.width &&
+				this.srcRect.height == srcRect.height &&
+				this.magnification == magnification )
+			return;
+		
+		this.srcRect = (Rectangle) srcRect.clone();
+		this.magnification = magnification;
+		
 		updater.update();
 	}
 
-	private class P {
-		int x, y;
-		P(int x, int y)
-		{
-			this.x = x;
-			this.y = y;
-		}
+	public void srcRectUpdated( Rectangle srcRect, double magnification )
+	{
+		updated( srcRect, magnification );
 	}
-
-	public void srcRectUpdated(Rectangle srcRect, double magnification) {
-		updated(srcRect, magnification);
-	}
-	public void magnificationUpdated(Rectangle srcRect, double magnification) {
-		updated(srcRect, magnification);
+	public void magnificationUpdated( Rectangle srcRect, double magnification )
+	{
+		updated( srcRect, magnification );
 	}
 
 	public void redoOneStep() {}
 
 	public void undoOneStep() {}
 
-	public boolean isDragging() {
+	public boolean isDragging()
+	{
 		return null != p_clicked;
 	}
 
@@ -539,114 +498,72 @@ public class NonLinearTransformMode implements Mode {
 		display.getLayerSet().addEditStep(new Displayable.DoEdits(new HashSet<Displayable>(originalPatches)).init(new String[]{"data", "at", "width", "height"}));
 	}
 
-	public boolean apply() {
+	public boolean apply()
+	{
 
-		// Set undo step to reflect initial state before any transformations
+		/* Set undo step to reflect initial state before any transformations */
 		setUndoState();
-
-		Bureaucrat.createAndStart(new Worker.Task("Applying transformations") { public void exec() {
-
-		final ArrayList<Future> futures = new ArrayList<Future>();
-
-		/* bring all points into world space */
-		final Collection< PointMatch > worldPointMatches = new ArrayList< PointMatch >( points.size() );
-
-		synchronized ( updater )
+		
+		Bureaucrat.createAndStart( new Worker.Task( "Applying transformations" )
 		{
-			final Rectangle r = new Rectangle( srcRect );
-			final double m = magnification;
-			for ( Map.Entry< P, P > e : points.entrySet() )
+			public void exec()
 			{
-				final P p = e.getKey();
-				final P q = e.getValue();
-				
-				final float[] l = new float[]{ q.x, q.y };
-				final float[] w = new float[]{ p.x, p.y };
-				
-				l[ 0 ] = ( float )( l[ 0 ] / m ) + r.x;
-				l[ 1 ] = ( float )( l[ 1 ] / m ) + r.y;
-				
-				w[ 0 ] = ( float )( w[ 0 ] / m ) + r.x;
-				w[ 1 ] = ( float )( w[ 1 ] / m ) + r.y;
-				
-				worldPointMatches.add(
-						new PointMatch(
-								new Point( l ), new Point( w ) ) );
-			}
+				final ArrayList< Future > futures = new ArrayList< Future >();
 
-			for ( final Paintable p : screenPatchRanges.keySet() )
-			{
-				if ( p instanceof Patch )
+				synchronized ( updater )
 				{
-					try
+					for ( final Paintable p : screenPatchRanges.keySet() )
 					{
-						final Patch patch = ( Patch )p;
-						final AffineTransform atp = patch.getAffineTransform().createInverse();
-						final Rectangle bbox = patch.getCoordinateTransformBoundingBox();
-						
-						/*
-						 * TODO replace this with the desired parameters of the transformation
-						 */
-						final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
-						mlst.setAlpha( 1.0f );
-						Class c = AffineModel2D.class;
-						switch (points.size()) {
-							case 1:
-								c = TranslationModel2D.class;
-								break;
-							case 2:
-								c = SimilarityModel2D.class;
-								break;
-							default:
-								break;
-						}
-						mlst.setModel( c );
-						
-						/* prepare pointmatches that are local to the patch */
-						final Collection< PointMatch > localMatches = new ArrayList< PointMatch >( worldPointMatches.size() );
-						for ( final PointMatch pm : worldPointMatches )
+						if ( p instanceof Patch )
 						{
-							final float[] l = pm.getP1().getW().clone();
-							final float[] w = pm.getP2().getW().clone();
-							
-							atp.transform( l, 0, l, 0, 1 );
-							atp.transform( w, 0, w, 0, 1 );
-							
-							l[ 0 ] -= bbox.x;
-							l[ 1 ] -= bbox.y;
-							w[ 0 ] -= bbox.x;
-							w[ 1 ] -= bbox.y;
-							
-							localMatches.add(
-									new PointMatch(
-											new Point( l ), new Point( w ) ) );
+							try
+							{
+								final Patch patch = ( Patch ) p;
+								final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
+								final AffineTransform pat = patch.getAffineTransformCopy();
+								pat.translate( -pbox.x, -pbox.y );
+								
+								final AffineModel2D toWorld = new AffineModel2D();
+								toWorld.set( pat );
+								
+								final MovingLeastSquaresTransform mlst = createMLST();
+								
+								final CoordinateTransformList ctl = new CoordinateTransformList();
+								ctl.add( toWorld );
+								ctl.add( mlst );
+								ctl.add( toWorld.createInverse() );
+								
+								patch.appendCoordinateTransform( ctl );
+								futures.add( patch.getProject().getLoader().regenerateMipMaps( patch ) );
+							}
+							catch ( Exception e )
+							{
+								e.printStackTrace();
+							}
 						}
-						mlst.setMatches( localMatches );
-						patch.appendCoordinateTransform( mlst );
-						futures.add( patch.getProject().getLoader().regenerateMipMaps( patch ) );
-					}
-					catch ( Exception e )
-					{
-						e.printStackTrace();
 					}
 				}
+
+				/* Flush images */
+				for ( ScreenPatchRange spr : new HashSet< ScreenPatchRange >( screenPatchRanges.values() ) )
+				{
+					spr.flush();
+				}
+
+				/* Wait until all mipmaps are regenerated */
+				for ( Future fu : futures )
+					try
+					{
+						fu.get();
+					}
+					catch ( Exception ie )
+					{}
+
+				// Set undo step to reflect final state after applying transformations
+				setUndoState();
+
 			}
-		}
-
-		// flush images
-		for (ScreenPatchRange spr : new HashSet<ScreenPatchRange>(screenPatchRanges.values())) {
-			spr.flush();
-		}
-
-		// Wait until all mipmaps are regenerated
-		for (Future fu : futures) try {
-			fu.get();
-		} catch (Exception ie) {}
-
-		// Set undo step to reflect final state after applying transformations
-		setUndoState();
-
-		}}, display.getProject());
+		}, display.getProject() );
 
 		painter.quit();
 		updater.quit();
@@ -660,5 +577,34 @@ public class NonLinearTransformMode implements Mode {
 	}
 
 	public Rectangle getRepaintBounds() { return (Rectangle) srcRect.clone(); }
+	
+	private MovingLeastSquaresTransform createMLST() throws Exception
+	{
+		final Collection< PointMatch > pm = new ArrayList<PointMatch>();
+		for ( Point p : points )
+		{
+			pm.add( new PointMatch( new Point( p.getL() ), new Point( p.getW() ) ) );
+		}
+		/*
+		 * TODO replace this with the desired parameters of the transformation
+		 */
+		final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
+		mlst.setAlpha( 1.0f );
+		Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
+		switch (points.size()) {
+			case 1:
+				c = TranslationModel2D.class;
+				break;
+			case 2:
+				c = SimilarityModel2D.class;
+				break;
+			default:
+				break;
+		}
+		mlst.setModel( c );
+		mlst.setMatches( pm );
+		
+		return mlst;
+	}
 
 }
