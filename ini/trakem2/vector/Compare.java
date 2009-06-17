@@ -982,7 +982,7 @@ public class Compare {
 		double prop_mut; // the proportion of mutation pairs relative to the length of the queried sequence
 		float prop_len; // the proportion of length of query sequence versus reference sequence
 		double proximity; // unitless value: cummulative distance of pairs relative to query sequence length
-		double proximity_mut; // unitless value: cummulative distance of only mutation pairs relative to query sequence length
+		double proximity_mut; // unitless value: cummulative distance of only mutation pairs relative to query sequence length  ## TODO not unitless, this is the same as the average
 		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double[] stats, final float prop_len, final double score) {
 			this.query = query;
 			this.ref = ref;
