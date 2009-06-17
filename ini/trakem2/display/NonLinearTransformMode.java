@@ -448,8 +448,7 @@ public class NonLinearTransformMode implements Mode {
 			else if ( Utils.isControlDown( me ) )
 			{
 				// remove it
-				//IJ.log("removing " + p_clicked);
-				//IJ.log("removed: " + points.remove(p_clicked));
+				points.remove(p_clicked);
 			 	p_clicked = null;
 			}
 		}
