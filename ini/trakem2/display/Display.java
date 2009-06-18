@@ -3295,19 +3295,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			int the_type = ImagePlus.GRAY8;
 			final GenericDialog gd = new GenericDialog("Choose", frame);
 			gd.addSlider("Scale: ", 1, 100, 100);
+			gd.addNumericField("Width: ", srcRect.width, 0);
+			gd.addNumericField("height: ", srcRect.height, 0);
+			// connect the above 3 fields:
+			Vector numfields = gd.getNumericFields();
+			UpdateDimensionField udf = new UpdateDimensionField(srcRect.width, srcRect.height, (TextField) numfields.get(1), (TextField) numfields.get(2), (TextField) numfields.get(0), (Scrollbar) gd.getSliders().get(0));
+			for (Object ob : numfields) ((TextField)ob).addTextListener(udf);
+
 			gd.addChoice("Type: ", types, types[0]);
 			if (layer.getParent().size() > 1) {
-				/*
-				String[] layers = new String[layer.getParent().size()];
-				int i = 0;
-				for (Iterator it = layer.getParent().getLayers().iterator(); it.hasNext(); ) {
-					layers[i] = layer.getProject().findLayerThing((Layer)it.next()).toString();
-					i++;
-				}
-				int i_layer = layer.getParent().indexOf(layer);
-				gd.addChoice("Start: ", layers, layers[i_layer]);
-				gd.addChoice("End: ", layers, layers[i_layer]);
-				*/
 				Utils.addLayerRangeChoices(Display.this.layer, gd); /// $#%! where are my lisp macros
 				gd.addCheckbox("Include non-empty layers only", true);
 			}
@@ -3325,6 +3321,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				Utils.showMessage("Invalid scale.");
 				return;
 			}
+
+			// consuming and ignoring width and height:
+			gd.getNextNumber();
+			gd.getNextNumber();
+
 			Layer[] layer_array = null;
 			boolean non_empty_only = false;
 			if (layer.getParent().size() > 1) {
@@ -3848,6 +3849,52 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		}});
 	}
+
+	private static class UpdateDimensionField implements TextListener {
+		final TextField width, height, scale;
+		final Scrollbar bar;
+		final int initial_width, initial_height;
+		UpdateDimensionField(int initial_width, int initial_height, TextField width, TextField height, TextField scale, Scrollbar bar) {
+			this.initial_width = initial_width;
+			this.initial_height = initial_height;
+			this.width = width;
+			this.height = height;
+			this.scale = scale;
+			this.bar = bar;
+		}
+		public void textValueChanged(TextEvent e) {
+			try {
+				final TextField source = (TextField) e.getSource();
+				if (scale == source && (scale.isFocusOwner() || bar.isFocusOwner())) {
+					final double sc = Double.parseDouble(scale.getText()) / 100;
+					// update both
+					width.setText(Integer.toString((int) (sc * initial_width + 0.5)));
+					height.setText(Integer.toString((int) (sc * initial_height + 0.5)));
+				} else if (width == source && width.isFocusOwner()) {
+					/*
+					final int width = Integer.toString((int) (width.getText() + 0.5));
+					final double sc = width / (double)initial_width;
+					scale.setText(Integer.toString((int)(sc * 100 + 0.5)));
+					height.setText(Integer.toString((int)(sc * initial_height + 0.5)));
+					*/
+					set(width, height, initial_width, initial_height);
+				} else if (height == source && height.isFocusOwner()) {
+					set(height, width, initial_height, initial_width);
+				}
+			} catch (NumberFormatException nfe) {
+				Utils.logAll("Unparsable number: " + nfe.getMessage());
+			} catch (Exception ee) {
+				IJError.print(ee);
+			}
+		}
+		private void set(TextField source, TextField target, int initial_source, int initial_target) {
+			final int dim = (int) ((Double.parseDouble(source.getText()) + 0.5));
+			final double sc = dim / (double)initial_source;
+			scale.setText(Utils.cutNumber(sc * 100, 3));
+			target.setText(Integer.toString((int)(sc * initial_target + 0.5)));
+		}
+	}
+
 
 	/** Update in all displays the Transform for the given Displayable if it's selected. */
 	static public void updateTransform(final Displayable displ) {
