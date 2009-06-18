@@ -304,7 +304,8 @@ public final class Patch extends Displayable {
 	public double getMin() { return min; }
 	public double getMax() { return max; }
 
-	/** Needs a non-null ImagePlus with a non-null ImageProcessor in it. This method is meant to be called only mmediately after the ImagePlus is loaded. */
+	/** Needs a non-null ImagePlus with a non-null ImageProcessor in it. This method is meant to be called only immediately after the ImagePlus is loaded. */
+	/* // OBSOLETE
 	public void putMinAndMax(final ImagePlus imp) throws Exception {
 		ImageProcessor ip = imp.getProcessor();
 		// adjust lack of values
@@ -316,6 +317,7 @@ public final class Patch extends Displayable {
 		}
 		//Utils.log2("Patch.putMinAndMax: min,max " + min + "," + max);
 	}
+	*/
 
 	/** Returns the ImagePlus type of this Patch. */
 	public int getType() {
