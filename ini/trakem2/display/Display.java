@@ -1522,6 +1522,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	/** Repaint as much as the bounding box around the given Displayable, or the r if not null. */
 	private void repaint(final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator, final boolean update_graphics) {
 		if (repaint_disabled || null == displ) return;
+		canvas.invalidateVolatile();
 		if (update_graphics || displ.getClass() == Patch.class || displ != active) {
 			canvas.setUpdateGraphics(true);
 		}
