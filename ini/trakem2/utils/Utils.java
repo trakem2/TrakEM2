@@ -1190,7 +1190,9 @@ public class Utils implements ij.plugin.PlugIn {
 				final File fdir = dirs.get(i);
 				Utils.log2("Examining folder for deletion: " + fdir.getName());
 				boolean remove = true;
-				for (final File file : fdir.listFiles()) {
+				File[] files = fdir.listFiles();
+				if (null == files) continue; // can be null if the directory doesn't contain any files. Why not just return an empty array!?
+				for (final File file : files) {
 					String name = file.getName();
 					if (name.equals(".") || name.equals("..")) continue;
 					if (file.isDirectory()) {

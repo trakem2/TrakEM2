@@ -2710,24 +2710,27 @@ public final class FSLoader extends Loader {
 			this.dir_masks = null;
 			if (fmasks.exists()) {
 				final String new_dir_masks = unuid_folder + "trakem2.masks/";
-				for (final File fmask : fmasks.listFiles()) {
-					final String name = fmask.getName();
-					if (!name.endsWith(".zip")) continue;
-					int last_dot = name.lastIndexOf('.');
-					if (-1 == last_dot) continue;
-					int prev_last_dot = name.lastIndexOf('.', last_dot -1);
-					String id = name.substring(prev_last_dot+1, last_dot);
-					String filename = name.substring(0, prev_last_dot);
-					File newf = new File(new_dir_masks + createIdPath(id, filename, ".zip"));
-					File fd = newf.getParentFile();
-					fd.mkdirs();
-					if (!fd.exists()) {
-						Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
-						continue;
-					}
-					if (!fmask.renameTo(newf)) {
-						Utils.log2("Could not move mask file " + fmask.getAbsolutePath() + " to " + newf.getAbsolutePath());
-						continue;
+				final File[] fmask_files = fmasks.listFiles();
+				if (null != fmask_files) { // can be null if there are no files inside fmask directory
+					for (final File fmask : fmask_files) {
+						final String name = fmask.getName();
+						if (!name.endsWith(".zip")) continue;
+						int last_dot = name.lastIndexOf('.');
+						if (-1 == last_dot) continue;
+						int prev_last_dot = name.lastIndexOf('.', last_dot -1);
+						String id = name.substring(prev_last_dot+1, last_dot);
+						String filename = name.substring(0, prev_last_dot);
+						File newf = new File(new_dir_masks + createIdPath(id, filename, ".zip"));
+						File fd = newf.getParentFile();
+						fd.mkdirs();
+						if (!fd.exists()) {
+							Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
+							continue;
+						}
+						if (!fmask.renameTo(newf)) {
+							Utils.log2("Could not move mask file " + fmask.getAbsolutePath() + " to " + newf.getAbsolutePath());
+							continue;
+						}
 					}
 				}
 				// Set it!
