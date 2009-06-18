@@ -444,15 +444,13 @@ public final class FSLoader extends Loader {
 		return null;
 	}
 
-	/* Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImagePlust.getProcessor().
-	 * or just use the Patch.getImageProcessor() method which does it for you. */
+	/* Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImagePlus.getProcessor(). */
 	public ImagePlus fetchImagePlus(final Patch p) {
 		return (ImagePlus)fetchImage(p, Layer.IMAGEPLUS);
 	}
 
 	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example.
-	 * Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImageProcessor,
-	 * or just use the Patch.getImageProcessor() method which does it for you. */
+	 * Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImageProcessor. */
 	public ImageProcessor fetchImageProcessor(final Patch p) {
 		return (ImageProcessor)fetchImage(p, Layer.IMAGEPROCESSOR);
 	}
@@ -1452,7 +1450,7 @@ public final class FSLoader extends Loader {
 	}
 
 	static public final BufferedImage convertToBufferedImage(final ByteProcessor bp) {
-		bp.setMinAndMax(0, 255);
+		bp.setMinAndMax(0, 255); // TODO what is this doing here? The ByteProcessor.setMinAndMax is destructive, it expands the pixel values to the desired range.
 		final Image img = bp.createImage();
 		if (img instanceof BufferedImage) return (BufferedImage)img;
 		//else:
