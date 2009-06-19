@@ -411,7 +411,7 @@ public class Align
 								1000,
 								p.maxEpsilon,
 								p.minInlierRatio,
-								3 * model.getMinNumMatches(),
+								Math.max( 7, 3 * model.getMinNumMatches() ),
 								3 );
 					}
 					catch ( NotEnoughDataPointsException e )
