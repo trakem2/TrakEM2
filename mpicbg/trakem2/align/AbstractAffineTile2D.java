@@ -141,6 +141,8 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 		else
 			mask = pai.mask;
 		
+		pai.target.setMinAndMax( patch.getMin(), patch.getMax() );
+		
 		final ByteProcessor target = ( ByteProcessor )pai.target.convertToByte( true );
 		
 		if ( mask != null )
