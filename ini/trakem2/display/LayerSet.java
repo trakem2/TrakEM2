@@ -1605,7 +1605,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	boolean addDataEditStep(final Displayable d) {
 		//Utils.log2("Adding data edit step");
 		// Adds "data", which contains width,height,affinetransform,links, and the data (points, areas, etc.)
-		return addEditStep(new Displayable.DoEdit(d).init(d, new String[]{"data"}));
+		return addDataEditStep(d, new String[]{"data"});
+	}
+	/** A new undo step for any desired fields of Displayable d. */
+	boolean addDataEditStep(final Displayable d, final String[] fields) {
+		return addEditStep(new Displayable.DoEdit(d).init(d, fields));
 	}
 
 	/** A new undo step for the "data" field of all Displayable in the set. */

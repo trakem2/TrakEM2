@@ -75,13 +75,13 @@ public class Profile extends Displayable {
 	/**The number of points.*/
 	protected int n_points;
 	/**The array of clicked points.*/
-	protected double[][] p;
+	protected double[][] p = new double[2][5];
 	/**The array of left control points, one for each clicked point.*/
-	protected double[][] p_l;
+	protected double[][] p_l = new double[2][5];
 	/**The array of right control points, one for each clicked point.*/
-	protected double[][] p_r;
+	protected double[][] p_r = new double[2][5];
 	/**The array of interpolated points generated from p, p_l and p_r.*/
-	protected double[][] p_i;
+	protected double[][] p_i = new double[2][0];
 	/**Paint/behave as open or closed curve.*/
 	protected boolean closed = false;
 
@@ -89,10 +89,6 @@ public class Profile extends Displayable {
 	public Profile(Project project, String title, double x, double y) {
 		super(project, title, x, y);
 		n_points = 0;
-		p = new double[2][5];
-		p_l = new double[2][5];
-		p_r = new double[2][5];
-		p_i = new double[2][0];
 		addToDatabase();
 	}
 
@@ -219,7 +215,7 @@ public class Profile extends Displayable {
 					}
 					// example: C 34.5,45.6 45.7,23.0 34.8, 78.0 C ..
 				}
-				this.closed = (-1 != data.lastIndexOf('z')); // 'z' must be lowercase to comply with SVG style
+				// NO, usability problems // this.closed = (-1 != data.lastIndexOf('z')); // 'z' must be lowercase to comply with SVG style
 				if (this.closed) {
 					// prepend last left control point and delete from the end
 					al_p_l.add(0, al_p_l.remove(al_p_l.size() -1));
@@ -641,25 +637,18 @@ public class Profile extends Displayable {
 					resetControlPoints(index);
 					return;
 				} else if (me.isShiftDown()) {
-					//preconditions: at least 2 points!
-					if (n_points < 2) {
+					if (0 == index && n_points > 1 && !closed) {
+						//close curve, reset left control point of the first point and set it up for dragging
+						closed = true;
+						updateInDatabase("closed");
+						p_l[0][0] = p[0][0];
+						p_l[1][0] = p[1][0];
+						index = -1;
+						index_r = -1;
+						index_l = 0; //the first one
+						repaint(false);
 						return;
 					}
-					toggleClosed();
-					generateInterpolatedPoints(0.05);
-					repaint(false);
-					return;
-				} else if (0 == index && n_points > 1 && !closed) {
-					//close curve, reset left control point of the first point and set it up for dragging
-					closed = true;
-					updateInDatabase("closed");
-					p_l[0][0] = p[0][0];
-					p_l[1][0] = p[1][0];
-					index = -1;
-					index_r = -1;
-					index_l = 0; //the first one
-					repaint(false);
-					return;
 				}
 			}
 
@@ -1365,6 +1354,16 @@ public class Profile extends Displayable {
 				ke.consume();
 				if (closed) toggleClosed();
 				updateInDatabase("points");
+			}
+			break;
+		case KeyEvent.VK_C: // toggle close with shift+c
+			if (0 == (ke.getModifiers() ^ java.awt.Event.SHIFT_MASK)) {
+				//preconditions: at least 2 points!
+				if (n_points > 1) {
+					toggleClosed();
+					generateInterpolatedPoints(0.05);
+					ke.consume();
+				}
 			}
 			break;
 		}

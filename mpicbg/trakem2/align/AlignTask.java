@@ -270,7 +270,7 @@ final public class AlignTask
 		final List< Layer > layers = l.getParent().getLayers();
 		final String[] layerTitles = new String[ layers.size() ];
 		for ( int i = 0; i < layers.size(); ++i )
-			layerTitles[ i ] = layers.get( i ).getTitle();
+			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
 		
 		//Param p = Align.param;
 		Align.param.sift.maxOctaveSize = 1600;
@@ -278,8 +278,9 @@ final public class AlignTask
 		final GenericDialog gd = new GenericDialog( "Align Layers Linearly" );
 		
 		gd.addMessage( "Layer Range:" );
-		gd.addChoice( "first :", layerTitles, l.getTitle() );
-		gd.addChoice( "last :", layerTitles, l.getTitle() );
+		final int sel = layers.indexOf(l);
+		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
+		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		Align.param.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
@@ -442,13 +443,14 @@ final public class AlignTask
 		final List< Layer > layers = l.getParent().getLayers();
 		final String[] layerTitles = new String[ layers.size() ];
 		for ( int i = 0; i < layers.size(); ++i )
-			layerTitles[ i ] = layers.get( i ).getTitle();
+			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
 		
 		final GenericDialog gd1 = new GenericDialog( "Align Multi-Layer Mosaic : Layer Range" );
 		
 		gd1.addMessage( "Layer Range:" );
-		gd1.addChoice( "first :", layerTitles, l.getTitle() );
-		gd1.addChoice( "last :", layerTitles, l.getTitle() );
+		final int sel = layers.indexOf(l);
+		gd1.addChoice( "first :", layerTitles, layerTitles[ sel ] );
+		gd1.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		
 		gd1.addMessage( "Miscellaneous:" );
 		gd1.addCheckbox( "tiles are rougly in place", false );
@@ -584,5 +586,133 @@ final public class AlignTask
 		layerRange.get(0).getParent().setMinimumDimensions();
 		
 		return;
+	}
+
+
+	/** The ParamOptimize object containg all feature extraction and registration model parameters for the "snap" function. */
+	static public final Align.ParamOptimize p_snap = Align.paramOptimize.clone();
+
+	/** Find the most overlapping image to @param patch in the same layer where @param patch sits, and snap @param patch and all its linked Displayable objects.
+	 *  If a null @param p_snap is given, it will use the AlignTask.p_snap.
+	 *  If @param setup is true, it will show a dialog to adjust parameters. */
+	static public final Bureaucrat snap(final Patch patch, final Align.ParamOptimize p_snap, final boolean setup) {
+		return Bureaucrat.createAndStart(new Worker.Task("Snapping") {
+			public void exec() {
+
+		final Align.ParamOptimize p = null == p_snap ? AlignTask.p_snap : p_snap;
+		if (setup) p.setup("Snap");
+
+		// Collect Patch linked to active
+		final List<Displayable> linked_images = new ArrayList<Displayable>();
+		for (final Displayable d : patch.getLinkedGroup(null)) {
+			if (d.getClass() == Patch.class && d != patch) linked_images.add(d);
+		}
+		// Find overlapping images
+		final List<Patch> overlapping = new ArrayList<Patch>( (Collection<Patch>) (Collection) patch.getLayer().getIntersecting(patch, Patch.class));
+		overlapping.remove(patch);
+		if (0 == overlapping.size()) return; // nothing overlaps
+
+		// Discard from overlapping any linked images
+		overlapping.removeAll(linked_images);
+
+		if (0 == overlapping.size()) {
+			Utils.log("Cannot snap: overlapping images are linked to the one to snap.");
+			return;
+		}
+
+		// flush
+		linked_images.clear();
+
+		// Find the image that overlaps the most
+		Rectangle box = patch.getBoundingBox(null);
+		Patch most = null;
+		Rectangle most_inter = null;
+		for (final Patch other : overlapping) {
+			if (null == most) {
+				most = other;
+				most_inter = other.getBoundingBox();
+				continue;
+			}
+			Rectangle inter = other.getBoundingBox().intersection(box);
+			if (inter.width * inter.height > most_inter.width * most_inter.height) {
+				most = other;
+				most_inter = inter;
+			}
+		}
+		// flush
+		overlapping.clear();
+
+		// Define two lists:
+		//  - a list with all involved tiles: the active and the most overlapping one
+		final List<Patch> patches = new ArrayList<Patch>();
+		patches.add(most);
+		patches.add(patch);
+		//  - a list with all tiles except the active, to be set as fixed, immobile
+		final List<Patch> fixedPatches = new ArrayList<Patch>();
+		fixedPatches.add(most);
+
+		// Patch as Tile
+		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+		Align.tilesFromPatches( p, patches, fixedPatches, tiles, fixedTiles );
+
+		// Pair and connect overlapping tiles
+		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
+		AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
+		Align.connectTilePairs( p, tiles, tilePairs, Runtime.getRuntime().availableProcessors() );
+
+		if ( Thread.currentThread().isInterrupted() ) return;
+
+		Align.optimizeTileConfiguration( p, tiles, fixedTiles );
+
+		for ( AbstractAffineTile2D< ? > t : tiles ) {
+			if (t.getPatch() == patch) {
+				AffineTransform at = t.getModel().createAffine();
+				try {
+					at.concatenate(patch.getAffineTransform().createInverse());
+					patch.transform(at);
+				} catch (java.awt.geom.NoninvertibleTransformException nite) {
+					IJError.print(nite);
+				}
+				break;
+			}
+		}
+
+		Display.repaint();
+
+		}}, patch.getProject());
+	}
+
+	static public final Bureaucrat registerStackSlices(final Patch slice) {
+		return Bureaucrat.createAndStart(new Worker.Task("Registering slices") {
+			public void exec() {
+
+		// build the list
+		ArrayList<Patch> slices = slice.getStackPatches();
+		if (slices.size() < 2) {
+			Utils.log2("Not a stack!");
+			return;
+		}
+
+		// check that none are linked to anything other than images
+		for (final Patch patch : slices) {
+			if (!patch.isOnlyLinkedTo(Patch.class)) {
+				Utils.log("Can't register: one or more slices are linked to objects other than images.");
+				return;
+			}
+		}
+
+		// ok proceed
+		final Align.ParamOptimize p = Align.paramOptimize.clone();
+		p.setup("Register stack slices");
+
+		List<Patch> fixedSlices = new ArrayList<Patch>();
+		fixedSlices.add(slice);
+
+		alignTiles(slices, fixedSlices, p);
+
+		Display.repaint();
+
+		}}, slice.getProject());
 	}
 }

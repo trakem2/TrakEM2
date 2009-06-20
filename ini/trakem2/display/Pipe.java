@@ -2025,7 +2025,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 		// obtain the already transformed subperimeters
 		final Polygon[] pol = getSubPerimeters(layer);
 		if (null == pol) {
-			if (null == r) return layer_set.get2DBounds(); // no points yet
+			if (null == r) return new Rectangle();
 			r.x = 0;
 			r.y = 0;
 			r.width = 0;

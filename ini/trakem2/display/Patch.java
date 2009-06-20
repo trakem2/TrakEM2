@@ -39,6 +39,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Dimension;
@@ -149,6 +150,12 @@ public final class Patch extends Displayable {
 				this.o_width = Integer.parseInt(data);
 			} else if (key.equals("o_height")) {
 				this.o_height = Integer.parseInt(data);
+			} else if (key.equals("pps")) {
+				String path = data;
+				if (FSLoader.isRelativePath(path)) {
+					path = project.getLoader().getParentFolder() + path;
+				}
+				project.getLoader().setPreprocessorScriptPath(this, path);
 			}
 		}
 
@@ -185,14 +192,12 @@ public final class Patch extends Displayable {
 
 	/** Fetches the ImagePlus from the cache; <b>be warned</b>: the returned ImagePlus may have been flushed, removed and then recreated if the program had memory needs that required flushing part of the cache; use @getImageProcessor to get the pixels guaranteed not to be ever null. */
 	public ImagePlus getImagePlus() {
-		final ImagePlus imp = this.project.getLoader().fetchImagePlus(this);
-		return imp;
+		return this.project.getLoader().fetchImagePlus(this);
 	}
 
 	/** Fetches the ImageProcessor from the cache, which will never be flushed or its pixels set to null. If you keep many of these, you may end running out of memory: I advise you to call this method everytime you need the processor. */
 	public ImageProcessor getImageProcessor() {
-		final ImageProcessor ip = this.project.getLoader().fetchImageProcessor(this);
-		return ip;
+		return this.project.getLoader().fetchImageProcessor(this);
 	}
 
 	/** Recreate mipmaps and flush away any cached ones.
@@ -208,16 +213,31 @@ public final class Patch extends Displayable {
 		return project.getLoader().update(this);
 	}
 
-	private void readProps(final ImagePlus new_imp) {
-		this.type = new_imp.getType();
-		if (new_imp.getWidth() != (int)this.width || new_imp.getHeight() != this.height) {
-			this.width = new_imp.getWidth();
-			this.height = new_imp.getHeight();
+	/** Update type, original dimensions and min,max from the ImagePlus.
+	 *  This is automatically done after a preprocessor script has modified the image. */
+	public void updatePixelProperties() {
+		readProps(getImagePlus());
+	}
+
+	/** Update type, original dimensions and min,max from the given ImagePlus. */
+	private void readProps(final ImagePlus imp) {
+		this.type = imp.getType();
+		if (imp.getWidth() != (int)this.o_width || imp.getHeight() != this.o_height) {
+			this.o_width = imp.getWidth();
+			this.o_height = imp.getHeight();
+			this.width = o_width;
+			this.height = o_height;
 			updateBucket();
 		}
-		ImageProcessor ip = new_imp.getProcessor();
+		ImageProcessor ip = imp.getProcessor();
 		this.min = ip.getMin();
 		this.max = ip.getMax();
+		final HashSet<String> keys = new HashSet<String>();
+		keys.add("type");
+		keys.add("dimensions");
+		keys.add("min_and_max");
+		updateInDatabase(keys);
+		//updateInDatabase(new HashSet<String>(Arrays.asList(new String[]{"type", "dimensions", "min_and_max"})));
 	}
 
 	/** Set a new ImagePlus for this Patch.
@@ -613,7 +633,7 @@ public final class Patch extends Displayable {
 	public final boolean isStack() {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
 		for (final Displayable d : hs_linked) {
-			if (d.getClass() != Patch.class && d.layer.getId() != this.layer.getId()) return true;
+			if (d.getClass() == Patch.class && d.layer.getId() != this.layer.getId()) return true;
 		}
 		return false;
 	}
@@ -759,6 +779,9 @@ public final class Patch extends Displayable {
 		if (0 != min) sb_body.append(in).append("min=\"").append(min).append("\"\n");
 		if (max != Patch.getMaxMax(type)) sb_body.append(in).append("max=\"").append(max).append("\"\n");
 
+		String pps = getPreprocessorScriptPath();
+		if (null != pps) sb_body.append(in).append("pps=\"").append(project.getLoader().makeRelativePath(pps)).append("\"\n");
+
 		sb_body.append(indent).append(">\n");
 
 		if (null != ct) {
@@ -792,6 +815,7 @@ public final class Patch extends Displayable {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" ct").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_width").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" pps").append(TAG_ATTR2) // preprocessor script
 		;
 		// The InvertibleCoordinateTransform and a list of:
 		sb_header.append(indent).append("<!ELEMENT ict_transform EMPTY>\n");
@@ -839,7 +863,7 @@ public final class Patch extends Displayable {
 		}
 	}
 
-	static protected void crosslink(final ArrayList patches, final boolean overlapping_only) {
+	static protected void crosslink(final Collection<Displayable> patches, final boolean overlapping_only) {
 		if (null == patches) return;
 		final ArrayList<Patch> al = new ArrayList<Patch>();
 		for (Object ob : patches) if (ob instanceof Patch) al.add((Patch)ob); // ... 
@@ -1391,5 +1415,13 @@ public final class Patch extends Displayable {
 		}
 		// Not true if alpha value is zero
 		return 0 != (pvalue[0] & 0xff000000);
+	}
+
+	public void setPreprocessorScriptPath(final String path) {
+		project.getLoader().setPreprocessorScriptPath(this, path);
+	}
+
+	public String getPreprocessorScriptPath() {
+		return project.getLoader().getPreprocessorScriptPath(this);
 	}
 }
