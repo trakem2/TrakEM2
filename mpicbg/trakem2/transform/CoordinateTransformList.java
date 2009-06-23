@@ -19,7 +19,7 @@
  */
 package mpicbg.trakem2.transform;
 
-public class CoordinateTransformList extends mpicbg.models.CoordinateTransformList implements CoordinateTransform
+public class CoordinateTransformList extends mpicbg.models.CoordinateTransformList< CoordinateTransform > implements CoordinateTransform
 {
 	//@Override
 	final public void init( final String data )

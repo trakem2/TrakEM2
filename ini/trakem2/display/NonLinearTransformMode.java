@@ -29,14 +29,15 @@ import java.awt.image.BufferedImage;
 import mpicbg.ij.Mapping;
 import mpicbg.ij.TransformMeshMapping;
 import mpicbg.models.AbstractAffineModel2D;
-import mpicbg.models.AffineModel2D;
+import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
-import mpicbg.models.SimilarityModel2D;
-import mpicbg.models.TranslationModel2D;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
+import mpicbg.models.SimilarityModel2D;
+import mpicbg.models.TranslationModel2D;
 
 public class NonLinearTransformMode implements Mode {
 	
@@ -92,11 +93,11 @@ public class NonLinearTransformMode implements Mode {
 //			Utils.showMessage("Updating...");
 			try
 			{
-				final MovingLeastSquaresTransform mlst = createMLST();
+				final CoordinateTransform mlst = createCT();
 				final SimilarityModel2D toWorld = new SimilarityModel2D();
 				toWorld.set( 1.0f / ( float )m, 0, r.x - ScreenPatchRange.pad / ( float )m, r.y - ScreenPatchRange.pad / ( float )m );
 				
-				final CoordinateTransformList ctl = new CoordinateTransformList();
+				final mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform > ctl = new mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform >();
 				ctl.add( toWorld );
 				ctl.add( mlst );
 				ctl.add( toWorld.createInverse() );
@@ -415,12 +416,12 @@ public class NonLinearTransformMode implements Mode {
 						/* 
 						 * Create a pseudo-invertible (TransformMesh) for the screen.
 						 */
-						final MovingLeastSquaresTransform mlst = createMLST();
+						final CoordinateTransform mlst = createCT();
 						final SimilarityModel2D toWorld = new SimilarityModel2D();
 						toWorld.set( 1.0f / ( float )magnification, 0, srcRect.x, srcRect.y );
 						final SimilarityModel2D toScreen = toWorld.createInverse();
 						
-						final CoordinateTransformList ctl = new CoordinateTransformList();
+						final mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform > ctl = new mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform >();
 						ctl.add( toWorld );
 						ctl.add( mlst );
 						ctl.add( toScreen );
@@ -531,14 +532,23 @@ public class NonLinearTransformMode implements Mode {
 							{
 								final Patch patch = ( Patch ) p;
 								final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
-								final AffineTransform pat = patch.getAffineTransformCopy();
+								final AffineTransform pat = new AffineTransform();
 								pat.translate( -pbox.x, -pbox.y );
+								pat.preConcatenate( patch.getAffineTransform() );
 								
 								final AffineModel2D toWorld = new AffineModel2D();
 								toWorld.set( pat );
 								
-								final MovingLeastSquaresTransform mlst = createMLST();
+								final CoordinateTransform mlst = createCT();
 								
+								/*
+								 * TODO )#@*%&)*#@!&!!!!!!!!!
+								 * CoordinateTransformList currently accepts non-TrakEM2 transforms which will work
+								 * until it comes to save or open.  Then, it will crash with a ClassCastException.
+								 * This is due to Java's inherent typelessness and I will try to solve it by
+								 * introducing generics wherever I can in the mpicbg
+								 * packages... This is a lot of work and will take some time... 
+								 */
 								final CoordinateTransformList ctl = new CoordinateTransformList();
 								ctl.add( toWorld );
 								ctl.add( mlst );
@@ -589,7 +599,7 @@ public class NonLinearTransformMode implements Mode {
 
 	public Rectangle getRepaintBounds() { return (Rectangle) srcRect.clone(); }
 	
-	private MovingLeastSquaresTransform createMLST() throws Exception
+	private CoordinateTransform createCT() throws Exception
 	{
 		final Collection< PointMatch > pm = new ArrayList<PointMatch>();
 		for ( Point p : points )

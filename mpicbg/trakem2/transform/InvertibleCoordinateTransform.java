@@ -25,7 +25,7 @@ package mpicbg.trakem2.transform;
  * <a href="http://www.ini.uzh.ch/~acardona/trakem2.html">TrakEM2</a>.
  * 
  */
-public interface InvertibleCoordinateTransform extends mpicbg.models.InvertibleCoordinateTransform
+public interface InvertibleCoordinateTransform< T extends InvertibleCoordinateTransform< T > > extends mpicbg.models.InvertibleCoordinateTransform< T >
 {
 	/**
 	 * Initialize the properties of the {@link mpicbg.models.InvertibleCoordinateTransform}

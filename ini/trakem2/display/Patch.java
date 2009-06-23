@@ -40,7 +40,6 @@ import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.FSLoader;
-import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Dimension;
 import java.awt.Rectangle;
@@ -57,8 +56,6 @@ import java.awt.image.DirectColorModel;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
-import java.awt.Polygon;
-import java.awt.geom.PathIterator;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.image.PixelGrabber;
 import java.awt.event.KeyEvent;
@@ -71,7 +68,7 @@ import java.util.HashSet;
 import java.util.Collection;
 import java.io.File;
 
-import mpicbg.models.AffineModel2D;
+import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
