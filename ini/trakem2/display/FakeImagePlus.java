@@ -88,7 +88,7 @@ public class FakeImagePlus extends ImagePlus {
 		} catch (Exception e) {
 			IJError.print(e);
 		}
-		return new int[3];
+		return new int[4];
 	}
 
 	private class FakeProcessor extends ByteProcessor {
@@ -98,7 +98,7 @@ public class FakeImagePlus extends ImagePlus {
 		}
 		/** Override to return the pixel of the Patch under x,y, if any. */
 		public int getPixel(final int x, final int y) {
-			return getPixel(1.0, x, y);
+			return getPixel(display.getCanvas().getMagnification(), x, y);
 		}
 		public int getPixel(double mag, final int x, final int y) {
 			final Collection under = display.getLayer().find(Patch.class, x, y);
@@ -123,18 +123,19 @@ public class FakeImagePlus extends ImagePlus {
 					if (!p.isVisible()) continue;
 					FakeImagePlus.this.type = p.getType(); // for proper value string display
 					// TODO: edit here when adding layer mipmaps
-					if (!p.isStack() && Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
+					if (!p.isStack() && ImagePlus.COLOR_256 != p.getType() && Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
 						// Gather the ImagePlus: will be faster than using a PixelGrabber on an awt image
 						Point2D.Double po = p.inverseTransformPoint(x, y);
 						ImageProcessor ip = p.getImageProcessor();
-						if (null != ip) return ip.getPixel((int)po.x, (int)po.y, iArray);
+						if (null != ip) return ip.getPixel((int)po.x, (int)po.y, null != iArray && ImagePlus.COLOR_256 == FakeImagePlus.this.type && 3 == iArray.length ? new int[4] : iArray);
+						else break; // otherwise it would be showing a pixel for an image region that is not visible.
 					}
 					return p.getPixel(mag, x, y, iArray);
 				}
 			}
 			// Outside images, hence reset:
 			FakeImagePlus.this.type = ImagePlus.GRAY8;
-			return null == iArray ? new int[4] : iArray;
+			return new int[4];
 		}
 		public int getWidth() { return w; }
 		public int getHeight() { return h; }
@@ -144,6 +145,30 @@ public class FakeImagePlus extends ImagePlus {
 		}
 		@Override
 		public void setPixels(Object ob) {} // disabled
+	}
+
+	@Override
+	public void mouseMoved(final int x, final int y) {
+		final StringBuilder sb = new StringBuilder("x=").append(x).append(", y=").append(y).append(", value=");
+		final int[] v = getPixel(x, y);
+		switch (type) {
+			case ImagePlus.GRAY8:
+			case ImagePlus.GRAY16:
+				sb.append(v[0]);
+				break;
+			case ImagePlus.COLOR_256:
+			case ImagePlus.COLOR_RGB:
+				sb.append(v[0]).append(',').append(v[1]).append(',').append(v[2]);
+				break;
+			case ImagePlus.GRAY32:
+				sb.append(Float.intBitsToFloat(v[0]));
+				break;
+			default:
+				sb.setLength(sb.length() -8); // no value info
+				break;
+		}
+		// Utils.showStatus would be too slow at reporting, because it waits for fast subsequent calls.
+		IJ.showStatus(sb.toString());
 	}
 
 	// TODO: use layerset virtualization

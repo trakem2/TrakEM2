@@ -889,6 +889,15 @@ abstract public class Loader {
 		return Math.max(d.getWidth(), d.getHeight());
 	}
 
+	public boolean isImagePlusCached(final Patch p) {
+		synchronized (db_lock) {
+			lock();
+			boolean b = imps.contains(p.getId());
+			unlock();
+			return b;
+		}
+	}
+
 	/** Returns true if there is a cached awt image for the given mag and Patch id. */
 	public boolean isCached(final Patch p, final double mag) {
 		synchronized (db_lock) {
