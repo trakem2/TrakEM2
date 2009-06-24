@@ -113,9 +113,11 @@ public class FakeImagePlus extends ImagePlus {
 			FakeImagePlus.this.type = ImagePlus.GRAY8;
 			return 0;
 		}
+		/** @param iArray is ignored. */
 		public int[] getPixel(int x, int y, int[] iArray) {
 			return getPixel(1.0, x, y, iArray);
 		}
+		/** @param iArray is ignored. */
 		public int[] getPixel(double mag, int x, int y, int[] iArray) {
 			final Collection under = display.getLayer().find(Patch.class, x, y);
 			if (null != under && !under.isEmpty()) {
@@ -127,7 +129,14 @@ public class FakeImagePlus extends ImagePlus {
 						// Gather the ImagePlus: will be faster than using a PixelGrabber on an awt image
 						Point2D.Double po = p.inverseTransformPoint(x, y);
 						ImageProcessor ip = p.getImageProcessor();
-						if (null != ip) return ip.getPixel((int)po.x, (int)po.y, null != iArray && ImagePlus.COLOR_256 == FakeImagePlus.this.type && 3 == iArray.length ? new int[4] : iArray);
+						if (null != ip) {
+							if (ImagePlus.GRAY32 == FakeImagePlus.this.type) {
+								// a value encoded with Float.floatToIntBits
+								return new int[]{ip.getPixel((int)po.x, (int)po.y), 0, 0, 0};
+							} else {
+								return ip.getPixel((int)po.x, (int)po.y, null != iArray && ImagePlus.COLOR_256 == FakeImagePlus.this.type && 3 == iArray.length ? new int[4] : iArray);
+							}
+						}
 						else break; // otherwise it would be showing a pixel for an image region that is not visible.
 					}
 					return p.getPixel(mag, x, y, iArray);

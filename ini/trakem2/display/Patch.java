@@ -932,13 +932,16 @@ public final class Patch extends Displayable {
 			case ImagePlus.GRAY8:
 				pvalue[0] = pvalue[0]&0xff;
 				break;
-			default: // all others: GRAY16, GRAY32
+			case ImagePlus.GRAY16:
 				pvalue[0] = pvalue[0]&0xff;
-				// correct range: from 8-bit of the mipmap to 16 or 32 bit
-				if (mag <= 0.5) {
-					// mipmap was an 8-bit image, so expand
-					pvalue[0] = (int)(min + pvalue[0] * ( (max - min) / 256 ));
-				}
+				// correct range: from 8-bit of the mipmap to 16 bit
+				pvalue[0] = (int)(min + pvalue[0] * ( (max - min) / 256 ));
+				break;
+			case ImagePlus.GRAY32:
+				pvalue[0] = pvalue[0]&0xff;
+				// correct range: from 8-bit of the mipmap to 32 bit
+				// ... and encode, so that it will be decoded with Float.intToFloatBits
+				pvalue[0] = Float.floatToIntBits((float)(min + pvalue[0] * ( (max - min) / 256 )));
 				break;
 		}
 
