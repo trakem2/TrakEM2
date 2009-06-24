@@ -891,20 +891,30 @@ abstract public class Loader {
 
 	public boolean isImagePlusCached(final Patch p) {
 		synchronized (db_lock) {
-			lock();
-			boolean b = imps.contains(p.getId());
-			unlock();
-			return b;
+			try {
+				lock();
+				return null != imps.get(p.getId());
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			} finally {
+				unlock();
+			}
 		}
 	}
 
 	/** Returns true if there is a cached awt image for the given mag and Patch id. */
 	public boolean isCached(final Patch p, final double mag) {
 		synchronized (db_lock) {
-			lock();
-			boolean b = mawts.contains(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
-			unlock();
-			return b;
+			try {
+				lock();
+				return mawts.contains(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			} finally {
+				unlock();
+			}
 		}
 	}
 
