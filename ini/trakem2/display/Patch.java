@@ -101,6 +101,8 @@ public final class Patch extends Displayable {
 	public Patch(Project project, String title, double x, double y, ImagePlus imp) {
 		super(project, title, x, y);
 		this.type = imp.getType();
+		// Color LUT in ImageJ is a nightmare of inconsistency. We set the COLOR_256 only for 8-bit images that are LUT images themselves; not for 16 or 32-bit images that may have a color LUT (which, by the way, ImageJ tiff encoder cannot save with the tif file.)
+		if (ImagePlus.GRAY8 == this.type && imp.getProcessor().isColorLut()) this.type = ImagePlus.COLOR_256;
 		this.min = imp.getProcessor().getMin();
 		this.max = imp.getProcessor().getMax();
 		checkMinMax();
@@ -920,16 +922,7 @@ public final class Patch extends Displayable {
 			return pvalue;
 		}
 		switch (type) {
-			case ImagePlus.COLOR_256:
-				final PixelGrabber pg2 = new PixelGrabber(img,x2,y2,1,1,false);
-				try {
-					pg2.grabPixels();
-				} catch (InterruptedException ie) {
-					return pvalue;
-				}
-				final byte[] pix8 = (byte[])pg2.getPixels();
-				pvalue[3] = null != pix8 ? pix8[0]&0xff : 0;
-				// fall through to get RGB values
+			case ImagePlus.COLOR_256: // mipmaps use RGB images internally, so I can't compute the index in the LUT
 			case ImagePlus.COLOR_RGB:
 				final int c = pvalue[0];
 				pvalue[0] = (c&0xff0000)>>16; // R

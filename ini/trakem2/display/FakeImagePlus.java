@@ -34,6 +34,7 @@ import ini.trakem2.imaging.LayerStack;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.awt.image.ColorModel;
 import java.awt.geom.Point2D;
 
@@ -100,35 +101,28 @@ public class FakeImagePlus extends ImagePlus {
 			return getPixel(1.0, x, y);
 		}
 		public int getPixel(double mag, final int x, final int y) {
-			if (mag > 1) mag = 1;
-			final ArrayList al = display.getLayer().getDisplayables();
-			final Displayable[] d = new Displayable[al.size()];
-			al.toArray(d);
-			int pixel = 0; // will return black if nothing found
-			// reverse lookup, for the top ones are at the bottom of the array
-			for (int i=d.length -1; i>-1; i--) {
-				if (d[i].getClass() == Patch.class && d[i].contains(x, y)) {
-					Patch p = (Patch)d[i];
-					FakeImagePlus.this.type = p.getType(); // for proper value string display
-					return p.getPixel(mag, x, y);
-				}
+			final Collection under = display.getLayer().find(Patch.class, x, y);
+			if (null == under || under.isEmpty()) return 0; // zeros
+			for (final Patch p : (Collection<Patch>)under) {
+				if (!p.isVisible()) continue;
+				FakeImagePlus.this.type = p.getType(); // for proper value string display
+				// TODO: edit here when adding layer mipmaps
+				return p.getPixel(mag, x, y);
 			}
-			return pixel;
+			// Outside images, hence reset:
+			FakeImagePlus.this.type = ImagePlus.GRAY8;
+			return 0;
 		}
 		public int[] getPixel(int x, int y, int[] iArray) {
 			return getPixel(1.0, x, y, iArray);
 		}
 		public int[] getPixel(double mag, int x, int y, int[] iArray) {
-			if (mag > 1) mag = 1;
-			ArrayList al = display.getLayer().getDisplayables();
-			final Displayable[] d = new Displayable[al.size()];
-			al.toArray(d);
-			// reverse lookup, for the top ones are at the bottom of the array
-			for (int i=d.length -1; i>-1; i--) {
-				if (d[i].getClass() == Patch.class && d[i].contains(x, y)) {
-					Patch p = (Patch)d[i];
+			final Collection under = display.getLayer().find(Patch.class, x, y);
+			if (null != under && !under.isEmpty()) {
+				for (final Patch p : (Collection<Patch>)under) {
 					if (!p.isVisible()) continue;
 					FakeImagePlus.this.type = p.getType(); // for proper value string display
+					// TODO: edit here when adding layer mipmaps
 					if (!p.isStack() && Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
 						// Gather the ImagePlus: will be faster than using a PixelGrabber on an awt image
 						Point2D.Double po = p.inverseTransformPoint(x, y);
@@ -138,6 +132,8 @@ public class FakeImagePlus extends ImagePlus {
 					return p.getPixel(mag, x, y, iArray);
 				}
 			}
+			// Outside images, hence reset:
+			FakeImagePlus.this.type = ImagePlus.GRAY8;
 			return null == iArray ? new int[4] : iArray;
 		}
 		public int getWidth() { return w; }
