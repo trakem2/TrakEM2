@@ -1078,11 +1078,11 @@ public final class Patch extends Displayable {
 		if (null == this.ct)
 			setCoordinateTransform(ct);
 		else {
-			final CoordinateTransformList ctl;
+			final CoordinateTransformList< CoordinateTransform > ctl;
 			if (this.ct instanceof CoordinateTransformList)
-				ctl = (CoordinateTransformList)this.ct;
+				ctl = (CoordinateTransformList< CoordinateTransform >)this.ct.clone();
 			else {
-				ctl = new CoordinateTransformList();
+				ctl = new CoordinateTransformList< CoordinateTransform >();
 				ctl.add(this.ct);
 			}
 			ctl.add(ct);
@@ -1114,13 +1114,22 @@ public final class Patch extends Displayable {
 	public final Patch.PatchImage createCoordinateTransformedImage() {
 		if (null == ct) return null;
 		
-		project.getLoader().releaseToFit(o_width, o_height, type, 5);
-
 		final ImageProcessor source = getImageProcessor();
 
 		//Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());
 
 		final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+		final Rectangle box = mesh.getBoundingBox();
+
+		/* We can calculate the exact size of the image to be rendered, so let's do it */
+//		project.getLoader().releaseToFit(o_width, o_height, type, 5);
+		final long b =
+			  2 * o_width * o_height		// outside and mask source
+			+ 2 * box.width * box.height	// outside and mask target
+			+ 5 * o_width * o_height		// image source
+			+ 5 * box.width * box.height;	// image target
+		project.getLoader().releaseToFit( b );
+
 		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 		
 		ImageProcessor target = mapping.createMappedImageInterpolated( source );
@@ -1139,8 +1148,6 @@ public final class Patch extends Displayable {
 		final byte[] pix = (byte[])outside.getPixels();
 		for (int i=0; i<pix.length; i++)
 			if ((pix[i]&0xff) != 255) pix[i] = 0;
-
-		final Rectangle box = mesh.getBoundingBox();
 
 		//Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
 		//Utils.log2("box: " + box);
