@@ -535,7 +535,7 @@ public class NonLinearTransformMode implements Mode {
 								final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
 								final AffineTransform pat = new AffineTransform();
 								pat.translate( -pbox.x, -pbox.y );
-								pat.concatenate( patch.getAffineTransform() );
+								pat.preConcatenate( patch.getAffineTransform() );
 								
 								final AffineModel2D toWorld = new AffineModel2D();
 								toWorld.set( pat );
