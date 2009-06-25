@@ -29,14 +29,15 @@ import java.awt.image.BufferedImage;
 import mpicbg.ij.Mapping;
 import mpicbg.ij.TransformMeshMapping;
 import mpicbg.models.AbstractAffineModel2D;
-import mpicbg.models.AffineModel2D;
+import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
-import mpicbg.models.SimilarityModel2D;
-import mpicbg.models.TranslationModel2D;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
+import mpicbg.models.SimilarityModel2D;
+import mpicbg.models.TranslationModel2D;
 
 public class NonLinearTransformMode implements Mode {
 	
@@ -92,11 +93,11 @@ public class NonLinearTransformMode implements Mode {
 //			Utils.showMessage("Updating...");
 			try
 			{
-				final MovingLeastSquaresTransform mlst = createMLST();
+				final CoordinateTransform mlst = createCT();
 				final SimilarityModel2D toWorld = new SimilarityModel2D();
 				toWorld.set( 1.0f / ( float )m, 0, r.x - ScreenPatchRange.pad / ( float )m, r.y - ScreenPatchRange.pad / ( float )m );
 				
-				final CoordinateTransformList ctl = new CoordinateTransformList();
+				final mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform > ctl = new mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform >();
 				ctl.add( toWorld );
 				ctl.add( mlst );
 				ctl.add( toWorld.createInverse() );
@@ -219,7 +220,7 @@ public class NonLinearTransformMode implements Mode {
 	}
 
 	static private class PatchRange {
-		final ArrayList<Patch> list = new ArrayList<Patch>();
+		final ArrayList< Patch > list = new ArrayList<Patch>();
 		boolean starts_at_bottom = false;
 		boolean is_gray = true;
 
@@ -248,12 +249,13 @@ public class NonLinearTransformMode implements Mode {
 		BufferedImage transformedImage;
 		static final int pad = 100;
 
-		ScreenPatchRange(final PatchRange range, final Rectangle srcRect, final double magnification) {
-			final BufferedImage image = new BufferedImage((int)(srcRect.width * magnification + 0.5) + 2 * pad,
-					                              (int)(srcRect.height * magnification + 0.5 ) + 2 * pad,
-								      range.starts_at_bottom ?
-								        range.is_gray ? BufferedImage.TYPE_BYTE_GRAY : BufferedImage.TYPE_INT_RGB
-									: BufferedImage.TYPE_INT_ARGB);
+		ScreenPatchRange( final PatchRange range, final Rectangle srcRect, final double magnification )
+		{
+			final BufferedImage image =
+				new BufferedImage(
+						( int )( srcRect.width * magnification + 0.5 ) + 2 * pad,
+						( int )( srcRect.height * magnification + 0.5 ) + 2 * pad,
+						range.starts_at_bottom ? range.is_gray ? BufferedImage.TYPE_BYTE_GRAY : BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB );
 
 			Graphics2D g = image.createGraphics();
 			final AffineTransform atc = new AffineTransform();
@@ -415,12 +417,12 @@ public class NonLinearTransformMode implements Mode {
 						/* 
 						 * Create a pseudo-invertible (TransformMesh) for the screen.
 						 */
-						final MovingLeastSquaresTransform mlst = createMLST();
+						final CoordinateTransform mlst = createCT();
 						final SimilarityModel2D toWorld = new SimilarityModel2D();
 						toWorld.set( 1.0f / ( float )magnification, 0, srcRect.x, srcRect.y );
 						final SimilarityModel2D toScreen = toWorld.createInverse();
 						
-						final CoordinateTransformList ctl = new CoordinateTransformList();
+						final mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform > ctl = new mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform >();
 						ctl.add( toWorld );
 						ctl.add( mlst );
 						ctl.add( toScreen );
@@ -531,15 +533,16 @@ public class NonLinearTransformMode implements Mode {
 							{
 								final Patch patch = ( Patch ) p;
 								final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
-								final AffineTransform pat = patch.getAffineTransformCopy();
+								final AffineTransform pat = new AffineTransform();
 								pat.translate( -pbox.x, -pbox.y );
+								pat.concatenate( patch.getAffineTransform() );
 								
 								final AffineModel2D toWorld = new AffineModel2D();
 								toWorld.set( pat );
 								
-								final MovingLeastSquaresTransform mlst = createMLST();
+								final CoordinateTransform mlst = createCT();
 								
-								final CoordinateTransformList ctl = new CoordinateTransformList();
+								final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
 								ctl.add( toWorld );
 								ctl.add( mlst );
 								ctl.add( toWorld.createInverse() );
@@ -589,7 +592,7 @@ public class NonLinearTransformMode implements Mode {
 
 	public Rectangle getRepaintBounds() { return (Rectangle) srcRect.clone(); }
 	
-	private MovingLeastSquaresTransform createMLST() throws Exception
+	private CoordinateTransform createCT() throws Exception
 	{
 		final Collection< PointMatch > pm = new ArrayList<PointMatch>();
 		for ( Point p : points )
