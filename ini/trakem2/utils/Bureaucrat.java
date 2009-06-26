@@ -30,12 +30,12 @@ import java.util.ArrayList;
 
 /** Sets a Worker thread to work, and waits until it finishes, blocking all user interface input until then, except for zoom and pan, for all given projects. */
 public class Bureaucrat extends Thread {
-	private Worker worker;
-	private Thread worker_thread;
-	private long onset;
-	private Project[] project;
+	final private Worker worker;
+	final private Thread worker_thread;
+	final private long onset;
+	final private Project[] project;
 	private boolean started = false;
-	/** A list of tasks to run when the Worker finishes of quits. */
+	/** A list of tasks to run when the Worker finishes--but not when it quits. */
 	private ArrayList<Runnable> post_tasks = new ArrayList<Runnable>();
 
 	/** Registers itself in the project loader job queue. */
@@ -115,7 +115,7 @@ public class Bureaucrat extends Thread {
 			}
 		}
 		ControlWindow.startWaitingCursor();
-		int sandwitch = ControlWindow.isGUIEnabled() ? 100 : 5000; // 1 second or 5
+		int sandwitch = ControlWindow.isGUIEnabled() ? 100 : 5000; // 0.1 second or 5
 		Utils.showStatus("Started processing: " + worker.getTaskName(), false); // don't steal focus, ever
 		final StringBuffer sb = new StringBuffer("Processing... ").append(worker.getTaskName()).append(" - ");
 		final int base_len = sb.length();
@@ -134,7 +134,10 @@ public class Bureaucrat extends Thread {
 			sb.setLength(base_len);
 		}
 		ControlWindow.endWaitingCursor();
-		Utils.showStatus("Done " + worker.getTaskName(), false); // don't steal focus
+		final String done = "Done " + worker.getTaskName();
+		final long elapsed = System.currentTimeMillis() - onset;
+		Utils.showStatus("Done " + worker.getTaskName() + " (" + Utils.cutNumber(elapsed/1000.0, 2) + "s approx.)", false); // don't steal focus
+
 		try {
 			if (null != post_tasks) {
 				for (final Runnable r : post_tasks) {
@@ -192,7 +195,7 @@ public class Bureaucrat extends Thread {
 		} catch (InterruptedException ie) {
 			IJError.print(ie);
 		}
-		// wait for all others in a separate thread
+		// wait for all others in a separate thread, then clear progress bar
 		final ThreadGroup tg = getThreadGroup();
 		new Thread() { public void run() {
 			try {
