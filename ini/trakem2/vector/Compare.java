@@ -584,6 +584,7 @@ public class Compare {
 
 		if (null != exclude && exclude.matcher(parent.getTitle()).matches()) {
 			Utils.logAll("Excluding node " + parent + " with title " + parent.getTitle() + ", and all its children nodes.");
+			return;
 		}
 
 		final ArrayList children = parent.getChildren();
