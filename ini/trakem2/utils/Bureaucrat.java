@@ -134,9 +134,10 @@ public class Bureaucrat extends Thread {
 			sb.setLength(base_len);
 		}
 		ControlWindow.endWaitingCursor();
-		final String done = "Done " + worker.getTaskName();
 		final long elapsed = System.currentTimeMillis() - onset;
-		Utils.showStatus("Done " + worker.getTaskName() + " (" + Utils.cutNumber(elapsed/1000.0, 2) + "s approx.)", false); // don't steal focus
+		final String done = "Done " + worker.getTaskName() + " (" + Utils.cutNumber(elapsed/1000.0, 2) + "s approx.)";
+		Utils.showStatus(done, false); // don't steal focus;
+		Utils.log2(done);
 
 		try {
 			if (null != post_tasks) {
