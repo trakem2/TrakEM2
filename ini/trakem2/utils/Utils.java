@@ -631,7 +631,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	public void run(String arg) {
-		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH");
+		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ/ETH Zurich.\n \nRegistration library copyright Stephan Saalfeld, MPI-CBG.\nLens correction copyright Verena Kaynig, ETH Zurich.\nSome parts copyright Ignacio Arganda, INI Univ/ETH Zurich.");
 	}
 
 	static public final File chooseFile(String name, String extension) {
