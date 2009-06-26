@@ -1580,7 +1580,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 	
 	static protected class DoEdits implements DoStep {
 		final HashSet<DoEdit> edits = new HashSet<DoEdit>();
-		DoEdits(final Set<Displayable> col) {
+		DoEdits(final Set<? extends Displayable> col) {
 			for (final Displayable d : col) {
 				edits.add(new DoEdit(d));
 			}
@@ -1774,7 +1774,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 		final private HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
 		final HashSet<Layer> layers = new HashSet<Layer>();
 
-		DoTransforms addAll(final Collection<Displayable> col) {
+		DoTransforms addAll(final Collection<? extends Displayable> col) {
 			for (final Displayable d : col) {
 				ht.put(d, d.getAffineTransformCopy());
 				layers.add(d.getLayer());
