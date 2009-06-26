@@ -7,11 +7,13 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import lenscorrection.Distortion_Correction.BasicParam;
+import lenscorrection.Distortion_Correction.PointMatchCollectionAndAffine;
 import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
 import mpicbg.trakem2.align.AbstractAffineTile2D;
@@ -124,7 +126,7 @@ final public class DistortionCorrectionTask
 			for ( int i = ai.getAndIncrement(); i < patches.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
 				final Patch patch = patches.get( i );
-				//IJ.log( "Setting transform \"" + transform + "\" for patch \"" + patch.getTitle() + "\"." );
+//				IJ.log( "Setting transform \"" + transform + "\" for patch \"" + patch.getTitle() + "\"." );
 				patch.setCoordinateTransform( transform );
 				patch.updateMipmaps();
 				
@@ -345,21 +347,18 @@ final public class DistortionCorrectionTask
 					Align.optimizeTileConfiguration( ap, interestingTiles, fixedTiles );
 					
 					/** Some data shuffling for the lens correction interface */
-					final List< Collection< PointMatch > > matches = new ArrayList< Collection< PointMatch > >();
-					final List< AffineTransform > affines = new ArrayList< AffineTransform >();
+					final List< PointMatchCollectionAndAffine > matches = new ArrayList< PointMatchCollectionAndAffine >();
 					for ( AbstractAffineTile2D< ? >[] tilePair : tilePairs )
 					{
-						matches.add( tilePair[ 0 ].getMatches() );
 						final AffineTransform a = tilePair[ 0 ].createAffine();
 						a.preConcatenate( fixedTile.getModel().createInverseAffine() );
-						affines.add( a );
+						matches.add( new PointMatchCollectionAndAffine( a, tilePair[ 0 ].getMatches() ) );
 					}
 					
 					setTaskName( "Estimating lens distortion correction" );
 					
 					final NonLinearTransform lensModel = Distortion_Correction.createInverseDistortionModel(
 				    		matches,
-				    		affines,
 				    		p.dimension,
 				    		p.lambda,
 				    		( int )fixedTile.getWidth(),
