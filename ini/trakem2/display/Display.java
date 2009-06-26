@@ -2213,6 +2213,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item = new JMenuItem("Cancel transform"); st.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
 			item.setEnabled(false); // just added as a self-documenting cue; no listener
+			item = new JMenuItem("Remove coordinate transforms (selected images)"); item.addActionListener(tml); st.add(item);
+			// TODO the next one should really be somewhere where it appears even if no images are selected!
+			item = new JMenuItem("Remove coordinate transforms layer-wise"); item.addActionListener(tml); st.add(item);
 			popup.add(st);
 
 
@@ -2426,6 +2429,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Regenerate mipmaps (selected images)"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Selection");
@@ -2586,8 +2590,60 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					}
 				}
 				setMode(new NonLinearTransformMode(Display.this, col));
+			} else if (command.equals("Remove coordinate transforms (selected images)")) {
+				final List<Displayable> col = selection.getSelected(Patch.class);
+				if (col.isEmpty()) return;
+				removeCoordinateTransforms( (List<Patch>) (List) col);
+			} else if (command.equals("Remove coordinate transforms layer-wise")) {
+				GenericDialog gd = new GenericDialog("Remove Coordinate Transforms");
+				gd.addMessage("Remove coordinate transforms");
+				gd.addMessage("for all images in:");
+				Utils.addLayerRangeChoices(Display.this.layer, gd);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				final ArrayList<Displayable> patches = new ArrayList<Displayable>();
+				for (final Layer layer : getLayerSet().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1)) {
+					patches.addAll(layer.getDisplayables(Patch.class));
+				}
+				removeCoordinateTransforms( (List<Patch>) (List) patches);
 			}
 		}
+
+	}
+
+	public Bureaucrat removeCoordinateTransforms(final List<Patch> patches) {
+		return Bureaucrat.createAndStart(new Worker.Task("Removing coordinate transforms") { public void exec() {
+			// Check if any are linked: cannot remove, would break image-to-segmentation relationship
+			for (final Patch p : patches) {
+				if (p.isLinked()) {
+					Utils.logAll("Cannot remove coordinate transform: some images are linked to segmentations!");
+					return;
+				}
+			}
+
+			// Collect Patch instances to modify:
+			final HashSet<Patch> ds = new HashSet<Patch>(patches);
+			for (final Patch p : patches) {
+				if (null != p.getCoordinateTransform()) {
+					ds.add(p);
+				}
+			}
+
+			// Add undo step:
+			getLayerSet().addDataEditStep(ds);
+
+			// Remove coordinate transforms:
+			final ArrayList<Future> fus = new ArrayList<Future>();
+			for (final Patch p : ds) {
+				p.setCoordinateTransform(null);
+				fus.add(p.getProject().getLoader().regenerateMipMaps(p)); // queue
+			}
+			// wait until all done
+			for (Future fu : fus) try { fu.get(); } catch (Exception e) { IJError.print(e); }
+
+			// Set current state
+			getLayerSet().addDataEditStep(ds);
+		}}, project);
 	}
 
 	private class MenuScriptListener implements ActionListener {
@@ -3842,13 +3898,26 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Flush image cache")) {
 			Loader.releaseAllCaches();
 		} else if (command.equals("Regenerate all mipmaps")) {
-			for (final Displayable d : getLayerSet().getDisplayables(Patch.class)) {
-				d.getProject().getLoader().regenerateMipMaps((Patch) d);
-			}
+			regenerateMipMaps(getLayerSet().getDisplayables(Patch.class));
+		} else if (command.equals("Regenerate mipmaps (selected images)")) {
+			regenerateMipMaps(selection.getSelected(Patch.class));
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
 		}});
+	}
+
+	/** Order the regeneration of all mipmaps for the Patch instances in @param patches, setting up a task that blocks input until all completed. */
+	public Bureaucrat regenerateMipMaps(final Collection<Displayable> patches) {
+		return Bureaucrat.createAndStart(new Worker.Task("Regenerating mipmaps") { public void exec() {
+			final List<Future> fus = new ArrayList<Future>();
+			for (final Displayable d : patches) {
+				if (d.getClass() != Patch.class) continue;
+				fus.add(d.getProject().getLoader().regenerateMipMaps((Patch) d));
+			}
+			// Wait until all done
+			for (final Future fu : fus) try { fu.get(); } catch (Exception e) { IJError.print(e); }
+		}}, Display.this.project);
 	}
 
 	private static class UpdateDimensionField implements TextListener {
