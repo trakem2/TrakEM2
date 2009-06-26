@@ -19,16 +19,16 @@
  */
 package mpicbg.trakem2.transform;
 
-public class CoordinateTransformList extends mpicbg.models.CoordinateTransformList implements CoordinateTransform
+public class CoordinateTransformList< E extends CoordinateTransform > extends mpicbg.models.CoordinateTransformList< E > implements CoordinateTransform
 {
 	//@Override
-	final public void init( final String data )
+	public void init( final String data )
 	{
 		throw new NumberFormatException( "There is no parameter based initialisation for " + this.getClass().getCanonicalName() );
 	}
 
 	//@Override
-	final public String toXML( final String indent )
+	public String toXML( final String indent )
 	{
 		String s = indent + "<ict_transform_list>";
 		for ( mpicbg.models.CoordinateTransform t : l )
@@ -37,17 +37,17 @@ public class CoordinateTransformList extends mpicbg.models.CoordinateTransformLi
 	}
 	
 	//@Override
-	final public String toDataString()
+	public String toDataString()
 	{
 		return "";
 	}
 	
 	@Override
-	final public CoordinateTransformList clone()
+	public CoordinateTransformList clone()
 	{
-		final CoordinateTransformList ctl = new CoordinateTransformList();
-		for ( mpicbg.models.CoordinateTransform ct : l )
-			ctl.add( ( ( CoordinateTransform )ct ).clone() );
+		final CoordinateTransformList< E > ctl = new CoordinateTransformList< E >();
+		for ( E ct : l )
+			ctl.add( ( E )ct.clone() );
 		return ctl;
 	}
 }
