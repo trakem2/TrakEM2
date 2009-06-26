@@ -1617,11 +1617,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** A new undo step for the "data" field of all Displayable in the set. */
-	boolean addDataEditStep(final Set<Displayable> ds) {
+	boolean addDataEditStep(final Set<? extends Displayable> ds) {
 		return addDataEditStep(ds, new String[]{"data"});
 	}
 
-	boolean addDataEditStep(final Set<Displayable> ds, final String[] fields) {
+	boolean addDataEditStep(final Set<? extends Displayable> ds, final String[] fields) {
 		final Displayable.DoEdits edits = new Displayable.DoEdits(ds);
 		edits.init(fields);
 		return addEditStep(edits);
@@ -1632,7 +1632,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		addTransformStep(layer.getDisplayables());
 	}
 	/** Add an undo step for the transformations of all Displayable in hs. */
-	public void addTransformStep(final Collection<Displayable> col) {
+	public void addTransformStep(final Collection<? extends Displayable> col) {
 		//Utils.log2("Added transform step for col");
 		addEditStep(new Displayable.DoTransforms().addAll(col));
 	}
