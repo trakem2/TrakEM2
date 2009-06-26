@@ -2258,6 +2258,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 			if (active instanceof Patch) {
 				item = new JMenuItem("Revert"); item.addActionListener(this); popup.add(item);
+				if ( null == ((Patch)active).getOriginalPath()) item.setEnabled(false);
 				popup.addSeparator();
 			}
 			item = new JMenuItem("Properties...");    item.addActionListener(this); popup.add(item);
