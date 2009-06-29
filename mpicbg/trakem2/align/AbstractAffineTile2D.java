@@ -351,6 +351,5 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 					commonMatches.add( pm );
 					break;
 				}
-		System.out.println( commonMatches.size() + " matches for " + patch.getTitle() + " and " + other.toString() );
 	}
 }
