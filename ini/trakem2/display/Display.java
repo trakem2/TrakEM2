@@ -639,7 +639,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		// Canvas
 		this.canvas = new DisplayCanvas(this, (int)Math.ceil(layer.getLayerWidth()), (int)Math.ceil(layer.getLayerHeight()));
-		this.canvas_panel = new JPanel();
+		this.canvas_panel = new JPanel() {
+			public void paint(Graphics g) {
+				// do nothing except forward to canvas
+				canvas.paint(g);
+			}
+			public void update(Graphics g) {
+				paint(g);
+			}
+		};
 		GridBagLayout gb = new GridBagLayout();
 		this.canvas_panel.setLayout(gb);
 		GridBagConstraints c = new GridBagConstraints();
@@ -1170,6 +1178,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		dispatcher.quit();
 		canvas.setReceivesInput(false);
 		slt.quit();
+		canvas_resizer.quit();
 
 		// update the coloring in the ProjectTree and LayerTree
 		if (!project.isBeingDestroyed()) {
@@ -1345,15 +1354,53 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	private void adjustCanvas() {
-		SwingUtilities.invokeLater(new Runnable() { public void run() {
-		Rectangle r = split.getRightComponent().getBounds();
-		canvas.setDrawingSize(r.width, r.height, true);
-		// fix not-on-top-left problem
-		canvas.setLocation(0, 0);
-		//frame.pack(); // don't! Would go into an infinite loop
-		canvas.repaint(true);
-		updateInDatabase("srcRect");
-		}});
+		canvas_resizer.resize();
+	}
+
+	private final CanvasResizerThread canvas_resizer = new CanvasResizerThread();
+
+	private class CanvasResizerThread extends Thread {
+		private boolean resized = false;
+		CanvasResizerThread() {
+			super("T2-CanvasResizerThread");
+			setPriority(Thread.NORM_PRIORITY);
+			try { setDaemon(true); } catch (Exception e) {}
+			start();
+		}
+		public void resize() {
+			synchronized (this) {
+				resized = true;
+				notify();
+			}
+		}
+		public void quit() {
+			synchronized (this) {
+				interrupt();
+				notify();
+			}
+		}
+		public void run() {
+			while (!isInterrupted()) {
+				synchronized (this) {
+					if (!this.resized) {
+						try { wait(); } catch (InterruptedException ie) {}
+					}
+					if (isInterrupted()) return;
+					this.resized = false;
+				}
+				try {
+					SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+						Rectangle r = split.getRightComponent().getBounds();
+						canvas.setDrawingSize(r.width, r.height, true);
+						// fix not-on-top-left problem
+						canvas.setLocation(0, 0);
+						//frame.pack(); // don't! Would go into an infinite loop
+						canvas.repaint(true);
+						updateInDatabase("srcRect");
+					}});
+				} catch (Exception ie) { IJError.print(ie); }
+			}
+		}
 	}
 
 	/** Grab the last selected display (or create an new one if none) and show in it the layer,centered on the Displayable object. */
