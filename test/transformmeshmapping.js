@@ -6,7 +6,7 @@ importClass( Packages.java.awt.Color );
 IJ.log( ">>> Test mpicbg.trakem2.transform.TransformMeshMapping >>>" );
 
 var m = new MovingLeastSquaresTransform();
-m.init( "rigid 1 40 40 80 80 280 160 220 140 280 40 200 80" );
+m.init( "rigid 2 1 40 40 80 80 1 280 160 220 140 1 280 40 200 80 1" );
 IJ.run( "Clown (14K)" );
 var imp = IJ.getImage();
 for ( var i = 1; i <= 4; ++i )

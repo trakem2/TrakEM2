@@ -7,7 +7,6 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,10 +43,15 @@ final public class DistortionCorrectionTask
 		public int lastLayerIndex;
 		public boolean clearTransform = false;
 		public boolean visualize = false;
+		public boolean tilesAreInPlace = false;
 		
 		public void addFields( final GenericDialog gd, final Selection selection )
 		{
 			addFields( gd );
+			
+			gd.addMessage( "Miscellaneous:" );
+			gd.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
+			
 			gd.addMessage( "Apply Distortion Correction :" );
 			
 			Utils.addLayerRangeChoices( selection.getLayer(), gd );
@@ -59,6 +63,7 @@ final public class DistortionCorrectionTask
 		public boolean readFields( final GenericDialog gd )
 		{
 			super.readFields( gd );
+			tilesAreInPlace = gd.getNextBoolean();
 			firstLayerIndex = gd.getNextChoiceIndex();
 			lastLayerIndex = gd.getNextChoiceIndex();
 			clearTransform = gd.getNextBoolean();
@@ -91,6 +96,7 @@ final public class DistortionCorrectionTask
 			p.maxEpsilon = maxEpsilon;
 			p.minInlierRatio = minInlierRatio;
 			p.rod = rod;
+			p.tilesAreInPlace = tilesAreInPlace;
 			p.firstLayerIndex = firstLayerIndex;
 			p.lastLayerIndex = lastLayerIndex;
 			p.clearTransform = clearTransform;
@@ -299,12 +305,12 @@ final public class DistortionCorrectionTask
 					
 					final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
 					
-					/** TODO Verena: Why not each to each? */
-//					AbstractAffineTile2D.pairTiles( tiles, tilePairs );
+					if ( p.tilesAreInPlace )
+						AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
+					else
+						AbstractAffineTile2D.pairTiles( tiles, tilePairs );
+					
 					final AbstractAffineTile2D< ? > fixedTile = fixedTiles.iterator().next();
-					for ( final AbstractAffineTile2D< ? > t : tiles )
-						 if ( t != fixedTile )
-							 tilePairs.add( new AbstractAffineTile2D< ? >[]{ t, fixedTile } );
 					
 					Align.connectTilePairs( ap, tiles, tilePairs, Runtime.getRuntime().availableProcessors() );
 					
@@ -351,8 +357,10 @@ final public class DistortionCorrectionTask
 					for ( AbstractAffineTile2D< ? >[] tilePair : tilePairs )
 					{
 						final AffineTransform a = tilePair[ 0 ].createAffine();
-						a.preConcatenate( fixedTile.getModel().createInverseAffine() );
-						matches.add( new PointMatchCollectionAndAffine( a, tilePair[ 0 ].getMatches() ) );
+						a.preConcatenate( tilePair[ 1 ].getModel().createInverseAffine() );
+						final Collection< PointMatch > commonMatches = new ArrayList< PointMatch >();
+						tilePair[ 0 ].commonPointMatches( tilePair[ 1 ], commonMatches );
+						matches.add( new PointMatchCollectionAndAffine( a, commonMatches ) );
 					}
 					
 					setTaskName( "Estimating lens distortion correction" );
