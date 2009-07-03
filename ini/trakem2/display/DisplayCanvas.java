@@ -1049,6 +1049,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	public void setDrawingSize(int new_width, int new_height,
 			boolean adjust_srcRect) {
+		Utils.printCaller(this, 3);
 		// adjust srcRect!
 		if (adjust_srcRect) {
 			double mag = super.getMagnification();
@@ -1761,7 +1762,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					if (0 != (kem & KeyEvent.SHIFT_MASK)
 					 && 0 != (kem & KeyEvent.ALT_MASK)
 					 && 0 != (kem & KeyEvent.CTRL_MASK)) {
-						Utils.showMessage("A mathematician, like a painter or poet,\nis a maker of patterns.\nIf his patterns are more permanent than theirs,\nit is because they are made with ideas.");
+						Utils.showMessage("A mathematician, like a painter or poet,\nis a maker of patterns.\nIf his patterns are more permanent than theirs,\nit is because they are made with ideas\n \nG. H. Hardy.");
 						ke.consume();
 					 }
 				}
