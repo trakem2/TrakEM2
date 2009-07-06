@@ -80,7 +80,7 @@ import java.util.regex.Matcher;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7h 2009-06-05";
+	static public String version = "0.7i 2009-06-26";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -631,7 +631,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	public void run(String arg) {
-		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH");
+		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ/ETH Zurich.\n \nRegistration library copyright Stephan Saalfeld, MPI-CBG.\nLens correction copyright Verena Kaynig, ETH Zurich.\nSome parts copyright Ignacio Arganda, INI Univ/ETH Zurich.");
 	}
 
 	static public final File chooseFile(String name, String extension) {
