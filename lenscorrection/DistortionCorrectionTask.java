@@ -7,13 +7,14 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import lenscorrection.Distortion_Correction.BasicParam;
 import lenscorrection.Distortion_Correction.PointMatchCollectionAndAffine;
-import mpicbg.models.ErrorStatistic;
+import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
 import mpicbg.trakem2.align.AbstractAffineTile2D;
@@ -373,14 +374,17 @@ final public class DistortionCorrectionTask
 					double dEpsilon_0 = 0;
 					NonLinearTransform lensModel = null;
 					
-					/* TODO For now, we are lazy and concatenate as a list instea dof doing it analytically ... */
-					final CoordinateTransformList< NonLinearTransform > lensModelList = new CoordinateTransformList< NonLinearTransform >(); 
-					
 					IJ.log( "0: epsilon = " + e );
 					
-					for ( int i = 1; i < 2 || dEpsilon_i <= dEpsilon_0 / 10; ++i )
+					/* Store original point locations */
+					final HashMap< Point, Point > originalPoints = new HashMap< Point, Point >();
+					for ( final AbstractAffineTile2D< ? > t : interestingTiles )
+						for ( final PointMatch pm : t.getMatches() )
+							originalPoints.put( pm.getP1(), pm.getP1().clone() );
+					
+					for ( int i = 1; i < 2 || dEpsilon_i <= dEpsilon_0 / 100; ++i )
 					{
-						/** Some data shuffling for the lens correction interface */
+						/* Some data shuffling for the lens correction interface */
 						final List< PointMatchCollectionAndAffine > matches = new ArrayList< PointMatchCollectionAndAffine >();
 						for ( AbstractAffineTile2D< ? >[] tilePair : tilePairs )
 						{
@@ -388,7 +392,12 @@ final public class DistortionCorrectionTask
 							a.preConcatenate( tilePair[ 1 ].getModel().createInverseAffine() );
 							final Collection< PointMatch > commonMatches = new ArrayList< PointMatch >();
 							tilePair[ 0 ].commonPointMatches( tilePair[ 1 ], commonMatches );
-							matches.add( new PointMatchCollectionAndAffine( a, commonMatches ) );
+							final Collection< PointMatch > originalCommonMatches = new ArrayList< PointMatch >();
+							for ( final PointMatch pm : commonMatches )
+								originalCommonMatches.add( new PointMatch(
+										originalPoints.get( pm.getP1() ),
+										originalPoints.get( pm.getP2() ) ) );
+							matches.add( new PointMatchCollectionAndAffine( a, originalCommonMatches ) );
 						}
 						
 						setTaskName( "Estimating lens distortion correction" );
@@ -403,7 +412,15 @@ final public class DistortionCorrectionTask
 						/* update local points */
 						for ( final AbstractAffineTile2D< ? > t : interestingTiles )
 							for ( final PointMatch pm : t.getMatches() )
-								lensModel.applyInPlace( pm.getP1().getL() );
+							{
+								final Point currentPoint = pm.getP1();
+								final Point originalPoint = originalPoints.get( currentPoint );
+								final float[] l = currentPoint.getL();
+								final float[] lo = originalPoint.getL();
+								l[ 0 ] = lo[ 0 ];
+								l[ 1 ] = lo[ 1 ];
+								lensModel.applyInPlace( l );
+							}
 						
 						/* re-optimize */
 						Align.optimizeTileConfiguration( ap, interestingTiles, fixedTiles );
@@ -425,22 +442,24 @@ final public class DistortionCorrectionTask
 						
 						IJ.log( i + ": epsilon = " + e );
 						IJ.log( i + ": epsilon = " + dEpsilon_i );
-						
-						lensModelList.add( lensModel );
 					}
 					
-					if ( p.visualize )
+					if ( lensModel != null )
 					{
-						setTaskName( "Visualizing lens distortion correction" );
-						lensModel.visualizeSmall( p.lambda );
+						if ( p.visualize )
+						{
+							setTaskName( "Visualizing lens distortion correction" );
+							lensModel.visualizeSmall( p.lambda );
+						}
+						
+						setTaskName( "Applying lens distortion correction" );
+						
+						appendCoordinateTransform( allPatches, lensModel, Runtime.getRuntime().availableProcessors() );
+						
+						IJ.log( "Done." );
 					}
-					
-					setTaskName( "Applying lens distortion correction" );
-					
-//					appendCoordinateTransform( allPatches, lensModel, Runtime.getRuntime().availableProcessors() );
-					appendCoordinateTransform( allPatches, lensModelList, Runtime.getRuntime().availableProcessors() );
-					
-					IJ.log( "Done." );
+					else
+						IJ.log( "No lens model found." );
 					
 					Display.repaint();
 				}
