@@ -45,13 +45,13 @@ import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.CrossCorrelation2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
-import mpi.fruitfly.math.General;
-import mpi.fruitfly.registration.Tile;
-import mpi.fruitfly.registration.Optimize;
-import mpi.fruitfly.registration.PointMatch;
-import mpi.fruitfly.registration.Point;
-import mpi.fruitfly.registration.TModel2D;
-import mpi.fruitfly.registration.TRModel2D;
+
+import mpicbg.models.TranslationModel2D;
+import mpicbg.models.Point;
+import mpicbg.models.PointMatch;
+import mpicbg.trakem2.align.Align;
+import mpicbg.trakem2.align.AbstractAffineTile2D;
+import mpicbg.trakem2.align.TranslationTile2D;
 
 import java.awt.Rectangle;
 import java.awt.Image;
@@ -172,11 +172,13 @@ public class StitchingTEM {
 			final float min_R = patch[0].getProject().getProperty("min_R", DEFAULT_MIN_R);
 
 			// for minimization:
-			ArrayList<Tile> al_tiles = new ArrayList<Tile>();
+			ArrayList<AbstractAffineTile2D<?>> al_tiles = new ArrayList<AbstractAffineTile2D<?>>();
 			// first patch-tile:
-			TModel2D first_tile_model = new TModel2D();
-			first_tile_model.getAffine().setTransform( patch[ 0 ].getAffineTransform() );
-			al_tiles.add(new Tile((float)patch[0].getWidth(), (float)patch[0].getHeight(), first_tile_model ));
+			TranslationModel2D first_tile_model = new TranslationModel2D();
+			//first_tile_model.getAffine().setTransform( patch[ 0 ].getAffineTransform() );
+			first_tile_model.set( (float) patch[0].getAffineTransform().getTranslateX(),
+					      (float) patch[0].getAffineTransform().getTranslateY());
+			al_tiles.add(new TranslationTile2D(first_tile_model, patch[0]));
 
 			for (int i=1; i<patch.length; i++) {
 				if (hasQuitted()) {
@@ -188,11 +190,13 @@ public class StitchingTEM {
 				final double default_dy = default_bottom_top_overlap;
 
 				// for minimization:
-				Tile tile_left = null;
-				Tile tile_top = null;
-				TModel2D tile_model = new TModel2D();
-				tile_model.getAffine().setTransform( patch[ i ].getAffineTransform() );
-				Tile tile = new Tile((float)patch[i].getWidth(), (float)patch[i].getHeight(), tile_model );
+				AbstractAffineTile2D<?> tile_left = null;
+				AbstractAffineTile2D<?> tile_top = null;
+				TranslationModel2D tile_model = new TranslationModel2D();
+				//tile_model.getAffine().setTransform( patch[ i ].getAffineTransform() );
+				tile_model.set( (float) patch[i].getAffineTransform().getTranslateX(),
+						(float) patch[i].getAffineTransform().getTranslateY());
+				AbstractAffineTile2D<?> tile = new TranslationTile2D(tile_model, patch[i]);
 				al_tiles.add(tile);
 
 				// stitch with the one above if starting row
@@ -311,6 +315,7 @@ public class StitchingTEM {
 			}
 
 			if (optimize) {
+				/*
 				// run optimization
 				ArrayList<Patch> al_patches = new ArrayList<Patch>();
 				for (int i=0; i<patch.length; i++) al_patches.add(patch[i]);
@@ -319,6 +324,16 @@ public class StitchingTEM {
 
 				// ready for montage-wise minimization
 				Optimize.minimizeAll(al_tiles, al_patches, al_fixed_tiles, 50);
+				*/
+
+				ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+				al_fixed_tiles.add(al_tiles.get(0));
+				Align.ParamOptimize p = new Align.ParamOptimize(); // with default parameters
+				Align.optimizeTileConfiguration(p, al_tiles, al_fixed_tiles);
+
+				for ( AbstractAffineTile2D< ? > t : al_tiles )
+					t.getPatch().setAffineTransform( t.getModel().createAffine() );
+
 			}
 			Display.repaint(patch[0].getLayer(), null, 0, true); // all
 
@@ -334,7 +349,7 @@ public class StitchingTEM {
 	}
 
 	/** dx, dy is the position of t2 relative to the 0,0 of t1. */
-	static private final void addMatches(Tile t1, Tile t2, double dx, double dy) {
+	static private final void addMatches(AbstractAffineTile2D<?> t1, AbstractAffineTile2D<?> t2, double dx, double dy) {
 		Point p1 = new Point(new float[]{0f, 0f});
 		Point p2 = new Point(new float[]{(float)dx, (float)dy});
 		t1.addMatch(new PointMatch(p2, p1, 1.0f));
@@ -563,142 +578,6 @@ public class StitchingTEM {
 
 
 		/// ABOVE: boundary checks don't work if default_dx,dy are zero! And may actually be harmful in anycase
-	}
-
-	/** For Patch class only at the moment; if the given Displayable is not a Patch this function return null.  */
-	static public Bureaucrat snap(final Displayable d, Display display) {
-		if (!(d instanceof Patch)) return null;
-		return snap(d, null, display);
-	}
-
-	/** Works only for Patch instances at the moment.
-	 *  Will snap against the best matching Patch in ArrayList al.
-	 *  If the given list of patches to match against is null, it will look for intersecting patches
-	 *  within the same layer.
-	 *  Any Patch objects linked to the given Patch 'd' will be removed from the list.
-	 *  The Display can be null; if not, the selection will be updated.
-	 */
-	static public Bureaucrat snap(final Displayable d, final ArrayList<Patch> al_, final Display display) {
-		final Worker worker = new Worker("Snapping") {
-			public void run() {
-				startedWorking();
-				try {
-	
-
-		Utils.log2("snapping...");
-		// snap patches only
-		if (null == d || !(d instanceof Patch)) { finishedWorking(); return; }
-		//Utils.log("Snapping " + d);
-		Collection al = al_;
-		if (null == al) {
-			al = d.getLayer().getIntersecting(d, Patch.class);
-			if (null == al || 0 == al.size()) { finishedWorking(); return; }
-			// remove from the intersecting group those Patch objects that are linked in the same layer (those linked that do not intersect simply return false on the al.remove(..) )
-			HashSet hs_linked = d.getLinkedGroup(new HashSet());
-			//Utils.log2("linked patches: " + hs_linked.size());
-			Layer layer = d.getLayer();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Displayable dob = (Displayable)it.next();
-				if (Patch.class == dob.getClass() && dob.getLayer() == layer) {
-					al.remove(dob);
-				}
-			}
-		}
-		// dragged Patch
-		final Patch p_dragged = (Patch)d;
-
-		//  make a reasonable guess for the scale
-		float cc_scale = (float)(512.0 / (p_dragged.getWidth() > p_dragged.getHeight() ? p_dragged.getWidth() : p_dragged.getHeight()));
-		cc_scale = ((float)((int)(cc_scale * 10000))) / 10000; // rounding
-		if (cc_scale > 1.0f) cc_scale = 1.0f;
-
-		// With Phase-correlation (thus limited to non-rotated Patch instances)
-
-		// start:
-		double[] best_pc = null;
-		Patch best = null;
-		final float min_R = d.getProject().getProperty("min_R", DEFAULT_MIN_R);
-		try {
-			//
-			for (Iterator it = al.iterator(); it.hasNext(); ) {
-				Patch base = (Patch)it.next();
-				final double[] pc = StitchingTEM.correlate(base, p_dragged, 1f, cc_scale, StitchingTEM.TOP_BOTTOM, 0, 0, min_R);
-				if (null == best_pc) {
-					best_pc = pc;
-					best = base;
-				} else {
-					// compare R: choose largest
-					if (pc[3] > best_pc[3]) {
-						best_pc = pc;
-						best = base;
-					}
-				}
-			}
-		} catch (Exception e) {
-			IJError.print(e);
-			finishedWorking();
-			return;
-		}
-		// now, relocate the Patch
-		double x2 = best.getX() + best_pc[0];
-		double y2 = best.getY() + best_pc[1];
-		Rectangle box = p_dragged.getLinkedBox(true);
-		//Utils.log2("box is " + box);
-		//p_dragged.setLocation(x2, y2); // wrong, does not consider linked objects
-		double dx = x2 - p_dragged.getX();
-		double dy = y2 - p_dragged.getY();
-		p_dragged.translate(dx, dy, true); // translates entire linked group
-
-		// With SIFT (free) fix rotation
-		if (! best.getAffineTransform().isIdentity() && best.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) {
-			Registration.SIFTParameters sp = new Registration.SIFTParameters(p_dragged.getProject());
-			sp.scale = cc_scale;
-			Object[] result = Registration.registerWithSIFTLandmarks(best, p_dragged, sp, null);
-			if (null != result) {
-				AffineTransform at_result = (AffineTransform)result[2];
-				// subtract the transform of the dragged patch to all in the linked group
-				p_dragged.transform(p_dragged.getAffineTransformCopy().createInverse());
-				// apply the new trasform to all in the linked group
-				at_result.preConcatenate(best.getAffineTransformCopy());
-				p_dragged.transform(at_result);
-			}
-		}
-
-		// repaint:
-
-		Rectangle r = p_dragged.getLinkedBox(true);
-		//Utils.log2("dragged box is " + r);
-		box.add(r);
-		if (null != display) {
-			Selection selection = display.getSelection();
-			if (selection.contains(p_dragged)) {
-				//Utils.log2("going to update selection");
-				Display.updateSelection(display);
-			}
-		}
-		Display.repaint(p_dragged.getLayer().getParent()/*, box*/);
-		Utils.log2("Done snapping.");
-
-
-				} catch (Exception e) {
-					IJError.print(e);
-				}
-				finishedWorking();
-			}
-		};
-		return Bureaucrat.createAndStart(worker, d.getProject());
-	}
-
-	/** Transforms the given point @param po by the AffineTransform of the given @param patch .*/
-	static private mpi.fruitfly.registration.Point transform(final Patch patch, final mpi.fruitfly.registration.Point po) {
-		float[] local = po.getL();
-		Point2D.Double pd = patch.transformPoint(local[0], local[1]);
-		return new mpi.fruitfly.registration.Point(new float[]{(float)pd.x, (float)pd.y});
-	}
-	static private mpi.fruitfly.registration.Point inverseTransform(final Patch patch, final mpi.fruitfly.registration.Point po) {
-		float[] l = po.getL();
-		Point2D.Double pd = patch.inverseTransformPoint(l[0], l[1]);
-		return new mpi.fruitfly.registration.Point(new float[]{(float)pd.x, (float)pd.y});
 	}
 
 	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */

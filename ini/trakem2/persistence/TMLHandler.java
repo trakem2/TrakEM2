@@ -77,7 +77,7 @@ public class TMLHandler extends DefaultHandler {
 	private Dissector last_dissector = null;
 	private Patch last_patch = null;
 	private Displayable last_displayable = null;
-	private CoordinateTransformList last_ct_list = null;
+	private ArrayList< CoordinateTransformList< CoordinateTransform > > ct_list_stack = new ArrayList< CoordinateTransformList< CoordinateTransform > >();
 	private boolean open_displays = true;
 
 
@@ -293,6 +293,8 @@ public class TMLHandler extends DefaultHandler {
 			skip = true;
 		}
 	}
+	
+	
 	public void endElement(String namespace_URI, String local_name, String qualified_name) {
 		if (null == loader) return;
 		if (skip) {
@@ -320,7 +322,7 @@ public class TMLHandler extends DefaultHandler {
 			last_area_list = null;
 			last_displayable = null;
 		} else if (orig_qualified_name.equals("ict_transform_list")) {
-			last_ct_list = null;
+			ct_list_stack.remove( ct_list_stack.size() - 1 );
 		} else if (orig_qualified_name.equals("t2_patch")) {
 			last_patch = null;
 			last_displayable = null;
@@ -608,31 +610,37 @@ public class TMLHandler extends DefaultHandler {
 		return null;
 	}
 
-	private void makeCoordinateTransform(String type, HashMap ht_attributes) {
-		try {
+	final private void makeCoordinateTransform( String type, final HashMap ht_attributes )
+	{
+		try
+		{
 			type = type.toLowerCase();
-			CoordinateTransform ct = null;
-
-			boolean is_list = false;
-
-			if (type.equals("ict_transform")) {
-				ct = (CoordinateTransform) Class.forName((String)ht_attributes.get("class")).newInstance();
-				ct.init((String)ht_attributes.get("data"));
-			} else if (type.equals("ict_transform_list")) {
-				is_list = true;
-				ct = new CoordinateTransformList();
+			
+			if ( type.equals( "ict_transform" ) )
+			{
+				final CoordinateTransform ct = ( CoordinateTransform )Class.forName( ( String )ht_attributes.get( "class" ) ).newInstance();
+				ct.init( ( String )ht_attributes.get( "data" ) );
+				if ( ct_list_stack.isEmpty() )
+				{
+					if ( last_patch != null )
+						last_patch.setCoordinateTransformSilently( ct );
+				}
+				else
+					ct_list_stack.get( ct_list_stack.size() - 1 ).add( ct );
 			}
-
-			if (null != ct) {
-				// Add it to the last CoordinateTransformList or, if absent, to the last Patch:
-				if (null != last_ct_list) last_ct_list.add(ct);
-				else if (null != last_patch) last_patch.setCoordinateTransformSilently(ct);
+			else if ( type.equals( "ict_transform_list" ) )
+			{
+				final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
+				if ( ct_list_stack.isEmpty() )
+				{
+					if ( last_patch != null )
+						last_patch.setCoordinateTransformSilently( ctl );
+				}
+				else
+					ct_list_stack.get( ct_list_stack.size() - 1 ).add( ctl );
+				ct_list_stack.add( ctl );
 			}
-
-			if (is_list) last_ct_list = (CoordinateTransformList)ct;
-
-		} catch (Exception e) {
-			IJError.print(e);
 		}
+		catch ( Exception e ) { IJError.print(e); }
 	}
 }

@@ -56,6 +56,7 @@ import javax.swing.*;
 import javax.swing.border.LineBorder;
 import javax.swing.event.*;
 import javax.swing.table.*;
+import java.util.regex.Pattern;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -565,13 +566,27 @@ public class Compare {
 	 *  An so on, recursively from the given pipe's parent.
 	 */
 	static public ArrayList<Chain> createPipeChains(final ProjectThing root_pt, final LayerSet ls) throws Exception {
+		return createPipeChains(root_pt, ls, null);
+	}
+
+	static public ArrayList<Chain> createPipeChains(final ProjectThing root_pt, final LayerSet ls, String regex_exclude) throws Exception {
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
-		appendAndFork(root_pt, null, null, chains, ls);
+		Pattern exclude = null;
+		if (null != regex_exclude) {
+			exclude = Pattern.compile(regex_exclude, Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+		}
+		appendAndFork(root_pt, null, null, chains, ls, exclude);
 		return chains;
 	}
 
 	/** Recursive. */
-	static private void appendAndFork(final ProjectThing parent, Chain chain, HashSet<ProjectThing> hs_c_done, final ArrayList<Chain> chains, final LayerSet ls) throws Exception {
+	static private void appendAndFork(final ProjectThing parent, Chain chain, HashSet<ProjectThing> hs_c_done, final ArrayList<Chain> chains, final LayerSet ls, final Pattern exclude) throws Exception {
+
+		if (null != exclude && exclude.matcher(parent.getTitle()).matches()) {
+			Utils.logAll("Excluding node " + parent + " with title " + parent.getTitle() + ", and all its children nodes.");
+			return;
+		}
+
 		final ArrayList children = parent.getChildren();
 		if (null == children) return;
 
@@ -610,7 +625,7 @@ public class Compare {
 							ca = base.duplicate(); // can't duplicate from chain itself, because it would have the previous child added to it.
 							chains.add(ca);
 						}
-						appendAndFork(c, ca, hs_c_done, chains, ls);
+						appendAndFork(c, ca, hs_c_done, chains, ls, exclude);
 					}
 				}
 				// pipe wrapping ProjectThing objects cannot have any children
@@ -623,7 +638,7 @@ public class Compare {
 			}
 
 			// inspect others down the unvisited tree nodes
-			appendAndFork(child, chain, hs_c_done, chains, ls);
+			appendAndFork(child, chain, hs_c_done, chains, ls, exclude);
 		}
 	}
 
@@ -982,7 +997,7 @@ public class Compare {
 		double prop_mut; // the proportion of mutation pairs relative to the length of the queried sequence
 		float prop_len; // the proportion of length of query sequence versus reference sequence
 		double proximity; // unitless value: cummulative distance of pairs relative to query sequence length
-		double proximity_mut; // unitless value: cummulative distance of only mutation pairs relative to query sequence length
+		double proximity_mut; // unitless value: cummulative distance of only mutation pairs relative to query sequence length  ## TODO not unitless, this is the same as the average
 		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double[] stats, final float prop_len, final double score) {
 			this.query = query;
 			this.ref = ref;
@@ -1920,18 +1935,32 @@ public class Compare {
 		}
 	}
 
-	/** Gather chains for all projects considering the cp.regex, and transforms all relative to the reference project[0] . */
 	static public final Object[] gatherChains(final Project[] p, final CATAParameters cp) throws Exception {
+		return gatherChains(p, cp, null);
+	}
+
+	/** Gather chains for all projects considering the cp.regex, and transforms all relative to the reference Project p[0].
+	 *  Will ignore any for which a match exists in @param ignore. */
+	static public final Object[] gatherChains(final Project[] p, final CATAParameters cp, final String[] ignore) throws Exception {
+		String regex_exclude = null;
+		if (null != ignore) {
+			StringBuilder sb = new StringBuilder();
+			for (String ig : ignore) {
+				sb.append(ig).append('|');
+			}
+			sb.setLength(sb.length() -1);
+			regex_exclude = sb.toString();
+		}
 		// gather all chains
 		final ArrayList[] p_chains = new ArrayList[p.length]; // to keep track of each project's chains
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
 		for (int i=0; i<p.length; i++) { // for each project:
 			if (null == cp.regex) {
-				p_chains[i] = createPipeChains(p[i].getRootProjectThing(), p[i].getRootLayerSet());
+				p_chains[i] = createPipeChains(p[i].getRootProjectThing(), p[i].getRootLayerSet(), regex_exclude);
 			} else {
 				// Search (shallow) for cp.regex matches
 				for (ProjectThing pt : p[i].getRootProjectThing().findChildren(cp.regex, true)) {
-					final ArrayList<Chain> ac = createPipeChains(pt, p[i].getRootLayerSet());
+					final ArrayList<Chain> ac = createPipeChains(pt, p[i].getRootLayerSet(), regex_exclude);
 					if (null == p_chains[i]) p_chains[i] = ac;
 					else p_chains[i].addAll(ac);
 				}
@@ -2053,13 +2082,13 @@ public class Compare {
 	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
 	 *
 	 * @param to_file Whether to save the results to a file and popup a save dialog for it or not. In any case the results are stored in the worker's load, which you can retrieve like:
-	 *     Bureaucrat bu = Compare.compareAllToAll(true);
+	 *     Bureaucrat bu = Compare.compareAllToAll(true, null, null);
 	 *     Object result = bu.getWorker().getResult();
 	 *     float[][] scores = (float[][])result[0];
 	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
 	 *
 	 */
-	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex) {
+	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex, final String[] ignore) {
 
 		// gather all open projects
 		final Project[] p = Project.getProjects().toArray(new Project[0]);
@@ -2090,7 +2119,7 @@ public class Compare {
 			if (!dir.endsWith("/")) dir += "/";
 		}
 
-		Object[] ob = gatherChains(p, cp);
+		Object[] ob = gatherChains(p, cp, ignore);
 		final ArrayList<Chain> chains = (ArrayList<Chain>)ob[0];
 		final ArrayList[] p_chains = (ArrayList[])ob[1]; // to keep track of each project's chains
 		ob = null;

@@ -364,6 +364,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		for (int i=1; i<n_points; i++) {
 			// Determine color
 			z = layer_set.getLayer(p_layer[i]).getZ();
+			paint = true;
 			if (z < z_current) {
 				if (no_color_cues) paint = false;
 				else g.setColor(Color.red);

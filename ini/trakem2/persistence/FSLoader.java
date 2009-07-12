@@ -88,7 +88,7 @@ public final class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;
-	private final HashMap<Long,String> ht_paths = new HashMap<Long,String>();
+	private final Hashtable<Long,String> ht_paths = new Hashtable<Long,String>();
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
@@ -156,7 +156,6 @@ public final class FSLoader extends Loader {
 		this.dir_storage = source.getStorageFolder(); // can never be null
 		this.dir_mipmaps = source.getMipMapsFolder();
 		if (null == this.dir_mipmaps) createMipMapsDir(this.dir_storage);
-		setPreprocessor(source.getPreprocessor());
 	}
 
 	/** Store a hidden file in trakem2.mipmaps directory that means: "the project is open", which is deleted when the project is closed. If the file is present on opening a project, it means the project has not been closed properly, and some mipmaps may be wrong. */
@@ -445,15 +444,13 @@ public final class FSLoader extends Loader {
 		return null;
 	}
 
-	/* Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImagePlust.getProcessor().
-	 * or just use the Patch.getImageProcessor() method which does it for you. */
+	/* Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImagePlus.getProcessor(). */
 	public ImagePlus fetchImagePlus(final Patch p) {
 		return (ImagePlus)fetchImage(p, Layer.IMAGEPLUS);
 	}
 
 	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example.
-	 * Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImageProcessor,
-	 * or just use the Patch.getImageProcessor() method which does it for you. */
+	 * Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImageProcessor. */
 	public ImageProcessor fetchImageProcessor(final Patch p) {
 		return (ImageProcessor)fetchImage(p, Layer.IMAGEPROCESSOR);
 	}
@@ -566,7 +563,7 @@ public final class FSLoader extends Loader {
 			releaseToFit(n_bytes);
 			imp = openImage(path);
 
-			preProcess(imp);
+			preProcess(p, imp);
 
 			synchronized (db_lock) {
 				try {
@@ -770,6 +767,16 @@ public final class FSLoader extends Loader {
 		if (ob.getClass() == Patch.class) {
 			Patch p = (Patch)ob;
 			if (key.equals("tiff_working")) return null != setImageFile(p, fetchImagePlus(p));
+		}
+		return true;
+	}
+
+	public boolean updateInDatabase(final DBObject ob, final Set<String> keys) {
+		// Should only be GUI-driven
+		setChanged(true);
+		if (ob.getClass() == Patch.class) {
+			Patch p = (Patch)ob;
+			if (keys.contains("tiff_working")) return null != setImageFile(p, fetchImagePlus(p));
 		}
 		return true;
 	}
@@ -1028,7 +1035,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Takes a String and returns a copy with the following conversions: / to -, space to _, and \ to -. */
-	public String asSafePath(final String name) {
+	static public String asSafePath(final String name) {
 		return name.trim().replace('/', '-').replace(' ', '_').replace('\\','-');
 	}
 
@@ -1110,7 +1117,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
-	private String makeRelativePath(String path) {
+	public String makeRelativePath(String path) {
 		if (null == project_file_path) {
 			//unsaved project
 			return path;
@@ -1214,7 +1221,6 @@ public final class FSLoader extends Loader {
 				if (as_copy) ip = ip.duplicate();
 				imp_patch_i = new ImagePlus(title + "__slice=" + i, ip);
 			}
-			preProcess(imp_patch_i);
 
 			String label = imp_stack.getStack().getSliceLabel(i);
 			if (null == label) label = "";
@@ -1257,14 +1263,10 @@ public final class FSLoader extends Loader {
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
 	public void parseXMLOptions(final HashMap ht_attributes) {
-		Object ob = ht_attributes.remove("preprocessor");
-		if (null != ob) {
-			setPreprocessor((String)ob);
-		}
 		// Adding some logic to support old projects which lack a storage folder and a mipmaps folder
 		// and also to prevent errors such as those created when manualy tinkering with the XML file
 		// or renaming directories, etc.
-		ob = ht_attributes.remove("storage_folder");
+		Object ob = ht_attributes.remove("storage_folder");
 		if (null != ob) {
 			String sf = ((String)ob).replace('\\', '/');
 			if (isRelativePath(sf)) {
@@ -1374,13 +1376,12 @@ public final class FSLoader extends Loader {
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
 	public void insertXMLOptions(StringBuffer sb_body, String indent) {
 		sb_body.append(indent).append("unuid=\"").append(unuid).append("\"\n");
-		if (null != preprocessor) sb_body.append(indent).append("preprocessor=\"").append(preprocessor).append("\"\n");
 		if (null != dir_mipmaps) sb_body.append(indent).append("mipmaps_folder=\"").append(makeRelativePath(dir_mipmaps)).append("\"\n");
 		if (null != dir_storage) sb_body.append(indent).append("storage_folder=\"").append(makeRelativePath(dir_storage)).append("\"\n");
 	}
 
 	/** Return the path to the folder containing the project XML file. */
-	private final String getParentFolder() {
+	public final String getParentFolder() {
 		return this.project_file_path.substring(0, this.project_file_path.lastIndexOf('/')+1);
 	}
 
@@ -1449,7 +1450,7 @@ public final class FSLoader extends Loader {
 	}
 
 	static public final BufferedImage convertToBufferedImage(final ByteProcessor bp) {
-		bp.setMinAndMax(0, 255);
+		bp.setMinAndMax(0, 255); // TODO what is this doing here? The ByteProcessor.setMinAndMax is destructive, it expands the pixel values to the desired range.
 		final Image img = bp.createImage();
 		if (img instanceof BufferedImage) return (BufferedImage)img;
 		//else:
@@ -2549,6 +2550,7 @@ public final class FSLoader extends Loader {
 							Utils.showStatus("Regenerating mipmaps (" + n_regenerating.get() + " to go)");
 							generateMipMaps(patch, false);
 							Display.repaint(patch.getLayer());
+							Display.updatePanel(patch.getLayer(), patch);
 							Utils.showStatus("");
 						} catch (Exception e) {
 							IJError.print(e);
@@ -2708,24 +2710,27 @@ public final class FSLoader extends Loader {
 			this.dir_masks = null;
 			if (fmasks.exists()) {
 				final String new_dir_masks = unuid_folder + "trakem2.masks/";
-				for (final File fmask : fmasks.listFiles()) {
-					final String name = fmask.getName();
-					if (!name.endsWith(".zip")) continue;
-					int last_dot = name.lastIndexOf('.');
-					if (-1 == last_dot) continue;
-					int prev_last_dot = name.lastIndexOf('.', last_dot -1);
-					String id = name.substring(prev_last_dot+1, last_dot);
-					String filename = name.substring(0, prev_last_dot);
-					File newf = new File(new_dir_masks + createIdPath(id, filename, ".zip"));
-					File fd = newf.getParentFile();
-					fd.mkdirs();
-					if (!fd.exists()) {
-						Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
-						continue;
-					}
-					if (!fmask.renameTo(newf)) {
-						Utils.log2("Could not move mask file " + fmask.getAbsolutePath() + " to " + newf.getAbsolutePath());
-						continue;
+				final File[] fmask_files = fmasks.listFiles();
+				if (null != fmask_files) { // can be null if there are no files inside fmask directory
+					for (final File fmask : fmask_files) {
+						final String name = fmask.getName();
+						if (!name.endsWith(".zip")) continue;
+						int last_dot = name.lastIndexOf('.');
+						if (-1 == last_dot) continue;
+						int prev_last_dot = name.lastIndexOf('.', last_dot -1);
+						String id = name.substring(prev_last_dot+1, last_dot);
+						String filename = name.substring(0, prev_last_dot);
+						File newf = new File(new_dir_masks + createIdPath(id, filename, ".zip"));
+						File fd = newf.getParentFile();
+						fd.mkdirs();
+						if (!fd.exists()) {
+							Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
+							continue;
+						}
+						if (!fmask.renameTo(newf)) {
+							Utils.log2("Could not move mask file " + fmask.getAbsolutePath() + " to " + newf.getAbsolutePath());
+							continue;
+						}
 					}
 				}
 				// Set it!

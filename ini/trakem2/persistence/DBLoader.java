@@ -1527,6 +1527,11 @@ public class DBLoader extends Loader {
 		}
 	}
 
+	public boolean updateInDatabase(final DBObject ob, final Set<String> keys) {
+		Utils.log2("updateInDatabase(DBObject, Set<String>) NOT IMPLEMENTED");
+		return false;
+	}
+
 	public boolean removeFromDatabase(DBObject ob) {
 		synchronized (db_lock) {
 			lock();
@@ -2642,7 +2647,7 @@ public class DBLoader extends Loader {
 				}
 				// non-destructive contrast: min and max
 				if (null != imp) {
-					p.putMinAndMax(imp);
+					// OBSOLETE and wrong -- but then this whole class is obsolete// p.putMinAndMax(imp);
 				}
 			} catch (Exception e) {
 				unlock();

@@ -25,6 +25,7 @@ import ini.trakem2.display.Patch;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.PathIterator;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +34,7 @@ import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.NoninvertibleModelException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
+import mpicbg.models.Tile;
 import mpicbg.models.TileConfiguration;
 
 /**
@@ -140,6 +142,8 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 			mask = pai.outside;
 		else
 			mask = pai.mask;
+		
+		pai.target.setMinAndMax( patch.getMin(), patch.getMax() );
 		
 		final ByteProcessor target = ( ByteProcessor )pai.target.convertToByte( true );
 		
@@ -330,5 +334,22 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
 			}
 		}		
+	}
+	
+	/**
+	 * Extract the common {@linkplain PointMatch PointMatches} of two tiles.
+	 * 
+	 * @param other
+	 * @param commonMatches
+	 */
+	final public void commonPointMatches( final Tile< ? > other, final Collection< PointMatch > commonMatches )
+	{
+		for ( final PointMatch pm : matches )
+			for ( final PointMatch otherPm : other.getMatches() )
+				if ( pm.getP1() == otherPm.getP2() )
+				{
+					commonMatches.add( pm );
+					break;
+				}
 	}
 }

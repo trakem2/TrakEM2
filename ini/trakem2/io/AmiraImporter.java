@@ -145,19 +145,73 @@ public class AmiraImporter {
 							synchronized (map) {
 								map.put(i, layer_map);
 							}
-							for (int y=ip.getHeight()-1; y>-1; y--) {
-								for (int x=ip.getWidth()-1; x>-1; x--) {
+
+							final int height = ip.getHeight();
+							final int width = ip.getWidth();
+							int inc = height / 100;
+							if (inc < 10) inc = 10;
+
+							for (int y=0; y<height; y++) {
+								if (0 == y % inc) {
+									if (parent.isInterrupted()) return;
+									Utils.showStatus(new StringBuilder().append("line: ").append(y).append('/').append(height).toString());
+								}
+
+								float prev = ip.getPixelValue(0, y);
+								box.x = 0;
+								box.y = y;
+								box.width = 0;
+
+								for (int x=1; x<width; x++) {
+
+									float pix = ip.getPixelValue(x, y);
+
+
+									/*
+									if (!add_background && 0 == pix) continue;
 									// x,y
 									box.x = x;
 									box.y = y;
-									float pix = ip.getPixelValue(x, y);
-									if (!add_background && 0 == pix) continue;
 									Area area = layer_map.get(new Float(pix));
 									if (null == area) {
 										area = new Area();
 										layer_map.put(new Float(pix), area);
 									}
 									area.add(new Area(box));
+									*/
+
+									if (pix == prev) {
+										box.width++;
+										continue;
+									} else {
+										// add previous one
+										if (!Float.isNaN(prev) && (add_background || 0 != prev)) {
+											box.width++;
+											Area area = layer_map.get(new Float(prev));
+											if (null == area) {
+												area = new Area(box);
+												layer_map.put(new Float(prev), area);
+											} else {
+												area.add(new Area(box));
+											}
+										}
+										// start new box
+										box.x = x;
+										box.y = y;
+										box.width = 0;
+										prev = pix;
+									}
+								}
+
+								// At end of line, add the last
+								if (!Float.isNaN(prev) && (add_background || 0 != prev)) {
+									Area area = layer_map.get(new Float(prev));
+									if (null == area) {
+										area = new Area(box);
+										layer_map.put(new Float(prev), area);
+									} else {
+										area.add(new Area(box));
+									}
 								}
 							}
 							Utils.showProgress(completed_slices.incrementAndGet() / (float)n_slices);
@@ -173,7 +227,13 @@ public class AmiraImporter {
 
 			final HashMap<Float,AreaList> alis = new HashMap<Float,AreaList>();
 
-			double thickness = first_layer.getThickness();
+
+			Utils.log2("Recreating arealists...");
+
+			Utils.log2("map.size() = " + map.size());
+
+			final double thickness = first_layer.getThickness();
+			final double first_z = first_layer.getZ();
 
 			// Recreate AreaLists
 			for (final Map.Entry<Integer,HashMap<Float,Area>> e : map.entrySet()) {
@@ -187,13 +247,17 @@ public class AmiraImporter {
 						ali = new AreaList(first_layer.getProject(), "Label " + label.intValue(), base_x, base_y);
 						alis.put(label, ali);
 					}
-					double z = first_layer.getZ() + (slice_index-1) * thickness;
+					double z = first_z + (slice_index-1) * thickness;
 					Layer layer = first_layer.getParent().getLayer(z, thickness, true);
 					ali.setArea(layer.getId(), fa.getValue());
 				}
 			}
 
+			Utils.log2("Done recreating.");
+
 			first_layer.getParent().addAll(alis.values());
+
+			Utils.log2("Done adding all to LayerSet");
 
 			float hue = 0;
 
@@ -203,9 +267,11 @@ public class AmiraImporter {
 				ali.calculateBoundingBox();
 				ali.setColor(Color.getHSBColor(hue, 1, 1));
 				ali.setAlpha(alpha);
-				hue += 60 / 255.0f;
-				if (hue > 1) hue = 1 - hue;
+				hue += 0.38197f; // golden angle
+				if (hue > 1) hue = hue - 1;
 			}
+
+			Utils.log2("Done setting properties");
 
 			return alis;
 

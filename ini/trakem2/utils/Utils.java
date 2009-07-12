@@ -80,7 +80,7 @@ import java.util.regex.Matcher;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7g 2009-05-27";
+	static public String version = "0.7i 2009-06-26";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -631,7 +631,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	public void run(String arg) {
-		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ. Zurich / ETH");
+		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ/ETH Zurich.\n \nRegistration library copyright Stephan Saalfeld, MPI-CBG.\nLens correction copyright Verena Kaynig, ETH Zurich.\nSome parts copyright Ignacio Arganda, INI Univ/ETH Zurich.");
 	}
 
 	static public final File chooseFile(String name, String extension) {
@@ -1190,7 +1190,9 @@ public class Utils implements ij.plugin.PlugIn {
 				final File fdir = dirs.get(i);
 				Utils.log2("Examining folder for deletion: " + fdir.getName());
 				boolean remove = true;
-				for (final File file : fdir.listFiles()) {
+				File[] files = fdir.listFiles();
+				if (null == files) continue; // can be null if the directory doesn't contain any files. Why not just return an empty array!?
+				for (final File file : files) {
 					String name = file.getName();
 					if (name.equals(".") || name.equals("..")) continue;
 					if (file.isDirectory()) {
@@ -1296,5 +1298,15 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final boolean isControlDown(final InputEvent e) {
 		return IJ.isMacOSX() ? e.isMetaDown()
 			             : e.isControlDown();
+	}
+
+	static public final void drawPoint(final java.awt.Graphics g, final int x, final int y) {
+		g.setColor(Color.white);
+		g.drawLine(x-4, y+2, x+8, y+2);
+		g.drawLine(x+2, y-4, x+2, y+8);
+		g.setColor(Color.yellow);
+		g.fillRect(x+1,y+1,3,3);
+		g.setColor(Color.black);
+		g.drawRect(x, y, 4, 4);
 	}
 }

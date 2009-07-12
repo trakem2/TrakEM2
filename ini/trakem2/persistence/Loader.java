@@ -55,6 +55,7 @@ import ini.trakem2.display.Ball;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
+import ini.trakem2.display.DisplayablePanel;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
@@ -127,8 +128,6 @@ import javax.swing.JMenu;
 
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
-import mpi.fruitfly.registration.PhaseCorrelation2D;
-import mpi.fruitfly.registration.Feature;
 import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.Future;
@@ -338,6 +337,8 @@ abstract public class Loader {
 
 	abstract public boolean updateInDatabase(DBObject ob, String key);
 
+	abstract public boolean updateInDatabase(DBObject ob, Set<String> keys);
+
 	abstract public boolean removeFromDatabase(DBObject ob);
 
 	/* Reflection would be the best way to do all above; when it's about and 'id', one only would have to check whether the field in question is a BIGINT and the object given a DBObject, and call getId(). Such an approach demands, though, perfect matching of column names with class field names. */
@@ -351,79 +352,6 @@ abstract public class Loader {
 	public final void setMassiveMode(boolean m) {
 		massive_mode = m;
 		//Utils.log2("massive mode is " + m + " for loader " + this);
-	}
-
-	/** Retrieves a zipped ImagePlus from the given InputStream. The stream is not closed and must be closed elsewhere. No error checking is done as to whether the stream actually contains a zipped tiff file. */
-	protected ImagePlus unzipTiff(InputStream i_stream, String title) {
-		ImagePlus imp;
-		try {
-			// Reading a zipped tiff file in the database
-
-
-			/* // works but not faster
-			byte[] bytes = null;
-			// new style: RAM only
-			ByteArrayOutputStream out = new ByteArrayOutputStream();
-			byte[] buf = new byte[4096];
-			int len;
-			int length = 0;
-			while (true) {
-				len = i_stream.read(buf);
-				if (len<0) break;
-				length += len;
-				out.write(buf, 0, len);
-			}
-			Inflater infl = new Inflater();
-			infl.setInput(out.toByteArray(), 0, length);
-			int buflen = length + length;
-			buf = new byte[buflen]; //short almost for sure
-			int offset = 0;
-			ArrayList al = new ArrayList();
-			while (true) {
-				len = infl.inflate(buf, offset, buf.length);
-				al.add(buf);
-				if (0 == infl.getRemaining()) break;
-				buf = new byte[length*2];
-				offset += len;
-			}
-			infl.end();
-			byte[][] b = new byte[al.size()][];
-			al.toArray(b);
-			int blength = buflen * (b.length -1) + len; // the last may be shorter
-			bytes = new byte[blength];
-			for (int i=0; i<b.length -1; i++) {
-				System.arraycopy(b[i], 0, bytes, i*buflen, buflen);
-			}
-			System.arraycopy(b[b.length-1], 0, bytes, buflen * (b.length-1), len);
-			*/
-
-
-			//OLD, creates tmp file (archive style)
-			ZipInputStream zis = new ZipInputStream(i_stream);
-			ByteArrayOutputStream out = new ByteArrayOutputStream();
-			byte[] buf = new byte[4096]; //copying savagely from ImageJ's Opener.openZip()
-			ZipEntry entry = zis.getNextEntry(); // I suspect this is needed as an iterator
-			int len;
-			while (true) {
-				len = zis.read(buf);
-				if (len<0) break;
-				out.write(buf, 0, len);
-			}
-			zis.close();
-			byte[] bytes = out.toByteArray();
-
-			ij.IJ.redirectErrorMessages();
-			imp = opener.openTiff(new ByteArrayInputStream(bytes), title);
-			// NO! Database images may get preprocessed everytime one opends them. The preprocessor is only intended to be applied to files opened from the file system. //preProcess(imp);
-
-			//old
-			//ij.IJ.redirectErrorMessages();
-			//imp = new Opener().openTiff(i_stream, title);
-		} catch (Exception e) {
-			IJError.print(e);
-			return null;
-		}
-		return imp;
 	}
 
 	public void addCrossLink(long project_id, long id1, long id2) {}
@@ -494,28 +422,77 @@ abstract public class Loader {
 		}
 	}
 
-	public void updateCache(final Displayable d, final String key) {
-		/* CRUFT FROM THE PAST, for LayerStack I think
-		if (key.startsWith("points=")) {
-			long lid = Long.parseLong(key.substring(7)); // for AreaList
-			decacheImagePlus(lid);
-		} else if (d instanceof ZDisplayable) {
-			// remove all layers in which the ZDisplayable paints to
-			ZDisplayable zd = (ZDisplayable)d;
-			for (Iterator it = zd.getLayerSet().getLayers().iterator(); it.hasNext(); ) {
-				Layer layer = (Layer)it.next();
-				if (zd.paintsAt(layer)) decacheImagePlus(layer.getId());
-			}
-		} else {
-			// remove the layer where the Displayable paints to
-			if (null == d.getLayer()) {
-				// Top Level LayerSet has no layer
-				return;
-			}
-			decacheImagePlus(d.getLayer().getId());
-		}
-		*/
-	}
+       /** Retrieves a zipped ImagePlus from the given InputStream. The stream is not closed and must be closed elsewhere. No error checking is done as to whether the stream actually contains a zipped tiff file. */
+       protected ImagePlus unzipTiff(InputStream i_stream, String title) {
+               ImagePlus imp;
+               try {
+                       // Reading a zipped tiff file in the database
+
+
+                       /* // works but not faster
+                       byte[] bytes = null;
+                       // new style: RAM only
+                       ByteArrayOutputStream out = new ByteArrayOutputStream();
+                       byte[] buf = new byte[4096];
+                       int len;
+                       int length = 0;
+                       while (true) {
+                               len = i_stream.read(buf);
+                               if (len<0) break;
+                               length += len;
+                               out.write(buf, 0, len);
+                       }
+                       Inflater infl = new Inflater();
+                       infl.setInput(out.toByteArray(), 0, length);
+                       int buflen = length + length;
+                       buf = new byte[buflen]; //short almost for sure
+                       int offset = 0;
+                       ArrayList al = new ArrayList();
+                       while (true) {
+                               len = infl.inflate(buf, offset, buf.length);
+                               al.add(buf);
+                               if (0 == infl.getRemaining()) break;
+                               buf = new byte[length*2];
+                               offset += len;
+                       }
+                       infl.end();
+                       byte[][] b = new byte[al.size()][];
+                       al.toArray(b);
+                       int blength = buflen * (b.length -1) + len; // the last may be shorter
+                       bytes = new byte[blength];
+                       for (int i=0; i<b.length -1; i++) {
+                               System.arraycopy(b[i], 0, bytes, i*buflen, buflen);
+                       }
+                       System.arraycopy(b[b.length-1], 0, bytes, buflen * (b.length-1), len);
+                       */
+
+
+                       //OLD, creates tmp file (archive style)
+                       ZipInputStream zis = new ZipInputStream(i_stream);
+                       ByteArrayOutputStream out = new ByteArrayOutputStream();
+                       byte[] buf = new byte[4096]; //copying savagely from ImageJ's Opener.openZip()
+                       ZipEntry entry = zis.getNextEntry(); // I suspect this is needed as an iterator
+                       int len;
+                       while (true) {
+                               len = zis.read(buf);
+                               if (len<0) break;
+                               out.write(buf, 0, len);
+                       }
+                       zis.close();
+                       byte[] bytes = out.toByteArray();
+
+                       ij.IJ.redirectErrorMessages();
+                       imp = opener.openTiff(new ByteArrayInputStream(bytes), title);
+
+                       //old
+                       //ij.IJ.redirectErrorMessages();
+                       //imp = new Opener().openTiff(i_stream, title);
+               } catch (Exception e) {
+                       IJError.print(e);
+                       return null;
+               }
+               return imp;
+       }
 
 	///////////////////
 
@@ -912,13 +889,32 @@ abstract public class Loader {
 		return Math.max(d.getWidth(), d.getHeight());
 	}
 
+	public boolean isImagePlusCached(final Patch p) {
+		synchronized (db_lock) {
+			try {
+				lock();
+				return null != imps.get(p.getId());
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			} finally {
+				unlock();
+			}
+		}
+	}
+
 	/** Returns true if there is a cached awt image for the given mag and Patch id. */
 	public boolean isCached(final Patch p, final double mag) {
 		synchronized (db_lock) {
-			lock();
-			boolean b = mawts.contains(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
-			unlock();
-			return b;
+			try {
+				lock();
+				return mawts.contains(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			} finally {
+				unlock();
+			}
 		}
 	}
 
@@ -1432,7 +1428,6 @@ abstract public class Loader {
 
 		int n_max = all_images.length;
 
-		String preprocessor = "";
 		int n_rows = 0;
 		int n_cols = 0;
 		double bx = 0;
@@ -1460,8 +1455,7 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", bt_overlap, 2); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", lr_overlap, 2);
 		gd.addCheckbox("link images", link_images);
-		gd.addStringField("preprocess with: ", preprocessor); // the name of a plugin to use for preprocessing the images before importing, which implements PlugInFilter
-		gd.addCheckbox("use_cross-correlation", stitch_tiles);
+		gd.addCheckbox("registration", stitch_tiles);
 		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
@@ -1501,7 +1495,6 @@ abstract public class Loader {
 		bt_overlap = gd.getNextNumber();
 		lr_overlap = gd.getNextNumber();
 		link_images = gd.getNextBoolean();
-		preprocessor = gd.getNextString().replace(' ', '_'); // just in case
 		stitch_tiles = gd.getNextBoolean();
 		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		float cc_scale = (float)gd.getNextNumber() / 100f;
@@ -1573,36 +1566,10 @@ abstract public class Loader {
 			cols.add(col);
 		}
 
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 
 		} catch (Exception e) {
 			IJError.print(e);
-		}
-		return null;
-	}
-
-	private ImagePlus preprocess(String preprocessor, ImagePlus imp, String path) {
-		if (null == imp) return null;
-		try {
-			startSetTempCurrentImage(imp);
-			IJ.redirectErrorMessages();
-			Object ob = IJ.runPlugIn(preprocessor, "[path=" + path + "]");
-			ImagePlus pp_imp = WindowManager.getCurrentImage();
-			if (null != pp_imp) {
-				finishSetTempCurrentImage();
-				return pp_imp;
-			} else {
-				// discard this image
-				Utils.log("Ignoring " + imp.getTitle() + " from " + path + " since the preprocessor " + preprocessor + " returned null on it.");
-				flush(imp);
-				finishSetTempCurrentImage();
-				return null;
-			}
-		} catch (Exception e) {
-			IJError.print(e);
-			finishSetTempCurrentImage();
-			Utils.log("Ignoring " + imp.getTitle() + " from " + path + " since the preprocessor " + preprocessor + " throwed an Exception on it.");
-			flush(imp);
 		}
 		return null;
 	}
@@ -1649,8 +1616,7 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", 0, 3); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", 0, 3);
 		gd.addCheckbox("link_images", false);
-		gd.addStringField("Preprocess with: ", ""); // the name of a plugin to use for preprocessing the images before importing, which implements Preprocess
-		gd.addCheckbox("use_cross-correlation", false);
+		gd.addCheckbox("registration", false);
 		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, 25);
@@ -1686,7 +1652,6 @@ abstract public class Loader {
 		double bt_overlap = gd.getNextNumber();
 		double lr_overlap = gd.getNextNumber();
 		boolean link_images = gd.getNextBoolean();
-		String preprocessor = gd.getNextString();
 		boolean stitch_tiles = gd.getNextBoolean();
 		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		float cc_scale = (float)gd.getNextNumber() / 100f;
@@ -1723,7 +1688,7 @@ abstract public class Loader {
 		Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
 		ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1742,7 +1707,7 @@ abstract public class Loader {
 	 * @param link_images Link images to their neighbors.
 	 * @param preproprecessor The name of a PluginFilter in ImageJ's plugin directory, to be called on every image prior to insertion.
 	 */
-	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final String preprocessor, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule/*, final boolean apply_non_linear_def*/) {
+	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule/*, final boolean apply_non_linear_def*/) {
 
 		// create a Worker, then give it to the Bureaucrat
 
@@ -1756,28 +1721,6 @@ abstract public class Loader {
 		setMassiveMode(true);//massive_mode = true;
 		Utils.showProgress(0.0D);
 		opener.setSilentMode(true); // less repaints on IJ status bar
-
-		Utils.log2("Preprocessor plugin: " + preprocessor);
-		boolean preprocess = null != preprocessor && preprocessor.length() > 0;
-		if (preprocess) {
-			// check the given plugin
-			IJ.redirectErrorMessages();
-			startSetTempCurrentImage(null);
-			try {
-				Object ob = IJ.runPlugIn(preprocessor, "");
-				if (!(ob instanceof PlugInFilter)) {
-					Utils.showMessageT("Plug in " + preprocessor + " is invalid: does not implement interface PlugInFilter");
-					finishSetTempCurrentImage();
-					return;
-				}
-				finishSetTempCurrentImage();
-			} catch (Exception e) {
-				IJError.print(e);
-				finishSetTempCurrentImage();
-				Utils.showMessageT("Plug in " + preprocessor + " is invalid: ImageJ has trhown an exception when testing it with a null image.");
-				return;
-			}
-		}
 
 		/* If requested, ask for a text file containing the non-linear deformation coefficients
 		 * and obtain a NonLinearTransform object and coefficients to apply to all images. */
@@ -1809,8 +1752,6 @@ abstract public class Loader {
 			return;
 		}
 
-		if (preprocess) first_img = preprocess(preprocessor, first_img, path);
-		else preProcess(first_img); // the system wide, if any
 		if (null == first_img) return;
 		final int first_image_width = first_img.getWidth();
 		final int first_image_height = first_img.getHeight();
@@ -1859,14 +1800,6 @@ abstract public class Loader {
 					} catch (OutOfMemoryError oome) {
 						printMemState();
 						throw oome;
-					}
-					// Preprocess ImagePlus
-					if (preprocess) {
-						img = preprocess(preprocessor, img, path);
-						if (null == img) continue;
-					} else {
-						// use standard project wide , if any
-						preProcess(img);
 					}
 				}
 				if (null == img) {
@@ -3161,13 +3094,14 @@ abstract public class Loader {
 		return new int[]{min_larger, starter[min_i]};
 	}
 
+	/** WARNING may be altered concurrently. */
 	private String last_opened_path = null;
 
 	/** Subclasses can override this method to register the URL of the imported image. */
 	public void addedPatchFrom(String path, Patch patch) {}
 
 	/** Import an image into the given layer, in a separate task thread. */
-	public Bureaucrat importImage(final Layer layer, final double x, final double y, final String path) {
+	public Bureaucrat importImage(final Layer layer, final double x, final double y, final String path, final boolean synch_mipmap_generation) {
 		Worker worker = new Worker("Importing image") {
 			public void run() {
 				startedWorking();
@@ -3178,9 +3112,11 @@ abstract public class Loader {
 						finishedWorking();
 						return;
 					}
-					Patch p = importImage(layer.getProject(), x, y, path);
+					Patch p = importImage(layer.getProject(), x, y, path, synch_mipmap_generation);
 					if (null != p) {
-						layer.add(p);
+						synchronized (layer) {
+							layer.add(p);
+						}
 						layer.getParent().enlargeToFit(p, LayerSet.NORTHWEST);
 					}
 					////
@@ -3194,10 +3130,10 @@ abstract public class Loader {
 	}
 
 	public Patch importImage(Project project, double x, double y) {
-		return importImage(project, x, y, null);
+		return importImage(project, x, y, null, false);
 	}
 	/** Import a new image at the given coordinates; does not puts it into any layer, unless it's a stack -in which case importStack is called with the current front layer of the given project as target. If a path is not provided it will be asked for.*/
-	public Patch importImage(Project project, double x, double y, String path) {
+	public Patch importImage(Project project, double x, double y, String path, boolean synch_mipmap_generation) {
 		if (null == path) {
 			OpenDialog od = new OpenDialog("Import image", "");
 			String name = od.getFileName();
@@ -3217,7 +3153,6 @@ abstract public class Loader {
 		IJ.redirectErrorMessages();
 		final ImagePlus imp = opener.openImage(path);
 		if (null == imp) return null;
-		preProcess(imp);
 		if (imp.getNSlices() > 1) {
 			// a stack!
 			Layer layer = Display.getFrontLayer(project);
@@ -3230,10 +3165,13 @@ abstract public class Loader {
 			flush(imp);
 			return null;
 		}
-		last_opened_path = path;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
-		addedPatchFrom(last_opened_path, p);
-		if (isMipMapsEnabled()) generateMipMaps(p);
+		addedPatchFrom(path, p);
+		last_opened_path = path; // WARNING may be altered concurrently
+		if (isMipMapsEnabled()) {
+			if (synch_mipmap_generation) generateMipMaps(p);
+			else regenerateMipMaps(p); // queue for regeneration
+		}
 		return p;
 	}
 	public Patch importNextImage(Project project, double x, double y) {
@@ -3267,17 +3205,17 @@ abstract public class Loader {
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		IJ.redirectErrorMessages();
 		ImagePlus imp = opener.openImage(dir_name, next_file);
-		preProcess(imp);
 		if (null == imp) return null;
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
 			Utils.showMessage("Can't import image of zero width or height.");
 			flush(imp);
 			return null;
 		}
-		last_opened_path = dir + "/" + next_file;
+		String path = dir + "/" + next_file;
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
-		addedPatchFrom(last_opened_path, p);
-		if (isMipMapsEnabled()) generateMipMaps(p);
+		addedPatchFrom(path, p);
+		last_opened_path = path; // WARNING may be altered concurrently
+		if (isMipMapsEnabled()) regenerateMipMaps(p);
 		return p;
 	}
 
@@ -3447,7 +3385,10 @@ abstract public class Loader {
 
 		// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
 		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, x, y, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
-		if (null != last_patch) last_patch.setLocked(lock_stack);
+		if (null != last_patch) {
+			last_patch.setLocked(lock_stack);
+			Display.updateCheckboxes(last_patch.getLinkedGroup(null), DisplayablePanel.LOCK_STATE, true);
+		}
 
 		if (expand_layer_set) {
 			last_patch.getLayer().getParent().setMinimumDimensions();
@@ -3715,89 +3656,25 @@ abstract public class Loader {
 		}
 	}
 
-	static private Object temp_current_image_lock = new Object();
-	static private boolean temp_in_use = false;
-	static private ImagePlus previous_current_image = null;
-
-	static public void startSetTempCurrentImage(final ImagePlus imp) {
-		synchronized (temp_current_image_lock) {
-			//Utils.log2("temp in use: " + temp_in_use);
-			while (temp_in_use) { try { temp_current_image_lock.wait(); } catch (InterruptedException ie) {} }
-			temp_in_use = true;
-			previous_current_image = WindowManager.getCurrentImage();
-			WindowManager.setTempCurrentImage(imp);
-		}
-	}
-
-	/** This method MUST always be called after startSetTempCurrentImage(ImagePlus imp) has been called and the action on the image has finished. */
-	static public void finishSetTempCurrentImage() {
-		synchronized (temp_current_image_lock) {
-			WindowManager.setTempCurrentImage(previous_current_image); // be nice
-			temp_in_use = false;
-			temp_current_image_lock.notifyAll();
-		}
-	}
-
-	static public void setTempCurrentImage(final ImagePlus imp) {
-		synchronized (temp_current_image_lock) {
-			while (temp_in_use) { try { temp_current_image_lock.wait(); } catch (InterruptedException ie) {} }
-			temp_in_use = true;
-			WindowManager.setTempCurrentImage(imp);
-			temp_in_use = false;
-			temp_current_image_lock.notifyAll();
-		}
-	}
-
-	protected String preprocessor = null;
-
-	public boolean setPreprocessor(String plugin_class_name) {
-		if (null == plugin_class_name || 0 == plugin_class_name.length()) {
-			this.preprocessor = null;
-			return true;
-		}
-		// just for the sake of it:
-		plugin_class_name = plugin_class_name.replace(' ', '_');
-		// check that it can be instantiated
+	protected final void preProcess(final Patch p, ImagePlus imp) {
+		if (null == p) return;
 		try {
-			startSetTempCurrentImage(null);
-			IJ.redirectErrorMessages();
-			Object ob = IJ.runPlugIn(plugin_class_name, "");
-			if (null == ob) {
-				Utils.showMessageT("The preprocessor plugin " + plugin_class_name + " was not found.");
-			} else if (!(ob instanceof PlugInFilter)) {
-				Utils.showMessageT("Plug in '" + plugin_class_name + "' is invalid: does not implement PlugInFilter");
-			} else { // all is good:
-				this.preprocessor = plugin_class_name;
+			String path = preprocessors.get(p);
+			if (null == path) return;
+			if (null != imp) {
+				// Prepare image for pre-processing
+				imp.getProcessor().setMinAndMax(p.getMin(), p.getMax()); // for 8-bit and RGB images, your problem: setting min and max will expand the range.
+			} else {
+				imp = new ImagePlus(); // uninitialized: the script may generate its data
 			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			Utils.showMessageT("Plug in " + plugin_class_name + " is invalid: ImageJ has thrown an exception when testing it with a null image.");
-			return false;
-		} finally {
-			finishSetTempCurrentImage();
-		}
-		return true;
-	}
-
-	public String getPreprocessor() {
-		return preprocessor;
-	}
-
-	/** Preprocess an image before TrakEM2 ever has a look at it with a system-wide defined preprocessor plugin, specified in the XML file and/or from within the Display properties dialog. Does not lock, and should always run within locking/unlocking statements. */
-	protected final void preProcess(final ImagePlus imp) {
-		if (null == preprocessor || null == imp) return;
-		// access to WindowManager.setTempCurrentImage(...) is locked within the Loader
-		try {
-			startSetTempCurrentImage(imp);
-			IJ.redirectErrorMessages();
-			IJ.runPlugIn(preprocessor, "");
+			// Run the script
+			ini.trakem2.scripting.PatchScript.run(p, imp, path);
+			// Update Patch image properties:
+			cache(p, imp);
+			p.updatePixelProperties();
 		} catch (Exception e) {
 			IJError.print(e);
-		} finally {
-			finishSetTempCurrentImage();
 		}
-		// reset flag
-		imp.changes = false;
 	}
 
 	///////////////////////
@@ -5013,4 +4890,29 @@ abstract public class Loader {
 		if (-1 != i) path = path.substring(0, i);
 		return Loader.getDimensions(path);
 	}
+
+	/** Table of preprocessor scripts. */
+	private Hashtable<Patch,String> preprocessors = new Hashtable<Patch,String>();
+
+	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all.
+	 *  To remove the script, set it to null. */
+	public void setPreprocessorScriptPath(final Patch p, final String path) {
+		if (null == path) preprocessors.remove(p);
+		else preprocessors.put(p, path);
+		// If the ImagePlus is cached, it will not be preProcessed.
+		// Merely running the preProcess on the cached image is no guarantee; threading competition may result in an unprocessed, newly loaded image.
+		// Hence, decache right after setting the script, then update mipmaps
+		decacheImagePlus(p.getId());
+		regenerateMipMaps(p); // queued
+	}
+
+	public String getPreprocessorScriptPath(final Patch p) {
+		return preprocessors.get(p);
+	}
+
+	/** Returns @param path unless overriden. */
+	public String makeRelativePath(String path) { return path; }
+
+	/** Does nothing unless overriden. */
+	public String getParentFolder() { return null; }
 }

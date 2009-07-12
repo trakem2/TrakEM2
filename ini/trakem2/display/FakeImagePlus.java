@@ -34,6 +34,7 @@ import ini.trakem2.imaging.LayerStack;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.awt.image.ColorModel;
 import java.awt.geom.Point2D;
 
@@ -87,7 +88,7 @@ public class FakeImagePlus extends ImagePlus {
 		} catch (Exception e) {
 			IJError.print(e);
 		}
-		return new int[3];
+		return new int[4];
 	}
 
 	private class FakeProcessor extends ByteProcessor {
@@ -97,48 +98,53 @@ public class FakeImagePlus extends ImagePlus {
 		}
 		/** Override to return the pixel of the Patch under x,y, if any. */
 		public int getPixel(final int x, final int y) {
-			return getPixel(1.0, x, y);
+			return getPixel(display.getCanvas().getMagnification(), x, y);
 		}
 		public int getPixel(double mag, final int x, final int y) {
-			if (mag > 1) mag = 1;
-			final ArrayList al = display.getLayer().getDisplayables();
-			final Displayable[] d = new Displayable[al.size()];
-			al.toArray(d);
-			int pixel = 0; // will return black if nothing found
-			// reverse lookup, for the top ones are at the bottom of the array
-			for (int i=d.length -1; i>-1; i--) {
-				if (d[i].getClass() == Patch.class && d[i].contains(x, y)) {
-					Patch p = (Patch)d[i];
-					FakeImagePlus.this.type = p.getType(); // for proper value string display
-					return p.getPixel(mag, x, y);
-				}
+			final Collection under = display.getLayer().find(Patch.class, x, y);
+			if (null == under || under.isEmpty()) return 0; // zeros
+			for (final Patch p : (Collection<Patch>)under) {
+				if (!p.isVisible()) continue;
+				FakeImagePlus.this.type = p.getType(); // for proper value string display
+				// TODO: edit here when adding layer mipmaps
+				return p.getPixel(mag, x, y);
 			}
-			return pixel;
+			// Outside images, hence reset:
+			FakeImagePlus.this.type = ImagePlus.GRAY8;
+			return 0;
 		}
+		/** @param iArray is ignored. */
 		public int[] getPixel(int x, int y, int[] iArray) {
 			return getPixel(1.0, x, y, iArray);
 		}
+		/** @param iArray is ignored. */
 		public int[] getPixel(double mag, int x, int y, int[] iArray) {
-			if (mag > 1) mag = 1;
-			ArrayList al = display.getLayer().getDisplayables();
-			final Displayable[] d = new Displayable[al.size()];
-			al.toArray(d);
-			// reverse lookup, for the top ones are at the bottom of the array
-			for (int i=d.length -1; i>-1; i--) {
-				if (d[i].getClass() == Patch.class && d[i].contains(x, y)) {
-					Patch p = (Patch)d[i];
+			final Collection under = display.getLayer().find(Patch.class, x, y);
+			if (null != under && !under.isEmpty()) {
+				for (final Patch p : (Collection<Patch>)under) {
 					if (!p.isVisible()) continue;
 					FakeImagePlus.this.type = p.getType(); // for proper value string display
-					if (!p.isStack() && Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
+					// TODO: edit here when adding layer mipmaps
+					if (!p.isStack() && ImagePlus.COLOR_256 != p.getType() && Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
 						// Gather the ImagePlus: will be faster than using a PixelGrabber on an awt image
 						Point2D.Double po = p.inverseTransformPoint(x, y);
 						ImageProcessor ip = p.getImageProcessor();
-						if (null != ip) return ip.getPixel((int)po.x, (int)po.y, iArray);
+						if (null != ip) {
+							if (ImagePlus.GRAY32 == FakeImagePlus.this.type) {
+								// a value encoded with Float.floatToIntBits
+								return new int[]{ip.getPixel((int)po.x, (int)po.y), 0, 0, 0};
+							} else {
+								return ip.getPixel((int)po.x, (int)po.y, null != iArray && ImagePlus.COLOR_256 == FakeImagePlus.this.type && 3 == iArray.length ? new int[4] : iArray);
+							}
+						}
+						else break; // otherwise it would be showing a pixel for an image region that is not visible.
 					}
 					return p.getPixel(mag, x, y, iArray);
 				}
 			}
-			return null == iArray ? new int[4] : iArray;
+			// Outside images, hence reset:
+			FakeImagePlus.this.type = ImagePlus.GRAY8;
+			return new int[4];
 		}
 		public int getWidth() { return w; }
 		public int getHeight() { return h; }
@@ -148,6 +154,30 @@ public class FakeImagePlus extends ImagePlus {
 		}
 		@Override
 		public void setPixels(Object ob) {} // disabled
+	}
+
+	@Override
+	public void mouseMoved(final int x, final int y) {
+		final StringBuilder sb = new StringBuilder("x=").append(x).append(", y=").append(y).append(", value=");
+		final int[] v = getPixel(x, y);
+		switch (type) {
+			case ImagePlus.GRAY8:
+			case ImagePlus.GRAY16:
+				sb.append(v[0]);
+				break;
+			case ImagePlus.COLOR_256:
+			case ImagePlus.COLOR_RGB:
+				sb.append(v[0]).append(',').append(v[1]).append(',').append(v[2]);
+				break;
+			case ImagePlus.GRAY32:
+				sb.append(Float.intBitsToFloat(v[0]));
+				break;
+			default:
+				sb.setLength(sb.length() -8); // no value info
+				break;
+		}
+		// Utils.showStatus would be too slow at reporting, because it waits for fast subsequent calls.
+		IJ.showStatus(sb.toString());
 	}
 
 	// TODO: use layerset virtualization

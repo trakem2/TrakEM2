@@ -1383,9 +1383,11 @@ public class Profile extends Displayable {
 		hs_done.add(this);
 		super.setColor(c);
 		HashSet hs = getLinked(Profile.class);
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Profile p = (Profile)it.next();
-			p.setColor(c, hs_done);
+		if (null != hs) {
+			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+				Profile p = (Profile)it.next();
+				p.setColor(c, hs_done);
+			}
 		}
 	}
 

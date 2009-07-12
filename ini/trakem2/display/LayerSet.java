@@ -467,7 +467,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Enlarges the display in the given direction; the anchor is the point to keep still, and can be any of LayerSet.NORTHWEST (top-left), etc. */
-	public boolean enlargeToFit(final Displayable d, final int anchor) {
+	synchronized public boolean enlargeToFit(final Displayable d, final int anchor) {
 		final Rectangle r = new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
 		final Rectangle b = d.getBoundingBox(null);
 		// check if necessary
@@ -781,11 +781,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			zd.setLayerSet(this);
 			zd.setLayer(al_layers.get(0));
 			zd.updateInDatabase("layer_set_id");
-			if (null != root) {
-				// add as last, then update
-				root.put(al_zdispl.size()-1, zd, zd.getBoundingBox(null));
-				root.update(this, zd, 0, al_zdispl.size()-1);
-			}
+		}
+		if (null != root) {
+			recreateBuckets(false); // only ZDisplayable
 		}
 		Display.addAll(this, coll);
 	}
@@ -967,11 +965,17 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		for (Layer la : al_layers) hs.addAll(la.hideExcept(type, repaint));
 		return hs;
 	}
-	public void setAllVisible(boolean repaint) {
-		for (ZDisplayable zd : al_zdispl) {
-			if (!zd.isVisible()) zd.setVisible(true, repaint);
+	/** Returns the collection of Displayable whose visibility state has changed. */
+	public Collection<Displayable> setAllVisible(final boolean repaint) {
+		final Collection<Displayable> col = new ArrayList<Displayable>();
+		for (final ZDisplayable zd : al_zdispl) {
+			if (!zd.isVisible()) {
+				zd.setVisible(true, repaint);
+				col.add(zd);
+			}
 		}
-		for (Layer la : al_layers) la.setAllVisible(repaint);
+		for (Layer la : al_layers) col.addAll(la.setAllVisible(repaint));
+		return col;
 	}
 
 	/** Returns true if any of the ZDisplayable objects are of the given class. */
@@ -1605,15 +1609,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	boolean addDataEditStep(final Displayable d) {
 		//Utils.log2("Adding data edit step");
 		// Adds "data", which contains width,height,affinetransform,links, and the data (points, areas, etc.)
-		return addEditStep(new Displayable.DoEdit(d).init(d, new String[]{"data"}));
+		return addDataEditStep(d, new String[]{"data"});
+	}
+	/** A new undo step for any desired fields of Displayable d. */
+	boolean addDataEditStep(final Displayable d, final String[] fields) {
+		return addEditStep(new Displayable.DoEdit(d).init(d, fields));
 	}
 
 	/** A new undo step for the "data" field of all Displayable in the set. */
-	boolean addDataEditStep(final Set<Displayable> ds) {
+	boolean addDataEditStep(final Set<? extends Displayable> ds) {
 		return addDataEditStep(ds, new String[]{"data"});
 	}
 
-	boolean addDataEditStep(final Set<Displayable> ds, final String[] fields) {
+	boolean addDataEditStep(final Set<? extends Displayable> ds, final String[] fields) {
 		final Displayable.DoEdits edits = new Displayable.DoEdits(ds);
 		edits.init(fields);
 		return addEditStep(edits);
@@ -1624,7 +1632,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		addTransformStep(layer.getDisplayables());
 	}
 	/** Add an undo step for the transformations of all Displayable in hs. */
-	public void addTransformStep(final Collection<Displayable> col) {
+	public void addTransformStep(final Collection<? extends Displayable> col) {
 		//Utils.log2("Added transform step for col");
 		addEditStep(new Displayable.DoTransforms().addAll(col));
 	}
@@ -1639,12 +1647,21 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Add a step to undo the addition or deletion of one or more objects in this project and LayerSet. */
-	public void addChangeTreesStep() {
-		DoStep step = new LayerSet.DoChangeTrees(this);
+	public DoChangeTrees addChangeTreesStep() {
+		DoChangeTrees step = new LayerSet.DoChangeTrees(this);
 		if (prepareStep(step)) {
 			Utils.log2("Added change trees step.");
 			addEditStep(step);
 		}
+		return step;
+	}
+	/** Add a step to undo the addition or deletion of one or more objects in this project and LayerSet,
+	 *  along with an arbitrary set of steps that may alter, for example the data. */
+	public DoChangeTrees addChangeTreesStep(final Set<DoStep> dependents) {
+		DoChangeTrees step = addChangeTreesStep();
+		step.addDependents(dependents);
+		addEditStep(step);
+		return step;
 	}
 	/** For the Displayable contained in a Layer: their number, and their stack order. */
 	public void addLayerContentStep(final Layer la) {
@@ -1862,6 +1879,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final ArrayList<ZDisplayable> all_zdispl;
 		final HashMap<Displayable,Set<Displayable>> links;
 
+		HashSet<DoStep> dependents = null;
+
 		// TODO: does not consider recursive LayerSets!
 		public DoChangeTrees(final LayerSet ls) {
 			this.ls = ls;
@@ -1874,8 +1893,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			this.ltree_exp = new HashMap<Thing,Boolean>();
 			this.lroot = p.getProjectTree().duplicate(ltree_exp);
 
-			this.all_layers = ls.getLayers(); // a copy
-			this.all_zdispl = ls.getZDisplayables(); // a copy
+			this.all_layers = ls.getLayers(); // a copy of the list, but each object is the running instance
+			this.all_zdispl = ls.getZDisplayables(); // idem
 
 			this.links = new HashMap<Displayable,Set<Displayable>>();
 			for (final ZDisplayable zd : this.all_zdispl) {
@@ -1952,11 +1971,29 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				}
 			}
 
+			// Invoke dependents
+			if (null != dependents) for (DoStep step : dependents) step.apply(action);
+
 			ls.recreateBuckets(true);
 
-			Display.update(ls);
+			Display.update(ls, false);
 
 			return true;
 		}
+
+		synchronized public void addDependents(Set<DoStep> dep) {
+			if (null == this.dependents) this.dependents = new HashSet<DoStep>();
+			this.dependents.addAll(dep);
+		}
+	}
+
+	private Overlay overlay = null;
+
+	synchronized public Overlay getOverlay() {
+		if (null == overlay) overlay = new Overlay();
+		return overlay;
+	}
+	Overlay getOverlay2() {
+		return overlay;
 	}
 }
