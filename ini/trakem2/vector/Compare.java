@@ -3248,4 +3248,128 @@ public class Compare {
 			}
 		}, pipe.getProject());
 	}
+
+	/** Reliability analysis of pipe comparisons: compares all to all,
+	 *  recording the score position of homonimous pipes in other projects.
+	 *
+	 *  The reference project to which all other project objects are
+	 *  registered to is the first opened project, not the currently active
+	 *  ControlWindow tab!
+	 *
+	 *  For each pipe in a brain, score against all other brains in which
+	 *  that pipe name exists, and record the score position within that
+	 *  brain.
+	 */
+	static public final Bureaucrat reliabilityByName(final String[] ignore) {
+		// gather all open projects
+		final Project[] p = Project.getProjects().toArray(new Project[0]);
+
+		final Worker worker = new Worker("Reliability by name") {
+			public void run() {
+				startedWorking();
+				try {
+
+		final CATAParameters cp = new CATAParameters();
+		if (!cp.setup(false, null, false, false)) {
+			finishedWorking();
+			return;
+		}
+
+		Object[] ob = gatherChains(p, cp, ignore);
+		final ArrayList<Chain> chains = (ArrayList<Chain>)ob[0];
+		final ArrayList[] p_chains = (ArrayList[])ob[1]; // to keep track of each project's chains
+		ob = null;
+		if (null == chains) {
+			finishedWorking();
+			return;
+		}
+
+		// For each pipe in a brain, score against all other brains in which that pipe name exists, and record the score position within that brain.
+		final ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+
+		final TreeMap<Chain,ArrayList<Integer>> indices = new TreeMap<Chain,ArrayList<Integer>>();
+
+		final ArrayList<Future> fus = new ArrayList<Future>();
+
+		// All possible pairs of projects:
+		for (int i=0; i<p_chains.length; i++) {
+			for (int j=0; j<p_chains.length; j++) {
+
+				// skip same project (would have a score of zero, identical.)
+				if (p_chains[i] == p_chains[j]) continue;
+
+				fus.add(exec.submit(new Callable() { public Object call() {
+				// All chains of one project to all chains of the other:
+				for (int k=0; k<p_chains[i].size(); k++) {
+					final VectorString3D vs1 = p_chains[i][k].vs;
+					final float[] scores = new float[p_chains[j].size()];
+					// Prepare title
+					String title = p_chains[i][k].getCellTitle();
+					title = title.substring(0, title.indexOf(' '));
+					// check if the other project j contains a chain of name p_chains[i][k].getCellTitle() up to the space.
+					boolean found = false;
+					final String[] titles = new String[p_chains[j].length];
+					int next = 0;
+					for (Chain c : p_chains[j]) {
+						String t = c.getCellTitle();
+						t = t.substring(0, t.indexOf(' '));
+						if (title.equals(t)) {
+							found = true;
+						}
+						titles[next++] = t;
+					}
+					if (!found) {
+						Utils.log2(title + " not found in project " + p[j]);
+						continue;
+					}
+
+					for (int g=0; g<p_chains[j].size(); g++) {
+						final VectorString3D vs2 = p_chains[j][g].vs;
+						final Object[] ob = findBestMatch(vs1, vs2, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching);
+						final Editions ed = (Editions)ob[0];
+						scores[g] = (float) getScore(ed, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type);
+					}
+					// sort scores:
+					M.quicksort(scores, titles);
+					// record scoring index
+					for (int f=0; f<titles.length; f++) {
+						if (title.equals(titles[f])) {
+							synchronized (indices) {
+								ArrayList<Integer> al = indices.get(title);
+								if (null == al) {
+									al = new ArrayList<Integer>();
+									indices.put(p_chains[i][k], al);
+								}
+								al.add(f);
+							}
+							break;
+						}
+					}
+				}
+				}}));
+			}
+		}
+
+		for (Future fu : fus) {
+			try { fu.get(); } catch (Exception e) { IJError.print(e); }
+		}
+
+		// Show the results from indicies map
+		//
+		// From collected data, several kinds of results:
+		// - a list of how well each chain scores
+		// - a summarizing histogram that collects how many 1st, how many 2nd, etc. in total, normalized to total number of one-to-many matches performed (i.e. the number of scoring indicies recorded.)
+		// - a summarizing histogram of how well each chain scores (4/4, 3/4, 2/4, 1/4, 0/4 only for those that have 4 homologous members.)
+		// - similar to above but lineage-group wise.
+		// TODO
+
+
+				} catch (Exception e) {
+					e.printStackTrace();
+				} finally {
+					finishedWorking();
+				}
+			}
+		};
+		return Bureaucrat.createAndStart(worker, p);
 }

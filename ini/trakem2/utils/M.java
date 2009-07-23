@@ -352,4 +352,39 @@ public final class M {
 		}
 		return null;
 	}
+
+	/* ================================================= */
+
+	public static void quicksort(float[] data, Object[] sortAlso) throws IllegalArgumentException {
+		if (data.length != sortAlso.length) {
+			throw new IllegalArgumentException("data and sortAlso arrays don't have the same length.");
+		}
+		quicksort(data, sortAlso, 0, data.length);
+	}
+
+	/** Adapted from Stephan Preibisch's mpi.fruitfly.math.General homonimous method. */
+	public static void quicksort(final float[] data, final Object[] sortAlso,
+			             final int left, final int right) {
+		if (data.length < 2) return;
+		int i = left, j = right;
+		float x = data[(left + right) / 2];
+		do {
+			while (data[i] < x) i++;
+			while (x < data[j]) j--;
+			if (i <= j) {
+				float temp = data[i];
+				data[i] = data[j];
+				data[j] = temp;
+
+				Object temp2 = sortAlso[i];
+				sortAlso[i] = sortAlso[j];
+				sortAlso[j] = temp2;
+
+				i++;
+				j--;
+			}
+		} while (i <= j);
+		if (left < j) quicksort(data, sortAlso, left, j);
+		if (i < right) quicksort(data, sortAlso, i, right);
+	}
 }
