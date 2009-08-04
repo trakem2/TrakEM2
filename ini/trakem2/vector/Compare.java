@@ -3260,7 +3260,7 @@ public class Compare {
 	 *  that pipe name exists, and record the score position within that
 	 *  brain.
 	 */
-	static public final Bureaucrat reliabilityByName(final String[] ignore) {
+	static public final Bureaucrat reliabilityAnalysis(final String[] ignore) {
 		// gather all open projects
 		final Project[] p = Project.getProjects().toArray(new Project[0]);
 
@@ -3284,14 +3284,17 @@ public class Compare {
 			return;
 		}
 
-		// For each pipe in a brain, score against all other brains in which that pipe name exists, and record the score position within that brain.
+		// For each pipe in a brain:
+		//    - score against all other brains in which that pipe name exists,
+		//    - record the score position within that brain.
+		//
 		final ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
 		final TreeMap<Chain,ArrayList<Integer>> indices = new TreeMap<Chain,ArrayList<Integer>>();
 
 		final ArrayList<Future> fus = new ArrayList<Future>();
 
-		// All possible pairs of projects:
+		// All possible pairs of projects, with repetition (it's not the same, although the comparison itself will be.)
 		for (int i=0; i<p_chains.length; i++) {
 			for (int j=0; j<p_chains.length; j++) {
 
@@ -3299,6 +3302,7 @@ public class Compare {
 				if (p_chains[i] == p_chains[j]) continue;
 
 				fus.add(exec.submit(new Callable() { public Object call() {
+
 				// All chains of one project to all chains of the other:
 				for (int k=0; k<p_chains[i].size(); k++) {
 					final VectorString3D vs1 = p_chains[i][k].vs;
@@ -3353,14 +3357,62 @@ public class Compare {
 		for (Future fu : fus) {
 			try { fu.get(); } catch (Exception e) { IJError.print(e); }
 		}
+		exec.shutdownNow();
 
 		// Show the results from indicies map
-		//
+
+		StringBuilder sb = new StringBuilder();
+
+		TreeMap<Integer,Integer> sum = new TreeMap<Integer,Integer>(); // scoring index vs count of occurrences
+
 		// From collected data, several kinds of results:
 		// - a list of how well each chain scores
-		// - a summarizing histogram that collects how many 1st, how many 2nd, etc. in total, normalized to total number of one-to-many matches performed (i.e. the number of scoring indicies recorded.)
+
+		sb.append("List of scoring indices for each (starting at index 1, aka best possible score):\n");
+		for (Map.Entry<String,ArrayList<Integer>> e : indices.entrySet()) {
+			String name = e.getKey();
+			// sort indices in place
+			Collections.sort(e.getValue());
+			// count occurrences of each scoring index
+			int last = 0; // lowest possible index
+			int count = 1;
+			for (int i : e.getValue()) {
+				if (last == i) count++;
+				else {
+					sb.append(name).append(' ').append(last+1).append(' ').append(count).append('\n');
+					// reset
+					last = i;
+					count = 1;
+				}
+				// global count of occurences
+				sum.put(i, (sum.contains(i) ? sum.get(i) : 0) + 1);
+			}
+			if (0 != count) sb.append(name).append(' ').append(last+1).append(' ').append(count).append('\n');
+		}
+		sb.append("===============================\n");
+
+		// - a summarizing histogram that collects how many 1st, how many 2nd, etc. in total, normalized to total number of one-to-many matches performed (i.e. the number of scoring indices recorded.)
+
+		sb.append("Global count of index ocurrences:\n");
+		for (Map.Entry<Integer,Integer> e : sum.entrySet()) {
+			sb.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
+		}
+		sb.append("===============================\n");
+
+
 		// - a summarizing histogram of how well each chain scores (4/4, 3/4, 2/4, 1/4, 0/4 only for those that have 4 homologous members.)
+		// Must consider that there are 5 projects taken in pairs with repetition.
+		
+		sb.append("A summarizing histogram of how well each chain scores, for those that have 4 homologous members:\n");
+		for (Map.Entry<String,ArrayList<Integer>> e : indices.entrySet()) {
+			// TODO
+		}
+
+
 		// - similar to above but lineage-group wise.
+		// 
+		// Keep in mind it should all be repeated for 0.5 micron delta, 0.6, 0.7 ... up to 5 or 10 (until the histogram starts getting worse.) The single value with which the graph coould be made is the % of an index of 1, and of an index of 2.
+		//
 		// TODO
 
 
