@@ -3436,6 +3436,9 @@ public class Compare {
 		// TODO
 
 
+		Utils.log(sb.toString());
+
+
 				} catch (Exception e) {
 					e.printStackTrace();
 				} finally {
