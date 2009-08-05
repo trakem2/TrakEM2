@@ -88,7 +88,7 @@ public final class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;
-	private final HashMap<Long,String> ht_paths = new HashMap<Long,String>();
+	private final Hashtable<Long,String> ht_paths = new Hashtable<Long,String>();
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
@@ -444,15 +444,13 @@ public final class FSLoader extends Loader {
 		return null;
 	}
 
-	/* Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImagePlust.getProcessor().
-	 * or just use the Patch.getImageProcessor() method which does it for you. */
+	/* Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImagePlus.getProcessor(). */
 	public ImagePlus fetchImagePlus(final Patch p) {
 		return (ImagePlus)fetchImage(p, Layer.IMAGEPLUS);
 	}
 
 	/** Fetch the ImageProcessor in a synchronized manner, so that there are no conflicts in retrieving the ImageProcessor for a specific stack slice, for example.
-	 * Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImageProcessor,
-	 * or just use the Patch.getImageProcessor() method which does it for you. */
+	 * Note that the min and max is not set -- it's your burden to call setMinAndMax(p.getMin(), p.getMax()) on the returned ImageProcessor. */
 	public ImageProcessor fetchImageProcessor(final Patch p) {
 		return (ImageProcessor)fetchImage(p, Layer.IMAGEPROCESSOR);
 	}
@@ -1037,7 +1035,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Takes a String and returns a copy with the following conversions: / to -, space to _, and \ to -. */
-	public String asSafePath(final String name) {
+	static public String asSafePath(final String name) {
 		return name.trim().replace('/', '-').replace(' ', '_').replace('\\','-');
 	}
 
@@ -1452,7 +1450,7 @@ public final class FSLoader extends Loader {
 	}
 
 	static public final BufferedImage convertToBufferedImage(final ByteProcessor bp) {
-		bp.setMinAndMax(0, 255);
+		bp.setMinAndMax(0, 255); // TODO what is this doing here? The ByteProcessor.setMinAndMax is destructive, it expands the pixel values to the desired range.
 		final Image img = bp.createImage();
 		if (img instanceof BufferedImage) return (BufferedImage)img;
 		//else:
@@ -2552,6 +2550,7 @@ public final class FSLoader extends Loader {
 							Utils.showStatus("Regenerating mipmaps (" + n_regenerating.get() + " to go)");
 							generateMipMaps(patch, false);
 							Display.repaint(patch.getLayer());
+							Display.updatePanel(patch.getLayer(), patch);
 							Utils.showStatus("");
 						} catch (Exception e) {
 							IJError.print(e);
@@ -2711,24 +2710,27 @@ public final class FSLoader extends Loader {
 			this.dir_masks = null;
 			if (fmasks.exists()) {
 				final String new_dir_masks = unuid_folder + "trakem2.masks/";
-				for (final File fmask : fmasks.listFiles()) {
-					final String name = fmask.getName();
-					if (!name.endsWith(".zip")) continue;
-					int last_dot = name.lastIndexOf('.');
-					if (-1 == last_dot) continue;
-					int prev_last_dot = name.lastIndexOf('.', last_dot -1);
-					String id = name.substring(prev_last_dot+1, last_dot);
-					String filename = name.substring(0, prev_last_dot);
-					File newf = new File(new_dir_masks + createIdPath(id, filename, ".zip"));
-					File fd = newf.getParentFile();
-					fd.mkdirs();
-					if (!fd.exists()) {
-						Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
-						continue;
-					}
-					if (!fmask.renameTo(newf)) {
-						Utils.log2("Could not move mask file " + fmask.getAbsolutePath() + " to " + newf.getAbsolutePath());
-						continue;
+				final File[] fmask_files = fmasks.listFiles();
+				if (null != fmask_files) { // can be null if there are no files inside fmask directory
+					for (final File fmask : fmask_files) {
+						final String name = fmask.getName();
+						if (!name.endsWith(".zip")) continue;
+						int last_dot = name.lastIndexOf('.');
+						if (-1 == last_dot) continue;
+						int prev_last_dot = name.lastIndexOf('.', last_dot -1);
+						String id = name.substring(prev_last_dot+1, last_dot);
+						String filename = name.substring(0, prev_last_dot);
+						File newf = new File(new_dir_masks + createIdPath(id, filename, ".zip"));
+						File fd = newf.getParentFile();
+						fd.mkdirs();
+						if (!fd.exists()) {
+							Utils.log2("Could not create parent dir " + fd.getAbsolutePath());
+							continue;
+						}
+						if (!fmask.renameTo(newf)) {
+							Utils.log2("Could not move mask file " + fmask.getAbsolutePath() + " to " + newf.getAbsolutePath());
+							continue;
+						}
 					}
 				}
 				// Set it!

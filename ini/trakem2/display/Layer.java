@@ -505,8 +505,23 @@ public final class Layer extends DBObject implements Bucketable {
 	public Collection<Displayable> find(final Rectangle r, final boolean visible_only) {
 		if (null != root && root.isBetter(r, this)) return root.find(r, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (visible_only && !d.isVisible()) continue;
+			if (d.getBoundingBox().intersects(r)) {
+				al.add(d);
+			}
+		}
+		return al;
+	}
+
+	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
+	public Collection<Displayable> find(final Class c, final Rectangle r, final boolean visible_only) {
+		if (Displayable.class == c) return find(r, visible_only);
+		if (null != root && root.isBetter(r, this)) return root.find(c, r, this, visible_only);
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (final Displayable d : al_displayables) {
+			if (visible_only && !d.isVisible()) continue;
+			if (d.getClass() != c) continue;
 			if (d.getBoundingBox().intersects(r)) {
 				al.add(d);
 			}
@@ -677,10 +692,16 @@ public final class Layer extends DBObject implements Bucketable {
 		Display.updateCheckboxes(hs, DisplayablePanel.VISIBILITY_STATE, visible);
 		return hs;
 	}
-	public void setAllVisible(boolean repaint) {
+	/** Returns the collection of Displayable whose visibility state has changed. */
+	public Collection<Displayable> setAllVisible(boolean repaint) {
+		final Collection<Displayable> col = new ArrayList<Displayable>();
 		for (Displayable d : al_displayables) {
-			if (!d.isVisible()) d.setVisible(true, repaint);
+			if (!d.isVisible()) {
+				d.setVisible(true, repaint);
+				col.add(d);
+			}
 		}
+		return col;
 	}
 
 	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */
@@ -990,5 +1011,16 @@ public final class Layer extends DBObject implements Bucketable {
 			Display.update(la);
 			return true;
 		}
+	}
+
+	private Overlay overlay = null;
+
+	synchronized public Overlay getOverlay() {
+		if (null == overlay) overlay = new Overlay();
+		return overlay;
+	}
+
+	Overlay getOverlay2() {
+		return overlay;
 	}
 }

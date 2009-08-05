@@ -2647,7 +2647,7 @@ public class DBLoader extends Loader {
 				}
 				// non-destructive contrast: min and max
 				if (null != imp) {
-					p.putMinAndMax(imp);
+					// OBSOLETE and wrong -- but then this whole class is obsolete// p.putMinAndMax(imp);
 				}
 			} catch (Exception e) {
 				unlock();

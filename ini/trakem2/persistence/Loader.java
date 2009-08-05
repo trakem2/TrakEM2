@@ -889,13 +889,32 @@ abstract public class Loader {
 		return Math.max(d.getWidth(), d.getHeight());
 	}
 
+	public boolean isImagePlusCached(final Patch p) {
+		synchronized (db_lock) {
+			try {
+				lock();
+				return null != imps.get(p.getId());
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			} finally {
+				unlock();
+			}
+		}
+	}
+
 	/** Returns true if there is a cached awt image for the given mag and Patch id. */
 	public boolean isCached(final Patch p, final double mag) {
 		synchronized (db_lock) {
-			lock();
-			boolean b = mawts.contains(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
-			unlock();
-			return b;
+			try {
+				lock();
+				return mawts.contains(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			} finally {
+				unlock();
+			}
 		}
 	}
 
@@ -1409,7 +1428,6 @@ abstract public class Loader {
 
 		int n_max = all_images.length;
 
-		String preprocessor = "";
 		int n_rows = 0;
 		int n_cols = 0;
 		double bx = 0;
@@ -1477,7 +1495,6 @@ abstract public class Loader {
 		bt_overlap = gd.getNextNumber();
 		lr_overlap = gd.getNextNumber();
 		link_images = gd.getNextBoolean();
-		preprocessor = gd.getNextString().replace(' ', '_'); // just in case
 		stitch_tiles = gd.getNextBoolean();
 		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		float cc_scale = (float)gd.getNextNumber() / 100f;
@@ -1549,7 +1566,7 @@ abstract public class Loader {
 			cols.add(col);
 		}
 
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1635,7 +1652,6 @@ abstract public class Loader {
 		double bt_overlap = gd.getNextNumber();
 		double lr_overlap = gd.getNextNumber();
 		boolean link_images = gd.getNextBoolean();
-		String preprocessor = gd.getNextString();
 		boolean stitch_tiles = gd.getNextBoolean();
 		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		float cc_scale = (float)gd.getNextNumber() / 100f;
@@ -1672,7 +1688,7 @@ abstract public class Loader {
 		Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
 		ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, preprocessor, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1691,7 +1707,7 @@ abstract public class Loader {
 	 * @param link_images Link images to their neighbors.
 	 * @param preproprecessor The name of a PluginFilter in ImageJ's plugin directory, to be called on every image prior to insertion.
 	 */
-	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final String preprocessor, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule/*, final boolean apply_non_linear_def*/) {
+	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule/*, final boolean apply_non_linear_def*/) {
 
 		// create a Worker, then give it to the Bureaucrat
 

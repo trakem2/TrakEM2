@@ -40,7 +40,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.vector.Compare;
 
 /** The class that any element to be drawn on a Display must extend. */
-public abstract class Displayable extends DBObject {
+public abstract class Displayable extends DBObject implements Paintable {
 
 	final protected AffineTransform at = new AffineTransform();
 
@@ -655,7 +655,6 @@ public abstract class Displayable extends DBObject {
 		}
 		this.visible = visible;
 		if (repaint) {
-			//Display.setUpdateGraphics(layer, this);
 			Display.repaint(layer, this, 5);
 		}
 		updateInDatabase("visible");
@@ -1579,9 +1578,9 @@ public abstract class Displayable extends DBObject {
 
 	// UNDO machinery
 	
-	class DoEdits implements DoStep {
+	static protected class DoEdits implements DoStep {
 		final HashSet<DoEdit> edits = new HashSet<DoEdit>();
-		DoEdits(final Set<Displayable> col) {
+		DoEdits(final Set<? extends Displayable> col) {
 			for (final Displayable d : col) {
 				edits.add(new DoEdit(d));
 			}
@@ -1599,10 +1598,11 @@ public abstract class Displayable extends DBObject {
 			}
 			return true;
 		}
-		public void init(final String[] fields) {
+		public DoEdits init(final String[] fields) {
 			for (final DoEdit edit : edits) {
 				edit.init(edit.d, fields);
 			}
+			return this;
 		}
 		public boolean isEmpty() { return edits.isEmpty(); }
 		public boolean apply(int action) {
@@ -1618,7 +1618,7 @@ public abstract class Displayable extends DBObject {
 
 	/** For any Displayable data, including: title, visible, locked, color, alpha,
 	 *  and a 'data' type which includes the actual data (points, areas, etc.) and the links,width,height, and transformation (since all the latter are correlated).*/
-	class DoEdit implements DoStep {
+	static protected class DoEdit implements DoStep {
 		private final HashMap<String,Object> content = new HashMap<String,Object>();
 		private ArrayList<DoStep> dependents = null;
 		private final Displayable d;
@@ -1774,7 +1774,7 @@ public abstract class Displayable extends DBObject {
 		final private HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
 		final HashSet<Layer> layers = new HashSet<Layer>();
 
-		DoTransforms addAll(final Collection<Displayable> col) {
+		DoTransforms addAll(final Collection<? extends Displayable> col) {
 			for (final Displayable d : col) {
 				ht.put(d, d.getAffineTransformCopy());
 				layers.add(d.getLayer());

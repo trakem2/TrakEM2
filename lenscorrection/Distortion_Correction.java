@@ -58,7 +58,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.awt.Color;
 import java.awt.geom.AffineTransform;
@@ -72,6 +74,17 @@ import Jama.Matrix;
 
 
 public class Distortion_Correction implements PlugIn{
+	
+	static public class PointMatchCollectionAndAffine
+	{
+		final public AffineTransform affine;
+		final public Collection< PointMatch > pointMatches;
+		public PointMatchCollectionAndAffine( final AffineTransform affine, final Collection< PointMatch > pointMatches )
+		{
+			this.affine = affine;
+			this.pointMatches = pointMatches;
+		}
+	}
 	
 	static public class BasicParam
 	{	
@@ -587,47 +600,46 @@ public class Distortion_Correction implements PlugIn{
      * @return a polynomial distortion model to undo the distortion
      */
     static public NonLinearTransform createInverseDistortionModel(
-    		final List< Collection< PointMatch > > matches,
-    		final List< AffineTransform > affines,
+    		final Collection< PointMatchCollectionAndAffine > pointMatches,
     		final int dimension,
     		final double lambda,
     		final int imageWidth,
     		final int imageHeight )
     {
     	int wholeCount = 0;
-	    for ( Collection< PointMatch > l : matches )
-	    	if ( l.size() > 10 )
-	    		wholeCount += l.size();
+	    for ( final PointMatchCollectionAndAffine pma : pointMatches )
+	    	if ( pma.pointMatches.size() > 10 )
+	    		wholeCount += pma.pointMatches.size();
 		  
-	    final double[][] tp = new double[wholeCount][6];
-	    final double h1[][] = new double[wholeCount][2];
-	    final double h2[][] = new double[wholeCount][2];
+	    final double[][] tp = new double[ wholeCount ][ 6 ];
+	    final double h1[][] = new double[ wholeCount ][ 2 ];
+	    final double h2[][] = new double[ wholeCount ][ 2 ];
 	    int count = 0;
-	    for (int i=0; i < matches.size(); i++)
+	    for ( final PointMatchCollectionAndAffine pma : pointMatches )
 	    {
-			if (matches.get(i).size() > 10)
+	    	if ( pma.pointMatches.size() > 10 )
 			{
-			    final double[][] points1 = new double[matches.get(i).size()][2];
-			    final double[][] points2 = new double[matches.get(i).size()][2];
+			    final double[][] points1 = new double[ pma.pointMatches.size() ][ 2 ];
+			    final double[][] points2 = new double[ pma.pointMatches.size() ][ 2 ];
 				
-			    int j = 0;
-			    for ( PointMatch match : matches.get( i ) )
+			    int i = 0;
+			    for ( final PointMatch match : pma.pointMatches )
 			    {	
 			    	final float[] tmp1 = match.getP1().getL();
 			    	final float[] tmp2 = match.getP2().getL();
 				    
-					points1[j][0] = (double) tmp1[0];
-					points1[j][1] = (double) tmp1[1];
-					points2[j][0] = (double) tmp2[0];
-					points2[j][1] = (double) tmp2[1];
+					points1[ i ][ 0 ] = ( double )tmp1[ 0 ];
+					points1[ i ][ 1 ] = ( double )tmp1[ 1 ];
+					points2[ i ][ 0 ] = ( double )tmp2[ 0 ];
+					points2[ i ][ 1 ] = ( double )tmp2[ 1 ];
 						    
-					h1[count] = new double[] {(double) tmp1[0], (double) tmp1[1]};
-					h2[count] = new double[] {(double) tmp2[0], (double) tmp2[1]};
+					h1[ count ] = new double[]{ ( double ) tmp1[ 0 ], ( double ) tmp1[ 1 ] };
+					h2[ count ] = new double[]{ ( double ) tmp2[ 0 ], ( double ) tmp2[ 1 ] };
 						  
-					affines.get( i ).getMatrix( tp[ count ] );				    
+					pma.affine.getMatrix( tp[ count ] );				    
 					count++; 
 					
-					++j;
+					++i;
 			    }
 			}
 	    }

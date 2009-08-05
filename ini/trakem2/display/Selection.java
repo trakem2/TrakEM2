@@ -75,47 +75,12 @@ public class Selection {
 	/** All selected objects plus their links. */
 	private final HashSet<Displayable> hs = new HashSet<Displayable>();
 	private Displayable active = null;
-	private boolean transforming = false;
+	/** The box enclosing all selected Displayable, in world coordinates. */
 	private Rectangle box = null;
-	private final int iNW = 0;
-	private final int iN = 1;
-	private final int iNE = 2;
-	private final int iE = 3;
-	private final int iSE = 4;
-	private final int iS = 5;
-	private final int iSW = 6;
-	private final int iW = 7;
-	private final int rNW = 8;
-	private final int rNE = 9;
-	private final int rSE = 10;
-	private final int rSW = 11;
-	private final int ROTATION = 12;
-	private final int FLOATER = 13;
-	private final Handle NW = new BoxHandle(0,0, iNW);
-	private final Handle N  = new BoxHandle(0,0, iN);
-	private final Handle NE  = new BoxHandle(0,0, iNE);
-	private final Handle E  = new BoxHandle(0,0, iE);
-	private final Handle SE  = new BoxHandle(0,0, iSE);
-	private final Handle S  = new BoxHandle(0,0, iS);
-	private final Handle SW  = new BoxHandle(0,0, iSW);
-	private final Handle W  = new BoxHandle(0,0, iW);
-	private final Handle RO = new RotationHandle(0,0, ROTATION);
-	/** Pivot of rotation. Always checked first on mouse pressed, before other handles. */
-	private final Floater floater = new Floater(0, 0, FLOATER);
-	private final Handle[] handles;
-	private Handle grabbed = null;
-	private boolean dragging = false; // means: dragging the whole transformation box
-	private boolean rotating = false;
-	private boolean mouse_dragged = false;
-
-	private int x_d_old, y_d_old, x_d, y_d; // for rotations
-
-	private ImagePlus virtual_imp = null;
 
 	/** The Display can be null, as long as paint, OvalHandle.contains, setTransforming, and getLinkedBox methods are never called on this object. */
 	public Selection(Display display) {
 		this.display = display;
-		this.handles = new Handle[]{NW, N, NE, E, SE, S, SW, W, RO, floater}; // shitty java, why no dictionaries (don't get me started with HashMap class painful usability)
 	}
 
 	private void lock() {
@@ -129,415 +94,6 @@ public class Selection {
 		queue_locked = false;
 		queue_lock.notifyAll();
 	}
-
-	/** Paint a white frame around the selected object and a pink frame around all others. Active is painted last, so white frame is always top. */
-	public void paint(Graphics2D g, Rectangle srcRect, double magnification) {
-		// paint rectangle around selected Displayable elements
-		final Composite co = g.getComposite();
-		synchronized (queue_lock) {
-			try {
-				lock();
-				if (queue.isEmpty()) return;
-			} catch (Exception e) {
-				IJError.print(e);
-			} finally {
-				unlock();
-			}
-		}
-		if (!transforming) {
-			g.setColor(Color.pink);
-			Displayable[] da = null;
-			synchronized (queue_lock) {
-				lock();
-				try {
-					da = new Displayable[queue.size()];
-					queue.toArray(da);
-				} catch (Exception e) {
-					IJError.print(e);
-				} finally {
-					unlock();
-				}
-			}
-			final Rectangle bbox = new Rectangle();
-			for (int i=0; i<da.length; i++) {
-				da[i].getBoundingBox(bbox);
-				if (da[i].equals(active)) {
-					g.setColor(Color.white);
-					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
-					//g.drawPolygon(da[i].getPerimeter());
-					g.setColor(Color.pink);
-				} else {
-					//g.drawPolygon(da[i].getPerimeter());
-					g.drawRect(bbox.x, bbox.y, bbox.width, bbox.height);
-				}
-			}
-		}
-		//Utils.log2("transforming, dragging, rotating: " + transforming + "," + dragging + "," + rotating);
-		if (transforming) {
-			final Graphics2D g2d = (Graphics2D)g;
-			final Stroke original_stroke = g2d.getStroke();
-			AffineTransform original = g2d.getTransform();
-			g2d.setTransform(new AffineTransform());
-			if (!rotating) {
-				//Utils.log("box painting: " + box);
-
-				// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
-				float mag = (float)magnification;
-				float[] dashPattern = { 30, 10, 10, 10 };
-				g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
-				g.setColor(Color.yellow);
-				// paint box
-				//g.drawRect(box.x, box.y, box.width, box.height);
-				g2d.draw(original.createTransformedShape(this.box));
-				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
-				// paint handles for scaling (boxes) and rotating (circles), and floater
-				for (int i=0; i<handles.length; i++) {
-					handles[i].paint(g, srcRect, magnification);
-				}
-			} else {
-				g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
-				RO.paint(g, srcRect, magnification);
-				((RotationHandle)RO).paintMoving(g, srcRect, magnification, display.getCanvas().getCursorLoc());
-			}
-
-			// Restore composite (undoes setXORColor)
-			g.setComposite(co);
-			if (null != affine_handles) {
-				for (final AffinePoint ap : affine_handles) {
-					ap.paint(g);
-				}
-			}
-
-			g2d.setTransform(original);
-			g2d.setStroke(original_stroke);
-		} else {
-			// Restore composite (undoes setXORColor)
-			g.setComposite(co);
-		}
-
-		/*
-		// debug:
-		if (null != active) {
-			g.setColor(Color.green);
-			java.awt.Polygon p = active.getPerimeter(active.getX(), active.getY());
-			System.out.println("polygon:");
-			for (int i=0; i<p.npoints; i++) {
-				System.out.println("x,y : " + p.xpoints[i] + "," + p.ypoints[i]);
-				p.xpoints[i] = (int)((p.xpoints[i] - srcRect.x)*magnification);
-				p.ypoints[i] = (int)((p.ypoints[i] - srcRect.y)*magnification);
-			}
-			g.drawPolygon(p);
-		}
-		*/
-	}
-
-	/** Handles have screen coordinates. */
-	private abstract class Handle {
-		public int x, y;
-		public final int id;
-		Handle(int x, int y, int id) {
-			this.x = x;
-			this.y = y;
-			this.id = id;
-		}
-		abstract public void paint(Graphics g, Rectangle srcRect, double mag);
-		/** Radius is the dectection "radius" around the handle x,y. */
-		public boolean contains(int x_p, int y_p, double radius) {
-			if (x - radius <= x_p && x + radius >= x_p
-			 && y - radius <= y_p && y + radius >= y_p) return true;
-			return false;
-		}
-		public void set(int x, int y) {
-			this.x = x;
-			this.y = y;
-		}
-		abstract void drag(MouseEvent me, int dx, int dy);
-	}
-
-	private class BoxHandle extends Handle {
-		BoxHandle(int x, int y, int id) {
-			super(x,y,id);
-		}
-		public void paint(final Graphics g, final Rectangle srcRect, final double mag) {
-			final int x = (int)((this.x - srcRect.x)*mag);
-			final int y = (int)((this.y - srcRect.y)*mag);
-			DisplayCanvas.drawHandle(g, x, y, 1.0); // ignoring magnification for the sizes, since Selection is painted differently
-		}
-		public void drag(MouseEvent me, int dx, int dy) {
-			Rectangle box_old = (Rectangle)box.clone();
-			//Utils.log2("dx,dy: " + dx + "," + dy + " before mod");
-			double res = dx / 2.0;
-			res -= Math.floor(res);
-			res *= 2;
-			int extra = (int)res;
-			int anchor_x = 0,
-			    anchor_y = 0;
-			switch (this.id) { // java sucks to such an extent, I don't even bother
-				case iNW:
-					if (x + dx >= E.x) return;
-					if (y + dy >= S.y) return;
-					box.x += dx;
-					box.y += dy;
-					box.width -= dx;
-					box.height -= dy;
-					anchor_x = SE.x;
-					anchor_y = SE.y;
-					break;
-				case iN:
-					if (y + dy >= S.y) return;
-					box.y += dy;
-					box.height -= dy;
-					anchor_x = S.x;
-					anchor_y = S.y;
-					break;
-				case iNE:
-					if (x + dx <= W.x) return;
-					if (y + dy >= S.y) return;
-					box.y += dy;
-					box.width += dx;
-					box.height -= dy;
-					anchor_x = SW.x;
-					anchor_y = SW.y;
-					break;
-				case iE:
-					if (x + dx <= W.x) return;
-					box.width += dx;
-					anchor_x = W.x;
-					anchor_y = W.y;
-					break;
-				case iSE:
-					if (x + dx <= W.x) return;
-					if (y + dy <= N.y) return;
-					box.width += dx;
-					box.height += dy;
-					anchor_x = NW.x;
-					anchor_y = NW.y;
-					break;
-				case iS:
-					if (y + dy <= N.y) return;
-					box.height += dy;
-					anchor_x = N.x;
-					anchor_y = N.y;
-					break;
-				case iSW:
-					if (x + dx >= E.x) return;
-					if (y + dy <= N.y) return;
-					box.x += dx;
-					box.width -= dx;
-					box.height += dy;
-					anchor_x = NE.x;
-					anchor_y = NE.y;
-					break;
-				case iW:
-					if (x + dx >= E.x) return;
-					box.x += dx;
-					box.width -= dx;
-					anchor_x = E.x;
-					anchor_y = E.y;
-					break;
-			}
-			// proportion:
-			double px = (double)box.width / (double)box_old.width;
-			double py = (double)box.height / (double)box_old.height;
-			// displacement: specific of each element of the selection and their links, depending on where they are.
-
-			final AffineTransform at = new AffineTransform();
-			at.translate( anchor_x, anchor_y );
-			at.scale( px, py );
-			at.translate( -anchor_x, -anchor_y );
-
-			addUndoStep();
-
-			if (null != accum_affine) accum_affine.preConcatenate(at);
-
-			for (final Displayable d : hs) {
-				//d.scale(px, py, anchor_x, anchor_y, false); // false because the linked ones are already included in the HashSet
-				d.preTransform(at, false);
-			}
-			fixAffinePoints(at);
-
-			// finally:
-			setHandles(box); // overkill. As Graham said, most newly available chip resources are going to be wasted. They are already.
-		}
-	}
-
-	/** Add an undo step to the internal history. */
-	private void addUndoStep() {
-		if (mouse_dragged || isEmpty()) return;
-		if (transforming) {
-			if (null == history) return;
-			if (history.indexAtStart() || (history.indexAtEnd() && -1 != history.index())) {
-				history.add(new TransformationStep(getTransformationsCopy()));
-			} else {
-				// remove history elements from index+1 to end
-				history.clip();
-			}
-		}
-	}
-
-	// TODO STILL DUPLICATE endings ... ??? <<<<<<<<<<-----------------------####
-
-	synchronized void undoOneStep() {
-		LayerSet layerset = display.getLayer().getParent();
-		if (transforming) {
-			if (null == history) return;
-			// store the current state if at end:
-			Utils.log2("index at end: " + history.indexAtEnd());
-			if (history.indexAtEnd()) history.append(new TransformationStep(getTransformationsCopy()));
-			// disable application to other layers (too big a headache)
-			accum_affine = null;
-			// undo one step
-			TransformationStep step = (TransformationStep)history.undoOneStep();
-			if (null == step) return; // no more steps
-			LayerSet.applyTransforms(step.ht);
-		}
-		resetBox();
-	}
-
-	synchronized void redoOneStep() {
-		if (transforming) {
-			if (null == history) return;
-			TransformationStep step = (TransformationStep)history.redoOneStep();
-			if (null == step) return; // no more steps
-			LayerSet.applyTransforms(step.ht);
-		}
-		resetBox();
-	}
-
-	private final double rotate(MouseEvent me) {
-		// center of rotation is the floater
-		double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
-		//double sin = Math.sqrt(1 - cos*cos);
-		//double delta = M.getAngle(cos, sin);
-		double delta = Math.acos(cos); // same thing as the two lines above
-		// need to compute the sign of rotation as well: the cross-product!
-		// cross-product:
-		// a = (3,0,0) and b = (0,2,0)
-		// a x b = (3,0,0) x (0,2,0) = ((0 x 0 - 2 x 0), -(3 x 0 - 0 x 0), (3 x 2 - 0 x 0)) = (0,0,6).
-
-		if (Utils.isControlDown(me)) {
-			delta = Math.toDegrees(delta);
-			if (me.isShiftDown()) {
-				// 1 degree angle increments
-				delta = (int)(delta + 0.5);
-			} else {
-				// 10 degrees angle increments: snap to closest
-				delta = (int)((delta + 5.5 * (delta < 0 ? -1 : 1)) / 10) * 10;
-			}
-			Utils.showStatus("Angle: " + delta + " degrees");
-			delta = Math.toRadians(delta);
-
-			// TODO: the angle above is just the last increment on mouse drag, not the total amount of angle accumulated since starting this mousePressed-mouseDragged-mouseReleased cycle, neither the actual angle of the selected elements. So we need to store the accumulated angle and diff from it to do the above roundings.
-		}
-
-		if (Double.isNaN(delta)) {
-			Utils.log2("Selection rotation handle: ignoring NaN angle");
-			return Double.NaN;
-		}
-
-		double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
-		// correction:
-		if (zc < 0) {
-			delta = -delta;
-		}
-		rotate(Math.toDegrees(delta), floater.x, floater.y);
-		return delta;
-	}
-
-	private class RotationHandle extends Handle {
-		final int shift = 50;
-		RotationHandle(int x, int y, int id) {
-			super(x, y, id);
-		}
-		public void paint(final Graphics g, final Rectangle srcRect, final double mag) {
-			final int x = (int)((this.x - srcRect.x)*mag) + shift;
-			final int y = (int)((this.y - srcRect.y)*mag);
-			final int fx = (int)((floater.x - srcRect.x)*mag);
-			final int fy = (int)((floater.y - srcRect.y)*mag);
-			draw(g, fx, fy, x, y);
-		}
-		private void draw(final Graphics g, int fx, int fy, int x, int y) {
-			g.setColor(Color.white);
-			g.drawLine(fx, fy, x, y);
-			g.fillOval(x -4, y -4, 9, 9);
-			g.setColor(Color.black);
-			g.drawOval(x -2, y -2, 5, 5);
-		}
-		public void paintMoving(final Graphics g, final Rectangle srcRect, final double mag, final Point mouse) {
-			// mouse as xMouse,yMouse from ImageCanvas: world coordinates, not screen!
-			final int fx = (int)((floater.x - srcRect.x)*mag);
-			final int fy = (int)((floater.y - srcRect.y)*mag);
-			// vector
-			double vx = (mouse.x - srcRect.x)*mag - fx;
-			double vy = (mouse.y - srcRect.y)*mag - fy;
-			//double len = Math.sqrt(vx*vx + vy*vy);
-			//vx = (vx / len) * 50;
-			//vy = (vy / len) * 50;
-			draw(g, fx, fy, fx + (int)vx, fy + (int)vy);
-		}
-		public boolean contains(int x_p, int y_p, double radius) {
-			final double mag = display.getCanvas().getMagnification();
-			final double x = this.x + shift / mag;
-			final double y = this.y;
-			if (x - radius <= x_p && x + radius >= x_p
-			 && y - radius <= y_p && y + radius >= y_p) return true;
-			return false;
-		}
-		public void drag(MouseEvent me, int dx, int dy) {
-			/// Bad design, I know, I'm ignoring the dx,dy
-			// how:
-			// center is the floater
-
-			rotate(me);
-		}
-	}
-
-	private class Floater extends Handle {
-		Floater(int x, int y, int id) {
-			super(x,y, id);
-		}
-		public void paint(Graphics g, Rectangle srcRect, double mag) {
-			int x = (int)((this.x - srcRect.x)*mag);
-			int y = (int)((this.y - srcRect.y)*mag);
-			g.setXORMode(Color.white);
-			g.drawOval(x -10, y -10, 21, 21);
-			g.drawRect(x -1, y -15, 3, 31);
-			g.drawRect(x -15, y -1, 31, 3);
-		}
-		public Rectangle getBoundingBox(Rectangle b) {
-			b.x = this.x - 15;
-			b.y = this.y - 15;
-			b.width = this.x + 31;
-			b.height = this.y + 31;
-			return b;
-		}
-		public void drag(MouseEvent me, int dx, int dy) {
-			this.x += dx;
-			this.y += dy;
-			RO.x = this.x;
-			RO.y = this.y;
-		}
-		public void center() {
-			this.x = RO.x = box.x + box.width/2;
-			this.y = RO.y = box.y + box.height/2;
-		}
-		public boolean contains(int x_p, int y_p, double radius) {
-			return super.contains(x_p, y_p, radius*3.5);
-		}
-	}
-
-	public void centerFloater() {
-		floater.center();
-	}
-
-	/** No display bounds are checked, the floater can be placed wherever you want. */
-	public void setFloater(int x, int y) {
-		floater.x = x;
-		floater.y = y;
-	}
-
-	public int getFloaterX() { return floater.x; }
-	public int getFloaterY() { return floater.y; }
 
 	public void setActive(Displayable d) {
 		synchronized (queue_lock) {
@@ -591,7 +147,6 @@ public class Selection {
 			if (null == box) box = b;
 			else box.add(b);
 			//Utils.log("box after adding: " + box);
-			setHandles(box);
 			// check if it was among the linked already before adding it's links and its transform
 			if (!hs.contains(d)) {
 				hs.add(d);
@@ -799,13 +354,8 @@ public class Selection {
 	}
 
 	/** Remove all given displayables from this selection. */
-	public void removeAll(HashSet<Displayable> hs) {
-		for (Displayable d : hs) remove(d);
-	}
-
-	/** Remove all given displayables from this selection. */
-	public void removeAll(ArrayList<Displayable> al) {
-		for (Displayable d : al) remove(d);
+	public void removeAll(Collection<Displayable> col) {
+		for (Displayable d : col) remove(d);
 	}
 
 	/** Remove the given displayable from this selection. */
@@ -863,28 +413,11 @@ public class Selection {
 				Displayable di = (Displayable)it.next();
 				box.add(di.getBoundingBox(r));
 			}
-			// reposition handles
-			setHandles(box);
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
 			unlock();
 		}}
-	}
-
-	private void setHandles(final Rectangle b) {
-		final int tx = b.x;
-		final int ty = b.y;
-		final int tw = b.width;
-		final int th = b.height;
-		NW.set(tx, ty);
-		N.set(tx + tw/2, ty);
-		NE.set(tx + tw, ty);
-		E.set(tx + tw, ty + th/2);
-		SE.set(tx + tw, ty + th);
-		S.set(tx + tw/2, ty + th);
-		SW.set(tx, ty + th);
-		W.set(tx, ty + th/2);
 	}
 
 	/** Remove all Displayables from this selection. */
@@ -913,369 +446,6 @@ public class Selection {
 		}}
 	}
 
-	private History history = null;
-
-	private AffineTransform accum_affine = null;
-
-	synchronized public void setTransforming(final boolean b) {
-		if (b == transforming) {
-			Utils.log2("Selection.setTransforming warning: trying to set the same mode");
-			return;
-		}
-		if (b) {
-			// start transform
-			history = new History(); // unlimited
-			history.add(new TransformationStep(getTransformationsCopy()));
-			transforming = true;
-			floater.center();
-			accum_affine = new AffineTransform();
-		} else {
-			if (null != history) {
-				history.clear();
-				history = null;
-			}
-			// the transform is already applied, just forget it:
-			transforming = false;
-			accum_affine = null;
-			forgetAffine();
-			// store current state for undo/redo:
-			if (null != display) display.getLayerSet().addTransformStep(hs);
-		}
-	}
-
-	/** Skips current layer, since its done already. */
-	synchronized protected void applyAndPropagate(final Set<Layer> sublist) {
-		if (!transforming) return;
-		if (null == accum_affine) {
-			Utils.log2("Cannot apply to other layers: undo/redo was used.");
-			return;
-		}
-		if (0 == sublist.size()) {
-			Utils.logAll("No layers to apply to!");
-			return;
-		}
-		// Check if there are links across affected layers
-		if (Displayable.areThereLayerCrossLinks(sublist, false)) {
-			if (ControlWindow.isGUIEnabled()) {
-				YesNoDialog yn = ControlWindow.makeYesNoDialog("Warning!", "Some objects are linked!\nThe transformation would alter interrelationships.\nProceed anyway?");
-				if ( ! yn.yesPressed()) return;
-			} else {
-				Utils.log("Can't apply: some images may be linked across layers.\n  Unlink them by removing segmentation objects like arealists, pipes, profiles, etc. that cross these layers.");
-				return;
-			}
-		}
-		// Add undo step
-		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		for (final Layer l : sublist) {
-			al.addAll(l.getDisplayables());
-		}
-		display.getLayer().getParent().addTransformStep(al);
-
-
-		// Must capture last step of free affine when using affine points:
-		if (null != free_affine && null != model) {
-			accum_affine.preConcatenate(free_affine);
-			accum_affine.preConcatenate(model.createAffine());
-		}
-
-		// Apply!
-		for (final Layer l : sublist) {
-			if (display.getLayer() == l) continue; // already applied
-			l.apply(Displayable.class, accum_affine);
-		}
-
-		// Record current state as last step in undo queue
-		display.getLayer().getParent().addTransformStep(al);
-
-		setTransforming(false);
-	}
-
-	synchronized public void cancelTransform() {
-		transforming = false;
-		if (null == active) return;
-		// restoring transforms
-		if (null != history) {
-			// apply first
-			display.getLayer().getParent().applyTransforms(((TransformationStep)history.get(0)).ht);
-		}
-		// reread all transforms and remake box
-		resetBox();
-		forgetAffine();
-	}
-
-	synchronized public boolean isTransforming() { return this.transforming; }
-
-	private class AffinePoint {
-		int x, y;
-		AffinePoint(int x, int y) {
-			this.x = x;
-			this.y = y;
-		}
-		public boolean equals(Object ob) {
-			//if (!ob.getClass().equals(AffinePoint.class)) return false;
-			AffinePoint ap = (AffinePoint) ob;
-			double mag = display.getCanvas().getMagnification();
-			double dx = mag * ( ap.x - this.x );
-			double dy = mag * ( ap.y - this.y );
-			double d =  dx * dx + dy * dy;
-			return  d < 64.0;
-		}
-		void translate(int dx, int dy) {
-			x += dx;
-			y += dy;
-		}
-		private void paint(Graphics g) {
-			int x = display.getCanvas().screenX(this.x);
-			int y = display.getCanvas().screenY(this.y);
-			g.setColor(Color.white);
-			g.drawLine(x-4, y+2, x+8, y+2);
-			g.drawLine(x+2, y-4, x+2, y+8);
-			g.setColor(Color.yellow);
-			g.fillRect(x+1,y+1,3,3);
-			g.setColor(Color.black);
-			g.drawRect(x, y, 4, 4);
-		}
-	}
-
-	private ArrayList<AffinePoint> affine_handles = null;
-	private ArrayList< mpicbg.models.PointMatch > matches = null;
-	private mpicbg.models.Point[] p = null;
-	private mpicbg.models.Point[] q = null;
-	private mpicbg.models.AbstractAffineModel2D<?> model = null;
-	private AffineTransform free_affine = null;
-	private HashMap initial_affines = null;
-	
-	private void forgetAffine() {
-		affine_handles = null;
-		matches = null;
-		p = q = null;
-		model = null;
-		free_affine = null;
-		initial_affines = null;
-	}
-
-	private void initializeModel() {
-
-		// Store current "initial" state in the accumulated affine
-		if (null != free_affine && null != model && null != accum_affine) {
-			accum_affine.preConcatenate(free_affine);
-			accum_affine.preConcatenate(model.createAffine());
-		}
-
-		free_affine = new AffineTransform();
-		initial_affines = getTransformationsCopy();
-
-		int size = affine_handles.size();
-
-		switch (size) {
-			case 0:
-				model = null;
-				q = p = null;
-				matches = null;
-				return;
-			case 1:
-				model = new mpicbg.models.TranslationModel2D();
-				break;
-			case 2:
-				model = new mpicbg.models.SimilarityModel2D();
-				break;
-			case 3:
-				model = new mpicbg.models.AffineModel2D();
-				break;
-		}
-		p = new mpicbg.models.Point[size];
-		q = new mpicbg.models.Point[size];
-		matches = new ArrayList< mpicbg.models.PointMatch >();
-		int i = 0;
-		for (final AffinePoint ap : affine_handles) {
-			p[i] = new mpicbg.models.Point(new float[]{ap.x, ap.y});
-			q[i] = p[i].clone();
-			matches.add(new mpicbg.models.PointMatch(p[i], q[i]));
-			i++;
-		}
-	}
-
-	private void freeAffine(AffinePoint affp) {
-		// The selected point
-		final float[] w = q[affine_handles.indexOf(affp)].getW();
-		w[0] = affp.x;
-		w[1] = affp.y;
-
-		try {
-			model.fit(matches);
-		} catch (Exception e) {}
-		
-		final AffineTransform model_affine = model.createAffine();
-		for (final Iterator it = initial_affines.entrySet().iterator(); it.hasNext(); ) {
-			final Map.Entry e = (Map.Entry)it.next();
-			final Displayable d = (Displayable)e.getKey();
-			final AffineTransform at = new AffineTransform((AffineTransform)e.getValue());
-			at.preConcatenate(free_affine);
-			at.preConcatenate(model_affine);
-			d.setAffineTransform(at);
-		}
-	}
-
-	private void fixAffinePoints(final AffineTransform at) {
-		if (null != matches) {
-			float[] po = new float[2];
-			for (final AffinePoint affp : affine_handles) {
-				po[0] = affp.x;
-				po[1] = affp.y;
-				at.transform(po, 0, po, 0, 1);
-				affp.x = (int)po[0];
-				affp.y = (int)po[1];
-			}
-			// Model will be reinitialized when needed
-			free_affine.setToIdentity();
-			model = null;
-		}
-	}
-
-	private AffinePoint affp = null;
-
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
-		grabbed = null; // reset
-		//Utils.log2("transforming: " + transforming);
-		if (!transforming) {
-			if (display.getLayerSet().prepareStep(new ArrayList<Displayable>(hs))) {
-				display.getLayerSet().addTransformStep(new ArrayList<Displayable>(hs));
-			}
-		} else {
-			if (me.isShiftDown()) {
-				if (Utils.isControlDown(me) && null != affine_handles) {
-					if (affine_handles.remove(new AffinePoint(x_p, y_p))) {
-						if (0 == affine_handles.size()) affine_handles = null;
-						else initializeModel();
-					}
-					return;
-				}
-				if (null == affine_handles) {
-					affine_handles = new ArrayList<AffinePoint>();
-				}
-				if (affine_handles.size() < 3) {
-					affine_handles.add(new AffinePoint(x_p, y_p));
-					if (1 == affine_handles.size()) {
-						free_affine = new AffineTransform();
-						initial_affines = getTransformationsCopy();
-					}
-					initializeModel();
-				}
-				return;
-			} else if (null != affine_handles) {
-				int index = affine_handles.indexOf(new AffinePoint(x_p, y_p));
-				if (-1 != index) {
-					affp = affine_handles.get(index);
-					return;
-				}
-			}
-
-			// find scale handle
-			double radius = 4 / magnification;
-			if (radius < 1) radius = 1;
-			// start with floater (the last)
-			for (int i=handles.length -1; i>-1; i--) {
-				if (handles[i].contains(x_p, y_p, radius)) {
-					grabbed = handles[i];
-					if (grabbed.id >= rNW && grabbed.id <= ROTATION) rotating = true;
-					return;
-				}
-			}
-		}
-		// if none grabbed, then drag the whole thing
-		dragging = false; //reset
-		if (box.x <= x_p && box.y <= y_p && box.x + box.width >= x_p && box.y + box.height >= y_p) {
-			dragging = true;
-		}
-	}
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
-
-		this.x_d = x_d;
-		this.y_d = y_d;
-		this.x_d_old = x_d_old;
-		this.y_d_old = y_d_old;
-		int dx = x_d - x_d_old;
-		int dy = y_d - y_d_old;
-
-		execDrag(me, dx, dy);
-
-		mouse_dragged = true; // after execDrag, so the first undo step is added.
-	}
-
-	private void execDrag(MouseEvent me, int dx, int dy) {
-		if (0 == dx && 0 == dy) return;
-		if (null != affp) {
-			affp.translate(dx, dy);
-			if (null == model) {
-				// Model has been canceled by a transformation from the other handles
-				initializeModel();
-			}
-			// Passing on the translation from start
-			freeAffine(affp);
-			return;
-		}
-
-		if (null != grabbed) {
-			// drag the handle and perform whatever task it has assigned
-			grabbed.drag(me, dx, dy);
-		} else if (dragging) {
-			// drag all selected and linked
-			translate(dx, dy);
-			//and the box!
-			box.x += dx;
-			box.y += dy;
-			// and the handles!
-			setHandles(box);
-		}
-	}
-
-	/*
-	public void mouseMoved() {
-		if (null != active) {
-			new Thread() {
-				public void run() {
-					Transform t = (Transform)ht.get(active);
-					Utils.showStatus("x,y : " + t.x + ", " + t.y, false);
-				}
-			}.start();
-		}
-	}
-	*/
-
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-
-		// Record current state for selected Displayable set, if there was any change:
-		final int dx = x_r - x_p;
-		final int dy = y_r - y_p;
-		if (!transforming && (0 != dx || 0 != dy)) {
-			display.getLayerSet().addTransformStep(hs); // all selected and their links: i.e. all that will change
-		}
-
-		// me is null when calling from Display, because of popup interfering with mouseReleased
-		if (null != me) execDrag(me, x_r - x_d, y_r - y_d);
-
-		if (transforming) {
-			// recalculate box
-			resetBox();
-		}
-
-		//reset
-		if ((null != grabbed && grabbed.id <= iW) || dragging) {
-			floater.center();
-		}
-		grabbed = null;
-		dragging = false;
-		rotating = false;
-		affp = null;
-		mouse_dragged = false;
-	}
-
-	/** Returns a copy of the box enclosing all selected ob, or null if none.*/
-	public Rectangle getBox() {
-		if (null == box) return null;
-		return (Rectangle)box.clone();
-	}
-
 	/** Returns the total box enclosing all selected objects and their linked objects within the current layer, or null if none are selected. Includes the position of the floater, when transforming.*/
 	public Rectangle getLinkedBox() {
 		if (null == active) return null;
@@ -1288,8 +458,6 @@ public class Selection {
 				b.add(d.getBoundingBox(r));
 			}
 		}
-		// include floater, whereever it is
-		if (transforming) b.add(floater.getBoundingBox(r));
 		return b;
 	}
 
@@ -1416,21 +584,12 @@ public class Selection {
 		Utils.log2(msg + ": queue size = " + queue.size() + "  hs size: " + hs.size());
 	}
 
-	/** Returns a hash table with all selected Displayables as keys, and a copy of their affine transform as value. This is useful to easily create undo steps. */
-	protected HashMap<Displayable,AffineTransform> getTransformationsCopy() {
-		final HashMap<Displayable,AffineTransform> ht_copy = new HashMap<Displayable,AffineTransform>(hs.size());
-		for (final Displayable d : hs) {
-			ht_copy.put(d, d.getAffineTransformCopy());
-		}
-		return ht_copy;
-	}
-
 	/** Recompute list of linked Displayable. */
 	void update() {
 		synchronized (queue_lock) {
 		try {
 			lock();
-			if (transforming) {
+			if (null != display && display.getCanvas().isTransforming()) {
 				Utils.log2("Selection.update warning: shouldn't be doing this while transforming!");
 				return;
 			}
@@ -1456,23 +615,6 @@ public class Selection {
 		}}
 	}
 
-	public boolean isDragging() {
-		return dragging;
-	}
-
-	/** Recalculate box and reset handles. */
-	public void resetBox() {
-		box = null;
-		Rectangle b = new Rectangle();
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			b = d.getBoundingBox(b);
-			if (null == box) box = (Rectangle)b.clone();
-			box.add(b);
-		}
-		if (null != box) setHandles(box);
-	}
-
 	/** Update the bounding box of the whole selection. */
 	public void updateTransform(final Displayable d) {
 		if (null == d) {
@@ -1486,7 +628,8 @@ public class Selection {
 				Utils.log2("Selection.updateTransform warning: " + d + " not selected or among the linked");
 				return;
 			}
-			resetBox();
+			// TODO should call what? The mode? Should remake the mode?
+			// resetBox();
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
@@ -1502,57 +645,43 @@ public class Selection {
 		return hs.size();
 	}
 
-	/** Rotate the objects in the current selection by the given angle, in degrees, relative to the floater position. */
-	public void rotate(final double angle, final int xo, final int yo) {
+	/** Rotate the objects in the current selection by the given angle, in degrees, relative to the x_o, y_o origin. */
+	public void rotate(final double angle, final double xo, final double yo) {
 		final AffineTransform at = new AffineTransform();
 		at.rotate(Math.toRadians(angle), xo, yo);
-
-		addUndoStep();
-
-		if (null != accum_affine) accum_affine.preConcatenate(at);
 
 		for (final Displayable d : hs) {
 			d.preTransform(at, false); // all linked ones included in the hashset
 		}
-		fixAffinePoints(at);
-		resetBox();
+		// TODO update affine mode
 	}
+
 	/** Translate all selected objects and their links by the given differentials. The floater position is unaffected; if you want to update it call centerFloater() */
 	public void translate(final double dx, final double dy) {
 		final AffineTransform at = new AffineTransform();
 		at.translate(dx, dy);
 
-		addUndoStep();
-
-		if (null != accum_affine) accum_affine.preConcatenate(at);
-
 		for (final Displayable d : hs) {
 			d.preTransform(at, false); // all linked ones already included in the hashset
 		}
-		fixAffinePoints(at);
-		resetBox();
+		// TODO update affine mode
 	}
-	/** Scale all selected objects and their links by by the given scales, relative to the floater position. . */
-	public void scale(final double sx, final double sy) {
+
+	/** Scale all selected objects and their links by by the given scales, relative to the origin position. */
+	public void scale(final double sx, final double sy, final double x_o, final double y_o) {
 		if (0 == sx || 0 == sy) {
 			Utils.showMessage("Cannot scale to 0.");
 			return;
 		}
 
 		final AffineTransform at = new AffineTransform();
-		at.translate(floater.x, floater.y);
+		at.translate(x_o, y_o);
 		at.scale(sx, sy);
-		at.translate(-floater.x, -floater.y);
-
-		addUndoStep();
-
-		if (null != accum_affine) accum_affine.preConcatenate(at);
+		at.translate(-x_o, -y_o);
 
 		for (final Displayable d : hs) {
 			d.preTransform(at, false); // all linked ones already included in the hashset
 		}
-		fixAffinePoints(at);
-		resetBox();
 	}
 
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones). */
@@ -1675,18 +804,24 @@ public class Selection {
 		clear();
 	}
 
-	/** Set all selected objects visible/hidden. */
-	public void setVisible(boolean b) {
+	/** Set all selected objects visible/hidden; returns a collection of those that changed state.
+	 *  Also updates checkboxes state in the Display. */
+	public Collection<Displayable> setVisible(boolean b) {
+		Collection<Displayable> col = new ArrayList<Displayable>();
 		synchronized (queue_lock) {
 			lock();
 			for (Iterator it = queue.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
-				if (b != d.isVisible()) d.setVisible(b);
+				if (b != d.isVisible()) {
+					d.setVisible(b);
+					col.add(d);
+				}
 			}
 			unlock();
 		}
 		Display.repaint(display.getLayer(), box, 10);
-		Display.updateCheckboxes(hs, DisplayablePanel.VISIBILITY_STATE, b);
+		Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE, b);
+		return col;
 	}
 
 	/** Removes the given Displayable from the selection and previous selection list. */
@@ -1719,8 +854,8 @@ public class Selection {
 		if (null == display || null == display.getActive()) return;
 		final GenericDialog gd = new GenericDialog("Specify");
 		gd.addMessage("Relative to the floater's position:");
-		gd.addNumericField("floater X: ", getFloaterX(), 2);
-		gd.addNumericField("floater Y: ", getFloaterY(), 2);
+		gd.addNumericField("origin X: ", box.x + box.width/2, 2);
+		gd.addNumericField("origin Y: ", box.y + box.height/2, 2);
 		gd.addMessage("Transforms applied in the same order as listed below:");
 		gd.addNumericField("rotate : ", 0, 2);
 		gd.addNumericField("translate in X: ", 0, 2);
@@ -1731,23 +866,20 @@ public class Selection {
 		if (gd.wasCanceled()) {
 			return;
 		}
-		boolean tr = transforming;
-		if (!tr) setTransforming(true);
-		if (!tr) display.getLayerSet().addTransformStep(active.getLinkedGroup(null));
+		display.getLayerSet().addTransformStep(active.getLinkedGroup(null));
 		final Rectangle sel_box = getLinkedBox();
-		setFloater((int)gd.getNextNumber(), (int)gd.getNextNumber());
+		double x_o = gd.getNextNumber();
+		double y_o = gd.getNextNumber();
 		double rot = gd.getNextNumber();
 		double dx = gd.getNextNumber();
 		double dy = gd.getNextNumber();
 		double sx = gd.getNextNumber();
 		double sy = gd.getNextNumber();
 		if (0 != dx || 0 != dy) translate(dx, dy);
-		if (0 != rot) rotate(rot, floater.x, floater.y);
-		if (0 != sx && 0 != sy) scale(sx, sy);
+		if (0 != rot) rotate(rot, x_o, y_o);
+		if (0 != sx && 0 != sy) scale(sx, sy, x_o, y_o);
 		else Utils.showMessage("Cannot scale to zero.");
 		sel_box.add(getLinkedBox());
-		// restore state if different
-		if (!tr) setTransforming(tr);
 		Display.repaint(display.getLayer(), sel_box, Selection.PADDING);
 	}
 
@@ -1755,8 +887,8 @@ public class Selection {
 		final Rectangle sel_box = getLinkedBox();
 		switch (what) {
 			case 0: translate(params[0], params[1]); break;
-			case 1: rotate(params[0], floater.x, floater.y); break;
-			case 2: scale(params[0], params[1]); break;
+			case 1: rotate(params[0], box.x + box.width/2, box.y + box.height/2); break;
+			case 2: scale(params[0], params[1], box.x + box.width/2, box.y + box.height/2); break;
 		}
 		sel_box.add(getLinkedBox());
 		Display.repaint(display.getLayer(), sel_box, Selection.PADDING);
@@ -1806,6 +938,20 @@ public class Selection {
 		return null;
 	}
 
-	//private class DoSelect implements DoStep {
-	//}
+	/** Returns a copy of the box enclosing all selected ob, or null if none.*/
+	public Rectangle getBox() {
+		if (null == box) return null;
+		return (Rectangle)box.clone();
+	}
+	/** Recalculate box and reset handles. */
+	public void resetBox() {
+		box = null;
+		Rectangle b = new Rectangle();
+		for (Iterator it = queue.iterator(); it.hasNext(); ) {
+			Displayable d = (Displayable)it.next();
+			b = d.getBoundingBox(b);
+			if (null == box) box = (Rectangle)b.clone();
+			box.add(b);
+		}
+	}
 }

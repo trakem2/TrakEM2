@@ -191,6 +191,7 @@ public class ProjectToolbar implements MouseListener {
 
 	static public void setTool(int t) {
 		Toolbar.getInstance().setTool(t);
+		Display.repaintToolbar();
 	}
 
 	static public int getToolId() {

@@ -231,6 +231,32 @@ public class Bucket {
 		}
 	}
 
+	/** Find All Displayable objects that intersect with the given srcRect and return them ordered by stack_index. Of @param visible_only is true, then hidden Displayable objects are ignored. */
+	synchronized final Collection<Displayable> find(final Class c, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
+		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
+		find(accum, c, srcRect, layer, visible_only);
+		return accum.values(); // sorted by integer key
+	}
+
+	/** Recursive search, accumulates Displayable objects that intersect the srcRect and, if @param visible_only is true, then checks first if so. */
+	private void find(final TreeMap<Integer,Displayable> accum, final Class c, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
+		if (empty || !intersects(srcRect)) return;
+		if (null != children) {
+			for (Bucket bu : children) {
+				bu.find(accum, c, srcRect, layer, visible_only);
+			}
+		} else {
+			final Rectangle tmp = new Rectangle();
+			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
+				final Displayable d = entry.getValue();
+				if (visible_only && !d.isVisible()) continue;
+				if (d.getClass() == c && Bucket.getBounds(d, tmp).intersects(srcRect)) {
+					accum.put(entry.getKey(), d);
+				}
+			}
+		}
+	}
+
 	/** Find all Displayable objects that contain the given point at the given layer (here layer acts as the Z coordinate, then) and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
 	synchronized final Collection<Displayable> find(final int px, final int py, final Layer layer, final boolean visible_only) {
 		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();

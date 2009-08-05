@@ -45,6 +45,7 @@ public class TransformMeshMapping extends mpicbg.ij.TransformMeshMapping
 	{
 		Rectangle boundingBox = ( ( TransformMesh )transform ).getBoundingBox();
 		final ImageProcessor target = source.createProcessor( boundingBox.width, boundingBox.height );
+		source.setInterpolationMethod( ImageProcessor.BILINEAR );
 		mapInterpolated( source, target );
 		return target;
 	}

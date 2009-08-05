@@ -180,10 +180,12 @@ public class DNDInsertImage implements DropTargetListener {
 				burro = display.getProject().getLoader().importImage(layer, point.x, point.y, path, false);
 			}
 
-			burro.addPostTask(new Runnable() { public void run() {
-				// The current state
-				layer.getParent().addLayerContentStep(layer);
-			}});
+			if (null != burro) {
+				burro.addPostTask(new Runnable() { public void run() {
+					// The current state
+					layer.getParent().addLayerContentStep(layer);
+				}});
+			}
 
 			return true;
 		} else {
