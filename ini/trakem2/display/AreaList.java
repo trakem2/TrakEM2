@@ -600,17 +600,19 @@ public class AreaList extends ZDisplayable {
 					}
 					this.target_area.add(area);
 
-					Utils.log2("paint modes:");
-
 					// now, depending on paint mode, alter the new target area:
 
 					if (PAINT_OVERLAP == PP.paint_mode) {
 						// Nothing happens with PAINT_OVERLAP, default mode.
 					} else {
 						final ArrayList<AreaList> other_alis = (ArrayList<AreaList>) (ArrayList) Display.getFrontLayer(AreaList.this.project).getParent().getZDisplayables(AreaList.class);
+
+						// prepare undo step:
+						final HashMap<AreaList,Runnable> ops = new HashMap<AreaList,Runnable>();
+
 						for (final AreaList ali : other_alis) {
 							if (AreaList.this == ali) continue;
-							Area a = ali.getArea(clicked_layer_id);
+							final Area a = ali.getArea(clicked_layer_id);
 							if (null == a) continue;
 							AffineTransform aff;
 							switch (PP.paint_mode) {
@@ -618,24 +620,29 @@ public class AreaList extends ZDisplayable {
 									// subtract this target_area from any other AreaList that overlaps with it
 									aff = new AffineTransform(AreaList.this.at);
 									aff.preConcatenate(ali.at.createInverse());
-									Area ta = target_area.createTransformedArea(aff);
+									final Area ta = target_area.createTransformedArea(aff);
 									if (a.getBounds().intersects(ta.getBounds())) {
-										a.subtract(ta);
+										ops.put(ali, new Runnable() { public void run() { a.subtract(ta); }});
 									}
 									break;
 								case PAINT_EXCLUDE:
 									// subtract all other overlapping AreaList from the target_area
 									aff = new AffineTransform(ali.at);
 									aff.preConcatenate(AreaList.this.at.createInverse());
-									a = a.createTransformedArea(aff);
-									if (a.getBounds().intersects(target_area.getBounds())) {
-										target_area.subtract(a);
+									final Area q = a.createTransformedArea(aff);
+									if (q.getBounds().intersects(target_area.getBounds())) {
+										target_area.subtract(q);
 									}
 									break;
 								default:
 									Utils.log2("Can't handle paint mode " + PP.paint_mode);
 									break;
 							}
+						}
+
+						if (ops.size() > 0) {
+							AreaList.this.getLayerSet().addDataEditStep(ops.keySet());
+							for (final Runnable r : ops.values()) r.run();
 						}
 					}
 				} else {
