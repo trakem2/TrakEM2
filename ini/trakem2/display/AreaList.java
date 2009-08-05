@@ -53,8 +53,12 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Point;
 import java.awt.Polygon;
+import java.awt.Container;
+import java.awt.Component;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
 import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -78,6 +82,12 @@ import amira.AmiraMeshEncoder;
 import amira.AmiraParameters;
 
 import javax.vecmath.Point3f;
+
+import java.awt.Dimension;
+import javax.swing.JPanel;
+import javax.swing.JRadioButton;
+import javax.swing.ButtonGroup;
+import javax.swing.JLabel;
 
 /** A list of brush painted areas similar to a set of labelfields in Amira.
  * 
@@ -1996,7 +2006,62 @@ public class AreaList extends ZDisplayable {
 			if (this.default_alpha > 1) this.default_alpha = 1f;
 			else if (this.default_alpha < 0) this.default_alpha = 0.4f; // back to default's default value
 			this.paint_mode = gd.getNextChoiceIndex();
+			// trigger update of GUI radio buttons on all displays:
+			Display.toolChanged("PEN");
 			return true;
+		}
+
+		public boolean updateGUI(final PaintParametersGUI ppg) {
+			if (0 == ppg.getComponentCount()) ppg.init();
+			ppg.update(paint_mode);
+			return true;
+		}
+	}
+
+	static class PaintParametersGUI extends JPanel implements ActionListener {
+		final String start = "Paint mode: ";
+		final JLabel label = new JLabel();
+		final JRadioButton overlap = new JRadioButton();
+		final JRadioButton exclude = new JRadioButton();
+		final JRadioButton erode = new JRadioButton();
+		final ButtonGroup bg = new ButtonGroup();
+
+		// empty panel
+		PaintParametersGUI() {
+			setMaximumSize(new Dimension(250, 35));
+		}
+		PaintParametersGUI(int paint_mode) {
+			this();
+			init();
+			update(paint_mode);
+		}
+
+		void init() {
+			bg.add(overlap);
+			bg.add(exclude);
+			bg.add(erode);
+			overlap.addActionListener(this);
+			exclude.addActionListener(this);
+			erode.addActionListener(this);
+			add(label);
+			add(overlap);
+			add(exclude);
+			add(erode);
+		}
+		void update(int paint_mode) {
+			if (0 == getComponentCount()) init();
+			switch (paint_mode) {
+				case PAINT_OVERLAP: overlap.setSelected(true); label.setText(start + "overlap"); break;
+				case PAINT_EXCLUDE: exclude.setSelected(true); label.setText(start + "exclude"); break;
+				case PAINT_ERODE: erode.setSelected(true); label.setText(start + "erode"); break;
+			}
+		}
+		public void actionPerformed(ActionEvent ae) {
+			final Object source = ae.getSource();
+			if (source == overlap) PP.paint_mode = PAINT_OVERLAP;
+			else if (source == exclude) PP.paint_mode = PAINT_EXCLUDE;
+			else if (source == erode) PP.paint_mode = PAINT_ERODE;
+			update(PP.paint_mode);
 		}
 	}
 
