@@ -608,7 +608,7 @@ public class AreaList extends ZDisplayable {
 						final ArrayList<AreaList> other_alis = (ArrayList<AreaList>) (ArrayList) Display.getFrontLayer(AreaList.this.project).getParent().getZDisplayables(AreaList.class);
 
 						// prepare undo step:
-						final HashMap<AreaList,Runnable> ops = new HashMap<AreaList,Runnable>();
+						final HashMap<AreaList,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<AreaList,Runnable>() : null;
 
 						for (final AreaList ali : other_alis) {
 							if (AreaList.this == ali) continue;
