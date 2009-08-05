@@ -608,7 +608,6 @@ public class AreaList extends ZDisplayable {
 						// Nothing happens with PAINT_OVERLAP, default mode.
 					} else {
 						final ArrayList<AreaList> other_alis = (ArrayList<AreaList>) (ArrayList) Display.getFrontLayer(AreaList.this.project).getParent().getZDisplayables(AreaList.class);
-					Utils.log2("switching on paint modes");
 						for (final AreaList ali : other_alis) {
 							if (AreaList.this == ali) continue;
 							Area a = ali.getArea(clicked_layer_id);
@@ -619,15 +618,19 @@ public class AreaList extends ZDisplayable {
 									// subtract this target_area from any other AreaList that overlaps with it
 									aff = new AffineTransform(AreaList.this.at);
 									aff.preConcatenate(ali.at.createInverse());
-									a.subtract(target_area.createTransformedArea(aff));
-					Utils.log2("eroded " + ali);
+									Area ta = target_area.createTransformedArea(aff);
+									if (a.getBounds().intersects(ta.getBounds())) {
+										a.subtract(ta);
+									}
 									break;
 								case PAINT_EXCLUDE:
 									// subtract all other overlapping AreaList from the target_area
 									aff = new AffineTransform(ali.at);
 									aff.preConcatenate(AreaList.this.at.createInverse());
-									target_area.subtract(a.createTransformedArea(aff));
-					Utils.log2("excluded " + ali);
+									a = a.createTransformedArea(aff);
+									if (a.getBounds().intersects(target_area.getBounds())) {
+										target_area.subtract(a);
+									}
 									break;
 								default:
 									Utils.log2("Can't handle paint mode " + PP.paint_mode);
