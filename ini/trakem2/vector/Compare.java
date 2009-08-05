@@ -59,6 +59,7 @@ import javax.swing.table.*;
 import java.util.regex.Pattern;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
@@ -3295,8 +3296,10 @@ public class Compare {
 		final ArrayList<Future> fus = new ArrayList<Future>();
 
 		// All possible pairs of projects, with repetition (it's not the same, although the comparison itself will be.)
-		for (int i=0; i<p_chains.length; i++) {
-			for (int j=0; j<p_chains.length; j++) {
+		for (int _i=0; _i<p_chains.length; _i++) {
+			final int i = _i;
+			for (int _j=0; _j<p_chains.length; _j++) {
+				final int j = _j;
 
 				// skip same project (would have a score of zero, identical.)
 				if (p_chains[i] == p_chains[j]) continue;
@@ -3304,18 +3307,18 @@ public class Compare {
 				fus.add(exec.submit(new Callable() { public Object call() {
 
 				// All chains of one project to all chains of the other:
-				for (int k=0; k<p_chains[i].size(); k++) {
-					final VectorString3D vs1 = p_chains[i][k].vs;
+				for (final Chain chain : (ArrayList<Chain>) p_chains[i]) {
+					final VectorString3D vs1 = chain.vs;
 					final float[] scores = new float[p_chains[j].size()];
 					// Prepare title
-					String title = p_chains[i][k].getCellTitle();
+					String title = chain.getCellTitle();
 					title = title.substring(0, title.indexOf(' '));
-					// check if the other project j contains a chain of name p_chains[i][k].getCellTitle() up to the space.
+					// check if the other project j contains a chain of name chain.getCellTitle() up to the space.
 					boolean found = false;
-					final String[] titles = new String[p_chains[j].length];
+					final String[] titles = new String[p_chains[j].size()];
 					int next = 0;
-					for (Chain c : p_chains[j]) {
-						String t = c.getCellTitle();
+					for (final Chain cj : (ArrayList<Chain>) p_chains[j]) {
+						String t = cj.getCellTitle();
 						t = t.substring(0, t.indexOf(' '));
 						if (title.equals(t)) {
 							found = true;
@@ -3327,11 +3330,12 @@ public class Compare {
 						continue;
 					}
 
-					for (int g=0; g<p_chains[j].size(); g++) {
-						final VectorString3D vs2 = p_chains[j][g].vs;
+					int g = 0;
+					for (final Chain cj : (ArrayList<Chain>) p_chains[j]) {
+						final VectorString3D vs2 = cj.vs;
 						final Object[] ob = findBestMatch(vs1, vs2, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching);
 						final Editions ed = (Editions)ob[0];
-						scores[g] = (float) getScore(ed, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type);
+						scores[g++] = (float) getScore(ed, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type);
 					}
 					// sort scores:
 					M.quicksort(scores, titles);
@@ -3342,7 +3346,7 @@ public class Compare {
 								ArrayList<Integer> al = indices.get(title);
 								if (null == al) {
 									al = new ArrayList<Integer>();
-									indices.put(p_chains[i][k], al);
+									indices.put(chain, al);
 								}
 								al.add(f);
 							}
@@ -3350,6 +3354,7 @@ public class Compare {
 						}
 					}
 				}
+				return null;
 				}}));
 			}
 		}
@@ -3369,8 +3374,9 @@ public class Compare {
 		// - a list of how well each chain scores
 
 		sb.append("List of scoring indices for each (starting at index 1, aka best possible score):\n");
-		for (Map.Entry<String,ArrayList<Integer>> e : indices.entrySet()) {
-			String name = e.getKey();
+		for (Map.Entry<Chain,ArrayList<Integer>> e : indices.entrySet()) {
+			String title = e.getKey().getCellTitle();
+			title = title.substring(0, title.indexOf(' '));
 			// sort indices in place
 			Collections.sort(e.getValue());
 			// count occurrences of each scoring index
@@ -3379,15 +3385,16 @@ public class Compare {
 			for (int i : e.getValue()) {
 				if (last == i) count++;
 				else {
-					sb.append(name).append(' ').append(last+1).append(' ').append(count).append('\n');
+					sb.append(title).append(' ').append(last+1).append(' ').append(count).append('\n');
 					// reset
 					last = i;
 					count = 1;
 				}
-				// global count of occurences
-				sum.put(i, (sum.contains(i) ? sum.get(i) : 0) + 1);
+				// global count of occurrences
+				final Integer oi = new Integer(i);
+				sum.put(i, (sum.containsKey(oi) ? sum.get(oi) : 0) + 1);
 			}
-			if (0 != count) sb.append(name).append(' ').append(last+1).append(' ').append(count).append('\n');
+			if (0 != count) sb.append(title).append(' ').append(last+1).append(' ').append(count).append('\n');
 		}
 		sb.append("===============================\n");
 
@@ -3402,10 +3409,23 @@ public class Compare {
 
 		// - a summarizing histogram of how well each chain scores (4/4, 3/4, 2/4, 1/4, 0/4 only for those that have 4 homologous members.)
 		// Must consider that there are 5 projects taken in pairs with repetition.
-		
-		sb.append("A summarizing histogram of how well each chain scores, for those that have 4 homologous members:\n");
-		for (Map.Entry<String,ArrayList<Integer>> e : indices.entrySet()) {
-			// TODO
+
+		sb.append("A summarizing histogram of how well each chain scores, for those that have 4 homologous members. It's the number of 1s:\n");
+		for (Map.Entry<Chain,ArrayList<Integer>> e : indices.entrySet()) {
+			// Assumes 5 brains:  5! / (5-2)! = 5 * 4 = 20   --- 5 elements taken in groups of 2, where order matters
+			if (20 != e.getValue().size()) {
+				Utils.log2("Skipping " + e.getKey() + " : less than 4 instances");
+				continue;
+			}
+			// Count the number of 0s -- top scoring
+			int count = 0;
+			for (Integer i : e.getValue()) {
+				if (0 == i) count++;
+				else break;
+			}
+			String title = e.getKey().getCellTitle();
+			title = title.substring(0, title.indexOf(' '));
+			sb.append(title).append(' ').append(count);
 		}
 
 
@@ -3424,4 +3444,5 @@ public class Compare {
 			}
 		};
 		return Bureaucrat.createAndStart(worker, p);
+	}
 }
