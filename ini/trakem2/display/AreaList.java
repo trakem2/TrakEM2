@@ -100,7 +100,7 @@ public class AreaList extends ZDisplayable {
 
 	public AreaList(Project project, String title, double x, double y) {
 		super(project, title, x, y);
-		this.alpha = 0.4f;
+		this.alpha = PP.default_alpha;
 		addToDatabase();
 	}
 
@@ -279,7 +279,8 @@ public class AreaList extends ZDisplayable {
 	private boolean is_new = false;
 
 	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
-		final long lid = Display.getFrontLayer(this.project).getId(); // isn't this.layer pointing to the current layer always? It *should*
+		final Layer la = Display.getFrontLayer(this.project);
+		final long lid = la.getId(); // isn't this.layer pointing to the current layer always? It *should*
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
 		if (null == ob) {
@@ -392,7 +393,7 @@ public class AreaList extends ZDisplayable {
 				}
 			} else {
 				if (null != last) last.quit();
-				last = new BrushThread(area, mag);
+				last = new BrushThread(area, mag, la);
 				brushing = true;
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
@@ -501,10 +502,12 @@ public class AreaList extends ZDisplayable {
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
 		final private int flags = dc.getModifiers();
 		private boolean adding = (0 == (flags & alt));
+		private long clicked_layer_id = -1;
 
-		BrushThread(Area area, double mag) {
+		BrushThread(Area area, double mag, Layer la) {
 			super("BrushThread");
 			setPriority(Thread.NORM_PRIORITY);
+			this.clicked_layer_id = la.getId();
 			// if adding areas, make it be a copy, to be added on mouse release
 			// (In this way, the receiving Area is small and can be operated on fast)
 			if (adding) {
@@ -522,7 +525,7 @@ public class AreaList extends ZDisplayable {
 		}
 		final void quit() {
 			this.paint = false;
-			// Make interpolated points effect add or subtract operations
+			// Make interpolated points affect add or subtract operations
 			synchronized (this) {
 				if (points.size() < 2) {
 					// merge the temporary Area, if any, with the general one
@@ -586,6 +589,42 @@ public class AreaList extends ZDisplayable {
 						area.add(slashInInts(brush.createTransformedArea(atb)));
 					}
 					this.target_area.add(area);
+
+					Utils.log2("paint modes:");
+
+					// now, depending on paint mode, alter the new target area:
+
+					if (PAINT_OVERLAP == PP.paint_mode) {
+						// Nothing happens with PAINT_OVERLAP, default mode.
+					} else {
+						final ArrayList<AreaList> other_alis = (ArrayList<AreaList>) (ArrayList) Display.getFrontLayer(AreaList.this.project).getParent().getZDisplayables(AreaList.class);
+					Utils.log2("switching on paint modes");
+						for (final AreaList ali : other_alis) {
+							if (AreaList.this == ali) continue;
+							Area a = ali.getArea(clicked_layer_id);
+							if (null == a) continue;
+							AffineTransform aff;
+							switch (PP.paint_mode) {
+								case PAINT_ERODE:
+									// subtract this target_area from any other AreaList that overlaps with it
+									aff = new AffineTransform(AreaList.this.at);
+									aff.preConcatenate(ali.at.createInverse());
+									a.subtract(target_area.createTransformedArea(aff));
+					Utils.log2("eroded " + ali);
+									break;
+								case PAINT_EXCLUDE:
+									// subtract all other overlapping AreaList from the target_area
+									aff = new AffineTransform(ali.at);
+									aff.preConcatenate(AreaList.this.at.createInverse());
+									target_area.subtract(a.createTransformedArea(aff));
+					Utils.log2("excluded " + ali);
+									break;
+								default:
+									Utils.log2("Can't handle paint mode " + PP.paint_mode);
+									break;
+							}
+						}
+					}
 				} else {
 					// subtract
 					for (int i=0; i<xpd.length; i++) {
@@ -1937,4 +1976,29 @@ public class AreaList extends ZDisplayable {
 			return true;
 		}
 	}
+
+	static public final int PAINT_OVERLAP = 0;
+	static public final int PAINT_EXCLUDE = 1;
+	static public final int PAINT_ERODE = 2;
+
+	static public class PaintParameters {
+		public float default_alpha = 0.4f;
+		public int paint_mode = AreaList.PAINT_OVERLAP;
+
+		public boolean setup() {
+			GenericDialog gd = new GenericDialog("Paint parameters");
+			gd.addSlider("Default_alpha", 0, 100, default_alpha * 100);
+			final String[] modes = {"Allow overlap", "Exclude others", "Erode others"};
+			gd.addChoice("Paint mode", modes, modes[paint_mode]);
+			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			this.default_alpha = (float) gd.getNextNumber();
+			if (this.default_alpha > 1) this.default_alpha = 1f;
+			else if (this.default_alpha < 0) this.default_alpha = 0.4f; // back to default's default value
+			this.paint_mode = gd.getNextChoiceIndex();
+			return true;
+		}
+	}
+
+	static public final PaintParameters PP = new PaintParameters();
 }

@@ -2420,6 +2420,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Grid overlay..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Project");
@@ -3532,6 +3533,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			AlignTask.p_snap.setup("Snap");
 		} else if (command.equals("Adjust fast-marching parameters...")) {
 			Segmentation.fmp.setup();
+		} else if (command.equals("Adjust arealist paint parameters...")) {
+			AreaList.PP.setup();
 		} else if (command.equals("Search...")) {
 			new Search();
 		} else if (command.equals("Select all")) {
