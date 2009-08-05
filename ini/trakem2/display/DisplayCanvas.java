@@ -1049,7 +1049,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	public void setDrawingSize(int new_width, int new_height,
 			boolean adjust_srcRect) {
-		Utils.printCaller(this, 3);
 		// adjust srcRect!
 		if (adjust_srcRect) {
 			double mag = super.getMagnification();

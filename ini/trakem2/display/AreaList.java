@@ -53,8 +53,12 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Point;
 import java.awt.Polygon;
+import java.awt.Container;
+import java.awt.Component;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
 import java.util.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -79,6 +83,12 @@ import amira.AmiraParameters;
 
 import javax.vecmath.Point3f;
 
+import java.awt.Dimension;
+import javax.swing.JPanel;
+import javax.swing.JRadioButton;
+import javax.swing.ButtonGroup;
+import javax.swing.JLabel;
+
 /** A list of brush painted areas similar to a set of labelfields in Amira.
  * 
  * For each layer where painting has been done, there is an entry in the ht_areas HashMap that contains the layer's id as a Long, and a java.awt.geom.Area object.
@@ -100,7 +110,7 @@ public class AreaList extends ZDisplayable {
 
 	public AreaList(Project project, String title, double x, double y) {
 		super(project, title, x, y);
-		this.alpha = 0.4f;
+		this.alpha = PP.default_alpha;
 		addToDatabase();
 	}
 
@@ -279,7 +289,8 @@ public class AreaList extends ZDisplayable {
 	private boolean is_new = false;
 
 	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
-		final long lid = Display.getFrontLayer(this.project).getId(); // isn't this.layer pointing to the current layer always? It *should*
+		final Layer la = Display.getFrontLayer(this.project);
+		final long lid = la.getId(); // isn't this.layer pointing to the current layer always? It *should*
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
 		if (null == ob) {
@@ -392,7 +403,7 @@ public class AreaList extends ZDisplayable {
 				}
 			} else {
 				if (null != last) last.quit();
-				last = new BrushThread(area, mag);
+				last = new BrushThread(area, mag, la);
 				brushing = true;
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
@@ -501,10 +512,12 @@ public class AreaList extends ZDisplayable {
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
 		final private int flags = dc.getModifiers();
 		private boolean adding = (0 == (flags & alt));
+		private long clicked_layer_id = -1;
 
-		BrushThread(Area area, double mag) {
+		BrushThread(Area area, double mag, Layer la) {
 			super("BrushThread");
 			setPriority(Thread.NORM_PRIORITY);
+			this.clicked_layer_id = la.getId();
 			// if adding areas, make it be a copy, to be added on mouse release
 			// (In this way, the receiving Area is small and can be operated on fast)
 			if (adding) {
@@ -522,7 +535,7 @@ public class AreaList extends ZDisplayable {
 		}
 		final void quit() {
 			this.paint = false;
-			// Make interpolated points effect add or subtract operations
+			// Make interpolated points affect add or subtract operations
 			synchronized (this) {
 				if (points.size() < 2) {
 					// merge the temporary Area, if any, with the general one
@@ -586,6 +599,52 @@ public class AreaList extends ZDisplayable {
 						area.add(slashInInts(brush.createTransformedArea(atb)));
 					}
 					this.target_area.add(area);
+
+					// now, depending on paint mode, alter the new target area:
+
+					if (PAINT_OVERLAP == PP.paint_mode) {
+						// Nothing happens with PAINT_OVERLAP, default mode.
+					} else {
+						final ArrayList<AreaList> other_alis = (ArrayList<AreaList>) (ArrayList) Display.getFrontLayer(AreaList.this.project).getParent().getZDisplayables(AreaList.class);
+
+						// prepare undo step:
+						final HashMap<AreaList,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<AreaList,Runnable>() : null;
+
+						for (final AreaList ali : other_alis) {
+							if (AreaList.this == ali) continue;
+							final Area a = ali.getArea(clicked_layer_id);
+							if (null == a) continue;
+							AffineTransform aff;
+							switch (PP.paint_mode) {
+								case PAINT_ERODE:
+									// subtract this target_area from any other AreaList that overlaps with it
+									aff = new AffineTransform(AreaList.this.at);
+									aff.preConcatenate(ali.at.createInverse());
+									final Area ta = target_area.createTransformedArea(aff);
+									if (a.getBounds().intersects(ta.getBounds())) {
+										ops.put(ali, new Runnable() { public void run() { a.subtract(ta); }});
+									}
+									break;
+								case PAINT_EXCLUDE:
+									// subtract all other overlapping AreaList from the target_area
+									aff = new AffineTransform(ali.at);
+									aff.preConcatenate(AreaList.this.at.createInverse());
+									final Area q = a.createTransformedArea(aff);
+									if (q.getBounds().intersects(target_area.getBounds())) {
+										target_area.subtract(q);
+									}
+									break;
+								default:
+									Utils.log2("Can't handle paint mode " + PP.paint_mode);
+									break;
+							}
+						}
+
+						if (ops.size() > 0) {
+							AreaList.this.getLayerSet().addDataEditStep(ops.keySet());
+							for (final Runnable r : ops.values()) r.run();
+						}
+					}
 				} else {
 					// subtract
 					for (int i=0; i<xpd.length; i++) {
@@ -1937,4 +1996,84 @@ public class AreaList extends ZDisplayable {
 			return true;
 		}
 	}
+
+	static public final int PAINT_OVERLAP = 0;
+	static public final int PAINT_EXCLUDE = 1;
+	static public final int PAINT_ERODE = 2;
+
+	static public class PaintParameters {
+		public float default_alpha = 0.4f;
+		public int paint_mode = AreaList.PAINT_OVERLAP;
+
+		public boolean setup() {
+			GenericDialog gd = new GenericDialog("Paint parameters");
+			gd.addSlider("Default_alpha", 0, 100, default_alpha * 100);
+			final String[] modes = {"Allow overlap", "Exclude others", "Erode others"};
+			gd.addChoice("Paint mode", modes, modes[paint_mode]);
+			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			this.default_alpha = (float) gd.getNextNumber();
+			if (this.default_alpha > 1) this.default_alpha = 1f;
+			else if (this.default_alpha < 0) this.default_alpha = 0.4f; // back to default's default value
+			this.paint_mode = gd.getNextChoiceIndex();
+			// trigger update of GUI radio buttons on all displays:
+			Display.toolChanged("PEN");
+			return true;
+		}
+
+		public boolean updateGUI(final PaintParametersGUI ppg) {
+			if (0 == ppg.getComponentCount()) ppg.init();
+			ppg.update(paint_mode);
+			return true;
+		}
+	}
+
+	static class PaintParametersGUI extends JPanel implements ActionListener {
+		final String start = "Paint mode: ";
+		final JLabel label = new JLabel();
+		final JRadioButton overlap = new JRadioButton();
+		final JRadioButton exclude = new JRadioButton();
+		final JRadioButton erode = new JRadioButton();
+		final ButtonGroup bg = new ButtonGroup();
+
+		// empty panel
+		PaintParametersGUI() {
+			setMaximumSize(new Dimension(250, 35));
+		}
+		PaintParametersGUI(int paint_mode) {
+			this();
+			init();
+			update(paint_mode);
+		}
+
+		void init() {
+			bg.add(overlap);
+			bg.add(exclude);
+			bg.add(erode);
+			overlap.addActionListener(this);
+			exclude.addActionListener(this);
+			erode.addActionListener(this);
+			add(label);
+			add(overlap);
+			add(exclude);
+			add(erode);
+		}
+		void update(int paint_mode) {
+			if (0 == getComponentCount()) init();
+			switch (paint_mode) {
+				case PAINT_OVERLAP: overlap.setSelected(true); label.setText(start + "overlap"); break;
+				case PAINT_EXCLUDE: exclude.setSelected(true); label.setText(start + "exclude"); break;
+				case PAINT_ERODE: erode.setSelected(true); label.setText(start + "erode"); break;
+			}
+		}
+		public void actionPerformed(ActionEvent ae) {
+			final Object source = ae.getSource();
+			if (source == overlap) PP.paint_mode = PAINT_OVERLAP;
+			else if (source == exclude) PP.paint_mode = PAINT_EXCLUDE;
+			else if (source == erode) PP.paint_mode = PAINT_ERODE;
+			update(PP.paint_mode);
+		}
+	}
+
+	static public final PaintParameters PP = new PaintParameters();
 }

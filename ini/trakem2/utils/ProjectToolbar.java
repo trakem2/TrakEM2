@@ -111,7 +111,7 @@ public class ProjectToolbar implements MouseListener {
 		}
 	}
 
-	/** Called by macro tools. */ // TODO doesn't work, no clue
+	/** Called by macro tools. */ // TODO it's never called but I expect it to; no clue
 	static public void toolChanged(String tool_name) {
 		//Display.toolChanged(tool_name);
 	}
