@@ -3,6 +3,8 @@
  */
 package mpicbg.trakem2.align;
 
+import java.util.Set;
+
 import mpicbg.models.ErrorStatistic;
 import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.NotEnoughDataPointsException;
@@ -44,7 +46,7 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		
 		while ( proceed )
 		{
-			for ( final Tile< ? > tile : tiles )
+			for ( final Tile tile : tiles )
 			{
 				if ( fixedTiles.contains( tile ) ) continue;
 				tile.update();
@@ -57,7 +59,7 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 					double cy = 0.0;
 					double s = 0.0;
 					/* Calculating the center of gravity */
-					for ( final PointMatch pm : tile.getMatches() )
+					for ( final PointMatch pm : ( Set< PointMatch > )tile.getMatches() )
 					{
 						final float[] l = pm.getP1().getL();
 						cx += l[ 0 ];
