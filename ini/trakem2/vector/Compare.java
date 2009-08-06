@@ -3291,7 +3291,8 @@ public class Compare {
 		//
 		final ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
-		final TreeMap<Chain,ArrayList<Integer>> indices = new TreeMap<Chain,ArrayList<Integer>>();
+		final HashMap<Chain,ArrayList<Integer>> indices = new HashMap<Chain,ArrayList<Integer>>();
+		final ArrayList<CITuple> cin = new ArrayList<CITuple>();
 
 		final ArrayList<Future> fus = new ArrayList<Future>();
 
@@ -3347,6 +3348,7 @@ public class Compare {
 								if (null == al) {
 									al = new ArrayList<Integer>();
 									indices.put(chain, al);
+									cin.add(new CITuple(title, chain, al)); // so I can keep a list of chains sorted by name
 								}
 								al.add(f);
 							}
@@ -3374,27 +3376,25 @@ public class Compare {
 		// - a list of how well each chain scores
 
 		sb.append("List of scoring indices for each (starting at index 1, aka best possible score):\n");
-		for (Map.Entry<Chain,ArrayList<Integer>> e : indices.entrySet()) {
-			String title = e.getKey().getCellTitle();
-			title = title.substring(0, title.indexOf(' '));
+		for (final CITuple ci : cin) {
 			// sort indices in place
-			Collections.sort(e.getValue());
+			Collections.sort(ci.list);
 			// count occurrences of each scoring index
 			int last = 0; // lowest possible index
 			int count = 1;
-			for (int i : e.getValue()) {
+			for (int i : ci.list) {
 				if (last == i) count++;
 				else {
-					sb.append(title).append(' ').append(last+1).append(' ').append(count).append('\n');
+					sb.append(ci.title).append(' ').append(last+1).append(' ').append(count).append('\n');
 					// reset
 					last = i;
 					count = 1;
 				}
 				// global count of occurrences
 				final Integer oi = new Integer(i);
-				sum.put(i, (sum.containsKey(oi) ? sum.get(oi) : 0) + 1);
+				sum.put(oi, (sum.containsKey(oi) ? sum.get(oi) : 0) + 1);
 			}
-			if (0 != count) sb.append(title).append(' ').append(last+1).append(' ').append(count).append('\n');
+			if (0 != count) sb.append(ci.title).append(' ').append(last+1).append(' ').append(count).append('\n');
 		}
 		sb.append("===============================\n");
 
@@ -3411,21 +3411,19 @@ public class Compare {
 		// Must consider that there are 5 projects taken in pairs with repetition.
 
 		sb.append("A summarizing histogram of how well each chain scores, for those that have 4 homologous members. It's the number of 1s:\n");
-		for (Map.Entry<Chain,ArrayList<Integer>> e : indices.entrySet()) {
+		for (final CITuple ci : cin) {
 			// Assumes 5 brains:  5! / (5-2)! = 5 * 4 = 20   --- 5 elements taken in groups of 2, where order matters
-			if (20 != e.getValue().size()) {
-				Utils.log2("Skipping " + e.getKey() + " : less than 4 instances");
+			if (20 != ci.list.size()) {
+				Utils.log2("Skipping " + ci.title + " : less than 4 instances");
 				continue;
 			}
 			// Count the number of 0s -- top scoring
 			int count = 0;
-			for (Integer i : e.getValue()) {
+			for (Integer i : ci.list) {
 				if (0 == i) count++;
 				else break;
 			}
-			String title = e.getKey().getCellTitle();
-			title = title.substring(0, title.indexOf(' '));
-			sb.append(title).append(' ').append(count);
+			sb.append(ci.title).append(' ').append(count);
 		}
 
 
@@ -3447,5 +3445,16 @@ public class Compare {
 			}
 		};
 		return Bureaucrat.createAndStart(worker, p);
+	}
+
+	private static final class CITuple {
+		String title;
+		Chain chain;
+		ArrayList<Integer> list;
+		CITuple(String t, Chain c, ArrayList<Integer> l) {
+			title = t;
+			chain = c;
+			list = l;
+		}
 	}
 }
