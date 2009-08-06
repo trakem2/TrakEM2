@@ -718,7 +718,8 @@ public class Align
 		
 		try
 		{
-			tc.optimize( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth );
+//			tc.optimize( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth );
+			tc.optimizeRigidized( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth, .5f, .5f, .5f );
 		}
 		catch ( Exception e ) { IJ.error( e.getMessage() + " " + e.getStackTrace() ); }
 	}
