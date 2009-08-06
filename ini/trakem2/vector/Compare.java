@@ -3343,7 +3343,7 @@ public class Compare {
 					for (int f=0; f<titles.length; f++) {
 						if (title.equals(titles[f])) {
 							synchronized (indices) {
-								ArrayList<Integer> al = indices.get(title);
+								ArrayList<Integer> al = indices.get(chain);
 								if (null == al) {
 									al = new ArrayList<Integer>();
 									indices.put(chain, al);
