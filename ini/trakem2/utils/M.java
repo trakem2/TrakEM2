@@ -359,7 +359,7 @@ public final class M {
 		if (data.length != sortAlso.length) {
 			throw new IllegalArgumentException("data and sortAlso arrays don't have the same length.");
 		}
-		quicksort(data, sortAlso, 0, data.length);
+		quicksort(data, sortAlso, 0, data.length-1);
 	}
 
 	/** Adapted from Stephan Preibisch's mpi.fruitfly.math.General homonimous method. */
