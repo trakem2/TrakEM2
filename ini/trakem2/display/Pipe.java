@@ -2135,14 +2135,23 @@ public class Pipe extends ZDisplayable implements Line3D {
 	/** Reverses the order of the points in the arrays. */
 	synchronized public void reverse() {
 		for (int i=0; i<n_points/2; i++) {
-			_swap(p, i, n_points -1 -i);
-			_swap(p_l, i, n_points -1 -i);
-			_swap(p_r, i, n_points -1 -i);
+			final int j = n_points -1 -i;
+			_swap(p, i, j);
+			_swap(p_l, i, j);
+			_swap(p_r, i, j);
+			long l = p_layer[i];    // we love java and it's lack of primitive abstraction.
+			p_layer[i] = p_layer[j];
+			p_layer[j] = l;
+			double r = p_width[i];
+			p_width[i] = p_width[j];
+			p_width[j] = r;
 		}
 		// what was left is now right:
 		double[][] a = p_l;
 		p_l = p_r;
 		p_r = a;
+		// Nothing should change, but let's see it:
+		generateInterpolatedPoints(0.05);
 	}
 
 	/** Helper function to swap both X and Y from index i to j. */
