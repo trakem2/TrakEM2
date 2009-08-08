@@ -3248,7 +3248,7 @@ abstract public class Loader {
 		// ask to open a stack if it's null
 		if (null == stks) {
 			imp_stack = openStack(); // choose one
-		} else if (stks.length > 0) {
+		} else if (stks.length > 1) {
 			// choose one from the list
 			GenericDialog gd = new GenericDialog("Choose one");
 			gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
@@ -4894,18 +4894,24 @@ abstract public class Loader {
 	/** Table of preprocessor scripts. */
 	private Hashtable<Patch,String> preprocessors = new Hashtable<Patch,String>();
 
-	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all.
+	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all.  Automatically regenerates mipmaps
 	 *  To remove the script, set it to null. */
 	public void setPreprocessorScriptPath(final Patch p, final String path) {
-		if (null == path) preprocessors.remove(p);
-		else preprocessors.put(p, path);
+		setPreprocessorScriptPathSilently( p, path );
 		// If the ImagePlus is cached, it will not be preProcessed.
 		// Merely running the preProcess on the cached image is no guarantee; threading competition may result in an unprocessed, newly loaded image.
 		// Hence, decache right after setting the script, then update mipmaps
 		decacheImagePlus(p.getId());
 		regenerateMipMaps(p); // queued
 	}
-
+	
+	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all.
+	 *  To remove the script, set it to null. */
+	public void setPreprocessorScriptPathSilently(final Patch p, final String path) {
+		if (null == path) preprocessors.remove(p);
+		else preprocessors.put(p, path);
+	}
+	
 	public String getPreprocessorScriptPath(final Patch p) {
 		return preprocessors.get(p);
 	}
