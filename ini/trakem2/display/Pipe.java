@@ -578,6 +578,14 @@ public class Pipe extends ZDisplayable implements Line3D {
 				//draw lines between backbone and control points
 				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_l[0][j], (int)p_l[1][j]);
 				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_r[0][j], (int)p_r[1][j]);
+
+				// label the first point distinctively:
+				if (0 == j) {
+					Composite comp = g.getComposite();
+					g.setXORMode(Color.white);
+					g.drawString("1", (int)(p[0][0] + (4.0 / magnification)), (int)p[1][0]); // displaced 4 screen pixels to the right
+					g.setComposite(comp);
+				}
 			}
 		}
 		// paint the tube in 2D:
@@ -1587,6 +1595,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 		;
 	}
 
+	// TODO
 	synchronized public double[][][] generateMesh(double scale) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return null;
@@ -1597,6 +1606,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 		//       - add the section as 12 points, by rotating a perpendicular vector around the direction vector
 		//       - if the point is the first one in the segment, use a direction vector averaged with the previous and the first in the segment (if it's not point 0, that is)
 		
+		Utils.log2("Pipe.generateMesh is not implemented yet.");
 		// debug:
 		return null;
 	}
@@ -2119,6 +2129,28 @@ public class Pipe extends ZDisplayable implements Line3D {
 			pipe.p_i = new double[][]{Utils.copy(p_i[0], p_i[0].length), Utils.copy(p_i[1], p_i[1].length)};
 			pipe.p_width_i = Utils.copy(p_width_i, p_width_i.length);
 			return true;
+		}
+	}
+
+	/** Reverses the order of the points in the arrays. */
+	synchronized public void reverse() {
+		for (int i=0; i<n_points/2; i++) {
+			_swap(p, i, n_points -1 -i);
+			_swap(p_l, i, n_points -1 -i);
+			_swap(p_r, i, n_points -1 -i);
+		}
+		// what was left is now right:
+		double[][] a = p_l;
+		p_l = p_r;
+		p_r = a;
+	}
+
+	/** Helper function to swap both X and Y from index i to j. */
+	static private final void _swap(final double[][] a, final int i, final int j) {
+		for (int k=0; k<2; k++) {
+			double tmp = a[k][i];
+			a[k][i] = a[k][j];
+			a[k][j] = tmp;
 		}
 	}
 }

@@ -2207,6 +2207,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				item = new JMenuItem("Identify..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Identify with axes..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
 			}
 
@@ -3589,6 +3590,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				getLayerSet().addChangeTreesStep(dataedits);
 			}});
 			burro.goHaveBreakfast();
+		} else if (command.equals("Reverse point order")) {
+			if (!(active instanceof Pipe)) return;
+			getLayerSet().addDataEditStep(active);
+			((Pipe)active).reverse();
+			Display.repaint(Display.this.layer);
+			getLayerSet().addDataEditStep(active);
 		} else if (command.equals("Identify...")) {
 			// for pipes only for now
 			if (!(active instanceof Line3D)) return;
