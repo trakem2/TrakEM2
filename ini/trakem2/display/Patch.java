@@ -157,7 +157,7 @@ public final class Patch extends Displayable {
 				if (FSLoader.isRelativePath(path)) {
 					path = project.getLoader().getParentFolder() + path;
 				}
-				project.getLoader().setPreprocessorScriptPath(this, path);
+				project.getLoader().setPreprocessorScriptPathSilently(this, path);
 			}
 		}
 
