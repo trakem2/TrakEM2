@@ -3291,19 +3291,31 @@ public class Compare {
 		//
 		final ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
-		final HashMap<Chain,ArrayList<Integer>> indices = new HashMap<Chain,ArrayList<Integer>>();
+		final TreeMap<String,ArrayList<Integer>> indices = new TreeMap<String,ArrayList<Integer>>();
 		final ArrayList<CITuple> cin = new ArrayList<CITuple>();
 
 		final ArrayList<Future> fus = new ArrayList<Future>();
 
-		// All possible pairs of projects, with repetition (it's not the same, although the comparison itself will be.)
+		// All possible pairs of projects, with repetition (it's not the same, although the pipe pairwise comparison itself will be.)
 		for (int _i=0; _i<p_chains.length; _i++) {
 			final int i = _i;
+
+			Utils.log2("Project " + p[i] + " has " + p_chains[i].size() + " chains.");
+
+
 			for (int _j=0; _j<p_chains.length; _j++) {
 				final int j = _j;
 
 				// skip same project (would have a score of zero, identical.)
-				if (p_chains[i] == p_chains[j]) continue;
+				if (i == j) continue;
+
+
+				final String[] titles_j = new String[p_chains[j].size()];
+				int next = 0;
+				for (final Chain cj : (ArrayList<Chain>) p_chains[j]) {
+					String t = cj.getCellTitle();
+					titles_j[next++] = t.substring(0, t.indexOf(' '));
+				}
 
 				fus.add(exec.submit(new Callable() { public Object call() {
 
@@ -3316,15 +3328,11 @@ public class Compare {
 					title = title.substring(0, title.indexOf(' '));
 					// check if the other project j contains a chain of name chain.getCellTitle() up to the space.
 					boolean found = false;
-					final String[] titles = new String[p_chains[j].size()];
-					int next = 0;
-					for (final Chain cj : (ArrayList<Chain>) p_chains[j]) {
-						String t = cj.getCellTitle();
-						t = t.substring(0, t.indexOf(' '));
-						if (title.equals(t)) {
+					for (int k=0; k<titles_j.length; k++) {
+						if (title.equals(titles_j[k])) {
 							found = true;
+							break;
 						}
-						titles[next++] = t;
 					}
 					if (!found) {
 						Utils.log2(title + " not found in project " + p[j]);
@@ -3338,16 +3346,22 @@ public class Compare {
 						final Editions ed = (Editions)ob[0];
 						scores[g++] = (float) getScore(ed, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type);
 					}
+
+					// Create a copy, to be sorted
+					final String[] titles = new String[titles_j.length];
+					System.arraycopy(titles_j, 0, titles, 0, titles_j.length);
+
+
 					// sort scores:
 					M.quicksort(scores, titles);
 					// record scoring index
 					for (int f=0; f<titles.length; f++) {
 						if (title.equals(titles[f])) {
 							synchronized (indices) {
-								ArrayList<Integer> al = indices.get(chain);
+								ArrayList<Integer> al = indices.get(title);
 								if (null == al) {
 									al = new ArrayList<Integer>();
-									indices.put(chain, al);
+									indices.put(title, al);
 									cin.add(new CITuple(title, chain, al)); // so I can keep a list of chains sorted by name
 								}
 								al.add(f);
@@ -3395,6 +3409,11 @@ public class Compare {
 				sum.put(oi, (sum.containsKey(oi) ? sum.get(oi) : 0) + 1);
 			}
 			if (0 != count) sb.append(ci.title).append(' ').append(last+1).append(' ').append(count).append('\n');
+
+			// find the very-off ones:
+			if (last > 6) {
+				Utils.log2("BAD index " + last + " for chain " + ci.chain.getRoot() + " of project " + ci.chain.getRoot().getProject());
+			}
 		}
 		sb.append("===============================\n");
 
@@ -3411,11 +3430,19 @@ public class Compare {
 		// Must consider that there are 5 projects taken in pairs with repetition.
 
 		sb.append("A summarizing histogram of how well each chain scores, for those that have 4 homologous members. It's the number of 1s:\n");
+		// First, classify them in having 4, 3, 2, 1
+			// For 5 brains:  5! / (5-2)! = 5 * 4 = 20   --- 5 elements taken in groups of 2, where order matters
+			// For 4 brains:  4! / (4-2)! = 4 * 3 = 12
+			// For 3 brains:  3! / (3-2)! = 3 * 2 = 6;
+		
+		TreeMap<Integer,ArrayList<String>> hsc = new TreeMap<Integer,ArrayList<String>>();
+
 		for (final CITuple ci : cin) {
-			// Assumes 5 brains:  5! / (5-2)! = 5 * 4 = 20   --- 5 elements taken in groups of 2, where order matters
-			if (20 != ci.list.size()) {
-				Utils.log2("Skipping " + ci.title + " : less than 4 instances");
-				continue;
+			final int size = ci.list.size();
+			ArrayList<String> al = hsc.get(size);
+			if (null == al) {
+				al = new ArrayList<String>();
+				hsc.put(size, al);
 			}
 			// Count the number of 0s -- top scoring
 			int count = 0;
@@ -3423,7 +3450,11 @@ public class Compare {
 				if (0 == i) count++;
 				else break;
 			}
-			sb.append(ci.title).append(' ').append(count);
+			al.add(new StringBuffer(ci.title).append(' ').append(count).append(' ').append(ci.list.size()).append('\n').toString());
+		}
+		for (Map.Entry<Integer,ArrayList<String>> e : hsc.entrySet()) {
+			sb.append("For ").append(e.getKey()).append(" matches:\n");
+			for (String s : e.getValue()) sb.append(s);
 		}
 
 
