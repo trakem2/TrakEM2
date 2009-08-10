@@ -582,7 +582,8 @@ public class Pipe extends ZDisplayable implements Line3D {
 				// label the first point distinctively:
 				if (0 == j) {
 					Composite comp = g.getComposite();
-					g.setXORMode(Color.white);
+					g.setColor(Color.white);
+					g.setXORMode(Color.green);
 					g.drawString("1", (int)(p[0][0] + (4.0 / magnification)), (int)p[1][0]); // displaced 4 screen pixels to the right
 					g.setComposite(comp);
 				}
