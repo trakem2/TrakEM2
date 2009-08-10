@@ -1285,7 +1285,10 @@ public class Compare {
 	static private final String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs"};
 
 	// Weights as empirically approximated with some lineages, with S. Preibisch ( see Test_Scoring.java )
-	static public final double[] W = new double[]{1.3345290383577453, -0.0012626693452889859, -0.012764729437173508, -0.13344076489951817};
+	// Old: from 3D affine transform registration from 4 points
+	// static public final double[] W = new double[]{1.3345290383577453, -0.0012626693452889859, -0.012764729437173508, -0.13344076489951817};
+	// New 20090809: from 8-point moving least squares registration:
+	static public final double[] W = new double[]{0.3238955445631255, -0.001738441643315311, -0.03506078734289302, 0.7148869480636044};
 
 	static public final double score(final double seq_sim, final double levenshtein, final double median_phys_dist, final double[] w) {
 		//       S                L                    M
