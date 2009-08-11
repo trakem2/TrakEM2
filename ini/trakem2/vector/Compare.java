@@ -3357,6 +3357,18 @@ public class Compare {
 
 					// sort scores:
 					M.quicksort(scores, titles);
+					//
+					if (cp.distance_type == 6) { // combined SLM: the larger the better, so reverse order:
+						for (int p=0; p<scores.length/2; p++) {
+							int q = scores.length -1 -p;
+							float tmp = scores[p];
+							scores[p] = scores[q];
+							scores[q] = tmp;
+							String stmp = titles[p];
+							titles[p] = titles[q];
+							titles[q] = stmp;
+						}
+					}
 					// record scoring index
 					for (int f=0; f<titles.length; f++) {
 						if (title.equals(titles[f])) {
