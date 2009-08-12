@@ -1073,7 +1073,7 @@ public class Compare {
 
 			switch (distance_type) {
 				case COMBINED:
-					val = cm2.score - cm1.score;
+					val = cm1.score - cm2.score; // inverse, larger is better. All others smaller is better.
 					break;
 				case LEVENSHTEIN: // Levenshtein
 					val = cm2.ed.getDistance() - cm1.ed.getDistance();
