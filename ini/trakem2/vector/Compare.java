@@ -994,8 +994,8 @@ public class Compare {
 			return;
 		}
 
-		// 1 - take top score and double it to set the roof:
-		double roof = list.get(0).phys_dist * 2;
+		// 1 - take top score and scale it to set a roof
+		double roof = list.get(0).phys_dist * 1.5;
 		// 3 - Filter all values up to the roof, allowing for at least min_number entries to be left in the list:
 		int count = 0;
 		for (Iterator<ChainMatch> it = list.iterator(); it.hasNext(); ) {
@@ -1915,7 +1915,7 @@ public class Compare {
 
 			gd.addChoice("Presets: ", preset_names, preset_names[0]);
 			gd.addMessage("");
-			gd.addChoice("Scoring type: ", distance_types, distance_types[3]);
+			gd.addChoice("Scoring type: ", distance_types, distance_types[2]);
 			final String[] distance_types2 = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs", "None"}; // CAREFUL when adding more entries: index 9 is used as None for sortMatches and as a conditional.
 			gd.addChoice("Resort scores by: ", distance_types2, distance_types2[0]);
 			if (to_file) {
@@ -3414,7 +3414,7 @@ public class Compare {
 					}
 
 					// sort scores:
-					Compare.sortMatches(list, cp.distance_type, cp.distance_type_2, 20);
+					Compare.sortMatches(list, cp.distance_type, cp.distance_type_2, 0);
 
 					// record scoring index
 					int f = 0;
@@ -3432,6 +3432,9 @@ public class Compare {
 							break;
 						}
 						f++;
+					}
+					if (list.size() == f) {
+						Utils.log2("NOT FOUND any match for " + title + " within a list of size " + list.size());
 					}
 				}
 				return null;
