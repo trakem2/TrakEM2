@@ -1882,6 +1882,7 @@ public class Compare {
 		public final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
 		public int distance_type;
 		public int distance_type_2;
+		public int min_matches = 10;
 		public boolean normalize;
 		public boolean direct;
 		public boolean substring_matching;
@@ -1921,6 +1922,7 @@ public class Compare {
 			if (to_file) {
 				gd.addChoice("File format: ", formats, formats[2]);
 			}
+			gd.addNumericField("Min_matches: ", min_matches, 0);
 			gd.addCheckbox("normalize", false);
 			gd.addCheckbox("direct", true);
 			gd.addCheckbox("substring_matching", false);
@@ -1958,6 +1960,11 @@ public class Compare {
 
 			distance_type = gd.getNextChoiceIndex();
 			distance_type_2 = gd.getNextChoiceIndex();
+			min_matches = (int) gd.getNextNumber();
+			if (min_matches < 0) {
+				Utils.log("Using 0 min_matches!");
+				min_matches = 0;
+			}
 
 			format = formats[0];
 			if (to_file) format = gd.getNextChoice().trim();
@@ -3414,7 +3421,7 @@ public class Compare {
 					}
 
 					// sort scores:
-					Compare.sortMatches(list, cp.distance_type, cp.distance_type_2, 0);
+					Compare.sortMatches(list, cp.distance_type, cp.distance_type_2, cp.min_matches);
 
 					// record scoring index
 					int f = 0;
