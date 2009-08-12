@@ -3441,7 +3441,7 @@ public class Compare {
 						f++;
 					}
 					if (list.size() == f) {
-						Utils.log2("NOT FOUND any match for " + title + " within a list of size " + list.size());
+						Utils.log2("NOT FOUND any match for " + title + " within a list of size " + list.size() + ", in project " + chain.getRoot().getProject());
 					}
 				}
 				return null;
