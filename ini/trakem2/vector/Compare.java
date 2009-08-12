@@ -871,27 +871,12 @@ public class Compare {
 				Collections.sort(list, comp);
 			}
 		}
-		/** Resort top scores from average physical distance by Levenshtein distance. */
-		void resortAPDByLev() {
+		/** Sort first by distance_type_1, then pick the best score, double it, and resort all that remain by distance_type_2. */
+		void sortMatches(int distance_type_1, int distance_type_2) {
 			for (Map.Entry<Chain,ArrayList<ChainMatch>> e : matches.entrySet()) {
 				Chain query = e.getKey();
 				List<ChainMatch> list = e.getValue();
-				// 0 - Sort by AVP - Average Physical Distance
-				Collections.sort(list, new ChainMatchComparator(AVG_PHYS_DIST));
-				// 1 - take top score and double it to set the roof:
-				double roof = list.get(0).phys_dist * 2;
-				// 2 - If too small (first result could be really good), then set to 30 times the pixel resolution:
-				double min_roof = 10 * query.getRoot().getLayerSet().getCalibration().pixelWidth;
-				if (roof < min_roof) roof = min_roof;
-				// 3 - Filter all values up to the roof:
-				for (Iterator<ChainMatch> it = list.iterator(); it.hasNext(); ) {
-					ChainMatch cm = it.next();
-					if (cm.phys_dist > roof) {
-						it.remove();
-					}
-				}
-				// 4 - Resort remaining matches by Levenshtein:
-				Collections.sort( list, new ChainMatchComparator(LEVENSHTEIN));
+				Compare.sortMatches(list, distance_type_1, distance_type_2, 10);
 			}
 		}
 
@@ -1000,6 +985,30 @@ public class Compare {
 		}
 	}
 
+	/** Sort and crop matches list to min_number or the appropriate number of entries. */
+	static private void sortMatches(final List<ChainMatch> list, final int distance_type_1, final int distance_type_2, final int min_number) {
+		// 0 - Sort by first distance type:
+		Collections.sort(list, new ChainMatchComparator(distance_type_1));
+		if (9 == distance_type_2) {
+			// Do not re-sort.
+			return;
+		}
+
+		// 1 - take top score and double it to set the roof:
+		double roof = list.get(0).phys_dist * 2;
+		// 3 - Filter all values up to the roof, allowing for at least min_number entries to be left in the list:
+		int count = 0;
+		for (Iterator<ChainMatch> it = list.iterator(); it.hasNext(); ) {
+			ChainMatch cm = it.next();
+			count++;
+			if (cm.phys_dist > roof && count > min_number) {
+				it.remove();
+			}
+		}
+		// 4 - Resort remaining matches by second distance type:
+		Collections.sort(list, new ChainMatchComparator(distance_type_2));
+	}
+
 	static private Component findTab(Chain chain) {
 		for (Iterator it = ht_tabs.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
@@ -1023,6 +1032,10 @@ public class Compare {
 		float prop_len; // the proportion of length of query sequence versus reference sequence
 		double proximity; // unitless value: cummulative distance of pairs relative to query sequence length
 		double proximity_mut; // unitless value: cummulative distance of only mutation pairs relative to query sequence length  ## TODO not unitless, this is the same as the average
+
+		String title = null;
+
+
 		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double[] stats, final float prop_len, final double score) {
 			this.query = query;
 			this.ref = ref;
@@ -1859,6 +1872,7 @@ public class Compare {
 		public boolean skip_ends;
 		public int max_mut;
 		public float min_chunk;
+		public boolean score_mut_only;
 		public int transform_type;
 		public boolean chain_branches;
 		public String[] preset;
@@ -1867,6 +1881,7 @@ public class Compare {
 		public String format;
 		public final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
 		public int distance_type;
+		public int distance_type_2;
 		public boolean normalize;
 		public boolean direct;
 		public boolean substring_matching;
@@ -1886,6 +1901,7 @@ public class Compare {
 			gd.addCheckbox("skip insertion/deletion strings at ends when scoring", false);
 			gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
 			gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
+			gd.addCheckbox("Score mutations only", false);
 			Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
 
 			final String[] transforms = {"translate and rotate",
@@ -1900,6 +1916,8 @@ public class Compare {
 			gd.addChoice("Presets: ", preset_names, preset_names[0]);
 			gd.addMessage("");
 			gd.addChoice("Scoring type: ", distance_types, distance_types[3]);
+			final String[] distance_types2 = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs", "None"}; // CAREFUL when adding more entries: index 9 is used as None for sortMatches and as a conditional.
+			gd.addChoice("Resort scores by: ", distance_types2, distance_types2[0]);
 			if (to_file) {
 				gd.addChoice("File format: ", formats, formats[2]);
 			}
@@ -1928,6 +1946,7 @@ public class Compare {
 			skip_ends = gd.getNextBoolean();
 			max_mut = (int)gd.getNextNumber();
 			min_chunk = (float)gd.getNextNumber();
+			score_mut_only = gd.getNextBoolean();
 			if (skip_ends) {
 				if (max_mut < 0) max_mut = 0;
 				if (min_chunk <= 0) skip_ends = false;
@@ -1938,6 +1957,7 @@ public class Compare {
 			preset = presets[gd.getNextChoiceIndex()];
 
 			distance_type = gd.getNextChoiceIndex();
+			distance_type_2 = gd.getNextChoiceIndex();
 
 			format = formats[0];
 			if (to_file) format = gd.getNextChoice().trim();
@@ -3122,9 +3142,10 @@ public class Compare {
 					     "affine"};
 		gd.addChoice("Transform_type: ", transforms, transforms[3]);
 		gd.addCheckbox("Chain_branches", true);
-		gd.addChoice("Scoring type: ", distance_types, distance_types[3]);
-		final String[] sorting = {"chosen scoring type", "sequential: average, then levenshtein for top scores"};
-		gd.addChoice("Sorting mode: ", sorting, sorting[1]);
+		gd.addChoice("Scoring type: ", distance_types, distance_types[2]);
+
+		final String[] distance_types2 = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs", "None"};
+		gd.addChoice("Resort scores by: ", distance_types2, distance_types2[0]);
 		gd.addCheckbox("normalize", false);
 		gd.addCheckbox("direct", true);
 		gd.addCheckbox("score_mutations_only", false);
@@ -3152,7 +3173,7 @@ public class Compare {
 		final int transform_type = gd.getNextChoiceIndex();
 		final boolean chain_branches = gd.getNextBoolean();
 		final int distance_type = gd.getNextChoiceIndex();
-		final int sorting_mode = gd.getNextChoiceIndex();
+		final int distance_type_2 = gd.getNextChoiceIndex();
 		final boolean normalize = gd.getNextBoolean();
 		final boolean direct = gd.getNextBoolean();
 		final boolean score_mut = gd.getNextBoolean();
@@ -3267,15 +3288,15 @@ public class Compare {
 		}
 
 		qh.addMatches(qm);
-		switch (sorting_mode) {
-			case 0:
-				qh.sortMatches(new ChainMatchComparator(distance_type));
-				break;
-			case 1:
-				// resort top scores by Levenshtein values
-				qh.resortAPDByLev();
-				break;
+
+		// 9 == None
+		if (9 == distance_type_2) {
+			qh.sortMatches(new ChainMatchComparator(distance_type));
+		} else {
+			// Double sorting:
+			qh.sortMatches(distance_type, distance_type_2);
 		}
+
 		qh.createGUI(null, null);
 
 		exec.shutdown();
@@ -3361,7 +3382,6 @@ public class Compare {
 				// All chains of one project to all chains of the other:
 				for (final Chain chain : (ArrayList<Chain>) p_chains[i]) {
 					final VectorString3D vs1 = chain.vs;
-					final float[] scores = new float[p_chains[j].size()];
 					// Prepare title
 					String title = chain.getCellTitle();
 					title = title.substring(0, title.indexOf(' '));
@@ -3378,36 +3398,28 @@ public class Compare {
 						continue;
 					}
 
+					ArrayList<ChainMatch> list = new ArrayList<ChainMatch>();
+
 					int g = 0;
 					for (final Chain cj : (ArrayList<Chain>) p_chains[j]) {
 						final VectorString3D vs2 = cj.vs;
 						final Object[] ob = findBestMatch(vs1, vs2, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching);
 						final Editions ed = (Editions)ob[0];
-						scores[g++] = (float) getScore(ed, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type);
+						double[] stats = ed.getStatistics(cp.skip_ends, cp.max_mut, cp.min_chunk, cp.score_mut_only);
+						float prop_len = ((float)vs1.length()) / vs2.length();
+						ChainMatch cm = new ChainMatch(cj, null, ed, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), stats[3], Compare.W));
+						cm.title = titles_j[g];
+						list.add(cm);
+						g++;
 					}
-
-					// Create a copy, to be sorted
-					final String[] titles = new String[titles_j.length];
-					System.arraycopy(titles_j, 0, titles, 0, titles_j.length);
-
 
 					// sort scores:
-					M.quicksort(scores, titles);
-					//
-					if (cp.distance_type == 6) { // combined SLM: the larger the better, so reverse order:
-						for (int p=0; p<scores.length/2; p++) {
-							int q = scores.length -1 -p;
-							float tmp = scores[p];
-							scores[p] = scores[q];
-							scores[q] = tmp;
-							String stmp = titles[p];
-							titles[p] = titles[q];
-							titles[q] = stmp;
-						}
-					}
+					Compare.sortMatches(list, cp.distance_type, cp.distance_type_2, 20);
+
 					// record scoring index
-					for (int f=0; f<titles.length; f++) {
-						if (title.equals(titles[f])) {
+					int f = 0;
+					for (ChainMatch cm : list) {
+						if (title.equals(cm.title)) {
 							synchronized (indices) {
 								ArrayList<Integer> al = indices.get(title);
 								if (null == al) {
@@ -3419,6 +3431,7 @@ public class Compare {
 							}
 							break;
 						}
+						f++;
 					}
 				}
 				return null;
