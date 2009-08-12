@@ -3479,7 +3479,7 @@ public class Compare {
 
 			// find the very-off ones:
 			if (last > 6) {
-				Utils.log2("BAD index " + last + " for chain " + ci.chain.getRoot() + " of project " + ci.chain.getRoot().getProject());
+				Utils.log2("BAD index " + last + " for chain " + ci.title  + " " + ci.chain.getRoot() + " of project " + ci.chain.getRoot().getProject());
 			}
 		}
 		sb.append("===============================\n");
