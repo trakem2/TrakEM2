@@ -871,6 +871,30 @@ public class Compare {
 				Collections.sort(list, comp);
 			}
 		}
+		/** Resort top scores from average physical distance by Levenshtein distance. */
+		void resortAPDByLev() {
+			for (Map.Entry<Chain,ArrayList<ChainMatch>> e : matches.entrySet()) {
+				Chain query = e.getKey();
+				List<ChainMatch> list = e.getValue();
+				// 0 - Sort by AVP - Average Physical Distance
+				Collections.sort(list, new ChainMatchComparator(AVG_PHYS_DIST));
+				// 1 - take top score and double it to set the roof:
+				double roof = list.get(0).phys_dist * 2;
+				// 2 - If too small (first result could be really good), then set to 30 times the pixel resolution:
+				double min_roof = 10 * query.getRoot().getLayerSet().getCalibration().pixelWidth;
+				if (roof < min_roof) roof = min_roof;
+				// 3 - Filter all values up to the roof:
+				for (Iterator<ChainMatch> it = list.iterator(); it.hasNext(); ) {
+					ChainMatch cm = it.next();
+					if (cm.phys_dist > roof) {
+						it.remove();
+					}
+				}
+				// 4 - Resort remaining matches by Levenshtein:
+				Collections.sort( list, new ChainMatchComparator(LEVENSHTEIN));
+			}
+		}
+
 		/** Returns all pipes involved in the query chains. */
 		HashSet<Line3D> getAllQueriedLine3Ds() {
 			final HashSet<Line3D> hs = new HashSet<Line3D>();
@@ -1282,6 +1306,7 @@ public class Compare {
 	static public final int PROXIMITY = 7;
 	static public final int PROXIMITY_MUT = 8;
 	static public final int STD_DEV_ALL = 9;
+	static public final int SEQSORT_AVG_LEV = 10; // sequential sorting: first by average physical distance, then choose all that fall within 2 * APD value, then sort them by levenshtein distance.
 
 	static private final String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs"};
 
@@ -1296,7 +1321,7 @@ public class Compare {
 		return seq_sim * w[0] + levenshtein * w[1] + median_phys_dist * w[2] + w[3];
 	}
 
-	/** Zero is best; gets bad towards positive infinite. */
+	/** Zero is best; gets bad towards positive infinite -- except for COMBINED, where the larger the better. */
 	static private final double getScore(Editions ed, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
 		switch (distance_type) {
 			case LEVENSHTEIN: // Levenshtein
@@ -3098,6 +3123,8 @@ public class Compare {
 		gd.addChoice("Transform_type: ", transforms, transforms[3]);
 		gd.addCheckbox("Chain_branches", true);
 		gd.addChoice("Scoring type: ", distance_types, distance_types[3]);
+		final String[] sorting = {"chosen scoring type", "sequential: average, then levenshtein for top scores"};
+		gd.addChoice("Sorting mode: ", sorting, sorting[1]);
 		gd.addCheckbox("normalize", false);
 		gd.addCheckbox("direct", true);
 		gd.addCheckbox("score_mutations_only", false);
@@ -3125,6 +3152,7 @@ public class Compare {
 		final int transform_type = gd.getNextChoiceIndex();
 		final boolean chain_branches = gd.getNextBoolean();
 		final int distance_type = gd.getNextChoiceIndex();
+		final int sorting_mode = gd.getNextChoiceIndex();
 		final boolean normalize = gd.getNextBoolean();
 		final boolean direct = gd.getNextBoolean();
 		final boolean score_mut = gd.getNextBoolean();
@@ -3239,7 +3267,15 @@ public class Compare {
 		}
 
 		qh.addMatches(qm);
-		qh.sortMatches(new ChainMatchComparator(distance_type));
+		switch (sorting_mode) {
+			case 0:
+				qh.sortMatches(new ChainMatchComparator(distance_type));
+				break;
+			case 1:
+				// resort top scores by Levenshtein values
+				qh.resortAPDByLev();
+				break;
+		}
 		qh.createGUI(null, null);
 
 		exec.shutdown();
