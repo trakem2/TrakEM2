@@ -3661,7 +3661,7 @@ public class Compare {
 			for (String s : e.getValue()) sb.append(s);
 		}
 
-		sb.append("=========================");
+		sb.append("=========================\n");
 
 		// Family-wise, count the number of zeros per family:
 		sb.append("Number of top scoring per family:\n");
@@ -3670,7 +3670,7 @@ public class Compare {
 			int count = 0;
 			for (Integer i : ci.list) {
 				if (0 == i) count++;
-				else break;
+				else break; // ci.list is sorted
 			}
 			family_scores.put(ci.title, new StringBuilder().append(ci.title).append(' ').append(count).append('/').append(ci.list.size()).append('\n').toString());
 		}
@@ -3679,7 +3679,7 @@ public class Compare {
 			sb.append(s);
 		}
 
-		sb.append("=========================");
+		sb.append("=========================\n");
 
 		// Keep in mind it should all be repeated for 0.5 micron delta, 0.6, 0.7 ... up to 5 or 10 (until the histogram starts getting worse.) The single value with which the graph coould be made is the % of an index of 1, and of an index of 2.
 		//
