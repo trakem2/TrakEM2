@@ -987,6 +987,59 @@ public class Compare {
 
 	/** Sort and crop matches list to min_number or the appropriate number of entries. */
 	static private void sortMatches(final List<ChainMatch> list, final int distance_type_1, final int distance_type_2, final int min_number) {
+
+		// -1  - If combined score indices, ok:
+		if (COMBINED_SCORE_INDICES == distance_type_1) {
+			// Compute indices for each parameter
+			
+
+			final int[] params = new int[]{LEVENSHTEIN, AVG_PHYS_DIST, CUM_PHYST_DIST, STD_DEV, PROXIMITY}; // DISSIMILARITY distorts all badly
+			// An array with items in the same order as argument ChainMatch list.
+			final float[] indices = new float[list.size()];
+
+			// debug: store them all
+			Hashtable<ChainMatch,ArrayList<Integer>> ind = new Hashtable<ChainMatch,ArrayList<Integer>>();
+
+			for (int i = 0; i<params.length; i++) {
+				// copy list
+				ArrayList<ChainMatch> li = new ArrayList<ChainMatch>(list);
+				// sort
+				Collections.sort(li, new ChainMatchComparator(params[i]));
+				// Assign index to each
+				for (int k=0; k<indices.length;  k++) {
+					ChainMatch cm = list.get(k);
+					int index = li.indexOf(cm);
+					indices[k] += index;
+
+					// debug:
+					ArrayList<Integer> al = ind.get(cm);
+					if (null == al) {
+						al = new ArrayList<Integer>();
+						ind.put(cm, al);
+					}
+					al.add(index);
+				}
+			}
+			for (int k=0; k<indices.length; k++) {
+				indices[k] /= params.length;
+			}
+			ChainMatch[] cm = list.toArray(new ChainMatch[0]);
+			M.quicksort(indices, cm);
+
+			list.clear();
+			for (int i=0; i<cm.length; i++) list.add(cm[i]);
+
+			// Debug: print first 10
+			for (int i=0; i<10 && i<cm.length; i++) {
+				Utils.log2(((Pipe)cm[i].ref.getRoot()).getProject().getShortMeaningfulTitle((Pipe)cm[i].ref.getRoot()) + "     " + indices[i]);
+				Utils.log2("     " + Utils.toString(ind.get(cm[i])));
+			}
+
+			// don't re-sort
+			return;
+		}
+
+
 		// 0 - Sort by first distance type:
 		Collections.sort(list, new ChainMatchComparator(distance_type_1));
 		if (9 == distance_type_2) {
@@ -1319,9 +1372,9 @@ public class Compare {
 	static public final int PROXIMITY = 7;
 	static public final int PROXIMITY_MUT = 8;
 	static public final int STD_DEV_ALL = 9;
-	static public final int SEQSORT_AVG_LEV = 10; // sequential sorting: first by average physical distance, then choose all that fall within 2 * APD value, then sort them by levenshtein distance.
+	static public final int COMBINED_SCORE_INDICES = 10;
 
-	static private final String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs"};
+	static private final String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation of correspondences only", "Combined SLM", "Proximity", "Proximity of mutation pairs", "Standard deviation of all pairs", "Combined score indices"};
 
 	// Weights as empirically approximated with some lineages, with S. Preibisch ( see Test_Scoring.java )
 	// Old: from 3D affine transform registration from 4 points
