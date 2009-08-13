@@ -872,11 +872,11 @@ public class Compare {
 			}
 		}
 		/** Sort first by distance_type_1, then pick the best score, double it, and resort all that remain by distance_type_2. */
-		void sortMatches(int distance_type_1, int distance_type_2) {
+		void sortMatches(int distance_type_1, int distance_type_2, int min_matches) {
 			for (Map.Entry<Chain,ArrayList<ChainMatch>> e : matches.entrySet()) {
 				Chain query = e.getKey();
 				List<ChainMatch> list = e.getValue();
-				Compare.sortMatches(list, distance_type_1, distance_type_2, 10);
+				Compare.sortMatches(list, distance_type_1, distance_type_2, min_matches);
 			}
 		}
 
@@ -988,17 +988,24 @@ public class Compare {
 	/** Sort and crop matches list to min_number or the appropriate number of entries. */
 	static private void sortMatches(final List<ChainMatch> list, final int distance_type_1, final int distance_type_2, final int min_number) {
 
+		final boolean debug = false;
+
 		// -1  - If combined score indices, ok:
 		if (COMBINED_SCORE_INDICES == distance_type_1) {
 			// Compute indices for each parameter
 			
 
 			final int[] params = new int[]{LEVENSHTEIN, AVG_PHYS_DIST, CUM_PHYST_DIST, STD_DEV, PROXIMITY}; // DISSIMILARITY distorts all badly
+			final float[] w  = new float[]{    0.5f,          1,            0.75f,      0.5f,     1     };
+			// TODO: compute weights properly, with SVD
+			// Could be done by taking the top 5 results (evaluated manually) and then a0*x0 + a1*y1 + ... + an*yn = 0, 1, 2, 3, 4.
+
 			// An array with items in the same order as argument ChainMatch list.
 			final float[] indices = new float[list.size()];
 
 			// debug: store them all
-			Hashtable<ChainMatch,ArrayList<Integer>> ind = new Hashtable<ChainMatch,ArrayList<Integer>>();
+			Hashtable<ChainMatch,ArrayList<Integer>> ind = null;
+			if (debug) ind = new Hashtable<ChainMatch,ArrayList<Integer>>();
 
 			for (int i = 0; i<params.length; i++) {
 				// copy list
@@ -1009,30 +1016,32 @@ public class Compare {
 				for (int k=0; k<indices.length;  k++) {
 					ChainMatch cm = list.get(k);
 					int index = li.indexOf(cm);
-					indices[k] += index;
+					indices[k] += index * w[k];
 
 					// debug:
-					ArrayList<Integer> al = ind.get(cm);
-					if (null == al) {
-						al = new ArrayList<Integer>();
-						ind.put(cm, al);
+					if (debug) {
+						ArrayList<Integer> al = ind.get(cm);
+						if (null == al) {
+							al = new ArrayList<Integer>();
+							ind.put(cm, al);
+						}
+						al.add(index);
 					}
-					al.add(index);
 				}
 			}
-			for (int k=0; k<indices.length; k++) {
-				indices[k] /= params.length;
-			}
+
 			ChainMatch[] cm = list.toArray(new ChainMatch[0]);
 			M.quicksort(indices, cm);
 
 			list.clear();
 			for (int i=0; i<cm.length; i++) list.add(cm[i]);
 
-			// Debug: print first 10
-			for (int i=0; i<10 && i<cm.length; i++) {
-				Utils.log2(((Pipe)cm[i].ref.getRoot()).getProject().getShortMeaningfulTitle((Pipe)cm[i].ref.getRoot()) + "     " + indices[i]);
-				Utils.log2("     " + Utils.toString(ind.get(cm[i])));
+			if (debug) {
+				// Debug: print first 10
+				for (int i=0; i<10 && i<cm.length; i++) {
+					Utils.log2(((Pipe)cm[i].ref.getRoot()).getProject().getShortMeaningfulTitle((Pipe)cm[i].ref.getRoot()) + "     " + indices[i]);
+					Utils.log2("     " + Utils.toString(ind.get(cm[i])));
+				}
 			}
 
 			// don't re-sort
@@ -1042,6 +1051,7 @@ public class Compare {
 
 		// 0 - Sort by first distance type:
 		Collections.sort(list, new ChainMatchComparator(distance_type_1));
+		// 9 == None
 		if (9 == distance_type_2) {
 			// Do not re-sort.
 			return;
@@ -3206,6 +3216,7 @@ public class Compare {
 
 		final String[] distance_types2 = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs", "None"};
 		gd.addChoice("Resort scores by: ", distance_types2, distance_types2[0]);
+		gd.addNumericField("Min_matches: ", 10, 0);
 		gd.addCheckbox("normalize", false);
 		gd.addCheckbox("direct", true);
 		gd.addCheckbox("score_mutations_only", false);
@@ -3234,6 +3245,11 @@ public class Compare {
 		final boolean chain_branches = gd.getNextBoolean();
 		final int distance_type = gd.getNextChoiceIndex();
 		final int distance_type_2 = gd.getNextChoiceIndex();
+		int min_matches = (int) gd.getNextNumber();
+		if (min_matches < 0) {
+			Utils.log("Using 0 min_matches!");
+			min_matches = 0;
+		}
 		final boolean normalize = gd.getNextBoolean();
 		final boolean direct = gd.getNextBoolean();
 		final boolean score_mut = gd.getNextBoolean();
@@ -3349,13 +3365,8 @@ public class Compare {
 
 		qh.addMatches(qm);
 
-		// 9 == None
-		if (9 == distance_type_2) {
-			qh.sortMatches(new ChainMatchComparator(distance_type));
-		} else {
-			// Double sorting:
-			qh.sortMatches(distance_type, distance_type_2);
-		}
+		// Double sorting:
+		qh.sortMatches(distance_type, distance_type_2, min_matches);
 
 		qh.createGUI(null, null);
 
