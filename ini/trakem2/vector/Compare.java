@@ -3502,7 +3502,7 @@ public class Compare {
 					for (; u<title.length(); u++) {
 						if (!Character.isUpperCase(title.charAt(u))) break;
 					}
-					final String family_name = title.substring(0, g);
+					final String family_name = title.substring(0, u);
 
 					for (ChainMatch cm : list) {
 						// Exact match: for each individual lineage
