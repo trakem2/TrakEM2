@@ -3632,7 +3632,7 @@ public class Compare {
 		// - a summarizing histogram of how well each chain scores (4/4, 3/4, 2/4, 1/4, 0/4 only for those that have 4 homologous members.)
 		// Must consider that there are 5 projects taken in pairs with repetition.
 
-		sb.append("A summarizing histogram of how well each chain scores, for those that have 4 homologous members. It's the number of 1s:\n");
+		sb.append("A summarizing histogram of how well each chain scores, for those that have 4 homologous members. It's the number of 1st scores (zeroes) versus the total number of scores:\n");
 		// First, classify them in having 4, 3, 2, 1
 			// For 5 brains:  5! / (5-2)! = 5 * 4 = 20   --- 5 elements taken in groups of 2, where order matters
 			// For 4 brains:  4! / (4-2)! = 4 * 3 = 12
@@ -3655,14 +3655,32 @@ public class Compare {
 			}
 			al.add(new StringBuffer(ci.title).append(' ').append(count).append(' ').append(ci.list.size()).append('\n').toString());
 		}
+		// Then just print:
 		for (Map.Entry<Integer,ArrayList<String>> e : hsc.entrySet()) {
 			sb.append("For ").append(e.getKey()).append(" matches:\n");
 			for (String s : e.getValue()) sb.append(s);
 		}
 
+		sb.append("=========================");
 
-		// - similar to above but lineage-group wise.
-		// 
+		// Family-wise, count the number of zeros per family:
+		sb.append("Number of top scoring per family:\n");
+		TreeMap<String,String> family_scores = new TreeMap<String,String>();
+		for (final CITuple ci : cin_f) {
+			int count = 0;
+			for (Integer i : ci.list) {
+				if (0 == i) count++;
+				else break;
+			}
+			family_scores.put(ci.title, new StringBuilder().append(ci.title).append(' ').append(count).append('/').append(ci.list.size()).append('\n').toString());
+		}
+		// Now print sorted by family name:
+		for (String s : family_scores.values()) {
+			sb.append(s);
+		}
+
+		sb.append("=========================");
+
 		// Keep in mind it should all be repeated for 0.5 micron delta, 0.6, 0.7 ... up to 5 or 10 (until the histogram starts getting worse.) The single value with which the graph coould be made is the % of an index of 1, and of an index of 2.
 		//
 		// TODO
