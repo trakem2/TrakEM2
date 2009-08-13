@@ -1016,7 +1016,7 @@ public class Compare {
 				for (int k=0; k<indices.length;  k++) {
 					ChainMatch cm = list.get(k);
 					int index = li.indexOf(cm);
-					indices[k] += index * w[k];
+					indices[k] += index * w[i];
 
 					// debug:
 					if (debug) {
