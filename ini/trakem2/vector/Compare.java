@@ -3419,8 +3419,14 @@ public class Compare {
 		//
 		final ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
+		// for each individual lineage:
 		final TreeMap<String,ArrayList<Integer>> indices = new TreeMap<String,ArrayList<Integer>>();
 		final ArrayList<CITuple> cin = new ArrayList<CITuple>();
+
+		// for each family:
+		final TreeMap<String,ArrayList<Integer>> indices_f = new TreeMap<String,ArrayList<Integer>>();
+		final ArrayList<CITuple> cin_f = new ArrayList<CITuple>();
+
 
 		final ArrayList<Future> fus = new ArrayList<Future>();
 
@@ -3486,8 +3492,21 @@ public class Compare {
 
 					// record scoring index
 					int f = 0;
+
+					boolean found_specific = false;
+					boolean found_family = false;
+
+
+					// extract family name from title: read the first continuous string of capital letters
+					int u = 0;
+					for (; u<title.length(); u++) {
+						if (!Character.isUpperCase(title.charAt(u))) break;
+					}
+					final String family_name = title.substring(0, g);
+
 					for (ChainMatch cm : list) {
-						if (title.equals(cm.title)) {
+						// Exact match: for each individual lineage
+						if (!found_specific && title.equals(cm.title)) {
 							synchronized (indices) {
 								ArrayList<Integer> al = indices.get(title);
 								if (null == al) {
@@ -3497,11 +3516,29 @@ public class Compare {
 								}
 								al.add(f);
 							}
+							found_specific = true;
+						}
+						if (!found_family && cm.title.startsWith(family_name)) {
+							synchronized (indices_f) {
+								ArrayList<Integer> al = indices_f.get(family_name);
+								if (null == al) {
+									al = new ArrayList<Integer>();
+									indices_f.put(family_name, al);
+									cin_f.add(new CITuple(family_name, chain, al));
+								}
+								al.add(f);
+							}
+							found_family = true;
+						}
+
+						if (found_specific && found_family) {
 							break;
 						}
+
+						//
 						f++;
 					}
-					if (list.size() == f) {
+					if (!found_specific) {
 						Utils.log2("NOT FOUND any match for " + title + " within a list of size " + list.size() + ", in project " + chain.getRoot().getProject());
 					}
 				}
@@ -3515,14 +3552,17 @@ public class Compare {
 		}
 		exec.shutdownNow();
 
-		// Show the results from indicies map
+		// Show the results from indices map
 
 		StringBuilder sb = new StringBuilder();
 
 		TreeMap<Integer,Integer> sum = new TreeMap<Integer,Integer>(); // scoring index vs count of occurrences
 
+		TreeMap<Integer,Integer> sum_f = new TreeMap<Integer,Integer>(); // best scoring index of best family member vs count of ocurrences
+
 		// From collected data, several kinds of results:
-		// - a list of how well each chain scores
+		// - a list of how well each chain scores: its index position in the sorted list of scores of one to many.
+		// - a list of how well each chain scores relative to family: the lowest (best) index position of a lineage of the same family in the sorted list of scores.
 
 		sb.append("List of scoring indices for each (starting at index 1, aka best possible score):\n");
 		for (final CITuple ci : cin) {
@@ -3552,6 +3592,28 @@ public class Compare {
 		}
 		sb.append("===============================\n");
 
+		/// family-wise:
+		for (final CITuple ci : cin_f) {
+			// sort indices in place
+			Collections.sort(ci.list);
+			// count occurrences of each scoring index
+			int last = 0; // lowest possible index
+			int count = 1;
+			for (int i : ci.list) {
+				if (last == i) count++;
+				else {
+					// reset
+					last = i;
+					count = 1;
+				}
+				// global count of occurrences
+				final Integer oi = new Integer(i);
+				sum_f.put(oi, (sum_f.containsKey(oi) ? sum_f.get(oi) : 0) + 1);
+			}
+		}
+		sb.append("===============================\n");
+
+
 		// - a summarizing histogram that collects how many 1st, how many 2nd, etc. in total, normalized to total number of one-to-many matches performed (i.e. the number of scoring indices recorded.)
 
 		sb.append("Global count of index ocurrences:\n");
@@ -3560,6 +3622,12 @@ public class Compare {
 		}
 		sb.append("===============================\n");
 
+
+		sb.append("Global count of index occurrences family-wise:\n");
+		for (Map.Entry<Integer,Integer> e : sum_f.entrySet()) {
+			sb.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
+		}
+		sb.append("===============================\n");
 
 		// - a summarizing histogram of how well each chain scores (4/4, 3/4, 2/4, 1/4, 0/4 only for those that have 4 homologous members.)
 		// Must consider that there are 5 projects taken in pairs with repetition.
