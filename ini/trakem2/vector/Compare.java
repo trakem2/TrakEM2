@@ -996,9 +996,6 @@ public class Compare {
 			
 
 			final int[] params = new int[]{LEVENSHTEIN, AVG_PHYS_DIST, CUM_PHYST_DIST, STD_DEV, PROXIMITY}; // DISSIMILARITY distorts all badly
-			final float[] w  = new float[]{    2,          1,            1.33f,           2f,     1     }; // smaller is better
-			// TODO: compute weights properly, with SVD
-			// Could be done by taking the top 5 results (evaluated manually) and then a0*x0 + a1*y1 + ... + an*yn = 0, 1, 2, 3, 4.
 
 			// An array with items in the same order as argument ChainMatch list.
 			final float[] indices = new float[list.size()];
@@ -1016,7 +1013,7 @@ public class Compare {
 				for (int k=0; k<indices.length;  k++) {
 					ChainMatch cm = list.get(k);
 					int index = li.indexOf(cm);
-					indices[k] += index * w[i];
+					indices[k] += index;
 
 					// debug:
 					if (debug) {
@@ -1039,7 +1036,7 @@ public class Compare {
 			if (debug) {
 				// Debug: print first 10
 				for (int i=0; i<10 && i<cm.length; i++) {
-					Utils.log2(((Pipe)cm[i].ref.getRoot()).getProject().getShortMeaningfulTitle((Pipe)cm[i].ref.getRoot()) + "     " + indices[i]);
+					if (null != cm[i].ref) Utils.log2(((Pipe)cm[i].ref.getRoot()).getProject().getShortMeaningfulTitle((Pipe)cm[i].ref.getRoot()) + "     " + indices[i]);
 					Utils.log2("     " + Utils.toString(ind.get(cm[i])));
 				}
 			}
