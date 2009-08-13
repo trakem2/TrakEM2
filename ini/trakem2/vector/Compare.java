@@ -3653,7 +3653,7 @@ public class Compare {
 				if (0 == i) count++;
 				else break;
 			}
-			al.add(new StringBuffer(ci.title).append(' ').append(count).append(' ').append(ci.list.size()).append('\n').toString());
+			al.add(new StringBuffer(ci.title).append(" =").append(count).append('/').append(ci.list.size()).append('\n').toString());
 		}
 		// Then just print:
 		for (Map.Entry<Integer,ArrayList<String>> e : hsc.entrySet()) {
@@ -3672,7 +3672,7 @@ public class Compare {
 				if (0 == i) count++;
 				else break; // ci.list is sorted
 			}
-			family_scores.put(ci.title, new StringBuilder().append(ci.title).append(' ').append(count).append('/').append(ci.list.size()).append('\n').toString());
+			family_scores.put(ci.title, new StringBuilder().append(ci.title).append(" =").append(count).append('/').append(ci.list.size()).append('\n').toString());
 		}
 		// Now print sorted by family name:
 		for (String s : family_scores.values()) {
