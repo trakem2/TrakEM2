@@ -3430,12 +3430,15 @@ public class Compare {
 
 		final ArrayList<Future> fus = new ArrayList<Future>();
 
+		// For neural network:
+		final StringBuilder arff = new StringBuilder("@DATA\n");
+
+
 		// All possible pairs of projects, with repetition (it's not the same, although the pipe pairwise comparison itself will be.)
 		for (int _i=0; _i<p_chains.length; _i++) {
 			final int i = _i;
 
 			Utils.log2("Project " + p[i] + " has " + p_chains[i].size() + " chains.");
-
 
 			for (int _j=0; _j<p_chains.length; _j++) {
 				final int j = _j;
@@ -3451,6 +3454,20 @@ public class Compare {
 					titles_j[next++] = t.substring(0, t.indexOf(' '));
 				}
 
+				// families:
+				TreeSet<String> ts_families = new TreeSet<String>();
+				for (int f=0; f<titles_j.length; f++) {
+					// extract family name from title: read the first continuous string of capital letters
+					String title = titles_j[f];
+					int u = 0;
+					for (; u<title.length(); u++) {
+						if (!Character.isUpperCase(title.charAt(u))) break;
+					}
+					ts_families.add(title.substring(0, u));
+				}
+				final ArrayList<String> families = new ArrayList<String>(ts_families);
+
+
 				fus.add(exec.submit(new Callable() { public Object call() {
 
 				// All chains of one project to all chains of the other:
@@ -3460,19 +3477,27 @@ public class Compare {
 					String title = chain.getCellTitle();
 					title = title.substring(0, title.indexOf(' '));
 					// check if the other project j contains a chain of name chain.getCellTitle() up to the space.
-					boolean found = false;
+					int title_index = -1;
 					for (int k=0; k<titles_j.length; k++) {
 						if (title.equals(titles_j[k])) {
-							found = true;
+							title_index = k;
 							break;
 						}
 					}
-					if (!found) {
+					if (-1 == title_index) {
 						Utils.log2(title + " not found in project " + p[j]);
 						continue;
 					}
 
 					ArrayList<ChainMatch> list = new ArrayList<ChainMatch>();
+
+					// extract family name from title: read the first continuous string of capital letters
+					int u = 0;
+					for (; u<title.length(); u++) {
+						if (!Character.isUpperCase(title.charAt(u))) break;
+					}
+					final String family_name = title.substring(0, u);
+
 
 					int g = 0;
 					for (final Chain cj : (ArrayList<Chain>) p_chains[j]) {
@@ -3485,6 +3510,16 @@ public class Compare {
 						cm.title = titles_j[g];
 						list.add(cm);
 						g++;
+
+
+						// for neural network training: ARFF format
+						synchronized (arff) {
+							for (int p=0; p<stats.length; p++) {
+								arff.append(stats[p]).append(',');
+							}
+							// And finally the result: good or bad, for lineage and for family:
+							arff.append(title.equals(cm.title)).append('-').append(cm.title.startsWith(family_name)).append('\n');
+						}
 					}
 
 					// sort scores:
@@ -3496,13 +3531,6 @@ public class Compare {
 					boolean found_specific = false;
 					boolean found_family = false;
 
-
-					// extract family name from title: read the first continuous string of capital letters
-					int u = 0;
-					for (; u<title.length(); u++) {
-						if (!Character.isUpperCase(title.charAt(u))) break;
-					}
-					final String family_name = title.substring(0, u);
 
 					for (ChainMatch cm : list) {
 						// Exact match: for each individual lineage
@@ -3551,6 +3579,12 @@ public class Compare {
 			try { fu.get(); } catch (Exception e) { IJError.print(e); }
 		}
 		exec.shutdownNow();
+
+
+		// export ARFF for neural network training
+		Utils.saveToFile(new File(System.getProperty("user.dir") + "/lineages.arff"), arff.toString());
+
+
 
 		// Show the results from indices map
 
