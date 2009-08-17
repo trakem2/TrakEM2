@@ -3431,7 +3431,20 @@ public class Compare {
 		final ArrayList<Future> fus = new ArrayList<Future>();
 
 		// For neural network:
-		final StringBuilder arff = new StringBuilder("@DATA\n");
+		final StringBuilder arff = new StringBuilder("@RELATION Lineages\n\n");
+		arff.append("@ATTRIBUTE APD NUMERIC\n");
+		arff.append("@ATTRIBUTE CPD NUMERIC\n");
+		arff.append("@ATTRIBUTE STD NUMERIC\n");
+		arff.append("@ATTRIBUTE MPD NUMERIC\n");
+		arff.append("@ATTRIBUTE PM NUMERIC\n");
+		arff.append("@ATTRIBUTE LEV NUMERIC\n");
+		arff.append("@ATTRIBUTE SIM NUMERIC\n");
+		arff.append("@ATTRIBUTE PRX NUMERIC\n");
+		arff.append("@ATTRIBUTE PRM NUMERIC\n");
+		arff.append("@ATTRIBUTE LR NUMERIC\n"); // length ratio: len(query) / len(ref)
+		arff.append("@ATTRIBUTE OUT CLASS\n");
+
+		arff.append("\n@DATA\n");
 
 
 		// All possible pairs of projects, with repetition (it's not the same, although the pipe pairwise comparison itself will be.)
@@ -3514,9 +3527,12 @@ public class Compare {
 
 						// for neural network training: ARFF format
 						synchronized (arff) {
+							// The parameters from stats array
 							for (int p=0; p<stats.length; p++) {
 								arff.append(stats[p]).append(',');
 							}
+							// The sequence lengths ratio:
+							arff.append(vs1.length() / (float)vs2.length()).append(',');
 							// And finally the result: good or bad, for lineage and for family:
 							arff.append(title.equals(cm.title)).append('-').append(cm.title.startsWith(family_name)).append('\n');
 						}
