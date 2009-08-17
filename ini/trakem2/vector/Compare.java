@@ -3446,6 +3446,11 @@ public class Compare {
 
 		arff.append("\n@DATA\n");
 
+		// Count number of times when decision tree says it's good, versus number of times when it should be good
+
+		final AtomicInteger obs_good = new AtomicInteger(0); // observed
+		final AtomicInteger exp_good = new AtomicInteger(0); // expected
+
 
 		// All possible pairs of projects, with repetition (it's not the same, although the pipe pairwise comparison itself will be.)
 		for (int _i=0; _i<p_chains.length; _i++) {
@@ -3502,6 +3507,10 @@ public class Compare {
 						continue;
 					}
 
+					// should be there:
+					exp_good.increment();
+
+
 					ArrayList<ChainMatch> list = new ArrayList<ChainMatch>();
 
 					// extract family name from title: read the first continuous string of capital letters
@@ -3536,6 +3545,10 @@ public class Compare {
 							// And finally the result: good or bad, for lineage and for family:
 							arff.append(title.equals(cm.title)).append('-').append(cm.title.startsWith(family_name)).append('\n');
 						}
+
+						// from decision tree: is it good?
+						// TODO
+	
 					}
 
 					// sort scores:
