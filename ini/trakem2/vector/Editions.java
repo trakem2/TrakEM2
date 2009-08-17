@@ -267,7 +267,9 @@ public class Editions {
 	 * [3] - median: the average medial physical distance between mutation pairs, more robust than the average to extreme values
 	 * [4] - prop_mut: the proportion of mutation pairs relative to the length of the queried sequence vs1.
 	 * [5] - Levenshtein's distance
-	 * [6] - Similarity (@see getSimilarity)
+	 * [6] - Similarity:  1 - (( N_insertions + N_deletions ) / max(len(seq1), len(seq2)))
+	 * [7] - Proximity: cummulative distance between pairs divided by physical sequence length
+	 * [8] - Proximity of mutation pairs
 	 */
 	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean score_mut_only) {
 		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk), score_mut_only);
