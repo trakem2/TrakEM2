@@ -3608,7 +3608,7 @@ public class Compare {
 						  .append(cm.proximity_mut).append(',')
 						  .append(cm.prop_len).append(',')
 						  .append(cm.tortuosity_ratio).append(',')
-						  .append(title.equals(cm.title)); // append('-').append(cm.title.startsWith(family_name)).append('\n');
+						  .append(title.equals(cm.title)).append('\n'); // append('-').append(cm.title.startsWith(family_name)).append('\n');
 						synchronized (arff) {
 							arff.append(sb);
 						}
