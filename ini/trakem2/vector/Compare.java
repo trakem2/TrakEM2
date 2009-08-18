@@ -79,6 +79,7 @@ import ij3d.Content;
 
 import java.io.*;
 
+import lineage.LineageClassifier;
 
 public class Compare {
 
@@ -1092,6 +1093,7 @@ public class Compare {
 		float prop_len; // the proportion of length of query sequence versus reference sequence
 		double proximity; // unitless value: cummulative distance of pairs relative to query sequence length
 		double proximity_mut; // unitless value: cummulative distance of only mutation pairs relative to query sequence length  ## TODO not unitless, this is the same as the average
+		double tortuosity_ratio;
 
 		String title = null;
 
@@ -1110,6 +1112,7 @@ public class Compare {
 			this.seq_sim = stats[6];
 			this.proximity = stats[7];
 			this.proximity_mut = stats[8];
+			this.tortuosity_ratio = stats[9];
 		}
 	}
 
@@ -3442,14 +3445,20 @@ public class Compare {
 		arff.append("@ATTRIBUTE PRX NUMERIC\n");
 		arff.append("@ATTRIBUTE PRM NUMERIC\n");
 		arff.append("@ATTRIBUTE LR NUMERIC\n"); // length ratio: len(query) / len(ref)
-		arff.append("@ATTRIBUTE OUT CLASS\n");
+		arff.append("@ATTRIBUTE TR NUMERIC\n");
+		arff.append("@ATTRIBUTE CLASS {false,true}\n");
 
 		arff.append("\n@DATA\n");
 
 		// Count number of times when decision tree says it's good, versus number of times when it should be good
 
 		final AtomicInteger obs_good = new AtomicInteger(0); // observed
+		final AtomicInteger obs_wrong = new AtomicInteger(0); // observed wrong
 		final AtomicInteger exp_good = new AtomicInteger(0); // expected
+		final AtomicInteger obs_bad_classified_good_ones = new AtomicInteger(0);
+		final AtomicInteger obs_well_classified_bad_ones = new AtomicInteger(0);
+		final AtomicInteger not_found = new AtomicInteger(0); // inc by one when a lineage to compare is not found at all in the brain that works as reference
+		final AtomicInteger already_classified = new AtomicInteger(0);
 
 
 		// All possible pairs of projects, with repetition (it's not the same, although the pipe pairwise comparison itself will be.)
@@ -3504,11 +3513,12 @@ public class Compare {
 					}
 					if (-1 == title_index) {
 						Utils.log2(title + " not found in project " + p[j]);
+						not_found.incrementAndGet();
 						continue;
 					}
 
 					// should be there:
-					exp_good.increment();
+					exp_good.incrementAndGet();
 
 
 					ArrayList<ChainMatch> list = new ArrayList<ChainMatch>();
@@ -3519,6 +3529,9 @@ public class Compare {
 						if (!Character.isUpperCase(title.charAt(u))) break;
 					}
 					final String family_name = title.substring(0, u);
+
+
+					String last_classify = null;
 
 
 					int g = 0;
@@ -3535,6 +3548,7 @@ public class Compare {
 
 
 						// for neural network training: ARFF format
+						/*
 						synchronized (arff) {
 							// The parameters from stats array
 							for (int p=0; p<stats.length; p++) {
@@ -3545,14 +3559,60 @@ public class Compare {
 							// And finally the result: good or bad, for lineage and for family:
 							arff.append(title.equals(cm.title)).append('-').append(cm.title.startsWith(family_name)).append('\n');
 						}
+						*/
 
 						// from decision tree: is it good?
-						// TODO
-	
+						double[] param = new double[10];
+						for (int p=0; p<stats.length; p++) param[p] = stats[p];
+						param[9] = vs1.length() / (float)vs2.length();
+						try {
+							if (LineageClassifier.classify(param)) {
+								if (null != last_classify) {
+									Utils.log2("ALREADY CLASSIFIED " + title + " as " + last_classify + "  (now: " + cm.title + " )");
+									already_classified.incrementAndGet();
+								}
+								if (title.equals(cm.title)) {
+									obs_good.incrementAndGet();
+								} else {
+									Utils.log2("WRONG CLASSIFICATION of " + title + " as " + cm.title);
+									obs_wrong.incrementAndGet();
+								}
+							} else {
+								if (title.equals(cm.title)) {
+									obs_bad_classified_good_ones.incrementAndGet();
+								} else {
+									obs_well_classified_bad_ones.incrementAndGet();
+								}
+							}
+						} catch (Exception ee) {
+							IJError.print(ee);
+						}
 					}
 
 					// sort scores:
 					Compare.sortMatches(list, cp.distance_type, cp.distance_type_2, cp.min_matches);
+
+
+					// Take top 8 and put them into training set for WEKA in arff format
+					for (int h=0; h<8; h++) {
+						ChainMatch cm = list.get(h);
+						StringBuilder sb = new StringBuilder();
+						sb.append(cm.phys_dist).append(',')
+						  .append(cm.cum_phys_dist).append(',')
+						  .append(cm.stdDev).append(',')
+						  .append(cm.median).append(',')
+						  .append(cm.prop_mut).append(',')
+						  .append(cm.ed.getDistance()).append(',')
+						  .append(cm.seq_sim).append(',')
+						  .append(cm.proximity).append(',')
+						  .append(cm.proximity_mut).append(',')
+						  .append(cm.prop_len).append(',')
+						  .append(cm.tortuosity_ratio).append(',')
+						  .append(title.equals(cm.title)); // append('-').append(cm.title.startsWith(family_name)).append('\n');
+						synchronized (arff) {
+							arff.append(sb);
+						}
+					}
 
 					// record scoring index
 					int f = 0;
@@ -3747,6 +3807,18 @@ public class Compare {
 		// Keep in mind it should all be repeated for 0.5 micron delta, 0.6, 0.7 ... up to 5 or 10 (until the histogram starts getting worse.) The single value with which the graph coould be made is the % of an index of 1, and of an index of 2.
 		//
 		// TODO
+
+
+		sb.append("Decision tree:\n");
+		sb.append("Expected good matches: " + exp_good.get() + "\n");
+		sb.append("Observed good matches: " + obs_good.get() + "\n");
+		sb.append("Observed bad matches: " + obs_wrong.get() + "\n");
+		sb.append("Observed well classified bad ones: " + obs_well_classified_bad_ones.get() + "\n");
+		sb.append("Observed bad classified good ones: " + obs_bad_classified_good_ones.get() + "\n");
+		sb.append("Not found, so skipped: " + not_found.get() + "\n");
+		sb.append("Already classified: " + already_classified.get() + "\n");
+
+		sb.append("=========================\n");
 
 
 		Utils.log(sb.toString());
