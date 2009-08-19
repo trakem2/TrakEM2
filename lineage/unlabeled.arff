@@ -1,0 +1,17 @@
+@RELATION Lineages
+
+@ATTRIBUTE average_phys_dist	NUMERIC
+@ATTRIBUTE cummulative_dist		NUMERIC
+@ATTRIBUTE std_dev 				NUMERIC
+@ATTRIBUTE median 				NUMERIC
+@ATTRIBUTE prop_mut 			NUMERIC
+@ATTRIBUTE levenshtein_dist 	NUMERIC
+@ATTRIBUTE similarity 			NUMERIC
+@ATTRIBUTE prox_cumm 			NUMERIC
+@ATTRIBUTE prox_mutation 		NUMERIC
+@ATTRIBUTE ratio		 		NUMERIC
+@ATTRIBUTE class				{false, true}
+
+@DATA
+
+
