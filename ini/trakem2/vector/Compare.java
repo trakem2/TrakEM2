@@ -3571,6 +3571,9 @@ public class Compare {
 									Utils.log2("ALREADY CLASSIFIED " + title + " as " + last_classify + "  (now: " + cm.title + " )");
 									already_classified.incrementAndGet();
 								}
+
+								last_classify = cm.title;
+
 								if (title.equals(cm.title)) {
 									obs_good.incrementAndGet();
 								} else {
@@ -3669,6 +3672,7 @@ public class Compare {
 		}
 		exec.shutdownNow();
 
+		LineageClassifier.flush(); // so stateful ... it's a sin.
 
 		// export ARFF for neural network training
 		Utils.saveToFile(new File(System.getProperty("user.dir") + "/lineages.arff"), arff.toString());
