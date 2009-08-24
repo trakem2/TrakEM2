@@ -3397,10 +3397,10 @@ public class Compare {
 	 *  brain.
 	 */
 	static public final Bureaucrat reliabilityAnalysis(final String[] ignore) {
-		return reliabilityAnalysis(ignore, true, true, 1, 1, 1, 1);
+		return reliabilityAnalysis(ignore, true, true, true, 1, 1, 1, 1);
 	}
 
-	static public final Bureaucrat reliabilityAnalysis(final String[] ignore, final boolean output_arff, final boolean show_dialog, final double delta, final double wi, final double wd, final double wm) {
+	static public final Bureaucrat reliabilityAnalysis(final String[] ignore, final boolean output_arff, final boolean weka_classify, final boolean show_dialog, final double delta, final double wi, final double wd, final double wm) {
 		// gather all open projects
 		final Project[] p = Project.getProjects().toArray(new Project[0]);
 
@@ -3525,12 +3525,12 @@ public class Compare {
 					}
 					if (-1 == title_index) {
 						Utils.log2(title + " not found in project " + p[j]);
-						not_found.incrementAndGet();
+						if (weka_classify) not_found.incrementAndGet();
 						continue;
 					}
 
 					// should be there:
-					exp_good.incrementAndGet();
+					if (weka_classify) exp_good.incrementAndGet();
 
 
 					ArrayList<ChainMatch> list = new ArrayList<ChainMatch>();
@@ -3573,34 +3573,37 @@ public class Compare {
 						}
 						*/
 
-						// from decision tree: is it good?
-						double[] param = new double[10];
-						for (int p=0; p<stats.length; p++) param[p] = stats[p];
-						param[9] = vs1.length() / (float)vs2.length();
-						try {
-							if (LineageClassifier.classify(param)) {
-								if (null != last_classify) {
-									Utils.log2("ALREADY CLASSIFIED " + title + " as " + last_classify + "  (now: " + cm.title + " )");
-									already_classified.incrementAndGet();
-								}
+						if (weka_classify) {
 
-								last_classify = cm.title;
+							// from decision tree: is it good?
+							double[] param = new double[10];
+							for (int p=0; p<stats.length; p++) param[p] = stats[p];
+							param[9] = vs1.length() / (float)vs2.length();
+							try {
+								if (LineageClassifier.classify(param)) {
+									if (null != last_classify) {
+										Utils.log2("ALREADY CLASSIFIED " + title + " as " + last_classify + "  (now: " + cm.title + " )");
+										already_classified.incrementAndGet();
+									}
 
-								if (title.equals(cm.title)) {
-									obs_good.incrementAndGet();
+									last_classify = cm.title;
+
+									if (title.equals(cm.title)) {
+										obs_good.incrementAndGet();
+									} else {
+										Utils.log2("WRONG CLASSIFICATION of " + title + " as " + cm.title);
+										obs_wrong.incrementAndGet();
+									}
 								} else {
-									Utils.log2("WRONG CLASSIFICATION of " + title + " as " + cm.title);
-									obs_wrong.incrementAndGet();
+									if (title.equals(cm.title)) {
+										obs_bad_classified_good_ones.incrementAndGet();
+									} else {
+										obs_well_classified_bad_ones.incrementAndGet();
+									}
 								}
-							} else {
-								if (title.equals(cm.title)) {
-									obs_bad_classified_good_ones.incrementAndGet();
-								} else {
-									obs_well_classified_bad_ones.incrementAndGet();
-								}
+							} catch (Exception ee) {
+								IJError.print(ee);
 							}
-						} catch (Exception ee) {
-							IJError.print(ee);
 						}
 					}
 
@@ -3685,7 +3688,7 @@ public class Compare {
 		}
 		exec.shutdownNow();
 
-		LineageClassifier.flush(); // so stateful ... it's a sin.
+		if (weka_classify) LineageClassifier.flush(); // so stateful ... it's a sin.
 
 		// export ARFF for neural network training
 		if (output_arff) {
@@ -3847,17 +3850,18 @@ public class Compare {
 		//
 		// TODO
 
+		if (weka_classify) {
+			sb.append("Decision tree:\n");
+			sb.append("Expected good matches: " + exp_good.get() + "\n");
+			sb.append("Observed good matches: " + obs_good.get() + "\n");
+			sb.append("Observed bad matches: " + obs_wrong.get() + "\n");
+			sb.append("Observed well classified bad ones: " + obs_well_classified_bad_ones.get() + "\n");
+			sb.append("Observed bad classified good ones: " + obs_bad_classified_good_ones.get() + "\n");
+			sb.append("Not found, so skipped: " + not_found.get() + "\n");
+			sb.append("Already classified: " + already_classified.get() + "\n");
 
-		sb.append("Decision tree:\n");
-		sb.append("Expected good matches: " + exp_good.get() + "\n");
-		sb.append("Observed good matches: " + obs_good.get() + "\n");
-		sb.append("Observed bad matches: " + obs_wrong.get() + "\n");
-		sb.append("Observed well classified bad ones: " + obs_well_classified_bad_ones.get() + "\n");
-		sb.append("Observed bad classified good ones: " + obs_bad_classified_good_ones.get() + "\n");
-		sb.append("Not found, so skipped: " + not_found.get() + "\n");
-		sb.append("Already classified: " + already_classified.get() + "\n");
-
-		sb.append("=========================\n");
+			sb.append("=========================\n");
+		}
 
 
 		if (output_arff) {
@@ -3909,32 +3913,33 @@ public class Compare {
 		return Bureaucrat.createAndStart(new Worker.Task("Space Exploration") { public void exec() {
 
 		File f = new File(System.getProperty("user.dir") + "/lineage_space_exploration.data");
-		DataOutputStream dos = null;
+		OutputStreamWriter dos = null;
 		
 		try {
-			dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(f)));
+			dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin1
 
 			for (double delta = MIN_DELTA; delta <= (MAX_DELTA + INC_DELTA/2); delta += INC_DELTA) {
 				for (double weight = MIN_WEIGHT; weight <= (MAX_WEIGHT + INC_WEIGHT/2); weight += INC_WEIGHT) {
 
-					Bureaucrat b = Compare.reliabilityAnalysis(ignore, false, false, delta, weight, weight, 1); // WM = 1
+					Bureaucrat b = Compare.reliabilityAnalysis(ignore, false, false, false, delta, weight, weight, 1); // WM = 1
 					b.join();
 
 					double[] result = (double[]) b.getWorker().getResult();
 
-					dos.writeDouble(delta);
-					dos.writeChar('\t');
-					dos.writeDouble(weight);
-					dos.writeChar('\t');
-					dos.writeDouble(result[0]);
-					dos.writeChar('\t');
-					dos.writeDouble(result[1]);
-					dos.writeChar('\n');
+					StringBuilder sb = new StringBuilder();
+					sb.append(delta).append('\t')
+					  .append(weight).append('\t')
+					  .append(result[0]).append('\t')
+					  .append(result[1]).append('\n');
+
+					dos.write(sb.toString());
+
 
 					dos.flush(); // so I get to see something before the whole giant buffer is full
 
 					Utils.log2("===========================\n\n");
-					Utils.log2("delta: " + delta + " weight: " + weight + " top_one: " + result[0] + " top_5: " + result[1]);
+					//Utils.log2("delta: " + delta + " weight: " + weight + " top_one: " + result[0] + " top_5: " + result[1]);
+					Utils.log2(sb.toString());
 					Utils.log2("===========================\n\n");
 				}
 			}
