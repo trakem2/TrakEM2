@@ -1935,28 +1935,28 @@ public class Compare {
 
 	/** Compare all to all parameters. */
 	static public class CATAParameters {
-		public double delta;
-		public boolean skip_ends;
-		public int max_mut;
-		public float min_chunk;
-		public boolean score_mut_only;
-		public int transform_type;
-		public boolean chain_branches;
-		public String[] preset;
+		public double delta = 1;
+		public boolean skip_ends = false;
+		public int max_mut = 5;
+		public float min_chunk = 0.5f;
+		public boolean score_mut_only = false;
+		public int transform_type = 3;
+		public boolean chain_branches = true;
 		public final String[][] presets = {{"medial lobe", "dorsal lobe", "peduncle"}};
+		public String[] preset = presets[0];
 		public final String[] preset_names = new String[]{"X - 'medial lobe', Y - 'dorsal lobe', Z - 'peduncle'"};
-		public String format;
 		public final String[] formats = {"ggobi XML", ".csv", "Phylip .dis"};
-		public int distance_type;
-		public int distance_type_2;
+		public String format = formats[2];
+		public int distance_type = 2;
+		public int distance_type_2 = 9;
 		public int min_matches = 10;
-		public boolean normalize;
-		public boolean direct;
-		public boolean substring_matching;
-		public String regex;
+		public boolean normalize = false;
+		public boolean direct = true;
+		public boolean substring_matching = false;
+		public String regex = "";
 		public boolean with_source = false;
-		public double plot_max_x, plot_max_y;
-		public int plot_width, plot_height;
+		public double plot_max_x = 270, plot_max_y = 30;
+		public int plot_width = 700, plot_height = 400;
 		public boolean cut_uneven_ends = true;
 		public int envelope_type = 2;
 
@@ -1965,11 +1965,11 @@ public class Compare {
 		public boolean setup(final boolean to_file, final String regex, final boolean plot, final boolean condense) {
 			final GenericDialog gd = new GenericDialog("All to all");
 			gd.addMessage("Choose a point interdistance to resample to, or 0 for the average of all.");
-			gd.addNumericField("point_interdistance: ", 1, 2);
-			gd.addCheckbox("skip insertion/deletion strings at ends when scoring", false);
-			gd.addNumericField("maximum_ignorable consecutive muts in endings: ", 5, 0);
-			gd.addNumericField("minimum_percentage that must remain: ", 0.5, 2);
-			gd.addCheckbox("Score mutations only", false);
+			gd.addNumericField("point_interdistance: ", delta, 2);
+			gd.addCheckbox("skip insertion/deletion strings at ends when scoring", skip_ends);
+			gd.addNumericField("maximum_ignorable consecutive muts in endings: ", max_mut, 0);
+			gd.addNumericField("minimum_percentage that must remain: ", min_chunk, 2);
+			gd.addCheckbox("Score mutations only", score_mut_only);
 			Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(0), new Component[]{(Component)gd.getNumericFields().get(0), (Component)gd.getNumericFields().get(1)}, null);
 
 			final String[] transforms = {"translate and rotate",
@@ -1978,32 +1978,32 @@ public class Compare {
 						     "moving least squares",
 						     "relative",
 						     "direct"};
-			gd.addChoice("Transform_type: ", transforms, transforms[3]);
-			gd.addCheckbox("Chain_branches", true);
+			gd.addChoice("Transform_type: ", transforms, transforms[transform_type]);
+			gd.addCheckbox("Chain_branches", chain_branches);
 
 			gd.addChoice("Presets: ", preset_names, preset_names[0]);
 			gd.addMessage("");
-			gd.addChoice("Scoring type: ", distance_types, distance_types[2]);
+			gd.addChoice("Scoring type: ", distance_types, distance_types[distance_type]);
 			final String[] distance_types2 = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs", "None"}; // CAREFUL when adding more entries: index 9 is used as None for sortMatches and as a conditional.
-			gd.addChoice("Resort scores by: ", distance_types2, distance_types2[9]);
+			gd.addChoice("Resort scores by: ", distance_types2, distance_types2[distance_type_2]);
 			gd.addNumericField("Min_matches: ", min_matches, 0);
 			if (to_file) {
 				gd.addChoice("File format: ", formats, formats[2]);
 			}
-			gd.addCheckbox("normalize", false);
-			gd.addCheckbox("direct", true);
-			gd.addCheckbox("substring_matching", false);
-			gd.addStringField("regex: ", null != regex ? regex : ""); 
+			gd.addCheckbox("normalize", normalize);
+			gd.addCheckbox("direct", direct);
+			gd.addCheckbox("substring_matching", substring_matching);
+			gd.addStringField("regex: ", null != regex ? regex : "");
 			if (plot) {
-				gd.addNumericField("plot_width: ", 700, 0);
-				gd.addNumericField("plot_height: ", 400, 0);
-				gd.addNumericField("plot_max_x: ", 270, 2);
-				gd.addNumericField("plot_max_y: ", 30, 2);
+				gd.addNumericField("plot_width: ", plot_width, 0);
+				gd.addNumericField("plot_height: ", plot_height, 0);
+				gd.addNumericField("plot_max_x: ", plot_max_x, 2);
+				gd.addNumericField("plot_max_y: ", plot_max_y, 2);
 			}
 			if (condense) {
-				gd.addCheckbox("cut_uneven_ends", true);
+				gd.addCheckbox("cut_uneven_ends", cut_uneven_ends);
 				final String[] env = {"1 std dev", "2 std dev", "3 std dev", "average", "maximum"};
-				gd.addChoice("envelope", env, env[0]);
+				gd.addChoice("envelope", env, env[envelope_type]);
 			}
 
 			//////
