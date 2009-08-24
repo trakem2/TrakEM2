@@ -3930,6 +3930,12 @@ public class Compare {
 					dos.writeChar('\t');
 					dos.writeDouble(result[1]);
 					dos.writeChar('\n');
+
+					dos.flush(); // so I get to see something before the whole giant buffer is full
+
+					Utils.log2("===========================\n\n");
+					Utils.log2("delta: " + delta + " weight: " + weight + " top_one: " + result[0] + " top_5: " + result[1]);
+					Utils.log2("===========================\n\n");
 				}
 			}
 
