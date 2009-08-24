@@ -690,17 +690,19 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public final boolean saveToFile(File f, String contents) {
 		if (null == f) return false;
+		OutputStreamWriter dos = null;
 		try {
-			/*
-			DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(f), contents.length()));
-			*/
-			OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f), contents.length()), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
+			dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f), contents.length()), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
 			//dos.writeBytes(contents);
 			dos.write(contents, 0, contents.length());
 			dos.flush();
+			dos.close();
 		} catch (Exception e) {
 			IJError.print(e);
 			Utils.showMessage("ERROR: Most likely did NOT save your file.");
+			try {
+				if (null != dos) dos.close();
+			} catch (Exception ee) { IJError.print(ee); }
 			return false;
 		}
 		return true;
