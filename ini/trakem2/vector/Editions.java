@@ -35,6 +35,13 @@ public class Editions {
 	static public final int INSERTION = 2;
 	static public final int MUTATION = 3;
 
+	/** Weight for insertion cost. */
+	final protected double WI;
+	/** Weight for deletion cost. */
+	final protected double WD;
+	/** Weight for correspondence cost. */
+	final protected double WM;
+
 	protected VectorString vs1;
 	protected VectorString vs2;
 	protected double delta;
@@ -46,10 +53,17 @@ public class Editions {
 	public double distance;
 
 	public Editions(final VectorString vs1, final VectorString vs2, final double delta, final boolean closed) {
+		this(vs1, vs2, delta, closed, 1, 1, 1);
+	}
+
+	public Editions(final VectorString vs1, final VectorString vs2, final double delta, final boolean closed, final double wi, final double wd, final double wm) {
 		this.vs1 = vs1;
 		this.vs2 = vs2;
 		this.delta = delta;
 		this.closed = closed;
+		this.WI = wi;
+		this.WD = wd;
+		this.WM = wm;
 		init();
 	}
 
@@ -704,16 +718,16 @@ public class Editions {
 			mat1 = matrix[i-1];
 			for (j=1; j < m +1; j++) {
 				// cost deletion:
-				fun1 = mat1[j] + delta; // matrix[i-1][j] + delta
+				fun1 = mat1[j] + WD * delta; // matrix[i-1][j] + delta
 				// cost insertion:
-				fun2 = mati[j-1] + delta; // matrix[i][j-1] + delta
+				fun2 = mati[j-1] + WI * delta; // matrix[i][j-1] + delta
 				// cost mutation:
 				if (i == n || j == m) {
 					fun3 = mat1[j-1]; // matrix[i-1][j-1]
 				} else {
 					//dx = v_x1[i] - v_x2[j];
 					//dy = v_y1[i] - v_y2[j];
-					fun3 = mat1[j-1] + vs1.getDiffVectorLength(i, j, vs2); //  Math.sqrt(dx*dx + dy*dy); // the vector length is the hypothenusa.
+					fun3 = mat1[j-1] + WM * vs1.getDiffVectorLength(i, j, vs2); //  Math.sqrt(dx*dx + dy*dy); // the vector length is the hypothenusa.
 				}
 				// insert the lowest value in the matrix.
 				// since most are mutations, start with fun3:

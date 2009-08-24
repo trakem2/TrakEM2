@@ -1337,6 +1337,10 @@ public class Compare {
 	 * @param direct Whether to test vs1 against vs2 only, or to try all 4 possible combinations of reversed versus non-reversed and pick the best.
 	 * */
 	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching) {
+		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, COMBINED, direct, substring_matching, 1, 1, 1);
+	}
+
+	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching, final double wi, final double wd, final double wm) {
 
 		if (substring_matching) {
 			// identify shorter chain
@@ -1357,17 +1361,17 @@ public class Compare {
 				final VectorString3D longer_sub = longer.substring(k, k+shorter.length());
 				//Utils.log2("substring_matching lengths: shorter, longer : " + shorter.length() + ", " + longer_sub.length());
 				final Object[] ob = direct ?
-					              matchDirect(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type)
-						    : matchFwdRev(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type);
+					              matchDirect(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type, wi, wd, wm)
+						    : matchFwdRev(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type, wi, wd, wm);
 				if (null == best) best = ob;
 				else if (((Double)ob[1]).doubleValue() > ((Double)best[1]).doubleValue()) best = ob;
 			}
 			return best;
 		} else {
 			if (direct) {
-				return matchDirect(vs1, vs2, delta, skip_ends, max_mut, min_chunk, distance_type);
+				return matchDirect(vs1, vs2, delta, skip_ends, max_mut, min_chunk, distance_type, wi, wd, wm);
 			} else {
-				return matchFwdRev(vs1, vs2, delta, skip_ends, max_mut, min_chunk, distance_type);
+				return matchFwdRev(vs1, vs2, delta, skip_ends, max_mut, min_chunk, distance_type, wi, wd, wm);
 			}
 		}
 	}
@@ -1424,11 +1428,11 @@ public class Compare {
 		return Double.NaN;
 	}
 
-	static private final Object[] matchDirect(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
+	static private final Object[] matchDirect(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type, final double wi, final double wd, final double wm) {
 		// Levenshtein is unfortunately not commutative: must try both
-		final Editions ed1 = new Editions(vs1, vs2, delta, false);
+		final Editions ed1 = new Editions(vs1, vs2, delta, false, wi, wd, wm);
 		double score1 = getScore(ed1, skip_ends, max_mut, min_chunk, distance_type);
-		final Editions ed2 = new Editions(vs2, vs1, delta, false);
+		final Editions ed2 = new Editions(vs2, vs1, delta, false, wi, wd, wm);
 		double score2 = getScore(ed2, skip_ends, max_mut, min_chunk, distance_type);
 		return score1 < score2 ?
 			new Object[]{ed1, score1}
@@ -1436,7 +1440,7 @@ public class Compare {
 	}
 
 	// Match in all possible ways
-	static private final Object[] matchFwdRev(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
+	static private final Object[] matchFwdRev(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type, final double wi, final double wd, final double wm) {
 
 		final VectorString3D vs1rev = vs1.makeReversedCopy();
 		final VectorString3D vs2rev = vs2.makeReversedCopy();
@@ -1444,13 +1448,13 @@ public class Compare {
 		final Editions[] ed = new Editions[4];
 
 		// vs1 vs2
-		ed[0] = new Editions(vs1, vs2, delta, false);
+		ed[0] = new Editions(vs1, vs2, delta, false, wi, wd, wm);
 		// vs1rev vs2rev
-		ed[1] = new Editions(vs1rev, vs2rev, delta, false);
+		ed[1] = new Editions(vs1rev, vs2rev, delta, false, wi, wd, wm);
 		// vs1 vs2rev
-		ed[2] = new Editions(vs1, vs2rev, delta, false);
+		ed[2] = new Editions(vs1, vs2rev, delta, false, wi, wd, wm);
 		// vs1rev vs2
-		ed[3] = new Editions(vs1rev, vs2, delta, false);
+		ed[3] = new Editions(vs1rev, vs2, delta, false, wi, wd, wm);
 
 		//double best_score1 = 0;
 		double best_score = Double.MAX_VALUE; // worst possible
@@ -1981,7 +1985,7 @@ public class Compare {
 			gd.addMessage("");
 			gd.addChoice("Scoring type: ", distance_types, distance_types[2]);
 			final String[] distance_types2 = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs", "None"}; // CAREFUL when adding more entries: index 9 is used as None for sortMatches and as a conditional.
-			gd.addChoice("Resort scores by: ", distance_types2, distance_types2[0]);
+			gd.addChoice("Resort scores by: ", distance_types2, distance_types2[9]);
 			gd.addNumericField("Min_matches: ", min_matches, 0);
 			if (to_file) {
 				gd.addChoice("File format: ", formats, formats[2]);
@@ -3393,6 +3397,10 @@ public class Compare {
 	 *  brain.
 	 */
 	static public final Bureaucrat reliabilityAnalysis(final String[] ignore) {
+		return reliabilityAnalysis(ignore, true, true, 1, 1, 1, 1);
+	}
+
+	static public final Bureaucrat reliabilityAnalysis(final String[] ignore, final boolean output_arff, final boolean show_dialog, final double delta, final double wi, final double wd, final double wm) {
 		// gather all open projects
 		final Project[] p = Project.getProjects().toArray(new Project[0]);
 
@@ -3402,7 +3410,8 @@ public class Compare {
 				try {
 
 		final CATAParameters cp = new CATAParameters();
-		if (!cp.setup(false, null, false, false)) {
+		cp.delta = delta;
+		if (show_dialog && !cp.setup(false, null, false, false)) {
 			finishedWorking();
 			return;
 		}
@@ -3433,22 +3442,25 @@ public class Compare {
 
 		final ArrayList<Future> fus = new ArrayList<Future>();
 
-		// For neural network:
-		final StringBuilder arff = new StringBuilder("@RELATION Lineages\n\n");
-		arff.append("@ATTRIBUTE APD NUMERIC\n");
-		arff.append("@ATTRIBUTE CPD NUMERIC\n");
-		arff.append("@ATTRIBUTE STD NUMERIC\n");
-		arff.append("@ATTRIBUTE MPD NUMERIC\n");
-		arff.append("@ATTRIBUTE PM NUMERIC\n");
-		arff.append("@ATTRIBUTE LEV NUMERIC\n");
-		arff.append("@ATTRIBUTE SIM NUMERIC\n");
-		arff.append("@ATTRIBUTE PRX NUMERIC\n");
-		arff.append("@ATTRIBUTE PRM NUMERIC\n");
-		arff.append("@ATTRIBUTE LR NUMERIC\n"); // length ratio: len(query) / len(ref)
-		arff.append("@ATTRIBUTE TR NUMERIC\n");
-		arff.append("@ATTRIBUTE CLASS {false,true}\n");
+		// For neural network analysis:
+		final StringBuilder arff = output_arff ? new StringBuilder("@RELATION Lineages\n\n") : null;
+		if (output_arff) {
+			arff.append("@ATTRIBUTE APD NUMERIC\n");
+			arff.append("@ATTRIBUTE CPD NUMERIC\n");
+			arff.append("@ATTRIBUTE STD NUMERIC\n");
+			arff.append("@ATTRIBUTE MPD NUMERIC\n");
+			arff.append("@ATTRIBUTE PM NUMERIC\n");
+			arff.append("@ATTRIBUTE LEV NUMERIC\n");
+			arff.append("@ATTRIBUTE SIM NUMERIC\n");
+			arff.append("@ATTRIBUTE PRX NUMERIC\n");
+			arff.append("@ATTRIBUTE PRM NUMERIC\n");
+			arff.append("@ATTRIBUTE LR NUMERIC\n"); // length ratio: len(query) / len(ref)
+			arff.append("@ATTRIBUTE TR NUMERIC\n");
+			arff.append("@ATTRIBUTE CLASS {false,true}\n");
 
-		arff.append("\n@DATA\n");
+			arff.append("\n@DATA\n");
+		}
+
 
 		// Count number of times when decision tree says it's good, versus number of times when it should be good
 
@@ -3537,7 +3549,7 @@ public class Compare {
 					int g = 0;
 					for (final Chain cj : (ArrayList<Chain>) p_chains[j]) {
 						final VectorString3D vs2 = cj.vs;
-						final Object[] ob = findBestMatch(vs1, vs2, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching);
+						final Object[] ob = findBestMatch(vs1, vs2, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching, wi, wd, wm);
 						final Editions ed = (Editions)ob[0];
 						double[] stats = ed.getStatistics(cp.skip_ends, cp.max_mut, cp.min_chunk, cp.score_mut_only);
 						float prop_len = ((float)vs1.length()) / vs2.length();
@@ -3595,25 +3607,26 @@ public class Compare {
 					// sort scores:
 					Compare.sortMatches(list, cp.distance_type, cp.distance_type_2, cp.min_matches);
 
-
-					// Take top 8 and put them into training set for WEKA in arff format
-					for (int h=0; h<8; h++) {
-						ChainMatch cm = list.get(h);
-						StringBuilder sb = new StringBuilder();
-						sb.append(cm.phys_dist).append(',')
-						  .append(cm.cum_phys_dist).append(',')
-						  .append(cm.stdDev).append(',')
-						  .append(cm.median).append(',')
-						  .append(cm.prop_mut).append(',')
-						  .append(cm.ed.getDistance()).append(',')
-						  .append(cm.seq_sim).append(',')
-						  .append(cm.proximity).append(',')
-						  .append(cm.proximity_mut).append(',')
-						  .append(cm.prop_len).append(',')
-						  .append(cm.tortuosity_ratio).append(',')
-						  .append(title.equals(cm.title)).append('\n'); // append('-').append(cm.title.startsWith(family_name)).append('\n');
-						synchronized (arff) {
-							arff.append(sb);
+					if (output_arff) {
+						// Take top 8 and put them into training set for WEKA in arff format
+						for (int h=0; h<8; h++) {
+							ChainMatch cm = list.get(h);
+							StringBuilder sb = new StringBuilder();
+							sb.append(cm.phys_dist).append(',')
+							  .append(cm.cum_phys_dist).append(',')
+							  .append(cm.stdDev).append(',')
+							  .append(cm.median).append(',')
+							  .append(cm.prop_mut).append(',')
+							  .append(cm.ed.getDistance()).append(',')
+							  .append(cm.seq_sim).append(',')
+							  .append(cm.proximity).append(',')
+							  .append(cm.proximity_mut).append(',')
+							  .append(cm.prop_len).append(',')
+							  .append(cm.tortuosity_ratio).append(',')
+							  .append(title.equals(cm.title)).append('\n'); // append('-').append(cm.title.startsWith(family_name)).append('\n');
+							synchronized (arff) {
+								arff.append(sb);
+							}
 						}
 					}
 
@@ -3675,8 +3688,9 @@ public class Compare {
 		LineageClassifier.flush(); // so stateful ... it's a sin.
 
 		// export ARFF for neural network training
-		Utils.saveToFile(new File(System.getProperty("user.dir") + "/lineages.arff"), arff.toString());
-
+		if (output_arff) {
+			Utils.saveToFile(new File(System.getProperty("user.dir") + "/lineages.arff"), arff.toString());
+		}
 
 
 		// Show the results from indices map
@@ -3749,6 +3763,27 @@ public class Compare {
 		}
 		sb.append("===============================\n");
 
+
+		// - the percent of first score being the correct one:
+		double first = 0;
+		double first_5 = 0;
+		double all = 0;
+		for (Map.Entry<Integer,Integer> e : sum.entrySet()) {
+			int k = e.getKey();
+			int a = e.getValue();
+
+			all += a;
+
+			if (0 == k) first = a;
+
+			if (k < 5) first_5 += a;
+		}
+
+		// STORE
+		this.result = new double[]{
+			first / all,  // Top one ratio
+			first_5 / all // Top 5 ratio
+		};
 
 		sb.append("Global count of index occurrences family-wise:\n");
 		for (Map.Entry<Integer,Integer> e : sum_f.entrySet()) {
@@ -3825,7 +3860,11 @@ public class Compare {
 		sb.append("=========================\n");
 
 
-		Utils.log(sb.toString());
+		if (output_arff) {
+			Utils.log(sb.toString());
+		} else {
+			Utils.log2(sb.toString());
+		}
 
 
 				} catch (Exception e) {
@@ -3847,5 +3886,58 @@ public class Compare {
 			chain = c;
 			list = l;
 		}
+	}
+
+
+	// Graph data generation: 
+	//  - X axis: resampling distance, from 0.4 to 10 microns, in increments of 0.1 microns.
+	//  - Y axis: weights for deletion and insertion: from 0 to 10, in increments of 0.1
+	//  - Z1 axis: the percentage of properly scored first lineages (currently 75%)
+	//  - Z2 axis: the percentage of the good one being within top 5 (currently 99%)
+
+
+	static public final Bureaucrat reliabilityAnalysisSpaceExploration(final String[] ignore) {
+
+		final double MIN_DELTA = 0.4;
+		final double MAX_DELTA = 10;
+		final double INC_DELTA = 0.1;
+
+		final double MIN_WEIGHT = 0;
+		final double MAX_WEIGHT = 10;
+		final double INC_WEIGHT = 0.1;
+
+		return Bureaucrat.createAndStart(new Worker.Task("Space Exploration") { public void exec() {
+
+		File f = new File(System.getProperty("user.dir") + "/lineage_space_exploration.data");
+		DataOutputStream dos = null;
+		
+		try {
+			dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(f)));
+
+			for (double delta = MIN_DELTA; delta <= (MAX_DELTA + INC_WEIGHT/2); delta += INC_DELTA) {
+				for (double weight = MIN_WEIGHT; weight <= (MAX_WEIGHT + INC_WEIGHT/2); weight += INC_WEIGHT) {
+					Bureaucrat b = Compare.reliabilityAnalysis(ignore, false, false, delta, weight, weight, 1); // WM = 1
+					b.join();
+
+					double[] result = (double[]) b.getWorker().getResult();
+
+					dos.writeDouble(delta);
+					dos.writeChar('\t');
+					dos.writeDouble(weight);
+					dos.writeChar('\t');
+					dos.writeDouble(result[0]);
+					dos.writeChar('\t');
+					dos.writeDouble(result[1]);
+					dos.writeChar('\n');
+				}
+			}
+
+			dos.flush();
+			dos.close();
+		} catch (Exception e) {
+			try { dos.close(); } catch (Exception ee) { ee.printStackTrace(); }
+		}
+
+		}}, Project.getProjects().toArray(new Project[0]));
 	}
 }
