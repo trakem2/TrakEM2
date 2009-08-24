@@ -3914,8 +3914,9 @@ public class Compare {
 		try {
 			dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(f)));
 
-			for (double delta = MIN_DELTA; delta <= (MAX_DELTA + INC_WEIGHT/2); delta += INC_DELTA) {
+			for (double delta = MIN_DELTA; delta <= (MAX_DELTA + INC_DELTA/2); delta += INC_DELTA) {
 				for (double weight = MIN_WEIGHT; weight <= (MAX_WEIGHT + INC_WEIGHT/2); weight += INC_WEIGHT) {
+
 					Bureaucrat b = Compare.reliabilityAnalysis(ignore, false, false, delta, weight, weight, 1); // WM = 1
 					b.join();
 
