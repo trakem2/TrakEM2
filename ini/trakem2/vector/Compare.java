@@ -3902,12 +3902,12 @@ public class Compare {
 
 	static public final Bureaucrat reliabilityAnalysisSpaceExploration(final String[] ignore) {
 
-		final double MIN_DELTA = 0.4;
-		final double MAX_DELTA = 10;
+		final double MIN_DELTA = 0.7;
+		final double MAX_DELTA = 20;
 		final double INC_DELTA = 0.1;
 
 		final double MIN_WEIGHT = 0;
-		final double MAX_WEIGHT = 10;
+		final double MAX_WEIGHT = 2;
 		final double INC_WEIGHT = 0.1;
 
 		return Bureaucrat.createAndStart(new Worker.Task("Space Exploration") { public void exec() {
