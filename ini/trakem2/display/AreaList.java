@@ -1961,7 +1961,7 @@ public class AreaList extends ZDisplayable {
 			double pixel_area = Math.abs(AreaCalculations.area(area.getPathIterator(null)));
 			double surface = pixel_area * pixelWidth * pixelHeight;
 
-			Utils.log2(layer_index + " pixel_area: " + pixel_area + "  surface " + surface);
+			//Utils.log2(layer_index + " pixel_area: " + pixel_area + "  surface " + surface);
 
 			// measure volume
 			double thickness = layer.getThickness() * pixelWidth;// the last one is NOT pixelDepth because layer thickness and Z are in pixels
@@ -2031,8 +2031,6 @@ public class AreaList extends ZDisplayable {
 				}
 			}
 		}
-
-		Utils.log2("done iterating");
 
 		// finish last:
 		lower_bound_surface += prev_surface + prev_perimeter * prev_thickness;
