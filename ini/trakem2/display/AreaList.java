@@ -89,6 +89,8 @@ import javax.swing.JRadioButton;
 import javax.swing.ButtonGroup;
 import javax.swing.JLabel;
 
+import fiji.geom.AreaCalculations;
+
 /** A list of brush painted areas similar to a set of labelfields in Amira.
  * 
  * For each layer where painting has been done, there is an entry in the ht_areas HashMap that contains the layer's id as a Long, and a java.awt.geom.Area object.
@@ -1887,17 +1889,20 @@ public class AreaList extends ZDisplayable {
 
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == ht_areas.size()) return rt;
-		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "name-id"});
+		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "surface", "name-id"});
 		rt.incrementCounter();
 		rt.addLabel("units", "cubic " + layer_set.getCalibration().getUnit());
 		rt.addValue(0, this.id);
-		rt.addValue(1, measureVolume());
-		rt.addValue(2, getNameId());
+		double[] m = measure();
+		rt.addValue(1, m[0]); // aprox. volume
+		rt.addValue(2, m[1]); // aprox. surface
+		rt.addValue(3, getNameId());
 		return rt;
 	}
 
-	public double measureVolume() {
-		if (0 == ht_areas.size()) return 0;
+	/** Returns a double array with 0=volume and 1=surface. */
+	public double[] measure() {
+		if (0 == ht_areas.size()) return new double[2]; // zeros
 		Rectangle box = getBoundingBox(null);
 		float scale = 1.0f;
 		while (!getProject().getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000)) { // factor of 2, because a mask will be involved
@@ -1951,13 +1956,22 @@ public class AreaList extends ZDisplayable {
 			// reset board (filling all, to make sure there are no rounding surprises)
 			g.setColor(Color.black);
 			g.fillRect(0, 0, w, h);
+
+
+			// Compute area as well for comparison with AreaCalculations
+
+			double m_area = Math.abs(AreaCalculations.area(area2.getPathIterator(null)));
+
+			Utils.log2("n_pix: " + n_pix);
+			Utils.log2("m_area: " + m_area);
+
 		}
 		// cleanup
 		pixels = null;
 		g = null;
 		bi.flush();
 		// correct scale
-		return volume /= (scale * scale); // above, calibration is fixed while computing. Scale only corrects for the 2D plane.
+		return new double[]{ volume /= (scale * scale), 0}; // above, calibration is fixed while computing. Scale only corrects for the 2D plane.
 	}
 
 	@Override
