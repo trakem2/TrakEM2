@@ -289,6 +289,7 @@ public class AreaList extends ZDisplayable {
 	}
 
 	private boolean is_new = false;
+	private boolean something_eroded = false;
 
 	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
 		final Layer la = Display.getFrontLayer(this.project);
@@ -450,6 +451,11 @@ public class AreaList extends ZDisplayable {
 			updateInDatabase("points=" + lid);
 		}
 
+		if (something_eroded) {
+			Display.repaint(layer_set);
+			something_eroded = false;
+		}
+
 		// Repaint instead the last rectangle, to erase the circle
 		if (null != r_old) {
 			Display.repaint(Display.getFrontLayer(), r_old, 3, false);
@@ -457,6 +463,7 @@ public class AreaList extends ZDisplayable {
 		}
 		// repaint the navigator and snapshot
 		Display.repaint(Display.getFrontLayer(), this);
+
 	}
 
 	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
@@ -642,9 +649,10 @@ public class AreaList extends ZDisplayable {
 							}
 						}
 
-						if (ops.size() > 0) {
+						if (null != ops && ops.size() > 0) {
 							AreaList.this.getLayerSet().addDataEditStep(ops.keySet());
 							for (final Runnable r : ops.values()) r.run();
+							something_eroded = true;
 						}
 					}
 				} else {
