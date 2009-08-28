@@ -2202,6 +2202,11 @@ public class Compare {
 		return new Object[]{chains, p_chains};
 	}
 
+	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex,
+			                         final String[] ignore, final Project[] projects) {
+		return compareAllToAll(to_file, regex, ignore, projects, false, false, 0);
+	}
+
 	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
 	 *
 	 * @param to_file Whether to save the results to a file and popup a save dialog for it or not. In any case the results are stored in the worker's load, which you can retrieve like:
@@ -2211,10 +2216,13 @@ public class Compare {
 	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
 	 *
 	 */
-	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex, final String[] ignore) {
+	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex,
+			                         final String[] ignore, final Project[] projects,
+						 final boolean crop, final boolean from_end, final int max_n_elements) {
 
 		// gather all open projects
-		final Project[] p = Project.getProjects().toArray(new Project[0]);
+		final Project[] p = null == projects ? Project.getProjects().toArray(new Project[0])
+			                             : projects;
 
 		final Worker worker = new Worker("Comparing all to all") {
 			public void run() {
@@ -2252,6 +2260,24 @@ public class Compare {
 		}
 
 		final int n_chains = chains.size();
+
+		// crop chains if desired
+		if (crop) {
+			for (final Chain chain : chains) {
+				if (from_end) {
+					int start = chain.vs.length() - max_n_elements;
+					if (start > 0) {
+						chain.vs = chain.vs.substring(start, chain.vs.length());
+						chain.vs.resample(cp.delta, cp.with_source); // BEFORE making it relative
+					}
+				} else {
+					if (max_n_elements < chain.vs.length()) {
+						chain.vs = chain.vs.substring(0, max_n_elements);
+						chain.vs.resample(cp.delta, cp.with_source); // BEFORE making it relative
+					}
+				}
+			}
+		}
 
 		// compare all to all
 		final VectorString3D[] vs = new VectorString3D[n_chains];
@@ -2530,9 +2556,12 @@ public class Compare {
 						     final boolean show_3D, final boolean show_condensed_3D, final boolean show_sources_3D,
 						     final boolean show_envelope_3D, final float envelope_alpha,
 						     final boolean show_axes_3D, final boolean heat_map,
-						     final Map<String,VectorString3D> map_condensed) {
+						     final Map<String,VectorString3D> map_condensed,
+						     final Project[] projects) {
 		// gather all open projects
-		final Project[] p = Project.getProjects().toArray(new Project[0]);
+		final Project[] p = null == projects ? Project.getProjects().toArray(new Project[0])
+			                             : projects;
+
 		// make the reference_project be the first in the array
 		if (null != reference_project && reference_project != p[0]) {
 			for (int i=0; i<p.length; i++) {
