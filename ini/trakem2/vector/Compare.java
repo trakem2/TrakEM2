@@ -3813,9 +3813,16 @@ public class Compare {
 
 		sb.append("Family-wise count of index ocurrences:\n");
 		for (Map.Entry<String,TreeMap<Integer,Integer>> fe : sum_fw.entrySet()) {
+			int total = 0;
+			int top5 = 0;
 			for (Map.Entry<Integer,Integer> e : fe.getValue().entrySet()) {
 				sb.append(fe.getKey()).append(' ').append(e.getKey()).append(' ').append(e.getValue()).append('\n');
+				total += e.getValue();
+				if (e.getKey() < 5) top5 += e.getValue();
 			}
+			sb.append("total: ").append(total).append('\n');
+			sb.append("top1: ").append( fe.getValue().get(fe.getValue().firstKey()) / (float)total).append('\n');
+			sb.append("top5: ").append( top5 / (float)total).append('\n');
 		}
 
 
