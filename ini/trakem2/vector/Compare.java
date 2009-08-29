@@ -3805,11 +3805,25 @@ public class Compare {
 
 		// - a summarizing histogram that collects how many 1st, how many 2nd, etc. in total, normalized to total number of one-to-many matches performed (i.e. the number of scoring indices recorded.)
 
-		sb.append("Global count of index ocurrences:\n");
-		for (Map.Entry<Integer,Integer> e : sum.entrySet()) {
-			sb.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
+		//
+		{
+			sb.append("Global count of index ocurrences:\n");
+			int total = 0;
+			int top2 = 0;
+			int top5 = 0;
+			for (Map.Entry<Integer,Integer> e : sum.entrySet()) {
+				sb.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
+				total += e.getValue();
+				if (e.getKey() < 2) top2 += e.getValue();
+				if (e.getKey() < 5) top5 += e.getValue();
+			}
+			sb.append("total: ").append(total).append('\n');
+			sb.append("top1: ").append( sum.get(sum.firstKey()) / (float)total).append('\n');
+			sb.append("top2: ").append( top2 / (float)total).append('\n');
+			sb.append("top5: ").append( top5 / (float) total).append('\n');
+
+			sb.append("===============================\n");
 		}
-		sb.append("===============================\n");
 
 		sb.append("Family-wise count of index ocurrences:\n");
 		for (Map.Entry<String,TreeMap<Integer,Integer>> fe : sum_fw.entrySet()) {
@@ -3824,6 +3838,7 @@ public class Compare {
 			sb.append("top1: ").append( fe.getValue().get(fe.getValue().firstKey()) / (float)total).append('\n');
 			sb.append("top5: ").append( top5 / (float)total).append('\n');
 		}
+		sb.append("===============================\n");
 
 
 		// - the percent of first score being the correct one:
