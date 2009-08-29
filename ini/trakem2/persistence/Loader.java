@@ -3239,8 +3239,10 @@ abstract public class Loader {
 		String filepath = filepath_;
 		/* On drag and drop the stack is not null! */ //Utils.log2("imp_stack_ is " + imp_stack_);
 		ImagePlus[] stks = null;
+		boolean choose = false;
 		if (null == imp_stack_) {
 			stks = Utils.findOpenStacks();
+			choose = stks.length > 0;
 		} else {
 			stks = new ImagePlus[]{imp_stack_};
 		}
@@ -3248,7 +3250,7 @@ abstract public class Loader {
 		// ask to open a stack if it's null
 		if (null == stks) {
 			imp_stack = openStack(); // choose one
-		} else if (stks.length > 1) {
+		} else if (choose) {
 			// choose one from the list
 			GenericDialog gd = new GenericDialog("Choose one");
 			gd.addMessage("Choose a stack from the list or 'open...' to bring up a file chooser dialog:");
