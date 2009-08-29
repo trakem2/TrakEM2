@@ -3922,7 +3922,7 @@ public class Compare {
 	}
 
 
-	// Graph data generation: 
+	// Graph data generation:
 	//  - X axis: resampling distance, from 0.4 to 10 microns, in increments of 0.1 microns.
 	//  - Y axis: weights for deletion and insertion: from 0 to 10, in increments of 0.1
 	//  - Z1 axis: the percentage of properly scored first lineages (currently 75%)
@@ -3931,7 +3931,7 @@ public class Compare {
 
 	static public final Bureaucrat reliabilityAnalysisSpaceExploration(final String[] ignore) {
 
-		final double MIN_DELTA = 0.7;
+		final double MIN_DELTA = 0.4;
 		final double MAX_DELTA = 20;
 		final double INC_DELTA = 0.1;
 
