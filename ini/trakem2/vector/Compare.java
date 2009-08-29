@@ -3733,6 +3733,8 @@ public class Compare {
 
 		TreeMap<Integer,Integer> sum_f = new TreeMap<Integer,Integer>(); // best scoring index of best family member vs count of ocurrences
 
+		TreeMap<String,TreeMap<Integer,Integer>> sum_fw = new TreeMap<String,TreeMap<Integer,Integer>>(); // scoring index vs count of ocurrences, within each family
+
 		// From collected data, several kinds of results:
 		// - a list of how well each chain scores: its index position in the sorted list of scores of one to many.
 		// - a list of how well each chain scores relative to family: the lowest (best) index position of a lineage of the same family in the sorted list of scores.
@@ -3755,6 +3757,20 @@ public class Compare {
 				// global count of occurrences
 				final Integer oi = new Integer(i);
 				sum.put(oi, (sum.containsKey(oi) ? sum.get(oi) : 0) + 1);
+
+				// Same thing but not for all lineages, but only for lineages within a family:
+				// extract family name from title: read the first continuous string of capital letters
+				int u = 0;
+				for (; u<ci.title.length(); u++) {
+					if (!Character.isUpperCase(ci.title.charAt(u))) break;
+				}
+				final String family_name = ci.title.substring(0, u);
+				TreeMap<Integer,Integer> sfw = sum_fw.get(family_name);
+				if (null == sfw) {
+					sfw = new TreeMap<Integer,Integer>();
+					sum_fw.put(family_name, sfw);
+				}
+				sfw.put(oi, (sfw.containsKey(oi) ? sfw.get(oi) : 0) + 1);
 			}
 			if (0 != count) sb.append(ci.title).append(' ').append(last+1).append(' ').append(count).append('\n');
 
@@ -3765,7 +3781,7 @@ public class Compare {
 		}
 		sb.append("===============================\n");
 
-		/// family-wise:
+		/// family score:
 		for (final CITuple ci : cin_f) {
 			// sort indices in place
 			Collections.sort(ci.list);
@@ -3794,6 +3810,13 @@ public class Compare {
 			sb.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
 		}
 		sb.append("===============================\n");
+
+		sb.append("Family-wise count of index ocurrences:\n");
+		for (Map.Entry<String,TreeMap<Integer,Integer>> fe : sum_fw.entrySet()) {
+			for (Map.Entry<Integer,Integer> e : fe.getValue().entrySet()) {
+				sb.append(fe.getKey()).append(' ').append(e.getKey()).append(' ').append(e.getValue()).append('\n');
+			}
+		}
 
 
 		// - the percent of first score being the correct one:
