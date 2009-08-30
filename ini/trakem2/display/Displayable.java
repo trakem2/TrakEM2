@@ -471,7 +471,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 
 	/** Bounding box of the transformed data (or 0,0,0,0 when no data).
 	 *  Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
-	private final Rectangle getBounds(final Rectangle r) {
+	protected Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;
 		r.width = (int)this.width;

@@ -614,6 +614,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
+		this.ht_tabs.put(Stack.class, scroll_zdispl);
 		// channels not included
 		// layers not included
 
@@ -3278,6 +3279,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Hide all but images")) {
 			ArrayList<Class> type = new ArrayList<Class>();
 			type.add(Patch.class);
+			type.add(Stack.class);
 			Collection<Displayable> col = layer.getParent().hideExcept(type, false);
 			selection.removeAll(col);
 			Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE);

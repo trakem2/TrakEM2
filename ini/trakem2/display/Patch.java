@@ -548,27 +548,6 @@ public final class Patch extends Displayable {
 		}
 	}
 
-	/** A method to paint, simply (to a flat image for example); no magnification or srcRect are considered. */
-	public void paint(Graphics2D g) {
-		if (!this.visible) return;
-
-		Image image = project.getLoader().fetchImage(this); // TODO: could read the scale parameter of the graphics object and call for the properly sized mipmap accordingly.
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		g.drawImage(image, this.at, null);
-
-		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
-			g.setComposite(original_composite);
-		}
-	}
-
 	public boolean isDeletable() {
 		return 0 == width && 0 == height;
 	}
@@ -820,12 +799,6 @@ public final class Patch extends Displayable {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" pps").append(TAG_ATTR2) // preprocessor script
 		;
-		// The InvertibleCoordinateTransform and a list of:
-		sb_header.append(indent).append("<!ELEMENT ict_transform EMPTY>\n");
-		sb_header.append(indent).append(TAG_ATTR1).append("ict_transform class").append(TAG_ATTR2)
-			 .append(indent).append(TAG_ATTR1).append("ict_transform data").append(TAG_ATTR2);
-		sb_header.append(indent).append("<!ELEMENT ict_transform_list (ict_transform)>\n");
-
 	}
 
 	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */

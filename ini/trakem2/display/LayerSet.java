@@ -930,7 +930,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		try {
 			project.getLoader().startLargeUpdate();
-			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist") || type.equals("polyline")) {
+			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist") || type.equals("polyline") || type.equals("stack") || type.equals("dissector")) {
 				for (ZDisplayable zd : al_zdispl) {
 					if (visible != zd.isVisible() && zd.getClass().getName().toLowerCase().endsWith(type)) { // endsWith, because DLabel is called as Label
 						zd.setVisible(visible, false); // don't repaint
@@ -938,7 +938,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					}
 				}
 			} else {
-				if (type.equals("image")) type = "patch";
 				for (Layer layer : al_layers) {
 					hs.addAll(layer.setVisible(type, visible, false)); // don't repaint
 				}

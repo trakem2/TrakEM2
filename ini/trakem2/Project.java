@@ -984,10 +984,13 @@ public class Project extends DBObject {
 		Profile.exportDTD(sb_header, hs, indent);
 		AreaList.exportDTD(sb_header, hs, indent);
 		Dissector.exportDTD(sb_header, hs, indent);
+		Stack.exportDTD( sb_header, hs, indent );
 		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		// 4 - export Display
 		Display.exportDTD(sb_header, hs, indent);
 		// all the above could be done with reflection, automatically detecting the presence of an exportDTD method.
+		// CoordinateTransforms
+		mpicbg.trakem2.transform.DTD.append( sb_header, hs, indent );
 	}
 
 	/** Returns the String to be used as Document Type of the XML file, generated from the name of the root template thing.*/
