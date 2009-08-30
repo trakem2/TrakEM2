@@ -30,10 +30,10 @@ public class InvertibleCoordinateTransformList< E extends InvertibleCoordinateTr
 	//@Override
 	public String toXML( final String indent )
 	{
-		String s = indent + "<ict_transform_list invertible=\"true\">";
+		String s = indent + "<iict_transform_list>";
 		for ( E t : l )
 			s += "\n" + t.toXML( indent + "\t" );
-		return s + "\n" + indent + "</ict_transform_list>";
+		return s + "\n" + indent + "</iict_transform_list>";
 	}
 	
 	//@Override
