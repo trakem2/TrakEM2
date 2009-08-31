@@ -1935,7 +1935,7 @@ public class AreaList extends ZDisplayable {
 		box = null;
 
 		double volume = 0;
-		double lower_bound_surface = 0;
+		double lower_bound_surface_h = 0;
 		double upper_bound_surface = 0;
 		double upper_bound_surface_smoothed = 0;
 		double prev_surface = 0;
@@ -2057,18 +2057,18 @@ public class AreaList extends ZDisplayable {
 
 			if (-1 == last_layer_index) {
 				// Start of the very first continuous set:
-				lower_bound_surface += surface;
+				lower_bound_surface_h += surface;
 				upper_bound_surface += surface;
 				upper_bound_surface_smoothed += surface;
 			} else if (layer_index - last_layer_index > 1) {
 				// End of a continuous set
 				// sum the last surface and its side:
-				lower_bound_surface += prev_surface + prev_thickness * 2 * Math.sqrt(prev_surface * Math.PI); //   (2x + 2x) / 2   ==   2x
+				lower_bound_surface_h += prev_surface + prev_thickness * 2 * Math.sqrt(prev_surface * Math.PI); //   (2x + 2x) / 2   ==   2x
 				upper_bound_surface += prev_surface + prev_perimeter * prev_thickness;
 				upper_bound_surface_smoothed += prev_surface + prev_smooth_perimeter * prev_thickness;
 
 				// ... and start of a new set
-				lower_bound_surface += surface;
+				lower_bound_surface_h += surface;
 				upper_bound_surface += surface;
 				upper_bound_surface_smoothed += surface;
 			} else {
@@ -2083,14 +2083,12 @@ public class AreaList extends ZDisplayable {
 					                      + smooth_perimeter * (prev_thickness / 2)
 							      + diff_surface;
 
-				// s * (r1 + r2) where s is the hypothenusa
-				//double r1 = Math.sqrt(prev_surface / Math.PI);
-				//double r2 = Math.sqrt(surface / Math.PI);
-				//double hypothenusa = Math.sqrt(Math.pow(Math.abs(r1 - r2), 2) + Math.pow(thickness, 2)); 
-				//lower_bound_surface += Math.PI * hypothenusa * (r1 + r2);
-
-
-				lower_bound_surface += prev_thickness * (2 * Math.sqrt(prev_surface * Math.PI) + 2 * Math.sqrt(surface * Math.PI)) / 2;
+				// Compute area of the mantle of the truncated cone defined by the radiuses of the circles of same area as the two areas
+				// PI * s * (r1 + r2) where s is the hypothenusa
+				double r1 = Math.sqrt(prev_surface / Math.PI);
+				double r2 = Math.sqrt(surface / Math.PI);
+				double hypothenusa = Math.sqrt(Math.pow(Math.abs(r1 - r2), 2) + Math.pow(thickness, 2)); 
+				lower_bound_surface_h += Math.PI * hypothenusa * (r1 + r2);
 
 				// Adjust volume too:
 				volume += diff_surface * prev_thickness / 2;
@@ -2120,8 +2118,10 @@ public class AreaList extends ZDisplayable {
 		}
 
 		// finish last:
-		lower_bound_surface += prev_surface + prev_perimeter * prev_thickness;
+		lower_bound_surface_h += prev_surface + prev_perimeter * prev_thickness;
 		upper_bound_surface += prev_surface + prev_perimeter * prev_thickness;
+		upper_bound_surface_smoothed += prev_surface + prev_smooth_perimeter * prev_thickness;
+
 
 		// Compute maximum diameter
 		double max_diameter_sq = 0;
@@ -2134,7 +2134,7 @@ public class AreaList extends ZDisplayable {
 			}
 		}
 
-		return new double[]{volume, lower_bound_surface, upper_bound_surface_smoothed, upper_bound_surface, Math.sqrt(max_diameter_sq)};
+		return new double[]{volume, lower_bound_surface_h, upper_bound_surface_smoothed, upper_bound_surface, Math.sqrt(max_diameter_sq)};
 	}
 
 	@Override
