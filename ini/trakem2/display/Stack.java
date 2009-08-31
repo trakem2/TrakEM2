@@ -7,6 +7,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
+import ini.trakem2.display.graphics.AddRGBComposite;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
@@ -14,6 +15,7 @@ import java.awt.AlphaComposite;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -49,6 +51,7 @@ public class Stack extends ZDisplayable
 	private InvertibleCoordinateTransform ict;
 	final private float[] boundsMin = new float[]{ 0, 0, 0 };
 	final private float[] boundsMax = new float[]{ 0, 0, 0 };
+	private double ictScale = 1.0;
 	
 	/*
 	 * References cached images in Loader whose unique identifier from the
@@ -137,6 +140,11 @@ public class Stack extends ZDisplayable
 		boundsMax[ 1 ] = ( float )height;
 		boundsMax[ 2 ] = ( float )depth;
 	}
+	
+	public InvertibleCoordinateTransform getInvertibleCoordinateTransform()
+	{
+		return ict;
+	}
 
 	/* (non-Javadoc)
 	 * @see ini.trakem2.display.ZDisplayable#getFirstLayer()
@@ -199,6 +207,27 @@ public class Stack extends ZDisplayable
 		return (long) (width * height * depth * 4);
 	}
 	
+	/**
+	 * Estimate the scale of atp to apply the
+	 * appropriate smoothing to the image.
+	 */
+	final static private float estimateAffineScale( final AffineTransform atp )
+	{
+		float d = 0;
+		
+		/* add */
+		final float aX = ( float )atp.getScaleX() + ( float )atp.getShearX();
+		final float aY = ( float )atp.getShearY() + ( float )atp.getScaleY();
+		d = Math.max( d, aX * aX + aY * aY );
+		/* subtract */
+		final float sX = ( float )atp.getScaleX() - ( float )atp.getShearX();
+		final float sY = ( float )atp.getShearY() - ( float )atp.getScaleY();
+		d = Math.max( d, sX * sX + sY * sY );
+		
+		return Util.SQRT1 / ( float )Math.sqrt( d );
+		
+	}
+	
 	@Override
 	public void paint(
 			final Graphics2D g,
@@ -209,7 +238,7 @@ public class Stack extends ZDisplayable
 	{
 
 		final AffineTransform atp = new AffineTransform( this.at );
-
+		
 		//final Image image = project.getLoader().fetchImage(this,0);
 		//Utils.log2("Patch " + id + " painted image " + image);
 		
@@ -235,7 +264,6 @@ public class Stack extends ZDisplayable
 			if ( image == null )
 			{
 				/* image has to be generated */
-				
 				synchronized ( futureImages )
 				{
 					Future< Image > fu = futureImages.get( imageId );
@@ -245,79 +273,41 @@ public class Stack extends ZDisplayable
 						{
 							public Image call()
 							{
-								/*
-								 * If possible, incorporate the involved
-								 * x,y-scale of ict in the AffineTransform to
-								 * prevent the generation of gigantic images.
-								 */
-								final float sict;
-								if ( ict != null && AffineModel3D.class.isInstance( ict ) )
+								final InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > ictl = new InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform >();
+								if ( ict != null )
 								{
-									float d = 0;
-									final float[] m = ( ( AffineModel3D )ict ).getMatrix( null );
+									ictl.add( ict );
 									
-									/* add x and y */
-									final float axyX = m[ 0 ] + m[ 1 ];
-									final float axyY = m[ 4 ] + m[ 5 ];
-									d = Math.max( d, axyX * axyX + axyY * axyY );
-									/* subtract x and y */
-									final float sxyX = m[ 0 ] - m[ 1 ];
-									final float sxyY = m[ 4 ] - m[ 5 ];
-									d = Math.max( d, sxyX * sxyX + sxyY * sxyY );
+									/* Remove boundingBox shift ict ... */
+									final TranslationModel3D unShiftBounds = new TranslationModel3D();
+									unShiftBounds.set( -boundsMin[ 0 ], -boundsMin[ 1 ], 0 );
+									ictl.add( unShiftBounds );
 									
-									/* add x and z */
-									final float axzX = m[ 0 ] + m[ 2 ];
-									final float axzY = m[ 4 ] + m[ 6 ];
-									d = Math.max( d, axzX * axzX + axzY * axzY );
-									/* subtract x and z */
-									final float sxzX = m[ 0 ] - m[ 2 ];
-									final float sxzY = m[ 4 ] - m[ 6 ];
-									d = Math.max( d, sxzX * sxzX + sxzY * sxzY );
-									
-									/* add y and z */
-									final float ayzX = m[ 1 ] + m[ 2 ];
-									final float ayzY = m[ 5 ] + m[ 6 ];
-									d = Math.max( d, ayzX * ayzX + ayzY * ayzY );
-									/* subtract y and z */
-									final float syzX = m[ 1 ] - m[ 2 ];
-									final float syzY = m[ 5 ] - m[ 6 ];
-									d = Math.max( d, syzX * syzX + syzY * syzY );
-									
-									sict = Util.SQRT1 / ( float )Math.sqrt( d );
+									if ( ictScale != 1.0 )
+									{
+										final AffineModel3D unScaleXY = new AffineModel3D();
+											unScaleXY.set(
+													1.0f / ( float )ictScale, 0, 0, 0,
+													0, 1.0f / ( float )ictScale, 0, 0,
+													0, 0, 1.0f, 0 );
+											ictl.add( unScaleXY );
+									}
 								}
-								else
-									sict = 1.0f;
-								
-								/*
-								 * Estimate the scale of atp to apply the
-								 * appropriate smoothing to the image.
-								 */
-								float d = 0;
-								
-								/* add */
-								final float aX = ( float )atp.getScaleX() + ( float )atp.getShearX();
-								final float aY = ( float )atp.getShearY() + ( float )atp.getScaleY();
-								d = Math.max( d, aX * aX + aY * aY );
-								/* subtract */
-								final float sX = ( float )atp.getScaleX() - ( float )atp.getShearX();
-								final float sY = ( float )atp.getShearY() - ( float )atp.getScaleY();
-								d = Math.max( d, sX * sX + sY * sY );
-								
-								final float s = Util.SQRT1 / ( float )Math.sqrt( d );
 								
 								/* TODO remove that scale from ict and put it into atp */
 								
 								final ImagePlus imp = project.getLoader().fetchImagePlus( Stack.this );
-								final ImageProcessor ip = imp.getStack().getProcessor( 1 ).createProcessor( ( int )Math.ceil( boundsMax[ 0 ] - boundsMin[ 0 ] ), ( int )Math.ceil( boundsMax[ 1 ] - boundsMin[ 1 ] ) );
+								final ImageProcessor ip = imp.getStack().getProcessor( 1 ).createProcessor( ( int )Math.ceil( ( boundsMax[ 0 ] - boundsMin[ 0 ] ) / ictScale ), ( int )Math.ceil( ( boundsMax[ 1 ] - boundsMin[ 1 ] ) / ictScale ) );
 
-								final InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > ictl = new InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform >();
-								if ( ict != null ) ictl.add( ict );
 								final TranslationModel3D sliceShift = new TranslationModel3D();
 								sliceShift.set( 0, 0, ( float )-currentZ );
 								ictl.add( sliceShift );
 
 								final InverseTransformMapping< InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > > mapping = new InverseTransformMapping< InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > >( ictl );
 								mapping.mapInterpolated( imp.getStack(), ip );
+								
+								final float s = estimateAffineScale( atp );
+
 								final float smoothMag = ( float )magnification / s;
 								if ( smoothMag < 1.0f )
 								{
@@ -357,7 +347,18 @@ public class Stack extends ZDisplayable
 		}
 		
 		if ( image != null) {
-
+			
+			/* Put boundShift into atp */
+			final AffineTransform shiftBounds = new AffineTransform( 1, 0, 0, 1, boundsMin[ 0 ], boundsMin[ 1 ] );
+			atp.concatenate( shiftBounds );
+				
+			/* If available, incorporate the involved x,y-scale of ict in the AffineTransform */
+			final AffineTransform asict = new AffineTransform( ictScale, 0, 0, ictScale, 0, 0 );
+			atp.concatenate( asict );
+					
+//			Composite original_composite = g.getComposite();
+//			g.setComposite(AddRGBComposite.getInstance());
+			
 			//arrange transparency
 			Composite original_composite = null;
 			if (alpha != 1.0f) {
@@ -365,8 +366,8 @@ public class Stack extends ZDisplayable
 				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 			}
 			
-			final AffineTransform backup = g.getTransform();
-			final AffineTransform screenScale = new AffineTransform( backup );
+//			final AffineTransform backup = g.getTransform();
+//			final AffineTransform screenScale = new AffineTransform( backup );
 			
 //			if ( magnification < 1.0 )
 //			{
@@ -474,29 +475,99 @@ public class Stack extends ZDisplayable
 		boundsMax[ 1 ] = ( float )height;
 		boundsMax[ 2 ] = ( float )depth;
 		
-		if ( ict == null ) return;
-		else if ( Boundable.class.isInstance( ict ) )			
+		if ( ict == null )
+		{
+//			Utils.log2( "ict is null" );
+			return;
+		}
+		else if ( Boundable.class.isInstance( ict ) )
+		{
+//			Utils.log2( ict + " is a boundable" );
 			( ( Boundable )ict ).estimateBounds( boundsMin, boundsMax );
+//			Utils.log2( ict + "its bounds are (" + boundsMin[ 0 ] + ", " + boundsMin[ 1 ] + ", " + boundsMin[ 2 ] + ") -> (" + boundsMax[ 0 ] + ", " + boundsMax[ 1 ] + ", " + boundsMax[ 2 ] + ")" );
+		}
 		else
 		{
+			Utils.log2( ict + " is not a boundable" );
 			final ArrayList< Layer > layers = layer_set.getLayers();
 			boundsMax[ 0 ] = ( float )layer_set.width;
 			boundsMax[ 1 ] = ( float )layer_set.height;
 			boundsMax[ 2 ] = ( float )( layers.get( layers.size() - 1 ).getZ() - layers.get( 0 ).getZ() );
 		}
+		
+		if ( ict != null )
+		{
+			if ( AffineModel3D.class.isInstance( ict ) )
+			{
+				float d = 0;
+				final float[] m = ( ( AffineModel3D )ict ).getMatrix( null );
+				
+				/* add x and y */
+				final float axyX = m[ 0 ] + m[ 1 ];
+				final float axyY = m[ 4 ] + m[ 5 ];
+				d = Math.max( d, axyX * axyX + axyY * axyY );
+				/* subtract x and y */
+				final float sxyX = m[ 0 ] - m[ 1 ];
+				final float sxyY = m[ 4 ] - m[ 5 ];
+				d = Math.max( d, sxyX * sxyX + sxyY * sxyY );
+				
+				/* add x and z */
+				final float axzX = m[ 0 ] + m[ 2 ];
+				final float axzY = m[ 4 ] + m[ 6 ];
+				d = Math.max( d, axzX * axzX + axzY * axzY );
+				/* subtract x and z */
+				final float sxzX = m[ 0 ] - m[ 2 ];
+				final float sxzY = m[ 4 ] - m[ 6 ];
+				d = Math.max( d, sxzX * sxzX + sxzY * sxzY );
+				
+				/* add y and z */
+				final float ayzX = m[ 1 ] + m[ 2 ];
+				final float ayzY = m[ 5 ] + m[ 6 ];
+				d = Math.max( d, ayzX * ayzX + ayzY * ayzY );
+				/* subtract y and z */
+				final float syzX = m[ 1 ] - m[ 2 ];
+				final float syzY = m[ 5 ] - m[ 6 ];
+				d = Math.max( d, syzX * syzX + syzY * syzY );
+				
+				ictScale = Util.SQRT1 / ( float )Math.sqrt( d );
+			}
+		}
+	}
+	
+	/**
+	 * For now, just returns the bounding box---we can refine this later
+	 */
+	public Polygon getPerimeter()
+	{
+		final Rectangle r = getBoundingBox();
+		return new Polygon(
+				new int[]{ r.x, r.x + r.width, r.x + r.width, r.x },
+				new int[]{ r.y, r.y, r.y + r.height, r.y + r.height },
+				4 );
 	}
 	
 	/** For reconstruction purposes, overwrites the present InvertibleCoordinateTransform, if any, with the given one. */
 	public void setInvertibleCoordinateTransformSilently( final InvertibleCoordinateTransform ict )
 	{
-		cachedImages.clear();
+		Utils.log2( "insering the ict" );
 		this.ict = ict;
 		updateBounds();
 	}
 	
-	public void setAffineTransform( final AffineTransform at )
+	private void invalidateCache()
 	{
 		cachedImages.clear();
+	}
+	
+	public void setInvertibleCoordinateTransform( final InvertibleCoordinateTransform ict )
+	{
+		invalidateCache();
+		setInvertibleCoordinateTransformSilently( ict );
+	}
+	
+	public void setAffineTransform( final AffineTransform at )
+	{
+		invalidateCache();
 		super.setAffineTransform( at );
 	}
 }
