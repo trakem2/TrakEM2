@@ -7,6 +7,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
 import java.awt.AlphaComposite;
@@ -28,6 +29,7 @@ import java.util.concurrent.Future;
 import mpicbg.ij.stack.InverseTransformMapping;
 import mpicbg.ij.util.Filter;
 import mpicbg.models.AffineModel2D;
+import mpicbg.models.AffineModel3D;
 import mpicbg.models.Boundable;
 import mpicbg.models.InvertibleCoordinateTransformList;
 import mpicbg.models.TranslationModel3D;
@@ -206,7 +208,7 @@ public class Stack extends ZDisplayable
 			final Layer active_layer )
 	{
 
-		final AffineTransform atp = this.at;
+		final AffineTransform atp = new AffineTransform( this.at );
 
 		//final Image image = project.getLoader().fetchImage(this,0);
 		//Utils.log2("Patch " + id + " painted image " + image);
@@ -243,6 +245,68 @@ public class Stack extends ZDisplayable
 						{
 							public Image call()
 							{
+								/*
+								 * If possible, incorporate the involved
+								 * x,y-scale of ict in the AffineTransform to
+								 * prevent the generation of gigantic images.
+								 */
+								final float sict;
+								if ( ict != null && AffineModel3D.class.isInstance( ict ) )
+								{
+									float d = 0;
+									final float[] m = ( ( AffineModel3D )ict ).getMatrix( null );
+									
+									/* add x and y */
+									final float axyX = m[ 0 ] + m[ 1 ];
+									final float axyY = m[ 4 ] + m[ 5 ];
+									d = Math.max( d, axyX * axyX + axyY * axyY );
+									/* subtract x and y */
+									final float sxyX = m[ 0 ] - m[ 1 ];
+									final float sxyY = m[ 4 ] - m[ 5 ];
+									d = Math.max( d, sxyX * sxyX + sxyY * sxyY );
+									
+									/* add x and z */
+									final float axzX = m[ 0 ] + m[ 2 ];
+									final float axzY = m[ 4 ] + m[ 6 ];
+									d = Math.max( d, axzX * axzX + axzY * axzY );
+									/* subtract x and z */
+									final float sxzX = m[ 0 ] - m[ 2 ];
+									final float sxzY = m[ 4 ] - m[ 6 ];
+									d = Math.max( d, sxzX * sxzX + sxzY * sxzY );
+									
+									/* add y and z */
+									final float ayzX = m[ 1 ] + m[ 2 ];
+									final float ayzY = m[ 5 ] + m[ 6 ];
+									d = Math.max( d, ayzX * ayzX + ayzY * ayzY );
+									/* subtract y and z */
+									final float syzX = m[ 1 ] - m[ 2 ];
+									final float syzY = m[ 5 ] - m[ 6 ];
+									d = Math.max( d, syzX * syzX + syzY * syzY );
+									
+									sict = Util.SQRT1 / ( float )Math.sqrt( d );
+								}
+								else
+									sict = 1.0f;
+								
+								/*
+								 * Estimate the scale of atp to apply the
+								 * appropriate smoothing to the image.
+								 */
+								float d = 0;
+								
+								/* add */
+								final float aX = ( float )atp.getScaleX() + ( float )atp.getShearX();
+								final float aY = ( float )atp.getShearY() + ( float )atp.getScaleY();
+								d = Math.max( d, aX * aX + aY * aY );
+								/* subtract */
+								final float sX = ( float )atp.getScaleX() - ( float )atp.getShearX();
+								final float sY = ( float )atp.getShearY() - ( float )atp.getScaleY();
+								d = Math.max( d, sX * sX + sY * sY );
+								
+								final float s = Util.SQRT1 / ( float )Math.sqrt( d );
+								
+								/* TODO remove that scale from ict and put it into atp */
+								
 								final ImagePlus imp = project.getLoader().fetchImagePlus( Stack.this );
 								final ImageProcessor ip = imp.getStack().getProcessor( 1 ).createProcessor( ( int )Math.ceil( boundsMax[ 0 ] - boundsMin[ 0 ] ), ( int )Math.ceil( boundsMax[ 1 ] - boundsMin[ 1 ] ) );
 
@@ -254,14 +318,13 @@ public class Stack extends ZDisplayable
 
 								final InverseTransformMapping< InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > > mapping = new InverseTransformMapping< InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > >( ictl );
 								mapping.mapInterpolated( imp.getStack(), ip );
-								final Image image;
-								if ( magnification < 1.0 )
+								final float smoothMag = ( float )magnification / s;
+								if ( smoothMag < 1.0f )
 								{
-									final ImageProcessor scaledIp = Filter.scale( ip, ( float )magnification );
-									image = scaledIp.createImage();
+									Filter.smoothForScale( ip, smoothMag, 0.5f, 0.5f );
 								}
-								else
-									image = ip.createImage();
+									
+								final Image image = ip.createImage();
 
 								if ( null == image )
 								{
@@ -304,14 +367,15 @@ public class Stack extends ZDisplayable
 			
 			final AffineTransform backup = g.getTransform();
 			final AffineTransform screenScale = new AffineTransform( backup );
-			if ( magnification < 1.0 )
-			{
-				screenScale.scale( 1.0 / magnification, 1.0 / magnification );
-				g.setTransform( screenScale );
-				g.drawImage(image, atp, null);
-				g.setTransform( backup );
-			}
-			else
+			
+//			if ( magnification < 1.0 )
+//			{
+//				screenScale.scale( 1.0 / magnification, 1.0 / magnification );
+//				g.setTransform( screenScale );
+//				g.drawImage(image, atp, null);
+//				g.setTransform( backup );
+//			}
+//			else
 				g.drawImage(image, atp, null);
 	
 			//Transparency: fix composite back to original.
@@ -365,8 +429,6 @@ public class Stack extends ZDisplayable
 		final AffineModel2D a = new AffineModel2D();
 		a.set( at );
 		
-		Utils.log2( a.toString() );
-		
 		final float[] rMin = new float[]{ Float.MAX_VALUE, Float.MAX_VALUE };
 		final float[] rMax = new float[]{ -Float.MAX_VALUE, -Float.MAX_VALUE };
 		
@@ -399,10 +461,6 @@ public class Stack extends ZDisplayable
 		rect.width = ( int )Math.ceil( rMax[ 0 ] - rect.x );
 		rect.height = ( int )Math.ceil( rMax[ 1 ] - rect.y );
 		
-		Utils.log2( rect.toString() );
-		Utils.printCaller( this, 5 );
-		
-		
 		return rect;
 	}
 	
@@ -434,5 +492,11 @@ public class Stack extends ZDisplayable
 		cachedImages.clear();
 		this.ict = ict;
 		updateBounds();
+	}
+	
+	public void setAffineTransform( final AffineTransform at )
+	{
+		cachedImages.clear();
+		super.setAffineTransform( at );
 	}
 }
