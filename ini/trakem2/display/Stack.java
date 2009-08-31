@@ -26,6 +26,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
 import mpicbg.ij.stack.InverseTransformMapping;
+import mpicbg.ij.util.Filter;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.Boundable;
 import mpicbg.models.InvertibleCoordinateTransformList;
@@ -236,43 +237,58 @@ public class Stack extends ZDisplayable
 				synchronized ( futureImages )
 				{
 					Future< Image > fu = futureImages.get( imageId );
-					if (null == fu) {
-						futureImages.put( imageId, project.getLoader().doLater( new Callable< Image >() {
-							public Image call() {
+					if ( null == fu )
+					{
+						futureImages.put( imageId, project.getLoader().doLater( new Callable< Image >()
+						{
+							public Image call()
+							{
 								final ImagePlus imp = project.getLoader().fetchImagePlus( Stack.this );
-								final ImageProcessor ip = imp.getStack().getProcessor( 1 ).createProcessor( ( int )Math.ceil( boundsMax[ 0 ] - boundsMin[ 0 ] ), ( int )Math.ceil( boundsMax[ 1 ] - boundsMin[ 1 ] ) ); 
-								
+								final ImageProcessor ip = imp.getStack().getProcessor( 1 ).createProcessor( ( int )Math.ceil( boundsMax[ 0 ] - boundsMin[ 0 ] ), ( int )Math.ceil( boundsMax[ 1 ] - boundsMin[ 1 ] ) );
+
 								final InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > ictl = new InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform >();
 								if ( ict != null ) ictl.add( ict );
 								final TranslationModel3D sliceShift = new TranslationModel3D();
 								sliceShift.set( 0, 0, ( float )-currentZ );
 								ictl.add( sliceShift );
-								
+
 								final InverseTransformMapping< InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > > mapping = new InverseTransformMapping< InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > >( ictl );
 								mapping.mapInterpolated( imp.getStack(), ip );
-								final Image image = ip.createImage();
-								
-								if (null == image) {
-									Utils.log2("Stack.paint: null image, returning");
-									return null; // TEMPORARY from lazy repaints after closing a Project
+								final Image image;
+								if ( magnification < 1.0 )
+								{
+									final ImageProcessor scaledIp = Filter.scale( ip, ( float )magnification );
+									image = scaledIp.createImage();
 								}
-		
+								else
+									image = ip.createImage();
+
+								if ( null == image )
+								{
+									Utils.log2( "Stack.paint: null image, returning" );
+									return null; // TEMPORARY from lazy
+													// repaints after closing a
+													// Project
+								}
+
 								project.getLoader().cacheAWT( imageId, image );
-								
-								synchronized ( futureImages ) {
+
+								synchronized ( futureImages )
+								{
 									futureImages.remove( imageId );
 								}
-								
-								//Display.repaint( active_layer, Stack.this );
+
+								// Display.repaint( active_layer, Stack.this );
 								Display.repaint( active_layer );
-						
+
 								return image;
 							}
-						}));
-					} //else {
-//						Utils.log2( "fu is not null" );
-//						// We don't do anything: we wait for itself to launch a repaint event
-//					}
+						} ) );
+					} // else {
+					// Utils.log2( "fu is not null" );
+					// // We don't do anything: we wait for itself to launch a
+					// repaint event
+					// }
 				}
 			}
 		}
@@ -288,12 +304,15 @@ public class Stack extends ZDisplayable
 			
 			final AffineTransform backup = g.getTransform();
 			final AffineTransform screenScale = new AffineTransform( backup );
-			screenScale.scale( 1.0 / magnification, 1.0 / magnification );
-			g.setTransform( screenScale );
-	
-			g.drawImage(image, atp, null);
-			
-			g.setTransform( backup );
+			if ( magnification < 1.0 )
+			{
+				screenScale.scale( 1.0 / magnification, 1.0 / magnification );
+				g.setTransform( screenScale );
+				g.drawImage(image, atp, null);
+				g.setTransform( backup );
+			}
+			else
+				g.drawImage(image, atp, null);
 	
 			//Transparency: fix composite back to original.
 			if (alpha != 1.0f) {
@@ -346,30 +365,32 @@ public class Stack extends ZDisplayable
 		final AffineModel2D a = new AffineModel2D();
 		a.set( at );
 		
+		Utils.log2( a.toString() );
+		
 		final float[] rMin = new float[]{ Float.MAX_VALUE, Float.MAX_VALUE };
 		final float[] rMax = new float[]{ -Float.MAX_VALUE, -Float.MAX_VALUE };
 		
 		final float[] l = new float[]{ boundsMin[ 0 ], boundsMin[ 1 ] };
 		
-		a.apply( l );
+		a.applyInPlace( l );
 		Util.min( rMin, l );
 		Util.max( rMax, l );
 		
 		l[ 0 ] = boundsMin[ 0 ];
 		l[ 1 ] = boundsMax[ 1 ];
-		a.apply( l );
+		a.applyInPlace( l );
 		Util.min( rMin, l );
 		Util.max( rMax, l );
 		
 		l[ 0 ] = boundsMax[ 0 ];
 		l[ 1 ] = boundsMin[ 1 ];
-		a.apply( l );
+		a.applyInPlace( l );
 		Util.min( rMin, l );
 		Util.max( rMax, l );
 		
 		l[ 0 ] = boundsMax[ 0 ];
 		l[ 1 ] = boundsMax[ 1 ];
-		a.apply( l );
+		a.applyInPlace( l );
 		Util.min( rMin, l );
 		Util.max( rMax, l );
 		
@@ -377,6 +398,10 @@ public class Stack extends ZDisplayable
 		rect.y = ( int )rMin[ 1 ];
 		rect.width = ( int )Math.ceil( rMax[ 0 ] - rect.x );
 		rect.height = ( int )Math.ceil( rMax[ 1 ] - rect.y );
+		
+		Utils.log2( rect.toString() );
+		Utils.printCaller( this, 5 );
+		
 		
 		return rect;
 	}
