@@ -7,7 +7,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
-import ini.trakem2.display.graphics.AddRGBComposite;
+import ini.trakem2.display.graphics.ARGBComposite;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
@@ -356,33 +356,11 @@ public class Stack extends ZDisplayable
 			final AffineTransform asict = new AffineTransform( ictScale, 0, 0, ictScale, 0, 0 );
 			atp.concatenate( asict );
 					
-//			Composite original_composite = g.getComposite();
-//			g.setComposite(AddRGBComposite.getInstance());
+			Composite original_composite = g.getComposite();
+			g.setComposite(ARGBComposite.getInstance( alpha ));
+			g.drawImage(image, atp, null);
+			g.setComposite(original_composite);
 			
-			//arrange transparency
-			Composite original_composite = null;
-			if (alpha != 1.0f) {
-				original_composite = g.getComposite();
-				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-			}
-			
-//			final AffineTransform backup = g.getTransform();
-//			final AffineTransform screenScale = new AffineTransform( backup );
-			
-//			if ( magnification < 1.0 )
-//			{
-//				screenScale.scale( 1.0 / magnification, 1.0 / magnification );
-//				g.setTransform( screenScale );
-//				g.drawImage(image, atp, null);
-//				g.setTransform( backup );
-//			}
-//			else
-				g.drawImage(image, atp, null);
-	
-			//Transparency: fix composite back to original.
-			if (alpha != 1.0f) {
-				g.setComposite(original_composite);
-			}
 		}
 	}
 	
