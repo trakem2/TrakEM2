@@ -607,6 +607,16 @@ public class Ball extends ZDisplayable {
 		return la;
 	}
 
+	/** Returns the raw data for the balls, sorted by Layer ID versus double[]{z,y,r} . */
+	public Map<Layer,double[]> getRawBalls() {
+		if (-1 == n_points) setupForDisplay(); // reload
+		HashMap<Layer,double[]> m = new HashMap<Layer,double[]>();
+		for (int i=0; i<n_points; i++) {
+			m.put(layer_set.getLayer(p_layer[i]), new double[]{p[0][i], p[1][i], p_width[i]});
+		}
+		return m;
+	}
+
 	/** Returns a [n_points][4] array, with x,y,z,radius on the second part; not transformed, but local!
 	 *  To obtain balls in world coordinates, calibrated, use getWorldBalls().
 	 */
