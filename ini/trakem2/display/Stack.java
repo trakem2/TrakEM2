@@ -8,6 +8,11 @@ import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.graphics.ARGBComposite;
+import ini.trakem2.display.graphics.AddARGBComposite;
+import ini.trakem2.display.graphics.ColorYCbCrComposite;
+import ini.trakem2.display.graphics.DifferenceARGBComposite;
+import ini.trakem2.display.graphics.MultiplyARGBComposite;
+import ini.trakem2.display.graphics.SubtractARGBComposite;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
@@ -355,15 +360,14 @@ public class Stack extends ZDisplayable
 			/* If available, incorporate the involved x,y-scale of ict in the AffineTransform */
 			final AffineTransform asict = new AffineTransform( ictScale, 0, 0, ictScale, 0, 0 );
 			atp.concatenate( asict );
-					
-			Composite original_composite = g.getComposite();
-			g.setComposite(ARGBComposite.getInstance( alpha ));
-			g.drawImage(image, atp, null);
-			g.setComposite(original_composite);
+			
+			final Composite original_composite = g.getComposite();
+			g.setComposite( getComposite() );
+			g.drawImage( image, atp, null );
+			g.setComposite( original_composite );
 			
 		}
 	}
-	
 	
 	static public final void exportDTD( final StringBuffer sb_header, final HashSet hs, final String indent ) {
 		String type = "t2_stack";

@@ -10,25 +10,25 @@ import java.awt.image.*;
  * @author saalfeld
  * 
  */
-public class ARGBComposite implements Composite
+public class MultiplyARGBComposite implements Composite
 {
 
-	static private ARGBComposite instance = new ARGBComposite();
+	static private MultiplyARGBComposite instance = new MultiplyARGBComposite();
 
 	final private float alpha;
 
-	public static ARGBComposite getInstance( final float alpha )
+	public static MultiplyARGBComposite getInstance( final float alpha )
 	{
 		if ( alpha == 1.0f ) { return instance; }
-		return new ARGBComposite( alpha );
+		return new MultiplyARGBComposite( alpha );
 	}
 
-	private ARGBComposite()
+	private MultiplyARGBComposite()
 	{
 		this.alpha = 1.0f;
 	}
 
-	private ARGBComposite( final float alpha )
+	private MultiplyARGBComposite( final float alpha )
 	{
 		this.alpha = alpha;
 	}
@@ -54,9 +54,9 @@ public class ARGBComposite implements Composite
 						final float srcAlpha = srcPixel[ 3 ] / 255.0f * alpha;
 						final float dstAlpha = 1.0f - srcAlpha;
 						
-						dstInPixel[ 0 ] = Math.round( srcPixel[ 0 ] * srcAlpha + dstInPixel[ 0 ] * dstAlpha );
-						dstInPixel[ 1 ] = Math.round( srcPixel[ 1 ] * srcAlpha + dstInPixel[ 1 ] * dstAlpha );
-						dstInPixel[ 2 ] = Math.round( srcPixel[ 2 ] * srcAlpha + dstInPixel[ 2 ] * dstAlpha );
+						dstInPixel[ 0 ] = Math.max( 0, Math.min( 255, Math.round( ( srcAlpha * srcPixel[ 0 ] * dstInPixel[ 0 ] ) / 255.0f + dstInPixel[ 0 ] * dstAlpha ) ) );
+						dstInPixel[ 1 ] = Math.max( 0, Math.min( 255, Math.round( ( srcAlpha * srcPixel[ 1 ] * dstInPixel[ 1 ] ) / 255.0f + dstInPixel[ 1 ] * dstAlpha ) ) );
+						dstInPixel[ 2 ] = Math.max( 0, Math.min( 255, Math.round( ( srcAlpha * srcPixel[ 2 ] * dstInPixel[ 2 ] ) / 255.0f + dstInPixel[ 2 ] * dstAlpha ) ) );
 						dstInPixel[ 3 ] = 255;
 						
 						dstOut.setPixel( x, y, dstInPixel );

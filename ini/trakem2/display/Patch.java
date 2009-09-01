@@ -465,19 +465,10 @@ public final class Patch extends Displayable {
 			atp.scale(this.width / iw, this.height / ih);
 		}
 
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		g.drawImage(image, atp, null);
-
-		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
-			g.setComposite(original_composite);
-		}
+		final Composite original_composite = g.getComposite();
+		g.setComposite( getComposite() );
+		g.drawImage( image, atp, null );
+		g.setComposite( original_composite );
 	}
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
@@ -533,19 +524,10 @@ public final class Patch extends Displayable {
 			atp.scale(this.width / iw, this.height / ih);
 		}
 
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		g.drawImage(image, atp, null);
-
-		//Transparency: fix composite back to original.
-		if (null != original_composite) {
-			g.setComposite(original_composite);
-		}
+		final Composite original_composite = g.getComposite();
+		g.setComposite( getComposite() );
+		g.drawImage( image, atp, null );
+		g.setComposite( original_composite );
 	}
 
 	public boolean isDeletable() {
