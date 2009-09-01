@@ -546,9 +546,9 @@ abstract public class Loader {
 			releaseAll();
 			return false;
 		}
+		if (enoughFreeMemory(bytes)) return true;
 		final boolean previous = massive_mode;
 		if (bytes > max_memory / 4) setMassiveMode(true);
-		if (enoughFreeMemory(bytes)) return true;
 		boolean result = true;
 		synchronized (db_lock) {
 			lock();
