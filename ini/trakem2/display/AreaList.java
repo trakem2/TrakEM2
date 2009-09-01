@@ -46,6 +46,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.M;
 import ini.trakem2.render3d.Perimeter2D;
+import ini.trakem2.vector.VectorString2D;
 import ini.trakem2.vector.VectorString3D;
 import ini.trakem2.imaging.Segmentation;
 
@@ -89,6 +90,8 @@ import javax.swing.JRadioButton;
 import javax.swing.ButtonGroup;
 import javax.swing.JLabel;
 
+import fiji.geom.AreaCalculations;
+
 /** A list of brush painted areas similar to a set of labelfields in Amira.
  * 
  * For each layer where painting has been done, there is an entry in the ht_areas HashMap that contains the layer's id as a Long, and a java.awt.geom.Area object.
@@ -100,7 +103,7 @@ public class AreaList extends ZDisplayable {
 	private HashMap ht_areas = new HashMap();
 
 	/** Flag to signal dynamic loading from the database for the Area of a given layer id in the ht_areas HashMap. */
-	static private Object UNLOADED = new Object();
+	static private final Area UNLOADED = new Area();
 
 	/** Flag to repaint faster even if the object is selected. */
 	static private boolean brushing = false;
@@ -287,6 +290,7 @@ public class AreaList extends ZDisplayable {
 	}
 
 	private boolean is_new = false;
+	private boolean something_eroded = false;
 
 	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
 		final Layer la = Display.getFrontLayer(this.project);
@@ -448,6 +452,11 @@ public class AreaList extends ZDisplayable {
 			updateInDatabase("points=" + lid);
 		}
 
+		if (something_eroded) {
+			Display.repaint(layer_set);
+			something_eroded = false;
+		}
+
 		// Repaint instead the last rectangle, to erase the circle
 		if (null != r_old) {
 			Display.repaint(Display.getFrontLayer(), r_old, 3, false);
@@ -455,6 +464,7 @@ public class AreaList extends ZDisplayable {
 		}
 		// repaint the navigator and snapshot
 		Display.repaint(Display.getFrontLayer(), this);
+
 	}
 
 	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
@@ -640,9 +650,10 @@ public class AreaList extends ZDisplayable {
 							}
 						}
 
-						if (ops.size() > 0) {
+						if (null != ops && ops.size() > 0) {
 							AreaList.this.getLayerSet().addDataEditStep(ops.keySet());
 							for (final Runnable r : ops.values()) r.run();
+							something_eroded = true;
 						}
 					}
 				} else {
@@ -1887,77 +1898,243 @@ public class AreaList extends ZDisplayable {
 
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == ht_areas.size()) return rt;
-		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "name-id"});
+		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "LB-surface", "UBs-surface", "UB-surface", "AVGs-surface", "AVG-surface", "max diameter", "name-id"});
 		rt.incrementCounter();
-		rt.addLabel("units", "cubic " + layer_set.getCalibration().getUnit());
+		rt.addLabel("units", layer_set.getCalibration().getUnit());
 		rt.addValue(0, this.id);
-		rt.addValue(1, measureVolume());
-		rt.addValue(2, getNameId());
+		double[] m = measure();
+		rt.addValue(1, m[0]); // aprox. volume
+		rt.addValue(2, m[1]); // lower bound surface
+		rt.addValue(3, m[2]); // upper bound surface smoothed
+		rt.addValue(4, m[3]); // upper bound surface
+		rt.addValue(5, (m[1] + m[2]) / 2); // average of LB and UBs
+		rt.addValue(6, (m[1] + m[3]) / 2); // average of LB and UB
+		rt.addValue(7, m[4]); // max diameter
+		rt.addValue(8, getNameId());
 		return rt;
 	}
 
-	public double measureVolume() {
-		if (0 == ht_areas.size()) return 0;
-		Rectangle box = getBoundingBox(null);
-		float scale = 1.0f;
-		while (!getProject().getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000)) { // factor of 2, because a mask will be involved
-			scale /= 2;
-		}
-		double volume = 0;
-		double surface = 0;
-		final int w = (int)Math.ceil(box.width * scale);
-		final int h = (int)Math.ceil(box.height * scale);
-		BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-		Graphics2D g = bi.createGraphics();
-		//DataBufferByte buffer = (DataBufferByte)bi.getRaster().getDataBuffer();
-		byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
+	/** Returns a double array with 0=volume, 1=lower_bound_surface, 2=upper_bound_surface_smoothed, 3=upper_bound_surface, 4=max_diameter.
+	 *  All measures are approximate.
+	 *  [0] Volume: sum(area * thickness) for all sections
+	 *  [1] Lower Bound Surface: measure area per section, compute radius of circumference of identical area, compute then are of the sides of the truncated cone of height thickness, for each section. Plus top and bottom areas when visiting sections without a painted area.
+	 *  [2] Upper Bound Surface Smooted: measure smoothed perimeter lengths per section, multiply by thickness to get lateral area. Plus tops and bottoms.
+	 *  [3] Upper Bound Surface: measure raw pixelated perimeter lengths per section, multiply by thickness to get lateral area. Plus top and bottoms.
+	 *  [4] Maximum diameter: longest distance between any two points in the contours of all painted areas. */
+	public double[] measure() {
+		if (0 == ht_areas.size()) return new double[5]; // zeros
 
 		// prepare suitable transform
 		AffineTransform aff = (AffineTransform)this.at.clone();
 		AffineTransform aff2 = new AffineTransform();
-		//  A - remove translation
+		// remove translation
+		Rectangle box = getBoundingBox(null);
 		aff2.translate(-box.x, -box.y);
 		aff.preConcatenate(aff2);
-		//  B - scale
-		if (1.0f != scale) {
-			aff2.setToIdentity();
-			aff2.translate(box.width/2, box.height/2);
-			aff2.scale(scale, scale);
-			aff2.translate(-box.width/2, -box.height/2);
-			aff.preConcatenate(aff2);
-		}
+		aff2 = null;
+		box = null;
+
+		double volume = 0;
+		double lower_bound_surface_h = 0;
+		double upper_bound_surface = 0;
+		double upper_bound_surface_smoothed = 0;
+		double prev_surface = 0;
+		double prev_perimeter = 0;
+		double prev_smooth_perimeter = 0;
+		double prev_thickness = 0;
+
 		Calibration cal = layer_set.getCalibration();
-		double pixelWidth = cal.pixelWidth;
-		double pixelHeight = cal.pixelHeight;
-		// for each area, measure its area and its perimeter
+		final double pixelWidth = cal.pixelWidth;
+		final double pixelHeight = cal.pixelHeight;
+
+		// Put areas in order of their layer index:
+		final TreeMap<Integer,Area> ias = new TreeMap<Integer,Area>();
 		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
-			// fetch Area
 			Map.Entry entry = (Map.Entry)it.next();
-			Object ob_area = entry.getValue();
-			long lid = ((Long)entry.getKey()).longValue();
-			if (UNLOADED == ob_area) ob_area = loadLayer(lid);
-			Area area2 = ((Area)ob_area).createTransformedArea(aff);
-			// paint the area, filling mode
-			g.setColor(Color.white);
-			g.fill(area2);
-			double n_pix = 0;
-			// count white pixels
-			for (int i=0; i<pixels.length; i++) {
-				if (255 == (pixels[i]&0xff)) n_pix++;
-				// could set the pixel to 0, but I have no idea if that holds properly (or is fast at all) in automatically accelerated images
-			}
-			double thickness = layer_set.getLayer(lid).getThickness();
-			volume += n_pix * thickness * pixelWidth * pixelHeight * pixelWidth; // the last one is NOT pixelDepth because layer thickness and Z are in pixels
-			// reset board (filling all, to make sure there are no rounding surprises)
-			g.setColor(Color.black);
-			g.fillRect(0, 0, w, h);
+			ias.put(layer_set.indexOf(layer_set.getLayer((Long)entry.getKey())), (Area)entry.getValue());
 		}
-		// cleanup
-		pixels = null;
-		g = null;
-		bi.flush();
-		// correct scale
-		return volume /= (scale * scale); // above, calibration is fixed while computing. Scale only corrects for the 2D plane.
+
+		ArrayList<Layer> layers = layer_set.getLayers();
+
+		int last_layer_index = -1;
+
+		ArrayList<Point3f> points = new ArrayList<Point3f>();
+		final float[] coords = new float[6];
+		final float fpixelWidth = (float) pixelWidth;
+		final float fpixelHeight = (float) pixelHeight;
+
+		// for each area, measure its area and its perimeter, to compute volume and surface
+		for (final Map.Entry<Integer,Area> e : ias.entrySet()) {
+
+			// fetch Layer
+			int layer_index = e.getKey();
+			Layer layer = layers.get(layer_index);
+
+			// fetch Area
+			Area area = e.getValue();
+			if (UNLOADED == area) area = loadLayer(layer.getId());
+			// Transform area to world coordinates
+			area = area.createTransformedArea(aff);
+
+			// measure surface
+			double pixel_area = Math.abs(AreaCalculations.area(area.getPathIterator(null)));
+			double surface = pixel_area * pixelWidth * pixelHeight;
+
+			//Utils.log2(layer_index + " pixel_area: " + pixel_area + "  surface " + surface);
+
+			// measure volume
+			double thickness = layer.getThickness() * pixelWidth;// the last one is NOT pixelDepth because layer thickness and Z are in pixels
+			volume += surface * thickness;
+
+			//Utils.log2(layer_index + "  volume: " + volume);
+
+			double pix_perimeter = AreaCalculations.circumference(area.getPathIterator(null));
+			double perimeter = pix_perimeter * pixelWidth;
+
+			double smooth_perimeter = 0;
+
+			// smoothed perimeter:
+			// Get all paths, make VectorString2D from them
+			{
+				double smooth_pix_perimeter = 0;
+				for (Polygon pol : M.getPolygons(area)) {
+					if (pol.npoints < 7) {
+						// no point in smoothing out such a short polygon:
+						smooth_perimeter += pol.npoints;
+						continue;
+					}
+					double[] xp = new double[pol.npoints];
+					double[] yp = new double[pol.npoints];
+					for (int p=0; p<pol.npoints; p++) {
+						xp[p] = pol.xpoints[p];
+						yp[p] = pol.ypoints[p];
+					}
+					try {
+						// Should use VectorString2D, but takes for ever -- bug in resample?
+						// And VectorString3D is likely not respecting the 'closed' flag for resampling.
+						// Also, VectorString3D gets stuck in an infinite loop if the sequence is 6 points!
+						//VectorString3D v = new VectorString3D(xp, yp, new double[pol.npoints], true);
+						VectorString2D v = new VectorString2D(xp, yp, 0, true);
+						v.resample(1);
+
+
+						// TESTING: make a polygon roi and show it
+						// ... just in case to see that resampling works as expected, without weird endings
+						/*
+						int[] x = new int[v.length()];
+						int[] y = new int[x.length];
+						double[] xd = v.getPoints(0);
+						double[] yd = v.getPoints(1);
+						for (int p=0; p<x.length; p++) {
+							x[p] = (int)xd[p];
+							y[p] = (int)yd[p];
+						}
+						PolygonRoi proi = new PolygonRoi(x, y, x.length, PolygonRoi.POLYGON);
+						Rectangle b = proi.getBounds();
+						for (int p=0; p<x.length; p++) {
+							x[p] -= b.x;
+							y[p] -= b.y;
+						}
+						ImagePlus imp = new ImagePlus("test", new ByteProcessor(b.width, b.height));
+						imp.setRoi(new PolygonRoi(x, y, x.length, PolygonRoi.POLYGON));
+						imp.show();
+						*/
+
+						smooth_pix_perimeter += v.length() -1; // resampled to 1, so just number_of_points * delta_of_1.
+						                                       // Subtracting 1: the resampled curve has the first point as the last too.
+					} catch (Exception le) { le.printStackTrace(); }
+				}
+
+				smooth_perimeter = smooth_pix_perimeter * pixelWidth;
+			}
+
+			//Utils.log2("p, sp: " + perimeter + ", " + smooth_perimeter);
+
+			//Utils.log2(layer_index + "  pixelWidth,pixelHeight: " + pixelWidth + ", " + pixelHeight);
+			//Utils.log2(layer_index + "  thickness: " + thickness);
+
+			//Utils.log2(layer_index + "  pix_perimeter: " + pix_perimeter + "   perimeter: " + perimeter);
+
+			if (-1 == last_layer_index) {
+				// Start of the very first continuous set:
+				lower_bound_surface_h += surface;
+				upper_bound_surface += surface;
+				upper_bound_surface_smoothed += surface;
+			} else if (layer_index - last_layer_index > 1) {
+				// End of a continuous set
+				// sum the last surface and its side:
+				lower_bound_surface_h += prev_surface + prev_thickness * 2 * Math.sqrt(prev_surface * Math.PI); //   (2x + 2x) / 2   ==   2x
+				upper_bound_surface += prev_surface + prev_perimeter * prev_thickness;
+				upper_bound_surface_smoothed += prev_surface + prev_smooth_perimeter * prev_thickness;
+
+				// ... and start of a new set
+				lower_bound_surface_h += surface;
+				upper_bound_surface += surface;
+				upper_bound_surface_smoothed += surface;
+			} else {
+				// Continuation of a set: use this Area and the previous as continuous
+				double diff_surface = Math.abs(prev_surface - surface);
+
+				upper_bound_surface += prev_perimeter * (prev_thickness / 2)
+						     + perimeter * (prev_thickness / 2)
+						     + diff_surface;
+
+				upper_bound_surface_smoothed += prev_smooth_perimeter * (prev_thickness / 2)
+					                      + smooth_perimeter * (prev_thickness / 2)
+							      + diff_surface;
+
+				// Compute area of the mantle of the truncated cone defined by the radiuses of the circles of same area as the two areas
+				// PI * s * (r1 + r2) where s is the hypothenusa
+				double r1 = Math.sqrt(prev_surface / Math.PI);
+				double r2 = Math.sqrt(surface / Math.PI);
+				double hypothenusa = Math.sqrt(Math.pow(Math.abs(r1 - r2), 2) + Math.pow(thickness, 2)); 
+				lower_bound_surface_h += Math.PI * hypothenusa * (r1 + r2);
+
+				// Adjust volume too:
+				volume += diff_surface * prev_thickness / 2;
+			}
+
+			// store for next iteration:
+			prev_surface = surface;
+			prev_perimeter = perimeter;
+			prev_smooth_perimeter = smooth_perimeter;
+			last_layer_index = layer_index;
+			prev_thickness = thickness;
+
+			// Iterate points:
+			final float z = (float) layer.getZ();
+			for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); pit.next()) {
+				switch (pit.currentSegment(coords)) {
+					case PathIterator.SEG_MOVETO:
+					case PathIterator.SEG_LINETO:
+					case PathIterator.SEG_CLOSE:
+						points.add(new Point3f(coords[0] * fpixelWidth, coords[1] * fpixelHeight, z * fpixelWidth));
+						break;
+					default:
+						Utils.log2("WARNING: unhandled seg type.");
+						break;
+				}
+			}
+		}
+
+		// finish last:
+		lower_bound_surface_h += prev_surface + prev_perimeter * prev_thickness;
+		upper_bound_surface += prev_surface + prev_perimeter * prev_thickness;
+		upper_bound_surface_smoothed += prev_surface + prev_smooth_perimeter * prev_thickness;
+
+
+		// Compute maximum diameter
+		double max_diameter_sq = 0;
+		final int lp = points.size();
+		for (int i=0; i<lp; i++) {
+			final Point3f p = points.get(i);
+			for (int j=i; j<lp; j++) {
+				double len = p.distanceSquared(points.get(j));
+				if (len > max_diameter_sq) max_diameter_sq = len;
+			}
+		}
+
+		return new double[]{volume, lower_bound_surface_h, upper_bound_surface_smoothed, upper_bound_surface, Math.sqrt(max_diameter_sq)};
 	}
 
 	@Override

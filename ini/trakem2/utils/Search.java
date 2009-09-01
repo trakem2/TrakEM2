@@ -211,6 +211,7 @@ public class Search {
 			String txt =  dbo instanceof Displayable ?
 				  dbo.getProject().getMeaningfulTitle((Displayable)dbo)
 				: dbo.getTitle();
+			if (null == txt || 0 == txt.trim().length()) continue;
 			matched = pat.matcher(txt).matches();
 			long id = dbo.getId();
 			if (!matched) {
