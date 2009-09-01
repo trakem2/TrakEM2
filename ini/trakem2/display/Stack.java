@@ -281,6 +281,7 @@ public class Stack extends ZDisplayable
 								final InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > ictl = new InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform >();
 								if ( ict != null )
 								{
+									Utils.log2( "ictScale of " + getTitle() + " is " + ictScale );
 									ictl.add( ict );
 									
 									/* Remove boundingBox shift ict ... */
@@ -447,7 +448,7 @@ public class Stack extends ZDisplayable
 		return rect;
 	}
 	
-	private void updateBounds()
+	private void update()
 	{
 		boundsMin[ 0 ] = 0;
 		boundsMin[ 1 ] = 0;
@@ -511,7 +512,7 @@ public class Stack extends ZDisplayable
 				final float syzY = m[ 5 ] - m[ 6 ];
 				d = Math.max( d, syzX * syzX + syzY * syzY );
 				
-				ictScale = Util.SQRT1 / ( float )Math.sqrt( d );
+				ictScale = ( float )Math.sqrt( d ) / Util.SQRT1;
 			}
 		}
 	}
@@ -533,7 +534,7 @@ public class Stack extends ZDisplayable
 	{
 		Utils.log2( "insering the ict" );
 		this.ict = ict;
-		updateBounds();
+		update();
 	}
 	
 	private void invalidateCache()
