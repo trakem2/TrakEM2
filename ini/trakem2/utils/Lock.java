@@ -37,17 +37,17 @@ package ini.trakem2.utils;
  *  }<br />
  */
 public class Lock {
-	protected boolean locked = false;
+	//protected boolean locked = false;
 	protected boolean debug = false;
 	static protected boolean debug_all = false;
 	public final void lock() {
 		if (debug || debug_all) Utils.printCaller(this, 7);
-		while (locked) try { this.wait(); } catch (InterruptedException ie) {}
-		locked = true;
+		//while (locked) try { this.wait(); } catch (InterruptedException ie) {}
+		//locked = true;
 	}
 	public final void unlock() {
 		if (debug || debug_all) Utils.printCaller(this, 7);
-		locked = false;
+		//locked = false;
 		this.notifyAll();
 	}
 	public final void debug() {
