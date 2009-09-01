@@ -265,17 +265,17 @@ abstract public class Loader {
 	/** To be called within a synchronized(db_lock) */
 	protected final void lock() {
 		//Utils.printCaller(this, 7);
-		while (db_busy) { try { db_lock.wait(); } catch (InterruptedException ie) {} }
-		db_busy = true;
+		//while (db_busy) { try { db_lock.wait(); } catch (InterruptedException ie) {} }
+		//db_busy = true;
 	}
 
 	/** To be called within a synchronized(db_lock) */
 	protected final void unlock() {
 		//Utils.printCaller(this, 7);
-		if (db_busy) {
-			db_busy = false;
+		//if (db_busy) {
+		//	db_busy = false;
 			db_lock.notifyAll();
-		}
+		//}
 	}
 
 	/** Release all memory and unregister itself. Child Loader classes should call this method in their destroy() methods. */
@@ -855,8 +855,9 @@ abstract public class Loader {
 	public void cacheAWT( final long id, final Image awt) {
 		synchronized (db_lock) {
 			lock();
-			if (null != awt)
+			if (null != awt) {
 				mawts.put(id, awt, 0);
+			}
 			unlock();
 		}
 	} 
@@ -3789,15 +3790,16 @@ abstract public class Loader {
 	/** Fixes paths before presenting them to the file system, in an OS-dependent manner. */
 	protected final ImagePlus openImage(String path) {
 		if (null == path) return null;
-		// supporting samba networks
-		if (path.startsWith("//")) {
-			path = path.replace('/', '\\');
-		}
-		// debug:
-		Utils.log2("opening image " + path);
-		//Utils.printCaller(this, 25);
-		IJ.redirectErrorMessages();
 		try {
+			// supporting samba networks
+			if (path.startsWith("//")) {
+				path = path.replace('/', '\\');
+			}
+			// debug:
+			Utils.log2("opening image " + path);
+			//Utils.printCaller(this, 25);
+			IJ.redirectErrorMessages();
+
 			return opener.openImage(path);
 		} catch (Exception e) {
 			Utils.log("Could not open image at " + path);

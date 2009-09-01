@@ -2779,11 +2779,10 @@ public final class FSLoader extends Loader {
 		ImageLoadingLock plock = null;
 		synchronized (db_lock) {
 			lock();
-			imp = imps.get(stack.getId());
 			try {
+				imp = imps.get(stack.getId());
 				path = stack.getFilePath();
 				if (null != imp) {
-					unlock();
 					return imp;
 				}
 				/* not cached */
@@ -2834,24 +2833,23 @@ public final class FSLoader extends Loader {
 							Utils.log("FSLoader.fetchImagePlus: no image exists for stack  " + stack + "  at path " + path);
 							hs_unloadable.add( stack );
 						}
-						if (ControlWindow.isGUIEnabled()) {
-							/* TODO offer repair for more things than patches */
+//						if (ControlWindow.isGUIEnabled()) {
+//							/* TODO offer repair for more things than patches */
 //							FilePathRepair.add( stack );
-						}
-						removeImageLoadingLock(plock);
-						unlock();
-						plock.unlock();
+//						}
 						return null;
+					} else {
+						imps.put( stack.getId(), imp );
 					}
-					imps.put( stack.getId(), imp );
-					// imp is cached, so:
-					removeImageLoadingLock(plock);
 
 				} catch (Exception e) {
 					IJError.print(e);
+				} finally {
+					removeImageLoadingLock(plock);
+					unlock();
+					plock.unlock();
 				}
-				unlock();
-				plock.unlock();
+
 				return imp;
 			}
 		}
