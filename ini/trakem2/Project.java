@@ -727,7 +727,7 @@ public class Project extends DBObject {
 		else select(d, project_tree);
 	}
 
-	private final void select(final Object ob, final JTree tree) {
+	private final void select(final Object ob, final DNDTree tree) {
 		// Find the Thing that contains the object
 		final Thing root_thing = (Thing)((DefaultMutableTreeNode)tree.getModel().getRoot()).getUserObject();
 		final Thing child_thing = root_thing.findChild(ob);

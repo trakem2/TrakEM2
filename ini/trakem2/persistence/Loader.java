@@ -292,6 +292,7 @@ abstract public class Loader {
 		}
 		
 		exec.shutdownNow();
+		guiExec.quit();
 	}
 
 	/**Retrieve next id from a sequence for a new DBObject to be added.*/
@@ -4954,5 +4955,12 @@ abstract public class Loader {
 	public < T > Future< T > doLater( final Callable< T > fn ) {
 		return exec.submit( fn );
 	}
-	
+
+	// Will be shut down by Loader.destroy()
+	private final Dispatcher guiExec = new Dispatcher("GUI Executor");
+
+	/** Execute a GUI-related task later; it's the fn's responsability to do the call via SwingUtilities.invokeLater if necesary. */
+	public void doGUILater( final boolean swing, final Runnable fn ) {
+		guiExec.exec( fn, swing );
+	}
 }
