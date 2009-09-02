@@ -104,7 +104,7 @@ public class Stack extends ZDisplayable
 		height = imp.getHeight();		
 		min = imp.getDisplayRangeMin();
 		max = imp.getDisplayRangeMax();
-		at.translate( x, y );
+		//at.translate( x, y ); // No need: the call to the super constructor already translated the affine transform.
 		
 		boundsMin[ 0 ] = ( float )x;
 		boundsMin[ 1 ] = ( float )y;
@@ -338,7 +338,7 @@ public class Stack extends ZDisplayable
 								}
 
 								// Display.repaint( active_layer, Stack.this );
-								Display.repaint( active_layer );
+							  	Display.repaint( active_layer );
 
 								return image;
 							}
@@ -351,9 +351,8 @@ public class Stack extends ZDisplayable
 				}
 			}
 		}
-		
+
 		if ( image != null) {
-			
 			/* Put boundShift into atp */
 			final AffineTransform shiftBounds = new AffineTransform( 1, 0, 0, 1, boundsMin[ 0 ], boundsMin[ 1 ] );
 			atp.concatenate( shiftBounds );
@@ -552,5 +551,10 @@ public class Stack extends ZDisplayable
 	{
 		invalidateCache();
 		super.setAffineTransform( at );
+	}
+
+	/** Avoid calling the trees: the stack exists only in the LayerSet ZDisplayable's list. */
+	public boolean remove2(boolean check) {
+		return remove(check);
 	}
 }
