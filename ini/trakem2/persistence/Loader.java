@@ -274,7 +274,7 @@ abstract public class Loader {
 		//Utils.printCaller(this, 7);
 		//if (db_busy) {
 		//	db_busy = false;
-			db_lock.notifyAll();
+		//	db_lock.notifyAll();
 		//}
 	}
 
