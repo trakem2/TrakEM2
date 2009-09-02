@@ -106,12 +106,12 @@ public class Stack extends ZDisplayable
 		max = imp.getDisplayRangeMax();
 		//at.translate( x, y ); // No need: the call to the super constructor already translated the affine transform.
 		
-		boundsMin[ 0 ] = ( float )x;
-		boundsMin[ 1 ] = ( float )y;
+		boundsMin[ 0 ] = 0;
+		boundsMin[ 1 ] = 0;
 		boundsMin[ 2 ] = ( float )initial_layer.getZ();
 		
-		boundsMax[ 0 ] = ( float )( x + width );
-		boundsMax[ 1 ] = ( float )( y + height );
+		boundsMax[ 0 ] = ( float ) width;
+		boundsMax[ 1 ] = ( float ) height;
 		boundsMax[ 2 ] = ( float )( boundsMin[ 2 ] + depth );
 		
 		addToDatabase();
