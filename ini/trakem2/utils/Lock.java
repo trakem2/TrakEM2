@@ -35,19 +35,39 @@ package ini.trakem2.utils;
  *      }<br />
  *      lock.unlock();<br />
  *  }<br />
+ *
+ *  The advantage of using this class as opposed to a simple synchronized statement is that the lock may be set and unset from different synchronized blocks. For example:<br />
+ *  final Lock lock = new Lock();<br />
+ *  synchronized (lock) {<br />
+ *      lock.lock();<br />
+ *      // Do something<br />
+ *  }<br />
+ *  // Exit synchronized block, wait for other events to happen<br />
+ *  <br />
+ *  // ... <br />
+ *  // Enter again and unlock:<br />
+ *  synchronized (lock) {<br />
+ *      try {<br />
+ *      	... (do whatever needs be synchronized on this lock) ...<br />
+ *      } catch (Exception e) {<br />
+ *      	e.printStackTrace();<br />
+ *      }<br />
+ *      lock.unlock();<br />
+ *  }<br />
+ *
  */
 public class Lock {
-	//protected boolean locked = false;
+	protected boolean locked = false;
 	protected boolean debug = false;
 	static protected boolean debug_all = false;
 	public final void lock() {
 		if (debug || debug_all) Utils.printCaller(this, 7);
-		//while (locked) try { this.wait(); } catch (InterruptedException ie) {}
-		//locked = true;
+		while (locked) try { this.wait(); } catch (InterruptedException ie) {}
+		locked = true;
 	}
 	public final void unlock() {
 		if (debug || debug_all) Utils.printCaller(this, 7);
-		//locked = false;
+		locked = false;
 		this.notifyAll();
 	}
 	public final void debug() {
