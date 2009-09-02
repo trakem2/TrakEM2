@@ -4535,10 +4535,9 @@ abstract public class Loader {
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
-		/** WARNING this method effectively limits zoom out to 0.00000001. */
 		private final int makeKey(final double mag) {
 			// get the nearest equal or higher power of 2
-			return (int)(0.000005 + Math.abs(Math.log(mag) / Math.log(2)));
+			return (int)(0.5 + Math.abs(Math.log(mag) / Math.log(2)));
 		}
 		public final void quit() {
 			this.go = false;
