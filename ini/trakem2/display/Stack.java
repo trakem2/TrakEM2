@@ -38,6 +38,7 @@ import mpicbg.ij.util.Filter;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.AffineModel3D;
 import mpicbg.models.Boundable;
+import mpicbg.models.InverseCoordinateTransform;
 import mpicbg.models.InvertibleCoordinateTransformList;
 import mpicbg.models.TranslationModel3D;
 import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
@@ -281,7 +282,7 @@ public class Stack extends ZDisplayable
 								final InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > ictl = new InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform >();
 								if ( ict != null )
 								{
-									Utils.log2( "ictScale of " + getTitle() + " is " + ictScale );
+//									Utils.log2( "ictScale of " + getTitle() + " is " + ictScale );
 									ictl.add( ict );
 									
 									/* Remove boundingBox shift ict ... */
@@ -304,17 +305,45 @@ public class Stack extends ZDisplayable
 								
 								final ImagePlus imp = project.getLoader().fetchImagePlus( Stack.this );
 								final ImageProcessor ip = imp.getStack().getProcessor( 1 ).createProcessor( ( int )Math.ceil( ( boundsMax[ 0 ] - boundsMin[ 0 ] ) / ictScale ), ( int )Math.ceil( ( boundsMax[ 1 ] - boundsMin[ 1 ] ) / ictScale ) );
+								
+								Utils.log2( "ictScale is " + ictScale );
+								Utils.log2( "rendering an image of " + ip.getWidth() + " x " + ip.getHeight() + " px" );
+								
 
 								final TranslationModel3D sliceShift = new TranslationModel3D();
 								sliceShift.set( 0, 0, ( float )-currentZ );
 								ictl.add( sliceShift );
-
-								final InverseTransformMapping< InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > > mapping = new InverseTransformMapping< InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > >( ictl );
+								
+								/* optimization: if ict is affine, reduce ictl into a single affine */
+								final InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform > mapping; 
+								if ( AffineModel3D.class.isInstance( ict ) )
+								{
+									final AffineModel3D ictAffine = new AffineModel3D();
+									boolean isAffine = true;
+									for ( final mpicbg.models.InvertibleCoordinateTransform t : ictl.getList( null ) )
+									{
+										if ( AffineModel3D.class.isInstance( t ) )
+											ictAffine.preConcatenate( ( AffineModel3D )t );
+										else if ( TranslationModel3D.class.isInstance( t ) )
+											ictAffine.preConcatenate( ( TranslationModel3D )t );
+										else
+										{
+											isAffine = false;
+											break;
+										}
+									}
+									if ( isAffine )
+										mapping = new InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform >( ictAffine );
+									else
+										mapping = new InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform >( ictl );
+								}
+								else
+									mapping = new InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform >( ictl );
 								mapping.mapInterpolated( imp.getStack(), ip );
 								
 								final float s = estimateAffineScale( atp );
 
-								final float smoothMag = ( float )magnification / s;
+								final float smoothMag = ( float )magnification / s * ( float )ictScale;
 								if ( smoothMag < 1.0f )
 								{
 									Filter.smoothForScale( ip, smoothMag, 0.5f, 0.5f );
@@ -531,7 +560,6 @@ public class Stack extends ZDisplayable
 	/** For reconstruction purposes, overwrites the present InvertibleCoordinateTransform, if any, with the given one. */
 	public void setInvertibleCoordinateTransformSilently( final InvertibleCoordinateTransform ict )
 	{
-		Utils.log2( "insering the ict" );
 		this.ict = ict;
 		update();
 	}
