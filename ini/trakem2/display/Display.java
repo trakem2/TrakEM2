@@ -2141,8 +2141,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			return popup;
 		}
 
+		final Class aclass = null == active ? null : active.getClass();
+
 		if (null != active) {
-			if (active instanceof Profile) {
+			if (Profile.class == aclass) {
 				item = new JMenuItem("Duplicate, link and send to next layer"); item.addActionListener(this); popup.add(item);
 				Layer nl = layer.getParent().next(layer);
 				if (nl == layer) item.setEnabled(false);
@@ -2169,7 +2171,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				if (!active.isLinked()) item.setEnabled(false); // isLinked() checks if it's linked to a Patch in its own layer
 				item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
-			} else if (active instanceof Patch) {
+			} else if (Patch.class == aclass) {
 				item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
 				if (!active.isLinked(Patch.class)) item.setEnabled(false);
 				if (((Patch)active).isStack()) {
@@ -2196,7 +2198,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
 			}
-			if (active instanceof AreaList) {
+			if (AreaList.class == aclass) {
 				item = new JMenuItem("Merge"); item.addActionListener(this); popup.add(item);
 				ArrayList al = selection.getSelected();
 				int n = 0;
@@ -2205,7 +2207,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				}
 				if (n < 2) item.setEnabled(false);
 				popup.addSeparator();
-			} else if (active instanceof Pipe) {
+			} else if (Pipe.class == aclass) {
 				item = new JMenuItem("Identify..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Identify with axes..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
@@ -2256,16 +2258,16 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			popup.addSeparator();
 			item = new JMenuItem("Delete..."); item.addActionListener(this); popup.add(item);
 			try {
-				if (active instanceof Patch) {
+				if (Patch.class == aclass) {
 					if (!active.isOnlyLinkedTo(Patch.class)) {
 						item.setEnabled(false);
 					}
-				} else if (!(active instanceof DLabel)) { // can't delete elements from the trees (Profile, Pipe, LayerSet)
+				} else if (!(DLabel.class == aclass || Stack.class == aclass)) { // can't delete elements from the trees (Profile, Pipe, LayerSet, Ball, Dissector, AreaList, Polyline)
 					item.setEnabled(false);
 				}
 			} catch (Exception e) { IJError.print(e); item.setEnabled(false); }
 
-			if (active instanceof Patch) {
+			if (Patch.class == aclass) {
 				item = new JMenuItem("Revert"); item.addActionListener(this); popup.add(item);
 				if ( null == ((Patch)active).getOriginalPath()) item.setEnabled(false);
 				popup.addSeparator();
