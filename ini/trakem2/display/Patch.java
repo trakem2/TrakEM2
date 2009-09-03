@@ -77,7 +77,7 @@ import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.TransformMeshMapping;
 
-public final class Patch extends Displayable {
+public final class Patch extends Displayable implements ImageData {
 
 	private int type = -1; // unknown
 	/** The channels that the currently existing awt image has ready for painting. */
