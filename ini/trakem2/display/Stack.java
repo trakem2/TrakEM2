@@ -258,7 +258,7 @@ public class Stack extends ZDisplayable implements ImageData
 			if ( image == null )
 			{
 				/* image has to be generated */
-				fu = fetchFutureImage( imageId, magnification, active_layer, true );
+				fu = fetchFutureImage( imageId, magnification, active_layer, false ); // do not trigger repaint event
 			}
 		}
 
