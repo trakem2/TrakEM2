@@ -13,8 +13,8 @@ import ini.trakem2.display.graphics.ColorYCbCrComposite;
 import ini.trakem2.display.graphics.DifferenceARGBComposite;
 import ini.trakem2.display.graphics.MultiplyARGBComposite;
 import ini.trakem2.display.graphics.SubtractARGBComposite;
-import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 
 import java.awt.AlphaComposite;
 import java.awt.Composite;
@@ -48,7 +48,7 @@ import mpicbg.util.Util;
  * @author saalfeld
  *
  */
-public class Stack extends ZDisplayable
+public class Stack extends ZDisplayable implements ImageData
 {
 	private String file_path;
 	private double depth = -1;
@@ -233,9 +233,174 @@ public class Stack extends ZDisplayable
 		return Util.SQRT1 / ( float )Math.sqrt( d );
 		
 	}
-	
+
+	/** Slow paint: will wait until the image is generated and cached, then paint it. */
 	@Override
-	public void paint(
+	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+		Image image = null;
+		Future< Image > fu = null;
+		final SliceViewKey sliceViewKey = new SliceViewKey( magnification, active_layer.getZ() );
+		synchronized ( cachedImages )
+		{
+			final long imageId;
+			Long imageIdL = cachedImages.get( sliceViewKey );
+			if ( imageIdL == null )
+			{
+				imageId = project.getLoader().getNextTempId();
+				cachedImages.put( sliceViewKey, imageId );
+			}
+			else
+			{
+				/* fetch the image from cache---still, it may be that it is not there... */
+				imageId = imageIdL;
+				image = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
+			}
+			if ( image == null )
+			{
+				/* image has to be generated */
+				fu = fetchFutureImage( imageId, magnification, active_layer, true );
+			}
+		}
+
+		// Paint outside the synchronization block:
+		if (null != image) {
+			paint(g, image);
+		} else if (null != fu) {
+			try {
+				image = fu.get();
+			} catch (Throwable ie) {
+				IJ.log("Could not paint Stack " + this);
+				IJError.print(ie);
+				return;
+			}
+			// If I put the fu.get() where image is, it fails to compile. I had to separate it!
+			paint(g, image); // will wait until present
+		} else {
+			Utils.log2("Stack.paint ERROR: no image to paint!");
+		}
+	}
+
+	final private Future< Image > fetchFutureImage(final Long imageId, final double magnification, final Layer active_layer, final boolean trigger_repaint_event) {
+		synchronized ( futureImages )
+		{
+			Future< Image > fu = futureImages.get( imageId );
+			if ( null == fu )
+			{
+				fu = project.getLoader().doLater( new Callable< Image >()
+				{
+					public Image call()
+					{
+						final InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > ictl = new InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform >();
+						if ( ict != null )
+						{
+//									Utils.log2( "ictScale of " + getTitle() + " is " + ictScale );
+							ictl.add( ict );
+							
+							/* Remove boundingBox shift ict ... */
+							final TranslationModel3D unShiftBounds = new TranslationModel3D();
+							unShiftBounds.set( -boundsMin[ 0 ], -boundsMin[ 1 ], 0 );
+							ictl.add( unShiftBounds );
+							
+							if ( ictScale != 1.0 )
+							{
+								final AffineModel3D unScaleXY = new AffineModel3D();
+									unScaleXY.set(
+											1.0f / ( float )ictScale, 0, 0, 0,
+											0, 1.0f / ( float )ictScale, 0, 0,
+											0, 0, 1.0f, 0 );
+									ictl.add( unScaleXY );
+							}
+						}
+						
+						/* TODO remove that scale from ict and put it into atp */
+						
+						final ImagePlus imp = project.getLoader().fetchImagePlus( Stack.this );
+						final ImageProcessor ip = imp.getStack().getProcessor( 1 ).createProcessor( ( int )Math.ceil( ( boundsMax[ 0 ] - boundsMin[ 0 ] ) / ictScale ), ( int )Math.ceil( ( boundsMax[ 1 ] - boundsMin[ 1 ] ) / ictScale ) );
+						
+						Utils.log2( "ictScale is " + ictScale );
+						Utils.log2( "rendering an image of " + ip.getWidth() + " x " + ip.getHeight() + " px" );
+						
+						final double currentZ = active_layer.getZ();
+
+						final TranslationModel3D sliceShift = new TranslationModel3D();
+						sliceShift.set( 0, 0, ( float )-currentZ );
+						ictl.add( sliceShift );
+						
+						/* optimization: if ict is affine, reduce ictl into a single affine */
+						final InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform > mapping; 
+						if ( AffineModel3D.class.isInstance( ict ) )
+						{
+							final AffineModel3D ictAffine = new AffineModel3D();
+							boolean isAffine = true;
+							for ( final mpicbg.models.InvertibleCoordinateTransform t : ictl.getList( null ) )
+							{
+								if ( AffineModel3D.class.isInstance( t ) )
+									ictAffine.preConcatenate( ( AffineModel3D )t );
+								else if ( TranslationModel3D.class.isInstance( t ) )
+									ictAffine.preConcatenate( ( TranslationModel3D )t );
+								else
+								{
+									isAffine = false;
+									break;
+								}
+							}
+							if ( isAffine )
+								mapping = new InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform >( ictAffine );
+							else
+								mapping = new InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform >( ictl );
+						}
+						else
+							mapping = new InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform >( ictl );
+						mapping.mapInterpolated( imp.getStack(), ip );
+						
+						final float s = estimateAffineScale( new AffineTransform( at ) ); // wast: atp
+
+						final float smoothMag = ( float )magnification / s * ( float )ictScale;
+						if ( smoothMag < 1.0f )
+						{
+							Filter.smoothForScale( ip, smoothMag, 0.5f, 0.5f );
+						}
+							
+						final Image image = ip.createImage();
+
+						if ( null == image )
+						{
+							Utils.log2( "Stack.paint: null image, returning" );
+							return null; // TEMPORARY from lazy
+											// repaints after closing a
+											// Project
+						}
+
+						project.getLoader().cacheAWT( imageId, image );
+
+						synchronized ( futureImages )
+						{
+							futureImages.remove( imageId );
+						}
+
+						if ( trigger_repaint_event )
+						{
+							// Display.repaint( active_layer, Stack.this );
+							Display.repaint( active_layer );
+						}
+
+						return image;
+					}
+				});
+			} // else {
+			// Utils.log2( "fu is not null" );
+			// // We don't do anything: we wait for itself to launch a
+			// repaint event
+			// }
+
+			futureImages.put( imageId, fu );
+			return fu;
+		}
+	}
+
+	/** Will not paint but fork a task to create an image to paint later, when not already cached. */
+	@Override
+	public void prePaint(
 			final Graphics2D g,
 			final double magnification,
 			final boolean active,
@@ -243,8 +408,6 @@ public class Stack extends ZDisplayable
 			final Layer active_layer )
 	{
 
-		final AffineTransform atp = new AffineTransform( this.at );
-		
 		//final Image image = project.getLoader().fetchImage(this,0);
 		//Utils.log2("Patch " + id + " painted image " + image);
 		
@@ -266,138 +429,37 @@ public class Stack extends ZDisplayable
 				imageId = imageIdL;
 				image = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
 			}
-			
 			if ( image == null )
 			{
 				/* image has to be generated */
-				synchronized ( futureImages )
-				{
-					Future< Image > fu = futureImages.get( imageId );
-					if ( null == fu )
-					{
-						futureImages.put( imageId, project.getLoader().doLater( new Callable< Image >()
-						{
-							public Image call()
-							{
-								final InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform > ictl = new InvertibleCoordinateTransformList< mpicbg.models.InvertibleCoordinateTransform >();
-								if ( ict != null )
-								{
-//									Utils.log2( "ictScale of " + getTitle() + " is " + ictScale );
-									ictl.add( ict );
-									
-									/* Remove boundingBox shift ict ... */
-									final TranslationModel3D unShiftBounds = new TranslationModel3D();
-									unShiftBounds.set( -boundsMin[ 0 ], -boundsMin[ 1 ], 0 );
-									ictl.add( unShiftBounds );
-									
-									if ( ictScale != 1.0 )
-									{
-										final AffineModel3D unScaleXY = new AffineModel3D();
-											unScaleXY.set(
-													1.0f / ( float )ictScale, 0, 0, 0,
-													0, 1.0f / ( float )ictScale, 0, 0,
-													0, 0, 1.0f, 0 );
-											ictl.add( unScaleXY );
-									}
-								}
-								
-								/* TODO remove that scale from ict and put it into atp */
-								
-								final ImagePlus imp = project.getLoader().fetchImagePlus( Stack.this );
-								final ImageProcessor ip = imp.getStack().getProcessor( 1 ).createProcessor( ( int )Math.ceil( ( boundsMax[ 0 ] - boundsMin[ 0 ] ) / ictScale ), ( int )Math.ceil( ( boundsMax[ 1 ] - boundsMin[ 1 ] ) / ictScale ) );
-								
-								Utils.log2( "ictScale is " + ictScale );
-								Utils.log2( "rendering an image of " + ip.getWidth() + " x " + ip.getHeight() + " px" );
-								
-
-								final TranslationModel3D sliceShift = new TranslationModel3D();
-								sliceShift.set( 0, 0, ( float )-currentZ );
-								ictl.add( sliceShift );
-								
-								/* optimization: if ict is affine, reduce ictl into a single affine */
-								final InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform > mapping; 
-								if ( AffineModel3D.class.isInstance( ict ) )
-								{
-									final AffineModel3D ictAffine = new AffineModel3D();
-									boolean isAffine = true;
-									for ( final mpicbg.models.InvertibleCoordinateTransform t : ictl.getList( null ) )
-									{
-										if ( AffineModel3D.class.isInstance( t ) )
-											ictAffine.preConcatenate( ( AffineModel3D )t );
-										else if ( TranslationModel3D.class.isInstance( t ) )
-											ictAffine.preConcatenate( ( TranslationModel3D )t );
-										else
-										{
-											isAffine = false;
-											break;
-										}
-									}
-									if ( isAffine )
-										mapping = new InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform >( ictAffine );
-									else
-										mapping = new InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform >( ictl );
-								}
-								else
-									mapping = new InverseTransformMapping< mpicbg.models.InvertibleCoordinateTransform >( ictl );
-								mapping.mapInterpolated( imp.getStack(), ip );
-								
-								final float s = estimateAffineScale( atp );
-
-								final float smoothMag = ( float )magnification / s * ( float )ictScale;
-								if ( smoothMag < 1.0f )
-								{
-									Filter.smoothForScale( ip, smoothMag, 0.5f, 0.5f );
-								}
-									
-								final Image image = ip.createImage();
-
-								if ( null == image )
-								{
-									Utils.log2( "Stack.paint: null image, returning" );
-									return null; // TEMPORARY from lazy
-													// repaints after closing a
-													// Project
-								}
-
-								project.getLoader().cacheAWT( imageId, image );
-
-								synchronized ( futureImages )
-								{
-									futureImages.remove( imageId );
-								}
-
-								// Display.repaint( active_layer, Stack.this );
-							  	Display.repaint( active_layer );
-
-								return image;
-							}
-						} ) );
-					} // else {
-					// Utils.log2( "fu is not null" );
-					// // We don't do anything: we wait for itself to launch a
-					// repaint event
-					// }
-				}
+				fetchFutureImage( imageId, magnification, active_layer, true );
+				return;
 			}
 		}
 
 		if ( image != null) {
-			/* Put boundShift into atp */
-			final AffineTransform shiftBounds = new AffineTransform( 1, 0, 0, 1, boundsMin[ 0 ], boundsMin[ 1 ] );
-			atp.concatenate( shiftBounds );
-				
-			/* If available, incorporate the involved x,y-scale of ict in the AffineTransform */
-			final AffineTransform asict = new AffineTransform( ictScale, 0, 0, ictScale, 0, 0 );
-			atp.concatenate( asict );
-			
-			final Composite original_composite = g.getComposite();
-			g.setComposite( getComposite() );
-			g.drawImage( image, atp, null );
-			g.setComposite( original_composite );
-			
+			paint( g, image );
 		}
 	}
-	
+
+	final private void paint( final Graphics2D g, final Image image )
+	{
+		final AffineTransform atp = new AffineTransform( this.at );
+		
+		/* Put boundShift into atp */
+		final AffineTransform shiftBounds = new AffineTransform( 1, 0, 0, 1, boundsMin[ 0 ], boundsMin[ 1 ] );
+		atp.concatenate( shiftBounds );
+			
+		/* If available, incorporate the involved x,y-scale of ict in the AffineTransform */
+		final AffineTransform asict = new AffineTransform( ictScale, 0, 0, ictScale, 0, 0 );
+		atp.concatenate( asict );
+		
+		final Composite original_composite = g.getComposite();
+		g.setComposite( getComposite() );
+		g.drawImage( image, atp, null );
+		g.setComposite( original_composite );
+	}
+
 	static public final void exportDTD( final StringBuffer sb_header, final HashSet hs, final String indent ) {
 		String type = "t2_stack";
 		if (hs.contains(type)) return;
