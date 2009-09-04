@@ -1647,6 +1647,9 @@ public final class FSLoader extends Loader {
 			final boolean coordinate_transformed;
 			int type = patch.getType();
 
+			// Agressive cache freeing
+			releaseToFit(patch.getOWidth() * patch.getOHeight() * 4 + MIN_FREE_BYTES);
+
 			// Obtain an image which may be coordinate-transformed, and an alpha mask.
 			Patch.PatchImage pai = patch.createTransformedImage();
 			if (null == pai) {

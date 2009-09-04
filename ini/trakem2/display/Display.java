@@ -105,6 +105,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	
 	private ToolbarPanel toolbar_panel = null;
 
+	private AreaList.PaintParametersGUI tool_options_panel = null;
+
 	/** Contains the packed alphas of every channel. */
 	private int c_alphas = 0xffffffff; // all 100 % visible
 	private Channel[] channels;
@@ -631,7 +633,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		BoxLayout left_layout = new BoxLayout(left, BoxLayout.Y_AXIS);
 		left.setLayout(left_layout);
 		toolbar_panel = new ToolbarPanel();
+		tool_options_panel = new AreaList.PaintParametersGUI();
+		tool_options_panel.setBackground(Color.white);
 		left.add(toolbar_panel);
+		left.add(tool_options_panel); // empty
 		left.add(transp_slider);
 		left.add(tabs);
 		left.add(navigator);
@@ -864,6 +869,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			Toolbar.getInstance().mousePressed(new MouseEvent(toolbar, me.getID(), System.currentTimeMillis(), me.getModifiers(), x, y, me.getClickCount(), me.isPopupTrigger()));
 			repaint();
+			Display.this.toolChanged(ProjectToolbar.getToolId()); // should fire on its own but it does not (?) TODO
 		}
 		public void mouseReleased(MouseEvent me) {}
 		public void mouseClicked(MouseEvent me) {}
@@ -2201,6 +2207,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				item = new JMenuItem("Identify..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Identify with axes..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
 			}
 
@@ -2420,6 +2427,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Grid overlay..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Project");
@@ -3532,6 +3540,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			AlignTask.p_snap.setup("Snap");
 		} else if (command.equals("Adjust fast-marching parameters...")) {
 			Segmentation.fmp.setup();
+		} else if (command.equals("Adjust arealist paint parameters...")) {
+			AreaList.PP.setup();
 		} else if (command.equals("Search...")) {
 			new Search();
 		} else if (command.equals("Select all")) {
@@ -3580,6 +3590,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				getLayerSet().addChangeTreesStep(dataedits);
 			}});
 			burro.goHaveBreakfast();
+		} else if (command.equals("Reverse point order")) {
+			if (!(active instanceof Pipe)) return;
+			getLayerSet().addDataEditStep(active);
+			((Pipe)active).reverse();
+			Display.repaint(Display.this.layer);
+			getLayerSet().addDataEditStep(active);
 		} else if (command.equals("Identify...")) {
 			// for pipes only for now
 			if (!(active instanceof Line3D)) return;
@@ -4312,6 +4328,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		writer.write(sb_body.toString());
 	}
 
+	// Never called; ProjectToolbar.toolChanged is also never called, which should forward here.
 	static public void toolChanged(final String tool_name) {
 		Utils.log2("tool name: " + tool_name);
 		if (!tool_name.equals("ALIGN")) {
@@ -4321,6 +4338,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		for (final Display d : al_displays) {
 			Utils.updateComponent(d.toolbar_panel);
+			if (tool_name.equals("PEN")) {
+				AreaList.PP.updateGUI(d.tool_options_panel);
+			} else {
+				d.tool_options_panel.removeAll();
+				d.pack();
+			}
+			Utils.updateComponent(d.tool_options_panel);
 			Utils.log2("updating toolbar_panel");
 		}
 	}
@@ -4338,6 +4362,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		for (final Display d : al_displays) {
 			Utils.updateComponent(d.toolbar_panel);
+			if (ProjectToolbar.PEN == tool) {
+				AreaList.PP.updateGUI(d.tool_options_panel);
+			} else {
+				d.tool_options_panel.removeAll();
+			}
+			Utils.updateComponent(d.tool_options_panel);
 			Utils.log2("updating toolbar_panel");
 		}
 	}
