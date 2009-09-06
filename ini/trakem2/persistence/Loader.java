@@ -3242,7 +3242,7 @@ abstract public class Loader {
 		boolean choose = false;
 		if (null == imp_stack_) {
 			stks = Utils.findOpenStacks();
-			choose = stks.length > 0;
+			choose = null == stks || stks.length > 0;
 		} else {
 			stks = new ImagePlus[]{imp_stack_};
 		}
@@ -3325,18 +3325,23 @@ abstract public class Loader {
 			thickness = gd.getNextNumber();
 			// check provided thickness with that of the first layer:
 			if (thickness != current_thickness) {
-				boolean adjust_thickness = false;
-				if (!(1 == first_layer.getParent().size() && first_layer.isEmpty())) {
+				if (1 == first_layer.getParent().size() && first_layer.isEmpty()) {
 					YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The current layer's thickness is " + current_thickness + "\nwhich is " + (thickness < current_thickness ? "larger":"smaller") + " than\nthe desired " + thickness + " for each stack slice.\nAdjust current layer's thickness to " + thickness + " ?");
 					if (yn.cancelPressed()) {
 						if (null != imp_stack_) flush(imp_stack); // was opened new
 						finishedWorking();
 						return;
 					} else if (yn.yesPressed()) {
-						adjust_thickness = true;
+						first_layer.setThickness(thickness);
+						// The rest of layers, created new, will inherit the same thickness
+					}
+				} else {
+					YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "WARNING", "There's more than one layer or the current layer is not empty\nso the thickness cannot be adjusted. Proceed anyway?");
+					if (!yn.yesPressed()) {
+						finishedWorking();
+						return;
 					}
 				}
-				if (adjust_thickness) first_layer.setThickness(thickness);
 			}
 		}
 
