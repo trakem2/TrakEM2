@@ -374,6 +374,9 @@ public final class Display3D {
 
 			final List<Content> list = new ArrayList<Content>(hs.size());
 
+			final List<Callable<Content>> to_add = new ArrayList<Callable<Content>>();
+			long last_added = System.currentTimeMillis();
+
 			for (final Iterator it = hs.iterator(); it.hasNext(); ) {
 				// obtain the Displayable object under the node
 				final ProjectThing child = (ProjectThing)it.next();
@@ -412,9 +415,25 @@ public final class Display3D {
 				}
 				setWaitingCursor(); // the above may be creating a display
 				//sw.elapsed("after creating and/or retrieving Display3D");
+
+
+				// TODO: rewrite to add whole sublists of meshes in one shot with addContentLater.
+				//       For that, rewrite addMesh to accept a list of Future<Content> or so.
+
 				Future<Content> fu = d3d.addMesh(child, displ, resample);
 				if (wait) {
 					list.add(fu.get());
+				}
+
+				if (wait) {
+					list.add(fu.get());
+				}
+
+				// Add meshes every 4 seconds
+				long now = System.currentTimeMillis();
+				if (now - last_added > 4000) {
+					last_added = now;
+
 				}
 
 				//sw.elapsed("after creating mesh");
@@ -534,17 +553,46 @@ public final class Display3D {
 		if (null != ct) d3d.universe.removeContent(ct.getName());
 	}
 
-	/** Creates a mesh for the given Displayable in a separate Thread. */
-	private Future<Content> addMesh(final ProjectThing pt, final Displayable displ, final int resample) {
+	/** Creates a mesh for the given Displayable in a separate Thread, and adds it to the universe.
+	 *  The outer future creates the mesh; the inner adds it to the universe. */
+	private Future<Future<Content>> addMesh(final ProjectThing pt, final Displayable displ, final int resample) {
+		return executors.submit(new Callable<Future<Content>>() {
+			public Future<Content> call() {
+				try {
+					// 1 - Create content
+					Callable<Content> c1 = createMesh(pt, displ, resample);
+					if (null == c1) return null;
+					Content content = c1.call();
+					if (null == content) return null;
+					String title = content.getName();
+					// 2 - Remove from universe any content of the same title
+					if (universe.contains(title)) {
+						universe.removeContent(title);
+					}
+					// 3 - Add to universe
+					return universe.addContentLater(content);
+				} catch (Exception e) {
+					IJError.print(e);
+					return null;
+				}
+			}
+		});
+	}
+
+
+
+	/** Returns a function that returns a Content object.
+	 *  Does NOT add the Content to the universe; it merely creates it. */
+	private Callable<Content> createMesh(final ProjectThing pt, final Displayable displ, final int resample) {
 		final double scale = this.scale;
-		FutureTask<Content> fu = new FutureTask<Content>(new Callable<Content>() {
+		return new Callable<Content>() {
 			public Content call() {
 				Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
 				try {
 
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
-		List triangles = null;
-		boolean no_culling = false; // don't show back faces when false
+		final List triangles;
+		boolean no_culling_ = false; // don't show back faces when false
 		if (displ instanceof AreaList) {
 			int rs = resample;
 			if (-1 == resample) rs = Display3D.this.resample = adjustResampling(); // will adjust this.resample, and return it (even if it's a default value)
@@ -560,7 +608,10 @@ public final class Display3D {
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
-			no_culling = true;
+			no_culling_ = true;
+		} else {
+			Utils.log("Unrecognized type for 3D mesh generation: " + (null != displ ? displ.getClass() : null) + " : " + displ);
+			triangles = null;
 		}
 		// safety checks
 		if (null == triangles) {
@@ -594,8 +645,8 @@ public final class Display3D {
 		*/
 
 
-		Color color = null;
-		float alpha = 1.0f;
+		final Color color;
+		final float alpha;
 		final String title;
 		if (null != displ) {
 			color = displ.getColor();
@@ -613,23 +664,19 @@ public final class Display3D {
 			else title = ob.toString() + " /[" + pt.getParent().getType() + "]/[profile_list] #" + pt.getId();
 		} else {
 			title = pt.toString() + " #" + pt.getId();
+			color = null;
+			alpha = 1.0f;
 		}
 
-		Content ct = null;
+		// TODO why for all? Above no_culling_ is set to true or false, depending upon type.
+		final boolean no_culling = true; // for ALL
 
-		no_culling = true; // for ALL
+		Content ct = null;
 
 		// add to 3D view (synchronized)
 		synchronized (u_lock) {
 			u_lock.lock();
 			try {
-				// craft a unique title (id is always unique)
-				if (ht_pt_meshes.contains(pt) || universe.contains(title)) {
-					// remove content from universe
-					universe.removeContent(title);
-					// no need to remove entry from table, it's overwritten below
-				}
-
 				Color3f c3 = new Color3f(color);
 
 				if (no_culling) {
@@ -641,9 +688,11 @@ public final class Display3D {
 					pa.setBackFaceNormalFlip(true);
 					mesh.setColor(c3);
 					// After setting properties, add to the viewer
-					ct = universe.addCustomMesh(mesh, title);
+					//ct = universe.addCustomMesh(mesh, title);
+					ct = universe.createContent(mesh, title);
 				} else {
-					ct = universe.addTriangleMesh(triangles, c3, title);
+					//ct = universe.addTriangleMesh(triangles, c3, title);
+					ct = universe.createContent(new CustomTriangleMesh(triangles, c3, 0), title);
 				}
 
 				if (null == ct) return null;
@@ -658,7 +707,7 @@ public final class Display3D {
 				Utils.log2("Put: ht_pt_meshes.put(" + pt + ", " + ct + ")");
 
 			} catch (Throwable e) {
-				Utils.logAll("Mesh generation failed for " + title + "\"  from " + pt);
+				Utils.logAll("Mesh generation failed for \"" + title + "\"  from " + pt);
 				IJError.print(e);
 				e.printStackTrace();
 			} finally {
@@ -675,9 +724,7 @@ public final class Display3D {
 					return null;
 				}
 
-		}});
-		executors.submit(fu);
-		return fu;
+		}};
 	}
 
 	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
