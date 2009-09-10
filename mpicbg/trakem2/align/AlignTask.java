@@ -7,8 +7,10 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Future;
 
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
@@ -17,9 +19,13 @@ import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.NotEnoughDataPointsException;
+import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
 
@@ -46,6 +52,7 @@ final public class AlignTask
 	static protected boolean largestGraphOnly = false;
 	static protected boolean hideDisconnectedTiles = false;
 	static protected boolean deleteDisconnectedTiles = false;
+	static protected boolean deform = false;
 	
 	final static public Bureaucrat alignSelectionTask ( final Selection selection )
 	{
@@ -453,10 +460,11 @@ final public class AlignTask
 		gd1.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		
 		gd1.addMessage( "Miscellaneous:" );
-		gd1.addCheckbox( "tiles are rougly in place", false );
-		gd1.addCheckbox( "consider largest graph only", false );
-		gd1.addCheckbox( "hide tiles from non-largest graph", false );
-		gd1.addCheckbox( "delete tiles from non-largest graph", false );
+		gd1.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
+		gd1.addCheckbox( "consider largest graph only", largestGraphOnly );
+		gd1.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
+		gd1.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
+		gd1.addCheckbox( "deform layers", deform );
 		
 		gd1.showDialog();
 		if ( gd1.wasCanceled() ) return;
@@ -469,7 +477,7 @@ final public class AlignTask
 		largestGraphOnly = gd1.getNextBoolean();
 		hideDisconnectedTiles = gd1.getNextBoolean();
 		deleteDisconnectedTiles = gd1.getNextBoolean();
-		
+		deform = gd1.getNextBoolean();
 		
 		/* intra-layer parameters */
 		
@@ -503,17 +511,18 @@ final public class AlignTask
 		for ( int i = first; i != last + d; i += d )
 			layerRange.add( layers.get( i ) );
 
-		alignMultiLayerMosaicTask( layerRange, cp, p, pcp, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+		alignMultiLayerMosaicTask( layerRange, cp, p, pcp, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles, deform );
 	}
 
 
-	public static final void alignMultiLayerMosaicTask( final List< Layer > layerRange, final Align.Param cp, final Align.ParamOptimize p, final Align.ParamOptimize pcp, final boolean tilesAreInPlace, final boolean largestGraphOnly, final boolean hideDisconnectedTiles, final boolean deleteDisconnectedTiles ) {
+	public static final void alignMultiLayerMosaicTask( final List< Layer > layerRange, final Align.Param cp, final Align.ParamOptimize p, final Align.ParamOptimize pcp, final boolean tilesAreInPlace, final boolean largestGraphOnly, final boolean hideDisconnectedTiles, final boolean deleteDisconnectedTiles, final boolean deform ) {
 
 		/* register */
 		
 		final List< AbstractAffineTile2D< ? > > allTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > allFixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > previousLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		final HashMap< AbstractAffineTile2D< ? >, PointMatch > tileCenterPoints = new HashMap< AbstractAffineTile2D<?>, PointMatch >();
 		
 		List< Patch > fixedPatches = new ArrayList< Patch >();
 		final Displayable active = Display.getFront().getActive();
@@ -522,13 +531,15 @@ final public class AlignTask
 		
 		for ( final Layer layer : layerRange )
 		{
+			if ( Thread.currentThread().isInterrupted() ) return;
+
 			/* align all tiles in the layer */
 			
-			List< Patch > patches = new ArrayList< Patch >();
-			for ( Displayable a : layer.getDisplayables( Patch.class ) )
+			final List< Patch > patches = new ArrayList< Patch >();
+			for ( final Displayable a : layer.getDisplayables( Patch.class ) )
 				if ( a instanceof Patch ) patches.add( ( Patch )a );
-			List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-			List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+			final List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+			final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 			Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
 			
 			/* add a fixed tile only if there was a Patch selected */
@@ -562,6 +573,8 @@ final public class AlignTask
 		final List< AbstractAffineTile2D< ? > > interestingTiles;
 		if ( largestGraphOnly )
 		{
+			if ( Thread.currentThread().isInterrupted() ) return;
+			
 			/* find largest graph. */
 			
 			Set< Tile< ? > > largestGraph = null;
@@ -581,9 +594,94 @@ final public class AlignTask
 				for ( AbstractAffineTile2D< ? > t : allTiles )
 					if ( !interestingTiles.contains( t ) )
 						t.getPatch().remove( false );
+			
+			if ( deform )
+			{
+				/* ############################################ */
+				/* experimental: use the center points of all tiles to define a MLS deformation from the pure intra-layer registration to the globally optimal */
+				
+				Utils.log( "deforming..." );
+				
+				/* store the center location of each single tile for later deformation */
+				for ( final AbstractAffineTile2D< ? > t : interestingTiles )
+				{
+					final float[] c = new float[]{ ( float )t.getWidth() / 2.0f,( float )t.getHeight() / 2.0f };
+					t.getModel().applyInPlace( c );
+					final Point q = new Point( c );
+					tileCenterPoints.put( t, new PointMatch( q.clone(), q ) );
+				}
+				
+				for ( final Layer layer : layerRange )
+				{
+					if ( Thread.currentThread().isInterrupted() ) return;
+	
+					/* again, align all tiles in the layer */
+					
+					List< Patch > patches = new ArrayList< Patch >();
+					for ( Displayable a : layer.getDisplayables( Patch.class ) )
+						if ( a instanceof Patch ) patches.add( ( Patch )a );
+					List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+					List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+					Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
+								
+					/* add a fixed tile only if there was a Patch selected */
+					allFixedTiles.addAll( fixedTiles );
+					
+					alignTiles( p, currentLayerTiles, fixedTiles );
+					
+					/* update the tile-center pointmatches */
+					final Collection< PointMatch > matches = new ArrayList< PointMatch >();
+					final Collection< AbstractAffineTile2D< ? > > toBeDeformedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+					for ( final AbstractAffineTile2D< ? > t : currentLayerTiles )
+					{
+						final PointMatch pm = tileCenterPoints.get( t );
+						if ( pm == null ) continue;
+						
+						final float[] pl = pm.getP1().getL();
+						pl[ 0 ] = ( float )t.getWidth() / 2.0f;
+						pl[ 1 ] = ( float )t.getHeight() / 2.0f;
+						t.getModel().applyInPlace( pl );
+						matches.add( pm );
+						toBeDeformedTiles.add( t );
+					}
+					
+					for ( final AbstractAffineTile2D< ? > t : toBeDeformedTiles )
+					{
+						if ( Thread.currentThread().isInterrupted() ) return;
+						
+						try
+						{
+							final Patch patch = t.getPatch();
+							final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
+							final AffineTransform pat = new AffineTransform();
+							pat.translate( -pbox.x, -pbox.y );
+							pat.preConcatenate( patch.getAffineTransform() );
+							
+							final mpicbg.trakem2.transform.AffineModel2D toWorld = new mpicbg.trakem2.transform.AffineModel2D();
+							toWorld.set( pat );
+							
+							final MovingLeastSquaresTransform mlst = Align.createMLST( matches, 1.0f );
+							
+							final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
+							ctl.add( toWorld );
+							ctl.add( mlst );
+							ctl.add( toWorld.createInverse() );
+							
+							patch.appendCoordinateTransform( ctl );
+							
+							patch.getProject().getLoader().regenerateMipMaps( patch );
+						}
+						catch ( Exception e )
+						{
+							e.printStackTrace();
+						}
+					}
+				}
+			}
 		}
 		
 		layerRange.get(0).getParent().setMinimumDimensions();
+		IJ.log( "Done: register multi-layer mosaic." );
 		
 		return;
 	}
