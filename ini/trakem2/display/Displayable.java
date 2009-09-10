@@ -551,6 +551,19 @@ public abstract class Displayable extends DBObject implements Paintable {
 		}
 		return r;
 	}
+	
+	/** Bounding box of a collection of transformed {@link Displayables} */
+	static public Rectangle getBoundingBox(final Collection<? extends Displayable> ds, final Rectangle r)
+	{
+		final Rectangle rect = r == null ? new Rectangle() : r;
+		final Rectangle rd = new Rectangle();
+		for (final Displayable d : ds)
+		{
+			d.getBounds(rd);
+			rect.add(rd);
+		}
+		return rect;
+	}
 
 	/** Subclasses can override this method to provide the exact contour, otherwise it returns the transformed bounding box of the data. */
 	public Polygon getPerimeter() {
