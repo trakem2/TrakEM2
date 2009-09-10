@@ -1071,7 +1071,7 @@ public class Align
 		
 		final Rectangle boxA = Displayable.getBoundingBox( pa, null );
 		final Rectangle boxB = Displayable.getBoundingBox( pb, null );
-		
+
 		final float scale = Math.min(
 				1.0f,
 				Math.min(
