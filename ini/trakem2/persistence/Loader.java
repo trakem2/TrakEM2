@@ -62,6 +62,7 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Polyline;
 import ini.trakem2.display.Profile;
+import ini.trakem2.display.Selection;
 import ini.trakem2.display.Stack;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
@@ -2691,6 +2692,10 @@ abstract public class Loader {
 
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, Color.black);
+	}
+	
+	public ImagePlus getFlatImage(final Selection selection, final double scale, final int c_alphas, final int type, boolean quality, final Color background) {
+		return getFlatImage(selection.getLayer(), selection.getBox(), scale, c_alphas, type, null, selection.getSelected(), quality, background);
 	}
 
 	/** Returns a screenshot of the given layer for the given magnification and srcRect. Returns null if the was not enough memory to create it.
