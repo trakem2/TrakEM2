@@ -138,6 +138,7 @@ final public class DistortionCorrectionTask
 //				IJ.log( "Setting transform \"" + transform + "\" for patch \"" + patch.getTitle() + "\"." );
 				patch.setCoordinateTransform( transform );
 				patch.updateMipmaps();
+				patch.getProject().getLoader().decache( patch.getImagePlus() );
 				
 				IJ.showProgress( i, patches.size() );
 			}
