@@ -3392,8 +3392,6 @@ abstract public class Loader {
 			}
 
 			one_patch_per_layer = imp_stack.getStack().isVirtual() || 0 == gd.getNextChoiceIndex();
-
-			Utils.logAll("one_patch_per_layer: " + one_patch_per_layer);
 		}
 
 		if (null == imp_stack.getStack()) {
