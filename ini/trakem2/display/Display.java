@@ -121,7 +121,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private int scroll_step = 1;
 
 	/** Keep track of all existing Display objects. */
-	static private ArrayList<Display> al_displays = new ArrayList<Display>();
+	static private Vector<Display> al_displays = new Vector<Display>();
 	/** The currently focused Display, if any. */
 	static private Display front = null;
 

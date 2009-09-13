@@ -115,13 +115,18 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Reconstruct a Patch from the database. The ImagePlus will be loaded when necessary. */
-	public Patch(Project project, long id, String title, double width, double height, int type, boolean locked, double min, double max, AffineTransform at) {
+	public Patch(Project project, long id, String title,
+		     double width, double height,
+		     int o_width, int o_height,
+		     int type, boolean locked, double min, double max, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.type = type;
 		this.min = min;
 		this.max = max;
-		if (0 == o_width) o_width = (int)width;
-		if (0 == o_height) o_height = (int)height;
+		this.width = width;
+		this.height = height;
+		this.o_width = o_width;
+		this.o_height = o_height;
 		checkMinMax();
 	}
 
@@ -786,7 +791,7 @@ public final class Patch extends Displayable implements ImageData {
 	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
+		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, o_width, o_height, type, false, min, max, (AffineTransform)at.clone());
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.alpha = this.alpha;
 		copy.visible = true;
@@ -1169,9 +1174,14 @@ public final class Patch extends Displayable implements ImageData {
 			return;
 		}
 
+		Utils.log2(o_width, o_height, width, height, bp.getWidth(), bp.getHeight());
+
+		// Check that the alpha mask represented by argument bp
+		// has the appropriate dimensions:
 		if (o_width != bp.getWidth() || o_height != bp.getHeight()) {
 			throw new IllegalArgumentException("Need a mask of identical dimensions as the original image.");
 		}
+
 		project.getLoader().storeAlphaMask(this, bp);
 		alpha_path_checked = false;
 	}
