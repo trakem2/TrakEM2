@@ -198,7 +198,7 @@ public class Stack extends ZDisplayable implements ImageData
 	@Override
 	public boolean isDeletable()
 	{
-		// TODO Auto-generated method stub
+		return 0 == width && 0 == height;
 		return false;
 	}
 	
