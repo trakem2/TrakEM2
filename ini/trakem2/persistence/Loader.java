@@ -3197,7 +3197,7 @@ abstract public class Loader {
 			// a stack!
 			Layer layer = Display.getFrontLayer(project);
 			if (null == layer) return null;
-			importStack(layer, imp, true, path); // TODO: the x,y location is not set
+			importStack(layer, x, y, imp, true, path, true);
 			return null;
 		}
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
@@ -3263,10 +3263,10 @@ abstract public class Loader {
 		return importStack(first_layer, imp_stack_, ask_for_data, null);
 	}
 	public Bureaucrat importStack(final Layer first_layer, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
-		return importStack(first_layer, -1, -1, imp_stack_, ask_for_data, filepath_, true);
+		return importStack(first_layer, 0, 0, imp_stack_, ask_for_data, filepath_, true);
 	}
 	/** Imports an image stack from a multitiff file and places each slice in the proper layer, creating new layers as it goes. If the given stack is null, popup a file dialog to choose one*/
-	public Bureaucrat importStack(final Layer first_layer, final int x, final int y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_, final boolean one_patch_per_layer_) {
+	public Bureaucrat importStack(final Layer first_layer, final double x, final double y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_, final boolean one_patch_per_layer_) {
 		Utils.log2("Loader.importStack filepath: " + filepath_);
 		if (null == first_layer) return null;
 
@@ -3493,9 +3493,9 @@ abstract public class Loader {
 	public String handlePathlessImage(ImagePlus imp) { return null; }
 
 	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath) {
-		return importStackAsPatches(project, first_layer, Integer.MAX_VALUE, Integer.MAX_VALUE, stack, as_copy, filepath);
+		return importStackAsPatches(project, first_layer, Double.MAX_VALUE, Double.MAX_VALUE, stack, as_copy, filepath);
 	}
-	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final int x, final int y, final ImagePlus stack, final boolean as_copy, String filepath);
+	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final double x, final double y, final ImagePlus stack, final boolean as_copy, String filepath);
 
 	protected String export(Project project, File fxml) {
 		return export(project, fxml, true);
