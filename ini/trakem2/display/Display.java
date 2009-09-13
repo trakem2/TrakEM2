@@ -3832,6 +3832,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			final HashSet<Class> accepted = new HashSet<Class>();
 			accepted.add(Patch.class);
 			accepted.add(DLabel.class);
+			accepted.add(Stack.class);
 			final ArrayList<Displayable> originals = new ArrayList<Displayable>();
 			final ArrayList<Displayable> selected = selection.getSelected();
 			for (final Displayable d : selected) {
@@ -3842,7 +3843,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (originals.size() > 0) {
 				getLayerSet().addChangeTreesStep();
 				for (final Displayable d : originals) {
-					d.getLayer().add(d.clone());
+					if (d instanceof ZDisplayable) {
+						d.getLayerSet().add((ZDisplayable)d.clone());
+					} else {
+						d.getLayer().add(d.clone());
+					}
 				}
 				getLayerSet().addChangeTreesStep();
 			} else if (selected.size() > 0) {
