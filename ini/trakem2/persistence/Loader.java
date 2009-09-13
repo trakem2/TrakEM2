@@ -3263,10 +3263,10 @@ abstract public class Loader {
 		return importStack(first_layer, imp_stack_, ask_for_data, null);
 	}
 	public Bureaucrat importStack(final Layer first_layer, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
-		return importStack(first_layer, -1, -1, imp_stack_, ask_for_data, filepath_);
+		return importStack(first_layer, -1, -1, imp_stack_, ask_for_data, filepath_, true);
 	}
 	/** Imports an image stack from a multitiff file and places each slice in the proper layer, creating new layers as it goes. If the given stack is null, popup a file dialog to choose one*/
-	public Bureaucrat importStack(final Layer first_layer, final int x, final int y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
+	public Bureaucrat importStack(final Layer first_layer, final int x, final int y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_, final boolean one_patch_per_layer_) {
 		Utils.log2("Loader.importStack filepath: " + filepath_);
 		if (null == first_layer) return null;
 
@@ -3277,6 +3277,7 @@ abstract public class Loader {
 
 
 		String filepath = filepath_;
+		boolean one_patch_per_layer = one_patch_per_layer_;
 		/* On drag and drop the stack is not null! */ //Utils.log2("imp_stack_ is " + imp_stack_);
 		ImagePlus[] stks = null;
 		boolean choose = false;
@@ -3346,9 +3347,15 @@ abstract public class Loader {
 			gd.addNumericField("slice_thickness: ", Math.abs(imp_stack.getCalibration().pixelDepth / imp_stack.getCalibration().pixelHeight), 3); // assuming pixelWidth == pixelHeight
 			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
 				gd.addCheckbox("Resize canvas to fit stack", true);
-				gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
+				//gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
 			}
 			gd.addCheckbox("Lock stack", false);
+			final String[] importStackTypes = {"One slice per layer (Patches)", "Image volume (Stack)"};
+			if (imp_stack.getStack().isVirtual()) {
+				one_patch_per_layer = true;
+			}
+			gd.addChoice("Import stack as:", importStackTypes, importStackTypes[one_patch_per_layer || imp_stack.getStack().isVirtual() ? 0 : 1]);
+			((Component)gd.getChoices().get(0)).setEnabled(!imp_stack.getStack().isVirtual());
 			gd.showDialog();
 			if (gd.wasCanceled()) {
 				if (null == stks) { // flush only if it was not open before
@@ -3359,7 +3366,7 @@ abstract public class Loader {
 			}
 			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
 				expand_layer_set = gd.getNextBoolean();
-//				anchor = gd.getNextChoiceIndex();
+				//anchor = gd.getNextChoiceIndex();
 			}
 			lock_stack = gd.getNextBoolean();
 			thickness = gd.getNextNumber();
@@ -3383,6 +3390,10 @@ abstract public class Loader {
 					}
 				}
 			}
+
+			one_patch_per_layer = imp_stack.getStack().isVirtual() || 0 == gd.getNextChoiceIndex();
+
+			Utils.logAll("one_patch_per_layer: " + one_patch_per_layer);
 		}
 
 		if (null == imp_stack.getStack()) {
@@ -3428,6 +3439,15 @@ abstract public class Loader {
 			}
 		} else {
 			filepath = filepath.replace('\\', '/');
+		}
+
+
+		// Import as Stack ZDisplayable object:
+		if (!one_patch_per_layer) {
+			Stack st = new Stack(first_layer.getProject(), new File(filepath).getName(), x, y, first_layer, filepath);
+			first_layer.getParent().add(st);
+			finishedWorking();
+			return;
 		}
 
 		// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
