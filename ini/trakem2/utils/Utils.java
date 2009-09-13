@@ -282,7 +282,7 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final String toString(final Object ob) {
 		if (null == ob) return "null";
 		// Clojure could do this so much easier with a macro
-		final StringBuffer sb = new StringBuffer();
+		final StringBuilder sb = new StringBuilder();
 		sb.append('[');
 		char closing = ']';
 		if (ob instanceof String[]) { // could be done with Object[] and recursive calls, but whatever
