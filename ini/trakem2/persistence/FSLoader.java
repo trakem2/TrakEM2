@@ -1365,6 +1365,10 @@ public final class FSLoader extends Loader {
 						Project pj = Project.findProject(lo);
 						// Submit a task for each Patch:
 						for (final Displayable patch : pj.getRootLayerSet().getDisplayables(Patch.class)) {
+							synchronized (gm_lock) {
+								// May have been queued for regeneration when trying to display it, hence it will be labeled as touched.
+								if (touched_mipmaps.contains((Patch)patch)) continue;
+							}
 							((FSLoader)lo).regenerateMipMaps((Patch)patch);
 						}
 					} catch (Exception e) {}
