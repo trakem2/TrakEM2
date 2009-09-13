@@ -1612,7 +1612,6 @@ public final class FSLoader extends Loader {
 		}
 		synchronized (gm_lock) {
 			try {
-				gm_lock();
 				if (null == dir_mipmaps) createMipMapsDir(null);
 				if (null == dir_mipmaps || isURL(dir_mipmaps)) return false;
 				if (check_if_already_being_done && hs_regenerating_mipmaps.contains(patch)) {
@@ -1623,8 +1622,6 @@ public final class FSLoader extends Loader {
 				hs_regenerating_mipmaps.add(patch);
 			} catch (Exception e) {
 				IJError.print(e);
-			} finally {
-				gm_unlock();
 			}
 		}
 
@@ -1988,9 +1985,7 @@ public final class FSLoader extends Loader {
 		} finally {
 			// gets executed even when returning from the catch statement or within the try/catch block
 			synchronized (gm_lock) {
-				gm_lock();
 				hs_regenerating_mipmaps.remove(patch);
-				gm_unlock();
 			}
 		}
 	}
@@ -2426,20 +2421,6 @@ public final class FSLoader extends Loader {
 
 	/** A lock for the generation of mipmaps. */
 	final private Object gm_lock = new Object();
-	private boolean gm_locked = false;
-
-	protected final void gm_lock() {
-		//Utils.printCaller(this, 7);
-		while (gm_locked) { try { gm_lock.wait(); } catch (InterruptedException ie) {} }
-		gm_locked = true;
-	}
-	protected final void gm_unlock() {
-		//Utils.printCaller(this, 7);
-		if (gm_locked) {
-			gm_locked = false;
-			gm_lock.notifyAll();
-		}
-	}
 
 	/** Checks if the mipmap file for the Patch and closest upper level to the desired magnification exists. */
 	public boolean checkMipMapFileExists(final Patch p, final double magnification) {
@@ -2550,7 +2531,6 @@ public final class FSLoader extends Loader {
 	public final Future regenerateMipMaps(final Patch patch) {
 		synchronized (gm_lock) {
 			try {
-				gm_lock();
 				if (hs_regenerating_mipmaps.contains(patch)) {
 					return null;
 				}
@@ -2559,8 +2539,6 @@ public final class FSLoader extends Loader {
 			} catch (Exception e) {
 				IJError.print(e);
 				return null;
-			} finally {
-				gm_unlock();
 			}
 
 			try {
@@ -2569,7 +2547,7 @@ public final class FSLoader extends Loader {
 				return regenerator.submit(new Runnable() {
 					public void run() {
 						try {
-							Utils.showStatus("Regenerating mipmaps (" + n_regenerating.get() + " to go)");
+							Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
 							generateMipMaps(patch, false);
 							Display.repaint(patch.getLayer());
 							Display.updatePanel(patch.getLayer(), patch);
