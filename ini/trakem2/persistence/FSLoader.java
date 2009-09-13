@@ -1356,6 +1356,7 @@ public final class FSLoader extends Loader {
 		if (yn.yesPressed()) {
 			final Loader lo = this;
 			new Thread() {
+				{ setPriority(Thread.NORM_PRIORITY); }
 				public void run() {
 					try {
 						// wait while parsing the rest of the XML file
