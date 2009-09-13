@@ -1211,7 +1211,7 @@ public class DBLoader extends Loader {
 			ResultSet rp = connection.prepareStatement("SELECT ab_patches.id, ab_displayables.id, layer_id, title, width, height, stack_index, imp_type, locked, min, max, m00, m10, m01, m11, m02, m12 FROM ab_patches,ab_displayables WHERE ab_patches.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
 			while (rp.next()) {
 				long patch_id = rp.getLong("id");
-				Patch patch = new Patch(project, patch_id, rp.getString("title"), rp.getDouble("width"), rp.getDouble("height"), rp.getInt("imp_type"), rp.getBoolean("locked"), rp.getDouble("min"), rp.getDouble("max"), new AffineTransform(rp.getDouble("m00"), rp.getDouble("m10"), rp.getDouble("m01"), rp.getDouble("m11"), rp.getDouble("m02"), rp.getDouble("m12")));
+				Patch patch = new Patch(project, patch_id, rp.getString("title"), rp.getDouble("width"), rp.getDouble("height"), rp.getInt("o_width"), rp.getInt("o_height"),rp.getInt("imp_type"), rp.getBoolean("locked"), rp.getDouble("min"), rp.getDouble("max"), new AffineTransform(rp.getDouble("m00"), rp.getDouble("m10"), rp.getDouble("m01"), rp.getDouble("m11"), rp.getDouble("m02"), rp.getDouble("m12")));
 				hs_pt.put(new Long(patch_id), patch); // collecting all Displayable objects to reconstruct links
 				hs_d.put(new Integer(rp.getInt("stack_index")), patch);
 			}
