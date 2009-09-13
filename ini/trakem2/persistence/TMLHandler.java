@@ -394,7 +394,12 @@ public class TMLHandler extends DefaultHandler {
 				ht_attr.put(key, new ProjectAttribute(this.project, -1, key, data));
 				//Utils.log2("putting key=[" + key + "]=" + data);
 			}
-			ProjectThing pt = new ProjectThing(this.project.getTemplateThing(type), this.project, id, type, null, ht_attr);
+			TemplateThing tt = this.project.getTemplateThing(type);
+			if (null == tt) {
+				Utils.log("No template for type " + type);
+				return null;
+			}
+			ProjectThing pt = new ProjectThing(tt, this.project, id, type, null, ht_attr);
 			pt.addToDatabase();
 			ht_pt_expanded.put(pt, expanded);
 			// store the oid vs. pt relationship to fill in the object later.
