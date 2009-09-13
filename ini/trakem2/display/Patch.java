@@ -552,7 +552,7 @@ public final class Patch extends Displayable implements ImageData {
 			// gather all
 			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
 			getStackPatchesNR(ht);
-			Utils.log("Stack patches: " + ht.size());
+			Utils.log2("Removing stack patches: " + ht.size());
 			ArrayList al = new ArrayList();
 			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
 				Patch p = (Patch)it.next();
