@@ -148,6 +148,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		/** Set the source Display as front. */
 		public void windowActivated(WindowEvent we) {
 			// find which was it to make it be the front
+			ImageJ ij = IJ.getInstance();
+			if (null != ij && ij.quitting()) return;
 			final Object source = we.getSource();
 			for (final Display d : al_displays) {
 				if (source == d.frame) {
@@ -161,7 +163,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					// copied from ij.gui.ImageWindow, with modifications
 					if (IJ.isMacintosh() && IJ.getInstance()!=null) {
 						IJ.wait(10); // may be needed for Java 1.4 on OS X
-						d.frame.setMenuBar(ij.Menus.getMenuBar());
+						d.frame.setMenuBar(Menus.getMenuBar());
 					}
 					return;
 				}
