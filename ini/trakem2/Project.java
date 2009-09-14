@@ -661,30 +661,37 @@ public class Project extends DBObject {
 	}
 
 	/** Returns true if the type is 'patch', 'layer', 'layer_set', 'profile', 'profile_list' 'pipe'. */
-	static public boolean isBasicType(String type) {
-		if (isProjectType(type)) return true;
-		if (isLayerType(type)) return true;
-		return false;
+	static public boolean isBasicType(final String type) {
+		return isProjectType(type)
+		    || isLayerSetType(type)
+		    || isLayerType(type)
+		;
 	}
 
 	static public boolean isProjectType(String type) {
 		type = type.toLowerCase();
-		if (type.equals("profile_list")) return true;
-		return false;
+		return type.equals("profile_list");
+	}
+
+	static public boolean isLayerSetType(String type) {
+		type = type.toLowerCase().replace(' ', '_');
+		return type.equals("area_list")
+		    || type.equals("pipe")
+		    || type.equals("ball")
+		    || type.equals("polyline")
+		    || type.equals("dissector")
+		    || type.equals("stack")
+		;
 	}
 
 	static public boolean isLayerType(String type) {
 		type = type.toLowerCase().replace(' ', '_');
-		if (type.equals("patch")) return true;
-		if (type.equals("area_list")) return true;
-		if (type.equals("label")) return true;
-		if (type.equals("profile")) return true;
-		if (type.equals("pipe")) return true;
-		if (type.equals("polyline")) return true;
-		if (type.equals("ball")) return true;
-		if (type.equals("layer")) return true;
-		if (type.equals("layer set")) return true; // for XML ...
-		return false;
+		return type.equals("patch")
+		    || type.equals("profile")
+		    || type.equals("layer")
+		    || type.equals("layer_set") // for XML
+		    || type.equals("label")
+		;
 	}
 
 	/** Remove the ProjectThing that contains the given object, which will remove the object itself as well. */
