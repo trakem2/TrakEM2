@@ -154,6 +154,8 @@ abstract public class Loader {
 
 	protected Opener opener = new Opener();
 
+	protected final int MAX_RETRIES = 3;
+
 	/** The cache is shared, and can be flagged to do massive flushing. */
 	private boolean massive_mode = false;
 
@@ -556,22 +558,32 @@ abstract public class Loader {
 	}
 
 	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
-	public final boolean releaseToFit(final long bytes) {
-		if (bytes > max_memory) {
-			Utils.log("WARNING: Can't fit " + bytes + " bytes in memory.");
+	public final boolean releaseToFit(final long n_bytes) {
+		if (n_bytes > max_memory) {
+			Utils.log("WARNING: Can't fit " + n_bytes + " bytes in memory.");
 			// Try anyway
 			releaseAll();
 			return false;
 		}
-		if (enoughFreeMemory(bytes)) return true;
+		if (enoughFreeMemory(n_bytes)) return true;
 		final boolean previous = massive_mode;
-		if (bytes > max_memory / 4) setMassiveMode(true);
+		if (n_bytes > max_memory / 4) setMassiveMode(true);
 		boolean result = true;
 		synchronized (db_lock) {
 			lock();
-			result = releaseToFit2(bytes);
+			result = releaseToFit2(n_bytes);
 			unlock();
 		}
+		setMassiveMode(previous);
+		return result;
+	}
+
+	// Like releaseToFit but non-locking; calls releaseToFit2
+	protected final boolean releaseToFit3(long n_bytes) {
+		if (enoughFreeMemory(n_bytes)) return true;
+		final boolean previous = massive_mode;
+		if (n_bytes > max_memory / 4) setMassiveMode(true);
+		boolean result = releaseToFit2(n_bytes);
 		setMassiveMode(previous);
 		return result;
 	}
@@ -1068,8 +1080,13 @@ abstract public class Loader {
 					max_memory -= n_bytes;
 					unlock();
 				}
-				releaseToFit(n_bytes * 6); // six times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
-				mawt = fetchMipMapAWT(p, level);
+
+				try {
+					mawt = fetchMipMapAWT(p, level, n_bytes);
+				} catch (Throwable t) {
+					IJError.print(t);
+					mawt = null;
+				}
 
 				synchronized (db_lock) {
 					try {
@@ -1089,8 +1106,7 @@ abstract public class Loader {
 							boolean newly_cached = false;
 							if (null == mawt) {
 								// reload existing scaled file
-								releaseToFit(n_bytes); // overshooting
-								mawt = fetchMipMapAWT2(p, lev);
+								mawt = fetchMipMapAWT2(p, lev, n_bytes);
 								if (null != mawt) {
 									mawts.put(id, mawt, lev);
 									newly_cached = true; // means: cached was false, now it is
@@ -1231,11 +1247,11 @@ abstract public class Loader {
 	public boolean removeAlphaMask(final Patch p) { return false; }
 
 	/** Must be called within synchronized db_lock. */
-	private final Image fetchMipMapAWT2(final Patch p, final int level) {
+	private final Image fetchMipMapAWT2(final Patch p, final int level, final long n_bytes) {
 		final long size = estimateImageFileSize(p, level);
 		max_memory -= size;
 		unlock();
-		Image mawt = fetchMipMapAWT(p, level);
+		Image mawt = fetchMipMapAWT(p, level, n_bytes);
 		lock();
 		max_memory += size;
 		return mawt;
@@ -1364,7 +1380,7 @@ abstract public class Loader {
 		int max_iterations = 15;
 		while (enoughFreeMemory(size)) {
 			if (0 == max_iterations) {
-				// leave it to the Opener class to throw an OutOfMemoryExceptionm if so.
+				// leave it to the Opener class to throw an OutOfMemoryError if so.
 				break;
 			}
 			max_iterations--;
@@ -1373,7 +1389,7 @@ abstract public class Loader {
 		ImagePlus imp_stack = null;
 		try {
 			IJ.redirectErrorMessages();
-			imp_stack = opener.openImage(f.getCanonicalPath());
+			imp_stack = openImagePlus(f.getCanonicalPath());
 		} catch (Exception e) {
 			IJError.print(e);
 			return null;
@@ -1404,7 +1420,7 @@ abstract public class Loader {
 				String sdir = images_dir.getAbsolutePath().replace('\\', '/');
 				if (!sdir.endsWith("/")) sdir += "/";
 				IJ.redirectErrorMessages();
-				ImagePlus imp = opener.openImage(sdir + all_images[0]);
+				ImagePlus imp = openImagePlus(sdir + all_images[0]);
 				if (null != imp) {
 					int w = imp.getWidth();
 					int h = imp.getHeight();
@@ -1771,7 +1787,7 @@ abstract public class Loader {
 		if (!dir.endsWith("/")) dir += "/";
 		String path = dir + first_image_name;
 		IJ.redirectErrorMessages();
-		ImagePlus first_img = opener.openImage(path);
+		ImagePlus first_img = openImagePlus(path);
 		if (null == first_img) {
 			Utils.log("Selected image to open first is null.");
 			return;
@@ -1821,7 +1837,7 @@ abstract public class Loader {
 					releaseToFit(first_image_width, first_image_height, first_image_type, 1.5f);
 					try {
 						IJ.redirectErrorMessages();
-						img = opener.openImage(path);
+						img = openImagePlus(path);
 					} catch (OutOfMemoryError oome) {
 						printMemState();
 						throw oome;
@@ -2329,7 +2345,7 @@ abstract public class Loader {
 						}
 						/* */
 						IJ.redirectErrorMessages();
-						ImagePlus imp = opener.openImage(path);
+						ImagePlus imp = openImagePlus(path);
 						if (null == imp) {
 							Utils.log("Ignoring unopenable image from " + path);
 							continue;
@@ -2460,7 +2476,7 @@ abstract public class Loader {
 						add_background = gd.getNextBoolean();
 					}
 					releaseMemory();
-					final ImagePlus imp = opener.openImage(path);
+					final ImagePlus imp = openImagePlus(path);
 					if (null == imp) {
 						Utils.log("Could not open image at " + path);
 						return;
@@ -3180,13 +3196,13 @@ abstract public class Loader {
 		}
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		IJ.redirectErrorMessages();
-		final ImagePlus imp = opener.openImage(path);
+		final ImagePlus imp = openImagePlus(path);
 		if (null == imp) return null;
 		if (imp.getNSlices() > 1) {
 			// a stack!
 			Layer layer = Display.getFrontLayer(project);
 			if (null == layer) return null;
-			importStack(layer, imp, true, path); // TODO: the x,y location is not set
+			importStack(layer, x, y, imp, true, path, true);
 			return null;
 		}
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
@@ -3208,7 +3224,7 @@ abstract public class Loader {
 			return importImage(project, x, y);
 		}
 		int i_slash = last_opened_path.lastIndexOf("/");
-		String dir_name = last_opened_path.substring(0, i_slash);
+		String dir_name = last_opened_path.substring(0, i_slash + 1);
 		File dir = new File(dir_name);
 		String last_file = last_opened_path.substring(i_slash + 1);
 		String[] file_names = dir.list();
@@ -3233,7 +3249,7 @@ abstract public class Loader {
 		}
 		releaseMemory(); // some: TODO this should read the header only, and figure out the dimensions to do a releaseToFit(n_bytes) call
 		IJ.redirectErrorMessages();
-		ImagePlus imp = opener.openImage(dir_name, next_file);
+		ImagePlus imp = openImagePlus(dir_name + next_file);
 		if (null == imp) return null;
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
 			Utils.showMessage("Can't import image of zero width or height.");
@@ -3252,10 +3268,10 @@ abstract public class Loader {
 		return importStack(first_layer, imp_stack_, ask_for_data, null);
 	}
 	public Bureaucrat importStack(final Layer first_layer, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
-		return importStack(first_layer, -1, -1, imp_stack_, ask_for_data, filepath_);
+		return importStack(first_layer, 0, 0, imp_stack_, ask_for_data, filepath_, true);
 	}
 	/** Imports an image stack from a multitiff file and places each slice in the proper layer, creating new layers as it goes. If the given stack is null, popup a file dialog to choose one*/
-	public Bureaucrat importStack(final Layer first_layer, final int x, final int y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
+	public Bureaucrat importStack(final Layer first_layer, final double x, final double y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_, final boolean one_patch_per_layer_) {
 		Utils.log2("Loader.importStack filepath: " + filepath_);
 		if (null == first_layer) return null;
 
@@ -3266,12 +3282,13 @@ abstract public class Loader {
 
 
 		String filepath = filepath_;
+		boolean one_patch_per_layer = one_patch_per_layer_;
 		/* On drag and drop the stack is not null! */ //Utils.log2("imp_stack_ is " + imp_stack_);
 		ImagePlus[] stks = null;
 		boolean choose = false;
 		if (null == imp_stack_) {
 			stks = Utils.findOpenStacks();
-			choose = stks.length > 0;
+			choose = null == stks || stks.length > 0;
 		} else {
 			stks = new ImagePlus[]{imp_stack_};
 		}
@@ -3335,9 +3352,15 @@ abstract public class Loader {
 			gd.addNumericField("slice_thickness: ", Math.abs(imp_stack.getCalibration().pixelDepth / imp_stack.getCalibration().pixelHeight), 3); // assuming pixelWidth == pixelHeight
 			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
 				gd.addCheckbox("Resize canvas to fit stack", true);
-				gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
+				//gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
 			}
 			gd.addCheckbox("Lock stack", false);
+			final String[] importStackTypes = {"One slice per layer (Patches)", "Image volume (Stack)"};
+			if (imp_stack.getStack().isVirtual()) {
+				one_patch_per_layer = true;
+			}
+			gd.addChoice("Import stack as:", importStackTypes, importStackTypes[one_patch_per_layer || imp_stack.getStack().isVirtual() ? 0 : 1]);
+			((Component)gd.getChoices().get(0)).setEnabled(!imp_stack.getStack().isVirtual());
 			gd.showDialog();
 			if (gd.wasCanceled()) {
 				if (null == stks) { // flush only if it was not open before
@@ -3348,25 +3371,32 @@ abstract public class Loader {
 			}
 			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
 				expand_layer_set = gd.getNextBoolean();
-//				anchor = gd.getNextChoiceIndex();
+				//anchor = gd.getNextChoiceIndex();
 			}
 			lock_stack = gd.getNextBoolean();
 			thickness = gd.getNextNumber();
 			// check provided thickness with that of the first layer:
 			if (thickness != current_thickness) {
-				boolean adjust_thickness = false;
-				if (!(1 == first_layer.getParent().size() && first_layer.isEmpty())) {
+				if (1 == first_layer.getParent().size() && first_layer.isEmpty()) {
 					YesNoCancelDialog yn = new YesNoCancelDialog(IJ.getInstance(), "Mismatch!", "The current layer's thickness is " + current_thickness + "\nwhich is " + (thickness < current_thickness ? "larger":"smaller") + " than\nthe desired " + thickness + " for each stack slice.\nAdjust current layer's thickness to " + thickness + " ?");
 					if (yn.cancelPressed()) {
 						if (null != imp_stack_) flush(imp_stack); // was opened new
 						finishedWorking();
 						return;
 					} else if (yn.yesPressed()) {
-						adjust_thickness = true;
+						first_layer.setThickness(thickness);
+						// The rest of layers, created new, will inherit the same thickness
+					}
+				} else {
+					YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "WARNING", "There's more than one layer or the current layer is not empty\nso the thickness cannot be adjusted. Proceed anyway?");
+					if (!yn.yesPressed()) {
+						finishedWorking();
+						return;
 					}
 				}
-				if (adjust_thickness) first_layer.setThickness(thickness);
 			}
+
+			one_patch_per_layer = imp_stack.getStack().isVirtual() || 0 == gd.getNextChoiceIndex();
 		}
 
 		if (null == imp_stack.getStack()) {
@@ -3414,6 +3444,15 @@ abstract public class Loader {
 			filepath = filepath.replace('\\', '/');
 		}
 
+
+		// Import as Stack ZDisplayable object:
+		if (!one_patch_per_layer) {
+			Stack st = new Stack(first_layer.getProject(), new File(filepath).getName(), x, y, first_layer, filepath);
+			first_layer.getParent().add(st);
+			finishedWorking();
+			return;
+		}
+
 		// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
 		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, x, y, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
 		if (null != last_patch) {
@@ -3457,9 +3496,9 @@ abstract public class Loader {
 	public String handlePathlessImage(ImagePlus imp) { return null; }
 
 	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath) {
-		return importStackAsPatches(project, first_layer, Integer.MAX_VALUE, Integer.MAX_VALUE, stack, as_copy, filepath);
+		return importStackAsPatches(project, first_layer, Double.MAX_VALUE, Double.MAX_VALUE, stack, as_copy, filepath);
 	}
-	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final int x, final int y, final ImagePlus stack, final boolean as_copy, String filepath);
+	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final double x, final double y, final ImagePlus stack, final boolean as_copy, String filepath);
 
 	protected String export(Project project, File fxml) {
 		return export(project, fxml, true);
@@ -3808,12 +3847,32 @@ abstract public class Loader {
 			//Utils.printCaller(this, 25);
 			IJ.redirectErrorMessages();
 
-			return opener.openImage(path);
+			return openImagePlus(path, 0);
 		} catch (Exception e) {
 			Utils.log("Could not open image at " + path);
 			e.printStackTrace();
 			return null;
 		}
+	}
+
+	/** Tries up to MAX_RETRIES to open an ImagePlus at path if there is an OutOfMemoryError. */
+	protected final ImagePlus openImagePlus(final String path) {
+		return openImagePlus(path, 0);
+	}
+
+	private final ImagePlus openImagePlus(final String path, final int retries) {
+		while (retries < MAX_RETRIES) try {
+				return opener.openImage(path);
+			} catch (OutOfMemoryError oome) {
+				Utils.log2("fetchMipMapAWT: recovering from OutOfMemoryError");
+				recoverOOME(); // TODO may have to unlock?
+				Thread.yield();
+				// Retry:
+				return openImagePlus(path, retries + 1);
+			} catch (Throwable t) {
+				IJError.print(t);
+			}
+		return null;
 	}
 
 	/** Equivalent to File.getName(), does not subtract the slice info from it.*/
@@ -3901,7 +3960,7 @@ abstract public class Loader {
 	public int getClosestMipMapLevel(final Patch patch, int level) {return 0;}
 
 	/** Does nothing and returns null unless overriden. */
-	protected Image fetchMipMapAWT(final Patch patch, final int level) { return null; }
+	protected Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) { return null; }
 
 	/** Does nothing and returns false unless overriden. */
 	public boolean checkMipMapFileExists(Patch p, double magnification) { return false; }
@@ -4823,9 +4882,9 @@ abstract public class Loader {
 		return null;
 	}
 
-	/** Recover from an OutOfMemoryError: release 1/3 of all memory AND execute the garbage collector. */
+	/** Recover from an OutOfMemoryError: release 1/2 of all memory AND execute the garbage collector. */
 	public void recoverOOME() {
-		releaseToFit(IJ.maxMemory() / 3);
+		releaseToFit(IJ.maxMemory() / 2);
 		long start = System.currentTimeMillis();
 		long end = start;
 		for (int i=0; i<3; i++) {

@@ -47,7 +47,7 @@ import ini.trakem2.vector.Compare;
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject implements Paintable {
 	
-	final static private String[] compositeModes = new String[]{
+	final static protected String[] compositeModes = new String[]{
 		"Normal",
 		"Add",
 		"Subtract",
@@ -64,10 +64,11 @@ public abstract class Displayable extends DBObject implements Paintable {
 	
 	private byte compositeMode = COMPOSITE_NORMAL;
 	public byte getCompositeMode(){ return compositeMode; }
-	public Composite getComposite()
+	public Composite getComposite() { return getComposite( compositeMode ); }
+	protected Composite getComposite( int mode )
 	{
 		final Composite composite;
-		switch ( getCompositeMode() )
+		switch ( mode )
 		{
 		case Displayable.COMPOSITE_ADD:
 			composite = AddARGBComposite.getInstance( alpha );
