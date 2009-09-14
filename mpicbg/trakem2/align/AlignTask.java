@@ -548,6 +548,8 @@ final public class AlignTask
 			alignTiles( p, currentLayerTiles, fixedTiles );
 			
 			/* connect to the previous layer */
+			/* first, align connected graphs agains each other */
+			List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( currentLayerTiles );
 			
 			final List< AbstractAffineTile2D< ? >[] > crossLayerTilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
 			AbstractAffineTile2D.pairTiles( previousLayerTiles, currentLayerTiles, crossLayerTilePairs );
