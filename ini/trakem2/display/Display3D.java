@@ -364,9 +364,11 @@ public final class Display3D {
 							d3ds.addAll(ht_layer_sets.values());
 						}
 						for (Display3D d3d : d3ds) {
-							if (d3d.universe.getContents().contains(c)) {
-								d3d.universe.resetView(); // reset the absolute center
-								d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
+							synchronized (d3d) {
+								if (d3d.universe.getContents().contains(c)) {
+									d3d.universe.resetView(); // reset the absolute center
+									d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
+								}
 							}
 						}
 					} catch (Exception e) {
