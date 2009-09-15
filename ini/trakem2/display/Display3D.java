@@ -292,7 +292,7 @@ public final class Display3D {
 	}
 
 	/** Get an existing Display3D for the given LayerSet, or create a new one for it (and cache it). */
-	static private Display3D get(final LayerSet ls) {
+	static public Display3D get(final LayerSet ls) {
 		synchronized (htlock) {
 			htlock.lock();
 			try {
@@ -801,75 +801,75 @@ public final class Display3D {
 		}};
 	}
 
+	static public class VectorStringContent {
+		VectorString3D vs;
+		String title;
+		Color color;
+		double[] widths;
+		float alpha;
+		public VectorStringContent(VectorString3D vs, String title, Color color, double[] widths, float alpha){
+			this.vs = vs;
+			this.title = title;
+			this.color = color;
+			this.widths = widths;
+			this.alpha = alpha;
+		}
+		public Content asContent(Display3D d3d) {
+			double[] wi = widths;
+			if (null == widths) {
+				wi = new double[vs.getPoints(0).length];
+				Arrays.fill(wi, 2.0);
+			} else if (widths.length != vs.length()) {
+				Utils.log("ERROR: widths.length != VectorString3D.length()");
+				return null;
+			}
+			float transp = 1 - alpha;
+			if (transp < 0) transp = 0;
+			if (transp > 1) transp = 1;
+			if (1 == transp) {
+				Utils.log("WARNING: adding a 3D object fully transparent.");
+			}
+			List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), d3d.scale);
+			Content ct = d3d.universe.createContent(new CustomTriangleMesh(triangles, new Color3f(color), 0), title);
+			ct.setTransparency(transp);
+			ct.setLocked(true);
+			return ct;
+		}
+	}
+
 	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
-	static public Future<Content> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color) {
+	static public Future<Collection<Future<Content>>> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color) {
 		return addMesh(ref_ls, vs, title, color, null, 1.0f);
 	}
 
 	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
-	static public Future<Content> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color, final double[] widths, final float alpha) {
-		final FutureTask<Content> fu = new FutureTask<Content>(new Callable<Content>() {
-			public Content call() {
+	static public Future<Collection<Future<Content>>> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color, final double[] widths, final float alpha) {
+		List<Content> col = new ArrayList<Content>();
+		Display3D d3d = Display3D.get(ref_ls);
+		col.add(new VectorStringContent(vs, title, color, widths, alpha).asContent(d3d));
+		return d3d.addContent(col);
+	}
+
+	static public Future<Collection<Future<Content>>> show(final LayerSet ref_ls, final Collection<Content> col) {
+		Display3D d3d = get(ref_ls);
+		return d3d.addContent(col);
+	}
+
+	public Future<Collection<Future<Content>>> addContent(final Collection<Content> col) {
+
+		final FutureTask<Collection<Future<Content>>> fu = new FutureTask<Collection<Future<Content>>>(new Callable<Collection<Future<Content>>>() {
+			public Collection<Future<Content>> call() {
 				Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
 				try {
-		/////
-		final Display3D d3d = Display3D.get(ref_ls);
-		final double scale = d3d.scale;
-		final double width = d3d.width;
-		float transp = 1 - alpha;
-		if (transp < 0) transp = 0;
-		if (transp > 1) transp = 1;
-		if (1 == transp) {
-			Utils.log("WARNING: adding a 3D object fully transparent.");
-		}
-
-		double[] wi = widths;
-		if (null == widths) {
-			wi = new double[vs.getPoints(0).length];
-			//Utils.log2("len: " + wi.length + vs.getPoints(0).length + vs.getPoints(1).length);
-			Arrays.fill(wi, 2.0);
-		} else if (widths.length != vs.length()) {
-			Utils.log("ERROR: widths.length != VectorString3D.length()");
-			return null;
-		}
-
-		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), scale);
-
-		Content ct = null;
-
-		// add to 3D view (synchronized)
-		synchronized (d3d.u_lock) {
-			d3d.u_lock.lock();
-			try {
-				// ensure proper default transform
-				//d3d.universe.resetView();
-				//
-				//Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
-				//d3d.universe.ensureScale((float)(width*scale));
-				ct = d3d.universe.addMesh(triangles, new Color3f(color), title, /*(float)(width*scale),*/ 1);
-				ct.setTransparency(transp);
-				ct.setLocked(true);
-			} catch (Exception e) {
-				IJError.print(e);
-			} finally {
-				d3d.u_lock.unlock();
-			}
-		}
-
-		return ct;
-
-		/////
+					return universe.addContentLater(col);
 				} catch (Exception e) {
 					IJError.print(e);
 					return null;
 				}
-
 		}});
 
-
 		launchers.submit(new Runnable() { public void run() {
-			final Display3D d3d = Display3D.get(ref_ls);
-			d3d.executors.submit(fu);
+			executors.submit(fu);
 		}});
 
 		return fu;
