@@ -644,7 +644,7 @@ public final class FSLoader extends Loader {
 		final String path = getAlphaPath(p);
 		if (null == path) return null;
 		// Open the mask image, which should be a compressed float tif.
-		final ImagePlus imp = opener.openImage(path);
+		final ImagePlus imp = openImagePlus(path);
 		if (null == imp) {
 			//Utils.log2("No mask found or could not open mask image for patch " + p + " from " + path);
 			return null;
@@ -1175,7 +1175,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Returns the last Patch. */
-	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final int x, final int y, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
+	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final double x, final double y, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
 		Utils.log2("FSLoader.importStackAsPatches filepath=" + filepath);
 		String target_dir = null;
 		if (as_copy) {
@@ -1189,8 +1189,9 @@ public final class FSLoader extends Loader {
 
 		final boolean virtual = imp_stack.getStack().isVirtual();
 
-		int pos_x = Integer.MAX_VALUE != x ? x : (int)first_layer.getLayerWidth()/2 - imp_stack.getWidth()/2;
-		int pos_y = Integer.MAX_VALUE != y ? y : (int)first_layer.getLayerHeight()/2 - imp_stack.getHeight()/2;
+		// Double.MAX_VALUE is a flag to indicate "add centered"
+		double pos_x = Double.MAX_VALUE != x ? x : first_layer.getLayerWidth()/2 - imp_stack.getWidth()/2;
+		double pos_y = Double.MAX_VALUE != y ? y : first_layer.getLayerHeight()/2 - imp_stack.getHeight()/2;
 		final double thickness = first_layer.getThickness();
 		final String title = Utils.removeExtension(imp_stack.getTitle()).replace(' ', '_');
 		Utils.showProgress(0);
@@ -1237,7 +1238,7 @@ public final class FSLoader extends Loader {
 				//Utils.log2("path is "+ patch_path);
 				final AffineTransform atp = new AffineTransform();
 				atp.translate(pos_x, pos_y);
-				patch = new Patch(project, getNextId(), label + " " + title + " " + i, imp_stack.getWidth(), imp_stack.getHeight(), imp_stack.getType(), false, imp_stack.getProcessor().getMin(), imp_stack.getProcessor().getMax(), atp);
+				patch = new Patch(project, getNextId(), label + " " + title + " " + i, imp_stack.getWidth(), imp_stack.getHeight(), imp_stack.getWidth(), imp_stack.getHeight(), imp_stack.getType(), false, imp_stack.getProcessor().getMin(), imp_stack.getProcessor().getMax(), atp);
 				patch.addToDatabase();
 				//Utils.log2("type is " + imp_stack.getType());
 			}
@@ -1357,6 +1358,7 @@ public final class FSLoader extends Loader {
 		if (yn.yesPressed()) {
 			final Loader lo = this;
 			new Thread() {
+				{ setPriority(Thread.NORM_PRIORITY); }
 				public void run() {
 					try {
 						// wait while parsing the rest of the XML file
@@ -1366,6 +1368,10 @@ public final class FSLoader extends Loader {
 						Project pj = Project.findProject(lo);
 						// Submit a task for each Patch:
 						for (final Displayable patch : pj.getRootLayerSet().getDisplayables(Patch.class)) {
+							synchronized (gm_lock) {
+								// May have been queued for regeneration when trying to display it, hence it will be labeled as touched.
+								if (touched_mipmaps.contains((Patch)patch)) continue;
+							}
 							((FSLoader)lo).regenerateMipMaps((Patch)patch);
 						}
 					} catch (Exception e) {}
@@ -1608,7 +1614,6 @@ public final class FSLoader extends Loader {
 		}
 		synchronized (gm_lock) {
 			try {
-				gm_lock();
 				if (null == dir_mipmaps) createMipMapsDir(null);
 				if (null == dir_mipmaps || isURL(dir_mipmaps)) return false;
 				if (check_if_already_being_done && hs_regenerating_mipmaps.contains(patch)) {
@@ -1619,8 +1624,6 @@ public final class FSLoader extends Loader {
 				hs_regenerating_mipmaps.add(patch);
 			} catch (Exception e) {
 				IJError.print(e);
-			} finally {
-				gm_unlock();
 			}
 		}
 
@@ -1984,9 +1987,7 @@ public final class FSLoader extends Loader {
 		} finally {
 			// gets executed even when returning from the catch statement or within the try/catch block
 			synchronized (gm_lock) {
-				gm_lock();
 				hs_regenerating_mipmaps.remove(patch);
-				gm_unlock();
 			}
 		}
 	}
@@ -2422,20 +2423,6 @@ public final class FSLoader extends Loader {
 
 	/** A lock for the generation of mipmaps. */
 	final private Object gm_lock = new Object();
-	private boolean gm_locked = false;
-
-	protected final void gm_lock() {
-		//Utils.printCaller(this, 7);
-		while (gm_locked) { try { gm_lock.wait(); } catch (InterruptedException ie) {} }
-		gm_locked = true;
-	}
-	protected final void gm_unlock() {
-		//Utils.printCaller(this, 7);
-		if (gm_locked) {
-			gm_locked = false;
-			gm_lock.notifyAll();
-		}
-	}
 
 	/** Checks if the mipmap file for the Patch and closest upper level to the desired magnification exists. */
 	public boolean checkMipMapFileExists(final Patch p, final double magnification) {
@@ -2448,77 +2435,91 @@ public final class FSLoader extends Loader {
 
 	final Set<Patch> cannot_regenerate = Collections.synchronizedSet(new HashSet<Patch>());
 
-	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. Does not frees memory on its own. */
-	protected Image fetchMipMapAWT(final Patch patch, final int level) {
+	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. Frees n_bytes * 8 memory on its own. */
+	protected Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) {
+		return fetchMipMapAWT(patch, level, n_bytes, 0);
+	}
+
+	private final Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
 		if (null == dir_mipmaps) {
 			Utils.log2("null dir_mipmaps");
 			return null;
 		}
-		try {
-			// TODO should wait if the file is currently being generated
-			//  (it's somewhat handled by a double-try to open the jpeg image)
+		while (retries < MAX_RETRIES) {
+			try {
+				releaseToFit3(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
 
-			final int max_level = getHighestMipMapLevel(patch);
+				// TODO should wait if the file is currently being generated
+				//  (it's somewhat handled by a double-try to open the jpeg image)
 
-			//Utils.log2("level is: " + max_level);
+				final int max_level = getHighestMipMapLevel(patch);
 
-			final String filename = getInternalFileName(patch);
-			if (null == filename) {
-				Utils.log2("null internal filename!");
-				return null;
-			}
-			// Old style:
-			//final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filename).append('.').append(patch.getId()).append(".jpg").toString();
-			// New style:
-			final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, ".jpg")).toString();
+				//Utils.log2("level is: " + max_level);
 
-			Image img = null;
-
-			if (patch.hasAlphaChannel()) {
-				img = ImageSaver.openJpegAlpha(path);
-			} else {
-				switch (patch.getType()) {
-					case ImagePlus.GRAY16:
-					case ImagePlus.GRAY8:
-					case ImagePlus.GRAY32:
-						img = ImageSaver.openGreyJpeg(path);
-						break;
-					default:
-						IJ.redirectErrorMessages();
-						ImagePlus imp = opener.openImage(path); // considers URL as well
-						if (null != imp) return patch.createImage(imp); // considers c_alphas
-						//img = patch.adjustChannels(Toolkit.getDefaultToolkit().createImage(path)); // doesn't work
-						//img = patch.adjustChannels(ImageSaver.openColorJpeg(path)); // doesn't work
-						//Utils.log2("color jpeg path: "+ path);
-						//Utils.log2("exists ? " + new File(path).exists());
-						break;
+				final String filename = getInternalFileName(patch);
+				if (null == filename) {
+					Utils.log2("null internal filename!");
+					return null;
 				}
+				// Old style:
+				//final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filename).append('.').append(patch.getId()).append(".jpg").toString();
+				// New style:
+				final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, ".jpg")).toString();
+
+				Image img = null;
+
+				if (patch.hasAlphaChannel()) {
+					img = ImageSaver.openJpegAlpha(path);
+				} else {
+					switch (patch.getType()) {
+						case ImagePlus.GRAY16:
+						case ImagePlus.GRAY8:
+						case ImagePlus.GRAY32:
+							img = ImageSaver.openGreyJpeg(path);
+							break;
+						default:
+							IJ.redirectErrorMessages();
+							ImagePlus imp = openImagePlus(path); // considers URL as well
+							if (null != imp) return patch.createImage(imp); // considers c_alphas
+							//img = patch.adjustChannels(Toolkit.getDefaultToolkit().createImage(path)); // doesn't work
+							//img = patch.adjustChannels(ImageSaver.openColorJpeg(path)); // doesn't work
+							//Utils.log2("color jpeg path: "+ path);
+							//Utils.log2("exists ? " + new File(path).exists());
+							break;
+					}
+				}
+				if (null != img) return img;
+
+
+				// if we got so far ... try to regenerate the mipmaps
+				if (!mipmaps_regen) {
+					return null;
+				}
+
+				// check that REALLY the file doesn't exist.
+				if (cannot_regenerate.contains(patch)) {
+					Utils.log("Cannot regenerate mipmaps for patch " + patch);
+					return null;
+				}
+
+				//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
+
+				// Regenerate in the case of not asking for an image under 32x32
+				double scale = 1 / Math.pow(2, level);
+				if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsEnabled()) {
+					// regenerate
+					regenerateMipMaps(patch);
+					return REGENERATING;
+				}
+			} catch (OutOfMemoryError oome) {
+				Utils.log2("fetchMipMapAWT: recovering from OutOfMemoryError");
+				recoverOOME();
+				Thread.yield();
+				// Retry:
+				return fetchMipMapAWT(patch, level, n_bytes, retries + 1);
+			} catch (Throwable t) {
+				IJError.print(t);
 			}
-			if (null != img) return img;
-
-
-			// if we got so far ... try to regenerate the mipmaps
-			if (!mipmaps_regen) {
-				return null;
-			}
-
-			// check that REALLY the file doesn't exist.
-			if (cannot_regenerate.contains(patch)) {
-				Utils.log("Cannot regenerate mipmaps for patch " + patch);
-				return null;
-			}
-
-			//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
-
-			// Regenerate in the case of not asking for an image under 32x32
-			double scale = 1 / Math.pow(2, level);
-			if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsEnabled()) {
-				// regenerate
-				regenerateMipMaps(patch);
-				return REGENERATING;
-			}
-		} catch (Exception e) {
-			IJError.print(e);
 		}
 		return null;
 	}
@@ -2532,7 +2533,6 @@ public final class FSLoader extends Loader {
 	public final Future regenerateMipMaps(final Patch patch) {
 		synchronized (gm_lock) {
 			try {
-				gm_lock();
 				if (hs_regenerating_mipmaps.contains(patch)) {
 					return null;
 				}
@@ -2541,8 +2541,6 @@ public final class FSLoader extends Loader {
 			} catch (Exception e) {
 				IJError.print(e);
 				return null;
-			} finally {
-				gm_unlock();
 			}
 
 			try {
@@ -2551,7 +2549,7 @@ public final class FSLoader extends Loader {
 				return regenerator.submit(new Runnable() {
 					public void run() {
 						try {
-							Utils.showStatus("Regenerating mipmaps (" + n_regenerating.get() + " to go)");
+							Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
 							generateMipMaps(patch, false);
 							Display.repaint(patch.getLayer());
 							Display.updatePanel(patch.getLayer(), patch);

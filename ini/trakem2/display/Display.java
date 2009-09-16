@@ -121,7 +121,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private int scroll_step = 1;
 
 	/** Keep track of all existing Display objects. */
-	static private ArrayList<Display> al_displays = new ArrayList<Display>();
+	static private Vector<Display> al_displays = new Vector<Display>();
 	/** The currently focused Display, if any. */
 	static private Display front = null;
 
@@ -148,6 +148,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		/** Set the source Display as front. */
 		public void windowActivated(WindowEvent we) {
 			// find which was it to make it be the front
+			ImageJ ij = IJ.getInstance();
+			if (null != ij && ij.quitting()) return;
 			final Object source = we.getSource();
 			for (final Display d : al_displays) {
 				if (source == d.frame) {
@@ -161,7 +163,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					// copied from ij.gui.ImageWindow, with modifications
 					if (IJ.isMacintosh() && IJ.getInstance()!=null) {
 						IJ.wait(10); // may be needed for Java 1.4 on OS X
-						d.frame.setMenuBar(ij.Menus.getMenuBar());
+						d.frame.setMenuBar(Menus.getMenuBar());
 					}
 					return;
 				}
@@ -3318,7 +3320,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Import stack...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
 			Rectangle sr = getCanvas().getSrcRect();
-			Bureaucrat burro = project.getLoader().importStack(layer, sr.x + sr.width/2, sr.y + sr.height/2, null, true, null);
+			Bureaucrat burro = project.getLoader().importStack(layer, sr.x + sr.width/2, sr.y + sr.height/2, null, true, null, false);
 			burro.addPostTask(new Runnable() { public void run() {
 				Display.this.getLayerSet().addLayerContentStep(layer);
 			}});
@@ -3832,6 +3834,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			final HashSet<Class> accepted = new HashSet<Class>();
 			accepted.add(Patch.class);
 			accepted.add(DLabel.class);
+			accepted.add(Stack.class);
 			final ArrayList<Displayable> originals = new ArrayList<Displayable>();
 			final ArrayList<Displayable> selected = selection.getSelected();
 			for (final Displayable d : selected) {
@@ -3842,7 +3845,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (originals.size() > 0) {
 				getLayerSet().addChangeTreesStep();
 				for (final Displayable d : originals) {
-					d.getLayer().add(d.clone());
+					if (d instanceof ZDisplayable) {
+						d.getLayerSet().add((ZDisplayable)d.clone());
+					} else {
+						d.getLayer().add(d.clone());
+					}
 				}
 				getLayerSet().addChangeTreesStep();
 			} else if (selected.size() > 0) {
