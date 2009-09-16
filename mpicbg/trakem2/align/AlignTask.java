@@ -522,7 +522,7 @@ final public class AlignTask
 		final List< AbstractAffineTile2D< ? > > allTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > allFixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > previousLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-		final HashMap< AbstractAffineTile2D< ? >, PointMatch > tileCenterPoints = new HashMap< AbstractAffineTile2D<?>, PointMatch >();
+		final HashMap< Patch, PointMatch > tileCenterPoints = new HashMap< Patch, PointMatch >();
 		
 		List< Patch > fixedPatches = new ArrayList< Patch >();
 		final Displayable active = Display.getFront().getActive();
@@ -531,37 +531,60 @@ final public class AlignTask
 		
 		for ( final Layer layer : layerRange )
 		{
-			if ( Thread.currentThread().isInterrupted() ) return;
-
 			/* align all tiles in the layer */
 			
 			final List< Patch > patches = new ArrayList< Patch >();
-			for ( final Displayable a : layer.getDisplayables( Patch.class ) )
+			for ( Displayable a : layer.getDisplayables( Patch.class ) )
 				if ( a instanceof Patch ) patches.add( ( Patch )a );
 			final List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 			final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 			Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
 			
-			/* add a fixed tile only if there was a Patch selected */
-			allFixedTiles.addAll( fixedTiles );
-			
 			alignTiles( p, currentLayerTiles, fixedTiles );
 			
 			/* connect to the previous layer */
-			/* first, align connected graphs agains each other */
-			List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( currentLayerTiles );
+			
+			
+			/* generate tiles with the cross-section model from the current layer tiles */
+			/* TODO step back and make tiles bare containers for a patch and a model such that by changing the model the tile can be reused */
+			final HashMap< Patch, AbstractAffineTile2D< ? > > currentLayerPatchTiles = new HashMap< Patch, AbstractAffineTile2D<?> >();
+			for ( final AbstractAffineTile2D< ? > t : currentLayerTiles )
+				currentLayerPatchTiles.put( t.getPatch(), t );
+			
+			final List< AbstractAffineTile2D< ? > > csCurrentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+			final List< AbstractAffineTile2D< ? > > csFixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+			Align.tilesFromPatches( cp, patches, fixedPatches, csCurrentLayerTiles, csFixedTiles );
+			
+			final HashMap< Tile< ? >, AbstractAffineTile2D< ? > > tileTiles = new HashMap< Tile< ? >, AbstractAffineTile2D<?> >();
+			for ( final AbstractAffineTile2D< ? > t : csCurrentLayerTiles )
+				tileTiles.put( currentLayerPatchTiles.get( t.getPatch() ), t );
+			
+			for ( final AbstractAffineTile2D< ? > t : currentLayerTiles )
+			{
+				final AbstractAffineTile2D< ? > csLayerTile = tileTiles.get( t );
+				csLayerTile.addMatches( t.getMatches() );
+				for ( Tile< ? > ct : t.getConnectedTiles() )
+					csLayerTile.addConnectedTile( tileTiles.get( ct ) );
+			}
+			
+			/* add a fixed tile only if there was a Patch selected */
+			allFixedTiles.addAll( csFixedTiles );
+			
+			/* first, align connected graphs againt each other */
+			//List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( currentLayerTiles );
+			/* TODO Do it really... */
+			
 			
 			final List< AbstractAffineTile2D< ? >[] > crossLayerTilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
-			AbstractAffineTile2D.pairTiles( previousLayerTiles, currentLayerTiles, crossLayerTilePairs );
+			AbstractAffineTile2D.pairTiles( previousLayerTiles, csCurrentLayerTiles, crossLayerTilePairs );
 			
-			Align.connectTilePairs( cp, currentLayerTiles, crossLayerTilePairs, Runtime.getRuntime().availableProcessors() );
+			Align.connectTilePairs( cp, csCurrentLayerTiles, crossLayerTilePairs, Runtime.getRuntime().availableProcessors() );
 			
 			/* prepare the next loop */
 			
-			allTiles.addAll( currentLayerTiles );
+			allTiles.addAll( csCurrentLayerTiles );
 			previousLayerTiles.clear();
-			previousLayerTiles.addAll( currentLayerTiles );
-			currentLayerTiles.clear();
+			previousLayerTiles.addAll( csCurrentLayerTiles );
 			
 			/* optimize */
 			Align.optimizeTileConfiguration( pcp, allTiles, allFixedTiles );
@@ -610,11 +633,13 @@ final public class AlignTask
 					final float[] c = new float[]{ ( float )t.getWidth() / 2.0f,( float )t.getHeight() / 2.0f };
 					t.getModel().applyInPlace( c );
 					final Point q = new Point( c );
-					tileCenterPoints.put( t, new PointMatch( q.clone(), q ) );
+					tileCenterPoints.put( t.getPatch(), new PointMatch( q.clone(), q ) );
 				}
 				
 				for ( final Layer layer : layerRange )
 				{
+					Utils.log( "layer" + layer );
+					
 					if ( Thread.currentThread().isInterrupted() ) return;
 	
 					/* again, align all tiles in the layer */
@@ -622,8 +647,8 @@ final public class AlignTask
 					List< Patch > patches = new ArrayList< Patch >();
 					for ( Displayable a : layer.getDisplayables( Patch.class ) )
 						if ( a instanceof Patch ) patches.add( ( Patch )a );
-					List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-					List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+					final List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+					final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 					Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
 								
 					/* add a fixed tile only if there was a Patch selected */
@@ -636,7 +661,7 @@ final public class AlignTask
 					final Collection< AbstractAffineTile2D< ? > > toBeDeformedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 					for ( final AbstractAffineTile2D< ? > t : currentLayerTiles )
 					{
-						final PointMatch pm = tileCenterPoints.get( t );
+						final PointMatch pm = tileCenterPoints.get( t.getPatch() );
 						if ( pm == null ) continue;
 						
 						final float[] pl = pm.getP1().getL();
