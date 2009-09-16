@@ -4484,7 +4484,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
 		}
 		for (final Display d : al_displays) {
-			Utils.updateComponent(d.toolbar_panel);
+			// @#$%^&!
+			d.toolbar_panel.invalidate();
+			d.toolbar_panel.validate();
+			d.toolbar_panel.repaint();
+			//
 			if (ProjectToolbar.PEN == tool) {
 				AreaList.PP.updateGUI(d.tool_options_panel);
 			} else {

@@ -53,12 +53,14 @@ import customnode.CustomMesh;
 import customnode.CustomTriangleMesh;
 
 import java.lang.reflect.Field;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledExecutorService;
 
 
 /** One Display3D instance for each LayerSet (maximum). */
@@ -290,7 +292,7 @@ public final class Display3D {
 	}
 
 	/** Get an existing Display3D for the given LayerSet, or create a new one for it (and cache it). */
-	static private Display3D get(final LayerSet ls) {
+	static public Display3D get(final LayerSet ls) {
 		synchronized (htlock) {
 			htlock.lock();
 			try {
@@ -338,104 +340,194 @@ public final class Display3D {
 		}
 	}
 
-	static public Future<List<Content>> show(ProjectThing pt) {
+	static public Future<Vector<Future<Content>>> show(ProjectThing pt) {
 		return show(pt, false, -1);
 	}
 
 	static public void showAndResetView(final ProjectThing pt) {
-		new Thread() { public void run() {
-			setPriority(Thread.NORM_PRIORITY);
-			// wait until done
-			Future<List<Content>> fu = show(pt, true, -1);
-			try {
-				fu.get(); // wait until done
-			} catch (Exception e) { IJError.print(e); }
-			Display3D d3d = ht_layer_sets.get(pt.getProject().getRootLayerSet()); // TODO should change for nested layer sets
-			if (null != d3d) {
-				d3d.universe.resetView(); // reset the absolute center
-				d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
+		launchers.submit(new Runnable() {
+			public void run() {
+				// wait until done
+				Future<Vector<Future<Content>>> fu = show(pt, true, -1);
+				Vector<Future<Content>> vc;
+				try {
+					vc = fu.get(); // wait until done
+				} catch (Exception e) {
+					IJError.print(e);
+					return;
+				}
+				for (Future<Content> fc : vc) {
+					try {
+						Content c = fc.get();
+						ArrayList<Display3D> d3ds = new ArrayList<Display3D>();
+						synchronized (ht_layer_sets) {
+							d3ds.addAll(ht_layer_sets.values());
+						}
+						for (Display3D d3d : d3ds) {
+							synchronized (d3d) {
+								if (d3d.universe.getContents().contains(c)) {
+									d3d.universe.resetView(); // reset the absolute center
+									d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
+								}
+							}
+						}
+					} catch (Exception e) {
+						IJError.print(e);
+					}
+				}
 			}
-		}}.start();
+		});
 	}
 
 	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one. If true == wait && -1 != resample, then the method returns only when the mesh/es have been added. */
-	static public Future<List<Content>> show(final ProjectThing pt, final boolean wait, final int resample) {
+	static public Future<Vector<Future<Content>>> show(final ProjectThing pt, final boolean wait, final int resample) {
 		if (null == pt) return null;
-		final Callable<List<Content>> c = new Callable<List<Content>>() {
-			public List<Content> call() {
-		try {
-			// scan the given ProjectThing for 3D-viewable items not present in the ht_meshes
-			// So: find arealist, pipe, ball, and profile_list types
-			final HashSet hs = pt.findBasicTypeChildren();
-			if (null == hs || 0 == hs.size()) {
-				Utils.logAll("Node " + pt + " does not contain any 3D-displayable children");
-				return null;
-			}
 
-			final List<Content> list = new ArrayList<Content>(hs.size());
+		Future<Vector<Future<Content>>> fu = launchers.submit(new Callable<Vector<Future<Content>>>() {
+			public Vector<Future<Content>> call() {
 
-			for (final Iterator it = hs.iterator(); it.hasNext(); ) {
-				// obtain the Displayable object under the node
-				final ProjectThing child = (ProjectThing)it.next();
-				Object obc = child.getObject();
-				Displayable displ = obc.getClass().equals(String.class) ? null : (Displayable)obc;
-				if (null != displ) {
-					if (displ.getClass().equals(Profile.class)) {
-						//Utils.log("Display3D can't handle Bezier profiles at the moment.");
-						// handled by profile_list Thing
-						continue;
-					}
-					if (!displ.isVisible()) {
-						Utils.log("Skipping non-visible node " + displ);
-						continue;
-					}
-				}
-				//StopWatch sw = new StopWatch();
-				// obtain the containing LayerSet
-				Display3D d3d = null;
-				if (null != displ) d3d = Display3D.get(displ.getLayerSet());
-				else if (child.getType().equals("profile_list")) {
-					ArrayList al_children = child.getChildren();
-					if (null == al_children || 0 == al_children.size()) continue;
-					// else, get the first Profile and get its LayerSet
-					d3d = Display3D.get(((Displayable)((ProjectThing)al_children.get(0)).getObject()).getLayerSet());
-				} else {
-					Utils.log("Don't know what to do with node " + child);
-				}
-				if (null == d3d) {
-					Utils.log("Could not get a proper 3D display for node " + displ);
-					return null; // java3D not installed most likely
-				}
-				if (d3d.ht_pt_meshes.contains(child)) {
-					Utils.log2("Already here: " + child);
-					continue; // already here
-				}
-				setWaitingCursor(); // the above may be creating a display
-				//sw.elapsed("after creating and/or retrieving Display3D");
-				Future<Content> fu = d3d.addMesh(child, displ, resample);
-				if (wait) {
-					list.add(fu.get());
-				}
-
-				//sw.elapsed("after creating mesh");
-			}
-
-			// Since it's sometimes not obvious when done, say so:
-			if (wait && hs.size() > 1) {
-				Utils.logAll("Done showing " + hs.size());
-			}
-
-			return list;
-
-		} catch (Exception e) {
-			IJError.print(e);
+		// Scan the given ProjectThing for 3D-viewable items
+		// So: find arealist, pipe, ball, and profile_list types
+		final HashSet<ProjectThing> hs = pt.findBasicTypeChildren();
+		if (null == hs || 0 == hs.size()) {
+			Utils.logAll("Node " + pt + " does not contain any 3D-displayable children");
 			return null;
-		} finally {
-			doneWaiting();
 		}
-		}};
 
-		return launchers.submit(c);
+		// Remove profile if it lives under a profile_list
+		for (Iterator<ProjectThing> it = hs.iterator(); it.hasNext(); ) {
+			ProjectThing pt = it.next();
+			if (null != pt.getObject() && pt.getObject().getClass() == Profile.class && pt.getParent().getType().equals("profile_list")) {
+				it.remove();
+			}
+		}
+
+		setWaitingCursor();
+
+		// Start new scheduler to publish/add meshes to the 3D Viewer every 5 seconds and when done.
+		final Hashtable<Display3D,Vector<Content>> contents = new Hashtable<Display3D,Vector<Content>>();
+		final ScheduledExecutorService updater = Executors.newScheduledThreadPool(1);
+		final AtomicInteger counter = new AtomicInteger();
+		updater.scheduleWithFixedDelay(new Runnable() {
+			public void run() {
+				// Obtain a copy of the contents queue
+				HashMap<Display3D,Vector<Content>> m = new HashMap<Display3D,Vector<Content>>();
+				synchronized (contents) {
+					m.putAll(contents);
+					contents.clear();
+				}
+				if (m.isEmpty()) return;
+				// Add all to the corresponding Display3D
+				for (Map.Entry<Display3D,Vector<Content>> e : m.entrySet()) {
+					e.getKey().universe.addContentLater(e.getValue());
+					counter.getAndAdd(e.getValue().size());
+				}
+				Utils.showStatus(new StringBuilder("Rendered ").append(counter.get()).append('/').append(hs.size()).toString());
+			}
+		}, 100, 4000, TimeUnit.MILLISECONDS);
+
+		// A list of all generated Content objects
+		final Vector<Future<Content>> list = new Vector<Future<Content>>();
+
+		for (final Iterator it = hs.iterator(); it.hasNext(); ) {
+			// obtain the Displayable object under the node
+			final ProjectThing child = (ProjectThing)it.next();
+
+			Object obc = child.getObject();
+			final Displayable displ = obc.getClass().equals(String.class) ? null : (Displayable)obc;
+			if (null != displ) {
+				if (displ.getClass().equals(Profile.class)) {
+					//Utils.log("Display3D can't handle Bezier profiles at the moment.");
+					// handled by profile_list Thing
+					continue;
+				}
+				if (!displ.isVisible()) {
+					Utils.log("Skipping non-visible node " + displ);
+					continue;
+				}
+			}
+			// obtain the containing LayerSet
+			final Display3D d3d;
+			if (null != displ) d3d = Display3D.get(displ.getLayerSet());
+			else if (child.getType().equals("profile_list")) {
+				ArrayList al_children = child.getChildren();
+				if (null == al_children || 0 == al_children.size()) continue;
+				// else, get the first Profile and get its LayerSet
+				d3d = Display3D.get(((Displayable)((ProjectThing)al_children.get(0)).getObject()).getLayerSet());
+			} else {
+				Utils.log("Don't know what to do with node " + child);
+				d3d = null;
+			}
+			if (null == d3d) {
+				Utils.log("Could not get a proper 3D display for node " + displ);
+				return null; // java3D not installed most likely
+			}
+			if (d3d.ht_pt_meshes.contains(child)) {
+				Utils.log2("Already here: " + child);
+				continue; // already here
+			}
+
+			list.add(d3d.executors.submit(new Callable<Content>() {
+				public Content call() {
+					Content c = null;
+					try {
+						c = d3d.createMesh(child, displ, resample).call();
+						Vector<Content> vc;
+						synchronized (contents) {
+							vc = contents.get(d3d);
+							if (null == vc) vc = new Vector<Content>();
+							contents.put(d3d, vc);
+						}
+						vc.add(c);
+					} catch (Exception e) {
+						IJError.print(e);
+					}
+					return c;
+				}
+			}));
+
+			// If it's the last one:
+			if (!it.hasNext()) {
+				// Add the concluding task, that waits on all and shuts down the scheduler
+				d3d.executors.submit(new Runnable() {
+					public void run() {
+						// Wait until all are done
+						for (Future<Content> c : list) {
+							try {
+								c.get();
+							} catch (Throwable t) {
+								IJError.print(t);
+							}
+						}
+						try {
+							// Shutdown scheduler and execute remaining tasks
+							for (Runnable r : updater.shutdownNow()) {
+								r.run();
+							}
+						} catch (Throwable e) {
+							IJError.print(e);
+						}
+						// Reset cursor
+						doneWaiting();
+						Utils.showStatus(new StringBuilder("Done rendering ").append(counter.get()).append('/').append(hs.size()).toString());
+					}
+				});
+			}
+		}
+
+		return list;
+
+		}});
+
+		if (wait && -1 != resample) {
+			try {
+				fu.get();
+			} catch (Throwable t) {
+				IJError.print(t);
+			}
+		}
+
+		return fu;
 	}
 
 	static public void resetView(final LayerSet ls) {
@@ -534,17 +626,49 @@ public final class Display3D {
 		if (null != ct) d3d.universe.removeContent(ct.getName());
 	}
 
-	/** Creates a mesh for the given Displayable in a separate Thread. */
+
+	/** Creates a mesh for the given Displayable in a separate Thread, and adds it to the universe. */
 	private Future<Content> addMesh(final ProjectThing pt, final Displayable displ, final int resample) {
+		return executors.submit(new Callable<Content>() {
+			public Content call() {
+				try {
+					// 1 - Create content
+					Callable<Content> c = createMesh(pt, displ, resample);
+					if (null == c) return null;
+					Content content = c.call();
+					if (null == content) return null;
+					String title = content.getName();
+					// 2 - Remove from universe any content of the same title
+					if (universe.contains(title)) {
+						universe.removeContent(title);
+					}
+					// 3 - Add to universe, and wait
+					universe.addContentLater(content).get();
+					
+					return content;
+
+				} catch (Exception e) {
+					IJError.print(e);
+					return null;
+				}
+			}
+		});
+	}
+
+
+
+	/** Returns a function that returns a Content object.
+	 *  Does NOT add the Content to the universe; it merely creates it. */
+	private Callable<Content> createMesh(final ProjectThing pt, final Displayable displ, final int resample) {
 		final double scale = this.scale;
-		FutureTask<Content> fu = new FutureTask<Content>(new Callable<Content>() {
+		return new Callable<Content>() {
 			public Content call() {
 				Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
 				try {
 
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
-		List triangles = null;
-		boolean no_culling = false; // don't show back faces when false
+		final List triangles;
+		boolean no_culling_ = false; // don't show back faces when false
 		if (displ instanceof AreaList) {
 			int rs = resample;
 			if (-1 == resample) rs = Display3D.this.resample = adjustResampling(); // will adjust this.resample, and return it (even if it's a default value)
@@ -560,7 +684,10 @@ public final class Display3D {
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
-			no_culling = true;
+			no_culling_ = true;
+		} else {
+			Utils.log("Unrecognized type for 3D mesh generation: " + (null != displ ? displ.getClass() : null) + " : " + displ);
+			triangles = null;
 		}
 		// safety checks
 		if (null == triangles) {
@@ -594,8 +721,8 @@ public final class Display3D {
 		*/
 
 
-		Color color = null;
-		float alpha = 1.0f;
+		final Color color;
+		final float alpha;
 		final String title;
 		if (null != displ) {
 			color = displ.getColor();
@@ -613,23 +740,18 @@ public final class Display3D {
 			else title = ob.toString() + " /[" + pt.getParent().getType() + "]/[profile_list] #" + pt.getId();
 		} else {
 			title = pt.toString() + " #" + pt.getId();
+			color = null;
+			alpha = 1.0f;
 		}
+
+		// TODO why for all? Above no_culling_ is set to true or false, depending upon type.
+		final boolean no_culling = true; // for ALL
 
 		Content ct = null;
 
-		no_culling = true; // for ALL
-
-		// add to 3D view (synchronized)
 		synchronized (u_lock) {
 			u_lock.lock();
 			try {
-				// craft a unique title (id is always unique)
-				if (ht_pt_meshes.contains(pt) || universe.contains(title)) {
-					// remove content from universe
-					universe.removeContent(title);
-					// no need to remove entry from table, it's overwritten below
-				}
-
 				Color3f c3 = new Color3f(color);
 
 				if (no_culling) {
@@ -641,9 +763,11 @@ public final class Display3D {
 					pa.setBackFaceNormalFlip(true);
 					mesh.setColor(c3);
 					// After setting properties, add to the viewer
-					ct = universe.addCustomMesh(mesh, title);
+					//ct = universe.addCustomMesh(mesh, title);
+					ct = universe.createContent(mesh, title);
 				} else {
-					ct = universe.addTriangleMesh(triangles, c3, title);
+					//ct = universe.addTriangleMesh(triangles, c3, title);
+					ct = universe.createContent(new CustomTriangleMesh(triangles, c3, 0), title);
 				}
 
 				if (null == ct) return null;
@@ -653,12 +777,11 @@ public final class Display3D {
 				// Default is unlocked (editable) transformation; set it to locked:
 				ct.setLocked(true);
 
-				// register mesh
+				// register mesh -- TODO is this necessary any longer?
 				ht_pt_meshes.put(pt, ct);
-				Utils.log2("Put: ht_pt_meshes.put(" + pt + ", " + ct + ")");
 
 			} catch (Throwable e) {
-				Utils.logAll("Mesh generation failed for " + title + "\"  from " + pt);
+				Utils.logAll("Mesh generation failed for \"" + title + "\"  from " + pt);
 				IJError.print(e);
 				e.printStackTrace();
 			} finally {
@@ -675,80 +798,78 @@ public final class Display3D {
 					return null;
 				}
 
-		}});
-		executors.submit(fu);
-		return fu;
+		}};
+	}
+
+	static public class VectorStringContent {
+		VectorString3D vs;
+		String title;
+		Color color;
+		double[] widths;
+		float alpha;
+		public VectorStringContent(VectorString3D vs, String title, Color color, double[] widths, float alpha){
+			this.vs = vs;
+			this.title = title;
+			this.color = color;
+			this.widths = widths;
+			this.alpha = alpha;
+		}
+		public Content asContent(Display3D d3d) {
+			double[] wi = widths;
+			if (null == widths) {
+				wi = new double[vs.getPoints(0).length];
+				Arrays.fill(wi, 2.0);
+			} else if (widths.length != vs.length()) {
+				Utils.log("ERROR: widths.length != VectorString3D.length()");
+				return null;
+			}
+			float transp = 1 - alpha;
+			if (transp < 0) transp = 0;
+			if (transp > 1) transp = 1;
+			if (1 == transp) {
+				Utils.log("WARNING: adding a 3D object fully transparent.");
+			}
+			List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), d3d.scale);
+			Content ct = d3d.universe.createContent(new CustomTriangleMesh(triangles, new Color3f(color), 0), title);
+			ct.setTransparency(transp);
+			ct.setLocked(true);
+			return ct;
+		}
 	}
 
 	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
-	static public Future<Content> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color) {
+	static public Future<Collection<Future<Content>>> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color) {
 		return addMesh(ref_ls, vs, title, color, null, 1.0f);
 	}
 
 	/** Creates a mesh from the given VectorString3D, which is unbound to any existing Pipe. */
-	static public Future<Content> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color, final double[] widths, final float alpha) {
-		final FutureTask<Content> fu = new FutureTask<Content>(new Callable<Content>() {
-			public Content call() {
+	static public Future<Collection<Future<Content>>> addMesh(final LayerSet ref_ls, final VectorString3D vs, final String title, final Color color, final double[] widths, final float alpha) {
+		List<Content> col = new ArrayList<Content>();
+		Display3D d3d = Display3D.get(ref_ls);
+		col.add(new VectorStringContent(vs, title, color, widths, alpha).asContent(d3d));
+		return d3d.addContent(col);
+	}
+
+	static public Future<Collection<Future<Content>>> show(final LayerSet ref_ls, final Collection<Content> col) {
+		Display3D d3d = get(ref_ls);
+		return d3d.addContent(col);
+	}
+
+	public Future<Collection<Future<Content>>> addContent(final Collection<Content> col) {
+
+		final FutureTask<Collection<Future<Content>>> fu = new FutureTask<Collection<Future<Content>>>(new Callable<Collection<Future<Content>>>() {
+			public Collection<Future<Content>> call() {
 				Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
 				try {
-		/////
-		final Display3D d3d = Display3D.get(ref_ls);
-		final double scale = d3d.scale;
-		final double width = d3d.width;
-		float transp = 1 - alpha;
-		if (transp < 0) transp = 0;
-		if (transp > 1) transp = 1;
-		if (1 == transp) {
-			Utils.log("WARNING: adding a 3D object fully transparent.");
-		}
-
-		double[] wi = widths;
-		if (null == widths) {
-			wi = new double[vs.getPoints(0).length];
-			//Utils.log2("len: " + wi.length + vs.getPoints(0).length + vs.getPoints(1).length);
-			Arrays.fill(wi, 2.0);
-		} else if (widths.length != vs.length()) {
-			Utils.log("ERROR: widths.length != VectorString3D.length()");
-			return null;
-		}
-
-		List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), scale);
-
-		Content ct = null;
-
-		// add to 3D view (synchronized)
-		synchronized (d3d.u_lock) {
-			d3d.u_lock.lock();
-			try {
-				// ensure proper default transform
-				//d3d.universe.resetView();
-				//
-				//Utils.log2(title + " : vertex count % 3 = " + triangles.size() % 3 + " for " + triangles.size() + " vertices");
-				//d3d.universe.ensureScale((float)(width*scale));
-				ct = d3d.universe.addMesh(triangles, new Color3f(color), title, /*(float)(width*scale),*/ 1);
-				ct.setTransparency(transp);
-				ct.setLocked(true);
-			} catch (Exception e) {
-				IJError.print(e);
-			} finally {
-				d3d.u_lock.unlock();
-			}
-		}
-
-		return ct;
-
-		/////
+					return universe.addContentLater(col);
 				} catch (Exception e) {
 					IJError.print(e);
 					return null;
 				}
-
 		}});
 
-
 		launchers.submit(new Runnable() { public void run() {
-			final Display3D d3d = Display3D.get(ref_ls);
-			d3d.executors.submit(fu);
+			executors.submit(fu);
 		}});
 
 		return fu;
