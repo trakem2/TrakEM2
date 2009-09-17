@@ -1740,7 +1740,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public boolean undoOneStep() {
 		synchronized (edit_history) {
 			if (0 == edit_history.size()) {
-				Utils.log2("Empty undo history.");
+				Utils.logAll("Empty undo history!");
 				return false;
 			}
 
@@ -1772,7 +1772,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public boolean redoOneStep() {
 		synchronized (edit_history) {
 			if (0 == redo.size()) {
-				Utils.log2("Empty redo history.");
+				Utils.logAll("Empty redo history!");
 				if (null != current_edit_step) {
 					return current_edit_step.apply(DoStep.REDO);
 				}
