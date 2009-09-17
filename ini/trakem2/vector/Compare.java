@@ -2448,7 +2448,7 @@ public class Compare {
 				return;
 			}
 			if (IJ.isWindows()) plot_dir = plot_dir.replace('\\', '/');
-			if (plot_dir.endsWith("/")) plot_dir += "/";
+			if (!plot_dir.endsWith("/")) plot_dir += "/";
 		}
 
 		Utils.log2("Gathering chains...");

@@ -367,8 +367,10 @@ public class Render {
 		final SaveDialog sd = new SaveDialog("Save .shapes", OpenDialog.getDefaultDirectory(), "shapes");
 		String dir = sd.getDirectory();
 		if (null == dir) return;
+		if (IJ.isWindows()) dir = dir.replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
 		String file_name = sd.getFileName();
-		String file_path = dir + "/" + file_name;
+		String file_path = dir + file_name;
 		File f = new File(file_path);
 		if (f.exists()) {
 			YesNoCancelDialog d = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "File " + file_name + " exists! Overwrite?");
@@ -413,8 +415,10 @@ public class Render {
 		final SaveDialog sd = new SaveDialog("Save .svg", OpenDialog.getDefaultDirectory(), "svg");
 		String dir = sd.getDirectory();
 		if (null == dir) return;
+		if (IJ.isWindows()) dir = dir.replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
 		String file_name = sd.getFileName();
-		String file_path = dir + "/" + file_name;
+		String file_path = dir + file_name;
 		File f = new File(file_path);
 		if (f.exists()) {
 			YesNoCancelDialog d = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "File " + file_name + " exists! Overwrite?");
