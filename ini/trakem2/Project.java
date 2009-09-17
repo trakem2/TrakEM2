@@ -324,6 +324,7 @@ public class Project extends DBObject {
 					Utils.showMessage("Can't read/write to the selected storage folder.\nPlease check folder permissions.");
 					return null;
 				}
+				if (IJ.isWindows()) dir_project = dir_project.replace('\\', '/');
 			}
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
