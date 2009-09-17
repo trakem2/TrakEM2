@@ -46,6 +46,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.M;
 import ini.trakem2.render3d.Perimeter2D;
+import ini.trakem2.vector.VectorString2D;
 import ini.trakem2.vector.VectorString3D;
 import ini.trakem2.imaging.Segmentation;
 
@@ -1897,23 +1898,31 @@ public class AreaList extends ZDisplayable {
 
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == ht_areas.size()) return rt;
-		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "LB-surface", "UB-surface", "AVG-surface", "max diameter", "name-id"});
+		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "LB-surface", "UBs-surface", "UB-surface", "AVGs-surface", "AVG-surface", "max diameter", "name-id"});
 		rt.incrementCounter();
 		rt.addLabel("units", layer_set.getCalibration().getUnit());
 		rt.addValue(0, this.id);
 		double[] m = measure();
 		rt.addValue(1, m[0]); // aprox. volume
 		rt.addValue(2, m[1]); // lower bound surface
-		rt.addValue(3, m[2]); // upper bound surface
-		rt.addValue(4, (m[1] + m[2]) / 2); // average surface
-		rt.addValue(5, m[3]); // max diameter
-		rt.addValue(6, getNameId());
+		rt.addValue(3, m[2]); // upper bound surface smoothed
+		rt.addValue(4, m[3]); // upper bound surface
+		rt.addValue(5, (m[1] + m[2]) / 2); // average of LB and UBs
+		rt.addValue(6, (m[1] + m[3]) / 2); // average of LB and UB
+		rt.addValue(7, m[4]); // max diameter
+		rt.addValue(8, getNameId());
 		return rt;
 	}
 
-	/** Returns a double array with 0=volume, 1=lower_bound_surface, 2=upper_bound_surface, 3=max_diameter. All measures are approximate. */
+	/** Returns a double array with 0=volume, 1=lower_bound_surface, 2=upper_bound_surface_smoothed, 3=upper_bound_surface, 4=max_diameter.
+	 *  All measures are approximate.
+	 *  [0] Volume: sum(area * thickness) for all sections
+	 *  [1] Lower Bound Surface: measure area per section, compute radius of circumference of identical area, compute then are of the sides of the truncated cone of height thickness, for each section. Plus top and bottom areas when visiting sections without a painted area.
+	 *  [2] Upper Bound Surface Smooted: measure smoothed perimeter lengths per section, multiply by thickness to get lateral area. Plus tops and bottoms.
+	 *  [3] Upper Bound Surface: measure raw pixelated perimeter lengths per section, multiply by thickness to get lateral area. Plus top and bottoms.
+	 *  [4] Maximum diameter: longest distance between any two points in the contours of all painted areas. */
 	public double[] measure() {
-		if (0 == ht_areas.size()) return new double[4]; // zeros
+		if (0 == ht_areas.size()) return new double[5]; // zeros
 
 		// prepare suitable transform
 		AffineTransform aff = (AffineTransform)this.at.clone();
@@ -1926,10 +1935,12 @@ public class AreaList extends ZDisplayable {
 		box = null;
 
 		double volume = 0;
-		double lower_bound_surface = 0;
+		double lower_bound_surface_h = 0;
 		double upper_bound_surface = 0;
+		double upper_bound_surface_smoothed = 0;
 		double prev_surface = 0;
 		double prev_perimeter = 0;
+		double prev_smooth_perimeter = 0;
 		double prev_thickness = 0;
 
 		Calibration cal = layer_set.getCalibration();
@@ -1980,6 +1991,65 @@ public class AreaList extends ZDisplayable {
 			double pix_perimeter = AreaCalculations.circumference(area.getPathIterator(null));
 			double perimeter = pix_perimeter * pixelWidth;
 
+			double smooth_perimeter = 0;
+
+			// smoothed perimeter:
+			// Get all paths, make VectorString2D from them
+			{
+				double smooth_pix_perimeter = 0;
+				for (Polygon pol : M.getPolygons(area)) {
+					if (pol.npoints < 7) {
+						// no point in smoothing out such a short polygon:
+						smooth_perimeter += pol.npoints;
+						continue;
+					}
+					double[] xp = new double[pol.npoints];
+					double[] yp = new double[pol.npoints];
+					for (int p=0; p<pol.npoints; p++) {
+						xp[p] = pol.xpoints[p];
+						yp[p] = pol.ypoints[p];
+					}
+					try {
+						// Should use VectorString2D, but takes for ever -- bug in resample?
+						// And VectorString3D is likely not respecting the 'closed' flag for resampling.
+						// Also, VectorString3D gets stuck in an infinite loop if the sequence is 6 points!
+						//VectorString3D v = new VectorString3D(xp, yp, new double[pol.npoints], true);
+						VectorString2D v = new VectorString2D(xp, yp, 0, true);
+						v.resample(1);
+
+
+						// TESTING: make a polygon roi and show it
+						// ... just in case to see that resampling works as expected, without weird endings
+						/*
+						int[] x = new int[v.length()];
+						int[] y = new int[x.length];
+						double[] xd = v.getPoints(0);
+						double[] yd = v.getPoints(1);
+						for (int p=0; p<x.length; p++) {
+							x[p] = (int)xd[p];
+							y[p] = (int)yd[p];
+						}
+						PolygonRoi proi = new PolygonRoi(x, y, x.length, PolygonRoi.POLYGON);
+						Rectangle b = proi.getBounds();
+						for (int p=0; p<x.length; p++) {
+							x[p] -= b.x;
+							y[p] -= b.y;
+						}
+						ImagePlus imp = new ImagePlus("test", new ByteProcessor(b.width, b.height));
+						imp.setRoi(new PolygonRoi(x, y, x.length, PolygonRoi.POLYGON));
+						imp.show();
+						*/
+
+						smooth_pix_perimeter += v.length() -1; // resampled to 1, so just number_of_points * delta_of_1.
+						                                       // Subtracting 1: the resampled curve has the first point as the last too.
+					} catch (Exception le) { le.printStackTrace(); }
+				}
+
+				smooth_perimeter = smooth_pix_perimeter * pixelWidth;
+			}
+
+			//Utils.log2("p, sp: " + perimeter + ", " + smooth_perimeter);
+
 			//Utils.log2(layer_index + "  pixelWidth,pixelHeight: " + pixelWidth + ", " + pixelHeight);
 			//Utils.log2(layer_index + "  thickness: " + thickness);
 
@@ -1987,32 +2057,38 @@ public class AreaList extends ZDisplayable {
 
 			if (-1 == last_layer_index) {
 				// Start of the very first continuous set:
-				lower_bound_surface += surface;
+				lower_bound_surface_h += surface;
 				upper_bound_surface += surface;
+				upper_bound_surface_smoothed += surface;
 			} else if (layer_index - last_layer_index > 1) {
 				// End of a continuous set
 				// sum the last surface and its side:
-				lower_bound_surface += prev_surface + prev_perimeter * prev_thickness;
+				lower_bound_surface_h += prev_surface + prev_thickness * 2 * Math.sqrt(prev_surface * Math.PI); //   (2x + 2x) / 2   ==   2x
 				upper_bound_surface += prev_surface + prev_perimeter * prev_thickness;
+				upper_bound_surface_smoothed += prev_surface + prev_smooth_perimeter * prev_thickness;
 
 				// ... and start of a new set
-				lower_bound_surface += surface;
+				lower_bound_surface_h += surface;
 				upper_bound_surface += surface;
+				upper_bound_surface_smoothed += surface;
 			} else {
 				// Continuation of a set: use this Area and the previous as continuous
 				double diff_surface = Math.abs(prev_surface - surface);
+
 				upper_bound_surface += prev_perimeter * (prev_thickness / 2)
 						     + perimeter * (prev_thickness / 2)
 						     + diff_surface;
 
-				// s * (r1 + r2) where s is the hypothenusa
-				//double r1 = Math.sqrt(prev_surface / Math.PI);
-				//double r2 = Math.sqrt(surface / Math.PI);
-				//double hypothenusa = Math.sqrt(Math.pow(Math.abs(r1 - r2), 2) + Math.pow(thickness, 2)); 
-				//lower_bound_surface += Math.PI * hypothenusa * (r1 + r2);
+				upper_bound_surface_smoothed += prev_smooth_perimeter * (prev_thickness / 2)
+					                      + smooth_perimeter * (prev_thickness / 2)
+							      + diff_surface;
 
-
-				lower_bound_surface += prev_thickness * (2 * Math.sqrt(prev_surface * Math.PI) + 2 * Math.sqrt(surface * Math.PI)) / 2;
+				// Compute area of the mantle of the truncated cone defined by the radiuses of the circles of same area as the two areas
+				// PI * s * (r1 + r2) where s is the hypothenusa
+				double r1 = Math.sqrt(prev_surface / Math.PI);
+				double r2 = Math.sqrt(surface / Math.PI);
+				double hypothenusa = Math.sqrt(Math.pow(Math.abs(r1 - r2), 2) + Math.pow(thickness, 2)); 
+				lower_bound_surface_h += Math.PI * hypothenusa * (r1 + r2);
 
 				// Adjust volume too:
 				volume += diff_surface * prev_thickness / 2;
@@ -2021,6 +2097,7 @@ public class AreaList extends ZDisplayable {
 			// store for next iteration:
 			prev_surface = surface;
 			prev_perimeter = perimeter;
+			prev_smooth_perimeter = smooth_perimeter;
 			last_layer_index = layer_index;
 			prev_thickness = thickness;
 
@@ -2041,8 +2118,10 @@ public class AreaList extends ZDisplayable {
 		}
 
 		// finish last:
-		lower_bound_surface += prev_surface + prev_perimeter * prev_thickness;
+		lower_bound_surface_h += prev_surface + prev_perimeter * prev_thickness;
 		upper_bound_surface += prev_surface + prev_perimeter * prev_thickness;
+		upper_bound_surface_smoothed += prev_surface + prev_smooth_perimeter * prev_thickness;
+
 
 		// Compute maximum diameter
 		double max_diameter_sq = 0;
@@ -2055,7 +2134,7 @@ public class AreaList extends ZDisplayable {
 			}
 		}
 
-		return new double[]{volume, lower_bound_surface, upper_bound_surface, Math.sqrt(max_diameter_sq)};
+		return new double[]{volume, lower_bound_surface_h, upper_bound_surface_smoothed, upper_bound_surface, Math.sqrt(max_diameter_sq)};
 	}
 
 	@Override

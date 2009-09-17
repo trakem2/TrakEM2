@@ -121,7 +121,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private int scroll_step = 1;
 
 	/** Keep track of all existing Display objects. */
-	static private ArrayList<Display> al_displays = new ArrayList<Display>();
+	static private Vector<Display> al_displays = new Vector<Display>();
 	/** The currently focused Display, if any. */
 	static private Display front = null;
 
@@ -4361,7 +4361,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
 		}
 		for (final Display d : al_displays) {
-			Utils.updateComponent(d.toolbar_panel);
+			// @#$%^&!
+			d.toolbar_panel.invalidate();
+			d.toolbar_panel.validate();
+			d.toolbar_panel.repaint();
+			//
 			if (ProjectToolbar.PEN == tool) {
 				AreaList.PP.updateGUI(d.tool_options_panel);
 			} else {
