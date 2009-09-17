@@ -61,9 +61,12 @@ import java.util.List;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.io.Writer;
+import java.io.File;
 import java.util.concurrent.Future;
 
 import lenscorrection.DistortionCorrectionTask;
+import mpicbg.models.PointMatch;
+import mpicbg.trakem2.transform.AffineModel3D;
 
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public final class Display extends DBObject implements ActionListener, ImageListener {
@@ -2411,6 +2414,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Import image"); item.addActionListener(this); menu.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, Event.ALT_MASK & Event.SHIFT_MASK, true));
 		item = new JMenuItem("Import stack..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Import stack with landmarks..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import grid..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import sequence as grid..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import from text file..."); item.addActionListener(this); menu.add(item);
@@ -3318,12 +3322,119 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Import next image")) {
 			importNextImage();
 		} else if (command.equals("Import stack...")) {
-			Display.this.getLayerSet().addLayerContentStep(layer);
+			Display.this.getLayerSet().addChangeTreesStep();
 			Rectangle sr = getCanvas().getSrcRect();
 			Bureaucrat burro = project.getLoader().importStack(layer, sr.x + sr.width/2, sr.y + sr.height/2, null, true, null, false);
 			burro.addPostTask(new Runnable() { public void run() {
-				Display.this.getLayerSet().addLayerContentStep(layer);
+				Display.this.getLayerSet().addChangeTreesStep();
 			}});
+		} else if (command.equals("Import stack with landmarks...")) {
+			// 1 - Find out if there's any other project open
+			List<Project> pr = Project.getProjects();
+			if (1 == pr.size()) {
+				Utils.logAll("Need another project open!");
+				return;
+			}
+			// 2 - Ask for a "landmarks" type
+			GenericDialog gd = new GenericDialog("Landmarks");
+			gd.addStringField("landmarks type:", "landmarks");
+			final String[] none = {"-- None --"};
+			final Hashtable<String,Project> mpr = new Hashtable<String,Project>();
+			for (Project p : pr) {
+				if (p == project) continue;
+				mpr.put(p.toString(), p);
+			}
+			final String[] project_titles = mpr.keySet().toArray(new String[0]);
+
+			final Hashtable<String,ProjectThing> map_target = findLandmarkNodes(project, "landmarks");
+			String[] target_landmark_titles = map_target.isEmpty() ? none : map_target.keySet().toArray(new String[0]);
+			gd.addChoice("Landmarks node in this project:", target_landmark_titles, target_landmark_titles[0]);
+
+			gd.addMessage("");
+			gd.addChoice("Source project:", project_titles, project_titles[0]);
+
+			final Hashtable<String,ProjectThing> map_source = findLandmarkNodes(mpr.get(project_titles[0]), "landmarks");
+			String[] source_landmark_titles = map_source.isEmpty() ? none : map_source.keySet().toArray(new String[0]);
+			gd.addChoice("Landmarks node in source project:", source_landmark_titles, source_landmark_titles[0]);
+
+			final List<Patch> stacks = Display.getPatchStacks(mpr.get(project_titles[0]).getRootLayerSet());
+
+			String[] stack_titles;
+			if (stacks.isEmpty()) {
+				if (1 == mpr.size()) {
+					IJ.showMessage("Project " + project_titles[0] + " does not contain any Stack.");
+					return;
+				}
+				stack_titles = none;
+			} else {
+				stack_titles = new String[stacks.size()];
+				int next = 0;
+				for (Patch pa : stacks) stack_titles[next++] = pa.toString();
+			}
+			gd.addChoice("Stacks:", stack_titles, stack_titles[0]);
+
+			Vector vc = gd.getChoices();
+			final Choice choice_target_landmarks = (Choice) vc.get(0);
+			final Choice choice_source_projects = (Choice) vc.get(1);
+			final Choice choice_source_landmarks = (Choice) vc.get(2);
+			final Choice choice_stacks = (Choice) vc.get(3);
+
+			final TextField input = (TextField) gd.getStringFields().get(0);
+			input.addTextListener(new TextListener() {
+				public void textValueChanged(TextEvent te) {
+					final String text = input.getText();
+					update(choice_target_landmarks, Display.this.project, text, map_target);
+					update(choice_source_landmarks, mpr.get(choice_source_projects.getSelectedItem()), text, map_source);
+				}
+				private void update(Choice c, Project p, String type, Hashtable<String,ProjectThing> table) {
+					table.clear();
+					table.putAll(findLandmarkNodes(p, type));
+					c.removeAll();
+					if (table.isEmpty()) c.add(none[0]);
+					else for (String t : table.keySet()) c.add(t);
+				}
+			});
+
+			choice_source_projects.addItemListener(new ItemListener() {
+				public void itemStateChanged(ItemEvent e) {
+					String item = (String) e.getItem();
+					Project p = mpr.get(choice_source_projects.getSelectedItem());
+					// 1 - Update choice of landmark items
+					map_source.clear();
+					map_source.putAll(findLandmarkNodes(p, input.getText()));
+					choice_target_landmarks.removeAll();
+					if (map_source.isEmpty()) choice_target_landmarks.add(none[0]);
+					else for (String t : map_source.keySet()) choice_target_landmarks.add(t);
+					// 2 - Update choice of Stack items
+					stacks.clear();
+					choice_stacks.removeAll();
+					stacks.addAll(Display.getPatchStacks(mpr.get(project_titles[0]).getRootLayerSet()));
+					if (stacks.isEmpty()) choice_stacks.add(none[0]);
+					else for (Patch pa : stacks) choice_stacks.add(pa.toString());
+				}
+			});
+
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+
+			String type = gd.getNextString();
+			if (null == type || 0 == type.trim().length()) {
+				Utils.log("Invalid landmarks node type!");
+				return;
+			}
+			ProjectThing target_landmarks_node = map_target.get(gd.getNextChoice());
+			Project source = mpr.get(gd.getNextChoice());
+			ProjectThing source_landmarks_node = map_source.get(gd.getNextChoice());
+			Patch stack_patch = stacks.get(gd.getNextChoiceIndex());
+
+			// Store current state
+			Display.this.getLayerSet().addLayerContentStep(layer);
+
+			// Insert stack
+			insertStack(target_landmarks_node, source, source_landmarks_node, stack_patch);
+
+			// Store new state
+			Display.this.getLayerSet().addChangeTreesStep();
 		} else if (command.equals("Import grid...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
 			Bureaucrat burro = project.getLoader().importGrid(layer);
@@ -4373,7 +4484,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
 		}
 		for (final Display d : al_displays) {
-			Utils.updateComponent(d.toolbar_panel);
+			// @#$%^&!
+			d.toolbar_panel.invalidate();
+			d.toolbar_panel.validate();
+			d.toolbar_panel.repaint();
+			//
 			if (ProjectToolbar.PEN == tool) {
 				AreaList.PP.updateGUI(d.tool_options_panel);
 			} else {
@@ -4638,5 +4753,125 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	public Mode getMode() {
 		return mode;
+	}
+
+
+	static private final Hashtable<String,ProjectThing> findLandmarkNodes(Project p, String landmarks_type) {
+		Set<ProjectThing> landmark_nodes = p.getRootProjectThing().findChildrenOfTypeR(landmarks_type);
+		Hashtable<String,ProjectThing> map = new Hashtable<String,ProjectThing>();
+		for (ProjectThing pt : landmark_nodes) {
+			map.put(pt.toString() + "# " + pt.getId(), pt);
+		}
+		return map;
+	}
+
+	/** @param stack_patch is just a Patch of a series of Patch that make a stack of Patches. */
+	private boolean insertStack(ProjectThing target_landmarks, Project source, ProjectThing source_landmarks, Patch stack_patch) {
+		List<Ball> l1 = new ArrayList<Ball>();
+		List<Ball> l2 = new ArrayList<Ball>();
+		Collection<ProjectThing> b1s = source_landmarks.findChildrenOfType("ball"); // source is the one that has the stack_patch
+		Collection<ProjectThing> b2s = target_landmarks.findChildrenOfType("ball"); // target is this
+		HashSet<String> seen = new HashSet<String>();
+		for (ProjectThing b1 : b1s) {
+			Ball ball1 = (Ball) b1.getObject();
+			if (null == ball1) {
+				Utils.log("ERROR: there's an empty 'ball' node in target project" + project.toString());
+				return false;
+			}
+			String title1 = ball1.getTitle();
+			for (ProjectThing b2 : b2s) {
+				Ball ball2 = (Ball) b2.getObject();
+				if (null == ball2) {
+					Utils.log("ERROR: there's an empty 'ball' node in source project" + source.toString());
+					return false;
+				}
+				if (title1.equals(ball2.getTitle())) {
+					if (seen.contains(title1)) continue;
+					seen.add(title1);
+					l1.add(ball1);
+					l2.add(ball2);
+				}
+			}
+		}
+		if (l1.size() < 4) {
+			Utils.log("ERROR: found only " + l1.size() + " common landmarks: needs at least 4!");
+			return false;
+		}
+		// Extract coordinates of source project landmarks, in patch stack coordinate space
+		List<float[]> c1 = new ArrayList<float[]>();
+		for (Ball ball1 : l1) {
+			Map<Layer,double[]> m = ball1.getRawBalls();
+			if (1 != m.size()) {
+				Utils.log("ERROR: ball object " + ball1 + " from target project " + project + " has " + m.size() + " balls instead of just 1.");
+				return false;
+			}
+			Map.Entry<Layer,double[]> e = m.entrySet().iterator().next();
+			Layer layer = e.getKey();
+			double[] xyr = e.getValue();
+			float[] fin = new float[]{(float)xyr[0], (float)xyr[1]};
+			AffineTransform affine = ball1.getAffineTransformCopy();
+			try {
+				affine.preConcatenate(stack_patch.getAffineTransform().createInverse());
+			} catch (Exception nite) {
+				IJError.print(nite);
+				return false;
+			}
+			float[] fout = new float[2];
+			affine.transform(fin, 0, fout, 0, 1);
+			c1.add(new float[]{fout[0], fout[1], layer.getParent().indexOf(layer)});
+		}
+
+		// Extract coordinates of target (this) project landmarks, in calibrated world space
+		List<float[]> c2 = new ArrayList<float[]>();
+		for (Ball ball2 : l2) {
+			double[][] b = ball2.getBalls();
+			if (1 != b.length) {
+				Utils.log("ERROR: ball object " + ball2 + " from source project " + source + " has " + b.length + " balls instead of just 1.");
+				return false;
+			}
+			float[] fin = new float[]{(float)b[0][0], (float)b[0][1]};
+			AffineTransform affine = ball2.getAffineTransformCopy();
+			float[] fout = new float[2];
+			affine.transform(fin, 0, fout, 0, 1);
+			c2.add(new float[]{fout[0], fout[1], (float)b[0][2]});
+		}
+
+		// Print landmarks:
+		Utils.log("Landmarks:");
+		for (Iterator<float[]> it1 = c1.iterator(), it2 = c2.iterator(); it1.hasNext(); ) {
+			Utils.log(Utils.toString(it1.next()) + " <--> " + Utils.toString(it2.next()));
+		}
+
+		// Create point matches
+		List<PointMatch> pm = new ArrayList<PointMatch>();
+		for (Iterator<float[]> it1 = c1.iterator(), it2 = c2.iterator(); it1.hasNext(); ) {
+			pm.add(new mpicbg.models.PointMatch(new mpicbg.models.Point(it1.next()), new mpicbg.models.Point(it2.next())));
+		}
+
+		// Estimate AffineModel3D
+		AffineModel3D aff3d = new AffineModel3D();
+		try {
+			aff3d.fit(pm);
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		}
+
+		// Create and add the Stack
+		String path = stack_patch.getImageFilePath();
+		Stack st = new Stack(project, new File(path).getName(), 0, 0, getLayerSet().getLayers().get(0), path);
+		st.setInvertibleCoordinateTransform(aff3d);
+		getLayerSet().add(st);
+		return true;
+	}
+
+	static private List<Patch> getPatchStacks(final LayerSet ls) {
+		HashSet<Patch> stacks = new HashSet<Patch>();
+		for (Patch pa : (Collection<Patch>) (Collection) ls.getDisplayables(Patch.class)) {
+			PatchStack ps = pa.makePatchStack();
+			if (1 == ps.getNSlices()) continue;
+			stacks.add(ps.getPatch(0));
+		}
+		return new ArrayList<Patch>(stacks);
 	}
 }
