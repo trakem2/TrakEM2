@@ -123,6 +123,7 @@ public final class FSLoader extends Loader {
 		this();
 		if (null == storage_folder) this.dir_storage = super.getStorageFolder(); // home dir
 		else this.dir_storage = storage_folder;
+		this.dir_storage = this.dir_storage.replace('\\', '/');
 		if (!this.dir_storage.endsWith("/")) this.dir_storage += "/";
 		if (!Loader.canReadAndWriteTo(dir_storage)) {
 			Utils.log("WARNING can't read/write to the storage_folder at " + dir_storage);
@@ -1182,6 +1183,7 @@ public final class FSLoader extends Loader {
 			DirectoryChooser dc = new DirectoryChooser("Folder to save images");
 			target_dir = dc.getDirectory();
 			if (null == target_dir) return null; // user canceled dialog
+			if (IJ.isWindows()) target_dir = target_dir.replace('\\', '/');
 			if (target_dir.length() -1 != target_dir.lastIndexOf('/')) {
 				target_dir += "/";
 			}
@@ -1297,11 +1299,14 @@ public final class FSLoader extends Loader {
 			}
 			if (null == this.dir_storage) {
 				IJ.showMessage("TrakEM2 requires a storage folder.\nTemporarily your home directory will be used.");
-				this.dir_storage = System.getProperty("user.home").replace('\\', '/');
+				this.dir_storage = System.getProperty("user.home");
 			}
 		}
 		// fix
-		if (null != this.dir_storage && !this.dir_storage.endsWith("/")) this.dir_storage += "/";
+		if (null != this.dir_storage) {
+			if (IJ.isWindows()) this.dir_storage = this.dir_storage.replace('\\', '/');
+			if (!this.dir_storage.endsWith("/")) this.dir_storage += "/";
+		}
 		Utils.log2("storage folder is " + this.dir_storage);
 		//
 		ob = ht_attributes.remove("mipmaps_folder");
@@ -2221,7 +2226,7 @@ public final class FSLoader extends Loader {
 		String unuid_dir_name = new File(unuid_dir).getName();
 		Utils.log2("Selected UNUId folder: " + unuid_dir + "\n with name: " + unuid_dir_name);
 		if (null != unuid_dir) {
-			unuid_dir = unuid_dir.replace('\\', '/');
+			if (IJ.isWindows()) unuid_dir = unuid_dir.replace('\\', '/');
 			if ( ! unuid_dir_name.startsWith("trakem2.")) {
 				Utils.logAll("Invalid UNUId folder: must start with \"trakem2.\". Try again or cancel.");
 				return obtainUNUIdFolder();
@@ -2284,7 +2289,7 @@ public final class FSLoader extends Loader {
 			final DirectoryChooser dc = new DirectoryChooser("Select MipMaps parent directory");
 			parent_path = dc.getDirectory();
 			if (null == parent_path) return false;
-			parent_path = parent_path.replace('\\', '/');
+			if (IJ.isWindows()) parent_path = parent_path.replace('\\', '/');
 			if (!parent_path.endsWith("/")) parent_path += "/";
 		}
 		// examine parent path
