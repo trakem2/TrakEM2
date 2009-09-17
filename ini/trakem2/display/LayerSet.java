@@ -1279,9 +1279,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		copy.setCalibration(getCalibrationCopy());
 		copy.snapshots_quality = this.snapshots_quality;
 		// copy objects that intersect the roi, from within the given range of layers
-		final java.util.List<Layer> al = ((ArrayList<Layer>)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
-		Utils.log2("al.size() : " + al.size());
-		for (Layer layer : al) {
+		final java.util.List<Layer> range = ((ArrayList<Layer>)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
+		Utils.log2("range.size() : " + range.size());
+		for (Layer layer : range) {
 			Layer layercopy = layer.clone(pr, copy, roi, copy_id);
 			copy.addSilently(layercopy);
 			if (add_to_tree) pr.getLayerTree().addLayer(copy, layercopy);
@@ -1292,7 +1292,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		for (ZDisplayable zd : find(first, last, new Area(roi))) {
 			ZDisplayable zdcopy = (ZDisplayable)zd.clone(pr, copy_id);
 			zdcopy.getAffineTransform().preConcatenate(trans);
-			copy.addSilently(zdcopy);
+			if (zdcopy.crop(range)) {
+				copy.addSilently(zdcopy);
+			} else {
+				Utils.log("Could not copy " + zd);
+			}
 		}
 		// fix links:
 		copy.linkPatchesR();

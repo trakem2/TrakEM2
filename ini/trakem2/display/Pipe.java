@@ -1401,6 +1401,10 @@ public class Pipe extends ZDisplayable implements Line3D {
 			else hs.add(lo);
 
 			Layer layer = layer_set.getLayer(p_layer[l]);
+			if (null == layer) {
+				Utils.log2("Pipe.linkPatches: ignoring null layer for id " + p_layer[l]);
+				continue;
+			}
 
 			// this bounding box as in the current layer
 			final Polygon[] perimeters = getSubPerimeters(layer);
@@ -2162,5 +2166,20 @@ public class Pipe extends ZDisplayable implements Line3D {
 			a[k][i] = a[k][j];
 			a[k][j] = tmp;
 		}
+	}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	synchronized public boolean crop(List<Layer> range) {
+		HashSet<Long> lids = new HashSet<Long>();
+		for (Layer l : range) {
+			lids.add(l.getId());
+		}
+		for (int i=0; i<n_points; i++) {
+			if (!lids.contains(p_layer[i])) {
+				removePoint(i);
+				i--;
+			}
+		}
+		return true;
 	}
 }

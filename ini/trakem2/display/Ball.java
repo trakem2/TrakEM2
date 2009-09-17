@@ -985,4 +985,19 @@ public class Ball extends ZDisplayable {
 			return true;
 		}
 	}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	synchronized public boolean crop(List<Layer> range) {
+		HashSet<Long> lids = new HashSet<Long>();
+		for (Layer l : range) {
+			lids.add(l.getId());
+		}
+		for (int i=0; i<n_points; i++) {
+			if (!lids.contains(p_layer[i])) {
+				removePoint(i);
+				i--;
+			}
+		}
+		return true;
+	}
 }

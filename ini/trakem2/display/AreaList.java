@@ -217,6 +217,10 @@ public class AreaList extends ZDisplayable {
 		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			Layer la = this.layer_set.getLayer(((Long)entry.getKey()).longValue());
+			if (null == la) {
+				Utils.log2("AreaList.linkPatches: ignoring null layer for id " + ((Long)entry.getKey()).longValue());
+				continue;
+			}
 			Area area = (Area)entry.getValue();
 			area = area.createTransformedArea(this.at);
 			for (Iterator dit = la.getDisplayables(Patch.class).iterator(); dit.hasNext(); ) {
@@ -2253,4 +2257,15 @@ public class AreaList extends ZDisplayable {
 	}
 
 	static public final PaintParameters PP = new PaintParameters();
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	synchronized public boolean crop(List<Layer> range) {
+		Set<Long> lids = new HashSet<Long>();
+		for (Layer l : range) lids.add(l.getId());
+		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
+			Long lid = (Long)it.next();
+			if (!lids.contains(lid)) it.remove();
+		}
+		return true;
+	}
 }

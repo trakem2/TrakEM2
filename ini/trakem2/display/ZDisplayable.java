@@ -29,6 +29,7 @@ import java.awt.Graphics;
 import java.awt.Rectangle;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 
@@ -149,4 +150,9 @@ public abstract class ZDisplayable extends Displayable {
 	}
 
 	public void setPosition(FallLine fl) {}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	public boolean crop(List<Layer> range) {
+		return true;
+	}
 }

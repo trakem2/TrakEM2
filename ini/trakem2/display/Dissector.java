@@ -35,6 +35,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Iterator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -703,5 +704,22 @@ public class Dissector extends ZDisplayable {
 			dissector.al_items = m;
 			return true;
 		}
+	}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	synchronized public boolean crop(List<Layer> range) {
+		HashSet<Long> lids = new HashSet<Long>();
+		for (Layer l : range) {
+			lids.add(l.getId());
+		}
+		for (Item item : al_items) {
+			for (int i=0; i<item.n_points; i++) {
+				if (!lids.contains(item.p_layer[i])) {
+					item.remove(i);
+					i--;
+				}
+			}
+		}
+		return true;
 	}
 }
