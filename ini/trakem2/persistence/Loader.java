@@ -3869,7 +3869,7 @@ abstract public class Loader {
 		while (retries < MAX_RETRIES) try {
 				return opener.openImage(path);
 			} catch (OutOfMemoryError oome) {
-				Utils.log2("fetchMipMapAWT: recovering from OutOfMemoryError");
+				Utils.log2("openImagePlus: recovering from OutOfMemoryError");
 				recoverOOME(); // TODO may have to unlock?
 				Thread.yield();
 				// Retry:
