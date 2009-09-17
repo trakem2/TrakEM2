@@ -1064,7 +1064,7 @@ public class Project extends DBObject {
 	public Project createSubproject(final Rectangle roi, final Layer first, final Layer last) {
 		try {
 			// The order matters.
-			final Project pr = new Project(new FSLoader(this.getLoader()));
+			final Project pr = new Project(new FSLoader(this.getLoader().getStorageFolder()));
 			pr.id = this.id;
 			// copy properties
 			pr.title = this.title;
@@ -1098,6 +1098,9 @@ public class Project extends DBObject {
 
 			// The abstract structure should be copied in full regardless, without the basic objects
 			// included if they intersect the roi.
+
+			// Regenerate mipmaps (blocks GUI from interaction other than navigation)
+			pr.loader.regenerateMipMaps(pr.layer_set.getDisplayables(Patch.class));
 
 			return pr;
 

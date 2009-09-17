@@ -119,7 +119,7 @@ public final class FSLoader extends Loader {
 	private String unuid = null;
 
 	/** Used to create a new project, NOT from an XML file. */
-	public FSLoader(final String storage_folder) {
+	public FSLoader(final String storage_folder) throws Exception {
 		this();
 		if (null == storage_folder) this.dir_storage = super.getStorageFolder(); // home dir
 		else this.dir_storage = storage_folder;
@@ -127,6 +127,7 @@ public final class FSLoader extends Loader {
 		if (!this.dir_storage.endsWith("/")) this.dir_storage += "/";
 		if (!Loader.canReadAndWriteTo(dir_storage)) {
 			Utils.log("WARNING can't read/write to the storage_folder at " + dir_storage);
+			throw new Exception("Can't write to storage folder " + dir_storage);
 		} else {
 			this.unuid = createUNUId(this.dir_storage);
 			createMipMapsDir(this.dir_storage);
@@ -150,14 +151,6 @@ public final class FSLoader extends Loader {
 			}
 		}
 		return null;
-	}
-
-	/** Create a new FSLoader copying some key parameters such as preprocessor plugin, and storage and mipmap folders. Used for creating subprojects. */
-	public FSLoader(final Loader source) {
-		this();
-		this.dir_storage = source.getStorageFolder(); // can never be null
-		this.dir_mipmaps = source.getMipMapsFolder();
-		if (null == this.dir_mipmaps) createMipMapsDir(this.dir_storage);
 	}
 
 	/** Store a hidden file in trakem2.mipmaps directory that means: "the project is open", which is deleted when the project is closed. If the file is present on opening a project, it means the project has not been closed properly, and some mipmaps may be wrong. */
@@ -1384,6 +1377,20 @@ public final class FSLoader extends Loader {
 			}.start();
 		}
 	}
+
+	/** Order the regeneration of all mipmaps for the Patch instances in @param patches, setting up a task that blocks input until all completed. */
+	public Bureaucrat regenerateMipMaps(final Collection<Displayable> patches) {
+		return Bureaucrat.createAndStart(new Worker.Task("Regenerating mipmaps") { public void exec() {
+			final List<Future> fus = new ArrayList<Future>();
+			for (final Displayable d : patches) {
+				if (d.getClass() != Patch.class) continue;
+				fus.add(d.getProject().getLoader().regenerateMipMaps((Patch) d));
+			}
+			// Wait until all done
+			for (final Future fu : fus) try { fu.get(); } catch (Exception e) { IJError.print(e); }
+		}}, Project.findProject(this));
+	}
+
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
 	public void insertXMLOptions(StringBuffer sb_body, String indent) {

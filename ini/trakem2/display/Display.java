@@ -4038,26 +4038,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Flush image cache")) {
 			Loader.releaseAllCaches();
 		} else if (command.equals("Regenerate all mipmaps")) {
-			regenerateMipMaps(getLayerSet().getDisplayables(Patch.class));
+			project.getLoader().regenerateMipMaps(getLayerSet().getDisplayables(Patch.class));
 		} else if (command.equals("Regenerate mipmaps (selected images)")) {
-			regenerateMipMaps(selection.getSelected(Patch.class));
+			project.getLoader().regenerateMipMaps(selection.getSelected(Patch.class));
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
 		}});
-	}
-
-	/** Order the regeneration of all mipmaps for the Patch instances in @param patches, setting up a task that blocks input until all completed. */
-	public Bureaucrat regenerateMipMaps(final Collection<Displayable> patches) {
-		return Bureaucrat.createAndStart(new Worker.Task("Regenerating mipmaps") { public void exec() {
-			final List<Future> fus = new ArrayList<Future>();
-			for (final Displayable d : patches) {
-				if (d.getClass() != Patch.class) continue;
-				fus.add(d.getProject().getLoader().regenerateMipMaps((Patch) d));
-			}
-			// Wait until all done
-			for (final Future fu : fus) try { fu.get(); } catch (Exception e) { IJError.print(e); }
-		}}, Display.this.project);
 	}
 
 	private static class UpdateDimensionField implements TextListener {

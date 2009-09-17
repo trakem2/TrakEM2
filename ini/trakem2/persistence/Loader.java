@@ -4960,6 +4960,10 @@ abstract public class Loader {
 	/** Does nothing and returns null unless overriden. */
 	public Future regenerateMipMaps(final Patch patch) { return null; }
 
+
+	/** Does nothing and returns null unless overriden. */
+	public Bureaucrat regenerateMipMaps(final Collection<Displayable> patches) { return null; }
+
 	/** Read out the width,height of an image using LOCI BioFormats. */
 	static public Dimension getDimensions(final String path) {
 		IFormatReader fr = null;

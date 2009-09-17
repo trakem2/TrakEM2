@@ -802,6 +802,13 @@ public final class Patch extends Displayable implements ImageData {
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
+
+		// Copy preprocessor scripts
+		if (pr != this.project) {
+			String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
+			if (null != pspath) pr.getLoader().setPreprocessorScriptPathSilently(copy, pspath);
+		}
+
 		return copy;
 	}
 
