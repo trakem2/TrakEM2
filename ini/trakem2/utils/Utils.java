@@ -664,7 +664,10 @@ public class Utils implements ij.plugin.PlugIn {
 
 		String filename = sd.getFileName();
 		if (null == filename || filename.toLowerCase().startsWith("null")) return null;
-		File f = new File(sd.getDirectory() + "/" + filename);
+		String dir = sd.getDirectory();
+		if (IJ.isWindows()) dir = dir.replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
+		File f = new File(dir + filename);
 		if (f.exists() && ControlWindow.isGUIEnabled()) {
 			YesNoCancelDialog d = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "File " + filename + " exists! Overwrite?");
 			if (d.cancelPressed()) {
@@ -685,9 +688,9 @@ public class Utils implements ij.plugin.PlugIn {
 		String dir = od.getDirectory();
 		File f = null;
 		if (null != dir) {
-			dir = dir.replace('\\', '/');
+			if (IJ.isWindows()) dir = dir.replace('\\', '/');
 			if (!dir.endsWith("/")) dir += "/";
-			f = new File(dir + "/" + file); // I'd use File.separator, but in Windows it fails
+			f = new File(dir + file); // I'd use File.separator, but in Windows it fails
 		}
 		if (null == dir || !f.exists()) {
 			Utils.log2("No proper file selected.");

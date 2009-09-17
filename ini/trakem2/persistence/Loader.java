@@ -315,11 +315,14 @@ abstract public class Loader {
 		OpenDialog od = new OpenDialog("Select XML Template",
 						OpenDialog.getDefaultDirectory(),
 						null);
-		String file = od.getFileName();
-		if (null == file || file.toLowerCase().startsWith("null")) return null;
+		String filename = od.getFileName();
+		if (null == filename || filename.toLowerCase().startsWith("null")) return null;
 		// if there is a path, read it out if possible
-		String path = od.getDirectory() + "/" + file;
-		TemplateThing[] roots = DTDParser.extractTemplate(path);
+		String dir = od.getDirectory();
+		if (null == dir) return null;
+		if (IJ.isWindows()) dir = dir.replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
+		TemplateThing[] roots = DTDParser.extractTemplate(dir + filename);
 		if (null == roots || roots.length < 1) return null;
 		if (roots.length > 1) {
 			Utils.showMessage("Found more than one root.\nUsing first root only.");
@@ -2610,6 +2613,8 @@ abstract public class Loader {
 					finishedWorking();
 					return;
 				}
+				if (IJ.isWindows()) target_dir = target_dir.replace('\\', '/');
+				if (!target_dir.endsWith("/")) target_dir += "/";
 			}
 			if (layer.length > 1) {
 				// 1 - determine stack voxel depth (by choosing one, if there are layers with different thickness)
@@ -2956,7 +2961,7 @@ abstract public class Loader {
 			target_dir = dc.getDirectory();
 			if (null == target_dir) return null;
 		}
-		target_dir = target_dir.replace('\\', '/'); // Windows fixing
+		if (IJ.isWindows()) target_dir = target_dir.replace('\\', '/');
 		if (!target_dir.endsWith("/")) target_dir += "/";
 
 		if (max_scale_ > 1) {
