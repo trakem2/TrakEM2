@@ -708,7 +708,7 @@ public class AreaList extends ZDisplayable {
 				previous_p = p;
 
 				final Rectangle copy = (Rectangle)r.clone();
-				if (null != r_old) r.add(r_old);
+				if (null != r_old) copy.add(r_old);
 				r_old = copy;
 
 				Display.repaint(Display.getFrontLayer(), 3, r, false, false); // repaint only the last added slash
