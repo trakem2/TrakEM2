@@ -280,7 +280,7 @@ final public class AlignTask
 			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
 		
 		//Param p = Align.param;
-		Align.param.sift.maxOctaveSize = 1600;
+		Align.param.sift.maxOctaveSize = 1024;
 		
 		final GenericDialog gd = new GenericDialog( "Align Layers Linearly" );
 		
@@ -298,10 +298,18 @@ final public class AlignTask
 		
 		final int first = gd.getNextChoiceIndex();
 		final int last = gd.getNextChoiceIndex();
-		final int d = first < last ? 1 : -1;
 		
 		Align.param.readFields( gd );
 		final boolean propagateTransform = gd.getNextBoolean();
+		
+		alignLayersLinearlyJob( l, first, last, propagateTransform );		
+	}
+	
+	
+	final static public void alignLayersLinearlyJob( final Layer l, final int first, final int last, final boolean propagateTransform )
+	{
+		final List< Layer > layers = l.getParent().getLayers();
+		final int d = first < last ? 1 : -1;
 		
 		final Align.Param p = Align.param.clone();
 		final Rectangle box = layers.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
