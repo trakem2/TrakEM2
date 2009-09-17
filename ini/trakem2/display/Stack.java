@@ -10,6 +10,8 @@ import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
+import java.awt.AlphaComposite;
+import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -109,6 +111,33 @@ public class Stack extends ZDisplayable implements ImageData
 		addToDatabase();
 	}
 
+	/** For cloning purposes. */
+	private Stack(Project project, long id, String title,
+		      AffineTransform at, double width, double height,
+		      float alpha, boolean visible, Color color, boolean locked,
+		      double depth, double min, double max,
+		      float[] boundsMin, float[] boundsMax,
+		      InvertibleCoordinateTransform ict, double ictScale, String file_path) {
+		super(project, id, title, locked, at, 0, 0);
+		this.title = title;
+		this.alpha = alpha;
+		this.visible = visible;
+		this.color = color;
+		this.boundsMin[0] = boundsMin[0];
+		this.boundsMin[1] = boundsMin[1];
+		this.boundsMin[2] = boundsMin[2];
+		this.boundsMax[0] = boundsMax[0];
+		this.boundsMax[1] = boundsMax[1];
+		this.boundsMax[2] = boundsMax[2];
+		this.width = width;
+		this.height = height;
+		this.depth = depth;
+		this.min = min;
+		this.max = max;
+		this.ict = null == ict ? null : this.ict.clone();
+		this.file_path = file_path;
+	}
+
 	/** Construct a Stack from an XML entry. */
 	public Stack(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
@@ -179,8 +208,18 @@ public class Stack extends ZDisplayable implements ImageData
 	@Override
 	public Displayable clone( Project pr, boolean copy_id )
 	{
-		// TODO Auto-generated method stub
-		return null;
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		final Stack copy = new Stack( pr, nid, null != title ? title.toString() : null,
+				              new AffineTransform(at), width, height,
+					      alpha, visible, color, locked,
+					      depth, min, max,
+					      boundsMin, boundsMax,
+					      ict, ictScale, file_path );
+		// Copy references to cached images
+		copy.cachedImages.putAll(cachedImages);
+		copy.futureImages.putAll(futureImages);
+		copy.addToDatabase();
+		return copy;
 	}
 
 	/* (non-Javadoc)
@@ -189,8 +228,7 @@ public class Stack extends ZDisplayable implements ImageData
 	@Override
 	public boolean isDeletable()
 	{
-		// TODO Auto-generated method stub
-		return false;
+		return 0 == width && 0 == height;
 	}
 	
 	public String getFilePath(){
@@ -446,8 +484,16 @@ public class Stack extends ZDisplayable implements ImageData
 		atp.concatenate( asict );
 		
 		final Composite original_composite = g.getComposite();
-		g.setComposite( getComposite() );
-		g.drawImage( image, atp, null );
+		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
+		try {
+			g.setComposite( getComposite() );
+			g.drawImage( image, atp, null );
+		} catch (Throwable t) {
+			Utils.log(new StringBuilder("Cannot paint Stack with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
+			g.setComposite( getComposite( COMPOSITE_NORMAL ) );
+			g.drawImage( image, atp, null );
+		}
+
 		g.setComposite( original_composite );
 	}
 

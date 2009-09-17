@@ -318,13 +318,15 @@ public class Distortion_Correction implements PlugIn{
     {
     	if ( !sp.setup( "Lens Correction" ) ) return;
     	
-    	IJ.log( sp.source_dir + sp.names[ 0 ] );
-    	final ImagePlus imgTmp = new Opener().openImage( sp.source_dir + sp.names[ 0 ] );
-    	final int imageWidth = imgTmp.getWidth(), imageHeight=imgTmp.getHeight();
-    	/** imgTmp was just needed to get width and height of the images */
-    	imgTmp.flush();
-		
     	List< List< PointMatch > > inliers = null;
+    	if (sp.saveOrLoad == 0) {
+    	
+    		//IJ.log( sp.source_dir + sp.names[ 0 ] );
+    		final ImagePlus imgTmp = new Opener().openImage( sp.source_dir + sp.names[ 0 ] );
+    		final int imageWidth = imgTmp.getWidth(), imageHeight=imgTmp.getHeight();
+    		/** imgTmp was just needed to get width and height of the images */
+    		imgTmp.flush();
+		
     	List< Feature >[] siftFeatures = extractSIFTFeaturesThreaded( sp.numberOfImages, sp.source_dir, sp.names );
 		
 	    List< PointMatch >[] inliersTmp = new ArrayList[ sp.numberOfImages * ( sp.numberOfImages - 1 ) ];
@@ -382,12 +384,12 @@ public class Distortion_Correction implements PlugIn{
 			    }
 			}
 	    }	
-
-	    if ( sp.saveOrLoad == 0 )
-	    {
+    	
+	    //if ( sp.saveOrLoad == 0 )
+	    //{
 	    	nlt = distortionCorrection( h1, h2, tp, sp.dimension, sp.lambda, imageWidth, imageHeight );
             nlt.visualizeSmall( sp.lambda );
-	    }
+	    
 
 		while( true )
 		{
@@ -401,7 +403,7 @@ public class Distortion_Correction implements PlugIn{
 			nlt.visualizeSmall( sp.lambda );					
 		}
 		nlt.save( sp.source_dir + sp.saveFileName );
-	   
+    	}
 		//after all preprocessing is done, estimate the distortion correction transform
 
 
@@ -416,7 +418,7 @@ public class Distortion_Correction implements PlugIn{
 			sp.target_dir = correctImages();
 		}
 		
-		if ( sp.visualizeResults )
+		if ( sp.visualizeResults && (sp.saveOrLoad == 0))
 		{
 		    IJ.log( "call nlt.visualize()" );
 		    nlt.visualize();
