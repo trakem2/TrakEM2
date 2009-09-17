@@ -2180,6 +2180,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 				i--;
 			}
 		}
+		calculateBoundingBox(true);
 		return true;
 	}
 }

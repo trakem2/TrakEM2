@@ -720,6 +720,7 @@ public class Dissector extends ZDisplayable {
 				}
 			}
 		}
+		calculateBoundingBox();
 		return true;
 	}
 }

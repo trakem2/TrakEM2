@@ -998,6 +998,7 @@ public class Ball extends ZDisplayable {
 				i--;
 			}
 		}
+		calculateBoundingBox(true);
 		return true;
 	}
 }

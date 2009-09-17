@@ -2266,6 +2266,7 @@ public class AreaList extends ZDisplayable {
 			Long lid = (Long)it.next();
 			if (!lids.contains(lid)) it.remove();
 		}
+		calculateBoundingBox();
 		return true;
 	}
 }

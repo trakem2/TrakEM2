@@ -1261,6 +1261,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 				i--;
 			}
 		}
+		calculateBoundingBox(true);
 		return true;
 	}
 }
