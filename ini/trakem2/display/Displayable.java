@@ -553,15 +553,22 @@ public abstract class Displayable extends DBObject implements Paintable {
 		return r;
 	}
 	
-	/** Bounding box of a collection of transformed {@link Displayables} */
+	/** Bounding box of a collection of transformed {@link Displayables}
+	 *  If the list is empty, there is no bounding box, so it returns null. */
 	static public Rectangle getBoundingBox(final Collection<? extends Displayable> ds, final Rectangle r)
 	{
-		final Rectangle rect = r == null ? new Rectangle() : r;
+		Rectangle rect = null;
 		final Rectangle rd = new Rectangle();
 		for (final Displayable d : ds)
 		{
 			d.getBounds(rd);
-			rect.add(rd);
+			if (null == rect) {
+				// the first one:
+				if (null == r) rect = (Rectangle) rd.clone();
+				else rect.setRect(rd);
+			} else {
+				rect.add(rd);
+			}
 		}
 		return rect;
 	}

@@ -1,4 +1,18 @@
 /**
+ * License: GPL
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License 2
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * 
  */
 package ini.trakem2.display;
@@ -10,7 +24,6 @@ import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
-import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
@@ -38,8 +51,7 @@ import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
 import mpicbg.util.Util;
 
 /**
- * @author saalfeld
- *
+ * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  */
 public class Stack extends ZDisplayable implements ImageData
 {
@@ -248,19 +260,15 @@ public class Stack extends ZDisplayable implements ImageData
 	 */
 	final static private float estimateAffineScale( final AffineTransform atp )
 	{
-		float d = 0;
+		final float dxx = ( float )atp.getScaleX(); 
+		final float dxy = ( float )atp.getShearY();
+		final float dxs = dxx * dxx + dxy * dxy;
 		
-		/* add */
-		final float aX = ( float )atp.getScaleX() + ( float )atp.getShearX();
-		final float aY = ( float )atp.getShearY() + ( float )atp.getScaleY();
-		d = Math.max( d, aX * aX + aY * aY );
-		/* subtract */
-		final float sX = ( float )atp.getScaleX() - ( float )atp.getShearX();
-		final float sY = ( float )atp.getShearY() - ( float )atp.getScaleY();
-		d = Math.max( d, sX * sX + sY * sY );
+		final float dyx = ( float )atp.getShearX();
+		final float dyy = ( float )atp.getScaleY();
+		final float dys = dyx * dyx + dyy * dyy;
 		
-		return Util.SQRT1 / ( float )Math.sqrt( d );
-		
+		return ( float )Math.sqrt( Math.max( dxs, dys ) );
 	}
 
 	/** Slow paint: will wait until the image is generated and cached, then paint it. */
@@ -384,7 +392,7 @@ public class Stack extends ZDisplayable implements ImageData
 						
 						final float s = estimateAffineScale( new AffineTransform( at ) ); // wast: atp
 
-						final float smoothMag = ( float )magnification / s * ( float )ictScale;
+						final float smoothMag = ( float )magnification * s * ( float )ictScale;
 						if ( smoothMag < 1.0f )
 						{
 							Filter.smoothForScale( ip, smoothMag, 0.5f, 0.5f );
@@ -511,8 +519,7 @@ public class Stack extends ZDisplayable implements ImageData
 	public void exportXML(StringBuffer sb_body, String indent, Object any) { // TODO the Loader should handle the saving of images, not this class.
 		String in = indent + "\t";
 		sb_body.append(indent).append("<t2_stack\n");
-		String rel_path = null;
-
+		
 		super.exportXML(sb_body, in, any);
 		String[] RGB = Utils.getHexRGBColor(color);
 
@@ -609,37 +616,13 @@ public class Stack extends ZDisplayable implements ImageData
 		{
 			if ( AffineModel3D.class.isInstance( ict ) )
 			{
-				float d = 0;
 				final float[] m = ( ( AffineModel3D )ict ).getMatrix( null );
 				
-				/* add x and y */
-				final float axyX = m[ 0 ] + m[ 1 ];
-				final float axyY = m[ 4 ] + m[ 5 ];
-				d = Math.max( d, axyX * axyX + axyY * axyY );
-				/* subtract x and y */
-				final float sxyX = m[ 0 ] - m[ 1 ];
-				final float sxyY = m[ 4 ] - m[ 5 ];
-				d = Math.max( d, sxyX * sxyX + sxyY * sxyY );
+				final float dxs = m[ 0 ] * m[ 0 ] + m[ 4 ] * m[ 4 ];
+				final float dys = m[ 1 ] * m[ 1 ] + m[ 5 ] * m[ 5 ];
+				final float dzs = m[ 2 ] * m[ 2 ] + m[ 6 ] * m[ 6 ];
 				
-				/* add x and z */
-				final float axzX = m[ 0 ] + m[ 2 ];
-				final float axzY = m[ 4 ] + m[ 6 ];
-				d = Math.max( d, axzX * axzX + axzY * axzY );
-				/* subtract x and z */
-				final float sxzX = m[ 0 ] - m[ 2 ];
-				final float sxzY = m[ 4 ] - m[ 6 ];
-				d = Math.max( d, sxzX * sxzX + sxzY * sxzY );
-				
-				/* add y and z */
-				final float ayzX = m[ 1 ] + m[ 2 ];
-				final float ayzY = m[ 5 ] + m[ 6 ];
-				d = Math.max( d, ayzX * ayzX + ayzY * ayzY );
-				/* subtract y and z */
-				final float syzX = m[ 1 ] - m[ 2 ];
-				final float syzY = m[ 5 ] - m[ 6 ];
-				d = Math.max( d, syzX * syzX + syzY * syzY );
-				
-				ictScale = ( float )Math.sqrt( d ) / Util.SQRT1;
+				ictScale = ( float )Math.sqrt( Math.max( dxs, Math.max( dys, dzs ) ) );
 			}
 		}
 	}
