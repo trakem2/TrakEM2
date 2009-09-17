@@ -19,22 +19,34 @@
  */
 package mpicbg.trakem2.transform;
 
-public class AffineModel2D extends mpicbg.models.AffineModel2D implements InvertibleCoordinateTransform
+public class AffineModel3D extends mpicbg.models.AffineModel3D implements InvertibleCoordinateTransform
 {
 
 	//@Override
 	final public void init( final String data )
 	{
 		final String[] fields = data.split( "\\s+" );
-		if ( fields.length == 6 )
+		if ( fields.length == 12 )
 		{
 			final float m00 = Float.parseFloat( fields[ 0 ] );
-			final float m10 = Float.parseFloat( fields[ 1 ] );
-			final float m01 = Float.parseFloat( fields[ 2 ] );
-			final float m11 = Float.parseFloat( fields[ 3 ] );
-			final float m02 = Float.parseFloat( fields[ 4 ] );
-			final float m12 = Float.parseFloat( fields[ 5 ] );
-			set( m00, m10, m01, m11, m02, m12 );
+			final float m01 = Float.parseFloat( fields[ 1 ] );
+			final float m02 = Float.parseFloat( fields[ 2 ] );
+			final float m03 = Float.parseFloat( fields[ 3 ] );
+			
+			final float m10 = Float.parseFloat( fields[ 4 ] );
+			final float m11 = Float.parseFloat( fields[ 5 ] );
+			final float m12 = Float.parseFloat( fields[ 6 ] );
+			final float m13 = Float.parseFloat( fields[ 7 ] );
+			
+			final float m20 = Float.parseFloat( fields[ 8 ] );
+			final float m21 = Float.parseFloat( fields[ 9 ] );
+			final float m22 = Float.parseFloat( fields[ 10 ] );
+			final float m23 = Float.parseFloat( fields[ 11 ] );
+			
+			set(
+					m00, m01, m02, m03,
+					m10, m11, m12, m13,
+					m20, m21, m22, m23 );
 		}
 		else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
 	}
@@ -48,20 +60,28 @@ public class AffineModel2D extends mpicbg.models.AffineModel2D implements Invert
 	//@Override
 	final public String toDataString()
 	{
-		return m00 + " " + m10 + " " + m01 + " " + m11 + " " + m02 + " " + m12;
+		return
+				m00 + " " + m01 + " " + m02 + " " + m03 + " " +
+				m10 + " " + m11 + " " + m12 + " " + m13 + " " +
+				m20 + " " + m21 + " " + m22 + " " + m23;
 	}
 	
 	@Override
-	public AffineModel2D clone()
+	public AffineModel3D clone()
 	{
-		final AffineModel2D m = new AffineModel2D();
+		AffineModel3D m = new AffineModel3D();
 		m.m00 = m00;
-		m.m01 = m01;
 		m.m10 = m10;
+		m.m20 = m20;
+		m.m01 = m01;
 		m.m11 = m11;
-
+		m.m21 = m21;
 		m.m02 = m02;
 		m.m12 = m12;
+		m.m22 = m22;
+		m.m03 = m03;
+		m.m13 = m13;
+		m.m23 = m23;
 		
 		m.cost = cost;
 		
@@ -70,27 +90,36 @@ public class AffineModel2D extends mpicbg.models.AffineModel2D implements Invert
 		return m;
 	}
 	
-	/**
-	 * TODO Not yet tested
-	 */
-	//@Override
-	public AffineModel2D createInverse()
+	@Override
+	public AffineModel3D createInverse()
 	{
-		final AffineModel2D ict = new AffineModel2D();
+		final AffineModel3D ict = new AffineModel3D();
 		
 		ict.m00 = i00;
 		ict.m10 = i10;
+		ict.m20 = i20;
 		ict.m01 = i01;
 		ict.m11 = i11;
+		ict.m21 = i21;
 		ict.m02 = i02;
 		ict.m12 = i12;
+		ict.m22 = i22;
+		ict.m03 = i03;
+		ict.m13 = i13;
+		ict.m23 = i23;
 		
 		ict.i00 = m00;
 		ict.i10 = m10;
+		ict.i20 = m20;
 		ict.i01 = m01;
 		ict.i11 = m11;
+		ict.i21 = m21;
 		ict.i02 = m02;
 		ict.i12 = m12;
+		ict.i22 = m22;
+		ict.i03 = m03;
+		ict.i13 = m13;
+		ict.i23 = m23;
 		
 		ict.cost = cost;
 		

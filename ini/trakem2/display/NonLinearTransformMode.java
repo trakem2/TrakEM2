@@ -620,5 +620,4 @@ public class NonLinearTransformMode implements Mode {
 		
 		return mlst;
 	}
-
 }

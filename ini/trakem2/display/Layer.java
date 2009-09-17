@@ -130,11 +130,11 @@ public final class Layer extends DBObject implements Bucketable {
 		double thickness = gd.getNextNumber();
 		int n_layers = (int)gd.getNextNumber();
 		if (thickness < 0) {
-			Utils.showMessage("Can't create layers with negative thickness");
+			Utils.log("Can't create layers with negative thickness");
 			return null;
 		}
 		if (n_layers < 1) {
-			Utils.showMessage("Invalid number of layers");
+			Utils.log("Invalid number of layers");
 			return null;
 		}
 		Layer[] layer = new Layer[n_layers];
@@ -332,7 +332,7 @@ public final class Layer extends DBObject implements Bucketable {
 			al_displayables.toArray(displ);
 			for (int i=0; i<displ.length; i++) {
 				if (!displ[i].remove(false)) { // will call back Layer.remove(Displayable)
-					Utils.showMessage("Could not delete " + displ[i]);
+					Utils.log("Could not delete " + displ[i]);
 					return false;
 				}
 			}

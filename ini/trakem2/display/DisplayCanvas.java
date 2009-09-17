@@ -2167,10 +2167,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// paint first the current layer Patches only (to set the background)
 					int count = 0;
 					for (final Paintable d : paintable_patches) {
-						d.paint(g, magnification, d == active, c_alphas, layer);
+						// With prePaint capabilities:
+						d.prePaint(g, magnification, d == active, c_alphas, layer);
 					}
 
-					// then blend on top the Patches of the others, in reverse Z order and using the alpha of the LayerPanel
+					// then blend on top the ImageData of the others, in reverse Z order and using the alpha of the LayerPanel
 					final Composite original = g.getComposite();
 					// reset
 					g.setTransform(new AffineTransform());
@@ -2182,8 +2183,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						final Graphics2D gb = bi.createGraphics();
 						gb.setTransform(atc);
 						for (final Displayable d : lp.layer.find(srcRect, true)) {
-							if (d.getClass() != Patch.class) continue; // skip non-images
-							d.paint(gb, magnification, false, c_alphas, lp.layer);
+							if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
+							d.paint(gb, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
+						}
+						// Repeating loop ... the human compiler at work, just because one cannot lazily concatenate both sequences:
+						for (final Displayable d : lp.layer.getParent().findZDisplayables(lp.layer, srcRect, true)) {
+							if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
+							d.paint(gb, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 						}
 						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
 						g.drawImage(bi, 0, 0, null);
@@ -2199,6 +2205,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					for (final Displayable d : al_paint.subList(paintable_patches.size(), al_paint.size())) {
 						d.paint(g, magnification, d == active, c_alphas, layer);
 					}
+					Utils.log2("multi layer mode");
 				} else { // Display.REPAINT_RGB_LAYER == mode
 					final HashMap<Color,byte[]> channels = new HashMap<Color,byte[]>();
 					hm.put(Color.green, layer);
@@ -2207,13 +2214,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						final Graphics2D gb = bi.createGraphics();
 						gb.setTransform(atc);
 						final Layer la = e.getValue();
-						Collection<? extends Paintable> list;
+						ArrayList<Paintable> list = new ArrayList<Paintable>();
 						if (la == layer) {
 							if (Color.green != e.getKey()) continue; // don't paint current layer in two channels
-							list = paintable_patches;
+							list.addAll(paintable_patches);
 						} else {
-							list = la.find(Patch.class, srcRect, true);
+							list.addAll(la.find(Patch.class, srcRect, true));
 						}
+						list.addAll(la.getParent().getZDisplayables(ImageData.class, true)); // Stack.class and perhaps others
 						for (final Paintable d : list) {
 							d.paint(gb, magnification, false, c_alphas, la);
 						}
@@ -2239,10 +2247,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// reset
 					g.setTransform(atc);
 
-					// then paint the non-Patch objects of the current layer
-					for (final Displayable d : al_paint.subList(al_patches.size(), al_paint.size())) {
+					// then paint the non-Image objects of the current layer
+					for (final Displayable d : al_paint) {
+						if (ImageData.class.isInstance(d)) continue;
 						d.paint(g, magnification, d == active, c_alphas, layer);
 					}
+					// TODO having each object type in a key/list<type> table would be so much easier and likely performant.
 				}
 
 				// finally, paint non-srcRect areas

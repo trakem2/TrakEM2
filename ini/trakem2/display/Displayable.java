@@ -32,6 +32,11 @@ import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
+import ini.trakem2.display.graphics.AddARGBComposite;
+import ini.trakem2.display.graphics.ColorYCbCrComposite;
+import ini.trakem2.display.graphics.DifferenceARGBComposite;
+import ini.trakem2.display.graphics.MultiplyARGBComposite;
+import ini.trakem2.display.graphics.SubtractARGBComposite;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -41,6 +46,50 @@ import ini.trakem2.vector.Compare;
 
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject implements Paintable {
+	
+	final static protected String[] compositeModes = new String[]{
+		"Normal",
+		"Add",
+		"Subtract",
+		"Multiply",
+		"Difference",
+		"Color (YCbCr)"
+		};
+	final static public byte COMPOSITE_NORMAL = 0;
+	final static public byte COMPOSITE_ADD = 1;
+	final static public byte COMPOSITE_SUBTRACT = 2;
+	final static public byte COMPOSITE_MULTIPLY = 3;
+	final static public byte COMPOSITE_DIFFERENCE = 4;
+	final static public byte COMPOSITE_COLOR_YCBCR = 5;
+	
+	private byte compositeMode = COMPOSITE_NORMAL;
+	public byte getCompositeMode(){ return compositeMode; }
+	public Composite getComposite() { return getComposite( compositeMode ); }
+	protected Composite getComposite( int mode )
+	{
+		final Composite composite;
+		switch ( mode )
+		{
+		case Displayable.COMPOSITE_ADD:
+			composite = AddARGBComposite.getInstance( alpha );
+			break;
+		case Displayable.COMPOSITE_SUBTRACT:
+			composite = SubtractARGBComposite.getInstance( alpha );
+			break;
+		case Displayable.COMPOSITE_MULTIPLY:
+			composite = MultiplyARGBComposite.getInstance( alpha );
+			break;
+		case Displayable.COMPOSITE_DIFFERENCE:
+			composite = DifferenceARGBComposite.getInstance( alpha );
+			break;
+		case Displayable.COMPOSITE_COLOR_YCBCR:
+			composite = ColorYCbCrComposite.getInstance( alpha );
+			break;
+		default:
+			composite = AlphaComposite.getInstance( AlphaComposite.SRC_OVER, alpha );
+		}
+		return composite;
+	}
 
 	final protected AffineTransform at = new AffineTransform();
 
@@ -353,6 +402,8 @@ public abstract class Displayable extends DBObject implements Paintable {
 					y = Double.parseDouble(data);
 				} else if (key.equals("rot")) {
 					rot = Double.parseDouble(data);
+				} else if (key.equals("composite")) {
+					compositeMode = Byte.parseByte(data);
 				} else continue;
 				al_used_keys.add(key);
 			} catch (Exception ea) {
@@ -471,7 +522,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 
 	/** Bounding box of the transformed data (or 0,0,0,0 when no data).
 	 *  Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
-	private final Rectangle getBounds(final Rectangle r) {
+	protected Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;
 		r.width = (int)this.width;
@@ -500,6 +551,19 @@ public abstract class Displayable extends DBObject implements Paintable {
 			r.height = (int)(max_y - min_y);
 		}
 		return r;
+	}
+	
+	/** Bounding box of a collection of transformed {@link Displayables} */
+	static public Rectangle getBoundingBox(final Collection<? extends Displayable> ds, final Rectangle r)
+	{
+		final Rectangle rect = r == null ? new Rectangle() : r;
+		final Rectangle rd = new Rectangle();
+		for (final Displayable d : ds)
+		{
+			d.getBounds(rd);
+			rect.add(rd);
+		}
+		return rect;
 	}
 
 	/** Subclasses can override this method to provide the exact contour, otherwise it returns the transformed bounding box of the data. */
@@ -997,6 +1061,8 @@ public abstract class Displayable extends DBObject implements Paintable {
 		tred.addTextListener(slc);
 		tgreen.addTextListener(slc);
 		tblue.addTextListener(slc);
+		
+		gd.addChoice( "composite mode: ", compositeModes, compositeModes[ compositeMode ] );
 		return gd;
 	}
 
@@ -1059,6 +1125,9 @@ public abstract class Displayable extends DBObject implements Paintable {
 		}
 		boolean visible1 = gd.getNextBoolean();
 		boolean locked1 = gd.getNextBoolean();
+		
+		compositeMode = ( byte )gd.getNextChoiceIndex();
+		
 		if (!title.equals(title1)) {
 			prev.add("title", title1);
 			setTitle(title1); // will update the panel
@@ -1168,6 +1237,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" visible").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" title").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" links").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" composite").append(TAG_ATTR2)
 		;
 	}
 
@@ -1213,6 +1283,11 @@ public abstract class Displayable extends DBObject implements Paintable {
 		if (null != title && title.length() > 0) {
 			sb_body.append(in).append("title=\"").append(title.replaceAll("\"", "^#^")).append("\"\n"); // fix possible harm by '"' characters (backslash should be taken care of as well TODO)
 		}
+		
+		if (COMPOSITE_NORMAL != compositeMode) {
+			sb_body.append(in).append("composite=\"").append(compositeMode).append("\"\n");
+		}
+		
 		sb_body.append(in).append("links=\"");
 		if (null != hs_linked && 0 != hs_linked.size()) {
 			// Sort the ids: so resaving the file saves an identical file (otherwise, ids are in different order).
@@ -1223,6 +1298,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 			for (int g=0; g<ids.length; g++) sb_body.append(ids[g]).append(',');
 			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
 		}
+		
 		sb_body.append("\"\n");
 	}
 

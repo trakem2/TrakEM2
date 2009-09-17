@@ -2919,9 +2919,9 @@ public class DBLoader extends Loader {
 	}
 
 	/** Returns the last Patch. */
-	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final int x, final int y, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
-		int pos_x = Integer.MAX_VALUE != x ? x : (int)first_layer.getLayerWidth()/2 - imp_stack.getWidth()/2;
-		int pos_y = Integer.MAX_VALUE != y ? y : (int)first_layer.getLayerHeight()/2 - imp_stack.getHeight()/2;
+	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final double x, final double y, final ImagePlus imp_stack, final boolean as_copy, final String filepath) {
+		double pos_x = Double.MAX_VALUE != x ? x : first_layer.getLayerWidth()/2 - imp_stack.getWidth()/2;
+		double pos_y = Double.MAX_VALUE != y ? y : first_layer.getLayerHeight()/2 - imp_stack.getHeight()/2;
 		final double thickness = first_layer.getThickness();
 		final String title = Utils.removeExtension(imp_stack.getTitle()).replace(' ', '_');
 		Utils.showProgress(0);
