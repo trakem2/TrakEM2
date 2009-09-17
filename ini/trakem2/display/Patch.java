@@ -1314,6 +1314,9 @@ public final class Patch extends Displayable implements ImageData {
 				// capturing:
 				ke.consume();
 				break;
+			default:
+				super.keyPressed(ke);
+				break;
 		}
 	}
 
