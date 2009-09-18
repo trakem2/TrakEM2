@@ -2170,6 +2170,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 
 	/** Retain the data within the layer range, and through out all the rest. */
 	synchronized public boolean crop(List<Layer> range) {
+		if (-1 == n_points) setupForDisplay();
 		HashSet<Long> lids = new HashSet<Long>();
 		for (Layer l : range) {
 			lids.add(l.getId());
@@ -2180,6 +2181,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 				i--;
 			}
 		}
+		generateInterpolatedPoints(0.05);
 		calculateBoundingBox(true);
 		return true;
 	}
