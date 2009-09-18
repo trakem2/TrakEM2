@@ -499,9 +499,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			ht_later_local = new Hashtable(ht_later);
 			ht_later.keySet().removeAll(ht_later_local.keySet());
 		}
-		final Worker worker = new Worker("Opening displays") {
-			public void run() {
-				startedWorking();
+		final Worker worker = new Worker.Task("Opening displays") {
+			public void exec() {
 				try {
 					Thread.sleep(300); // waiting for Swing
 
@@ -530,8 +529,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 				} catch (Throwable t) {
 					IJError.print(t);
-				} finally {
-					finishedWorking();
 				}
 			}
 		};
