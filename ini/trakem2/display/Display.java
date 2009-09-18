@@ -132,7 +132,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	static private final Hashtable ht_later = new Hashtable();
 
 	/** A thread to handle user actions, for example an event sent from a popup menu. */
-	private final Dispatcher dispatcher = new Dispatcher();
+	private final Dispatcher dispatcher = new Dispatcher("Display GUI Updater");
 
 	static private WindowAdapter window_listener = new WindowAdapter() {
 		/** Unregister the closed Display. */
@@ -1957,6 +1957,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final JPanel tab, final String label, final ArrayList al) {
 		dispatcher.exec(new Runnable() { public void run() {
+			Utils.log2("updating tab A");
 			try {
 			if (0 == al.size()) {
 				tab.removeAll();
@@ -1990,6 +1991,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} catch (Throwable e) { IJError.print(e); }
 		}});
 		dispatcher.execSwing(new Runnable() { public void run() {
+			Utils.log2("updating tab B in swing");
 			/*
 			Component c = tabs.getSelectedComponent();
 			c.invalidate();
