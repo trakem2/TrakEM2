@@ -353,8 +353,8 @@ public class Stack extends ZDisplayable implements ImageData
 						final ImagePlus imp = project.getLoader().fetchImagePlus( Stack.this );
 						final ImageProcessor ip = imp.getStack().getProcessor( 1 ).createProcessor( ( int )Math.ceil( ( boundsMax[ 0 ] - boundsMin[ 0 ] ) / ictScale ), ( int )Math.ceil( ( boundsMax[ 1 ] - boundsMin[ 1 ] ) / ictScale ) );
 						
-						Utils.log2( "ictScale is " + ictScale );
-						Utils.log2( "rendering an image of " + ip.getWidth() + " x " + ip.getHeight() + " px" );
+						//Utils.log2( "ictScale is " + ictScale );
+						//Utils.log2( "rendering an image of " + ip.getWidth() + " x " + ip.getHeight() + " px" );
 						
 						final double currentZ = active_layer.getZ();
 
