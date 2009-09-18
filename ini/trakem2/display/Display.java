@@ -1990,7 +1990,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					}
 				}
 			}
-			if (null != Display.this.active) scrollToShow(Display.this.active);
 			} catch (Throwable e) { IJError.print(e); }
 		}});
 		dispatcher.execSwing(new Runnable() { public void run() {
@@ -1998,6 +1997,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			c.invalidate();
 			c.validate();
 			c.repaint();
+			if (null != Display.this.active) scrollToShow(Display.this.active);
 		}});
 	}
 
