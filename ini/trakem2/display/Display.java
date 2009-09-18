@@ -132,7 +132,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	static private final Hashtable ht_later = new Hashtable();
 
 	/** A thread to handle user actions, for example an event sent from a popup menu. */
-	private final Dispatcher dispatcher = new Dispatcher("Display GUI Updater");
+	protected final Dispatcher dispatcher = new Dispatcher("Display GUI Updater");
 
 	static private WindowAdapter window_listener = new WindowAdapter() {
 		/** Unregister the closed Display. */

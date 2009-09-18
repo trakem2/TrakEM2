@@ -225,88 +225,93 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	}
 
 	private class ML extends MouseAdapter {
-	public void mousePressed(MouseEvent me) {
-		JCheckBox source = (JCheckBox) me.getSource();
-		if (source.equals(c)) {
-			if (!source.isSelected()) {
-				d.setVisible(true);
-			} else {
-				// Prevent hiding when transforming
-				if (Display.isTransforming(d)) {
-					Utils.showStatus("Transforming! Can't change visibility.", false);
-					c.setSelected(true);
-					return;
-				}
-				d.setVisible(false);
-			}
-		} else if (source.equals(c_locked)) {
-			if (!source.isSelected()) {
-				// Prevent locking while transforming
-				if (Display.isTransforming(d)) {
-					Utils.logAll("Transforming! Can't lock.");
-					c_locked.setSelected(false);
-					return;
-				}
-				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
-				d.setLocked(true);
-				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
-			} else {
-				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
-				d.setLocked(false);
-				d.getLayerSet().addDataEditStep(d, new String[]{"locked"});
-			}
-			// Update lock checkboxes of linked Displayables, except of this one
-			Collection<Displayable> lg = d.getLinkedGroup(null);
-			if (null != lg) {
-				lg.remove(d); // not this one!
-				Display.updateCheckboxes(lg, LOCK_STATE, d.isLocked2());
-			}
-		} else if (source.equals(c_linked)) {
-			// Prevent linking/unlinking while transforming
-			if (Display.isTransforming(d)) {
-				Utils.logAll("Transforming! Can't modify linking state.");
-					c_linked.setSelected(d.isLinked());
-					return;
-			}
+		public void mousePressed(final MouseEvent me) {
+			display.dispatcher.exec(new Runnable() {
+				public void run() {
+					JCheckBox source = (JCheckBox) me.getSource();
+					if (source.equals(c)) {
+						if (!source.isSelected()) {
+							d.setVisible(true);
+						} else {
+							// Prevent hiding when transforming
+							if (Display.isTransforming(d)) {
+								Utils.showStatus("Transforming! Can't change visibility.", false);
+								c.setSelected(true);
+								return;
+							}
+							d.setVisible(false);
+						}
+					} else if (source.equals(c_locked)) {
+						final String[] members = new String[]{"locked"};
+						if (!source.isSelected()) {
+							// Prevent locking while transforming
+							if (Display.isTransforming(d)) {
+								Utils.logAll("Transforming! Can't lock.");
+								c_locked.setSelected(false);
+								return;
+							}
+							d.getLayerSet().addDataEditStep(d, members);
+							d.setLocked(true);
+							d.getLayerSet().addDataEditStep(d, members);
+						} else {
+							d.getLayerSet().addDataEditStep(d, members);
+							d.setLocked(false);
+							d.getLayerSet().addDataEditStep(d, members);
+						}
+						// Update lock checkboxes of linked Displayables, except of this one
+						Collection<Displayable> lg = d.getLinkedGroup(null);
+						if (null != lg) {
+							lg.remove(d); // not this one!
+							Display.updateCheckboxes(lg, LOCK_STATE, d.isLocked2());
+						}
+					} else if (source.equals(c_linked)) {
+						// Prevent linking/unlinking while transforming
+						if (Display.isTransforming(d)) {
+							Utils.logAll("Transforming! Can't modify linking state.");
+								c_linked.setSelected(d.isLinked());
+								return;
+						}
 
-			final Set<Displayable> hs;
+						final Set<Displayable> hs;
 
-			if (!source.isSelected()) {
-				final Rectangle box = d.getBoundingBox();
-				hs = new HashSet<Displayable>(d.getLayer().find(box, true)); // only those visible and overlapping
-				hs.addAll(d.getLayerSet().findZDisplayables(d.getLayer(), box, true));
-				if (hs.size() > 1) {
-					d.getLayerSet().addDataEditStep(hs, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
-					for (final Displayable other : hs) {
-						if (other == d) continue;
-						d.link(other);
+						if (!source.isSelected()) {
+							final Rectangle box = d.getBoundingBox();
+							hs = new HashSet<Displayable>(d.getLayer().find(box, true)); // only those visible and overlapping
+							hs.addAll(d.getLayerSet().findZDisplayables(d.getLayer(), box, true));
+							if (hs.size() > 1) {
+								d.getLayerSet().addDataEditStep(hs, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
+								for (final Displayable other : hs) {
+									if (other == d) continue;
+									d.link(other);
+								}
+
+								d.getLayerSet().addDataEditStep(hs, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
+							} else {
+								// Nothing to link, restore icon
+								c_linked.setSelected(false);
+							}
+						} else {
+							hs = d.getLinkedGroup(null);
+							d.getLayerSet().addDataEditStep(hs, new String[]{"data"});
+							d.unlink();
+							d.getLayerSet().addDataEditStep(hs, new String[]{"data"});
+						}
+
+						// Update link checkboxes of linked Displayables, except of this one
+						if (null != hs) {
+							hs.remove(d); // not this one!
+							if (hs.size() > 0) {
+								Display.updateCheckboxes(hs, LINK_STATE);
+								Display.updateCheckboxes(hs, LOCK_STATE);
+							}
+						}
+
+						// Recompute list of links in Selection
+						Display.updateSelection(Display.getFront());
 					}
-
-					d.getLayerSet().addDataEditStep(hs, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
-				} else {
-					// Nothing to link, restore icon
-					c_linked.setSelected(false);
 				}
-			} else {
-				hs = d.getLinkedGroup(null);
-				d.getLayerSet().addDataEditStep(hs, new String[]{"data"});
-				d.unlink();
-				d.getLayerSet().addDataEditStep(hs, new String[]{"data"});
-			}
-
-			// Update link checkboxes of linked Displayables, except of this one
-			if (null != hs) {
-				hs.remove(d); // not this one!
-				if (hs.size() > 0) {
-					Display.updateCheckboxes(hs, LINK_STATE);
-					Display.updateCheckboxes(hs, LOCK_STATE);
-				}
-			}
-
-			// Recompute list of links in Selection
-			Display.updateSelection(Display.getFront());
+			});
 		}
-	}
 	}
 
 	public void mousePressed(final MouseEvent me) {
