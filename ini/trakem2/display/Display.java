@@ -3983,10 +3983,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			Project sub = getProject().createSubproject(roi.getBounds(), first, last);
 			final LayerSet subls = sub.getRootLayerSet();
-			final Display d = new Display(sub, subls.getLayer(0));
-			SwingUtilities.invokeLater(new Runnable() { public void run() {
-			d.canvas.showCentered(new Rectangle(0, 0, (int)subls.getLayerWidth(), (int)subls.getLayerHeight()));
-			}});
+			Display.createDisplay(sub, subls.getLayer(0));
 		} else if (command.startsWith("Arealists as labels")) {
 			GenericDialog gd = new GenericDialog("Export labels");
 			gd.addSlider("Scale: ", 1, 100, 100);
