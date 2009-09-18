@@ -210,10 +210,11 @@ public class AreaList extends ZDisplayable {
 		return last_layer;
 	} // I do REALLY miss Lisp macros. Writting the above two methods in a lispy way would make the java code unreadable
 
-	public void linkPatches() {
+	public boolean linkPatches() {
 		unlinkAll(Patch.class);
 		// cheap way: intersection of the patches' bounding box with the area
 		Rectangle r = new Rectangle();
+		boolean must_lock = false;
 		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			Layer la = this.layer_set.getLayer(((Long)entry.getKey()).longValue());
@@ -228,9 +229,18 @@ public class AreaList extends ZDisplayable {
 				r = d.getBoundingBox(r);
 				if (area.intersects(r)) {
 					link(d, true);
+					if (d.locked) must_lock = true;
 				}
 			}
 		}
+
+		// set the locked flag to this and all linked ones
+		if (must_lock && !locked) {
+			setLocked(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	/** Returns whether the point x,y is contained in this object at the given Layer. */

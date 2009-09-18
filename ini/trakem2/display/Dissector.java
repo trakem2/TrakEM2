@@ -289,9 +289,11 @@ public class Dissector extends ZDisplayable {
 			return layer_set.getLayer(p_layer[0]);
 		}
 
-		final void linkPatches() {
+		/** Returns where any of the newly linked was locked. */
+		final boolean linkPatches() {
 			final Rectangle r = new Rectangle(); // for reuse
 			final double[][] po = transformPoints(p);
+			boolean must_lock = false;
 			for (int i=0; i<n_points; i++) {
 				Layer la = layer_set.getLayer(p_layer[0]);
 				for (Iterator it = la.getDisplayables(Patch.class).iterator(); it.hasNext(); ) {
@@ -299,9 +301,11 @@ public class Dissector extends ZDisplayable {
 					d.getBoundingBox(r);
 					if (r.contains((int)po[0][i], (int)po[1][i])) {
 						link(d, true);
+						must_lock = true;
 					}
 				}
 			}
+			return must_lock;
 		}
 
 		/** Check whether the given point x,y falls within radius of any of the points in this Item.
@@ -423,12 +427,18 @@ public class Dissector extends ZDisplayable {
 		return min_la;
 	}
 
-	public void linkPatches() {
-		if (0 == al_items.size()) return;
+	public boolean linkPatches() {
+		if (0 == al_items.size()) return false;
 		unlinkAll(Patch.class);
+		boolean must_lock = false;
 		for (Item item : al_items) {
-			item.linkPatches();
+			must_lock = item.linkPatches() || must_lock;
 		}
+		if (must_lock) {
+			setLocked(true);
+			return true;
+		}
+		return false;
 	}
 
 	public boolean contains(Layer layer, int x, int y) {

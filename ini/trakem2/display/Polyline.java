@@ -866,7 +866,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 	}
 
 	/* Scan the Display and link Patch objects that lay under this Pipe's bounding box. */
-	public void linkPatches() { // TODO needs to check all layers!!
+	public boolean linkPatches() { // TODO needs to check all layers!!
 		unlinkAll(Patch.class);
 		// sort points by layer id
 		final HashMap<Long,ArrayList<Integer>> m = new HashMap<Long,ArrayList<Integer>>();
@@ -878,6 +878,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 			}
 			a.add(i);
 		}
+		boolean must_lock = false;
 		// For each layer id, search patches whose perimeter includes
 		// one of the backbone points in this path:
 		for (Map.Entry<Long,ArrayList<Integer>> e : m.entrySet()) {
@@ -888,11 +889,20 @@ public class Polyline extends ZDisplayable implements Line3D {
 					final int i = in.intValue();
 					if (perimeter.contains(p[0][i], p[1][i])) {
 						this.link(patch);
+						if (patch.locked) must_lock = true;
 						break;
 					}
 				}
 			}
 		}
+
+		// set the locked flag to this and all linked ones
+		if (must_lock && !locked) {
+			setLocked(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in, or the creation layer if no points yet. */

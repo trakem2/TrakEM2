@@ -278,16 +278,19 @@ public abstract class Displayable extends DBObject implements Paintable {
 	public void setLocked(final boolean lock) {
 		// Regardless of whether this Displayable locked state is equal to 'lock' argument,
 		// apply the state as if it was new, for setLocked(boolean) is meant to apply to all linked.
-		if (lock) {
-			// Set the locked state of only this Displayable, not of any linked ones.
-			this.locked = lock;
+
+		if (null == hs_linked) {
+			if (locked == lock) return;
+			locked = lock;
 			updateInDatabase("locked");
-		} else {
-			// to unlock, unlock all in the linked group that are locked
-			for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
-				d.locked = false;
-				d.updateInDatabase("locked");
-			}
+			return;
+		}
+
+		// Update linked ones even if the locking state for this one is the same: linked ones may have been added.
+
+		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
+			d.locked = lock;
+			d.updateInDatabase("locked");
 		}
 	}
 
@@ -910,10 +913,9 @@ public abstract class Displayable extends DBObject implements Paintable {
 	}
 
 
-	/** Link the Patch objects that lay underneath the bounding box of this Displayable, so that they cannot be dragged independently. */
-	public void linkPatches() {
-		final String prop = project.getProperty(Project.getName(this.getClass()).toLowerCase() + "_nolinks");
-		if (null != prop && prop.equals("true")) return;
+	/** Link the Patch objects that lay underneath the bounding box of this Displayable, so that they cannot be dragged independently.
+	 *  @return whether the locking state changed. */
+	public boolean linkPatches() {
 		// find the patches that don't lay under other profiles of this profile's linking group, and make sure they are unlinked. This will unlink any Patch objects under this Profile:
 		unlinkAll(Patch.class);
 
@@ -924,19 +926,30 @@ public abstract class Displayable extends DBObject implements Paintable {
 
 		// this bounding box:
 		final Polygon perimeter = getPerimeter(); //displaced by this object's position!
-		if (null == perimeter) return; // happens when a profile with zero points is deleted
+		if (null == perimeter) return false; // happens when a profile with zero points is deleted
 
 		// for each Patch, check if it underlays this profile's bounding box
 		Rectangle box = new Rectangle();
+		boolean must_lock = false;
 		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
 			final Displayable displ = (Displayable)itd.next();
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			if (perimeter.intersects(displ.getBoundingBox(box))) {
 				// Link the patch
 				this.link(displ);
+				if (displ.locked) must_lock = true;
 			}
 		}
+
+		// set the locked flag to this and all linked ones
+		if (must_lock && !locked) {
+			setLocked(true);
+			return true;
+		}
+
+		return false;
 	}
+
 	/** Unlink all Displayable objects of the given type linked by this. */
 	public void unlinkAll(final Class c) {
 		if (!this.isLinked() || null == hs_linked) {

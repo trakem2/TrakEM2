@@ -1387,13 +1387,14 @@ public class Pipe extends ZDisplayable implements Line3D {
 	}
 
 	// scan the Display and link Patch objects that lay under this Pipe's bounding box:
-	public void linkPatches() { // TODO needs to check all layers!!
+	public boolean linkPatches() { // TODO needs to check all layers!!
 		// SHOULD check on every layer where there is a subperimeter. This method below will work only while the Display is not switching layer before deselecting this pipe (which calls linkPatches)
 
 		// find the patches that don't lay under other profiles of this profile's linking group, and make sure they are unlinked. This will unlink any Patch objects under this Pipe:
 		unlinkAll(Patch.class);
 
 		HashSet hs = new HashSet();
+		boolean must_lock = false;
 		for (int l=0; l<n_points; l++) {
 			// avoid repeating the ones that have been done
 			Long lo = new Long(p_layer[l]); // in blankets ...
@@ -1422,11 +1423,20 @@ public class Pipe extends ZDisplayable implements Line3D {
 					if (perimeters[i].intersects(displ.getBoundingBox(box))) {
 						// Link the patch
 						this.link(displ);
+						if (displ.locked) must_lock = true;
 						break; // no need to check more perimeters
 					}
 				}
 			}
 		}
+
+		// set the locked flag to this and all linked ones
+		if (must_lock && !locked) {
+			setLocked(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in, or the creation layer if no points yet. */

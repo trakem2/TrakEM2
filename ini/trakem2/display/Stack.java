@@ -208,10 +208,9 @@ public class Stack extends ZDisplayable implements ImageData
 	 * @see ini.trakem2.display.ZDisplayable#linkPatches()
 	 */
 	@Override
-	public void linkPatches()
+	public boolean linkPatches()
 	{
-	// TODO Auto-generated method stub
-
+		return false;
 	}
 
 	/* (non-Javadoc)

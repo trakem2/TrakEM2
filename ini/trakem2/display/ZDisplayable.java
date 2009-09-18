@@ -79,7 +79,7 @@ public abstract class ZDisplayable extends Displayable {
 	public void setLayer(Layer layer) { this.layer = layer; }
 
 	/** Link the Patch objects that lay underneath the part of the bounding box of this profile that shows in the current layer, so that they cannot be dragged independently. */
-	abstract public void linkPatches();
+	abstract public boolean linkPatches();
 
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in. */
 	abstract public Layer getFirstLayer();

@@ -813,8 +813,9 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Override to cancel. */
-	public void linkPatches() {
+	public boolean linkPatches() {
 		Utils.log2("Patch class can't link other patches using Displayble.linkPatches()");
+		return false;
 	}
 
 	public void paintSnapshot(final Graphics2D g, final double mag) {

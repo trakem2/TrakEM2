@@ -1712,11 +1712,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	public void select(final Displayable d, final boolean shift_down) {
 		if (null != active && active != d && active.getClass() != Patch.class) {
 			// active is being deselected, so link underlying patches
-			active.linkPatches();
-			// If now locked via links:
-			if (active.isLocked()) Display.updateCheckboxes(active, DisplayablePanel.LOCK_STATE, true);
+			final String prop = project.getProperty(Project.getName(active.getClass()).toLowerCase() + "_nolinks");
+			HashSet<Displayable> glinked = null;
+			if (null != prop && prop.equals("true")) {
+				// do nothing: linking disabled for active's type
+			} else if (active.linkPatches()) {
+				// Locking state changed:
+				glinked = active.getLinkedGroup(null);
+				updateCheckboxes(glinked, DisplayablePanel.LOCK_STATE, true);
+			}
 			// Update link icons:
-			Display.updateCheckboxes(active.getLinkedGroup(null), DisplayablePanel.LINK_STATE);
+			Display.updateCheckboxes(null == glinked ? active.getLinkedGroup(null) : glinked, DisplayablePanel.LINK_STATE);
 		}
 		if (null == d) {
 			//Utils.log2("Display.select: clearing selection");
@@ -1957,7 +1963,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final JPanel tab, final String label, final ArrayList al) {
 		dispatcher.exec(new Runnable() { public void run() {
-			Utils.log2("updating tab A");
 			try {
 			if (0 == al.size()) {
 				tab.removeAll();
@@ -1988,20 +1993,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					}
 				}
 			}
-			} catch (Throwable e) { IJError.print(e); }
-		}});
-		dispatcher.execSwing(new Runnable() { public void run() {
-			Utils.log2("updating tab B in swing");
-			/*
-			Component c = tabs.getSelectedComponent();
-			c.invalidate();
-			c.validate();
-			c.repaint();
-			*/
-			tabs.invalidate();
-			tabs.validate();
-			tabs.repaint();
 			if (null != Display.this.active) scrollToShow(Display.this.active);
+			} catch (Throwable e) { IJError.print(e); }
+
+			// invokeLater:
+			Utils.updateComponent(tabs);
 		}});
 	}
 
