@@ -481,7 +481,7 @@ public class Selection {
 				for (final Displayable d : queue) {
 					d.setLocked(b);
 				}
-				Display.updateCheckboxes(hs, DisplayablePanel.LINK_STATE, b);
+				Display.updateCheckboxes(hs, DisplayablePanel.LOCK_STATE, b);
 				addDataEditStep(new String[]{"locked"});
 			} catch (Exception e) {
 				IJError.print(e);
