@@ -1990,10 +1990,15 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} catch (Throwable e) { IJError.print(e); }
 		}});
 		dispatcher.execSwing(new Runnable() { public void run() {
+			/*
 			Component c = tabs.getSelectedComponent();
 			c.invalidate();
 			c.validate();
 			c.repaint();
+			*/
+			tabs.invalidate();
+			tabs.validate();
+			tabs.repaint();
 			if (null != Display.this.active) scrollToShow(Display.this.active);
 		}});
 	}
