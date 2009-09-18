@@ -137,7 +137,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	public void set(final Displayable d) {
 		this.d = d;
 		c.setSelected(d.isVisible());
-		c_locked.setSelected(d.isLocked());
+		c_locked.setSelected(d.isLocked2());
 		c_linked.setSelected(d.isLinked());
 		updateTitle();
 		sp.set(d);
@@ -350,7 +350,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	protected void updateCheckbox(final int cb) {
 		switch(cb) {
 			case LOCK_STATE:
-				c_locked.setSelected(d.isLocked());
+				c_locked.setSelected(d.isLocked2());
 				break;
 			case VISIBILITY_STATE:
 				c.setSelected(d.isVisible());
