@@ -1292,10 +1292,14 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		for (ZDisplayable zd : find(first, last, new Area(roi))) {
 			ZDisplayable zdcopy = (ZDisplayable)zd.clone(pr, copy_id);
 			zdcopy.getAffineTransform().preConcatenate(trans);
+			copy.addSilently(zdcopy); // must be added before attempting to crop it, because crop needs a LayerSet ref.
 			if (zdcopy.crop(range)) {
-				copy.addSilently(zdcopy);
+				if (zdcopy.isDeletable()) {
+					zdcopy.remove2(false); // from trees and all.
+					Utils.log("Skipping empty " + zdcopy);
+				}
 			} else {
-				Utils.log("Could not copy " + zd);
+				Utils.log("Could not crop " + zd);
 			}
 		}
 		// fix links:
