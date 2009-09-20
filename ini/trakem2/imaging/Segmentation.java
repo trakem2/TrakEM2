@@ -21,6 +21,7 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
 import java.awt.Checkbox;
 import java.awt.Component;
+import java.util.ArrayList;
 
 import levelsets.ij.ImageContainer;
 import levelsets.ij.ImageProgressContainer;
@@ -43,6 +44,9 @@ public class Segmentation {
 		public boolean autoscale_after_filtering = true;
 		public boolean saturate_when_autoscaling = true;
 		public boolean apply_grey_value_erosion = true;
+		/** In pixels, of the the underlying image to copy around the mouse. May be enlarged by shift+scrollwheel with PENCIL tool on a selected AreaList. */
+		public int width = 100,
+		           height = 100;
 
 		public boolean setup() {
 			GenericDialog gd = new GenericDialog("Fast Marching Options");
@@ -86,20 +90,29 @@ public class Segmentation {
 			apply_grey_value_erosion = gd.getNextBoolean();
 			return true;
 		}
+
+		public void resizeArea(final int sign, final double magnification) {
+			double inc = (int)( (10 * sign) / magnification);
+			this.width += inc;
+			this.height += inc;
+			Utils.log2("fmp w,h: " + width + ", " + height);
+		}
 	}
 
 	static public final FastMarchingParam fmp = new FastMarchingParam();
 
 	static public Thread fastMarching(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w) {
 		return Bureaucrat.createAndStart(new Worker.Task("Fast marching") { public void exec() {
-			// Capture image as large as the visible field in the Display, defined by srcRect
-			ImagePlus imp = (ImagePlus) layer.grab(srcRect, 1.0, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
+			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
+			Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
+			Utils.log2("fmp box is " + box);
+			ImagePlus imp = (ImagePlus) layer.grab(box, 1.0, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
 			// Bandpass filter
 			if (fmp.apply_bandpass_filter) {
 				IJ.run(imp, "Bandpass Filter...", "filter_large=" + fmp.low_frequency_threshold  + " filter_small=" + fmp.high_frequency_threshold + " suppress=None tolerance=5" + (fmp.autoscale_after_filtering ? " autoscale" : "") + (fmp.saturate_when_autoscaling ? " saturate" : ""));
 			}
 			// Setup seed point
-			PointRoi roi = new PointRoi(x_p_w - srcRect.x, y_p_w - srcRect.y);
+			PointRoi roi = new PointRoi(box.width/2, box.height/2);
 			imp.setRoi(roi);
 			Utils.log2("imp: " + imp);
 			Utils.log2("proi: " + imp.getRoi() + "    " + Utils.toString(new int[]{x_p_w - srcRect.x, y_p_w - srcRect.y}));
@@ -109,9 +122,9 @@ public class Segmentation {
 			state.setROI(roi, ic.getWidth(), ic.getHeight(), ic.getImageCount(), imp.getCurrentSlice());
 			state.setExpansionToInside(false);
 			// Run FastMarching
-			FastMarching fm = new FastMarching(ic, null, state, true, fmp.fm_grey, fmp.fm_dist, fmp.apply_grey_value_erosion);
-			int max_iterations = fmp.max_iterations;
-			int iter_inc = fmp.iter_inc;
+			final FastMarching fm = new FastMarching(ic, null, state, true, fmp.fm_grey, fmp.fm_dist, fmp.apply_grey_value_erosion);
+			final int max_iterations = fmp.max_iterations;
+			final int iter_inc = fmp.iter_inc;
 			for (int i=0; i<max_iterations; i++) {
 				if (Thread.currentThread().isInterrupted()) {
 					return;
@@ -120,18 +133,38 @@ public class Segmentation {
 			}
 			// Extract ROI
 			setTaskName("Adding area");
+			final ArrayList<Coordinate> vc = fm.getStateContainer().getXYZ(false);
+			if (0 == vc.size()) {
+				Utils.log("No area growth.");
+				return;
+			}
 			final Area area = new Area();
-			Rectangle r = new Rectangle(0, 0, 1, 1);
-			// Takes FOREVER
+			Coordinate first = vc.remove(0);
+			final Rectangle r = new Rectangle(first.x, first.y, 1, 1);
+
 			int count = 0;
-			for (final Coordinate c : fm.getStateContainer().getXYZ(false)) {
+			// Scan and add line-wise
+			for (final Coordinate c : vc) {
+				count++;
+				if (c.y == r.y && c.x == r.x + 1) {
+					// same line:
+					r.width += 1;
+					continue;
+				} else {
+					// add previous one
+					area.add(new Area(r));
+				}
+				// start new line:
 				r.x = c.x;
 				r.y = c.y;
-				area.add(new Area(r));
-				if (0 == count % 1000 && Thread.currentThread().isInterrupted()) {
+				r.width = 1;
+				if (0 == count % 1024 && Thread.currentThread().isInterrupted()) {
 					return;
 				}
 			}
+			// add last:
+			area.add(new Area(r));
+
 			/*
 			// Trying from the image mask: JUST AS SLOW
 			final byte[] b = (byte[]) fm.getStateContainer().getIPMask()[0].getPixels();
@@ -177,7 +210,7 @@ public class Segmentation {
 
 			// Bring Area to World coordinates...
 			AffineTransform at = new AffineTransform();
-			at.translate(srcRect.x, srcRect.y);
+			at.translate(box.x, box.y);
 			// ... and then to AreaList coordinates:
 			try {
 				at.preConcatenate(ali.getAffineTransform().createInverse());

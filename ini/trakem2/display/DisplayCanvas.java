@@ -406,12 +406,26 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				align.paint(active_layer, g2d, srcRect, magnification);
 			}
 
-			// paint brush outline for AreaList
-			if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass() == AreaList.class) {
-				int brushSize = ProjectToolbar.getBrushSize();
-				g.setColor(active.getColor());
-				g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
+			// paint brush outline for AreaList, or fast-marching area
+			if (mouse_in && null != active && active.getClass() == AreaList.class) {
+				switch (ProjectToolbar.getToolId()) {
+					case ProjectToolbar.PEN:
+						int brushSize = ProjectToolbar.getBrushSize();
+						g.setColor(active.getColor());
+						g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
+						break;
+					case ProjectToolbar.PENCIL:
+						Composite co = g2d.getComposite();
+						g2d.setXORMode(active.getColor());
+						g2d.drawRect((int)((xMouse -srcRect.x -Segmentation.fmp.width/2)  * magnification),
+							     (int)((yMouse -srcRect.y -Segmentation.fmp.height/2) * magnification),
+							     (int)(Segmentation.fmp.width  * magnification),
+							     (int)(Segmentation.fmp.height * magnification)); 
+						g2d.setComposite(co); // undo XOR mode
+						break;
+				}
 			}
+
 
 			final Roi roi = imp.getRoi();
 			if (null != roi) {
@@ -1282,17 +1296,29 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			/* && 0 == (flags & InputEvent.BUTTON2_MASK) */ // this is the alt key down ..
 			 && 0 == (flags & InputEvent.BUTTON3_MASK)
 			//if (me.getButton() == MouseEvent.NOBUTTON
-			 && ProjectToolbar.getToolId() == ProjectToolbar.PEN && null != active && active.isVisible() && AreaList.class == active.getClass()) {
-				// repaint area where the brush circle is
-				int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
-				Rectangle r = new Rectangle( xMouse - brushSize/2,
-							     yMouse - brushSize/2,
-							     brushSize+1,
-							     brushSize+1 );
-				Rectangle copy = (Rectangle)r.clone(); 
-				if (null != old_brush_box) r.add(old_brush_box);
-				old_brush_box = copy;
-				repaint(r, 1); // padding because of painting rounding which would live dirty trails
+			 && null != active && active.isVisible() && AreaList.class == active.getClass()) {
+				final int tool = ProjectToolbar.getToolId();
+				Rectangle r = null;
+				if (ProjectToolbar.PEN == tool) {
+					// repaint area where the brush circle is
+					int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
+					r = new Rectangle( xMouse - brushSize/2,
+							   yMouse - brushSize/2,
+							   brushSize+1,
+							   brushSize+1 );
+				} else if (ProjectToolbar.PENCIL == tool) {
+					// repaint area where the fast-marching box is
+					r = new Rectangle( xMouse - Segmentation.fmp.width/2 - 2,
+							   yMouse - Segmentation.fmp.height/2 - 2,
+							   Segmentation.fmp.width + 4,
+							   Segmentation.fmp.height + 4 );
+				}
+				if (null != r) {
+					Rectangle copy = (Rectangle)r.clone(); 
+					if (null != old_brush_box) r.add(old_brush_box);
+					old_brush_box = copy;
+					repaint(r, 1); // padding because of painting rounding which would live dirty trails
+				}
 			}
 
 			if (me.isShiftDown()) {
@@ -1969,17 +1995,29 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			} else {
 				zoomIn(x, y);
 			}
-		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && ProjectToolbar.getToolId() == ProjectToolbar.PEN) {
-			int brushSize_old = ProjectToolbar.getBrushSize();
-			// resize brush for AreaList painting
+		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && display.getActive().getClass() == AreaList.class) {
+			final int tool = ProjectToolbar.getToolId();
 			final int sign = rotation > 0 ? 1 : -1;
-			int brushSize = ProjectToolbar.setBrushSize((int)(5 * sign / magnification)); // the getWheelRotation provides the sign
-			if (brushSize_old > brushSize) brushSize = brushSize_old; // for repainting purposes alnne
-			int extra = (int)(5 / magnification);
-			if (extra < 2) extra = 2;
-			extra += 4;
-			Rectangle r = new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - brushSize/2 - extra, (int)(mwe.getY() / magnification) + srcRect.y - brushSize/2 - extra, brushSize+extra, brushSize+extra);
-			this.repaint(r, 0);
+			if (ProjectToolbar.PEN == tool) {
+				int brushSize_old = ProjectToolbar.getBrushSize();
+				// resize brush for AreaList painting
+				int brushSize = ProjectToolbar.setBrushSize((int)(5 * sign / magnification)); // the getWheelRotation provides the sign
+				if (brushSize_old > brushSize) brushSize = brushSize_old; // for repainting purposes alone
+				int extra = (int)(10 / magnification);
+				if (extra < 2) extra = 2;
+				extra += 4; // for good measure
+				this.repaint(new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - brushSize/2 - extra, (int)(mwe.getY() / magnification) + srcRect.y - brushSize/2 - extra, brushSize+extra, brushSize+extra), 0);
+			} else if (ProjectToolbar.PENCIL == tool) {
+				// resize area to consider for fast-marching
+				int w = Segmentation.fmp.width;
+				int h = Segmentation.fmp.height;
+				Segmentation.fmp.resizeArea(sign, magnification);
+				w = Math.max(w, Segmentation.fmp.width);
+				h = Math.max(h, Segmentation.fmp.height);
+				this.repaint(new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - w/2 + 2,
+							   (int)(mwe.getY() / magnification) + srcRect.y - h/2 + 2,
+							   w + 4, h + 4), 0);
+			}
 		} else if (0 == modifiers) {
 			// scroll layers
 			if (rotation > 0) display.nextLayer(modifiers);
