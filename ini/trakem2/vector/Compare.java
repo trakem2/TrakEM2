@@ -1787,7 +1787,10 @@ public class Compare {
 				//  - to show the full matched nodes
 
 				ActionListener listener = new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
+					public void actionPerformed(final ActionEvent ae) {
+						new Thread() {
+							{ setPriority(Thread.NORM_PRIORITY); }
+							public void run() {
 						try {
 							final String command = ae.getActionCommand();
 							if (command.equals(interp3D)) {
@@ -1810,6 +1813,7 @@ public class Compare {
 								model.vis.showNearby(model.query);
 							}
 						} catch (Exception e) { IJError.print(e); }
+						}}.start();
 					}
 				};
 				JMenuItem item;
@@ -2448,7 +2452,7 @@ public class Compare {
 				return;
 			}
 			if (IJ.isWindows()) plot_dir = plot_dir.replace('\\', '/');
-			if (plot_dir.endsWith("/")) plot_dir += "/";
+			if (!plot_dir.endsWith("/")) plot_dir += "/";
 		}
 
 		Utils.log2("Gathering chains...");

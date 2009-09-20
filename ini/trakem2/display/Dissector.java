@@ -35,6 +35,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Iterator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -288,9 +289,11 @@ public class Dissector extends ZDisplayable {
 			return layer_set.getLayer(p_layer[0]);
 		}
 
-		final void linkPatches() {
+		/** Returns where any of the newly linked was locked. */
+		final boolean linkPatches() {
 			final Rectangle r = new Rectangle(); // for reuse
 			final double[][] po = transformPoints(p);
+			boolean must_lock = false;
 			for (int i=0; i<n_points; i++) {
 				Layer la = layer_set.getLayer(p_layer[0]);
 				for (Iterator it = la.getDisplayables(Patch.class).iterator(); it.hasNext(); ) {
@@ -298,9 +301,11 @@ public class Dissector extends ZDisplayable {
 					d.getBoundingBox(r);
 					if (r.contains((int)po[0][i], (int)po[1][i])) {
 						link(d, true);
+						must_lock = true;
 					}
 				}
 			}
+			return must_lock;
 		}
 
 		/** Check whether the given point x,y falls within radius of any of the points in this Item.
@@ -422,12 +427,18 @@ public class Dissector extends ZDisplayable {
 		return min_la;
 	}
 
-	public void linkPatches() {
-		if (0 == al_items.size()) return;
+	public boolean linkPatches() {
+		if (0 == al_items.size()) return false;
 		unlinkAll(Patch.class);
+		boolean must_lock = false;
 		for (Item item : al_items) {
-			item.linkPatches();
+			must_lock = item.linkPatches() || must_lock;
 		}
+		if (must_lock) {
+			setLocked(true);
+			return true;
+		}
+		return false;
 	}
 
 	public boolean contains(Layer layer, int x, int y) {
@@ -703,5 +714,23 @@ public class Dissector extends ZDisplayable {
 			dissector.al_items = m;
 			return true;
 		}
+	}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	synchronized public boolean crop(List<Layer> range) {
+		HashSet<Long> lids = new HashSet<Long>();
+		for (Layer l : range) {
+			lids.add(l.getId());
+		}
+		for (Item item : al_items) {
+			for (int i=0; i<item.n_points; i++) {
+				if (!lids.contains(item.p_layer[i])) {
+					item.remove(i);
+					i--;
+				}
+			}
+		}
+		calculateBoundingBox();
+		return true;
 	}
 }

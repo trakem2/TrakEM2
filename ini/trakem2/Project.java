@@ -324,6 +324,7 @@ public class Project extends DBObject {
 					Utils.showMessage("Can't read/write to the selected storage folder.\nPlease check folder permissions.");
 					return null;
 				}
+				if (IJ.isWindows()) dir_project = dir_project.replace('\\', '/');
 			}
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
@@ -734,7 +735,7 @@ public class Project extends DBObject {
 		else select(d, project_tree);
 	}
 
-	private final void select(final Object ob, final JTree tree) {
+	private final void select(final Object ob, final DNDTree tree) {
 		// Find the Thing that contains the object
 		final Thing root_thing = (Thing)((DefaultMutableTreeNode)tree.getModel().getRoot()).getUserObject();
 		final Thing child_thing = root_thing.findChild(ob);
@@ -991,10 +992,13 @@ public class Project extends DBObject {
 		Profile.exportDTD(sb_header, hs, indent);
 		AreaList.exportDTD(sb_header, hs, indent);
 		Dissector.exportDTD(sb_header, hs, indent);
+		Stack.exportDTD( sb_header, hs, indent );
 		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		// 4 - export Display
 		Display.exportDTD(sb_header, hs, indent);
 		// all the above could be done with reflection, automatically detecting the presence of an exportDTD method.
+		// CoordinateTransforms
+		mpicbg.trakem2.transform.DTD.append( sb_header, hs, indent );
 	}
 
 	/** Returns the String to be used as Document Type of the XML file, generated from the name of the root template thing.*/
@@ -1060,7 +1064,7 @@ public class Project extends DBObject {
 	public Project createSubproject(final Rectangle roi, final Layer first, final Layer last) {
 		try {
 			// The order matters.
-			final Project pr = new Project(new FSLoader(this.getLoader()));
+			final Project pr = new Project(new FSLoader(this.getLoader().getStorageFolder()));
 			pr.id = this.id;
 			// copy properties
 			pr.title = this.title;
@@ -1094,6 +1098,9 @@ public class Project extends DBObject {
 
 			// The abstract structure should be copied in full regardless, without the basic objects
 			// included if they intersect the roi.
+
+			// Regenerate mipmaps (blocks GUI from interaction other than navigation)
+			pr.loader.regenerateMipMaps(pr.layer_set.getDisplayables(Patch.class));
 
 			return pr;
 

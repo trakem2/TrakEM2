@@ -210,13 +210,18 @@ public class AreaList extends ZDisplayable {
 		return last_layer;
 	} // I do REALLY miss Lisp macros. Writting the above two methods in a lispy way would make the java code unreadable
 
-	public void linkPatches() {
+	public boolean linkPatches() {
 		unlinkAll(Patch.class);
 		// cheap way: intersection of the patches' bounding box with the area
 		Rectangle r = new Rectangle();
+		boolean must_lock = false;
 		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			Layer la = this.layer_set.getLayer(((Long)entry.getKey()).longValue());
+			if (null == la) {
+				Utils.log2("AreaList.linkPatches: ignoring null layer for id " + ((Long)entry.getKey()).longValue());
+				continue;
+			}
 			Area area = (Area)entry.getValue();
 			area = area.createTransformedArea(this.at);
 			for (Iterator dit = la.getDisplayables(Patch.class).iterator(); dit.hasNext(); ) {
@@ -224,9 +229,18 @@ public class AreaList extends ZDisplayable {
 				r = d.getBoundingBox(r);
 				if (area.intersects(r)) {
 					link(d, true);
+					if (d.locked) must_lock = true;
 				}
 			}
 		}
+
+		// set the locked flag to this and all linked ones
+		if (must_lock && !locked) {
+			setLocked(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	/** Returns whether the point x,y is contained in this object at the given Layer. */
@@ -708,7 +722,7 @@ public class AreaList extends ZDisplayable {
 				previous_p = p;
 
 				final Rectangle copy = (Rectangle)r.clone();
-				if (null != r_old) r.add(r_old);
+				if (null != r_old) copy.add(r_old);
 				r_old = copy;
 
 				Display.repaint(Display.getFrontLayer(), 3, r, false, false); // repaint only the last added slash
@@ -2253,4 +2267,16 @@ public class AreaList extends ZDisplayable {
 	}
 
 	static public final PaintParameters PP = new PaintParameters();
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	synchronized public boolean crop(List<Layer> range) {
+		Set<Long> lids = new HashSet<Long>();
+		for (Layer l : range) lids.add(l.getId());
+		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
+			Long lid = (Long)it.next();
+			if (!lids.contains(lid)) it.remove();
+		}
+		calculateBoundingBox();
+		return true;
+	}
 }

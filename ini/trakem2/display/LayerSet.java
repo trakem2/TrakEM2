@@ -930,7 +930,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		try {
 			project.getLoader().startLargeUpdate();
-			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist") || type.equals("polyline")) {
+			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist") || type.equals("polyline") || type.equals("stack") || type.equals("dissector")) {
 				for (ZDisplayable zd : al_zdispl) {
 					if (visible != zd.isVisible() && zd.getClass().getName().toLowerCase().endsWith(type)) { // endsWith, because DLabel is called as Label
 						zd.setVisible(visible, false); // don't repaint
@@ -938,7 +938,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					}
 				}
 			} else {
-				if (type.equals("image")) type = "patch";
 				for (Layer layer : al_layers) {
 					hs.addAll(layer.setVisible(type, visible, false)); // don't repaint
 				}
@@ -1280,9 +1279,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		copy.setCalibration(getCalibrationCopy());
 		copy.snapshots_quality = this.snapshots_quality;
 		// copy objects that intersect the roi, from within the given range of layers
-		final java.util.List<Layer> al = ((ArrayList<Layer>)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
-		Utils.log2("al.size() : " + al.size());
-		for (Layer layer : al) {
+		final java.util.List<Layer> range = ((ArrayList<Layer>)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
+		Utils.log2("range.size() : " + range.size());
+		for (Layer layer : range) {
 			Layer layercopy = layer.clone(pr, copy, roi, copy_id);
 			copy.addSilently(layercopy);
 			if (add_to_tree) pr.getLayerTree().addLayer(copy, layercopy);
@@ -1293,7 +1292,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		for (ZDisplayable zd : find(first, last, new Area(roi))) {
 			ZDisplayable zdcopy = (ZDisplayable)zd.clone(pr, copy_id);
 			zdcopy.getAffineTransform().preConcatenate(trans);
-			copy.addSilently(zdcopy);
+			copy.addSilently(zdcopy); // must be added before attempting to crop it, because crop needs a LayerSet ref.
+			if (zdcopy.crop(range)) {
+				if (zdcopy.isDeletable()) {
+					zdcopy.remove2(false); // from trees and all.
+					Utils.log("Skipping empty " + zdcopy);
+				}
+			} else {
+				Utils.log("Could not crop " + zd);
+			}
 		}
 		// fix links:
 		copy.linkPatchesR();
@@ -1741,7 +1748,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public boolean undoOneStep() {
 		synchronized (edit_history) {
 			if (0 == edit_history.size()) {
-				Utils.log2("Empty undo history.");
+				Utils.logAll("Empty undo history!");
 				return false;
 			}
 
@@ -1773,7 +1780,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public boolean redoOneStep() {
 		synchronized (edit_history) {
 			if (0 == redo.size()) {
-				Utils.log2("Empty redo history.");
+				Utils.logAll("Empty redo history!");
 				if (null != current_edit_step) {
 					return current_edit_step.apply(DoStep.REDO);
 				}
