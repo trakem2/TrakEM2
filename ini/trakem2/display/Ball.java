@@ -567,7 +567,7 @@ public class Ball extends ZDisplayable {
 		}
 	}
 
-	public void linkPatches() {
+	public boolean linkPatches() {
 		// find the patches that don't lay under other profiles of this profile's linking group, and make sure they are unlinked. This will unlink any Patch objects under this Profile:
 		unlinkAll(Patch.class);
 
@@ -578,7 +578,9 @@ public class Ball extends ZDisplayable {
 
 		// this bounding box as in the present layer
 		final Rectangle[] perimeters = getSubPerimeters(layer); // transformed
-		if (null == perimeters) return;
+		if (null == perimeters) return false;
+
+		boolean must_lock = false;
 
 		// for each Patch, check if it underlays this profile's bounding box
 		final Rectangle box = new Rectangle(); // as tmp
@@ -589,9 +591,19 @@ public class Ball extends ZDisplayable {
 				if (perimeters[i].intersects(displ.getBoundingBox(box))) {
 					// Link the patch
 					this.link(displ);
+					if (displ.locked) must_lock = true;
+					break;
 				}
 			}
 		}
+
+		// set the locked flag to this and all linked ones
+		if (must_lock && !locked) {
+			setLocked(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in, or the creation layer if no points yet. */
@@ -984,5 +996,22 @@ public class Ball extends ZDisplayable {
 			ball.p_width = Utils.copy(p_width, len);
 			return true;
 		}
+	}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	synchronized public boolean crop(List<Layer> range) {
+		if (-1 == n_points) setupForDisplay();
+		HashSet<Long> lids = new HashSet<Long>();
+		for (Layer l : range) {
+			lids.add(l.getId());
+		}
+		for (int i=0; i<n_points; i++) {
+			if (!lids.contains(p_layer[i])) {
+				removePoint(i);
+				i--;
+			}
+		}
+		calculateBoundingBox(true);
+		return true;
 	}
 }

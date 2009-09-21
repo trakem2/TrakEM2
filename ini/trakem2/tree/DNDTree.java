@@ -57,6 +57,8 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 
 	protected final Dispatcher dispatcher = new Dispatcher();
 
+	final protected Project project;
+
 	public DNDTree(final Project project, final DefaultMutableTreeNode root, final Color background) {
 		this(project, root);
 		this.setScrollsOnExpand(true);
@@ -148,6 +150,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 	}
 
 	public DNDTree(Project project, DefaultMutableTreeNode root) {
+		this.project = project;
 		setAutoscrolls(true);
 		DefaultTreeModel treemodel = new DefaultTreeModel(root);
 		setModel(treemodel);
@@ -319,7 +322,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 	}
 
 	/** Deselects whatever node is selected in the tree, and tries to select the one that contains the given object. */
-	static public void selectNode(final Object ob, final JTree tree) {
+	static public void selectNode(final Object ob, final DNDTree tree) {
 		if (null == ob) {
 			Utils.log2("DNDTree.selectNode: null ob?");
 			return;
@@ -328,7 +331,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		tree.setSelectionPath(null);
 		// check first:
 		if (null == ob) return;
-		final Runnable run = new Runnable() {
+		tree.project.getLoader().doGUILater(true, new Runnable() {
 			public void run() {
 				final DefaultMutableTreeNode node = DNDTree.findNode(ob, tree);
 				if (null != node) {
@@ -343,12 +346,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 					// Not found. But also occurs when adding a new profile/pipe/ball, because it is called 'setActive' on before adding it to the project tree.
 					//Utils.log("DNDTree.selectNode: not found for ob: " + ob);
 				}
-			}};
-		new Thread() {
-			public void run() {
-				SwingUtilities.invokeLater(run);
-			}
-		}.start(); // can't even do it from the EventDispatchThread! Pitiful!
+		}});
 	}
 
 	public void destroy() {
@@ -359,28 +357,16 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 
 	/** Overriding to fix synchronization issues: the path changes while the multithreaded swing attempts to repaint it, so we "invoke later". Hilarious. */
 	public void updateUILater() {
-		final DNDTree tree = this;
-		final Runnable updater = new Runnable() {
+		project.getLoader().doGUILater(true, new Runnable() {
 			public void run() {
 				//try { Thread.sleep(200); } catch (InterruptedException ie) {}
 				try {
-					tree.updateUI();
+					DNDTree.this.updateUI();
 				} catch (Exception e) {
 					IJError.print(e);
 				}
 			}
-		};
-		//javax.swing.SwingUtilities.invokeLater(updater); // generates random lock ups at start up
-		new Thread() {
-			public void run() {
-				// avoiding "can't call invokeAndWait from the EventDispatch thread" error
-				try {
-					javax.swing.SwingUtilities.invokeLater(updater);
-				} catch (Exception e) {
-					Utils.log2("ERROR: " + e);
-				}
-			}
-		}.start();
+		});
 	}
 
 	/** Rebuilds the entire tree, starting at the root Thing object. */

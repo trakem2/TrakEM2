@@ -167,7 +167,7 @@ public class Selection {
 			unlock();
 		}}
 	}
-
+	
 	/** Select all objects in the Display's current layer, preserving the active one (if any) as active; includes all the ZDisplayables, whether visible in this layer or not. */
 	public void selectAll() {
 		if (null == display) return;
@@ -481,7 +481,7 @@ public class Selection {
 				for (final Displayable d : queue) {
 					d.setLocked(b);
 				}
-				Display.updateCheckboxes(hs, DisplayablePanel.LINK_STATE, b);
+				Display.updateCheckboxes(hs, DisplayablePanel.LOCK_STATE, b);
 				addDataEditStep(new String[]{"locked"});
 			} catch (Exception e) {
 				IJError.print(e);

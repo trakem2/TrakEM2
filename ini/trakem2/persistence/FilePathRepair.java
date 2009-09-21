@@ -24,6 +24,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.io.OpenDialog;
@@ -215,9 +216,11 @@ public class FilePathRepair {
 			}
 			// Else, pop up file dialog
 			OpenDialog od = new OpenDialog("Select image file", OpenDialog.getDefaultDirectory(), null);
-			final String dir = od.getDirectory();
+			String dir = od.getDirectory();
 			final String filename = od.getFileName();
 			if (null == dir) return; // dialog was canceled
+			if (IJ.isWindows()) dir = dir.replace('\\', '/');
+			if (!dir.endsWith("/")) dir += "/";
 			// Compare filenames
 			if ( ! filename.equals(f.getName())) {
 				YesNoDialog yn = new YesNoDialog(projects.get(patch.getProject()).frame, "WARNING", "Different file names!\n  old: " + f.getName() + "\n  new: " + filename + "\nSet to new file name?");

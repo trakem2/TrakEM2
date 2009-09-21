@@ -330,7 +330,7 @@ public final class LayerThing extends DBObject implements Thing {
 			for (int i=0; i<ob.length; i++) {
 				if (ob[i] instanceof DBObject) {
 					if (!((DBObject)ob[i]).remove(false)) {
-						Utils.showMessage("Could not delete " + ob[i]);
+						Utils.log("Could not delete " + ob[i]);
 						return false;
 					}
 				}
@@ -342,14 +342,14 @@ public final class LayerThing extends DBObject implements Thing {
 		// remove the object
 		if (null != object && object instanceof DBObject) {
 			if (!((DBObject)object).remove(false)) {
-				Utils.showMessage("Could not delete " + object);
+				Utils.log("Could not delete " + object);
 				return false;
 			}
 		}
 
 		// remove the Thing itself
 		if (null != parent && !parent.removeChild(this)) {
-			Utils.showMessage("Could not delete LayerThing with id=" + id);
+			Utils.log("Could not delete LayerThing with id=" + id);
 			return false;
 		}
 		removeFromDatabase();

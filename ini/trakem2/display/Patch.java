@@ -77,7 +77,7 @@ import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.TransformMeshMapping;
 
-public final class Patch extends Displayable {
+public final class Patch extends Displayable implements ImageData {
 
 	private int type = -1; // unknown
 	/** The channels that the currently existing awt image has ready for painting. */
@@ -115,13 +115,18 @@ public final class Patch extends Displayable {
 	}
 
 	/** Reconstruct a Patch from the database. The ImagePlus will be loaded when necessary. */
-	public Patch(Project project, long id, String title, double width, double height, int type, boolean locked, double min, double max, AffineTransform at) {
+	public Patch(Project project, long id, String title,
+		     double width, double height,
+		     int o_width, int o_height,
+		     int type, boolean locked, double min, double max, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.type = type;
 		this.min = min;
 		this.max = max;
-		if (0 == o_width) o_width = (int)width;
-		if (0 == o_height) o_height = (int)height;
+		this.width = width;
+		this.height = height;
+		this.o_width = o_width;
+		this.o_height = o_height;
 		checkMinMax();
 	}
 
@@ -465,19 +470,10 @@ public final class Patch extends Displayable {
 			atp.scale(this.width / iw, this.height / ih);
 		}
 
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		g.drawImage(image, atp, null);
-
-		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
-			g.setComposite(original_composite);
-		}
+		final Composite original_composite = g.getComposite();
+		g.setComposite( getComposite() );
+		g.drawImage( image, atp, null );
+		g.setComposite( original_composite );
 	}
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
@@ -533,40 +529,10 @@ public final class Patch extends Displayable {
 			atp.scale(this.width / iw, this.height / ih);
 		}
 
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		g.drawImage(image, atp, null);
-
-		//Transparency: fix composite back to original.
-		if (null != original_composite) {
-			g.setComposite(original_composite);
-		}
-	}
-
-	/** A method to paint, simply (to a flat image for example); no magnification or srcRect are considered. */
-	public void paint(Graphics2D g) {
-		if (!this.visible) return;
-
-		Image image = project.getLoader().fetchImage(this); // TODO: could read the scale parameter of the graphics object and call for the properly sized mipmap accordingly.
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		g.drawImage(image, this.at, null);
-
-		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
-			g.setComposite(original_composite);
-		}
+		final Composite original_composite = g.getComposite();
+		g.setComposite( getComposite() );
+		g.drawImage( image, atp, null );
+		g.setComposite( original_composite );
 	}
 
 	public boolean isDeletable() {
@@ -586,7 +552,7 @@ public final class Patch extends Displayable {
 			// gather all
 			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
 			getStackPatchesNR(ht);
-			Utils.log("Stack patches: " + ht.size());
+			Utils.log2("Removing stack patches: " + ht.size());
 			ArrayList al = new ArrayList();
 			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
 				Patch p = (Patch)it.next();
@@ -820,18 +786,12 @@ public final class Patch extends Displayable {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" pps").append(TAG_ATTR2) // preprocessor script
 		;
-		// The InvertibleCoordinateTransform and a list of:
-		sb_header.append(indent).append("<!ELEMENT ict_transform EMPTY>\n");
-		sb_header.append(indent).append(TAG_ATTR1).append("ict_transform class").append(TAG_ATTR2)
-			 .append(indent).append(TAG_ATTR1).append("ict_transform data").append(TAG_ATTR2);
-		sb_header.append(indent).append("<!ELEMENT ict_transform_list (ict_transform)>\n");
-
 	}
 
 	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, type, false, min, max, (AffineTransform)at.clone());
+		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, o_width, o_height, type, false, min, max, (AffineTransform)at.clone());
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.alpha = this.alpha;
 		copy.visible = true;
@@ -842,12 +802,20 @@ public final class Patch extends Displayable {
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
+
+		// Copy preprocessor scripts
+		if (pr != this.project) {
+			String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
+			if (null != pspath) pr.getLoader().setPreprocessorScriptPathSilently(copy, pspath);
+		}
+
 		return copy;
 	}
 
 	/** Override to cancel. */
-	public void linkPatches() {
+	public boolean linkPatches() {
 		Utils.log2("Patch class can't link other patches using Displayble.linkPatches()");
+		return false;
 	}
 
 	public void paintSnapshot(final Graphics2D g, final double mag) {
@@ -1214,9 +1182,14 @@ public final class Patch extends Displayable {
 			return;
 		}
 
+		Utils.log2(o_width, o_height, width, height, bp.getWidth(), bp.getHeight());
+
+		// Check that the alpha mask represented by argument bp
+		// has the appropriate dimensions:
 		if (o_width != bp.getWidth() || o_height != bp.getHeight()) {
 			throw new IllegalArgumentException("Need a mask of identical dimensions as the original image.");
 		}
+
 		project.getLoader().storeAlphaMask(this, bp);
 		alpha_path_checked = false;
 	}
@@ -1348,6 +1321,9 @@ public final class Patch extends Displayable {
 				}
 				// capturing:
 				ke.consume();
+				break;
+			default:
+				super.keyPressed(ke);
 				break;
 		}
 	}

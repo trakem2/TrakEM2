@@ -569,7 +569,11 @@ public class AffineTransformMode implements Mode {
 	}
 
 	public boolean apply() {
-		// already applied
+		// Notify each Displayable that any set of temporary transformations are over.
+		// The transform is the same, has not changed. This is just sending an event.
+		for (final Displayable d : display.getSelection().getAffected()) {
+			d.setAffineTransform( d.getAffineTransform() );
+		}
 		return true;
 	}
 

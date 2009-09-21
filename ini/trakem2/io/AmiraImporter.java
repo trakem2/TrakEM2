@@ -43,6 +43,7 @@ import ij.measure.Calibration;
 import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
+import ij.IJ;
 
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -69,7 +70,10 @@ public class AmiraImporter {
 		OpenDialog od = new OpenDialog("Choose Amira Labels File", default_dir, "");
 		String filename = od.getFileName();
 		if (null == filename || 0 == filename.length()) return null;
-		String path = od.getDirectory() + filename;
+		String dir = od.getDirectory();
+		if (IJ.isWindows()) dir = dir.replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
+		String path =  dir + filename;
 		AmiraMeshDecoder dec = new AmiraMeshDecoder();
 		if (!dec.open(path)) {
 			YesNoDialog yn = new YesNoDialog("Error", "File was not an Amira labels file.\nChoose another one?");
@@ -83,7 +87,7 @@ public class AmiraImporter {
 		} else {
 			FileInfo fi = new FileInfo();
 			fi.fileName = filename;
-			fi.directory = od.getDirectory();
+			fi.directory = dir;
 			imp = new ImagePlus("Amira", dec.getStack());
 			dec.parameters.setParameters(imp);
 		}
