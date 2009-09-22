@@ -101,8 +101,8 @@ public class Segmentation {
 
 	static public final FastMarchingParam fmp = new FastMarchingParam();
 
-	static public Thread fastMarching(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w) {
-		return Bureaucrat.createAndStart(new Worker.Task("Fast marching") { public void exec() {
+	static public Thread fastMarching(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
+		Bureaucrat burro = Bureaucrat.create(new Worker.Task("Fast marching") { public void exec() {
 			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
 			Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
 			Utils.log2("fmp box is " + box);
@@ -221,5 +221,8 @@ public class Segmentation {
 
 			Display.repaint(layer);
 		}}, layer.getProject());
+		if (null != post_task) burro.addPostTask(post_task);
+		burro.goHaveBreakfast();
+		return burro;
 	}
 }

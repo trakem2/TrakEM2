@@ -426,7 +426,13 @@ public class AreaList extends ZDisplayable {
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
 			// Grow with fast marching
-			Segmentation.fastMarching(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w);
+			Segmentation.fastMarching(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
+					new Runnable() {
+						public void run() {
+							// Add data edit step when done for undo/redo
+							layer_set.addDataEditStep(AreaList.this);
+						}
+					});
 		}
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
