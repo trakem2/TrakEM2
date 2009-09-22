@@ -2487,7 +2487,7 @@ public final class FSLoader extends Loader {
 						case ImagePlus.GRAY16:
 						case ImagePlus.GRAY8:
 						case ImagePlus.GRAY32:
-							img = ImageSaver.openGreyJpeg(path);
+							img = ImageSaver.openJpeg(path);
 							break;
 						default:
 							IJ.redirectErrorMessages();

@@ -35,6 +35,7 @@ import java.awt.Image;
 import java.io.*;
 import java.net.URL;
 import java.util.zip.*;
+import java.util.Iterator;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriter;
 import javax.imageio.ImageWriteParam;
@@ -112,44 +113,24 @@ public class ImageSaver {
 		if (!checkPath(path)) return false;
 		if (quality < 0f) quality = 0f;
 		if (quality > 1f) quality = 1f;
-		FileOutputStream f = null;
 		try {
-			f = new FileOutputStream(path);
-			final JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(f);
-			final JPEGEncodeParam param = as_grey ? encoder.getDefaultJPEGEncodeParam(bi.getRaster(), JPEGDecodeParam.COLOR_ID_GRAY)
-				                              : encoder.getDefaultJPEGEncodeParam(bi);
-			param.setQuality(quality, true);
-			encoder.encode(bi, param);
-			f.close();
+			Iterator<ImageWriter> iter = ImageIO.getImageWritersByFormatName("jpeg");
+			ImageWriter writer = iter.next();
+			writer.setOutput(ImageIO.createImageOutputStream(new File(path)));
+			ImageWriteParam param = writer.getDefaultWriteParam();
+			param.setCompressionMode(param.MODE_EXPLICIT);
+			param.setCompressionQuality(quality);
+			IIOImage iioImage = new IIOImage(bi, null, null);
+			writer.write(null, iioImage, param);
 		} catch (Exception e) {
-			if (null != f) {
-				try { f.close(); } catch (Exception ee) {}
-			}
 			IJError.print(e);
 			return false;
 		}
 		return true;
 	}
 
-	/** Open a jpeg image that is known to be grayscale.<br />
-	 *  This method avoids having to open it as int[] (4 times as big!) and then convert it to grayscale by looping through all its pixels and comparing if all three channels are the same (which, least you don't know, is what ImageJ 139j and before does).
-	 */
-	static public final BufferedImage openGreyJpeg(final String path) {
-		return openJpeg(path, JPEGDecodeParam.COLOR_ID_GRAY);
-	}
-
-	/* // ERROR:
-	 * java.lang.IllegalArgumentException: NumComponents not in sync with COLOR_ID
-	 * uh?
-	 */
-	/*
-	static public final BufferedImage openColorJpeg(final String path) throws Exception {
-		return openJpeg(path, JPEGDecodeParam.COLOR_ID_RGB);
-	}
-	*/
-
 	// Convoluted method to make sure all possibilities of opening and closing the stream are considered.
-	static private final BufferedImage openJpeg(final String path, final int color_id) {
+	static public final BufferedImage openJpeg(final String path) {
 		InputStream stream = null;
 		BufferedImage bi = null;
 		try {
@@ -159,10 +140,8 @@ public class ImageSaver {
 			if (null == stream) return null;
 
 			// 2 - open it as a BufferedImage
-			bi = openJpeg2(stream, color_id);
+			bi = openJpegFromStream(stream);
 
-		} catch (FileNotFoundException fnfe) {
-			bi = null;
 		} catch (Exception e) {
 			// the file might have been generated while trying to read it. So try once more
 			try {
@@ -172,7 +151,7 @@ public class ImageSaver {
 				if (null != stream) { try { stream.close(); } catch (Exception ee) {} }
 				stream = openStream(path);
 				// decode
-				if (null != stream) bi = openJpeg2(stream, color_id);
+				if (null != stream) bi = openJpegFromStream(stream);
 			} catch (Exception e2) {
 				IJError.print(e2, true);
 			}
@@ -182,7 +161,7 @@ public class ImageSaver {
 		return bi;
 	}
 
-	static private final InputStream openStream(final String path) throws Exception {
+	static private final InputStream openStream(final String path) {
 		/*
 		// Proper implementation, incurs in big drag because of new File(path).exists() OS calls.
 		if (FSLoader.isURL(path)) {
@@ -207,8 +186,17 @@ public class ImageSaver {
 		return null;
 	}
 
-	static private final BufferedImage openJpeg2(final InputStream stream, final int color_id) throws Exception {
-		return JPEGCodec.createJPEGDecoder(stream, JPEGCodec.getDefaultJPEGEncodeParam(1, color_id)).decodeAsBufferedImage();
+	static public final BufferedImage openJpegFromStream(InputStream stream) {
+		try {
+			return ImageIO.read(stream);
+		} catch (IllegalArgumentException iae) {
+			// According to the documentation, only occurs
+			// when stream is null, so this should never
+			// happen.
+			return null;
+		} catch (IOException ioe) {
+			return null;
+		}
 	}
 
 	/** Returns true on success.<br />
