@@ -27,6 +27,7 @@ import ij.gui.GenericDialog;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
@@ -57,6 +58,8 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
+import javax.swing.JLabel;
+import javax.swing.JTree;
 
 public final class LayerTree extends DNDTree implements MouseListener, ActionListener {
 
@@ -667,5 +670,34 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 	public boolean remove(boolean check, LayerThing thing, DefaultMutableTreeNode node) {
 		if (null == thing || null == thing.getParent()) return false; // can't remove the root LayerSet
 		return thing.remove(check) && removeNode(null != node ? node : findNode(thing, this));
+	}
+
+	protected DNDTree.NodeRenderer createNodeRenderer() {
+		return new LayerThingNodeRender();
+	}
+
+	static private final Color FRONT_LAYER_COLOR = new Color(1.0f, 1.0f, 0.4f, 0.5f);
+
+	protected final class LayerThingNodeRender extends DNDTree.NodeRenderer {
+		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+			label.setText(label.getText().replace('_', ' ')); // just for display
+			if (value.getClass() == DefaultMutableTreeNode.class) {
+				final Object obb = ((DefaultMutableTreeNode)value).getUserObject();
+				final Object ob = ((LayerThing)obb).getObject();
+				final Layer layer = Display.getFrontLayer();
+				if (ob == layer) {
+					label.setOpaque(true); //this label
+					label.setBackground(FRONT_LAYER_COLOR); // this label
+				} else if (ob.getClass() == LayerSet.class && null != layer && layer.contains((Displayable)ob)) {
+					label.setOpaque(true); //this label
+					label.setBackground(ProjectTree.ACTIVE_DISPL_COLOR); // this label
+				} else {
+					label.setOpaque(false); //this label
+					label.setBackground(background);
+				}
+			}
+			return label;
+		}
 	}
 }
