@@ -3364,7 +3364,7 @@ abstract public class Loader {
 			if (imp_stack.getStack().isVirtual()) {
 				one_patch_per_layer = true;
 			}
-			gd.addChoice("Import stack as:", importStackTypes, importStackTypes[one_patch_per_layer || imp_stack.getStack().isVirtual() ? 0 : 1]);
+			gd.addChoice("Import stack as:", importStackTypes, importStackTypes[0]);
 			((Component)gd.getChoices().get(0)).setEnabled(!imp_stack.getStack().isVirtual());
 			gd.showDialog();
 			if (gd.wasCanceled()) {
