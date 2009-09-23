@@ -471,8 +471,14 @@ public final class Patch extends Displayable implements ImageData {
 		}
 
 		final Composite original_composite = g.getComposite();
-		g.setComposite( getComposite() );
-		g.drawImage( image, atp, null );
+		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
+		try {
+			g.setComposite( getComposite() );
+			g.drawImage( image, atp, null );
+		} catch (Throwable t) {
+			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
+			g.drawImage( image, atp, null);
+		}
 		g.setComposite( original_composite );
 	}
 
@@ -530,8 +536,15 @@ public final class Patch extends Displayable implements ImageData {
 		}
 
 		final Composite original_composite = g.getComposite();
-		g.setComposite( getComposite() );
-		g.drawImage( image, atp, null );
+
+		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
+		try {
+			g.setComposite( getComposite() );
+			g.drawImage( image, atp, null );
+		} catch (Throwable t) {
+			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
+			g.drawImage( image, atp, null);
+		}
 		g.setComposite( original_composite );
 	}
 
