@@ -305,6 +305,7 @@ public class AreaList extends ZDisplayable {
 
 	private boolean is_new = false;
 	private boolean something_eroded = false;
+	private Segmentation.BlowCommander blowcommander = null;
 
 	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
 		final Layer la = Display.getFrontLayer(this.project);
@@ -425,31 +426,58 @@ public class AreaList extends ZDisplayable {
 				brushing = true;
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
-			// Grow with fast marching
-			Segmentation.fastMarching(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
-					new Runnable() {
-						public void run() {
-							// Add data edit step when done for undo/redo
-							layer_set.addDataEditStep(AreaList.this);
-						}
-					});
+			if (Utils.isControlDown(me)) {
+				// Grow with blow tool
+				try {
+					blowcommander = Segmentation.blowRoi(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
+							new Runnable() {
+								public void run() {
+									// Add data edit step when done for undo/redo
+									layer_set.addDataEditStep(AreaList.this);
+								}
+							});
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+			} else {
+				// Grow with fast marching
+				Segmentation.fastMarching(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
+						new Runnable() {
+							public void run() {
+								// Add data edit step when done for undo/redo
+								layer_set.addDataEditStep(AreaList.this);
+							}
+						});
+			}
 		}
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// nothing, the BrushThread handles it
 		//irrelevant//if (ProjectToolbar.getToolId() == ProjectToolbar.PEN) brushing = true;
+		if (null != blowcommander) {
+			blowcommander.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		}
 	}
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-		if (!brushing) {
-			// nothing changed
-			//Utils.log("AreaList mouseReleased: no brushing");
-			return;
+		final int tool = ProjectToolbar.getToolId();
+		if (ProjectToolbar.PEN == tool) {
+			if (!brushing) {
+				// nothing changed
+				//Utils.log("AreaList mouseReleased: no brushing");
+				return;
+			}
+			brushing = false;
+			if (null != last) {
+				last.quit();
+				last = null;
+			}
+		} else if (ProjectToolbar.PENCIL == tool) {
+			if (null != blowcommander) {
+				blowcommander.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+				blowcommander = null;
+			}
 		}
-		brushing = false;
-		if (null != last) {
-			last.quit();
-			last = null;
-		}
+
 		long lid = Display.getFrontLayer(this.project).getId();
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
