@@ -1555,6 +1555,7 @@ public class AreaList extends ZDisplayable {
 			ht_areas.put(layer_id, asr);
 		} else {
 			a.add(asr);
+			ht_areas.put(layer_id, a);
 		}
 		calculateBoundingBox();
 		updateInDatabase("points=" + layer_id);

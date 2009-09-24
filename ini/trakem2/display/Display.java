@@ -860,6 +860,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				IJError.print(e);
 			}
 		}
+		// Fails: "origin not in parent's hierarchy" ... right.
+		private void showPopup(String name, int x, int y) {
+			try {
+				Field f = Toolbar.getInstance().getClass().getDeclaredField(name);
+				f.setAccessible(true);
+				PopupMenu p = (PopupMenu) f.get(Toolbar.getInstance());
+				p.show(this, x, y);
+			} catch (Throwable t) {
+				IJError.print(t);
+			}
+		}
 		public void mousePressed(MouseEvent me) {
 			int x = me.getX();
 			int y = me.getY();
@@ -870,6 +881,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} else {
 				if (x > size * 9) return; // off limits
 			}
+			/*
+			if (Utils.isPopupTrigger(me)) {
+				if (x >= size && x <= size * 2 && y >= 0 && y <= size) {
+					showPopup("ovalPopup", x, y);
+					return;
+				} else if (x >= size * 4 && x <= size * 5 && y >= 0 && y <= size) {
+					showPopup("linePopup", x, y);
+					return;
+				}
+			}
+			*/
 			Toolbar.getInstance().mousePressed(new MouseEvent(toolbar, me.getID(), System.currentTimeMillis(), me.getModifiers(), x, y, me.getClickCount(), me.isPopupTrigger()));
 			repaint();
 			Display.this.toolChanged(ProjectToolbar.getToolId()); // should fire on its own but it does not (?) TODO

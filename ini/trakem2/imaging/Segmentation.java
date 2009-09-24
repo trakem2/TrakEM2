@@ -37,6 +37,7 @@ import levelsets.algorithm.Coordinate;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 import plugin.Lasso;
 
@@ -256,26 +257,25 @@ public class Segmentation {
 			});
 		}
 		public void mouseDragged(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
-			dispatcher.submit(new Runnable() {
-				public void run() {
-					try {
-						// Move relative to starting point
-						br.moveBlow(x_p - x_d, y_p - y_d);
-					} catch (Throwable t) {
-						IJError.print(t);
-						mouseReleased(me, x_p, y_p, x_d_old, y_d_old, x_d, y_d);
+			try {
+				dispatcher.submit(new Runnable() {
+					public void run() {
+						try {
+							// Move relative to starting point
+							br.moveBlow(x_p - x_d, y_p - y_d);
+						} catch (Throwable t) {
+							IJError.print(t);
+							mouseReleased(me, x_p, y_p, x_d_old, y_d_old, x_d, y_d);
+						}
 					}
-				}
-			});
+				});
+			} catch (RejectedExecutionException ree) {} // Ignore: operations have been canceled
 		}
 		public void mouseReleased(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 			dispatcher.submit(new Runnable() {
 				public void run() {
-					// Stop accepting tasks
-					dispatcher.shutdown();
 					// Add the roi to the AreaList
 					try {
-						Utils.log2("calling finish");
 						br.finish();
 					} catch (Throwable t) {
 						IJError.print(t);
@@ -288,6 +288,8 @@ public class Segmentation {
 							IJError.print(t);
 						}
 					}
+					// Stop accepting tasks
+					dispatcher.shutdownNow();
 				}
 			});
 		}
@@ -315,7 +317,14 @@ public class Segmentation {
 			lasso = new Lasso(imp, Lasso.BLOW, box.width/2, box.height/2, false);
 		}
 		public void moveBlow(int dx, int dy) throws Exception {
-			lasso.moveBlow(box.width/2 + dx, box.height/2 + dy);
+			int x = box.width/2 + dx;
+			int y = box.height/2 + dy;
+			// Keep within bounds
+			if (x < 0) x = 0;
+			if (y < 0) y = 0;
+			if (x > box.width -1) x = box.width -1;
+			if (y > box.height -1) y = box.height -1;
+			lasso.moveBlow(x, y);
 			// extract ROI
 			Roi roi = imp.getRoi();
 			if (null == roi) Display.getFront().getCanvas().getFakeImagePlus().setRoi(roi); // can't set to null? Java, gimme a break
