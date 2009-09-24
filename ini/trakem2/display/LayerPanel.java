@@ -31,7 +31,10 @@ import javax.swing.JLabel;
 import javax.swing.JSlider;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+import javax.swing.JRadioButton;
+import javax.swing.ButtonGroup;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -162,7 +165,6 @@ public final class LayerPanel extends JPanel implements MouseListener {
 			item = new JMenuItem("Reset"); popup.add(item);
 			if (Color.white == this.color) item.setEnabled(false);
 			else item.addActionListener(new ColorActionListener(Color.white));
-			popup.addSeparator();
 			JCheckBoxMenuItem citem = new JCheckBoxMenuItem("Invert"); popup.add(citem);
 			citem.setState(display.invert_colors);
 			citem.addActionListener(new ActionListener() {
@@ -171,6 +173,23 @@ public final class LayerPanel extends JPanel implements MouseListener {
 					display.getCanvas().repaint(true);
 				}
 			});
+			popup.addSeparator();
+			JMenu composites = new JMenu("Composite mode");
+			ButtonGroup group = new ButtonGroup();
+			byte compositeMode = display.getLayerCompositeMode(layer);
+			for (int i=0; i<Displayable.compositeModes.length; i++) {
+				JRadioButton rb = new JRadioButton(Displayable.compositeModes[i], compositeMode == i);
+				rb.setActionCommand(Displayable.compositeModes[i]);
+				final byte cm = (byte) i;
+				rb.addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						display.setLayerCompositeMode(layer, cm);
+					}
+				});
+				composites.add(rb);
+				group.add(rb);
+			}
+			popup.add(composites);
 			popup.addSeparator();
 			item = new JMenuItem("Reset all layer coloring"); popup.add(item);
 			item.addActionListener(new ActionListener() {
@@ -182,6 +201,12 @@ public final class LayerPanel extends JPanel implements MouseListener {
 			item.addActionListener(new ActionListener() {
 				public void actionPerformed(ActionEvent ae) {
 					display.resetLayerAlphas();
+				}
+			});
+			item = new JMenuItem("Reset all layer composites"); popup.add(item);
+			item.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					display.resetLayerComposites();
 				}
 			});
 			popup.show(this, me.getX(), me.getY());

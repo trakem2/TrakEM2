@@ -2229,8 +2229,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 							if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
 							d.paint(gb, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 						}
-						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
-						g.drawImage(bi, 0, 0, null);
+						try {
+							g.setComposite(Displayable.getComposite(display.getLayerCompositeMode(lp.layer), lp.getAlpha()));
+							g.drawImage(bi, 0, 0, null);
+						} catch (Throwable t) {
+							Utils.log("Could not use composite mode for layer overlays! Your graphics card may not support it.");
+							g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
+							g.drawImage(bi, 0, 0, null);
+						} 
 						bi.flush();
 					}
 					// restore
