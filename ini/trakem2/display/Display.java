@@ -4614,7 +4614,32 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
 	private final TreeMap<Integer,LayerPanel> layer_alpha = new TreeMap<Integer,LayerPanel>();
+	private final HashMap<Layer,Byte> layer_composites = new HashMap<Layer,Byte>();
 	boolean invert_colors = false;
+
+	protected byte getLayerCompositeMode(final Layer layer) {
+		synchronized (layer_composites) {
+			Byte b = layer_composites.get(layer);
+			return null == b ? Displayable.COMPOSITE_NORMAL : b;
+		}
+	}
+
+	protected void setLayerCompositeMode(final Layer layer, final byte compositeMode) {
+		synchronized (layer_composites) {
+			if (-1 == compositeMode || Displayable.COMPOSITE_NORMAL == compositeMode) {
+				layer_composites.remove(layer);
+			} else {
+				layer_composites.put(layer, compositeMode);
+			}
+		}
+	}
+
+	protected void resetLayerComposites() {
+		synchronized (layer_composites) {
+			layer_composites.clear();
+		}
+		canvas.repaint(true);
+	}
 
 	/** Remove all red/blue coloring of layers, and repaint canvas. */
 	protected void resetLayerColors() {
@@ -4627,7 +4652,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			layer_channels.clear();
 		}
-		canvas.repaint();
+		canvas.repaint(true);
 	}
 
 	/** Set all layer alphas to zero, and repaint canvas. */
@@ -4638,7 +4663,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			layer_alpha.clear(); // should have already been cleared
 		}
-		canvas.repaint();
+		canvas.repaint(true);
 	}
 
 	/** Add to layer_alpha table, or remove if alpha is zero. */

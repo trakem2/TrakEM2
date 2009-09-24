@@ -52,7 +52,7 @@ public abstract class AbstractTreeTransferHandler implements DragGestureListener
         }
 
 	protected void destroy() {
-		//dgr.removeDragGestureListener(this);//TODO throws IllegalArgumentException, don't see why
+		dgr.removeDragGestureListener(this);//TODO throws IllegalArgumentException, don't see why
 		dgr = null;
 		tree = null; // friggin' memory leak
 		dragSource = null;

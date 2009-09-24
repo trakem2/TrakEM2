@@ -16,9 +16,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.concurrent.Future;
 import java.awt.BasicStroke;
 import java.awt.Image;
+import java.awt.Composite;
 import java.awt.Rectangle;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
@@ -48,7 +50,7 @@ public class NonLinearTransformMode implements Mode {
 			// 1 - Create the list of patch ranges
 
 			// A list of Displayable to paint within the current srcRect
-			List<Displayable> to_paint = new ArrayList<Displayable>(display.getLayer().find(srcRect, true));
+			final ArrayList<Displayable> to_paint = new ArrayList<Displayable>(layer.find(srcRect, true));
 
 			PatchRange current_range = new PatchRange();
 			ranges.clear();
@@ -56,12 +58,15 @@ public class NonLinearTransformMode implements Mode {
 
 			int last_i = -Integer.MAX_VALUE;
 
+			byte last_b = Displayable.COMPOSITE_NORMAL;
+
 			for (final Patch p : originalPatches) {
 				final int i = to_paint.indexOf(p);
+				final byte b = p.getCompositeMode();
 				if (0 == i) {
 					current_range.setAsBottom();
 					current_range.addConsecutive(p);
-				} else if (1 == i - last_i) {
+				} else if (1 == i - last_i && b == Displayable.COMPOSITE_NORMAL && last_b == Displayable.COMPOSITE_NORMAL) {
 					current_range.addConsecutive(p);
 				} else {
 					current_range = new PatchRange();
@@ -69,6 +74,7 @@ public class NonLinearTransformMode implements Mode {
 					current_range.addConsecutive(p);
 				}
 				last_i = i;
+				last_b = b;
 			}
 
 			// 2 - Create the list of ScreenPatchRange, which are Paintable
@@ -76,6 +82,7 @@ public class NonLinearTransformMode implements Mode {
 			screenPatchRanges.clear();
 
 			for (final PatchRange range : ranges) {
+				if (0 == range.list.size()) continue;
 				final ScreenPatchRange spr = new ScreenPatchRange(range, r, m);
 				for (Patch p : range.list) {
 					screenPatchRanges.put(p, spr);
@@ -248,9 +255,11 @@ public class NonLinearTransformMode implements Mode {
 		final FloatProcessor maskTransformed;
 		BufferedImage transformedImage;
 		static final int pad = 100;
+		final byte compositeMode;
 
 		ScreenPatchRange( final PatchRange range, final Rectangle srcRect, final double magnification )
 		{
+			this.compositeMode = range.list.get(0).getCompositeMode();
 			final BufferedImage image =
 				new BufferedImage(
 						( int )( srcRect.width * magnification + 0.5 ) + 2 * pad,
@@ -324,7 +333,15 @@ public class NonLinearTransformMode implements Mode {
 			
 			atp.translate( -pad, -pad );
 			g.setTransform( atp );
+			Composite original_composite = null;
+			if (Displayable.COMPOSITE_NORMAL != compositeMode) {
+				original_composite = g.getComposite();
+				g.setComposite(Displayable.getComposite(compositeMode, 1.0f));
+			}
 			g.drawImage( transformedImage, 0, 0, null );
+			if (null != original_composite) {
+				g.setComposite(original_composite);
+			}
 			g.setTransform( at );
 		}
 
@@ -335,7 +352,8 @@ public class NonLinearTransformMode implements Mode {
 	}
 
 
-	private Display display;
+	private final Display display;
+	private final Layer layer;
 	
 	private Rectangle srcRect;
 	private double magnification;
@@ -352,14 +370,19 @@ public class NonLinearTransformMode implements Mode {
 	public NonLinearTransformMode(final Display display, final List<Displayable> selected) {
 		ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		this.display = display;
+		this.layer = display.getLayer();
 		this.srcRect = ( Rectangle )display.getCanvas().getSrcRect().clone();
 		this.magnification = display.getCanvas().getMagnification();
 		this.originalPatches = new ArrayList<Patch>();
 		this.ranges = new ArrayList<PatchRange>();
 
+		final TreeMap<Integer,Patch> m = new TreeMap<Integer,Patch>();
 		for (final Displayable d : selected) {
-			if (d instanceof Patch) originalPatches.add( (Patch) d );
+			if (d.getClass() == Patch.class) {
+				m.put(layer.indexOf(d), (Patch) d);
+			}
 		}
+		originalPatches.addAll(m.values());
 
 		this.screenPatchRanges = new HashMap<Paintable, ScreenPatchRange>( originalPatches.size() );
 		this.gs = new NonLinearTransformSource();

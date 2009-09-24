@@ -2,8 +2,11 @@ package ini.trakem2.imaging;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.PointRoi;
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
 import ini.trakem2.display.AreaList;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Layer;
@@ -21,6 +24,7 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
 import java.awt.Checkbox;
 import java.awt.Component;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 
 import levelsets.ij.ImageContainer;
@@ -30,6 +34,12 @@ import levelsets.algorithm.LevelSetImplementation;
 import levelsets.algorithm.ActiveContours;
 import levelsets.algorithm.FastMarching;
 import levelsets.algorithm.Coordinate;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import plugin.Lasso;
+
 
 public class Segmentation {
 
@@ -101,8 +111,8 @@ public class Segmentation {
 
 	static public final FastMarchingParam fmp = new FastMarchingParam();
 
-	static public Thread fastMarching(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w) {
-		return Bureaucrat.createAndStart(new Worker.Task("Fast marching") { public void exec() {
+	static public Thread fastMarching(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
+		Bureaucrat burro = Bureaucrat.create(new Worker.Task("Fast marching") { public void exec() {
 			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
 			Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
 			Utils.log2("fmp box is " + box);
@@ -221,5 +231,113 @@ public class Segmentation {
 
 			Display.repaint(layer);
 		}}, layer.getProject());
+		if (null != post_task) burro.addPostTask(post_task);
+		burro.goHaveBreakfast();
+		return burro;
 	}
+
+	static public class BlowCommander {
+		BlowRunner br = null;
+		final ExecutorService dispatcher = Executors.newFixedThreadPool(1);
+		final Runnable post_task;
+
+		public BlowCommander(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
+			this.post_task = post_task;
+			dispatcher.submit(new Runnable() {
+				public void run() {
+					// Creation in the contex of the ExecutorService thread, so 'imp' will be local to it
+					try {
+						br = new BlowRunner(ali, layer, srcRect, x_p_w, y_p_w);
+					} catch (Throwable t) {
+						IJError.print(t);
+						dispatcher.shutdownNow();
+					}
+				}
+			});
+		}
+		public void mouseDragged(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
+			dispatcher.submit(new Runnable() {
+				public void run() {
+					try {
+						// Move relative to starting point
+						br.moveBlow(x_p - x_d, y_p - y_d);
+					} catch (Throwable t) {
+						IJError.print(t);
+						mouseReleased(me, x_p, y_p, x_d_old, y_d_old, x_d, y_d);
+					}
+				}
+			});
+		}
+		public void mouseReleased(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
+			dispatcher.submit(new Runnable() {
+				public void run() {
+					// Stop accepting tasks
+					dispatcher.shutdown();
+					// Add the roi to the AreaList
+					try {
+						Utils.log2("calling finish");
+						br.finish();
+					} catch (Throwable t) {
+						IJError.print(t);
+					}
+					// Execute post task if any
+					if (null != post_task) {
+						try {
+							post_task.run();
+						} catch (Throwable t) {
+							IJError.print(t);
+						}
+					}
+				}
+			});
+		}
+	}
+
+	static public class BlowRunner {
+		final Rectangle box;
+		final ImagePlus imp;
+		final Lasso lasso;
+		final Layer layer;
+		final AreaList ali;
+
+		public BlowRunner(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w) throws Exception {
+			this.ali = ali;
+			this.layer = layer;
+			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
+			this.box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
+			Utils.log2("fmp box is " + box);
+			this.imp = (ImagePlus) layer.grab(box, 1.0, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
+			// Bandpass filter
+			if (fmp.apply_bandpass_filter) {
+				IJ.run(imp, "Bandpass Filter...", "filter_large=" + fmp.low_frequency_threshold  + " filter_small=" + fmp.high_frequency_threshold + " suppress=None tolerance=5" + (fmp.autoscale_after_filtering ? " autoscale" : "") + (fmp.saturate_when_autoscaling ? " saturate" : ""));
+			}
+
+			lasso = new Lasso(imp, Lasso.BLOW, box.width/2, box.height/2, false);
+		}
+		public void moveBlow(int dx, int dy) throws Exception {
+			lasso.moveBlow(box.width/2 + dx, box.height/2 + dy);
+			// extract ROI
+			Roi roi = imp.getRoi();
+			if (null == roi) Display.getFront().getCanvas().getFakeImagePlus().setRoi(roi); // can't set to null? Java, gimme a break
+			else {
+				Roi sroi = new ShapeRoi(roi);
+				Rectangle b = sroi.getBounds();
+				sroi.setLocation(box.x + b.x, box.y + b.y);
+				Display.getFront().getCanvas().getFakeImagePlus().setRoi(sroi);
+			}
+		}
+		public void finish() throws Exception {
+			Roi roi = imp.getRoi();
+			if (null == roi) return;
+			ShapeRoi sroi = new ShapeRoi(roi);
+			Rectangle b = sroi.getBounds();
+			sroi.setLocation(box.x + b.x, box.y + b.y);
+			ali.add(layer.getId(), sroi);
+		}
+	}
+
+	static public BlowCommander blowRoi(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
+		return new BlowCommander(ali, layer, srcRect, x_p_w, y_p_w, post_task);
+	}
+
 }
