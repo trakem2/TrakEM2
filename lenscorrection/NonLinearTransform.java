@@ -627,14 +627,11 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 		public void visualizeSmall(double lambda){
 				int density = Math.max(width,height)/32;
 				
-				double[][] orig = new double[width *  height][2];
-				double[][] trans = new double[height * width][2];
+				double[][] orig = new double[2][width *  height];
+				double[][] trans = new double[2][height * width];
 		
 				FloatProcessor magnitude = new FloatProcessor(width, height);
-				ColorProcessor quiver = new ColorProcessor(width, height);
-				quiver.setLineWidth(1);
-				quiver.setColor(Color.green);
-		
+				
 				GeneralPath quiverField = new GeneralPath();
 		
 				float minM = 1000, maxM = 0;
@@ -648,11 +645,11 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 								double[] posExpanded = kernelExpand(position);
 								double[] newPosition = multiply(beta, posExpanded);
 
-								orig[i*j][0] = position[0];
-								orig[i*j][1] = position[1];
+								orig[0][i*j] = position[0];
+								orig[1][i*j] = position[1];
 				
-								trans[i*j][0] = newPosition[0];
-								trans[i*j][1] = newPosition[1];
+								trans[0][i*j] = newPosition[0];
+								trans[1][i*j] = newPosition[1];
 				
 								double m = (position[0] - newPosition[0]) * (position[0] - newPosition[0]);
 								m += (position[1] - newPosition[1]) * (position[1] - newPosition[1]);
