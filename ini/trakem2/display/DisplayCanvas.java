@@ -417,6 +417,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					case ProjectToolbar.PENCIL:
 						Composite co = g2d.getComposite();
 						g2d.setXORMode(active.getColor());
+						if (IJ.isWindows()) g2d.setColor(active.getColor());
 						g2d.drawRect((int)((xMouse -srcRect.x -Segmentation.fmp.width/2)  * magnification),
 							     (int)((yMouse -srcRect.y -Segmentation.fmp.height/2) * magnification),
 							     (int)(Segmentation.fmp.width  * magnification),
@@ -2229,8 +2230,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 							if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
 							d.paint(gb, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 						}
-						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
-						g.drawImage(bi, 0, 0, null);
+						try {
+							g.setComposite(Displayable.getComposite(display.getLayerCompositeMode(lp.layer), lp.getAlpha()));
+							g.drawImage(bi, 0, 0, null);
+						} catch (Throwable t) {
+							Utils.log("Could not use composite mode for layer overlays! Your graphics card may not support it.");
+							g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
+							g.drawImage(bi, 0, 0, null);
+						} 
 						bi.flush();
 					}
 					// restore
@@ -2243,7 +2250,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					for (final Displayable d : al_paint.subList(paintable_patches.size(), al_paint.size())) {
 						d.paint(g, magnification, d == active, c_alphas, layer);
 					}
-					Utils.log2("multi layer mode");
 				} else { // Display.REPAINT_RGB_LAYER == mode
 					final HashMap<Color,byte[]> channels = new HashMap<Color,byte[]>();
 					hm.put(Color.green, layer);

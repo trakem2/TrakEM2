@@ -59,12 +59,26 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 
 	final protected Project project;
 
+	protected final Color background;
+
 	public DNDTree(final Project project, final DefaultMutableTreeNode root, final Color background) {
-		this(project, root);
+		this.project = project;
+		this.background = background;
+		setAutoscrolls(true);
+		DefaultTreeModel treemodel = new DefaultTreeModel(root);
+		setModel(treemodel);
+		setRootVisible(true); 
+		setShowsRootHandles(false);//to show the root icon
+		getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION); //set single selection for the Tree
+		setEditable(true);
+		//DNDTree.expandAllNodes(this, root);
+		// so weird this instance below does not need to be kept anywhere: where is Java storing it?
+		dtth = new DefaultTreeTransferHandler(project, this, DnDConstants.ACTION_COPY_OR_MOVE);
+		//
 		this.setScrollsOnExpand(true);
 		this.addKeyListener(this);
 		if (null != background) {
-			final DefaultTreeCellRenderer renderer = new NodeRenderer(background); // new DefaultTreeCellRenderer();
+			final DefaultTreeCellRenderer renderer = createNodeRenderer();
 			renderer.setBackground(background);
 			renderer.setBackgroundNonSelectionColor(background);
 			// I hate swing, I really do. And java has no closures, no macros, and reflection is nearly as verbose as the code below!
@@ -77,92 +91,28 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		}
 	}
 
-	/** Extends the DefaultTreeCellRenderer to paint the nodes that contain Thing objects present in the current layer with a distinctive orange background; also, attribute nodes are painted with a different icon. */
-	private class NodeRenderer extends DefaultTreeCellRenderer {
+        /** Subclasses should override this method to return a subclass of DNDTree.NodeRenderer */
+        protected NodeRenderer createNodeRenderer() {
+                return new NodeRenderer();
+        }       
 
-		// this is a crude hack that needs much cleanup and proper break down to subclasses.
+        protected class NodeRenderer extends DefaultTreeCellRenderer {
 
-		final Color bg;
-		final Color active_displ_color = new Color(1.0f, 1.0f, 0.0f, 0.5f);
-		final Color front_layer_color = new Color(1.0f, 1.0f, 0.4f, 0.5f);
+                @Override
+                public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+                        final JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+                        label.setText(label.getText().replace('_', ' ')); // just for display
+                        return label;
+                }       
+                
+                /** Override to show tooptip text as well. */
+                @Override
+                public void setText(final String text) {
+                        super.setText(text);
+                        setToolTipText(text); // TODO doesn't work ??
+                }       
+        }
 
-		NodeRenderer(final Color bg) {
-			this.bg = bg;
-		}
-
-		/** Override to set a yellow background color to elements that belong to the currently displayed layer. The JTree nodes are painted as a JLabel that is transparent (no background, it has a setOpque(true) by default), so the code is insane.*/
-		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
-			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
-			label.setText(label.getText().replace('_', ' ')); // just for display
-			if (value.getClass() == DefaultMutableTreeNode.class) {
-				final Object obb = ((DefaultMutableTreeNode)value).getUserObject();
-				final Class clazz = obb.getClass();
-				if (ProjectThing.class == clazz) { // must be, but checking ...
-					final Object ob = ((ProjectThing)obb).getObject();
-					if (ob.getClass().getSuperclass() == Displayable.class) {
-						final Displayable displ = (Displayable)ob;
-						final Layer layer = Display.getFrontLayer();
-						if (null != layer && (displ == Display.getFront().getActive() || layer.contains(displ))) {
-							label.setOpaque(true); //this label
-							label.setBackground(active_displ_color); // this label
-							//Utils.log(" -- setting background");
-						} else {
-							label.setOpaque(false); //this label
-							label.setBackground(bg);
-							//Utils.log(" not contained ");
-						}
-					} else {
-						label.setOpaque(false); //this label
-						label.setBackground(bg);
-						//Utils.log("ob is " + ob);
-					}
-				} else if (clazz == LayerThing.class) {
-					final Object ob = ((LayerThing)obb).getObject();
-					final Layer layer = Display.getFrontLayer();
-					if (ob == layer) {
-						label.setOpaque(true); //this label
-						label.setBackground(front_layer_color); // this label
-					} else if (ob.getClass() == LayerSet.class && null != layer && layer.contains((Displayable)ob)) {
-						label.setOpaque(true); //this label
-						label.setBackground(active_displ_color); // this label
-					} else {
-						label.setOpaque(false); //this label
-						label.setBackground(bg);
-					}
-				} else {
-					label.setOpaque(false); //this label
-					label.setBackground(bg);
-					//Utils.log("obb is " + obb);
-				}
-			} else {
-				label.setOpaque(false);
-				label.setBackground(bg);
-				//Utils.log("value is " + value);
-			}
-			return label;
-		}
-
-		/** Override to show tooptip text as well. */
-		public void setText(final String text) {
-			super.setText(text);
-			setToolTipText(text); // TODO doesn't work ??
-		}
-	}
-
-	public DNDTree(Project project, DefaultMutableTreeNode root) {
-		this.project = project;
-		setAutoscrolls(true);
-		DefaultTreeModel treemodel = new DefaultTreeModel(root);
-		setModel(treemodel);
-		setRootVisible(true); 
-		setShowsRootHandles(false);//to show the root icon
-		getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION); //set single selection for the Tree
-		setEditable(true);
-		//DNDTree.expandAllNodes(this, root);
-		// so weird this instance below does not need to be kept anywhere: where is Java storing it?
-		dtth = new DefaultTreeTransferHandler(project, this, DnDConstants.ACTION_COPY_OR_MOVE);
-	}
- 
 	public void autoscroll(Point cursorLocation)  {
 		Insets insets = getAutoscrollInsets();
 		Rectangle outer = getVisibleRect();
