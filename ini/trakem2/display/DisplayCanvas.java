@@ -2249,7 +2249,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					for (final Displayable d : al_paint.subList(paintable_patches.size(), al_paint.size())) {
 						d.paint(g, magnification, d == active, c_alphas, layer);
 					}
-					Utils.log2("multi layer mode");
 				} else { // Display.REPAINT_RGB_LAYER == mode
 					final HashMap<Color,byte[]> channels = new HashMap<Color,byte[]>();
 					hm.put(Color.green, layer);
