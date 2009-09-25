@@ -23,7 +23,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import ij.gui.Plot;
-import ij.gui.Toolbar;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
@@ -716,15 +715,36 @@ public class Polyline extends ZDisplayable implements Line3D {
 	}
 
 	synchronized protected void calculateBoundingBox(final boolean adjust_position) {
-		double min_x = Double.MAX_VALUE;
-		double min_y = Double.MAX_VALUE;
-		double max_x = 0.0D;
-		double max_y = 0.0D;
 		if (0 == n_points) {
 			this.width = this.height = 0;
 			layer_set.updateBucket(this);
 			return;
 		}
+		final double[] m = calculateDataBoundingBox();
+
+		this.width = m[2] - m[0];  // max_x - min_x;
+		this.height = m[3] - m[1]; // max_y - min_y;
+
+		if (adjust_position) {
+			// now readjust points to make min_x,min_y be the x,y
+			for (int i=0; i<n_points; i++) {
+				p[0][i] -= m[0]; // min_x;
+				p[1][i] -= m[1]; // min_y;
+			}
+			this.at.translate(m[0], m[1]) ; // (min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+			updateInDatabase("transform");
+		}
+		updateInDatabase("dimensions");
+
+		layer_set.updateBucket(this);
+	}
+
+	/** Returns min_x, min_y, max_x, max_y. */
+	protected double[] calculateDataBoundingBox() {
+		double min_x = Double.MAX_VALUE;
+		double min_y = Double.MAX_VALUE;
+		double max_x = 0.0D;
+		double max_y = 0.0D;
 		// check the points
 		for (int i=0; i<n_points; i++) {
 			if (p[0][i] < min_x) min_x = p[0][i];
@@ -732,21 +752,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 			if (p[0][i] > max_x) max_x = p[0][i];
 			if (p[1][i] > max_y) max_y = p[1][i];
 		}
-
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
-
-		if (adjust_position) {
-			// now readjust points to make min_x,min_y be the x,y
-			for (int i=0; i<n_points; i++) {
-				p[0][i] -= min_x;	p[1][i] -= min_y;
-			}
-			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
-			updateInDatabase("transform");
-		}
-		updateInDatabase("dimensions");
-
-		layer_set.updateBucket(this);
+		return new double[]{min_x, min_y, max_x, max_y};
 	}
 
 	/**Release all memory resources taken by this object.*/
