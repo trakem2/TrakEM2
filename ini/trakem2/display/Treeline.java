@@ -56,7 +56,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
+import java.util.Arrays;
+
+// Ideally, this class would use a linked list of node points, where each node could have a list of branches, which would be in themselves linked lists of nodes and so on.
+// That would make sense, and would make re-rooting and removing nodes (with their branches) trivial and fast.
+// In practice, I want to reuse Polyline's semiautomatic tracing and thus I am using Polylines for each slab.
 
 /** A sequence of points ordered in a set of connected branches. */
 public class Treeline extends ZDisplayable {
@@ -111,8 +115,6 @@ public class Treeline extends ZDisplayable {
 
 		/** Paint recursively into branches. */
 		final void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer, final Stroke branch_stroke) {
-			Utils.log2("affine: " + this.pline.getAffineTransform());
-			Utils.log2(Treeline.this.at == this.pline.getAffineTransform());
 			this.pline.paint(g, magnification, active, channels, active_layer);
 			if (null == branches) return;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
@@ -144,6 +146,7 @@ public class Treeline extends ZDisplayable {
 		}
 		final boolean linkPatches() {
 			boolean must_lock = null != pline && pline.linkPatches();
+			if (null == branches) return must_lock;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
 				for (final Branch b : e.getValue()) {
 					must_lock = must_lock || b.linkPatches();
@@ -155,7 +158,6 @@ public class Treeline extends ZDisplayable {
 		final double[] calculateDataBoundingBox(double[] m) {
 			if (null == pline) return m;
 			final double[] mp = pline.calculateDataBoundingBox();
-			Utils.log2("pline.mp: " + Utils.toString(mp));
 			if (null == m) {
 				m = mp;
 			} else {
@@ -209,18 +211,60 @@ public class Treeline extends ZDisplayable {
 			}
 		}
 
-		/** Returns the Slab for which x_l,y_l is closest to either its 0 or its N-1 point in 3D space. */
-		final Branch findClosestEndPoint(final double x_l, final double y_l, final long layer_id) {
+		/** Returns the Slab for which x_l,y_l is closest to either its 0 or its N-1 point in 3D space.
+		 *  List[0] = Branch
+		 *  List[1] = double[2] with distance to 0 and to n_points-1 */
+		final List findClosestEndPoint(final double x_l, final double y_l, final long layer_id) {
 			Branch bmin = null;
 			double[] dmin = null;
+			double min = Double.MAX_VALUE;
 			for (final Branch b : getAllBranches()) {
 				final double[] d = b.pline.sqDistanceToEndPoints(x_l, y_l, layer_id);
-				if (null == dmin || d[0] < dmin[0] || d[1] < dmin[1]) {
+				if (null == dmin || d[1] < min || d[0] < min) {
+					min = Math.min(d[0], d[1]);
 					dmin = d;
 					bmin = b;
 				}
+				Utils.log2(dmin);
 			}
-			return bmin;
+			return Arrays.asList(new Object[]{bmin, dmin});
+		}
+		/** Returns the branch that got the new point and its index in it.
+		 *  List[0] = Branch
+		 *  List[1] = Integer */
+		final List addPoint(final double x_l, final double y_l, final long layer_id, final double mag) {
+			List list = findClosestEndPoint(x_l, y_l, layer_id);
+			Branch bmin = (Branch) list.get(0);
+			int i = bmin.pline.addPoint((int)x_l, (int)y_l, layer_id, mag);
+			if (0 == i && null != bmin.branches) {
+				// shift all branches!
+				final HashMap<Integer,ArrayList<Branch>> m = new HashMap<Integer,ArrayList<Branch>>(bmin.branches);
+				bmin.branches.clear();
+				for (Map.Entry<Integer,ArrayList<Branch>> e : m.entrySet()) {
+					bmin.branches.put(e.getKey() + 1, e.getValue());
+				}
+			}
+			return Arrays.asList(new Object[]{bmin, i});
+		}
+		final void removePoint(final int i) {
+			pline.removePoint(i);
+			// shift all branches if it wasn't the last!
+			if (i != pline.n_points -2) {
+				// shift all branches!
+				final HashMap<Integer,ArrayList<Branch>> m = new HashMap<Integer,ArrayList<Branch>>(branches);
+				branches.clear();
+				for (Map.Entry<Integer,ArrayList<Branch>> e : m.entrySet()) {
+					final int k = e.getKey();
+					branches.put(k - (k < i ? 0 : 1), e.getValue());
+				}
+			}
+		}
+		final public String toString() {
+			StringBuilder sb = new StringBuilder("Branch n_points=").append(pline.n_points)
+				.append(" first=").append(pline.p[0][0]).append(',').append(pline.p[1][0]);
+			if (pline.n_points > 1) sb.append(" last=").append(pline.p[0][pline.n_points-1]).append(',').append(pline.p[1][pline.n_points-1]);
+			return sb.toString();
+
 		}
 		final List<Branch> getAllBranches() {
 			final ArrayList<Branch> all = new ArrayList<Branch>();
@@ -247,7 +291,7 @@ public class Treeline extends ZDisplayable {
 		}
 		/** Depth-first search. */
 		final private void findPoint(final int x_pl, final int y_pl, final long layer_id, final double magnification, final List pi) {
-			int i = pline.findPoint(x_pl, y_pl, layer_id, magnification);
+			final int i = pline.findPoint(x_pl, y_pl, layer_id, magnification);
 			if (-1 != i) {
 				pi.add(this);
 				pi.add(i);
@@ -292,8 +336,6 @@ public class Treeline extends ZDisplayable {
 
 		root.paint(g, magnification, active, channels, active_layer, DASHED_STROKE);
 
-		g.draw(getBoundingBox());
-
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
 			g.setComposite(original_composite);
@@ -309,10 +351,6 @@ public class Treeline extends ZDisplayable {
 		this.width = m[2] - m[0];  // max_x - min_x;
 		this.height = m[3] - m[1]; // max_y - min_y;
 
-		Utils.log2("w, h: " + this.width + ", " + this.height);
-
-		Utils.log2(m);
-
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y
 			root.subtract(m[0], m[1]);
@@ -323,8 +361,6 @@ public class Treeline extends ZDisplayable {
 		updateInDatabase("dimensions");
 
 		layer_set.updateBucket(this);
-
-		Utils.log2("Treeline box: " + getBoundingBox());
 	}
 
 	public void repaint() {
@@ -396,10 +432,10 @@ public class Treeline extends ZDisplayable {
 					if (Utils.isControlDown(me)) {
 						// Remove point, and associated branches
 						if (layer_id == branch.pline.p_layer[i]) {
-							if (null != branch.parent && null != branch.parent.branches) {
-								branch.parent.branches.remove(i);
+							if (null != branch.branches) {
+								branch.branches.remove(i);
 							}
-							branch.pline.removePoint(i);
+							branch.removePoint(i);
 							repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
 							active = null;
 							index = -1;
@@ -418,15 +454,16 @@ public class Treeline extends ZDisplayable {
 			} else {
 				// Add new point
 				// Find the point closest to any other starting or ending point in all branches
-				Branch b = root.findClosestEndPoint(x_pl, y_pl, layer_id);
-				index = -1;
-				active = b;
-				b.pline.addPoint(x_pl, y_pl, layer_id, mag);
+				List list = root.addPoint(x_pl, y_pl, layer_id, mag);
+				active = (Branch)list.get(0);
+				index = ((Integer)list.get(1)).intValue();
 				repaint(true);
 				return;
 			}
 		} else {
 			root = new Branch(null, x_pl, y_pl, layer_id);
+			active = root;
+			index = 0;
 		}
 	}
 
@@ -434,6 +471,7 @@ public class Treeline extends ZDisplayable {
 	private int index = -1;
 
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+		Utils.log2("dragged: active is " + active + " and index is " + index);
 		if (null == active) return;
 
 		// transform to the local coordinates
