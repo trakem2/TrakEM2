@@ -613,6 +613,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.ht_tabs.put(AreaList.class, scroll_zdispl);
 		this.ht_tabs.put(Pipe.class, scroll_zdispl);
 		this.ht_tabs.put(Polyline.class, scroll_zdispl);
+		this.ht_tabs.put(Treeline.class, scroll_zdispl);
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
@@ -1977,6 +1978,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Polyline d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Treeline d) { selectTab((ZDisplayable)d); }
 	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
 	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Dissector d) { selectTab((ZDisplayable)d); }
@@ -2381,6 +2383,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (none) item.setEnabled(false);
 			item = new JMenuItem("Unhide all polylines"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(Treeline.class);
+			item = new JMenuItem("Hide all treelines"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all treelines"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
 			none = ! layer.getParent().contains(Ball.class);
 			item = new JMenuItem("Hide all balls"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
@@ -2490,6 +2497,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
 		menu.add(bytype);
 

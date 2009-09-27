@@ -218,6 +218,22 @@ public class Polyline extends ZDisplayable implements Line3D {
 		}
 	}
 
+	/** @param x_p,y_p in local coords. */
+	protected double[] sqDistanceToEndPoints(final double x_p, final double y_p, final long layer_id) {
+		final Calibration cal = layer_set.getCalibration();
+		final double lz = layer_set.getLayer(layer_id).getZ();
+		final double p0z =layer_set.getLayer(p_layer[0]).getZ();
+		final double pNz =layer_set.getLayer(p_layer[n_points -1]).getZ();
+		double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p) * cal.pixelWidth * cal.pixelWidth
+				 + (p[1][0] - y_p) * (p[1][0] - y_p) * cal.pixelHeight * cal.pixelHeight
+				 + (lz - p0z) * (lz - p0z) * cal.pixelWidth * cal.pixelWidth; // double multiplication by pixelWidth, ok, since it's what it's used to compute the pixel position in Z
+		double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p) * cal.pixelWidth * cal.pixelWidth
+				 + (p[1][n_points-1] - y_p) * (p[1][n_points-1] - y_p) * cal.pixelHeight * cal.pixelHeight
+				 + (lz - pNz) * (lz - pNz) * cal.pixelWidth * cal.pixelWidth;
+
+		return new double[]{sqdist0, sqdistN};
+	}
+
 	/**Add a point either at the end or between two existing points, with accuracy depending on magnification. The width of the new point is that of the closest point after which it is inserted.*/
 	synchronized protected int addPoint(int x_p, int y_p, long layer_id, double magnification) {
 		if (-1 == n_points) setupForDisplay(); //reload
@@ -239,17 +255,12 @@ public class Polyline extends ZDisplayable implements Line3D {
 		} else if (-1 == index) {
 			// decide whether to append at the end or prepend at the beginning
 			// compute distance in the 3D space to the first and last points
-			final Calibration cal = layer_set.getCalibration();
-			final double lz = layer_set.getLayer(layer_id).getZ();
-			final double p0z =layer_set.getLayer(p_layer[0]).getZ();
-			final double pNz =layer_set.getLayer(p_layer[n_points -1]).getZ();
-			double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p) * cal.pixelWidth * cal.pixelWidth
-				         + (p[1][0] - y_p) * (p[1][0] - y_p) * cal.pixelHeight * cal.pixelHeight
-					 + (lz - p0z) * (lz - p0z) * cal.pixelWidth * cal.pixelWidth; // double multiplication by pixelWidth, ok, since it's what it's used to compute the pixel position in Z
-			double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p) * cal.pixelWidth * cal.pixelWidth
-				         + (p[1][n_points-1] - y_p) * (p[1][n_points-1] - y_p) * cal.pixelHeight * cal.pixelHeight
-					 + (lz - pNz) * (lz - pNz) * cal.pixelWidth * cal.pixelWidth;
-			if (sqdistN < sqdist0) {
+			final double[] sqd0N = sqDistanceToEndPoints(x_p, y_p, layer_id);
+			//final double sqdist0 = sqd0N[0];
+			//final double sqdistN = sqd0N[1];
+
+			//if (sqdistN < sqdist0)
+			if (sqd0N[1] < sqd0N[0]) {
 				//append at the end
 				p[0][n_points] = x_p;
 				p[1][n_points] = y_p;
@@ -416,7 +427,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 	}
 
 	/**Helper vars for mouse events. It's safe to have them static since only one Pipe will be edited at a time.*/
-	static private int index;
+	static protected int index;
 	static private boolean is_new_point = false;
 
 	final static private HashMap<LayerSet,TraceParameters> tr_map = new HashMap<LayerSet,TraceParameters>();
@@ -658,9 +669,9 @@ public class Polyline extends ZDisplayable implements Line3D {
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
-			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
-			x_p = (int)p.x;
-			y_p = (int)p.y;
+			//final Point2D.Double p = inverseTransformPoint(x_p, y_p);
+			//x_p = (int)p.x;
+			//y_p = (int)p.y;
 			final Point2D.Double pd = inverseTransformPoint(x_d, y_d);
 			x_d = (int)pd.x;
 			y_d = (int)pd.y;
@@ -773,8 +784,15 @@ public class Polyline extends ZDisplayable implements Line3D {
 		repaint(true);
 	}
 
+	private boolean repaint_enabled = true;
+
+	protected void setRepaintEnabled(boolean b) {
+		this.repaint_enabled = b;
+	}
+
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */
 	public void repaint(boolean repaint_navigator) {
+		if (!repaint_enabled) return;
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
 		calculateBoundingBox(true);
@@ -784,6 +802,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	/**Make this object ready to be painted.*/
 	synchronized private void setupForDisplay() {
+		if (-1 == n_points) n_points = 0;
 		// load points
 		/* Database storage not implemented yet
 		if (null == p) {
