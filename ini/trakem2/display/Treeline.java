@@ -225,7 +225,6 @@ public class Treeline extends ZDisplayable {
 					dmin = d;
 					bmin = b;
 				}
-				Utils.log2(dmin);
 			}
 			return Arrays.asList(new Object[]{bmin, dmin});
 		}
@@ -233,23 +232,36 @@ public class Treeline extends ZDisplayable {
 		 *  List[0] = Branch
 		 *  List[1] = Integer */
 		final List addPoint(final double x_l, final double y_l, final long layer_id, final double mag) {
-			List list = findClosestEndPoint(x_l, y_l, layer_id);
-			Branch bmin = (Branch) list.get(0);
-			int i = bmin.pline.addPoint((int)x_l, (int)y_l, layer_id, mag);
-			if (0 == i && null != bmin.branches) {
-				// shift all branches!
+			List list = findClosestSegment(x_l, y_l, layer_id, mag);
+			int index = -1;
+			Branch bmin = null;
+			if (list.size() > 0) {
+				bmin = (Branch) list.get(0);
+				index = ((Integer)list.get(1)).intValue();
+			}
+			if (-1 == index) {
+				list = findClosestEndPoint(x_l, y_l, layer_id);
+				bmin = (Branch) list.get(0);
+				index = bmin.pline.addPoint((int)x_l, (int)y_l, layer_id, mag);
+			} else {
+				index++; // insert after
+				bmin.pline.insertPoint(index, (int)x_l, (int)y_l, layer_id);
+			}
+			if (null != bmin.branches) {
+				// shift branches!
 				final HashMap<Integer,ArrayList<Branch>> m = new HashMap<Integer,ArrayList<Branch>>(bmin.branches);
 				bmin.branches.clear();
 				for (Map.Entry<Integer,ArrayList<Branch>> e : m.entrySet()) {
-					bmin.branches.put(e.getKey() + 1, e.getValue());
+					int i = e.getKey();
+					bmin.branches.put(e.getKey() + (index > i ? 0 : 1), e.getValue());
 				}
 			}
-			return Arrays.asList(new Object[]{bmin, i});
+			return Arrays.asList(new Object[]{bmin, index});
 		}
 		final void removePoint(final int i) {
 			pline.removePoint(i);
 			// shift all branches if it wasn't the last!
-			if (i != pline.n_points -2) {
+			if (null != branches && i != pline.n_points -2) {
 				// shift all branches!
 				final HashMap<Integer,ArrayList<Branch>> m = new HashMap<Integer,ArrayList<Branch>>(branches);
 				branches.clear();
@@ -304,6 +316,25 @@ public class Treeline extends ZDisplayable {
 				}
 			}
 		}
+		final List findClosestSegment(final double x_l, final double y_l, final long layer_id, final double mag) {
+			final ArrayList pi = new ArrayList();
+			findClosestSegment(x_l, y_l, layer_id, mag, pi);
+			return pi;
+		}
+		final void findClosestSegment(final double x_l, final double y_l, final long layer_id, final double mag, final List pi) {
+			final int i = pline.findClosestSegment((int)x_l, (int)y_l, layer_id, mag);
+			if (-1 !=  i) {
+				pi.add(this);
+				pi.add(i);
+				return;
+			}
+			if (null == branches) return;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				for (final Branch b : e.getValue()) {
+					b.findClosestSegment(x_l, y_l, layer_id, mag, pi);
+				}
+			}
+		}
 	}
 
 	public Treeline(Project project, String title) {
@@ -319,8 +350,6 @@ public class Treeline extends ZDisplayable {
 		}
 	}
 
-	static private final BasicStroke DASHED_STROKE = new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{ 30, 10, 10, 10 }, 0);
-
 	final public void paint(Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (null == root) {
 			setupForDisplay();
@@ -333,6 +362,8 @@ public class Treeline extends ZDisplayable {
 			original_composite = g.getComposite();
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
+
+		final BasicStroke DASHED_STROKE = new BasicStroke(1/(float)magnification, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{ 6, 4, 2, 4 }, 0);
 
 		root.paint(g, magnification, active, channels, active_layer, DASHED_STROKE);
 
@@ -471,7 +502,6 @@ public class Treeline extends ZDisplayable {
 	private int index = -1;
 
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
-		Utils.log2("dragged: active is " + active + " and index is " + index);
 		if (null == active) return;
 
 		// transform to the local coordinates
