@@ -784,15 +784,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 		repaint(true);
 	}
 
-	private boolean repaint_enabled = true;
-
-	protected void setRepaintEnabled(boolean b) {
-		this.repaint_enabled = b;
-	}
-
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */
 	public void repaint(boolean repaint_navigator) {
-		if (!repaint_enabled) return;
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
 		calculateBoundingBox(true);

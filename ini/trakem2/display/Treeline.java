@@ -63,6 +63,19 @@ public class Treeline extends ZDisplayable {
 
 	protected Branch root;
 
+	private final class Slab extends Polyline {
+		Slab() {
+			super(Treeline.this.project, -1, Treeline.this.title, 0, 0, Treeline.this.alpha, true, Treeline.this.color, false, Treeline.this.at);
+			this.layer_set = Treeline.this.layer_set;
+		}
+
+		@Override
+		public void updateBucket() {} // disabled
+
+		@Override
+		public void repaint(boolean repaint_navigator) {} // disabled
+	}
+
 	/** A branch only holds the first point if it doesn't have any parent. */
 	private final class Branch {
 
@@ -70,19 +83,15 @@ public class Treeline extends ZDisplayable {
 
 		HashMap<Integer,ArrayList<Branch>> branches = null;
 
-		final Polyline pline;
+		final Slab pline;
 
 		Branch(Branch parent, double first_x, double first_y, long layer_id) {
 			this.parent = parent;
-			// Create a new Polyline with an invalid id -1:
+			// Create a new Slab with an invalid id -1:
 			// TODO 
-			//   - each Polyline should have its own AffineTransform
-			//   - then each Polyline could have its own bounding box
-			//   - and then there would be no need for setRepaintEnabled calls, and repaints would be more efficient
-			//   - mouseDragged would be more efficient (now it has to iterate all Polylines)
-			this.pline = new Polyline(project, -1, null, 0, 0, 1.0f, true, Treeline.this.color, false, Treeline.this.at);
-			this.pline.setLayerSet(Treeline.this.layer_set);
-			this.pline.setRepaintEnabled(false);
+			//   - each Slab could have its own bounding box, to avoid iterating all
+			// Each Slab has its own AffineTransform -- passing it in the constructor merely sets its values
+			this.pline = new Slab();
 			this.pline.addPoint((int)first_x, (int)first_y, layer_id, 1.0);
 		}
 
@@ -102,6 +111,8 @@ public class Treeline extends ZDisplayable {
 
 		/** Paint recursively into branches. */
 		final void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer, final Stroke branch_stroke) {
+			Utils.log2("affine: " + this.pline.getAffineTransform());
+			Utils.log2(Treeline.this.at == this.pline.getAffineTransform());
 			this.pline.paint(g, magnification, active, channels, active_layer);
 			if (null == branches) return;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
@@ -140,7 +151,7 @@ public class Treeline extends ZDisplayable {
 			}
 			return must_lock;
 		}
-		/** Return min_x, min_y, max_x, max_y of all nested Polyline. */
+		/** Return min_x, min_y, max_x, max_y of all nested Slab. */
 		final double[] calculateDataBoundingBox(double[] m) {
 			if (null == pline) return m;
 			final double[] mp = pline.calculateDataBoundingBox();
@@ -161,7 +172,7 @@ public class Treeline extends ZDisplayable {
 			}
 			return m;
 		}
-		/** Subtract x,y from all points of all nested Polyline. */
+		/** Subtract x,y from all points of all nested Slab. */
 		final void subtract(final double min_x, final double min_y) {
 			if (null == pline) return;
 			for (int i=0; i<pline.n_points; i++) {
@@ -175,9 +186,8 @@ public class Treeline extends ZDisplayable {
 				}
 			}
 		}
-		/** Return the lowest Z Layer of all nested Polyline. */
+		/** Return the lowest Z Layer of all nested Slab. */
 		final Layer getFirstLayer() {
-			if (null == pline) return null;
 			Layer first = pline.getFirstLayer();
 			if (null == branches) return first;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
@@ -190,7 +200,6 @@ public class Treeline extends ZDisplayable {
 		}
 
 		final void setAffineTransform(AffineTransform at) {
-			if (null == pline) return;
 			pline.setAffineTransform(at);
 			if (null == branches) return;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
@@ -200,7 +209,7 @@ public class Treeline extends ZDisplayable {
 			}
 		}
 
-		/** Returns the Polyline for which x_l,y_l is closest to either its 0 or its N-1 point in 3D space. */
+		/** Returns the Slab for which x_l,y_l is closest to either its 0 or its N-1 point in 3D space. */
 		final Branch findClosestEndPoint(final double x_l, final double y_l, final long layer_id) {
 			Branch bmin = null;
 			double[] dmin = null;
@@ -247,7 +256,7 @@ public class Treeline extends ZDisplayable {
 			if (null == branches) return;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
 				for (final Branch b : e.getValue()) {
-					findPoint(x_pl, y_pl, layer_id, magnification, pi);
+					b.findPoint(x_pl, y_pl, layer_id, magnification, pi);
 				}
 			}
 		}
@@ -266,6 +275,8 @@ public class Treeline extends ZDisplayable {
 		}
 	}
 
+	static private final BasicStroke DASHED_STROKE = new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{ 30, 10, 10, 10 }, 0);
+
 	final public void paint(Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (null == root) {
 			setupForDisplay();
@@ -279,8 +290,7 @@ public class Treeline extends ZDisplayable {
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		float[] dashPattern = { 30, 10, 10, 10 };
-		root.paint(g, magnification, active, channels, active_layer, new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, dashPattern, 0));
+		root.paint(g, magnification, active, channels, active_layer, DASHED_STROKE);
 
 		g.draw(getBoundingBox());
 
@@ -307,6 +317,7 @@ public class Treeline extends ZDisplayable {
 			// now readjust points to make min_x,min_y be the x,y
 			root.subtract(m[0], m[1]);
 			this.at.translate(m[0], m[1]) ; // (min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+			root.setAffineTransform(this.at);
 			updateInDatabase("transform");
 		}
 		updateInDatabase("dimensions");
