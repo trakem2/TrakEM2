@@ -1687,6 +1687,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		addEditStep(new Layer.DoEditLayers(al));
 	}
 
+	public void addUndoStep(final DoStep step) {
+		addEditStep(step);
+	}
+
 	boolean addEditStep(final DoStep step) {
 		if (null == step || step.isEmpty()) {
 			Utils.log2("Warning: can't add empty step " + step);
@@ -1772,6 +1776,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				Utils.log("Undo: could not apply step!");
 				return false;
 			}
+
+			Utils.log("Undoing " + current_edit_step.getClass().getSimpleName());
+
+			Display.clearSelection(project);
+			Display.updateVisibleTabs(project);
 		}
 		return true;
 	}
@@ -1805,6 +1814,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				Utils.log("Undo: could not apply step!");
 				return false;
 			}
+
+			Utils.log("Redoing " + current_edit_step.getClass().getSimpleName());
+
+			Display.clearSelection(project);
+			Display.updateVisibleTabs(project);
 		}
 		return true;
 	}
@@ -1898,7 +1912,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			this.ptree_exp = new HashMap<Thing,Boolean>();
 			this.proot = p.getProjectTree().duplicate(ptree_exp);
 			this.ltree_exp = new HashMap<Thing,Boolean>();
-			this.lroot = p.getProjectTree().duplicate(ltree_exp);
+			this.lroot = p.getLayerTree().duplicate(ltree_exp);
 
 			this.all_layers = ls.getLayers(); // a copy of the list, but each object is the running instance
 			this.all_zdispl = ls.getZDisplayables(); // idem
