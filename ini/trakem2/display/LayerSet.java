@@ -1772,6 +1772,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				Utils.log("Undo: could not apply step!");
 				return false;
 			}
+
+			Display.clearSelection(project);
+			Display.updateVisibleTabs(project);
 		}
 		return true;
 	}
@@ -1805,6 +1808,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				Utils.log("Undo: could not apply step!");
 				return false;
 			}
+			Display.clearSelection(project);
+			Display.updateVisibleTabs(project);
 		}
 		return true;
 	}
