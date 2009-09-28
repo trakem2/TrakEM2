@@ -680,11 +680,18 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 
 	protected final class LayerThingNodeRender extends DNDTree.NodeRenderer {
 		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+
 			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
 			label.setText(label.getText().replace('_', ' ')); // just for display
+
+			try {
+
 			if (value.getClass() == DefaultMutableTreeNode.class) {
 				final Object obb = ((DefaultMutableTreeNode)value).getUserObject();
-				final Object ob = ((LayerThing)obb).getObject();
+				if (!(obb instanceof LayerThing)) {
+					Utils.log2("WARNING: not a LayerThing: obb is " + obb.getClass() + " and contains " + obb + "   " + ((Thing)obb).getObject());
+				}
+				final Object ob = ((Thing)obb).getObject();
 				final Layer layer = Display.getFrontLayer();
 				if (ob == layer) {
 					label.setOpaque(true); //this label
@@ -696,6 +703,10 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 					label.setOpaque(false); //this label
 					label.setBackground(background);
 				}
+			}
+
+			} catch (Throwable t) {
+				t.printStackTrace();
 			}
 			return label;
 		}
