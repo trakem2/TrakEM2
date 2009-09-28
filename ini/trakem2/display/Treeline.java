@@ -335,6 +335,25 @@ public class Treeline extends ZDisplayable {
 				}
 			}
 		}
+		final void exportXML(StringBuffer sb_body, String indent) {
+			if (null == parent) {
+				sb_body.append(indent).append("<t2_branch>\n");
+			}
+			final String in = indent + "\n";
+			pline.exportXML(sb_body, in, null);
+			if (null != branches) {
+				for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+					for (final Branch b : e.getValue()) {
+						sb_body.append(in).append("<t2_branch index=\"").append(e.getKey()).append("\">\n");
+						b.exportXML(sb_body, in);
+						sb_body.append(in).append("</t2_branch>\n");
+					}
+				}
+			}
+			if (null == parent) {
+				sb_body.append(indent).append("</t2_branch>\n");
+			}
+		}
 	}
 
 	public Treeline(Project project, String title) {
@@ -543,5 +562,26 @@ public class Treeline extends ZDisplayable {
 	public void preTransform(final AffineTransform affine, final boolean linked) {
 		super.preTransform(affine, linked);
 		if (null != root) root.setAffineTransform(this.at);
+	}
+
+	/** Exports to type t2_treeline. */
+	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+		String type = "t2_treeline";
+		if (hs.contains(type)) return;
+		hs.add(type);
+		sb_header.append(indent).append("<!ELEMENT t2_branch (t2_polyline,t2_branch)>\n");
+		sb_header.append(indent).append("<!ATTLIST t2_branch index NMTOKEN #REQUIRED>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_treeline (").append(Displayable.commonDTDChildren()).append(",t2_branch)>\n");
+		Displayable.exportDTD(type, sb_header, hs, indent);
+		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" d").append(TAG_ATTR2);
+	}
+
+	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+		sb_body.append(indent).append("<t2_treeline\n");
+		final String in = indent + "\t";
+		super.exportXML(sb_body, in, any);
+		super.restXML(sb_body, in, any);
+		if (null != root) root.exportXML(sb_body, in);
+		sb_body.append(indent).append("</t2_treeline>\n");
 	}
 }
