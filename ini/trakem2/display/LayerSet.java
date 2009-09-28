@@ -1687,6 +1687,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		addEditStep(new Layer.DoEditLayers(al));
 	}
 
+	public void addUndoStep(final DoStep step) {
+		addEditStep(step);
+	}
+
 	boolean addEditStep(final DoStep step) {
 		if (null == step || step.isEmpty()) {
 			Utils.log2("Warning: can't add empty step " + step);
@@ -1773,6 +1777,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				return false;
 			}
 
+			Utils.log("Undoing " + current_edit_step.getClass().getSimpleName());
+
 			Display.clearSelection(project);
 			Display.updateVisibleTabs(project);
 		}
@@ -1808,6 +1814,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				Utils.log("Undo: could not apply step!");
 				return false;
 			}
+
+			Utils.log("Redoing " + current_edit_step.getClass().getSimpleName());
+
 			Display.clearSelection(project);
 			Display.updateVisibleTabs(project);
 		}

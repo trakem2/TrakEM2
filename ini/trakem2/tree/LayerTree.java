@@ -29,6 +29,7 @@ import ini.trakem2.Project;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.DLabel;
+import ini.trakem2.display.DoStep;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.persistence.DBObject;
@@ -445,7 +446,9 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				gd.addStringField("new name: ", thing.getTitle());
 				gd.showDialog();
 				if (gd.wasCanceled()) return;
+				project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
 				thing.setTitle(gd.getNextString());
+				project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
 			} else if (command.equals("Translate layers in Z...")) {
 				/// TODO: this method should use multiple selections directly on the tree
 				if (thing.getObject() instanceof LayerSet) {

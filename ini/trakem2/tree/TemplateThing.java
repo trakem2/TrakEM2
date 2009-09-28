@@ -130,9 +130,9 @@ public final class TemplateThing extends DBObject implements Thing {
 		return type;
 	}
 
-	public String getTitle() {
-		return type;
-	}
+//	public String getTitle() {
+//		return type;
+//	}
 
 	public String getType() {
 		return type;
