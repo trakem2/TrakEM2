@@ -496,6 +496,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private boolean locked = false; // TODO temporary!
 
+	private boolean beyond_srcRect = false;
+
 	private int tmp_tool = -1;
 
 	public void mousePressed(MouseEvent me) {
@@ -811,8 +813,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// the line above must repaint on its own
 					break;
 				}
-			} else { 
-				locked = true; // TODO temporary until the snapTo and mouseEntered issues are fixed
+			} else {
+				beyond_srcRect = true;
 				Utils.log("DisplayCanvas.mouseDragged: preventing drag beyond layer limits.");
 			}
 		}
@@ -894,6 +896,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		int x_r = srcRect.x + (int)(me.getX() / magnification);
 		int y_r = srcRect.y + (int)(me.getY() / magnification);
+
+		/*
+		if (beyond_srcRect) {
+			// Artificial release on the last dragged point
+			x_r = x_d;
+			y_r = y_d;
+		}
+		*/
 
 		this.xMouse = x_r;
 		this.yMouse = y_r;
