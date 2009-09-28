@@ -738,6 +738,10 @@ public class AreaList extends ZDisplayable {
 					try { Thread.sleep(1); } catch (InterruptedException ie) {}
 					continue;
 				}
+				if (!dc.getDisplay().getLayer().contains(p.x, p.y, 0)) {
+					// Ignoring point off srcRect
+					continue;
+				}
 				// bring to offscreen position of the mouse
 				atb.translate(p.x, p.y);
 				// capture bounds while still in offscreen coordinates
