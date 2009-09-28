@@ -1779,7 +1779,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 			Utils.log("Undoing " + current_edit_step.getClass().getSimpleName());
 
-			Display.clearSelection(project);
 			Display.updateVisibleTabs(project);
 		}
 		return true;
@@ -1817,7 +1816,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 			Utils.log("Redoing " + current_edit_step.getClass().getSimpleName());
 
-			Display.clearSelection(project);
 			Display.updateVisibleTabs(project);
 		}
 		return true;
@@ -1997,6 +1995,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 			ls.recreateBuckets(true);
 
+			Display.clearSelection(ls.project);
 			Display.update(ls, false);
 
 			return true;
