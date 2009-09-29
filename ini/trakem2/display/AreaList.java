@@ -1800,13 +1800,13 @@ public class AreaList extends ZDisplayable {
 		if (as_amira_labels && list.size() > 255) {
 			Utils.log("Saving ONLY first 255 AreaLists!\nDiscarded:");
 			StringBuffer sb = new StringBuffer();
-			for (final Displayable d : list.subList(256, list.size())) {
+			for (final Displayable d : list.subList(255, list.size())) {
 				sb.append("    ").append(d.getProject().getShortMeaningfulTitle(d)).append('\n');
 			}
 			Utils.log(sb.toString());
 			ArrayList<Displayable> li = new ArrayList<Displayable>(list);
 			list.clear();
-			list.addAll(li.subList(0, 256));
+			list.addAll(li.subList(0, 255));
 		}
 
 		String path = null;
