@@ -1898,6 +1898,8 @@ public class AreaList extends ZDisplayable {
 			labels.put(d, label);
 		}
 
+		final Area world = new Area(new Rectangle(0, 0, width, height));
+
 		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
 			Utils.showProgress(count/len);
 			count++;
@@ -1921,7 +1923,12 @@ public class AreaList extends ZDisplayable {
 				/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
 				/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
 				/* 1 - To world coordinates: */ aff.concatenate(ali.at);
-				ShapeRoi sroi = new ShapeRoi(aff.createTransformedShape(area));
+				Area aroi = area.createTransformedArea(aff);
+				Rectangle b = aroi.getBounds();
+				if (b.x < 0 || b.y < 0) {
+					aroi.intersect(world); // work around ij.gui.ShapeRoi bug
+				}
+				ShapeRoi sroi = new ShapeRoi(aroi);
 				ip.setRoi(sroi);
 				ip.fill(sroi.getMask());
 			}
