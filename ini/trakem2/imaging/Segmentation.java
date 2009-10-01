@@ -73,7 +73,7 @@ public class Segmentation {
 			gd.addNumericField("Iterations inc", iter_inc, 0);
 			gd.addCheckbox("Enable grey value erosion filter", apply_grey_value_erosion);
 			gd.addMessage("Lasso tool:");
-			gd.addNumericField("ratio space/color:", 1, 2);
+			gd.addNumericField("ratio space/color:", ratio_space_color, 2);
 			gd.addMessage("Preprocessing by bandpass filter:");
 			gd.addCheckbox("Enable bandpass filter", apply_bandpass_filter);
 	                gd.addNumericField("Filter_Large Structures Down to", low_frequency_threshold, 0, 4, "pixels");
