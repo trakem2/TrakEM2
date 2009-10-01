@@ -45,16 +45,21 @@ import plugin.Lasso;
 public class Segmentation {
 
 	static public class FastMarchingParam {
+		// Fast-marching:
 		public int fm_grey = 50;
 		public double fm_dist = 0.5;
 		public int max_iterations = 1000;
 		public int iter_inc = 100;
+		// Preprocess fast-marching with grey value erosion:
+		public boolean apply_grey_value_erosion = true;
+		// Lasso:
+		public double ratio_space_color = 1.0;
+		// Preprocess all with bandpass filter:
 		public boolean apply_bandpass_filter = true;
 		public int low_frequency_threshold = 1000;
 		public int high_frequency_threshold = 5;
 		public boolean autoscale_after_filtering = true;
 		public boolean saturate_when_autoscaling = true;
-		public boolean apply_grey_value_erosion = true;
 		/** In pixels, of the the underlying image to copy around the mouse. May be enlarged by shift+scrollwheel with PENCIL tool on a selected AreaList. */
 		public int width = 100,
 		           height = 100;
@@ -66,7 +71,10 @@ public class Segmentation {
 			gd.addNumericField("Distance threshold", fm_dist, 2);
 			gd.addNumericField("Max iterations", max_iterations, 0);
 			gd.addNumericField("Iterations inc", iter_inc, 0);
-			gd.addMessage("Bandpass filter:");
+			gd.addCheckbox("Enable grey value erosion filter", apply_grey_value_erosion);
+			gd.addMessage("Lasso tool:");
+			gd.addNumericField("ratio space/color:", 1, 2);
+			gd.addMessage("Preprocessing by bandpass filter:");
 			gd.addCheckbox("Enable bandpass filter", apply_bandpass_filter);
 	                gd.addNumericField("Filter_Large Structures Down to", low_frequency_threshold, 0, 4, "pixels");
 	                gd.addNumericField("Filter_Small Structures Up to", high_frequency_threshold, 0, 4, "pixels");
@@ -79,8 +87,9 @@ public class Segmentation {
 				(Component)gd.getCheckboxes().get(gd.getCheckboxes().size()-1)
 			};
 			Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size()-3), c, null);
-			gd.addMessage("Grey value erosion filter:");
-			gd.addCheckbox("Enable grey value erosion filter", apply_grey_value_erosion);
+			if (!apply_bandpass_filter) {
+				for (Component comp : c) comp.setEnabled(false);
+			}
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 
@@ -89,6 +98,11 @@ public class Segmentation {
 			fm_dist = gd.getNextNumber();
 			max_iterations = (int)gd.getNextNumber();
 			iter_inc = (int)gd.getNextNumber();
+			// Grey value erosion:
+			apply_grey_value_erosion = gd.getNextBoolean();
+
+			// Ratio space/color for lasso:
+			ratio_space_color = gd.getNextNumber();
 
 			// Bandpass filter:
 			apply_bandpass_filter = gd.getNextBoolean();
@@ -97,8 +111,6 @@ public class Segmentation {
 			autoscale_after_filtering = gd.getNextBoolean();
 			saturate_when_autoscaling = gd.getNextBoolean();
 
-			// Grey value erosion:
-			apply_grey_value_erosion = gd.getNextBoolean();
 			return true;
 		}
 
@@ -315,6 +327,7 @@ public class Segmentation {
 			}
 
 			lasso = new Lasso(imp, Lasso.BLOW, box.width/2, box.height/2, false);
+			lasso.setRatioSpaceColor(fmp.ratio_space_color);
 		}
 		public void moveBlow(int dx, int dy) throws Exception {
 			int x = box.width/2 + dx;
