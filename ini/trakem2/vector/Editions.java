@@ -284,7 +284,8 @@ public class Editions {
 	 * [6] - Similarity:  1 - (( N_insertions + N_deletions ) / max(len(seq1), len(seq2)))
 	 * [7] - Proximity: cummulative distance between pairs divided by physical sequence length
 	 * [8] - Proximity of mutation pairs
-	 * [9] - Tortuosity: squared ratio of the difference of the euclidian distances from first to last point divided by the euclidian length of the sequence.
+	 * [9] - Ratio of sequence lengths: vs1.length / vs2.length
+	 * [10] - Tortuosity: squared ratio of the difference of the euclidian distances from first to last point divided by the euclidian length of the sequence.
 	 */
 	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean score_mut_only) {
 		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk), score_mut_only);
@@ -299,7 +300,7 @@ public class Editions {
 		final int len1 = vs1.length();
 		final int len2 = vs2.length();
 		final ArrayList<Double> dist = new ArrayList<Double>(); // why not ArrayList<double> ? STUPID JAVA
-		final double[] pack = new double[10];
+		final double[] pack = new double[11];
 
 		Arrays.fill(pack, Double.MAX_VALUE);
 		pack[4] = 0;
@@ -358,10 +359,13 @@ public class Editions {
 			pack[7] = ((double)c_dist) / phys_len;
 			// proximity_mut: Unitless value indicating proximity between mutation pairs only:
 			pack[8] = score_mut_only ? pack[7] : ((double)c_dist_mut) / phys_len;
+			// Proportion of sequence lengths
+			pack[9] = ((double)vs1.length()) / vs2.length();
+			// quadratic normalized tortuosity: the square of the difference between the tortuosity ratios of both VectorString3D.
 			if (vs1 instanceof VectorString3D) {
-				pack[9] = Math.pow(  VectorString3D.distance( (VectorString3D) vs1, 0, (VectorString3D) vs1, vs1.length()-1) / (vs1.length() * vs1.getDelta())
-						   - VectorString3D.distance( (VectorString3D) vs2, 0, (VectorString3D) vs2, vs2.length()-1) / (vs2.length() * vs2.getDelta()), 2);
-			}
+				pack[10] = Math.pow(  VectorString3D.distance( (VectorString3D) vs1, 0, (VectorString3D) vs1, vs1.length()-1) / (vs1.length() * vs1.getDelta())
+						    - VectorString3D.distance( (VectorString3D) vs2, 0, (VectorString3D) vs2, vs2.length()-1) / (vs2.length() * vs2.getDelta()), 2);
+			} // else not measured: 0
 
 			// When one does the proximity with the length of the query sequence only and not the max of both, then shorter ref sequences will score better.
 

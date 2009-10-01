@@ -506,12 +506,8 @@ public class Compare {
 					final Editions ed = (Editions)ob[0];
 					//qh.addMatch(query, ref, ed, seq_sim, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
-					final float prop_len = substring_matching ?
-								  1.0f
-								: ((float)vs1.length()) / vs2.length();
-
 					final double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
-					qm[next++].cm[k] = new ChainMatch(query, ref, ed, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W));
+					qm[next++].cm[k] = new ChainMatch(query, ref, ed, stats, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W));
 				}
 			} catch (Exception e) {
 				IJError.print(e);
@@ -1090,7 +1086,7 @@ public class Compare {
 		double stdDev; // between mutation pairs
 		double median; // of matched mutation pair interdistances
 		double prop_mut; // the proportion of mutation pairs relative to the length of the queried sequence
-		float prop_len; // the proportion of length of query sequence versus reference sequence
+		double prop_len; // the proportion of length of query sequence versus reference sequence
 		double proximity; // unitless value: cummulative distance of pairs relative to query sequence length
 		double proximity_mut; // unitless value: cummulative distance of only mutation pairs relative to query sequence length  ## TODO not unitless, this is the same as the average
 		double tortuosity_ratio;
@@ -1098,7 +1094,7 @@ public class Compare {
 		String title = null;
 
 
-		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double[] stats, final float prop_len, final double score) {
+		ChainMatch(final Chain query, final Chain ref, final Editions ed, final double[] stats, final double score) {
 			this.query = query;
 			this.ref = ref;
 			this.ed = ed;
@@ -1107,12 +1103,12 @@ public class Compare {
 			this.stdDev = stats[2];
 			this.median = stats[3];
 			this.prop_mut = stats[4];
-			this.prop_len = prop_len;
 			this.score = score; // combined
 			this.seq_sim = stats[6];
 			this.proximity = stats[7];
 			this.proximity_mut = stats[8];
-			this.tortuosity_ratio = stats[9];
+			this.prop_len = stats[9];
+			this.tortuosity_ratio = stats[10];
 		}
 	}
 
@@ -1602,8 +1598,7 @@ public class Compare {
 					}
 					//qh.addMatch(query, ref, ed, score, ed.getPhysicalDistance(false, 0, 1));
 					double[] stats = ed.getStatistics(false, 0, 1, false);
-					float prop_len = ((float)vs1.length()) / vs2.length();
-					qm[q].cm[k] = new ChainMatch(query, ref, ed, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(false, 0, 0, false)[3], Compare.W));
+					qm[q].cm[k] = new ChainMatch(query, ref, ed, stats, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(false, 0, 0, false)[3], Compare.W));
 				}
 
 			} catch (Exception e) {
@@ -3381,12 +3376,8 @@ public class Compare {
 						final Editions ed = (Editions)ob[0];
 						//qh.addMatch(query, ref, ed, seq_sim, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
-						final float prop_len = substring_matching ?
-									  1.0f
-									: ((float)vs1.length()) / vs2.length();
-
 						final double[] stats = ed.getStatistics(skip_ends, max_mut, min_chunk, score_mut);
-						qm[next++].cm[k] = new ChainMatch(query, ref, ed, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W));
+						qm[next++].cm[k] = new ChainMatch(query, ref, ed, stats, score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W));
 					}
 					return true;
 				}
@@ -3581,8 +3572,7 @@ public class Compare {
 						final Object[] ob = findBestMatch(vs1, vs2, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching, wi, wd, wm);
 						final Editions ed = (Editions)ob[0];
 						double[] stats = ed.getStatistics(cp.skip_ends, cp.max_mut, cp.min_chunk, cp.score_mut_only);
-						float prop_len = ((float)vs1.length()) / vs2.length();
-						ChainMatch cm = new ChainMatch(cj, null, ed, stats, prop_len, score(ed.getSimilarity(), ed.getDistance(), stats[3], Compare.W));
+						ChainMatch cm = new ChainMatch(cj, null, ed, stats, score(ed.getSimilarity(), ed.getDistance(), stats[3], Compare.W));
 						cm.title = titles_j[g];
 						list.add(cm);
 						g++;
@@ -3605,9 +3595,8 @@ public class Compare {
 						if (weka_classify) {
 
 							// from decision tree: is it good?
-							double[] param = new double[10];
+							double[] param = new double[11];
 							for (int p=0; p<stats.length; p++) param[p] = stats[p];
-							param[9] = vs1.length() / (float)vs2.length();
 							try {
 								if (LineageClassifier.classify(param)) {
 									if (null != last_classify) {
