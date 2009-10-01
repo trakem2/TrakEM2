@@ -163,7 +163,9 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 			} else if (obp instanceof Attribute) {
 				ProjectThing pt = (ProjectThing)((DefaultMutableTreeNode)new_parent_node.getParent()).getUserObject();
 				if (pt.canHaveAsAttribute(dragged_thing.getType() + "_id")) {
+					project.getRootLayerSet().addChangeTreesStep();
 					pt.setAttribute(dragged_thing.getType() + "_id", dragged_thing);
+					project.getRootLayerSet().addChangeTreesStep();
 				} else {
 					return false;
 				}
@@ -179,6 +181,9 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 				return false;
 			}
 
+			// Setup undo step
+			project.getRootLayerSet().addChangeTreesStep();
+
 			/* //debug:
 			if (action == DnDConstants.ACTION_COPY) {
 				Utils.log("exec drop: Action copy");
@@ -188,6 +193,14 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 				Utils.log("exec drop: Unexpected action: " + action);
 			}
 			*/
+
+			final Runnable after = new Runnable() {
+				public void run() {
+					// Store current state
+					project.getRootLayerSet().addChangeTreesStep();
+				}
+			};
+
 
 			if (DnDConstants.ACTION_MOVE == action || action == DnDConstants.ACTION_COPY) {
 				// MOVE is used for both dragging from the template tree to the project tree, and also for dragging within the project tree! Insane!
@@ -255,7 +268,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 						}
 						// create nodes recursively
 						final ArrayList nc = new_parent_thing.createChildren(tt.getType(), 1, true);
-						target.addLeafs((ArrayList<Thing>)nc);
+						target.addLeafs((ArrayList<Thing>)nc, after);
 						return true;
 					}
 
@@ -284,6 +297,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 					//DNDTree.expandAllNodes(project.getTemplateTree(), dragged_node);
 					DNDTree.expandNode(project.getTemplateTree(), dragged_node);
 
+					after.run();
 					return true;
 				} else if (DnDConstants.ACTION_MOVE == action && dragged_thing instanceof ProjectThing) {
 					// change the parent of the dragged thing, within the project tree, only if possible:
@@ -313,6 +327,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 					//DNDTree.expandAllNodes(target, new_parent_node);
 					DNDTree.expandNode(target, new_parent_node);
 
+					after.run();
 					return true;
 				}
 			}

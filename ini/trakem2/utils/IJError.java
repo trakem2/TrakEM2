@@ -35,20 +35,28 @@ public class IJError {
 	static public final void print(final Throwable e) {
 		print(e, false);
 	}
-	static public final void print(final Throwable e, final boolean stdout) {
+	static public final void print(Throwable e, final boolean stdout) {
+		StringBuilder sb = new StringBuilder("==================\nERROR:\n");
+		while (null != e) {
+			CharArrayWriter caw = new CharArrayWriter();
+			PrintWriter pw = new PrintWriter(caw);
+			e.printStackTrace(pw);
+			String s = caw.toString();
+			if (isMacintosh()) {
+				if (s.indexOf("ThreadDeath")>0)
+					;//return null;
+				else s = fixNewLines(s);
+			}
+			sb.append(s);
 
-		CharArrayWriter caw = new CharArrayWriter();
-		PrintWriter pw = new PrintWriter(caw);
-		e.printStackTrace(pw);
-		String s = caw.toString();
-		if (isMacintosh()) {
-			if (s.indexOf("ThreadDeath")>0)
-				;//return null;
-			else s = fixNewLines(s);
+			Throwable t = e.getCause();
+			if (e == t || null == t) break;
+			sb.append("==> Caused by:\n");
+			e = t;
 		}
-		String msg = "==================\nERROR:\n" + s + "\n======================";
-		if (stdout) Utils.log2(msg);
-		else Utils.log(msg);
+		sb.append("==================\n");
+		if (stdout) Utils.log2(sb.toString());
+		else Utils.log(sb.toString());
 	}
 
 	/** Converts carriage returns to line feeds. Copied from ij.util.tools by Wayne Rasband*/

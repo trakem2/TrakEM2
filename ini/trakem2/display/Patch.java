@@ -77,7 +77,7 @@ import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.TransformMeshMapping;
 
-public final class Patch extends Displayable {
+public final class Patch extends Displayable implements ImageData {
 
 	private int type = -1; // unknown
 	/** The channels that the currently existing awt image has ready for painting. */
@@ -470,19 +470,16 @@ public final class Patch extends Displayable {
 			atp.scale(this.width / iw, this.height / ih);
 		}
 
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+		final Composite original_composite = g.getComposite();
+		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
+		try {
+			g.setComposite( getComposite() );
+			g.drawImage( image, atp, null );
+		} catch (Throwable t) {
+			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
+			g.drawImage( image, atp, null);
 		}
-
-		g.drawImage(image, atp, null);
-
-		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
-			g.setComposite(original_composite);
-		}
+		g.setComposite( original_composite );
 	}
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
@@ -538,40 +535,17 @@ public final class Patch extends Displayable {
 			atp.scale(this.width / iw, this.height / ih);
 		}
 
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+		final Composite original_composite = g.getComposite();
+
+		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
+		try {
+			g.setComposite( getComposite() );
+			g.drawImage( image, atp, null );
+		} catch (Throwable t) {
+			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
+			g.drawImage( image, atp, null);
 		}
-
-		g.drawImage(image, atp, null);
-
-		//Transparency: fix composite back to original.
-		if (null != original_composite) {
-			g.setComposite(original_composite);
-		}
-	}
-
-	/** A method to paint, simply (to a flat image for example); no magnification or srcRect are considered. */
-	public void paint(Graphics2D g) {
-		if (!this.visible) return;
-
-		Image image = project.getLoader().fetchImage(this); // TODO: could read the scale parameter of the graphics object and call for the properly sized mipmap accordingly.
-
-		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
-		g.drawImage(image, this.at, null);
-
-		//Transparency: fix composite back to original.
-		if (alpha != 1.0f) {
-			g.setComposite(original_composite);
-		}
+		g.setComposite( original_composite );
 	}
 
 	public boolean isDeletable() {
@@ -591,7 +565,7 @@ public final class Patch extends Displayable {
 			// gather all
 			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
 			getStackPatchesNR(ht);
-			Utils.log("Stack patches: " + ht.size());
+			Utils.log2("Removing stack patches: " + ht.size());
 			ArrayList al = new ArrayList();
 			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
 				Patch p = (Patch)it.next();
@@ -825,12 +799,6 @@ public final class Patch extends Displayable {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" pps").append(TAG_ATTR2) // preprocessor script
 		;
-		// The InvertibleCoordinateTransform and a list of:
-		sb_header.append(indent).append("<!ELEMENT ict_transform EMPTY>\n");
-		sb_header.append(indent).append(TAG_ATTR1).append("ict_transform class").append(TAG_ATTR2)
-			 .append(indent).append(TAG_ATTR1).append("ict_transform data").append(TAG_ATTR2);
-		sb_header.append(indent).append("<!ELEMENT ict_transform_list (ict_transform)>\n");
-
 	}
 
 	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */
@@ -847,12 +815,20 @@ public final class Patch extends Displayable {
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
+
+		// Copy preprocessor scripts
+		if (pr != this.project) {
+			String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
+			if (null != pspath) pr.getLoader().setPreprocessorScriptPathSilently(copy, pspath);
+		}
+
 		return copy;
 	}
 
 	/** Override to cancel. */
-	public void linkPatches() {
+	public boolean linkPatches() {
 		Utils.log2("Patch class can't link other patches using Displayble.linkPatches()");
+		return false;
 	}
 
 	public void paintSnapshot(final Graphics2D g, final double mag) {
@@ -1289,24 +1265,68 @@ public final class Patch extends Displayable {
 					}
 					try {
 						// a roi local to the image bounding box
-						final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
-						a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+						//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
+						//a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+
+						final Area a = M.getArea(roi).createTransformedArea(Patch.this.at.createInverse());
+
+						// Fix problems with ShapeRoi: cannot accept negative boundaries; if so, ImageProcessor could not fill(getMask())
+						Rectangle ab = a.getBounds();
+						if (ab.x < 0 || ab.y < 0) {
+							// Restrict ROI to within the Patch local bounds:
+							a.intersect(new Area(new Rectangle(0, 0, o_width, o_height)));
+							ab = a.getBounds();
+							if (ab.x < 0 && ab.y >= 0) {
+								// My opinion: #$%^&!@
+								// Let's fix it in whatever way possible: note the +1 added to the width!
+								a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
+								ab = a.getBounds();
+								if (ab.x < 0) {
+									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X coordinates.");
+									Utils.log("Roi bounds after intersecting: " + a.getBounds());
+									return;
+								}
+							} else if (ab.x >= 0 && ab.y < 0) {
+								// The Y does not need a +1 to the height (the X needed it to the width, see above)
+								a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+								ab = a.getBounds();
+								if (ab.y < 0) {
+									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative Y coordinates.");
+									Utils.log("Roi bounds after intersecting: " + a.getBounds());
+									return;
+								}
+							} else if (ab.x < 0 && ab.y < 0) {
+								Area out = new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2), o_height));
+								out.add(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+								a.subtract(out);
+								ab = a.getBounds();
+								if (ab.x < 0 && ab.y >= 0) {
+									// Condition never seen so far, but just in case
+									// Note the +1 for the Rectangle's width
+									a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
+									ab = a.getBounds();
+								}
+								if (ab.x >= 0 && ab.y < 0) {
+									// Condition never seen so far, but just in case
+									a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+									ab = a.getBounds();
+								}
+								if (ab.x < 0 || ab.y < 0) {
+									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X or Y coordinates.");
+									Utils.log("Roi bounds after intersecting: " + a.getBounds());
+									return;
+								}
+							}
+						}
 
 						if (M.isEmpty(a)) {
 							Utils.log("ROI does not intersect the active image!");
 							return;
 						}
 
-						// Correct numerical instability:
-						// (needed when ROI intersects left margin of the image, at least)
-						Rectangle ab = a.getBounds();
-						if (-1 == ab.x || -1 == ab.y) {
-							AffineTransform aff = new AffineTransform();
-							aff.translate(-1 == ab.x ? 1 : 0, -1 == ab.y ? 1 : 0);
-							Area aa = a.createTransformedArea(aff);
-							a.reset();
-							a.add(aa);
-						}
+						final ShapeRoi sroi = new ShapeRoi(a);
+						Utils.log2(sroi);
+						Utils.log2(sroi.getBounds());
 
 						if (null != ct) {
 							// inverse the coordinate transform
@@ -1320,7 +1340,6 @@ public final class Patch extends Displayable {
 							} else {
 								rmask.setValue(255);
 							}
-							ShapeRoi sroi = new ShapeRoi(a);
 							rmask.setRoi(sroi);
 							rmask.fill(sroi.getMask());
 
@@ -1341,7 +1360,6 @@ public final class Patch extends Displayable {
 								}
 							}
 						} else {
-							ShapeRoi sroi = new ShapeRoi(a);
 							mask.setRoi(sroi);
 							mask.setColor(Toolbar.getForegroundColor());
 							mask.fill(sroi.getMask());
@@ -1358,6 +1376,9 @@ public final class Patch extends Displayable {
 				}
 				// capturing:
 				ke.consume();
+				break;
+			default:
+				super.keyPressed(ke);
 				break;
 		}
 	}

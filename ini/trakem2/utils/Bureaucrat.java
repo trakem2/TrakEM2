@@ -76,6 +76,7 @@ public class Bureaucrat extends Thread {
 	/** Creates and start the Bureaucrat thread. */
 	static public Bureaucrat createAndStart(Worker worker, Project[] project) {
 		ThreadGroup tg = new ThreadGroup("T2-Bureaucrat for " + worker.getTaskName());
+		tg.setMaxPriority(Thread.NORM_PRIORITY);
 		Bureaucrat burro = new Bureaucrat(tg, worker, project);
 		burro.goHaveBreakfast();
 		return burro;

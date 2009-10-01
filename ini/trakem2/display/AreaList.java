@@ -210,13 +210,18 @@ public class AreaList extends ZDisplayable {
 		return last_layer;
 	} // I do REALLY miss Lisp macros. Writting the above two methods in a lispy way would make the java code unreadable
 
-	public void linkPatches() {
+	public boolean linkPatches() {
 		unlinkAll(Patch.class);
 		// cheap way: intersection of the patches' bounding box with the area
 		Rectangle r = new Rectangle();
+		boolean must_lock = false;
 		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			Layer la = this.layer_set.getLayer(((Long)entry.getKey()).longValue());
+			if (null == la) {
+				Utils.log2("AreaList.linkPatches: ignoring null layer for id " + ((Long)entry.getKey()).longValue());
+				continue;
+			}
 			Area area = (Area)entry.getValue();
 			area = area.createTransformedArea(this.at);
 			for (Iterator dit = la.getDisplayables(Patch.class).iterator(); dit.hasNext(); ) {
@@ -224,9 +229,18 @@ public class AreaList extends ZDisplayable {
 				r = d.getBoundingBox(r);
 				if (area.intersects(r)) {
 					link(d, true);
+					if (d.locked) must_lock = true;
 				}
 			}
 		}
+
+		// set the locked flag to this and all linked ones
+		if (must_lock && !locked) {
+			setLocked(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	/** Returns whether the point x,y is contained in this object at the given Layer. */
@@ -291,6 +305,7 @@ public class AreaList extends ZDisplayable {
 
 	private boolean is_new = false;
 	private boolean something_eroded = false;
+	private Segmentation.BlowCommander blowcommander = null;
 
 	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
 		final Layer la = Display.getFrontLayer(this.project);
@@ -411,25 +426,58 @@ public class AreaList extends ZDisplayable {
 				brushing = true;
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
-			// Grow with fast marching
-			Segmentation.fastMarching(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w);
+			if (Utils.isControlDown(me)) {
+				// Grow with blow tool
+				try {
+					blowcommander = Segmentation.blowRoi(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
+							new Runnable() {
+								public void run() {
+									// Add data edit step when done for undo/redo
+									layer_set.addDataEditStep(AreaList.this);
+								}
+							});
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+			} else {
+				// Grow with fast marching
+				Segmentation.fastMarching(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
+						new Runnable() {
+							public void run() {
+								// Add data edit step when done for undo/redo
+								layer_set.addDataEditStep(AreaList.this);
+							}
+						});
+			}
 		}
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// nothing, the BrushThread handles it
 		//irrelevant//if (ProjectToolbar.getToolId() == ProjectToolbar.PEN) brushing = true;
+		if (null != blowcommander) {
+			blowcommander.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		}
 	}
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-		if (!brushing) {
-			// nothing changed
-			//Utils.log("AreaList mouseReleased: no brushing");
-			return;
+		final int tool = ProjectToolbar.getToolId();
+		if (ProjectToolbar.PEN == tool) {
+			if (!brushing) {
+				// nothing changed
+				//Utils.log("AreaList mouseReleased: no brushing");
+				return;
+			}
+			brushing = false;
+			if (null != last) {
+				last.quit();
+				last = null;
+			}
+		} else if (ProjectToolbar.PENCIL == tool) {
+			if (null != blowcommander) {
+				blowcommander.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+				blowcommander = null;
+			}
 		}
-		brushing = false;
-		if (null != last) {
-			last.quit();
-			last = null;
-		}
+
 		long lid = Display.getFrontLayer(this.project).getId();
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
@@ -690,6 +738,10 @@ public class AreaList extends ZDisplayable {
 					try { Thread.sleep(1); } catch (InterruptedException ie) {}
 					continue;
 				}
+				if (!dc.getDisplay().getLayer().contains(p.x, p.y, 0)) {
+					// Ignoring point off srcRect
+					continue;
+				}
 				// bring to offscreen position of the mouse
 				atb.translate(p.x, p.y);
 				// capture bounds while still in offscreen coordinates
@@ -708,7 +760,7 @@ public class AreaList extends ZDisplayable {
 				previous_p = p;
 
 				final Rectangle copy = (Rectangle)r.clone();
-				if (null != r_old) r.add(r_old);
+				if (null != r_old) copy.add(r_old);
 				r_old = copy;
 
 				Display.repaint(Display.getFrontLayer(), 3, r, false, false); // repaint only the last added slash
@@ -1507,6 +1559,7 @@ public class AreaList extends ZDisplayable {
 			ht_areas.put(layer_id, asr);
 		} else {
 			a.add(asr);
+			ht_areas.put(layer_id, a);
 		}
 		calculateBoundingBox();
 		updateInDatabase("points=" + layer_id);
@@ -1747,13 +1800,13 @@ public class AreaList extends ZDisplayable {
 		if (as_amira_labels && list.size() > 255) {
 			Utils.log("Saving ONLY first 255 AreaLists!\nDiscarded:");
 			StringBuffer sb = new StringBuffer();
-			for (final Displayable d : list.subList(256, list.size())) {
+			for (final Displayable d : list.subList(255, list.size())) {
 				sb.append("    ").append(d.getProject().getShortMeaningfulTitle(d)).append('\n');
 			}
 			Utils.log(sb.toString());
 			ArrayList<Displayable> li = new ArrayList<Displayable>(list);
 			list.clear();
-			list.addAll(li.subList(0, 256));
+			list.addAll(li.subList(0, 255));
 		}
 
 		String path = null;
@@ -1845,6 +1898,8 @@ public class AreaList extends ZDisplayable {
 			labels.put(d, label);
 		}
 
+		final Area world = new Area(new Rectangle(0, 0, width, height));
+
 		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
 			Utils.showProgress(count/len);
 			count++;
@@ -1868,7 +1923,12 @@ public class AreaList extends ZDisplayable {
 				/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
 				/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
 				/* 1 - To world coordinates: */ aff.concatenate(ali.at);
-				ShapeRoi sroi = new ShapeRoi(aff.createTransformedShape(area));
+				Area aroi = area.createTransformedArea(aff);
+				Rectangle b = aroi.getBounds();
+				if (b.x < 0 || b.y < 0) {
+					aroi.intersect(world); // work around ij.gui.ShapeRoi bug
+				}
+				ShapeRoi sroi = new ShapeRoi(aroi);
 				ip.setRoi(sroi);
 				ip.fill(sroi.getMask());
 			}
@@ -2253,4 +2313,16 @@ public class AreaList extends ZDisplayable {
 	}
 
 	static public final PaintParameters PP = new PaintParameters();
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	synchronized public boolean crop(List<Layer> range) {
+		Set<Long> lids = new HashSet<Long>();
+		for (Layer l : range) lids.add(l.getId());
+		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
+			Long lid = (Long)it.next();
+			if (!lids.contains(lid)) it.remove();
+		}
+		calculateBoundingBox();
+		return true;
+	}
 }

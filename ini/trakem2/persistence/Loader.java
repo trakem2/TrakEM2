@@ -62,6 +62,8 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Polyline;
 import ini.trakem2.display.Profile;
+import ini.trakem2.display.Selection;
+import ini.trakem2.display.Stack;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.tree.*;
@@ -130,8 +132,12 @@ import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.general.MultiThreading;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
@@ -155,6 +161,8 @@ abstract public class Loader {
 
 	/** Keep track of whether there are any unsaved changes.*/
 	protected boolean changes = false;
+	
+	final private AtomicLong nextTempId = new AtomicLong( -1 );
 
 
 	static public final int ERROR_PATH_NOT_FOUND = Integer.MAX_VALUE;
@@ -187,7 +195,7 @@ abstract public class Loader {
 	}
 
 
-	protected final Set<Patch> hs_unloadable = Collections.synchronizedSet(new HashSet<Patch>());
+	protected final Set<Displayable> hs_unloadable = Collections.synchronizedSet(new HashSet<Displayable>());
 
 	static public final BufferedImage NOT_FOUND = new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
 	static {
@@ -285,10 +293,19 @@ abstract public class Loader {
 			v_loaders.remove(this); // sync issues when deleting two loaders consecutively
 			if (0 == v_loaders.size()) v_loaders = null;
 		}
+		
+		exec.shutdownNow();
+		guiExec.quit();
 	}
 
 	/**Retrieve next id from a sequence for a new DBObject to be added.*/
 	abstract public long getNextId();
+
+	/**Retrieve next id from a sequence for a temporary Object to be added. Is negative.*/
+	public long getNextTempId()
+	{
+		return nextTempId.getAndDecrement();
+	}
 
 	/** Ask for the user to provide a template XML file to extract a root TemplateThing. */
 	public TemplateThing askForXMLTemplate(Project project) {
@@ -849,12 +866,18 @@ abstract public class Loader {
 	}
 
 	public void cacheOffscreen(final Layer layer, final Image awt) {
+		cacheAWT(layer.getId(), awt);
+	}
+	
+	public void cacheAWT( final long id, final Image awt) {
 		synchronized (db_lock) {
 			lock();
-			mawts.put(layer.getId(), awt, 0);
+			if (null != awt) {
+				mawts.put(id, awt, 0);
+			}
 			unlock();
 		}
-	}
+	} 
 
 	/** Transform mag to nearest scale level that delivers an equally sized or larger image.<br />
 	 *  Requires 0 &lt; mag &lt;= 1.0<br />
@@ -882,7 +905,7 @@ abstract public class Loader {
 
 		/*
 		int level = 0;
-		double scale;
+		double scale;	static private ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() ); 
 		while (true) {
 			scale = 1 / Math.pow(2, level);
 			//Utils.log2("scale, mag, level: " + scale + ", " + mag + ", " + level);
@@ -965,23 +988,23 @@ abstract public class Loader {
 		return awt;
 	}
 
-	protected final class PatchLoadingLock extends Lock {
+	protected final class ImageLoadingLock extends Lock {
 		final String key;
-		PatchLoadingLock(final String key) { this.key = key; }
+		ImageLoadingLock(final String key) { this.key = key; }
 	}
 
 	/** Table of dynamic locks, a single one per Patch if any. */
-	private final Hashtable<String,PatchLoadingLock> ht_plocks = new Hashtable<String,PatchLoadingLock>();
+	private final Hashtable<String,ImageLoadingLock> ht_plocks = new Hashtable<String,ImageLoadingLock>();
 
-	protected final PatchLoadingLock getOrMakePatchLoadingLock(final Patch p, final int level) {
-		final String key = new StringBuffer().append(p.getId()).append('.').append(level).toString();
-		PatchLoadingLock plock = ht_plocks.get(key);
+	protected final ImageLoadingLock getOrMakeImageLoadingLock(final long id, final int level) {
+		final String key = new StringBuffer().append(id).append('.').append(level).toString();
+		ImageLoadingLock plock = ht_plocks.get(key);
 		if (null != plock) return plock;
-		plock = new PatchLoadingLock(key);
+		plock = new ImageLoadingLock(key);
 		ht_plocks.put(key, plock);
 		return plock;
 	}
-	protected final void removePatchLoadingLock(final PatchLoadingLock pl) {
+	protected final void removeImageLoadingLock(final ImageLoadingLock pl) {
 		ht_plocks.remove(pl.key);
 	}
 
@@ -1008,7 +1031,7 @@ abstract public class Loader {
 
 		// find an equal or larger existing pyramid awt
 		final long id = p.getId();
-		PatchLoadingLock plock = null;
+		ImageLoadingLock plock = null;
 
 		synchronized (db_lock) {
 			lock();
@@ -1025,7 +1048,7 @@ abstract public class Loader {
 					}
 					//
 					releaseMemory();
-					plock = getOrMakePatchLoadingLock(p, level);
+					plock = getOrMakeImageLoadingLock(p.getId(), level);
 				}
 			} catch (Exception e) {
 				IJError.print(e);
@@ -1105,7 +1128,7 @@ abstract public class Loader {
 					} catch (Exception e) {
 						IJError.print(e);
 					} finally {
-						removePatchLoadingLock(plock);
+						removeImageLoadingLock(plock);
 						unlock();
 						plock.unlock();
 					}
@@ -1141,7 +1164,7 @@ abstract public class Loader {
 			try {
 				lock();
 				releaseMemory();
-				plock = getOrMakePatchLoadingLock(p, level);
+				plock = getOrMakeImageLoadingLock(p.getId(), level);
 			} catch (Exception e) {
 				return NOT_FOUND;
 			} finally {
@@ -1158,7 +1181,7 @@ abstract public class Loader {
 				if (null != mawt) {
 					synchronized (db_lock) {
 						lock();
-						removePatchLoadingLock(plock);
+						removeImageLoadingLock(plock);
 						unlock();
 					}
 					return mawt;
@@ -1203,7 +1226,7 @@ abstract public class Loader {
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
-				removePatchLoadingLock(plock);
+				removeImageLoadingLock(plock);
 				unlock();
 			}
 		}
@@ -1252,6 +1275,8 @@ abstract public class Loader {
 	/** Returns null unless overriden. */
 	public ImageProcessor fetchImageProcessor(Patch p) { return null; }
 
+	public ImagePlus fetchImagePlus( Stack p ) { return null; }
+	
 	abstract public Object[] fetchLabel(DLabel label);
 
 
@@ -2689,6 +2714,10 @@ abstract public class Loader {
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, Color.black);
 	}
+	
+	public ImagePlus getFlatImage(final Selection selection, final double scale, final int c_alphas, final int type, boolean quality, final Color background) {
+		return getFlatImage(selection.getLayer(), selection.getBox(), scale, c_alphas, type, null, selection.getSelected(), quality, background);
+	}
 
 	/** Returns a screenshot of the given layer for the given magnification and srcRect. Returns null if the was not enough memory to create it.
 	 * @param al_displ The Displayable objects to paint. If null, all those matching Class clazz are included.
@@ -2815,7 +2844,7 @@ abstract public class Loader {
 			g2d.setTransform(at_original);
 
 			//Utils.log2("will paint: " + al_displ.size() + " displ and " + al_zdispl.size() + " zdispl");
-			int total = al_displ.size() + al_zdispl.size();
+			//int total = al_displ.size() + al_zdispl.size();
 			int count = 0;
 			boolean zd_done = false;
 			for(Iterator it = al_displ.iterator(); it.hasNext(); ) {
@@ -2955,7 +2984,7 @@ abstract public class Loader {
 		try {
 
 		// project name
-		String pname = layer[0].getProject().getTitle();
+		//String pname = layer[0].getProject().getTitle();
 
 		// create 'z' directories if they don't exist: check and ask!
 
@@ -2968,7 +2997,7 @@ abstract public class Loader {
 
 
 		// thumbnail dimensions
-		LayerSet ls = layer[0].getParent();
+		//LayerSet ls = layer[0].getParent();
 		double ratio = srcRect.width / (double)srcRect.height;
 		double thumb_scale = 1.0;
 		if (ratio >= 1) {
@@ -3178,7 +3207,7 @@ abstract public class Loader {
 			// a stack!
 			Layer layer = Display.getFrontLayer(project);
 			if (null == layer) return null;
-			importStack(layer, imp, true, path); // TODO: the x,y location is not set
+			importStack(layer, x, y, imp, true, path, true);
 			return null;
 		}
 		if (0 == imp.getWidth() || 0 == imp.getHeight()) {
@@ -3244,10 +3273,10 @@ abstract public class Loader {
 		return importStack(first_layer, imp_stack_, ask_for_data, null);
 	}
 	public Bureaucrat importStack(final Layer first_layer, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
-		return importStack(first_layer, -1, -1, imp_stack_, ask_for_data, filepath_);
+		return importStack(first_layer, 0, 0, imp_stack_, ask_for_data, filepath_, true);
 	}
 	/** Imports an image stack from a multitiff file and places each slice in the proper layer, creating new layers as it goes. If the given stack is null, popup a file dialog to choose one*/
-	public Bureaucrat importStack(final Layer first_layer, final int x, final int y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_) {
+	public Bureaucrat importStack(final Layer first_layer, final double x, final double y, final ImagePlus imp_stack_, final boolean ask_for_data, final String filepath_, final boolean one_patch_per_layer_) {
 		Utils.log2("Loader.importStack filepath: " + filepath_);
 		if (null == first_layer) return null;
 
@@ -3258,6 +3287,7 @@ abstract public class Loader {
 
 
 		String filepath = filepath_;
+		boolean one_patch_per_layer = one_patch_per_layer_;
 		/* On drag and drop the stack is not null! */ //Utils.log2("imp_stack_ is " + imp_stack_);
 		ImagePlus[] stks = null;
 		boolean choose = false;
@@ -3312,14 +3342,14 @@ abstract public class Loader {
 			}
 		}
 
-		String dir = imp_stack.getFileInfo().directory;
+		//String dir = imp_stack.getFileInfo().directory;
 		double layer_width = first_layer.getLayerWidth();
 		double layer_height= first_layer.getLayerHeight();
 		double current_thickness = first_layer.getThickness();
 		double thickness = current_thickness;
 		boolean expand_layer_set = false;
 		boolean lock_stack = false;
-		int anchor = LayerSet.NORTHWEST; //default
+		//int anchor = LayerSet.NORTHWEST; //default
 		if (ask_for_data) {
 			// ask for slice separation in pixels
 			GenericDialog gd = new GenericDialog("Slice separation?");
@@ -3327,9 +3357,15 @@ abstract public class Loader {
 			gd.addNumericField("slice_thickness: ", Math.abs(imp_stack.getCalibration().pixelDepth / imp_stack.getCalibration().pixelHeight), 3); // assuming pixelWidth == pixelHeight
 			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
 				gd.addCheckbox("Resize canvas to fit stack", true);
-				gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
+				//gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
 			}
 			gd.addCheckbox("Lock stack", false);
+			final String[] importStackTypes = {"One slice per layer (Patches)", "Image volume (Stack)"};
+			if (imp_stack.getStack().isVirtual()) {
+				one_patch_per_layer = true;
+			}
+			gd.addChoice("Import stack as:", importStackTypes, importStackTypes[0]);
+			((Component)gd.getChoices().get(0)).setEnabled(!imp_stack.getStack().isVirtual());
 			gd.showDialog();
 			if (gd.wasCanceled()) {
 				if (null == stks) { // flush only if it was not open before
@@ -3340,7 +3376,7 @@ abstract public class Loader {
 			}
 			if (layer_width != imp_stack.getWidth() || layer_height != imp_stack.getHeight()) {
 				expand_layer_set = gd.getNextBoolean();
-				anchor = gd.getNextChoiceIndex();
+				//anchor = gd.getNextChoiceIndex();
 			}
 			lock_stack = gd.getNextBoolean();
 			thickness = gd.getNextNumber();
@@ -3364,6 +3400,8 @@ abstract public class Loader {
 					}
 				}
 			}
+
+			one_patch_per_layer = imp_stack.getStack().isVirtual() || 0 == gd.getNextChoiceIndex();
 		}
 
 		if (null == imp_stack.getStack()) {
@@ -3411,6 +3449,15 @@ abstract public class Loader {
 			filepath = filepath.replace('\\', '/');
 		}
 
+
+		// Import as Stack ZDisplayable object:
+		if (!one_patch_per_layer) {
+			Stack st = new Stack(first_layer.getProject(), new File(filepath).getName(), x, y, first_layer, filepath);
+			first_layer.getParent().add(st);
+			finishedWorking();
+			return;
+		}
+
 		// Place the first slice in the current layer, and then query the parent LayerSet for subsequent layers, and create them if not present.
 		Patch last_patch = Loader.this.importStackAsPatches(first_layer.getProject(), first_layer, x, y, imp_stack, null != imp_stack_ && null != imp_stack_.getCanvas(), filepath);
 		if (null != last_patch) {
@@ -3454,9 +3501,9 @@ abstract public class Loader {
 	public String handlePathlessImage(ImagePlus imp) { return null; }
 
 	protected Patch importStackAsPatches(final Project project, final Layer first_layer, final ImagePlus stack, final boolean as_copy, String filepath) {
-		return importStackAsPatches(project, first_layer, Integer.MAX_VALUE, Integer.MAX_VALUE, stack, as_copy, filepath);
+		return importStackAsPatches(project, first_layer, Double.MAX_VALUE, Double.MAX_VALUE, stack, as_copy, filepath);
 	}
-	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final int x, final int y, final ImagePlus stack, final boolean as_copy, String filepath);
+	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final double x, final double y, final ImagePlus stack, final boolean as_copy, String filepath);
 
 	protected String export(Project project, File fxml) {
 		return export(project, fxml, true);
@@ -3795,15 +3842,16 @@ abstract public class Loader {
 	/** Fixes paths before presenting them to the file system, in an OS-dependent manner. */
 	protected final ImagePlus openImage(String path) {
 		if (null == path) return null;
-		// supporting samba networks
-		if (path.startsWith("//")) {
-			path = path.replace('/', '\\');
-		}
-		// debug:
-		Utils.log2("opening image " + path);
-		//Utils.printCaller(this, 25);
-		IJ.redirectErrorMessages();
 		try {
+			// supporting samba networks
+			if (path.startsWith("//")) {
+				path = path.replace('/', '\\');
+			}
+			// debug:
+			Utils.log2("opening image " + path);
+			//Utils.printCaller(this, 25);
+			IJ.redirectErrorMessages();
+
 			return openImagePlus(path, 0);
 		} catch (Exception e) {
 			Utils.log("Could not open image at " + path);
@@ -3821,7 +3869,7 @@ abstract public class Loader {
 		while (retries < MAX_RETRIES) try {
 				return opener.openImage(path);
 			} catch (OutOfMemoryError oome) {
-				Utils.log2("fetchMipMapAWT: recovering from OutOfMemoryError");
+				Utils.log2("openImagePlus: recovering from OutOfMemoryError");
 				recoverOOME(); // TODO may have to unlock?
 				Thread.yield();
 				// Retry:
@@ -4556,10 +4604,9 @@ abstract public class Loader {
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
 		}
-		/** WARNING this method effectively limits zoom out to 0.00000001. */
 		private final int makeKey(final double mag) {
 			// get the nearest equal or higher power of 2
-			return (int)(0.000005 + Math.abs(Math.log(mag) / Math.log(2)));
+			return (int)(0.5 + Math.abs(Math.log(mag) / Math.log(2)));
 		}
 		public final void quit() {
 			this.go = false;
@@ -4863,9 +4910,9 @@ abstract public class Loader {
 	/** Does nothing and returns null unless overridden. */
 	public String setImageFile(Patch p, ImagePlus imp) { return null; }
 
-	public boolean isUnloadable(final Patch p) { return hs_unloadable.contains(p); }
+	public boolean isUnloadable(final Displayable p) { return hs_unloadable.contains(p); }
 
-	public void removeFromUnloadable(final Patch p) { hs_unloadable.remove(p); }
+	public void removeFromUnloadable(final Displayable p) { hs_unloadable.remove(p); }
 
 	protected static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
 		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
@@ -4912,6 +4959,10 @@ abstract public class Loader {
 
 	/** Does nothing and returns null unless overriden. */
 	public Future regenerateMipMaps(final Patch patch) { return null; }
+
+
+	/** Does nothing and returns null unless overriden. */
+	public Bureaucrat regenerateMipMaps(final Collection<Displayable> patches) { return null; }
 
 	/** Read out the width,height of an image using LOCI BioFormats. */
 	static public Dimension getDimensions(final String path) {
@@ -4969,4 +5020,19 @@ abstract public class Loader {
 
 	/** Does nothing unless overriden. */
 	public String getParentFolder() { return null; }
+	
+	// Will be shut down by Loader.destroy()
+	private final ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
+	
+	public < T > Future< T > doLater( final Callable< T > fn ) {
+		return exec.submit( fn );
+	}
+
+	// Will be shut down by Loader.destroy()
+	private final Dispatcher guiExec = new Dispatcher("GUI Executor");
+
+	/** Execute a GUI-related task later; it's the fn's responsability to do the call via SwingUtilities.invokeLater if necesary. */
+	public void doGUILater( final boolean swing, final Runnable fn ) {
+		guiExec.exec( fn, swing );
+	}
 }

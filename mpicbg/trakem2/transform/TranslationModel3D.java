@@ -19,22 +19,19 @@
  */
 package mpicbg.trakem2.transform;
 
-public class AffineModel2D extends mpicbg.models.AffineModel2D implements InvertibleCoordinateTransform
+public class TranslationModel3D extends mpicbg.models.TranslationModel3D implements InvertibleCoordinateTransform
 {
 
 	//@Override
 	final public void init( final String data )
 	{
 		final String[] fields = data.split( "\\s+" );
-		if ( fields.length == 6 )
+		if ( fields.length == 3 )
 		{
-			final float m00 = Float.parseFloat( fields[ 0 ] );
-			final float m10 = Float.parseFloat( fields[ 1 ] );
-			final float m01 = Float.parseFloat( fields[ 2 ] );
-			final float m11 = Float.parseFloat( fields[ 3 ] );
-			final float m02 = Float.parseFloat( fields[ 4 ] );
-			final float m12 = Float.parseFloat( fields[ 5 ] );
-			set( m00, m10, m01, m11, m02, m12 );
+			final float tx = Float.parseFloat( fields[ 0 ] );
+			final float ty = Float.parseFloat( fields[ 1 ] );
+			final float tz = Float.parseFloat( fields[ 2 ] );
+			set( tx, ty, tz );
 		}
 		else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
 	}
@@ -48,52 +45,17 @@ public class AffineModel2D extends mpicbg.models.AffineModel2D implements Invert
 	//@Override
 	final public String toDataString()
 	{
-		return m00 + " " + m10 + " " + m01 + " " + m11 + " " + m02 + " " + m12;
+		return translation[ 0 ] + " " + translation[ 1 ] + " " + translation[ 2 ];
 	}
 	
 	@Override
-	public AffineModel2D clone()
+	public TranslationModel3D clone()
 	{
-		final AffineModel2D m = new AffineModel2D();
-		m.m00 = m00;
-		m.m01 = m01;
-		m.m10 = m10;
-		m.m11 = m11;
-
-		m.m02 = m02;
-		m.m12 = m12;
-		
+		final TranslationModel3D m = new TranslationModel3D();
+		m.translation[ 0 ] = translation[ 0 ];
+		m.translation[ 1 ] = translation[ 1 ];
+		m.translation[ 2 ] = translation[ 2 ];
 		m.cost = cost;
-		
-		m.invert();
-
 		return m;
-	}
-	
-	/**
-	 * TODO Not yet tested
-	 */
-	//@Override
-	public AffineModel2D createInverse()
-	{
-		final AffineModel2D ict = new AffineModel2D();
-		
-		ict.m00 = i00;
-		ict.m10 = i10;
-		ict.m01 = i01;
-		ict.m11 = i11;
-		ict.m02 = i02;
-		ict.m12 = i12;
-		
-		ict.i00 = m00;
-		ict.i10 = m10;
-		ict.i01 = m01;
-		ict.i11 = m11;
-		ict.i02 = m02;
-		ict.i12 = m12;
-		
-		ict.cost = cost;
-		
-		return ict;
 	}
 }

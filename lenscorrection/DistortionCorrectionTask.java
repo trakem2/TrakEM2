@@ -138,6 +138,7 @@ final public class DistortionCorrectionTask
 //				IJ.log( "Setting transform \"" + transform + "\" for patch \"" + patch.getTitle() + "\"." );
 				patch.setCoordinateTransform( transform );
 				patch.updateMipmaps();
+				patch.getProject().getLoader().decacheImagePlus( patch.getId() );
 				
 				IJ.showProgress( i, patches.size() );
 			}
@@ -448,6 +449,8 @@ final public class DistortionCorrectionTask
 					{
 						if ( p.visualize )
 						{
+							if ( Thread.currentThread().isInterrupted() ) return;
+							
 							setTaskName( "Visualizing lens distortion correction" );
 							lensModel.visualizeSmall( p.lambda );
 						}

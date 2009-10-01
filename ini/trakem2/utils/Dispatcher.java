@@ -22,83 +22,81 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
-import java.util.ArrayList;
+import java.util.Vector;
 import javax.swing.SwingUtilities;
 
-public class Dispatcher extends Thread {
-	private final class Task {
-		Runnable run;
-		boolean swing;
-		Task(Runnable run, boolean swing) {
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadFactory;
+
+public class Dispatcher {
+	private final class Task implements Runnable {
+		final Runnable run;
+		final boolean swing;
+		private Task(final Runnable run, final boolean swing) {
 			this.run = run;
 			this.swing = swing;
 		}
+		public void run() {
+			try {
+				if (swing) SwingUtilities.invokeAndWait(run);
+				else run.run();
+			} catch (Throwable e) {
+				IJError.print(e);
+			}
+		}
 	}
-	private final ArrayList<Task> tasks = new ArrayList<Task>();
-	private final Lock lock = new Lock();
-	private boolean go = true;
 
-	public Dispatcher(String tag) {
-		super("T2-Dispatcher" + (null != tag ? " " + tag : ""));
-		setPriority(Thread.NORM_PRIORITY);
-		setDaemon(true);
-		start();
+	private final ExecutorService exec;
+
+	static public class DispatcherThreadFactory implements ThreadFactory {
+		final ThreadGroup group;
+		final String tag;
+		public DispatcherThreadFactory(final String tag) {
+			this.tag = tag;
+			final SecurityManager s = System.getSecurityManager();
+			this.group = (null != s) ? s.getThreadGroup() :
+						   Thread.currentThread().getThreadGroup();
+		}
+		final public Thread newThread(final Runnable r) {
+			final Thread t = new Thread(group, r, tag);
+			if (t.isDaemon()) t.setDaemon(false);
+			if (t.getPriority() != Thread.NORM_PRIORITY) t.setPriority(Thread.NORM_PRIORITY);
+			return t;
+		}
+	}
+
+	public Dispatcher(final String tag) {
+		this.exec = new ThreadPoolExecutor(1, 1,
+			      0L, TimeUnit.MILLISECONDS,
+			      new LinkedBlockingQueue<Runnable>(),
+			      new DispatcherThreadFactory("T2-Dispatcher" + (null != tag ? " " + tag : "")));
 	}
 	public Dispatcher() {
 		this(null);
 	}
 	public void quit() {
-		this.go = false;
-		synchronized (this) { notify(); }
+		exec.shutdownNow();
 	}
 	public boolean isQuit() {
-		return go;
+		return exec.isShutdown();
 	}
 
-	private boolean accept = true;
-
 	public void quitWhenDone() {
-		accept = false;
-		quit();
+		exec.shutdown(); // orderly shutdown, in which no more tasks are accepted for execution, but remaining tasks are executed.
 	}
 
 	/** Submits the task for execution and returns immediately. */
 	public void exec(final Runnable run) { exec(run, false); }
 	public void execSwing(final Runnable run) { exec(run, true); }
 	public void exec(final Runnable run, final boolean swing) {
-		if (!accept) {
+		if (exec.isShutdown()) {
 			Utils.log2("Dispatcher: NOT accepting more tasks!");
 			return;
 		}
-		synchronized (lock) {
-			lock.lock();
-			tasks.add(new Task(run, swing));
-			lock.unlock();
-		}
-		synchronized (this) { notify(); }
-	}
-	/** Executes one task at a time, in the same order in which they've been received. */
-	public void run() {
-		while (go || (!accept && tasks.size() > 0)) {
-			try {
-				synchronized (this) { wait(); }
-				if (!go) return;
-				while (tasks.size() > 0) {
-					Task task = null;
-					synchronized (lock) {
-						lock.lock();
-						if (tasks.size() > 0) {
-							task = tasks.remove(0);
-						}
-						lock.unlock();
-					}
-					if (null == task) continue;
-					try {
-						if (task.swing) SwingUtilities.invokeAndWait(task.run);
-						else task.run.run();
-					} catch (Throwable t) { IJError.print(t); }
-				}
-			} catch (Throwable e) { IJError.print(e); }
-		}
+		exec.submit(new Task(run, swing));
 	}
 }

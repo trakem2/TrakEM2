@@ -35,7 +35,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JMenu;
 import java.awt.event.ActionListener;
 
-public final class LayerThing extends DBObject implements Thing {
+public final class LayerThing extends DBObject implements TitledThing {
 
 	/** The model for this LayerThing instance. */
 	private TemplateThing template;
@@ -59,6 +59,7 @@ public final class LayerThing extends DBObject implements Thing {
 	/** For shallow copying purposes. */
 	private LayerThing(final LayerThing lt) {
 		super(lt.project, lt.id);
+		this.template = lt.template;
 		this.title = lt.title;
 		this.object = lt.object;
 		if (null != lt.ht_attributes) {
@@ -330,7 +331,7 @@ public final class LayerThing extends DBObject implements Thing {
 			for (int i=0; i<ob.length; i++) {
 				if (ob[i] instanceof DBObject) {
 					if (!((DBObject)ob[i]).remove(false)) {
-						Utils.showMessage("Could not delete " + ob[i]);
+						Utils.log("Could not delete " + ob[i]);
 						return false;
 					}
 				}
@@ -342,14 +343,14 @@ public final class LayerThing extends DBObject implements Thing {
 		// remove the object
 		if (null != object && object instanceof DBObject) {
 			if (!((DBObject)object).remove(false)) {
-				Utils.showMessage("Could not delete " + object);
+				Utils.log("Could not delete " + object);
 				return false;
 			}
 		}
 
 		// remove the Thing itself
 		if (null != parent && !parent.removeChild(this)) {
-			Utils.showMessage("Could not delete LayerThing with id=" + id);
+			Utils.log("Could not delete LayerThing with id=" + id);
 			return false;
 		}
 		removeFromDatabase();

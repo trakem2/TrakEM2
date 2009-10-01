@@ -19,7 +19,7 @@
  */
 package mpicbg.trakem2.transform;
 
-public class TranslationModel2D extends mpicbg.models.TranslationModel2D implements CoordinateTransform
+public class TranslationModel2D extends mpicbg.models.TranslationModel2D implements InvertibleCoordinateTransform
 {
 
 	//@Override
@@ -38,7 +38,7 @@ public class TranslationModel2D extends mpicbg.models.TranslationModel2D impleme
 	//@Override
 	final public String toXML( final String indent )
 	{
-		return indent + "<ict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\"/>";
+		return indent + "<iict_transform invertible=\"true\" class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\" />";
 	}
 	
 	//@Override

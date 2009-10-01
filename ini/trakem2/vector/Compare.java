@@ -1888,7 +1888,10 @@ public class Compare {
 				//  - to show the full matched nodes
 
 				ActionListener listener = new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
+					public void actionPerformed(final ActionEvent ae) {
+						new Thread() {
+							{ setPriority(Thread.NORM_PRIORITY); }
+							public void run() {
 						try {
 							final String command = ae.getActionCommand();
 							if (command.equals(interp3D)) {
@@ -1911,6 +1914,7 @@ public class Compare {
 								model.vis.showNearby(model.query);
 							}
 						} catch (Exception e) { IJError.print(e); }
+						}}.start();
 					}
 				};
 				JMenuItem item;
