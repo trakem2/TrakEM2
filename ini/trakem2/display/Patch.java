@@ -1299,6 +1299,18 @@ public final class Patch extends Displayable implements ImageData {
 								Area out = new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2), o_height));
 								out.add(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
 								a.subtract(out);
+								ab = a.getBounds();
+								if (ab.x < 0 && ab.y >= 0) {
+									// Condition never seen so far, but just in case
+									// Note the +1 for the Rectangle's width
+									a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
+									ab = a.getBounds();
+								}
+								if (ab.x >= 0 && ab.y < 0) {
+									// Condition never seen so far, but just in case
+									a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+									ab = a.getBounds();
+								}
 								if (ab.x < 0 || ab.y < 0) {
 									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X or Y coordinates.");
 									Utils.log("Roi bounds after intersecting: " + a.getBounds());
