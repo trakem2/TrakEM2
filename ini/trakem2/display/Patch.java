@@ -1265,24 +1265,68 @@ public final class Patch extends Displayable implements ImageData {
 					}
 					try {
 						// a roi local to the image bounding box
-						final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
-						a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+						//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
+						//a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+
+						final Area a = M.getArea(roi).createTransformedArea(Patch.this.at.createInverse());
+
+						// Fix problems with ShapeRoi: cannot accept negative boundaries; if so, ImageProcessor could not fill(getMask())
+						Rectangle ab = a.getBounds();
+						if (ab.x < 0 || ab.y < 0) {
+							// Restrict ROI to within the Patch local bounds:
+							a.intersect(new Area(new Rectangle(0, 0, o_width, o_height)));
+							ab = a.getBounds();
+							if (ab.x < 0 && ab.y >= 0) {
+								// My opinion: #$%^&!@
+								// Let's fix it in whatever way possible: note the +1 added to the width!
+								a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
+								ab = a.getBounds();
+								if (ab.x < 0) {
+									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X coordinates.");
+									Utils.log("Roi bounds after intersecting: " + a.getBounds());
+									return;
+								}
+							} else if (ab.x >= 0 && ab.y < 0) {
+								// The Y does not need a +1 to the height (the X needed it to the width, see above)
+								a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+								ab = a.getBounds();
+								if (ab.y < 0) {
+									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative Y coordinates.");
+									Utils.log("Roi bounds after intersecting: " + a.getBounds());
+									return;
+								}
+							} else if (ab.x < 0 && ab.y < 0) {
+								Area out = new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2), o_height));
+								out.add(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+								a.subtract(out);
+								ab = a.getBounds();
+								if (ab.x < 0 && ab.y >= 0) {
+									// Condition never seen so far, but just in case
+									// Note the +1 for the Rectangle's width
+									a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
+									ab = a.getBounds();
+								}
+								if (ab.x >= 0 && ab.y < 0) {
+									// Condition never seen so far, but just in case
+									a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+									ab = a.getBounds();
+								}
+								if (ab.x < 0 || ab.y < 0) {
+									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X or Y coordinates.");
+									Utils.log("Roi bounds after intersecting: " + a.getBounds());
+									return;
+								}
+							}
+						}
 
 						if (M.isEmpty(a)) {
 							Utils.log("ROI does not intersect the active image!");
 							return;
 						}
 
-						// Correct numerical instability:
-						// (needed when ROI intersects left margin of the image, at least)
-						Rectangle ab = a.getBounds();
-						if (-1 == ab.x || -1 == ab.y) {
-							AffineTransform aff = new AffineTransform();
-							aff.translate(-1 == ab.x ? 1 : 0, -1 == ab.y ? 1 : 0);
-							Area aa = a.createTransformedArea(aff);
-							a.reset();
-							a.add(aa);
-						}
+						final ShapeRoi sroi = new ShapeRoi(a);
+						Utils.log2(sroi);
+						Utils.log2(sroi.getBounds());
 
 						if (null != ct) {
 							// inverse the coordinate transform
@@ -1296,7 +1340,6 @@ public final class Patch extends Displayable implements ImageData {
 							} else {
 								rmask.setValue(255);
 							}
-							ShapeRoi sroi = new ShapeRoi(a);
 							rmask.setRoi(sroi);
 							rmask.fill(sroi.getMask());
 
@@ -1317,7 +1360,6 @@ public final class Patch extends Displayable implements ImageData {
 								}
 							}
 						} else {
-							ShapeRoi sroi = new ShapeRoi(a);
 							mask.setRoi(sroi);
 							mask.setColor(Toolbar.getForegroundColor());
 							mask.fill(sroi.getMask());

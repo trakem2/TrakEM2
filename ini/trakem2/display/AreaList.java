@@ -738,6 +738,10 @@ public class AreaList extends ZDisplayable {
 					try { Thread.sleep(1); } catch (InterruptedException ie) {}
 					continue;
 				}
+				if (!dc.getDisplay().getLayer().contains(p.x, p.y, 0)) {
+					// Ignoring point off srcRect
+					continue;
+				}
 				// bring to offscreen position of the mouse
 				atb.translate(p.x, p.y);
 				// capture bounds while still in offscreen coordinates
@@ -1796,13 +1800,13 @@ public class AreaList extends ZDisplayable {
 		if (as_amira_labels && list.size() > 255) {
 			Utils.log("Saving ONLY first 255 AreaLists!\nDiscarded:");
 			StringBuffer sb = new StringBuffer();
-			for (final Displayable d : list.subList(256, list.size())) {
+			for (final Displayable d : list.subList(255, list.size())) {
 				sb.append("    ").append(d.getProject().getShortMeaningfulTitle(d)).append('\n');
 			}
 			Utils.log(sb.toString());
 			ArrayList<Displayable> li = new ArrayList<Displayable>(list);
 			list.clear();
-			list.addAll(li.subList(0, 256));
+			list.addAll(li.subList(0, 255));
 		}
 
 		String path = null;
@@ -1894,6 +1898,8 @@ public class AreaList extends ZDisplayable {
 			labels.put(d, label);
 		}
 
+		final Area world = new Area(new Rectangle(0, 0, width, height));
+
 		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
 			Utils.showProgress(count/len);
 			count++;
@@ -1917,7 +1923,12 @@ public class AreaList extends ZDisplayable {
 				/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
 				/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
 				/* 1 - To world coordinates: */ aff.concatenate(ali.at);
-				ShapeRoi sroi = new ShapeRoi(aff.createTransformedShape(area));
+				Area aroi = area.createTransformedArea(aff);
+				Rectangle b = aroi.getBounds();
+				if (b.x < 0 || b.y < 0) {
+					aroi.intersect(world); // work around ij.gui.ShapeRoi bug
+				}
+				ShapeRoi sroi = new ShapeRoi(aroi);
 				ip.setRoi(sroi);
 				ip.fill(sroi.getMask());
 			}
