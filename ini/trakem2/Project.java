@@ -998,6 +998,7 @@ public class Project extends DBObject {
 		AreaList.exportDTD(sb_header, hs, indent);
 		Dissector.exportDTD(sb_header, hs, indent);
 		Stack.exportDTD( sb_header, hs, indent );
+		Treeline.exportDTD(sb_header, hs, indent);
 		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		// 4 - export Display
 		Display.exportDTD(sb_header, hs, indent);
