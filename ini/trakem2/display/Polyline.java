@@ -293,6 +293,20 @@ public class Polyline extends ZDisplayable implements Line3D {
 		n_points++;
 	}
 
+	/** Append a point at the end. Returns the index of the new point. */
+	synchronized protected int appendPoint(int x_p, int y_p, long layer_id) {
+		if (-1 == n_points) setupForDisplay(); //reload
+		//check array size
+		if (p[0].length == n_points) {
+			enlargeArrays();
+		}
+		p[0][n_points] = x_p;
+		p[1][n_points] = y_p;
+		p_layer[n_points] = layer_id;
+		n_points++;
+		return n_points-1;
+	}
+
 	/**Add a point either at the end or between two existing points, with accuracy depending on magnification. The width of the new point is that of the closest point after which it is inserted.*/
 	synchronized protected int addPoint(int x_p, int y_p, long layer_id, double magnification) {
 		if (-1 == n_points) setupForDisplay(); //reload
