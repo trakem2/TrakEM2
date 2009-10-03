@@ -52,7 +52,7 @@ import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 
 
-public final class ProjectThing extends DBObject implements Thing {
+public final class ProjectThing extends DBObject implements TitledThing {
 
 	/** The model for this ProjectThing instance. */
 	private TemplateThing template;

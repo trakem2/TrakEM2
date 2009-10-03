@@ -500,7 +500,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 	}
 
 	/** Will add only those for which a node doesn't exist already. */
-	public void addLeafs(final java.util.List<Thing> leafs) {
+	public void addLeafs(final java.util.List<Thing> leafs, final Runnable after) {
 		javax.swing.SwingUtilities.invokeLater(new Runnable() { public void run() {
 		for (final Thing th : leafs) {
 			// find parent node
@@ -523,6 +523,14 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 			}
 			// otherwise add!
 			if (!exists) addChild(th, parent);
+
+			if (null != after) {
+				try {
+					after.run();
+				} catch (Throwable t) {
+					IJError.print(t);
+				}
+			}
 		}
 		}});
 	}

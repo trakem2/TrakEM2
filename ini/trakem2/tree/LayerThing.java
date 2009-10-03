@@ -35,7 +35,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JMenu;
 import java.awt.event.ActionListener;
 
-public final class LayerThing extends DBObject implements Thing {
+public final class LayerThing extends DBObject implements TitledThing {
 
 	/** The model for this LayerThing instance. */
 	private TemplateThing template;
@@ -59,6 +59,7 @@ public final class LayerThing extends DBObject implements Thing {
 	/** For shallow copying purposes. */
 	private LayerThing(final LayerThing lt) {
 		super(lt.project, lt.id);
+		this.template = lt.template;
 		this.title = lt.title;
 		this.object = lt.object;
 		if (null != lt.ht_attributes) {

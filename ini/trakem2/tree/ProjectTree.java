@@ -153,12 +153,13 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		gd.addStringField("New name: ", old_title);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
+		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
 		String title = gd.getNextString();
 		title = title.replace('"', '\'').trim(); // avoid XML problems - could also replace by double '', then replace again by " when reading.
 		thing.setTitle(title);
 		this.updateUILater();
+		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
 	}
-
 
 	public void mouseDragged(MouseEvent me) { }
 	public void mouseReleased(MouseEvent me) { }
@@ -221,8 +222,12 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					Utils.showMessage("Makes no sense to create less than 1 child!");
 					return;
 				}
+				project.getRootLayerSet().addChangeTreesStep();
 				final ArrayList nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
-				addLeafs((ArrayList<Thing>)nc);
+				addLeafs((ArrayList<Thing>)nc, new Runnable() {
+					public void run() {
+						project.getRootLayerSet().addChangeTreesStep();
+					}});
 			} else if (command.equals("Unhide")) {
 				thing.setVisible(true);
 			} else if (command.equals("Select in display")) {

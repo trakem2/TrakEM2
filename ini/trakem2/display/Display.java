@@ -1009,6 +1009,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			d.updateVisibleTab(true);
 		}
 	}
+	static public void updateVisibleTabs(final Project p) {
+		for (final Display d : al_displays) {
+			if (d.project == p) d.updateVisibleTab(true);
+		}
+	}
 
 	/** Recreate the tab that is being shown. */
 	public void updateVisibleTab(boolean set_zdispl) {
@@ -4552,6 +4557,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			d.selection.clear();
 		}
 	}
+	static public void clearSelection(final Project p) {
+		for (final Display d : al_displays) {
+			if (d.project == p) d.selection.clear();
+		}
+	}
 
 	private void setTempCurrentImage() {
 		WindowManager.setCurrentWindow(canvas.getFakeImagePlus().getWindow(), true);
@@ -4913,4 +4923,5 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		return new ArrayList<Patch>(stacks);
 	}
+
 }
