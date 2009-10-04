@@ -58,6 +58,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Arrays;
 
+import javax.vecmath.Point3f;
+
 // Ideally, this class would use a linked list of node points, where each node could have a list of branches, which would be in themselves linked lists of nodes and so on.
 // That would make sense, and would make re-rooting and removing nodes (with their branches) trivial and fast.
 // In practice, I want to reuse Polyline's semiautomatic tracing and thus I am using Polylines for each slab.
@@ -403,6 +405,39 @@ public class Treeline extends ZDisplayable {
 			}
 			sb_body.append('}');
 		}
+
+		/** Takes a continuous list of Point3f and returns a list with 0,1,1,2,2,3,3,4   n-1,n-1,n. */
+		final private List asPairwise(final List list) {
+			final ArrayList l = new ArrayList();
+			for (int i=1; i<list.size(); i++) {
+				l.add(list.get(i-1));
+				l.add(list.get(i));
+			}
+			return l;
+		}
+
+		final void generateTriangles(final List list, final double scale, final int parallels, final int resample, final Calibration cal) {
+			if (null == parent) {
+				list.addAll(asPairwise(pline.generateTriangles(scale, parallels, resample)));
+			}
+			if (null == branches) return;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				final int i = e.getKey();
+				final Point2D.Double po = Treeline.this.transformPoint(pline.p[0][i], pline.p[1][i]);
+				final float x = (float) (po.x * scale * resample * cal.pixelWidth);
+				final float y = (float) (po.y * scale * resample * cal.pixelHeight);
+				final float z = (float) (layer_set.getLayer(pline.p_layer[i]).getZ() * scale * resample * cal.pixelWidth);
+
+				for (final Branch b : e.getValue()) {
+					b.pline.setLayerSet(Treeline.this.layer_set); // needed to retrieve Z coord of layers.
+					List l = asPairwise(b.pline.generateTriangles(scale, parallels, resample, cal));
+					l.add(0, l.get(0));
+					l.add(0, new Point3f(x, y, z));
+					list.addAll(l);
+					b.generateTriangles(list, scale, parallels, resample, cal);
+				}
+			}
+		}
 	}
 
 	public Treeline(Project project, String title) {
@@ -636,5 +671,11 @@ public class Treeline extends ZDisplayable {
 			sb_body.append('\n');
 		}
 		sb_body.append(indent).append("</t2_treeline>\n");
+	}
+
+	public List generateTriangles(double scale, int parallels, int resample) {
+		ArrayList list = new ArrayList();
+		root.generateTriangles(list, scale, parallels, resample, layer_set.getCalibrationCopy());
+		return list;
 	}
 }

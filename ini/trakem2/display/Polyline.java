@@ -64,6 +64,7 @@ import tracing.TracerThread;
 import tracing.SearchProgressCallback;
 
 import javax.vecmath.Vector3d;
+import javax.vecmath.Point3f;
 
 
 /** A sequence of points that make multiple chained line segments. */
@@ -272,23 +273,25 @@ public class Polyline extends ZDisplayable implements Line3D {
 		return new double[]{sqdist0, sqdistN};
 	}
 
-	synchronized protected void insertPoint(int i, int x_p, int y_p, long layer_id) {
+	synchronized public void insertPoint(int i, int x_p, int y_p, long layer_id) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (p[0].length == n_points) enlargeArrays();
 		double[][] p2 = new double[2][p[0].length];
-		System.arraycopy(p[0], 0, p2[0], 0, i);
-		System.arraycopy(p[1], 0, p2[1], 0, i);
+		long[] p_layer2 = new long[p_layer.length];
+		if (0 != i) {
+			System.arraycopy(p[0], 0, p2[0], 0, i);
+			System.arraycopy(p[1], 0, p2[1], 0, i);
+			System.arraycopy(p_layer, 0, p_layer2, 0, i);
+		}
 		p2[0][i] = x_p;
 		p2[1][i] = y_p;
-		System.arraycopy(p[0], i, p2[0], i+1, p[0].length -i -1);
-		System.arraycopy(p[1], i, p2[1], i+1, p[0].length -i -1);
-		p = p2;
-		Utils.log2(p[0]);
-		Utils.log2(p[1]);
-		long[] p_layer2 = new long[p_layer.length];
-		System.arraycopy(p_layer, 0, p_layer2, 0, i);
 		p_layer2[i] = layer_id;
-		System.arraycopy(p_layer, i, p_layer2, i+1, p_layer.length -i -1);
+		if (n_points != i) {
+			System.arraycopy(p[0], i, p2[0], i+1, n_points -i);
+			System.arraycopy(p[1], i, p2[1], i+1, n_points -i);
+			System.arraycopy(p_layer, i, p_layer2, i+1, n_points -i);
+		}
+		p = p2;
 		p_layer = p_layer2;
 		n_points++;
 	}
@@ -1066,34 +1069,38 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	/** Calibrated. */
 	synchronized public List generateTriangles(double scale, int parallels, int resample) {
-		if (n_points < 2) return null;
-		// check minimum requirements.
-		if (parallels < 3) parallels = 3;
-		//
-		final double[][][] all_points = generateJoints(parallels, resample, layer_set.getCalibrationCopy());
-		return Pipe.generateTriangles(all_points, scale);
+		return generateTriangles(scale, parallels, resample, layer_set.getCalibrationCopy());
 	}
 
-	private double[][][] generateJoints(final int parallels, final int resample, final Calibration cal) {
+	/** Returns a list of Point3f that define a polyline in 3D, for usage with an ij3d CustomLineMesh CONTINUOUS. @param parallels is ignored. */
+	synchronized public List generateTriangles(final double scale, final int parallels, final int resample, final Calibration cal) {
+		if (n_points < 2) return null;
+
 		if (-1 == n_points) setupForDisplay();
-		
+
 		// local pointers, since they may be transformed
-		int n_points = this.n_points;
-		double[][] p = this.p;
+		final int n_points;
+		final double[][] p;
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
 			n_points = p[0].length;
+		} else {
+			n_points = this.n_points;
+			p = this.p;
 		}
-		double[] p_width = new double[n_points];
-		double[] z_values = new double[n_points];
+
+		final ArrayList list = new ArrayList();
+		final double KW = scale * cal.pixelWidth * resample;
+		final double KH = scale * cal.pixelHeight * resample;
 
 		for (int i=0; i<n_points; i++) {
-			p_width[i] = 1;
-			z_values[i] = layer_set.getLayer(p_layer[i]).getZ();
+			list.add(new Point3f((float) (p[0][i] * KW),
+					     (float) (p[1][i] * KH),
+					     (float) (layer_set.getLayer(p_layer[i]).getZ() * KW)));
 		}
 
-		return Pipe.makeTube(p[0], p[1], z_values, p_width, resample, parallels, cal);
+		return list;
 	}
 
 	synchronized private Object[] getTransformedData() {

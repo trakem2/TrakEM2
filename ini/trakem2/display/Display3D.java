@@ -51,6 +51,7 @@ import ij3d.Image3DMenubar;
 import customnode.CustomMeshNode;
 import customnode.CustomMesh;
 import customnode.CustomTriangleMesh;
+import customnode.CustomLineMesh;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -669,19 +670,35 @@ public final class Display3D {
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
 		final List triangles;
 		boolean no_culling_ = false; // don't show back faces when false
-		if (displ instanceof AreaList) {
+
+		final Class c;
+		final boolean line_mesh;
+		final int line_mesh_mode;
+		if (null == displ) {
+			c = null;
+			line_mesh = false;
+			line_mesh_mode = 0;
+		} else {
+			c = displ.getClass();
+			line_mesh = Treeline.class == c || Polyline.class == c;
+			line_mesh_mode = Treeline.class == c ? CustomLineMesh.PAIRWISE : CustomLineMesh.CONTINUOUS;
+		}
+
+		if (AreaList.class == c) {
 			int rs = resample;
 			if (-1 == resample) rs = Display3D.this.resample = adjustResampling(); // will adjust this.resample, and return it (even if it's a default value)
 			else rs = Display3D.this.resample;
 			triangles = ((AreaList)displ).generateTriangles(scale, rs);
 			//triangles = removeNonManifold(triangles);
-		} else if (displ instanceof Ball) {
+		} else if (Ball.class == c) {
 			double[][][] globe = Ball.generateGlobe(12, 12);
 			triangles = ((Ball)displ).generateTriangles(scale, globe);
 		} else if (displ instanceof Line3D) {
 			// Pipe and Polyline
 			// adjustResampling();  // fails horribly, needs first to correct mesh-generation code
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
+		} else if (Treeline.class == c) {
+			triangles = ((Treeline)displ).generateTriangles(scale, 12, 1);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 			no_culling_ = true;
@@ -698,28 +715,10 @@ public final class Display3D {
 			Utils.log2("Skipping empty mesh for " + displ.getTitle());
 			return null;
 		}
-		if (0 != triangles.size() % 3) {
+		if (!line_mesh && 0 != triangles.size() % 3) {
 			Utils.log2("Skipping non-multiple-of-3 vertices list generated for " + displ.getTitle());
 			return null;
 		}
-
-
-		/* // debug: extra check: find NaN
-		for (Point3f p3 : (List<Point3f>)triangles) {
-			if (null == p3) {
-				Utils.log2("Found a null Point3f! Aborting.");
-				return null;
-			}
-			if (Float.isNaN(p3.x)
-			 || Float.isNaN(p3.y)
-			 || Float.isNaN(p3.z))
-			{
-				Utils.log("A Point3f has a NaN coordinate! Aborting.");
-				return null;
-			}
-		}
-		*/
-
 
 		final Color color;
 		final float alpha;
@@ -744,7 +743,7 @@ public final class Display3D {
 			alpha = 1.0f;
 		}
 
-		// TODO why for all? Above no_culling_ is set to true or false, depending upon type.
+		// Why for all? Above no_culling_ is set to true or false, depending upon type. --> Because with transparencies it looks proper and better when no_culling is true.
 		final boolean no_culling = true; // for ALL
 
 		Content ct = null;
@@ -754,7 +753,9 @@ public final class Display3D {
 			try {
 				Color3f c3 = new Color3f(color);
 
-				if (no_culling) {
+				if (line_mesh) {
+					ct = universe.createContent(new CustomLineMesh(triangles, line_mesh_mode, c3, 0), title);
+				} else if (no_culling) {
 					// create a mesh with the same color and zero transparency (that is, full opacity)
 					CustomTriangleMesh mesh = new CustomTriangleMesh(triangles, c3, 0);
 					// Set mesh properties for double-sided triangles
