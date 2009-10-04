@@ -157,21 +157,34 @@ public class Treeline extends ZDisplayable {
 		}
 
 		/** Paint recursively into branches. */
-		final void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer, final Stroke branch_stroke) {
+		final void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer, final Stroke branch_stroke, final boolean no_color_cues, final double current_z) {
 			this.pline.paint(g, magnification, active, channels, active_layer);
 			if (null == branches) return;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
 				final int i = e.getKey();
 				final Point2D.Double po1 = Treeline.this.transformPoint(pline.p[0][i], pline.p[1][i]);
+				final double z = layer_set.getLayer(pline.p_layer[i]).getZ();
+				boolean paint_link = true;
+				Color c = Treeline.this.color;
+				if (z < current_z) {
+					if (no_color_cues) paint_link = false;
+					else c = Color.red;
+				}
+				else if (z == current_z) {}  // c = Treeline.this.color
+				else if (no_color_cues) paint_link = false;
+				else c = Color.blue;
+
 				for (final Branch b : e.getValue()) {
-					b.paint(g, magnification, active, channels, active_layer, branch_stroke);
+					b.paint(g, magnification, active, channels, active_layer, branch_stroke, no_color_cues, current_z);
 					// Paint from i in this.pline to 0 in b.pline
-					final Point2D.Double po2 = Treeline.this.transformPoint(b.pline.p[0][0], b.pline.p[1][0]);
-					g.setColor(Treeline.this.color);
-					Stroke st = g.getStroke();
-					if (null != branch_stroke) g.setStroke(branch_stroke);
-					g.drawLine((int)po1.x, (int)po1.y, (int)po2.x, (int)po2.y);
-					g.setStroke(st); // restore
+					if (paint_link) {
+						final Point2D.Double po2 = Treeline.this.transformPoint(b.pline.p[0][0], b.pline.p[1][0]);
+						g.setColor(c);
+						Stroke st = g.getStroke();
+						if (null != branch_stroke) g.setStroke(branch_stroke);
+						g.drawLine((int)po1.x, (int)po1.y, (int)po2.x, (int)po2.y);
+						g.setStroke(st); // restore
+					}
 				}
 			}
 		}
@@ -469,7 +482,7 @@ public class Treeline extends ZDisplayable {
 
 		final BasicStroke DASHED_STROKE = new BasicStroke(1/(float)magnification, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{ 6, 4, 2, 4 }, 0);
 
-		root.paint(g, magnification, active, channels, active_layer, DASHED_STROKE);
+		root.paint(g, magnification, active, channels, active_layer, DASHED_STROKE, "true".equals(project.getProperty("no_color_cues")), active_layer.getZ());
 
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
