@@ -3290,7 +3290,7 @@ public class Compare {
 		gd.addChoice("Scoring type: ", distance_types, distance_types[2]);
 
 		final String[] distance_types2 = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs", "None"};
-		gd.addChoice("Resort scores by: ", distance_types2, distance_types2[0]);
+		gd.addChoice("Resort scores by: ", distance_types2, distance_types2[9]);
 		gd.addNumericField("Min_matches: ", 10, 0);
 		gd.addCheckbox("normalize", false);
 		gd.addCheckbox("direct", true);
