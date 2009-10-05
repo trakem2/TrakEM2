@@ -485,6 +485,24 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		g.drawRect((int) ((x - srcRect.x) * magnification) - 2, (int) ((y - srcRect.y) * magnification) - 2, 5, 5);
 	}
 
+	static private BasicStroke DEFAULT_STROKE = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+	static private AffineTransform DEFAULT_AFFINE = new AffineTransform();
+
+	static public void drawHandle(Graphics2D g, double x, double y, Rectangle srcRect, double magnification) {
+		AffineTransform original = g.getTransform();
+		g.setTransform(DEFAULT_AFFINE);
+		Stroke st = g.getStroke();
+		g.setStroke(DEFAULT_STROKE);
+
+		g.setColor(Color.black);
+		g.fillRect((int) ((x - srcRect.x) * magnification) - 1, (int) ((y - srcRect.y) * magnification) - 1, 3, 3);
+		g.setColor(Color.white);
+		g.drawRect((int) ((x - srcRect.x) * magnification) - 2, (int) ((y - srcRect.y) * magnification) - 2, 5, 5);
+
+		g.setStroke(st);
+		g.setTransform(original);
+	}
+
 	protected void setDrawingColor(int ox, int oy, boolean setBackground) {
 		super.setDrawingColor(ox, oy, setBackground);
 	}

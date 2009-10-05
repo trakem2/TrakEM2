@@ -1341,7 +1341,7 @@ public final class Patch extends Displayable implements ImageData {
 								rmask.setValue(255);
 							}
 							rmask.setRoi(sroi);
-							rmask.fill(sroi.getMask());
+							rmask.fill(sroi.getMask());  // Note: using fill(sroi) directly also fails on occasions.
 
 							ByteProcessor inv_mask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
 
