@@ -2,8 +2,11 @@ package ini.trakem2.imaging;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.PointRoi;
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
 import ini.trakem2.display.AreaList;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Layer;
@@ -21,6 +24,7 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
 import java.awt.Checkbox;
 import java.awt.Component;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 
 import levelsets.ij.ImageContainer;
@@ -31,19 +35,31 @@ import levelsets.algorithm.ActiveContours;
 import levelsets.algorithm.FastMarching;
 import levelsets.algorithm.Coordinate;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+
+import plugin.Lasso;
+
+
 public class Segmentation {
 
 	static public class FastMarchingParam {
+		// Fast-marching:
 		public int fm_grey = 50;
 		public double fm_dist = 0.5;
 		public int max_iterations = 1000;
 		public int iter_inc = 100;
+		// Preprocess fast-marching with grey value erosion:
+		public boolean apply_grey_value_erosion = true;
+		// Lasso:
+		public double ratio_space_color = 1.0;
+		// Preprocess all with bandpass filter:
 		public boolean apply_bandpass_filter = true;
 		public int low_frequency_threshold = 1000;
 		public int high_frequency_threshold = 5;
 		public boolean autoscale_after_filtering = true;
 		public boolean saturate_when_autoscaling = true;
-		public boolean apply_grey_value_erosion = true;
 		/** In pixels, of the the underlying image to copy around the mouse. May be enlarged by shift+scrollwheel with PENCIL tool on a selected AreaList. */
 		public int width = 100,
 		           height = 100;
@@ -55,7 +71,10 @@ public class Segmentation {
 			gd.addNumericField("Distance threshold", fm_dist, 2);
 			gd.addNumericField("Max iterations", max_iterations, 0);
 			gd.addNumericField("Iterations inc", iter_inc, 0);
-			gd.addMessage("Bandpass filter:");
+			gd.addCheckbox("Enable grey value erosion filter", apply_grey_value_erosion);
+			gd.addMessage("Lasso tool:");
+			gd.addNumericField("ratio space/color:", ratio_space_color, 2);
+			gd.addMessage("Preprocessing by bandpass filter:");
 			gd.addCheckbox("Enable bandpass filter", apply_bandpass_filter);
 	                gd.addNumericField("Filter_Large Structures Down to", low_frequency_threshold, 0, 4, "pixels");
 	                gd.addNumericField("Filter_Small Structures Up to", high_frequency_threshold, 0, 4, "pixels");
@@ -68,8 +87,9 @@ public class Segmentation {
 				(Component)gd.getCheckboxes().get(gd.getCheckboxes().size()-1)
 			};
 			Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size()-3), c, null);
-			gd.addMessage("Grey value erosion filter:");
-			gd.addCheckbox("Enable grey value erosion filter", apply_grey_value_erosion);
+			if (!apply_bandpass_filter) {
+				for (Component comp : c) comp.setEnabled(false);
+			}
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 
@@ -78,6 +98,11 @@ public class Segmentation {
 			fm_dist = gd.getNextNumber();
 			max_iterations = (int)gd.getNextNumber();
 			iter_inc = (int)gd.getNextNumber();
+			// Grey value erosion:
+			apply_grey_value_erosion = gd.getNextBoolean();
+
+			// Ratio space/color for lasso:
+			ratio_space_color = gd.getNextNumber();
 
 			// Bandpass filter:
 			apply_bandpass_filter = gd.getNextBoolean();
@@ -86,8 +111,6 @@ public class Segmentation {
 			autoscale_after_filtering = gd.getNextBoolean();
 			saturate_when_autoscaling = gd.getNextBoolean();
 
-			// Grey value erosion:
-			apply_grey_value_erosion = gd.getNextBoolean();
 			return true;
 		}
 
@@ -101,8 +124,8 @@ public class Segmentation {
 
 	static public final FastMarchingParam fmp = new FastMarchingParam();
 
-	static public Thread fastMarching(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w) {
-		return Bureaucrat.createAndStart(new Worker.Task("Fast marching") { public void exec() {
+	static public Thread fastMarching(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
+		Bureaucrat burro = Bureaucrat.create(new Worker.Task("Fast marching") { public void exec() {
 			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
 			Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
 			Utils.log2("fmp box is " + box);
@@ -221,5 +244,122 @@ public class Segmentation {
 
 			Display.repaint(layer);
 		}}, layer.getProject());
+		if (null != post_task) burro.addPostTask(post_task);
+		burro.goHaveBreakfast();
+		return burro;
 	}
+
+	static public class BlowCommander {
+		BlowRunner br = null;
+		final ExecutorService dispatcher = Executors.newFixedThreadPool(1);
+		final Runnable post_task;
+
+		public BlowCommander(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
+			this.post_task = post_task;
+			dispatcher.submit(new Runnable() {
+				public void run() {
+					// Creation in the contex of the ExecutorService thread, so 'imp' will be local to it
+					try {
+						br = new BlowRunner(ali, layer, srcRect, x_p_w, y_p_w);
+					} catch (Throwable t) {
+						IJError.print(t);
+						dispatcher.shutdownNow();
+					}
+				}
+			});
+		}
+		public void mouseDragged(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
+			try {
+				dispatcher.submit(new Runnable() {
+					public void run() {
+						try {
+							// Move relative to starting point
+							br.moveBlow(x_p - x_d, y_p - y_d);
+						} catch (Throwable t) {
+							IJError.print(t);
+							mouseReleased(me, x_p, y_p, x_d_old, y_d_old, x_d, y_d);
+						}
+					}
+				});
+			} catch (RejectedExecutionException ree) {} // Ignore: operations have been canceled
+		}
+		public void mouseReleased(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
+			dispatcher.submit(new Runnable() {
+				public void run() {
+					// Add the roi to the AreaList
+					try {
+						br.finish();
+					} catch (Throwable t) {
+						IJError.print(t);
+					}
+					// Execute post task if any
+					if (null != post_task) {
+						try {
+							post_task.run();
+						} catch (Throwable t) {
+							IJError.print(t);
+						}
+					}
+					// Stop accepting tasks
+					dispatcher.shutdownNow();
+				}
+			});
+		}
+	}
+
+	static public class BlowRunner {
+		final Rectangle box;
+		final ImagePlus imp;
+		final Lasso lasso;
+		final Layer layer;
+		final AreaList ali;
+
+		public BlowRunner(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w) throws Exception {
+			this.ali = ali;
+			this.layer = layer;
+			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
+			this.box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
+			Utils.log2("fmp box is " + box);
+			this.imp = (ImagePlus) layer.grab(box, 1.0, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
+			// Bandpass filter
+			if (fmp.apply_bandpass_filter) {
+				IJ.run(imp, "Bandpass Filter...", "filter_large=" + fmp.low_frequency_threshold  + " filter_small=" + fmp.high_frequency_threshold + " suppress=None tolerance=5" + (fmp.autoscale_after_filtering ? " autoscale" : "") + (fmp.saturate_when_autoscaling ? " saturate" : ""));
+			}
+
+			lasso = new Lasso(imp, Lasso.BLOW, box.width/2, box.height/2, false);
+			lasso.setRatioSpaceColor(fmp.ratio_space_color);
+		}
+		public void moveBlow(int dx, int dy) throws Exception {
+			int x = box.width/2 + dx;
+			int y = box.height/2 + dy;
+			// Keep within bounds
+			if (x < 0) x = 0;
+			if (y < 0) y = 0;
+			if (x > box.width -1) x = box.width -1;
+			if (y > box.height -1) y = box.height -1;
+			lasso.moveBlow(x, y);
+			// extract ROI
+			Roi roi = imp.getRoi();
+			if (null == roi) Display.getFront().getCanvas().getFakeImagePlus().setRoi(roi); // can't set to null? Java, gimme a break
+			else {
+				Roi sroi = new ShapeRoi(roi);
+				Rectangle b = sroi.getBounds();
+				sroi.setLocation(box.x + b.x, box.y + b.y);
+				Display.getFront().getCanvas().getFakeImagePlus().setRoi(sroi);
+			}
+		}
+		public void finish() throws Exception {
+			Roi roi = imp.getRoi();
+			if (null == roi) return;
+			ShapeRoi sroi = new ShapeRoi(roi);
+			Rectangle b = sroi.getBounds();
+			sroi.setLocation(box.x + b.x, box.y + b.y);
+			ali.add(layer.getId(), sroi);
+		}
+	}
+
+	static public BlowCommander blowRoi(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
+		return new BlowCommander(ali, layer, srcRect, x_p_w, y_p_w, post_task);
+	}
+
 }

@@ -613,6 +613,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.ht_tabs.put(AreaList.class, scroll_zdispl);
 		this.ht_tabs.put(Pipe.class, scroll_zdispl);
 		this.ht_tabs.put(Polyline.class, scroll_zdispl);
+		this.ht_tabs.put(Treeline.class, scroll_zdispl);
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
@@ -860,6 +861,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				IJError.print(e);
 			}
 		}
+		// Fails: "origin not in parent's hierarchy" ... right.
+		private void showPopup(String name, int x, int y) {
+			try {
+				Field f = Toolbar.getInstance().getClass().getDeclaredField(name);
+				f.setAccessible(true);
+				PopupMenu p = (PopupMenu) f.get(Toolbar.getInstance());
+				p.show(this, x, y);
+			} catch (Throwable t) {
+				IJError.print(t);
+			}
+		}
 		public void mousePressed(MouseEvent me) {
 			int x = me.getX();
 			int y = me.getY();
@@ -870,6 +882,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} else {
 				if (x > size * 9) return; // off limits
 			}
+			/*
+			if (Utils.isPopupTrigger(me)) {
+				if (x >= size && x <= size * 2 && y >= 0 && y <= size) {
+					showPopup("ovalPopup", x, y);
+					return;
+				} else if (x >= size * 4 && x <= size * 5 && y >= 0 && y <= size) {
+					showPopup("linePopup", x, y);
+					return;
+				}
+			}
+			*/
 			Toolbar.getInstance().mousePressed(new MouseEvent(toolbar, me.getID(), System.currentTimeMillis(), me.getModifiers(), x, y, me.getClickCount(), me.isPopupTrigger()));
 			repaint();
 			Display.this.toolChanged(ProjectToolbar.getToolId()); // should fire on its own but it does not (?) TODO
@@ -984,6 +1007,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	static public void updateVisibleTabs() {
 		for (final Display d : al_displays) {
 			d.updateVisibleTab(true);
+		}
+	}
+	static public void updateVisibleTabs(final Project p) {
+		for (final Display d : al_displays) {
+			if (d.project == p) d.updateVisibleTab(true);
 		}
 	}
 
@@ -1955,6 +1983,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Polyline d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Treeline d) { selectTab((ZDisplayable)d); }
 	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
 	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Dissector d) { selectTab((ZDisplayable)d); }
@@ -2359,6 +2388,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (none) item.setEnabled(false);
 			item = new JMenuItem("Unhide all polylines"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(Treeline.class);
+			item = new JMenuItem("Hide all treelines"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all treelines"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
 			none = ! layer.getParent().contains(Ball.class);
 			item = new JMenuItem("Hide all balls"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
@@ -2468,6 +2502,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
 		menu.add(bytype);
 
@@ -4522,6 +4557,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			d.selection.clear();
 		}
 	}
+	static public void clearSelection(final Project p) {
+		for (final Display d : al_displays) {
+			if (d.project == p) d.selection.clear();
+		}
+	}
 
 	private void setTempCurrentImage() {
 		WindowManager.setCurrentWindow(canvas.getFakeImagePlus().getWindow(), true);
@@ -4614,7 +4654,32 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
 	private final TreeMap<Integer,LayerPanel> layer_alpha = new TreeMap<Integer,LayerPanel>();
+	private final HashMap<Layer,Byte> layer_composites = new HashMap<Layer,Byte>();
 	boolean invert_colors = false;
+
+	protected byte getLayerCompositeMode(final Layer layer) {
+		synchronized (layer_composites) {
+			Byte b = layer_composites.get(layer);
+			return null == b ? Displayable.COMPOSITE_NORMAL : b;
+		}
+	}
+
+	protected void setLayerCompositeMode(final Layer layer, final byte compositeMode) {
+		synchronized (layer_composites) {
+			if (-1 == compositeMode || Displayable.COMPOSITE_NORMAL == compositeMode) {
+				layer_composites.remove(layer);
+			} else {
+				layer_composites.put(layer, compositeMode);
+			}
+		}
+	}
+
+	protected void resetLayerComposites() {
+		synchronized (layer_composites) {
+			layer_composites.clear();
+		}
+		canvas.repaint(true);
+	}
 
 	/** Remove all red/blue coloring of layers, and repaint canvas. */
 	protected void resetLayerColors() {
@@ -4627,7 +4692,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			layer_channels.clear();
 		}
-		canvas.repaint();
+		canvas.repaint(true);
 	}
 
 	/** Set all layer alphas to zero, and repaint canvas. */
@@ -4638,7 +4703,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			layer_alpha.clear(); // should have already been cleared
 		}
-		canvas.repaint();
+		canvas.repaint(true);
 	}
 
 	/** Add to layer_alpha table, or remove if alpha is zero. */
@@ -4858,4 +4923,5 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		return new ArrayList<Patch>(stacks);
 	}
+
 }

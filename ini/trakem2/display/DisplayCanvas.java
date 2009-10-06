@@ -417,6 +417,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					case ProjectToolbar.PENCIL:
 						Composite co = g2d.getComposite();
 						g2d.setXORMode(active.getColor());
+						if (IJ.isWindows()) g2d.setColor(active.getColor());
 						g2d.drawRect((int)((xMouse -srcRect.x -Segmentation.fmp.width/2)  * magnification),
 							     (int)((yMouse -srcRect.y -Segmentation.fmp.height/2) * magnification),
 							     (int)(Segmentation.fmp.width  * magnification),
@@ -484,6 +485,24 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		g.drawRect((int) ((x - srcRect.x) * magnification) - 2, (int) ((y - srcRect.y) * magnification) - 2, 5, 5);
 	}
 
+	static private BasicStroke DEFAULT_STROKE = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+	static private AffineTransform DEFAULT_AFFINE = new AffineTransform();
+
+	static public void drawHandle(Graphics2D g, double x, double y, Rectangle srcRect, double magnification) {
+		AffineTransform original = g.getTransform();
+		g.setTransform(DEFAULT_AFFINE);
+		Stroke st = g.getStroke();
+		g.setStroke(DEFAULT_STROKE);
+
+		g.setColor(Color.black);
+		g.fillRect((int) ((x - srcRect.x) * magnification) - 1, (int) ((y - srcRect.y) * magnification) - 1, 3, 3);
+		g.setColor(Color.white);
+		g.drawRect((int) ((x - srcRect.x) * magnification) - 2, (int) ((y - srcRect.y) * magnification) - 2, 5, 5);
+
+		g.setStroke(st);
+		g.setTransform(original);
+	}
+
 	protected void setDrawingColor(int ox, int oy, boolean setBackground) {
 		super.setDrawingColor(ox, oy, setBackground);
 	}
@@ -494,6 +513,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private boolean popup = false;
 
 	private boolean locked = false; // TODO temporary!
+
+	private boolean beyond_srcRect = false;
 
 	private int tmp_tool = -1;
 
@@ -810,8 +831,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// the line above must repaint on its own
 					break;
 				}
-			} else { 
-				locked = true; // TODO temporary until the snapTo and mouseEntered issues are fixed
+			} else {
+				beyond_srcRect = true;
 				Utils.log("DisplayCanvas.mouseDragged: preventing drag beyond layer limits.");
 			}
 		}
@@ -893,6 +914,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		int x_r = srcRect.x + (int)(me.getX() / magnification);
 		int y_r = srcRect.y + (int)(me.getY() / magnification);
+
+		/*
+		if (beyond_srcRect) {
+			// Artificial release on the last dragged point
+			x_r = x_d;
+			y_r = y_d;
+		}
+		*/
 
 		this.xMouse = x_r;
 		this.yMouse = y_r;
@@ -2229,8 +2258,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 							if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
 							d.paint(gb, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 						}
-						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
-						g.drawImage(bi, 0, 0, null);
+						try {
+							g.setComposite(Displayable.getComposite(display.getLayerCompositeMode(lp.layer), lp.getAlpha()));
+							g.drawImage(bi, 0, 0, null);
+						} catch (Throwable t) {
+							Utils.log("Could not use composite mode for layer overlays! Your graphics card may not support it.");
+							g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
+							g.drawImage(bi, 0, 0, null);
+						} 
 						bi.flush();
 					}
 					// restore
@@ -2243,7 +2278,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					for (final Displayable d : al_paint.subList(paintable_patches.size(), al_paint.size())) {
 						d.paint(g, magnification, d == active, c_alphas, layer);
 					}
-					Utils.log2("multi layer mode");
 				} else { // Display.REPAINT_RGB_LAYER == mode
 					final HashMap<Color,byte[]> channels = new HashMap<Color,byte[]>();
 					hm.put(Color.green, layer);

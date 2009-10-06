@@ -15,8 +15,6 @@ import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
-import java.awt.Stroke;
-import java.awt.BasicStroke;
 import java.awt.AlphaComposite;
 import java.awt.Composite;
 import java.awt.Graphics2D;

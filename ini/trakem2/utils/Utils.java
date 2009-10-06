@@ -80,7 +80,7 @@ import java.util.regex.Matcher;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7k 2009-09-17";
+	static public String version = "0.7l 2009-10-01";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -1319,5 +1319,21 @@ public class Utils implements ij.plugin.PlugIn {
 		g.fillRect(x+1,y+1,3,3);
 		g.setColor(Color.black);
 		g.drawRect(x, y, 4, 4);
+	}
+
+	static public final String trim(CharSequence sb) {
+		char c;
+		int start = 0;
+		do {
+			c = sb.charAt(start);
+			start++;
+		} while ('\t' == c || ' ' == c || '\n' == c);
+		int end = sb.length() -1;
+		do {
+			c = sb.charAt(end);
+			end--;
+		} while ('\n' == c || ' ' == c || '\t' == c);
+
+		return sb.subSequence(start-1, end+2).toString();
 	}
 }

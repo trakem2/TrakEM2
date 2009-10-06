@@ -213,7 +213,10 @@ public final class M {
 
 	static public final Area getArea(final Roi roi) {
 		if (null == roi) return null;
-		ShapeRoi sroi = new ShapeRoi(roi);
+		return getArea(new ShapeRoi(roi));
+	}
+	static public final Area getArea(final ShapeRoi sroi) {
+		if (null == sroi) return null;
 		AffineTransform at = new AffineTransform();
 		Rectangle bounds = sroi.getBounds();
 		at.translate(bounds.x, bounds.y);

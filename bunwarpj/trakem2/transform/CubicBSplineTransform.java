@@ -1,29 +1,50 @@
 /**
- * 
+ * License: GPL
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License 2
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 package bunwarpj.trakem2.transform;
 
-import ij.IJ;
+//import ij.IJ;
 import bunwarpj.BSplineModel;
 import mpicbg.trakem2.transform.CoordinateTransform;
 
 /**
- * @author ignacio
- *
+ * Class to implement elastic transforms based on cubic B-splines.
+ * 
+ * @author Ignacio Arganda-Carreras (ignacio.arganda@gmail.com)
  */
 public class CubicBSplineTransform implements CoordinateTransform 
 {
-	private BSplineModel swx;
-	private BSplineModel swy;
-	private int intervals;
-	private int width;
-	private int height;
+	/** grid of B-spline coefficients for x- transformation */
+	private BSplineModel swx = null;
+	/** grid of B-spline coefficients for y- transformation */
+	private BSplineModel swy = null;
+	/** number of intervals between B-spline coefficients */
+	private int intervals = 0;
+	/** width of the image to be transformed */
+	private int width = 0;
+	/** height of the image to be transformed */
+	private int height = 0;
 	
+	// -------------------------------------------------------------------
 	/**
 	 * Empty constructor 
 	 */
 	public CubicBSplineTransform(){}
 	
+	// -------------------------------------------------------------------
 	/**
 	 * Cubic B-spline transform constructor
 	 * 
@@ -46,6 +67,7 @@ public class CubicBSplineTransform implements CoordinateTransform
 		this.height = height;
 	}
 	
+	// -------------------------------------------------------------------
 	/**
 	 * Cubic B-spline transform constructor
 	 * 
@@ -67,7 +89,54 @@ public class CubicBSplineTransform implements CoordinateTransform
 		this.width = width;
 		this.height = height;
 	}
+
+	// -------------------------------------------------------------------
+	/**
+	 * Set cubic B-spline transform values
+	 * 
+	 * @param intervals intervals between B-spline coefficients
+	 * @param swx B-spline model for transformation in the x axis
+	 * @param swy B-spline model for transformation in the y axis
+	 * @param width width of the target image
+	 * @param height height of the target image
+	 */
+	public void set(int intervals, 
+					BSplineModel swx, 
+					BSplineModel swy,
+					int width,
+					int height)	
+	{
+		this.intervals = intervals;
+		this.swx = swx;
+		this.swy = swy;
+		this.width = width;
+		this.height = height;
+	}
 	
+	// -------------------------------------------------------------------
+	/**
+	 * Set cubic B-spline transform constructor
+	 * 
+	 * @param intervals intervals between B-spline coefficients
+	 * @param cx B-spline coefficients for transformation in the x axis
+	 * @param cy B-spline coefficients for transformation in the y axis
+	 * @param width width of the target image
+	 * @param height height of the target image
+	 */
+	public void set(int intervals, 
+					double[][]cx, 
+					double[][]cy,
+					int width,
+					int height)	
+	{
+		this.intervals = intervals;
+		this.swx = new BSplineModel(cx);
+		this.swy = new BSplineModel(cy);
+		this.width = width;
+		this.height = height;
+	}
+	
+	// -------------------------------------------------------------------
 	/* (non-Javadoc)
 	 * @see mpicbg.models.CoordinateTransform#apply(float[])
 	 */
@@ -77,7 +146,8 @@ public class CubicBSplineTransform implements CoordinateTransform
 		applyInPlace(w);
 		return w;
 	}
-
+	
+	// -------------------------------------------------------------------
 	/* (non-Javadoc)
 	 * @see mpicbg.models.CoordinateTransform#applyInPlace(float[])
 	 */
@@ -92,8 +162,9 @@ public class CubicBSplineTransform implements CoordinateTransform
 	}
 
 
+	// -------------------------------------------------------------------
 	/**
-	 * Init cubic B-spline transform from the paramters of a string
+	 * Initialize cubic B-spline transform from the parameters of a string
 	 * 
 	 * @param dataString basic cubic B-spline transform parameters
 	 */
@@ -134,35 +205,38 @@ public class CubicBSplineTransform implements CoordinateTransform
 	}
 
 
+	// -------------------------------------------------------------------
 	/**
 	 * Save cubic B-spline transform information into String
 	 */
 	public String toDataString() 
 	{
-		String text = new String(this.width + " " + this.height +  " " + intervals);
+		StringBuffer text = new StringBuffer(this.width + " " + this.height +  " " + intervals);
 		
 		final int size = (intervals + 3) * (intervals + 3);
 		
 		final double[] cx = this.swx.getCoefficients();
 		
 		for(int i = 0; i < size; i ++)
-			text += " " + cx[i];
+			text.append( " " + cx[i] );
 		
 		final double[] cy = this.swy.getCoefficients();
 		
 		for(int i = 0; i < size; i ++)
-			text += " " + cy[i];
+			text.append( " " + cy[i] );
 		
-		return text;
+		return text.toString();
 	}
 
 
+	// -------------------------------------------------------------------
 	//@Override
 	final public String toXML( final String indent )
 	{
 		return indent + "<ict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\"/>";
 	}
 	
+	// -------------------------------------------------------------------
 	/**
 	 * Clone method
 	 */
@@ -174,4 +248,4 @@ public class CubicBSplineTransform implements CoordinateTransform
 	}
 	
 
-}
+}// end class CubicBSplineTransform

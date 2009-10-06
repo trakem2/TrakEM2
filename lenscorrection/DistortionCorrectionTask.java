@@ -449,6 +449,8 @@ final public class DistortionCorrectionTask
 					{
 						if ( p.visualize )
 						{
+							if ( Thread.currentThread().isInterrupted() ) return;
+							
 							setTaskName( "Visualizing lens distortion correction" );
 							lensModel.visualizeSmall( p.lambda );
 						}
