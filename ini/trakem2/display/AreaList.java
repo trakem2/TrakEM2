@@ -371,7 +371,7 @@ public class AreaList extends ZDisplayable {
 					}
 				}
 
-				// Take the largest area and subtract from it all other areas
+				// Take the largest area and subtract from it all other visible areas
 				if (intersecting.size() > 1) {
 					Area compound = new Area(bmax);
 					for (Area a : intersecting) {
