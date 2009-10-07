@@ -343,7 +343,7 @@ public class AreaList extends ZDisplayable {
 				// An area in world coords:
 				Area bmin = null;
 				Area bmax = null;
-				ArrayList<Area> intersecting = new ArrayList<Area>();
+				ArrayList<Area> intersecting = new ArrayList<Area>(); // a list of areas in world coords
 				// Try to find a hole in this or another visible AreaList, but fill it this
 				int min_area = Integer.MAX_VALUE;
 				int max_area = 0;
@@ -370,6 +370,7 @@ public class AreaList extends ZDisplayable {
 						intersecting.add(bw);
 					}
 				}
+
 				// Take the largest area and subtract from it all other areas
 				if (intersecting.size() > 1) {
 					Area compound = new Area(bmax);
@@ -399,7 +400,18 @@ public class AreaList extends ZDisplayable {
 					if (null == a) continue;
 					all.add(a.createTransformedArea(ali.at));
 				}
-				final Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
+
+				Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
+
+				if (null == polygon && project.getBooleanProperty("flood_fill_to_image_edge")) {
+					Area patch_area = la.getPatchArea(true); // in world coords
+					Rectangle bounds = patch_area.getBounds();
+					if (0 != bounds.width && 0 != bounds.height) {
+						patch_area.subtract(all);
+						polygon = M.findPath(patch_area, x_p_w, y_p_w);
+					}
+				}
+
 				if (null != polygon) {
 					Rectangle bounds = polygon.getBounds();
 					int pol_area = bounds.width * bounds.height;
@@ -408,6 +420,7 @@ public class AreaList extends ZDisplayable {
 						bmin = new Area(polygon);
 					}
 				}
+
 				if (null != bmin) {
 					try {
 						// Add b as local to this AreaList
