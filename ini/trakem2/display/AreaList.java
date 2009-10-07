@@ -417,6 +417,7 @@ public class AreaList extends ZDisplayable {
 						} else {
 							area.add(blocal);
 						}
+						calculateBoundingBox();
 						Display.repaint(Display.getFrontLayer(this.project), bmin.getBounds(), 1); // use b, in world coords
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 				}
