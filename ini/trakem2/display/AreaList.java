@@ -1081,10 +1081,15 @@ public class AreaList extends ZDisplayable {
 		xy[1] = 0;
 		int pos = 1;
 		while (' ' != c) {
-			xy[1] += (((int)c) -48) * pos; // digit zero is char with int value 48
 			last--;
+			if ('-' == c) {
+				xy[1] *= -1;
+				break;
+			} else {
+				xy[1] += (((int)c) -48) * pos; // digit zero is char with int value 48
+				pos *= 10;
+			}
 			c = data[last];
-			pos *= 10;
 		}
 
 		// skip separating space
@@ -1095,10 +1100,15 @@ public class AreaList extends ZDisplayable {
 		pos = 1;
 		xy[0] = 0;
 		while (' ' != c) {
-			xy[0] += (((int)c) -48) * pos;
 			last--;
+			if ('-' == c) {
+				xy[0] *= -1;
+				break;
+			} else {
+				xy[0] += (((int)c) -48) * pos;
+				pos *= 10;
+			}
 			c = data[last];
-			pos *= 10;
 		}
 		return first;
 	}
