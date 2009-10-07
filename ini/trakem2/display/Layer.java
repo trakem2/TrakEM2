@@ -447,6 +447,17 @@ public final class Layer extends DBObject implements Bucketable {
 		return al;
 	}
 
+	public ArrayList<Displayable> getDisplayables(final Class c, final boolean visible_only) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (final Displayable d : al_displayables) {
+			if (d.getClass() == c) {
+				if (visible_only && !d.isVisible()) continue;
+				al.add(d);
+			}
+		}
+		return al;
+	}
+
 	public Displayable get(final long id) {
 		for (Displayable d : al_displayables) {
 			if (d.getId() == id) return d;
@@ -775,6 +786,15 @@ public final class Layer extends DBObject implements Bucketable {
 			box.add(tmp);
 		}
 		return box;
+	}
+
+	/** Returns an Area in world coordinates that represents the inside of all Patches. */
+	public Area getPatchArea(final boolean visible_only) {
+		Area area = new Area(); // with width,height zero
+		for (final Patch p : (ArrayList<Patch>) (ArrayList) getDisplayables(Patch.class, visible_only)) {
+			area.add(p.getArea());
+		}
+		return area;
 	}
 
 	/** Preconcatenate the given AffineTransform to all Displayable objects of class c, without respecting their links. */
