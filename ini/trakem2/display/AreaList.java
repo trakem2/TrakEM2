@@ -570,11 +570,13 @@ public class AreaList extends ZDisplayable {
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
 		final private int flags = dc.getModifiers();
 		private boolean adding = (0 == (flags & alt));
+		private Layer la;
 		private long clicked_layer_id = -1;
 
 		BrushThread(Area area, double mag, Layer la) {
 			super("BrushThread");
 			setPriority(Thread.NORM_PRIORITY);
+			this.la = la;
 			this.clicked_layer_id = la.getId();
 			// if adding areas, make it be a copy, to be added on mouse release
 			// (In this way, the receiving Area is small and can be operated on fast)
@@ -663,7 +665,7 @@ public class AreaList extends ZDisplayable {
 					if (PAINT_OVERLAP == PP.paint_mode) {
 						// Nothing happens with PAINT_OVERLAP, default mode.
 					} else {
-						final ArrayList<AreaList> other_alis = (ArrayList<AreaList>) (ArrayList) Display.getFrontLayer(AreaList.this.project).getParent().getZDisplayables(AreaList.class);
+						final Collection<AreaList> other_alis = (Collection<AreaList>) (Collection) Display.getFrontLayer(AreaList.this.project).getParent().findZDisplayables(AreaList.class, la, target_area.createTransformedArea(AreaList.this.at).getBounds(), true);
 
 						// prepare undo step:
 						final HashMap<AreaList,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<AreaList,Runnable>() : null;

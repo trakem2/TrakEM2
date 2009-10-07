@@ -915,6 +915,17 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		return al;
 	}
+	/** Find ZDisplayable objects of the given class that intersect the given rectangle in the given layer. */
+	public Collection<Displayable> findZDisplayables(final Class c, final Layer layer, final Rectangle r, final boolean visible_only) {
+		if (null != root) return root.find(c, r, layer, visible_only);
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.getClass() != c) continue;
+			if (zd.getBounds(null, layer).intersects(r)) al.add(zd);
+		}
+		return al;
+	}
+	/** Find ZDisplayable objects that intersect the given rectangle in the given layer. */
 	public Collection<Displayable> findZDisplayables(final Layer layer, final Rectangle r, final boolean visible_only) {
 		if (null != root) return root.find(r, layer, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
