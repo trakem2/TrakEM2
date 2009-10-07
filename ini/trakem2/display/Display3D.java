@@ -360,6 +360,7 @@ public final class Display3D {
 				for (Future<Content> fc : vc) {
 					try {
 						Content c = fc.get();
+						if (null == c) continue;
 						ArrayList<Display3D> d3ds = new ArrayList<Display3D>();
 						synchronized (ht_layer_sets) {
 							d3ds.addAll(ht_layer_sets.values());
