@@ -324,6 +324,7 @@ public class Project extends DBObject {
 					Utils.showMessage("Can't read/write to the selected storage folder.\nPlease check folder permissions.");
 					return null;
 				}
+				if (IJ.isWindows()) dir_project = dir_project.replace('\\', '/');
 			}
 			FSLoader loader = new FSLoader(dir_project);
 			if (!loader.isReady()) return null;
@@ -646,6 +647,9 @@ public class Project extends DBObject {
 		} else if (type.equals("area_list")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new AreaList(this, "area_list", 0, 0);
+		} else if (type.equals("treeline")) {
+			ProjectToolbar.setTool(ProjectToolbar.PEN);
+			return new Treeline(this, "treeline");
 		} else if (type.equals("ball")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Ball(this, "ball", 0, 0);
@@ -661,30 +665,38 @@ public class Project extends DBObject {
 	}
 
 	/** Returns true if the type is 'patch', 'layer', 'layer_set', 'profile', 'profile_list' 'pipe'. */
-	static public boolean isBasicType(String type) {
-		if (isProjectType(type)) return true;
-		if (isLayerType(type)) return true;
-		return false;
+	static public boolean isBasicType(final String type) {
+		return isProjectType(type)
+		    || isLayerSetType(type)
+		    || isLayerType(type)
+		;
 	}
 
 	static public boolean isProjectType(String type) {
 		type = type.toLowerCase();
-		if (type.equals("profile_list")) return true;
-		return false;
+		return type.equals("profile_list");
+	}
+
+	static public boolean isLayerSetType(String type) {
+		type = type.toLowerCase().replace(' ', '_');
+		return type.equals("area_list")
+		    || type.equals("pipe")
+		    || type.equals("ball")
+		    || type.equals("polyline")
+		    || type.equals("dissector")
+		    || type.equals("stack")
+		    || type.equals("treeline")
+		;
 	}
 
 	static public boolean isLayerType(String type) {
 		type = type.toLowerCase().replace(' ', '_');
-		if (type.equals("patch")) return true;
-		if (type.equals("area_list")) return true;
-		if (type.equals("label")) return true;
-		if (type.equals("profile")) return true;
-		if (type.equals("pipe")) return true;
-		if (type.equals("polyline")) return true;
-		if (type.equals("ball")) return true;
-		if (type.equals("layer")) return true;
-		if (type.equals("layer set")) return true; // for XML ...
-		return false;
+		return type.equals("patch")
+		    || type.equals("profile")
+		    || type.equals("layer")
+		    || type.equals("layer_set") // for XML
+		    || type.equals("label")
+		;
 	}
 
 	/** Remove the ProjectThing that contains the given object, which will remove the object itself as well. */
@@ -727,7 +739,7 @@ public class Project extends DBObject {
 		else select(d, project_tree);
 	}
 
-	private final void select(final Object ob, final JTree tree) {
+	private final void select(final Object ob, final DNDTree tree) {
 		// Find the Thing that contains the object
 		final Thing root_thing = (Thing)((DefaultMutableTreeNode)tree.getModel().getRoot()).getUserObject();
 		final Thing child_thing = root_thing.findChild(ob);
@@ -866,6 +878,7 @@ public class Project extends DBObject {
 		}
 		if (!ht_unique_tt.containsKey("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
 		if (!ht_unique_tt.containsKey("polyline")) ht_unique_tt.put("polyline", new TemplateThing("polyline"));
+		if (!ht_unique_tt.containsKey("treeline")) ht_unique_tt.put("treeline", new TemplateThing("treeline"));
 		if (!ht_unique_tt.containsKey("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
 		if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
 		if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
@@ -984,10 +997,14 @@ public class Project extends DBObject {
 		Profile.exportDTD(sb_header, hs, indent);
 		AreaList.exportDTD(sb_header, hs, indent);
 		Dissector.exportDTD(sb_header, hs, indent);
+		Stack.exportDTD( sb_header, hs, indent );
+		Treeline.exportDTD(sb_header, hs, indent);
 		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		// 4 - export Display
 		Display.exportDTD(sb_header, hs, indent);
 		// all the above could be done with reflection, automatically detecting the presence of an exportDTD method.
+		// CoordinateTransforms
+		mpicbg.trakem2.transform.DTD.append( sb_header, hs, indent );
 	}
 
 	/** Returns the String to be used as Document Type of the XML file, generated from the name of the root template thing.*/
@@ -1053,7 +1070,7 @@ public class Project extends DBObject {
 	public Project createSubproject(final Rectangle roi, final Layer first, final Layer last) {
 		try {
 			// The order matters.
-			final Project pr = new Project(new FSLoader(this.getLoader()));
+			final Project pr = new Project(new FSLoader(this.getLoader().getStorageFolder()));
 			pr.id = this.id;
 			// copy properties
 			pr.title = this.title;
@@ -1087,6 +1104,9 @@ public class Project extends DBObject {
 
 			// The abstract structure should be copied in full regardless, without the basic objects
 			// included if they intersect the roi.
+
+			// Regenerate mipmaps (blocks GUI from interaction other than navigation)
+			pr.loader.regenerateMipMaps(pr.layer_set.getDisplayables(Patch.class));
 
 			return pr;
 
@@ -1203,6 +1223,8 @@ public class Project extends DBObject {
 		gd.addCheckbox("No_shutdown_hook to save the project", no_shutdown_hook);
 		int n_undo_steps = getProperty("n_undo_steps", 32);
 		gd.addSlider("Undo steps", 32, 200, n_undo_steps);
+		boolean flood_fill_to_image_edge = "true".equals(ht_props.get("flood_fill_to_image_edge"));
+		gd.addCheckbox("AreaList_flood_fill_to_image_edges", flood_fill_to_image_edge);
 		//
 		gd.showDialog();
 		//
@@ -1245,6 +1267,7 @@ public class Project extends DBObject {
 		n_undo_steps = (int)gd.getNextNumber();
 		if (n_undo_steps < 0) n_undo_steps = 0;
 		setProperty("n_undo_steps", Integer.toString(n_undo_steps));
+		adjustProp("flood_fill_to_image_edge", flood_fill_to_image_edge, gd.getNextBoolean());
 	}
 
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */

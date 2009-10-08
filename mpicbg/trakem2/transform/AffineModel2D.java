@@ -21,7 +21,7 @@ package mpicbg.trakem2.transform;
 
 import java.awt.geom.AffineTransform;
 
-public class AffineModel2D extends mpicbg.models.AffineModel2D implements CoordinateTransform
+public class AffineModel2D extends mpicbg.models.AffineModel2D implements InvertibleCoordinateTransform
 {
 
 	//@Override
@@ -44,7 +44,7 @@ public class AffineModel2D extends mpicbg.models.AffineModel2D implements Coordi
 	//@Override
 	final public String toXML( final String indent )
 	{
-		return indent + "<ict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\"/>";
+		return indent + "<iict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\" />";
 	}
 	
 	//@Override

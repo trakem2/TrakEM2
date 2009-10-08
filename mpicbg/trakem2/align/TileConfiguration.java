@@ -46,9 +46,9 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		
 		while ( proceed )
 		{
-			for ( final Tile tile : tiles )
+			for ( final Tile tile : getTiles() )
 			{
-				if ( fixedTiles.contains( tile ) ) continue;
+				if ( getFixedTiles().contains( tile ) ) continue;
 				tile.update();
 				tile.fitModel();
 				if ( AffineModel2D.class.isInstance( tile.getModel() ) )
@@ -78,11 +78,11 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 				tile.update();
 			}
 			update();
-			observer.add( error );
+			observer.add( getError() );
 			
 			if ( i > maxPlateauwidth )
 			{
-				proceed = error > maxAllowedError;
+				proceed = getError() > maxAllowedError;
 				
 				int d = maxPlateauwidth;
 				while ( !proceed && d >= 1 )
@@ -99,10 +99,10 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 			proceed &= ++i < maxIterations;
 		}
 		
-		println( "Successfully optimized configuration of " + tiles.size() + " tiles after " + i + " iterations:" );
-		println( "  average displacement: " + decimalFormat.format( error ) + "px" );
-		println( "  minimal displacement: " + decimalFormat.format( minError ) + "px" );
-		println( "  maximal displacement: " + decimalFormat.format( maxError ) + "px" );
+		println( "Successfully optimized configuration of " + getTiles().size() + " tiles after " + i + " iterations:" );
+		println( "  average displacement: " + decimalFormat.format( getError() ) + "px" );
+		println( "  minimal displacement: " + decimalFormat.format( getMinError() ) + "px" );
+		println( "  maximal displacement: " + decimalFormat.format( getMaxError() ) + "px" );
 	}
 
 }

@@ -406,12 +406,27 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				align.paint(active_layer, g2d, srcRect, magnification);
 			}
 
-			// paint brush outline for AreaList
-			if (mouse_in && null != active && ProjectToolbar.getToolId() == ProjectToolbar.PEN && active.getClass() == AreaList.class) {
-				int brushSize = ProjectToolbar.getBrushSize();
-				g.setColor(active.getColor());
-				g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
+			// paint brush outline for AreaList, or fast-marching area
+			if (mouse_in && null != active && active.getClass() == AreaList.class) {
+				switch (ProjectToolbar.getToolId()) {
+					case ProjectToolbar.PEN:
+						int brushSize = ProjectToolbar.getBrushSize();
+						g.setColor(active.getColor());
+						g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
+						break;
+					case ProjectToolbar.PENCIL:
+						Composite co = g2d.getComposite();
+						g2d.setXORMode(active.getColor());
+						if (IJ.isWindows()) g2d.setColor(active.getColor());
+						g2d.drawRect((int)((xMouse -srcRect.x -Segmentation.fmp.width/2)  * magnification),
+							     (int)((yMouse -srcRect.y -Segmentation.fmp.height/2) * magnification),
+							     (int)(Segmentation.fmp.width  * magnification),
+							     (int)(Segmentation.fmp.height * magnification)); 
+						g2d.setComposite(co); // undo XOR mode
+						break;
+				}
 			}
+
 
 			final Roi roi = imp.getRoi();
 			if (null != roi) {
@@ -470,6 +485,24 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		g.drawRect((int) ((x - srcRect.x) * magnification) - 2, (int) ((y - srcRect.y) * magnification) - 2, 5, 5);
 	}
 
+	static private BasicStroke DEFAULT_STROKE = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+	static private AffineTransform DEFAULT_AFFINE = new AffineTransform();
+
+	static public void drawHandle(Graphics2D g, double x, double y, Rectangle srcRect, double magnification) {
+		AffineTransform original = g.getTransform();
+		g.setTransform(DEFAULT_AFFINE);
+		Stroke st = g.getStroke();
+		g.setStroke(DEFAULT_STROKE);
+
+		g.setColor(Color.black);
+		g.fillRect((int) ((x - srcRect.x) * magnification) - 1, (int) ((y - srcRect.y) * magnification) - 1, 3, 3);
+		g.setColor(Color.white);
+		g.drawRect((int) ((x - srcRect.x) * magnification) - 2, (int) ((y - srcRect.y) * magnification) - 2, 5, 5);
+
+		g.setStroke(st);
+		g.setTransform(original);
+	}
+
 	protected void setDrawingColor(int ox, int oy, boolean setBackground) {
 		super.setDrawingColor(ox, oy, setBackground);
 	}
@@ -480,6 +513,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private boolean popup = false;
 
 	private boolean locked = false; // TODO temporary!
+
+	private boolean beyond_srcRect = false;
 
 	private int tmp_tool = -1;
 
@@ -796,8 +831,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// the line above must repaint on its own
 					break;
 				}
-			} else { 
-				locked = true; // TODO temporary until the snapTo and mouseEntered issues are fixed
+			} else {
+				beyond_srcRect = true;
 				Utils.log("DisplayCanvas.mouseDragged: preventing drag beyond layer limits.");
 			}
 		}
@@ -879,6 +914,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		int x_r = srcRect.x + (int)(me.getX() / magnification);
 		int y_r = srcRect.y + (int)(me.getY() / magnification);
+
+		/*
+		if (beyond_srcRect) {
+			// Artificial release on the last dragged point
+			x_r = x_d;
+			y_r = y_d;
+		}
+		*/
 
 		this.xMouse = x_r;
 		this.yMouse = y_r;
@@ -1282,17 +1325,29 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			/* && 0 == (flags & InputEvent.BUTTON2_MASK) */ // this is the alt key down ..
 			 && 0 == (flags & InputEvent.BUTTON3_MASK)
 			//if (me.getButton() == MouseEvent.NOBUTTON
-			 && ProjectToolbar.getToolId() == ProjectToolbar.PEN && null != active && active.isVisible() && AreaList.class == active.getClass()) {
-				// repaint area where the brush circle is
-				int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
-				Rectangle r = new Rectangle( xMouse - brushSize/2,
-							     yMouse - brushSize/2,
-							     brushSize+1,
-							     brushSize+1 );
-				Rectangle copy = (Rectangle)r.clone(); 
-				if (null != old_brush_box) r.add(old_brush_box);
-				old_brush_box = copy;
-				repaint(r, 1); // padding because of painting rounding which would live dirty trails
+			 && null != active && active.isVisible() && AreaList.class == active.getClass()) {
+				final int tool = ProjectToolbar.getToolId();
+				Rectangle r = null;
+				if (ProjectToolbar.PEN == tool) {
+					// repaint area where the brush circle is
+					int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
+					r = new Rectangle( xMouse - brushSize/2,
+							   yMouse - brushSize/2,
+							   brushSize+1,
+							   brushSize+1 );
+				} else if (ProjectToolbar.PENCIL == tool) {
+					// repaint area where the fast-marching box is
+					r = new Rectangle( xMouse - Segmentation.fmp.width/2 - 2,
+							   yMouse - Segmentation.fmp.height/2 - 2,
+							   Segmentation.fmp.width + 4,
+							   Segmentation.fmp.height + 4 );
+				}
+				if (null != r) {
+					Rectangle copy = (Rectangle)r.clone(); 
+					if (null != old_brush_box) r.add(old_brush_box);
+					old_brush_box = copy;
+					repaint(r, 1); // padding because of painting rounding which would live dirty trails
+				}
 			}
 
 			if (me.isShiftDown()) {
@@ -1969,17 +2024,29 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			} else {
 				zoomIn(x, y);
 			}
-		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && ProjectToolbar.getToolId() == ProjectToolbar.PEN) {
-			int brushSize_old = ProjectToolbar.getBrushSize();
-			// resize brush for AreaList painting
+		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && display.getActive().getClass() == AreaList.class) {
+			final int tool = ProjectToolbar.getToolId();
 			final int sign = rotation > 0 ? 1 : -1;
-			int brushSize = ProjectToolbar.setBrushSize((int)(5 * sign / magnification)); // the getWheelRotation provides the sign
-			if (brushSize_old > brushSize) brushSize = brushSize_old; // for repainting purposes alnne
-			int extra = (int)(5 / magnification);
-			if (extra < 2) extra = 2;
-			extra += 4;
-			Rectangle r = new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - brushSize/2 - extra, (int)(mwe.getY() / magnification) + srcRect.y - brushSize/2 - extra, brushSize+extra, brushSize+extra);
-			this.repaint(r, 0);
+			if (ProjectToolbar.PEN == tool) {
+				int brushSize_old = ProjectToolbar.getBrushSize();
+				// resize brush for AreaList painting
+				int brushSize = ProjectToolbar.setBrushSize((int)(5 * sign / magnification)); // the getWheelRotation provides the sign
+				if (brushSize_old > brushSize) brushSize = brushSize_old; // for repainting purposes alone
+				int extra = (int)(10 / magnification);
+				if (extra < 2) extra = 2;
+				extra += 4; // for good measure
+				this.repaint(new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - brushSize/2 - extra, (int)(mwe.getY() / magnification) + srcRect.y - brushSize/2 - extra, brushSize+extra, brushSize+extra), 0);
+			} else if (ProjectToolbar.PENCIL == tool) {
+				// resize area to consider for fast-marching
+				int w = Segmentation.fmp.width;
+				int h = Segmentation.fmp.height;
+				Segmentation.fmp.resizeArea(sign, magnification);
+				w = Math.max(w, Segmentation.fmp.width);
+				h = Math.max(h, Segmentation.fmp.height);
+				this.repaint(new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - w/2 + 2,
+							   (int)(mwe.getY() / magnification) + srcRect.y - h/2 + 2,
+							   w + 4, h + 4), 0);
+			}
 		} else if (0 == modifiers) {
 			// scroll layers
 			if (rotation > 0) display.nextLayer(modifiers);
@@ -2167,10 +2234,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// paint first the current layer Patches only (to set the background)
 					int count = 0;
 					for (final Paintable d : paintable_patches) {
-						d.paint(g, magnification, d == active, c_alphas, layer);
+						// With prePaint capabilities:
+						d.prePaint(g, magnification, d == active, c_alphas, layer);
 					}
 
-					// then blend on top the Patches of the others, in reverse Z order and using the alpha of the LayerPanel
+					// then blend on top the ImageData of the others, in reverse Z order and using the alpha of the LayerPanel
 					final Composite original = g.getComposite();
 					// reset
 					g.setTransform(new AffineTransform());
@@ -2182,11 +2250,22 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						final Graphics2D gb = bi.createGraphics();
 						gb.setTransform(atc);
 						for (final Displayable d : lp.layer.find(srcRect, true)) {
-							if (d.getClass() != Patch.class) continue; // skip non-images
-							d.paint(gb, magnification, false, c_alphas, lp.layer);
+							if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
+							d.paint(gb, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 						}
-						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
-						g.drawImage(bi, 0, 0, null);
+						// Repeating loop ... the human compiler at work, just because one cannot lazily concatenate both sequences:
+						for (final Displayable d : lp.layer.getParent().findZDisplayables(lp.layer, srcRect, true)) {
+							if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
+							d.paint(gb, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
+						}
+						try {
+							g.setComposite(Displayable.getComposite(display.getLayerCompositeMode(lp.layer), lp.getAlpha()));
+							g.drawImage(bi, 0, 0, null);
+						} catch (Throwable t) {
+							Utils.log("Could not use composite mode for layer overlays! Your graphics card may not support it.");
+							g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
+							g.drawImage(bi, 0, 0, null);
+						} 
 						bi.flush();
 					}
 					// restore
@@ -2207,13 +2286,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						final Graphics2D gb = bi.createGraphics();
 						gb.setTransform(atc);
 						final Layer la = e.getValue();
-						Collection<? extends Paintable> list;
+						ArrayList<Paintable> list = new ArrayList<Paintable>();
 						if (la == layer) {
 							if (Color.green != e.getKey()) continue; // don't paint current layer in two channels
-							list = paintable_patches;
+							list.addAll(paintable_patches);
 						} else {
-							list = la.find(Patch.class, srcRect, true);
+							list.addAll(la.find(Patch.class, srcRect, true));
 						}
+						list.addAll(la.getParent().getZDisplayables(ImageData.class, true)); // Stack.class and perhaps others
 						for (final Paintable d : list) {
 							d.paint(gb, magnification, false, c_alphas, la);
 						}
@@ -2239,10 +2319,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// reset
 					g.setTransform(atc);
 
-					// then paint the non-Patch objects of the current layer
-					for (final Displayable d : al_paint.subList(al_patches.size(), al_paint.size())) {
+					// then paint the non-Image objects of the current layer
+					for (final Displayable d : al_paint) {
+						if (ImageData.class.isInstance(d)) continue;
 						d.paint(g, magnification, d == active, c_alphas, layer);
 					}
+					// TODO having each object type in a key/list<type> table would be so much easier and likely performant.
 				}
 
 				// finally, paint non-srcRect areas

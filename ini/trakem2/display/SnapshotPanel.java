@@ -101,7 +101,7 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 		// ... and create the image in a separate thread and repaint again
 		FSLoader.repainter.submit(new Runnable() { public void run() {
 			if (!display.isPartiallyWithinViewport(d)) return;
-			BufferedImage img = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_ARGB);
+			BufferedImage img = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_RGB);
 			Graphics2D g2 = img.createGraphics();
 
 			fillBackground(g2, lw, lh, slw, slh);

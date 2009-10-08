@@ -130,9 +130,9 @@ public final class TemplateThing extends DBObject implements Thing {
 		return type;
 	}
 
-	public String getTitle() {
-		return type;
-	}
+//	public String getTitle() {
+//		return type;
+//	}
 
 	public String getType() {
 		return type;
@@ -165,7 +165,7 @@ public final class TemplateThing extends DBObject implements Thing {
 			}
 			// TODO should change to use a Map<String,TemplateThing>.
 		}
-		Utils.log2("Added child of type " + ((TemplateThing)child).type);
+		//Utils.log2("Added child of type " + ((TemplateThing)child).type);
 		al_children.add(child);
 		child.setParent(this);
 		return true;

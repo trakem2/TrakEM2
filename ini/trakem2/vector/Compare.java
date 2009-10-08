@@ -1285,7 +1285,10 @@ public class Compare {
 	static private final String[] distance_types = {"Levenshtein", "Dissimilarity", "Average physical distance", "Median physical distance", "Cummulative physical distance", "Standard deviation", "Combined SLM", "Proximity", "Proximity of mutation pairs"};
 
 	// Weights as empirically approximated with some lineages, with S. Preibisch ( see Test_Scoring.java )
-	static public final double[] W = new double[]{1.3345290383577453, -0.0012626693452889859, -0.012764729437173508, -0.13344076489951817};
+	// Old: from 3D affine transform registration from 4 points
+	// static public final double[] W = new double[]{1.3345290383577453, -0.0012626693452889859, -0.012764729437173508, -0.13344076489951817};
+	// New 20090809: from 8-point moving least squares registration:
+	static public final double[] W = new double[]{0.3238955445631255, -0.001738441643315311, -0.03506078734289302, 0.7148869480636044};
 
 	static public final double score(final double seq_sim, final double levenshtein, final double median_phys_dist, final double[] w) {
 		//       S                L                    M
@@ -1784,7 +1787,10 @@ public class Compare {
 				//  - to show the full matched nodes
 
 				ActionListener listener = new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
+					public void actionPerformed(final ActionEvent ae) {
+						new Thread() {
+							{ setPriority(Thread.NORM_PRIORITY); }
+							public void run() {
 						try {
 							final String command = ae.getActionCommand();
 							if (command.equals(interp3D)) {
@@ -1807,6 +1813,7 @@ public class Compare {
 								model.vis.showNearby(model.query);
 							}
 						} catch (Exception e) { IJError.print(e); }
+						}}.start();
 					}
 				};
 				JMenuItem item;
@@ -2403,6 +2410,7 @@ public class Compare {
 	 * @param map_condensed If not null, all VectorString3D are put into this map.
 	 * */
 	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex,
+						     final String[] ignore,
 			                             final boolean generate_plots, final boolean show_plots,
 						     final boolean show_3D, final boolean show_condensed_3D, final boolean show_sources_3D,
 						     final boolean show_envelope_3D, final float envelope_alpha,
@@ -2429,11 +2437,16 @@ public class Compare {
 		Utils.log2("Asking for CATAParameters...");
 
 		final CATAParameters cp = new CATAParameters();
-		if (!cp.setup(false, regex, true, true)) { // no regex used so far.
+		if (!cp.setup(false, regex, true, true)) {
 			finishedWorking();
 			return;
 		}
 		cp.with_source = true; // so source points are stored in VectorString3D for each resampled and interpolated point
+
+
+		// Store a series of results, depending on options
+		final HashMap results = new HashMap();
+
 
 		String plot_dir = null;
 		if (generate_plots && !show_plots) {
@@ -2445,12 +2458,12 @@ public class Compare {
 				return;
 			}
 			if (IJ.isWindows()) plot_dir = plot_dir.replace('\\', '/');
-			if (plot_dir.endsWith("/")) plot_dir += "/";
+			if (!plot_dir.endsWith("/")) plot_dir += "/";
 		}
 
 		Utils.log2("Gathering chains...");
 
-		Object[] ob = gatherChains(p, cp); // will transform them as well to the reference found in the first project in the p array
+		Object[] ob = gatherChains(p, cp, ignore); // will transform them as well to the reference found in the first project in the p array
 		ArrayList<Chain> chains = (ArrayList<Chain>)ob[0];
 		final ArrayList[] p_chains = (ArrayList[])ob[1]; // to keep track of each project's chains
 		ob = null;
@@ -2503,6 +2516,35 @@ public class Compare {
 		Utils.log2("Found " + bundles.size() + " bundles.");
 
 		chains = null;
+
+
+		if (null != cp.regex && show_axes_3D && axes.size() < 3) {
+			// Must find the Mushroom Body lobes separately
+			String cp_regex = cp.regex;
+			cp.regex = "mb";
+			Object[] o = gatherChains(p, cp, ignore);
+			ArrayList<Chain> lobes = (ArrayList<Chain>)o[0];
+			Utils.logAll("Found " + lobes.size() + " chains for lobes");
+			for (Chain chain : lobes) {
+				String t = chain.getCellTitle().toLowerCase();
+				if (-1 != t.indexOf("peduncle")
+				 || -1 != t.indexOf("medial lobe")
+				 || -1 != t.indexOf("dorsal lobe")) {
+					Utils.logAll("adding " + t);
+					Project pr = chain.pipes.get(0).getProject();
+					HashMap<String,VectorString3D> m = axes.get(pr);
+					if (null == m) {
+						m = new HashMap<String,VectorString3D>();
+						axes.put(pr, m);
+					}
+					m.put(t, chain.vs);
+					continue;
+				}
+			}
+			cp.regex = cp_regex;
+		} else {
+			Utils.logAll("Not: cp.regex = " + cp.regex + "  show_axes_3D = " + show_axes_3D + "  axes.size() = " + axes.size());
+		}
 
 		final HashMap<String,VectorString3D> condensed = new HashMap<String,VectorString3D>();
 
@@ -2590,7 +2632,7 @@ public class Compare {
 			}
 
 			LayerSet common_ls = new LayerSet(p[0], -1, "Common", 10, 10, 0, 0, 0, 512, 512, false, 2, new AffineTransform());
-			final Display3D d3d = Display3D.getDisplay(common_ls);
+			final Display3D d3d = Display3D.get(common_ls);
 
 			float env_alpha = envelope_alpha;
 			if (env_alpha < 0) {
@@ -2606,13 +2648,13 @@ public class Compare {
 					continue;
 				}
 				if (show_sources_3D) {
-					for (Chain chain : bc) d3d.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
+					for (Chain chain : bc) Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
 				}
 				if (show_condensed_3D) {
-					d3d.addMesh(common_ls, vs_merged, name + "-condensed", heat_map ? heat_table.get(name) : Color.red);
+					Display3D.addMesh(common_ls, vs_merged, name + "-condensed", heat_map ? heat_table.get(name) : Color.red);
 				}
 				if (show_envelope_3D) {
-					d3d.addMesh(common_ls, vs_merged, name + "-envelope", heat_map ? heat_table.get(name) : Color.red, makeEnvelope(cp, vs_merged), env_alpha);
+					Display3D.addMesh(common_ls, vs_merged, name + "-envelope", heat_map ? heat_table.get(name) : Color.red, makeEnvelope(cp, vs_merged), env_alpha);
 				} else if (heat_map) {
 					// Show spheres in place of envelopes, at the starting tip (neuropile entry point)
 					double x = vs_merged.getPoints(0)[0];
@@ -2632,14 +2674,22 @@ public class Compare {
 
 			if (show_axes_3D) {
 				for (int i=0; i<p.length; i++) {
-					for (Map.Entry<String,VectorString3D> e : axes.get(p[i]).entrySet()) {
-						d3d.addMesh(common_ls, e.getValue(), e.getKey() + "-" + i, Color.gray);
+					Map<String,VectorString3D> m = axes.get(p[i]);
+					if (null == m) {
+						Utils.log2("No axes found for project " + p[i]);
+						continue;
+					}
+					for (Map.Entry<String,VectorString3D> e : m.entrySet()) {
+						Display3D.addMesh(common_ls, e.getValue(), e.getKey() + "-" + i, Color.gray);
 					}
 				}
 			}
 
+			results.put("d3d", Display3D.get(common_ls));
+
 		}
 
+		this.result = results;
 		Utils.log2("Done.");
 
 				} catch (Exception e) {

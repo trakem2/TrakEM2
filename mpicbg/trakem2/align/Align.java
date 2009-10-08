@@ -3,6 +3,7 @@
  */
 package mpicbg.trakem2.align;
 
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.io.Serializable;
@@ -19,10 +20,12 @@ import ij.gui.GenericDialog;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.utils.Utils;
 
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
@@ -31,9 +34,12 @@ import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.NotEnoughDataPointsException;
+import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
 
@@ -1013,6 +1019,152 @@ public class Align
 					IJ.log( "No model found for layer \"" + l.getTitle() + "\" and its predecessor." );
 			}
 			IJ.showProgress( ++i, layers.size() );	
+		}
+	}
+	
+	/**
+	 * Temporary helper method that creates 
+	 * @param matches
+	 * @param alpha
+	 * @return
+	 * @throws Exception
+	 */
+	final static public MovingLeastSquaresTransform createMLST( final Collection< PointMatch > matches, final float alpha ) throws Exception
+	{
+		final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
+		mlst.setAlpha( 1.0f );
+		Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
+		switch ( matches.size() )
+		{
+			case 1:
+				c = TranslationModel2D.class;
+				break;
+			case 2:
+				c = SimilarityModel2D.class;
+				break;
+			default:
+				break;
+		}
+		mlst.setModel( c );
+		mlst.setMatches( matches );
+		
+		return mlst;
+	}
+	
+	
+	/**
+	 * Align two collections of tiles 
+	 * @param p
+	 * @param a
+	 * @param b
+	 */
+	final static public void alignTileCollections( final Param p, final Collection< AbstractAffineTile2D< ? > > a, final Collection< AbstractAffineTile2D< ? > > b )
+	{
+		final ArrayList< Patch > pa = new ArrayList< Patch >();
+		final ArrayList< Patch > pb = new ArrayList< Patch >();
+		for ( final AbstractAffineTile2D< ? > t : a )
+			pa.add( t.getPatch() );
+		for ( final AbstractAffineTile2D< ? > t : b )
+			pb.add( t.getPatch() );
+		
+		final Layer la = pa.iterator().next().getLayer();
+		final Layer lb = pb.iterator().next().getLayer();
+		
+		final Rectangle boxA = Displayable.getBoundingBox( pa, null );
+		final Rectangle boxB = Displayable.getBoundingBox( pb, null );
+
+		final float scale = Math.min(
+				1.0f,
+				Math.min(
+					Math.min(
+							( float )p.sift.maxOctaveSize / ( float )boxA.width,
+							( float )p.sift.maxOctaveSize / ( float )boxA.height ),
+					Math.min(
+							( float )p.sift.maxOctaveSize / ( float )boxB.width,
+							( float )p.sift.maxOctaveSize / ( float )boxB.height ) ) );
+		
+		final Param pp = p.clone();
+		pp.maxEpsilon *= scale;
+		
+		final FloatArray2DSIFT sift = new FloatArray2DSIFT( pp.sift );
+		final SIFT ijSIFT = new SIFT( sift );
+		
+		final Collection< Feature > featuresA = new ArrayList< Feature >();
+		final Collection< Feature > featuresB = new ArrayList< Feature >();
+		List< PointMatch > candidates = new ArrayList< PointMatch >();
+		List< PointMatch > inliers = new ArrayList< PointMatch >();
+		
+		long s = System.currentTimeMillis();
+		ijSIFT.extractFeatures(
+				la.getProject().getLoader().getFlatImage( la, boxA, scale, 0xffffffff, ImagePlus.GRAY8, null, pa, true, Color.GRAY ).getProcessor(), featuresA );
+		Utils.log( featuresA.size() + " features extracted in graph A in layer \"" + la.getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+		
+		s = System.currentTimeMillis();
+		ijSIFT.extractFeatures(
+				lb.getProject().getLoader().getFlatImage( lb, boxB, scale, 0xffffffff, ImagePlus.GRAY8, null, pb, true, Color.GRAY ).getProcessor(), featuresB );
+		Utils.log( featuresB.size() + " features extracted in graph B in layer \"" + lb.getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+		
+		if ( featuresA.size() > 0 && featuresB.size() > 0 )
+		{
+			s = System.currentTimeMillis();
+			FeatureTransform.matchFeatures(
+					featuresA,
+					featuresB,
+					candidates,
+					pp.rod );
+
+			final AbstractAffineModel2D< ? > model;
+			switch ( p.expectedModelIndex )
+			{
+			case 0:
+				model = new TranslationModel2D();
+				break;
+			case 1:
+				model = new RigidModel2D();
+				break;
+			case 2:
+				model = new SimilarityModel2D();
+				break;
+			case 3:
+				model = new AffineModel2D();
+				break;
+			default:
+				return;
+			}
+
+			boolean modelFound;
+			try
+			{
+				modelFound = model.filterRansac(
+						candidates,
+						inliers,
+						1000,
+						p.maxEpsilon,
+						p.minInlierRatio,
+						3 * model.getMinNumMatches(),
+						3 );
+			}
+			catch ( NotEnoughDataPointsException e )
+			{
+				modelFound = false;
+			}
+			
+			if ( modelFound )
+			{
+				IJ.log( "Model found for graph A and B in layers \"" + la.getTitle() + "\" and \"" + lb.getTitle() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+				final AffineTransform at = new AffineTransform();
+				at.translate( boxA.x, boxA.y );
+				at.scale( 1.0f / scale, 1.0f / scale );
+				at.concatenate( model.createAffine() );
+				at.scale( scale, scale );
+				at.translate( -boxB.x, -boxB.y);
+				
+				for ( final Patch t : pa )
+					t.preTransform( at, false );
+				Display.repaint( la );
+			}
+			else
+				IJ.log( "No model found for graph A and B in layers \"" + la.getTitle() + "\" and \"" + lb.getTitle() + "\"." );
 		}
 	}
 }

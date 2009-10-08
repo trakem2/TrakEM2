@@ -578,6 +578,15 @@ public class Pipe extends ZDisplayable implements Line3D {
 				//draw lines between backbone and control points
 				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_l[0][j], (int)p_l[1][j]);
 				g.drawLine((int)p[0][j], (int)p[1][j], (int)p_r[0][j], (int)p_r[1][j]);
+
+				// label the first point distinctively:
+				if (0 == j) {
+					Composite comp = g.getComposite();
+					g.setColor(Color.white);
+					g.setXORMode(Color.green);
+					g.drawString("1", (int)(p[0][0] + (4.0 / magnification)), (int)p[1][0]); // displaced 4 screen pixels to the right
+					g.setComposite(comp);
+				}
 			}
 		}
 		// paint the tube in 2D:
@@ -1378,13 +1387,14 @@ public class Pipe extends ZDisplayable implements Line3D {
 	}
 
 	// scan the Display and link Patch objects that lay under this Pipe's bounding box:
-	public void linkPatches() { // TODO needs to check all layers!!
+	public boolean linkPatches() { // TODO needs to check all layers!!
 		// SHOULD check on every layer where there is a subperimeter. This method below will work only while the Display is not switching layer before deselecting this pipe (which calls linkPatches)
 
 		// find the patches that don't lay under other profiles of this profile's linking group, and make sure they are unlinked. This will unlink any Patch objects under this Pipe:
 		unlinkAll(Patch.class);
 
 		HashSet hs = new HashSet();
+		boolean must_lock = false;
 		for (int l=0; l<n_points; l++) {
 			// avoid repeating the ones that have been done
 			Long lo = new Long(p_layer[l]); // in blankets ...
@@ -1392,6 +1402,10 @@ public class Pipe extends ZDisplayable implements Line3D {
 			else hs.add(lo);
 
 			Layer layer = layer_set.getLayer(p_layer[l]);
+			if (null == layer) {
+				Utils.log2("Pipe.linkPatches: ignoring null layer for id " + p_layer[l]);
+				continue;
+			}
 
 			// this bounding box as in the current layer
 			final Polygon[] perimeters = getSubPerimeters(layer);
@@ -1409,11 +1423,20 @@ public class Pipe extends ZDisplayable implements Line3D {
 					if (perimeters[i].intersects(displ.getBoundingBox(box))) {
 						// Link the patch
 						this.link(displ);
+						if (displ.locked) must_lock = true;
 						break; // no need to check more perimeters
 					}
 				}
 			}
 		}
+
+		// set the locked flag to this and all linked ones
+		if (must_lock && !locked) {
+			setLocked(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in, or the creation layer if no points yet. */
@@ -1587,6 +1610,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 		;
 	}
 
+	// TODO
 	synchronized public double[][][] generateMesh(double scale) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return null;
@@ -1597,6 +1621,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 		//       - add the section as 12 points, by rotating a perpendicular vector around the direction vector
 		//       - if the point is the first one in the segment, use a direction vector averaged with the previous and the first in the segment (if it's not point 0, that is)
 		
+		Utils.log2("Pipe.generateMesh is not implemented yet.");
 		// debug:
 		return null;
 	}
@@ -2120,5 +2145,54 @@ public class Pipe extends ZDisplayable implements Line3D {
 			pipe.p_width_i = Utils.copy(p_width_i, p_width_i.length);
 			return true;
 		}
+	}
+
+	/** Reverses the order of the points in the arrays. */
+	synchronized public void reverse() {
+		for (int i=0; i<n_points/2; i++) {
+			final int j = n_points -1 -i;
+			_swap(p, i, j);
+			_swap(p_l, i, j);
+			_swap(p_r, i, j);
+			long l = p_layer[i];    // we love java and it's lack of primitive abstraction.
+			p_layer[i] = p_layer[j];
+			p_layer[j] = l;
+			double r = p_width[i];
+			p_width[i] = p_width[j];
+			p_width[j] = r;
+		}
+		// what was left is now right:
+		double[][] a = p_l;
+		p_l = p_r;
+		p_r = a;
+		// Nothing should change, but let's see it:
+		generateInterpolatedPoints(0.05);
+	}
+
+	/** Helper function to swap both X and Y from index i to j. */
+	static private final void _swap(final double[][] a, final int i, final int j) {
+		for (int k=0; k<2; k++) {
+			double tmp = a[k][i];
+			a[k][i] = a[k][j];
+			a[k][j] = tmp;
+		}
+	}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	synchronized public boolean crop(List<Layer> range) {
+		if (-1 == n_points) setupForDisplay();
+		HashSet<Long> lids = new HashSet<Long>();
+		for (Layer l : range) {
+			lids.add(l.getId());
+		}
+		for (int i=0; i<n_points; i++) {
+			if (!lids.contains(p_layer[i])) {
+				removePoint(i);
+				i--;
+			}
+		}
+		generateInterpolatedPoints(0.05);
+		calculateBoundingBox(true);
+		return true;
 	}
 }

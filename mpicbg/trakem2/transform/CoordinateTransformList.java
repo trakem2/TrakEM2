@@ -43,7 +43,7 @@ public class CoordinateTransformList< E extends CoordinateTransform > extends mp
 	}
 	
 	@Override
-	public CoordinateTransformList clone()
+	public CoordinateTransformList< E > clone()
 	{
 		final CoordinateTransformList< E > ctl = new CoordinateTransformList< E >();
 		for ( E ct : l )

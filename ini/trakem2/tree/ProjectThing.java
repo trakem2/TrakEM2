@@ -52,7 +52,7 @@ import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 
 
-public final class ProjectThing extends DBObject implements Thing {
+public final class ProjectThing extends DBObject implements TitledThing {
 
 	/** The model for this ProjectThing instance. */
 	private TemplateThing template;
@@ -791,19 +791,19 @@ public final class ProjectThing extends DBObject implements Thing {
 	}
 
 	/** Recursive into children. */
-	public HashSet findBasicTypeChildren() {
-		return findBasicTypeChildren(new HashSet(), new HashSet());
+	public HashSet<ProjectThing> findBasicTypeChildren() {
+		return findBasicTypeChildren(new HashSet<ProjectThing>(), new HashSet<ProjectThing>());
 	}
 
 	/** Recursive into children, and adds this instance as well if it's a basic type. */
-	public HashSet findBasicTypeChildren(HashSet hs_basic, HashSet hs_visited) {
-		if (null == hs_basic) hs_basic = new HashSet();
-		if (null == hs_visited) hs_visited = new HashSet();
+	public HashSet findBasicTypeChildren(HashSet<ProjectThing> hs_basic, HashSet<ProjectThing> hs_visited) {
+		if (null == hs_basic) hs_basic = new HashSet<ProjectThing>();
+		if (null == hs_visited) hs_visited = new HashSet<ProjectThing>();
 		if (hs_basic.contains(this) || hs_visited.contains(this)) return hs_basic;
 		// register as visited
 		hs_visited.add(this);
 		// add if basic
-		if (Project.isBasicType(template.getType())) hs_basic.add(this); // I don't return here because I make no assumptions of Basic types not having children in the future, plus profile_list is basic and has children, even if useless at the moment
+		if (Project.isBasicType(template.getType())) hs_basic.add(this); // I don't return here because I make no assumptions of Basic types not having children in the future, plus profile_list is basic and has children
 		// search children
 		if (null == al_children) return hs_basic;
 		for (ProjectThing child : al_children) {

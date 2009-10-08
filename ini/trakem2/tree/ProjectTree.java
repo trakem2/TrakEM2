@@ -36,12 +36,15 @@ import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Dispatcher;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Event;
 import java.awt.event.KeyEvent;
 import javax.swing.KeyStroke;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JMenu;
+import javax.swing.JLabel;
+import javax.swing.JTree;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.ActionEvent;
@@ -150,12 +153,13 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		gd.addStringField("New name: ", old_title);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
+		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
 		String title = gd.getNextString();
 		title = title.replace('"', '\'').trim(); // avoid XML problems - could also replace by double '', then replace again by " when reading.
 		thing.setTitle(title);
 		this.updateUILater();
+		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
 	}
-
 
 	public void mouseDragged(MouseEvent me) { }
 	public void mouseReleased(MouseEvent me) { }
@@ -218,8 +222,12 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					Utils.showMessage("Makes no sense to create less than 1 child!");
 					return;
 				}
+				project.getRootLayerSet().addChangeTreesStep();
 				final ArrayList nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
-				addLeafs((ArrayList<Thing>)nc);
+				addLeafs((ArrayList<Thing>)nc, new Runnable() {
+					public void run() {
+						project.getRootLayerSet().addChangeTreesStep();
+					}});
 			} else if (command.equals("Unhide")) {
 				thing.setVisible(true);
 			} else if (command.equals("Select in display")) {
@@ -627,5 +635,44 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		int index = enode.getParent().getIndex(enode);
 		((DefaultTreeModel)getModel()).insertNodeInto(node, (DefaultMutableTreeNode)enode.getParent(), index + 1);
 		return node;
+	}
+
+	protected DNDTree.NodeRenderer createNodeRenderer() {
+		return new ProjectThingNodeRenderer();
+	}
+
+	static protected final Color ACTIVE_DISPL_COLOR = new Color(1.0f, 1.0f, 0.0f, 0.5f);
+
+	protected final class ProjectThingNodeRenderer extends DNDTree.NodeRenderer {
+		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+			label.setText(label.getText().replace('_', ' ')); // just for display
+			if (value.getClass() == DefaultMutableTreeNode.class) {
+				final Object obb = ((DefaultMutableTreeNode)value).getUserObject();
+				final Object ob = ((ProjectThing)obb).getObject();
+				if (ob.getClass().getSuperclass() == Displayable.class) {
+					final Displayable displ = (Displayable)ob;
+					final Layer layer = Display.getFrontLayer();
+					if (null != layer && (displ == Display.getFront().getActive() || layer.contains(displ))) {
+						label.setOpaque(true); //this label
+						label.setBackground(ACTIVE_DISPL_COLOR); // this label
+						//Utils.log(" -- setting background");
+					} else {
+						label.setOpaque(false); //this label
+						label.setBackground(background);
+						//Utils.log(" not contained ");
+					}
+				} else {
+					label.setOpaque(false); //this label
+					label.setBackground(background);
+					//Utils.log("ob is " + ob);
+				}
+			} else {
+				label.setOpaque(false);
+				label.setBackground(background);
+				//Utils.log("value is " + value);
+			}
+			return label;
+		}
 	}
 }

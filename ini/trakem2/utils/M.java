@@ -213,7 +213,11 @@ public final class M {
 
 	static public final Area getArea(final Roi roi) {
 		if (null == roi) return null;
-		ShapeRoi sroi = new ShapeRoi(roi);
+		if (roi instanceof ShapeRoi) return getArea((ShapeRoi)roi);
+		return getArea(new ShapeRoi(roi));
+	}
+	static public final Area getArea(final ShapeRoi sroi) {
+		if (null == sroi) return null;
 		AffineTransform at = new AffineTransform();
 		Rectangle bounds = sroi.getBounds();
 		at.translate(bounds.x, bounds.y);
@@ -351,5 +355,14 @@ public final class M {
 			}
 		}
 		return null;
+	}
+
+	/** Converts all points in @param area to ints by casting. */
+	static public final Area areaInInts(final Area area) {
+		final Area a = new Area();
+		for (final Polygon pol : M.getPolygons(area)) {
+			a.add(new Area(pol));
+		}
+		return a;
 	}
 }

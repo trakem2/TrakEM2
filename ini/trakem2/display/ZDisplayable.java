@@ -29,6 +29,7 @@ import java.awt.Graphics;
 import java.awt.Rectangle;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 
@@ -78,7 +79,7 @@ public abstract class ZDisplayable extends Displayable {
 	public void setLayer(Layer layer) { this.layer = layer; }
 
 	/** Link the Patch objects that lay underneath the part of the bounding box of this profile that shows in the current layer, so that they cannot be dragged independently. */
-	abstract public void linkPatches();
+	abstract public boolean linkPatches();
 
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in. */
 	abstract public Layer getFirstLayer();
@@ -149,4 +150,9 @@ public abstract class ZDisplayable extends Displayable {
 	}
 
 	public void setPosition(FallLine fl) {}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	public boolean crop(List<Layer> range) {
+		return true;
+	}
 }

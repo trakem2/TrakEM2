@@ -130,11 +130,11 @@ public final class Layer extends DBObject implements Bucketable {
 		double thickness = gd.getNextNumber();
 		int n_layers = (int)gd.getNextNumber();
 		if (thickness < 0) {
-			Utils.showMessage("Can't create layers with negative thickness");
+			Utils.log("Can't create layers with negative thickness");
 			return null;
 		}
 		if (n_layers < 1) {
-			Utils.showMessage("Invalid number of layers");
+			Utils.log("Invalid number of layers");
 			return null;
 		}
 		Layer[] layer = new Layer[n_layers];
@@ -332,7 +332,7 @@ public final class Layer extends DBObject implements Bucketable {
 			al_displayables.toArray(displ);
 			for (int i=0; i<displ.length; i++) {
 				if (!displ[i].remove(false)) { // will call back Layer.remove(Displayable)
-					Utils.showMessage("Could not delete " + displ[i]);
+					Utils.log("Could not delete " + displ[i]);
 					return false;
 				}
 			}
@@ -443,6 +443,17 @@ public final class Layer extends DBObject implements Bucketable {
 			area.intersect(aroi);
 			Rectangle b = area.getBounds();
 			if (0 == b.width || 0 == b.height) it.remove();
+		}
+		return al;
+	}
+
+	public ArrayList<Displayable> getDisplayables(final Class c, final boolean visible_only) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (final Displayable d : al_displayables) {
+			if (d.getClass() == c) {
+				if (visible_only && !d.isVisible()) continue;
+				al.add(d);
+			}
 		}
 		return al;
 	}
@@ -775,6 +786,15 @@ public final class Layer extends DBObject implements Bucketable {
 			box.add(tmp);
 		}
 		return box;
+	}
+
+	/** Returns an Area in world coordinates that represents the inside of all Patches. */
+	public Area getPatchArea(final boolean visible_only) {
+		Area area = new Area(); // with width,height zero
+		for (final Patch p : (ArrayList<Patch>) (ArrayList) getDisplayables(Patch.class, visible_only)) {
+			area.add(p.getArea());
+		}
+		return area;
 	}
 
 	/** Preconcatenate the given AffineTransform to all Displayable objects of class c, without respecting their links. */

@@ -80,7 +80,7 @@ import java.util.regex.Matcher;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7i 2009-06-26";
+	static public String version = "0.7l 2009-10-01";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -278,11 +278,19 @@ public class Utils implements ij.plugin.PlugIn {
 		Utils.log2(sb.toString());
 	}
 
+	static public final void log(final Object ob) {
+		Utils.log(Utils.toString(ob));
+	}
+
+	static public final void log2(final Object... ob){
+		Utils.log2(Utils.toString(ob));
+	}
+
 	/** Print an object; if it's an array, print each element, recursively, as [0, 1, 2] or [[0, 1, 2], [3, 4, 5]], etc, same for Iterable and Map objects. */
 	static public final String toString(final Object ob) {
 		if (null == ob) return "null";
 		// Clojure could do this so much easier with a macro
-		final StringBuffer sb = new StringBuffer();
+		final StringBuilder sb = new StringBuilder();
 		sb.append('[');
 		char closing = ']';
 		if (ob instanceof String[]) { // could be done with Object[] and recursive calls, but whatever
@@ -656,7 +664,10 @@ public class Utils implements ij.plugin.PlugIn {
 
 		String filename = sd.getFileName();
 		if (null == filename || filename.toLowerCase().startsWith("null")) return null;
-		File f = new File(sd.getDirectory() + "/" + filename);
+		String dir = sd.getDirectory();
+		if (IJ.isWindows()) dir = dir.replace('\\', '/');
+		if (!dir.endsWith("/")) dir += "/";
+		File f = new File(dir + filename);
 		if (f.exists() && ControlWindow.isGUIEnabled()) {
 			YesNoCancelDialog d = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "File " + filename + " exists! Overwrite?");
 			if (d.cancelPressed()) {
@@ -677,9 +688,9 @@ public class Utils implements ij.plugin.PlugIn {
 		String dir = od.getDirectory();
 		File f = null;
 		if (null != dir) {
-			dir = dir.replace('\\', '/');
+			if (IJ.isWindows()) dir = dir.replace('\\', '/');
 			if (!dir.endsWith("/")) dir += "/";
-			f = new File(dir + "/" + file); // I'd use File.separator, but in Windows it fails
+			f = new File(dir + file); // I'd use File.separator, but in Windows it fails
 		}
 		if (null == dir || !f.exists()) {
 			Utils.log2("No proper file selected.");
@@ -1308,5 +1319,21 @@ public class Utils implements ij.plugin.PlugIn {
 		g.fillRect(x+1,y+1,3,3);
 		g.setColor(Color.black);
 		g.drawRect(x, y, 4, 4);
+	}
+
+	static public final String trim(CharSequence sb) {
+		char c;
+		int start = 0;
+		do {
+			c = sb.charAt(start);
+			start++;
+		} while ('\t' == c || ' ' == c || '\n' == c);
+		int end = sb.length() -1;
+		do {
+			c = sb.charAt(end);
+			end--;
+		} while ('\n' == c || ' ' == c || '\t' == c);
+
+		return sb.subSequence(start-1, end+2).toString();
 	}
 }

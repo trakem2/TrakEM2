@@ -41,8 +41,11 @@ import org.xml.sax.SAXParseException;
 import org.xml.sax.InputSource;
 import org.xml.sax.Attributes;
 
+import mpicbg.models.TransformList;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
+import mpicbg.trakem2.transform.InvertibleCoordinateTransformList;
 
 /** Creates the project objects from an XML file (TrakEM2 Markup Language Handler). */
 public class TMLHandler extends DefaultHandler {
@@ -75,9 +78,12 @@ public class TMLHandler extends DefaultHandler {
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
 	private Dissector last_dissector = null;
+	private Stack last_stack = null;
 	private Patch last_patch = null;
+	private Treeline last_treeline = null;
+	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
-	private ArrayList< CoordinateTransformList< CoordinateTransform > > ct_list_stack = new ArrayList< CoordinateTransformList< CoordinateTransform > >();
+	private ArrayList< TransformList< Object > > ct_list_stack = new ArrayList< TransformList< Object > >();
 	private boolean open_displays = true;
 
 
@@ -271,7 +277,7 @@ public class TMLHandler extends DefaultHandler {
 				// Add a project pointer to all template things
 				this.root_tt.addToDatabase(this.project);
 				thing = root_pt;
-			} else if (qualified_name.startsWith("ict_transform")) {
+			} else if (qualified_name.startsWith("ict_transform")||qualified_name.startsWith("iict_transform")) {
 				makeCoordinateTransform(qualified_name, ht_attributes);
 			} else if (!qualified_name.equals("trakem2")) {
 				// Any abstract object
@@ -328,15 +334,26 @@ public class TMLHandler extends DefaultHandler {
 			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_ball")) {
 			last_ball = null;
+			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_dissector")) {
 			last_dissector = null;
+			last_displayable = null;
+		} else if (orig_qualified_name.equals( "t2_stack" )) {
+			last_stack = null;
+			last_displayable = null;
+		} else if (orig_qualified_name.equals("t2_treeline")) {
+			if (null != last_treeline) {
+				last_treeline.parse(last_treeline_data);
+				last_treeline_data = null;
+				last_treeline = null;
+			}
 			last_displayable = null;
 		} else if (in(orig_qualified_name, all_displayables)) {
 			last_displayable = null;
 		}
 	}
 
-	static private final String[] all_displayables = new String[]{"t2_area_list", "t2_patch", "t2_pipe", "t2_polyline", "t2_ball", "t2_label", "t2_dissector", "t2_profile"};
+	static private final String[] all_displayables = new String[]{"t2_area_list", "t2_patch", "t2_pipe", "t2_polyline", "t2_ball", "t2_label", "t2_dissector", "t2_profile", "t2_stack", "t2_treeline"};
 
 	private final boolean in(final String s, final String[] all) {
 		for (int i=all.length-1; i>-1; i--) {
@@ -345,7 +362,11 @@ public class TMLHandler extends DefaultHandler {
 		return false;
 	}
 
-	public void characters(char[] c, int start, int length) {}
+	public void characters(char[] c, int start, int length) {
+		if (null != last_treeline) {
+			last_treeline_data.append(c, start, length);
+		}
+	}
 
 	public void fatalError(SAXParseException e) {
 		Utils.log("Fatal error: column=" + e.getColumnNumber() + " line=" + e.getLineNumber());
@@ -394,7 +415,12 @@ public class TMLHandler extends DefaultHandler {
 				ht_attr.put(key, new ProjectAttribute(this.project, -1, key, data));
 				//Utils.log2("putting key=[" + key + "]=" + data);
 			}
-			ProjectThing pt = new ProjectThing(this.project.getTemplateThing(type), this.project, id, type, null, ht_attr);
+			TemplateThing tt = this.project.getTemplateThing(type);
+			if (null == tt) {
+				Utils.log("No template for type " + type);
+				return null;
+			}
+			ProjectThing pt = new ProjectThing(tt, this.project, id, type, null, ht_attr);
 			pt.addToDatabase();
 			ht_pt_expanded.put(pt, expanded);
 			// store the oid vs. pt relationship to fill in the object later.
@@ -534,6 +560,23 @@ public class TMLHandler extends DefaultHandler {
 				ht_zdispl.put(new Long(oid), ball);
 				addToLastOpenLayerSet(ball);
 				return null;
+			} else if (type.equals("stack")) {
+				Stack stack = new Stack(this.project, oid, ht_attributes, ht_links);
+				stack.addToDatabase();
+				last_stack = stack;
+				last_displayable = stack;
+				ht_displayables.put(new Long(oid), stack);
+				ht_zdispl.put( new Long(oid), stack );
+				addToLastOpenLayerSet( stack );
+			} else if (type.equals("treeline")) {
+				Treeline tline = new Treeline(this.project, oid, ht_attributes, ht_links);
+				tline.addToDatabase();
+				last_treeline = tline;
+				last_treeline_data = new StringBuilder();
+				last_displayable = tline;
+				ht_displayables.put(oid, tline);
+				ht_zdispl.put(oid, tline);
+				addToLastOpenLayerSet(tline);
 			} else if (type.equals("dd_item")) {
 				if (null != last_dissector) {
 					last_dissector.addItem(Integer.parseInt((String)ht_attributes.get("tag")),
@@ -626,7 +669,25 @@ public class TMLHandler extends DefaultHandler {
 						last_patch.setCoordinateTransformSilently( ct );
 				}
 				else
+				{
 					ct_list_stack.get( ct_list_stack.size() - 1 ).add( ct );
+				}
+			}
+			else if ( type.equals( "iict_transform" ) )
+			{
+				final InvertibleCoordinateTransform ict = ( InvertibleCoordinateTransform )Class.forName( ( String )ht_attributes.get( "class" ) ).newInstance();
+				ict.init( ( String )ht_attributes.get( "data" ) );
+				if ( ct_list_stack.isEmpty() )
+				{
+					if ( last_patch != null )
+						last_patch.setCoordinateTransformSilently( ict );
+					else if ( last_stack != null )
+						last_stack.setInvertibleCoordinateTransformSilently( ict );
+				}
+				else
+				{
+					ct_list_stack.get( ct_list_stack.size() - 1 ).add( ict );
+				}
 			}
 			else if ( type.equals( "ict_transform_list" ) )
 			{
@@ -638,7 +699,21 @@ public class TMLHandler extends DefaultHandler {
 				}
 				else
 					ct_list_stack.get( ct_list_stack.size() - 1 ).add( ctl );
-				ct_list_stack.add( ctl );
+				ct_list_stack.add( ( TransformList )ctl );
+			}
+			else if ( type.equals( "iict_transform_list" ) )
+			{
+				final InvertibleCoordinateTransformList< InvertibleCoordinateTransform > ictl = new InvertibleCoordinateTransformList< InvertibleCoordinateTransform >();
+				if ( ct_list_stack.isEmpty() )
+				{
+					if ( last_patch != null )
+						last_patch.setCoordinateTransformSilently( ictl );
+					else if ( last_stack != null )
+						last_stack.setInvertibleCoordinateTransformSilently( ictl );
+				}
+				else
+					ct_list_stack.get( ct_list_stack.size() - 1 ).add( ictl );
+				ct_list_stack.add( ( TransformList )ictl );
 			}
 		}
 		catch ( Exception e ) { IJError.print(e); }
