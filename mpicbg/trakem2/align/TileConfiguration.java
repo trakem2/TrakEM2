@@ -44,6 +44,9 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		
 		boolean proceed = i < maxIterations;
 		
+		/* initialize */
+		update();
+		
 		while ( proceed )
 		{
 			for ( final Tile tile : getTiles() )
