@@ -343,7 +343,7 @@ public class AreaList extends ZDisplayable {
 				// An area in world coords:
 				Area bmin = null;
 				Area bmax = null;
-				ArrayList<Area> intersecting = new ArrayList<Area>();
+				ArrayList<Area> intersecting = new ArrayList<Area>(); // a list of areas in world coords
 				// Try to find a hole in this or another visible AreaList, but fill it this
 				int min_area = Integer.MAX_VALUE;
 				int max_area = 0;
@@ -370,7 +370,8 @@ public class AreaList extends ZDisplayable {
 						intersecting.add(bw);
 					}
 				}
-				// Take the largest area and subtract from it all other areas
+
+				// Take the largest area and subtract from it all other visible areas
 				if (intersecting.size() > 1) {
 					Area compound = new Area(bmax);
 					for (Area a : intersecting) {
@@ -399,7 +400,18 @@ public class AreaList extends ZDisplayable {
 					if (null == a) continue;
 					all.add(a.createTransformedArea(ali.at));
 				}
-				final Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
+
+				Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
+
+				if (null == polygon && project.getBooleanProperty("flood_fill_to_image_edge")) {
+					Area patch_area = la.getPatchArea(true); // in world coords
+					Rectangle bounds = patch_area.getBounds();
+					if (0 != bounds.width && 0 != bounds.height) {
+						patch_area.subtract(all);
+						polygon = M.findPath(patch_area, x_p_w, y_p_w);
+					}
+				}
+
 				if (null != polygon) {
 					Rectangle bounds = polygon.getBounds();
 					int pol_area = bounds.width * bounds.height;
@@ -408,6 +420,7 @@ public class AreaList extends ZDisplayable {
 						bmin = new Area(polygon);
 					}
 				}
+
 				if (null != bmin) {
 					try {
 						// Add b as local to this AreaList
@@ -1081,10 +1094,15 @@ public class AreaList extends ZDisplayable {
 		xy[1] = 0;
 		int pos = 1;
 		while (' ' != c) {
-			xy[1] += (((int)c) -48) * pos; // digit zero is char with int value 48
 			last--;
+			if ('-' == c) {
+				xy[1] *= -1;
+				break;
+			} else {
+				xy[1] += (((int)c) -48) * pos; // digit zero is char with int value 48
+				pos *= 10;
+			}
 			c = data[last];
-			pos *= 10;
 		}
 
 		// skip separating space
@@ -1095,10 +1113,15 @@ public class AreaList extends ZDisplayable {
 		pos = 1;
 		xy[0] = 0;
 		while (' ' != c) {
-			xy[0] += (((int)c) -48) * pos;
 			last--;
+			if ('-' == c) {
+				xy[0] *= -1;
+				break;
+			} else {
+				xy[0] += (((int)c) -48) * pos;
+				pos *= 10;
+			}
 			c = data[last];
-			pos *= 10;
 		}
 		return first;
 	}

@@ -30,6 +30,7 @@ import ij.gui.ShapeRoi;
 import ij.gui.Toolbar;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
+import ij.plugin.filter.ThresholdToSelection;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.utils.M;
@@ -60,6 +61,7 @@ import java.awt.geom.Point2D;
 import java.awt.Polygon;
 import java.awt.geom.PathIterator;
 import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Path2D;
 import java.awt.image.PixelGrabber;
 import java.awt.event.KeyEvent;
 import java.util.Iterator;
@@ -1455,5 +1457,85 @@ public final class Patch extends Displayable implements ImageData {
 
 	public String getPreprocessorScriptPath() {
 		return project.getLoader().getPreprocessorScriptPath(this);
+	}
+
+	/** Returns an Area in world coords representing the inside of this Patch. The fully alpha pixels are considered outside. */
+	public Area getArea() {
+		if (hasAlphaMask()) {
+			// Read the mask as a ROI for the 0 pixels only and apply the AffineTransform to it:
+			ImageProcessor alpha_mask = project.getLoader().fetchImageMask(this);
+			if (null == alpha_mask) {
+				Utils.log2("Could not retrieve alpha mask for " + this);
+			} else {
+				if (null != ct) {
+					// must transform it
+					final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+					final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
+					alpha_mask = mapping.createMappedImage( alpha_mask ); // Without interpolation
+					// Keep in mind the affine of the Patch already contains the translation specified by the mesh bounds.
+				}
+				// Threshold all non-zero areas of the mask:
+				alpha_mask.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
+				ImagePlus imp = new ImagePlus("", alpha_mask);
+				ThresholdToSelection tts = new ThresholdToSelection();
+				tts.setup("", imp);
+				tts.run(alpha_mask);
+				Roi roi = imp.getRoi();
+				if (null == roi) {
+					// All pixels in the alpha mask have a value of zero
+					return new Area();
+				}
+				return M.getArea(roi).createTransformedArea(this.at);
+			}
+		}
+		// No alpha mask, or error in retrieving it:
+		final int[] x = new int[o_width + o_width + o_height + o_height];
+		final int[] y = new int[x.length];
+		int next = 0;
+		// Top edge:
+		for (int i=0; i<=o_width; i++, next++) { // len: o_width + 1
+			x[next] = i;
+			y[next] = 0;
+		}
+		// Right edge:
+		for (int i=1; i<=o_height; i++, next++) { // len: o_height
+			x[next] = o_width;
+			y[next] = i;
+		}
+		// bottom edge:
+		for (int i=o_width-1; i>-1; i--, next++) { // len: o_width
+			x[next] = i;
+			y[next] = o_height;
+		}
+		// left edge:
+		for (int i=o_height-1; i>0; i--, next++) { // len: o_height -1
+			x[next] = 0;
+			y[next] = i;
+		}
+
+		if (null != ct) {
+			final CoordinateTransformList t = new CoordinateTransformList();
+			t.add(ct);
+			AffineModel2D aff = new AffineModel2D();
+			aff.set(this.at);
+			t.add(aff);
+
+			final float[] f = new float[]{x[0], y[0]};
+			t.applyInPlace(f);
+			final Path2D.Float path = new Path2D.Float(Path2D.Float.WIND_EVEN_ODD, x.length+1);
+			path.moveTo(f[0], f[1]);
+
+			for (int i=1; i<x.length; i++) {
+				f[0] = x[i];
+				f[1] = y[i];
+				t.applyInPlace(f);
+				path.lineTo(f[0], f[1]);
+			}
+			path.closePath(); // line to last call to moveTo
+
+			return new Area(path);
+		} else {
+			return new Area(new Polygon(x, y, x.length)).createTransformedArea(this.at);
+		}
 	}
 }

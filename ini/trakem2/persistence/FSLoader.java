@@ -1387,7 +1387,9 @@ public final class FSLoader extends Loader {
 				fus.add(d.getProject().getLoader().regenerateMipMaps((Patch) d));
 			}
 			// Wait until all done
-			for (final Future fu : fus) try { fu.get(); } catch (Exception e) { IJError.print(e); }
+			for (final Future fu : fus) try {
+				if (null != fu) fu.get(); // fu could be null if a task was not submitted because it's already being done or it failed in some way.
+			} catch (Exception e) { IJError.print(e); }
 		}}, Project.findProject(this));
 	}
 
