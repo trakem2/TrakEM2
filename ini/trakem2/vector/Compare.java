@@ -2865,7 +2865,12 @@ public class Compare {
 		return plot;
 	}
 
-	/** From a condensed VectorString3D, create the radius at each point. */
+	/** From a condensed VectorString3D, create the radius at each point.
+	 *  The maximum provides the maximum radius from the condensed VectorString3D
+	 *  at @param c point-wise to the source points that generated it.
+	 *  Realize that the thickness of source VectorString3Ds is not considered,
+	 *  only their points.
+	 */
 	static public double[] makeEnvelope(final CATAParameters cp, final VectorString3D c) {
 		if (cp.envelope_type <= 0) { // defensive programming
 			// one std dev
@@ -2874,7 +2879,7 @@ public class Compare {
 
 		final double[] width = new double[c.length()];
 
-		if (cp.envelope_type < 3) { // 1 or 2
+		if (cp.envelope_type < 3) { // 1 == 2std, 2 == 3std
 			// two or three std dev
 			final double[] std = c.getStdDevAtEachPoint();
 			final int f = cp.envelope_type + 1; // so: 2 or 3
