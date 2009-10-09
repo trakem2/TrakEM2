@@ -2591,6 +2591,7 @@ public class Compare {
 		Utils.log2("Asking for CATAParameters...");
 
 		final CATAParameters cp = new CATAParameters();
+		cp.delta_envelope = delta_envelope;
 		if (!cp.setup(false, regex, true, true)) {
 			finishedWorking();
 			return;
@@ -2809,9 +2810,10 @@ public class Compare {
 				}
 				if (show_envelope_3D) {
 					double[] widths = makeEnvelope(cp, vs_merged);
-					if (delta_envelope > 1) {
+					if (cp.delta_envelope > 1) {
 						vs_merged.addDependent(widths);
-						vs_merged.resample(delta_envelope);
+						vs_merged.resample(cp.delta_envelope);
+						widths = vs_merged.getDependent(0);
 					}
 					Display3D.addMesh(common_ls, vs_merged, name + "-envelope", heat_map ? heat_table.get(name) : Color.red, widths, env_alpha);
 				} else if (heat_map) {
