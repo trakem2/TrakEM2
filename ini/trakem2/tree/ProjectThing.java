@@ -617,20 +617,26 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Recursive into children, searches for the things whose object.toString() matches the given regex, case insensitive. If shallow, the recursive search does not look into the children of a parent that matches. */
-	public ArrayList<ProjectThing> findChildren(final String regex, final boolean shallow) {
+	public ArrayList<ProjectThing> findChildren(final String regex, final String regex_exclude, final boolean shallow) {
 		final ArrayList<ProjectThing> found = new ArrayList<ProjectThing>();
-		findChildren(found, Pattern.compile("^.*" + regex + ".*$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL), shallow);
+		findChildren(found,
+			     Pattern.compile("^.*" + regex + ".*$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL),
+			     Pattern.compile("^.*" + regex_exclude + ".*$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL),
+			     shallow);
 		return found;
 	}
 	/** Recursive into children, searches for things whose object.toString() matches the given regex pattern, and stores the found ProjectThing in the given ArrayList. If shallow, the recursive search does not look into the children of a parent that matches. */
-	public void findChildren(final ArrayList<ProjectThing> found, final Pattern pat, final boolean shallow) {
-		if (null != object && pat.matcher(object.toString()).matches()) {
+	public void findChildren(final ArrayList<ProjectThing> found, final Pattern pattern, final Pattern pattern_exclude, final boolean shallow) {
+		if (null == object) return;
+		final String name = object.toString();
+		if (pattern_exclude.matcher(name).matches()) return;
+		if (pattern.matcher(name).matches()) {
 			found.add(this);
 			if (shallow) return; // don't look into children
 		}
 		if (null == al_children) return;
 		for (ProjectThing pt : al_children) {
-			pt.findChildren(found, pat, shallow);
+			pt.findChildren(found, pattern, pattern_exclude, shallow);
 		}
 	}
 

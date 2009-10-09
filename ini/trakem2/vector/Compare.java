@@ -1958,6 +1958,7 @@ public class Compare {
 		public int plot_width = 700, plot_height = 400;
 		public boolean cut_uneven_ends = true;
 		public int envelope_type = 2;
+		public double delta_envelope = 1;
 
 		public CATAParameters() {}
 
@@ -2003,6 +2004,7 @@ public class Compare {
 				gd.addCheckbox("cut_uneven_ends", cut_uneven_ends);
 				final String[] env = {"1 std dev", "2 std dev", "3 std dev", "average", "maximum"};
 				gd.addChoice("envelope", env, env[envelope_type]);
+				gd.addNumericField("delta envelope:", delta_envelope, 1);
 			}
 
 			//////
@@ -2051,6 +2053,8 @@ public class Compare {
 			if (condense) {
 				cut_uneven_ends = gd.getNextBoolean();
 				envelope_type = gd.getNextChoiceIndex();
+				delta_envelope = gd.getNextNumber();
+				Utils.log2("delta_envelope has been set to " + delta_envelope);
 			}
 
 			return true;
@@ -2068,11 +2072,15 @@ public class Compare {
 		if (null != ignore) {
 			StringBuilder sb = new StringBuilder();
 			for (String ig : ignore) {
-				sb.append(ig).append('|');
+				sb.append("(.*").append(ig).append(".*)|");
 			}
 			sb.setLength(sb.length() -1);
 			regex_exclude = sb.toString();
 		}
+
+		Utils.logAll("Compare/gatherChains: using ignore string: " + regex_exclude);
+		Utils.logAll("Compare/gatherChains: using regex: " + cp.regex);
+
 		// gather all chains
 		final ArrayList[] p_chains = new ArrayList[p.length]; // to keep track of each project's chains
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
@@ -2081,8 +2089,8 @@ public class Compare {
 				p_chains[i] = createPipeChains(p[i].getRootProjectThing(), p[i].getRootLayerSet(), regex_exclude);
 			} else {
 				// Search (shallow) for cp.regex matches
-				for (ProjectThing pt : p[i].getRootProjectThing().findChildren(cp.regex, true)) {
-					final ArrayList<Chain> ac = createPipeChains(pt, p[i].getRootLayerSet(), regex_exclude);
+				for (ProjectThing pt : p[i].getRootProjectThing().findChildren(cp.regex, regex_exclude, true)) {
+					final ArrayList<Chain> ac = createPipeChains(pt, p[i].getRootLayerSet(), null);
 					if (null == p_chains[i]) p_chains[i] = ac;
 					else p_chains[i].addAll(ac);
 				}
@@ -2545,16 +2553,18 @@ public class Compare {
 	 * @param show_sources_3D If show_3D, whether to show the source pipes from which the condensed vector string was generated.
 	 * @param show_envelope_3D If show_3D, whether to generate the variability envelope.
 	 * @param envelope_alpha If show_envelope_3D, the envelope takes an alpha value between 0 (total transparency) and 1 (total opacity)
+	 * @param delta_envelope The delta to resample the envelope to. When smaller than or equal to 1, no envelope resampling occurs.
 	 * @param show_axes_3D If show_3D, whether to display the reference axes as well.
 	 * @param heat_map If show_3D, whether to color the variability with a Fire LUT.
 	 *                 If not show_condensed_3D, then the variability is shown in color-coded 3D spheres placed at the entry point to the neuropile.
 	 * @param map_condensed If not null, all VectorString3D are put into this map.
+	 * @param projects The list of projects to use.
 	 * */
 	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex,
 						     final String[] ignore,
 			                             final boolean generate_plots, final boolean show_plots,
 						     final boolean show_3D, final boolean show_condensed_3D, final boolean show_sources_3D,
-						     final boolean show_envelope_3D, final float envelope_alpha,
+						     final boolean show_envelope_3D, final float envelope_alpha, final double delta_envelope,
 						     final boolean show_axes_3D, final boolean heat_map,
 						     final Map<String,VectorString3D> map_condensed,
 						     final Project[] projects) {
@@ -2798,7 +2808,12 @@ public class Compare {
 					Display3D.addMesh(common_ls, vs_merged, name + "-condensed", heat_map ? heat_table.get(name) : Color.red);
 				}
 				if (show_envelope_3D) {
-					Display3D.addMesh(common_ls, vs_merged, name + "-envelope", heat_map ? heat_table.get(name) : Color.red, makeEnvelope(cp, vs_merged), env_alpha);
+					double[] widths = makeEnvelope(cp, vs_merged);
+					if (delta_envelope > 1) {
+						vs_merged.addDependent(widths);
+						vs_merged.resample(delta_envelope);
+					}
+					Display3D.addMesh(common_ls, vs_merged, name + "-envelope", heat_map ? heat_table.get(name) : Color.red, widths, env_alpha);
 				} else if (heat_map) {
 					// Show spheres in place of envelopes, at the starting tip (neuropile entry point)
 					double x = vs_merged.getPoints(0)[0];
