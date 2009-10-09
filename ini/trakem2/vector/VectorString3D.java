@@ -1736,7 +1736,8 @@ public class VectorString3D implements VectorString {
 		return false;
 	}
 
-	/** If null != source, compute the StdDev at each point in this VectorString3D, by comparing it with its associated source points. Returns null if there is no source.  */
+	/** If null != source, compute the StdDev at each point in this VectorString3D, by comparing it with its associated source points. Returns null if there is no source.
+	 * What is meant for stdDev is the stdDev of the points from which any given point in this VectorString3D was generated, returned as a distance to use as radius around that point. */
 	public double[] getStdDevAtEachPoint() {
 		if (null == source) return null;
 		final double[] stdDev = new double[length];
@@ -1750,6 +1751,30 @@ public class VectorString3D implements VectorString {
 			for (Point3d p : ap) sd += Math.pow(p.distance(expected), 2);
 			// 3 - stdDev
 			stdDev[i] = Math.sqrt(sd / ap.size());
+
+			// Test separately for each dimension : it's the same
+			/*
+			double sdx = 0,
+			       sdy = 0,
+			       sdz = 0;
+			for (Point3d p : ap) {
+				sdx += Math.pow(p.x - expected.x, 2);
+				sdy += Math.pow(p.y - expected.y, 2);
+				sdz += Math.pow(p.z - expected.z, 2);
+			}
+			sdx = Math.sqrt(sdx / ap.size());
+			sdy = Math.sqrt(sdy / ap.size());
+			sdz = Math.sqrt(sdz / ap.size());
+
+			sd = stdDev[i]; // from above
+
+			// stdDev as radial distance:
+			stdDev[i] = Math.sqrt(sdx*sdx + sdy*sdy + sdz*sdz);
+
+			Utils.log2("check: sd =       " + sd +
+				   "       sd indep = " + stdDev[i]);
+			*/
+
 			i++;
 		}
 		return stdDev;
