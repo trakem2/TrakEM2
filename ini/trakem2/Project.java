@@ -1223,6 +1223,8 @@ public class Project extends DBObject {
 		gd.addCheckbox("No_shutdown_hook to save the project", no_shutdown_hook);
 		int n_undo_steps = getProperty("n_undo_steps", 32);
 		gd.addSlider("Undo steps", 32, 200, n_undo_steps);
+		boolean flood_fill_to_image_edge = "true".equals(ht_props.get("flood_fill_to_image_edge"));
+		gd.addCheckbox("AreaList_flood_fill_to_image_edges", flood_fill_to_image_edge);
 		//
 		gd.showDialog();
 		//
@@ -1265,6 +1267,7 @@ public class Project extends DBObject {
 		n_undo_steps = (int)gd.getNextNumber();
 		if (n_undo_steps < 0) n_undo_steps = 0;
 		setProperty("n_undo_steps", Integer.toString(n_undo_steps));
+		adjustProp("flood_fill_to_image_edge", flood_fill_to_image_edge, gd.getNextBoolean());
 	}
 
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */

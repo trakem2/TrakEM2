@@ -213,6 +213,7 @@ public final class M {
 
 	static public final Area getArea(final Roi roi) {
 		if (null == roi) return null;
+		if (roi instanceof ShapeRoi) return getArea((ShapeRoi)roi);
 		return getArea(new ShapeRoi(roi));
 	}
 	static public final Area getArea(final ShapeRoi sroi) {
@@ -354,6 +355,15 @@ public final class M {
 			}
 		}
 		return null;
+	}
+
+	/** Converts all points in @param area to ints by casting. */
+	static public final Area areaInInts(final Area area) {
+		final Area a = new Area();
+		for (final Polygon pol : M.getPolygons(area)) {
+			a.add(new Area(pol));
+		}
+		return a;
 	}
 
 	/* ================================================= */
