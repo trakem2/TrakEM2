@@ -2041,7 +2041,7 @@ public class Compare {
 			direct = gd.getNextBoolean();
 			substring_matching = gd.getNextBoolean();
 
-			this.regex = gd.getNextString();
+			this.regex = gd.getNextString().trim();
 			if (0 == this.regex.length()) this.regex = null;
 
 			if (plot) {
