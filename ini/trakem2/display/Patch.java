@@ -30,6 +30,9 @@ import ij.gui.ShapeRoi;
 import ij.gui.Toolbar;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
+import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
 import ij.plugin.filter.ThresholdToSelection;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
@@ -1538,4 +1541,118 @@ public final class Patch extends Displayable implements ImageData {
 			return new Area(new Polygon(x, y, x.length)).createTransformedArea(this.at);
 		}
 	}
+
+	/** Creates an ImageProcessor of the specified type. */
+	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final ArrayList<Patch> patches, final Color background) {
+		final ImageProcessor ip;
+		final int W = (int)(srcRect.width * scale);
+		final int H = (int)(srcRect.height * scale);
+		byte[] pixb = null;
+		short[] pixs = null;
+		float[] pixf = null;
+		int[] pixi = null;
+		switch (type) {
+			case ImagePlus.GRAY8:
+				ip = new ByteProcessor(W, H);
+				pixb = (byte[]) ip.getPixels();
+				break;
+			case ImagePlus.GRAY16:
+				ip = new ShortProcessor(W, H);
+				pixs = (short[]) ip.getPixels();
+				break;
+			case ImagePlus.GRAY32:
+				ip = new FloatProcessor(W, H);
+				pixf = (float[]) ip.getPixels();
+				break;
+			case ImagePlus.COLOR_RGB:
+				ip = new ColorProcessor(W, H);
+				pixi = (int[]) ip.getPixels();
+				break;
+			default:
+				Utils.logAll("Cannot create an image of type " + type + ".\nSupported types: 8-bit, 16-bit, 32-bit and RGB.");
+				return null;
+		}
+
+		mpicbg.models.CoordinateTransform sc = null;
+		if (scale < 1.0d) {
+			AffineModel2D am = new AffineModel2D();
+			AffineTransform af = new AffineTransform();
+			af.setToScale(scale, scale);
+			sc = am;
+		}
+		for (final Patch p : patches) {
+			// A list to represent all the transformations that the Patch image has to go through to reach the scaled srcRect image
+			mpicbg.models.CoordinateTransformList list = new CoordinateTransformList();
+
+			AffineTransform at = p.getAffineTransformCopy();
+			Rectangle pbounds = p.getBoundingBox();
+
+			// 1. The coordinate tranform of the Patch, if any
+			CoordinateTransform ct = p.getCoordinateTransform();
+			if (null != ct) {
+				list.add(ct);
+				// Remove the translation in the patch_affine that the ct added to it
+				final TransformMesh mesh = new TransformMesh(ct, 32, p.getOWidth(), p.getOHeight());
+				final Rectangle box = mesh.getBoundingBox();
+				at.translate(-box.x, -box.y);
+
+				pbounds.x -= box.x;
+				pbounds.y -= box.y;
+			}
+
+			// 2. The affine transform of the Patch
+			AffineModel2D patch_affine = new AffineModel2D();
+			patch_affine.set(at);
+			list.add(patch_affine);
+
+			// 3. The desired scaling
+			if (null != sc) list.add(sc); // TODO this is probably wrong except for 1 == scale
+
+			TransformMesh mesh = new TransformMesh(list, 32, p.getOWidth(), p.getOHeight());
+			TransformMeshMapping mapping = new TransformMeshMapping(mesh);
+			Rectangle box = mesh.getBoundingBox();
+
+			ImageProcessor pimage = mapping.createMappedImageInterpolated(p.getImageProcessor());
+			ImageProcessor pmask = p.project.getLoader().fetchImageMask(p);
+			Roi roi = null;
+			if (null == pmask) {
+				byte[] pix = new byte[p.getOWidth() * p.getOHeight()];
+				for (int i=0; i<pix.length; i++) {
+					pix[i] = (byte)255;
+				}
+				pmask = mapping.createMappedImageInterpolated(new ByteProcessor(p.getOWidth(), p.getOHeight(), pix, null));
+			}
+			// Bounds for insertion:
+			int x = pbounds.x - srcRect.x + box.x;
+			int y = pbounds.y - srcRect.y + box.y;
+			final int width = pmask.getWidth();
+			final int height = pmask.getHeight();
+
+			Utils.log2("insertion bounds: " + new Rectangle(x, y, width, height));
+			Utils.log2("mesh box bounds: " + box); // TODO Sometimes the pmask width,height are different than the box.width, box.height. Shouldn't they always be the same?
+
+			// Fill in pixels that are white in the mask
+			final byte[] mpix = (byte[]) pmask.getPixels();
+			//
+			if (null != pixb) {
+				// TODO
+			} else if (null != pixs) {
+				for (int i=y, my=0; my<height && i<H; i++, my++) {
+					if (i<0) continue;
+					for (int k=x, mx=0; mx<width && k<W; k++, mx++) {
+						if (k<0) continue;
+						if (255 != (mpix[my * width + mx]&0xff)) continue;
+						pixs[i * W + k] = (short) pimage.getPixelValue(mx, my); // luminance for RGB
+					}
+				}
+			} else if (null != pixf) {
+				// TODO
+			} else if (null != pixi) {
+				// TODO
+			}
+		}
+
+		return ip;
+	}
+
 }
