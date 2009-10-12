@@ -249,8 +249,10 @@ final public class AlignTask
 		
 		Align.optimizeTileConfiguration( p, interestingTiles, fixedTiles );
 		
-		for ( AbstractAffineTile2D< ? > t : tiles )
+		for ( AbstractAffineTile2D< ? > t : interestingTiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
+		
+		Utils.log( "Montage done." );
 	}
 	
 

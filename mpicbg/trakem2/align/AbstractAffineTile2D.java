@@ -147,6 +147,20 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 		
 		final ByteProcessor target = ( ByteProcessor )pai.target.convertToByte( true );
 		
+		/* Other than any other ImageProcessor, ByteProcessors ignore scaling, so ... */
+		if ( ByteProcessor.class.isInstance( pai.target ) )
+		{
+			final float s = 255.0f / ( float )( patch.getMax() - patch.getMin() );
+			final int m = ( int )patch.getMin();
+			final byte[] targetBytes = ( byte[] )target.getPixels();
+			for ( int i = 0; i < targetBytes.length; ++i )
+			{
+				targetBytes[ i ] = ( byte )( Math.max( 0, Math.min( 255, ( ( targetBytes[ i ] & 0xff ) - m ) * s ) ) );
+			}
+			target.setMinAndMax( 0, 255 );
+		}
+		
+		
 		if ( mask != null )
 		{
 			final byte[] targetBytes = ( byte[] )target.getPixels();

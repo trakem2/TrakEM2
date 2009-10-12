@@ -322,12 +322,28 @@ public class Align
 				Collection< Feature > features = deserializeFeatures( p, tile );
 				if ( features == null )
 				{
-					features = new ArrayList< Feature >();
-					long s = System.currentTimeMillis();
-					ijSIFT.extractFeatures( tile.createMaskedByteImage(), features );
-					IJ.log( features.size() + " features extracted in tile " + i + " \"" + tile.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
-					if ( !serializeFeatures( p, tile, features ) )
-						IJ.log( "Saving features failed for tile \"" + tile.getPatch() + "\"" );
+					/* extract features and, in case there is not enough memory available, try to free it and do again */
+					boolean memoryFlushed;
+					do
+					{
+						try
+						{
+							features = new ArrayList< Feature >();
+							long s = System.currentTimeMillis();
+							ijSIFT.extractFeatures( tile.createMaskedByteImage(), features );
+							IJ.log( features.size() + " features extracted in tile " + i + " \"" + tile.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+							if ( !serializeFeatures( p, tile, features ) )
+								IJ.log( "Saving features failed for tile \"" + tile.getPatch() + "\"" );
+							memoryFlushed = false;
+						}
+						catch ( OutOfMemoryError e )
+						{
+							Utils.log2( "Flushing memory for feature extraction" );
+							Loader.releaseAllCaches();
+							memoryFlushed = true;
+						}
+					}
+					while ( memoryFlushed );
 				}
 				else
 				{

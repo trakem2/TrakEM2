@@ -383,8 +383,10 @@ final public class DistortionCorrectionTask
 						for ( final PointMatch pm : t.getMatches() )
 							originalPoints.put( pm.getP1(), pm.getP1().clone() );
 					
-					for ( int i = 1; i < 2 || dEpsilon_i <= dEpsilon_0 / 100; ++i )
+					for ( int i = 1; i < 20 && ( i < 2 || dEpsilon_i <= dEpsilon_0 / 1000 ); ++i )
 					{
+						if ( Thread.currentThread().isInterrupted() ) return;
+						
 						/* Some data shuffling for the lens correction interface */
 						final List< PointMatchCollectionAndAffine > matches = new ArrayList< PointMatchCollectionAndAffine >();
 						for ( AbstractAffineTile2D< ? >[] tilePair : tilePairs )
