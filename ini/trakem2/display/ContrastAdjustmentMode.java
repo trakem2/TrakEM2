@@ -39,19 +39,8 @@ import ini.trakem2.display.graphics.DefaultGraphicsSource;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Display;
 
-import ij.plugin.frame.ContrastAdjuster;
-import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ij.IJ;
-import java.awt.event.AdjustmentListener;
-import java.awt.event.AdjustmentEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.awt.Button;
-import java.awt.Scrollbar;
-import java.lang.reflect.Field;
 
 public class ContrastAdjustmentMode extends GroupingMode {
 
@@ -92,92 +81,9 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		       max = 0;
 	}
 
-	private ImagePlus imp;
-	private ContrastAdjuster ca;
-
 	public ContrastAdjustmentMode(final Display display, final List<Displayable> selected) {
 		super(display, selected);
 		super.initThreads(); // so screePatchRanges exist and are filled
-
-		// TODO need to wait properly for Updater to generate the lists of screenPatchRanges
-		try {
-			Thread.sleep(1000);
-		} catch (Exception e) {}
-
-		// Most surface range:
-		GroupingMode.ScreenPatchRange top = screenPatchRanges.get(originalPatches.get(originalPatches.size() -1));
-
-		imp = new ImagePlus("", top.ip.duplicate());
-		ca = (ContrastAdjuster) IJ.runPlugIn(imp, "ij.plugin.frame.ContrastAdjuster", "");
-		setupListeners(ca);
-	}
-
-	private Button getButton(ContrastAdjuster ca, String field) throws Exception {
-		Field f = ContrastAdjuster.class.getDeclaredField(field);
-		f.setAccessible(true);
-		return (Button) f.get(ca);
-	}
-	private Scrollbar getSlider(ContrastAdjuster ca, String field) throws Exception {
-		Field f = ContrastAdjuster.class.getDeclaredField(field);
-		f.setAccessible(true);
-		return (Scrollbar) f.get(ca);
-	}
-
-	private void setPreActionListener(Button[] bs, ActionListener pre) {
-		for (Button b : bs) {
-			ActionListener[] all = b.getActionListeners();
-			for (ActionListener a : all) b.removeActionListener(a);
-			b.addActionListener(pre);
-			for (ActionListener a : all) b.addActionListener(a);
-		}
-	}
-
-	private void setPreAdjustmentListener(Scrollbar[] bs, AdjustmentListener pre) {
-		for (Scrollbar b : bs) {
-			AdjustmentListener[] all = b.getAdjustmentListeners();
-			for (AdjustmentListener a : all) b.removeAdjustmentListener(a);
-			b.addAdjustmentListener(pre);
-			for (AdjustmentListener a : all) b.addAdjustmentListener(a);
-		}
-	}
-
-	private void setupListeners(ContrastAdjuster ca) {
-		try {
-			// Update on sliders
-			setPreAdjustmentListener(new Scrollbar[]{getSlider(ca, "minSlider"),
-				                                 getSlider(ca, "maxSlider"),
-							         getSlider(ca, "contrastSlider"),
-							         getSlider(ca, "brightnessSlider")},
-						 new AdjustmentListener() {
-							 public void adjustmentValueChanged(AdjustmentEvent e) {
-								 painter.update();
-							 }
-						 });
-			// Update on pushing buttons
-			setPreActionListener(new Button[]{getButton(ca, "autoB"),
-							  getButton(ca, "resetB")},
-					     new ActionListener() {
-				public void actionPerformed(ActionEvent ae) {
-					painter.update();
-				}
-			});
-
-			// Apply on pushing "Apply" button
-			setPreActionListener(new Button[]{getButton(ca, "applyB")}, new ActionListener() {
-				public void actionPerformed(ActionEvent ae) {
-					apply(); // will also close the dialog
-				}
-			});
-
-			// Cancel on closing dialog window
-			ca.addWindowListener(new WindowAdapter() {
-				public void windowClosing(WindowEvent we) {
-					cancel();
-				}
-			});
-		} catch (Exception e) {
-			IJError.print(e);
-		}
 	}
 
 	public void mousePressed( MouseEvent me, int x_p, int y_p, double magnification ) {}
@@ -196,7 +102,6 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		Bureaucrat.createAndStart( new Worker.Task( "Applying transformations" ) {
 			public void exec() {
 				// 1. Close dialog
-				if (null != ca) ca.dispose();
 				// TODO
 			}
 		}, layer.getProject() );
