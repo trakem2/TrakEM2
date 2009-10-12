@@ -1578,6 +1578,7 @@ public final class Patch extends Displayable implements ImageData {
 			AffineModel2D am = new AffineModel2D();
 			AffineTransform af = new AffineTransform();
 			af.setToScale(scale, scale);
+			am.set(af);
 			sc = am;
 		}
 		for (final Patch p : patches) {
@@ -1623,8 +1624,8 @@ public final class Patch extends Displayable implements ImageData {
 				pmask = mapping.createMappedImageInterpolated(new ByteProcessor(p.getOWidth(), p.getOHeight(), pix, null));
 			}
 			// Bounds for insertion:
-			int x = pbounds.x - srcRect.x + box.x;
-			int y = pbounds.y - srcRect.y + box.y;
+			int x = - srcRect.x + box.x;
+			int y = - srcRect.y + box.y;
 			final int width = pmask.getWidth();
 			final int height = pmask.getHeight();
 
@@ -1641,8 +1642,14 @@ public final class Patch extends Displayable implements ImageData {
 					if (i<0) continue;
 					for (int k=x, mx=0; mx<width && k<W; k++, mx++) {
 						if (k<0) continue;
-						if (255 != (mpix[my * width + mx]&0xff)) continue;
-						pixs[i * W + k] = (short) pimage.getPixelValue(mx, my); // luminance for RGB
+						int mp = mpix[my * width + mx]&0xff;
+						if (0 == mp) {
+							continue; // black pixel of the mask
+						} else if (255 == mp) {
+							pixs[i * W + k] = (short) pimage.getPixelValue(mx, my); // luminance for RGB
+						} else {
+							// TODO blend pixel if the current value in the target ip is not 0
+						}
 					}
 				}
 			} else if (null != pixf) {
