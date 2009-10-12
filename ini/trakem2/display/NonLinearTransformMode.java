@@ -41,174 +41,34 @@ import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
 
-public class NonLinearTransformMode implements Mode {
-	
-	private class Updater extends SimpleThread
+public class NonLinearTransformMode extends GroupingMode {
+
+	protected void doPainterUpdate( final Rectangle r, final double m )
 	{
-		void doit( final Rectangle r, final double m )
+		try
 		{
-			// 1 - Create the list of patch ranges
-
-			// A list of Displayable to paint within the current srcRect
-			final ArrayList<Displayable> to_paint = new ArrayList<Displayable>(layer.find(srcRect, true));
-
-			PatchRange current_range = new PatchRange();
-			ranges.clear();
-			ranges.add(current_range);
-
-			int last_i = -Integer.MAX_VALUE;
-
-			byte last_b = Displayable.COMPOSITE_NORMAL;
-
-			for (final Patch p : originalPatches) {
-				final int i = to_paint.indexOf(p);
-				final byte b = p.getCompositeMode();
-				if (0 == i) {
-					current_range.setAsBottom();
-					current_range.addConsecutive(p);
-				} else if (1 == i - last_i && b == Displayable.COMPOSITE_NORMAL && last_b == Displayable.COMPOSITE_NORMAL) {
-					current_range.addConsecutive(p);
-				} else {
-					current_range = new PatchRange();
-					ranges.add(current_range);
-					current_range.addConsecutive(p);
-				}
-				last_i = i;
-				last_b = b;
-			}
-
-			// 2 - Create the list of ScreenPatchRange, which are Paintable
-
-			screenPatchRanges.clear();
-
-			for (final PatchRange range : ranges) {
-				if (0 == range.list.size()) continue;
-				final ScreenPatchRange spr = new ScreenPatchRange(range, r, m);
-				for (Patch p : range.list) {
-					screenPatchRanges.put(p, spr);
-				}
-			}
-
-			painter.update();
-		}
-	}
-	
-	private class Painter extends SimpleThread
-	{
-		void doit( final Rectangle r, final double m )
-		{
-//			Utils.showMessage("Updating...");
-			try
-			{
-				final CoordinateTransform mlst = createCT();
-				final SimilarityModel2D toWorld = new SimilarityModel2D();
-				toWorld.set( 1.0f / ( float )m, 0, r.x - ScreenPatchRange.pad / ( float )m, r.y - ScreenPatchRange.pad / ( float )m );
-				
-				final mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform > ctl = new mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform >();
-				ctl.add( toWorld );
-				ctl.add( mlst );
-				ctl.add( toWorld.createInverse() );
-				
-				final CoordinateTransformMesh ctm = new CoordinateTransformMesh( ctl, 32, r.width * ( float )m + 2 * ScreenPatchRange.pad, r.height * ( float )m + 2 * ScreenPatchRange.pad );
-				final TransformMeshMapping mapping;
-				mapping = new TransformMeshMapping( ctm );
-				
-				for ( final ScreenPatchRange spr : screenPatchRanges.values())
-				{
-					spr.update( mapping );
-				}
-			}
-			catch ( Exception e ) {}
+			final CoordinateTransform mlst = createCT();
+			final SimilarityModel2D toWorld = new SimilarityModel2D();
+			toWorld.set( 1.0f / ( float )m, 0, r.x - ScreenPatchRange.pad / ( float )m, r.y - ScreenPatchRange.pad / ( float )m );
 			
-			display.getCanvas().repaint( true );
-//			Utils.showMessage("");
+			final mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform > ctl = new mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform >();
+			ctl.add( toWorld );
+			ctl.add( mlst );
+			ctl.add( toWorld.createInverse() );
+			
+			final CoordinateTransformMesh ctm = new CoordinateTransformMesh( ctl, 32, r.width * ( float )m + 2 * ScreenPatchRange.pad, r.height * ( float )m + 2 * ScreenPatchRange.pad );
+			final TransformMeshMapping mapping;
+			mapping = new TransformMeshMapping( ctm );
+			
+			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
+			{
+				spr.update( mapping );
+			}
 		}
+		catch ( Exception e ) {}
 	}
-	
-	private abstract class SimpleThread extends Thread
-	{
-		private boolean updateAgain = false;
 
-		SimpleThread() {
-			setPriority(Thread.NORM_PRIORITY);
-			try { setDaemon(true); } catch (Exception e) {}
-		}
-		
-		public void run()
-		{
-			while ( !isInterrupted() )
-			{
-				final boolean b;
-				final Rectangle r;
-				final double m;
-				synchronized ( this )
-				{
-					b = updateAgain;
-					updateAgain = false;
-					r = ( Rectangle )srcRect.clone();
-					m = magnification;
-				}
-				if ( b )
-				{
-					doit( r, m );
-				}
-				
-				synchronized ( this )
-				{
-					try
-					{
-						if ( !updateAgain ) wait();
-					}
-					catch ( InterruptedException e ){}
-				}
-			}
-		}
-		
-		abstract void doit( final Rectangle r, final double m );
-		
-		void update()
-		{
-			synchronized ( this )
-			{
-				updateAgain = true;
-				notify();
-			}
-		}
-
-		void quit()
-		{
-			interrupt();
-			synchronized ( this )
-			{
-				updateAgain = false;
-				notify();
-			}
-		}
-	}
-	
-	private class NonLinearTransformSource implements GraphicsSource {
-
-		/** Returns the list given as argument without any modification. */
-		public List<? extends Paintable> asPaintable(final List<? extends Paintable> ds) {
-			final List<Paintable> newList = new ArrayList< Paintable >();
-
-			final HashSet<ScreenPatchRange> used = new HashSet<ScreenPatchRange>();
-
-			/* fill it */
-			for ( final Paintable p : ds )
-			{
-				final ScreenPatchRange spr = screenPatchRanges.get( p );
-				if ( spr == null )
-					newList.add(p);
-				else if (!used.contains(spr))
-				{
-					used.add(spr);
-					newList.add( spr );
-				}
-			}
-			return newList;
-		}
-
+	private class NonLinearTransformSource extends GroupingMode.GroupedGraphicsSource {
 		public void paintOnTop(final Graphics2D g, final Display display, final Rectangle srcRect, final double magnification) {
 			
 			final Stroke original_stroke = g.getStroke();
@@ -226,28 +86,11 @@ public class NonLinearTransformMode implements Mode {
 		}
 	}
 
-	static private class PatchRange {
-		final ArrayList< Patch > list = new ArrayList<Patch>();
-		boolean starts_at_bottom = false;
-		boolean is_gray = true;
-
-		void addConsecutive(Patch p) {
-			list.add(p);
-			if (is_gray) {
-				switch (p.getType()) {
-					case ImagePlus.COLOR_RGB:
-					case ImagePlus.COLOR_256:
-						is_gray = false;
-						break;
-				}
-			}
-		}
-		void setAsBottom() {
-			this.starts_at_bottom = true;
-		}
+	protected ScreenPatchRange createScreenPathRange(final PatchRange range, final Rectangle srcRect, final double magnification) {
+		return new ScreenPatchRange(range, srcRect, magnification);
 	}
 
-	static private class ScreenPatchRange implements Paintable {
+	static private class ScreenPatchRange implements GroupingMode.ScreenPatchRange<Mapping<?>> {
 
 		final ImageProcessor ip;
 		final ImageProcessor ipTransformed;
@@ -259,6 +102,7 @@ public class NonLinearTransformMode implements Mode {
 
 		ScreenPatchRange( final PatchRange range, final Rectangle srcRect, final double magnification )
 		{
+			super();
 			this.compositeMode = range.list.get(0).getCompositeMode();
 			final BufferedImage image =
 				new BufferedImage(
@@ -322,10 +166,12 @@ public class NonLinearTransformMode implements Mode {
 			return transformedImage;
 		}
 
-		void flush() {
+		@Override
+		public void flush() {
 			if (null != transformedImage) transformedImage.flush();
 		}
 
+		@Override
 		public void paint( Graphics2D g, double magnification, boolean active, int channels, Layer active_layer )
 		{
 			final AffineTransform at = g.getTransform();
@@ -351,61 +197,19 @@ public class NonLinearTransformMode implements Mode {
 		}
 	}
 
+	protected GroupingMode.GroupedGraphicsSource createGroupedGraphicSource() {
+		return new NonLinearTransformSource();
+	}
 
-	private final Display display;
-	private final Layer layer;
-	
-	private Rectangle srcRect;
-	private double magnification;
-	
-	private NonLinearTransformSource gs;
-	
-	final private Updater updater;
-	final private Painter painter;
-	
-	private final List<Patch> originalPatches;
-	private final List<PatchRange> ranges;
-	private final HashMap<Paintable, ScreenPatchRange> screenPatchRanges;
-	
 	public NonLinearTransformMode(final Display display, final List<Displayable> selected) {
+		super(display, selected);
 		ProjectToolbar.setTool(ProjectToolbar.SELECT);
-		this.display = display;
-		this.layer = display.getLayer();
-		this.srcRect = ( Rectangle )display.getCanvas().getSrcRect().clone();
-		this.magnification = display.getCanvas().getMagnification();
-		this.originalPatches = new ArrayList<Patch>();
-		this.ranges = new ArrayList<PatchRange>();
-
-		final TreeMap<Integer,Patch> m = new TreeMap<Integer,Patch>();
-		for (final Displayable d : selected) {
-			if (d.getClass() == Patch.class) {
-				m.put(layer.indexOf(d), (Patch) d);
-			}
-		}
-		originalPatches.addAll(m.values());
-
-		this.screenPatchRanges = new HashMap<Paintable, ScreenPatchRange>( originalPatches.size() );
-		this.gs = new NonLinearTransformSource();
-
-		this.updater = new Updater();
-		updater.start();
-		this.painter = new Painter();
-		painter.start();
-
-		updater.update(); // will call painter.update()
+		super.initThreads();
 	}
 
 	public NonLinearTransformMode(final Display display) {
 		this(display, display.getSelection().getSelected());
 	}
-
-	public GraphicsSource getGraphicsSource() {
-		return gs;
-	}
-
-	public boolean canChangeLayer() { return false; }
-	public boolean canZoom() { return true; }
-	public boolean canPan() { return true; }
 
 	private Collection< Point > points = new ArrayList< Point >();
 	
@@ -496,42 +300,13 @@ public class NonLinearTransformMode implements Mode {
 		p_clicked = null; // so isDragging can return the right state
 	}
 	
-	private void updated( final Rectangle srcRect, double magnification )
-	{
-		if (
-				this.srcRect.x == srcRect.x &&
-				this.srcRect.y == srcRect.y &&
-				this.srcRect.width == srcRect.width &&
-				this.srcRect.height == srcRect.height &&
-				this.magnification == magnification )
-			return;
-		
-		this.srcRect = (Rectangle) srcRect.clone();
-		this.magnification = magnification;
-		
-		updater.update();
-	}
-
-	public void srcRectUpdated( Rectangle srcRect, double magnification )
-	{
-		updated( srcRect, magnification );
-	}
-	public void magnificationUpdated( Rectangle srcRect, double magnification )
-	{
-		updated( srcRect, magnification );
-	}
-
-	public void redoOneStep() {}
-
-	public void undoOneStep() {}
-
 	public boolean isDragging()
 	{
 		return null != p_clicked;
 	}
 
 	private final void setUndoState() {
-		display.getLayerSet().addEditStep(new Displayable.DoEdits(new HashSet<Displayable>(originalPatches)).init(new String[]{"data", "at", "width", "height"}));
+		layer.getParent().addEditStep(new Displayable.DoEdits(new HashSet<Displayable>(originalPatches)).init(new String[]{"data", "at", "width", "height"}));
 	}
 
 	public boolean apply()
@@ -582,7 +357,7 @@ public class NonLinearTransformMode implements Mode {
 				}
 
 				/* Flush images */
-				for ( ScreenPatchRange spr : new HashSet< ScreenPatchRange >( screenPatchRanges.values() ) )
+				for ( GroupingMode.ScreenPatchRange spr : new HashSet< GroupingMode.ScreenPatchRange >( screenPatchRanges.values() ) )
 				{
 					spr.flush();
 				}
@@ -600,21 +375,13 @@ public class NonLinearTransformMode implements Mode {
 				setUndoState();
 
 			}
-		}, display.getProject() );
+		}, layer.getProject() );
 
-		painter.quit();
-		updater.quit();
+		super.quitThreads();
 
 		return true;
 	}
-	public boolean cancel() {
-		painter.quit();
-		updater.quit();
-		return true;
-	}
 
-	public Rectangle getRepaintBounds() { return (Rectangle) srcRect.clone(); }
-	
 	private CoordinateTransform createCT() throws Exception
 	{
 		final Collection< PointMatch > pm = new ArrayList<PointMatch>();
