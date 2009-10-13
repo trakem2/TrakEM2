@@ -1543,11 +1543,19 @@ public final class Patch extends Displayable implements ImageData {
 		}
 	}
 
-	/** Creates an ImageProcessor of the specified type. */
+	/** Creates an ImageProcessor of the specified type.
+	 *  @param scale may be up to 1.0.
+	 *  Patches are painted in the order given in the @param patches list. */
 	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final ArrayList<Patch> patches, final Color background) {
 		final ImageProcessor ip;
-		final int W = (int)(srcRect.width * scale);
-		final int H = (int)(srcRect.height * scale);
+		final int W, H;
+		if (scale < 1) {
+			W = (int)(srcRect.width * scale);
+			H = (int)(srcRect.height * scale);
+		} else {
+			W = srcRect.width;
+			H = srcRect.height;
+		}
 		switch (type) {
 			case ImagePlus.GRAY8:
 				ip = new ByteProcessor(W, H);
@@ -1565,8 +1573,12 @@ public final class Patch extends Displayable implements ImageData {
 				Utils.logAll("Cannot create an image of type " + type + ".\nSupported types: 8-bit, 16-bit, 32-bit and RGB.");
 				return null;
 		}
-		
-		// TODO fill with background
+
+		// Fill with background
+		if (null != background && Color.black != background) {
+			ip.setColor(background);
+			ip.fill();
+		}
 
 		AffineModel2D sc = null;
 		if ( scale < 1.0 )
@@ -1583,7 +1595,7 @@ public final class Patch extends Displayable implements ImageData {
 
 			final AffineTransform at = new AffineTransform();
 			at.translate( -srcRect.x, -srcRect.y );
-			at.concatenate( p.getAffineTransformCopy() );
+			at.concatenate( p.getAffineTransform() );
 			
 			// 1. The coordinate tranform of the Patch, if any
 			final CoordinateTransform ct = p.getCoordinateTransform();
@@ -1618,7 +1630,7 @@ public final class Patch extends Displayable implements ImageData {
 			case ImagePlus.GRAY32:
 				pi = p.getImageProcessor().convertToFloat();
 				break;
-			default: // ImagePlus.COLOR_RGB:
+			default: // ImagePlus.COLOR_RGB and COLOR_256
 				pi = p.getImageProcessor().convertToRGB();
 				break;
 			}
