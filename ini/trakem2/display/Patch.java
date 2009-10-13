@@ -76,7 +76,8 @@ import java.util.HashSet;
 import java.util.Collection;
 import java.io.File;
 
-import mpicbg.models.AffineModel2D;
+import mpicbg.models.CoordinateTransformMesh;
+import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
@@ -1547,116 +1548,85 @@ public final class Patch extends Displayable implements ImageData {
 		final ImageProcessor ip;
 		final int W = (int)(srcRect.width * scale);
 		final int H = (int)(srcRect.height * scale);
-		byte[] pixb = null;
-		short[] pixs = null;
-		float[] pixf = null;
-		int[] pixi = null;
 		switch (type) {
 			case ImagePlus.GRAY8:
 				ip = new ByteProcessor(W, H);
-				pixb = (byte[]) ip.getPixels();
 				break;
 			case ImagePlus.GRAY16:
 				ip = new ShortProcessor(W, H);
-				pixs = (short[]) ip.getPixels();
 				break;
 			case ImagePlus.GRAY32:
 				ip = new FloatProcessor(W, H);
-				pixf = (float[]) ip.getPixels();
 				break;
 			case ImagePlus.COLOR_RGB:
 				ip = new ColorProcessor(W, H);
-				pixi = (int[]) ip.getPixels();
 				break;
 			default:
 				Utils.logAll("Cannot create an image of type " + type + ".\nSupported types: 8-bit, 16-bit, 32-bit and RGB.");
 				return null;
 		}
+		
+		// TODO fill with background
 
-		mpicbg.models.CoordinateTransform sc = null;
-		if (scale < 1.0d) {
-			AffineModel2D am = new AffineModel2D();
-			AffineTransform af = new AffineTransform();
-			af.setToScale(scale, scale);
-			am.set(af);
-			sc = am;
+		AffineModel2D sc = null;
+		if ( scale < 1.0 )
+		{
+			sc = new AffineModel2D();
+			sc.set( ( float )scale, 0, 0, ( float )scale, 0, 0 );
 		}
-		for (final Patch p : patches) {
+		for ( final Patch p : patches )
+		{
+			// TODO patches seem to come in in inverse order---find out why
+			
 			// A list to represent all the transformations that the Patch image has to go through to reach the scaled srcRect image
-			mpicbg.models.CoordinateTransformList list = new CoordinateTransformList();
+			final CoordinateTransformList< CoordinateTransform > list = new CoordinateTransformList< CoordinateTransform >();
 
-			AffineTransform at = p.getAffineTransformCopy();
-			Rectangle pbounds = p.getBoundingBox();
-
+			final AffineTransform at = new AffineTransform();
+			at.translate( -srcRect.x, -srcRect.y );
+			at.concatenate( p.getAffineTransformCopy() );
+			
 			// 1. The coordinate tranform of the Patch, if any
-			CoordinateTransform ct = p.getCoordinateTransform();
+			final CoordinateTransform ct = p.getCoordinateTransform();
 			if (null != ct) {
 				list.add(ct);
 				// Remove the translation in the patch_affine that the ct added to it
-				final TransformMesh mesh = new TransformMesh(ct, 32, p.getOWidth(), p.getOHeight());
-				final Rectangle box = mesh.getBoundingBox();
-				at.translate(-box.x, -box.y);
-
-				pbounds.x -= box.x;
-				pbounds.y -= box.y;
+				final Rectangle box = p.getCoordinateTransformBoundingBox();
+				at.translate( -box.x, -box.y );
 			}
-
+			
 			// 2. The affine transform of the Patch
-			AffineModel2D patch_affine = new AffineModel2D();
-			patch_affine.set(at);
-			list.add(patch_affine);
+			final AffineModel2D patch_affine = new AffineModel2D();
+			patch_affine.set( at );
+			list.add( patch_affine );
 
 			// 3. The desired scaling
-			if (null != sc) list.add(sc); // TODO this is probably wrong except for 1 == scale
+			if (null != sc) patch_affine.preConcatenate( sc );
 
-			TransformMesh mesh = new TransformMesh(list, 32, p.getOWidth(), p.getOHeight());
-			TransformMeshMapping mapping = new TransformMeshMapping(mesh);
-			Rectangle box = mesh.getBoundingBox();
-
-			ImageProcessor pimage = mapping.createMappedImageInterpolated(p.getImageProcessor());
-			ImageProcessor pmask = p.project.getLoader().fetchImageMask(p);
-			Roi roi = null;
-			if (null == pmask) {
-				byte[] pix = new byte[p.getOWidth() * p.getOHeight()];
-				for (int i=0; i<pix.length; i++) {
-					pix[i] = (byte)255;
-				}
-				pmask = mapping.createMappedImageInterpolated(new ByteProcessor(p.getOWidth(), p.getOHeight(), pix, null));
+			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( list, 32, p.getOWidth(), p.getOHeight() );
+			final mpicbg.ij.TransformMeshMapping mapping = new mpicbg.ij.TransformMeshMapping( mesh );
+			
+			// 4. Convert the patch to the required type
+			final ImageProcessor pi;
+			switch ( type )
+			{
+			case ImagePlus.GRAY8:
+				pi = p.getImageProcessor().convertToByte( true );
+				break;
+			case ImagePlus.GRAY16:
+				pi = p.getImageProcessor().convertToShort( true );
+				break;
+			case ImagePlus.GRAY32:
+				pi = p.getImageProcessor().convertToFloat();
+				break;
+			default: // ImagePlus.COLOR_RGB:
+				pi = p.getImageProcessor().convertToRGB();
+				break;
 			}
-			// Bounds for insertion:
-			int x = - srcRect.x + box.x;
-			int y = - srcRect.y + box.y;
-			final int width = pmask.getWidth();
-			final int height = pmask.getHeight();
-
-			Utils.log2("insertion bounds: " + new Rectangle(x, y, width, height));
-			Utils.log2("mesh box bounds: " + box); // TODO Sometimes the pmask width,height are different than the box.width, box.height. Shouldn't they always be the same?
-
-			// Fill in pixels that are white in the mask
-			final byte[] mpix = (byte[]) pmask.getPixels();
-			//
-			if (null != pixb) {
-				// TODO
-			} else if (null != pixs) {
-				for (int i=y, my=0; my<height && i<H; i++, my++) {
-					if (i<0) continue;
-					for (int k=x, mx=0; mx<width && k<W; k++, mx++) {
-						if (k<0) continue;
-						int mp = mpix[my * width + mx]&0xff;
-						if (0 == mp) {
-							continue; // black pixel of the mask
-						} else if (255 == mp) {
-							pixs[i * W + k] = (short) pimage.getPixelValue(mx, my); // luminance for RGB
-						} else {
-							// TODO blend pixel if the current value in the target ip is not 0
-						}
-					}
-				}
-			} else if (null != pixf) {
-				// TODO
-			} else if (null != pixi) {
-				// TODO
-			}
+			
+			/* TODO for taking into account independent min/max setting for each patch,
+			 * we will need a mapping with an `intensity transfer function' to be implemented.
+			 */
+			mapping.mapInterpolated( pi, ip );
 		}
 
 		return ip;
