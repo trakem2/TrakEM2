@@ -1546,7 +1546,7 @@ public final class Patch extends Displayable implements ImageData {
 	/** Creates an ImageProcessor of the specified type.
 	 *  @param scale may be up to 1.0.
 	 *  Patches are painted in the order given in the @param patches list. */
-	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final ArrayList<Patch> patches, final Color background) {
+	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final Collection<Patch> patches, final Color background) {
 		final ImageProcessor ip;
 		final int W, H;
 		if (scale < 1) {
