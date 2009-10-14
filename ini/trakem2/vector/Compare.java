@@ -3556,6 +3556,7 @@ public class Compare {
 		final AtomicInteger obs_good = new AtomicInteger(0); // observed
 		final AtomicInteger obs_wrong = new AtomicInteger(0); // observed wrong
 		final AtomicInteger exp_good = new AtomicInteger(0); // expected
+		final AtomicInteger exp_bad = new AtomicInteger(0);
 		final AtomicInteger obs_bad_classified_good_ones = new AtomicInteger(0);
 		final AtomicInteger obs_well_classified_bad_ones = new AtomicInteger(0);
 		final AtomicInteger not_found = new AtomicInteger(0); // inc by one when a lineage to compare is not found at all in the brain that works as reference
@@ -3619,7 +3620,10 @@ public class Compare {
 					}
 
 					// should be there:
-					if (weka_classify) exp_good.incrementAndGet();
+					if (weka_classify) {
+						exp_good.incrementAndGet();
+						exp_bad.addAndGet(titles_j.length - 1);
+					}
 
 
 					ArrayList<ChainMatch> list = new ArrayList<ChainMatch>();
@@ -3985,6 +3989,7 @@ public class Compare {
 		if (weka_classify) {
 			sb.append("Decision tree:\n");
 			sb.append("Expected good matches: " + exp_good.get() + "\n");
+			sb.append("Expected bad matches: " + exp_bad.get() + "\n");
 			sb.append("Observed good matches: " + obs_good.get() + "\n");
 			sb.append("Observed bad matches: " + obs_wrong.get() + "\n");
 			sb.append("Observed well classified bad ones: " + obs_well_classified_bad_ones.get() + "\n");
