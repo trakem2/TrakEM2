@@ -1035,12 +1035,20 @@ public final class Layer extends DBObject implements Bucketable {
 
 	private Overlay overlay = null;
 
+	/** Return the current Overlay or a new one if none yet. */
 	synchronized public Overlay getOverlay() {
 		if (null == overlay) overlay = new Overlay();
 		return overlay;
 	}
-
+	// Used by DisplayCanvas to paint
 	Overlay getOverlay2() {
 		return overlay;
+	}
+	/** Set to null to remove the Overlay.
+	 *  @return the previous Overlay, if any. */
+	synchronized public Overlay setOverlay(final Overlay o) {
+		Overlay old = this.overlay;
+		this.overlay = o;
+		return old;
 	}
 }
