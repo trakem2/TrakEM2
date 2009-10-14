@@ -53,6 +53,7 @@ final public class AlignTask
 	static protected boolean hideDisconnectedTiles = false;
 	static protected boolean deleteDisconnectedTiles = false;
 	static protected boolean deform = false;
+	static protected boolean propagateTransform = false;
 	
 	final static public Bureaucrat alignSelectionTask ( final Selection selection )
 	{
@@ -171,13 +172,13 @@ final public class AlignTask
 		
 		final Align.ParamOptimize p = Align.paramOptimize.clone();
 
-		alignTiles(  patches, fixedPatches, p );
+		alignPatches( p, patches, fixedPatches );
 	}
 
-	final static public void alignTiles(
+	final static public void alignPatches(
+			final Align.ParamOptimize p,
 			final List< Patch > patches,
-			final List< Patch > fixedPatches,
-			final Align.ParamOptimize p ) // p at end to avoid "same erasure" problem ... generics!
+			final List< Patch > fixedPatches )
 	{
 		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
@@ -282,7 +283,7 @@ final public class AlignTask
 			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
 		
 		//Param p = Align.param;
-		Align.param.sift.maxOctaveSize = 1024;
+		//Align.param.sift.maxOctaveSize = 1024;
 		
 		final GenericDialog gd = new GenericDialog( "Align Layers Linearly" );
 		
@@ -293,7 +294,7 @@ final public class AlignTask
 		Align.param.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
-		gd.addCheckbox( "propagate after last transform", false );
+		gd.addCheckbox( "propagate after last transform", propagateTransform );
 		
 		gd.showDialog();
 		if ( gd.wasCanceled() ) return;
@@ -302,7 +303,7 @@ final public class AlignTask
 		final int last = gd.getNextChoiceIndex();
 		
 		Align.param.readFields( gd );
-		final boolean propagateTransform = gd.getNextBoolean();
+		propagateTransform = gd.getNextBoolean();
 		
 		alignLayersLinearlyJob( l, first, last, propagateTransform );		
 	}
@@ -844,7 +845,7 @@ final public class AlignTask
 		List<Patch> fixedSlices = new ArrayList<Patch>();
 		fixedSlices.add(slice);
 
-		alignTiles(slices, fixedSlices, p);
+		alignPatches( p, slices, fixedSlices );
 
 		Display.repaint();
 
