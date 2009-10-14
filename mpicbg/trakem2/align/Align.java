@@ -454,9 +454,12 @@ public class Align
 				
 				if ( inliers != null && inliers.size() > 0 )
 				{
-					tilePair[ 0 ].connect( tilePair[ 1 ], inliers );
-					tilePair[ 0 ].clearVirtualMatches();
-					tilePair[ 1 ].clearVirtualMatches();
+					synchronized ( tilePair[ 0 ] )
+					{
+						synchronized ( tilePair[ 1 ] ) { tilePair[ 0 ].connect( tilePair[ 1 ], inliers ); }
+						tilePair[ 0 ].clearVirtualMatches();
+					}
+					synchronized ( tilePair[ 1 ] ) { tilePair[ 1 ].clearVirtualMatches(); }
 				}
 				
 				IJ.showProgress( ap.getAndIncrement(), steps );
