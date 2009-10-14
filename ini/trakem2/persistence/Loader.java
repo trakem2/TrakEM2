@@ -2168,6 +2168,8 @@ abstract public class Loader {
 	 * - column 3: y coord<br />
 	 * - column 4: z coord (layer_thickness will be multiplied to it if not zero)<br />
 	 * 
+	 * This function implements the "Import from text file" command.
+	 *  
 	 * Layers will be automatically created as needed inside the LayerSet to which the given ref_layer belongs.. <br />
 	 * The text file can contain comments that start with the # sign.<br />
 	 * Images will be imported in parallel, using as many cores as your machine has.<br />
