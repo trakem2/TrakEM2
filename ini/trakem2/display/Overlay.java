@@ -60,8 +60,13 @@ public class Overlay {
 		}
 		void paint(Graphics2D g, AffineTransform sm) {
 			g.setColor(null == color ? Color.yellow : color);
-			if (null != stroke) g.setStroke(stroke);
+			Stroke s = null;
+			if (null != stroke) {
+				s = g.getStroke();
+				g.setStroke(stroke);
+			}
 			g.draw(sm.createTransformedShape(shape));
+			if (null != stroke) g.setStroke(s);
 		}
 	}
 }
