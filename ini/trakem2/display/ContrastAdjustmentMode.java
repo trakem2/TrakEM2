@@ -106,7 +106,7 @@ public class ContrastAdjustmentMode extends GroupingMode {
 			if (min < 0) min = 0;
 			if (max > 255) max = 255;
 
-			Utils.log2("ipTransformed is " + ipTransformed.getClass());
+			//Utils.log2("ipTransformed is " + ipTransformed.getClass());
 
 			super.ipTransformed.reset();
 			super.ipTransformed.setMinAndMax(min, max);
@@ -328,11 +328,13 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		minslider.setMinimumSize(dim);
 		maxslider.setMinimumSize(dim);
 
+		min_max.set(0, sliderRange);
 		updateLabelsAndPlot(0, sliderRange);
 
 		frame.pack(); // again
 
 		ij.gui.GUI.center(frame);
+		frame.setAlwaysOnTop(true);
 
 		frame.setVisible(true);
 
@@ -424,10 +426,8 @@ public class ContrastAdjustmentMode extends GroupingMode {
 	}
 
 	public boolean cancel() {
-		Utils.logAll("ContrastAdjustmentMode called cancel");
 		super.cancel();
 		frame.dispose();
-
 		return true;
 	}
 }
