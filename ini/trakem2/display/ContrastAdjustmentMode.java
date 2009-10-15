@@ -4,6 +4,7 @@ import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Point;
+import java.awt.Dimension;
 import java.util.Collections;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -26,7 +27,10 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
 import javax.swing.JFrame;
+import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.JLabel;
@@ -55,6 +59,8 @@ import ini.trakem2.imaging.ContrastPlot;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 import ij.IJ;
+import ij.ImagePlus;
+import ij.measure.Measurements;
 
 public class ContrastAdjustmentMode extends GroupingMode {
 
@@ -86,15 +92,24 @@ public class ContrastAdjustmentMode extends GroupingMode {
 			super(range, srcRect, magnification);
 		}
 		public void update(MinMaxData m) {
-			minLabel.setText(Double.toString(m.min));
-			maxLabel.setText(Double.toString(m.max));
-			plot.update(m.min, m.max);
+			updateGUI(m.min, m.max);
 			//
 			// TODO
 			//
 
 			Utils.log2("min max are: " + m.min + ", " + m.max);
 		}
+	}
+
+	private final void updateGUI(double min, double max) {
+		double imin = initial.getMin();
+		double imax = initial.getMax();
+		double ratio = (imax-imin) / sliderRange;
+		min = imin + min * ratio;
+		max = max * ratio;
+		minLabel.setText(Utils.cutNumber(min, 1));
+		maxLabel.setText(Utils.cutNumber(max, 1));
+		plot.update(min, max);
 	}
 
 	static private class MinMaxData {
@@ -114,8 +129,11 @@ public class ContrastAdjustmentMode extends GroupingMode {
 	}
 
 	private final ImageProcessor initial;
+	private final JFrame frame;
 	private final ContrastPlot plot;
 	private final JLabel minLabel, maxLabel;
+	private double label_ratio = 1;
+	private int sliderRange;
 
 	public ContrastAdjustmentMode(final Display display, final List<Displayable> selected) throws Exception {
 		super(display, selected);
@@ -128,19 +146,25 @@ public class ContrastAdjustmentMode extends GroupingMode {
 
 		initial = Patch.makeFlatImage(type, layer, srcRect, magnification, originalPatches, Color.black);
 		initial.resetMinAndMax();
-		ImageStatistics stats = ImageStatistics.getStatistics(initial, 0, layer.getParent().getCalibrationCopy());
+		Utils.log2("initial min, max: " + initial.getMin() + ", " + initial.getMax());
+		ImageStatistics stats = ImageStatistics.getStatistics(initial, Measurements.AREA + Measurements.MEAN + Measurements.MODE + Measurements.MIN_MAX, layer.getParent().getCalibrationCopy());
 		plot = new ContrastPlot();
 		plot.setDefaultMinAndMax(initial.getMin(), initial.getMax());
 		plot.setHistogram(stats, Color.black);
 
-		int sliderRange = computeSliderRange();
+		// debug
+		//ImagePlus imp = new ImagePlus("initial", initial.duplicate());
+		//imp.show();
+		//Utils.log("initial hmax: " + imp.getStatistics().maxCount);
+
+
+		this.sliderRange = computeSliderRange();
 
 		// Create GUI
-		final JFrame frame = new JFrame("Contrast adjustment");
+		this.frame = new JFrame("Contrast adjustment");
 		frame.addWindowListener(new WindowAdapter() {
-			public void windowClosing(WindowEvent we) {
-				cancel();
-				frame.dispose();
+			public void windowClosed(WindowEvent we) {
+				display.getCanvas().cancelTransform();
 			}
 		});
 		final JPanel panel = new JPanel();
@@ -160,13 +184,9 @@ public class ContrastAdjustmentMode extends GroupingMode {
 
 		// 2. min,max labels
 		final JPanel mm = new JPanel();
+		mm.setMinimumSize(new Dimension(plot.getWidth(), 15));
 		mm.setBackground(Color.white);
 		final Font monoFont = new Font("Monospaced", Font.PLAIN, 12);
-		c.gridy = 1;
-		c.insets = new Insets(0, 10, 0, 10);
-		c.fill = GridBagConstraints.HORIZONTAL;
-		gb.setConstraints(mm, c);
-		panel.add(mm);
 
 		GridBagLayout gbm = new GridBagLayout();
 		GridBagConstraints cm = new GridBagConstraints();
@@ -182,14 +202,34 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		cm.anchor = GridBagConstraints.WEST;
 		gbm.setConstraints(minLabel, cm);
 		mm.add(minLabel);
+
 		cm.gridx = 1;
+		cm.anchor = GridBagConstraints.CENTER;
+		cm.fill = GridBagConstraints.HORIZONTAL;
+		cm.weightx = 1;
+		JPanel empty = new JPanel();
+		empty.setBackground(Color.white);
+		gbm.setConstraints(empty, cm);
+		mm.add(empty);
+
+		cm.weightx = 0;
+		cm.fill = GridBagConstraints.NONE;
+		cm.gridx = 2;
 		cm.anchor = GridBagConstraints.EAST;
 		gbm.setConstraints(maxLabel, cm);
 		mm.add(maxLabel);
+		gbm = null; // defensive programming
+		cm = null;
+
+		c.gridy = 1;
+		c.insets = new Insets(0, 10, 0, 10);
+		c.fill = GridBagConstraints.HORIZONTAL;
+		gb.setConstraints(mm, c);
+		panel.add(mm);
 
 		// 3. Min slider
-		final JSlider minslider = createSlider(panel, gb, c, "Minimum", monoFont, sliderRange);
-		final JSlider maxslider = createSlider(panel, gb, c, "Maximum", monoFont, sliderRange);
+		final JSlider minslider = createSlider(panel, gb, c, "Minimum", monoFont, sliderRange, 0);
+		final JSlider maxslider = createSlider(panel, gb, c, "Maximum", monoFont, sliderRange, sliderRange);
 		ChangeListener adl = new ChangeListener() {
 			public void stateChanged(ChangeEvent ce) {
 				min_max.set(minslider.getValue(), maxslider.getValue());
@@ -199,9 +239,74 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		minslider.addChangeListener(adl);
 		maxslider.addChangeListener(adl);
 
+		// 4. Buttons
+		final JButton cancel = new JButton("Cancel");
+		final JButton apply = new JButton("Apply");
+		ActionListener actlis = new ActionListener() {
+			public void actionPerformed(ActionEvent ae) {
+				Object source = ae.getSource();
+				if (cancel == source) {
+					display.getCanvas().cancelTransform();
+				} else if (apply == source) {
+					display.getCanvas().applyTransform();
+				}
+			}
+		};
+		cancel.addActionListener(actlis);
+		apply.addActionListener(actlis);
+
+		JPanel buttons = new JPanel();
+		buttons.setBackground(Color.white);
+		gbm = new GridBagLayout();
+		buttons.setLayout(gbm);
+		cm = new GridBagConstraints();
+		cm.gridx = 0;
+		cm.gridy = 0;
+		cm.weightx = 0;
+		cm.anchor = GridBagConstraints.WEST;
+		cm.fill = GridBagConstraints.NONE;
+		gbm.setConstraints(cancel, cm);
+		buttons.add(cancel);
+		
+		JPanel space = new JPanel();
+		space.setBackground(Color.white);
+		cm.gridx = 1;
+		cm.weightx = 1;
+		cm.anchor = GridBagConstraints.CENTER;
+		cm.fill = GridBagConstraints.HORIZONTAL;
+		gbm.setConstraints(space, cm);
+		buttons.add(space);
+		
+		cm.gridx = 2;
+		cm.weightx = 0;
+		cm.anchor = GridBagConstraints.EAST;
+		cm.fill = GridBagConstraints.NONE;
+		gbm.setConstraints(apply, cm);
+		buttons.add(apply);
+
+		gbm = null; // defensive programming
+		cm = null;
+
+		c.gridy += 1;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		gb.setConstraints(buttons, c);
+		panel.add(buttons);
+
+
+
 		frame.getContentPane().add(panel);
 		frame.pack();
+
+		// after calling pack
+		Dimension dim = new Dimension(plot.getWidth(), 15);
+		minslider.setMinimumSize(dim);
+		maxslider.setMinimumSize(dim);
+
+		frame.pack(); // again
+
 		frame.setVisible(true);
+
+		updateGUI(initial.getMin(), initial.getMax());
 
 		super.initThreads();
 	}
@@ -221,8 +326,8 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		return newSliderRange;
 	}
 
-	private JSlider createSlider(JPanel panel, GridBagLayout gb, GridBagConstraints c, String title, Font font, int sliderRange) {
-		JSlider s = new JSlider(JSlider.HORIZONTAL, 0, sliderRange, sliderRange/2);
+	private JSlider createSlider(JPanel panel, GridBagLayout gb, GridBagConstraints c, String title, Font font, int sliderRange, int start) {
+		JSlider s = new JSlider(JSlider.HORIZONTAL, 0, sliderRange, start);
 		s.setBackground(Color.white);
 		c.gridy++;
 		c.insets = new Insets(2, 10, 0, 10);
@@ -258,11 +363,23 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		Bureaucrat.createAndStart( new Worker.Task( "Applying transformations" ) {
 			public void exec() {
 				// 1. Close dialog
+				frame.dispose();
+				
+
 				// TODO
+				Utils.logAll("ContrastAdjustmentMode apply not implemented yet.");
 			}
 		}, layer.getProject() );
 
 		super.quitThreads();
+
+		return true;
+	}
+
+	public boolean cancel() {
+		Utils.logAll("ContrastAdjustmentMode called cancel");
+		super.cancel();
+		frame.dispose();
 
 		return true;
 	}
