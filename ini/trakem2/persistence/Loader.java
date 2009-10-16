@@ -2421,6 +2421,7 @@ abstract public class Loader {
 						setTaskName("Enhance contrast");
 						// layer-wise (layer order is irrelevant):
 						cew.applyLayerWise(touched_layers);
+						cew.shutdown();
 					}
 
 				} catch (Exception e) {
@@ -4120,6 +4121,7 @@ abstract public class Loader {
 				ContrastEnhancerWrapper cew = new ContrastEnhancerWrapper();
 				if (!cew.showDialog()) return;
 				cew.applyLayerWise(layers);
+				cew.shutdown();
 			}
 		}, layers.iterator().next().getProject());
 	}
@@ -4132,6 +4134,7 @@ abstract public class Loader {
 				ContrastEnhancerWrapper cew = new ContrastEnhancerWrapper(reference);
 				if (!cew.showDialog()) return;
 				cew.apply(patches);
+				cew.shutdown();
 			}
 		}, patches.iterator().next().getProject());
 	}
