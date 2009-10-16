@@ -10,9 +10,13 @@ import ij.process.StackStatistics;
 import ij.ImagePlus;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Vector;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.Collection;
+import java.util.concurrent.Future;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Displayable;
@@ -32,6 +36,8 @@ public class ContrastEnhancerWrapper {
 	private int stats_mode = 0; // Stack Histogram
 	private boolean use_full_stack = false;
 	private boolean from_existing_min_and_max = false;
+
+	final ExecutorService waiter = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
 	public ContrastEnhancerWrapper() {
 		this(null);
@@ -154,7 +160,7 @@ public class ContrastEnhancerWrapper {
 					p.setMinAndMax(ip.getMin(), ip.getMax());
 
 					// submit for regeneration
-					p.getProject().getLoader().regenerateMipMaps(p);
+					regenerateMipMaps(p);
 				}
 				return true;
 			}
@@ -212,9 +218,7 @@ public class ContrastEnhancerWrapper {
 				ce.stretchHistogram(ip, saturated, st);
 				p.setMinAndMax(ip.getMin(), ip.getMax());
 
-				// submit for regeneration
-				p.getProject().getLoader().regenerateMipMaps(p);
-				p.getProject().getLoader().decacheAWT(p.getId());
+				regenerateMipMaps(p);
 			}
 
 		} catch (Exception e) {
@@ -223,6 +227,46 @@ public class ContrastEnhancerWrapper {
 		}
 
 		return true;
+	}
+
+	private void regenerateMipMaps(final Patch p) {
+		// submit for regeneration
+		tasks.add(waiter.submit(new Runnable() {
+			public void run() {
+				Future fu = p.getProject().getLoader().regenerateMipMaps(p);
+				if (null != fu) {
+					try {
+						fu.get();
+					} catch (Exception e) {
+						IJError.print(e);
+					}
+				}
+				p.getProject().getLoader().decacheAWT(p.getId());
+			}
+		}));
+	}
+
+	final Vector<Future> tasks = new Vector<Future>();
+
+	/** Waits until all tasks have finished executing. */
+	public void shutdown() {
+		// Add a job at the end of the queue that closes the queue
+		tasks.add(waiter.submit(new Runnable() {
+			public void run() {
+				waiter.shutdown();
+				tasks.clear();
+			}
+		}));
+		// ... and wait until all tasks are executed
+		for (Future fu : new Vector<Future>(tasks)) {
+			if (null != fu) {
+				try {
+					fu.get();
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+			}
+		}
 	}
 
 	static private class Stats implements Comparable<Stats> {
