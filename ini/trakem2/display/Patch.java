@@ -192,8 +192,17 @@ public final class Patch extends Displayable implements ImageData {
 		if (hasmin && hasmax) {
 			checkMinMax();
 		} else {
-			// standard, from the image, to be defined when first painted
-			min = max = -1;
+			// Re-read:
+			final ImageProcessor ip = getImageProcessor();
+			if (null == ip) {
+				// Some values, to survive:
+				min = 0;
+				max = Patch.getMaxMax(this.type);
+				Utils.log("ERROR could not restore min and max from file, and they are not present in the XML file.");
+			} else {
+				ip.resetMinAndMax(); // finds automatically reasonable values
+				setMinAndMax(ip.getMin(), ip.getMax());
+			}
 		}
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
@@ -293,44 +302,46 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Boundary checks on min and max, given the image type. */
 	private void checkMinMax() {
-		if (-1 == this.type) return;
+		if (-1 == this.type) {
+			Utils.log("ERROR -1 == type for patch " + this);
+			return;
+		}
+		final double max_max = Patch.getMaxMax(this.type);
+		if (-1 == min && -1 == max) {
+			this.min = 0;
+			this.max = max_max;
+		}
 		switch (type) {
 			case ImagePlus.GRAY8:
 			case ImagePlus.COLOR_RGB:
 			case ImagePlus.COLOR_256:
-			     if (this.min < 0) this.min = 0;
+			     if (this.min < 0) {
+				     this.min = 0;
+				     Utils.log("WARNING set min to 0 for patch " + this + " of type " + type);
+			     }
 			     break;
 		}
-		final double max_max = Patch.getMaxMax(this.type);
-		if (this.max > max_max) this.max = max_max;
-		// still this.max could be -1, in which case putMinAndMax will fix it to the ImageProcessor's values
+		if (this.max > max_max) {
+			this.max = max_max;
+			Utils.log("WARNING fixed max larger than maximum max for type " + type);
+		}
+		if (this.min > this.max) {
+			this.min = this.max;
+			Utils.log("WARNING fixed min larger than max for patch " + this);
+		}
 	}
 
 	/** The min and max values are stored with the Patch, so that the image can be flushed away but the non-destructive contrast settings preserved. */
 	public void setMinAndMax(double min, double max) {
 		this.min = min;
 		this.max = max;
+		checkMinMax();
 		updateInDatabase("min_and_max");
 		Utils.log2("Patch.setMinAndMax: min,max " + min + "," + max);
 	}
 
 	public double getMin() { return min; }
 	public double getMax() { return max; }
-
-	/** Needs a non-null ImagePlus with a non-null ImageProcessor in it. This method is meant to be called only immediately after the ImagePlus is loaded. */
-	/* // OBSOLETE
-	public void putMinAndMax(final ImagePlus imp) throws Exception {
-		ImageProcessor ip = imp.getProcessor();
-		// adjust lack of values
-		if (-1 == min || -1 == max) {
-			min = ip.getMin();
-			max = ip.getMax();
-		} else {
-			ip.setMinAndMax(min, max);
-		}
-		//Utils.log2("Patch.putMinAndMax: min,max " + min + "," + max);
-	}
-	*/
 
 	/** Returns the ImagePlus type of this Patch. */
 	public int getType() {
@@ -764,8 +775,8 @@ public final class Patch extends Displayable implements ImageData {
 		if (null != original_path) {
 			sb_body.append(in).append("original_path=\"").append(original_path).append("\"\n");
 		}
-		if (0 != min) sb_body.append(in).append("min=\"").append(min).append("\"\n");
-		if (max != Patch.getMaxMax(type)) sb_body.append(in).append("max=\"").append(max).append("\"\n");
+		sb_body.append(in).append("min=\"").append(min).append("\"\n");
+		sb_body.append(in).append("max=\"").append(max).append("\"\n");
 
 		String pps = getPreprocessorScriptPath();
 		if (null != pps) sb_body.append(in).append("pps=\"").append(project.getLoader().makeRelativePath(pps)).append("\"\n");
