@@ -3901,10 +3901,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			canvas.repaint(false);
 		} else if (command.equals("Enhance contrast (selected images)...")) {
 			final Layer la = layer;
-			final HashSet<Displayable> ds = new HashSet<Displayable>(la.getParent().getDisplayables());
+			ArrayList<Displayable> selected = selection.getSelected(Patch.class);
+			final HashSet<Displayable> ds = new HashSet<Displayable>(selected);
 			la.getParent().addDataEditStep(ds);
-			ArrayList al = selection.getSelected(Patch.class);
-			Bureaucrat burro = getProject().getLoader().homogenizeContrast(al);
+			Displayable active = Display.this.getActive();
+			Patch ref = active.getClass() == Patch.class ? (Patch)active : null;
+			Bureaucrat burro = getProject().getLoader().enhanceContrast(selected, ref);
 			burro.addPostTask(new Runnable() { public void run() {
 				la.getParent().addDataEditStep(ds);
 			}});
@@ -3914,13 +3916,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Utils.addLayerRangeChoices(Display.this.layer, gd);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
-			java.util.List list = layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1); // exclusive end
-			Layer[] la = new Layer[list.size()];
-			list.toArray(la);
+			java.util.List<Layer> layers = layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1); // exclusive end
 			final HashSet<Displayable> ds = new HashSet<Displayable>();
-			for (final Layer l : la) ds.addAll(l.getDisplayables(Patch.class));
+			for (final Layer l : layers) ds.addAll(l.getDisplayables(Patch.class));
 			getLayerSet().addDataEditStep(ds);
-			Bureaucrat burro = project.getLoader().homogenizeContrast(la);
+			Bureaucrat burro = project.getLoader().enhanceContrast(layers);
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().addDataEditStep(ds);
 			}});
