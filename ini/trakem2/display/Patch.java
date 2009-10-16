@@ -302,6 +302,11 @@ public final class Patch extends Displayable implements ImageData {
 			Utils.log("ERROR -1 == type for patch " + this);
 			return;
 		}
+		final double max_max = Patch.getMaxMax(this.type);
+		if (-1 == min && -1 == max) {
+			this.min = 0;
+			this.max = max_max;
+		}
 		switch (type) {
 			case ImagePlus.GRAY8:
 			case ImagePlus.COLOR_RGB:
@@ -312,19 +317,13 @@ public final class Patch extends Displayable implements ImageData {
 			     }
 			     break;
 		}
-		final double max_max = Patch.getMaxMax(this.type);
-		if (this.min > max_max) {
-			this.min = max_max;
-			this.max = max_max;
-			Utils.log("WARNING fixed out of bounds min,max for patch " + this);
-		}
-		if (this.max < this.min) {
-			this.max = this.min;
-			Utils.log("WARNING fixed min larger than max for patch " + this);
-		}
 		if (this.max > max_max) {
 			this.max = max_max;
 			Utils.log("WARNING fixed max larger than maximum max for type " + type);
+		}
+		if (this.min > this.max) {
+			this.min = this.max;
+			Utils.log("WARNING fixed min larger than max for patch " + this);
 		}
 	}
 
