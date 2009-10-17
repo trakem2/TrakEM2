@@ -4760,4 +4760,40 @@ abstract public class Loader {
 	public void doGUILater( final boolean swing, final Runnable fn ) {
 		guiExec.exec( fn, swing );
 	}
+
+	/** Make the border have an alpha of zero. */
+	public Bureaucrat maskBordersLayerWise(final Collection<Layer> layers, final int top, final int right, final int bottom, final int left) {
+		return Bureaucrat.createAndStart(new Worker.Task("Crop borders") {
+			public void exec() {
+				ArrayList<Future> fus = new ArrayList<Future>();
+				for (final Layer layer : layers) {
+					fus.addAll(maskBorders(top, right, bottom, left, layer.getDisplayables(Patch.class)));
+				}
+				Utils.wait(fus);
+			}
+		}, layers.iterator().next().getProject());
+	}
+
+	/** Make the border have an alpha of zero. */
+	public Bureaucrat maskBorders(final Collection<Displayable> patches, final int top, final int right, final int bottom, final int left) {
+		return Bureaucrat.createAndStart(new Worker.Task("Crop borders") {
+			public void exec() {
+				Utils.wait(maskBorders(top, right, bottom, left, patches));
+			}
+		}, patches.iterator().next().getProject());
+	}
+
+	/** Make the border have an alpha of zero.
+	 *  @return the list of Future that represent the regeneration of the mipmaps of each Patch. */
+	public ArrayList<Future> maskBorders(final int top, final int right, final int bottom, final int left, final Collection<Displayable> patches) {
+		ArrayList<Future> fus = new ArrayList<Future>();
+		for (final Displayable d : patches) {
+			if (d.getClass() != Patch.class) continue;
+			Patch p = (Patch) d;
+			if (p.maskBorder(top, right, bottom, left)) {
+				fus.add(regenerateMipMaps(p));
+			}
+		}
+		return fus;
+	}
 }

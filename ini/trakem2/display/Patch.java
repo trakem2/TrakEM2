@@ -1655,4 +1655,41 @@ public final class Patch extends Displayable implements ImageData {
 		return ip;
 	}
 
+	/** Make the border have an alpha of zero. */
+	public boolean maskBorder(final int size) {
+		return maskBorder(size, size, size, size);
+	}
+	/** Make the border have an alpha of zero. */
+	public boolean maskBorder(final int top, final int right, final int bottom, final int left) {
+		int w = o_width - right - left;
+		int h = o_height - top - bottom;
+		if (w < 0 || h < 0 || left > o_width || top > o_height) {
+			Utils.log("Cannot cut border for patch " + this + " : border off image bounds.");
+			return false;
+		}
+		try {
+			ByteProcessor bp = project.getLoader().fetchImageMask(this);
+			if (null == bp) {
+				bp = new ByteProcessor(o_width, o_height);
+				bp.setRoi(new Roi(left, top, w, h));
+				bp.setValue(255);
+				bp.fill();
+			} else {
+				// make borders black
+				bp.setValue(0);
+				for (Roi r : new Roi[]{new Roi(0, 0, o_width, top),
+						       new Roi(0, top, left, o_height - top - bottom),
+						       new Roi(0, o_height - bottom, o_width, bottom),
+						       new Roi(o_width - right, top, right, o_height - top - bottom)}) {
+					bp.setRoi(r);
+					bp.fill();
+				}
+			}
+			setAlphaMask(bp);
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		}
+		return true;
+	}
 }
