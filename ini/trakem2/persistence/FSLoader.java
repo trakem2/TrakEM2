@@ -1062,6 +1062,7 @@ public final class FSLoader extends Loader {
 			// update the xml path to point to the new one
 			this.project_file_path = path;
 			Utils.log2("After saveAs, new xml path is: " + path);
+			touched_mipmaps.clear();
 		}
 		ControlWindow.updateTitle(project);
 		return path;
