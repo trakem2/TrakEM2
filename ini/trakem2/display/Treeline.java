@@ -70,9 +70,13 @@ public class Treeline extends ZDisplayable {
 	protected Branch root;
 
 	private final class Slab extends Polyline {
-		Slab() {
-			super(Treeline.this.project, -1, Treeline.this.title, 0, 0, Treeline.this.alpha, true, Treeline.this.color, false, Treeline.this.at);
-			this.layer_set = Treeline.this.layer_set;
+		Slab(Project project, LayerSet layer_set) {
+			super(project, -1, Treeline.this.title, 0, 0, Treeline.this.alpha, true, Treeline.this.color, false, Treeline.this.at);
+			this.layer_set = layer_set;
+		}
+		/** For cloning. */
+		private Slab(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+			super(project, id, title, width, height, alpha, visible, color, locked, at);
 		}
 
 		@Override
@@ -80,6 +84,19 @@ public class Treeline extends ZDisplayable {
 
 		@Override
 		public void repaint(boolean repaint_navigator) {} // disabled
+
+		/** Copies the pointer to the LayerSet too. @param copy_id is ignored; ids are always -1, the Slab is a transient object. */
+		@Override
+		public Slab clone(Project pr, boolean copy_id) {
+			Slab copy = new Slab(pr, -1, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, this.at);
+			// The data:
+			copy.n_points = n_points;
+			copy.p = new double[][]{(double[])this.p[0].clone(), (double[])this.p[1].clone()};
+			copy.p_layer = (long[])this.p_layer.clone();
+			copy.layer_set = layer_set;
+			// don't add to database
+			return copy;
+		}
 	}
 
 	/** A branch only holds the first point if it doesn't have any parent. */
@@ -91,13 +108,33 @@ public class Treeline extends ZDisplayable {
 
 		final Slab pline;
 
-		Branch(Branch parent, double first_x, double first_y, long layer_id) {
+		Branch clone(final Project project, final Branch parent_copy) {
+			final Branch copy = new Branch(parent_copy, null == this.pline ? null : this.pline.clone(project, true));
+			if (null != branches) {
+				copy.branches = new HashMap<Integer,ArrayList<Branch>>();
+				for (Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+					ArrayList<Branch> a = new ArrayList<Branch>();
+					for (Branch b : e.getValue()) {
+						a.add(b.clone(project, copy));
+					}
+					copy.branches.put(e.getKey(), a);
+				}
+			}
+			return copy;
+		}
+
+		Branch(Branch parent, Slab pline) {
+			this.parent = parent;
+			this.pline = pline;
+		}
+
+		Branch(Branch parent, double first_x, double first_y, long layer_id, Project project, LayerSet layer_set) {
 			this.parent = parent;
 			// Create a new Slab with an invalid id -1:
 			// TODO 
 			//   - each Slab could have its own bounding box, to avoid iterating all
 			// Each Slab has its own AffineTransform -- passing it in the constructor merely sets its values
-			this.pline = new Slab();
+			this.pline = new Slab(project, layer_set);
 			this.pline.addPoint((int)first_x, (int)first_y, layer_id, 1.0);
 		}
 
@@ -109,7 +146,7 @@ public class Treeline extends ZDisplayable {
 			final int first = s.indexOf('(');
 			final int last = s.indexOf(')', first+1);
 			final String[] coords = s.substring(first+1, last).split(" ");
-			this.pline = new Slab();
+			this.pline = new Slab(getProject(), getLayerSet());
 			for (int i=0; i<coords.length; i+=3) {
 				this.pline.appendPoint(Integer.parseInt(coords[i]),
 						       Integer.parseInt(coords[i+1]),
@@ -142,7 +179,7 @@ public class Treeline extends ZDisplayable {
 		/** Create a sub-branch at index i, with new point x,y,layer_id.
 		 *  @return the new child Branch. */
 		final Branch fork(int i, double x, double y, long layer_id) {
-			return add(new Branch(this, x, y, layer_id), i);
+			return add(new Branch(this, x, y, layer_id, getProject(), getLayerSet()), i);
 		}
 
 		final Branch add(Branch child, int i) {
@@ -162,10 +199,10 @@ public class Treeline extends ZDisplayable {
 			if (null == branches) return;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
 				final int i = e.getKey();
-				final Point2D.Double po1 = Treeline.this.transformPoint(pline.p[0][i], pline.p[1][i]);
+				final Point2D.Double po1 = pline.transformPoint(pline.p[0][i], pline.p[1][i]);
 				final double z = layer_set.getLayer(pline.p_layer[i]).getZ();
 				boolean paint_link = true;
-				Color c = Treeline.this.color;
+				Color c = getColor();
 				if (z < current_z) {
 					if (no_color_cues) paint_link = false;
 					else c = Color.red;
@@ -178,7 +215,7 @@ public class Treeline extends ZDisplayable {
 					b.paint(g, magnification, active, channels, active_layer, branch_stroke, no_color_cues, current_z);
 					// Paint from i in this.pline to 0 in b.pline
 					if (paint_link) {
-						final Point2D.Double po2 = Treeline.this.transformPoint(b.pline.p[0][0], b.pline.p[1][0]);
+						final Point2D.Double po2 = pline.transformPoint(b.pline.p[0][0], b.pline.p[1][0]);
 						g.setColor(c);
 						Stroke st = g.getStroke();
 						if (null != branch_stroke) g.setStroke(branch_stroke);
@@ -436,13 +473,13 @@ public class Treeline extends ZDisplayable {
 			if (null == branches) return;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
 				final int i = e.getKey();
-				final Point2D.Double po = Treeline.this.transformPoint(pline.p[0][i], pline.p[1][i]);
+				final Point2D.Double po = pline.transformPoint(pline.p[0][i], pline.p[1][i]);
 				final float x = (float) (po.x * scale * resample * cal.pixelWidth);
 				final float y = (float) (po.y * scale * resample * cal.pixelHeight);
-				final float z = (float) (layer_set.getLayer(pline.p_layer[i]).getZ() * scale * resample * cal.pixelWidth);
+				final float z = (float) (pline.layer_set.getLayer(pline.p_layer[i]).getZ() * scale * resample * cal.pixelWidth);
 
 				for (final Branch b : e.getValue()) {
-					b.pline.setLayerSet(Treeline.this.layer_set); // needed to retrieve Z coord of layers.
+					b.pline.setLayerSet(pline.layer_set); // needed to retrieve Z coord of layers.
 					List l = asPairwise(b.pline.generateTriangles(scale, parallels, resample, cal));
 					l.add(0, l.get(0));
 					l.add(0, new Point3f(x, y, z));
@@ -460,6 +497,15 @@ public class Treeline extends ZDisplayable {
 
 	public Treeline(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
 		super(project, id, ht_attr, ht_links);
+	}
+
+	public Treeline(final Project project, final long id, final String title, final double width, final double height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at, final Branch root_source) {
+		super(project, id, title, locked, at, width, height);
+		this.alpha = alpha;
+		this.visible = visible;
+		this.color = color;
+		this.root = root_source.clone(project, null);
+		this.root.setAffineTransform(this.at);
 	}
 
 	/** To reconstruct from XML. */
@@ -544,9 +590,9 @@ public class Treeline extends ZDisplayable {
 		return root.linkPatches();
 	}
 
-	public Displayable clone(final Project pr, final boolean copy_id) {
-		// TODO
-		return null;
+	public Treeline clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		return new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at, root);
 	}
 
 	public boolean isDeletable() {
@@ -609,7 +655,7 @@ public class Treeline extends ZDisplayable {
 				return;
 			}
 		} else {
-			root = new Branch(null, x_pl, y_pl, layer_id);
+			root = new Branch(null, x_pl, y_pl, layer_id, project, layer_set);
 			active = root;
 			index = 0;
 		}
@@ -690,5 +736,30 @@ public class Treeline extends ZDisplayable {
 		ArrayList list = new ArrayList();
 		root.generateTriangles(list, scale, parallels, resample, layer_set.getCalibrationCopy());
 		return list;
+	}
+
+	@Override
+	final Class getInternalDataPackageClass() {
+		return DPTreeline.class;
+	}
+
+	@Override
+	synchronized Object getDataPackage() {
+		return new DPTreeline(this);
+	}
+
+	static private final class DPTreeline extends Displayable.DataPackage {
+		final Branch root;
+		DPTreeline(final Treeline tline) {
+			super(tline);
+			this.root = tline.root.clone(tline.project, null);
+		}
+		@Override
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Treeline tline = (Treeline)d;
+			tline.root = this.root.clone(tline.project, null);
+			return true;
+		}
 	}
 }
