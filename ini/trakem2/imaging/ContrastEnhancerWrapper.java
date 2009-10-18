@@ -185,7 +185,9 @@ public class ContrastEnhancerWrapper {
 					}
 					final ArrayList<Patch> a = new ArrayList<Patch>(sp.values());
 					final int count = a.size();
-					if (3 == count ) {
+					if (count < 3) {
+						sub.addAll(a);
+					} else if (3 == count) {
 						sub.add(a.get(1)); // the middle one
 					} else if (4 == count ) {
 						sub.addAll(a.subList(1, 3));
