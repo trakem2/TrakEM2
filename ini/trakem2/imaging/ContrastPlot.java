@@ -112,6 +112,8 @@ public class ContrastPlot extends Canvas {
  		g.drawLine(x1, y1, x2, y2);
  		g.drawLine(x2, HEIGHT-5, x2, HEIGHT);
  		g.drawRect(0, 0, WIDTH, HEIGHT);
+
+		//System.out.println(" hmax " + hmax + "\n x1,y1 " + x1 +", "+ y1 + "\n min,max " + min +", " + max + "\n defaultMin,Max: " + defaultMin +"," + defaultMax + "\n WIDTH,HEIGHT " + WIDTH +"," + HEIGHT);
 	}
 
 	/** Set new min and max and repaint. */
