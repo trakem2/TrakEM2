@@ -2254,6 +2254,13 @@ abstract public class Loader {
 						finishedWorking();
 						return;
 					}
+
+					ContrastEnhancerWrapper cew = null;
+					if (homogenize_contrast) {
+						cew = new ContrastEnhancerWrapper();
+						cew.showDialog();
+					}
+
 					final String sep2 = column_separator + column_separator;
 					// 2 - set a base dir path if necessary
 					final String[] base_dir = new String[]{null, null}; // second item will work as flag if the dialog to ask for a directory is canceled in any of the threads.
@@ -2408,17 +2415,14 @@ abstract public class Loader {
 					base_layer.getParent().setMinimumDimensions();
 					Display.repaint(base_layer.getParent());
 
-					final Layer[] la = new Layer[touched_layers.size()];
-					touched_layers.toArray(la);
+					recreateBuckets(touched_layers);
 
 					if (homogenize_contrast) {
-						setTaskName("");
+						setTaskName("Enhance contrast");
 						// layer-wise (layer order is irrelevant):
-						Thread t = homogenizeContrast(la); // multithreaded
-						if (null != t) t.join();
+						cew.applyLayerWise(touched_layers);
+						cew.shutdown();
 					}
-
-					recreateBuckets(la);
 
 				} catch (Exception e) {
 					IJError.print(e);
@@ -4103,317 +4107,30 @@ abstract public class Loader {
 
 	public void insertXMLOptions(StringBuffer sb_body, String indent) {}
 
-	// OBSOLETE
-	public Bureaucrat optimizeContrast(final ArrayList al_patches) {
-		final Patch[] pa = new Patch[al_patches.size()];
-		al_patches.toArray(pa);
-		Worker worker = new Worker("Optimize contrast") {
-			public void run() {
-				startedWorking();
-				final Worker wo = this;
-				try {
-					///////// Multithreading ///////
-					final AtomicInteger ai = new AtomicInteger(0);
-					final Thread[] threads = MultiThreading.newThreads();
-
-					for (int ithread = 0; ithread < threads.length; ++ithread) {
-						threads[ithread] = new Thread() {
-							public void run() {
-								setPriority(Thread.NORM_PRIORITY);
-					/////////////////////////
-		for (int g = ai.getAndIncrement(); g < pa.length; g = ai.getAndIncrement()) {
-			if (wo.hasQuitted()) break;
-			ImagePlus imp = fetchImagePlus(pa[g]);
-			ImageStatistics stats = imp.getStatistics();
-			int type = imp.getType();
-			imp = null;
-			// Compute autoAdjust min and max values
-			// extracting code from ij.plugin.frame.ContrastAdjuster, method autoAdjust
-			int autoThreshold = 0;
-			// once for 8-bit and color, twice for 16 and 32-bit (thus the 2501 autoThreshold value)
-			int limit = stats.pixelCount/10;
-			int[] histogram = stats.histogram;
-			//if (autoThreshold<10) autoThreshold = 5000;
-			//else autoThreshold /= 2;
-			if (ImagePlus.GRAY16 == type || ImagePlus.GRAY32 == type) autoThreshold = 2500;
-			else autoThreshold = 5000;
-			int threshold = stats.pixelCount / autoThreshold;
-			int i = -1;
-			boolean found = false;
-			int count;
-			double min=0, max=0;
-			do {
-				i++;
-				count = histogram[i];
-				if (count>limit) count = 0;
-				found = count > threshold;
-			} while (!found && i<255);
-			int hmin = i;
-			i = 256;
-			do {
-				i--;
-				count = histogram[i];
-				if (count > limit) count = 0;
-				found = count > threshold;
-			} while (!found && i>0);
-			int hmax = i;
-			if (hmax >= hmin) {
-				min = stats.histMin + hmin*stats.binSize;
-				max = stats.histMin + hmax*stats.binSize;
-				if (min == max) {
-					min = stats.min;
-					max = stats.max;
-				}
+	/** Homogenize contrast layer-wise, for all given layers. */
+	public Bureaucrat enhanceContrast(final Collection<Layer> layers) {
+		if (null == layers || 0 == layers.size()) return null;
+		return Bureaucrat.createAndStart(new Worker.Task("Enhancing contrast") {
+			public void exec() {
+				ContrastEnhancerWrapper cew = new ContrastEnhancerWrapper();
+				if (!cew.showDialog()) return;
+				cew.applyLayerWise(layers);
+				cew.shutdown();
 			}
-			pa[g].setMinAndMax(min, max);
-		}
-
-
-					/////////////////////////   - where are my lisp macros .. and no, mapping a function with reflection is not elegant, but rather a verbosity and constriction attack
-							}
-						};
-					}
-					MultiThreading.startAndJoin(threads);
-					/////////////////////////
-
-					if (wo.hasQuitted()) {
-						rollback();
-					} else {
-
-		// recreate mipmap files
-		if (isMipMapsEnabled()) {
-			ArrayList al = new ArrayList();
-			for (int k=0; k<pa.length; k++) al.add(pa[k]);
-			Thread task = generateMipMaps(al, true); // yes, overwrite files!
-			task.join();
-		}
-		// flush away any existing awt images, so that they'll be reloaded or recreated
-		synchronized (db_lock) {
-			lock();
-			for (int i=0; i<pa.length; i++) {
-				mawts.removeAndFlush(pa[i].getId());
-				Utils.log2(i + " removing mawt for " + pa[i].getId());
-			}
-			unlock();
-		}
-		for (int i=0; i<pa.length; i++) {
-			Display.repaint(pa[i].getLayer(), pa[i], 0);
-		}
-					}
-
-				} catch (Exception e) {
-					IJError.print(e);
-				}
-				finishedWorking();
-			}
-		};
-		return Bureaucrat.createAndStart(worker, pa[0].getProject());
-
+		}, layers.iterator().next().getProject());
 	}
 
-	public Bureaucrat homogenizeContrast(final Layer[] la) {
-		return homogenizeContrast(la, null);
-	}
-
-	/** Homogenize contrast layer-wise, for all given layers, in a multithreaded manner. */
-	public Bureaucrat homogenizeContrast(final Layer[] la, final Worker parent) {
-		if (null == la || 0 == la.length) return null;
-		Worker worker = new Worker("Enhancing contrast") {
-			public void run() {
-				startedWorking();
-				final Worker wo = this;
-				try {
-
-					// USING one single thread, for the locking is so bad, to access
-					//  the imps and to releaseToFit, that it's not worth it: same images
-					//  are being reloaded many times just because they all don't fit in
-					//  at the same time.
-
-					// when quited, rollback() and Display.repaint(layer)
-					for (int i = 0; i < la.length; i++) {
-						if (wo.hasQuitted()) {
-							break;
-						}
-						setTaskName("Enhance contrast, layer z=" + Utils.cutNumber(la[i].getZ(), 2) + " " + (i+1) + "/" + la.length);
-						ArrayList al = la[i].getDisplayables(Patch.class);
-						Patch[] pa = new Patch[al.size()];
-						al.toArray(pa);
-						if (!homogenizeContrast(pa, null == parent ? wo : parent)) {
-							Utils.log("Could not homogenize contrast for images in layer " + la[i]);
-						}
-					}
-
-					if (wo.hasQuitted()) {
-						rollback();
-						for (int i=0; i<la.length; i++) Display.repaint(la[i]);
-					}
-
-				} catch (Exception e) {
-					IJError.print(e);
-				}
-				finishedWorking();
+	/** Homogenize contrast for all patches. */
+	public Bureaucrat enhanceContrast(final Collection<Displayable> patches, final Patch reference) {
+		if (null == patches || 0 == patches.size()) return null;
+		return Bureaucrat.createAndStart(new Worker.Task("Enhancing contrast") {
+			public void exec() {
+				ContrastEnhancerWrapper cew = new ContrastEnhancerWrapper(reference);
+				if (!cew.showDialog()) return;
+				cew.apply(patches);
+				cew.shutdown();
 			}
-		};
-		return Bureaucrat.createAndStart(worker, la[0].getProject());
-	}
-
-	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al) {
-		return homogenizeContrast(al, null);
-	}
-
-	public Bureaucrat homogenizeContrast(final ArrayList<Patch> al, final Worker parent) {
-		if (null == al || al.size() < 1) return null;
-		final Patch[] pa = new Patch[al.size()];
-		al.toArray(pa);
-		Worker worker = new Worker("Enhance contrast") {
-			public void run() {
-				startedWorking();
-				try {
-					homogenizeContrast(pa, null == parent ? this : parent);
-				} catch (Exception e) {
-					IJError.print(e);
-				}
-				finishedWorking();
-			}
-		};
-		return Bureaucrat.createAndStart(worker, pa[0].getProject());
-	}
-
-	/** Homogenize contrast for all given Patch objects, which must be all of the same size and type. Returns false on failure. */
-	public boolean homogenizeContrast(final Patch[] pa, final Worker worker) {
-		try {
-			if (null == pa) return false; // error
-			if (0 == pa.length) return true; // done
-			// 0 - check that all images are of the same size and type
-			final int ptype = pa[0].getType();
-			double pw = pa[0].getOWidth();
-			double ph = pa[0].getOHeight();
-			for (int e=1; e<pa.length; e++) {
-				if (pa[e].getType() != ptype) {
-					// can't continue
-					Utils.log("Can't homogenize histograms: images are not all of the same type.\nFirst offending image is: " + pa[e]);
-					return false;
-				}
-				if (pa[e].getOWidth() != pw || pa[e].getOHeight() != ph) {
-					Utils.log("Can't homogenize histograms: images are not all of the same size.\nFirst offending image is: " + pa[e]);
-					return false;
-				}
-			}
-
-			// 1 - fetch statistics for each image
-			final ArrayList al_st = new ArrayList();
-			final ArrayList al_p = new ArrayList(); // list of Patch ordered by stdDev ASC
-			int type = -1;
-			for (int i=0; i<pa.length; i++) {
-				if (null != worker && worker.hasQuitted()) {
-					return false;
-				}
-				ImagePlus imp = fetchImagePlus(pa[i]);
-				if (-1 == type) type = imp.getType();
-				releaseToFit(measureSize(imp));
-				ImageStatistics i_st = imp.getStatistics();
-				// insert ordered by stdDev, from small to big
-				int q = 0;
-				for (Iterator it = al_st.iterator(); it.hasNext(); ) {
-					ImageStatistics st = (ImageStatistics)it.next();
-					q++;
-					if (st.stdDev > i_st.stdDev) break;
-				}
-				if (q == pa.length) {
-					al_st.add(i_st); // append at the end. WARNING if importing thousands of images, this is a potential source of out of memory errors. I could just recompute it when I needed it again below
-					al_p.add(pa[i]);
-				} else {
-					al_st.add(q, i_st);
-					al_p.add(q, pa[i]);
-				}
-			}
-			final ArrayList al_p2 = (ArrayList)al_p.clone(); // shallow copy of the ordered list
-			// 2 - discard the first and last 25% (TODO: a proper histogram clustering analysis and histogram examination should apply here)
-			if (pa.length > 3) { // under 4 images, use them all
-				int i=0;
-				final int quarter = pa.length / 4;
-				while (i < quarter) {
-					al_p.remove(i);
-					i++;
-				}
-				i = 0;
-				int last = al_p.size() -1;
-				while (i < quarter) {       // I know that it can be done better, but this is CLEAR
-					al_p.remove(last); // why doesn't ArrayList have a removeLast() method ?? And why is removeRange() 'protected' ??
-					last--;
-					i++;
-				}
-			}
-
-			final ImageStatistics stats;
-			PatchStack ps = null;
-
-			if (al_p.size() > 1) {
-				// USE internal ContrastEnhancer plugin with a virtual stack made of the middle 50% of images
-				final Patch[] p50 = new Patch[al_p.size()];
-				al_p.toArray(p50);
-				ps = new PatchStack(p50, 1); // is an ImagePlus
-				stats = new StackStatistics(ps);
-			} else {
-				stats = fetchImagePlus((Patch)al_p.get(0)).getStatistics();
-			}
-
-			final ContrastEnhancer ce = new ContrastEnhancer();
-			Field fnormalize = ContrastEnhancer.class.getDeclaredField("normalize");
-			fnormalize.setAccessible(true);
-			fnormalize.set(ce, true);
-
-			Utils.log2("Worker is: " + worker);
-			if (null != worker) Utils.log2("property is: " + worker.getProperty("ContrastEnhancer-dialog"));
-
-			if (null == worker || Boolean.FALSE != worker.getProperty("ContrastEnhancer-dialog")) {
-				// Show the dialog
-				Method m = ContrastEnhancer.class.getDeclaredMethod("showDialog", new Class[]{ImagePlus.class});
-				m.setAccessible(true);
-				if (Boolean.FALSE == m.invoke(ce, new Object[]{ null != ps ? ps : fetchImagePlus((Patch)al_p.get(0)) } )) {
-					Utils.log2("Canceled ContrastEnhancer dialog.");
-					return false;
-				}
-
-				if (null != worker && null == worker.getProperty("ContrastEnhancer-dialog")) {
-					// Avoid subsequent calls to the dialog
-					worker.setProperty("ContrastEnhancer-dialog", Boolean.FALSE);
-				}
-			}
-			// The above ContrastEnhancer will be applied to all, but the stats are computed for the middle 50%. This is a patched solution to avoid noise-rich tiles.
-
-			// Apply ContrastEnhancer to all
-			for (Patch p : pa) {
-				ImageProcessor ip = p.getImageProcessor();
-				ip.resetMinAndMax();
-				ce.stretchHistogram(ip, 0.5, stats); // 0.5 saturation
-				p.setMinAndMax(ip.getMin(), ip.getMax());
-			}
-
-			// 7 - recreate mipmap files
-			if (isMipMapsEnabled()) {
-				ArrayList al = new ArrayList();
-				for (int k=0; k<pa.length; k++) al.add(pa[k]);
-				Thread task = generateMipMaps(al, true); // yes, overwrite files!
-				task.join();
-				// not threaded:
-				//for (int k=0; k<pa.length; k++) generateMipMaps(pa[k], true);
-			}
-			// 8 - flush away any existing awt images, so that they'll be reloaded or recreated
-			synchronized (db_lock) {
-				lock();
-				for (int k=0; k<pa.length; k++) {
-					mawts.removeAndFlush(pa[k].getId());
-					Utils.log2(k + " removing mawt for " + pa[k].getId());
-				}
-				unlock();
-			}
-			Display.repaint();
-		} catch (Exception e) {
-			IJError.print(e);
-			return false;
-		}
-		return true;
+		}, patches.iterator().next().getProject());
 	}
 
 	public Bureaucrat setMinAndMax(final List<Displayable> patches, final double min, final double max) {
