@@ -41,7 +41,7 @@ public class LineageClassifier
 		ObjectInputStream ois;
 		try {
 			ois = new ObjectInputStream(
-					LineageClassifier.class.getResourceAsStream("lineages_8_randomTree.model"));
+					LineageClassifier.class.getResourceAsStream("lineages_top8_random_forest.model"));
 
 			LineageClassifier.c = (Classifier) ois.readObject();
 			ois.close();
