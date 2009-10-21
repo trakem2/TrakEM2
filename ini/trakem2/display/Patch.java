@@ -192,16 +192,21 @@ public final class Patch extends Displayable implements ImageData {
 		if (hasmin && hasmax) {
 			checkMinMax();
 		} else {
-			// Re-read:
-			final ImageProcessor ip = getImageProcessor();
-			if (null == ip) {
-				// Some values, to survive:
+			if (ImagePlus.GRAY8 == type || ImagePlus.COLOR_RGB == type || ImagePlus.COLOR_256 == type) {
 				min = 0;
-				max = Patch.getMaxMax(this.type);
-				Utils.log("ERROR could not restore min and max from file, and they are not present in the XML file.");
+				max = 255;
 			} else {
-				ip.resetMinAndMax(); // finds automatically reasonable values
-				setMinAndMax(ip.getMin(), ip.getMax());
+				// Re-read:
+				final ImageProcessor ip = getImageProcessor();
+				if (null == ip) {
+					// Some values, to survive:
+					min = 0;
+					max = Patch.getMaxMax(this.type);
+					Utils.log("ERROR could not restore min and max from file, and they are not present in the XML file.");
+				} else {
+					ip.resetMinAndMax(); // finds automatically reasonable values
+					setMinAndMax(ip.getMin(), ip.getMax());
+				}
 			}
 		}
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
