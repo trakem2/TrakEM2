@@ -2211,7 +2211,7 @@ public class Compare {
 
 	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex,
 			                         final String[] ignore, final Project[] projects) {
-		return compareAllToAll(to_file, regex, ignore, projects, false, false, 0);
+		return compareAllToAll(to_file, regex, ignore, projects, false, false, 0, null);
 	}
 
 	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
@@ -2225,7 +2225,8 @@ public class Compare {
 	 */
 	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex,
 			                         final String[] ignore, final Project[] projects,
-						 final boolean crop, final boolean from_end, final int max_n_elements) {
+						 final boolean crop, final boolean from_end, final int max_n_elements,
+						 final String outgroup) {
 
 		// gather all open projects
 		final Project[] p = null == projects ? Project.getProjects().toArray(new Project[0])
@@ -2405,39 +2406,41 @@ public class Compare {
 				final StringBuffer sb = new StringBuffer();
 				sb.append(scores.length).append('\n');
 				dos.write(sb.toString());
+
+				// unique ids, since phylip cannot handle long names
+				final AtomicInteger ids = new AtomicInteger(0);
+				File ftags = new File(dir + filename + ".tags");
+				final OutputStreamWriter dostags = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(ftags)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
+
+
 				for (int i=0; i<scores.length; i++) {
 					sb.setLength(0);
-					String title = chains.get(i).getShortCellTitle().replace(' ', '_').replace('\t', '_').replace('[', '-').replace(']', '-');
-					// Crop title to 6 chars
-					if (title.length() > 8) {
-						String title2 = title.substring(0, 8);
-						Utils.log2("Cropping " + title + " to " + title2);
-						title = title2;
+					//String title = chains.get(i).getShortCellTitle().replace(' ', '_').replace('\t', '_').replace('[', '-').replace(']', '-');
+					int id = ids.incrementAndGet();
+					String sid = Utils.getCharacter(id);
+					String name = chains.get(i).getShortCellTitle();
+					// If sid.length() > 10 chars, trouble!
+					if (sid.length() > 10) {
+						Utils.log2("Ignoring " + name + " : id longer than 10 chars: " + id);
+						continue;
 					}
 					int k = 1;
-					String name = title;
-					// Prepend a project char identifier
+					// Prepend a project char identifier to the name
 					String project_name = "";
 					if (projects.size() > 1) {
 						project_name = Utils.getCharacter(projects.indexOf(chains.get(i).getRoot().getProject()) + 1).toLowerCase();
-						name = project_name + title;
+						name = project_name + name;
 					}
-					// Append a char index when name is used multiple times (mostly because of branching, and other reasons)
-					if (names.contains(name)) {
-						names.remove(name);
-						names.add(name + "a");
-						name += "a";
-						Utils.log2("Contained name " + name + ", thus set to " + name + "a");
-					} else if (names.contains(name + "a")) name += "a"; // so the 'while' will find it
-					while (names.contains(name)) {
-						k++;
-						name = project_name + title + Utils.getCharacter(k).toLowerCase();
+					dostags.write(new StringBuilder().append(sid).append('\t').append(name).append('\n').toString());
+
+					if (null != outgroup && -1 != name.indexOf(outgroup)) {
+						Utils.logAll("Outgroup 0-based index is " + id + ", with id " + sid + ", with name " + name);
 					}
-					names.add(name);
+
 					//
 					final int len = 12;
-					sb.append(name);
-					for (int j=len - name.length(); j>0; j--) sb.append(' '); // pad with spaces up to len
+					sb.append(sid);
+					for (int j=len - sid.length(); j>0; j--) sb.append(' '); // pad with spaces up to len
 					int count = 0;
 					for (int j=0; j<scores[0].length; j++) {
 						sb.append(' ').append(scores[i][j]);
@@ -2454,6 +2457,8 @@ public class Compare {
 					dos.write(sb.toString());
 				}
 				dos.flush();
+				dostags.flush();
+				dostags.close();
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -2564,6 +2569,7 @@ public class Compare {
 						     final String[] ignore,
 			                             final boolean generate_plots, final boolean show_plots,
 						     final boolean show_3D, final boolean show_condensed_3D, final boolean show_sources_3D,
+						     final Map<Project,Color> sources_color_table,
 						     final boolean show_envelope_3D, final float envelope_alpha, final double delta_envelope,
 						     final boolean show_axes_3D, final boolean heat_map,
 						     final Map<String,VectorString3D> map_condensed,
@@ -2803,7 +2809,14 @@ public class Compare {
 					continue;
 				}
 				if (show_sources_3D) {
-					for (Chain chain : bc) Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
+					if (null != sources_color_table) {
+						for (Chain chain : bc) {
+							Color c = sources_color_table.get(chain.getRoot().getProject());
+							Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), null != c ? c : Color.gray);
+						}
+					} else {
+						for (Chain chain : bc) Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
+					}
 				}
 				if (show_condensed_3D) {
 					Display3D.addMesh(common_ls, vs_merged, name + "-condensed", heat_map ? heat_table.get(name) : Color.red);
@@ -3518,7 +3531,7 @@ public class Compare {
 		//    - score against all other brains in which that pipe name exists,
 		//    - record the score position within that brain.
 		//
-		final ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		final ExecutorService exec = Executors.newFixedThreadPool(1); //Runtime.getRuntime().availableProcessors());
 
 		// for each individual lineage:
 		final TreeMap<String,ArrayList<Integer>> indices = new TreeMap<String,ArrayList<Integer>>();
