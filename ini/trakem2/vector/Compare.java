@@ -1769,7 +1769,7 @@ public class Compare {
 		if (null == frame) return;
 		for (int i=tabs.getTabCount()-1; i>-1; i--) {
 			Container jsp = (Container)tabs.getComponentAt(0);
-			JTable table = (JTable)jsp.getComponent(i);
+			JTable table = (JTable)((javax.swing.JViewport)jsp.getComponent(i)).getView();
 			QueryHolderTableModel model = (QueryHolderTableModel)table.getModel();
 			model.remove(displ);
 		}
