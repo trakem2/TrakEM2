@@ -1954,8 +1954,8 @@ public class Compare {
 		public boolean substring_matching = false;
 		public String regex = "";
 		public boolean with_source = false;
-		public double plot_max_x = 270, plot_max_y = 30;
-		public int plot_width = 700, plot_height = 400;
+		public double plot_max_x = 200, plot_max_y = 20;
+		public int plot_width = 600, plot_height = 400;
 		public boolean cut_uneven_ends = true;
 		public int envelope_type = 2;
 		public double delta_envelope = 1;
@@ -2567,10 +2567,11 @@ public class Compare {
 	 * */
 	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex,
 						     final String[] ignore,
+						     final boolean show_cata_dialog,
 			                             final boolean generate_plots, final boolean show_plots, final String plot_dir_,
 						     final boolean show_3D, final boolean show_condensed_3D, final boolean show_sources_3D,
 						     final Map<Project,Color> sources_color_table,
-						     final boolean show_envelope_3D, final float envelope_alpha, final double delta_envelope,
+						     final boolean show_envelope_3D, final float envelope_alpha, final double delta_envelope, final int envelope_type,
 						     final boolean show_axes_3D, final boolean heat_map,
 						     final Map<String,VectorString3D> map_condensed,
 						     final Project[] projects) {
@@ -2598,7 +2599,8 @@ public class Compare {
 
 		final CATAParameters cp = new CATAParameters();
 		cp.delta_envelope = delta_envelope;
-		if (!cp.setup(false, regex, true, true)) {
+		cp.envelope_type = envelope_type;
+		if (show_cata_dialog && !cp.setup(false, regex, true, true)) {
 			finishedWorking();
 			return;
 		}
