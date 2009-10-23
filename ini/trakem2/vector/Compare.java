@@ -2562,7 +2562,7 @@ public class Compare {
 	 * */
 	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex,
 						     final String[] ignore,
-			                             final boolean generate_plots, final boolean show_plots,
+			                             final boolean generate_plots, final boolean show_plots, final String plot_dir_,
 						     final boolean show_3D, final boolean show_condensed_3D, final boolean show_sources_3D,
 						     final boolean show_envelope_3D, final float envelope_alpha, final double delta_envelope,
 						     final boolean show_axes_3D, final boolean heat_map,
@@ -2603,14 +2603,16 @@ public class Compare {
 		final HashMap results = new HashMap();
 
 
-		String plot_dir = null;
+		String plot_dir = plot_dir_;
 		if (generate_plots && !show_plots) {
 			// Save plots
-			DirectoryChooser dc = new DirectoryChooser("Choose plots directory");
-			plot_dir = dc.getDirectory();
 			if (null == plot_dir) {
-				finishedWorking();
-				return;
+				DirectoryChooser dc = new DirectoryChooser("Choose plots directory");
+				plot_dir = dc.getDirectory();
+				if (null == plot_dir) {
+					finishedWorking();
+					return;
+				}
 			}
 			if (IJ.isWindows()) plot_dir = plot_dir.replace('\\', '/');
 			if (!plot_dir.endsWith("/")) plot_dir += "/";
