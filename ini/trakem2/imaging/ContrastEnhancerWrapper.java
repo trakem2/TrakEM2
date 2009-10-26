@@ -116,6 +116,7 @@ public class ContrastEnhancerWrapper {
 	public boolean applyLayerWise(final Collection<Layer> layers) {
 		boolean b = true;
 		for (final Layer layer : layers) {
+			if (Thread.currentThread().isInterrupted()) return false;
 			b = b && apply(layer.getDisplayables(Patch.class));
 		}
 		return b;
@@ -152,6 +153,7 @@ public class ContrastEnhancerWrapper {
 		try {
 			if (equalize) {
 				for (final Patch p : patches) {
+					if (Thread.currentThread().isInterrupted()) return false;
 					ImageProcessor ip = p.getImageProcessor();
 					if (this.from_existing_min_and_max) {
 						ip.setMinAndMax(p.getMin(), p.getMax());
@@ -179,6 +181,7 @@ public class ContrastEnhancerWrapper {
 					// build stack statistics, ordered by stdDev
 					final TreeMap<Stats,Patch> sp = new TreeMap<Stats,Patch>();
 					for (final Patch p : patches) {
+						if (Thread.currentThread().isInterrupted()) return false;
 						ImagePlus imp = p.getImagePlus();
 						p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 2);
 						sp.put(new Stats(imp.getStatistics()), p);
@@ -208,6 +211,7 @@ public class ContrastEnhancerWrapper {
 			final Calibration cal = patches.get(0).getLayer().getParent().getCalibrationCopy();
 
 			for (final Patch p : patches) {
+				if (Thread.currentThread().isInterrupted()) return false;
 				ImageProcessor ip = p.getImageProcessor();
 				if (this.from_existing_min_and_max) {
 					ip.setMinAndMax(p.getMin(), p.getMax());
