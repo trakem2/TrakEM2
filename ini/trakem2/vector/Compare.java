@@ -2598,6 +2598,7 @@ public class Compare {
 		Utils.log2("Asking for CATAParameters...");
 
 		final CATAParameters cp = new CATAParameters();
+		cp.regex = regex;
 		cp.delta_envelope = delta_envelope;
 		cp.envelope_type = envelope_type;
 		if (show_cata_dialog && !cp.setup(false, regex, true, true)) {
@@ -2768,22 +2769,31 @@ public class Compare {
 
 				List<String> names = new ArrayList<String>(bundles.keySet());
 				Collections.sort(names);
+
+				// find max stdDev
+				double max = 0;
+				HashMap<String,Double> heats = new HashMap<String,Double>();
 				for (String name : names) {
 					VectorString3D vs_merged = condensed.get(name);
 					if (null == vs_merged) {
 						Utils.logAll("WARNING could not find a condensed pipe for " + name);
 						continue;
 					}
-					final double[] stdDev = vs_merged.getStdDevAtEachPoint();
+					double[] stdDev = vs_merged.getStdDevAtEachPoint();
 					//double avg = 0;
 					//for (int i=0; i<stdDev.length; i++) avg += stdDev[i];
 					//avg = avg/stdDev.length;
 					Arrays.sort(stdDev);
-					// The median stdDev should be more representative
-					double median = stdDev[stdDev.length/2];
+					double median = stdDev[stdDev.length/2]; // median is more representative than average
+					if (max < median) max = median;
+					heats.put(name, median);
+				}
 
-					// scale between 0 and 30 to get a Fire LUT color:
-					int index = (int)((median / 30) * 255);
+				for (Map.Entry<String,Double> e : heats.entrySet()) {
+					String name = e.getKey();
+					double median = e.getValue();
+					// scale between 0 and max to get a Fire LUT color:
+					int index = (int)((median / max) * 255);
 					if (index > 255) index = 255;
 					Color color = new Color(0xff & reds[index], 0xff & greens[index], 0xff & blues[index]);
 
