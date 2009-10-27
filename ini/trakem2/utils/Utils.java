@@ -73,6 +73,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.concurrent.Future;
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
@@ -1337,5 +1338,15 @@ public class Utils implements ij.plugin.PlugIn {
 		} while ('\n' == c || ' ' == c || '\t' == c);
 
 		return sb.subSequence(start-1, end+2).toString();
+	}
+
+	static public final void wait(final Collection<Future> fus) {
+		for (final Future fu : fus) {
+			if (null != fu) try {
+				fu.get(); // wait until done
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+		}
 	}
 }
