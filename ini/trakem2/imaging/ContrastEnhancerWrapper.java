@@ -237,9 +237,10 @@ public class ContrastEnhancerWrapper {
 
 	private void regenerateMipMaps(final Patch p) {
 		// submit for regeneration
+		final Future fu = p.getProject().getLoader().regenerateMipMaps(p);
+		// ... and when done, decache any images
 		tasks.add(waiter.submit(new Runnable() {
 			public void run() {
-				Future fu = p.getProject().getLoader().regenerateMipMaps(p);
 				if (null != fu) {
 					try {
 						fu.get();
@@ -268,6 +269,10 @@ public class ContrastEnhancerWrapper {
 			if (null != fu) {
 				try {
 					fu.get();
+				} catch (InterruptedException ie) {
+					waiter.shutdownNow();
+					tasks.clear();
+					return;
 				} catch (Exception e) {
 					IJError.print(e);
 				}
