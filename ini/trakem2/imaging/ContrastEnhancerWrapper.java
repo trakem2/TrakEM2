@@ -30,7 +30,7 @@ public class ContrastEnhancerWrapper {
 	private Patch reference = null;
 	private ImageStatistics reference_stats = null;
 
-	private double saturated = 0.5;
+	private double saturated = 0.4;
 	private boolean normalize = true;
 	private boolean equalize = false;
 	private int stats_mode = 0; // Stack Histogram
