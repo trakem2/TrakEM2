@@ -204,11 +204,7 @@
                              (agent nil)
                              (fn [_]
                                (if (= 2 (.getClickCount ev))
-                                 (let [match (indexed (.rowAtPoint table (.getPoint ev)))
-                                       resample (fn [vs]
-                                                  (let [copy (.clone vs)]
-                                                    (.resample copy delta)
-                                                    copy))]
+                                 (let [match (indexed (.rowAtPoint table (.getPoint ev)))]
                                    (println "two clicks")
                                    (Display3D/addMesh dummy_ls
                                                       (resample query-vs)
