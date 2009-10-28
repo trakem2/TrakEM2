@@ -114,8 +114,8 @@
   of the query-vs against all SAT vs in the library sorted by mean euclidean distance,
   and labeled as correct of incorrect matches according to the Random Forest classifier.
   The second element is a list of corresponding SAT names for each match."
-  [query-vs fids delta direct substring]
-  (let [vs1 (resample (register-vs query-vs fids FRT42-fids) delta)
+  [query-vs delta direct substring]
+  (let [vs1 (resample query-vs delta)   ; query-vs is already registered into FRT42-fids
         matches (sort
                   (proxy [java.util.Comparator] []
                     (equals [o]
@@ -161,7 +161,8 @@
   "Takes a calibrated VectorString3D and a list of fiducial points, and checks against the library for identity.
   For consistency in the usage of the Random Forest classifier, the registration is done into the FRT42D-BP106 brain."
   [query-vs fids delta direct substring]
-  (let [[matches names] (match-all query-vs fids delta direct substring)
+  (let [vs1 (register-vs query-vs fids FRT42-fids)
+        [matches names] (match-all vs1 delta direct substring)
         SAT-names (vec names)
         indexed (vec matches)
         column-names ["SAT" "Match" "Seq sim" "Lev Dist" "Med Dist" "Avg Dist" "Cum Dist" "Std Dev" "Prop Mut" "Prop Lengths" "Proximity" "Prox Mut" "Tortuosity"]
@@ -208,7 +209,7 @@
                                  (let [match (indexed (.rowAtPoint table (.getPoint ev)))]
                                    (println "two clicks")
                                    (Display3D/addMesh dummy_ls
-                                                      (resample query-vs delta)
+                                                      (resample vs1 delta)
                                                       "Query"
                                                       Color/yellow)
                                    (Display3D/addMesh dummy_ls
@@ -226,12 +227,14 @@
 
 (defn identify
   "Identify a Pipe or Polyline (which implement Line3D) that represent a SAT."
-  [p]
-  (identify-SAT
-    (let [vs (.asVectorString3D p)]
-          (.calibrate vs (.. p getLayerSet getCalibrationCopy))
-          vs)
-    (Compare/extractPoints (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
-    1.0
-    true
-    false))
+  ([p]
+    (identify 1.0 true false))
+  ([p delta direct substring]
+    (identify-SAT
+      (let [vs (.asVectorString3D p)]
+            (.calibrate vs (.. p getLayerSet getCalibrationCopy))
+            vs)
+      (Compare/extractPoints (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
+      delta
+      direct
+      substring)))
