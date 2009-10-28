@@ -1331,9 +1331,12 @@ public class Compare {
 	 * ASSUMES both VectorString3D are open.
 	 *
 	 * @param direct Whether to test vs1 against vs2 only, or to try all 4 possible combinations of reversed versus non-reversed and pick the best.
+	 *
+	 * Uses 1.1 weights for costs of insertion and deletion, as proven better by the parameter exploration.
+	 * Uses weight of 1 for cost of mutation.
 	 * */
 	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching) {
-		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, COMBINED, direct, substring_matching, 1, 1, 1);
+		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, COMBINED, direct, substring_matching, 1.1, 1.1, 1);
 	}
 
 	static public final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching, final double wi, final double wd, final double wm) {
@@ -3494,9 +3497,12 @@ public class Compare {
 	 *  For each pipe in a brain, score against all other brains in which
 	 *  that pipe name exists, and record the score position within that
 	 *  brain.
+	 *
+	 *  Uses default weights of 1.1 for costs of insertion and of deletion,
+	 *  and weight of 1 for cost of mutation. Chosen from parameter exploration results.
 	 */
 	static public final Bureaucrat reliabilityAnalysis(final String[] ignore) {
-		return reliabilityAnalysis(ignore, true, true, true, 1, 1, 1, 1);
+		return reliabilityAnalysis(ignore, true, true, true, 1, 1.1, 1.1, 1);
 	}
 
 	static public final Bureaucrat reliabilityAnalysis(final String[] ignore, final boolean output_arff, final boolean weka_classify, final boolean show_dialog, final double delta, final double wi, final double wd, final double wm) {
