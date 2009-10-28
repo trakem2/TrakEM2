@@ -10,8 +10,7 @@
            (ini.trakem2.display Line3D Pipe Polyline)
            (ij.text TextWindow)
            (ij.io DirectoryChooser)
-           (java.io File FilenameFilter StringWriter))
-  (:use clojure.contrib.pprint))
+           (java.io File FilenameFilter StringWriter)))
 
 (def
   #^{:doc "The lineages to ignore from all open projects"}
@@ -109,7 +108,7 @@
       (TextWindow. "SAT lib"
                    (let [sw (StringWriter.)]
                      (binding [*out* sw]
-                       (prn (generate-SAT-lib dir))) ; both prn and pprint result in unreadable file: too large!
+                       (prn (generate-SAT-lib dir)))
                        (.toString sw))
                     400 400)
       (catch Exception e
