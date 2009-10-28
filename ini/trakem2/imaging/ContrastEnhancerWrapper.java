@@ -30,7 +30,7 @@ public class ContrastEnhancerWrapper {
 	private Patch reference = null;
 	private ImageStatistics reference_stats = null;
 
-	private double saturated = 0.5;
+	private double saturated = 0.4;
 	private boolean normalize = true;
 	private boolean equalize = false;
 	private int stats_mode = 0; // Stack Histogram
@@ -116,6 +116,7 @@ public class ContrastEnhancerWrapper {
 	public boolean applyLayerWise(final Collection<Layer> layers) {
 		boolean b = true;
 		for (final Layer layer : layers) {
+			if (Thread.currentThread().isInterrupted()) return false;
 			b = b && apply(layer.getDisplayables(Patch.class));
 		}
 		return b;
@@ -152,6 +153,7 @@ public class ContrastEnhancerWrapper {
 		try {
 			if (equalize) {
 				for (final Patch p : patches) {
+					if (Thread.currentThread().isInterrupted()) return false;
 					ImageProcessor ip = p.getImageProcessor();
 					if (this.from_existing_min_and_max) {
 						ip.setMinAndMax(p.getMin(), p.getMax());
@@ -179,13 +181,16 @@ public class ContrastEnhancerWrapper {
 					// build stack statistics, ordered by stdDev
 					final TreeMap<Stats,Patch> sp = new TreeMap<Stats,Patch>();
 					for (final Patch p : patches) {
+						if (Thread.currentThread().isInterrupted()) return false;
 						ImagePlus imp = p.getImagePlus();
 						p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 2);
 						sp.put(new Stats(imp.getStatistics()), p);
 					}
 					final ArrayList<Patch> a = new ArrayList<Patch>(sp.values());
 					final int count = a.size();
-					if (3 == count ) {
+					if (count < 3) {
+						sub.addAll(a);
+					} else if (3 == count) {
 						sub.add(a.get(1)); // the middle one
 					} else if (4 == count ) {
 						sub.addAll(a.subList(1, 3));
@@ -206,6 +211,7 @@ public class ContrastEnhancerWrapper {
 			final Calibration cal = patches.get(0).getLayer().getParent().getCalibrationCopy();
 
 			for (final Patch p : patches) {
+				if (Thread.currentThread().isInterrupted()) return false;
 				ImageProcessor ip = p.getImageProcessor();
 				if (this.from_existing_min_and_max) {
 					ip.setMinAndMax(p.getMin(), p.getMax());
@@ -231,9 +237,10 @@ public class ContrastEnhancerWrapper {
 
 	private void regenerateMipMaps(final Patch p) {
 		// submit for regeneration
+		final Future fu = p.getProject().getLoader().regenerateMipMaps(p);
+		// ... and when done, decache any images
 		tasks.add(waiter.submit(new Runnable() {
 			public void run() {
-				Future fu = p.getProject().getLoader().regenerateMipMaps(p);
 				if (null != fu) {
 					try {
 						fu.get();
@@ -262,6 +269,10 @@ public class ContrastEnhancerWrapper {
 			if (null != fu) {
 				try {
 					fu.get();
+				} catch (InterruptedException ie) {
+					waiter.shutdownNow();
+					tasks.clear();
+					return;
 				} catch (Exception e) {
 					IJError.print(e);
 				}

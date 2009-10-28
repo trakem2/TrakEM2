@@ -1331,12 +1331,15 @@ public class Compare {
 	 * ASSUMES both VectorString3D are open.
 	 *
 	 * @param direct Whether to test vs1 against vs2 only, or to try all 4 possible combinations of reversed versus non-reversed and pick the best.
+	 *
+	 * Uses 1.1 weights for costs of insertion and deletion, as proven better by the parameter exploration.
+	 * Uses weight of 1 for cost of mutation.
 	 * */
 	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching) {
-		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, COMBINED, direct, substring_matching, 1, 1, 1);
+		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, COMBINED, direct, substring_matching, 1.1, 1.1, 1);
 	}
 
-	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching, final double wi, final double wd, final double wm) {
+	static public final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching, final double wi, final double wd, final double wm) {
 
 		if (substring_matching) {
 			// identify shorter chain
@@ -1360,7 +1363,13 @@ public class Compare {
 					              matchDirect(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type, wi, wd, wm)
 						    : matchFwdRev(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type, wi, wd, wm);
 				if (null == best) best = ob;
-				else if (((Double)ob[1]).doubleValue() > ((Double)best[1]).doubleValue()) best = ob;
+				else {
+					double dob = ((Double)ob[1]).doubleValue();     // values generated in getScore
+					double dbest = ((Double)best[1]).doubleValue();
+					// Includes DISSIMILARITY, since getScore does (1 - similarity)
+					// and also COMBINED, since getScore does 1 / score
+					if (dob < dbest) best = ob;
+				}
 			}
 			return best;
 		} else {
@@ -1397,12 +1406,13 @@ public class Compare {
 		return seq_sim * w[0] + levenshtein * w[1] + median_phys_dist * w[2] + w[3];
 	}
 
-	/** Zero is best; gets bad towards positive infinite -- except for COMBINED, where the larger the better. */
+	/** Zero is best; gets bad towards positive infinite -- including for DISSIMILARITY (1 - similarity) and COMBINED (1 / score). */
 	static private final double getScore(Editions ed, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
 		switch (distance_type) {
 			case LEVENSHTEIN: // Levenshtein
 				return ed.getDistance();
 			case DISSIMILARITY: // Dissimilarity
+				// To make smaller values better, subtract from 1
 				return 1 - ed.getSimilarity(skip_ends, max_mut, min_chunk);
 			case AVG_PHYS_DIST: // average physical distance between mutation pairs only
 				return ed.getPhysicalDistance(skip_ends, max_mut, min_chunk, true);
@@ -1415,6 +1425,7 @@ public class Compare {
 			case STD_DEV_ALL: // stdDev of distances between all pairs
 				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[2];
 			case COMBINED: // combined score
+				// To make smaller values better, make inverse
 				return 1 / score(ed.getSimilarity(), ed.getDistance(), ed.getStatistics(skip_ends, max_mut, min_chunk, false)[3], Compare.W);
 			case PROXIMITY: // cummulative distance relative to largest physical length of the two sequences
 				return ed.getStatistics(skip_ends, max_mut, min_chunk, false)[7]; // 7 is proximity
@@ -3468,7 +3479,7 @@ public class Compare {
 						VectorString3D vs1 = query.vs;
 						final double delta1 = 0 == delta ? vs1.getDelta() : delta; // WARNING unchecked delta value
 						final VectorString3D vs2 = qh.makeVS2(ref, delta1);
-						final Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk, 1, direct, substring_matching);
+						final Object[] ob = findBestMatch(vs1, vs2, delta1, skip_ends, max_mut, min_chunk, COMBINED, direct, substring_matching);
 						final Editions ed = (Editions)ob[0];
 						//qh.addMatch(query, ref, ed, seq_sim, ed.getPhysicalDistance(skip_ends, max_mut, min_chunk));
 
@@ -3511,9 +3522,12 @@ public class Compare {
 	 *  For each pipe in a brain, score against all other brains in which
 	 *  that pipe name exists, and record the score position within that
 	 *  brain.
+	 *
+	 *  Uses default weights of 1.1 for costs of insertion and of deletion,
+	 *  and weight of 1 for cost of mutation. Chosen from parameter exploration results.
 	 */
 	static public final Bureaucrat reliabilityAnalysis(final String[] ignore) {
-		return reliabilityAnalysis(ignore, true, true, true, 1, 1, 1, 1);
+		return reliabilityAnalysis(ignore, true, true, true, 1, 1.1, 1.1, 1);
 	}
 
 	static public final Bureaucrat reliabilityAnalysis(final String[] ignore, final boolean output_arff, final boolean weka_classify, final boolean show_dialog, final double delta, final double wi, final double wd, final double wm) {

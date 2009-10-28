@@ -90,56 +90,10 @@ public class NonLinearTransformMode extends GroupingMode {
 		return new ScreenPatchRange(range, srcRect, magnification);
 	}
 
-	static private class ScreenPatchRange implements GroupingMode.ScreenPatchRange<Mapping<?>> {
-
-		final ImageProcessor ip;
-		final ImageProcessor ipTransformed;
-		final FloatProcessor mask;
-		final FloatProcessor maskTransformed;
-		BufferedImage transformedImage;
-		static final int pad = 100;
-		final byte compositeMode;
-
-		ScreenPatchRange( final PatchRange range, final Rectangle srcRect, final double magnification )
-		{
-			super();
-			this.compositeMode = range.list.get(0).getCompositeMode();
-			final BufferedImage image =
-				new BufferedImage(
-						( int )( srcRect.width * magnification + 0.5 ) + 2 * pad,
-						( int )( srcRect.height * magnification + 0.5 ) + 2 * pad,
-						range.starts_at_bottom ? range.is_gray ? BufferedImage.TYPE_BYTE_GRAY : BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB );
-
-			Graphics2D g = image.createGraphics();
-			final AffineTransform atc = new AffineTransform();
-			atc.translate(pad, pad);
-			atc.scale( magnification, magnification);
-			atc.translate(-srcRect.x, -srcRect.y);
-			g.setTransform( atc );
-			for (final Patch patch : range.list) {
-				patch.paint( g, magnification, false, 0xffffffff, patch.getLayer() );
-			}
-
-			ip = new ImagePlus( "", image ).getProcessor();
-			ipTransformed = ip.createProcessor( ip.getWidth(), ip.getHeight() );
-			ipTransformed.snapshot();
-			
-			if (!range.starts_at_bottom) {
-				final float[] pixels = new float[ ip.getWidth() * ip.getHeight() ];
-				mask = new FloatProcessor( ip.getWidth(), ip.getHeight(), image.getAlphaRaster().getPixels( 0, 0, ip.getWidth(), ip.getHeight(), pixels ), null );
-				maskTransformed = new FloatProcessor( ip.getWidth(), ip.getHeight() );
-				maskTransformed.snapshot();
-			}
-			else
-			{
-				mask = null;
-				maskTransformed = null;
-			}
-
-			image.flush();
-			transformedImage = makeImage(ip, mask);
+	private class ScreenPatchRange extends GroupingMode.ScreenPatchRange<Mapping<?>> {
+		ScreenPatchRange( final PatchRange range, final Rectangle srcRect, final double magnification ) {
+			super(range, srcRect, magnification);
 		}
-
 		public void update( final Mapping< ? > mapping )
 		{
 			ipTransformed.reset();
@@ -151,49 +105,7 @@ public class NonLinearTransformMode extends GroupingMode {
 			}
 			
 			if (null != transformedImage) transformedImage.flush();
-			transformedImage = makeImage( ipTransformed, maskTransformed );
-		}
-
-		private BufferedImage makeImage( final ImageProcessor ip, final FloatProcessor mask )
-		{
-			final BufferedImage transformedImage = new BufferedImage( ip.getWidth(), ip.getHeight(), null == mask ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB );
-			final Image img = ip.createImage();
-			transformedImage.createGraphics().drawImage( img, 0, 0, null );
-			img.flush();
-			if (null != mask) {
-				transformedImage.getAlphaRaster().setPixels( 0, 0, ip.getWidth(), ip.getHeight(), ( float[] )mask.getPixels() );
-			}
-			return transformedImage;
-		}
-
-		@Override
-		public void flush() {
-			if (null != transformedImage) transformedImage.flush();
-		}
-
-		@Override
-		public void paint( Graphics2D g, double magnification, boolean active, int channels, Layer active_layer )
-		{
-			final AffineTransform at = g.getTransform();
-			final AffineTransform atp = new AffineTransform();
-			
-			atp.translate( -pad, -pad );
-			g.setTransform( atp );
-			Composite original_composite = null;
-			if (Displayable.COMPOSITE_NORMAL != compositeMode) {
-				original_composite = g.getComposite();
-				g.setComposite(Displayable.getComposite(compositeMode, 1.0f));
-			}
-			g.drawImage( transformedImage, 0, 0, null );
-			if (null != original_composite) {
-				g.setComposite(original_composite);
-			}
-			g.setTransform( at );
-		}
-
-		public void prePaint( Graphics2D g, double magnification, boolean active, int channels, Layer active_layer )
-		{
-			paint( g, magnification, active, channels, active_layer );			
+			transformedImage = super.makeImage( ipTransformed, maskTransformed );
 		}
 	}
 

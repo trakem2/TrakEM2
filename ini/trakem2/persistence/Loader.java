@@ -2933,6 +2933,12 @@ abstract public class Loader {
 		return null;
 	}
 
+	/** Creates an ImageProcessor of the specified type. */
+	public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final ArrayList<Patch> patches, final Color background) {
+		return Patch.makeFlatImage(type, layer, srcRect, scale, patches, background);
+	}
+
+
 	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type) {
 		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, null);
 	}
@@ -4120,7 +4126,7 @@ abstract public class Loader {
 		}, layers.iterator().next().getProject());
 	}
 
-	/** Homogenize contrast for all patches. */
+	/** Homogenize contrast for all patches, optionally using the @param reference Patch (can be null). */
 	public Bureaucrat enhanceContrast(final Collection<Displayable> patches, final Patch reference) {
 		if (null == patches || 0 == patches.size()) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Enhancing contrast") {
@@ -4753,5 +4759,41 @@ abstract public class Loader {
 	/** Execute a GUI-related task later; it's the fn's responsability to do the call via SwingUtilities.invokeLater if necesary. */
 	public void doGUILater( final boolean swing, final Runnable fn ) {
 		guiExec.exec( fn, swing );
+	}
+
+	/** Make the border have an alpha of zero. */
+	public Bureaucrat maskBordersLayerWise(final Collection<Layer> layers, final int top, final int right, final int bottom, final int left) {
+		return Bureaucrat.createAndStart(new Worker.Task("Crop borders") {
+			public void exec() {
+				ArrayList<Future> fus = new ArrayList<Future>();
+				for (final Layer layer : layers) {
+					fus.addAll(maskBorders(top, right, bottom, left, layer.getDisplayables(Patch.class)));
+				}
+				Utils.wait(fus);
+			}
+		}, layers.iterator().next().getProject());
+	}
+
+	/** Make the border have an alpha of zero. */
+	public Bureaucrat maskBorders(final Collection<Displayable> patches, final int top, final int right, final int bottom, final int left) {
+		return Bureaucrat.createAndStart(new Worker.Task("Crop borders") {
+			public void exec() {
+				Utils.wait(maskBorders(top, right, bottom, left, patches));
+			}
+		}, patches.iterator().next().getProject());
+	}
+
+	/** Make the border have an alpha of zero.
+	 *  @return the list of Future that represent the regeneration of the mipmaps of each Patch. */
+	public ArrayList<Future> maskBorders(final int top, final int right, final int bottom, final int left, final Collection<Displayable> patches) {
+		ArrayList<Future> fus = new ArrayList<Future>();
+		for (final Displayable d : patches) {
+			if (d.getClass() != Patch.class) continue;
+			Patch p = (Patch) d;
+			if (p.maskBorder(top, right, bottom, left)) {
+				fus.add(regenerateMipMaps(p));
+			}
+		}
+		return fus;
 	}
 }

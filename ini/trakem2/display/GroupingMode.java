@@ -56,7 +56,7 @@ public abstract class GroupingMode implements Mode {
 	protected final GroupedGraphicsSource gs;
 
 	protected final List<Patch> originalPatches;
-	private final List<PatchRange> ranges;
+	protected final List<PatchRange> ranges;
 	protected final HashMap<Paintable, ScreenPatchRange> screenPatchRanges;
 
 	public GroupingMode(final Display display, final List<Displayable> selected) {
@@ -139,10 +139,96 @@ public abstract class GroupingMode implements Mode {
 
 	protected abstract ScreenPatchRange createScreenPathRange(final PatchRange range, final Rectangle srcRect, final double magnification);
 
+	static protected abstract class ScreenPatchRange<T> implements Paintable {
 
-	protected interface ScreenPatchRange<T> extends Paintable {
-		public abstract void update( final T ob );
-		public void flush();
+		final ImageProcessor ip;
+		final ImageProcessor ipTransformed;
+		final FloatProcessor mask;
+		final FloatProcessor maskTransformed;
+		BufferedImage transformedImage;
+		static final int pad = 100;
+		final byte compositeMode;
+
+		ScreenPatchRange( final PatchRange range, final Rectangle srcRect, final double magnification )
+		{
+			this.compositeMode = range.list.get(0).getCompositeMode();
+			final BufferedImage image =
+				new BufferedImage(
+						( int )( srcRect.width * magnification + 0.5 ) + 2 * pad,
+						( int )( srcRect.height * magnification + 0.5 ) + 2 * pad,
+						range.starts_at_bottom ? range.is_gray ? BufferedImage.TYPE_BYTE_GRAY : BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB );
+
+			Graphics2D g = image.createGraphics();
+			final AffineTransform atc = new AffineTransform();
+			atc.translate(pad, pad);
+			atc.scale( magnification, magnification);
+			atc.translate(-srcRect.x, -srcRect.y);
+			g.setTransform( atc );
+			for (final Patch patch : range.list) {
+				patch.paint( g, magnification, false, 0xffffffff, patch.getLayer() );
+			}
+
+			ip = new ImagePlus( "", image ).getProcessor();
+			ipTransformed = ip.duplicate();
+			ipTransformed.snapshot();
+			
+			if (!range.starts_at_bottom) {
+				final float[] pixels = new float[ ip.getWidth() * ip.getHeight() ];
+				mask = new FloatProcessor( ip.getWidth(), ip.getHeight(), image.getAlphaRaster().getPixels( 0, 0, ip.getWidth(), ip.getHeight(), pixels ), null );
+				maskTransformed = new FloatProcessor( ip.getWidth(), ip.getHeight() );
+				maskTransformed.snapshot();
+			}
+			else
+			{
+				mask = null;
+				maskTransformed = null;
+			}
+
+			image.flush();
+			transformedImage = makeImage(ip, mask);
+		}
+
+		abstract public void update(T t);
+
+		protected BufferedImage makeImage( final ImageProcessor ip, final FloatProcessor mask )
+		{
+			final BufferedImage transformedImage = new BufferedImage( ip.getWidth(), ip.getHeight(), null == mask ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB );
+			final Image img = ip.createImage();
+			transformedImage.createGraphics().drawImage( img, 0, 0, null );
+			img.flush();
+			if (null != mask) {
+				transformedImage.getAlphaRaster().setPixels( 0, 0, ip.getWidth(), ip.getHeight(), ( float[] )mask.getPixels() );
+			}
+			return transformedImage;
+		}
+
+		public void flush() {
+			if (null != transformedImage) transformedImage.flush();
+		}
+
+		public void paint( Graphics2D g, double magnification, boolean active, int channels, Layer active_layer )
+		{
+			final AffineTransform at = g.getTransform();
+			final AffineTransform atp = new AffineTransform();
+			
+			atp.translate( -pad, -pad );
+			g.setTransform( atp );
+			Composite original_composite = null;
+			if (Displayable.COMPOSITE_NORMAL != compositeMode) {
+				original_composite = g.getComposite();
+				g.setComposite(Displayable.getComposite(compositeMode, 1.0f));
+			}
+			g.drawImage( transformedImage, 0, 0, null );
+			if (null != original_composite) {
+				g.setComposite(original_composite);
+			}
+			g.setTransform( at );
+		}
+
+		public void prePaint( Graphics2D g, double magnification, boolean active, int channels, Layer active_layer )
+		{
+			paint( g, magnification, active, channels, active_layer );			
+		}
 	}
 
 	/** Creates a list of patch ranges and calls painter.update() */
