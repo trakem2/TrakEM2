@@ -155,6 +155,8 @@
             0
             text)))
 
+(def worker (agent nil))
+
 (defn identify-SAT
   "Takes a calibrated VectorString3D and a list of fiducial points, and checks against the library for identity.
   For consistency in the usage of the Random Forest classifier, the registration is done into the FRT42D-BP106 brain."
@@ -200,18 +202,17 @@
     (.addMouseListener table
                        (proxy [MouseAdapter] []
                          (mousePressed [ev]
-                           (send-off
-                             (agent nil)
+                           (send-off worker
                              (fn [_]
                                (if (= 2 (.getClickCount ev))
                                  (let [match (indexed (.rowAtPoint table (.getPoint ev)))]
                                    (println "two clicks")
                                    (Display3D/addMesh dummy_ls
-                                                      (resample query-vs)
+                                                      (resample query-vs delta)
                                                       "Query"
                                                       Color/yellow)
                                    (Display3D/addMesh dummy_ls
-                                                      (resample (SAT-lib (match :SAT-name)))
+                                                      (resample (SAT-lib (match :SAT-name)) delta)
                                                       (match :SAT-name)
                                                       (if (match :correct)
                                                         Color/red
