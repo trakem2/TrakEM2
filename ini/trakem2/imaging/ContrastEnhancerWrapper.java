@@ -118,6 +118,13 @@ public class ContrastEnhancerWrapper {
 		for (final Layer layer : layers) {
 			if (Thread.currentThread().isInterrupted()) return false;
 			b = b && apply(layer.getDisplayables(Patch.class));
+			// Wait until all mipmaps have regenerated:
+			try {
+				waiter.submit(new Runnable() { public void run() { /*buh!*/ } }).get();
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			}
 		}
 		return b;
 	}
