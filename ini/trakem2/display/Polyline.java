@@ -722,14 +722,30 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
 
-			if (-1 != index) {
-				if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
+				final long lid = Display.getFrontLayer(this.project).getId();
+				Utils.log2("index is " + index + "   lid is " + lid);
+				if (-1 == index || lid != p_layer[index]) {
+					// find closest point within the current layer:
+					double min_dist = Double.MAX_VALUE;
+					for (int i=0; i<n_points; i++) {
+						if (lid != p_layer[i]) continue;
+						double sq_dist = Math.pow(p[0][i] - x_p, 2) + Math.pow(p[1][i] - y_p, 2);
+						if (sq_dist < min_dist) {
+							index = i;
+							min_dist = sq_dist;
+						}
+					}
+				}
+				if (-1 != index) {
 					//delete point
 					removePoint(index);
 					index = -1;
 					repaint(false);
-					return;
 				}
+
+				// In any case, terminate
+				return;
 			}
 
 			if (-1 != index && layer_id != p_layer[index]) index = -1; // disable!
