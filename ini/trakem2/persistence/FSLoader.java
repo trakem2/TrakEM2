@@ -954,32 +954,34 @@ public final class FSLoader extends Loader {
 
 	/** With slice info appended at the end; only if it exists, otherwise null. */
 	public String getAbsolutePath(final Patch patch) {
-		String abs_path = patch.getCurrentPath();
-		if (null != abs_path) return abs_path;
-		// else, compute, set and return it:
-		String path = ht_paths.get(patch.getId());
-		if (null == path) return null;
-		// substract slice info if there
-		int i_sl = path.lastIndexOf("-----#slice=");
-		String slice = null;
-		if (-1 != i_sl) {
-			slice = path.substring(i_sl);
-			path = path.substring(0, i_sl);
-		}
-		if (isRelativePath(path)) {
-			// path is relative: preprend the parent folder of the xml file
-			path = getParentFolder() + path;
-			if (!isURL(path) && !new File(path).exists()) {
-				Utils.log("Path for patch " + patch + " does not exist: " + path);
-				return null;
+		synchronized (patch) {
+			String abs_path = patch.getCurrentPath();
+			if (null != abs_path) return abs_path;
+			// else, compute, set and return it:
+			String path = ht_paths.get(patch.getId());
+			if (null == path) return null;
+			// substract slice info if there
+			int i_sl = path.lastIndexOf("-----#slice=");
+			String slice = null;
+			if (-1 != i_sl) {
+				slice = path.substring(i_sl);
+				path = path.substring(0, i_sl);
 			}
-			// else assume that it exists
+			if (isRelativePath(path)) {
+				// path is relative: preprend the parent folder of the xml file
+				path = getParentFolder() + path;
+				if (!isURL(path) && !new File(path).exists()) {
+					Utils.log("Path for patch " + patch + " does not exist: " + path);
+					return null;
+				}
+				// else assume that it exists
+			}
+			// reappend slice info if existent
+			if (null != slice) path += slice;
+			// set it
+			patch.cacheCurrentPath(path);
+			return path;
 		}
-		// reappend slice info if existent
-		if (null != slice) path += slice;
-		// set it
-		patch.cacheCurrentPath(path);
-		return path;
 	}
 
 	public final String getImageFilePath(final Patch p) {

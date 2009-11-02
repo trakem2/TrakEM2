@@ -749,9 +749,9 @@ public final class Patch extends Displayable implements ImageData {
 		if (null != path && path.equals(path2)) { // this happens when a DB project is exported. It may be a different path when it's a FS loader
 			//Utils.log2("p id=" + id + "  path==path2");
 			rel_path = path2;
-			int i_slash = rel_path.lastIndexOf(java.io.File.separatorChar);
+			int i_slash = rel_path.lastIndexOf('/'); // TrakEM2 uses paths that always have '/' and never '\', so using java.io.File.separatorChar would be an error.
 			if (i_slash > 0) {
-				i_slash = rel_path.lastIndexOf(java.io.File.separatorChar, i_slash -1);
+				i_slash = rel_path.lastIndexOf('/', i_slash -1);
 				if (-1 != i_slash) {
 					rel_path = rel_path.substring(i_slash+1);
 				}

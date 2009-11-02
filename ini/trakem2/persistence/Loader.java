@@ -3638,14 +3638,14 @@ abstract public class Loader {
 		return export(Project.findProject(this), new File(path), this.getClass() != FSLoader.class);
 	}
 
-	/** Parses the xml_path and returns the folder in the same directory that has the same name plus "_images". */
-	public String extractRelativeFolderPath(final File fxml) {
+	/** Parses the xml_path and returns the folder in the same directory that has the same name plus "_images". Note there isn't an ending backslash. */
+	private String extractRelativeFolderPath(final File fxml) {
 		try {
-			String patches_dir = fxml.getParent() + "/" + fxml.getName();
+			String patches_dir = Utils.fixDir(fxml.getParent()) + fxml.getName();
 			if (patches_dir.toLowerCase().lastIndexOf(".xml") == patches_dir.length() - 4) {
 				patches_dir = patches_dir.substring(0, patches_dir.lastIndexOf('.'));
 			}
-			return patches_dir + "_images";
+			return patches_dir + "_images"; // NOTE: no ending backslash
 		} catch (Exception e) {
 			IJError.print(e);
 			return null;
@@ -3654,7 +3654,7 @@ abstract public class Loader {
 
 	protected String makePatchesDir(final File fxml) {
 		// Create a directory to store the images
-		String patches_dir = extractRelativeFolderPath(fxml);
+		String patches_dir = extractRelativeFolderPath(fxml); // WITHOUT ending backslash
 		if (null == patches_dir) return null;
 		File dir = new File(patches_dir);
 		String patches_dir2 = null;
@@ -3673,10 +3673,7 @@ abstract public class Loader {
 			Utils.showMessage("Could not create a directory for the images.");
 			return null;
 		}
-		if (File.separatorChar != patches_dir.charAt(patches_dir.length() -1)) {
-			patches_dir += "/";
-		}
-		return patches_dir;
+		return Utils.fixDir(patches_dir);
 	}
 
 	public String exportImage(final Patch patch, final String path, final boolean overwrite) {

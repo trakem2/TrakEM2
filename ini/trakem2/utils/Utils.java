@@ -1347,4 +1347,13 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 		}
 	}
+
+	/** Convert a D:\\this\that\there to D://this/that/there/
+	 *  Notice it adds an ending backslash. */
+	static public final String fixDir(String path) {
+		if (IJ.isWindows()) path = path.replace('\\', '/');
+		return '/' == path.charAt(path.length() -1) ?
+			  path
+			: new StringBuilder(path.length() +1).append(path).append('/').toString();
+	}
 }
