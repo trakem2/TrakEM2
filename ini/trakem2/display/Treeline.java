@@ -752,13 +752,13 @@ public class Treeline extends ZDisplayable {
 		final Branch root;
 		DPTreeline(final Treeline tline) {
 			super(tline);
-			this.root = tline.root.clone(tline.project, null);
+			this.root = null == tline.root ? null : tline.root.clone(tline.project, null);
 		}
 		@Override
 		final boolean to2(final Displayable d) {
 			super.to1(d);
 			final Treeline tline = (Treeline)d;
-			tline.root = this.root.clone(tline.project, null);
+			tline.root = null == this.root ? null : this.root.clone(tline.project, null);
 			return true;
 		}
 	}
