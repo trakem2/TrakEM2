@@ -677,11 +677,13 @@ public final class Display3D {
 		if (null == displ) {
 			c = null;
 			line_mesh = false;
-			line_mesh_mode = 0;
+			line_mesh_mode = Integer.MAX_VALUE;
 		} else {
 			c = displ.getClass();
 			line_mesh = Treeline.class == c || Polyline.class == c;
-			line_mesh_mode = Treeline.class == c ? CustomLineMesh.PAIRWISE : CustomLineMesh.CONTINUOUS;
+			if (Treeline.class == c) line_mesh_mode = CustomLineMesh.PAIRWISE;
+			else if (Polyline.class == c) line_mesh_mode = CustomLineMesh.CONTINUOUS;
+			else line_mesh_mode = Integer.MAX_VALUE; // disabled
 		}
 
 		if (AreaList.class == c) {
