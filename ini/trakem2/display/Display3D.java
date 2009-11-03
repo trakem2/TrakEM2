@@ -755,6 +755,9 @@ public final class Display3D {
 			try {
 				Color3f c3 = new Color3f(color);
 
+				// If it exists, remove and add as new:
+				universe.removeContent(title);
+
 				if (line_mesh) {
 					ct = universe.createContent(new CustomLineMesh(triangles, line_mesh_mode, c3, 0), title);
 				} else if (no_culling) {
