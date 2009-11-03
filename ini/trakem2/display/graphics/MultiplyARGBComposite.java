@@ -1,18 +1,75 @@
 /**
- * 
+ * License: GPL
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License 2
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 package ini.trakem2.display.graphics;
 
 import java.awt.*;
 import java.awt.image.*;
 
+import mpicbg.util.Util;
+
 /**
- * @author saalfeld
  * 
+ * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @version 0.1b
  */
 public class MultiplyARGBComposite implements Composite
 {
-
+	static private interface Composer
+	{
+		public void compose( final int[] src, final int[] dst, final float alpha );
+	}
+	final static private class ARGB2ARGB implements Composer
+	{
+		final public void compose( final int[] src, final int[] dst, final float alpha )
+		{
+			final float srcAlpha = src[ 3 ] / 255.0f * alpha;
+			final float dstAlpha = 1.0f - srcAlpha;
+			
+			dst[ 0 ] = Math.max( 0, Math.min( 255, Util.round( ( srcAlpha * src[ 0 ] * dst[ 0 ] ) / 255.0f + dst[ 0 ] * dstAlpha ) ) );
+			dst[ 1 ] = Math.max( 0, Math.min( 255, Util.round( ( srcAlpha * src[ 1 ] * dst[ 1 ] ) / 255.0f + dst[ 1 ] * dstAlpha ) ) );
+			dst[ 2 ] = Math.max( 0, Math.min( 255, Util.round( ( srcAlpha * src[ 2 ] * dst[ 2 ] ) / 255.0f + dst[ 2 ] * dstAlpha ) ) );
+			dst[ 3 ] = 255;
+		}
+	}
+	final static private class RGB2ARGB implements Composer
+	{
+		final public void compose( final int[] src, final int[] dst, final float alpha )
+		{
+			final float dstAlpha = 1.0f - alpha;
+			
+			dst[ 0 ] = Math.max( 0, Math.min( 255, Util.round( ( alpha * src[ 0 ] * dst[ 0 ] ) / 255.0f + dst[ 0 ] * dstAlpha ) ) );
+			dst[ 1 ] = Math.max( 0, Math.min( 255, Util.round( ( alpha * src[ 1 ] * dst[ 1 ] ) / 255.0f + dst[ 1 ] * dstAlpha ) ) );
+			dst[ 2 ] = Math.max( 0, Math.min( 255, Util.round( ( alpha * src[ 2 ] * dst[ 2 ] ) / 255.0f + dst[ 2 ] * dstAlpha ) ) );
+			dst[ 3 ] = 255;
+		}
+	}
+	final static private class Gray2ARGB implements Composer
+	{
+		final public void compose( final int[] src, final int[] dst, final float alpha )
+		{
+			final float dstAlpha = 1.0f - alpha;
+			
+			dst[ 0 ] = Math.max( 0, Math.min( 255, Util.round( ( alpha * src[ 0 ] * dst[ 0 ] ) / 255.0f + dst[ 0 ] * dstAlpha ) ) );
+			dst[ 1 ] = Math.max( 0, Math.min( 255, Util.round( ( alpha * src[ 0 ] * dst[ 1 ] ) / 255.0f + dst[ 1 ] * dstAlpha ) ) );
+			dst[ 2 ] = Math.max( 0, Math.min( 255, Util.round( ( alpha * src[ 0 ] * dst[ 2 ] ) / 255.0f + dst[ 2 ] * dstAlpha ) ) );
+			dst[ 3 ] = 255;
+		}
+	}
+	
 	static private MultiplyARGBComposite instance = new MultiplyARGBComposite();
 
 	final private float alpha;
@@ -35,10 +92,20 @@ public class MultiplyARGBComposite implements Composite
 
 	public CompositeContext createContext( ColorModel srcColorModel, ColorModel dstColorModel, RenderingHints hints )
 	{
-
+		final Composer c;
+		if ( srcColorModel.getNumColorComponents() > 1 )
+		{
+			if ( srcColorModel.hasAlpha() )
+				c = new ARGB2ARGB();
+			else
+				c = new RGB2ARGB();
+		}
+		else
+			c = new Gray2ARGB();
+		
 		return new CompositeContext()
 		{
-
+			private Composer composer = c;
 			public void compose( Raster src, Raster dstIn, WritableRaster dstOut )
 			{
 				final int[] srcPixel = new int[ 4 ];
@@ -51,13 +118,7 @@ public class MultiplyARGBComposite implements Composite
 						src.getPixel( x, y, srcPixel );
 						dstIn.getPixel( x, y, dstInPixel );
 						
-						final float srcAlpha = srcPixel[ 3 ] / 255.0f * alpha;
-						final float dstAlpha = 1.0f - srcAlpha;
-						
-						dstInPixel[ 0 ] = Math.max( 0, Math.min( 255, Math.round( ( srcAlpha * srcPixel[ 0 ] * dstInPixel[ 0 ] ) / 255.0f + dstInPixel[ 0 ] * dstAlpha ) ) );
-						dstInPixel[ 1 ] = Math.max( 0, Math.min( 255, Math.round( ( srcAlpha * srcPixel[ 1 ] * dstInPixel[ 1 ] ) / 255.0f + dstInPixel[ 1 ] * dstAlpha ) ) );
-						dstInPixel[ 2 ] = Math.max( 0, Math.min( 255, Math.round( ( srcAlpha * srcPixel[ 2 ] * dstInPixel[ 2 ] ) / 255.0f + dstInPixel[ 2 ] * dstAlpha ) ) );
-						dstInPixel[ 3 ] = 255;
+						composer.compose( srcPixel, dstInPixel, alpha );
 						
 						dstOut.setPixel( x, y, dstInPixel );
 					}
@@ -67,7 +128,5 @@ public class MultiplyARGBComposite implements Composite
 			public void dispose()
 			{}
 		};
-
 	}
-
 }
