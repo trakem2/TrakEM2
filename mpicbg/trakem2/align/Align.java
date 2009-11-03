@@ -20,7 +20,6 @@ import ij.gui.GenericDialog;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.persistence.Loader;
@@ -34,15 +33,20 @@ import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.NotEnoughDataPointsException;
-import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
-import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
 
+/**
+ * A collection of methods regarding SIFT-based alignment
+ * 
+ * TODO Bring the methods and tasks into a class for each method and clean up this mess.
+ * 
+ * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ */
 public class Align
 {
 	static public class Param implements Serializable
