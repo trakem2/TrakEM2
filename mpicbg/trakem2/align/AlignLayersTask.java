@@ -382,8 +382,10 @@ final public class AlignLayersTask
 					imp2.setRoi( Util.pointsToPointRoi(sourcePoints) );
 					imp1.setRoi( Util.pointsToPointRoi(targetPoints) );
 					
-					ImageProcessor mask1 = null; //imp1mask.getProcessor() == null ? null : imp1mask.getProcessor();
-					ImageProcessor mask2 = null; //imp2mask.getProcessor() == null ? null : imp2mask.getProcessor();
+					final ImageProcessor mask1 = ip1.duplicate();
+					mask1.threshold(1);
+					final ImageProcessor mask2 = ip2.duplicate();
+					mask2.threshold(1);
 					
 					Transformation warp = bUnwarpJ_.computeTransformationBatch(imp2, imp1, mask2, mask1, elasticParam);
 					
