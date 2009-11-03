@@ -463,6 +463,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, fetchImage(magnification, channels, true));
 	}
 
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
@@ -479,22 +480,13 @@ public final class Patch extends Displayable implements ImageData {
 							      Math.max(Math.abs(at.getShearX()),
 								       Math.abs(at.getShearY()))));
 		if (sc < 0) sc = magnification;
-		Image image = project.getLoader().fetchImage(this, sc);
+		Image image = wait_for_image ?
+			  project.getLoader().fetchDataImage(this, sc)
+			: project.getLoader().fetchImage(this, sc);
 
 		if (null == image) {
 			//Utils.log2("Patch.paint: null image, returning");
 			return null; // TEMPORARY from lazy repaints after closing a Project
-		}
-
-		if (wait_for_image && Loader.REGENERATING == image) {
-			try {
-				if ( ! project.getLoader().regenerateMipMaps(this).get()) {
-					Utils.log("MipMap regeneration failed for some reason for patch " + this);
-				}
-			} catch (Exception e) {
-				IJError.print(e);
-			}
-			image = project.getLoader().fetchImage(this, sc);
 		}
 
 		return image;

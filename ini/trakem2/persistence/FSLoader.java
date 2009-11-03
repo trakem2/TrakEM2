@@ -2745,6 +2745,44 @@ public final class FSLoader extends Loader {
 	public String getUNUId() {
 		return unuid;
 	}
+
+
+	/** Waits until a proper image can be returned, which is never the Loader.REGENERATING image. If no image can be loaded, returns null. */
+	public Image fetchDataImage(Patch p, double mag) {
+		Image img = fetchImage(p, mag);
+		if (Loader.REGENERATING != img) return img;
+		// Else, ensure one:
+		Future<Boolean> fu = null;
+		synchronized (gm_lock) {
+			fu = regenerating_mipmaps.get(p);
+			if (null == fu) {
+				// check if meanwhile a regenerating job finished
+				img = fetchImage(p, mag);
+				if (Loader.REGENERATING != img) {
+					return img;
+				}
+				// Else, submit
+				fu = regenerateMipMaps(p);
+			}
+		}
+		// ... and outside, wait:
+		if (null != fu) {
+			try {
+				if ( ! fu.get()) {
+					Utils.log("Some error ocurred: could not regenerate mipmaps and get an image for patch " + p);
+					return null;
+				}
+				// Now the image should be good:
+				return fetchImage(p, mag);
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+		}
+		// else:
+		Utils.log("Some error ocurred: could not submit a job for mipmap regeneration and get an image for patch " + p);
+		return null;
+	}
+
 	
 	public ImagePlus fetchImagePlus( Stack stack )
 	{

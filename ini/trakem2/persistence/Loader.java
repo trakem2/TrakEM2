@@ -1008,6 +1008,11 @@ abstract public class Loader {
 		ht_plocks.remove(pl.key);
 	}
 
+	/** Calls fetchImage(p, mag) unless overriden. */
+	public Image fetchDataImage(Patch p, double mag) {
+		return fetchImage(p, mag);
+	}
+
 	public Image fetchImage(Patch p) {
 		return fetchImage(p, 1.0);
 	}
@@ -2869,7 +2874,7 @@ abstract public class Loader {
 					}
 				}
 				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-					d.paint(g2d, scaleP, false, c_alphas, layer);
+					d.paintOffscreen(g2d, scaleP, false, c_alphas, layer);
 					//Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
 				} else {
 					//Utils.log2("out: " + d);
