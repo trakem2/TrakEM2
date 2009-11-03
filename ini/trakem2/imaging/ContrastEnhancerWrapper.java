@@ -30,12 +30,13 @@ public class ContrastEnhancerWrapper {
 	private Patch reference = null;
 	private ImageStatistics reference_stats = null;
 
-	private double saturated = 0.5;
+	private double saturated = 0.4;
 	private boolean normalize = true;
 	private boolean equalize = false;
 	private int stats_mode = 0; // Stack Histogram
 	private boolean use_full_stack = false;
 	private boolean from_existing_min_and_max = false;
+	private boolean visible_only = true;
 
 	final ExecutorService waiter = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
@@ -60,7 +61,7 @@ public class ContrastEnhancerWrapper {
 	 * @param stats_mode can be 0==stack histogram, 1==each image's histogram, and 2==reference Patch histogram.
 	 *
 	 **/
-	public void set(double saturated, boolean normalize, boolean equalize, int stats_mode, boolean use_full_stack, boolean from_existing_min_and_max) throws Exception {
+	public void set(double saturated, boolean normalize, boolean equalize, int stats_mode, boolean use_full_stack, boolean from_existing_min_and_max, boolean visible_only) throws Exception {
 		if (null == reference && 2 == stats_mode) throw new IllegalArgumentException("Need a non-null reference Patch to use 2==stats_mode !");
 
 		this.saturated = saturated;
@@ -79,6 +80,7 @@ public class ContrastEnhancerWrapper {
 			reference_stats = ImageStatistics.getStatistics(ip, Measurements.MIN_MAX, reference.getLayer().getParent().getCalibrationCopy());
 		}
 		this.from_existing_min_and_max = from_existing_min_and_max;
+		this.visible_only = visible_only;
 	}
 
 	/** Uses the @param reference Patch as the one to extract the reference histogram from.
@@ -93,13 +95,15 @@ public class ContrastEnhancerWrapper {
 		gd.addChoice("Use:", choices, choices[stats_mode]);
 		gd.addCheckbox("Use full stack", use_full_stack);
 		gd.addCheckbox("From existing min and max", from_existing_min_and_max);
+		gd.addCheckbox("Visible images only", visible_only);
 
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 
 		try {
 			set(gd.getNextNumber(), gd.getNextBoolean(), gd.getNextBoolean(),
-			    gd.getNextChoiceIndex(), gd.getNextBoolean(), gd.getNextBoolean());
+			    gd.getNextChoiceIndex(), gd.getNextBoolean(), gd.getNextBoolean(),
+			    gd.getNextBoolean());
 		} catch (Exception e) {
 			IJError.print(e);
 			return false;
@@ -116,7 +120,15 @@ public class ContrastEnhancerWrapper {
 	public boolean applyLayerWise(final Collection<Layer> layers) {
 		boolean b = true;
 		for (final Layer layer : layers) {
-			b = b && apply(layer.getDisplayables(Patch.class));
+			if (Thread.currentThread().isInterrupted()) return false;
+			b = b && apply(layer.getDisplayables(Patch.class, visible_only));
+			// Wait until all mipmaps have regenerated:
+			try {
+				waiter.submit(new Runnable() { public void run() { /*buh!*/ } }).get();
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			}
 		}
 		return b;
 	}
@@ -152,6 +164,7 @@ public class ContrastEnhancerWrapper {
 		try {
 			if (equalize) {
 				for (final Patch p : patches) {
+					if (Thread.currentThread().isInterrupted()) return false;
 					ImageProcessor ip = p.getImageProcessor();
 					if (this.from_existing_min_and_max) {
 						ip.setMinAndMax(p.getMin(), p.getMax());
@@ -179,6 +192,7 @@ public class ContrastEnhancerWrapper {
 					// build stack statistics, ordered by stdDev
 					final TreeMap<Stats,Patch> sp = new TreeMap<Stats,Patch>();
 					for (final Patch p : patches) {
+						if (Thread.currentThread().isInterrupted()) return false;
 						ImagePlus imp = p.getImagePlus();
 						p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 2);
 						sp.put(new Stats(imp.getStatistics()), p);
@@ -208,6 +222,7 @@ public class ContrastEnhancerWrapper {
 			final Calibration cal = patches.get(0).getLayer().getParent().getCalibrationCopy();
 
 			for (final Patch p : patches) {
+				if (Thread.currentThread().isInterrupted()) return false;
 				ImageProcessor ip = p.getImageProcessor();
 				if (this.from_existing_min_and_max) {
 					ip.setMinAndMax(p.getMin(), p.getMax());
@@ -233,9 +248,10 @@ public class ContrastEnhancerWrapper {
 
 	private void regenerateMipMaps(final Patch p) {
 		// submit for regeneration
+		final Future fu = p.getProject().getLoader().regenerateMipMaps(p);
+		// ... and when done, decache any images
 		tasks.add(waiter.submit(new Runnable() {
 			public void run() {
-				Future fu = p.getProject().getLoader().regenerateMipMaps(p);
 				if (null != fu) {
 					try {
 						fu.get();
@@ -264,6 +280,10 @@ public class ContrastEnhancerWrapper {
 			if (null != fu) {
 				try {
 					fu.get();
+				} catch (InterruptedException ie) {
+					waiter.shutdownNow();
+					tasks.clear();
+					return;
 				} catch (Exception e) {
 					IJError.print(e);
 				}

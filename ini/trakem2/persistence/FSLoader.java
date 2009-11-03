@@ -2561,6 +2561,7 @@ public final class FSLoader extends Loader {
 			try {
 				n_regenerating.incrementAndGet();
 				Utils.log2("SUBMITTING to regen " + patch);
+				Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
 				return regenerator.submit(new Runnable() {
 					public void run() {
 						try {

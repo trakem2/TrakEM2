@@ -496,6 +496,12 @@ public final class Patch extends Displayable implements ImageData {
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite() );
+			if (COMPOSITE_NORMAL != getCompositeMode()
+			 && 0 != (atp.getType() | AffineTransform.TYPE_TRANSLATION)
+			 && 0 != (atp.getType() | AffineTransform.TYPE_IDENTITY)) {
+				// Work around composite paint problem
+				atp.scale(1.0001, 1.0);
+			}
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
@@ -562,6 +568,12 @@ public final class Patch extends Displayable implements ImageData {
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite() );
+			if (COMPOSITE_NORMAL != getCompositeMode()
+			 && 0 != (atp.getType() | AffineTransform.TYPE_TRANSLATION)
+			 && 0 != (atp.getType() | AffineTransform.TYPE_IDENTITY)) {
+				// Work around composite paint problem
+				atp.scale(1.0001, 1.0);
+			}
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
@@ -1472,7 +1484,38 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	public void setPreprocessorScriptPath(final String path) {
+		final String old_path = project.getLoader().getPreprocessorScriptPath(this);
+
+		if (null == path && null == old_path) return;
+
 		project.getLoader().setPreprocessorScriptPath(this, path);
+
+		if (null != old_path || null != path || !path.equals(old_path)) {
+			// Update dimensions
+			ImagePlus imp = getImagePlus(); // transformed by the new preprocessor script, if any
+			final int w = imp.getWidth();
+			final int h = imp.getHeight();
+			imp = null;
+			if (w != this.o_width || h != this.o_height) {
+				// replace source ImagePlus o_width,o_height
+				int old_o_width = this.o_width;
+				int old_o_height = this.o_height;
+				this.o_width = w;
+				this.o_height = h;
+
+				// scale width,height
+				double old_width = this.width;
+				double old_height = this.height;
+				this.width  *= ((double)this.o_width)  / old_o_width;
+				this.height *= ((double)this.o_height) / old_o_height;
+
+				// translate Patch to preserve the center
+				AffineTransform aff = new AffineTransform();
+				aff.translate((old_width - this.width) / 2, (old_height - this.height) / 2);
+				updateInDatabase("dimensions");
+				preTransform(aff, false);
+			}
+		}
 	}
 
 	public String getPreprocessorScriptPath() {

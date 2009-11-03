@@ -4126,7 +4126,7 @@ abstract public class Loader {
 		}, layers.iterator().next().getProject());
 	}
 
-	/** Homogenize contrast for all patches. */
+	/** Homogenize contrast for all patches, optionally using the @param reference Patch (can be null). */
 	public Bureaucrat enhanceContrast(final Collection<Displayable> patches, final Patch reference) {
 		if (null == patches || 0 == patches.size()) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Enhancing contrast") {
