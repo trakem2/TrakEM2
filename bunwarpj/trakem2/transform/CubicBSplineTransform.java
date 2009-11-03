@@ -274,15 +274,15 @@ public class CubicBSplineTransform extends Model< CubicBSplineTransform > implem
 		for ( final PointMatch pm : matches )
 		{
 			final float[] p1 = pm.getP1().getL();
-			final float[] p2 = pm.getP2().getW();
+			final float[] p2 = pm.getP2().getL();
 			
-			sourcePoints.add( new java.awt.Point( Math.round( p1[ 0 ] ), Math.round( p1[ 1 ] ) ) );
-			targetPoints.add( new java.awt.Point( Math.round( p2[ 0 ] ), Math.round( p2[ 1 ] ) ) );
+			targetPoints.add( new java.awt.Point( Math.round( p1[ 0 ] ), Math.round( p1[ 1 ] ) ) );
+			sourcePoints.add( new java.awt.Point( Math.round( p2[ 0 ] ), Math.round( p2[ 1 ] ) ) );
 		}
 		
 		Transformation transf = bUnwarpJ_.computeTransformationBatch(sourceWidth, 
 				sourceHeight, width, height, sourcePoints, targetPoints, parameter);
-		this.set(intervals, transf.getDirectDeformationCoefficientsX(), 
+		this.set(transf.getIntervals(), transf.getDirectDeformationCoefficientsX(), 
 				transf.getDirectDeformationCoefficientsY(), width, height);
 	}
 
