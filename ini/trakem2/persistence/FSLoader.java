@@ -2747,7 +2747,7 @@ public final class FSLoader extends Loader {
 	}
 
 
-	/** Waits until a proper image can be returned, which is never the Loader.REGENERATING image. If no image can be loaded, returns null. */
+	/** Waits until a proper image of the desired size or larger can be returned, which is never the Loader.REGENERATING image. If no image can be loaded, returns Loader.NOT_FOUND. */
 	public Image fetchDataImage(Patch p, double mag) {
 		Image img = fetchImage(p, mag);
 		if (Loader.REGENERATING != img) return img;
@@ -2770,7 +2770,7 @@ public final class FSLoader extends Loader {
 			try {
 				if ( ! fu.get()) {
 					Utils.log("Some error ocurred: could not regenerate mipmaps and get an image for patch " + p);
-					return null;
+					return Loader.NOT_FOUND;
 				}
 				// Now the image should be good:
 				return fetchImage(p, mag);
@@ -2780,7 +2780,7 @@ public final class FSLoader extends Loader {
 		}
 		// else:
 		Utils.log("Some error ocurred: could not submit a job for mipmap regeneration and get an image for patch " + p);
-		return null;
+		return Loader.NOT_FOUND;
 	}
 
 	
