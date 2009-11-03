@@ -2432,6 +2432,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
+		item = new JMenuItem("Adjust min and max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+		if (selection.isEmpty()) item.setEnabled(false);
+		item = new JMenuItem("Mask image borders (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Mask image borders (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+		if (selection.isEmpty()) item.setEnabled(false);
 		popup.add(adjust_menu);
 
 		JMenu script = new JMenu("Script");
@@ -3972,6 +3977,55 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			final HashSet<Displayable> ds = new HashSet<Displayable>(selection.getSelected(Patch.class));
 			getLayerSet().addDataEditStep(ds);
 			Bureaucrat burro = project.getLoader().setMinAndMax(selection.getSelected(Patch.class), min, max);
+			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().addDataEditStep(ds);
+			}});
+		} else if (command.equals("Adjust min and max (selected images)...")) {
+			final List<Displayable> list = selection.getSelected(Patch.class);
+			if (list.isEmpty()) {
+				Utils.log("No images selected!");
+				return;
+			}
+			Bureaucrat.createAndStart(new Worker.Task("Init contrast adjustment") {
+				public void exec() {
+					try {
+						setMode(new ContrastAdjustmentMode(Display.this, list));
+					} catch (Exception e) {
+						Utils.log("All images must be of the same type!");
+					}
+				}
+			}, list.get(0).getProject());
+		} else if (command.equals("Mask image borders (layer-wise)...")) {
+			final GenericDialog gd = new GenericDialog("Mask borders");
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.addMessage("Borders:");
+			gd.addNumericField("left: ", 6, 2);
+			gd.addNumericField("top: ", 6, 2);
+			gd.addNumericField("right: ", 6, 2);
+			gd.addNumericField("bottom: ", 6, 2);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			Collection<Layer> layers = layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1);
+			final HashSet<Displayable> ds = new HashSet<Displayable>();
+			for (Layer l : layers) ds.addAll(l.getDisplayables(Patch.class));
+			getLayerSet().addDataEditStep(ds);
+			Bureaucrat burro = project.getLoader().maskBordersLayerWise(layers, (int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
+			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().addDataEditStep(ds);
+			}});
+		} else if (command.equals("Mask image borders (selected images)...")) {
+			final GenericDialog gd = new GenericDialog("Mask borders");
+			gd.addMessage("Borders:");
+			gd.addNumericField("left: ", 6, 2);
+			gd.addNumericField("top: ", 6, 2);
+			gd.addNumericField("right: ", 6, 2);
+			gd.addNumericField("bottom: ", 6, 2);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			Collection<Displayable> patches = selection.getSelected(Patch.class);
+			final HashSet<Displayable> ds = new HashSet<Displayable>(patches);
+			getLayerSet().addDataEditStep(ds);
+			Bureaucrat burro = project.getLoader().maskBorders(patches, (int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().addDataEditStep(ds);
 			}});

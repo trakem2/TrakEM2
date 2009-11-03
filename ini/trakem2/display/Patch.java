@@ -30,6 +30,9 @@ import ij.gui.ShapeRoi;
 import ij.gui.Toolbar;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
+import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
 import ij.plugin.filter.ThresholdToSelection;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
@@ -73,7 +76,8 @@ import java.util.HashSet;
 import java.util.Collection;
 import java.io.File;
 
-import mpicbg.models.AffineModel2D;
+import mpicbg.models.CoordinateTransformMesh;
+import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
@@ -188,16 +192,21 @@ public final class Patch extends Displayable implements ImageData {
 		if (hasmin && hasmax) {
 			checkMinMax();
 		} else {
-			// Re-read:
-			final ImageProcessor ip = getImageProcessor();
-			if (null == ip) {
-				// Some values, to survive:
+			if (ImagePlus.GRAY8 == type || ImagePlus.COLOR_RGB == type || ImagePlus.COLOR_256 == type) {
 				min = 0;
-				max = Patch.getMaxMax(this.type);
-				Utils.log("ERROR could not restore min and max from file, and they are not present in the XML file.");
+				max = 255;
 			} else {
-				ip.resetMinAndMax(); // finds automatically reasonable values
-				setMinAndMax(ip.getMin(), ip.getMax());
+				// Re-read:
+				final ImageProcessor ip = getImageProcessor();
+				if (null == ip) {
+					// Some values, to survive:
+					min = 0;
+					max = Patch.getMaxMax(this.type);
+					Utils.log("ERROR could not restore min and max from file, and they are not present in the XML file.");
+				} else {
+					ip.resetMinAndMax(); // finds automatically reasonable values
+					setMinAndMax(ip.getMin(), ip.getMax());
+				}
 			}
 		}
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
@@ -487,6 +496,12 @@ public final class Patch extends Displayable implements ImageData {
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite() );
+			if (COMPOSITE_NORMAL != getCompositeMode()
+			 && 0 != (atp.getType() | AffineTransform.TYPE_TRANSLATION)
+			 && 0 != (atp.getType() | AffineTransform.TYPE_IDENTITY)) {
+				// Work around composite paint problem
+				atp.scale(1.0001, 1.0);
+			}
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
@@ -553,6 +568,12 @@ public final class Patch extends Displayable implements ImageData {
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite() );
+			if (COMPOSITE_NORMAL != getCompositeMode()
+			 && 0 != (atp.getType() | AffineTransform.TYPE_TRANSLATION)
+			 && 0 != (atp.getType() | AffineTransform.TYPE_IDENTITY)) {
+				// Work around composite paint problem
+				atp.scale(1.0001, 1.0);
+			}
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
@@ -1463,7 +1484,38 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	public void setPreprocessorScriptPath(final String path) {
+		final String old_path = project.getLoader().getPreprocessorScriptPath(this);
+
+		if (null == path && null == old_path) return;
+
 		project.getLoader().setPreprocessorScriptPath(this, path);
+
+		if (null != old_path || null != path || !path.equals(old_path)) {
+			// Update dimensions
+			ImagePlus imp = getImagePlus(); // transformed by the new preprocessor script, if any
+			final int w = imp.getWidth();
+			final int h = imp.getHeight();
+			imp = null;
+			if (w != this.o_width || h != this.o_height) {
+				// replace source ImagePlus o_width,o_height
+				int old_o_width = this.o_width;
+				int old_o_height = this.o_height;
+				this.o_width = w;
+				this.o_height = h;
+
+				// scale width,height
+				double old_width = this.width;
+				double old_height = this.height;
+				this.width  *= ((double)this.o_width)  / old_o_width;
+				this.height *= ((double)this.o_height) / old_o_height;
+
+				// translate Patch to preserve the center
+				AffineTransform aff = new AffineTransform();
+				aff.translate((old_width - this.width) / 2, (old_height - this.height) / 2);
+				updateInDatabase("dimensions");
+				preTransform(aff, false);
+			}
+		}
 	}
 
 	public String getPreprocessorScriptPath() {
@@ -1548,5 +1600,144 @@ public final class Patch extends Displayable implements ImageData {
 		} else {
 			return new Area(new Polygon(x, y, x.length)).createTransformedArea(this.at);
 		}
+	}
+
+	/** Creates an ImageProcessor of the specified type.
+	 *  @param scale may be up to 1.0.
+	 *  Patches are painted in the order given in the @param patches list. */
+	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final Collection<Patch> patches, final Color background) {
+		final ImageProcessor ip;
+		final int W, H;
+		if (scale < 1) {
+			W = (int)(srcRect.width * scale);
+			H = (int)(srcRect.height * scale);
+		} else {
+			W = srcRect.width;
+			H = srcRect.height;
+		}
+		switch (type) {
+			case ImagePlus.GRAY8:
+				ip = new ByteProcessor(W, H);
+				break;
+			case ImagePlus.GRAY16:
+				ip = new ShortProcessor(W, H);
+				break;
+			case ImagePlus.GRAY32:
+				ip = new FloatProcessor(W, H);
+				break;
+			case ImagePlus.COLOR_RGB:
+				ip = new ColorProcessor(W, H);
+				break;
+			default:
+				Utils.logAll("Cannot create an image of type " + type + ".\nSupported types: 8-bit, 16-bit, 32-bit and RGB.");
+				return null;
+		}
+
+		// Fill with background
+		if (null != background && Color.black != background) {
+			ip.setColor(background);
+			ip.fill();
+		}
+
+		AffineModel2D sc = null;
+		if ( scale < 1.0 )
+		{
+			sc = new AffineModel2D();
+			sc.set( ( float )scale, 0, 0, ( float )scale, 0, 0 );
+		}
+		for ( final Patch p : patches )
+		{
+			// TODO patches seem to come in in inverse order---find out why
+			
+			// A list to represent all the transformations that the Patch image has to go through to reach the scaled srcRect image
+			final CoordinateTransformList< CoordinateTransform > list = new CoordinateTransformList< CoordinateTransform >();
+
+			final AffineTransform at = new AffineTransform();
+			at.translate( -srcRect.x, -srcRect.y );
+			at.concatenate( p.getAffineTransform() );
+			
+			// 1. The coordinate tranform of the Patch, if any
+			final CoordinateTransform ct = p.getCoordinateTransform();
+			if (null != ct) {
+				list.add(ct);
+				// Remove the translation in the patch_affine that the ct added to it
+				final Rectangle box = p.getCoordinateTransformBoundingBox();
+				at.translate( -box.x, -box.y );
+			}
+			
+			// 2. The affine transform of the Patch
+			final AffineModel2D patch_affine = new AffineModel2D();
+			patch_affine.set( at );
+			list.add( patch_affine );
+
+			// 3. The desired scaling
+			if (null != sc) patch_affine.preConcatenate( sc );
+
+			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( list, 32, p.getOWidth(), p.getOHeight() );
+			final mpicbg.ij.TransformMeshMapping mapping = new mpicbg.ij.TransformMeshMapping( mesh );
+			
+			// 4. Convert the patch to the required type
+			final ImageProcessor pi;
+			switch ( type )
+			{
+			case ImagePlus.GRAY8:
+				pi = p.getImageProcessor().convertToByte( true );
+				break;
+			case ImagePlus.GRAY16:
+				pi = p.getImageProcessor().convertToShort( true );
+				break;
+			case ImagePlus.GRAY32:
+				pi = p.getImageProcessor().convertToFloat();
+				break;
+			default: // ImagePlus.COLOR_RGB and COLOR_256
+				pi = p.getImageProcessor().convertToRGB();
+				break;
+			}
+			
+			/* TODO for taking into account independent min/max setting for each patch,
+			 * we will need a mapping with an `intensity transfer function' to be implemented.
+			 */
+			mapping.mapInterpolated( pi, ip );
+		}
+
+		return ip;
+	}
+
+	/** Make the border have an alpha of zero. */
+	public boolean maskBorder(final int size) {
+		return maskBorder(size, size, size, size);
+	}
+	/** Make the border have an alpha of zero. */
+	public boolean maskBorder(final int top, final int right, final int bottom, final int left) {
+		int w = o_width - right - left;
+		int h = o_height - top - bottom;
+		if (w < 0 || h < 0 || left > o_width || top > o_height) {
+			Utils.log("Cannot cut border for patch " + this + " : border off image bounds.");
+			return false;
+		}
+		try {
+			ByteProcessor bp = project.getLoader().fetchImageMask(this);
+			if (null == bp) {
+				bp = new ByteProcessor(o_width, o_height);
+				bp.setRoi(new Roi(left, top, w, h));
+				bp.setValue(255);
+				bp.fill();
+			} else {
+				// make borders black
+				bp.setValue(0);
+				for (Roi r : new Roi[]{new Roi(0, 0, o_width, top),
+						       new Roi(0, top, left, o_height - top - bottom),
+						       new Roi(0, o_height - bottom, o_width, bottom),
+						       new Roi(o_width - right, top, right, o_height - top - bottom)}) {
+					bp.setRoi(r);
+					bp.fill();
+				}
+			}
+			setAlphaMask(bp);
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		}
+		return true;
 	}
 }
