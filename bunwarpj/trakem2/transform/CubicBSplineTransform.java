@@ -17,10 +17,12 @@
 package bunwarpj.trakem2.transform;
 
 //import ij.IJ;
+import java.awt.geom.AffineTransform;
 import java.util.Collection;
 import java.util.Stack;
 
 import bunwarpj.BSplineModel;
+import bunwarpj.MiscTools;
 import bunwarpj.Param;
 import bunwarpj.Transformation;
 import bunwarpj.bUnwarpJ_;
@@ -286,6 +288,24 @@ public class CubicBSplineTransform extends Model< CubicBSplineTransform > implem
 				transf.getDirectDeformationCoefficientsY(), width, height);
 	}
 
+	
+	public void scale(final double xScale, final double yScale)
+	{
+		// Adapt transformation to scale
+    	
+    	double[] cx = swx.getCoefficients();
+    	double[] cy = swy.getCoefficients();
+    	
+    	final double xScaleFactor = 1.0/xScale;
+    	final double yScaleFactor = 1.0/yScale;
+    	
+    	for(int i = 0; i < cx.length; i++)    		  		    		
+    	{
+    		cx[i] *= xScaleFactor;
+    		cy[i] *= yScaleFactor;
+    	}
+    	
+	}
 	
 	public void set(Param p, int sourceWidth, int sourceHeight, int targetWidth, int targetHeight)
 	{

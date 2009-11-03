@@ -3646,7 +3646,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Align layers")) {
 			final Layer la = layer;; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep(la);
-			Bureaucrat burro = AlignLayersTask.alignLayersLinearlyTask( la );
+			Bureaucrat burro = AlignLayersTask.alignLayersTask( la );
 			burro.addPostTask(new Runnable() { public void run() {
 				la.getParent().addTransformStep(la);
 			}});
