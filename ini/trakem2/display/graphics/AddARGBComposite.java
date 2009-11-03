@@ -35,38 +35,68 @@ public class AddARGBComposite implements Composite
 
 	public CompositeContext createContext( ColorModel srcColorModel, ColorModel dstColorModel, RenderingHints hints )
 	{
-
-		return new CompositeContext()
+		if ( srcColorModel.hasAlpha() )
 		{
-
-			public void compose( Raster src, Raster dstIn, WritableRaster dstOut )
-			{
-				final int[] srcPixel = new int[ 4 ];
-				final int[] dstInPixel = new int[ 4 ];
-				
-				for ( int x = 0; x < dstOut.getWidth(); x++ )
+			return new CompositeContext()
+			{	
+				public void compose( Raster src, Raster dstIn, WritableRaster dstOut )
 				{
-					for ( int y = 0; y < dstOut.getHeight(); y++ )
+					final int[] srcPixel = new int[ 4 ];
+					final int[] dstInPixel = new int[ 4 ];
+					
+					for ( int x = 0; x < dstOut.getWidth(); x++ )
 					{
-						src.getPixel( x, y, srcPixel );
-						dstIn.getPixel( x, y, dstInPixel );
-						
-						final float srcAlpha = srcPixel[ 3 ] / 255.0f * alpha;
-						
-						dstInPixel[ 0 ] = Math.min( 255, Math.round( srcPixel[ 0 ] * srcAlpha + dstInPixel[ 0 ] ) );
-						dstInPixel[ 1 ] = Math.min( 255, Math.round( srcPixel[ 1 ] * srcAlpha + dstInPixel[ 1 ] ) );
-						dstInPixel[ 2 ] = Math.min( 255, Math.round( srcPixel[ 2 ] * srcAlpha + dstInPixel[ 2 ] ) );
-						dstInPixel[ 3 ] = 255;
-						
-						dstOut.setPixel( x, y, dstInPixel );
+						for ( int y = 0; y < dstOut.getHeight(); y++ )
+						{
+							src.getPixel( x, y, srcPixel );
+							dstIn.getPixel( x, y, dstInPixel );
+							
+							final float srcAlpha = srcPixel[ 3 ] / 255.0f * alpha;
+							
+							dstInPixel[ 0 ] = Math.min( 255, Math.round( srcPixel[ 0 ] * srcAlpha + dstInPixel[ 0 ] ) );
+							dstInPixel[ 1 ] = Math.min( 255, Math.round( srcPixel[ 1 ] * srcAlpha + dstInPixel[ 1 ] ) );
+							dstInPixel[ 2 ] = Math.min( 255, Math.round( srcPixel[ 2 ] * srcAlpha + dstInPixel[ 2 ] ) );
+							dstInPixel[ 3 ] = 255;
+							
+							dstOut.setPixel( x, y, dstInPixel );
+						}
 					}
 				}
-			}
-
-			public void dispose()
-			{}
-		};
-
+	
+				public void dispose()
+				{}
+			};
+		}
+		else
+		{
+			return new CompositeContext()
+			{	
+				public void compose( Raster src, Raster dstIn, WritableRaster dstOut )
+				{
+					final int[] srcPixel = new int[ 4 ];
+					final int[] dstInPixel = new int[ 4 ];
+					
+					for ( int x = 0; x < dstOut.getWidth(); x++ )
+					{
+						for ( int y = 0; y < dstOut.getHeight(); y++ )
+						{
+							src.getPixel( x, y, srcPixel );
+							dstIn.getPixel( x, y, dstInPixel );
+							
+							dstInPixel[ 0 ] = Math.min( 255, Math.round( srcPixel[ 0 ] + dstInPixel[ 0 ] ) );
+							dstInPixel[ 1 ] = Math.min( 255, Math.round( srcPixel[ 1 ] + dstInPixel[ 1 ] ) );
+							dstInPixel[ 2 ] = Math.min( 255, Math.round( srcPixel[ 2 ] + dstInPixel[ 2 ] ) );
+							dstInPixel[ 3 ] = 255;
+							
+							dstOut.setPixel( x, y, dstInPixel );
+						}
+					}
+				}
+	
+				public void dispose()
+				{}
+			};
+		}
 	}
 
 }
