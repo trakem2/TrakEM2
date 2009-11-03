@@ -78,6 +78,7 @@ import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -1244,7 +1245,7 @@ public final class FSLoader extends Loader {
 				if (virtual) cache(patch, imp_patch_i); // each slice separately
 				else cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
 			}
-			if (isMipMapsEnabled()) generateMipMaps(patch);
+			if (isMipMapsEnabled()) regenerateMipMaps(patch); // submit for regeneration
 			if (null != previous_patch) patch.link(previous_patch);
 			layer.add(patch);
 			previous_patch = patch;
@@ -1380,7 +1381,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Order the regeneration of all mipmaps for the Patch instances in @param patches, setting up a task that blocks input until all completed. */
-	public Bureaucrat regenerateMipMaps(final Collection<Displayable> patches) {
+	public Bureaucrat regenerateMipMaps(final Collection<? extends Displayable> patches) {
 		return Bureaucrat.createAndStart(new Worker.Task("Regenerating mipmaps") { public void exec() {
 			final List<Future> fus = new ArrayList<Future>();
 			for (final Displayable d : patches) {
@@ -1609,13 +1610,8 @@ public final class FSLoader extends Loader {
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
 	 * The Patch id and a ".jpg" extension will be appended to the filename in all cases.<br />
-	 * Any equally named files will be overwritten.
-	 */
-	public boolean generateMipMaps(final Patch patch) {
-		return generateMipMaps(patch, true);
-	}
-	/** The boolean flag is because the submission to the ExecutorService is too fast, and I need to prevent it before it can ever add duplicates to the queue, so I need to ask that question before invoking this method. */
-	private boolean generateMipMaps(final Patch patch, final boolean check_if_already_being_done) {
+	 * Any equally named files will be overwritten. */
+	protected boolean generateMipMaps(final Patch patch) {
 		Utils.log2("mipmaps for " + patch);
 		final String path = getAbsolutePath(patch);
 		if (null == path) {
@@ -1631,12 +1627,6 @@ public final class FSLoader extends Loader {
 			try {
 				if (null == dir_mipmaps) createMipMapsDir(null);
 				if (null == dir_mipmaps || isURL(dir_mipmaps)) return false;
-				if (check_if_already_being_done && hs_regenerating_mipmaps.contains(patch)) {
-					// already being done
-					Utils.log2("Already being done: " + patch);
-					return false;
-				}
-				hs_regenerating_mipmaps.add(patch);
 			} catch (Exception e) {
 				IJError.print(e);
 			}
@@ -1991,18 +1981,19 @@ public final class FSLoader extends Loader {
 				}
 			}
 
-			// flush any cached tiles
-			flushMipMaps(patch.getId());
-
 			return true;
 		} catch (Throwable e) {
 			IJError.print(e);
 			cannot_regenerate.add(patch);
 			return false;
 		} finally {
+
+			// flush any cached tiles
+			flushMipMaps(patch.getId());
+
 			// gets executed even when returning from the catch statement or within the try/catch block
 			synchronized (gm_lock) {
-				hs_regenerating_mipmaps.remove(patch);
+				regenerating_mipmaps.remove(patch);
 			}
 		}
 	}
@@ -2120,46 +2111,29 @@ public final class FSLoader extends Loader {
 	 * @param al : the list of Patch instances to generate mipmaps for.
 	 * @param overwrite : whether to overwrite any existing mipmaps, or save only those that don't exist yet for whatever reason. This flag provides the means for minimal effort mipmap regeneration.)
 	 * */
-	public Bureaucrat generateMipMaps(final ArrayList al, final boolean overwrite) {
-		if (null == al || 0 == al.size()) return null;
+	public Bureaucrat generateMipMaps(final Collection<Displayable> patches, final boolean overwrite) {
+		if (null == patches || 0 == patches.size()) return null;
 		if (null == dir_mipmaps) createMipMapsDir(null);
 		if (isURL(dir_mipmaps)) {
 			Utils.log("Mipmaps folder is an URL, can't save files into it.");
 			return null;
 		}
-		final Worker worker = new Worker("Generating MipMaps") {
-			public void run() {
+		return Bureaucrat.createAndStart(new Worker.Task("Generating MipMaps") {
+			public void exec() {
 				this.setAsBackground(true);
-				this.startedWorking();
-				try {
-
-				final Worker wo = this;
-
 				Utils.log2("starting mipmap generation ..");
-
-				final int size = al.size();
-				final Patch[] pa = new Patch[size];
-				final Thread[] threads = MultiThreading.newThreads();
-				al.toArray(pa);
-				final AtomicInteger ai = new AtomicInteger(0);
-
-				for (int ithread = 0; ithread < threads.length; ++ithread) {
-					threads[ithread] = new Thread(new Runnable() {
-						public void run() {
-
-				for (int k = ai.getAndIncrement(); k < size; k = ai.getAndIncrement()) {
-					if (wo.hasQuitted()) {
-						return;
-					}
-					wo.setTaskName("Generating MipMaps " + (k+1) + "/" + size);
-					try {
+				try {
+					ArrayList<Future> fus = new ArrayList<Future>();
+					for (final Displayable displ : patches) {
+						if (displ.getClass() != Patch.class) continue;
+						Patch pa = (Patch)displ;
 						boolean ow = overwrite;
 						if (!overwrite) {
 							// check if all the files exist. If one doesn't, then overwrite all anyway
-							int w = (int)pa[k].getWidth();
-							int h = (int)pa[k].getHeight();
+							int w = (int)pa.getWidth();
+							int h = (int)pa.getHeight();
 							int level = 0;
-							final String filename = new File(getAbsolutePath(pa[k])).getName() + "." + pa[k].getId() + ".jpg";
+							final String filename = new File(getAbsolutePath(pa)).getName() + "." + pa.getId() + ".jpg";
 							do {
 								w /= 2;
 								h /= 2;
@@ -2171,28 +2145,16 @@ public final class FSLoader extends Loader {
 							} while (w >= 32 && h >= 32);
 						}
 						if (!ow) continue;
-						if ( ! generateMipMaps(pa[k]) ) {
-							// some error ocurred
-							Utils.log2("Could not generate mipmaps for patch " + pa[k]);
-						}
-					} catch (Exception e) {
-						IJError.print(e);
+						fus.add(regenerateMipMaps(pa));
 					}
-				}
 
-						}
-					});
-				}
-				MultiThreading.startAndJoin(threads);
+					Utils.wait(fus);
 
 				} catch (Exception e) {
 					IJError.print(e);
 				}
-
-				this.finishedWorking();
 			}
-		};
-		return Bureaucrat.createAndStart(worker, ((Patch)al.get(0)).getProject());
+		}, ((Displayable)patches.iterator().next()).getProject());
 	}
 
 	private final String getLevelDir(final String dir_mipmaps, final int level) {
@@ -2434,7 +2396,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** A temporary list of Patch instances for which a pyramid is being generated. */
-	final private HashSet hs_regenerating_mipmaps = new HashSet();
+	final private Hashtable<Patch,Future<Boolean>> regenerating_mipmaps = new Hashtable<Patch,Future<Boolean>>();
 
 	/** A lock for the generation of mipmaps. */
 	final private Object gm_lock = new Object();
@@ -2545,28 +2507,24 @@ public final class FSLoader extends Loader {
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
 	 *  returns a Future if the task was submitted, null if not. */
-	public final Future regenerateMipMaps(final Patch patch) {
+	public final Future<Boolean> regenerateMipMaps(final Patch patch) {
 		synchronized (gm_lock) {
 			try {
-				if (hs_regenerating_mipmaps.contains(patch)) {
-					return null;
-				}
-				// else, start it
-				hs_regenerating_mipmaps.add(patch);
-			} catch (Exception e) {
-				IJError.print(e);
-				return null;
-			}
+				Future<Boolean> fu = regenerating_mipmaps.get(patch);
+				if (null != fu) return fu;
 
-			try {
+				// else, start it
+
 				n_regenerating.incrementAndGet();
 				Utils.log2("SUBMITTING to regen " + patch);
 				Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
-				return regenerator.submit(new Runnable() {
-					public void run() {
+
+				fu = regenerator.submit(new Callable<Boolean>() {
+					public Boolean call() {
+						boolean b = false;
 						try {
 							Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
-							generateMipMaps(patch, false);
+							b = generateMipMaps(patch); // will remove the Future from the regenerating_mipmaps table, under proper gm_lock synchronization
 							Display.repaint(patch.getLayer());
 							Display.updatePanel(patch.getLayer(), patch);
 							Utils.showStatus("");
@@ -2574,19 +2532,19 @@ public final class FSLoader extends Loader {
 							IJError.print(e);
 						}
 						n_regenerating.decrementAndGet();
+						return b;
 					}
 				});
+
+				regenerating_mipmaps.put(patch, fu);
+
+				return fu;
+
 			} catch (Exception e) {
 				IJError.print(e);
-				ThreadPoolExecutor tpe = (ThreadPoolExecutor) regenerator;
-				Utils.log2("active thread count: " + tpe.getActiveCount() +
-					   "\ncore pool size: " + tpe.getCorePoolSize() +
-					   "\ncompleted: " + tpe.getCompletedTaskCount() +
-					   "\nqueued: " + tpe.getQueue().size() +
-					   "\ntask count: " + tpe.getTaskCount());
+				return null;
 			}
 		}
-		return null;
 	}
 
 	/** Compute the number of bytes that the ImagePlus of a Patch will take. Assumes a large header of 1024 bytes. If the image is saved as a grayscale jpeg the returned bytes will be 5 times as expected, because jpeg images are opened as int[] and then copied to a byte[] if all channels have the same values for all pixels. */ // The header is unnecessary because it's read, but not stored except for some of its variables; it works here as a safety buffer space.
