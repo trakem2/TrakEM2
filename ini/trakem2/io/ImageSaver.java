@@ -68,7 +68,8 @@ public class ImageSaver {
 					if (!fdir.exists()) { // need to check again, this time inside the synch block
 						fdir.mkdirs(); // returns false if already exists.
 					}
-					return fdir.exists(); // this is what we care about
+					return fdir.exists(); // this is what we care about.
+							      // The OS could have created the dirs outside the synch block. So the return value of mkdirs() is insufficient proof.
 				}
 			} catch (Exception e) {
 				IJError.print(e, true);
