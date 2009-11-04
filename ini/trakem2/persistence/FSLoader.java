@@ -516,7 +516,7 @@ public final class FSLoader extends Loader {
 					path = path.substring(0, i_sl);
 				}
 
-				releaseMemory(); // ensure there is a minimum % of free memory
+				releaseMemory2(); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock(p.getId(), 0);
 			} catch (Exception e) {
 				IJError.print(e);
@@ -2417,6 +2417,7 @@ public final class FSLoader extends Loader {
 		return fetchMipMapAWT(patch, level, n_bytes, 0);
 	}
 
+	/** Will lock on db_lock to free memory. */
 	private final Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
 		if (null == dir_mipmaps) {
 			Utils.log2("null dir_mipmaps");
@@ -2424,7 +2425,7 @@ public final class FSLoader extends Loader {
 		}
 		while (retries < MAX_RETRIES) {
 			try {
-				releaseToFit3(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
+				releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
 
 				// TODO should wait if the file is currently being generated
 				//  (it's somewhat handled by a double-try to open the jpeg image)
@@ -2799,7 +2800,7 @@ public final class FSLoader extends Loader {
 					return imp;
 				}
 				/* not cached */
-				releaseMemory(); // ensure there is a minimum % of free memory
+				releaseMemory2(); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock( stack.getId(), 0 );
 			} catch (Exception e) {
 				IJError.print(e);
