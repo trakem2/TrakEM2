@@ -441,6 +441,11 @@ public abstract class Displayable extends DBObject implements Paintable {
 		paint(g, magnification, active, channels, active_layer);
 	}
 
+	/** Paints waiting for data to load, if necessary. */
+	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, magnification, active, channels, active_layer);
+	}
+
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
 	public void setDimensions(double width, double height) {
 		setDimensions(width, height, true);

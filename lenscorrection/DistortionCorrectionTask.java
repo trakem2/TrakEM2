@@ -137,7 +137,7 @@ final public class DistortionCorrectionTask
 				final Patch patch = patches.get( i );
 //				IJ.log( "Setting transform \"" + transform + "\" for patch \"" + patch.getTitle() + "\"." );
 				patch.setCoordinateTransform( transform );
-				patch.updateMipmaps();
+				patch.updateMipMaps();
 				patch.getProject().getLoader().decacheImagePlus( patch.getId() );
 				
 				IJ.showProgress( i, patches.size() );
@@ -197,7 +197,7 @@ final public class DistortionCorrectionTask
 			{
 				final Patch patch = patches.get( i );
 				patch.appendCoordinateTransform( transform );
-				patch.updateMipmaps();
+				patch.updateMipMaps();
 				
 				IJ.showProgress( i, patches.size() );
 			}

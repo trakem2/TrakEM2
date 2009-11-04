@@ -1090,9 +1090,9 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	/** Returns a list of Point3f that define a polyline in 3D, for usage with an ij3d CustomLineMesh CONTINUOUS. @param parallels is ignored. */
 	synchronized public List generateTriangles(final double scale, final int parallels, final int resample, final Calibration cal) {
-		if (n_points < 2) return null;
-
 		if (-1 == n_points) setupForDisplay();
+
+		if (0 == n_points) return null;
 
 		// local pointers, since they may be transformed
 		final int n_points;
@@ -1114,6 +1114,11 @@ public class Polyline extends ZDisplayable implements Line3D {
 			list.add(new Point3f((float) (p[0][i] * KW),
 					     (float) (p[1][i] * KH),
 					     (float) (layer_set.getLayer(p_layer[i]).getZ() * KW)));
+		}
+
+		if (n_points < 2) {
+			// Duplicate first point
+			list.add(list.get(0));
 		}
 
 		return list;
