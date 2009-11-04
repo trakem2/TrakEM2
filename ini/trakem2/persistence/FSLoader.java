@@ -516,7 +516,7 @@ public final class FSLoader extends Loader {
 					path = path.substring(0, i_sl);
 				}
 
-				releaseMemory(); // ensure there is a minimum % of free memory
+				releaseMemory2(); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock(p.getId(), 0);
 			} catch (Exception e) {
 				IJError.print(e);
@@ -2800,7 +2800,7 @@ public final class FSLoader extends Loader {
 					return imp;
 				}
 				/* not cached */
-				releaseMemory(); // ensure there is a minimum % of free memory
+				releaseMemory2(); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock( stack.getId(), 0 );
 			} catch (Exception e) {
 				IJError.print(e);
