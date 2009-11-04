@@ -1615,7 +1615,7 @@ public final class FSLoader extends Loader {
 		Utils.log2("mipmaps for " + patch);
 		final String path = getAbsolutePath(patch);
 		if (null == path) {
-			Utils.log2("generateMipMaps: cannot find path for Patch " + patch);
+			Utils.log("generateMipMaps: null path for Patch " + patch);
 			cannot_regenerate.add(patch);
 			return false;
 		}
@@ -1764,6 +1764,7 @@ public final class FSLoader extends Loader {
 				// TODO Add alpha information into the int[] pixel array or make the image visible some ohter way
 				if (!(null == alpha ? ini.trakem2.io.ImageSaver.saveAsJpeg(cp, target_dir0 + filename, 0.85f, false)
 						   : ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, embedAlpha((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels())), target_dir0 + filename, 0.85f))) {
+					Utils.log("Failed to save jpeg for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
 					cannot_regenerate.add(patch);
 				} else {
 					do {
@@ -1804,6 +1805,7 @@ public final class FSLoader extends Loader {
 							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 							// 5 - Save as jpeg
 							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, target_dir + filename, 0.85f, false)) {
+								Utils.log("Failed to save jpeg for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
 							}
@@ -1814,6 +1816,7 @@ public final class FSLoader extends Loader {
 							}
 							final BufferedImage bi_save = createARGBImage(w, h, pix);
 							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
+								Utils.log("Failed to save jpeg for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								bi_save.flush();
 								break;
@@ -1910,6 +1913,7 @@ public final class FSLoader extends Loader {
 
 							final BufferedImage bi_save = createARGBImage(w, h, pix);
 							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
+								Utils.log("Failed to save jpeg for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								bi_save.flush();
 								break;
@@ -1922,6 +1926,7 @@ public final class FSLoader extends Loader {
 							if (null != cm) ip2.setColorModel(cm); // the LUT
 
 							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, target_dir + filename, 0.85f, as_grey)) {
+								Utils.log("Failed to save jpeg for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
 							}
@@ -1971,6 +1976,7 @@ public final class FSLoader extends Loader {
 						if ( ( (null != balpha || null != boutside) &&
 						      !ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi, target_dir + filename, 0.85f))
 						   || ( null == balpha && null == boutside && !ini.trakem2.io.ImageSaver.saveAsJpeg(bi, target_dir + filename, 0.85f, as_grey))) {
+							Utils.log("Failed to save jpeg for hardware-accelerated, GRAY8, 'alpha = " + balpha + "', level = " + k  + " for  patch " + patch);
 							cannot_regenerate.add(patch);
 							break;
 						}
@@ -1983,6 +1989,7 @@ public final class FSLoader extends Loader {
 
 			return true;
 		} catch (Throwable e) {
+			Utils.log("*** ERROR: Can't generate mipmaps for patch " + patch);
 			IJError.print(e);
 			cannot_regenerate.add(patch);
 			return false;
