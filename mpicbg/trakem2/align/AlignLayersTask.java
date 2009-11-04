@@ -422,7 +422,7 @@ final public class AlignLayersTask
 								
 								patch.appendCoordinateTransform( ctl );
 								
-								patch.updateMipmaps();
+								patch.updateMipMaps();
 								
 								
 								// Compensate for offset between boxes
