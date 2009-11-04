@@ -1278,7 +1278,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			PGpolygon p = null;
 			try {
@@ -1330,7 +1330,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			Area area = new Area();
 			try {
@@ -1362,7 +1362,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			ArrayList al = new ArrayList();
 			try {
@@ -1402,7 +1402,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			ArrayList al = new ArrayList();
 			try {
@@ -2612,7 +2612,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			InputStream i_stream = null;
 			try {
