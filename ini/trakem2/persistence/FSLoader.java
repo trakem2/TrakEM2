@@ -2755,39 +2755,45 @@ public final class FSLoader extends Loader {
 	}
 
 
-	/** Waits until a proper image of the desired size or larger can be returned, which is never the Loader.REGENERATING image. If no image can be loaded, returns Loader.NOT_FOUND. */
+	/** Waits until a proper image of the desired size or larger can be returned, which is never the Loader.REGENERATING image.
+	 *  If no image can be loaded, returns Loader.NOT_FOUND.
+	 *  If the Patch is undergoing mipmap regeneration, it waits until done.
+	 */
 	public Image fetchDataImage(Patch p, double mag) {
-		Image img = fetchImage(p, mag);
-		if (Loader.REGENERATING != img) return img;
-		// Else, ensure one:
 		Future<Boolean> fu = null;
+		Image img = null;
 		synchronized (gm_lock) {
 			fu = regenerating_mipmaps.get(p);
-			if (null == fu) {
-				// check if meanwhile a regenerating job finished
-				img = fetchImage(p, mag);
-				if (Loader.REGENERATING != img) {
-					return img;
+		}
+		if (null == fu) {
+			// Patch is currently not under regeneration
+			img = fetchImage(p, mag);
+			// If the patch mipmaps didn't exist,
+			// the call to fetchImage will trigger mipmap regeneration
+			// and img will be now Loader.REGENERATING
+			if (Loader.REGENERATING != img) {
+				return img;
+			} else {
+				synchronized (gm_lock) {
+					fu = regenerating_mipmaps.get(p);
 				}
-				// Else, submit
-				fu = regenerateMipMaps(p);
 			}
 		}
-		// ... and outside, wait:
 		if (null != fu) {
 			try {
 				if ( ! fu.get()) {
-					Utils.log("Some error ocurred: could not regenerate mipmaps and get an image for patch " + p);
+					Utils.log("Loader.fetchDataImage: could not regenerate mipmaps and get an image for patch " + p);
 					return Loader.NOT_FOUND;
 				}
 				// Now the image should be good:
 				return fetchImage(p, mag);
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				IJError.print(e);
 			}
 		}
+
 		// else:
-		Utils.log("Some error ocurred: could not submit a job for mipmap regeneration and get an image for patch " + p);
+		Utils.log("Loader.fetchDataImage: could not get a data image for patch " + p);
 		return Loader.NOT_FOUND;
 	}
 
