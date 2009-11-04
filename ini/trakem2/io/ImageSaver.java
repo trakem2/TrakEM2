@@ -65,7 +65,10 @@ public class ImageSaver {
 		if (!fdir.exists()) {
 			try {
 				synchronized (OBDIRS) {
-					return fdir.mkdirs();
+					if (!fdir.exists()) { // need to check again, this time inside the synch block
+						fdir.mkdirs(); // returns false if already exists.
+					}
+					return fdir.exists(); // this is what we care about
 				}
 			} catch (Exception e) {
 				IJError.print(e, true);
