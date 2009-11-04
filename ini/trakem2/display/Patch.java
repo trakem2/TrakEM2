@@ -75,6 +75,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Collection;
 import java.io.File;
+import java.util.concurrent.Future;
 
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.trakem2.transform.AffineModel2D;
@@ -236,8 +237,8 @@ public final class Patch extends Displayable implements ImageData {
 	 * If you want to update lots of Patch instances in parallel, consider also
 	 *    project.getLoader().generateMipMaps(ArrayList patches, boolean overwrite);
 	 */
-	public boolean updateMipmaps() {
-		return project.getLoader().update(this);
+	public Future<Boolean> updateMipMaps() {
+		return project.getLoader().regenerateMipMaps(this);
 	}
 
 	/** Update type, original dimensions and min,max from the ImagePlus.
@@ -293,13 +294,11 @@ public final class Patch extends Displayable implements ImageData {
 		if (isStack()) {
 			for (Patch p : getStackPatches()) {
 				p.readProps(new_imp);
-				project.getLoader().generateMipMaps(p); // sequentially
-				project.getLoader().decacheAWT(p.id);
+				project.getLoader().regenerateMipMaps(p);
 			}
 		} else {
 			readProps(new_imp);
-			project.getLoader().generateMipMaps(this);
-			project.getLoader().decacheAWT(this.id);
+			project.getLoader().regenerateMipMaps(this);
 		}
 		Display.repaint(layer, this, 5);
 		return project.getLoader().getAbsolutePath(this);
@@ -463,10 +462,15 @@ public final class Patch extends Displayable implements ImageData {
 		return bi;
 	}
 
+	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, fetchImage(magnification, channels, true));
+	}
+
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, fetchImage(magnification, channels, false));
+	}
 
-		AffineTransform atp = this.at;
-
+	private Image fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
 		checkChannels(channels, magnification);
 
 		// Consider all possible scaling components: m00, m01
@@ -476,13 +480,21 @@ public final class Patch extends Displayable implements ImageData {
 							      Math.max(Math.abs(at.getShearX()),
 								       Math.abs(at.getShearY()))));
 		if (sc < 0) sc = magnification;
-		final Image image = project.getLoader().fetchImage(this, sc);
-		//Utils.log2("Patch " + id + " painted image " + image);
+		Image image = wait_for_image ?
+			  project.getLoader().fetchDataImage(this, sc)
+			: project.getLoader().fetchImage(this, sc);
 
 		if (null == image) {
 			//Utils.log2("Patch.paint: null image, returning");
-			return; // TEMPORARY from lazy repaints after closing a Project
+			return null; // TEMPORARY from lazy repaints after closing a Project
 		}
+
+		return image;
+	}
+
+	private void paint(final Graphics2D g, final Image image) {
+
+		AffineTransform atp = this.at;
 
 		// fix dimensions: may be smaller or bigger mipmap than the image itself
 		final int iw = image.getWidth(null);
@@ -496,12 +508,6 @@ public final class Patch extends Displayable implements ImageData {
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite() );
-			if (COMPOSITE_NORMAL != getCompositeMode()
-			 && 0 != (atp.getType() | AffineTransform.TYPE_TRANSLATION)
-			 && 0 != (atp.getType() | AffineTransform.TYPE_IDENTITY)) {
-				// Work around composite paint problem
-				atp.scale(1.0001, 1.0);
-			}
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
@@ -568,12 +574,6 @@ public final class Patch extends Displayable implements ImageData {
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite() );
-			if (COMPOSITE_NORMAL != getCompositeMode()
-			 && 0 != (atp.getType() | AffineTransform.TYPE_TRANSLATION)
-			 && 0 != (atp.getType() | AffineTransform.TYPE_IDENTITY)) {
-				// Work around composite paint problem
-				atp.scale(1.0001, 1.0);
-			}
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
@@ -1021,12 +1021,12 @@ public final class Patch extends Displayable implements ImageData {
 			for (Patch p : getStackPatches()) {
 				p.project.getLoader().addedPatchFrom(p.original_path, p);
 				p.project.getLoader().cacheImagePlus(p.id, imp);
-				p.project.getLoader().generateMipMaps(p);
+				p.project.getLoader().regenerateMipMaps(p);
 			}
 		} else {
 			project.getLoader().addedPatchFrom(original_path, this);
 			project.getLoader().cacheImagePlus(id, imp);
-			project.getLoader().generateMipMaps(this);
+			project.getLoader().regenerateMipMaps(this);
 		}
 		// 4 - update screens
 		Display.repaint(layer, this, 0);
@@ -1040,7 +1040,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Set a CoordinateTransform to this Patch.
-	 *  The resulting image of applying the coordinate transform does not need to be rectangular: an alpha mask will take care of the borders. You should call updateMipmaps() afterwards to update the mipmap images used for painting this Patch to the screen. */
+	 *  The resulting image of applying the coordinate transform does not need to be rectangular: an alpha mask will take care of the borders. You should call updateMipMaps() afterwards to update the mipmap images used for painting this Patch to the screen. */
 	public final void setCoordinateTransform(final CoordinateTransform ct) {
 		if (isLinked()) {
 			Utils.log("Cannot set coordinate transform: patch is linked!");
@@ -1076,7 +1076,7 @@ public final class Patch extends Displayable implements ImageData {
 		updateBucket();
 
 		// Updating the mipmaps will call createTransformedImage below if ct is not null
-		/* DISABLED */ //updateMipmaps();
+		/* DISABLED */ //updateMipMaps();
 	}
 	
 	/**
@@ -1218,7 +1218,7 @@ public final class Patch extends Displayable implements ImageData {
 		return null != ct || hasAlphaMask();
 	}
 
-	/** Must call updateMipmaps() afterwards. Set it to null to remove it. */
+	/** Must call updateMipMaps() afterwards. Set it to null to remove it. */
 	public void setAlphaMask(ByteProcessor bp) throws IllegalArgumentException {
 		if (null == bp) {
 			if (hasAlphaMask()) {
@@ -1400,7 +1400,7 @@ public final class Patch extends Displayable implements ImageData {
 						}
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 					setAlphaMask(mask);
-					updateMipmaps();
+					updateMipMaps();
 					Display.repaint();
 					} catch (Exception e) {
 						IJError.print(e);

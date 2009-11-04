@@ -131,7 +131,7 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 	final public void updatePatch()
 	{
 		patch.setAffineTransform( createAffine() );
-		patch.updateMipmaps();
+		patch.updateMipMaps();
 	}
 	
 	final public ByteProcessor createMaskedByteImage()

@@ -594,7 +594,7 @@ abstract public class Loader {
 	// non-locking version
 	protected final boolean releaseToFit2(long n_bytes) {
 		//if (enoughFreeMemory(n_bytes)) return true;
-		if (releaseMemory(0.5D, true, n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
+		if (releaseMemory2(0.5D, true, n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
 		// else, wait for GC
 		int iterations = 30;
 
@@ -655,11 +655,6 @@ abstract public class Loader {
 	/** The minimal number of memory bytes that should always be free. */
 	public static final long MIN_FREE_BYTES = max_memory > 1000000000 /*1 Gb*/ ? 150000000 /*150 Mb*/ : 50000000 /*50 Mb*/; // (long)(max_memory * 0.2f);
 
-	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
-	protected final long releaseMemory() {
-		return releaseMemory(0.5D, true, MIN_FREE_BYTES);
-	}
-
 	private final long measureSize(final ImagePlus imp) {
 		if (null == imp) return 0;
 		final long size = imp.getWidth() * imp.getHeight();
@@ -683,6 +678,7 @@ abstract public class Loader {
 		return img.getWidth(null) * img.getHeight(null) + 100;
 	}
 
+	/** Locks on db_lock. */
 	public long releaseMemory(double percent, boolean from_all_projects) {
 		if (!from_all_projects) return releaseMemory(percent);
 		long mem = 0;
@@ -690,14 +686,14 @@ abstract public class Loader {
 		return mem;
 	}
 
-	/** From 0 to 1. */
+	/** From 0 to 1, locks on db_lock. */
 	public long releaseMemory(double percent) {
 		if (percent <= 0) return 0;
 		if (percent > 1) percent = 1;
 		synchronized (db_lock) {
 			try {
 				lock();
-				return releaseMemory(percent, false, MIN_FREE_BYTES);
+				return releaseMemory2(percent, false, MIN_FREE_BYTES);
 			} catch (Throwable e) {
 				IJError.print(e);
 			} finally {
@@ -708,15 +704,50 @@ abstract public class Loader {
 		return 0;
 	}
 
+	/** Locks on db_lock. */
+	public final long releaseMemory() {
+		synchronized (db_lock) {
+			try {
+				lock();
+				return releaseMemory2();
+			} catch (Throwable e) {
+				IJError.print(e);
+				return 0;
+			} finally {
+				unlock();
+			}
+		}
+	}
+
+	/** Locks on db_lock. */
+	public final long releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
+		synchronized (db_lock) {
+			try {
+				lock();
+				return releaseMemory2(a, release_others, min_free_bytes);
+			} catch (Throwable e) {
+				IJError.print(e);
+				return 0;
+			} finally {
+				unlock();
+			}
+		}
+	}
+
+	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
+	protected final long releaseMemory2() {
+		return releaseMemory2(0.5D, true, MIN_FREE_BYTES);
+	}
+
 	/** Release as much of the cache as necessary to make at least min_free_bytes free.<br />
 	*  The very last thing to remove is the stored awt.Image objects.<br />
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
 	*  NOT locked, however calls must take care of that.<br />
 	*/
-	protected final long releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
+	protected final long releaseMemory2(final double a, final boolean release_others, final long min_free_bytes) {
 		long released = 0;
 		try {
-			//while (!enoughFreeMemory(min_free_bytes)) {
+			//while (!enoughFreeMemory(min_free_bytes))
 			while (released < min_free_bytes) {
 				if (enoughFreeMemory(min_free_bytes)) return released;
 				// release the cache of other loaders (up to 'a' of the ImagePlus cache of them if necessary)
@@ -803,7 +834,11 @@ abstract public class Loader {
 			if (loader == this) continue;
 			else {
 				loader.setMassiveMode(false); // otherwise would loop back!
-				released += loader.releaseMemory(a, false, MIN_FREE_BYTES);
+				synchronized (loader.db_lock) {
+					loader.lock();
+					released += loader.releaseMemory2(a, false, MIN_FREE_BYTES);
+					loader.unlock();
+				}
 			}
 		}
 		return released;
@@ -1008,6 +1043,11 @@ abstract public class Loader {
 		ht_plocks.remove(pl.key);
 	}
 
+	/** Calls fetchImage(p, mag) unless overriden. */
+	public Image fetchDataImage(Patch p, double mag) {
+		return fetchImage(p, mag);
+	}
+
 	public Image fetchImage(Patch p) {
 		return fetchImage(p, 1.0);
 	}
@@ -1047,7 +1087,7 @@ abstract public class Loader {
 						return mawt;
 					}
 					//
-					releaseMemory();
+					releaseMemory2();
 					plock = getOrMakeImageLoadingLock(p.getId(), level);
 				}
 			} catch (Exception e) {
@@ -1085,6 +1125,7 @@ abstract public class Loader {
 				}
 
 				try {
+					// Locks on db_lock to release memory when needed
 					mawt = fetchMipMapAWT(p, level, n_bytes);
 				} catch (Throwable t) {
 					IJError.print(t);
@@ -1163,7 +1204,7 @@ abstract public class Loader {
 		synchronized (db_lock) {
 			try {
 				lock();
-				releaseMemory();
+				releaseMemory2();
 				plock = getOrMakeImageLoadingLock(p.getId(), level);
 			} catch (Exception e) {
 				return NOT_FOUND;
@@ -1254,7 +1295,12 @@ abstract public class Loader {
 		final long size = estimateImageFileSize(p, level);
 		max_memory -= size;
 		unlock();
-		Image mawt = fetchMipMapAWT(p, level, n_bytes);
+		Image mawt = null;
+		try {
+			mawt = fetchMipMapAWT(p, level, n_bytes); // locks on db_lock
+		} catch (Throwable e) {
+			IJError.print(e);
+		}
 		lock();
 		max_memory += size;
 		return mawt;
@@ -1761,7 +1807,7 @@ abstract public class Loader {
 
 		try {
 			String dir = dir_;
-		ArrayList al = new ArrayList();
+		ArrayList<Patch> al = new ArrayList<Patch>();
 		setMassiveMode(true);//massive_mode = true;
 		Utils.showProgress(0.0D);
 		opener.setSilentMode(true); // less repaints on IJ status bar
@@ -1902,7 +1948,7 @@ abstract public class Loader {
 				//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
 				addedPatchFrom(path, patch);
 				if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
-				else generateMipMaps(patch);
+				else regenerateMipMaps(patch).get(); // wait
 				//
 				layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
@@ -2075,7 +2121,7 @@ abstract public class Loader {
 					setTaskName("Regenerating snapshots.");
 					// recreate files
 					Utils.log2("Generating mipmaps for " + al.size() + " patches.");
-					Thread t = generateMipMaps(al, false);
+					Thread t = regenerateMipMaps(al);
 					if (null != t) try { t.join(); } catch (InterruptedException ie) {}
 				}
 				// 7 - flush away any existing awt images, so that they'll be recreated with the new min and max
@@ -2350,11 +2396,7 @@ abstract public class Loader {
 							Utils.log("No file found for path " + path);
 							continue;
 						}
-						synchronized (db_lock) {
-							lock();
-							releaseMemory(); //ensures a usable minimum is free
-							unlock();
-						}
+						releaseMemory(); //ensures a usable minimum is free
 						/* */
 						IJ.redirectErrorMessages();
 						ImagePlus imp = openImagePlus(path);
@@ -2783,11 +2825,8 @@ abstract public class Loader {
 				return null;
 			}
 			// go
-			synchronized (db_lock) {
-				lock();
-				releaseMemory(); // savage ...
-				unlock();
-			}
+			releaseMemory(); // savage ...
+
 			BufferedImage bi = null;
 			switch (type) {
 				case ImagePlus.GRAY8:
@@ -2810,11 +2849,7 @@ abstract public class Loader {
 			g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
-			synchronized (db_lock) {
-				lock();
-				releaseMemory(); // savage ...
-				unlock();
-			}
+			releaseMemory(); // savage ...
 
 			ArrayList al_zdispl = null;
 			if (null == al_displ) {
@@ -2869,7 +2904,7 @@ abstract public class Loader {
 					}
 				}
 				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-					d.paint(g2d, scaleP, false, c_alphas, layer);
+					d.paintOffscreen(g2d, scaleP, false, c_alphas, layer);
 					//Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
 				} else {
 					//Utils.log2("out: " + d);
@@ -3939,22 +3974,8 @@ abstract public class Loader {
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(final long id) {}
 
-	/** Generates mipmaps for the given Patch and flushes away all presently cached ones for the Patch. */
-	public boolean update(final Patch patch) {
-		// 1 - generate mipmaps
-		final boolean b = generateMipMaps(patch);
-		// 2 - flush away all cached images
-		//  Independently of whether the mipmap generation failed, the ImagePlus has been updated anyway.
-		synchronized (db_lock) {
-			lock();
-			mawts.removeAndFlush(patch.getId());
-			unlock();
-		}
-		return b;
-	}
-
 	/** Does nothing and returns false unless overriden. */
-	public boolean generateMipMaps(final Patch patch) { return false; }
+	protected boolean generateMipMaps(final Patch patch) { return false; }
 
 	/** Does nothing unless overriden. */
 	public void removeMipMaps(final Patch patch) {}
@@ -4136,7 +4157,7 @@ abstract public class Loader {
 		}, patches.iterator().next().getProject());
 	}
 
-	public Bureaucrat setMinAndMax(final List<Displayable> patches, final double min, final double max) {
+	public Bureaucrat setMinAndMax(final Collection<? extends Displayable> patches, final double min, final double max) {
 		Worker worker = new Worker("Set min and max") {
 			public void run() {
 				try {
@@ -4146,26 +4167,14 @@ abstract public class Loader {
 						finishedWorking();
 						return;
 					}
-					final List<Displayable> pa = new ArrayList<Displayable>(patches);
-					final AtomicInteger ai = new AtomicInteger(0);
-					final AtomicInteger completed = new AtomicInteger(0);
-					final Thread[] threads = MultiThreading.newThreads();
-					for (int ithread = 0; ithread < threads.length; ithread++) {
-						threads[ithread] = new Thread() {
-							public void run() {
-								for (int i=ai.getAndIncrement(); i<patches.size(); i = ai.getAndIncrement()) {
-									Displayable d = pa.get(i);
-									if (d.getClass() != Patch.class) continue;
-									Patch p = (Patch)d;
-									p.setMinAndMax(min, max);
-									p.updateMipmaps();
-									Display.repaint(p);
-									Utils.showProgress(completed.incrementAndGet() / (double)pa.size());
-								}
-							}
-						};
+					ArrayList<Future> fus = new ArrayList<Future>();
+					for (final Displayable d : patches) {
+						if (d.getClass() != Patch.class) continue;
+						Patch p = (Patch)d;
+						p.setMinAndMax(min, max);
+						fus.add(regenerateMipMaps(p));
 					}
-					MultiThreading.startAndJoin(threads);
+					Utils.wait(fus);
 				} catch (Exception e) {
 					IJError.print(e);
 				} finally {
@@ -4244,6 +4253,7 @@ abstract public class Loader {
 		return addNewImage(imp, 0, 0);
 	}
 
+	/** Mipmaps for this image are generated asynchronously. */
 	public Patch addNewImage(final ImagePlus imp, final double x, final double y) {
 		String filename = imp.getTitle();
 		if (!filename.toLowerCase().endsWith(".tif")) filename += ".tif";
@@ -4251,7 +4261,7 @@ abstract public class Loader {
 		new FileSaver(imp).saveAsTiff(path);
 		Patch pa = new Patch(Project.findProject(this), imp.getTitle(), x, y, imp);
 		addedPatchFrom(path, pa);
-		if (isMipMapsEnabled()) generateMipMaps(pa);
+		if (isMipMapsEnabled()) regenerateMipMaps(pa);
 		return pa;
 	}
 
@@ -4680,11 +4690,11 @@ abstract public class Loader {
 	}
 
 	/** Does nothing and returns null unless overriden. */
-	public Future regenerateMipMaps(final Patch patch) { return null; }
+	public Future<Boolean> regenerateMipMaps(final Patch patch) { return null; }
 
 
 	/** Does nothing and returns null unless overriden. */
-	public Bureaucrat regenerateMipMaps(final Collection<Displayable> patches) { return null; }
+	public Bureaucrat regenerateMipMaps(final Collection<? extends Displayable> patches) { return null; }
 
 	/** Read out the width,height of an image using LOCI BioFormats. */
 	static public Dimension getDimensions(final String path) {
