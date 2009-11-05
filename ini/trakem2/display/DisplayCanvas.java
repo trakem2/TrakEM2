@@ -835,6 +835,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				beyond_srcRect = true;
 				Utils.log("DisplayCanvas.mouseDragged: preventing drag beyond layer limits.");
 			}
+		} else if (display.getMode() instanceof ManualAlignMode) {
+			if (display.getLayer().contains(x_d, y_d, 1)) {
+				if (tool >= ProjectToolbar.SELECT) {
+					display.getMode().mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+				}
+			}
 		}
 	}
 
@@ -1585,8 +1591,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	public boolean applyTransform() {
 		boolean b = display.getMode().apply();
-		display.setMode(new DefaultMode(display));
-		repaint(true);
+		if (b) {
+			display.setMode(new DefaultMode(display));
+			repaint(true);
+		}
 		return b;
 	}
 

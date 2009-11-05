@@ -934,7 +934,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	public synchronized void setLayer(final Layer layer) {
-		if (!mode.canChangeLayer()) return;
+		if (!mode.canChangeLayer()) {
+			scroller.setValue(Display.this.layer.getParent().getLayerIndex(Display.this.layer.getId()));
+			return;
+		}
 		if (null == layer || layer == this.layer) return;
 		translateLayerColors(this.layer, layer);
 		if (tabs.getSelectedComponent() == scroll_layers) {
@@ -943,11 +946,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}});
 		}
 		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
-		if (canvas.isTransforming()) {
-			Utils.log("Can't browse layers while transforming.\nCANCEL the transform first with the ESCAPE key or right-click -> cancel.");
-			scroller.setValue(Display.this.layer.getParent().getLayerIndex(Display.this.layer.getId()));
-			return;
-		}
 		this.layer = layer;
 		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 
@@ -2414,6 +2412,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
 		item = new JMenuItem("Align layers"); item.addActionListener(this); align_menu.add(item);
 		if (1 == layer.getParent().size()) item.setEnabled(false);
+		item = new JMenuItem("Align layers with manual landmarks"); item.addActionListener(this); align_menu.add(item);
+		if (1 == layer.getParent().size()) item.setEnabled(false);
 		item = new JMenuItem("Align multi-layer mosaic"); item.addActionListener(this); align_menu.add(item);
 		if (1 == layer.getParent().size()) item.setEnabled(false);
 		item = new JMenuItem("Montage all images in this layer"); item.addActionListener(this); align_menu.add(item);
@@ -3309,7 +3309,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				Display.repaint(layer.getParent());
 			}}, project);
 		} else if (command.equals("Apply transform")) {
-			if (null == active) return;
 			canvas.applyTransform();
 		} else if (command.equals("Apply transform propagating to last layer")) {
 			if (mode.getClass() == AffineTransformMode.class) {
@@ -3646,6 +3645,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}
 			}
+		} else if (command.equals("Align layers with manual landmarks")) {
+			setMode(new ManualAlignMode(Display.this));
 		} else if (command.equals("Align layers")) {
 			final Layer la = layer;; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep(la);
