@@ -1,3 +1,25 @@
+/**
+
+TrakEM2 plugin for ImageJ(C).
+Copyright (C) 2009 Albert Cardona.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.txt )
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+
+You may contact Albert Cardona at acardona at ini.phys.ethz.ch
+Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
+**/
+
 package ini.trakem2.display;
 
 import java.awt.Rectangle;
@@ -39,6 +61,11 @@ import ij.gui.GenericDialog;
 
 public class ManualAlignMode implements Mode {
 
+	final private Display display;
+
+	private HashMap<Layer,Landmarks> m = new HashMap<Layer,Landmarks>();
+
+
 	final private GraphicsSource gs = new GraphicsSource() {
 		/** Returns the list given as argument without any modification. */
 		public List<? extends Paintable> asPaintable(final List<? extends Paintable> ds) {
@@ -63,8 +90,6 @@ public class ManualAlignMode implements Mode {
 			g.setStroke(stroke);
 		}
 	};
-
-	final private Display display;
 
 	public ManualAlignMode(final Display display) {
 		this.display = display;
@@ -148,8 +173,6 @@ public class ManualAlignMode implements Mode {
 			}
 		}
 	}
-
-	private HashMap<Layer,Landmarks> m = new HashMap<Layer,Landmarks>();
 
 	private Layer current_layer = null;
 	private int index = -1;
