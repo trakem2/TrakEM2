@@ -401,11 +401,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// reset to 1.0 thickness
 			g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
 
-			final Align align = null != active_layer ? active_layer.getParent().getAlign() : null;
-			if (null != align) {
-				align.paint(active_layer, g2d, srcRect, magnification);
-			}
-
 			// paint brush outline for AreaList, or fast-marching area
 			if (mouse_in && null != active && active.getClass() == AreaList.class) {
 				switch (ProjectToolbar.getToolId()) {
@@ -654,15 +649,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		active = display.getActive();
 		selection = display.getSelection();
 
-		if (ProjectToolbar.ALIGN == tool) {
-			LayerSet set = display.getLayer().getParent();
-			if (!set.isAligning()) {
-				set.startAlign(display);
-			}
-			set.getAlign().mousePressed(display.getLayer(), me, x_p, y_p, magnification);
-			return;
-		}
-
 		if (null == active || !active.isVisible()) return;
 
 		switch (tool) {
@@ -754,9 +740,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		if (input_disabled2) return;
 
-		if (null != display.getLayer().getParent().getAlign()) return;
-
-
 		//debug:
 		//Utils.log2("x_d,y_d : " + x_d + "," + y_d + "   x_d_old, y_d_old : " + x_d_old + "," + y_d_old + "  dx, dy : " + (x_d_old - x_d) + "," + (y_d_old - y_d));
 
@@ -824,8 +807,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// box for next mouse dragged iteration
 					box = box2;
 					break;
-				case ProjectToolbar.ALIGN:
-					break; // nothing
 				default:
 					active.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 					// the line above must repaint on its own
@@ -899,10 +880,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				msg += "\" first.";
 				Utils.showMessage("Selection is locked or contains links to a locked object." + msg);
 			}
-			return;
-		}
-
-		if (display.getLayer().getParent().isAligning()) {
 			return;
 		}
 
@@ -1075,7 +1052,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			break;
 		case ProjectToolbar.SELECT:
 		case ProjectToolbar.PENCIL:
-		case ProjectToolbar.ALIGN:
 			setCursor(defaultCursor);
 			break;
 		default: // selection tool
@@ -1711,10 +1687,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				applyTransform();
 				ke.consume();
 				return;
-			} else if (display.getLayer().getParent().isAligning()) {
-				display.getLayer().getParent().applyAlign(false);
-				ke.consume();
-				return;
 			} else {
 				IJ.getInstance().toFront();
 				ke.consume();
@@ -1794,10 +1766,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// The whole keyPressed method needs revision: should not break from it when not using the key.
 				}
 			case KeyEvent.VK_ESCAPE: // cancel transformation
-				if (display.getLayer().getParent().isAligning()) {
-					display.getLayer().getParent().cancelAlign();
-					ke.consume();
-				} else if (null != active) {
+				if (null != active) {
 					if (isTransforming()) cancelTransform();
 					else {
 						display.select(null); // deselect
