@@ -14,20 +14,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.awt.Graphics2D;
 import java.awt.event.MouseEvent;
+import java.awt.Component;
 import java.awt.geom.AffineTransform;
 import java.awt.Stroke;
 import java.awt.BasicStroke;
 
-import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.display.YesNoDialog;
-import ini.trakem2.utils.History;
-import ini.trakem2.ControlWindow;
-import ini.trakem2.Project;
 import ini.trakem2.display.graphics.GraphicsSource;
-import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Display;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.Worker;
 
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.RigidModel2D;
@@ -173,6 +170,9 @@ public class ManualAlignMode implements Mode {
 			index = lm.add(current_layer, x_p, y_p);
 		} else if (Utils.isControlDown(me) && me.isShiftDown()) {
 			lm.remove(index);
+			if (0 == lm.points.size()) {
+				m.remove(current_layer);
+			}
 		}
 
 		display.repaint();
@@ -207,7 +207,7 @@ public class ManualAlignMode implements Mode {
 
 		// Check that the current layer is one of the layers with landmarks.
 		// Will be used as reference
-		Layer ref_layer = display.getLayer();
+		final Layer ref_layer = display.getLayer();
 		if (null == m.get(ref_layer)) {
 			Utils.showMessage("Please scroll to a layer with landmarks,\nto be used as reference.");
 			return false;
@@ -230,13 +230,40 @@ public class ManualAlignMode implements Mode {
 			}
 		}
 
+		// Sort Layers by Z
+		final TreeMap<Layer,Landmarks> sorted = new TreeMap<Layer,Landmarks>(new Comparator<Layer>() {
+			public boolean equals(Object ob) {
+				return this == ob;
+			}
+			public int compare(Layer l1, Layer l2) {
+				// Ascending order
+				double dz = l1.getZ() - l2.getZ();
+				if (dz < 0) return -1;
+				else if (dz > 0) return 1;
+				else return 0;
+			}
+		});
+		sorted.putAll(m);
+
+		int iref = 0;
+		for (Layer la : sorted.keySet()) {
+			if (la != ref_layer) iref++;
+			else break;
+		}
+
 		// Ok, now ask for a model
 		GenericDialog gd = new GenericDialog("Model");
 		gd.addChoice("Model:", Align.Param.modelStrings, Align.Param.modelStrings[1]);
+		gd.addCheckbox("Propagate to first layer", 0 != iref);
+		((Component)gd.getCheckboxes().get(0)).setEnabled(0 != iref);
+		gd.addCheckbox("Propagate to last layer", sorted.size()-1 != iref);
+		((Component)gd.getCheckboxes().get(1)).setEnabled(sorted.size()-1 != iref);
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 
 		int model_index = gd.getNextChoiceIndex();
+		final boolean propagate_to_first = gd.getNextBoolean();
+		final boolean propagate_to_last = gd.getNextBoolean();
 
 		int min;
 
@@ -269,16 +296,8 @@ public class ManualAlignMode implements Mode {
 			return false;
 		}
 
-		// Sort Layers by Z
-		TreeMap<Layer,Landmarks> sorted = new TreeMap<Layer,Landmarks>(new Comparator<Layer>() {
-			public boolean equals(Object ob) {
-				return this == ob;
-			}
-			public int compare(Layer l1, Layer l2) {
-				return (int)(l1.getZ() - l2.getZ()); // ascending order
-			}
-		});
-		sorted.putAll(m);
+		Bureaucrat.createAndStart(new Worker.Task("Aligning layers with landmarks") {
+			public void exec() {
 
 		// Find layers with landmarks, in increasing Z.
 		// Match in pairs.
@@ -296,53 +315,88 @@ public class ManualAlignMode implements Mode {
 					return this == ob;
 				}
 				public int compare(Layer l1, Layer l2) {
-					return (int)(l2.getZ() - l1.getZ()); // descending order
+					// Descending order
+					double dz = l2.getZ() - l1.getZ();
+					if (dz < 0) return -1;
+					else if (dz > 0) return 1;
+					else return 0;
 				}
 			});
 			fc.putAll(first_chunk);
 			first_chunk = fc;
 		}
 
-		for (SortedMap<Layer,Landmarks> sm : Arrays.asList(new SortedMap[]{first_chunk, second_chunk})) {
-			if (sm.size() < 2) continue;
+		LayerSet ls = ref_layer.getParent();
 
-			Layer layer1 = sm.firstKey();
-			Landmarks lm1 = sm.get(sm.firstKey());
+		// Apply!
 
-			AffineTransform accum = new AffineTransform();
+		// Setup undo
+		ls.addTransformStep();
 
-			for (Map.Entry<Layer,Landmarks> e : sm.entrySet()) {
-				Layer layer2 = e.getKey();
-				if (layer1 == layer2) continue;
-				Landmarks lm2 = e.getValue();
-				// Create pointmatches
-				ArrayList<PointMatch> matches = new ArrayList<PointMatch>();
-				for (int i=0; i<lm1.points.size(); i++) {
-					matches.add(new PointMatch(lm2.points.get(i), lm1.points.get(i)));
+		if (first_chunk.size() > 1) {
+			AffineTransform aff = align(first_chunk, model);
+			if (propagate_to_first) {
+				for (Layer la : ls.getLayers().subList(0, ls.indexOf(first_chunk.lastKey()))) { // exclusive last
+					la.apply(Patch.class, aff);
 				}
-
-				AbstractAffineModel2D< ? > mod = model.clone();
-				try {
-					mod.fit(matches);
-				} catch (Throwable t) {
-					IJError.print(t);
-					// continue happily
+			}
+		}
+		if (second_chunk.size() > 1) {
+			AffineTransform aff = align(second_chunk, model);
+			if (propagate_to_last) {
+				for (Layer la : ls.getLayers().subList(ls.indexOf(second_chunk.lastKey()) + 1, ls.size())) { // exclusive last
+					la.apply(Patch.class, aff);
 				}
-
-				accum.preConcatenate(mod.createAffine());
-
-				layer2.apply(Patch.class, accum);
-
-				layer1 = layer2;
-				lm1 = lm2;
 			}
 		}
 
 		Display.repaint();
 
+		// Store current state
+		ls.addTransformStep();
+
+
+		}}, display.getProject());
 
 		return true;
 	}
+
+	private AffineTransform align(SortedMap<Layer,Landmarks> sm, final AbstractAffineModel2D< ? > model) {
+		Layer layer1 = sm.firstKey();
+		Landmarks lm1 = sm.get(sm.firstKey());
+
+		AffineTransform accum = new AffineTransform();
+
+		for (Map.Entry<Layer,Landmarks> e : sm.entrySet()) {
+			Layer layer2 = e.getKey();
+			if (layer1 == layer2) continue;
+			Landmarks lm2 = e.getValue();
+			// Create pointmatches
+			ArrayList<PointMatch> matches = new ArrayList<PointMatch>();
+			for (int i=0; i<lm1.points.size(); i++) {
+				matches.add(new PointMatch(lm2.points.get(i), lm1.points.get(i)));
+			}
+
+			AbstractAffineModel2D< ? > mod = model.clone();
+			try {
+				mod.fit(matches);
+			} catch (Throwable t) {
+				IJError.print(t);
+				// continue happily
+			}
+
+			accum.preConcatenate(mod.createAffine());
+
+			layer2.apply(Patch.class, accum);
+
+			layer1 = layer2;
+			lm1 = lm2;
+		}
+
+		return accum;
+	}
+
+
 	public boolean cancel() {
 		return true;
 	}

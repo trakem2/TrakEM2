@@ -1582,9 +1582,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	public void cancelTransform() {
 		Selection selection = display.getSelection();
-		Rectangle box = display.getMode().getRepaintBounds();
 		display.getMode().cancel();
-		box.add(selection.getLinkedBox()); // the restored box now.
 		display.setMode(new DefaultMode(display));
 		repaint(true);
 	}
@@ -1766,17 +1764,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// The whole keyPressed method needs revision: should not break from it when not using the key.
 				}
 			case KeyEvent.VK_ESCAPE: // cancel transformation
-				if (null != active) {
-					if (isTransforming()) cancelTransform();
-					else {
-						display.select(null); // deselect
-						// repaint out the brush if present
-						if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
-							repaint(old_brush_box, 0);
-						}
+				if (isTransforming()) cancelTransform();
+				else {
+					display.select(null); // deselect
+					// repaint out the brush if present
+					if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
+						repaint(old_brush_box, 0);
 					}
-					ke.consume();
 				}
+				ke.consume();
 				break;
 			case KeyEvent.VK_SPACE:
 				if (0 == ke.getModifiers()) {

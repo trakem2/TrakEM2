@@ -3291,7 +3291,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				setMode(new DefaultMode(Display.this));
 			}
 		} else if (command.equals("Cancel transform")) {
-			if (null == active) return;
 			canvas.cancelTransform(); // calls getMode().cancel()
 		} else if (command.equals("Specify transform...")) {
 			if (null == active) return;
