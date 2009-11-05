@@ -2416,6 +2416,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (1 == layer.getParent().size()) item.setEnabled(false);
 		item = new JMenuItem("Align multi-layer mosaic"); item.addActionListener(this); align_menu.add(item);
 		if (1 == layer.getParent().size()) item.setEnabled(false);
+		item = new JMenuItem("Montage all images in this layer"); item.addActionListener(this); align_menu.add(item);
+		if (layer.getDisplayables(Patch.class).size() < 2) item.setEnabled(false);
+		item = new JMenuItem("Montage selected images"); item.addActionListener(this); align_menu.add(item);
+		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
 		popup.add(align_menu);
 
 		JMenu link_menu = new JMenu("Link");
@@ -3653,6 +3657,29 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			final Layer la = layer; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep();
 			Bureaucrat burro = AlignTask.alignMultiLayerMosaicTask( la );
+			burro.addPostTask(new Runnable() { public void run() {
+				la.getParent().addTransformStep();
+			}});
+		} else if (command.equals("Montage all images in this layer")) {
+			final Layer la = layer;
+			List<Patch> patches = new ArrayList<Patch>( (List<Patch>) (List) la.getDisplayables(Patch.class));
+			if (patches.size() < 2) {
+				Utils.showMessage("Montage needs 2 or more images selected");
+				return;
+			}
+			la.getParent().addTransformStep(la);
+			Bureaucrat burro = AlignTask.alignPatchesTask(patches, Arrays.asList(new Patch[]{patches.get(0)}));
+			burro.addPostTask(new Runnable() { public void run() {
+				la.getParent().addTransformStep();
+			}});
+		} else if (command.equals("Montage selected images")) {
+			final Layer la = layer;
+			if (selection.getSelected(Patch.class).size() < 2) {
+				Utils.showMessage("Montage needs 2 or more images selected");
+				return;
+			}
+			la.getParent().addTransformStep(la);
+			Bureaucrat burro = AlignTask.alignSelectionTask(selection);
 			burro.addPostTask(new Runnable() { public void run() {
 				la.getParent().addTransformStep();
 			}});
@@ -4977,5 +5004,4 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		return new ArrayList<Patch>(stacks);
 	}
-
 }
