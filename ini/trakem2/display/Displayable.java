@@ -441,6 +441,11 @@ public abstract class Displayable extends DBObject implements Paintable {
 		paint(g, magnification, active, channels, active_layer);
 	}
 
+	/** Paints waiting for data to load, if necessary. */
+	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, magnification, active, channels, active_layer);
+	}
+
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
 	public void setDimensions(double width, double height) {
 		setDimensions(width, height, true);
@@ -527,7 +532,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 	}
 
 	/** Bounding box of the transformed data (or 0,0,0,0 when no data).
-	 *  Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
+	 *  Returns the same Rectangle, modified. */
 	protected Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;

@@ -317,6 +317,9 @@ public class DTDParser {
 		ArrayList al_roots = new ArrayList();
 		for (int k=0; k<type.length; k++) {
 			if (is_root[k]) {
+				if (-1 != type[k].name.indexOf("ict_transform_list")) {
+					continue; // false root!
+				}
 				// replace prepended tag if any
 				String tyn = type[k].name;
 				if (0 == type[k].name.indexOf("t2_")) {

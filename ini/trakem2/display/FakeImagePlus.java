@@ -101,7 +101,7 @@ public class FakeImagePlus extends ImagePlus {
 			return getPixel(display.getCanvas().getMagnification(), x, y);
 		}
 		public int getPixel(double mag, final int x, final int y) {
-			final Collection under = display.getLayer().find(Patch.class, x, y);
+			final Collection under = display.getLayer().find(Patch.class, x, y, true);
 			if (null == under || under.isEmpty()) return 0; // zeros
 			for (final Patch p : (Collection<Patch>)under) {
 				if (!p.isVisible()) continue;
@@ -119,7 +119,7 @@ public class FakeImagePlus extends ImagePlus {
 		}
 		/** @param iArray is ignored. */
 		public int[] getPixel(double mag, int x, int y, int[] iArray) {
-			final Collection under = display.getLayer().find(Patch.class, x, y);
+			final Collection under = display.getLayer().find(Patch.class, x, y, true);
 			if (null != under && !under.isEmpty()) {
 				for (final Patch p : (Collection<Patch>)under) {
 					if (!p.isVisible()) continue;
