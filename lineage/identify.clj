@@ -3,9 +3,9 @@
      (lineage LineageClassifier)
      (java.io InputStreamReader FileInputStream PushbackReader)
      (javax.vecmath Point3d)
-     (javax.swing JTable JFrame JScrollPane JPanel JLabel BoxLayout)
+     (javax.swing JTable JFrame JScrollPane JPanel JLabel BoxLayout JPopupMenu JMenuItem)
      (javax.swing.table AbstractTableModel)
-     (java.awt.event MouseAdapter)
+     (java.awt.event MouseAdapter ActionListener)
      (java.awt Color Dimension Component)
      (mpicbg.models AffineModel3D)
      (ini.trakem2.utils Utils)
@@ -44,7 +44,7 @@
     (read
       (PushbackReader.
       ; (InputStreamReader. (LineageClassifier/getResourceAsStream "/lineages/SAT-lib.clj"))  ; TESTING
-        (InputStreamReader. (FileInputStream. "/home/albert/lab/confocal/L3_lineages/SAT-lib.clj"))
+        (InputStreamReader. (FileInputStream. "/home/albert/lab/confocal/L3_lineages/SAT-lib-with-mb.clj"))
         4096))))
 
 (defn fids-as-Point3d
@@ -90,6 +90,20 @@
       SATs-lib)))
 
 (def SAT-lib (prepare-SAT-lib))
+
+(def
+  #^{:doc "The mushroom body lobes for FRT42 brain."}
+  mb-FRT42
+  (let [r #"peduncle . (dorsal|medial) lobe.*FRT42 new.*"]
+    (loop [sl SAT-lib
+           mb {}]
+      (if (= 2 (count mb))
+        mb
+        (if-let [[k v] (first sl)]
+          (recur (next sl)
+                 (if (re-matches r k)
+                   (into mb {k v})
+                   mb)))))))
 
 (defn register-vs
   "Register a singe VectorString3D from source-fids to target-fids."
@@ -197,7 +211,7 @@
                   false)
                 (setValueAt [ob row col] nil)))
         frame (JFrame. "Matches")
-        dummy_ls (LayerSet. (.. Display getFront getProject) (long -1) "Dummy" (double 0) (double 0) (double 0) (double 0) (double 0) (double 512) (double 512) false (int 0) (java.awt.geom.AffineTransform.))]
+        dummy-ls (LayerSet. (.. Display getFront getProject) (long -1) "Dummy" (double 0) (double 0) (double 0) (double 0) (double 0) (double 512) (double 512) false (int 0) (java.awt.geom.AffineTransform.))]
     (.add frame (JScrollPane. table))
     (.setSize frame (int 950) (int 550))
     (.addMouseListener table
@@ -205,25 +219,41 @@
                          (mousePressed [ev]
                            (send-off worker
                              (fn [_]
-                               (if (= 2 (.getClickCount ev))
-                                 (let [match (indexed (.rowAtPoint table (.getPoint ev)))]
-                                   (println "two clicks")
-                                   (Display3D/addMesh dummy_ls
-                                                      (resample vs1 delta)
-                                                      "Query"
-                                                      Color/yellow)
-                                   (Display3D/addMesh dummy_ls
-                                                      (resample (SAT-lib (match :SAT-name)) delta)
-                                                      (match :SAT-name)
-                                                      (if (match :correct)
-                                                        Color/red
-                                                        Color/blue)))))))))
+                               (let [match (indexed (.rowAtPoint table (.getPoint ev)))]
+                                 (cond
+                                   ; On double-click, show 3D view of the match:
+                                   (= 2 (.getClickCount ev))
+                                     (do
+                                       (Display3D/addMesh dummy-ls
+                                                          (resample vs1 delta)
+                                                          "Query"
+                                                          Color/yellow)
+                                       (Display3D/addMesh dummy-ls
+                                                          (resample (SAT-lib (match :SAT-name)) delta)
+                                                          (match :SAT-name)
+                                                          (if (match :correct)
+                                                            Color/red
+                                                            Color/blue)))
+                                   ; On right-click, show menu
+                                   (Utils/isPopupTrigger ev)
+                                     (let [popup (JPopupMenu.)
+                                           new-command (fn [title action]
+                                                         (let [item (JMenuItem. title)]
+                                                           (.addActionListener item (proxy [ActionListener] []
+                                                                                      (actionPerformed [evt]
+                                                                                        (action))))
+                                                           item))]
+                                       (doto popup
+                                         (.add (new-command "Show Mushroom body"
+                                                            #(doseq [[k v] mb-FRT42]
+                                                              (Display3D/addMesh dummy-ls v k Color/gray))))
+                                         (.show table (.getX ev) (.getY ev)))))))))))
+
     ; Enlarge the cell width of the first column
     (.setMinWidth (.. table getColumnModel (getColumn 0)) (int 250))
     (doto frame
       ;(.pack)
       (.setVisible true))))
-
 
 (defn identify
   "Identify a Pipe or Polyline (which implement Line3D) that represent a SAT."

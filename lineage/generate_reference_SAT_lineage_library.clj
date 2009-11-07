@@ -17,15 +17,38 @@
   regex-exclude "(.*unknown.*)|(.*poorly.*)|(.*MB.*)|(.*TR.*)")
 
 (defn gather-chains
-      "Collect all possible calibrated VectorString chains from all lineages in project"
-      [project]
-      (let [ls (.getRootLayerSet project)
-            cal (.getCalibrationCopy ls)]
+  "Collect all possible calibrated VectorString chains from all lineages in project"
+  [project]
+  (let [ls (.getRootLayerSet project)
+        cal (.getCalibrationCopy ls)]
+    (map
+      (fn [chain]
+        (.calibrate (.vs chain) cal)
+        chain)
+      (Compare/createPipeChains (.getRootProjectThing project) ls regex-exclude))))
+
+(defn gather-mb
+  "Take the mushroom body of the active project and store it as two chains,
+  one titled 'peduncle + dorsal lobe' and another 'peduncle + medial lobe'."
+  [project]
+  (let [ls (.getRootLayerSet project)
+        cal (.getCalibrationCopy ls)]
+    (if-let [peduncle (.findChild (.getRootProjectThing project) "peduncle")]
+      (let [medial-lobe (.findChild peduncle "medial lobe")
+            dorsal-lobe (.findChild peduncle "dorsal lobe")
+            c1 (ini.trakem2.vector.Compare$Chain. (.getObject (first (.findChildrenOfType peduncle "pipe"))))
+            c2 (.duplicate c1)]
+        (.append c1 (.getObject (first (.findChildrenOfType medial-lobe "pipe"))))
+        (.append c2 (.getObject (first (.findChildrenOfType dorsal-lobe "pipe"))))
         (map
-          (fn [chain]
+          (fn [chain title]
+            (set! (.title chain) title)
             (.calibrate (.vs chain) cal)
             chain)
-          (Compare/createPipeChains (.getRootProjectThing project) ls regex-exclude))))
+          [c1 c2]
+          ["peduncle + medial lobe" "peduncle + dorsal lobe"]))
+      ; Else empty list
+      [])))
 
 (defn gather-fiducials
   "Extract a table of calibrated fiducial points in project,
@@ -42,19 +65,20 @@
 
 (defn gather-xmls
   "Scan a folder for XML files, recursively."
-  [dir]
+  [dir regex-exclude]
   (reduce
-    (fn [v name]
-      (if (.isDirectory (File. dir name))
-        (into v (gather-xmls (str dir \/ name)))
-        (if (.endsWith (.toLowerCase name) ".xml")
-          (conj v (str dir \/ name))
+    (fn [v filename]
+      (if (.isDirectory (File. dir filename))
+        (into v (gather-xmls (str dir \/ filename) regex-exclude))
+        (if (.endsWith (.toLowerCase filename) ".xml")
+          (conj v (str dir \/ filename))
           v)))
     []
     (.list (File. dir)
          (proxy [FilenameFilter] []
-           (accept [fdir name]
-             (not (.isHidden (File. fdir name))))))))
+           (accept [fdir filename]
+             (and (not (.isHidden (File. fdir filename)))
+                  (nil? (re-matches (re-pattern regex-exclude) (str (.getAbsolutePath fdir) \/ filename)))))))))
 
 (defn gather-SATs
   "Take a list of chains, each one representing a SAT,
@@ -70,12 +94,18 @@
               :z (seq (.getPoints (.vs chain) 2))}))
 
     {}
-    (gather-chains project)))
+    (into (gather-chains project) (gather-mb project))))
+;    (into (let [ch (gather-chains project)]
+;            (ij.IJ/log (str (into [] ch)))
+;            ch)
+;          (let [mb (gather-mb project)]
+;           (ij.IJ/log (str (into [] mb)))
+;           mb))))
 
 (defn generate-SAT-lib
   "Create the SAT library from a root directory.
   Will include all XML in any subfolder, recursively."
-  [root-dir]
+  [xmls]
   (reduce
     (fn [m xml-path]
       (let [project (Project/openFSProject xml-path false)
@@ -96,19 +126,20 @@
             (println "No fiducials found in" xml-path)
             m))))
     {}
-    (gather-xmls root-dir)))
+    xmls))
 
 (defn start
-  ([]
+  "Will ignore any of the xml files in the chosen dir whose absolute file path matches the regex-exclude string."
+  ([regex-exclude]
     (if-let [dir (.getDirectory (DirectoryChooser. "Choose root dir"))]
-      (start dir)))
-  ([dir]
+      (start dir regex-exclude)))
+  ([dir regex-exclude]
     (ControlWindow/setGUIEnabled false)
     (try
       (TextWindow. "SAT lib"
                    (let [sw (StringWriter.)]
                      (binding [*out* sw]
-                       (prn (generate-SAT-lib dir)))
+                       (prn (generate-SAT-lib (gather-xmls dir regex-exclude))))
                        (.toString sw))
                     400 400)
       (catch Exception e
