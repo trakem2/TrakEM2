@@ -4,13 +4,13 @@
      (java.io InputStreamReader FileInputStream PushbackReader)
      (javax.vecmath Point3d)
      (javax.swing JTable JFrame JScrollPane JPanel JLabel BoxLayout JPopupMenu JMenuItem)
-     (javax.swing.table AbstractTableModel)
+     (javax.swing.table AbstractTableModel DefaultTableCellRenderer)
      (java.awt.event MouseAdapter ActionListener)
      (java.awt Color Dimension Component)
      (mpicbg.models AffineModel3D)
      (ini.trakem2.utils Utils)
      (ini.trakem2.display Display Display3D LayerSet)
-     (ini.trakem2.vector Compare VectorString3D)))
+     (ini.trakem2.vector Compare VectorString3D Editions)))
 
 ;(import
 ;     '(lineage LineageClassifier)
@@ -72,7 +72,7 @@
                                           (vals (into (sorted-map) (select-keys target-fids common-fid-keys)))
                                           AffineModel3D)]
     (zipmap
-      (map #(str % "---" brain-label) (keys SATs))
+      (map #(str (.replaceAll % "\\[.*\\] " " [") \space brain-label \]) (keys SATs))
       vs)))
 
 (defn prepare-SAT-lib
@@ -179,7 +179,7 @@
         [matches names] (match-all vs1 delta direct substring)
         SAT-names (vec names)
         indexed (vec matches)
-        column-names ["SAT" "Match" "Seq sim" "Lev Dist" "Med Dist" "Avg Dist" "Cum Dist" "Std Dev" "Prop Mut" "Prop Lengths" "Proximity" "Prox Mut" "Tortuosity"]
+        column-names ["SAT" "Match" "Seq sim %" "Lev Dist" "Med Dist" "Avg Dist" "Cum Dist" "Std Dev" "Prop Mut" "Prop Lengths" "Proximity" "Prox Mut" "Tortuosity"]
         table (JTable. (proxy [AbstractTableModel] []
                 (getColumnName [col]
                   (get column-names col))
@@ -195,7 +195,7 @@
                       (= col 1) (str (match :correct))    ; Whether the classifier considered it correct or not
                       true (Utils/cutNumber
                             (cond
-                              (= col 2) (get stats 6)       ; Similarity
+                              (= col 2) (* 100 (get stats 6))       ; Similarity
                               (= col 3) (get stats 5)       ; Levenshtein
                               (= col 4) (get stats 3)       ; Median Physical Distance
                               (= col 5) (get stats 0)       ; Average Physical Distance
@@ -212,6 +212,15 @@
                 (setValueAt [ob row col] nil)))
         frame (JFrame. "Matches")
         dummy-ls (LayerSet. (.. Display getFront getProject) (long -1) "Dummy" (double 0) (double 0) (double 0) (double 0) (double 0) (double 512) (double 512) false (int 0) (java.awt.geom.AffineTransform.))]
+    (.setCellRenderer (.getColumn table "Match")
+                      (proxy [DefaultTableCellRenderer] []
+                        (getTableCellRendererComponent [t v sel foc row col]
+                          (proxy-super setText (str v))
+                          (proxy-super setBackground
+                                          (if (Boolean/parseBoolean v)
+                                            (Color. 255 121 121)
+                                            (Color/white)))
+                          this)))
     (.add frame (JScrollPane. table))
     (.setSize frame (int 950) (int 550))
     (.addMouseListener table
@@ -219,21 +228,22 @@
                          (mousePressed [ev]
                            (send-off worker
                              (fn [_]
-                               (let [match (indexed (.rowAtPoint table (.getPoint ev)))]
+                               (let [match (indexed (.rowAtPoint table (.getPoint ev)))
+                                     show-match (fn []
+                                                  (Display3D/addMesh dummy-ls
+                                                                     (resample vs1 delta)
+                                                                     "Query"
+                                                                     Color/yellow)
+                                                  (Display3D/addMesh dummy-ls
+                                                                     (resample (SAT-lib (match :SAT-name)) delta)
+                                                                     (match :SAT-name)
+                                                                     (if (match :correct)
+                                                                       Color/red
+                                                                       Color/blue)))]
                                  (cond
                                    ; On double-click, show 3D view of the match:
                                    (= 2 (.getClickCount ev))
-                                     (do
-                                       (Display3D/addMesh dummy-ls
-                                                          (resample vs1 delta)
-                                                          "Query"
-                                                          Color/yellow)
-                                       (Display3D/addMesh dummy-ls
-                                                          (resample (SAT-lib (match :SAT-name)) delta)
-                                                          (match :SAT-name)
-                                                          (if (match :correct)
-                                                            Color/red
-                                                            Color/blue)))
+                                     (show-match)
                                    ; On right-click, show menu
                                    (Utils/isPopupTrigger ev)
                                      (let [popup (JPopupMenu.)
@@ -241,12 +251,19 @@
                                                          (let [item (JMenuItem. title)]
                                                            (.addActionListener item (proxy [ActionListener] []
                                                                                       (actionPerformed [evt]
-                                                                                        (action))))
+                                                                                        (send-off worker (fn [_] (action))))))
                                                            item))]
                                        (doto popup
+                                         (.add (new-command "Show match in 3D"
+                                                            show-match))
                                          (.add (new-command "Show Mushroom body"
                                                             #(doseq [[k v] mb-FRT42]
                                                               (Display3D/addMesh dummy-ls v k Color/gray))))
+                                         (.add (new-command "Show interpolated"
+                                                            #(Display3D/addMesh dummy-ls
+                                                                                (VectorString3D/createInterpolatedPoints
+                                                                                  (Editions. (SAT-lib (match :SAT-name)) vs1 delta false (double 1.1) (double 1.1) (double 1)) (float 0.5))
+                                                                                (str "Interpolated with " (match :SAT-name)) Color/magenta)))
                                          (.show table (.getX ev) (.getY ev)))))))))))
 
     ; Enlarge the cell width of the first column
