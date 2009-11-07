@@ -554,6 +554,9 @@ public class Project extends DBObject {
 	}
 
 	public boolean destroy() {
+		if (null == loader) {
+			return true;
+		}
 		if (loader.hasChanges() && !getBooleanProperty("no_shutdown_hook")) { // DBLoader always returns false
 			if (ControlWindow.isGUIEnabled()) {
 				final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "There are unsaved changes in project " + title + ". Save them?");
