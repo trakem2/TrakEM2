@@ -571,7 +571,7 @@ public class Compare {
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
 		Pattern exclude = null;
 		if (null != regex_exclude) {
-			exclude = Pattern.compile(regex_exclude, Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+			exclude = Pattern.compile(regex_exclude, Pattern.CASE_SENSITIVE | Pattern.DOTALL);
 		}
 		appendAndFork(root_pt, null, null, chains, ls, exclude);
 		return chains;
@@ -644,6 +644,7 @@ public class Compare {
 	static public class Chain {
 		final ArrayList<Line3D> pipes = new ArrayList<Line3D>();
 		public VectorString3D vs; // the complete path of chained pipes
+		public String title = null;
 		private Chain() {}
 		public Chain(Line3D root) {
 			this.pipes.add(root);
@@ -667,12 +668,14 @@ public class Compare {
 			return sb.toString();
 		}
 		final public String getTitle() {
+			if (null != title) return title;
 			final StringBuffer sb = new StringBuffer(pipes.get(0).getProject().getTitle());
 			sb.append(' ');
 			for (Line3D p : pipes) sb.append(' ').append('#').append(p.getId());
 			return sb.toString();
 		}
 		final public String getCellTitle() {
+			if (null != title) return title;
 			Line3D root = pipes.get(0);
 			String mt = root.getProject().getShortMeaningfulTitle((ZDisplayable)root);
 			if (1 == pipes.size()) return mt;
@@ -683,6 +686,7 @@ public class Compare {
 		}
 		/** Returns max 10 chars, solely the name of the parent's parent node of the root pipe (aka the [lineage] containing the [branch]) or the id if too long. Intended for the 10-digit limitation in the problem in .dis files for Phylip. */
 		final public String getShortCellTitle() {
+			if (null != title) return title;
 			Line3D root = pipes.get(0);
 			ProjectThing pt = root.getProject().findProjectThing((ZDisplayable)root);
 			String short_title = null;
