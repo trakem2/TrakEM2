@@ -8,6 +8,7 @@
      (java.awt.event MouseAdapter ActionListener)
      (java.awt Color Dimension Component)
      (mpicbg.models AffineModel3D)
+     (ij.measure Calibration)
      (ini.trakem2.utils Utils)
      (ini.trakem2.display Display Display3D LayerSet)
      (ini.trakem2.vector Compare VectorString3D Editions)))
@@ -218,8 +219,11 @@
                           (proxy-super setText (str v))
                           (proxy-super setBackground
                                           (if (Boolean/parseBoolean v)
-                                            (Color. 255 121 121)
-                                            (Color/white)))
+                                            (Color. 166 255 166)
+                                            (if sel
+                                              (Color. 184 207 229)
+                                              Color/white)))
+                                              
                           this)))
     (.add frame (JScrollPane. table))
     (.setSize frame (int 950) (int 550))
@@ -231,7 +235,7 @@
                                (let [match (indexed (.rowAtPoint table (.getPoint ev)))
                                      show-match (fn []
                                                   (Display3D/addMesh dummy-ls
-                                                                     (resample vs1 delta)
+                                                                     (resample (.clone vs1) delta)
                                                                      "Query"
                                                                      Color/yellow)
                                                   (Display3D/addMesh dummy-ls
@@ -262,8 +266,25 @@
                                          (.add (new-command "Show interpolated"
                                                             #(Display3D/addMesh dummy-ls
                                                                                 (VectorString3D/createInterpolatedPoints
-                                                                                  (Editions. (SAT-lib (match :SAT-name)) vs1 delta false (double 1.1) (double 1.1) (double 1)) (float 0.5))
+                                                                                  (Editions. (SAT-lib (match :SAT-name)) (.clone vs1) delta false (double 1.1) (double 1.1) (double 1)) (float 0.5))
                                                                                 (str "Interpolated with " (match :SAT-name)) Color/magenta)))
+                                         (.add (new-command "Show stdDev plot"
+                                                            #(let [cp (ini.trakem2.vector.Compare$CATAParameters.)]
+                                                              (if (.setup cp false nil true true)
+                                                                (.show
+                                                                  (Compare/makePlot cp
+                                                                                    (str "Query versus " (match :SAT-name))
+                                                                                    (let [cal (Calibration.) ; Dummy calibration with microns as units. VectorString3D instances are already calibrated.
+                                                                                          condensed (VectorString3D/createInterpolatedPoints
+                                                                                              (let [v1 (.clone vs1)
+                                                                                                    v2 (SAT-lib (match :SAT-name))]
+                                                                                                    (.resample v1 delta true)
+                                                                                                    (.resample v2 delta true)
+                                                                                                    (Editions. v1 v2 delta false (double 1.1) (double 1.1) (double 1)))
+                                                                                              (float 0.5))]
+                                                                                      (.setUnit cal "micron")
+                                                                                      (.calibrate condensed cal)
+                                                                                      condensed)))))))
                                          (.show table (.getX ev) (.getY ev)))))))))))
 
     ; Enlarge the cell width of the first column
