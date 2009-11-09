@@ -497,8 +497,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		final ProjectThing pt = (ProjectThing)node.getUserObject();
 		if (null == pt) return;
 		//
-		int key_code = ke.getKeyCode();
-		switch (key_code) {
+		final int flags = ke.getModifiers();
+		switch (ke.getKeyCode()) {
 			case KeyEvent.VK_PAGE_UP:
 				move(node, -1);
 				ke.consume(); // in any case
@@ -510,6 +510,26 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			case KeyEvent.VK_F2:
 				rename(pt);
 				ke.consume();
+				break;
+			case KeyEvent.VK_H:
+				if (0 == (flags ^ Event.ALT_MASK)) {
+					pt.setVisible(true);
+					ke.consume();
+				} else if (0 == flags) {
+					pt.setVisible(false);
+					ke.consume();
+				}
+				break;
+			case KeyEvent.VK_3:
+				if (0 == flags) {
+					ini.trakem2.display.Display3D.showAndResetView(pt);
+					ke.consume();
+				}
+				break;
+			case KeyEvent.VK_A:
+				if (0 == flags || (0 == (flags ^ Event.SHIFT_MASK))) {
+					selectInDisplay(pt, 0 == (flags ^ Event.SHIFT_MASK));
+				}
 				break;
 		}
 		}});
