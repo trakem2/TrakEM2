@@ -39,6 +39,9 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.persistence.*;
 
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.Event;
+import javax.swing.KeyStroke;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -438,19 +441,20 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			al_items.add(menu);
 		}
 		// generic for all:
-		addPopupItem("Unhide", listener, al_items); // a 'Show' command on a non-basic type is a render preview.
+		// a 'Show' command on a non-basic type is a render preview.
+		addPopupItem("Unhide", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.ALT_MASK, true));
 
-		addPopupItem("Hide", listener, al_items);
+		addPopupItem("Hide", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true));
 
 		addPopupItem("Info", listener, al_items);
 
-		addPopupItem("Rename...", listener, al_items);
+		addPopupItem("Rename...", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0, true));
 		// enable duplicating for basic types only
 		if (Project.isBasicType(getType())) {
 			addPopupItem("Duplicate", listener, al_items);
 		}
 
-		addPopupItem("Select in display", listener, al_items);
+		addPopupItem("Select in display", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, 0, true));
 
 		if (null != object && object instanceof Displayable) {
 			addPopupItem("Show centered in Display", listener, al_items);
@@ -464,14 +468,14 @@ public final class ProjectThing extends DBObject implements TitledThing {
 
 		addPopupItem("Measure", listener, al_items);
 
-		addPopupItem("Show in 3D", listener, al_items);
+		addPopupItem("Show in 3D", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_3, 0, true));
 		//addPopupItem("Export 3D...", listener, al_items);
 
 		if (template.getType().equals("project")) {
 			if (project.getLoader() instanceof DBLoader) {
 				addPopupItem("Export project...", listener, al_items);
 			} else if (project.getLoader() instanceof FSLoader) {
-				addPopupItem("Save", listener, al_items);
+				addPopupItem("Save", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0, true));
 				addPopupItem("Save as...", listener, al_items);
 			}
 		}
@@ -486,10 +490,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return items;
 	}
 
-	private void addPopupItem(String command, ActionListener listener, ArrayList al_items) {
+	private JMenuItem addPopupItem(String command, ActionListener listener, ArrayList al_items) {
 		JMenuItem item = new JMenuItem(command);
 		item.addActionListener(listener);
 		al_items.add(item);
+		return item;
 	}
 
 	/** Switch the visibility of the Displayable objects contained here or in the children. */
