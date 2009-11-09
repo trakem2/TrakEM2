@@ -625,8 +625,8 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public ArrayList<ProjectThing> findChildren(final String regex, final String regex_exclude, final boolean shallow) {
 		final ArrayList<ProjectThing> found = new ArrayList<ProjectThing>();
 		findChildren(found,
-			     Pattern.compile("^.*" + regex + ".*$", Pattern.CASE_SENSITIVE | Pattern.DOTALL),
-			     Pattern.compile("^.*" + regex_exclude + ".*$", Pattern.CASE_SENSITIVE | Pattern.DOTALL),
+			     Pattern.compile("^.*" + regex + ".*$", Pattern.DOTALL),
+			     Pattern.compile("^.*" + regex_exclude + ".*$", Pattern.DOTALL),
 			     shallow);
 		return found;
 	}

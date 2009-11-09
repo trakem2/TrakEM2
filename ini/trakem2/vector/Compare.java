@@ -571,7 +571,7 @@ public class Compare {
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
 		Pattern exclude = null;
 		if (null != regex_exclude) {
-			exclude = Pattern.compile(regex_exclude, Pattern.CASE_SENSITIVE | Pattern.DOTALL);
+			exclude = Pattern.compile(regex_exclude, Pattern.DOTALL);
 		}
 		appendAndFork(root_pt, null, null, chains, ls, exclude);
 		return chains;
