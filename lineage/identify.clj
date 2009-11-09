@@ -306,3 +306,50 @@
       delta
       direct
       substring)))
+
+
+(defn quantify-match
+  "Take all pipes in project and score/classify them.
+  Returns a sorted map of name vs. a vector with:
+  - if the top 1,2,3,4,5 have a homonymous
+  - the number of positives: 'true' and homonymous
+  - the number of false positives: 'true' and not homonymous
+  - the number of false negatives: 'false' and homonymous
+  - the number of true negatives: 'false' and not homonymous
+  - the FPR: false positive rate: false positives / ( false positives + true negatives )
+  - the FNR: false negative rate: false negatives / ( false negatives + true positives )
+  - the TPR: true positive rate: 1 - FNR
+  - the length of the sequence queried"
+  [project regex-exclude delta direct substring]
+  (let [fids (Compare/extractPoints (first (.. project getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))]
+    (reduce
+      (fn [m chain]
+        (let [[matches names] (match-all (.vs chain) delta direct substring)
+              #^String SAT-name (.getCellTitle chain)
+              ;has-top-match (fn [n] (some #(.startsWith % SAT-name) (take names n)))
+              top-matches (loop [n 5
+                                 i 0
+                                 r []]
+                            (if (.startsWith (names i) SAT-name)
+                              (into r (repeat (- n i) true))  ; the rest are all true
+                              (recur n (inc i) (into [false] r))))
+              true-positives (filter #(and (% :correct) (.startsWith (% :SAT-name) SAT-name)) matches)
+              true-negatives (filter #(and (not (% :correct)) (not (.startsWith (% :SAT-name) SAT-name))) matches)
+              false-positives (filter #(not (.startsWith (% :SAT-name) SAT-name)) positives)
+              false-negatives (filter #(.startsWith (% :SAT-name) SAT-name) negatives)]
+          (assoc m
+            (.substring SAT-name (int 0) (int (.indexOf SAT-name (int \space))))
+            [(top-matches 1)
+             (top-matches 2)
+             (top-matches 3)
+             (top-matches 4)
+             (top-matches 5)
+             (count true-positives)
+             (count false-positives)
+             (count true-negatives)
+             (count false-negatives)
+             (/ (count false-positives) (+ (count false-positives) (count true-negatives))) ; False positive rate
+             (/ (count false-negatives) (+ (count false-negatives) (count true-positives))) ; False negative rate
+             (- 1 (/ (count false-negatives) (+ (count false-negatives) (count true-positives))))]))) ; True positive rate
+      (sorted-map)
+      (Compare/createPipeChains (.getRootProjectThing project) (.getRootLayerSet project) regex-exclude))))
