@@ -307,8 +307,14 @@
       direct
       substring)))
 
+(defn ready-vs
+  "Return a calibrate and registered VectorString3D from a chain."
+  [chain source-fids target-fids]
+  (let [vs (.clone (.vs chain))]
+    (.calibrate vs (.. chain getRoot getLayerSet getCalibrationCopy))
+    (register-vs vs source-fids target-fids)))
 
-(defn quantify-match
+(defn quantify-all
   "Take all pipes in project and score/classify them.
   Returns a sorted map of name vs. a vector with:
   - if the top 1,2,3,4,5 have a homonymous
@@ -321,35 +327,68 @@
   - the TPR: true positive rate: 1 - FNR
   - the length of the sequence queried"
   [project regex-exclude delta direct substring]
-  (let [fids (Compare/extractPoints (first (.. project getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))]
+  (let [fids (Compare/extractPoints (first (.. project getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
+        tops (int 5)]
     (reduce
       (fn [m chain]
-        (let [[matches names] (match-all (.vs chain) delta direct substring)
-              #^String SAT-name (.getCellTitle chain)
+        (let [vs (resample (ready-vs chain fids FRT42-fids) delta)
+              [matches names] (match-all vs delta direct substring)
+              names (vec (take tops names))
+              #^String SAT-name (let [t (.getCellTitle chain)]
+                                  (.substring t (int 0) (.indexOf t (int \space))))
               ;has-top-match (fn [n] (some #(.startsWith % SAT-name) (take names n)))
-              top-matches (loop [n 5
-                                 i 0
+              dummy (println "###\nSAT-name: " SAT-name   "\ntop 5 names: " names "\ntop 5 meds: " (map #(% :med) (take 5 matches)))
+              top-matches (loop [i (int 0)
                                  r []]
-                            (if (.startsWith (names i) SAT-name)
-                              (into r (repeat (- n i) true))  ; the rest are all true
-                              (recur n (inc i) (into [false] r))))
-              true-positives (filter #(and (% :correct) (.startsWith (% :SAT-name) SAT-name)) matches)
-              true-negatives (filter #(and (not (% :correct)) (not (.startsWith (% :SAT-name) SAT-name))) matches)
-              false-positives (filter #(not (.startsWith (% :SAT-name) SAT-name)) positives)
-              false-negatives (filter #(.startsWith (% :SAT-name) SAT-name) negatives)]
+                            (if (>= i tops)
+                              r
+                              (if (.startsWith (names i) SAT-name)
+                                (into r (repeat (- tops i) true))  ; the rest are all true
+                                (recur (inc i) (into [false] r)))))
+              true-positives (filter #(and
+                                        (% :correct)
+                                        (.startsWith (% :SAT-name) SAT-name))
+                                     matches)
+              true-negatives (filter #(and
+                                        (not (% :correct))
+                                        (not (.startsWith (% :SAT-name) SAT-name)))
+                                     matches)
+              false-positives (filter #(and
+                                         (% :correct)
+                                         (not (.startsWith (% :SAT-name) SAT-name)))
+                                      matches)
+              false-negatives (filter #(and
+                                         (not (% :correct))
+                                         (.startsWith (% :SAT-name) SAT-name))
+                                      matches)]
+          (println "top matches for " SAT-name " : " (count top-matches) top-matches)
           (assoc m
-            (.substring SAT-name (int 0) (int (.indexOf SAT-name (int \space))))
-            [(top-matches 1)
+            SAT-name
+            [(top-matches 0)
+             (top-matches 1)
              (top-matches 2)
              (top-matches 3)
              (top-matches 4)
-             (top-matches 5)
              (count true-positives)
              (count false-positives)
              (count true-negatives)
              (count false-negatives)
              (/ (count false-positives) (+ (count false-positives) (count true-negatives))) ; False positive rate
-             (/ (count false-negatives) (+ (count false-negatives) (count true-positives))) ; False negative rate
-             (- 1 (/ (count false-negatives) (+ (count false-negatives) (count true-positives))))]))) ; True positive rate
+             (let [divisor (+ (count false-negatives) (count true-positives))]
+               (if (= 0 divisor)
+                 Double/MAX_VALUE
+                 (/ (count false-negatives) divisor))) ; False negative rate
+             (let [divisor (+ (count false-negatives) (count true-positives))]
+               (if (= 0 divisor)
+                 Double/MAX_VALUE
+                 (- 1 (/ (count false-negatives) divisor)))) ; True positive rate
+             (.length vs)])))
       (sorted-map)
       (Compare/createPipeChains (.getRootProjectThing project) (.getRootLayerSet project) regex-exclude))))
+
+(defn print-quantify-all [t]
+  (doseq [[k v] t]
+     (print k \tab)
+     (doseq [x (take 5 v)] (print x \tab))
+     (doseq [x (nthnext v 5)] (print (float x) \tab))
+     (print \newline)))
