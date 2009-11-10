@@ -570,6 +570,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		Displayable active = display.getActive();
 
+		if (isTransforming() && ProjectToolbar.SELECT != tool) {
+			Utils.logAll("Notice: the 'Select' tool is not active!\n Activate the 'Select' tool to operate transformation modes.");
+		}
 
 		switch (tool) {
 		case Toolbar.WAND:
@@ -612,20 +615,22 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		switch (tool) {
 		case Toolbar.TEXT:
-			// edit a label, or add a new one
-			if (null == active || !active.contains(x_p, y_p)) {
-				// find a Displayable to activate, if any
-				display.choose(me.getX(), me.getY(), x_p, y_p, DLabel.class);
-				active = display.getActive();
-			}
-			if (null != active && active.isVisible() && active instanceof DLabel) {
-				// edit
-				((DLabel) active).edit();
-			} else {
-				// new
-				DLabel label = new DLabel(display.getProject(), "  ", x_p, y_p);
-				display.getLayer().add(label);
-				label.edit();
+			if (!isTransforming()) {
+				// edit a label, or add a new one
+				if (null == active || !active.contains(x_p, y_p)) {
+					// find a Displayable to activate, if any
+					display.choose(me.getX(), me.getY(), x_p, y_p, DLabel.class);
+					active = display.getActive();
+				}
+				if (null != active && active.isVisible() && active instanceof DLabel) {
+					// edit
+					((DLabel) active).edit();
+				} else {
+					// new
+					DLabel label = new DLabel(display.getProject(), "  ", x_p, y_p);
+					display.getLayer().add(label);
+					label.edit();
+				}
 			}
 			return;
 		}
