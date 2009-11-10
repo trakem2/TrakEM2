@@ -4811,6 +4811,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private Mode mode = new DefaultMode(this);
 
 	public void setMode(final Mode mode) {
+		ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		this.mode = mode;
 		canvas.repaint(true);
 		scroller.setEnabled(mode.getClass() == DefaultMode.class);
