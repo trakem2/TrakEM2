@@ -934,7 +934,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	public synchronized void setLayer(final Layer layer) {
-		if (!mode.canChangeLayer()) return;
+		if (!mode.canChangeLayer()) {
+			scroller.setValue(Display.this.layer.getParent().getLayerIndex(Display.this.layer.getId()));
+			return;
+		}
 		if (null == layer || layer == this.layer) return;
 		translateLayerColors(this.layer, layer);
 		if (tabs.getSelectedComponent() == scroll_layers) {
@@ -943,11 +946,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}});
 		}
 		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
-		if (canvas.isTransforming()) {
-			Utils.log("Can't browse layers while transforming.\nCANCEL the transform first with the ESCAPE key or right-click -> cancel.");
-			scroller.setValue(Display.this.layer.getParent().getLayerIndex(Display.this.layer.getId()));
-			return;
-		}
 		this.layer = layer;
 		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 
@@ -2054,15 +2052,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		return false;
 	}
 
-	static public boolean isAligning(final LayerSet set) {
-		for (final Display d : al_displays) {
-			if (d.layer.getParent() == set && set.isAligning()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	/** Check whether the source of the event is located in this instance.*/
 	private boolean isOrigin(InputEvent event) {
 		Object source = event.getSource();
@@ -2137,27 +2126,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.popup = new JPopupMenu();
 		JMenuItem item = null;
 		JMenu menu = null;
-
-		if (ProjectToolbar.ALIGN == Toolbar.getToolId()) {
-			boolean aligning = layer.getParent().isAligning();
-			item = new JMenuItem("Cancel alignment"); item.addActionListener(this); popup.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
-			if (!aligning) item.setEnabled(false);
-			item = new JMenuItem("Align with landmarks"); item.addActionListener(this); popup.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true));
-			if (!aligning) item.setEnabled(false);
-			item = new JMenuItem("Align and register"); item.addActionListener(this); popup.add(item);
-			if (!aligning) item.setEnabled(false);
-			item = new JMenuItem("Align using profiles");  item.addActionListener(this); popup.add(item);
-			if (!aligning || selection.isEmpty() || !selection.contains(Profile.class)) item.setEnabled(false);
-			item = new JMenuItem("Align stack slices"); item.addActionListener(this); popup.add(item);
-			if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
-			item = new JMenuItem("Align layers"); item.addActionListener(this); popup.add(item);
-			if (1 == layer.getParent().size()) item.setEnabled(false);
-			item = new JMenuItem("Align multi-layer mosaic"); item.addActionListener(this); popup.add(item);
-			if (1 == layer.getParent().size()) item.setEnabled(false);
-			return popup;
-		}
 
 		if (canvas.isTransforming()) {
 			item = new JMenuItem("Apply transform"); item.addActionListener(this); popup.add(item);
@@ -2414,8 +2382,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
 		item = new JMenuItem("Align layers"); item.addActionListener(this); align_menu.add(item);
 		if (1 == layer.getParent().size()) item.setEnabled(false);
+		item = new JMenuItem("Align layers with manual landmarks"); item.addActionListener(this); align_menu.add(item);
+		if (1 == layer.getParent().size()) item.setEnabled(false);
 		item = new JMenuItem("Align multi-layer mosaic"); item.addActionListener(this); align_menu.add(item);
 		if (1 == layer.getParent().size()) item.setEnabled(false);
+		item = new JMenuItem("Montage all images in this layer"); item.addActionListener(this); align_menu.add(item);
+		if (layer.getDisplayables(Patch.class).size() < 2) item.setEnabled(false);
+		item = new JMenuItem("Montage selected images"); item.addActionListener(this); align_menu.add(item);
+		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
 		popup.add(align_menu);
 
 		JMenu link_menu = new JMenu("Link");
@@ -2535,8 +2509,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F10, 0, true));
 		item = new JMenuItem("Pen"); item.addActionListener(new SetToolListener(ProjectToolbar.PEN)); menu.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0, true));
-		item = new JMenuItem("Align"); item.addActionListener(new SetToolListener(ProjectToolbar.ALIGN)); menu.add(item);
-		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0, true));
 
 		popup.add(menu);
 
@@ -3305,7 +3277,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				Display.repaint(layer.getParent());
 			}}, project);
 		} else if (command.equals("Apply transform")) {
-			if (null == active) return;
 			canvas.applyTransform();
 		} else if (command.equals("Apply transform propagating to last layer")) {
 			if (mode.getClass() == AffineTransformMode.class) {
@@ -3320,7 +3291,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				setMode(new DefaultMode(Display.this));
 			}
 		} else if (command.equals("Cancel transform")) {
-			if (null == active) return;
 			canvas.cancelTransform(); // calls getMode().cancel()
 		} else if (command.equals("Specify transform...")) {
 			if (null == active) return;
@@ -3590,34 +3560,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Properties...")) {
 			active.adjustProperties();
 			updateSelection();
-		} else if (command.equals("Cancel alignment")) {
-			layer.getParent().cancelAlign();
-		} else if (command.equals("Align with landmarks")) {
-			layer.getParent().applyAlign(false);
-		} else if (command.equals("Align and register")) {
-			layer.getParent().applyAlign(true);
-		} else if (command.equals("Align using profiles")) {
-			if (!selection.contains(Profile.class)) {
-				Utils.showMessage("No profiles are selected.");
-				return;
-			}
-			// ask for range of layers
-			final GenericDialog gd = new GenericDialog("Choose range");
-			Utils.addLayerRangeChoices(Display.this.layer, gd);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			Layer la_start = layer.getParent().getLayer(gd.getNextChoiceIndex());
-			Layer la_end = layer.getParent().getLayer(gd.getNextChoiceIndex());
-			if (la_start == la_end) {
-				Utils.showMessage("Need at least two layers.");
-				return;
-			}
-			if (selection.isLocked()) {
-				Utils.showMessage("There are locked objects.");
-				return;
-			}
-			layer.getParent().startAlign(Display.this);
-			layer.getParent().applyAlign(la_start, la_end, selection);
 		} else if (command.equals("Align stack slices")) {
 			if (getActive() instanceof Patch) {
 				final Patch slice = (Patch)getActive();
@@ -3642,6 +3584,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}
 			}
+		} else if (command.equals("Align layers with manual landmarks")) {
+			setMode(new ManualAlignMode(Display.this));
 		} else if (command.equals("Align layers")) {
 			final Layer la = layer;; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep(la);
@@ -3653,6 +3597,29 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			final Layer la = layer; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep();
 			Bureaucrat burro = AlignTask.alignMultiLayerMosaicTask( la );
+			burro.addPostTask(new Runnable() { public void run() {
+				la.getParent().addTransformStep();
+			}});
+		} else if (command.equals("Montage all images in this layer")) {
+			final Layer la = layer;
+			List<Patch> patches = new ArrayList<Patch>( (List<Patch>) (List) la.getDisplayables(Patch.class));
+			if (patches.size() < 2) {
+				Utils.showMessage("Montage needs 2 or more images selected");
+				return;
+			}
+			la.getParent().addTransformStep(la);
+			Bureaucrat burro = AlignTask.alignPatchesTask(patches, Arrays.asList(new Patch[]{patches.get(0)}));
+			burro.addPostTask(new Runnable() { public void run() {
+				la.getParent().addTransformStep();
+			}});
+		} else if (command.equals("Montage selected images")) {
+			final Layer la = layer;
+			if (selection.getSelected(Patch.class).size() < 2) {
+				Utils.showMessage("Montage needs 2 or more images selected");
+				return;
+			}
+			la.getParent().addTransformStep(la);
+			Bureaucrat burro = AlignTask.alignSelectionTask(selection);
 			burro.addPostTask(new Runnable() { public void run() {
 				la.getParent().addTransformStep();
 			}});
@@ -4527,11 +4494,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	// Never called; ProjectToolbar.toolChanged is also never called, which should forward here.
 	static public void toolChanged(final String tool_name) {
 		Utils.log2("tool name: " + tool_name);
-		if (!tool_name.equals("ALIGN")) {
-			for (final Display d : al_displays) {
-				d.layer.getParent().cancelAlign();
-			}
-		}
 		for (final Display d : al_displays) {
 			Utils.updateComponent(d.toolbar_panel);
 			if (tool_name.equals("PEN")) {
@@ -4849,6 +4811,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private Mode mode = new DefaultMode(this);
 
 	public void setMode(final Mode mode) {
+		ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		this.mode = mode;
 		canvas.repaint(true);
 		scroller.setEnabled(mode.getClass() == DefaultMode.class);
@@ -4977,5 +4940,4 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		return new ArrayList<Patch>(stacks);
 	}
-
 }

@@ -216,6 +216,21 @@ public class Polyline extends ZDisplayable implements Line3D {
 		return index;
 	}
 
+	/** Find closest point within the current layer. */
+	synchronized protected int findNearestPoint(final int x_p, final int y_p, final long layer_id) {
+		int index = -1;
+		double min_dist = Double.MAX_VALUE;
+		for (int i=0; i<n_points; i++) {
+			if (layer_id != p_layer[i]) continue;
+			double sq_dist = Math.pow(p[0][i] - x_p, 2) + Math.pow(p[1][i] - y_p, 2);
+			if (sq_dist < min_dist) {
+				index = i;
+				min_dist = sq_dist;
+			}
+		}
+		return index;
+	}
+
 	/**Remove a point from the bezier backbone and its two associated control points.*/
 	synchronized protected void removePoint(final int index) {
 		// check preconditions:
@@ -544,12 +559,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		final Display display = ((DisplayCanvas)me.getSource()).getDisplay();
 		final long layer_id = display.getLayer().getId();
 
-
-		if (Utils.isControlDown(me) && me.isShiftDown()) {
-			index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
-		} else {
-			index = findPoint(x_p, y_p, layer_id, mag);
-		}
+		index = findPoint(x_p, y_p, layer_id, mag);
 
 		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !Utils.isControlDown(me)) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
@@ -722,14 +732,20 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
 
-			if (-1 != index) {
-				if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
+				final long lid = Display.getFrontLayer(this.project).getId();
+				if (-1 == index || lid != p_layer[index]) {
+					index = findNearestPoint(x_p, y_p, layer_id);
+				}
+				if (-1 != index) {
 					//delete point
 					removePoint(index);
 					index = -1;
 					repaint(false);
-					return;
 				}
+
+				// In any case, terminate
+				return;
 			}
 
 			if (-1 != index && layer_id != p_layer[index]) index = -1; // disable!
@@ -1074,9 +1090,9 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	/** Returns a list of Point3f that define a polyline in 3D, for usage with an ij3d CustomLineMesh CONTINUOUS. @param parallels is ignored. */
 	synchronized public List generateTriangles(final double scale, final int parallels, final int resample, final Calibration cal) {
-		if (n_points < 2) return null;
-
 		if (-1 == n_points) setupForDisplay();
+
+		if (0 == n_points) return null;
 
 		// local pointers, since they may be transformed
 		final int n_points;
@@ -1098,6 +1114,11 @@ public class Polyline extends ZDisplayable implements Line3D {
 			list.add(new Point3f((float) (p[0][i] * KW),
 					     (float) (p[1][i] * KH),
 					     (float) (layer_set.getLayer(p_layer[i]).getZ() * KW)));
+		}
+
+		if (n_points < 2) {
+			// Duplicate first point
+			list.add(list.get(0));
 		}
 
 		return list;

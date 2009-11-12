@@ -3,14 +3,15 @@
      (lineage LineageClassifier)
      (java.io InputStreamReader FileInputStream PushbackReader)
      (javax.vecmath Point3d)
-     (javax.swing JTable JFrame JScrollPane JPanel JLabel BoxLayout)
-     (javax.swing.table AbstractTableModel)
-     (java.awt.event MouseAdapter)
+     (javax.swing JTable JFrame JScrollPane JPanel JLabel BoxLayout JPopupMenu JMenuItem)
+     (javax.swing.table AbstractTableModel DefaultTableCellRenderer)
+     (java.awt.event MouseAdapter ActionListener)
      (java.awt Color Dimension Component)
      (mpicbg.models AffineModel3D)
+     (ij.measure Calibration)
      (ini.trakem2.utils Utils)
      (ini.trakem2.display Display Display3D LayerSet)
-     (ini.trakem2.vector Compare VectorString3D)))
+     (ini.trakem2.vector Compare VectorString3D Editions)))
 
 ;(import
 ;     '(lineage LineageClassifier)
@@ -44,7 +45,7 @@
     (read
       (PushbackReader.
       ; (InputStreamReader. (LineageClassifier/getResourceAsStream "/lineages/SAT-lib.clj"))  ; TESTING
-        (InputStreamReader. (FileInputStream. "/home/albert/lab/confocal/L3_lineages/SAT-lib.clj"))
+        (InputStreamReader. (FileInputStream. "/home/albert/lab/confocal/L3_lineages/SAT-lib-with-mb.clj"))
         4096))))
 
 (defn fids-as-Point3d
@@ -72,7 +73,7 @@
                                           (vals (into (sorted-map) (select-keys target-fids common-fid-keys)))
                                           AffineModel3D)]
     (zipmap
-      (map #(str % "---" brain-label) (keys SATs))
+      (map #(str (.replaceAll % "\\[.*\\] " " [") \space brain-label \]) (keys SATs))
       vs)))
 
 (defn prepare-SAT-lib
@@ -90,6 +91,20 @@
       SATs-lib)))
 
 (def SAT-lib (prepare-SAT-lib))
+
+(def
+  #^{:doc "The mushroom body lobes for FRT42 brain."}
+  mb-FRT42
+  (let [r #"peduncle . (dorsal|medial) lobe.*FRT42 new.*"]
+    (loop [sl SAT-lib
+           mb {}]
+      (if (= 2 (count mb))
+        mb
+        (if-let [[k v] (first sl)]
+          (recur (next sl)
+                 (if (re-matches r k)
+                   (into mb {k v})
+                   mb)))))))
 
 (defn register-vs
   "Register a singe VectorString3D from source-fids to target-fids."
@@ -114,8 +129,8 @@
   of the query-vs against all SAT vs in the library sorted by mean euclidean distance,
   and labeled as correct of incorrect matches according to the Random Forest classifier.
   The second element is a list of corresponding SAT names for each match."
-  [query-vs fids delta direct substring]
-  (let [vs1 (resample (register-vs query-vs fids FRT42-fids) delta)
+  [query-vs delta direct substring]
+  (let [vs1 (resample query-vs delta)   ; query-vs is already registered into FRT42-fids
         matches (sort
                   (proxy [java.util.Comparator] []
                     (equals [o]
@@ -161,10 +176,11 @@
   "Takes a calibrated VectorString3D and a list of fiducial points, and checks against the library for identity.
   For consistency in the usage of the Random Forest classifier, the registration is done into the FRT42D-BP106 brain."
   [query-vs fids delta direct substring]
-  (let [[matches names] (match-all query-vs fids delta direct substring)
+  (let [vs1 (register-vs query-vs fids FRT42-fids)
+        [matches names] (match-all vs1 delta direct substring)
         SAT-names (vec names)
         indexed (vec matches)
-        column-names ["SAT" "Match" "Seq sim" "Lev Dist" "Med Dist" "Avg Dist" "Cum Dist" "Std Dev" "Prop Mut" "Prop Lengths" "Proximity" "Prox Mut" "Tortuosity"]
+        column-names ["SAT" "Match" "Seq sim %" "Lev Dist" "Med Dist" "Avg Dist" "Cum Dist" "Std Dev" "Prop Mut" "Prop Lengths" "Proximity" "Prox Mut" "Tortuosity"]
         table (JTable. (proxy [AbstractTableModel] []
                 (getColumnName [col]
                   (get column-names col))
@@ -180,7 +196,7 @@
                       (= col 1) (str (match :correct))    ; Whether the classifier considered it correct or not
                       true (Utils/cutNumber
                             (cond
-                              (= col 2) (get stats 6)       ; Similarity
+                              (= col 2) (* 100 (get stats 6))       ; Similarity
                               (= col 3) (get stats 5)       ; Levenshtein
                               (= col 4) (get stats 3)       ; Median Physical Distance
                               (= col 5) (get stats 0)       ; Average Physical Distance
@@ -196,7 +212,19 @@
                   false)
                 (setValueAt [ob row col] nil)))
         frame (JFrame. "Matches")
-        dummy_ls (LayerSet. (.. Display getFront getProject) (long -1) "Dummy" (double 0) (double 0) (double 0) (double 0) (double 0) (double 512) (double 512) false (int 0) (java.awt.geom.AffineTransform.))]
+        dummy-ls (LayerSet. (.. Display getFront getProject) (long -1) "Dummy" (double 0) (double 0) (double 0) (double 0) (double 0) (double 512) (double 512) false (int 0) (java.awt.geom.AffineTransform.))]
+    (.setCellRenderer (.getColumn table "Match")
+                      (proxy [DefaultTableCellRenderer] []
+                        (getTableCellRendererComponent [t v sel foc row col]
+                          (proxy-super setText (str v))
+                          (proxy-super setBackground
+                                          (if (Boolean/parseBoolean v)
+                                            (Color. 166 255 166)
+                                            (if sel
+                                              (Color. 184 207 229)
+                                              Color/white)))
+                                              
+                          this)))
     (.add frame (JScrollPane. table))
     (.setSize frame (int 950) (int 550))
     (.addMouseListener table
@@ -204,34 +232,163 @@
                          (mousePressed [ev]
                            (send-off worker
                              (fn [_]
-                               (if (= 2 (.getClickCount ev))
-                                 (let [match (indexed (.rowAtPoint table (.getPoint ev)))]
-                                   (println "two clicks")
-                                   (Display3D/addMesh dummy_ls
-                                                      (resample query-vs delta)
-                                                      "Query"
-                                                      Color/yellow)
-                                   (Display3D/addMesh dummy_ls
-                                                      (resample (SAT-lib (match :SAT-name)) delta)
-                                                      (match :SAT-name)
-                                                      (if (match :correct)
-                                                        Color/red
-                                                        Color/blue)))))))))
+                               (let [match (indexed (.rowAtPoint table (.getPoint ev)))
+                                     show-match (fn []
+                                                  (Display3D/addMesh dummy-ls
+                                                                     (resample (.clone vs1) delta)
+                                                                     "Query"
+                                                                     Color/yellow)
+                                                  (Display3D/addMesh dummy-ls
+                                                                     (resample (SAT-lib (match :SAT-name)) delta)
+                                                                     (match :SAT-name)
+                                                                     (if (match :correct)
+                                                                       Color/red
+                                                                       Color/blue)))]
+                                 (cond
+                                   ; On double-click, show 3D view of the match:
+                                   (= 2 (.getClickCount ev))
+                                     (show-match)
+                                   ; On right-click, show menu
+                                   (Utils/isPopupTrigger ev)
+                                     (let [popup (JPopupMenu.)
+                                           new-command (fn [title action]
+                                                         (let [item (JMenuItem. title)]
+                                                           (.addActionListener item (proxy [ActionListener] []
+                                                                                      (actionPerformed [evt]
+                                                                                        (send-off worker (fn [_] (action))))))
+                                                           item))]
+                                       (doto popup
+                                         (.add (new-command "Show match in 3D"
+                                                            show-match))
+                                         (.add (new-command "Show Mushroom body"
+                                                            #(doseq [[k v] mb-FRT42]
+                                                              (Display3D/addMesh dummy-ls v k Color/gray))))
+                                         (.add (new-command "Show interpolated"
+                                                            #(Display3D/addMesh dummy-ls
+                                                                                (VectorString3D/createInterpolatedPoints
+                                                                                  (Editions. (SAT-lib (match :SAT-name)) (.clone vs1) delta false (double 1.1) (double 1.1) (double 1)) (float 0.5))
+                                                                                (str "Interpolated with " (match :SAT-name)) Color/magenta)))
+                                         (.add (new-command "Show stdDev plot"
+                                                            #(let [cp (ini.trakem2.vector.Compare$CATAParameters.)]
+                                                              (if (.setup cp false nil true true)
+                                                                (.show
+                                                                  (Compare/makePlot cp
+                                                                                    (str "Query versus " (match :SAT-name))
+                                                                                    (let [cal (Calibration.) ; Dummy calibration with microns as units. VectorString3D instances are already calibrated.
+                                                                                          condensed (VectorString3D/createInterpolatedPoints
+                                                                                              (let [v1 (.clone vs1)
+                                                                                                    v2 (SAT-lib (match :SAT-name))]
+                                                                                                    (.resample v1 delta true)
+                                                                                                    (.resample v2 delta true)
+                                                                                                    (Editions. v1 v2 delta false (double 1.1) (double 1.1) (double 1)))
+                                                                                              (float 0.5))]
+                                                                                      (.setUnit cal "micron")
+                                                                                      (.calibrate condensed cal)
+                                                                                      condensed)))))))
+                                         (.show table (.getX ev) (.getY ev)))))))))))
+
     ; Enlarge the cell width of the first column
     (.setMinWidth (.. table getColumnModel (getColumn 0)) (int 250))
     (doto frame
       ;(.pack)
       (.setVisible true))))
 
-
 (defn identify
   "Identify a Pipe or Polyline (which implement Line3D) that represent a SAT."
-  [p]
-  (identify-SAT
-    (let [vs (.asVectorString3D p)]
-          (.calibrate vs (.. p getLayerSet getCalibrationCopy))
-          vs)
-    (Compare/extractPoints (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
-    1.0
-    true
-    false))
+  ([p]
+    (identify 1.0 true false))
+  ([p delta direct substring]
+    (identify-SAT
+      (let [vs (.asVectorString3D p)]
+            (.calibrate vs (.. p getLayerSet getCalibrationCopy))
+            vs)
+      (Compare/extractPoints (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
+      delta
+      direct
+      substring)))
+
+(defn ready-vs
+  "Return a calibrate and registered VectorString3D from a chain."
+  [chain source-fids target-fids]
+  (let [vs (.clone (.vs chain))]
+    (.calibrate vs (.. chain getRoot getLayerSet getCalibrationCopy))
+    (register-vs vs source-fids target-fids)))
+
+(defn quantify-all
+  "Take all pipes in project and score/classify them.
+  Returns a sorted map of name vs. a vector with:
+  - if the top 1,2,3,4,5 have a homonymous
+  - the number of positives: 'true' and homonymous
+  - the number of false positives: 'true' and not homonymous
+  - the number of false negatives: 'false' and homonymous
+  - the number of true negatives: 'false' and not homonymous
+  - the FPR: false positive rate: false positives / ( false positives + true negatives )
+  - the FNR: false negative rate: false negatives / ( false negatives + true positives )
+  - the TPR: true positive rate: 1 - FNR
+  - the length of the sequence queried"
+  [project regex-exclude delta direct substring]
+  (let [fids (Compare/extractPoints (first (.. project getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
+        tops (int 5)]
+    (reduce
+      (fn [m chain]
+        (let [vs (resample (ready-vs chain fids FRT42-fids) delta)
+              [matches names] (match-all vs delta direct substring)
+              names (vec (take tops names))
+              #^String SAT-name (let [t (.getCellTitle chain)]
+                                  (.substring t (int 0) (.indexOf t (int \space))))
+              ;has-top-match (fn [n] (some #(.startsWith % SAT-name) (take names n)))
+              dummy (println "###\nSAT-name: " SAT-name   "\ntop 5 names: " names "\ntop 5 meds: " (map #(% :med) (take 5 matches)))
+              top-matches (loop [i (int 0)
+                                 r []]
+                            (if (>= i tops)
+                              r
+                              (if (.startsWith (names i) SAT-name)
+                                (into r (repeat (- tops i) true))  ; the rest are all true
+                                (recur (inc i) (into [false] r)))))
+              true-positives (filter #(and
+                                        (% :correct)
+                                        (.startsWith (% :SAT-name) SAT-name))
+                                     matches)
+              true-negatives (filter #(and
+                                        (not (% :correct))
+                                        (not (.startsWith (% :SAT-name) SAT-name)))
+                                     matches)
+              false-positives (filter #(and
+                                         (% :correct)
+                                         (not (.startsWith (% :SAT-name) SAT-name)))
+                                      matches)
+              false-negatives (filter #(and
+                                         (not (% :correct))
+                                         (.startsWith (% :SAT-name) SAT-name))
+                                      matches)]
+          (println "top matches for " SAT-name " : " (count top-matches) top-matches)
+          (assoc m
+            SAT-name
+            [(top-matches 0)
+             (top-matches 1)
+             (top-matches 2)
+             (top-matches 3)
+             (top-matches 4)
+             (count true-positives)
+             (count false-positives)
+             (count true-negatives)
+             (count false-negatives)
+             (/ (count false-positives) (+ (count false-positives) (count true-negatives))) ; False positive rate
+             (let [divisor (+ (count false-negatives) (count true-positives))]
+               (if (= 0 divisor)
+                 Double/MAX_VALUE
+                 (/ (count false-negatives) divisor))) ; False negative rate
+             (let [divisor (+ (count false-negatives) (count true-positives))]
+               (if (= 0 divisor)
+                 Double/MAX_VALUE
+                 (- 1 (/ (count false-negatives) divisor)))) ; True positive rate
+             (.length vs)])))
+      (sorted-map)
+      (Compare/createPipeChains (.getRootProjectThing project) (.getRootLayerSet project) regex-exclude))))
+
+(defn print-quantify-all [t]
+  (doseq [[k v] t]
+     (print k \tab)
+     (doseq [x (take 5 v)] (print x \tab))
+     (doseq [x (nthnext v 5)] (print (float x) \tab))
+     (print \newline)))

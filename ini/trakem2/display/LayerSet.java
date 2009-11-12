@@ -110,9 +110,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
 
-	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
-	private Align align = null;
-
 	/** The scaling applied to the Layers when painting them for presentation as a LayerStack. If -1, automatic mode (default) */
 	private double virtual_scale = -1;
 	/** The maximum size of either width or height when virtuzaling pixel access to the layers.*/
@@ -1144,37 +1141,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
-		if (null != align) {
-			align.destroy();
-			align = null;
-		}
-	}
-
-	public boolean isAligning() {
-		return null != align;
-	}
-
-	public void cancelAlign() {
-		if (null != align) {
-			align.cancel(); // will repaint
-			align = null;
-		}
-	}
-
-	public void applyAlign(final boolean post_register) {
-		if (null != align) align.apply(post_register);
-	}
-
-	public void applyAlign(final Layer la_start, final Layer la_end, final Selection selection) {
-		if (null != align) align.apply(la_start, la_end, selection);
-	}
-
-	public void startAlign(Display display) {
-		align = new Align(display);
-	}
-
-	public Align getAlign() {
-		return align;
 	}
 
 	/** Used by the Layer.setZ method. */

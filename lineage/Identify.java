@@ -22,13 +22,18 @@ public class Identify {
 		}
 	}
 
-	static public void identify(Line3D p) {
+	/**
+	 * Takes 1 arg (the Pipe or Polyline) or 4 args: Line3D pipe, double delta, boolean direct and boolean substring
+	 */
+	static public void identify(Object... args) {
 		try {
 			Class RT = Class.forName("clojure.lang.RT");
 			Method var = RT.getDeclaredMethod("var", new Class[]{String.class, String.class});
 			Object fn = var.invoke(null, new Object[]{"lineage.identify", "identify"});
-			Method invoke = Class.forName("clojure.lang.Var").getDeclaredMethod("invoke", new Class[]{Object.class});
-			invoke.invoke(fn, new Object[]{p});
+			Class[] cc = new Class[args.length];
+			for (int i=0; i<cc.length; i++) cc[i] = Object.class;
+			Method invoke = Class.forName("clojure.lang.Var").getDeclaredMethod("invoke", cc);
+			invoke.invoke(fn, args);
 		} catch (Throwable e) {
 			IJError.print(e);
 		}

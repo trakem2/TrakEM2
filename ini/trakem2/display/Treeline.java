@@ -57,6 +57,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Arrays;
+import java.util.TreeMap;
 
 import javax.vecmath.Point3f;
 
@@ -409,6 +410,27 @@ public class Treeline extends ZDisplayable {
 				}
 			}
 		}
+		final List findNearestPoint(final int x_pl, final int y_pl, final long layer_id) {
+			final TreeMap<Double,List> m = new TreeMap<Double,List>();
+			findNearestPoint(x_pl, y_pl, layer_id, m);
+			return m.get(m.firstKey());
+		}
+		final private void findNearestPoint(final int x_pl, final int y_pl, final long layer_id, final TreeMap<Double,List> m) {
+			final int i = Displayable.findNearestPoint(pline.p, pline.n_points, x_pl, y_pl);
+			if (-1 != i) {
+				ArrayList pi = new ArrayList();
+				pi.add(this);
+				pi.add(i);
+				m.put(Math.pow(x_pl - pline.p[0][i], 2) + Math.pow(y_pl - pline.p[1][i], 2), pi);
+			}
+			if (null == branches) return;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				for (final Branch b : e.getValue()) {
+					b.findNearestPoint(x_pl, y_pl, layer_id, m);
+				}
+			}
+		}
+		/** Finds the closest segment to x_l,y_l that has a point in layer_id. */
 		final List findClosestSegment(final double x_l, final double y_l, final long layer_id, final double mag) {
 			final ArrayList pi = new ArrayList();
 			findClosestSegment(x_l, y_l, layer_id, mag, pi);
@@ -416,7 +438,8 @@ public class Treeline extends ZDisplayable {
 		}
 		final void findClosestSegment(final double x_l, final double y_l, final long layer_id, final double mag, final List pi) {
 			final int i = pline.findClosestSegment((int)x_l, (int)y_l, layer_id, mag);
-			if (-1 !=  i) {
+			if (-1 !=  i && (layer_id == pline.p_layer[i] || (i != (pline.n_points -1) && layer_id == pline.p_layer[i+1]))) {
+				// The 'if' above doesn't comply with the docs for this fn but almost.
 				pi.add(this);
 				pi.add(i);
 				return;
@@ -616,26 +639,32 @@ public class Treeline extends ZDisplayable {
 		if (null != root) {
 			Branch branch = null;
 			int i = -1;
-			final List pi = root.findPoint(x_pl, y_pl, layer_id, mag);
+			List pi = root.findPoint(x_pl, y_pl, layer_id, mag);
 			if (2 == pi.size()) {
 				branch = (Branch)pi.get(0);
 				i = ((Integer)pi.get(1)).intValue();
 			}
+			if (me.isShiftDown() && Utils.isControlDown(me)) {
+				if (-1 == i) {
+					pi = root.findNearestPoint(x_pl, y_pl, layer_id);
+					branch = (Branch)pi.get(0);
+					i = ((Integer)pi.get(1)).intValue();
+				}
+				// Remove point, and associated branches
+				if (-1 != i && layer_id == branch.pline.p_layer[i]) {
+					if (null != branch.branches) {
+						branch.branches.remove(i);
+					}
+					branch.removePoint(i);
+					repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
+					active = null;
+					index = -1;
+				}
+				// In any case, terminate
+				return;
+			}
 			if (-1 != i) {
 				if (me.isShiftDown()) {
-					if (Utils.isControlDown(me)) {
-						// Remove point, and associated branches
-						if (layer_id == branch.pline.p_layer[i]) {
-							if (null != branch.branches) {
-								branch.branches.remove(i);
-							}
-							branch.removePoint(i);
-							repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
-							active = null;
-							index = -1;
-							return;
-						}
-					}
 					// Create new branch at point, with local coordinates
 					active = branch.fork(i, x_pl, y_pl, layer_id);
 					index = 0;
@@ -752,13 +781,13 @@ public class Treeline extends ZDisplayable {
 		final Branch root;
 		DPTreeline(final Treeline tline) {
 			super(tline);
-			this.root = tline.root.clone(tline.project, null);
+			this.root = null == tline.root ? null : tline.root.clone(tline.project, null);
 		}
 		@Override
 		final boolean to2(final Displayable d) {
 			super.to1(d);
 			final Treeline tline = (Treeline)d;
-			tline.root = this.root.clone(tline.project, null);
+			tline.root = null == this.root ? null : this.root.clone(tline.project, null);
 			return true;
 		}
 	}

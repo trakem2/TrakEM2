@@ -72,7 +72,7 @@ public final class Blending {
 								if ( p.getLayer().indexOf( op ) < pLayerIndex )
 									overlapping.add( op );
 							if (setBlendingMask(p, overlapping, meshes, respect_current_mask)) {
-								p.updateMipmaps();
+								p.updateMipMaps();
 							}
 						}}, null);
 						futures.add(future);
